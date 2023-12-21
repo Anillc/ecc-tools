@@ -47,6 +47,12 @@ void register_idb_op(pybind11::module& m)
   m.def("create_inst", idbCreateInstance, py::arg("inst_name"), py::arg("cell_master"), py::arg("coord_x") = 0, py::arg("coord_y") = 0,
         py::arg("orient") = "", py::arg("type") = "", py::arg("status") = "");
   m.def("create_net", idbCreateNet, py::arg("net_name"), py::arg("conn_type") = "");
+  
+  pybind11::class_<idm::DataManager>(m, "DataManager")
+        .def(pybind11::init<>()); 
+  
+  m.def("get_dmInst", &getDMInst, "A function which returns a DataManager instance");
+
 }
 
 }  // namespace python_interface

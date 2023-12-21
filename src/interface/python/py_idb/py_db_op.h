@@ -82,5 +82,8 @@ bool idbCreateNet(const std::string& net_name, const std::string& conn_type)
   IdbNet* net = dmInst->createNet(net_name, type);
   return net;
 }
-
+idm::DataManager* getDMInst()
+{
+  return dmInst;
+}
 }  // namespace python_interface
