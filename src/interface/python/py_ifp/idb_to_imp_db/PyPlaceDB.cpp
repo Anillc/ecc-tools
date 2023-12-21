@@ -66,8 +66,24 @@ void PyPlaceDB::set(idm::DataManager* db)
   std::vector<gtl::rectangle_data<coordinate_type>> fixed_boxes;
   // record original node to new node mapping
   int inst_num = db_deisgn->get_instance_list()->get_num();
-  std::vector<std::vector<index_type>> mNode2NewNodes(inst_num);
-
+  std::map<std::string, std::vector<index_type>> mNode2NewNodes;
+  std::map<std::string, index_type> mNodeName2ID;
+  int node_id = 0;
+  for (IdbInstance* node : db_deisgn->get_instance_list()->get_instance_list()) {
+    mNodeName2ID[node->get_name()] = node_id++;
+  }
+  std::map<std::string, int> mNet2ID;
+  int net_id = 0;
+  for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
+    mNet2ID[net->get_net_name()] = net_id++;
+  }
+  std::map<std::string, int> mPin2ID;
+  int pin_id = 0;
+  for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
+    for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
+      mPin2ID[pin->get_pin_name()] = pin_id++;
+    }
+  }
   // add a node to a bin
   auto addNode2Bin = [&](Box const& box) { fixed_boxes.emplace_back(box.xl, box.yl, box.xh, box.yh); };
   // general add a node
@@ -83,9 +99,13 @@ void PyPlaceDB::set(idm::DataManager* db)
     node_size_x.append(box.width());
     node_size_y.append(box.height());
     // map new node to original index
-    node2orig_node_map.append(node->get_id());
+    node2orig_node_map.append(mNodeName2ID[node->get_name()]);
     // record original node to new node mapping
-    mNode2NewNodes.at(node->get_id()).push_back(id);
+    if (mNode2NewNodes.count(node->get_name()) == 0) {
+      mNode2NewNodes[node->get_name()] = std::vector<index_type>();
+    }
+
+    mNode2NewNodes[node->get_name()].push_back(id);
     if (dist2map) {
       // dreamplacePrint(kDEBUG, "node %s\n", db.nodeName(node).c_str());
       addNode2Bin(box);
@@ -210,14 +230,15 @@ void PyPlaceDB::set(idm::DataManager* db)
   // TODO:
   // construct node2pin_map and flat_node2pin_map
   int count = 0;
-  for (unsigned int i = 0; i < mNode2NewNodes.size(); ++i) {
-    IdbInstance* node = db_deisgn->get_instance_list()->get_instance_list().at(i);
-    for (unsigned int j = 0; j < mNode2NewNodes.at(i).size(); ++j) {
+  for (auto& [node_name, new_id_list] : mNode2NewNodes) {
+    IdbInstance* node = db_deisgn->get_instance_list()->find_instance(node_name);
+    for (unsigned int j = 0; j < new_id_list.size(); ++j) {
       pybind11::list pins;
       if (j == 0)  // for fixed macros with multiple boxes, put all pins to the first one
       {
+        // int pin_id_idx = 0;
         for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
-          int pin_id = pin->get_id();
+          int pin_id = mPin2ID[pin->get_pin_name()];
           pins.append(pin_id);
           flat_node2pin_map.append(pin_id);
         }
@@ -242,13 +263,13 @@ void PyPlaceDB::set(idm::DataManager* db)
       IdbInstance* node = pin->get_instance();
       pin_direct.append(pybind11::str(IdbOrientToString(node->get_orient())));
       // for fixed macros with multiple boxes, put all pins to the first one
-      index_type new_node_id = mNode2NewNodes.at(node->get_id()).at(0);
+      index_type new_node_id = mNode2NewNodes[node->get_name()].at(0);
       IdbCoordinate<int>* offset = pin->get_location();
       // Pin::point_type pin_pos(node.pinPos(pin));
       pin_offset_x.append(offset->get_x());
       pin_offset_y.append(offset->get_y());
       pin2node_map.append(new_node_id);
-      pin2net_map.append(pin->get_net()->get_id());
+      pin2net_map.append(mNet2ID[pin->get_net()->get_net_name()]);
 
       if (node->get_status() != IdbPlacementStatus::kFixed /*&& node.status() != PlaceStatusEnum::DUMMY_FIXED*/) {
         num_movable_pins += 1;
@@ -264,16 +285,16 @@ void PyPlaceDB::set(idm::DataManager* db)
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     // Net const& net = db.net(i);
     net_weights.append(net->get_weight());
-    net_name2id_map[pybind11::str(net->get_net_name())] = net->get_id();
+    net_name2id_map[pybind11::str(net->get_net_name())] = mNet2ID[net->get_net_name()];
     net_names.append(pybind11::str(net->get_net_name()));
     pybind11::list pins;
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
-      pins.append(pin->get_id());
+      pins.append(mPin2ID[pin->get_pin_name()]);
     }
     net2pin_map.append(pins);
 
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
-      flat_net2pin_map.append(pin->get_id());
+      flat_net2pin_map.append(mPin2ID[pin->get_pin_name()]);
     }
     flat_net2pin_start_map.append(count);
     count += net->get_instance_pin_list()->get_pin_num();
@@ -312,7 +333,8 @@ void PyPlaceDB::set(idm::DataManager* db)
     // Group const& group = *it;
     if (region->get_type() == IdbRegionType::kFence) {
       for (IdbInstance* inst : region->get_instance_list()) {
-        index_type node_id = inst->get_id();
+        //FIXME:
+        index_type node_id = mNode2NewNodes[inst->get_name()].at(0);
         if (inst->get_status() != IdbPlacementStatus::kFixed)  // ignore fixed cells
         {
           vNode2FenceRegion.at(node_id) = region_id;
