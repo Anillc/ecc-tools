@@ -1,13 +1,5 @@
-aux_source_directory(./idb_to_imp_db/ PY_IFP_SRC)
+add_library(py_ifp py_ifp.cpp)
 
-include_directories(./idb_to_imp_db/)
-include_directories(./)
-
-add_library(py_ifp ${PY_IFP_SRC}
-                    py_ifp.cpp
-                    )
-
-# add_subdirectory(idb_to_imp_db)
 target_link_libraries(py_ifp
     PUBLIC
         tool_manager
