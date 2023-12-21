@@ -67,6 +67,11 @@ void PyPlaceDB::set(idm::DataManager* db)
   // record original node to new node mapping
   int inst_num = db_deisgn->get_instance_list()->get_num();
   std::map<std::string, std::vector<index_type>> mNode2NewNodes;
+  std::map<std::string, index_type> mNodeName2ID;
+  int node_id = 0;
+  for (IdbInstance* node : db_deisgn->get_instance_list()->get_instance_list()) {
+    mNodeName2ID[node->get_name()] = node_id++;
+  }
   std::map<std::string, int> mNet2ID;
   int net_id = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
@@ -94,7 +99,7 @@ void PyPlaceDB::set(idm::DataManager* db)
     node_size_x.append(box.width());
     node_size_y.append(box.height());
     // map new node to original index
-    node2orig_node_map.append(pybind11::str(name));
+    node2orig_node_map.append(mNodeName2ID[node->get_name()]);
     // record original node to new node mapping
     if (mNode2NewNodes.count(node->get_name()) == 0) {
       mNode2NewNodes[node->get_name()] = std::vector<index_type>();
