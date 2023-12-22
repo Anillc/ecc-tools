@@ -13,9 +13,9 @@
 
 #include <vector>
 
+#include "../Evaluator.hh"
 #include "SAEvaluate.hh"
 #include "SAPlacement.hh"
-#include "../Evaluator.hh"
 namespace imp {
 
 template <typename CoordType, typename RepresentType>
@@ -108,7 +108,7 @@ struct SAEvaluateWl : public SAEvaluate<CoordType, RepresentType>
 
   double Area(SAPlacement<CoordType, RepresentType>& placement)
   {
-    return _bound.first / placement.get_region_dx() * _bound.second / placement.get_region_dy();
+    return double(_bound.first) / placement.get_region_dx() * _bound.second / placement.get_region_dy();
   }
   double WireLength(SAPlacement<CoordType, RepresentType>& placement)
   {

@@ -62,6 +62,14 @@ struct SAEvaluate
       _cost_delta_dict[cost_name] = (normed_value[1]);
       _cost_std_variance_dict[cost_name] = (normed_value[2]);
     }
+    // std::cout << "avg: ";
+    // for (auto& [k, v] : _cost_avg_dict) {
+    //   std::cout << k << ": " << v << std::endl;
+    // }
+    // std::cout << "stdv: ";
+    // for (auto& [k, v] : _cost_std_variance_dict) {
+    //   std::cout << k << ": " << v << std::endl;
+    // }
     _is_normed = true;
   }
 
@@ -73,7 +81,7 @@ struct SAEvaluate
     }
     std::map<std::string, double> normed_cost_dict;
     for (const auto& [cost_name, cost_value] : cost_dict) {
-      normed_cost_dict[cost_name] = cost_value - _cost_avg_dict[cost_name] / _cost_std_variance_dict[cost_name];
+      normed_cost_dict[cost_name] = (cost_value - _cost_avg_dict[cost_name]) / _cost_std_variance_dict[cost_name];
     }
     return normed_cost_dict;
   }
