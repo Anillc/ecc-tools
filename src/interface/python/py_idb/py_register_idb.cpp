@@ -17,6 +17,8 @@
 #include "py_register_idb.h"
 
 #include <pybind11/cast.h>
+#include <pybind11/numpy.h>
+#include <pybind11/stl_bind.h>
 
 #include "py_db.h"
 #include "py_db_op.h"
@@ -52,6 +54,15 @@ void register_idb_op(pybind11::module& m)
         .def(pybind11::init<>()); 
   
   m.def("get_dmInst", &getDMInst, "A function which returns a DataManager instance");
+  m.def(
+      "write_placement_back",
+      [](
+         pybind11::array_t<float, pybind11::array::c_style | pybind11::array::forcecast> const& x,
+         pybind11::array_t<float, pybind11::array::c_style | pybind11::array::forcecast> const& y) 
+         { return write_placement_back(x, y); },
+      "Write Placement Solution (float)");
+
+  // m.def("write_placement_back", &write_placement_back, "A function which returns a DataManager instance");
 
 }
 

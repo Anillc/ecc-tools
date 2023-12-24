@@ -86,4 +86,44 @@ idm::DataManager* getDMInst()
 {
   return dmInst;
 }
+
+template <typename T>
+bool write_placement_back( // PlaceDB&                                                                           db,
+                                 pybind11::array_t<T, pybind11::array::c_style | pybind11::array::forcecast> const& x,
+                                 pybind11::array_t<T, pybind11::array::c_style | pybind11::array::forcecast> const& y)
+{
+  using coordinate_type = float;
+  coordinate_type* vx = NULL;
+  coordinate_type* vy = NULL;
+
+  // assume all the movable nodes are in front of fixed nodes
+  // this is ensured by sortNodeByPlaceStatus()
+  int lenx = x.size();
+  if (lenx >= 0) {
+    vx = new coordinate_type[lenx];
+    for (int i = 0; i < lenx; ++i) {
+      vx[i] = std::round(x.at(i));
+    }
+  }
+  int leny = y.size();
+  if (leny >= 0) {
+    vy = new coordinate_type[leny];
+    for (int i = 0; i < leny; ++i) {
+      vy[i] = std::round(y.at(i));
+    }
+  }
+
+  dmInst->write_placement_back(vx, vy);
+
+  if (vx) {
+    delete[] vx;
+  }
+  if (vy) {
+    delete[] vy;
+  }
+
+  return true;
+}
+
+
 }  // namespace python_interface

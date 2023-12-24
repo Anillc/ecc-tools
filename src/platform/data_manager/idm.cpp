@@ -94,6 +94,27 @@ bool DataManager::readLef(vector<string> lef_paths, bool b_techlef)
   return true;
 }
 
+void DataManager::write_placement_back(float* x, float* y){
+  bool flag = false;
+  // std::vector<ContestParser::Instance*> inst_list;
+  int i = 0;
+  for (auto name : this->get_idb_design()->m_instID2Name) {
+    // std::string name;
+    auto inst = this->get_idb_design()->get_instance_list()->find_instance(name);
+    // int node_id = m_mNodeName2Index.find(name)->second;
+    float xx = x[i];
+    float yy = y[i];
+    inst->set_coodinate(xx, yy);
+    i++;
+    // flag = true;
+  }
+  // output hpwl
+  std::cout << "WriteBack double finished!!" << std::endl;
+  // std::cout << "WriteBack double finished, Current Contest DB Total HPWL : " << contest_db->obtainTotalHPWL() <<
+  // std::endl;
+
+  return ;
+}
 bool DataManager::readDef(string path)
 {
   if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {
