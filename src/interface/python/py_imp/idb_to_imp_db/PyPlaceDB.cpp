@@ -92,6 +92,7 @@ void PyPlaceDB::set(idm::DataManager* db)
     int id = node_names.size();
     node_name2id_map[pybind11::str(name)] = id;
     node_names.append(pybind11::str(name));
+    dmInst->get_idb_design()->m_instID2Name.push_back(name);
     node_x.append(box.xl);
     node_y.append(box.yl);
     // printf("PyPlaceDB::set start!!! Db address is %lld\n", __LINE__);
