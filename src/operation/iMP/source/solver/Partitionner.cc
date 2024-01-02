@@ -82,8 +82,9 @@ vector<size_t> Partitionner::hmetisSolve(size_t num_vertexs, size_t num_hedges, 
   }
   result_file.close();
 #ifdef NDEBUG
-  std::system(rm hgraph_file_name);
-  std::system(rm solution_file);
+  std::string rm_cmd = "rm";
+  std::system((rm_cmd + hgraph_file_name).c_str());
+  std::system((rm_cmd + solution_file).c_str());
 #endif
 
   return parts;
