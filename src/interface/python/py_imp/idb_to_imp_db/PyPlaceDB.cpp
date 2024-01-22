@@ -361,7 +361,7 @@ void PyPlaceDB::set(idm::DataManager* db)
 
   row_height = db->get_idb_layout()->get_rows()->get_row_height();
   site_width = db->get_idb_layout()->get_rows()->get_row_list().at(0)->get_site()->get_width();
-
+  printf("PyPlaceDB::set end!!!\n");
 #if 0
   // routebilty driven placement
   // routing information initialized
