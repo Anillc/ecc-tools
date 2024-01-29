@@ -54,7 +54,7 @@ struct Box
 
 void PyPlaceDB::set(idm::DataManager* db)
 {
-  printf("PyPlaceDB::set start!!! Db address is %lld\n", db);
+  printf("PyPlaceDB::set start!!! Db address is %p\n", db);
   using namespace idb;
   namespace gtl = boost::polygon;
   using namespace gtl::operators;
