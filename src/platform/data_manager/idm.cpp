@@ -98,6 +98,9 @@ void DataManager::write_placement_back(float* x, float* y){
   bool flag = false;
   // std::vector<ContestParser::Instance*> inst_list;
   int i = 0;
+  printf("write_placement_back start!!! Db address is %p\n", this);
+  printf("write_placement_back start!!! idb_design address is %p\n", this->get_idb_design());
+  
   for (auto name : this->get_idb_design()->m_instID2Name) {
     // std::string name;
     auto inst = this->get_idb_design()->get_instance_list()->find_instance(name);
