@@ -65,6 +65,14 @@ bool DataManager::saveDef(string def_path)
   return _idb_builder->saveDef(def_path);
 }
 
+bool DataManager::saveTCL(string tcl_path)
+{
+  if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {
+    return false;
+  }
+  return true;
+}
+
 void DataManager::saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names /*={}*/)
 {
   if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {

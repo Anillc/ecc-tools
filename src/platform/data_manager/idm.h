@@ -86,6 +86,7 @@ class DataManager
   /// iDB save
   bool save(string name, string def_path = "");
   bool saveDef(string def_path);
+  bool saveTCL(string tcl_path);
   void saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names = {});
   bool saveGDSII(string path);
   bool saveJSON(string path,string options);

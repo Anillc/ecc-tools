@@ -56,7 +56,7 @@ void PyPlaceDB::set(idm::DataManager* db)
 {
   printf("PyPlaceDB::set start!!! Db address is %p\n", db);
   printf("PyPlaceDB::set start!!! idb_design address is %p\n", db->get_idb_design());
-  
+
   using namespace idb;
   namespace gtl = boost::polygon;
   using namespace gtl::operators;
@@ -80,7 +80,8 @@ void PyPlaceDB::set(idm::DataManager* db)
   int net_id = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     // is special net
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
       continue;
     }
 
@@ -89,7 +90,8 @@ void PyPlaceDB::set(idm::DataManager* db)
   std::unordered_map<std::string, int> mPin2ID;
   int pin_id = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
       continue;
     }
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
@@ -265,7 +267,8 @@ void PyPlaceDB::set(idm::DataManager* db)
 
   unsigned int pin_index = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
       continue;
     }
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
@@ -294,7 +297,8 @@ void PyPlaceDB::set(idm::DataManager* db)
 
   count = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
       continue;
     }
     // Net const& net = db.net(i);
