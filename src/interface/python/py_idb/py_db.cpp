@@ -56,7 +56,7 @@ bool saveDef(const std::string& def_name)
 
 bool saveMacroTCL(const std::string& def_name)
 {
-  return dmInst->saveTCL(def_name);
+  return dmInst->saveMacroTCL(def_name);
 }
 
 bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_cell_names /* = {} */)
