@@ -27,9 +27,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "idm.h"
-#include <iostream>
 #include <fstream>
+#include <iostream>
+
+#include "idm.h"
 
 namespace idm {
 
@@ -78,10 +79,10 @@ bool DataManager::saveMacroTCL(string tcl_path)
   auto dbu = _layout->get_units()->get_micron_dbu();
   for (auto& idb_inst : _design->get_instance_list()->get_instance_list()) {
     if (idb_inst->get_cell_master()->is_block()) {
-      out << "placeInstance " << idb_inst->get_name() << " " << idb_inst->get_coordinate()->get_x() / dbu << " "
-          << idb_inst->get_coordinate()->get_y() / dbu << " " 
-          <<IdbEnum::GetInstance()->get_site_property()->get_orient_name(idb_inst->get_orient())<< std::endl;
-      out << "setInstancePlacementStatus -status" << status <<" -name "<< idb_inst->get_name()<< std::endl;
+      out << "placeInstance " << idb_inst->get_name() << " " << 1.* idb_inst->get_coordinate()->get_x() / dbu << " "
+          << 1.* idb_inst->get_coordinate()->get_y() / dbu << " " << IdbEnum::GetInstance()->get_orient_type_str(idb_inst->get_orient())
+          << std::endl;
+      out << "setInstancePlacementStatus -status " << status << " -name " << idb_inst->get_name() << std::endl;
     }
   }
   return true;
