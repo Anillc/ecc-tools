@@ -26,6 +26,9 @@
 
 #include "StaFunc.hh"
 #include "StaGraph.hh"
+#include "liberty/Liberty.hh"
+
+#include <vector>
 
 namespace ista {
 
@@ -35,7 +38,27 @@ namespace ista {
  */
 class StaCharacterTiming : public StaFunc {
  public:
+  enum CharacterState {
+    kCollectEndpoints,
+    kPropagateSlewAndDelay,
+    kPropagateATFromPort,
+    kBackPropagateRTToPort,
+    kGenTimingModel
+  };
   unsigned operator()(StaGraph* the_graph) override;
+  unsigned operator()(StaVertex* the_vertex) override;
+  unsigned operator()(StaArc* the_arc) override;
+
+ private:
+  unsigned collectInterfaceLogicEndPoint(StaGraph* the_graph);
+  unsigned propagateSlewAndDelay(StaGraph* the_graph);
+  unsigned propagateATFromPort(StaGraph* the_graph);
+  unsigned backPropagateRTToPort(StaGraph* the_graph);
+  unsigned genTimingModel(std::string model_path);
+
+  LibertyCell _design_timing_model_cell;
+  std::vector<StaVertex*> _interface_logic_endpoints;
+  CharacterState _state = kCollectEndpoints;
 };
 
 }  // namespace ista
