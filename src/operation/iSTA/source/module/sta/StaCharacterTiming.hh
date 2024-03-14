@@ -54,9 +54,9 @@ class StaCharacterTiming : public StaFunc {
   unsigned propagateSlewAndDelay(StaGraph* the_graph);
   unsigned propagateATFromPort(StaGraph* the_graph);
   unsigned backPropagateRTToPort(StaGraph* the_graph);
-  unsigned genTimingModel(std::string model_path);
+  unsigned genTimingModel(StaGraph* the_graph, const char* model_path);
 
-  LibertyCell _design_timing_model_cell;
+  std::unique_ptr<LibertyLibrary> _design_timing_model;
   std::vector<StaVertex*> _interface_logic_endpoints;
   CharacterState _state = kCollectEndpoints;
 };

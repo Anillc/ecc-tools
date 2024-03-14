@@ -178,11 +178,35 @@ unsigned StaCharacterTiming::backPropagateRTToPort(StaGraph* the_graph) {
 
 /**
  * @brief generate the timing model as lib format.
- * 
- * @param model_path 
- * @return unsigned 
+ *
+ * @param model_path
+ * @return unsigned
  */
-unsigned StaCharacterTiming::genTimingModel(const char* model_path) {
+unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
+                                            const char* model_path) {
+  _state = kGenTimingModel;
+
+  std::string lib_model_path = model_path;
+  std::string model_name = model_path;
+  size_t pos = lib_model_path.find_last_of("/");
+  if (pos != std::string::npos) {
+    model_name = lib_model_path.substr(pos + 1);
+  }
+
+  _design_timing_model = std::make_unique<LibertyLibrary>(model_name.c_str());
+  auto design_timing_cell = std::make_unique<LibertyCell>(the_graph->get_nl()->get_name(), _design_timing_model.get());
+
+  StaVertex* port_vertex;
+  FOREACH_PORT_VERTEX(the_graph, port_vertex) {
+    auto* the_port = port_vertex->get_design_obj();
+    if (the_port->isInput()) {
+      // construct the constrain arc, need know the constrained arc, and the constrain port.
+    } else if (the_port->isOutput()) {
+      // construct the delay arc.
+    }
+  }
+
+  _design_timing_model->addLibertyCell(std::move(design_timing_cell));
   return 1;
 }
 
