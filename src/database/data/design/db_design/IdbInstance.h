@@ -184,6 +184,8 @@ class IdbInstanceList
   int32_t get_num_pad() { return get_num_by_master_type_range(CellMasterType::kPad, CellMasterType::kPadAreaIO); }
   int32_t get_num_endcap() { return get_num_by_master_type_range(CellMasterType::kEndcap, CellMasterType::kEndcapBottomRight); }
   int32_t get_num_ring() { return get_num_by_master_type(CellMasterType::kRing); }
+  int32_t get_num_physics();
+  int32_t get_num_tapcell() { return get_num_by_master_type(CellMasterType::kCoreWelltap); }
 
   uint64_t get_area_by_master_type(CellMasterType type = CellMasterType::kMax);
   uint64_t get_area_by_master_type_range(CellMasterType type_begin = CellMasterType::kNone, CellMasterType type_end = CellMasterType::kMax);
@@ -193,7 +195,9 @@ class IdbInstanceList
   uint64_t get_area_core_logic();
   uint64_t get_area_pad() { return get_area_by_master_type_range(CellMasterType::kPad, CellMasterType::kPadAreaIO); }
   uint64_t get_area_endcap() { return get_area_by_master_type_range(CellMasterType::kEndcap, CellMasterType::kEndcapBottomRight); }
+  uint64_t get_area_tapcell() { return get_area_by_master_type_range(CellMasterType::kCoreWelltap, CellMasterType::kCoreWelltap); }
   uint64_t get_area_ring() { return get_area_by_master_type(CellMasterType::kRing); }
+  uint64_t get_area_physics();
 
   IdbInstance* find_instance(string name);
   IdbInstance* find_instance(size_t index);
@@ -220,7 +224,6 @@ class IdbInstanceList
   }
 
   // setter
-  void set_number(uint32_t number) { _num = number; }
   IdbInstance* add_instance(IdbInstance* instance = nullptr);
   IdbInstance* add_instance(string name);
   bool remove_instance(string name);
@@ -243,7 +246,7 @@ class IdbInstanceList
   }
 
  private:
-  uint32_t _num;
+  uint64_t _mutex_index = 0;
   std::vector<IdbInstance*> _instance_list;
   std::unordered_map<string, IdbInstance*> _instance_map;
 };

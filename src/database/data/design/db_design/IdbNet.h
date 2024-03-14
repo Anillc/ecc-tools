@@ -99,14 +99,10 @@ class IdbNet : public IdbObject
 
   IdbCoordinate<int32_t>* get_average_coordinate() { return _average_coordinate; }
 
-  IdbPin* get_io_pin() { return _io_pin; }
+  IdbPins* get_io_pins() { return _io_pin_list; }
+  bool has_io_pins() { return _io_pin_list->get_pin_num() > 0; }
   IdbPins* get_instance_pin_list() { return _instance_pin_list; }
-  int32_t get_pin_number()
-  {
-    int32_t number = _io_pin != nullptr ? 1 : 0;
-    number = _instance_pin_list != nullptr ? number + _instance_pin_list->get_pin_num() : number;
-    return number;
-  }
+  int32_t get_pin_number() { return _io_pin_list->get_pin_num() + _instance_pin_list->get_pin_num(); }
 
   int32_t get_segment_num()
   {
@@ -141,8 +137,8 @@ class IdbNet : public IdbObject
 
   void set_average_coordinate(IdbCoordinate<int32_t>* average_coordinate) { _average_coordinate = average_coordinate; }
 
-  // void add_io_pin(IdbPin* io_pin){_io_pin_list->add_pin_list(io_pin);}
-  void set_io_pin(IdbPin* io_pin) { _io_pin = io_pin; }
+  void add_io_pin(IdbPin* io_pin) { _io_pin_list->add_pin_list(io_pin); }
+  //   void set_io_pin(IdbPin* io_pin) { _io_pin = io_pin; }
   void add_instance_pin(IdbPin* inst_pin) { _instance_pin_list->add_pin_list(inst_pin); }
   bool set_bounding_box();
 
@@ -152,7 +148,7 @@ class IdbNet : public IdbObject
   // operator
   void clear_wire_list();
   bool checkConnection();
-  int32_t wireLength();
+  uint64_t wireLength();
 
  private:
   std::string _net_name;
@@ -176,8 +172,8 @@ class IdbNet : public IdbObject
 
   // PROPERTY
 
-  // IdbPins* _io_pin_list;
-  IdbPin* _io_pin;
+  IdbPins* _io_pin_list;
+  //   IdbPin* _io_pin;
   IdbPins* _instance_pin_list;
   IdbInstanceList* _instance_list;
   IdbRegularWireList* _wire_list;
@@ -191,7 +187,7 @@ class IdbNetList
 
   // getter
   std::vector<IdbNet*>& get_net_list() { return _net_list; }
-  size_t get_num() { return _num; }
+  size_t get_num() { return _net_list.size(); }
   size_t get_num_signal()
   {
     size_t number = 0;
@@ -223,12 +219,21 @@ class IdbNetList
     }
     return number;
   }
+  uint64_t get_segment_num()
+  {
+    uint64_t number = 0;
+
+    for (auto* net : _net_list) {
+      number += net->get_segment_num();
+    }
+
+    return number;
+  }
 
   IdbNet* find_net(string name);
   IdbNet* find_net(size_t index);
 
   // setter
-  void set_number(size_t number) { _num = number; }
   IdbNet* add_net(IdbNet* net = nullptr);
   IdbNet* add_net(string name, IdbConnectType type = IdbConnectType::kNone);
   bool remove_net(string name);
@@ -241,7 +246,7 @@ class IdbNetList
   uint64_t maxFanout();
 
  private:
-  size_t _num;
+  uint64_t _mutex_index = 0;
   std::vector<IdbNet*> _net_list;
   std::unordered_map<string, IdbNet*> _net_map;
 };

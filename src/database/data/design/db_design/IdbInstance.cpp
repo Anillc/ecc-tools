@@ -322,7 +322,7 @@ bool IdbInstance::is_io_instance()
     if (net == nullptr) {
       continue;
     }
-    if (net->get_io_pin() != nullptr) {
+    if (net->has_io_pins()) {
       return true;
     }
   }
@@ -363,7 +363,6 @@ void IdbInstance::set_obs_box_list()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 IdbInstanceList::IdbInstanceList()
 {
-  _num = 0;
 }
 
 IdbInstanceList::~IdbInstanceList()
@@ -397,7 +396,7 @@ IdbInstance* IdbInstanceList::find_instance(string name)
 
 IdbInstance* IdbInstanceList::find_instance(size_t index)
 {
-  if (_num > index) {
+  if (_instance_list.size() > index) {
     return _instance_list.at(index);
   }
 
@@ -410,9 +409,9 @@ IdbInstance* IdbInstanceList::add_instance(IdbInstance* instance)
   if (pInstance == nullptr) {
     pInstance = new IdbInstance();
   }
+  pInstance->set_id(_mutex_index++);
   _instance_list.emplace_back(pInstance);
   _instance_map.insert(make_pair(instance->get_name(), pInstance));
-  _num++;
 
   return pInstance;
 }
@@ -420,10 +419,10 @@ IdbInstance* IdbInstanceList::add_instance(IdbInstance* instance)
 IdbInstance* IdbInstanceList::add_instance(string name)
 {
   IdbInstance* pInstance = new IdbInstance();
+  pInstance->set_id(_mutex_index++);
   pInstance->set_name(name);
   _instance_list.emplace_back(pInstance);
   _instance_map.insert(make_pair(name, pInstance));
-  _num++;
 
   return pInstance;
 }
@@ -461,7 +460,6 @@ bool IdbInstanceList::remove_instance(string name)
   delete *it;
   *it = nullptr;
   _instance_list.erase(it);
-  _num--;
 
   return true;
 }
@@ -559,6 +557,21 @@ int32_t IdbInstanceList::get_num_core_logic()
   return num;
 }
 
+int32_t IdbInstanceList::get_num_physics()
+{
+  int32_t num = 0;
+
+  for (auto inst : _instance_list) {
+    auto cell_type = inst->get_cell_master()->get_type();
+    if (cell_type == CellMasterType::kCover || cell_type == CellMasterType::kCoverBump || cell_type == CellMasterType::kPadSpacer
+        || (cell_type >= CellMasterType::kCoreSpacer && cell_type <= CellMasterType::kEndcapBottomRight)) {
+      num++;
+    }
+  }
+
+  return num;
+}
+
 uint64_t IdbInstanceList::get_area_by_master_type(CellMasterType type)
 {
   uint64_t inst_area = 0;
@@ -590,6 +603,21 @@ uint64_t IdbInstanceList::get_area_core_logic()
   uint64_t inst_area = 0;
   for (auto inst : _instance_list) {
     if (inst->get_cell_master()->get_type() == CellMasterType::kCore && inst->get_cell_master()->is_logic()) {
+      uint64_t area = inst->get_cell_master()->get_width() * inst->get_cell_master()->get_height();
+      inst_area += area;
+    }
+  }
+
+  return inst_area;
+}
+
+uint64_t IdbInstanceList::get_area_physics()
+{
+  uint64_t inst_area = 0;
+  for (auto inst : _instance_list) {
+    auto cell_type = inst->get_cell_master()->get_type();
+    if (cell_type == CellMasterType::kCover || cell_type == CellMasterType::kCoverBump || cell_type == CellMasterType::kPadSpacer
+        || (cell_type >= CellMasterType::kCoreSpacer && cell_type <= CellMasterType::kEndcapBottomRight)) {
       uint64_t area = inst->get_cell_master()->get_width() * inst->get_cell_master()->get_height();
       inst_area += area;
     }
