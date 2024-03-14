@@ -23,6 +23,9 @@
  *
  */
 #include "StaCharacterTiming.hh"
+#include "StaDataPropagation.hh"
+#include "StaDelayPropagation.hh"
+#include "StaSlewPropagation.hh"
 
 namespace ista {
 
@@ -39,15 +42,20 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
         // collect the interface logic endpoint.
         _interface_logic_endpoints.emplace_back(the_vertex);
       } else if (_state == kBackPropagateRTToPort) {
-        // set the constrain time.
+        // set the constrain require time.
       }
-      
+
       return 1;
     }
 
     // fwd
-    FOREACH_SRC_ARC(the_vertex, src_arc) { (*this)(src_arc->get_snk()); }
-  } else if (_state == kPropagateSlewAndDelay || _state == kPropagateATFromPort) {
+    FOREACH_SRC_ARC(the_vertex, src_arc) {
+      (*this)(src_arc);
+      (*this)(src_arc->get_snk());
+    }
+
+  } else if (_state == kPropagateSlewAndDelay ||
+             _state == kPropagateATFromPort) {
     if (the_vertex->is_port()) {
       // set init slew or AT.
     }
@@ -56,7 +64,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
       // compute the slew and delay along the arc.
       (*this)(snk_arc);
-      (*this)(snk_arc->get_src()); 
+      (*this)(snk_arc->get_src());
     }
   }
 
@@ -65,11 +73,28 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
 /**
  * @brief propagate from the arc.
- * 
- * @param the_arc 
- * @return unsigned 
+ *
+ * @param the_arc
+ * @return unsigned
  */
 unsigned StaCharacterTiming::operator()(StaArc* the_arc) {
+  if (_state == kPropagateSlewAndDelay) {
+    // propagate the slew and delay along the arc.
+    StaSlewPropagation slew_propagation;
+    slew_propagation(the_arc);
+
+    StaDelayPropagation delay_propagation;
+    delay_propagation(the_arc);
+  } else if (_state == kPropagateATFromPort) {
+    // propagate the AT along the arc.
+    StaFwdPropagation fwd_propagation;
+    fwd_propagation(the_arc);
+  } else if (_state == kBackPropagateRTToPort) {
+    // propagate the RT along the arc.
+    StaBwdPropagation bwd_propagation;
+    bwd_propagation(the_arc);
+  }
+
   return 1;
 }
 
@@ -91,8 +116,8 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 }
 
 /**
- * @brief collect the interface logic endpoint, so then we can propagate slew delay
- * AT from the endpoint.
+ * @brief collect the interface logic endpoint, so then we can propagate slew
+ * delay AT from the endpoint.
  *
  * @return unsigned
  */
@@ -131,7 +156,7 @@ unsigned StaCharacterTiming::propagateSlewAndDelay(StaGraph* the_graph) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::propagateATFromPort(StaGraph* the_graph) {
-   _state = kPropagateATFromPort;
+  _state = kPropagateATFromPort;
   for (auto* the_end_point : _interface_logic_endpoints) {
     (*this)(the_end_point);
   }
@@ -140,14 +165,24 @@ unsigned StaCharacterTiming::propagateATFromPort(StaGraph* the_graph) {
 
 /**
  * @brief propagate RT from endpoint to port.
- * 
- * @param the_graph 
- * @return unsigned 
+ *
+ * @param the_graph
+ * @return unsigned
  */
 unsigned StaCharacterTiming::backPropagateRTToPort(StaGraph* the_graph) {
   _state = kBackPropagateRTToPort;
   StaVertex* port_vertex;
   FOREACH_PORT_VERTEX(the_graph, port_vertex) { (*this)(port_vertex); }
+  return 1;
+}
+
+/**
+ * @brief generate the timing model as lib format.
+ * 
+ * @param model_path 
+ * @return unsigned 
+ */
+unsigned StaCharacterTiming::genTimingModel(const char* model_path) {
   return 1;
 }
 
