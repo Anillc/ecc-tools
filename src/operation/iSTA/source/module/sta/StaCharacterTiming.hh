@@ -29,6 +29,7 @@
 #include "liberty/Liberty.hh"
 
 #include <vector>
+#include <map>
 
 namespace ista {
 
@@ -58,7 +59,10 @@ class StaCharacterTiming : public StaFunc {
 
   std::unique_ptr<LibertyLibrary> _design_timing_model;
   std::vector<StaVertex*> _interface_logic_endpoints;
+  std::map<StaVertex*, StaVertex*> _port_to_logic_endpoint;
+  std::map<StaVertex*, StaVertex*> _logic_clkpoint_to_port;
   CharacterState _state = kCollectEndpoints;
+  StaVertex* _current_port_vertex = nullptr;
 };
 
 }  // namespace ista
