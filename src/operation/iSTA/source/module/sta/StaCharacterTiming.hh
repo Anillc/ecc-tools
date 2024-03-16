@@ -27,6 +27,7 @@
 #include "StaFunc.hh"
 #include "StaGraph.hh"
 #include "liberty/Liberty.hh"
+#include "BTreeMap.hh"
 
 #include <vector>
 #include <map>
@@ -57,12 +58,16 @@ class StaCharacterTiming : public StaFunc {
   unsigned backPropagateRTToPort(StaGraph* the_graph);
   unsigned genTimingModel(StaGraph* the_graph, const char* model_path);
 
-  std::unique_ptr<LibertyLibrary> _design_timing_model;
-  std::vector<StaVertex*> _interface_logic_endpoints;
-  std::map<StaVertex*, StaVertex*> _port_to_logic_endpoint;
-  std::map<StaVertex*, StaVertex*> _logic_clkpoint_to_port;
-  CharacterState _state = kCollectEndpoints;
-  StaVertex* _current_port_vertex = nullptr;
+  std::unique_ptr<LibertyLibrary> _design_timing_model; //!< The design timing model as lib format.
+
+  std::vector<StaVertex*> _interface_logic_endpoints; //!< The collected design interface logic sequential endpoint.
+  ieda::Multimap<StaVertex*, StaVertex*> _port_to_logic_endpoint; //!< The map from port to logic endpoint.
+  ieda::Multimap<StaVertex*, StaVertex*> _output_port_to_input_port; //!< The map from input port to output port.
+  ieda::Multimap<StaVertex*, StaVertex*> _logic_clkpoint_to_port; //!< The map from logic clkpoint to port.
+  ieda::Multimap<StaVertex*, StaVertex*> _port_to_logic_clkpoint; //!< The map from port to logic clkpoint.
+
+  CharacterState _state = kCollectEndpoints; // as the timing model compose of many points, we need to track the state.
+  StaVertex* _current_port_vertex = nullptr; // track the current port vertex.
 };
 
 }  // namespace ista

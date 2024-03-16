@@ -26,6 +26,7 @@
 
 #include <functional>
 #include <list>
+#include <set>
 #include <utility>
 
 #include "absl/container/btree_map.h"
@@ -197,6 +198,19 @@ class Multimap : public absl::btree_multimap<KEY, VALUE, CMP>
     }
 
     return ret_list;
+  }
+
+  /**
+   * @brief Get all the mapped values in the map container.
+   *
+   * @return std::set<VALUE>
+   */
+  std::set<VALUE> values() {
+    std::set<VALUE> ret_set;
+    for (auto& kv : *this) {
+      ret_set.insert(kv.second);
+    }
+    return ret_set;
   }
 };
 
