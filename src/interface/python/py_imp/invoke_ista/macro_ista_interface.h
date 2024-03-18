@@ -23,6 +23,7 @@
 #include "TimingEngine.hh"
 #include "TimingIDBAdapter.hh"
 #include "idm.h"
+#include "PowerEngine.hh"
 
 //#include <boost/timer/timer.hpp>
 namespace python_interface {

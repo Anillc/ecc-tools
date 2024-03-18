@@ -8,6 +8,8 @@ set(IMP_EXTERNAL_LIBS ${HOME_IMP}/external_libs)
 set(IMP_SOURCE ${HOME_IMP}/source)
 set(IMP_TEST ${HOME_IMP}/test)
 set(IMP_OPS ${HOME_IMP}/ops)
+include_directories("/home/zhaoxueyan/code/ai-mp/third_party/iEDA/src/third_party/mt-kahypar/include")
+link_directories("/home/zhaoxueyan/code/ai-mp/third_party/iEDA/src/third_party/mt-kahypar/build/lib/")
 
 message(STATUS "MP: Python executable - " ${PYTHON_EXECUTABLE})
 add_definitions("-DPYTHON=\"${PYTHON_EXECUTABLE}\"")

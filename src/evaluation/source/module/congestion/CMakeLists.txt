@@ -1,10 +1,10 @@
-if(DEBUG_EVAL_CONGESTION)
-    message(STATUS "evaluator: DEBUG EVAL_CONGESTION")
-    set(CMAKE_BUILD_TYPE "Debug")
-else()
-    message(STATUS "evaluator: RELEASE EVAL_CONGESTION")
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_EVAL_CONGESTION)
+#     message(STATUS "evaluator: DEBUG EVAL_CONGESTION")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#     message(STATUS "evaluator: RELEASE EVAL_CONGESTION")
+#     set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 add_library(eval_congestion
     ${EVAL_CONGESTION}/CongestionEval.cpp

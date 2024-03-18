@@ -1,4 +1,4 @@
-add_library(irt_api_external_libs INTERFACE)
+add_library(irt_api_external_libs INTERFACE) # INTERFACE
 
 target_link_libraries(irt_api_external_libs
     INTERFACE

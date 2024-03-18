@@ -1,10 +1,10 @@
-if(DEBUG_EVAL_WRAPPER)
-    message(STATUS "evaluator: DEBUG EVAL_WRAPPER")
-    set(CMAKE_BUILD_TYPE "Debug")
-else()
-    message(STATUS "evaluator: RELEASE EVAL_WRAPPER")
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_EVAL_WRAPPER)
+#     message(STATUS "evaluator: DEBUG EVAL_WRAPPER")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#     message(STATUS "evaluator: RELEASE EVAL_WRAPPER")
+#     set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 add_library(eval_wrapper
     ${EVAL_WRAPPER}/DBWrapper.cpp

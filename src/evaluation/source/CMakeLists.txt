@@ -1,10 +1,10 @@
-if(DEBUG_EVAL_SOURCE)
-    message(STATUS "evaluator: DEBUG EVAL_SOURCE")
-    set(CMAKE_BUILD_TYPE "Debug")
-else()
-    message(STATUS "evaluator: RELEASE EVAL_SOURCE")
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_EVAL_SOURCE)
+#     message(STATUS "evaluator: DEBUG EVAL_SOURCE")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#     message(STATUS "evaluator: RELEASE EVAL_SOURCE")
+#     set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 ## set path
 set(EVAL_CONFIG ${EVAL_SOURCE}/config)

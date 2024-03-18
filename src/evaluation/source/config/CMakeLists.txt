@@ -1,10 +1,10 @@
-if(DEBUG_EVAL_CONFIG)
-    message(STATUS "evaluator: DEBUG EVAL_CONFIG")
-    set(CMAKE_BUILD_TYPE "Debug")
-else()
-    message(STATUS "evaluator: RELEASE EVAL_CONFIG")
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_EVAL_CONFIG)
+#     message(STATUS "evaluator: DEBUG EVAL_CONFIG")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#     message(STATUS "evaluator: RELEASE EVAL_CONFIG")
+#     set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 add_library(eval_config
     ${EVAL_CONFIG}/Config.cpp

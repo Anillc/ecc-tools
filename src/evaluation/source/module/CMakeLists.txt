@@ -1,10 +1,10 @@
-if(DEBUG_EVAL_MODULE)
-    message(STATUS "evaluator: DEBUG EVAL_MODULE")
-    set(CMAKE_BUILD_TYPE "Debug")
-else()
-    message(STATUS "evaluator: RELEASE EVAL_MODULE")
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_EVAL_MODULE)
+#     message(STATUS "evaluator: DEBUG EVAL_MODULE")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#     message(STATUS "evaluator: RELEASE EVAL_MODULE")
+#     set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 ## set path
 set(EVAL_CONGESTION ${EVAL_MODULE}/congestion)

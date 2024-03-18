@@ -1,11 +1,11 @@
 set(DEBUG_EVAL_TIMING ON)
-if(DEBUG_EVAL_TIMING)
-    message(STATUS "evaluator: DEBUG EVAL_TIMING")
-    set(CMAKE_BUILD_TYPE "Debug")
-else()
-    message(STATUS "evaluator: RELEASE EVAL_TIMING")
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_EVAL_TIMING)
+#     message(STATUS "evaluator: DEBUG EVAL_TIMING")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#     message(STATUS "evaluator: RELEASE EVAL_TIMING")
+#     set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 add_library(eval_timing
     ${EVAL_TIMING}/TimingEval.cpp

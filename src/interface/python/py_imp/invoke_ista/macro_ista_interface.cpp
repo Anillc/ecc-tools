@@ -7,7 +7,8 @@
 
 #include "macro_ista_interface.h"
 // #include "ContestDriver.h"
-#include "Power.hh"
+#include "PowerEngine.hh"
+// #include "Power.hh"
 #include <boost/polygon/polygon.hpp>
 #include <vector>
 
@@ -26,9 +27,9 @@ void MacroISTAInterface::initTimingEngine()
 
   _timing_engine->readLiberty(_lib_files);
 
-  auto* power_engine = PowerEngine::getOrCreatePowerEngine(),
+  auto* power_engine = ipower::PowerEngine::getOrCreatePowerEngine();
   
-  auto db_adapter = std::make_unique<TimingIDBAdapter>(_timing_engine->get_ista());
+  auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(_timing_engine->get_ista());
   db_adapter->set_idb(_idb_builder);
   db_adapter->convertDBToTimingNetlist();
   _timing_engine->set_db_adapter(std::move(db_adapter));

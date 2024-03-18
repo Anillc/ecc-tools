@@ -1,10 +1,10 @@
-if(DEBUG_ICTS_API)
-  message(STATUS "CTS: DEBUG_ICTS_API")
-  set(CMAKE_BUILD_TYPE "Debug")
-else()
-  message(STATUS "CTS: RELEASE_ICTS_API")
-  set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_ICTS_API)
+#   message(STATUS "CTS: DEBUG_ICTS_API")
+#   set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#   message(STATUS "CTS: RELEASE_ICTS_API")
+#   set(CMAKE_BUILD_TYPE "Release")
+# endif()
 
 add_library(icts_api ${ICTS_API}/CTSAPI.cc)
 

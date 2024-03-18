@@ -25,7 +25,7 @@
 #include "RTAPI.hpp"
 #include "idm.h"
 #include "manager.hpp"
-
+// #include "WirelengthEval.hpp"
 namespace eval {
 
 EvalAPI& EvalAPI::initInst()
@@ -131,11 +131,11 @@ double EvalAPI::evalEGRWL()
   return wl_via_pair[0];
 }
 
-void EvalAPI::reportWirelength(const string& plot_path, const string& output_file_name, const vector<WLNet*>& net_list)
+void EvalAPI::reportWirelength(const std::string& plot_path, const std::string& output_file_name, const vector<WLNet*>& net_list)
 {
   WirelengthEval wirelength_eval;
   wirelength_eval.set_net_list(net_list);
-  wirelength_eval.reportWirelength(plot_path, output_file_name);
+  // wirelength_eval.reportWirelength(plot_path, output_file_name);
 }
 /******************************Wirelength Eval: END******************************/
 
