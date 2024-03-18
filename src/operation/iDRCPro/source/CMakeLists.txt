@@ -21,6 +21,7 @@ target_link_libraries(idrc_pro_src
         idrc_pro_rule_manager
         idrc_pro_util
         idrc_condition_manager
+        -u_ZN4idrc10DrcManagerD1Ev
 )
 
 target_include_directories(idrc_pro_src
@@ -28,10 +29,10 @@ target_include_directories(idrc_pro_src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-if(DEBUG_IDRC_RULE)
-  message(STATUS "iDRC: DEBUG_IDRC_RULE")
-  set(CMAKE_BUILD_TYPE "Debug")
-else()
-  message(STATUS "iDRC: RELEASE_IDRC_RULE")
-  set(CMAKE_BUILD_TYPE "Release")
-endif()
+# if(DEBUG_IDRC)
+#   message(STATUS "iDRC: DEBUG_IDRC")
+#   set(CMAKE_BUILD_TYPE "Debug")
+# else()
+#   message(STATUS "iDRC: RELEASE_IDRC")
+#   set(CMAKE_BUILD_TYPE "Release")
+# endif()
