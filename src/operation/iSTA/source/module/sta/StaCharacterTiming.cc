@@ -127,6 +127,15 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
   // then propagate the slew delay from the port to the first sequential cell.
   propagateSlewAndDelay(the_graph);
 
+  // then propagate the AT from port to the first sequential cell.
+  propagateATFromPort(the_graph);
+
+  // then back propagate the RT from endpoint to port.
+  backPropagateRTToPort(the_graph);
+
+  // finaly gen the timing model.
+  genTimingModel(the_graph, _model_path.c_str());
+
   return 1;
 }
 

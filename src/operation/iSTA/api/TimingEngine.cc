@@ -51,6 +51,7 @@
 #include "sta/StaPathData.hh"
 #include "sta/StaSlewPropagation.hh"
 #include "sta/StaVertex.hh"
+#include "sta/StaCharacterTiming.hh"
 #include "tcl/ScriptEngine.hh"
 
 namespace ista {
@@ -502,6 +503,21 @@ TimingEngine& TimingEngine::incrUpdateTiming() {
   _incr_func.applyBwdQueue();
 
   return *this;
+}
+
+/**
+ * @brief generate the ETM(extracted timing model).
+ * 
+ * @param model_path 
+ * @return TimingEngine& 
+ */
+TimingEngine &TimingEngine::extractTimingModel(const char *model_path) {
+  StaCharacterTiming character_timing(model_path);
+  auto& the_graph = _ista->get_graph();
+  character_timing(&the_graph);
+
+  return *this;
+
 }
 
 /**

@@ -47,6 +47,12 @@ class StaCharacterTiming : public StaFunc {
     kBackPropagateRTToPort,
     kGenTimingModel
   };
+
+  StaCharacterTiming(const char* model_path):_model_path(model_path) {
+
+  }
+  ~StaCharacterTiming() = default;
+
   unsigned operator()(StaGraph* the_graph) override;
   unsigned operator()(StaVertex* the_vertex) override;
   unsigned operator()(StaArc* the_arc) override;
@@ -59,6 +65,7 @@ class StaCharacterTiming : public StaFunc {
   unsigned genTimingModel(StaGraph* the_graph, const char* model_path);
 
   std::unique_ptr<LibertyLibrary> _design_timing_model; //!< The design timing model as lib format.
+  std::string _model_path; //!< The design timing model path.
 
   std::vector<StaVertex*> _interface_logic_endpoints; //!< The collected design interface logic sequential endpoint.
   ieda::Multimap<StaVertex*, StaVertex*> _port_to_logic_endpoint; //!< The map from port to logic endpoint.

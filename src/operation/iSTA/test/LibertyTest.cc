@@ -48,9 +48,9 @@ TEST_F(LibertyTest, rust_reader) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
+// int main(int argc, char** argv) {
+//   ::testing::InitGoogleTest(&argc, argv);
 
-  testing::GTEST_FLAG(filter) = "LibertyTest.rust_*";
-  return RUN_ALL_TESTS();
-}
+//   testing::GTEST_FLAG(filter) = "LibertyTest.rust_*";
+//   return RUN_ALL_TESTS();
+// }
