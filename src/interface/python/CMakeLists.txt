@@ -1,7 +1,7 @@
 # add_subdirectory(${HOME_THIRDPARTY}/pybind11 binary_dir)
 
 
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${AI_EDA_TOP_DIR}/eda_engine/engine/iEDA/lib)
 # DEFINE PYTHON MODULE & CMAKE TARGET
 include_directories(${PYBIND11_PATH}/include)
 include_directories(${TCL_PATH})
