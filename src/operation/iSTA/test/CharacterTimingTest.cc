@@ -14,10 +14,10 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "gtest/gtest.h"
-#include "sta/StaCharacterTiming.hh"
 #include "api/TimingEngine.hh"
+#include "gtest/gtest.h"
 #include "log/Log.hh"
+#include "sta/StaCharacterTiming.hh"
 #include "usage/usage.hh"
 
 using namespace ista;
@@ -61,9 +61,13 @@ TEST_F(CharacterTimingTest, example1) {
 
   timing_engine->extractTimingModel("macro_model.lib");
 
+  double memory_delta = stats.memoryDelta();
+  LOG_INFO << "propagate toggle sp memory usage " << memory_delta << "MB";
+  double time_delta = stats.elapsedRunTime();
+  LOG_INFO << "propagate toggle sp time elapsed " << time_delta << "s";
 }
 
-}
+}  // namespace
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
