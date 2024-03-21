@@ -14,6 +14,15 @@
 
 namespace python_interface {
 
+bool runMacroSTA(const std::string& def_name)
+{
+  return dmInst->saveMacroTCL(def_name);
+}
+
+bool initMacroSTA(const std::string& def_name)
+{
+  return dmInst->saveMacroTCL(def_name);
+}
 void MacroISTAInterface::initTimingEngine()
 {
   _idb_builder = _db->get_idb_builder();
@@ -35,14 +44,11 @@ void MacroISTAInterface::initTimingEngine()
   _timing_engine->set_db_adapter(std::move(db_adapter));
   _timing_engine->buildGraph();
   _timing_engine->readSdc(_sdc_file.c_str());
-
-
 }
 
 void MacroISTAInterface::initPaths()
 {
   _db->get_idb_design()->get_instance_list(); 
-  
 }
 
 }  // namespace python_interface

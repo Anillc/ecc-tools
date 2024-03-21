@@ -38,7 +38,7 @@ target_link_libraries(
 else()
 target_link_libraries(
   icts_anneal_opt_test PUBLIC icts_source icts_api icts_test_external_libs
-  gtestd gtest_maind
+  gtest gtest_main
   ) # ${GTEST_LIBRARY} ${GTEST_MAIN_LIBRARY}
 endif()
 target_include_directories(icts_anneal_opt_test PUBLIC ${ICTS_TEST})
