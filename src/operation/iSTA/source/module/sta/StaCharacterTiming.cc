@@ -65,21 +65,35 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
     // fwd
     FOREACH_SRC_ARC(the_vertex, src_arc) {
+      if (src_arc->isMpwArc()) {
+        continue;
+      }
+
       (*this)(src_arc);
       (*this)(src_arc->get_snk());
     }
 
   } else if (_state == kPropagateSlewAndDelay ||
              _state == kPropagateATFromPort) {
+    
     if (the_vertex->is_port()) {
       // set init slew or AT.
+      auto* the_port = the_vertex->get_design_obj();
+      if (the_port->isInput()) {
+        the_vertex->initSlewData();
+        return 1;
+      }
     }
 
     // bwd
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
+      if (snk_arc->isMpwArc()) {
+        continue;
+      }
+
+      (*this)(snk_arc->get_src());
       // compute the slew and delay along the arc.
       (*this)(snk_arc);
-      (*this)(snk_arc->get_src());
     }
   }
 
@@ -157,6 +171,8 @@ unsigned StaCharacterTiming::collectInterfaceLogicEndPoint(
     if (the_port->isInput()) {
       _current_port_vertex = port_vertex;
       (*this)(port_vertex);
+    } else {
+      _interface_logic_endpoints.emplace_back(port_vertex);
     }
   }
 

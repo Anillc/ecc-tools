@@ -156,7 +156,7 @@ class StaVertex {
   }
   void resetVertexArcData();
 
-  void initSlewData();
+  void initSlewData(int init_slew = 0);
 
   StaDataBucket& getSlewBucket() { return _slew_bucket; }
   StaDataBucket& getClockBucket() { return _clock_bucket; }

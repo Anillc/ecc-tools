@@ -320,7 +320,7 @@ void StaVertex::addData(StaPathDelayData* delay_data) {
 /**
  * @brief Init slew data, if not create zero slew default.
  */
-void StaVertex::initSlewData() {
+void StaVertex::initSlewData(int init_slew) {
   auto& slew_bucket = getSlewBucket();
   if (!slew_bucket.empty()) {
     return;
@@ -334,10 +334,10 @@ void StaVertex::initSlewData() {
   };
 
   /*if not, create default zero slew.*/
-  construct_slew_data(AnalysisMode::kMax, TransType::kRise, this, 0);
-  construct_slew_data(AnalysisMode::kMax, TransType::kFall, this, 0);
-  construct_slew_data(AnalysisMode::kMin, TransType::kRise, this, 0);
-  construct_slew_data(AnalysisMode::kMin, TransType::kFall, this, 0);
+  construct_slew_data(AnalysisMode::kMax, TransType::kRise, this, init_slew);
+  construct_slew_data(AnalysisMode::kMax, TransType::kFall, this, init_slew);
+  construct_slew_data(AnalysisMode::kMin, TransType::kRise, this, init_slew);
+  construct_slew_data(AnalysisMode::kMin, TransType::kFall, this, init_slew);
 }
 
 /**
