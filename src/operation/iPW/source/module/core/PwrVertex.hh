@@ -58,7 +58,7 @@ class PwrVertex {
   auto* get_sta_vertex() { return _sta_vertex; }
 
   auto* getDesignObj() { return _sta_vertex->get_design_obj(); }
-  Instance* getOwnInstance() {
+  ista::Instance* getOwnInstance() {
     if (auto* the_pin = dynamic_cast<ista::Pin*>(_sta_vertex->get_design_obj());
         the_pin) {
       return the_pin->get_own_instance();

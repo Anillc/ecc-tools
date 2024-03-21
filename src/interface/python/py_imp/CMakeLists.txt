@@ -24,4 +24,6 @@ target_include_directories(py_imp
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/iEDA/src/operation/iPW/api/
-)
+    ${HOME_OPERATION}
+    ${HOME_PLATFORM}/data_manager
+    ${HOME_DATABASE}/data/design)

@@ -23,6 +23,8 @@
 #include "../../../operation/iMP/api/MPAPI.hh"
 #include "idb_to_imp_db/PyPlaceDB.h"
 
+// #include "../../../operation/iMP/api/MPAPI.hh"
+#include "py_mp.h"
 namespace python_interface {
 namespace py = pybind11;
 
@@ -88,6 +90,8 @@ void register_imp(pybind11::module& m)
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
   m.def(
       "pydb", [](idm::DataManager* db) { return PyPlaceDB(db); }, "Convert PlaceDB to PyPlaceDB");
+  // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
+  m.def("runMP", runMP);
 }
 
 }  // namespace python_interface
