@@ -16,8 +16,10 @@
 // ***************************************************************************************
 #pragma once
 
+#include <string>
+
 namespace python_interface {
 
-void runMP();
+void runMP(std::string output_tcl = "");
 
 }  // namespace python_interface

@@ -37,4 +37,10 @@ void MPAPI::initAPI(std::string mp_json_path, idb::IdbBuilder* idb_builder)
 {
   _mp = std::make_shared<imp::MP>(new imp::IDBParser(idb_builder));
 }
+
+void MPAPI::runMP(std::string output_tcl)
+{
+  _mp->runMP(output_tcl);
+}
+
 }  // namespace imp

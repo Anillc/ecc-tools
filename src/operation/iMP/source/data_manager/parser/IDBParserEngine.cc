@@ -89,9 +89,7 @@ bool IDBParser::read()
 bool IDBParser::write()
 {
   for (auto&& [inst, idb_inst] : _inst2idb) {
-    if (write(inst, idb_inst))
-      continue;
-    return false;
+    write(inst, idb_inst);
   }
   return true;
 }
@@ -362,12 +360,23 @@ bool IDBParser::read(idb::IdbInstance* idb_inst, std::shared_ptr<Instance> inst)
 
 bool IDBParser::write(std::shared_ptr<Instance> inst, idb::IdbInstance* idb_inst)
 {
-  if (idb_inst->get_name() == inst->get_name())
+  if ((idb_inst->get_name() != inst->get_name())) {
+    std::cout << "error occurs, idb_inst = " << idb_inst->get_name() << " mp inst = " << inst->get_name() << std::endl;
     return false;
+  }
+
   auto coordi = inst->get_min_corner();
-  auto orient = orientTransform(inst->get_orient());
-  idb_inst->set_coodinate(coordi.x(), coordi.y());
-  idb_inst->set_orient(orient);
+  if (coordi.x() > 0 || coordi.y() > 0) {
+    auto orient = orientTransform(inst->get_orient());
+    idb_inst->set_coodinate(coordi.x(), coordi.y());
+    idb_inst->set_orient(orient);
+    if (inst->get_cell_master().isMacro()) {
+      idb_inst->set_status_fixed();
+    } else {
+      idb_inst->set_status_placed();
+    }
+  }
+
   return true;
 }
 

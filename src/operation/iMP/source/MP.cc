@@ -24,7 +24,7 @@
 #include "MacroAligner.hh"
 namespace imp {
 
-void MP::runMP()
+void MP::runMP(std::string output_tcl)
 {
   float macro_halo_micron = 2.0;
   float dead_space_ratio = 0.8;
@@ -44,14 +44,19 @@ void MP::runMP()
                                       weight_blockage, weight_io, max_iters, cool_rate, init_temperature);
 
   placer(root());
-  std::string file_name = "placement_level" + std::to_string(clustering.level_num) + "_" + std::to_string(clustering.l1_nparts) + "_"
-                          + std::to_string(clustering.l2_nparts);
+
   // writePlacement(root(), file_name + ".txt");
   auto macro_aligner = MacroAligner<int32_t>();
   macro_aligner(root());
   // writePlacement(root(), file_name + "_aligned.txt");
-  writePlacementTcl(root(), file_name + ".tcl", root().netlist().property()->get_database_unit());
-  _parser->write(); // write back to idb
+  _parser->write();  // write back to idb
+                     //   writePlacementTcl(root(), file_name + ".tcl", root().netlist().property()->get_database_unit());
+  if (output_tcl == "") {
+    std::string file_name = "placement_level" + std::to_string(clustering.level_num) + "_" + std::to_string(clustering.l1_nparts) + "_"
+                            + std::to_string(clustering.l2_nparts);
+    output_tcl = file_name + ".tcl";
+  }
+  writePlacementTcl(root(), output_tcl, root().netlist().property()->get_database_unit());
 }
 
 }  // namespace imp
