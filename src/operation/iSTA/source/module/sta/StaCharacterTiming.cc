@@ -37,6 +37,10 @@ namespace ista {
  */
 unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
   if (_state == kCollectEndpoints || _state == kBackPropagateRTToPort) {
+    if ((_state == kBackPropagateRTToPort) && (the_vertex->is_bwd())) {
+      return 1;
+    }
+
     if (the_vertex->is_end()) {
       if (_state == kCollectEndpoints) {
         // collect the interface logic endpoint.
@@ -50,6 +54,23 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
       } else if (_state == kBackPropagateRTToPort) {
         // set the constrain require time.
+        auto set_constain_value = [the_vertex](auto analysis_mode,
+                                               auto trans_type) {
+          if (!the_vertex->is_port()) {
+            // get the delay value from the check arc(delay arc)
+            auto* check_arc = the_vertex->getCheckArc(analysis_mode);
+            auto constrain_val =
+                check_arc->get_arc_delay(analysis_mode, trans_type);
+            the_vertex->setConstainTime(analysis_mode, trans_type,
+                                        constrain_val);
+          } else {
+            the_vertex->setConstainTime(analysis_mode, trans_type, 0);
+          }
+        };
+
+        FOREACH_MODE_TRANS(analysis_mode, trans_type) {
+          set_constain_value(analysis_mode, trans_type);
+        }
       }
 
       return 1;
@@ -58,6 +79,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
     if (the_vertex->is_clock()) {
       if (_state == kCollectEndpoints) {
         _logic_clkpoint_to_port.insert(the_vertex, _current_port_vertex);
+        _port_to_logic_clkpoint.insert(_current_port_vertex, the_vertex);
       }
 
       return 1;
@@ -73,14 +95,31 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
       (*this)(src_arc->get_snk());
     }
 
-  } else if (_state == kPropagateSlewAndDelay ||
+    if (_state == kBackPropagateRTToPort) {
+      the_vertex->set_is_bwd();
+    }
+
+  } else if (_state == kPropagateSlew || _state == kPropagateDelay ||
              _state == kPropagateATFromPort) {
-    
+    if ((_state == kPropagateSlew) && (the_vertex->is_slew_prop())) {
+      return 1;
+    } else if ((_state == kPropagateDelay) && (the_vertex->is_delay_prop())) {
+      return 1;
+    } else if ((_state == kPropagateATFromPort) && (the_vertex->is_fwd())) {
+      return 1;
+    }
+
     if (the_vertex->is_port()) {
       // set init slew or AT.
       auto* the_port = the_vertex->get_design_obj();
       if (the_port->isInput()) {
-        the_vertex->initSlewData();
+        if (_state == kPropagateSlew) {
+          the_vertex->initSlewData();  // TODO(to taosimin) need decide the
+                                       // discrete  init slew data point.
+        } else if (_state == kPropagateATFromPort) {
+          the_vertex->initPathDelayData();
+        }
+
         return 1;
       }
     }
@@ -95,6 +134,14 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
       // compute the slew and delay along the arc.
       (*this)(snk_arc);
     }
+
+    if (_state == kPropagateSlew) {
+      the_vertex->set_is_slew_prop();
+    } else if (_state == kPropagateDelay) {
+      the_vertex->set_is_delay_prop();
+    } else if (_state == kPropagateATFromPort) {
+      the_vertex->set_is_fwd();
+    }
   }
 
   return 1;
@@ -107,11 +154,13 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::operator()(StaArc* the_arc) {
-  if (_state == kPropagateSlewAndDelay) {
-    // propagate the slew and delay along the arc.
+  if (_state == kPropagateSlew) {
+    // propagate the slew along the arc.
     StaSlewPropagation slew_propagation;
+    slew_propagation.set_propagate_output_port();
     slew_propagation(the_arc);
-
+  } else if (_state == kPropagateDelay) {
+    // propagate the delay along the arc.
     StaDelayPropagation delay_propagation;
     delay_propagation(the_arc);
   } else if (_state == kPropagateATFromPort) {
@@ -138,8 +187,11 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
   // first collect the interface logic endpoint.
   collectInterfaceLogicEndPoint(the_graph);
 
-  // then propagate the slew delay from the port to the first sequential cell.
-  propagateSlewAndDelay(the_graph);
+  // then propagate the slew from the port to the first sequential cell.
+  propagateSlew(the_graph);
+
+  // then propagate the delay from the port to the first sequential cell.
+  propagateDelay(the_graph);
 
   // then propagate the AT from port to the first sequential cell.
   propagateATFromPort(the_graph);
@@ -180,14 +232,30 @@ unsigned StaCharacterTiming::collectInterfaceLogicEndPoint(
 }
 
 /**
- * @brief propagate slew and delay from the port to the first sequential cell
+ * @brief propagate slew from the port to the first sequential cell
  * endpoint.
  *
  * @param the_graph
  * @return unsigned
  */
-unsigned StaCharacterTiming::propagateSlewAndDelay(StaGraph* the_graph) {
-  _state = kPropagateSlewAndDelay;
+unsigned StaCharacterTiming::propagateSlew(StaGraph* the_graph) {
+  _state = kPropagateSlew;
+  for (auto* the_end_point : _interface_logic_endpoints) {
+    (*this)(the_end_point);
+  }
+
+  return 1;
+}
+
+/**
+ * @brief propagate delay from the port to the first sequential cell
+ * endpoint.
+ *
+ * @param the_graph
+ * @return unsigned
+ */
+unsigned StaCharacterTiming::propagateDelay(StaGraph* the_graph) {
+  _state = kPropagateDelay;
   for (auto* the_end_point : _interface_logic_endpoints) {
     (*this)(the_end_point);
   }
@@ -245,8 +313,9 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
       the_graph->get_nl()->get_name(), _design_timing_model.get());
 
   // construct the data port to clock port check arc.
-  auto construct_port_check_arc = [this](auto* port_vertex,
-                                         AnalysisMode analysis_mode) {
+  auto construct_port_check_arc = [&design_timing_cell, this](
+                                      auto* port_vertex,
+                                      AnalysisMode analysis_mode) {
     auto* logic_endpoint = _port_to_logic_endpoint.values(port_vertex)
                                .front();  // TODO(to taosimin), fix me may be
                                           // more than one endpoint
@@ -255,12 +324,13 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     auto* clock_port_vertex = _logic_clkpoint_to_port.values(clk_point).front();
 
     // construct the constrain arc.
-    auto endpoint_rise_at =
-        logic_endpoint->getArriveTimeNs(analysis_mode, TransType::kRise);
+    auto endpoint_rise_at = logic_endpoint->getArriveTimeNs(
+        analysis_mode, TransType::kRise);  // TODO(to taosimin), should match
+                                           // the propagated port vertex.
     auto endpoint_fall_at =
         logic_endpoint->getArriveTimeNs(analysis_mode, TransType::kFall);
 
-    auto trigger_type = endpoint_check_arc->isRisingTriggerArc()
+    auto trigger_type = endpoint_check_arc->isRisingEdgeCheck()
                             ? TransType::kRise
                             : TransType::kFall;
     auto clk_point_at = clk_point->getArriveTimeNs(analysis_mode, trigger_type);
@@ -292,11 +362,15 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
         std::make_unique<LibertyFloatValue>(port_fall_constrain_value);
 
     auto lib_rise_table = std::make_unique<LibertyTable>(
-        LibertyTable::TableType::kRiseConstrain, nullptr); // TODO(to taosimin), construct the table template, timing sense
+        LibertyTable::TableType::kRiseConstrain,
+        nullptr);  // TODO(to taosimin), construct the table template, timing
+                   // sense
     lib_rise_table->addTableValue(std::move(table_rise_value));
 
     auto lib_fall_table = std::make_unique<LibertyTable>(
-        LibertyTable::TableType::kFallConstrain, nullptr); // TODO(to taosimin), construct the table template, timing sense
+        LibertyTable::TableType::kFallConstrain,
+        nullptr);  // TODO(to taosimin), construct the table template, timing
+                   // sense
     lib_fall_table->addTableValue(std::move(table_fall_value));
 
     auto check_model = std::make_unique<LibertyCheckTableModel>();
@@ -304,63 +378,96 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     check_model->addTable(std::move(lib_fall_table));
 
     lib_arc->set_table_model(std::move(check_model));
+    design_timing_cell->addLibertyArc(std::move(lib_arc));
   };
 
   // construct the data input port to output port delay arc.
-  auto construct_port_delay_arc = [this](auto* port_vertex,
-                                         AnalysisMode analysis_mode) {
-    StaData* delay_data;
-    FOREACH_DELAY_DATA(port_vertex, delay_data) {
-      if (analysis_mode == delay_data->get_delay_type()) {
-        auto path_data = delay_data->getPathData();
-        auto* start_vertex = path_data.top()->get_own_vertex();
+  auto construct_port_delay_arc = [&design_timing_cell, this](
+                                      auto* port_vertex,
+                                      AnalysisMode analysis_mode) {
+    FOREACH_TRANS(trans) {
+      auto* delay_data =
+          port_vertex->getWorstPathDelayData(analysis_mode, trans);
+      auto path_data = delay_data->getPathData();
+      auto* start_vertex = path_data.top()->get_own_vertex();
+      auto* slew_data = port_vertex->getWorstSlewDataFromStart(
+          analysis_mode, trans, start_vertex);
 
-        auto clock_ports = _logic_clkpoint_to_port.values();
+      auto clock_ports = _logic_clkpoint_to_port.values();
 
-        // input port to output port.
-        auto lib_arc = std::make_unique<LibertyArc>();
-        lib_arc->set_snk_port(port_vertex->getName().c_str());
-        lib_arc->set_src_port(start_vertex->getName().c_str());
-        std::string timing_type =
-            clock_ports.contains(start_vertex)
-                ? _port_to_logic_clkpoint.values(start_vertex)
-                          .front()
-                          ->isRisingTriggered() // TODO(to taosimin), may be more than one clk pin.
-                      ? "rising_edge"
-                      : "falling_edge"
-                : "combinational";
-        lib_arc->set_timing_type(timing_type.c_str());
+      // input port to output port.
+      auto lib_arc = std::make_unique<LibertyArc>();
+      lib_arc->set_snk_port(port_vertex->getName().c_str());
+      lib_arc->set_src_port(start_vertex->getName().c_str());
+      std::string timing_type =
+          clock_ports.contains(start_vertex)
+              ? _port_to_logic_clkpoint.values(start_vertex)
+                        .front()
+                        ->isRisingTriggered()  // TODO(to taosimin), may be
+                                               // more than one clk pin.
+                    ? "rising_edge"
+                    : "falling_edge"
+              : "combinational";
+      lib_arc->set_timing_type(timing_type.c_str());
 
-        auto table_value = std::make_unique<LibertyFloatValue>(
+      const char* timing_sense =
+          (trans == path_data.top()->get_trans_type())
+              ? "positive_unate"
+              : "negative_unate";  // TODO(to taosimin), non-unate should
+                                   // consider.
+      lib_arc->set_timing_sense(timing_sense);
+
+      auto delay_model = std::make_unique<LibertyDelayTableModel>();
+
+      // delay table
+      {
+        auto delay_table_value = std::make_unique<LibertyFloatValue>(
             FS_TO_NS(delay_data->get_arrive_time()));
 
-        auto table_type = delay_data->get_trans_type() == TransType::kRise
-                              ? LibertyTable::TableType::kCellRise
-                              : LibertyTable::TableType::kCellFall;
-        auto lib_table = std::make_unique<LibertyTable>(table_type, nullptr); // TODO(to taosimin), construct the table template, timing sense
-        lib_table->addTableValue(std::move(table_value));
+        auto delay_table_type = delay_data->get_trans_type() == TransType::kRise
+                                    ? LibertyTable::TableType::kCellRise
+                                    : LibertyTable::TableType::kCellFall;
+        auto lib_delay_table = std::make_unique<LibertyTable>(
+            delay_table_type, nullptr);  // TODO(to taosimin), construct the
+                                         // table template, timing sense
+        lib_delay_table->addTableValue(std::move(delay_table_value));
 
-        auto delay_model = std::make_unique<LibertyDelayTableModel>();
-        delay_model->addTable(std::move(lib_table));
-
-        lib_arc->set_table_model(std::move(delay_model));
+        delay_model->addTable(std::move(lib_delay_table));
       }
+
+      // slew table
+      {
+        auto slew_table_value = std::make_unique<LibertyFloatValue>(
+            FS_TO_NS(slew_data->get_slew()));
+
+        auto slew_table_type = slew_data->get_trans_type() == TransType::kRise
+                                   ? LibertyTable::TableType::kCellRise
+                                   : LibertyTable::TableType::kCellFall;
+        auto lib_slew_table = std::make_unique<LibertyTable>(
+            slew_table_type, nullptr);  // TODO(to taosimin), construct the
+                                        // table template, timing sense
+        lib_slew_table->addTableValue(std::move(slew_table_value));
+
+        delay_model->addTable(std::move(lib_slew_table));
+      }
+
+      lib_arc->set_table_model(std::move(delay_model));
+
+      design_timing_cell->addLibertyArc(std::move(lib_arc));
     }
   };
 
   StaVertex* port_vertex;
   FOREACH_PORT_VERTEX(the_graph, port_vertex) {
     auto* the_port = port_vertex->get_design_obj();
-    if (the_port->isInput()) {
+    if (the_port->isInput() && !_port_to_logic_clkpoint.contains(port_vertex)) {
       // construct the constrain arc, need know the constrained arc, and the
       // constrain port.
-      construct_port_check_arc(port_vertex, AnalysisMode::kMax);
-      construct_port_check_arc(port_vertex, AnalysisMode::kMin);
+      construct_port_check_arc(port_vertex, _analysis_mode);
 
     } else if (the_port->isOutput()) {
       // construct the delay arc.
-      construct_port_delay_arc(port_vertex, AnalysisMode::kMax);
-      construct_port_delay_arc(port_vertex, AnalysisMode::kMin);
+      construct_port_delay_arc(port_vertex, _analysis_mode);
     }
   }
 

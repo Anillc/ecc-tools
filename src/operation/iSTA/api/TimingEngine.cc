@@ -511,8 +511,8 @@ TimingEngine& TimingEngine::incrUpdateTiming() {
  * @param model_path 
  * @return TimingEngine& 
  */
-TimingEngine &TimingEngine::extractTimingModel(const char *model_path) {
-  StaCharacterTiming character_timing(model_path);
+TimingEngine &TimingEngine::extractTimingModel(AnalysisMode analysis_mode, const char *model_path) {
+  StaCharacterTiming character_timing(analysis_mode, model_path);
   auto& the_graph = _ista->get_graph();
   character_timing(&the_graph);
 

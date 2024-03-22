@@ -79,13 +79,11 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
   auto* obj = snk_vertex->get_design_obj();
 
   /*The check arc and output port do not generate output slew.*/
-  if (!the_arc->isDelayArc() || obj->isPort()) {
+  if (!the_arc->isDelayArc() || (obj->isPort() && !isPropagateOutputPort())) {
     return is_ok;
   }
 
-  auto* the_pin = dynamic_cast<Pin*>(obj);
-  LOG_FATAL_IF(!the_pin);
-  auto* the_net = the_pin->get_net();
+  auto* the_net = obj->get_net();
   LOG_FATAL_IF(!the_net);
 
   StaData* slew_data;
@@ -167,7 +165,7 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       } else {  // net arc
         auto* rc_net = getSta()->getRcNet(the_net);
         auto net_out_slew =
-            rc_net ? rc_net->slew(*the_pin, NS_TO_PS(in_slew),
+            rc_net ? rc_net->slew(*obj, NS_TO_PS(in_slew),
                                   from_slew_data->get_output_current_data(),
                                   analysis_mode, trans_type)
                    : std::nullopt;

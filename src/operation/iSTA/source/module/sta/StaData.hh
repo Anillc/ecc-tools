@@ -148,6 +148,21 @@ class StaData {
 };
 
 /**
+ * @brief cmp for data.
+ * 
+ */
+const std::function<bool(StaData*, StaData*)> sta_data_cmp = [](StaData* left, StaData* right) -> unsigned {
+    auto delay_type = left->get_delay_type();
+    int left_compare_value = left->getCompareValue();
+    int right_compare_value = right->getCompareValue();
+
+    // Judge more critical.
+    return (delay_type == AnalysisMode::kMax)
+               ? (left_compare_value > right_compare_value)
+               : (left_compare_value < right_compare_value);
+  };
+
+/**
  * @brief The slew data of the pin.
  *
  */

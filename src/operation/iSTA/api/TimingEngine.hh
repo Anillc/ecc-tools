@@ -244,7 +244,7 @@ class TimingEngine {
     return *this;
   }
 
-  TimingEngine &extractTimingModel(const char *model_path);
+  TimingEngine &extractTimingModel(AnalysisMode analysis_mode, const char *model_path);
 
   std::vector<StaClock *> getClockList();
   void setPropagatedClock(const char *clock_name);

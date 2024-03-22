@@ -59,7 +59,8 @@ TEST_F(CharacterTimingTest, example1) {
 
   timing_engine->buildGraph();
 
-  timing_engine->extractTimingModel("macro_model.lib");
+  timing_engine->extractTimingModel(AnalysisMode::kMax, "macro_model_max.lib");
+  timing_engine->extractTimingModel(AnalysisMode::kMin, "macro_model_min.lib");
 
   double memory_delta = stats.memoryDelta();
   LOG_INFO << "propagate toggle sp memory usage " << memory_delta << "MB";
