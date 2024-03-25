@@ -22,12 +22,11 @@
  * @date 2021-02-10
  */
 
-#include "StaVertex.hh"
-
 #include <ranges>
 
 #include "StaDump.hh"
 #include "StaFunc.hh"
+#include "StaVertex.hh"
 #include "delay/ElmoreDelayCalc.hh"
 #include "log/Log.hh"
 
@@ -320,7 +319,7 @@ void StaVertex::addData(StaPathDelayData* delay_data) {
 /**
  * @brief Init slew data, if not create zero slew default.
  */
-void StaVertex::initSlewData() {
+void StaVertex::initSlewData(int init_slew) {
   auto& slew_bucket = getSlewBucket();
   if (!slew_bucket.empty()) {
     return;
@@ -334,10 +333,45 @@ void StaVertex::initSlewData() {
   };
 
   /*if not, create default zero slew.*/
-  construct_slew_data(AnalysisMode::kMax, TransType::kRise, this, 0);
-  construct_slew_data(AnalysisMode::kMax, TransType::kFall, this, 0);
-  construct_slew_data(AnalysisMode::kMin, TransType::kRise, this, 0);
-  construct_slew_data(AnalysisMode::kMin, TransType::kFall, this, 0);
+  construct_slew_data(AnalysisMode::kMax, TransType::kRise, this, init_slew);
+  construct_slew_data(AnalysisMode::kMax, TransType::kFall, this, init_slew);
+  construct_slew_data(AnalysisMode::kMin, TransType::kRise, this, init_slew);
+  construct_slew_data(AnalysisMode::kMin, TransType::kFall, this, init_slew);
+}
+
+/**
+ * @brief Init path delay data.
+ *
+ * @param init_at
+ */
+void StaVertex::initPathDelayData(int init_at) {
+  auto construct_path_delay_data =
+      [this](AnalysisMode delay_type, TransType trans_type, double init_at) {
+        StaPathDelayData* path_delay_data = new StaPathDelayData(
+            delay_type, trans_type, NS_TO_FS(init_at), nullptr, this);
+        addData(path_delay_data);
+      };
+
+  construct_path_delay_data(AnalysisMode::kMax, TransType::kRise, init_at);
+  construct_path_delay_data(AnalysisMode::kMax, TransType::kFall, init_at);
+  construct_path_delay_data(AnalysisMode::kMin, TransType::kRise, init_at);
+  construct_path_delay_data(AnalysisMode::kMin, TransType::kFall, init_at);
+}
+
+/**
+ * @brief Set constrain time for character timing.
+ *
+ * @param constrain_rt
+ */
+void StaVertex::setConstainTime(AnalysisMode analysis_mode,
+                                TransType trans_type, int constrain_rt) {
+  StaData* delay_data;
+  FOREACH_DELAY_DATA(this, delay_data) {
+    if ((analysis_mode == delay_data->get_delay_type()) &&
+        (trans_type == delay_data->get_trans_type())) {
+      delay_data->set_req_time(constrain_rt);
+    }
+  }
 }
 
 /**
@@ -773,6 +807,57 @@ StaSlewData* StaVertex::getSlewData(AnalysisMode analysis_mode,
 }
 
 /**
+ * @brief get worst slew data.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return StaSlewData*
+ */
+StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
+                                         TransType trans_type) {
+  std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
+      data_queue(sta_data_cmp);
+
+  StaData* data;
+  FOREACH_SLEW_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      data_queue.push(data);
+    }
+  }
+
+  return dynamic_cast<StaSlewData*>(data_queue.top());
+}
+
+/**
+ * @brief get worst slew data from start vertex.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return StaSlewData*
+ */
+StaSlewData* StaVertex::getWorstSlewDataFromStart(AnalysisMode analysis_mode,
+                                       TransType trans_type,
+                                       StaVertex* start_vertex) {
+  std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
+      data_queue(sta_data_cmp);
+
+  StaData* data;
+  FOREACH_SLEW_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      auto path_data = data->getPathData();
+      auto* path_start_vertex = path_data.top()->get_own_vertex();
+      if (path_start_vertex == start_vertex) {
+        data_queue.push(data);
+      }
+    }
+  }
+
+  return dynamic_cast<StaSlewData*>(data_queue.top());
+}
+
+/**
  * @brief Find the exist path delay data.
  *
  * @param analysis_mode
@@ -794,6 +879,29 @@ StaPathDelayData* StaVertex::getPathDelayData(AnalysisMode analysis_mode,
   }
 
   return nullptr;
+}
+
+/**
+ * @brief Find the worst path delay data.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return StaPathDelayDatea*
+ */
+StaPathDelayData* StaVertex::getWorstPathDelayData(AnalysisMode analysis_mode,
+                                                   TransType trans_type) {
+  std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
+      data_queue(sta_data_cmp);
+
+  StaData* data;
+  FOREACH_DELAY_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      data_queue.push(data);
+    }
+  }
+
+  return dynamic_cast<StaPathDelayData*>(data_queue.top());
 }
 
 /**

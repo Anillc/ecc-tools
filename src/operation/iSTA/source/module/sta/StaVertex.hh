@@ -27,8 +27,8 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
 #include "StaData.hh"
 #include "netlist/Netlist.hh"
@@ -156,7 +156,10 @@ class StaVertex {
   }
   void resetVertexArcData();
 
-  void initSlewData();
+  void initSlewData(int init_slew = 0);
+  void initPathDelayData(int init_at = 0);
+  void setConstainTime(AnalysisMode analysis_mode, TransType trans_type,
+                       int constrain_rt);
 
   StaDataBucket& getSlewBucket() { return _slew_bucket; }
   StaDataBucket& getClockBucket() { return _clock_bucket; }
@@ -406,10 +409,16 @@ class StaVertex {
 
   StaSlewData* getSlewData(AnalysisMode analysis_mode, TransType trans_type,
                            StaData* src_slew_data);
+  StaSlewData* getWorstSlewData(AnalysisMode analysis_mode,
+                                 TransType trans_type);
+  StaSlewData* getWorstSlewDataFromStart(AnalysisMode analysis_mode,
+                                 TransType trans_type, StaVertex* start_vertex);
 
   StaPathDelayData* getPathDelayData(AnalysisMode analysis_mode,
                                      TransType trans_type,
                                      StaData* src_delay_data);
+  StaPathDelayData* getWorstPathDelayData(AnalysisMode analysis_mode,
+                                     TransType trans_type);
   void getPathDepth(std::priority_queue<int, std::vector<int>,
                                         std::greater<int>>& depth_min_queue,
                     int depth = 0);

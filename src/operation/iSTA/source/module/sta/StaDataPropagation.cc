@@ -23,9 +23,8 @@
  */
 // #include <gperftools/profiler.h>
 
-#include "StaDataPropagation.hh"
-
 #include "StaData.hh"
+#include "StaDataPropagation.hh"
 #include "StaVertex.hh"
 #include "ThreadPool/ThreadPool.h"
 #include "log/Log.hh"
@@ -102,14 +101,16 @@ unsigned StaBwdPropagation::operator()(StaArc* the_arc) {
     auto* rhs_launch_clock_data =
         dynamic_cast<const StaPathDelayData*>(rhs)->get_launch_clock_data();
 
-    if (lhs_launch_clock_data->get_prop_clock() !=
-        rhs_launch_clock_data->get_prop_clock()) {
-      return false;
-    }
+    if (lhs_launch_clock_data && rhs_launch_clock_data) {
+      if (lhs_launch_clock_data->get_prop_clock() !=
+          rhs_launch_clock_data->get_prop_clock()) {
+        return false;
+      }
 
-    if (lhs_launch_clock_data->get_clock_wave_type() !=
-        rhs_launch_clock_data->get_clock_wave_type()) {
-      return false;
+      if (lhs_launch_clock_data->get_clock_wave_type() !=
+          rhs_launch_clock_data->get_clock_wave_type()) {
+        return false;
+      }
     }
 
     return true;

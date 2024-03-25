@@ -159,6 +159,9 @@ class LibertyTable : public LibertyObject
 
   Vector<std::unique_ptr<LibertyAxis>>& get_axes();
 
+  void addTableValue(std::unique_ptr<LibertyAttrValue> table_value) {
+    _table_values.emplace_back(std::move(table_value));
+  }
   void set_table_values(std::vector<std::unique_ptr<LibertyAttrValue>>&& table_values) { _table_values = std::move(table_values); }
   auto& get_table_values() { return _table_values; }
 

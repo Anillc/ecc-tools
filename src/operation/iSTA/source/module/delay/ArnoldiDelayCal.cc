@@ -456,13 +456,16 @@ std::vector<VectorXd> ArnoldiNet::solveRCEquation(
     //   DVERBOSE_VLOG(1) << " " << current_mA;
     // }
 
-    std::ofstream file("matrix.txt");
+    std::string file_name = _net->get_name();
+    std::replace(file_name.begin(), file_name.end(), '/', '_');
+    std::ofstream file(file_name + "_in_matrix.txt");
     file << "conductances\n" << _conductances_matrix << "\n";
     file << "cap_matrix\n" << _cap_matrix << "\n";
     file << "input_vec\n" << _input_vec << "\n";
-    file << "currents\n";
+    file << "step time(s) : " << step_time << "\n";
+    file << "currents(mA)\n";
     for (double current_mA : currents) {
-      file << " " << current_mA / 1000.0;
+      file << " " << current_mA;
     }
     file.close();
   }
@@ -558,7 +561,22 @@ MatrixXd ArnoldiNet::calcDelayAndSlew(
           W * V;  // get the origin V, V is W_inv * origin V.
                   // every column is one time voltage of every point.
     }
+
     DVERBOSE_VLOG(1) << "V Matrix \n" << V_matrix;
+
+    if (0 && Str::equal(
+                 _net->get_name(),
+                 "u0_soc_top/u0_ysyx_210720/coretop/ysyx_210720_DCache/n5453")) {
+      std::string file_name = _net->get_name();
+      std::replace(file_name.begin(), file_name.end(), '/', '_');
+      std::ofstream file(file_name + "_out_matrix.txt");
+
+      file << "V Matrix \n" << V_matrix;
+
+      file.close();
+
+      LOG_FATAL << "write file end.";
+    }
 
     return V_matrix;
   }
@@ -787,7 +805,7 @@ std::optional<double> ArnoldiNet::slew(Waveform& node_waveform,
 std::optional<double> ArnoldiNet::getSlew(
     std::function<std::vector<double>(double, double, int)>&& get_current,
     double start_time, double end_time, int num_sim_point,
-    AnalysisMode analysis_mode, TransType trans_type, Pin* pin) {
+    AnalysisMode analysis_mode, TransType trans_type, DesignObject* pin) {
   std::optional<double> slew;
 
   {
@@ -858,7 +876,7 @@ std::optional<std::pair<double, MatrixXd>> ArnoldiNet::delay(
  * @return std::optional<double>
  */
 std::optional<double> ArnoldiNet::slew(
-    Pin& to, double from_slew, std::optional<LibetyCurrentData*> output_current,
+    DesignObject& to, double from_slew, std::optional<LibetyCurrentData*> output_current,
     AnalysisMode mode, TransType trans_type) {
   // static int prof_count = 0;
   // if (prof_count == 0) {

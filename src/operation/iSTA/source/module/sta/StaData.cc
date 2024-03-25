@@ -297,8 +297,8 @@ unsigned StaPathDelayData::compareSignature(const StaData* data) const {
     is_same = 0;
   } else if (_trans_type != delay_data->get_trans_type()) {
     is_same = 0;
-  } else if (_launch_clock_data->get_prop_clock() !=
-             delay_data->get_launch_clock_data()->get_prop_clock()) {
+  } else if (!_launch_clock_data || (_launch_clock_data->get_prop_clock() !=
+             delay_data->get_launch_clock_data()->get_prop_clock())) {
     is_same = 0;
   } else if (_launch_clock_data->get_clock_wave_type() !=
              delay_data->get_launch_clock_data()->get_clock_wave_type()) {
