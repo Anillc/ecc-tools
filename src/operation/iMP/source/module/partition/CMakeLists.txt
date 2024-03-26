@@ -1,14 +1,10 @@
 add_library(imp-partition 
-            ${IMP_PARTITION}/Hmetis.cc)
-            # ${IMP_PARTITION}/MtKahypar.cc)
+            ${IMP_PARTITION}/Hmetis.cc
+            ${IMP_PARTITION}/MtKahypar.cc)
 target_link_libraries(imp-partition
                       PRIVATE
                       imp-logger
-<<<<<<< HEAD
                       ${MtKahypar_PATH}/libmtkahypar.so
-=======
-                    #   mtkahypar
->>>>>>> master
                       )
 
 target_include_directories(imp-partition
