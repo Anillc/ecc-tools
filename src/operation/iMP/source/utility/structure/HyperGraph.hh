@@ -312,6 +312,22 @@ class HyperGraph
     }
     GraphIterator<std::weak_ptr, Hedge> hend() { return GraphIterator<std::weak_ptr, Hedge>(_hyper_edges, _hyper_edges.size()); }
 
+    const GraphIterator<std::weak_ptr, Edge> ebegin() const {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, 0);
+    }
+
+    GraphIterator<std::weak_ptr, Edge> ebegin() {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, 0);
+    }
+
+    const GraphIterator<std::weak_ptr, Edge> eend() const {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, _edges.size());
+    }
+
+    GraphIterator<std::weak_ptr, Edge> eend() {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, _edges.size());
+    }
+
     size_t degree() const { return _hyper_edges.size(); }
     VertexProperty& property() { return _property; }
     const VertexProperty& property() const { return _property; }
@@ -348,6 +364,22 @@ class HyperGraph
     const GraphIterator<std::weak_ptr, Vertex> vend() const { return GraphIterator<std::weak_ptr, Vertex>(_vertices, _vertices.size()); }
     GraphIterator<std::weak_ptr, Vertex> vend() { return GraphIterator<std::shared_ptr, Vertex>(_vertices, _vertices.size()); }
 
+    const GraphIterator<std::weak_ptr, Edge> ebegin() const {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, 0);
+    }
+
+    GraphIterator<std::weak_ptr, Edge> ebegin() {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, 0);
+    }
+
+    const GraphIterator<std::weak_ptr, Edge> eend() const {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, _edges.size());
+    }
+
+    GraphIterator<std::weak_ptr, Edge> eend() {
+        return GraphIterator<std::weak_ptr, Edge>(_edges, _edges.size());
+    }
+
     const Vertex& vertex_at(size_t pos) const { return *(_vertices.at(pos).lock()); }
     Vertex& vertex_at(size_t pos) { return *(_vertices.at(pos).lock()); }
 
@@ -382,6 +414,11 @@ class HyperGraph
     const EdgeProperty& property() const { return _property; }
     size_t pos() const { return _pos; }
     void set_pos(size_t new_pos) { _pos = new_pos; }
+    std::weak_ptr<Hedge>& getHedge() { return _hedge;}
+    const std::weak_ptr<Hedge>& getHedge() const { return _hedge; }
+
+    std::weak_ptr<Vertex>& getVertex() { return _vertex; }
+    const std::weak_ptr<Vertex>& getVertex() const { return _vertex; }
 
    private:
     friend class HyperGraph;
