@@ -38,4 +38,4 @@ target_link_libraries(test_lib liberty)
 target_include_directories(test_lib PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR})
 
-install(TARGETS test_lib DESTINATION /home/taosimin/bin/iEDA_bin)
+# install(TARGETS test_lib DESTINATION /home/taosimin/bin/iEDA_bin)
