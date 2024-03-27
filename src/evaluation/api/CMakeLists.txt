@@ -15,7 +15,7 @@ target_link_libraries(eval_api
     PUBLIC
         eval_wirelength
         eval_module
-        irt_api     
+        irt_interface     
     INTERFACE
         eval_congestion
         eval_timing
