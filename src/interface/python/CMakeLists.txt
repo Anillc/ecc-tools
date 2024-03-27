@@ -5,11 +5,12 @@ SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 # DEFINE PYTHON MODULE & CMAKE TARGET
 include_directories(${PYBIND11_PATH}/include)
 include_directories(${TCL_PATH})
+set(MtKahypar_PATH ${AI_EDA_TOP_DIR}/third_party/iEDA/src/third_party/mt-kahypar/build/lib/)
 message(STATUS "pybind11 path: ${PYBIND11_PATH}/include")
 message(STATUS "build python lib: ieda_py")
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${MtKahypar_PATH}")
+# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 pybind11_add_module(ieda_py)
 
 add_subdirectory(py_idb)
@@ -134,4 +135,5 @@ install(TARGETS ieda_py
     )
 
 get_target_property(DEPENDENCIES ieda_py INTERFACE_LINK_LIBRARIES)
+message(STATUS "ieda_py install prefix: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ieda_py dependencies: ${INTERFACE_LINK_LIBRARIES}")
