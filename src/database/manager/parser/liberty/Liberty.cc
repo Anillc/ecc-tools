@@ -1626,7 +1626,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
       fprintf(stream, "%f", lib_table_float_value);
       if ((i + 1) % columns == 0 && i < lib_table_values.size() - 1) {
         fprintf(stream, "\", \\\n                                        \"");
-      } else {
+      } else if (i < lib_table_values.size() - 1) {
         fprintf(stream, ",");
       }
     }
@@ -1638,6 +1638,8 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
     fprintf(stream, "                       related_pin        : \"%s\";\n", lib_arc->get_src_port());
     fprintf(stream, "                       timing_sense        : %s;\n", lib_arc->get_timing_sense());
     LibertyTableModel* table_model = lib_arc->get_table_model();
+
+    // cell_fall table
     LibertyTable* cell_fall_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kCellFall));
     auto* lut_table_template = cell_fall_table->get_table_template();
     if (lut_table_template) {
@@ -1660,6 +1662,9 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
       fprintf(stream, "                                values (\"%f\");\n", float_value);
       fprintf(stream, "                       }\n");
     }
+
+    // write the other 3 tables.
+    fprintf(stream, "                }\n");
   };
 
   auto wirte_check_table_model = [](LibertyArc*) {};
@@ -1683,7 +1688,9 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
                 continue;
               }
             }
+            fprintf(stream, "        }\n");
           }
+          fprintf(stream, "  }\n");
         };
 
   for (const auto& cell : get_cells()) {
