@@ -26,6 +26,7 @@
 
 #include <fstream>
 #include <functional>
+#include <map>
 #include <set>
 #include <utility>
 
@@ -1575,6 +1576,121 @@ LibertyCurrentTemplate::LibertyCurrentTemplate(const char* template_name) : Libe
 
 LibertyStmt::LibertyStmt(const char* file_name, unsigned line_no) : _file_name(file_name), _line_no(line_no)
 {
+}
+
+/**
+ * @brief print the LibertyLibrary.
+ *
+ */
+void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
+{
+  FILE* stream = std::fopen(lib_file_name, "w");
+  if (!stream) {
+    LOG_ERROR << "File " << lib_file_name << " NotWritable";
+  }
+
+  LOG_INFO << "start write liberty file " << lib_file_name;
+
+  fprintf(stream, "library (%s) {", get_lib_name());
+
+  auto classify_cell_arc_by_snk_port = [](LibertyCell* lib_cell) -> std::map<std::string, std::vector<LibertyArc*>> {
+    std::map<std::string, std::vector<LibertyArc*>> snkport2arcset;
+    for (auto& cell_arc_set : lib_cell->get_cell_arcs()) {
+      auto* cell_arc = cell_arc_set->front();
+      const char* src_port_name = cell_arc->get_src_port();
+      const char* snk_port_name = cell_arc->get_snk_port();
+      snkport2arcset[snk_port_name].push_back(cell_arc);
+    }
+
+    return snkport2arcset;
+  };
+
+  auto wirte_axis = [&stream](LibertyAxis* lib_axis, int index_order) {
+    auto& axis_values = lib_axis->get_axis_values();
+    fprintf(stream, "                              index_%d (\"", index_order + 1);
+    for (int i = 0; i < axis_values.size(); ++i) {
+      auto axis_float_value = dynamic_cast<LibertyFloatValue*>(axis_values[i].get())->getFloatValue();
+      fprintf(stream, "%f", axis_float_value);
+      if (i < axis_values.size() - 1) {
+        fprintf(stream, ",");
+      }
+    }
+    fprintf(stream, "\");\n");
+  };
+
+  auto wirte_table_values = [&stream](LibertyTable* lib_table, int columns) {
+    auto& lib_table_values = lib_table->get_table_values();
+    fprintf(stream, "                                values (\"");
+    for (int i = 0; i < lib_table_values.size(); ++i) {
+      auto lib_table_float_value = dynamic_cast<LibertyFloatValue*>(lib_table_values[i].get())->getFloatValue();
+      fprintf(stream, "%f", lib_table_float_value);
+      if ((i + 1) % columns == 0 && i < lib_table_values.size() - 1) {
+        fprintf(stream, "\", \\\n                                        \"");
+      } else {
+        fprintf(stream, ",");
+      }
+    }
+    fprintf(stream, "\");");
+  };
+
+  auto wirte_delay_table_model = [&stream, &wirte_axis, &wirte_table_values](LibertyArc* lib_arc) {
+    fprintf(stream, "                timing () {\n");
+    fprintf(stream, "                       related_pin        : \"%s\";\n", lib_arc->get_src_port());
+    fprintf(stream, "                       timing_sense        : %s;\n", lib_arc->get_timing_sense());
+    LibertyTableModel* table_model = lib_arc->get_table_model();
+    LibertyTable* cell_fall_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kCellFall));
+    auto* lut_table_template = cell_fall_table->get_table_template();
+    if (lut_table_template) {
+      std::string template_name = lut_table_template->get_template_name();
+      fprintf(stream, "                        cell_fall(%s) {\n", template_name);
+      auto& axes = cell_fall_table->get_axes();
+      int rows = axes[0].get()->get_axis_values().size();
+      int columns = axes[1].get()->get_axis_values().size();
+      for (int i = 0; i < axes.size(); i++) {
+        wirte_axis(axes[i].get(), i);
+      }
+      // auto& cell_fall_table_values = cell_fall_table->get_table_values();
+      wirte_table_values(cell_fall_table, columns);
+      fprintf(stream, "                       }\n");
+    } else {
+      auto& cell_fall_table_values = cell_fall_table->get_table_values();
+      LOG_FATAL_IF(cell_fall_table_values.size() > 1);
+      auto float_value = dynamic_cast<LibertyFloatValue*>(cell_fall_table_values.front().get())->getFloatValue();
+      fprintf(stream, "                        cell_fall(Timing_cluster) {\n");
+      fprintf(stream, "                                values (\"%f\");\n", float_value);
+      fprintf(stream, "                       }\n");
+    }
+  };
+
+  auto wirte_check_table_model = [](LibertyArc*) {};
+
+  auto write_liberty_cell
+      = [&stream, &classify_cell_arc_by_snk_port, &wirte_delay_table_model, &wirte_check_table_model](LibertyCell* lib_cell) {
+          fprintf(stream, "  cell (%s) {", lib_cell->get_cell_name());
+          auto snkport2arcset = classify_cell_arc_by_snk_port(lib_cell);
+
+          for (const auto& pair : snkport2arcset) {
+            fprintf(stream, "pin (%s) {", pair.first);
+            fprintf(stream, "\n");
+            for (const auto& arc : pair.second) {
+              const char* src_port_name = arc->get_src_port();
+              LibertyTableModel* table_model = arc->get_table_model();
+              if (arc->isCheckArc()) {
+                wirte_check_table_model(arc);
+              } else if (arc->isDelayArc()) {
+                wirte_delay_table_model(arc);
+              } else {
+                continue;
+              }
+            }
+          }
+        };
+
+  for (const auto& cell : get_cells()) {
+    write_liberty_cell(cell.get());
+  }
+
+  LOG_INFO << "finish write liberty file " << lib_file_name;
 }
 
 /**
