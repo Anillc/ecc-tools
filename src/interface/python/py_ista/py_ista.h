@@ -17,6 +17,7 @@
 #pragma once
 
 #include <set>
+#include <vector>
 #include <string>
 namespace python_interface {
 bool staRun(const std::string& output);
@@ -28,7 +29,7 @@ bool setDesignWorkSpace(const std::string& design_workspace);
 
 bool readVerilog(const std::string& file_name);
 
-bool readLiberty(const std::string& file_name);
+bool readLiberty(std::vector<std::string>& lib_files);
 
 bool linkDesign(const std::string& cell_name);
 
