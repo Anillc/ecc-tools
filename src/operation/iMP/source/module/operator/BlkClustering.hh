@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <memory>
 #include <numeric>
+#include <unordered_set>
 namespace imp {
 class Block;
 class HMetis;
@@ -22,6 +23,8 @@ struct BlkClustering2
   size_t l2_nparts{std::numeric_limits<size_t>::max()};
   size_t level_num = 2;
   std::weak_ptr<ParserEngine> parser;
+  std::unordered_set<std::string> critical_nets_name;
+  std::unordered_set<std::string> non_critical_nets_name;
 };
 
 }  // namespace imp

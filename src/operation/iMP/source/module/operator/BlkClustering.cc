@@ -45,9 +45,16 @@ void BlkClustering2::operator()(Block& block)
   if (netlist.vSize() <= nparts || block.level() > level_num)
     return;
 
-  auto&& [eptr, eind] = vectorize(netlist);
+  auto get_net_weight = [](std::shared_ptr<Net> net)->float{return net->get_net_weight();};
+  auto&& [eptr, eind, vweight, heweight] = vectorize(netlist, NoneWeight<std::shared_ptr<Object>>, get_net_weight);
+  std::vector<int> heweightInt;
+  heweightInt.reserve(heweight.size());
+  for (auto weight : heweight) {
+      heweightInt.push_back(static_cast<int>(weight * 100));
+  }
   HMetis partition{.seed = 0, .ufactor = 1.0};
   auto parts = partition(block.get_name(), eptr, eind, nparts);
+  // auto parts = partition(block.get_name(), eptr, eind, nparts, {}, heweightInt);
 
   // extract io-cell as single cluster at level 1
   size_t single_cluster_id = nparts;
@@ -94,15 +101,21 @@ void BlkClustering2::operator()(Block& block)
     return new_block;
   };
 
+  int critical_cut = 0;
+  int non_critical_cut = 0;
   auto make_cluster_net = [&](const Netlist& graph, size_t id) {
     auto origin_net = graph.hyper_edge_at(id).property();
     auto net_ptr = std::make_shared<Net>("cluster_net");
     net_ptr->set_net_type(NET_TYPE::kSignal);
+    if (critical_nets_name.find(origin_net->get_name()) != critical_nets_name.end()) critical_cut++;
+    if (non_critical_nets_name.find(origin_net->get_name()) != non_critical_nets_name.end()) non_critical_cut++;
     if (origin_net->isIONet()) {
       // std::cout << "io net" << std::endl;
       net_ptr->set_net_weight(2.0);  // give io-net double weights
+      // net_ptr->set_net_weight(origin_net->get_net_weight());
     } else {
       net_ptr->set_net_weight(1.0);
+      // net_ptr->set_net_weight(origin_net->get_net_weight());
     }
     auto parser = std::static_pointer_cast<IDBParser, ParserEngine>(this->parser.lock());
 
@@ -113,6 +126,8 @@ void BlkClustering2::operator()(Block& block)
 
   auto clusters = clustering(netlist, parts, sub_block, make_cluster_net);
   block.set_netlist(std::make_shared<Netlist>(std::move(clusters)));
+  // std::cout<<"critical_cuts = "<<critical_cut<<std::endl;
+  // std::cout<<"non_critical_cuts = "<<non_critical_cut<<std::endl;
 }
 
 }  // namespace imp

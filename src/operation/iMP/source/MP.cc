@@ -23,6 +23,7 @@
 #include "HierPlacer.hh"
 #include "Logger.hpp"
 #include "MacroAligner.hh"
+#include "NetWeightPre.hh"
 
 namespace imp {
 
@@ -40,10 +41,17 @@ void MP::runMP(std::string output_tcl)
   float cool_rate = 0.96;
   float init_temperature = 2000.0;
 
-  BlkClustering2 clustering{.l1_nparts = 200, .level_num = 1, .parser = _parser};  // one level place
+  std::unordered_set<std::string> critical_nets_name;
+  std::unordered_set<std::string> non_critical_nets_name;
+  // timingDrivenNetWeight(root().netlist(), critical_nets_name, non_critical_nets_name);
+
+  BlkClustering2 clustering{.l1_nparts = 200, .level_num = 1, .parser = _parser, .critical_nets_name = critical_nets_name, .non_critical_nets_name = non_critical_nets_name}; // one level place
   root().parallel_preorder_op(clustering);
   // auto placer = SAHierPlacer<int32_t>(root(), macro_halo_micron, dead_space_ratio, weight_wl, weight_ol, weight_ob, weight_periphery,
   //                                     weight_blockage, weight_io, max_iters, cool_rate, init_temperature);
+
+  // calculateAndPrintHedgeWeights(root().netlist());
+
   auto placer = SAHierPlacer<int32_t>{.macro_halo_micron = macro_halo_micron,
                                       .dead_space_ratio = dead_space_ratio,
                                       .weight_wl = weight_wl,

@@ -234,7 +234,7 @@ TimingPath parsePathBlock(const std::string& block, bool& skip_path) {
     return path;
 }
 
-void updateHedgeSlacks(const std::vector<TimingPath>& paths, const std::unordered_map<std::string, size_t>& vertex_name_to_id, HyperGraph<Multilevel>& graph, std::vector<std::vector<double>>& hedge_slacks) {
+void updateHedgeSlacks(const std::vector<TimingPath>& paths, const std::unordered_map<std::string, size_t>& vertex_name_to_id, HyperGraph<Multilevel>& graph, std::vector<std::vector<double>>& hedge_slacks, std::vector<std::vector<double>>& hedge_avaliable_delay) {
     for (const auto& path : paths) {
         size_t lastStart = path.beginpoint.rfind('/');
         auto begin_inst = path.beginpoint.substr(0, lastStart);
@@ -262,7 +262,8 @@ void updateHedgeSlacks(const std::vector<TimingPath>& paths, const std::unordere
                     if (first_pin) {
                         first_pin = false;
                         auto& currentHedge = (*it).getHedge();
-                                            hedge_slacks[currentHedge.lock()->pos()].push_back(path.slack_time);
+                        hedge_slacks[currentHedge.lock()->pos()].push_back(path.slack_time);
+                        hedge_avaliable_delay[currentHedge.lock()->pos()].push_back(path.slack_time/(path.path_depth-1));
                         // currentHedge.lock()->property()->set_net_weight(2.0);
                         bool candidate_pin_found = false;
                         for (auto edge_it = currentHedge.lock()->ebegin(); edge_it != currentHedge.lock()->eend(); ++edge_it) {
@@ -288,7 +289,8 @@ void updateHedgeSlacks(const std::vector<TimingPath>& paths, const std::unordere
                             auto candidate_pin_name = candidate_vertex.lock()->property()->get_name() + "/" + processBrackets(candidate_pin->get_name());
                             if (subPath.outputPin == candidate_pin_name) {
                                 currentHedge = (*edge_it).getHedge();
-                                                            hedge_slacks[currentHedge.lock()->pos()].push_back(path.slack_time);
+                                hedge_slacks[currentHedge.lock()->pos()].push_back(path.slack_time);
+                                hedge_avaliable_delay[currentHedge.lock()->pos()].push_back(path.slack_time/(path.path_depth-1));
                                 // currentHedge.lock()->property()->set_net_weight(2.0);
                                 break;
                             }
@@ -334,6 +336,87 @@ void updateHedgeSlacks(const std::vector<TimingPath>& paths, const std::unordere
 	// for (const auto& pair : sorted_counts) {
 	// 		std::cout << "Length " << pair.first << " has " << pair.second << " occurrence(s)." << std::endl;
 	// }
+}
+
+void processCriticalNets(HyperGraph<Multilevel>& graph, std::vector<std::vector<double>>& hedge_slacks, double extra_delay, double clock_period, std::unordered_set<std::string>& critical_nets_name) {
+    for (size_t i = 0; i < graph.heSize(); ++i) {
+        auto& hedge = graph.hyper_edge_at(i);
+        double total_net_cost = 0;
+        double worst_net_cost = 0;
+        double worst_slack = 999;
+        if (hedge_slacks[hedge.pos()].empty()) {
+            continue;
+        }
+        for (auto slack: hedge_slacks[hedge.pos()]) {
+            if (slack < extra_delay) {
+                // total_net_cost += pow((1 - (slack - extra_delay)/clock_period), 2);
+                total_net_cost += std::max(0.0, (1 - (slack - extra_delay) / clock_period));
+                critical_nets_name.insert(hedge.property()->get_name());
+            }
+            if (slack < worst_slack) worst_slack = slack;
+        }
+        // worst_net_cost = pow((1 - (worst_slack - extra_delay)/clock_period), 2);
+        worst_net_cost = exp(5*std::max(0.0, (extra_delay - worst_slack) / clock_period));
+        if (worst_slack < extra_delay) hedge.property()->set_net_weight(total_net_cost + worst_net_cost);
+    }
+}
+
+void processNonCriticalNets(HyperGraph<Multilevel>& graph, std::vector<std::vector<double>>& hedge_available_delay, double extra_delay, std::unordered_set<std::string>& non_critical_nets_name) {
+    for (size_t i = 0; i < graph.heSize(); ++i) {
+        auto& hedge = graph.hyper_edge_at(i);
+        double worst_delay = 999;
+        if (hedge_available_delay[hedge.pos()].empty()) {
+            continue;
+        }
+        for (auto delay: hedge_available_delay[hedge.pos()]) {
+            if (delay < worst_delay) worst_delay = delay;
+        }
+        if (worst_delay > (extra_delay + 0.1)) {
+            non_critical_nets_name.insert(hedge.property()->get_name());
+            double cost = 1 - std::min(0.2, 0.1 * worst_delay);
+            hedge.property()->set_net_weight(cost);
+        }
+    }
+}
+
+void calculateAndPrintHedgeWeights(HyperGraph<Multilevel>& graph) {
+    double total_net_weight = 0.0;
+    size_t hedge_count = 0;
+
+    for (size_t i = 0; i < graph.heSize(); ++i) {
+        auto& hedge = graph.hyper_edge_at(i);
+        total_net_weight += hedge.property()->get_net_weight();
+        // std::cout<<"hedge "<<i<<" net_weight "<<hedge.property()->get_net_weight()<<std::endl;
+        ++hedge_count;
+    }
+
+    if (hedge_count > 0) {
+        double average_net_weight = total_net_weight / hedge_count;
+        std::cout << "Total net weight of all hedges: " << total_net_weight << std::endl;
+        std::cout << "Average net weight of all hedges: " << average_net_weight << std::endl;
+        std::cout << "Hedge count: " << hedge_count << std::endl;
+    } else {
+        std::cout << "No hedges found." << std::endl;
+    }
+}
+
+void timingDrivenNetWeight(HyperGraph<Multilevel>& graph, std::unordered_set<std::string>& critical_nets_name, std::unordered_set<std::string>& non_critical_nets_name) {
+    std::string file_path = "/data/project_share/benchmark/aimp/input_timing_report/ariane_preCTS_reg2reg.tarpt";
+
+    auto paths = parseTimingReport(file_path);
+
+    // auto& graph = root().netlist();
+    std::unordered_map<std::string, size_t> vertex_name_to_id = mapVertexNamesToIds(graph);
+
+    std::vector<std::vector<double>> hedge_slacks(graph.heSize());
+    std::vector<std::vector<double>> hedge_avaliable_delay(graph.heSize());
+    updateHedgeSlacks(paths, vertex_name_to_id, graph, hedge_slacks, hedge_avaliable_delay);
+
+    double extra_delay = 0.2;
+    double clock_period = 1.25;
+
+    processCriticalNets(graph, hedge_slacks, extra_delay, clock_period, critical_nets_name);
+    processNonCriticalNets(graph, hedge_avaliable_delay, extra_delay, non_critical_nets_name);
 }
 
 } // namespace imp   
