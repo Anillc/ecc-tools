@@ -1591,7 +1591,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
 
   LOG_INFO << "start write liberty file " << lib_file_name;
 
-  fprintf(stream, "library (%s) {", get_lib_name());
+  fprintf(stream, "library (%s) {", get_lib_name().c_str());
 
   auto classify_cell_arc_by_snk_port = [](LibertyCell* lib_cell) -> std::map<std::string, std::vector<LibertyArc*>> {
     std::map<std::string, std::vector<LibertyArc*>> snkport2arcset;
@@ -1634,17 +1634,23 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
   };
 
   auto wirte_delay_table_model = [&stream, &wirte_axis, &wirte_table_values](LibertyArc* lib_arc) {
+    std::map<LibertyArc::TimingSense, const char*> timing_sense_map = {{LibertyArc::TimingSense::kPositiveUnate, "positive_unate"},
+                                                                       {LibertyArc::TimingSense::kNegativeUnate, "negative_unate"},
+                                                                       {LibertyArc::TimingSense::kNonUnate, "non_unate"}};
     fprintf(stream, "                timing () {\n");
     fprintf(stream, "                       related_pin        : \"%s\";\n", lib_arc->get_src_port());
-    fprintf(stream, "                       timing_sense        : %s;\n", lib_arc->get_timing_sense());
+    fprintf(stream, "                       timing_sense        : %s;\n", timing_sense_map[lib_arc->get_timing_sense()]);
     LibertyTableModel* table_model = lib_arc->get_table_model();
+    LibertyDelayTableModel* delay_model = dynamic_cast<LibertyDelayTableModel*>(table_model);
+    LibertyTable* cell_rise_table = delay_model->getTable(0);
+    LibertyTable* cell_rise_table1 = delay_model->getTable(1);
 
     // cell_fall table
     LibertyTable* cell_fall_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kCellFall));
     auto* lut_table_template = cell_fall_table->get_table_template();
     if (lut_table_template) {
       std::string template_name = lut_table_template->get_template_name();
-      fprintf(stream, "                        cell_fall(%s) {\n", template_name);
+      fprintf(stream, "                        cell_fall(%s) {\n", template_name.c_str());
       auto& axes = cell_fall_table->get_axes();
       int rows = axes[0].get()->get_axis_values().size();
       int columns = axes[1].get()->get_axis_values().size();
@@ -1675,7 +1681,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
           auto snkport2arcset = classify_cell_arc_by_snk_port(lib_cell);
 
           for (const auto& pair : snkport2arcset) {
-            fprintf(stream, "pin (%s) {", pair.first);
+            fprintf(stream, "pin (%s) {", pair.first.c_str());
             fprintf(stream, "\n");
             for (const auto& arc : pair.second) {
               const char* src_port_name = arc->get_src_port();
