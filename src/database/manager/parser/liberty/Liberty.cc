@@ -1610,7 +1610,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
     fprintf(stream, "                              index_%d (\"", index_order + 1);
     for (int i = 0; i < axis_values.size(); ++i) {
       auto axis_float_value = dynamic_cast<LibertyFloatValue*>(axis_values[i].get())->getFloatValue();
-      fprintf(stream, "%f", axis_float_value);
+      fprintf(stream, "%.8f", axis_float_value);
       if (i < axis_values.size() - 1) {
         fprintf(stream, ",");
       }
@@ -1623,7 +1623,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
     fprintf(stream, "                                values (\"");
     for (int i = 0; i < lib_table_values.size(); ++i) {
       auto lib_table_float_value = dynamic_cast<LibertyFloatValue*>(lib_table_values[i].get())->getFloatValue();
-      fprintf(stream, "%f", lib_table_float_value);
+      fprintf(stream, "%.8f", lib_table_float_value);
       if ((i + 1) % columns == 0 && i < lib_table_values.size() - 1) {
         fprintf(stream, "\", \\\n                                        \"");
       } else if (i < lib_table_values.size() - 1) {
@@ -1664,7 +1664,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
         LOG_FATAL_IF(cell_fall_table_values.size() > 1);
         auto float_value = dynamic_cast<LibertyFloatValue*>(cell_fall_table_values.front().get())->getFloatValue();
         fprintf(stream, "                        cell_fall(timing_cluster) {\n");
-        fprintf(stream, "                                values (\"%f\");\n", float_value);
+        fprintf(stream, "                                values (\"%.8f\");\n", float_value);
         fprintf(stream, "                       }\n");
       }
     }
@@ -1783,8 +1783,8 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
       auto& fall_constraint_table_values = fall_constraint_table->get_table_values();
       LOG_FATAL_IF(fall_constraint_table_values.size() > 1);
       auto float_value = dynamic_cast<LibertyFloatValue*>(fall_constraint_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                       fall_constraint(Timing_cluster) {\n");
-      fprintf(stream, "                                values (\"%f\");\n", float_value);
+      fprintf(stream, "                       fall_constraint(timing_cluster) {\n");
+      fprintf(stream, "                                values (\"%.8f\");\n", float_value);
       fprintf(stream, "                       }\n");
     }
 
@@ -1808,8 +1808,8 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
       auto& rise_constraint_table_values = rise_constraint_table->get_table_values();
       LOG_FATAL_IF(rise_constraint_table_values.size() > 1);
       auto float_value = dynamic_cast<LibertyFloatValue*>(rise_constraint_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                       rise_constraint(Timing_cluster) {\n");
-      fprintf(stream, "                                values (\"%f\");\n", float_value);
+      fprintf(stream, "                       rise_constraint(timing_cluster) {\n");
+      fprintf(stream, "                                values (\"%.8f\");\n", float_value);
       fprintf(stream, "                       }\n");
     }
 
