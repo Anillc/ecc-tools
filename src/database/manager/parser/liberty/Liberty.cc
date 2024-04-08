@@ -1591,7 +1591,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
 
   LOG_INFO << "start write liberty file " << lib_file_name;
 
-  fprintf(stream, "library (%s) {", get_lib_name().c_str());
+  fprintf(stream, "library (%s) {\n", get_lib_name().c_str());
 
   auto classify_cell_arc_by_snk_port = [](LibertyCell* lib_cell) -> std::map<std::string, std::vector<LibertyArc*>> {
     std::map<std::string, std::vector<LibertyArc*>> snkport2arcset;
@@ -1630,7 +1630,7 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
         fprintf(stream, ",");
       }
     }
-    fprintf(stream, "\");");
+    fprintf(stream, "\");\n");
   };
 
   auto wirte_delay_table_model = [&stream, &wirte_axis, &wirte_table_values](LibertyArc* lib_arc) {
@@ -1645,126 +1645,131 @@ void LibertyLibrary::printLibertyLibrary(const char* lib_file_name)
 
     // cell_fall table
     LibertyTable* cell_fall_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kCellFall));
-    auto* lut_table_template = cell_fall_table->get_table_template();
-    if (lut_table_template) {
-      std::string template_name = lut_table_template->get_template_name();
-      fprintf(stream, "                        cell_fall(%s) {\n", template_name.c_str());
-      auto& axes = cell_fall_table->get_axes();
-      int rows = axes[0].get()->get_axis_values().size();
-      int columns = axes[1].get()->get_axis_values().size();
-      for (int i = 0; i < axes.size(); i++) {
-        wirte_axis(axes[i].get(), i);
+    if (cell_fall_table) {
+      auto* lut_table_template = cell_fall_table->get_table_template();
+      if (lut_table_template) {
+        std::string template_name = lut_table_template->get_template_name();
+        fprintf(stream, "                        cell_fall(%s) {\n", template_name.c_str());
+        auto& axes = cell_fall_table->get_axes();
+        int rows = axes[0].get()->get_axis_values().size();
+        int columns = axes[1].get()->get_axis_values().size();
+        for (int i = 0; i < axes.size(); i++) {
+          wirte_axis(axes[i].get(), i);
+        }
+        // auto& cell_fall_table_values = cell_fall_table->get_table_values();
+        wirte_table_values(cell_fall_table, columns);
+        fprintf(stream, "                       }\n");
+      } else {
+        auto& cell_fall_table_values = cell_fall_table->get_table_values();
+        LOG_FATAL_IF(cell_fall_table_values.size() > 1);
+        auto float_value = dynamic_cast<LibertyFloatValue*>(cell_fall_table_values.front().get())->getFloatValue();
+        fprintf(stream, "                        cell_fall(timing_cluster) {\n");
+        fprintf(stream, "                                values (\"%f\");\n", float_value);
+        fprintf(stream, "                       }\n");
       }
-      // auto& cell_fall_table_values = cell_fall_table->get_table_values();
-      wirte_table_values(cell_fall_table, columns);
-      fprintf(stream, "                       }\n");
-    } else {
-      auto& cell_fall_table_values = cell_fall_table->get_table_values();
-      LOG_FATAL_IF(cell_fall_table_values.size() > 1);
-      auto float_value = dynamic_cast<LibertyFloatValue*>(cell_fall_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                        cell_fall(Timing_cluster) {\n");
-      fprintf(stream, "                                values (\"%f\");\n", float_value);
-      fprintf(stream, "                       }\n");
     }
 
-
-     // write the other 3 tables.
     // cell_rise table
-    LibertyTable* cell_rise_table_1 = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kCellRise));
-    auto* lut_table_template1 = cell_rise_table_1->get_table_template();
-    if (lut_table_template1) {
-      std::string template_name = lut_table_template1->get_template_name();
-      fprintf(stream, "                        cell_rise(%s) {\n", template_name);
-      auto& axes = cell_rise_table_1->get_axes();
-      int rows = axes[0].get()->get_axis_values().size();
-      int columns = axes[1].get()->get_axis_values().size();
-      for (int i = 0; i < axes.size(); i++) {
-        wirte_axis(axes[i].get(), i);
+    LibertyTable* cell_rise_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kCellRise));
+    if (cell_rise_table) {
+      auto* lut_table_template1 = cell_rise_table->get_table_template();
+      if (lut_table_template1) {
+        std::string template_name = lut_table_template1->get_template_name();
+        fprintf(stream, "                        cell_rise(%s) {\n", template_name.c_str());
+        auto& axes = cell_rise_table->get_axes();
+        int rows = axes[0].get()->get_axis_values().size();
+        int columns = axes[1].get()->get_axis_values().size();
+        for (int i = 0; i < axes.size(); i++) {
+          wirte_axis(axes[i].get(), i);
+        }
+        // auto& cell_rise_table_values = cell_rise_table->get_table_values();
+        wirte_table_values(cell_rise_table, columns);
+        fprintf(stream, "                       }\n");
+      } else {
+        auto& cell_rise_table_values = cell_rise_table->get_table_values();
+        LOG_FATAL_IF(cell_rise_table_values.size() > 1);
+        auto float_value = dynamic_cast<LibertyFloatValue*>(cell_rise_table_values.front().get())->getFloatValue();
+        fprintf(stream, "                        cell_rise(timing_cluster) {\n");
+        fprintf(stream, "                                values (\"%.8f\");\n", float_value);
+        fprintf(stream, "                       }\n");
       }
-      // auto& cell_rise_table_values = cell_rise_table->get_table_values();
-      wirte_table_values(cell_rise_table_1, columns);
-      fprintf(stream, "                       }\n");
-    } else {
-      auto& cell_rise_table_values = cell_rise_table_1->get_table_values();
-      LOG_FATAL_IF(cell_rise_table_values.size() > 1);
-      auto float_value = dynamic_cast<LibertyFloatValue*>(cell_rise_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                        cell_rise(Timing_cluster) {\n");
-      fprintf(stream, "                                values (\"%.8f\");\n", float_value);
-      fprintf(stream, "                       }\n");
     }
 
-
-// fall_transition table 
-    LibertyTable* fall_transition_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kFallTransition));
-    auto* lut_table_template2 = fall_transition_table->get_table_template();
-    if (lut_table_template2) {
-      std::string template_name = lut_table_template2->get_template_name();
-      fprintf(stream, "                        fall_transition(%s) {\n", template_name);
-      auto& axes = fall_transition_table->get_axes();
-      int rows = axes[0].get()->get_axis_values().size();
-      int columns = axes[1].get()->get_axis_values().size();
-      for (int i = 0; i < axes.size(); i++) {
-        wirte_axis(axes[i].get(), i);
+    // fall_transition table
+    LibertyTable* fall_transition_table
+        = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kFallTransition));
+    if (fall_transition_table) {
+      auto* lut_table_template2 = fall_transition_table->get_table_template();
+      if (lut_table_template2) {
+        std::string template_name = lut_table_template2->get_template_name();
+        fprintf(stream, "                        fall_transition(%s) {\n", template_name.c_str());
+        auto& axes = fall_transition_table->get_axes();
+        int rows = axes[0].get()->get_axis_values().size();
+        int columns = axes[1].get()->get_axis_values().size();
+        for (int i = 0; i < axes.size(); i++) {
+          wirte_axis(axes[i].get(), i);
+        }
+        // auto& fall_transition_table_values = fall_transition_table->get_table_values();
+        wirte_table_values(fall_transition_table, columns);
+        fprintf(stream, "                       }\n");
+      } else {
+        auto& fall_transition_table_values = fall_transition_table->get_table_values();
+        LOG_FATAL_IF(fall_transition_table_values.size() > 1);
+        auto float_value = dynamic_cast<LibertyFloatValue*>(fall_transition_table_values.front().get())->getFloatValue();
+        fprintf(stream, "                        fall_transition(timing_cluster) {\n");
+        fprintf(stream, "                                values (\"%.8f\");\n", float_value);
+        fprintf(stream, "                       }\n");
       }
-      // auto& fall_transition_table_values = fall_transition_table->get_table_values();
-      wirte_table_values(fall_transition_table, columns);
-      fprintf(stream, "                       }\n");
-    } else {
-      auto& fall_transition_table_values = fall_transition_table->get_table_values();
-      LOG_FATAL_IF(fall_transition_table_values.size() > 1);
-      auto float_value = dynamic_cast<LibertyFloatValue*>(fall_transition_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                        fall_transition(Timing_cluster) {\n");
-      fprintf(stream, "                                values (\"%.8f\");\n", float_value);
-      fprintf(stream, "                       }\n");
     }
 
-// rise_transition table
-    LibertyTable* rise_transition_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kRiseTransition));
-    auto* lut_table_template3 = rise_transition_table->get_table_template();
-    if (lut_table_template3) {
-      std::string template_name = lut_table_template3->get_template_name();
-      fprintf(stream, "                        rise_transition(%s) {\n", template_name);
-      auto& axes = rise_transition_table->get_axes();
-      int rows = axes[0].get()->get_axis_values().size();
-      int columns = axes[1].get()->get_axis_values().size();
-      for (int i = 0; i < axes.size(); i++) {
-        wirte_axis(axes[i].get(), i);
+    // rise_transition table
+    LibertyTable* rise_transition_table
+        = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kRiseTransition));
+    if (rise_transition_table) {
+      auto* lut_table_template3 = rise_transition_table->get_table_template();
+      if (lut_table_template3) {
+        std::string template_name = lut_table_template3->get_template_name();
+        fprintf(stream, "                        rise_transition(%s) {\n", template_name.c_str());
+        auto& axes = rise_transition_table->get_axes();
+        int rows = axes[0].get()->get_axis_values().size();
+        int columns = axes[1].get()->get_axis_values().size();
+        for (int i = 0; i < axes.size(); i++) {
+          wirte_axis(axes[i].get(), i);
+        }
+        // auto& rise_transition_table_values = rise_transition_table->get_table_values();
+        wirte_table_values(rise_transition_table, columns);
+        fprintf(stream, "                       }\n");
+      } else {
+        auto& rise_transition_table_values = rise_transition_table->get_table_values();
+        LOG_FATAL_IF(rise_transition_table_values.size() > 1);
+        auto float_value = dynamic_cast<LibertyFloatValue*>(rise_transition_table_values.front().get())->getFloatValue();
+        fprintf(stream, "                        rise_transition(timing_cluster) {\n");
+        fprintf(stream, "                                values (\"%.8f\");\n", float_value);
+        fprintf(stream, "                       }\n");
       }
-      // auto& rise_transition_table_values = rise_transition_table->get_table_values();
-      wirte_table_values(rise_transition_table, columns);
-      fprintf(stream, "                       }\n");
-    } else {
-      auto& rise_transition_table_values = rise_transition_table->get_table_values();
-      LOG_FATAL_IF(rise_transition_table_values.size() > 1);
-      auto float_value = dynamic_cast<LibertyFloatValue*>(rise_transition_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                        rise_transition(Timing_cluster) {\n");
-      fprintf(stream, "                                values (\"%.8f\");\n", float_value);
-      fprintf(stream, "                       }\n");
+
+      fprintf(stream, "                }\n");
     }
-
-
-    fprintf(stream, "                }\n");
   };
-
-auto wirte_check_table_model = [&stream, &wirte_axis, &wirte_table_values](LibertyArc* lib_arc) {};
 
   auto wirte_check_table_model = [&stream, &wirte_axis, &wirte_table_values](LibertyArc* lib_arc) {
     std::map<LibertyArc::TimingType, const char*> timing_type_map = {{LibertyArc::TimingType::kSetupRising, "setup_rising"},
-                                                                       {LibertyArc::TimingType::kHoldRising, "hold_rising"}};
+                                                                     {LibertyArc::TimingType::kHoldRising, "hold_rising"},
+                                                                     {LibertyArc::TimingType::kSetupFalling, "setup_falling"},
+                                                                     {LibertyArc::TimingType::kHoldFalling, "hold_falling"}};
     fprintf(stream, "                timing () {\n");
     fprintf(stream, "                       related_pin        : \"%s\";\n", lib_arc->get_src_port());
-    fprintf(stream, "                       timing_type        : %s;\n", timing_type_map[lib_arc->get_timing_type()]);   
+    fprintf(stream, "                       timing_type        : %s;\n", timing_type_map[lib_arc->get_timing_type()]);
     LibertyTableModel* table_model = lib_arc->get_table_model();
     LibertyCheckTableModel* check_model = dynamic_cast<LibertyCheckTableModel*>(table_model);
-    //LibertyTable* fall_constraint_table = check_model->getTable(0);
-    // LibertyTable* rise_constraint_table = check_model->getTable(1);
 
-// fall_constraint table
-    LibertyTable* fall_constraint_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kFallConstrain));
+    // fall_constraint table
+    LibertyTable* fall_constraint_table
+        = dynamic_cast<LibertyCheckTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kFallConstrain) - 4);
     auto* lut_table_template = fall_constraint_table->get_table_template();
     if (lut_table_template) {
       std::string template_name = lut_table_template->get_template_name();
-      fprintf(stream, "                       fall_constraint(%s) {\n", template_name);
+      fprintf(stream, "                       fall_constraint(%s) {\n", template_name.c_str());
       auto& axes = fall_constraint_table->get_axes();
       int rows = axes[0].get()->get_axis_values().size();
       int columns = axes[1].get()->get_axis_values().size();
@@ -1778,17 +1783,18 @@ auto wirte_check_table_model = [&stream, &wirte_axis, &wirte_table_values](Liber
       auto& fall_constraint_table_values = fall_constraint_table->get_table_values();
       LOG_FATAL_IF(fall_constraint_table_values.size() > 1);
       auto float_value = dynamic_cast<LibertyFloatValue*>(fall_constraint_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                        fall_constraint(Timing_cluster) {\n");
+      fprintf(stream, "                       fall_constraint(Timing_cluster) {\n");
       fprintf(stream, "                                values (\"%f\");\n", float_value);
       fprintf(stream, "                       }\n");
     }
 
     // rise_constraint table
-    LibertyTable* rise_constraint_table = dynamic_cast<LibertyDelayTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kRiseConstrain));
-    auto* lut_table_template1 =rise_constraint_table->get_table_template();
+    LibertyTable* rise_constraint_table
+        = dynamic_cast<LibertyCheckTableModel*>(table_model)->getTable(int(LibertyTable::TableType::kRiseConstrain) - 4);
+    auto* lut_table_template1 = rise_constraint_table->get_table_template();
     if (lut_table_template1) {
       std::string template_name = lut_table_template1->get_template_name();
-      fprintf(stream, "                        rise_constraint(%s) {\n", template_name);
+      fprintf(stream, "                       rise_constraint(%s) {\n", template_name.c_str());
       auto& axes = rise_constraint_table->get_axes();
       int rows = axes[0].get()->get_axis_values().size();
       int columns = axes[1].get()->get_axis_values().size();
@@ -1802,32 +1808,33 @@ auto wirte_check_table_model = [&stream, &wirte_axis, &wirte_table_values](Liber
       auto& rise_constraint_table_values = rise_constraint_table->get_table_values();
       LOG_FATAL_IF(rise_constraint_table_values.size() > 1);
       auto float_value = dynamic_cast<LibertyFloatValue*>(rise_constraint_table_values.front().get())->getFloatValue();
-      fprintf(stream, "                        rise_constraint(Timing_cluster) {\n");
+      fprintf(stream, "                       rise_constraint(Timing_cluster) {\n");
       fprintf(stream, "                                values (\"%f\");\n", float_value);
       fprintf(stream, "                       }\n");
     }
- 
-    fprintf(stream, "                }\n");
-    };
 
-   auto write_liberty_cell
+    fprintf(stream, "                }\n");
+  };
+
+  auto write_liberty_cell
       = [&stream, &classify_cell_arc_by_snk_port, &wirte_delay_table_model, &wirte_check_table_model](LibertyCell* lib_cell) {
-          fprintf(stream, "  cell (%s) {", lib_cell->get_cell_name());
+          fprintf(stream, "  cell (%s) {\n", lib_cell->get_cell_name());
           auto snkport2arcset = classify_cell_arc_by_snk_port(lib_cell);
 
           for (const auto& pair : snkport2arcset) {
-            fprintf(stream, "pin (%s) {", pair.first.c_str());
+            fprintf(stream, "   pin (%s) {", pair.first.c_str());
             fprintf(stream, "\n");
             for (const auto& arc : pair.second) {
               const char* src_port_name = arc->get_src_port();
               LibertyTableModel* table_model = arc->get_table_model();
               if (arc->isCheckArc()) {
-                if (arc->get_timing_type()== LibertyArc::TimingType::kSetupRising
-                  || arc->get_timing_type()== LibertyArc::TimingType::kHoldRising
-                  || arc->get_timing_type()== LibertyArc::TimingType::kSetupFalling
-                  || arc->get_timing_type()== LibertyArc::TimingType::kHoldFalling){
-                wirte_check_table_model(arc);
-              }} else if (arc->isDelayArc()) {
+                if (arc->get_timing_type() == LibertyArc::TimingType::kSetupRising
+                    || arc->get_timing_type() == LibertyArc::TimingType::kHoldRising
+                    || arc->get_timing_type() == LibertyArc::TimingType::kSetupFalling
+                    || arc->get_timing_type() == LibertyArc::TimingType::kHoldFalling) {
+                  wirte_check_table_model(arc);
+                }
+              } else if (arc->isDelayArc()) {
                 wirte_delay_table_model(arc);
               } else {
                 continue;
@@ -1841,11 +1848,11 @@ auto wirte_check_table_model = [&stream, &wirte_axis, &wirte_table_values](Liber
   for (const auto& cell : get_cells()) {
     write_liberty_cell(cell.get());
   };
+  fprintf(stream, "}\n");
 
   LOG_INFO << "finish write liberty file " << lib_file_name;
+  std::fclose(stream);
 }
-
-
 
 /**
  * @brief Load liberty with rust parse API.
