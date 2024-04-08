@@ -50,7 +50,7 @@ unsigned CmdReadLiberty::exec() {
   Sta* ista = Sta::getOrCreateSta();
   ista->readLiberty(liberty_files);
   LibertyLibrary* lib_library = ista->getOneLib();
-  const char* lib_file_name = "/home/longshuaiying/test_write_lib.lib";
+  const char* lib_file_name = "/data/yexinyu/test_write_lib.lib";
   lib_library->printLibertyLibrary(lib_file_name);
 
   return 1;
