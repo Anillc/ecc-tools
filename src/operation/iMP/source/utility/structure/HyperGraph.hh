@@ -362,7 +362,7 @@ class HyperGraph
     GraphIterator<std::weak_ptr, Vertex> vbegin() { return GraphIterator<std::weak_ptr, Vertex>(_vertices, 0); }
 
     const GraphIterator<std::weak_ptr, Vertex> vend() const { return GraphIterator<std::weak_ptr, Vertex>(_vertices, _vertices.size()); }
-    GraphIterator<std::weak_ptr, Vertex> vend() { return GraphIterator<std::shared_ptr, Vertex>(_vertices, _vertices.size()); }
+    GraphIterator<std::weak_ptr, Vertex> vend() { return GraphIterator<std::weak_ptr, Vertex>(_vertices, _vertices.size()); }
 
     const GraphIterator<std::weak_ptr, Edge> ebegin() const {
         return GraphIterator<std::weak_ptr, Edge>(_edges, 0);

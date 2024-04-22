@@ -18,7 +18,6 @@
 
 #include <tcl_util.h>
 
-#include <iRT/interface/RTInterface.hpp>
 namespace python_interface {
 
 bool destroyRT();

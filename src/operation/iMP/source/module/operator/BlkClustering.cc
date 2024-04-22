@@ -1,11 +1,16 @@
+#define GLOG_NO_ABBREVIATED_SEVERITIES
+
 #include "BlkClustering.hh"
 
 #include "Block.hh"
 #include "Hmetis.hh"
 #include "HyperGraphAlgorithm.hh"
 #include "IDBParserEngine.hh"
+#include "IdbNet.h"
 #include "Logger.hpp"
 #include "Net.hh"
+#include "Pin.hh"
+#include "idm.h"
 
 namespace imp {
 void BlkClustering::operator()(Block& block)
@@ -38,8 +43,20 @@ void BlkClustering::operator()(Block& block)
   block.set_netlist(std::make_shared<Netlist>(std::move(clusters)));
 }
 
-void BlkClustering2::operator()(Block& block)
+void BlkClustering2::operator()(Block& root_cluster)
 {
+  multiLevelClustering(root_cluster);
+  INFO("MultiLevel-Clustering success");
+}
+
+void BlkClustering2::multiLevelClustering(Block& root_cluster)
+{
+  root_cluster.preorder_op([this](Block& blk) { this->singleLevelClustering(blk); });
+}
+
+void BlkClustering2::singleLevelClustering(Block& block)
+{
+  paramCheck();
   auto netlist = block.netlist();
   size_t nparts = block.level() == 1 ? l1_nparts : l2_nparts;
   if (netlist.vSize() <= nparts || block.level() > level_num)
@@ -91,8 +108,6 @@ void BlkClustering2::operator()(Block& block)
 
   auto sub_block = [&](const Netlist& graph, const std::vector<size_t>& sub_vertices) {
     auto&& [sub_netlist, cuts] = sub_graph(graph, sub_vertices);
-    int64_t sum_area = std::accumulate(sub_netlist.vbegin(), sub_netlist.vend(), int64_t(0),
-                                       [](auto&& a, auto&& b) { return a + (int64_t) geo::area(b.property()->boundingbox()); });
     auto new_block = std::make_shared<imp::Block>(block.get_name() + "_" + std::to_string(i++),
                                                   std::make_shared<imp::Netlist>(std::move(sub_netlist)), block.shared_from_this());
     // new_block->set_shape(imp::geo::make_box(0, 0, w, h));
@@ -111,11 +126,9 @@ void BlkClustering2::operator()(Block& block)
     if (non_critical_nets_name.find(origin_net->get_name()) != non_critical_nets_name.end()) non_critical_cut++;
     if (origin_net->isIONet()) {
       // std::cout << "io net" << std::endl;
-      net_ptr->set_net_weight(2.0);  // give io-net double weights
-      // net_ptr->set_net_weight(origin_net->get_net_weight());
+      net_ptr->set_net_weight(1.0 * origin_net->get_net_weight());  // give io-net double weights
     } else {
-      net_ptr->set_net_weight(1.0);
-      // net_ptr->set_net_weight(origin_net->get_net_weight());
+      net_ptr->set_net_weight(origin_net->get_net_weight());
     }
     auto parser = std::static_pointer_cast<IDBParser, ParserEngine>(this->parser.lock());
 
@@ -128,6 +141,13 @@ void BlkClustering2::operator()(Block& block)
   block.set_netlist(std::make_shared<Netlist>(std::move(clusters)));
   // std::cout<<"critical_cuts = "<<critical_cut<<std::endl;
   // std::cout<<"non_critical_cuts = "<<non_critical_cut<<std::endl;
+}
+
+void BlkClustering2::paramCheck()
+{
+  if (level_num > 2) {
+    ERROR("Only 1 or 2 level_num is supported now");
+  }
 }
 
 }  // namespace imp
