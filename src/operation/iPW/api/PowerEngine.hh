@@ -59,11 +59,6 @@ struct MacroConnection {
  */
 class PowerEngine {
  public:
-  struct ClusterConnection {
-    std::size_t _dst_cluster_id;
-    unsigned _hop;
-  };
-
   static PowerEngine *getOrCreatePowerEngine();
   static void destroyPowerEngine();
 

@@ -197,7 +197,7 @@ PowerEngine::buildConnectionMap(std::vector<std::set<std::string>> clusters,
     std::size_t snk_cluster_id = 0;
     bool is_found = false;
     for (std::size_t i = 0; i < clusters.size(); ++i) {
-      if (clusters[i].count(snk_obj_name)) {
+      if (clusters[i].contains(snk_obj_name)) {
         snk_cluster_id = i;
         is_found = true;
         break;
