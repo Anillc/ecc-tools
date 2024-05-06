@@ -22,7 +22,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "RTAPI.hpp"
+#include "RTInterface.hpp"
 #include "idm.h"
 #include "manager.hpp"
 
@@ -125,7 +125,7 @@ double EvalAPI::evalEGRWL()
   return 0;
 
   // call router to get eGR wirelength info
-  // irt::RTAPI& rt_api = irt::RTAPI::getInst();
+  // irt::RTI& rt_api = irt::RTI::getInst();
   // std::map<std::string, std::any> config_map;
   // std::vector<double> wl_via_pair = rt_api.getWireLengthAndViaNum(config_map);
   // rt_api.destroyInst();
@@ -278,6 +278,32 @@ double EvalAPI::evalMacroChannelPinRatio(float dist_ratio)
   return _congestion_eval_inst->evalMacroChannelPinRatio(dist_ratio);
 }
 
+vector<MacroVariant> EvalAPI::evalMacrosInfo()
+{
+  return _congestion_eval_inst->evalMacrosInfo();
+}
+
+void EvalAPI::plotMacroChannel(float dist_ratio,  const std::string& filename)
+{
+  _congestion_eval_inst->plotMacroChannel(dist_ratio, filename);
+}
+
+void EvalAPI::evalMacroMargin()
+{
+  _congestion_eval_inst->evalMacroMargin();
+}
+
+double EvalAPI::evalMaxContinuousSpace()
+{
+  return _congestion_eval_inst->evalMaxContinuousSpace();
+}
+
+void EvalAPI::evalIOPinAccess(const std::string& filename)
+{
+  return _congestion_eval_inst->evalIOPinAccess(filename);
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 vector<float> EvalAPI::evalPinDens()
@@ -329,7 +355,7 @@ vector<float> EvalAPI::evalGRCong()
 {
   return {};
   // // call router to get tilegrid info
-  // irt::RTAPI& rt_api = irt::RTAPI::getInst();
+  // irt::RTI& rt_api = irt::RTI::getInst();
   // std::map<std::string, std::any> config_map;
   // double wirelength = 0.0;
   // TileGrid* tile_grid = rt_api.getCongestionMap(config_map, wirelength);

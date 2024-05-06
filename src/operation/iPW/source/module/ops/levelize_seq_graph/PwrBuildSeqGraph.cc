@@ -47,8 +47,10 @@ unsigned PwrBuildSeqGraph::operator()(PwrVertex* the_vertex) {
   }
 
   /*Lambda function to create seq graph arc.*/
-  auto create_seq_arc = [this](auto* seq_vertex, auto* fanout_seq_vertex) {
+  auto create_seq_arc = [this](auto* seq_vertex, auto* fanout_seq_vertex,
+                               auto combine_depth) {
     PwrSeqArc* seq_arc = new PwrSeqArc(seq_vertex, fanout_seq_vertex);
+    seq_arc->set_combine_depth(combine_depth);
     seq_vertex->addSrcArc(seq_arc);
     fanout_seq_vertex->addSnkArc(seq_arc);
     _seq_graph.addPwrSeqArc(seq_arc);
@@ -61,7 +63,7 @@ unsigned PwrBuildSeqGraph::operator()(PwrVertex* the_vertex) {
       PwrVertex* the_pwr_vertex =
           get_the_pwr_graph()->staToPwrVertex(the_sta_vertex);
       PwrSeqVertex* seq_vertex = _seq_graph.getPortSeqVertex(the_pwr_vertex);
-      the_vertex->addFanoutSeqVertex(seq_vertex);
+      the_vertex->addFanoutSeqVertex(seq_vertex, 0);
       the_vertex->set_is_seq_visited();
       return 1;
     }
@@ -74,7 +76,7 @@ unsigned PwrBuildSeqGraph::operator()(PwrVertex* the_vertex) {
     Instance* seq_instance = the_vertex->getOwnInstance();
     PwrSeqVertex* seq_vertex = _seq_graph.getSeqVertex(seq_instance);
     if (seq_vertex) {
-      the_vertex->addFanoutSeqVertex(seq_vertex);
+      the_vertex->addFanoutSeqVertex(seq_vertex, 0);  // end vertex is level 0.
     } else {
       LOG_ERROR << seq_instance->get_name() << " is not seq vertex.";
     }
@@ -90,6 +92,10 @@ unsigned PwrBuildSeqGraph::operator()(PwrVertex* the_vertex) {
       continue;
     }
 
+    if (src_arc->is_loop_disable()) {
+      continue;
+    }
+
     // if the snk vertex is clock pin, dont consider the clock path.
     StaVertex* snk_vertex = src_arc->get_snk();
     if (snk_vertex->is_clock()) {
@@ -99,18 +105,33 @@ unsigned PwrBuildSeqGraph::operator()(PwrVertex* the_vertex) {
     PwrVertex* snk_pwr_vertex = get_the_pwr_graph()->staToPwrVertex(snk_vertex);
     if (snk_pwr_vertex->exec(*this)) {
       auto& fanout_seq_vertexes = snk_pwr_vertex->get_fanout_seq_vertexes();
+      auto& fanout_seq_vertex_to_level =
+          snk_pwr_vertex->get_fanout_seq_vertex_to_level();
       // The vertex is comb, add the fauout seq vertexes to the set.
-      the_vertex->addFanoutSeqVertex(fanout_seq_vertexes);
+
+      std::ranges::for_each(
+          fanout_seq_vertexes,
+          [&fanout_seq_vertex_to_level, the_vertex](auto* fanout_seq_vertex) {
+            unsigned pre_level = fanout_seq_vertex_to_level[fanout_seq_vertex];
+            unsigned curr_level = the_vertex->getDesignObj()->isOutput() &&
+                                          !the_vertex->get_own_seq_vertex()
+                                      ? pre_level + 1
+                                      : pre_level;
+            the_vertex->addFanoutSeqVertex(fanout_seq_vertex, curr_level);
+          });
     }
   }
 
   auto& fanout_seq_vertexes = the_vertex->get_fanout_seq_vertexes();
+  auto& fanout_seq_vertex_to_level =
+      the_vertex->get_fanout_seq_vertex_to_level();
 
   if (the_vertex->get_own_seq_vertex()) {
     // The vertex is seq, create all seq arcs by the set of fanout seq
     // vertexes.
     for (auto* fanout_seq_vertex : fanout_seq_vertexes) {
-      create_seq_arc(the_vertex->get_own_seq_vertex(), fanout_seq_vertex);
+      create_seq_arc(the_vertex->get_own_seq_vertex(), fanout_seq_vertex,
+                     fanout_seq_vertex_to_level[fanout_seq_vertex]);
     }
   }
 
@@ -161,8 +182,14 @@ unsigned PwrBuildSeqGraph::buildSeqVertexes(PwrGraph* the_graph) {
     auto data_in_pwr_vertexes = find_clk_to_in_vertex(clock_vertex);
     // Find dataout vertexes from clk.
     auto data_out_pwr_vertexes = find_clk_to_out_vertex(clock_vertex);
+    Instance* seq_instance = nullptr;
     // Find the instance of these vertexes.
-    Instance* seq_instance = (*data_out_pwr_vertexes.begin())->getOwnInstance();
+    if (!data_out_pwr_vertexes.empty()) {
+      seq_instance = (*data_out_pwr_vertexes.begin())->getOwnInstance();
+    } else {
+      seq_instance = (*data_in_pwr_vertexes.begin())->getOwnInstance();
+    }
+     
     // New a seq vertex for this instance.
     PwrSeqVertex* seq_vertex = new PwrSeqVertex(
         std::move(data_in_pwr_vertexes), std::move(data_out_pwr_vertexes));
@@ -238,15 +265,6 @@ unsigned PwrBuildSeqGraph::buildSeqArcs(PwrGraph* the_graph) {
   auto build_seq_arc = [the_graph, this](auto* seq_vertex) {
     auto& data_out_pwr_vertexes = seq_vertex->get_seq_out_vertexes();
     for (auto* data_out_pwr_vertex : data_out_pwr_vertexes) {
-      StaVertex* data_out_sta_vertex =
-          the_graph->pwrToStaVertex(data_out_pwr_vertex);
-
-      // TODO Macro to be done, do not build the connecting
-      // relationships
-      if (auto* own_cell = data_out_sta_vertex->getOwnCell();
-          own_cell && own_cell->isMacroCell()) {
-        continue;
-      }
       data_out_pwr_vertex->exec(*this);
     }
   };
@@ -290,6 +308,8 @@ unsigned PwrBuildSeqGraph::operator()(PwrGraph* the_graph) {
   LOG_INFO << "seq inst num: " << _seq_graph.getSeqVertexNum();
   LOG_INFO << "input port num: " << _seq_graph.getInputPortNum();
   LOG_INFO << "output port num: " << _seq_graph.getOutputPortNum();
+  LOG_INFO << "seq macro num: " << _seq_graph.getMacroSeqVertexNum();
+  LOG_INFO << "seq arc num: " << _seq_graph.getSeqArcNum();
 
   auto [max_fanout, max_fanin] = _seq_graph.getSeqVertexMaxFanoutAndMaxFain();
   LOG_INFO << "seq vertex max fanout: " << max_fanout;

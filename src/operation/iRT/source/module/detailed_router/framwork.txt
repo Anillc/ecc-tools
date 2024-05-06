@@ -20,7 +20,7 @@ iterativeDRModel:迭代DRModel
             getTaskScheduleByViolation:通过Violation得到新的布线调度
         freeDRBox:析构
     uploadNetResult:将所有的box布线结果去环优化，然后删除所有GCellMap的结果再添加
-    uploadViolation:将GCellMap的violation删除，再将box内的violation添加
+    uploadViolation:将所有的box的violation删除所有GCellMap的后再添加到GCellMap
 
 
 

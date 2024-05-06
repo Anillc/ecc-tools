@@ -30,7 +30,7 @@
 
 namespace irt {
 
-#define DR_INST (irt::DetailedRouter::getInst())
+#define RTDR (irt::DetailedRouter::getInst())
 
 class DetailedRouter
 {
@@ -105,7 +105,7 @@ class DetailedRouter
   void updateViolationList(DRBox& dr_box);
   std::vector<Violation> getViolationList(DRBox& dr_box);
   void freeDRBox(DRBox& dr_box);
-  int32_t getViolationNum(DRModel& dr_model);
+  int32_t getViolationNum();
   void uploadNetResult(DRModel& dr_model);
   void uploadViolation(DRModel& dr_model);
 
