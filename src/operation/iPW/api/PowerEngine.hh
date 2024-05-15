@@ -42,7 +42,6 @@ struct ClusterConnection {
   unsigned _hop;
 };
 
-
 /**
  * @brief macro connection for iMP.
  *

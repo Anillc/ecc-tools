@@ -22,10 +22,11 @@
  * @date 2024-02-26
  *
  */
+#include "PowerEngine.hh"
+
 #include <tuple>
 #include <vector>
 
-#include "PowerEngine.hh"
 #include "ThreadPool/ThreadPool.h"
 
 namespace ipower {

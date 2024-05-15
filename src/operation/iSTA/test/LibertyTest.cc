@@ -58,6 +58,6 @@ TEST_F(LibertyTest, rust_expr_builder) {
 // int main(int argc, char** argv) {
 //   ::testing::InitGoogleTest(&argc, argv);
 
-//   testing::GTEST_FLAG(filter) = "LibertyTest.rust_expr_builder*";
+//   testing::GTEST_FLAG(filter) = "LibertyTest.rust_*";
 //   return RUN_ALL_TESTS();
 // }
