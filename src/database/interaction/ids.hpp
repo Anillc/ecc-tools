@@ -67,6 +67,7 @@ class IdbInstance;
 class IdbNet;
 class IdbRegularWireSegment;
 class IdbLayerShape;
+class FeatureSummary;
 }  // namespace idb
 
 namespace ito {
@@ -81,20 +82,14 @@ class DrcRect;
 
 namespace irt {
 
-enum class Stage;
-class PlanarRect;
-class LayerRect;
-
+class Violation;
+class LayerCoord;
+struct CmpLayerCoordByXASC;
+class Summary;
 template <typename T>
 class Segment;
 
-template <typename T>
-class MTree;
 
-class Net;
-class AccessPoint;
-class GRNode;
-class Violation;
 
 }  // namespace irt
 

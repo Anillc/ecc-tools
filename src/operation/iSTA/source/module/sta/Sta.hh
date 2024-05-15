@@ -217,7 +217,7 @@ class Sta {
   void readVerilog(const char* verilog_file);
   void linkDesign(const char* top_cell_name);
   void readVerilogWithRustParser(const char* verilog_file);
-  void linkDesignWithRustParser();
+  void linkDesignWithRustParser(const char* top_cell_name);
   void set_design_name(const char* design_name) {
     _netlist.set_name(design_name);
   }
@@ -237,6 +237,8 @@ class Sta {
   LibertyLibrary* getOneLib() {
     return _libs.empty() ? nullptr : _libs.back().get();
   }
+
+  std::set<LibertyLibrary*> getUsedLibs();
 
   Vector<std::unique_ptr<LibertyLibrary>>& getAllLib() { return _libs; }
 
@@ -516,14 +518,16 @@ class Sta {
   std::unique_ptr<SdcConstrain> _constrains;  //!< The sdc constrain.
   VerilogReader _verilog_reader;
   RustVerilogReader _rust_verilog_reader;
+  void* _rust_verilog_file_ptr;
   std::string _top_module_name;
   std::vector<std::unique_ptr<VerilogModule>>
       _verilog_modules;  //!< The current design parsed from verilog file.
+  std::vector<RustVerilogModule*>
+      _rust_verilog_modules;  //!< The current design parsed from verilog file
+                              //!< of rust version.
   VerilogModule* _top_module = nullptr;  //!< The design top module.
-  std::vector<std::unique_ptr<RustVerilogModule>>
-      _rust_verilog_modules;  //!< The current design parsed from verilog file.
-                              //!< whether need unique_ptr?
-  RustVerilogModule* _rust_top_module = nullptr;
+  RustVerilogModule* _rust_top_module =
+      nullptr;       //!< The design top module of rust version.
   Netlist _netlist;  //!< The current top netlist for sta analysis.
   Vector<std::unique_ptr<LibertyLibrary>>
       _libs;  //!< The design libs of different corners.

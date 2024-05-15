@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "../../database/interaction/ids.hpp"
+#include "../../database/interaction/Summary/summary.h"
 #include "IdbDesign.h"
 #include "IdbLayout.h"
 #include "builder.h"
@@ -70,6 +71,8 @@ class DataManager
   bool is_def_read() { return _idb_def_service != nullptr ? true : false; }
 
   int get_routing_layer_1st();
+
+  FeatureSummary& get_feature_summary() { return _feature_summary; }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +132,7 @@ class DataManager
   IdbInstance* insertIOFiller(string inst_name, string cell_master_name, int32_t coord_x = 0, int32_t coord_y = 0,
                               IdbOrient orient = IdbOrient::kN_R0);
 
-  bool placeInst(string inst_name, int32_t x, int32_t y, string orient, string cell_master_name, string source);
+  bool placeInst(string inst_name, int32_t x, int32_t y, string orient, string cell_master_name, string source="");
 
   void place_macro_generate_tcl(std::string directory, std::string tcl_name, int number = 100);
   bool place_macro_loc_rand(std::string tcl_path);
@@ -218,6 +221,7 @@ class DataManager
   IdbLayout* _layout = nullptr;
   // pa
   std::map<std::string, std::map<std::string, std::vector<ids::AccessPoint>>> _master_access_point_map;
+  FeatureSummary _feature_summary;
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

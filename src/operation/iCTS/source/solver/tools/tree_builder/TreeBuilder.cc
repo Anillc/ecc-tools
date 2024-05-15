@@ -608,7 +608,7 @@ Inst* TreeBuilder::shiftCBSTree(const std::string& net_name, const std::vector<P
                                 const std::optional<double>& max_len)
 {
   {
-    auto* buf = cbsTree(net_name, loads, skew_bound, guide_loc, topo_type);
+    auto* buf = defaultTree(net_name, loads, skew_bound, guide_loc, topo_type);
     auto* driver_pin = buf->get_driver_pin();
     auto driver_loc = driver_pin->get_location();
     driver_pin->postOrder(TimingPropagator::updateNetLen<Node>);
@@ -718,6 +718,36 @@ Inst* TreeBuilder::tempTree(const std::string& net_name, const std::vector<Pin*>
   salt::TreeNode::preOrder(source, connect_node_func);
   return buf;
 }
+/**
+ * @brief For testing
+ *
+ * @param net_name
+ * @param loads
+ * @param skew_bound
+ * @param guide_loc
+ * @param topo_type
+ * @return Inst*
+ */
+
+Inst* TreeBuilder::defaultTree(const std::string& net_name, const std::vector<Pin*>& loads, const std::optional<double>& skew_bound,
+                               const std::optional<Point>& guide_loc, const TopoType& topo_type)
+{
+  auto* config = CTSAPIInst.get_config();
+  auto use_skew_tree_alg = config->get_use_skew_tree_alg();
+  if (use_skew_tree_alg) {
+    return cbsTree(net_name, loads, skew_bound, guide_loc, topo_type);
+  }
+  std::vector<Inst*> load_insts;
+  std::ranges::transform(loads, std::back_inserter(load_insts), [&](Pin* pin) { return pin->get_inst(); });
+  auto* buf = genBufInst(net_name, guide_loc.value_or(BalanceClustering::calcCentroid(load_insts)));
+  auto* driver_pin = buf->get_driver_pin();
+  std::vector<Pin*> pins{driver_pin};
+  std::ranges::copy(loads, std::back_inserter(pins));
+  localPlace(pins);
+  shallowLightTree(net_name, driver_pin, loads);
+  return buf;
+}
+
 /**
  * @brief iterative fix skew
  *

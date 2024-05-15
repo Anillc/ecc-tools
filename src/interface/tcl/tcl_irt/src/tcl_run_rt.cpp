@@ -16,7 +16,7 @@
 // ***************************************************************************************
 #include <set>
 
-#include "RTAPI.hpp"
+#include "RTInterface.hpp"
 #include "flow_config.h"
 #include "tcl_rt.h"
 #include "tcl_util.h"
@@ -26,8 +26,6 @@ namespace tcl {
 
 TclRunRT::TclRunRT(const char* cmd_name) : TclCmd(cmd_name)
 {
-  _config_list.push_back(std::make_pair("-flow", ValueType::kStringList));
-  TclUtil::addOption(this, _config_list);
 }
 
 unsigned TclRunRT::exec()
@@ -35,17 +33,7 @@ unsigned TclRunRT::exec()
   if (!check()) {
     return 0;
   }
-
-  iplf::flowConfigInst->set_status_stage("iRT - Routing");
-  ieda::Stats stats;
-
-  std::map<std::string, std::any> config_map = TclUtil::getConfigMap(this, _config_list);
-
-  RTAPI_INST.runRT();
-
-  iplf::flowConfigInst->add_status_runtime(stats.elapsedRunTime());
-  iplf::flowConfigInst->set_status_memmory(stats.memoryDelta());
-
+  RTI.runRT();
   return 1;
 }
 

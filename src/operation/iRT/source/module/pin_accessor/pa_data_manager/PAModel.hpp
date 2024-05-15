@@ -14,11 +14,11 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
+
 #pragma once
 
-#include <vector>
-
 #include "PANet.hpp"
+#include "RTHeader.hpp"
 
 namespace irt {
 

@@ -33,16 +33,33 @@
 namespace ipower {
 
 /**
+ * @brief cluster connection for iMP.
+ *
+ */
+struct ClusterConnection {
+  std::size_t _dst_cluster_id;
+  std::vector<unsigned> _stages_each_hop;
+  unsigned _hop;
+};
+
+
+/**
+ * @brief macro connection for iMP.
+ *
+ */
+struct MacroConnection {
+  std::string _src_macro_name;
+  std::string _dst_macro_name;
+  std::vector<unsigned> _stages_each_hop;
+  unsigned _hop;
+};
+
+/**
  * @brief The top class for power(include timing) engine.
  *
  */
 class PowerEngine {
  public:
-  struct ClusterConnection {
-    std::size_t _dst_cluster_id;
-    unsigned _hop;
-  };
-
   static PowerEngine *getOrCreatePowerEngine();
   static void destroyPowerEngine();
 
@@ -55,7 +72,11 @@ class PowerEngine {
   // connection for the max hop.
   unsigned creatDataflow();
   std::map<std::size_t, std::vector<ClusterConnection>> buildConnectionMap(
-      std::vector<std::set<std::string_view>> clusters, unsigned max_hop);
+      std::vector<std::set<std::string>> clusters,
+      std::set<std::string> src_instances, unsigned max_hop);
+
+  // api for build only macro connection.
+  std::vector<MacroConnection> buildMacroConnectionMap(unsigned max_hop);
 
  private:
   PowerEngine();

@@ -22,7 +22,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "RTAPI.hpp"
+#include "RTInterface.hpp"
 #include "idm.h"
 #include "manager.hpp"
 
@@ -122,13 +122,15 @@ int64_t EvalAPI::evalDriver2LoadWL(WLNet* wl_net, const string& sink_pin_name)
 
 double EvalAPI::evalEGRWL()
 {
-  // call router to get eGR wirelength info
-  irt::RTAPI& rt_api = irt::RTAPI::getInst();
-  std::map<std::string, std::any> config_map;
-  std::vector<double> wl_via_pair = rt_api.getWireLengthAndViaNum(config_map);
-  rt_api.destroyInst();
+  return 0;
 
-  return wl_via_pair[0];
+  // call router to get eGR wirelength info
+  // irt::RTI& rt_api = irt::RTI::getInst();
+  // std::map<std::string, std::any> config_map;
+  // std::vector<double> wl_via_pair = rt_api.getWireLengthAndViaNum(config_map);
+  // rt_api.destroyInst();
+
+  // return wl_via_pair[0];
 }
 
 void EvalAPI::reportWirelength(const string& plot_path, const string& output_file_name, const vector<WLNet*>& net_list)
@@ -276,6 +278,32 @@ double EvalAPI::evalMacroChannelPinRatio(float dist_ratio)
   return _congestion_eval_inst->evalMacroChannelPinRatio(dist_ratio);
 }
 
+vector<MacroVariant> EvalAPI::evalMacrosInfo()
+{
+  return _congestion_eval_inst->evalMacrosInfo();
+}
+
+void EvalAPI::plotMacroChannel(float dist_ratio,  const std::string& filename)
+{
+  _congestion_eval_inst->plotMacroChannel(dist_ratio, filename);
+}
+
+void EvalAPI::evalMacroMargin()
+{
+  _congestion_eval_inst->evalMacroMargin();
+}
+
+double EvalAPI::evalMaxContinuousSpace()
+{
+  return _congestion_eval_inst->evalMaxContinuousSpace();
+}
+
+void EvalAPI::evalIOPinAccess(const std::string& filename)
+{
+  return _congestion_eval_inst->evalIOPinAccess(filename);
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 vector<float> EvalAPI::evalPinDens()
@@ -286,11 +314,10 @@ vector<float> EvalAPI::evalPinDens()
 
 vector<float> EvalAPI::evalPinDens(CongGrid* grid, const vector<CongInst*>& inst_list)
 {
-  CongestionEval congestion_eval;
-  congestion_eval.set_cong_grid(grid);
-  congestion_eval.set_cong_inst_list(inst_list);
-  congestion_eval.mapInst2Bin();
-  return congestion_eval.evalPinDens();
+  _congestion_eval_inst->set_cong_grid(grid);
+  _congestion_eval_inst->set_cong_inst_list(inst_list);
+  _congestion_eval_inst->mapInst2Bin();
+  return _congestion_eval_inst->evalPinDens();
 }
 
 vector<float> EvalAPI::evalInstDens()
@@ -301,11 +328,10 @@ vector<float> EvalAPI::evalInstDens()
 
 vector<float> EvalAPI::evalInstDens(CongGrid* grid, const vector<CongInst*>& inst_list)
 {
-  CongestionEval congestion_eval;
-  congestion_eval.set_cong_grid(grid);
-  congestion_eval.set_cong_inst_list(inst_list);
-  congestion_eval.mapInst2Bin();
-  return congestion_eval.getInstDens();
+  _congestion_eval_inst->set_cong_grid(grid);
+  _congestion_eval_inst->set_cong_inst_list(inst_list);
+  _congestion_eval_inst->mapInst2Bin();
+  return _congestion_eval_inst->getInstDens();
 }
 
 vector<float> EvalAPI::evalNetCong(const string& rudy_type)
@@ -327,20 +353,21 @@ vector<float> EvalAPI::evalNetCong(CongGrid* grid, const vector<CongNet*>& net_l
 
 vector<float> EvalAPI::evalGRCong()
 {
-  // call router to get tilegrid info
-  irt::RTAPI& rt_api = irt::RTAPI::getInst();
-  std::map<std::string, std::any> config_map;
-  double wirelength = 0.0;
-  TileGrid* tile_grid = rt_api.getCongestonMap(config_map, wirelength);
-  rt_api.destroyInst();
+  return {};
+  // // call router to get tilegrid info
+  // irt::RTI& rt_api = irt::RTI::getInst();
+  // std::map<std::string, std::any> config_map;
+  // double wirelength = 0.0;
+  // TileGrid* tile_grid = rt_api.getCongestionMap(config_map, wirelength);
+  // rt_api.destroyInst();
 
-  _congestion_eval_inst->set_tile_grid(tile_grid);
+  // _congestion_eval_inst->set_tile_grid(tile_grid);
 
-  vector<float> result;
-  result.reserve(4);
-  result = _congestion_eval_inst->evalRouteCong();
-  result.push_back(static_cast<float>(wirelength));
-  return result;
+  // vector<float> result;
+  // result.reserve(4);
+  // result = _congestion_eval_inst->evalRouteCong();
+  // result.push_back(static_cast<float>(wirelength));
+  // return result;
 }
 
 vector<float> EvalAPI::getUseCapRatioList()

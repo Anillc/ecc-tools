@@ -81,7 +81,7 @@ std::vector<DesignObject*> Netlist::findPin(const char* pattern, bool regexp,
   if (!regexp && !nocase) {
     auto [instance_name, pin_name] = Str::splitTwoPart(pattern, sep);
     if (pin_name.empty()) {
-      LOG_INFO << pattern << " pin name is empty.";
+      // LOG_INFO << pattern << " pin name is empty.";
       return match_pins;
     }
 
@@ -115,18 +115,22 @@ std::vector<DesignObject*> Netlist::findObj(const char* pattern, bool regexp,
     std::move(match_ports.begin(), match_ports.end(),
               std::back_inserter(match_objs));
 
-    auto* match_instance =
-        findInstance(pattern);  // fixme, need support regexp for instance
-    if (match_instance) {
-      match_objs.emplace_back(match_instance);
+    if (match_objs.empty()) {
+      auto* match_instance =
+          findInstance(pattern);  // fixme, need support regexp for instance
+      if (match_instance) {
+        match_objs.emplace_back(match_instance);
+      }
     }
 
-    std::vector<DesignObject*> match_pins;
-    if (Str::contain(pattern, "/") || Str::contain(pattern, ":")) {
-      match_pins = findPin(pattern, regexp, nocase);
+    if (match_objs.empty()) {
+      std::vector<DesignObject*> match_pins;
+      if (Str::contain(pattern, "/") || Str::contain(pattern, ":")) {
+        match_pins = findPin(pattern, regexp, nocase);
+      }
+      std::move(match_pins.begin(), match_pins.end(),
+                std::back_inserter(match_objs));
     }
-    std::move(match_pins.begin(), match_pins.end(),
-              std::back_inserter(match_objs));
 
   } else {
     // TODO

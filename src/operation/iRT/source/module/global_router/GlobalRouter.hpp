@@ -22,7 +22,7 @@
 
 namespace irt {
 
-#define GR_INST (irt::GlobalRouter::getInst())
+#define RTGR (irt::GlobalRouter::getInst())
 
 class GlobalRouter
 {
@@ -31,7 +31,7 @@ class GlobalRouter
   static GlobalRouter& getInst();
   static void destroyInst();
   // function
-  void route(std::vector<Net>& net_list);
+  void route();
 
  private:
   // self

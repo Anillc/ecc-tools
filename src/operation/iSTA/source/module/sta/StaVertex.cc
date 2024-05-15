@@ -1014,6 +1014,27 @@ void StaVertex::getPathDepth(
 }
 
 /**
+ * @brief Assume the vertex is endpoint, get the depth of the worst path.
+ *
+ * @return unsigned
+ */
+unsigned StaVertex::GetWorstPathDepth(AnalysisMode analysis_mode) {
+  auto* ista = Sta::getOrCreateSta();
+
+  auto rise_worst_seq_data =
+      ista->getWorstSeqData(this, analysis_mode, TransType::kRise);
+  auto fall_worst_seq_data =
+      ista->getWorstSeqData(this, analysis_mode, TransType::kFall);
+
+  auto rise_depth = rise_worst_seq_data->getPathDelayData().size();
+  auto fall_depth = fall_worst_seq_data->getPathDelayData().size();
+
+  return rise_worst_seq_data->getSlackNs() < fall_worst_seq_data->getSlackNs()
+             ? rise_depth
+             : fall_depth;
+}
+
+/**
  * @brief Execute the sta functor.
  *
  * @param func

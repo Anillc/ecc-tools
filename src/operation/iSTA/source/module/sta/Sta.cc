@@ -204,7 +204,7 @@ unsigned Sta::readSdc(const char *sdc_file) {
 unsigned Sta::readSpef(const char *spef_file) {
   StaGraph &the_graph = get_graph();
 
-  StaBuildRCTree func(spef_file, DelayCalcMethod::kElmore);
+  StaBuildRCTree func(spef_file, DelayCalcMethod::kArnoldi);
   func(&the_graph);
 
   return 1;
@@ -307,7 +307,7 @@ unsigned Sta::readLiberty(std::vector<std::string> &lib_files) {
 void Sta::readVerilogWithRustParser(const char *verilog_file) {
   LOG_INFO << "read verilog file " << verilog_file << " start";
   bool is_ok = _rust_verilog_reader.readVerilog(verilog_file);
-  _rust_top_module = _rust_verilog_reader.get_top_module();
+  _rust_verilog_file_ptr = _rust_verilog_reader.get_verilog_file_ptr();
   LOG_FATAL_IF(!is_ok) << "read verilog file " << verilog_file << " failed.";
   LOG_INFO << "read verilog end";
 }
@@ -650,14 +650,20 @@ void Sta::linkDesign(const char *top_cell_name) {
  *
  * @param top_cell_name
  */
-void Sta::linkDesignWithRustParser() {
-  const char *top_cell_name = _rust_top_module->module_name;
-  auto top_module_stmts = _rust_top_module->module_stmts;
-  // auto port_list = _rust_top_module->port_list;
-
+void Sta::linkDesignWithRustParser(const char *top_cell_name) {
   LOG_INFO << "link design " << top_cell_name << " start";
+
+  _rust_verilog_reader.flattenModule(top_cell_name);
+  auto &rust_verilog_modules = _rust_verilog_reader.get_verilog_modules();
+  _rust_verilog_modules = std::move(rust_verilog_modules);
+
+  _rust_top_module = _rust_verilog_reader.get_top_module();
+  LOG_FATAL_IF(!_rust_top_module) << "top module not found.";
+  set_design_name(_rust_top_module->module_name);
+
+  auto top_module_stmts = _rust_top_module->module_stmts;
   Netlist &design_netlist = _netlist;
-  design_netlist.set_name(top_cell_name);
+  design_netlist.set_name(_rust_top_module->module_name);
 
   /*The verilog decalre statement process lookup table.*/
   std::map<DclType, std::function<DesignObject *(DclType, const char *)>>
@@ -977,8 +983,28 @@ void Sta::linkDesignWithRustParser() {
       design_netlist.addInstance(std::move(inst));
     }
   }
-
+  rust_free_verilog_file(_rust_verilog_file_ptr);
   LOG_INFO << "link design " << top_cell_name << " end";
+}
+
+/**
+ * @brief get the design used libs.
+ *
+ * @return std::set<LibertyLibrary *>
+ */
+std::set<LibertyLibrary *> Sta::getUsedLibs() {
+  if (!isBuildGraph()) {
+    return std::set<LibertyLibrary *>();
+  }
+
+  std::set<LibertyLibrary *> used_libs;
+  Instance *inst;
+  FOREACH_INSTANCE(&_netlist, inst) {
+    auto *used_lib = inst->get_inst_cell()->get_owner_lib();
+    used_libs.insert(used_lib);
+  }
+
+  return used_libs;
 }
 
 /**
@@ -1134,6 +1160,10 @@ void Sta::initSdcCmd() {
   LOG_FATAL_IF(!get_ports);
   TclCmds::addTclCmd(std::move(get_ports));
 
+  auto get_libs = std::make_unique<CmdGetLibs>("get_libs");
+  LOG_FATAL_IF(!get_libs);
+  TclCmds::addTclCmd(std::move(get_libs));
+
   auto all_clocks = std::make_unique<CmdAllClocks>("all_clocks");
   LOG_FATAL_IF(!all_clocks);
   TclCmds::addTclCmd(std::move(all_clocks));
@@ -1174,6 +1204,20 @@ void Sta::initSdcCmd() {
   auto set_units = std::make_unique<CmdSetUnits>("set_units");
   LOG_FATAL_IF(!set_units);
   TclCmds::addTclCmd(std::move(set_units));
+
+  auto group_path = std::make_unique<CmdGroupPath>("group_path");
+  LOG_FATAL_IF(!group_path);
+  TclCmds::addTclCmd(std::move(group_path));
+
+  auto set_operating_conditions =
+      std::make_unique<CmdSetOperatingConditions>("set_operating_conditions");
+  LOG_FATAL_IF(!set_operating_conditions);
+  TclCmds::addTclCmd(std::move(set_operating_conditions));
+
+  auto set_wire_load_mode =
+      std::make_unique<CmdSetWireLoadMode>("set_wire_load_mode");
+  LOG_FATAL_IF(!set_wire_load_mode);
+  TclCmds::addTclCmd(std::move(set_wire_load_mode));
 }
 
 /**
@@ -2174,6 +2218,9 @@ Sta::getStartEndSlackPairsOfTopNPaths(int top_n, AnalysisMode mode,
       auto end_pin_name =
           seq_path_data->get_delay_data()->get_own_vertex()->getName();
       double slack = seq_path_data->getSlackNs();
+      if (slack >= 0) {
+        break;
+      }
       start_end_slacks.push_back(
           std::make_tuple(start_pin_name, end_pin_name, slack));
 
@@ -2229,6 +2276,9 @@ Sta::getStartEndSlackPairsOfTopNPercentPaths(double top_percentage,
       auto end_pin_name =
           seq_path_data->get_delay_data()->get_own_vertex()->getName();
       double slack = seq_path_data->getSlackNs();
+      if (slack >= 0) {
+        break;
+      }
       start_end_slacks.push_back(
           std::make_tuple(start_pin_name, end_pin_name, slack));
       --top_n;

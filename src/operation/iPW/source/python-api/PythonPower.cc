@@ -34,6 +34,7 @@ namespace ipower {
 
 PYBIND11_MODULE(ipower_cpp, m) {
   m.def("set_design_workspace", set_design_workspace, ("design_workspace"));
+  m.def("read_lef_def", read_lef_def, ("lef_files"), ("def_file"));
   m.def("read_netlist", read_netlist, ("file_name"));
   m.def("read_liberty", read_liberty, ("file_name"));
   m.def("link_design", link_design, ("cell_name"));
@@ -43,5 +44,23 @@ PYBIND11_MODULE(ipower_cpp, m) {
 
   m.def("read_vcd", &read_vcd, py::arg("file_name"), py::arg("top_name"));
   m.def("report_power", &report_power);
+
+  // for dataflow.
+  m.def("create_data_flow", &create_data_flow);
+
+  py::class_<ipower::ClusterConnection>(m, "ClusterConnection")
+    .def_readwrite("dst_cluster_id", &ipower::ClusterConnection::_dst_cluster_id)
+    .def_readwrite("stages_each_hop", &ipower::ClusterConnection::_stages_each_hop)
+    .def_readwrite("hop", &ipower::ClusterConnection::_hop);
+  m.def("build_connection_map", &build_connection_map);
+
+  py::class_<ipower::MacroConnection>(m, "MacroConnection")
+    .def_readwrite("src_macro_name", &ipower::MacroConnection::_src_macro_name)
+    .def_readwrite("dst_macro_name", &ipower::MacroConnection::_dst_macro_name)
+    .def_readwrite("stages_each_hop", &ipower::MacroConnection::_stages_each_hop)
+    .def_readwrite("hop", &ipower::MacroConnection::_hop);
+  m.def("build_macro_connection_map", &build_macro_connection_map);
+
+
 }
 }  // namespace ipower

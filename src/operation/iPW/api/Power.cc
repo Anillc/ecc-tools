@@ -22,10 +22,9 @@
  * @date 2023-01-02
  */
 
-#include "Power.hh"
-
 #include <array>
 
+#include "Power.hh"
 #include "ops/annotate_toggle_sp/AnnotateToggleSP.hh"
 #include "ops/build_graph/PwrBuildGraph.hh"
 #include "ops/calc_power/PwrCalcInternalPower.hh"
@@ -516,7 +515,7 @@ unsigned Power::reportInstancePower(const char* rpt_file_name,
 
   // lambda for print power data float to string.
   auto data_str = [](double data) { return Str::printf("%.3e", data); };
-  auto data_str_f = [](double data) { return Str::printf("%.3f", data); };
+  // auto data_str_f = [](double data) { return Str::printf("%.3f", data); };
 
   PwrGroupData* group_data;
   FOREACH_PWR_GROUP_DATA(this, group_data) {
@@ -649,11 +648,22 @@ unsigned Power::runCompleteFlow() {
   {
     // report power.
     ieda::Stats stats;
-    LOG_INFO << "power report start";
 
-    std::string output_path = ista->get_design_work_space();
-    output_path += Str::printf("/%s.pwr", ista->get_design_name().c_str());
+    std::string output_dir = ista->get_design_work_space();
+    LOG_INFO << "power report start, output dir: " << output_dir;
+    
+    std::string output_path =
+        output_dir + Str::printf("/%s.pwr", ista->get_design_name().c_str());
     reportSummaryPower(output_path.c_str(), PwrAnalysisMode::kAveraged);
+
+    output_path =
+        output_dir +
+        Str::printf("/%s_%s.pwr", ista->get_design_name().c_str(), "instance");
+    reportInstancePower(output_path.c_str(), PwrAnalysisMode::kAveraged);
+    output_path =
+        output_dir +
+        Str::printf("/%s_%s.csv", ista->get_design_name().c_str(), "instance");
+    reportInstancePowerCSV(output_path.c_str());
 
     LOG_INFO << "power report end";
     double memory_delta = stats.memoryDelta();

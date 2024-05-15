@@ -17,6 +17,9 @@
 #pragma once
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <set>
+#include <string>
+
 namespace py = pybind11;
 
 #include "py_ipw.h"
@@ -27,6 +30,24 @@ void register_ipw(py::module& m)
 {
   m.def("read_vcd_cpp", &readRustVCD, py::arg("file_name"), py::arg("top_name"));
   m.def("report_power_cpp", &reportPower);
+
+  // for dataflow.
+  m.def("create_data_flow", &create_data_flow);
+
+  py::class_<ipower::ClusterConnection>(m, "ClusterConnection")
+    .def_readwrite("dst_cluster_id", &ipower::ClusterConnection::_dst_cluster_id)
+    .def_readwrite("stages_each_hop", &ipower::ClusterConnection::_stages_each_hop)
+    .def_readwrite("hop", &ipower::ClusterConnection::_hop);
+  m.def("build_connection_map", &build_connection_map);
+
+
+py::class_<ipower::MacroConnection>(m, "MacroConnection")
+    .def_readwrite("src_macro_name", &ipower::MacroConnection::_src_macro_name)
+    .def_readwrite("dst_macro_name", &ipower::MacroConnection::_dst_macro_name)
+    .def_readwrite("stages_each_hop", &ipower::MacroConnection::_stages_each_hop)
+    .def_readwrite("hop", &ipower::MacroConnection::_hop);
+  m.def("build_macro_connection_map", &build_macro_connection_map);
+
 }
 
 }
