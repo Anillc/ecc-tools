@@ -30,6 +30,8 @@
 #include "TimingEval.hpp"
 #include "TrackAssigner.hpp"
 #include "builder.h"
+#include "feature_irt.h"
+#include "feature_manager.h"
 #include "flow_config.h"
 #include "icts_fm/file_cts.h"
 #include "icts_io.h"
@@ -346,10 +348,12 @@ std::map<std::string, std::vector<double>> RTInterface::getTiming(
 #if 1  // 函数定义
   auto initTimingEngine = [](idb::IdbBuilder* idb_builder, int32_t thread_number) {
     ista::TimingEngine* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-    auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(timing_engine->get_ista());
-    db_adapter->set_idb(idb_builder);
-    db_adapter->convertDBToTimingNetlist();
-    timing_engine->set_db_adapter(std::move(db_adapter));
+    if (!timing_engine->get_db_adapter()) {
+      auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(timing_engine->get_ista());
+      db_adapter->set_idb(idb_builder);
+      db_adapter->convertDBToTimingNetlist();
+      timing_engine->set_db_adapter(std::move(db_adapter));
+    }
     timing_engine->set_num_threads(thread_number);
     timing_engine->buildGraph();
     timing_engine->initRcTree();
@@ -522,7 +526,7 @@ std::map<std::string, std::vector<double>> RTInterface::getTiming(
 void RTInterface::outputSummary()
 {
   Summary& rt_summary = RTDM.getSummary();
-  idb::RTSummary& top_rt_summary = dmInst->get_feature_summary().getRTSummary();
+  ieda_feature::RTSummary& top_rt_summary = featureInst->get_summary()->get_summary_irt();
   // pa_summary
   top_rt_summary.pa_summary.routing_access_point_num_map = rt_summary.pa_summary.routing_access_point_num_map;
   for (auto& [type, access_point_num] : rt_summary.pa_summary.type_access_point_num_map) {
@@ -544,7 +548,7 @@ void RTInterface::outputSummary()
   top_rt_summary.ir_summary.timing = rt_summary.ir_summary.timing;
   // gr_summary
   for (auto& [iter, gr_summary] : rt_summary.iter_gr_summary_map) {
-    idb::GRSummary& top_gr_summary = top_rt_summary.iter_gr_summary_map[iter];
+    ieda_feature::GRSummary& top_gr_summary = top_rt_summary.iter_gr_summary_map[iter];
     top_gr_summary.routing_demand_map = gr_summary.routing_demand_map;
     top_gr_summary.total_demand = gr_summary.total_demand;
     top_gr_summary.routing_overflow_map = gr_summary.routing_overflow_map;
@@ -562,7 +566,7 @@ void RTInterface::outputSummary()
   top_rt_summary.ta_summary.total_violation_num = rt_summary.ta_summary.total_violation_num;
   // dr_summary
   for (auto& [iter, dr_summary] : rt_summary.iter_dr_summary_map) {
-    idb::DRSummary& top_dr_summary = top_rt_summary.iter_dr_summary_map[iter];
+    ieda_feature::DRSummary& top_dr_summary = top_rt_summary.iter_dr_summary_map[iter];
     top_dr_summary.routing_wire_length_map = dr_summary.routing_wire_length_map;
     top_dr_summary.total_wire_length = dr_summary.total_wire_length;
     top_dr_summary.cut_via_num_map = dr_summary.cut_via_num_map;
