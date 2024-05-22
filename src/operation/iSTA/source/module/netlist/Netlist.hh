@@ -50,7 +50,7 @@ class NetIterator;
 class Netlist : public DesignObject {
  public:
   Netlist() : DesignObject("top"){};
-  ~Netlist() override = default;
+  ~Netlist() override;
 
   friend PortIterator;
   friend PortBusIterator;
@@ -141,6 +141,34 @@ class Netlist : public DesignObject {
     return nullptr;
   }
 
+  Net& addVirtualNet(Net&& virtual_net) {
+    _virtual_nets.emplace_back(std::move(virtual_net));
+    Net* the_virtual_net = &(_virtual_nets.back());
+    const char* virtual_net_name = the_virtual_net->get_name();
+    _str2virtualnet[virtual_net_name] = the_virtual_net;
+    return *the_virtual_net;
+  }
+
+  void removeVirtualNet(Net* virtual_net) {
+    const char* virtual_net_name = virtual_net->get_name();
+    _str2virtualnet.erase(virtual_net_name);
+
+    auto it = std::find_if(
+        _virtual_nets.begin(), _virtual_nets.end(),
+        [virtual_net](auto& the_net) { return virtual_net == &the_net; });
+    LOG_FATAL_IF(it == _virtual_nets.end());
+    _virtual_nets.erase(it);
+  }
+
+  Net* findVirtualNet(const char* virtual_net_name) const {
+    auto found_virtual_net = _str2net.find(virtual_net_name);
+
+    if (found_virtual_net != _str2virtualnet.end()) {
+      return found_virtual_net->second;
+    }
+    return nullptr;
+  }
+
   Instance& addInstance(Instance&& instance) {
     _instances.emplace_back(std::move(instance));
 
@@ -180,11 +208,19 @@ class Netlist : public DesignObject {
   void writeVerilog(const char* verilog_file_name,
                     std::set<std::string> exclude_cell_names);
 
+  void addHierSubNetlist(std::vector<std::set<std::string>> cluster_instances);
+  std::vector<Netlist*> get_hier_sub_netlist() { return _hier_sub_netlists; }
+
  private:
   std::list<Port> _ports;
   StrMap<Port*> _str2port;  //!< The port name to port for search.
   std::list<PortBus> _port_buses;
   StrMap<PortBus*> _str2portbus;
+
+  std::vector<Netlist*> _hier_sub_netlists;  //!< The hierarchical netlist.
+  std::vector<Net>
+      _virtual_nets;  //!< The virtual net between the hierarchical netlist.
+  StrMap<Net*> _str2virtualnet;  //!< The virtual net name to net for search.
 
   std::list<Net> _nets;
   StrMap<Net*> _str2net;  //!< The net name to net for search.

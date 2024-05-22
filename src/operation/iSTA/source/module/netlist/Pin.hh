@@ -47,6 +47,7 @@ class Pin : public DesignObject {
   using mode_trans = std::pair<AnalysisMode, TransType>;
 
   explicit Pin(const char* name, LibertyPort* cell_port);
+  Pin(const Pin& other);
   Pin(Pin&& other) noexcept;
   Pin& operator=(Pin&& rhs) noexcept;
   ~Pin() override = default;
@@ -77,6 +78,7 @@ class Pin : public DesignObject {
   auto* get_pin_bus() { return _pin_bus; }
 
   std::string getFullName() override;
+  std::unique_ptr<Pin> clone() const { return std::make_unique<Pin>(*this); }
 
  private:
   Net* _net = nullptr;                //!< The pin connected net.
@@ -87,8 +89,6 @@ class Pin : public DesignObject {
   unsigned _is_VDD : 1;  //!< The pin is at a constant logic value 1.
   unsigned _is_GND : 1;  //!< The pin is at a constant logic value 0.
   unsigned _reserverd : 30;
-
-  FORBIDDEN_COPY(Pin);
 };
 
 /**
@@ -98,6 +98,7 @@ class Pin : public DesignObject {
 class PinBus : public DesignObject {
  public:
   PinBus(const char* name, unsigned left, unsigned right, unsigned size);
+  PinBus(const PinBus& other);
   PinBus(PinBus&& other) noexcept = default;
   PinBus& operator=(PinBus&& rhs) noexcept = default;
   ~PinBus() override = default;
@@ -122,7 +123,6 @@ class PinBus : public DesignObject {
 
   std::unique_ptr<Pin*[]> _pins;  //!< The pins.
   unsigned _size;                 //!< The pin bus size.
-  FORBIDDEN_COPY(PinBus);
 };
 
 }  // namespace ista

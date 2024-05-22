@@ -43,6 +43,7 @@ enum class PortDir { kIn, kOut, kInOut, kOther };
  */
 class Port : public DesignObject {
  public:
+  Port() {}
   explicit Port(const char* name, PortDir port_dir);
   Port(Port&& other) noexcept;
   Port& operator=(Port&& rhs) noexcept;

@@ -29,15 +29,19 @@
 #include <utility>
 
 #include "DesignObject.hh"
+#include "Net.hh"
 #include "Pin.hh"
+#include "Port.hh"
 #include "Vector.hh"
 #include "liberty/Liberty.hh"
 #include "string/Str.hh"
+#include "verilog/VerilogReader.hh"
 
 namespace ista {
 
 class PinIterator;
 class PinBusIterator;
+class Netlist;
 
 /**
  * @brief class for instance of design.
@@ -46,6 +50,7 @@ class PinBusIterator;
 class Instance : public DesignObject {
  public:
   Instance(const char* name, LibertyCell* cell_name);
+  Instance(const Instance& other);
   Instance(Instance&& other);
   Instance& operator=(Instance&& rhs);
   ~Instance() override = default;
@@ -58,6 +63,16 @@ class Instance : public DesignObject {
   unsigned isInstance() override { return 1; }
 
   Pin* addPin(const char* name, LibertyPort* cell_port);
+  Vector<std::unique_ptr<Pin>> clonePins() const {
+    Vector<std::unique_ptr<Pin>> colned_pins;
+    colned_pins.reserve(_pins.size());
+    for (const auto& pin : _pins) {
+      if (pin) {
+        colned_pins.push_back(pin->clone());
+      }
+    }
+    return colned_pins;
+  }
   Pin* getLastPin() { return _pins.back().get(); }
   std::optional<Pin*> getPin(const char* pin_name);
   LibertyCell* get_inst_cell() { return _inst_cell; }
@@ -81,15 +96,17 @@ class Instance : public DesignObject {
 
   void set_coordinate(double x, double y) { _coordinate = {x, y}; }
   auto get_coordinate() { return _coordinate; }
+  bool isBoundaryInstance(std::set<std::string> instance_own_cluster);
+  Port addPortForBoundaryInstance(std::set<std::string> instance_own_cluster);
 
  private:
   LibertyCell* _inst_cell;
+  Netlist* _inst_netlist = nullptr;
   Vector<std::unique_ptr<Pin>> _pins;
   StrMap<Pin*> _str2pin;
   Vector<std::unique_ptr<PinBus>> _pin_buses;
 
   std::optional<Coordinate> _coordinate;
-  FORBIDDEN_COPY(Instance);
 };
 
 /**
