@@ -4,7 +4,7 @@ range_from = { decimal_digits+ }
 range_to = { decimal_digits+ }
 bus_slice  = { "[" ~ range_from ~ ":" ~ range_to ~ "]" }
 
-scalar_constant = { "1'b0" | "1'b1" | "1'B0" | "1'B1" | "'b0" | "'b1" | "'B0" | "'B1" | "1" | "0" }
+scalar_constant = { "16'b0" | "3'b0" | "4'b0" | "1'b0" | "1'b1" | "1'B0" | "1'B1" | "'b0" | "'b1" | "'B0" | "'B1" | "1" | "0" }
 
 line_comment      = _{ "//" ~ (!("\n") ~ ASCII)* ~ ("\n" | EOI) }
 multiline_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
@@ -12,7 +12,7 @@ COMMENT = _{ line_comment | multiline_comment }
 
 char = _{ ASCII_ALPHANUMERIC | "_" | "\\" | "[" | "]" | "/" | ":" | "$" | "=" | "." }
 
-port_or_wire_id = @{ (char+ ~ " " ~ char+) | char+ }
+port_or_wire_id = @{ (char+ ~ " " ~ char+) |  (char+ ~ WHITESPACE+ ~ char+) | char+ }
 port_list = { port_or_wire_id ~ ("," ~ port_or_wire_id)* }
 // To do (.v before DC)
 // port_bus_list 
@@ -44,7 +44,7 @@ first_port_connection = _{ first_port_connection_single_connect | first_port_con
 port_connection = _{ "," ~ first_port_connection }
 port_block_connection = !{ "(" ~ first_port_connection? ~ port_connection* ~ ")"  ~ semicolon_opt }
 
-inst_declaration = ${ inst_or_cell_id ~ WHITESPACE+ ~ inst_or_cell_id ~ WHITESPACE+ ~ port_block_connection }
+inst_declaration = ${ inst_or_cell_id ~ WHITESPACE+ ~ inst_or_cell_id ~ WHITESPACE* ~ port_block_connection }
 inst_block_declaration = { inst_declaration+ }
 
 module_declaration = { "module" ~ module_id ~ "(" ~ port_list ~ ");" ~ port_or_wire_block_declaration 

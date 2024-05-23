@@ -866,8 +866,16 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_scalar_constant() {
+        let input_str = "16'b0";
+        let parse_result = VerilogParser::parse(Rule::scalar_constant, input_str);
+        println!("{:#?}", parse_result);
+        // print_parse_result(parse_result);
+    }
+
+    #[test]
     fn test_parse_port_or_wire_id() {
-        let _input_str = "q\n        ";
+        let _input_str = "q\n        "; //the got parser result only has "q"
         let input_str = "q        ";
         let parse_result = VerilogParser::parse(Rule::port_or_wire_id, input_str);
         println!("{:#?}", parse_result);
@@ -886,7 +894,9 @@ mod tests {
     #[test]
     fn test_parse_port_or_wire_id1() {
         let _input_str = "clk ";
-        let input_str = "\\in_$002 [0]"; //(wire)
+        let _input_str = "\\in_$002 [0]"; //(wire)  (char+ ~ " " ~ char+)
+        let input_str = "\\content_q[1]_ppn
+        [5]"; //(wire)  (char+ ~ WHITESPACE+ ~ char+)
         let _input_str = "sky130_fd_sc_hs__nor2_1 _17_"; //(cell inst)
         let parse_result = VerilogParser::parse(Rule::port_or_wire_id, input_str);
         println!("{:#?}", parse_result);
@@ -955,10 +965,11 @@ mod tests {
 
     #[test]
     fn test_parse_first_port_connection_single_connect() {
-        let input_str = r#".I(\u0_soc_top/u0_ysyx_210539/writeback_io_excep_en )"#;
+        let _input_str = r#".I(\u0_soc_top/u0_ysyx_210539/writeback_io_excep_en )"#;
+        let input_str = r#".w_mask_in (16'b0)"#;
         let parse_result = VerilogParser::parse(Rule::first_port_connection_single_connect, input_str);
-
-        print_parse_result(parse_result);
+        println!("{:#?}", parse_result);
+        // print_parse_result(parse_result);
     }
 
     #[test]
@@ -1027,7 +1038,7 @@ mod tests {
 
     #[test]
     fn test_parse_inst_declaration() {
-        let input_str = r#"PLLTS28HPMLAINT \u0_rcg/u0_pll  (.BYPASS(\u0_rcg/u0_pll_bp ),
+        let _input_str = r#"PLLTS28HPMLAINT \u0_rcg/u0_pll  (.BYPASS(\u0_rcg/u0_pll_bp ),
         .REFDIV({ DRV_net_6,
                 DRV_net_6,
                 DRV_net_6,
@@ -1061,6 +1072,13 @@ mod tests {
         .CLKSSCG(),
         .LOCK(),
         .FOUTPOSTDIV(\u0_rcg/u0_pll_clk ));"#;
+        let _input_str = r#"AOI221_X1 g47426(.A (n_1353), .B1 (n_1268), .B2 (\content_q[1]_ppn
+            [5]), .C1 (n_1174), .C2 (\content_q[2]_ppn [5]), .ZN (n_1404));"#;
+        let input_str = r#"fakeram45_256x16 \macro_mem[0].i_ram (.clk (clk_i), .we_in (we_i),
+        .ce_in (req_i), .addr_in (addr_i), .wd_in (wdata_i[15:0]),
+.w_mask_in (16'b0), .rd_out (rdata_o[15:0]));"#;
+        let _input_str = r#"SDFFR_X1 \shift_q_reg[1] (.RN (rst_ni), .CK (clk_i), .D (shift_q[1]),
+    .SE (en_i), .SI (shift_q[0]), .Q (shift_q[1]), .QN (n_3));"#;
         let parse_result = VerilogParser::parse(Rule::inst_declaration, input_str);
         println!("{:#?}", parse_result);
         // print_parse_result(parse_result);
