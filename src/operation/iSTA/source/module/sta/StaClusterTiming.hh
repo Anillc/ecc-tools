@@ -43,6 +43,7 @@ class StaClusterTiming : public StaFunc {
   void addHierSubNetlist();
 
  private:
+  void addPortForSubnetlist(Instance& inst, Netlist& subnetlist);
   bool isBoundaryInstance(
       Instance& inst, std::set<std::string> instance_own_cluster,
       const std::vector<std::set<std::string>>& cluster_instances);

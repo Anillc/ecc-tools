@@ -161,7 +161,7 @@ class Netlist : public DesignObject {
   }
 
   Net* findVirtualNet(const char* virtual_net_name) const {
-    auto found_virtual_net = _str2net.find(virtual_net_name);
+    auto found_virtual_net = _str2virtualnet.find(virtual_net_name);
 
     if (found_virtual_net != _str2virtualnet.end()) {
       return found_virtual_net->second;
@@ -208,8 +208,10 @@ class Netlist : public DesignObject {
   void writeVerilog(const char* verilog_file_name,
                     std::set<std::string> exclude_cell_names);
 
-  void addHierSubNetlist(std::vector<std::set<std::string>> cluster_instances);
-  std::vector<Netlist*> get_hier_sub_netlist() { return _hier_sub_netlists; }
+  void set_hier_sub_netlists(std::vector<Netlist*> hier_sub_netlists) {
+    _hier_sub_netlists = hier_sub_netlists;
+  }
+  std::vector<Netlist*> get_hier_sub_netlists() { return _hier_sub_netlists; }
 
  private:
   std::list<Port> _ports;

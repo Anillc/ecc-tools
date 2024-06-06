@@ -45,6 +45,7 @@ class Port : public DesignObject {
  public:
   Port() {}
   explicit Port(const char* name, PortDir port_dir);
+  Port(const Port& other);
   Port(Port&& other) noexcept;
   Port& operator=(Port&& rhs) noexcept;
   ~Port() override = default;
@@ -79,8 +80,6 @@ class Port : public DesignObject {
   Net* _net;          //!< The port connected net.
 
   PortBus* _port_bus = nullptr;  //!< The port owned by the port bus.
-
-  FORBIDDEN_COPY(Port);
 };
 
 /**

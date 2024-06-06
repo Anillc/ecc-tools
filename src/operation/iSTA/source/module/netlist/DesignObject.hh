@@ -41,7 +41,7 @@ class Net;
  */
 class DesignObject {
  public:
-  DesignObject() {}
+  DesignObject() = default;
   explicit DesignObject(const char* name);
   virtual ~DesignObject() = default;
 

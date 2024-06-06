@@ -26,6 +26,10 @@
 
 namespace ista {
 
+/**
+ * @brief according to the clusters to add hierarchical sub netlists.
+ *
+ */
 void StaClusterTiming::addHierSubNetlist() {
   auto* design_netlist = getSta()->get_netlist();
   std::vector<Netlist*> hier_sub_netlists;
@@ -42,7 +46,6 @@ void StaClusterTiming::addHierSubNetlist() {
       bool is_boundary_instance =
           isBoundaryInstance(new_inst, cluster_instance, _cluster_instances);
       if (is_boundary_instance) {
-        // addPortForBoundaryInstance is fit for multiple_pin net??
         addPortForBoundaryInstance(new_inst, cluster_instance, *sub_netlist);
         // std::string port_virtual_net_name;
         // if (virtual_port.isOutput()) {
@@ -72,9 +75,9 @@ void StaClusterTiming::addHierSubNetlist() {
         // for (auto& port : port_net_collect.get_ports()) {
         //   sub_netlist->addPort(std::move(port));
         // }
-
         sub_netlist->addInstance(std::move(new_inst));
       } else {
+        addPortForSubnetlist(new_inst, *sub_netlist);
         sub_netlist->addInstance(std::move(new_inst));
       }
     }
@@ -84,6 +87,42 @@ void StaClusterTiming::addHierSubNetlist() {
   design_netlist->set_hier_sub_netlists(hier_sub_netlists);
 }
 
+/**
+ * @brief add port for the subnetlist.
+ *
+ * @param inst
+ * @param subnetlist
+ */
+void StaClusterTiming::addPortForSubnetlist(Instance& inst,
+                                            Netlist& subnetlist) {
+  for (auto& pin : inst.get_pins()) {
+    Net* connect_net = pin->get_net();
+    LOG_FATAL_IF(!connect_net)
+        << "pin " << pin->getFullName() << " connect net is not exist";
+    auto& pin_ports = connect_net->get_pin_ports();
+    for (auto& pin_port : pin_ports) {
+      if (pin_port->isPort()) {
+        // Port* pin_port1 = dynamic_cast<Port*>(pin_port);
+        // subnetlist.addPort(std::move(*pin_port1));
+
+        Port* pin_port1 = dynamic_cast<Port*>(pin_port);
+        Port new_port = Port(*pin_port1);
+        subnetlist.addPort(std::move(new_port));
+      }
+    }
+  }
+}
+
+/**
+ * @brief judge whether a instance in a cluster is connected to another instance
+ * in another cluster.
+ *
+ * @param inst
+ * @param instance_own_cluster
+ * @param cluster_instances
+ * @return true
+ * @return false
+ */
 bool StaClusterTiming::isBoundaryInstance(
     Instance& inst, std::set<std::string> instance_own_cluster,
     const std::vector<std::set<std::string>>& cluster_instances) {
@@ -95,14 +134,6 @@ bool StaClusterTiming::isBoundaryInstance(
         << "pin " << pin->getFullName() << " connect net is not exist";
     auto& pin_ports = connect_net->get_pin_ports();
     for (auto& pin_port : pin_ports) {
-      // TODO:remove the following code
-      Instance* own_instance;
-      if (pin_port->isPin()) {
-        own_instance = pin_port->get_own_instance();
-      }
-
-      //||(pin_port->isPin() &&
-      // own_instance->isOneInOwnCluster(cluster_instances))
       if (pin_port->isPort() ||
           (pin_port->isPin() && dynamic_cast<Pin*>(pin_port)->getFullName() ==
                                     pin.get()->getFullName())) {
@@ -123,6 +154,13 @@ bool StaClusterTiming::isBoundaryInstance(
   return is_boundary_instance;
 }
 
+/**
+ * @brief add the virtual port for the boundary instance.
+ *
+ * @param boundary_inst
+ * @param boundary_inst_own_cluster
+ * @param subnetlist
+ */
 void StaClusterTiming::addPortForBoundaryInstance(
     Instance& boundary_inst, std::set<std::string> boundary_inst_own_cluster,
     Netlist& subnetlist) {
@@ -139,8 +177,15 @@ void StaClusterTiming::addPortForBoundaryInstance(
       Net virtual_net;
 
       for (auto& pin_port : pin_ports) {
-        if (pin_port->isPort() || dynamic_cast<Pin*>(pin_port)->getFullName() ==
-                                      pin.get()->getFullName()) {
+        if (pin_port->isPort()) {
+          Port* pin_port1 = dynamic_cast<Port*>(pin_port);
+          Port new_port = Port(*pin_port1);
+          subnetlist.addPort(std::move(new_port));
+          continue;
+        }
+
+        if (dynamic_cast<Pin*>(pin_port)->getFullName() ==
+            pin.get()->getFullName()) {
           continue;
         }
 
@@ -154,7 +199,8 @@ void StaClusterTiming::addPortForBoundaryInstance(
           virtual_port = Port(dcl_name.c_str(), dcl_type);
 
           virtual_net = Net(connect_net->get_name());
-          virtual_net.addPinPort(&virtual_port);
+          DesignObject* port = new Port(virtual_port);
+          virtual_net.addPinPort(port);
           virtual_port.set_net(&virtual_net);
         }
 
@@ -169,24 +215,33 @@ void StaClusterTiming::addPortForBoundaryInstance(
       if (strcmp(virtual_net.get_name(), "") != 0) {
         virtual_net.addPinPort(pin.get());
         pin->set_net(&virtual_net);
-        // own_subnetlist.removeNet(connect_net);?
+        // for debugging
+        // Net* test_virtual_net = pin->get_net();
+        // for (const auto& test_pin : test_virtual_net->get_pin_ports()) {
+        //   LOG_INFO << test_pin->getFullName();
+        // }
+
         subnetlist.addNet(std::move(virtual_net));
         subnetlist.addPort(std::move(virtual_port));
       }
-      // get the virtual net's pinport size for debug.
-      int pin_ports_size = virtual_net.get_pin_ports().size();
-      LOG_INFO << "pin_ports_size:" << pin_ports_size;
-
     } else if (pin->isOutput()) {
       Port virtual_port;
       Net virtual_net;
 
       bool first = true;
       for (auto& pin_port : pin_ports) {
-        if (pin_port->isPort() || dynamic_cast<Pin*>(pin_port)->getFullName() ==
-                                      pin.get()->getFullName()) {
+        if (pin_port->isPort()) {
+          Port* pin_port1 = dynamic_cast<Port*>(pin_port);
+          Port new_port = Port(*pin_port1);
+          subnetlist.addPort(std::move(new_port));
           continue;
         }
+
+        if (dynamic_cast<Pin*>(pin_port)->getFullName() ==
+            pin.get()->getFullName()) {
+          continue;
+        }
+
         std::string own_instance_name =
             pin_port->get_own_instance()->getFullName();
 
@@ -198,7 +253,8 @@ void StaClusterTiming::addPortForBoundaryInstance(
                 boundary_inst.getFullName() + "2" + own_instance_name;
             virtual_port = Port(dcl_name.c_str(), dcl_type);
             virtual_net = Net(connect_net->get_name());
-            virtual_net.addPinPort(&virtual_port);
+            DesignObject* port = new Port(virtual_port);
+            virtual_net.addPinPort(port);
             virtual_port.set_net(&virtual_net);
           }
           first = false;
@@ -208,12 +264,6 @@ void StaClusterTiming::addPortForBoundaryInstance(
       if (strcmp(virtual_net.get_name(), "") != 0) {
         virtual_net.addPinPort(pin.get());
         pin->set_net(&virtual_net);
-
-        // get the virtual net's pinport size for debug.
-        int pin_ports_size = virtual_net.get_pin_ports().size();
-        LOG_INFO << "pin_ports_size:" << pin_ports_size;
-
-        // own_subnetlist.removeNet(connect_net);?
         subnetlist.addNet(std::move(virtual_net));
         subnetlist.addPort(std::move(virtual_port));
       }

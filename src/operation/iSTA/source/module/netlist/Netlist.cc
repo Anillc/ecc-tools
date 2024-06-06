@@ -176,59 +176,6 @@ void Netlist::writeVerilog(const char* verilog_file_name,
   writer.writeModule();
 }
 
-/**
- * @brief add the hierarchy subnetlist to the netlist.
- *
- * @param clusters
- */
-void Netlist::addHierSubNetlist(
-    std::vector<std::set<std::string>> cluster_instances) {
-  for (auto& cluster_instance : cluster_instances) {
-    if (cluster_instance.size() == 1) {
-      continue;
-    }
-    // _netlist.set_name(design_name);
-    auto* sub_netlist = new Netlist();
-    for (auto& instance_name : cluster_instance) {
-      auto* instance = findInstance(instance_name.c_str());
-      Instance new_instance(*instance);
-      bool is_boundary_instance =
-          new_instance.isBoundaryInstance(cluster_instance);
-      if (is_boundary_instance) {
-        // addPortForBoundaryInstance is fit for multiple_pin net??
-        Port virtual_port =
-            new_instance.addPortForBoundaryInstance(cluster_instance);
-        std::string virtual_net_name;
-        if (virtual_port.isOutput()) {
-          const char* sep = "2";
-          auto [driver_inst, load_inst] =
-              Str::splitTwoPart(virtual_port.get_name(), sep);
-          virtual_net_name = driver_inst;
-        } else {
-          const char* sep = "2";
-          auto [load_inst, driver_inst] =
-              Str::splitTwoPart(virtual_port.get_name(), sep);
-          virtual_net_name = driver_inst;
-        }
-        std::unique_ptr<Net> virtual_net(
-            findVirtualNet(virtual_net_name.c_str()));
-        if (!virtual_net) {
-          virtual_net = std::make_unique<Net>(virtual_net_name.c_str());
-          addVirtualNet(std::move(*virtual_net.get()));
-        }
-        virtual_net->addPinPort(&virtual_port);
-
-        sub_netlist->addPort(std::move(virtual_port));
-
-        sub_netlist->addInstance(std::move(new_instance));
-      } else {
-        sub_netlist->addInstance(std::move(new_instance));
-      }
-      _hier_sub_netlists.emplace_back(sub_netlist);
-    }
-  }
-}
-
 PortIterator::PortIterator(Netlist* nl) : _nl(nl), _iter(nl->_ports.begin()) {}
 
 bool PortIterator::hasNext() { return _iter != _nl->_ports.end(); }

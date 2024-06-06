@@ -44,8 +44,10 @@ class LibetyCurrentData;
  */
 class Net : public DesignObject {
  public:
+  Net() = default;
   explicit Net(const char *name);
   ~Net() override = default;
+  Net(const Net &other);
   Net(Net &&other) noexcept;
   Net &operator=(Net &&rhs) noexcept;
 
@@ -116,8 +118,6 @@ class Net : public DesignObject {
   std::array<std::optional<double>, 4>
       _net_loads{};  //!< store the net loads for quickly calc.
   bool _is_clock_net = false;
-
-  FORBIDDEN_COPY(Net);
 };
 
 /**

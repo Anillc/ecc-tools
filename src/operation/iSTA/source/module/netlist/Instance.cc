@@ -107,63 +107,6 @@ Pin* Instance::findPin(LibertyPort* cell_port) {
   return nullptr;
 }
 
-bool Instance::isBoundaryInstance(std::set<std::string> instance_own_cluster) {
-  bool is_boundary_instance = false;
-
-  for (auto& pin : _pins) {
-    Net* connect_net = pin->get_net();
-    auto& pin_ports = connect_net->get_pin_ports();
-    for (auto& pin_port : pin_ports) {
-      if (pin_port->isPort() || dynamic_cast<Pin*>(pin_port) == pin.get()) {
-        continue;
-      }
-      std::string own_instance_name =
-          pin_port->get_own_instance()->getFullName();
-      if (!instance_own_cluster.contains(own_instance_name)) {
-        is_boundary_instance = true;
-        break;
-      }
-    }
-  }
-
-  return is_boundary_instance;
-}
-
-Port Instance::addPortForBoundaryInstance(
-    std::set<std::string> instance_own_cluster) {
-  Port virtual_port;
-
-  // net with multi-load pin shouold build one port.
-  bool first = true;
-  for (auto& pin : _pins) {
-    Net* connect_net = pin->get_net();
-    auto& pin_ports = connect_net->get_pin_ports();
-
-    for (auto& pin_port : pin_ports) {
-      if (pin_port->isPort() || dynamic_cast<Pin*>(pin_port) == pin.get() ||
-          (pin->isInput() && pin_port->isPin() && pin_port->isInput())) {
-        continue;
-      }
-      std::string own_instance_name =
-          pin_port->get_own_instance()->getFullName();
-      if (!instance_own_cluster.contains(own_instance_name)) {
-        if (first) {
-          // need virtual port on the connect net.
-          PortDir dcl_type;
-          // not sure the port direction is correct?
-          pin->isInput() ? dcl_type = PortDir::kIn : dcl_type = PortDir::kOut;
-          std::string dcl_name = this->getFullName() + "2" + own_instance_name;
-          virtual_port = Port(dcl_name.c_str(), dcl_type);
-          connect_net->addPinPort(&virtual_port);
-        }
-        first = false;
-        connect_net->removePinPort(pin_port);
-      }
-    }
-  }
-  return virtual_port;
-}
-
 PinIterator::PinIterator(Instance* inst)
     : _inst(inst), _iter(_inst->_pins.begin()) {}
 

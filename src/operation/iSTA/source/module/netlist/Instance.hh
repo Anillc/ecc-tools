@@ -74,6 +74,7 @@ class Instance : public DesignObject {
     return colned_pins;
   }
   Pin* getLastPin() { return _pins.back().get(); }
+  Vector<std::unique_ptr<Pin>>& get_pins() { return _pins; }
   std::optional<Pin*> getPin(const char* pin_name);
   LibertyCell* get_inst_cell() { return _inst_cell; }
   void set_inst_cell(LibertyCell* inst_cell) { _inst_cell = inst_cell; }
@@ -96,8 +97,6 @@ class Instance : public DesignObject {
 
   void set_coordinate(double x, double y) { _coordinate = {x, y}; }
   auto get_coordinate() { return _coordinate; }
-  bool isBoundaryInstance(std::set<std::string> instance_own_cluster);
-  Port addPortForBoundaryInstance(std::set<std::string> instance_own_cluster);
 
  private:
   LibertyCell* _inst_cell;
