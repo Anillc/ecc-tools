@@ -164,23 +164,35 @@ bool StaClusterTiming::isBoundaryInstance(
 void StaClusterTiming::addPortForBoundaryInstance(
     Instance& boundary_inst, std::set<std::string> boundary_inst_own_cluster,
     Netlist& subnetlist) {
+  // if (Str::equal(boundary_inst.get_name(), "u3") == true) {
+  //   for (auto& pin : boundary_inst.get_pins()) {
+  //     auto the_found_pin = boundary_inst.getPin(pin->get_name());
+  //     auto the_found_pin1 = boundary_inst.getPinInPins(pin->get_name());
+  //     LOG_INFO << pin << pin.get() << ":" << pin->get_name();
+  //   }
+  // }
   // net with multi-load pin shouold build one port.
   for (auto& pin : boundary_inst.get_pins()) {
     Net* connect_net = pin->get_net();
-
     LOG_FATAL_IF(!connect_net)
         << "pin " << pin->getFullName() << " connect net is not exist";
     auto& pin_ports = connect_net->get_pin_ports();
 
+    std::list<DesignObject*> boundary_inst_other_pins;
+    Port virtual_port;
+    Net virtual_net;
+    Port* virtual_port_ptr = nullptr;
+    Net* virtual_net_ptr = nullptr;
     if (pin->isInput()) {
-      Port virtual_port;
-      Net virtual_net;
-
       for (auto& pin_port : pin_ports) {
         if (pin_port->isPort()) {
           Port* pin_port1 = dynamic_cast<Port*>(pin_port);
           Port new_port = Port(*pin_port1);
-          subnetlist.addPort(std::move(new_port));
+          auto* found_port = subnetlist.findPort(pin_port->get_name());
+          if (!found_port) {
+            subnetlist.addPort(std::move(new_port));
+          }
+          // TODO:don not need if(port) true
           continue;
         }
 
@@ -189,45 +201,43 @@ void StaClusterTiming::addPortForBoundaryInstance(
           continue;
         }
 
+        // collect other load pins in a instance.(fit multi_load_pin net).
         std::string own_instance_name =
             pin_port->get_own_instance()->getFullName();
-        if (!boundary_inst_own_cluster.contains(own_instance_name)) {
+        if (pin_port->isPin() && pin_port->isInput() &&
+            Str::equal(boundary_inst.get_name(), own_instance_name.c_str()) ==
+                true) {
+          auto the_found_pin = boundary_inst.getPinInPins(pin_port->get_name());
+          LOG_FATAL_IF(!the_found_pin)
+              << "Unable to find the load pin in instance.";
+          boundary_inst_other_pins.emplace_back(*the_found_pin);
+        }
+
+        // build the virtual port and virtual net between the net's dirver pin
+        // and the net's load pin.
+        if (pin_port->isPin() && pin_port->isOutput() &&
+            !boundary_inst_own_cluster.contains(own_instance_name)) {
           // need virtual port on the connect net.
           PortDir dcl_type = PortDir::kIn;
           std::string dcl_name =
               boundary_inst.getFullName() + "2" + own_instance_name;
           virtual_port = Port(dcl_name.c_str(), dcl_type);
-
           virtual_net = Net(connect_net->get_name());
-          DesignObject* port = new Port(virtual_port);
-          virtual_net.addPinPort(port);
-          virtual_port.set_net(&virtual_net);
-        }
+          subnetlist.addNet(std::move(virtual_net));
+          subnetlist.addPort(std::move(virtual_port));
+          virtual_net_ptr = subnetlist.findNet(connect_net->get_name());
+          virtual_port_ptr = subnetlist.findPort(dcl_name.c_str());
+          LOG_FATAL_IF(!virtual_net_ptr || !virtual_port_ptr);
+          virtual_net_ptr->addPinPort(virtual_port_ptr);
+          virtual_port_ptr->set_net(virtual_net_ptr);
 
-        // multi-load pin in a cluster
-        // TODO:multi-load pin not in a cluster
-        if ((pin->isInput() && pin_port->isPin() && pin_port->isInput()) &&
-            strcmp(virtual_net.get_name(), "") != 0) {
-          virtual_net.addPinPort(pin_port);
-          pin_port->set_net(&virtual_net);
+          // DesignObject* new_virtual_port = new Port(virtual_port);
+          // virtual_net.addPinPort(new_virtual_port);
+          // Net* new_virtual_net = new Net(virtual_net);
+          // virtual_port.set_net(new_virtual_net);
         }
-      }
-      if (strcmp(virtual_net.get_name(), "") != 0) {
-        virtual_net.addPinPort(pin.get());
-        pin->set_net(&virtual_net);
-        // for debugging
-        // Net* test_virtual_net = pin->get_net();
-        // for (const auto& test_pin : test_virtual_net->get_pin_ports()) {
-        //   LOG_INFO << test_pin->getFullName();
-        // }
-
-        subnetlist.addNet(std::move(virtual_net));
-        subnetlist.addPort(std::move(virtual_port));
       }
     } else if (pin->isOutput()) {
-      Port virtual_port;
-      Net virtual_net;
-
       bool first = true;
       for (auto& pin_port : pin_ports) {
         if (pin_port->isPort()) {
@@ -253,19 +263,47 @@ void StaClusterTiming::addPortForBoundaryInstance(
                 boundary_inst.getFullName() + "2" + own_instance_name;
             virtual_port = Port(dcl_name.c_str(), dcl_type);
             virtual_net = Net(connect_net->get_name());
-            DesignObject* port = new Port(virtual_port);
-            virtual_net.addPinPort(port);
-            virtual_port.set_net(&virtual_net);
+            subnetlist.addNet(std::move(virtual_net));
+            subnetlist.addPort(std::move(virtual_port));
+            virtual_net_ptr = subnetlist.findNet(connect_net->get_name());
+            virtual_port_ptr = subnetlist.findPort(dcl_name.c_str());
+            LOG_FATAL_IF(!virtual_net_ptr || !virtual_port_ptr);
+            virtual_net_ptr->addPinPort(virtual_port_ptr);
+            virtual_port_ptr->set_net(virtual_net_ptr);
+
+            // DesignObject* new_virtual_port = new Port(virtual_port);
+            // virtual_net.addPinPort(new_virtual_port);
+            // Net* new_virtual_net = new Net(virtual_net);
+            // virtual_port.set_net(new_virtual_net);
           }
           first = false;
         }
       }
+    }
 
-      if (strcmp(virtual_net.get_name(), "") != 0) {
-        virtual_net.addPinPort(pin.get());
-        pin->set_net(&virtual_net);
-        subnetlist.addNet(std::move(virtual_net));
-        subnetlist.addPort(std::move(virtual_port));
+    if (virtual_net_ptr) {
+      // TODO:test
+      // virtual_net.addPinPort(pin.get());
+      virtual_net_ptr->addPinPort(pin.get());
+      pin->set_net(virtual_net_ptr);
+      // for debugging
+      // Net* test_virtual_net = pin->get_net();
+      // for (const auto& test_pin : test_virtual_net->get_pin_ports()) {
+      //   LOG_INFO << test_pin->getFullName();
+      // }
+      if (!boundary_inst_other_pins.empty()) {
+        for (const auto& boundary_inst_other_pin : boundary_inst_other_pins) {
+          // virtual_net.addPinPort(boundary_inst_other_pin);
+          virtual_net_ptr->addPinPort(boundary_inst_other_pin);
+          dynamic_cast<Pin*>(boundary_inst_other_pin)->set_net(virtual_net_ptr);
+        }
+      }
+
+    } else {
+      Net* the_net = subnetlist.findNet(connect_net->get_name());
+      if (!the_net) {
+        Net new_net = Net(*connect_net);
+        subnetlist.addNet(std::move(new_net));
       }
     }
   }

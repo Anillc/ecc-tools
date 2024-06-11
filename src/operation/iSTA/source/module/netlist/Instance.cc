@@ -77,6 +77,9 @@ Instance& Instance::operator=(Instance&& rhs) {
  * @return std::optional<Pin*> The found pin.
  */
 std::optional<Pin*> Instance::getPin(const char* pin_name) {
+  // for (auto [str, pin] : _str2pin) {
+  //   LOG_INFO << str << " : " << pin;
+  // }
   auto p = _str2pin.find(pin_name);
   if (p != _str2pin.end()) {
     return p->second;
@@ -86,6 +89,15 @@ std::optional<Pin*> Instance::getPin(const char* pin_name) {
     // }
     return std::nullopt;
   }
+}
+
+std::optional<Pin*> Instance::getPinInPins(const char* pin_name) {
+  for (auto& pin : _pins) {
+    if (Str::equal(pin->get_name(), pin_name) == true) {
+      return pin.get();
+    }
+  }
+  return std::nullopt;
 }
 
 Pin* Instance::addPin(const char* name, LibertyPort* cell_port) {
