@@ -91,15 +91,6 @@ std::optional<Pin*> Instance::getPin(const char* pin_name) {
   }
 }
 
-std::optional<Pin*> Instance::getPinInPins(const char* pin_name) {
-  for (auto& pin : _pins) {
-    if (Str::equal(pin->get_name(), pin_name) == true) {
-      return pin.get();
-    }
-  }
-  return std::nullopt;
-}
-
 Pin* Instance::addPin(const char* name, LibertyPort* cell_port) {
   auto pin = std::make_unique<Pin>(name, cell_port);
   auto& cell_pin = _pins.emplace_back(std::move(pin));
