@@ -503,10 +503,6 @@ class Sta {
   std::map<Instance::Coordinate, double> displayTransitionMap(
       AnalysisMode analysis_mode);
 
-  void addHierSubNetlist(std::vector<std::set<std::string>> cluster_instances) {
-    _netlist.addHierSubNetlist(cluster_instances);
-  }
-
  private:
   Sta();
   ~Sta();

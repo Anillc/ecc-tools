@@ -38,9 +38,12 @@ Instance::Instance(const Instance& other)
     : DesignObject(other),
       _inst_cell(other._inst_cell),
       _pins(other.clonePins()),
-      _str2pin(other._str2pin),
       // _pin_buses(other._pin_buses),
-      _coordinate(other._coordinate) {}
+      _coordinate(other._coordinate) {
+  for (auto& pin : _pins) {
+    _str2pin[pin->get_name()] = pin.get();
+  }
+}
 
 Instance::Instance(Instance&& other)
     : DesignObject(std::move(other)),
@@ -77,9 +80,6 @@ Instance& Instance::operator=(Instance&& rhs) {
  * @return std::optional<Pin*> The found pin.
  */
 std::optional<Pin*> Instance::getPin(const char* pin_name) {
-  // for (auto [str, pin] : _str2pin) {
-  //   LOG_INFO << str << " : " << pin;
-  // }
   auto p = _str2pin.find(pin_name);
   if (p != _str2pin.end()) {
     return p->second;

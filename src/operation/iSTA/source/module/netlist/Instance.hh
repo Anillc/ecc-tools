@@ -76,7 +76,6 @@ class Instance : public DesignObject {
   Pin* getLastPin() { return _pins.back().get(); }
   Vector<std::unique_ptr<Pin>>& get_pins() { return _pins; }
   std::optional<Pin*> getPin(const char* pin_name);
-  std::optional<Pin*> getPinInPins(const char* pin_name);
   LibertyCell* get_inst_cell() { return _inst_cell; }
   void set_inst_cell(LibertyCell* inst_cell) { _inst_cell = inst_cell; }
 

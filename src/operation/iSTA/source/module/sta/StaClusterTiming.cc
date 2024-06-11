@@ -104,7 +104,6 @@ void StaClusterTiming::addPortForSubnetlist(Instance& inst,
       if (pin_port->isPort()) {
         // Port* pin_port1 = dynamic_cast<Port*>(pin_port);
         // subnetlist.addPort(std::move(*pin_port1));
-
         Port* pin_port1 = dynamic_cast<Port*>(pin_port);
         Port new_port = Port(*pin_port1);
         subnetlist.addPort(std::move(new_port));
@@ -167,7 +166,6 @@ void StaClusterTiming::addPortForBoundaryInstance(
   // if (Str::equal(boundary_inst.get_name(), "u3") == true) {
   //   for (auto& pin : boundary_inst.get_pins()) {
   //     auto the_found_pin = boundary_inst.getPin(pin->get_name());
-  //     auto the_found_pin1 = boundary_inst.getPinInPins(pin->get_name());
   //     LOG_INFO << pin << pin.get() << ":" << pin->get_name();
   //   }
   // }
@@ -192,7 +190,6 @@ void StaClusterTiming::addPortForBoundaryInstance(
           if (!found_port) {
             subnetlist.addPort(std::move(new_port));
           }
-          // TODO:don not need if(port) true
           continue;
         }
 
@@ -207,7 +204,7 @@ void StaClusterTiming::addPortForBoundaryInstance(
         if (pin_port->isPin() && pin_port->isInput() &&
             Str::equal(boundary_inst.get_name(), own_instance_name.c_str()) ==
                 true) {
-          auto the_found_pin = boundary_inst.getPinInPins(pin_port->get_name());
+          auto the_found_pin = boundary_inst.getPin(pin_port->get_name());
           LOG_FATAL_IF(!the_found_pin)
               << "Unable to find the load pin in instance.";
           boundary_inst_other_pins.emplace_back(*the_found_pin);
@@ -230,11 +227,6 @@ void StaClusterTiming::addPortForBoundaryInstance(
           LOG_FATAL_IF(!virtual_net_ptr || !virtual_port_ptr);
           virtual_net_ptr->addPinPort(virtual_port_ptr);
           virtual_port_ptr->set_net(virtual_net_ptr);
-
-          // DesignObject* new_virtual_port = new Port(virtual_port);
-          // virtual_net.addPinPort(new_virtual_port);
-          // Net* new_virtual_net = new Net(virtual_net);
-          // virtual_port.set_net(new_virtual_net);
         }
       }
     } else if (pin->isOutput()) {
@@ -270,11 +262,6 @@ void StaClusterTiming::addPortForBoundaryInstance(
             LOG_FATAL_IF(!virtual_net_ptr || !virtual_port_ptr);
             virtual_net_ptr->addPinPort(virtual_port_ptr);
             virtual_port_ptr->set_net(virtual_net_ptr);
-
-            // DesignObject* new_virtual_port = new Port(virtual_port);
-            // virtual_net.addPinPort(new_virtual_port);
-            // Net* new_virtual_net = new Net(virtual_net);
-            // virtual_port.set_net(new_virtual_net);
           }
           first = false;
         }
@@ -282,18 +269,10 @@ void StaClusterTiming::addPortForBoundaryInstance(
     }
 
     if (virtual_net_ptr) {
-      // TODO:test
-      // virtual_net.addPinPort(pin.get());
       virtual_net_ptr->addPinPort(pin.get());
       pin->set_net(virtual_net_ptr);
-      // for debugging
-      // Net* test_virtual_net = pin->get_net();
-      // for (const auto& test_pin : test_virtual_net->get_pin_ports()) {
-      //   LOG_INFO << test_pin->getFullName();
-      // }
       if (!boundary_inst_other_pins.empty()) {
         for (const auto& boundary_inst_other_pin : boundary_inst_other_pins) {
-          // virtual_net.addPinPort(boundary_inst_other_pin);
           virtual_net_ptr->addPinPort(boundary_inst_other_pin);
           dynamic_cast<Pin*>(boundary_inst_other_pin)->set_net(virtual_net_ptr);
         }
