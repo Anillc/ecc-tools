@@ -405,6 +405,8 @@ class Sta {
   unsigned reportCap(const char* rpt_file_name, bool is_clock_cap);
   unsigned reportFanout(const char* rpt_file_name);
   unsigned reportSkew(const char* rpt_file_name, AnalysisMode analysis_mode);
+  unsigned reportNet(const char* rpt_file_name, Net* net);
+  unsigned reportNet();
   unsigned reportFromThroughTo(const char* rpt_file_name,
                                AnalysisMode analysis_mode, const char* from_pin,
                                const char* through_pin, const char* to_pin);
@@ -469,7 +471,8 @@ class Sta {
   unsigned updateClockTiming();
   std::set<std::string> findStartOrEnd(StaVertex* the_vertex, bool is_find_end);
   unsigned reportTiming(std::set<std::string>&& exclude_cell_names = {},
-                        bool is_derate = true, bool is_clock_cap = false);
+                        bool is_derate = false, bool is_clock_cap = false,
+                        bool is_copy = false);
 
   void dumpVertexData(std::vector<std::string> vertex_names);
   void dumpNetlistData();
