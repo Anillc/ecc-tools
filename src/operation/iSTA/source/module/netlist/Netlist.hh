@@ -79,6 +79,13 @@ class Netlist : public DesignObject {
     return *the_port;
   }
 
+  Port& addPort(std::unique_ptr<Port> port) {
+    _ports.emplace_back(std::move(*port));
+    Port* the_port = &(_ports.back());
+    _str2port[the_port->get_name()] = the_port;
+    return *the_port;
+  }
+
   Port* findPort(const char* port_name) const {
     auto found_port = _str2port.find(port_name);
 
@@ -122,6 +129,14 @@ class Netlist : public DesignObject {
     return *the_net;
   }
 
+  Net& addNet(Net* net) {
+    _nets.emplace_back(*net);
+    Net* the_net = &(_nets.back());
+    const char* net_name = the_net->get_name();
+    _str2net[net_name] = the_net;
+    return *the_net;
+  }
+
   void removeNet(Net* net) {
     const char* net_name = net->get_name();
     _str2net.erase(net_name);
@@ -141,6 +156,7 @@ class Netlist : public DesignObject {
     return nullptr;
   }
 
+  ///////////To remove
   Net& addVirtualNet(Net&& virtual_net) {
     _virtual_nets.emplace_back(std::move(virtual_net));
     Net* the_virtual_net = &(_virtual_nets.back());
@@ -168,6 +184,7 @@ class Netlist : public DesignObject {
     }
     return nullptr;
   }
+  ///////////To remove
 
   Instance& addInstance(Instance&& instance) {
     _instances.emplace_back(std::move(instance));
@@ -202,6 +219,7 @@ class Netlist : public DesignObject {
 
   std::size_t getInstanceNum() { return _instances.size(); }
   std::size_t getNetNum() { return _nets.size(); }
+  std::size_t getPortNum() { return _ports.size(); }
 
   void reset();
 

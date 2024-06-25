@@ -44,7 +44,8 @@ Pin::Pin(const Pin& other)
       _cell_port(other._cell_port),
       _own_instance(other._own_instance),
       _is_VDD(other._is_VDD),
-      _is_GND(other._is_GND) {}
+      _is_GND(other._is_GND),
+      _net_name_between_clusters(other._net_name_between_clusters) {}
 
 Pin::Pin(Pin&& other) noexcept
     : DesignObject(std::move(other)),

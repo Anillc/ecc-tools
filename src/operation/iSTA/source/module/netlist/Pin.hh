@@ -64,6 +64,10 @@ class Pin : public DesignObject {
 
   Net* get_net() override { return _net; }
   void set_net(Net* net) override { _net = net; }
+  void set_net(std::unique_ptr<Net> net) {
+    _smart_net = std::move(net);
+    _net = _smart_net.get();
+  }
 
   void set_own_instance(Instance* own_instance) {
     _own_instance = own_instance;
@@ -80,8 +84,17 @@ class Pin : public DesignObject {
   std::string getFullName() override;
   std::unique_ptr<Pin> clone() const { return std::make_unique<Pin>(*this); }
 
+  const char* get_net_name_between_clusters() const {
+    return _net_name_between_clusters.c_str();
+  }
+  void set_net_name_between_clusters(const char* net_name) {
+    _net_name_between_clusters = net_name;
+  }
+
  private:
-  Net* _net = nullptr;                //!< The pin connected net.
+  Net* _net = nullptr;  //!< The pin connected net.
+  std::unique_ptr<Net>
+      _smart_net;  //!< The smart pin connected net for overlod func(set_net).
   LibertyPort* _cell_port = nullptr;  //!< The pin corresponding to cell port.
   Instance* _own_instance = nullptr;  //!< The pin owned by the instance.
   PinBus* _pin_bus = nullptr;         //!< The pin owned by the pin bus.
@@ -89,6 +102,8 @@ class Pin : public DesignObject {
   unsigned _is_VDD : 1;  //!< The pin is at a constant logic value 1.
   unsigned _is_GND : 1;  //!< The pin is at a constant logic value 0.
   unsigned _reserverd : 30;
+  std::string _net_name_between_clusters =
+      "";  //!< The name of virtual net between clusters.
 };
 
 /**

@@ -74,6 +74,42 @@ Instance& Instance::operator=(Instance&& rhs) {
 }
 
 /**
+ * @brief clone a instance for cluster timing analysis.
+ *
+ * @return Instance
+ */
+Instance Instance::cloneInstance() const {
+  Instance clone_inst(*this);
+  Pin* pin;
+  FOREACH_INSTANCE_PIN(&clone_inst, pin) {
+    auto* net = pin->get_net();
+    if (!net) {
+      continue;
+    }
+
+    std::unique_ptr<Net> new_net = std::make_unique<Net>(net->get_name());
+    auto& pin_ports = net->get_pin_ports();
+    for (auto& pin_port : pin_ports) {
+      std::string own_instance_name = nullptr;
+      if (pin_port->isPin()) {
+        own_instance_name = pin_port->get_own_instance()->getFullName();
+      }
+
+      if (pin_port->isPort()) {
+        new_net->addPort(pin_port->get_name(),
+                         dynamic_cast<Port*>(pin_port)->get_port_dir());
+      } else if (pin_port->isPin() &&
+                 Str::equal(clone_inst.get_name(), own_instance_name.c_str()) ==
+                     true) {
+        new_net->addPinPort(pin_port);
+        pin->set_net(std::move(new_net));
+      }
+    }
+  }
+  return clone_inst;
+}
+
+/**
  * @brief Get pin accord pin name.
  *
  * @param pin_name

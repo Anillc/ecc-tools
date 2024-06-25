@@ -50,6 +50,7 @@ class Netlist;
 class Instance : public DesignObject {
  public:
   Instance(const char* name, LibertyCell* cell_name);
+  Instance(const char* name, Netlist* inst_netlist);
   Instance(const Instance& other);
   Instance(Instance&& other);
   Instance& operator=(Instance&& rhs);
@@ -61,6 +62,7 @@ class Instance : public DesignObject {
   using Coordinate = std::pair<double, double>;
 
   unsigned isInstance() override { return 1; }
+  Instance cloneInstance() const;
 
   Pin* addPin(const char* name, LibertyPort* cell_port);
   Vector<std::unique_ptr<Pin>> clonePins() const {
