@@ -141,8 +141,8 @@ std::vector<DesignObject*> Net::getLoads() {
  */
 void Net::addPort(const char* name, PortDir port_dir) {
   auto port = std::make_unique<Port>(name, port_dir);
-  auto& port = _ports.emplace_back(std::move(port));
-  port->set_net(this);
+  auto& ret_port = _ports.emplace_back(std::move(port));
+  ret_port->set_net(this);
 }
 
 /**
