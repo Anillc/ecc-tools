@@ -77,7 +77,7 @@ double ClusterTimingEvaluator::reportTNS()
   // _timing_engine->updateTiming();
   double tns = 0;
   for (auto clock : _timing_engine->getClockList()) {
-    tns += _timing_engine->reportTNS(clock->get_clock_name(), ista::AnalysisMode::kMax);
+    tns += _timing_engine->getTNS(clock->get_clock_name(), ista::AnalysisMode::kMax);
   }
   return tns;
 }
