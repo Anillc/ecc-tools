@@ -30,7 +30,7 @@
 #include "BTreeMap.hh"
 #include "StaFunc.hh"
 #include "StaGraph.hh"
-#include "liberty/Liberty.hh"
+#include "liberty/Lib.hh"
 
 namespace ista {
 
@@ -65,7 +65,7 @@ class StaCharacterTiming : public StaFunc {
   unsigned backPropagateRTToPort(StaGraph* the_graph);
   unsigned genTimingModel(StaGraph* the_graph, const char* model_path);
 
-  std::unique_ptr<LibertyLibrary>
+  std::unique_ptr<LibLibrary>
       _design_timing_model;     //!< The design timing model as lib format.
   std::string _model_path;      //!< The design timing model path.
   AnalysisMode _analysis_mode;  //!< The analysis mode.

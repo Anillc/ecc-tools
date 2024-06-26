@@ -28,6 +28,7 @@ void register_ista(py::module& m)
   m.def("init_sta", staInit, py::arg("output"));
   m.def("report_sta", staReport, ("output"));
 
+  m.def("init_log", initLog, ("log_dir"));
   m.def("set_design_workspace", setDesignWorkSpace, ("design_workspace"));
   m.def("read_lef_def", read_lef_def, ("lef_files"), ("def_file"));
   m.def("read_netlist", readVerilog, ("file_name"));
@@ -36,6 +37,7 @@ void register_ista(py::module& m)
   m.def("read_spef", readSpef, ("file_name"));
   m.def("read_sdc", readSdc, py::arg("file_name"));
   m.def("report_timing", reportTiming, py::arg("digits"), py::arg("delay_type"), py::arg("exclude_cell_names"), py::arg("derate"));
-  // m.def("report_constraint") incomplete
+
+  m.def("get_used_libs", get_used_libs);
 }
 }  // namespace python_interface

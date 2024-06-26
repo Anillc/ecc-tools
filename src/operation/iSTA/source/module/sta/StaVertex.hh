@@ -137,7 +137,7 @@ class StaVertex {
   DesignObject* get_design_obj() const { return _obj; }
 
   std::string getName() { return _obj ? _obj->getFullName() : "Nil"; }
-  LibertyCell* getOwnCell();
+  LibCell* getOwnCell();
   const char* getOwnCellName();
   const char* getOwnCellOrPortName();
   std::string getNameWithCellName();

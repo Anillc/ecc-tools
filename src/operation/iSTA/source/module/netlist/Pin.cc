@@ -27,11 +27,11 @@
 #include <cstring>
 
 #include "Instance.hh"
-#include "liberty/Liberty.hh"
+#include "liberty/Lib.hh"
 
 namespace ista {
 
-Pin::Pin(const char* name, LibertyPort* cell_port)
+Pin::Pin(const char* name, LibPort* cell_port)
     : DesignObject(name),
       _cell_port(cell_port),
       _is_VDD(0),

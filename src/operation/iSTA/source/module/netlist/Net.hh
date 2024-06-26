@@ -37,7 +37,7 @@ namespace ista {
 
 class NetPinIterator;
 class Pin;
-class LibetyCurrentData;
+class LibCurrentData;
 
 /**
  * @brief The class for net of design.

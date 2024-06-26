@@ -327,8 +327,7 @@ void StaClusterTiming ::buildSubnetlistToInst() {
           inst_cell->get_cell_port_or_port_bus(port_name);
 
       if (!library_port_or_port_bus->isLibertyPortBus()) {
-        LibertyPort* library_port =
-            dynamic_cast<LibertyPort*>(library_port_or_port_bus);
+        auto* library_port = dynamic_cast<LibPort*>(library_port_or_port_bus);
         std::string pin_name = port_name;
         auto* inst_pin = inst.addPin(pin_name.c_str(), library_port);
 
@@ -393,11 +392,12 @@ void StaClusterTiming ::buildSubnetlistToInst() {
     // when cluster only have one instance.
     for (auto& remaining_instance : _remaining_instances) {
       for (auto& pin : remaining_instance.get_pins()) {
-        if (Str::equal(pin->get_net_name_between_clusters(), "") != true) {
-          const char* net_name_between_clusters =
+        auto& net_between_cluster = pin->get_net_name_between_clusters();
+        if (!net_between_cluster.empty()) {
+          auto& net_name_between_clusters =
               pin->get_net_name_between_clusters();
           Net* net_between_clusters =
-              design_netlist->findNet(net_name_between_clusters);
+              design_netlist->findNet(net_name_between_clusters.c_str());
           LOG_FATAL_IF(!net_between_clusters);
           pin->set_net(net_between_clusters);
           net_between_clusters->addPinPort(pin.get());
