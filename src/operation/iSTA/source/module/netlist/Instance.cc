@@ -90,7 +90,7 @@ Instance Instance::cloneInstance() const {
     std::unique_ptr<Net> new_net = std::make_unique<Net>(net->get_name());
     auto& pin_ports = net->get_pin_ports();
     for (auto& pin_port : pin_ports) {
-      std::string own_instance_name = nullptr;
+      std::string own_instance_name("");
       if (pin_port->isPin()) {
         own_instance_name = pin_port->get_own_instance()->getFullName();
       }
@@ -101,10 +101,12 @@ Instance Instance::cloneInstance() const {
       } else if (pin_port->isPin() &&
                  Str::equal(clone_inst.get_name(), own_instance_name.c_str()) ==
                      true) {
+        // check:after design_netlist reset,net addPinPort can access?
+        // as addPinPort is add inst_pin(ptr)
         new_net->addPinPort(pin_port);
-        pin->set_net(std::move(new_net));
       }
     }
+    pin->set_net(std::move(new_net));
   }
   return clone_inst;
 }

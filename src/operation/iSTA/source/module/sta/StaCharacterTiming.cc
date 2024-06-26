@@ -23,6 +23,7 @@
  *
  */
 #include "StaCharacterTiming.hh"
+
 #include "StaDataPropagation.hh"
 #include "StaDelayPropagation.hh"
 #include "StaSlewPropagation.hh"
@@ -378,6 +379,7 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     check_model->addTable(std::move(lib_fall_table));
 
     lib_arc->set_table_model(std::move(check_model));
+    lib_arc->set_owner_cell(design_timing_cell.get());
     design_timing_cell->addLibertyArc(std::move(lib_arc));
   };
 
@@ -385,6 +387,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   auto construct_port_delay_arc = [&design_timing_cell, this](
                                       auto* port_vertex,
                                       AnalysisMode analysis_mode) {
+    auto lib_arc = std::make_unique<LibertyArc>();
+    auto delay_model = std::make_unique<LibertyDelayTableModel>();
     FOREACH_TRANS(trans) {
       auto* delay_data =
           port_vertex->getWorstPathDelayData(analysis_mode, trans);
@@ -392,11 +396,9 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
       auto* start_vertex = path_data.top()->get_own_vertex();
       auto* slew_data = port_vertex->getWorstSlewDataFromStart(
           analysis_mode, trans, start_vertex);
-
       auto clock_ports = _logic_clkpoint_to_port.values();
 
       // input port to output port.
-      auto lib_arc = std::make_unique<LibertyArc>();
       lib_arc->set_snk_port(port_vertex->getName().c_str());
       lib_arc->set_src_port(start_vertex->getName().c_str());
       std::string timing_type =
@@ -416,8 +418,6 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               : "negative_unate";  // TODO(to taosimin), non-unate should
                                    // consider.
       lib_arc->set_timing_sense(timing_sense);
-
-      auto delay_model = std::make_unique<LibertyDelayTableModel>();
 
       // delay table
       {
@@ -441,8 +441,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
             FS_TO_NS(slew_data->get_slew()));
 
         auto slew_table_type = slew_data->get_trans_type() == TransType::kRise
-                                   ? LibertyTable::TableType::kCellRise
-                                   : LibertyTable::TableType::kCellFall;
+                                   ? LibertyTable::TableType::kRiseTransition
+                                   : LibertyTable::TableType::kFallTransition;
         auto lib_slew_table = std::make_unique<LibertyTable>(
             slew_table_type, nullptr);  // TODO(to taosimin), construct the
                                         // table template, timing sense
@@ -450,11 +450,11 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
 
         delay_model->addTable(std::move(lib_slew_table));
       }
-
-      lib_arc->set_table_model(std::move(delay_model));
-
-      design_timing_cell->addLibertyArc(std::move(lib_arc));
     }
+
+    lib_arc->set_table_model(std::move(delay_model));
+    lib_arc->set_owner_cell(design_timing_cell.get());
+    design_timing_cell->addLibertyArc(std::move(lib_arc));
   };
 
   StaVertex* port_vertex;

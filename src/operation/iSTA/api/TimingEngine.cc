@@ -40,6 +40,7 @@
 #include "sta/StaApplySdc.hh"
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaBuildRCTree.hh"
+#include "sta/StaCharacterTiming.hh"
 #include "sta/StaClockPropagation.hh"
 #include "sta/StaClockTree.hh"
 #include "sta/StaConstPropagation.hh"
@@ -51,7 +52,6 @@
 #include "sta/StaPathData.hh"
 #include "sta/StaSlewPropagation.hh"
 #include "sta/StaVertex.hh"
-#include "sta/StaCharacterTiming.hh"
 #include "tcl/ScriptEngine.hh"
 
 namespace ista {
@@ -507,17 +507,22 @@ TimingEngine& TimingEngine::incrUpdateTiming() {
 
 /**
  * @brief generate the ETM(extracted timing model).
- * 
- * @param model_path 
- * @return TimingEngine& 
+ *
+ * @param model_path
+ * @return TimingEngine&
  */
-TimingEngine &TimingEngine::extractTimingModel(AnalysisMode analysis_mode, const char *model_path) {
+TimingEngine& TimingEngine::extractTimingModel(AnalysisMode analysis_mode,
+                                               const char* model_path) {
   StaCharacterTiming character_timing(analysis_mode, model_path);
   auto& the_graph = _ista->get_graph();
   character_timing(&the_graph);
+  const char* lib_file_name =
+      "/home/longshuaiying/cluster_timing_model/example1/liberty/"
+      "example1_v.lib";
+  character_timing.get_design_timing_model()->printLibertyLibrary(
+      lib_file_name);
 
   return *this;
-
 }
 
 /**
