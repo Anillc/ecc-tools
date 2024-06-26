@@ -429,7 +429,14 @@ std::pair<std::string, std::string> Str::splitTwoPart(const char* orig, const ch
  */
 std::vector<std::string> Str::split(const char* orig, const char* delimiter)
 {
-  char* copy_str = Str::copy(orig);
+  auto copy_string = [](const char* src) {
+    size_t len = strlen(src);
+    char* dest = (char*) std::malloc((len + 1) * sizeof(char));
+    std::strcpy(dest, src);
+    return dest;
+  };
+
+  char* copy_str = copy_string(orig);
   std::vector<std::string> results;
 
   char* token = strtok(copy_str, delimiter);
@@ -438,7 +445,7 @@ std::vector<std::string> Str::split(const char* orig, const char* delimiter)
     token = strtok(nullptr, delimiter);
   }
 
-  Str::free(copy_str);
+  std::free(copy_str);
 
   return results;
 }
@@ -599,6 +606,10 @@ std::vector<std::string> Str::matchPattern(const char* str, std::string regex_pa
  */
 std::pair<std::string, std::optional<int>> Str::matchBusName(const char* str)
 {
+  if (!Str::endWith(str, "]")) {
+    return {str, std::nullopt};
+  }
+
   char* copy_str = Str::copy(str);
 
   char* token = strtok(copy_str, "[");
@@ -624,6 +635,10 @@ std::pair<std::string, std::optional<int>> Str::matchBusName(const char* str)
  */
 std::pair<std::string, std::optional<std::pair<int, int>>> Str::matchBusSliceName(const char* str)
 {
+  if (!Str::endWith(str, "]")) {
+    return {str, std::nullopt};
+  }
+
   char* copy_str = Str::copy(str);
 
   char* token = strtok(copy_str, "[");

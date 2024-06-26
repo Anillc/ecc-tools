@@ -202,6 +202,13 @@ void NetlistWriter::writeInstance(Instance *inst) {
     std::string pin_net_name;
     if (auto *net = pin->get_net(); net) {
       pin_net_name = pin->get_net()->get_name();
+      if (strcmp(pin_net_name.c_str(), "u1z") == 0) {
+        LOG_INFO << "Debug";
+      }
+      for (const auto &pin_port : net->get_pin_ports()) {
+        LOG_INFO << pin_port->getFullName();
+        // LOG_INFO << "Debug";
+      }
     } else {
       if (pin->isInput()) {
         pin_net_name = R"(1'b0)";

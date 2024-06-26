@@ -39,7 +39,7 @@ struct SAHierPlacer
 
     // // sta & add-virtual-net
 
-    // // createDataflow(root_cluster, 2);
+    createDataflow(root_cluster, 2);
 
     // std::unordered_map<idb::IdbNet*, std::map<std::string, double>> net_lengths; // default empty net-length
     // auto negative_slack_paths = timing_evaluator.getNegativeSlackPaths(net_lengths, 1.0);
@@ -553,6 +553,24 @@ void SAHierPlacer<T>::createDataflow(Block& root_cluster, size_t max_hop)
 
     cluster_instances.push_back(std::move(inst_set));
   }
+  std::ofstream outfile("/home/longshuaiying/cluster_timing_model/ariane133/cluster_instances.txt");
+  if (!outfile.is_open()) {
+    std::cerr << "Error opening file" << std::endl;
+  }
+
+  for (int i = 0; i < cluster_instances.size(); i++) {
+    outfile << "cluster" << i + 1 << ":";
+    for (const auto& inst : cluster_instances[i]) {
+      outfile << inst;
+      if (inst != *cluster_instances[i].rbegin()) {
+        outfile << ",";
+      }
+    }
+    outfile << std::endl;
+  }
+  outfile.close();
+  std::cout << "Success writing cluster files" << std::endl;
+
   timing_evaluator.createDataflow(cluster_instances, src_instances, max_hop);
 }
 

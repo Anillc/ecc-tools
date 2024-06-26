@@ -39,7 +39,7 @@ TEST_F(CharacterTimingTest, example1) {
 
   auto* timing_engine = TimingEngine::getOrCreateTimingEngine();
   timing_engine->set_num_threads(48);
-  const char* design_work_space = "/home/taosimin/power";
+  const char* design_work_space = "/home/longshuaiying/cluster_timing_model";
   timing_engine->set_design_work_space(design_work_space);
 
   std::vector<const char*> lib_files{
@@ -49,18 +49,20 @@ TEST_F(CharacterTimingTest, example1) {
   timing_engine->get_ista()->set_analysis_mode(ista::AnalysisMode::kMaxMin);
   timing_engine->get_ista()->set_n_worst_path_per_clock(1);
 
-  timing_engine->get_ista()->set_top_module_name("top");
+  timing_engine->get_ista()->set_top_module_name("cluster2");
 
   timing_engine->readDesign(
-      "/home/taosimin/nangate45/design/example/example1.v");
+      "/home/longshuaiying/cluster_timing_model/example1/verilog/"
+      "hier_sub_netlist2.v");
 
-  timing_engine->readSdc(
-      "/home/taosimin/nangate45/design/example/example1.sdc");
+  // timing_engine->readSdc(
+  //     "/home/taosimin/nangate45/design/example/example1.sdc");
 
   timing_engine->buildGraph();
 
-  timing_engine->extractTimingModel(AnalysisMode::kMax, "macro_model_max.lib");
-  timing_engine->extractTimingModel(AnalysisMode::kMin, "macro_model_min.lib");
+  timing_engine->extractTimingModel(AnalysisMode::kMax, "example1_v.lib");
+  // timing_engine->extractTimingModel(AnalysisMode::kMin,
+  // "macro_model_min.lib");
 
   double memory_delta = stats.memoryDelta();
   LOG_INFO << "propagate toggle sp memory usage " << memory_delta << "MB";

@@ -309,8 +309,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     model_name = lib_model_path.substr(pos + 1);
   }
 
-  _design_timing_model = std::make_unique<LibertyLibrary>(model_name.c_str());
-  auto design_timing_cell = std::make_unique<LibertyCell>(
+  _design_timing_model = std::make_unique<LibLibrary>(model_name.c_str());
+  auto design_timing_cell = std::make_unique<LibCell>(
       the_graph->get_nl()->get_name(), _design_timing_model.get());
 
   // construct the data port to clock port check arc.
@@ -345,7 +345,7 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     double port_fall_constrain_value =
         fall_constrain_value + (*endpoint_fall_at - *clk_point_at);
 
-    auto lib_arc = std::make_unique<LibertyArc>();
+    auto lib_arc = std::make_unique<LibArc>();
     lib_arc->set_snk_port(port_vertex->getName().c_str());
     lib_arc->set_src_port(clock_port_vertex->getName().c_str());
     std::string timing_type =
@@ -358,23 +358,23 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
 
     // construct the timing data.
     auto table_rise_value =
-        std::make_unique<LibertyFloatValue>(port_rise_constrain_value);
+        std::make_unique<LibFloatValue>(port_rise_constrain_value);
     auto table_fall_value =
-        std::make_unique<LibertyFloatValue>(port_fall_constrain_value);
+        std::make_unique<LibFloatValue>(port_fall_constrain_value);
 
-    auto lib_rise_table = std::make_unique<LibertyTable>(
-        LibertyTable::TableType::kRiseConstrain,
+    auto lib_rise_table = std::make_unique<LibTable>(
+        LibTable::TableType::kRiseConstrain,
         nullptr);  // TODO(to taosimin), construct the table template, timing
                    // sense
     lib_rise_table->addTableValue(std::move(table_rise_value));
 
-    auto lib_fall_table = std::make_unique<LibertyTable>(
-        LibertyTable::TableType::kFallConstrain,
+    auto lib_fall_table = std::make_unique<LibTable>(
+        LibTable::TableType::kFallConstrain,
         nullptr);  // TODO(to taosimin), construct the table template, timing
                    // sense
     lib_fall_table->addTableValue(std::move(table_fall_value));
 
-    auto check_model = std::make_unique<LibertyCheckTableModel>();
+    auto check_model = std::make_unique<LibCheckTableModel>();
     check_model->addTable(std::move(lib_rise_table));
     check_model->addTable(std::move(lib_fall_table));
 
@@ -421,13 +421,13 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
 
       // delay table
       {
-        auto delay_table_value = std::make_unique<LibertyFloatValue>(
+        auto delay_table_value = std::make_unique<LibFloatValue>(
             FS_TO_NS(delay_data->get_arrive_time()));
 
         auto delay_table_type = delay_data->get_trans_type() == TransType::kRise
-                                    ? LibertyTable::TableType::kCellRise
-                                    : LibertyTable::TableType::kCellFall;
-        auto lib_delay_table = std::make_unique<LibertyTable>(
+                                    ? LibTable::TableType::kCellRise
+                                    : LibTable::TableType::kCellFall;
+        auto lib_delay_table = std::make_unique<LibTable>(
             delay_table_type, nullptr);  // TODO(to taosimin), construct the
                                          // table template, timing sense
         lib_delay_table->addTableValue(std::move(delay_table_value));
@@ -437,8 +437,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
 
       // slew table
       {
-        auto slew_table_value = std::make_unique<LibertyFloatValue>(
-            FS_TO_NS(slew_data->get_slew()));
+        auto slew_table_value =
+            std::make_unique<LibFloatValue>(FS_TO_NS(slew_data->get_slew()));
 
         auto slew_table_type = slew_data->get_trans_type() == TransType::kRise
                                    ? LibertyTable::TableType::kRiseTransition

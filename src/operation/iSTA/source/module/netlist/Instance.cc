@@ -27,7 +27,7 @@
 
 namespace ista {
 
-Instance::Instance(const char* name, LibertyCell* inst_cell)
+Instance::Instance(const char* name, LibCell* inst_cell)
     : DesignObject(name), _inst_cell(inst_cell) {
   if (inst_cell) {
     _pins.reserve(_inst_cell->get_num_port());
@@ -99,10 +99,7 @@ Instance Instance::cloneInstance() const {
         new_net->addPort(pin_port->get_name(),
                          dynamic_cast<Port*>(pin_port)->get_port_dir());
       } else if (pin_port->isPin() &&
-                 Str::equal(clone_inst.get_name(), own_instance_name.c_str()) ==
-                     true) {
-        // check:after design_netlist reset,net addPinPort can access?
-        // as addPinPort is add inst_pin(ptr)
+                 Str::equal(clone_inst.get_name(), own_instance_name.c_str())) {
         new_net->addPinPort(pin_port);
       }
     }
@@ -129,7 +126,7 @@ std::optional<Pin*> Instance::getPin(const char* pin_name) {
   }
 }
 
-Pin* Instance::addPin(const char* name, LibertyPort* cell_port) {
+Pin* Instance::addPin(const char* name, LibPort* cell_port) {
   auto pin = std::make_unique<Pin>(name, cell_port);
   auto& cell_pin = _pins.emplace_back(std::move(pin));
   cell_pin->set_own_instance(this);
@@ -138,9 +135,9 @@ Pin* Instance::addPin(const char* name, LibertyPort* cell_port) {
   return cell_pin.get();
 }
 
-Pin* Instance::findPin(LibertyPort* cell_port) {
+Pin* Instance::findPin(LibPort* cell_port) {
   for (auto& pin : _pins) {
-    LibertyPort* port = pin->get_cell_port();
+    LibPort* port = pin->get_cell_port();
     if (port == cell_port) {
       return pin.get();
     }

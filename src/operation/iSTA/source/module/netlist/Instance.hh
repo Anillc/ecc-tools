@@ -33,9 +33,8 @@
 #include "Pin.hh"
 #include "Port.hh"
 #include "Vector.hh"
-#include "liberty/Liberty.hh"
+#include "liberty/Lib.hh"
 #include "string/Str.hh"
-#include "verilog/VerilogReader.hh"
 
 namespace ista {
 
@@ -49,7 +48,7 @@ class Netlist;
  */
 class Instance : public DesignObject {
  public:
-  Instance(const char* name, LibertyCell* cell_name);
+  Instance(const char* name, LibCell* cell_name);
   Instance(const char* name, Netlist* inst_netlist);
   Instance(const Instance& other);
   Instance(Instance&& other);
@@ -64,7 +63,7 @@ class Instance : public DesignObject {
   unsigned isInstance() override { return 1; }
   Instance cloneInstance() const;
 
-  Pin* addPin(const char* name, LibertyPort* cell_port);
+  Pin* addPin(const char* name, LibPort* cell_port);
   Vector<std::unique_ptr<Pin>> clonePins() const {
     Vector<std::unique_ptr<Pin>> colned_pins;
     colned_pins.reserve(_pins.size());
@@ -78,10 +77,10 @@ class Instance : public DesignObject {
   Pin* getLastPin() { return _pins.back().get(); }
   Vector<std::unique_ptr<Pin>>& get_pins() { return _pins; }
   std::optional<Pin*> getPin(const char* pin_name);
-  LibertyCell* get_inst_cell() { return _inst_cell; }
-  void set_inst_cell(LibertyCell* inst_cell) { _inst_cell = inst_cell; }
+  LibCell* get_inst_cell() { return _inst_cell; }
+  void set_inst_cell(LibCell* inst_cell) { _inst_cell = inst_cell; }
 
-  Pin* findPin(LibertyPort* port);
+  Pin* findPin(LibPort* port);
   std::string getFullName() override { return get_name(); }
 
   void addPinBus(std::unique_ptr<PinBus> pin_bus) {
@@ -101,7 +100,7 @@ class Instance : public DesignObject {
   auto get_coordinate() { return _coordinate; }
 
  private:
-  LibertyCell* _inst_cell;
+  LibCell* _inst_cell;
   Netlist* _inst_netlist = nullptr;
   Vector<std::unique_ptr<Pin>> _pins;
   StrMap<Pin*> _str2pin;

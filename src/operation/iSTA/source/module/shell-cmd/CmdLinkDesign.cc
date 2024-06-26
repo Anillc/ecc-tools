@@ -23,8 +23,12 @@
  */
 #include "ShellCmd.hh"
 #include "sta/Sta.hh"
+#include "sta/StaClusterTiming.hh"
 
 namespace ista {
+
+std::vector<std::set<std::string>> readClusterFromFile(
+    const std::string& filename);
 CmdLinkDesign::CmdLinkDesign(const char* cmd_name) : TclCmd(cmd_name) {
   auto* cell_name_option = new TclStringOption("cell_name", 1, nullptr);
   addOption(cell_name_option);
@@ -47,9 +51,65 @@ unsigned CmdLinkDesign::exec() {
   Sta* ista = Sta::getOrCreateSta();
   ista->set_top_module_name(cell_name);
 
-  // ista->linkDesign(cell_name);
   ista->linkDesignWithRustParser(cell_name);
+  std::set<std::string> exclude_cell_names = {};
+  ista->get_netlist()->writeVerilog(
+      "/home/longshuaiying/cluster_timing_model/example1/example1_write1.v",
+      exclude_cell_names);
+  std::vector<std::set<std::string>> clusters = {
+      {"r1", "u2"}, {"r2", "u1"}, {"r3"}};
+  // std::vector<std::set<std::string>> clusters = readClusterFromFile(
+  //     "/home/longshuaiying/cluster_timing_model/ariane133/"
+  //     "cluster_instances.txt");
+  StaClusterTiming sta_cluster_timing(clusters);
+
+  sta_cluster_timing.addHierSubNetlist();
+
+  std::vector<Netlist*> hier_sub_netlists =
+      ista->get_netlist()->get_hier_sub_netlists();
+  ista->get_netlist()->writeVerilog(
+      "/home/longshuaiying/cluster_timing_model/example1/example1_write2.v",
+      exclude_cell_names);
+  int sub_netlist_index = 1;
+  for (const auto& hier_sub_netlist : hier_sub_netlists) {
+    std::set<std::string> exclude_cell_names1 = {};
+    std::string cluster_verilog_file =
+        std::string("/home/longshuaiying/cluster_timing_model/example1/") +
+        std::string("hier_sub_netlist") + std::to_string(sub_netlist_index) +
+        ".v";
+    hier_sub_netlist->writeVerilog(cluster_verilog_file.c_str(),
+                                   exclude_cell_names1);
+    sub_netlist_index++;
+  }
 
   return 1;
 }
+
+std::vector<std::set<std::string>> readClusterFromFile(
+    const std::string& filename) {
+  std::vector<std::set<std::string>> allData;
+  std::ifstream file(filename);
+
+  if (!file.is_open()) {
+    std::cerr << "Failed to open file: " << filename << std::endl;
+    return allData;
+  }
+
+  std::string line;
+  while (getline(file, line)) {
+    std::set<std::string> lineData;
+    std::stringstream ss(line);
+    std::string item;
+
+    while (getline(ss, item, ',')) {
+      lineData.insert(item);
+    }
+
+    allData.push_back(lineData);
+  }
+
+  file.close();
+  return allData;
+}
+
 }  // namespace ista
