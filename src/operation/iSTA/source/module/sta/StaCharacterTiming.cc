@@ -387,8 +387,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   auto construct_port_delay_arc = [&design_timing_cell, this](
                                       auto* port_vertex,
                                       AnalysisMode analysis_mode) {
-    auto lib_arc = std::make_unique<LibertyArc>();
-    auto delay_model = std::make_unique<LibertyDelayTableModel>();
+    auto lib_arc = std::make_unique<LibArc>();
+    auto delay_model = std::make_unique<LibDelayTableModel>();
     FOREACH_TRANS(trans) {
       auto* delay_data =
           port_vertex->getWorstPathDelayData(analysis_mode, trans);
@@ -441,9 +441,9 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
             std::make_unique<LibFloatValue>(FS_TO_NS(slew_data->get_slew()));
 
         auto slew_table_type = slew_data->get_trans_type() == TransType::kRise
-                                   ? LibertyTable::TableType::kRiseTransition
-                                   : LibertyTable::TableType::kFallTransition;
-        auto lib_slew_table = std::make_unique<LibertyTable>(
+                                   ? LibTable::TableType::kRiseTransition
+                                   : LibTable::TableType::kFallTransition;
+        auto lib_slew_table = std::make_unique<LibTable>(
             slew_table_type, nullptr);  // TODO(to taosimin), construct the
                                         // table template, timing sense
         lib_slew_table->addTableValue(std::move(slew_table_value));
