@@ -318,6 +318,10 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   auto construct_port_check_arc = [&design_timing_cell, this](
                                       auto* port_vertex,
                                       AnalysisMode analysis_mode) {
+    if (!_port_to_logic_endpoint.contains(port_vertex)) {
+      return;
+    }
+
     auto* logic_endpoint = _port_to_logic_endpoint.values(port_vertex)
                                .front();  // TODO(to taosimin), fix me may be
                                           // more than one endpoint

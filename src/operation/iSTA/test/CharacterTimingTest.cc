@@ -49,11 +49,11 @@ TEST_F(CharacterTimingTest, example1) {
   timing_engine->get_ista()->set_analysis_mode(ista::AnalysisMode::kMaxMin);
   timing_engine->get_ista()->set_n_worst_path_per_clock(1);
 
-  timing_engine->get_ista()->set_top_module_name("cluster2");
+  timing_engine->get_ista()->set_top_module_name("cluster1");
 
   timing_engine->readDesign(
       "/home/longshuaiying/cluster_timing_model/example1/verilog/"
-      "hier_sub_netlist2.v");
+      "hier_sub_netlist1.v");
 
   // timing_engine->readSdc(
   //     "/home/taosimin/nangate45/design/example/example1.sdc");
