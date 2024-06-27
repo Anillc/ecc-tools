@@ -104,6 +104,7 @@ class Pin : public DesignObject {
   unsigned _is_VDD : 1;  //!< The pin is at a constant logic value 1.
   unsigned _is_GND : 1;  //!< The pin is at a constant logic value 0.
   unsigned _reserverd : 30;
+
   std::string _net_name_between_clusters;  //!< The name of virtual net between
                                            //!< clusters.
 };

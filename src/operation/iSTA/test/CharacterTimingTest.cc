@@ -49,11 +49,11 @@ TEST_F(CharacterTimingTest, example1) {
   timing_engine->get_ista()->set_analysis_mode(ista::AnalysisMode::kMaxMin);
   timing_engine->get_ista()->set_n_worst_path_per_clock(1);
 
-  timing_engine->get_ista()->set_top_module_name("cluster2");
+  timing_engine->get_ista()->set_top_module_name("cluster1");
 
   timing_engine->readDesign(
       "/home/longshuaiying/cluster_timing_model/example1/verilog/"
-      "hier_sub_netlist2.v");
+      "hier_sub_netlist1.v");
 
   // timing_engine->readSdc(
   //     "/home/taosimin/nangate45/design/example/example1.sdc");
@@ -65,9 +65,9 @@ TEST_F(CharacterTimingTest, example1) {
   // "macro_model_min.lib");
 
   double memory_delta = stats.memoryDelta();
-  LOG_INFO << "propagate toggle sp memory usage " << memory_delta << "MB";
+  LOG_INFO << "extract timing lib memory usage " << memory_delta << "MB";
   double time_delta = stats.elapsedRunTime();
-  LOG_INFO << "propagate toggle sp time elapsed " << time_delta << "s";
+  LOG_INFO << "extract timing lib time elapsed " << time_delta << "s";
 }
 
 }  // namespace

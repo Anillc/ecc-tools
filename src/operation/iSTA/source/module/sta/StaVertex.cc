@@ -838,8 +838,8 @@ StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
  * @return StaSlewData*
  */
 StaSlewData* StaVertex::getWorstSlewDataFromStart(AnalysisMode analysis_mode,
-                                       TransType trans_type,
-                                       StaVertex* start_vertex) {
+                                                  TransType trans_type,
+                                                  StaVertex* start_vertex) {
   std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
       data_queue(sta_data_cmp);
 
@@ -900,6 +900,10 @@ StaPathDelayData* StaVertex::getWorstPathDelayData(AnalysisMode analysis_mode,
         (data->get_trans_type() == trans_type)) {
       data_queue.push(data);
     }
+  }
+
+  if (data_queue.empty()) {
+    return nullptr;
   }
 
   return dynamic_cast<StaPathDelayData*>(data_queue.top());
