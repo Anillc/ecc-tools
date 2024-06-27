@@ -65,9 +65,9 @@ TEST_F(CharacterTimingTest, example1) {
   // "macro_model_min.lib");
 
   double memory_delta = stats.memoryDelta();
-  LOG_INFO << "propagate toggle sp memory usage " << memory_delta << "MB";
+  LOG_INFO << "extract timing lib memory usage " << memory_delta << "MB";
   double time_delta = stats.elapsedRunTime();
-  LOG_INFO << "propagate toggle sp time elapsed " << time_delta << "s";
+  LOG_INFO << "extract timing lib time elapsed " << time_delta << "s";
 }
 
 }  // namespace

@@ -158,6 +158,7 @@ unsigned StaCharacterTiming::operator()(StaArc* the_arc) {
   if (_state == kPropagateSlew) {
     // propagate the slew along the arc.
     StaSlewPropagation slew_propagation;
+    // output port need propagate slew too, for construct transition table.
     slew_propagation.set_propagate_output_port();
     slew_propagation(the_arc);
   } else if (_state == kPropagateDelay) {
@@ -392,6 +393,9 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     FOREACH_TRANS(trans) {
       auto* delay_data =
           port_vertex->getWorstPathDelayData(analysis_mode, trans);
+      if (!delay_data) {
+        continue;
+      }
       auto path_data = delay_data->getPathData();
       auto* start_vertex = path_data.top()->get_own_vertex();
       auto* slew_data = port_vertex->getWorstSlewDataFromStart(

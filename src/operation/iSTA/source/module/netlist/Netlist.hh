@@ -243,6 +243,7 @@ class Netlist : public DesignObject {
   StrMap<PortBus*> _str2portbus;
 
   std::vector<Netlist*> _hier_sub_netlists;  //!< The hierarchical netlist.
+
   std::vector<Net>
       _virtual_nets;  //!< The virtual net between the hierarchical netlist.
   StrMap<Net*> _str2virtualnet;  //!< The virtual net name to net for search.
