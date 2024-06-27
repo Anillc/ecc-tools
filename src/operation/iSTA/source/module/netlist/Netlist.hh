@@ -82,6 +82,7 @@ class Netlist : public DesignObject {
     return *the_port;
   }
 
+  // to remove
   Port& addPort(std::unique_ptr<Port> port) {
     _ports.emplace_back(std::move(*port));
     Port* the_port = &(_ports.back());
@@ -132,6 +133,7 @@ class Netlist : public DesignObject {
     return *the_net;
   }
 
+  // to remove
   Net& addNet(Net* net) {
     _nets.emplace_back(*net);
     Net* the_net = &(_nets.back());

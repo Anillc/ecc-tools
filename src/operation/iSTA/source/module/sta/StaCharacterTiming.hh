@@ -56,9 +56,7 @@ class StaCharacterTiming : public StaFunc {
   unsigned operator()(StaGraph* the_graph) override;
   unsigned operator()(StaVertex* the_vertex) override;
   unsigned operator()(StaArc* the_arc) override;
-  LibertyLibrary* get_design_timing_model() {
-    return _design_timing_model.get();
-  }
+  LibLibrary* get_design_timing_model() { return _design_timing_model.get(); }
 
  private:
   unsigned collectInterfaceLogicEndPoint(StaGraph* the_graph);

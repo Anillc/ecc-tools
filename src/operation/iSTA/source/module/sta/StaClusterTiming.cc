@@ -91,7 +91,37 @@ void StaClusterTiming::addHierSubNetlist() {
     if (cluster_instance.size() == 1) {
       for (auto& instance_name : cluster_instance) {
         auto* instance = design_netlist->findInstance(instance_name.c_str());
-        Instance new_inst = (*instance).cloneInstance();
+        Instance new_inst(*instance);
+
+        Pin* pin;
+        FOREACH_INSTANCE_PIN(&new_inst, pin) {
+          auto* net = pin->get_net();
+          if (!net) {
+            continue;
+          }
+
+          auto& new_net = addRemainingNets(Net(net->get_name()));
+          auto& pin_ports = net->get_pin_ports();
+          for (auto& pin_port : pin_ports) {
+            std::string own_instance_name("");
+            if (pin_port->isPin()) {
+              own_instance_name = pin_port->get_own_instance()->getFullName();
+            }
+
+            if (pin_port->isPort()) {
+              auto& new_port = addRemainingPorts(
+                  Port(pin_port->get_name(),
+                       dynamic_cast<Port*>(pin_port)->get_port_dir()));
+              new_net.addPinPort(&new_port);
+            } else if (pin_port->isPin() &&
+                       Str::equal(new_inst.get_name(),
+                                  own_instance_name.c_str())) {
+              // check net_net add inst_pin may be dangling?
+              new_net.addPinPort(pin_port);
+            }
+          }
+          pin->set_net(&new_net);
+        }
         addRemainingInstances(std::move(new_inst));
       }
     }
@@ -388,45 +418,47 @@ void StaClusterTiming ::buildSubnetlistToInst() {
             << "the ETM generated timing modle has LibertyPotBus.";
       }
     }
+    design_netlist->addInstance(std::move(inst));
+  }
 
-    // when cluster only have one instance.
-    for (auto& remaining_instance : _remaining_instances) {
-      for (auto& pin : remaining_instance.get_pins()) {
-        auto& net_between_cluster = pin->get_net_name_between_clusters();
-        if (!net_between_cluster.empty()) {
-          auto& net_name_between_clusters =
-              pin->get_net_name_between_clusters();
-          Net* net_between_clusters =
-              design_netlist->findNet(net_name_between_clusters.c_str());
-          LOG_FATAL_IF(!net_between_clusters);
-          pin->set_net(net_between_clusters);
-          net_between_clusters->addPinPort(pin.get());
+  // when cluster only have one instance.
+  for (auto& remaining_instance : _remaining_instances) {
+    for (auto& pin : remaining_instance.get_pins()) {
+      auto& net_between_cluster = pin->get_net_name_between_clusters();
+      if (!net_between_cluster.empty()) {
+        auto& net_name_between_clusters = pin->get_net_name_between_clusters();
+        Net* net_between_clusters =
+            design_netlist->findNet(net_name_between_clusters.c_str());
+        LOG_FATAL_IF(!net_between_clusters);
+        pin->set_net(net_between_clusters);
+        net_between_clusters->addPinPort(pin.get());
 
-        } else {
-          auto* connect_net = pin->get_net();
-          Net* the_net = design_netlist->findNet(connect_net->get_name());
-          if (!the_net) {
-            Net& ret_net = design_netlist->addNet(connect_net);
-            connect_net = &ret_net;
-            pin->set_net(connect_net);
-          }
-          for (auto& port : connect_net->get_ports()) {
-            auto* the_port = design_netlist->findPort(port->get_name());
+      } else {
+        auto* connect_net = pin->get_net();
+        Net* the_net = design_netlist->findNet(connect_net->get_name());
+        if (!the_net) {
+          Net& ret_net = design_netlist->addNet(std::move(*connect_net));
+          connect_net = &ret_net;
+          pin->set_net(connect_net);
+        }
+        for (auto& pin_port : connect_net->get_pin_ports()) {
+          if (pin_port->isPort()) {
+            auto* the_port = design_netlist->findPort(pin_port->get_name());
             if (!the_port) {
               // transfer ownership of port to design_netlist and get the
               // reference of ret_port.
-              Port& ret_port = design_netlist->addPort(std::move(port));
+              Port& ret_port = design_netlist->addPort(
+                  std::move((*dynamic_cast<Port*>(pin_port))));
               // Reset the port pointer in connect_net to the new pointer
               // "&ret_port"
-              port.reset(&ret_port);
+              pin_port = &ret_port;
             }
           }
         }
       }
-      // check std::move().
-      design_netlist->addInstance(std::move(remaining_instance));
     }
+    // check std::move().
+    design_netlist->addInstance(std::move(remaining_instance));
   }
 }
-
 }  // namespace ista

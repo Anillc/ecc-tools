@@ -46,6 +46,18 @@ class StaClusterTiming : public StaFunc {
     _remaining_instances.emplace_back(std::move(instance));
   }
 
+  Net& addRemainingNets(Net&& net) {
+    _remaining_nets.emplace_back(std::move(net));
+    Net* the_net = &(_remaining_nets.back());
+    return *the_net;
+  }
+
+  Port& addRemainingPorts(Port&& port) {
+    _remaining_ports.emplace_back(std::move(port));
+    Port* the_port = &(_remaining_ports.back());
+    return *the_port;
+  }
+
  private:
   void addPortForSubnetlist(Instance& inst, Netlist& subnetlist);
   bool isBoundaryInstance(
@@ -56,8 +68,10 @@ class StaClusterTiming : public StaFunc {
       Netlist& subnetlist);
   std::vector<std::set<std::string>> _cluster_instances;
   std::list<Instance>
-      _remaining_instances;  // collection of the cluster's instance,where the
-                             // cluster only has one instnce.
+      _remaining_instances;  //!< collection of the cluster's instance,where the
+                             //!< cluster only has one instnce.
+  std::list<Net> _remaining_nets;
+  std::list<Port> _remaining_ports;
 };
 
 }  // namespace ista

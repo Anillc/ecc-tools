@@ -114,6 +114,7 @@ class Net : public DesignObject {
     _net_loads[index] = load;
   }
 
+  // remove
   void addPort(const char *name, PortDir port_dir);
   Vector<std::unique_ptr<Port>> &get_ports() { return _ports; }
 
