@@ -421,6 +421,9 @@ class StaVertex {
                                      StaData* src_delay_data);
   StaPathDelayData* getWorstPathDelayData(AnalysisMode analysis_mode,
                                           TransType trans_type);
+  std::map<StaVertex*, StaPathDelayData*> getDifferentStartPathDelayData(
+      AnalysisMode analysis_mode, TransType trans_type);
+
   void getPathDepth(std::priority_queue<int, std::vector<int>,
                                         std::greater<int>>& depth_min_queue,
                     int depth = 0);
