@@ -59,6 +59,7 @@ class StaCharacterTiming : public StaFunc {
   LibLibrary* get_design_timing_model() { return _design_timing_model.get(); }
 
  private:
+  unsigned init(StaGraph* the_graph);
   unsigned collectInterfaceLogicEndPoint(StaGraph* the_graph);
   unsigned propagateSlew(StaGraph* the_graph);
   unsigned propagateDelay(StaGraph* the_graph);

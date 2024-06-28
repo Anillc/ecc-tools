@@ -296,8 +296,9 @@ unsigned StaPathDelayData::compareSignature(const StaData* data) const {
     is_same = 0;
   } else if (_trans_type != delay_data->get_trans_type()) {
     is_same = 0;
-  } else if (!_launch_clock_data || (_launch_clock_data->get_prop_clock() !=
-             delay_data->get_launch_clock_data()->get_prop_clock())) {
+  } else if (!_launch_clock_data ||
+             (_launch_clock_data->get_prop_clock() !=
+              delay_data->get_launch_clock_data()->get_prop_clock())) {
     is_same = 0;
   } else if (_launch_clock_data->get_clock_wave_type() !=
              delay_data->get_launch_clock_data()->get_clock_wave_type()) {
@@ -445,6 +446,15 @@ void StaDataBucket::addData(StaData* data, int track_stack_deep) {
                : (left_compare_value < right_compare_value);
   };
 
+  static const auto cmp_signature = [this](StaData* left,
+                                           StaData* right) -> unsigned {
+    if (isPathBased() && (left->get_bwd() != right->get_bwd())) {
+      return 0;
+    }
+
+    return left->compareSignature(right);
+  };
+
   track_stack_deep++;
 
   // if (track_stack_deep > 4 && data->isPathDelayData()) {
@@ -456,7 +466,7 @@ void StaDataBucket::addData(StaData* data, int track_stack_deep) {
   } else {
     auto& top_data = _data_list.front();
 
-    if (top_data->compareSignature(data)) {
+    if (cmp_signature(top_data.get(), data)) {
       auto q = _data_list.begin();
       bool is_insert = false;
       // q is the previous data.

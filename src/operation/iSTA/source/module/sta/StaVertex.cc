@@ -318,6 +318,16 @@ void StaVertex::addData(StaPathDelayData* delay_data) {
 }
 
 /**
+ * @brief set path based propagatd, all path data would be stored in data
+ * bucket.
+ *
+ */
+void StaVertex::setPathBasedPropagated() {
+  _slew_bucket.set_is_path_based();
+  _path_delay_bucket.set_is_path_based();
+}
+
+/**
  * @brief Init slew data, if not create zero slew default.
  */
 void StaVertex::initSlewData(int init_slew) {
@@ -831,7 +841,7 @@ StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
 }
 
 /**
- * @brief get worst slew data from start vertex.
+ * @brief get worst slew data propagated from start vertex.
  *
  * @param analysis_mode
  * @param trans_type

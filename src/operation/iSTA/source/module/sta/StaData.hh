@@ -149,18 +149,19 @@ class StaData {
 
 /**
  * @brief cmp for data.
- * 
+ *
  */
-const std::function<bool(StaData*, StaData*)> sta_data_cmp = [](StaData* left, StaData* right) -> unsigned {
-    auto delay_type = left->get_delay_type();
-    int left_compare_value = left->getCompareValue();
-    int right_compare_value = right->getCompareValue();
+const std::function<bool(StaData*, StaData*)> sta_data_cmp =
+    [](StaData* left, StaData* right) -> unsigned {
+  auto delay_type = left->get_delay_type();
+  int left_compare_value = left->getCompareValue();
+  int right_compare_value = right->getCompareValue();
 
-    // Judge more critical.
-    return (delay_type == AnalysisMode::kMax)
-               ? (left_compare_value > right_compare_value)
-               : (left_compare_value < right_compare_value);
-  };
+  // Judge more critical.
+  return (delay_type == AnalysisMode::kMax)
+             ? (left_compare_value > right_compare_value)
+             : (left_compare_value < right_compare_value);
+};
 
 /**
  * @brief The slew data of the pin.
@@ -376,6 +377,9 @@ class StaDataBucket {
   StaDataBucket(StaDataBucket&& other) noexcept;
   StaDataBucket& operator=(StaDataBucket&& rhs) noexcept;
 
+  void set_is_path_based() { _is_path_based = 1; }
+  unsigned isPathBased() { return _is_path_based; }
+
   unsigned bucket_size() const { return _count; }
   bool empty() { return _data_list.empty(); }
   void addData(StaData* data, int track_stack_deep);
@@ -411,6 +415,10 @@ class StaDataBucket {
 
   unsigned _n_worst;    //!< Store the top n worst data.
   unsigned _count = 0;  //!<  For the fwd list do not provide cout.
+
+  unsigned _is_path_based : 1 =
+      0;  //!< Default is graph based, true is path based;
+  unsigned _reserverd : 31 = 0;
 
   std::unique_ptr<StaDataBucket>
       _next;  //!< The next data bucket which has different signature.

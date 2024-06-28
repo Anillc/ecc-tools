@@ -110,21 +110,6 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
       return 1;
     }
 
-    if (the_vertex->is_port()) {
-      // set init slew or AT.
-      auto* the_port = the_vertex->get_design_obj();
-      if (the_port->isInput()) {
-        if (_state == kPropagateSlew) {
-          the_vertex->initSlewData();  // TODO(to taosimin) need decide the
-                                       // discrete  init slew data point.
-        } else if (_state == kPropagateATFromPort) {
-          the_vertex->initPathDelayData();
-        }
-
-        return 1;
-      }
-    }
-
     // bwd
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
       if (snk_arc->isMpwArc()) {
@@ -186,6 +171,9 @@ unsigned StaCharacterTiming::operator()(StaArc* the_arc) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
+  // init the data and propgated way.
+  init(the_graph);
+
   // first collect the interface logic endpoint.
   collectInterfaceLogicEndPoint(the_graph);
 
@@ -203,6 +191,32 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 
   // finaly gen the timing model.
   genTimingModel(the_graph, _model_path.c_str());
+
+  return 1;
+}
+
+/**
+ * @brief init the data propagated way, which may be graph based or path
+ * based.Then set the init slew data.
+ *
+ * @param the_graph
+ * @return unsigned
+ */
+unsigned StaCharacterTiming::init(StaGraph* the_graph) {
+  StaVertex* the_vertex;
+  FOREACH_VERTEX(the_graph, the_vertex) {
+    the_vertex->setPathBasedPropagated();
+
+    if (the_vertex->is_port()) {
+      // set init slew or AT.
+      auto* the_port = the_vertex->get_design_obj();
+      if (the_port->isInput()) {
+        the_vertex->initSlewData();  // TODO(to taosimin) need decide the
+        // discrete init slew data point.
+        the_vertex->initPathDelayData();
+      }
+    }
+  }
 
   return 1;
 }
