@@ -318,6 +318,16 @@ void StaVertex::addData(StaPathDelayData* delay_data) {
 }
 
 /**
+ * @brief set path based propagatd, all path data would be stored in data
+ * bucket.
+ *
+ */
+void StaVertex::setPathBasedPropagated() {
+  _slew_bucket.set_is_path_based();
+  _path_delay_bucket.set_is_path_based();
+}
+
+/**
  * @brief Init slew data, if not create zero slew default.
  */
 void StaVertex::initSlewData(int init_slew) {
@@ -831,7 +841,7 @@ StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
 }
 
 /**
- * @brief get worst slew data from start vertex.
+ * @brief get worst slew data propagated from start vertex.
  *
  * @param analysis_mode
  * @param trans_type
@@ -908,6 +918,42 @@ StaPathDelayData* StaVertex::getWorstPathDelayData(AnalysisMode analysis_mode,
 
   return dynamic_cast<StaPathDelayData*>(data_queue.top());
 }
+
+/**
+ * @brief get the worst delay path data which from differenct start vertex to
+ * the vertex.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return std::map<StaVertex, StaPathDelayData*>
+ */
+std::map<StaVertex*, StaPathDelayData*>
+StaVertex::getDifferentStartPathDelayData(AnalysisMode analysis_mode,
+                                          TransType trans_type) {
+  using PathDataQueue = std::priority_queue<StaData*, std::vector<StaData*>,
+                                            decltype(sta_data_cmp)>;
+  std::map<StaVertex*, PathDataQueue> start_vertex_path_data_queue;
+
+  StaData* data;
+  FOREACH_DELAY_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      auto path_data = dynamic_cast<StaPathDelayData*>(data)->getPathData();
+      auto* path_start_vertex = path_data.top()->get_own_vertex();
+      auto& data_queue = start_vertex_path_data_queue[path_start_vertex];
+      data_queue.push(data);
+    }
+  }
+
+  std::map<StaVertex*, StaPathDelayData*> start_vertex_to_worst_data;
+
+  for (auto& [start_vertex, data_queue] : start_vertex_path_data_queue) {
+    start_vertex_to_worst_data[start_vertex] =
+        dynamic_cast<StaPathDelayData*>(data_queue.top());
+  }
+
+  return start_vertex_to_worst_data;
+}  // namespace ista
 
 /**
  * @brief Get the cap for the driver node, or pin cap for the load node.

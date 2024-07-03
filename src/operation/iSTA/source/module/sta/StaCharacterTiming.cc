@@ -110,21 +110,6 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
       return 1;
     }
 
-    if (the_vertex->is_port()) {
-      // set init slew or AT.
-      auto* the_port = the_vertex->get_design_obj();
-      if (the_port->isInput()) {
-        if (_state == kPropagateSlew) {
-          the_vertex->initSlewData();  // TODO(to taosimin) need decide the
-                                       // discrete  init slew data point.
-        } else if (_state == kPropagateATFromPort) {
-          the_vertex->initPathDelayData();
-        }
-
-        return 1;
-      }
-    }
-
     // bwd
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
       if (snk_arc->isMpwArc()) {
@@ -186,6 +171,9 @@ unsigned StaCharacterTiming::operator()(StaArc* the_arc) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
+  // init the data and propgated way.
+  init(the_graph);
+
   // first collect the interface logic endpoint.
   collectInterfaceLogicEndPoint(the_graph);
 
@@ -203,6 +191,32 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 
   // finaly gen the timing model.
   genTimingModel(the_graph, _model_path.c_str());
+
+  return 1;
+}
+
+/**
+ * @brief init the data propagated way, which may be graph based or path
+ * based.Then set the init slew data.
+ *
+ * @param the_graph
+ * @return unsigned
+ */
+unsigned StaCharacterTiming::init(StaGraph* the_graph) {
+  StaVertex* the_vertex;
+  FOREACH_VERTEX(the_graph, the_vertex) {
+    the_vertex->setPathBasedPropagated();
+
+    if (the_vertex->is_port()) {
+      // set init slew or AT.
+      auto* the_port = the_vertex->get_design_obj();
+      if (the_port->isInput()) {
+        the_vertex->initSlewData();  // TODO(to taosimin) need decide the
+        // discrete init slew data point.
+        the_vertex->initPathDelayData();
+      }
+    }
+  }
 
   return 1;
 }
@@ -392,77 +406,93 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   auto construct_port_delay_arc = [&design_timing_cell, this](
                                       auto* port_vertex,
                                       AnalysisMode analysis_mode) {
-    auto lib_arc = std::make_unique<LibArc>();
-    auto delay_model = std::make_unique<LibDelayTableModel>();
-    FOREACH_TRANS(trans) {
-      auto* delay_data =
-          port_vertex->getWorstPathDelayData(analysis_mode, trans);
-      if (!delay_data) {
-        continue;
-      }
-      auto path_data = delay_data->getPathData();
-      auto* start_vertex = path_data.top()->get_own_vertex();
-      auto* slew_data = port_vertex->getWorstSlewDataFromStart(
-          analysis_mode, trans, start_vertex);
-      auto clock_ports = _logic_clkpoint_to_port.values();
-
-      // input port to output port.
-      lib_arc->set_snk_port(port_vertex->getName().c_str());
-      lib_arc->set_src_port(start_vertex->getName().c_str());
-      std::string timing_type =
-          clock_ports.contains(start_vertex)
-              ? _port_to_logic_clkpoint.values(start_vertex)
-                        .front()
-                        ->isRisingTriggered()  // TODO(to taosimin), may be
-                                               // more than one clk pin.
-                    ? "rising_edge"
-                    : "falling_edge"
-              : "combinational";
-      lib_arc->set_timing_type(timing_type.c_str());
-
-      const char* timing_sense =
-          (trans == path_data.top()->get_trans_type())
-              ? "positive_unate"
-              : "negative_unate";  // TODO(to taosimin), non-unate should
-                                   // consider.
-      lib_arc->set_timing_sense(timing_sense);
-
-      // delay table
-      {
-        auto delay_table_value = std::make_unique<LibFloatValue>(
-            FS_TO_NS(delay_data->get_arrive_time()));
-
-        auto delay_table_type = delay_data->get_trans_type() == TransType::kRise
-                                    ? LibTable::TableType::kCellRise
-                                    : LibTable::TableType::kCellFall;
-        auto lib_delay_table = std::make_unique<LibTable>(
-            delay_table_type, nullptr);  // TODO(to taosimin), construct the
-                                         // table template, timing sense
-        lib_delay_table->addTableValue(std::move(delay_table_value));
-
-        delay_model->addTable(std::move(lib_delay_table));
-      }
-
-      // slew table
-      {
-        auto slew_table_value =
-            std::make_unique<LibFloatValue>(FS_TO_NS(slew_data->get_slew()));
-
-        auto slew_table_type = slew_data->get_trans_type() == TransType::kRise
-                                   ? LibTable::TableType::kRiseTransition
-                                   : LibTable::TableType::kFallTransition;
-        auto lib_slew_table = std::make_unique<LibTable>(
-            slew_table_type, nullptr);  // TODO(to taosimin), construct the
-                                        // table template, timing sense
-        lib_slew_table->addTableValue(std::move(slew_table_value));
-
-        delay_model->addTable(std::move(lib_slew_table));
-      }
+    auto rise_start_vertex_to_delay_data =
+        port_vertex->getDifferentStartPathDelayData(analysis_mode,
+                                                    TransType::kRise);
+    if (rise_start_vertex_to_delay_data.empty()) {
+      return;
     }
 
-    lib_arc->set_table_model(std::move(delay_model));
-    lib_arc->set_owner_cell(design_timing_cell.get());
-    design_timing_cell->addLibertyArc(std::move(lib_arc));
+    auto fall_start_vertex_to_delay_data =
+        port_vertex->getDifferentStartPathDelayData(analysis_mode,
+                                                    TransType::kFall);
+    std::vector<StaVertex*> all_start_vertexes;
+    for (const auto& pair : rise_start_vertex_to_delay_data) {
+      all_start_vertexes.emplace_back(pair.first);
+    }
+
+    for (auto* start_vertex : all_start_vertexes) {
+      auto lib_arc = std::make_unique<LibArc>();
+      auto delay_model = std::make_unique<LibDelayTableModel>();
+      FOREACH_TRANS(trans) {
+        auto* delay_data = trans == TransType::kRise
+                               ? rise_start_vertex_to_delay_data[start_vertex]
+                               : fall_start_vertex_to_delay_data[start_vertex];
+
+        auto* slew_data = port_vertex->getWorstSlewDataFromStart(
+            analysis_mode, trans, start_vertex);
+        auto clock_ports = _logic_clkpoint_to_port.values();
+
+        // input port to output port.
+        lib_arc->set_snk_port(port_vertex->getName().c_str());
+        lib_arc->set_src_port(start_vertex->getName().c_str());
+        std::string timing_type =
+            clock_ports.contains(start_vertex)
+                ? _port_to_logic_clkpoint.values(start_vertex)
+                          .front()
+                          ->isRisingTriggered()  // TODO(to taosimin), may be
+                                                 // more than one clk pin.
+                      ? "rising_edge"
+                      : "falling_edge"
+                : "combinational";
+        lib_arc->set_timing_type(timing_type.c_str());
+
+        auto path_data = delay_data->getPathData();
+        const char* timing_sense =
+            (trans == path_data.top()->get_trans_type())
+                ? "positive_unate"
+                : "negative_unate";  // TODO(to taosimin), non-unate should
+                                     // consider.
+        lib_arc->set_timing_sense(timing_sense);
+
+        // delay table
+        {
+          auto delay_table_value = std::make_unique<LibFloatValue>(
+              FS_TO_NS(delay_data->get_arrive_time()));
+
+          auto delay_table_type =
+              delay_data->get_trans_type() == TransType::kRise
+                  ? LibTable::TableType::kCellRise
+                  : LibTable::TableType::kCellFall;
+          auto lib_delay_table = std::make_unique<LibTable>(
+              delay_table_type, nullptr);  // TODO(to taosimin), construct the
+                                           // table template, timing sense
+          lib_delay_table->addTableValue(std::move(delay_table_value));
+
+          delay_model->addTable(std::move(lib_delay_table));
+        }
+
+        // slew table
+        {
+          auto slew_table_value =
+              std::make_unique<LibFloatValue>(FS_TO_NS(slew_data->get_slew()));
+
+          auto slew_table_type = slew_data->get_trans_type() == TransType::kRise
+                                     ? LibTable::TableType::kRiseTransition
+                                     : LibTable::TableType::kFallTransition;
+          auto lib_slew_table = std::make_unique<LibTable>(
+              slew_table_type, nullptr);  // TODO(to taosimin), construct the
+                                          // table template, timing sense
+          lib_slew_table->addTableValue(std::move(slew_table_value));
+
+          delay_model->addTable(std::move(lib_slew_table));
+        }
+      }
+
+      lib_arc->set_table_model(std::move(delay_model));
+      lib_arc->set_owner_cell(design_timing_cell.get());
+      design_timing_cell->addLibertyArc(std::move(lib_arc));
+    }
   };
 
   StaVertex* port_vertex;
