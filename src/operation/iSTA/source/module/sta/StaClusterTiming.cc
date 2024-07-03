@@ -259,12 +259,12 @@ void StaClusterTiming::addPortForBoundaryInstance(
             !boundary_inst_own_cluster.contains(own_instance_name)) {
           // flag the instance'pin to connect to the virtual net.
           dynamic_cast<Pin*>(pin_port)->set_net_name_between_clusters(
-              own_instance_name.c_str());
+              connect_net->get_name());
           // need virtual port on the connect net.
           PortDir dcl_type = PortDir::kIn;
-          std::string dcl_name =
-              boundary_inst.getFullName() + "2" + own_instance_name;
+          std::string dcl_name = connect_net->get_name();
           virtual_port = Port(dcl_name.c_str(), dcl_type);
+          virtual_port.set_is_virtual_port(1);
           virtual_net = Net(connect_net->get_name());
           subnetlist.addNet(std::move(virtual_net));
           subnetlist.addPort(std::move(virtual_port));
@@ -296,13 +296,13 @@ void StaClusterTiming::addPortForBoundaryInstance(
         if (!boundary_inst_own_cluster.contains(own_instance_name)) {
           // flag the instance'pin to connect to the virtual net.
           dynamic_cast<Pin*>(pin_port)->set_net_name_between_clusters(
-              boundary_inst.get_name());
+              connect_net->get_name());
           // need virtual port on the connect net.
           if (first) {
             PortDir dcl_type = PortDir::kOut;
-            std::string dcl_name =
-                boundary_inst.getFullName() + "2" + own_instance_name;
+            std::string dcl_name = connect_net->get_name();
             virtual_port = Port(dcl_name.c_str(), dcl_type);
+            virtual_port.set_is_virtual_port(1);
             virtual_net = Net(connect_net->get_name());
             subnetlist.addNet(std::move(virtual_net));
             subnetlist.addPort(std::move(virtual_port));
@@ -362,25 +362,8 @@ void StaClusterTiming ::buildSubnetlistToInst() {
         auto* inst_pin = inst.addPin(pin_name.c_str(), library_port);
 
         // addNet
-        if (strchr(port_name, '2') != nullptr) {
-          auto obtain_net_name = [&port]() -> const char* {
-            const char* net_name;
-            if (port->isOutput()) {
-              const char* sep = "2";
-              auto [driver_inst, load_inst] =
-                  Str::splitTwoPart(port->get_name(), sep);
-              net_name = driver_inst.c_str();
-            } else if (port->isInput()) {
-              const char* sep = "2";
-              auto [load_inst, driver_inst] =
-                  Str::splitTwoPart(port->get_name(), sep);
-              net_name = driver_inst.c_str();
-              ;
-            }
-            return net_name;
-          };
-
-          const char* net_name = obtain_net_name();
+        if (port->get_is_virtual_port()) {
+          const char* net_name = port_name;
           Net* the_net = design_netlist->findNet(net_name);
           if (the_net) {
             the_net->addPinPort(inst_pin);
@@ -393,9 +376,8 @@ void StaClusterTiming ::buildSubnetlistToInst() {
           }
 
         } else {
-          // port_name without "2" represents the port is not virtual port.
-          // TODO: Applicable to nets with only one input port or one output
-          // port, not applicable to nets with two output ports.
+          // if port is not virtual port,design netlist need add  net/port with
+          // same name.
           const char* net_name = port_name;
           Net* the_net = design_netlist->findNet(net_name);
           if (the_net) {

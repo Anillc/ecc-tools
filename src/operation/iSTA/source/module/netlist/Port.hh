@@ -68,6 +68,11 @@ class Port : public DesignObject {
   void set_net(Net* net) override { _net = net; }
   Net* get_net() override { return _net; }
 
+  void set_is_virtual_port(unsigned is_virtual_port) {
+    _is_virtual_port = is_virtual_port;
+  }
+  unsigned get_is_virtual_port() { return _is_virtual_port; }
+
   std::string getFullName() override { return get_name(); }
   PortDir get_port_dir() { return _port_dir; }
 
@@ -80,6 +85,8 @@ class Port : public DesignObject {
   Net* _net;          //!< The port connected net.
 
   PortBus* _port_bus = nullptr;  //!< The port owned by the port bus.
+  unsigned _is_virtual_port;     //!< The flag of  virtual port constructed in
+                                 //!< cluster timing analysis.
 };
 
 /**

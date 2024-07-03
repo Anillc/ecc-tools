@@ -64,11 +64,6 @@ class Pin : public DesignObject {
 
   Net* get_net() override { return _net; }
   void set_net(Net* net) override { _net = net; }
-  // to remove.
-  void set_net(std::unique_ptr<Net> net) {
-    _smart_net = std::move(net);
-    _net = _smart_net.get();
-  }
 
   void set_own_instance(Instance* own_instance) {
     _own_instance = own_instance;
@@ -94,8 +89,6 @@ class Pin : public DesignObject {
 
  private:
   Net* _net = nullptr;  //!< The pin connected net.
-  std::unique_ptr<Net>
-      _smart_net;  //!< The smart pin connected net for overlod func(set_net).
 
   LibPort* _cell_port = nullptr;      //!< The pin corresponding to cell port.
   Instance* _own_instance = nullptr;  //!< The pin owned by the instance.
