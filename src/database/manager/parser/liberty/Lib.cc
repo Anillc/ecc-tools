@@ -1824,22 +1824,16 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
  * @param file_name
  * @return std::unique_ptr<LibLibrary>
  */
-std::unique_ptr<LibLibrary> Lib::loadLibertyWithRustParser(const char* file_name)
+RustLibertyReader Lib::loadLibertyWithRustParser(const char* file_name)
 {
+  // LOG_INFO << "Load lib " << file_name << " start.";
+
   RustLibertyReader lib_rust_reader(file_name);
-
   unsigned is_success = lib_rust_reader.readLib();
+  LOG_FATAL_IF(!is_success) << "read lib " << file_name << " failed.";
 
-  if (is_success) {
-    auto lib = lib_rust_reader.get_library_builder()->takeLib();
-
-    auto* lib_builder = lib_rust_reader.get_library_builder();
-    delete lib_builder;
-
-    return lib;
-  }
-
-  return nullptr;
+  // LOG_INFO << "Load lib " << file_name << " finish.";
+  return lib_rust_reader;
 }
 
 }  // namespace ista

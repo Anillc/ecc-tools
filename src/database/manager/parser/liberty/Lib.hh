@@ -1660,7 +1660,7 @@ class Lib
   Lib() = default;
   ~Lib() = default;
 
-  std::unique_ptr<LibLibrary> loadLibertyWithRustParser(const char* file_name);
+  RustLibertyReader loadLibertyWithRustParser(const char* file_name);
 
  private:
   FORBIDDEN_COPY(Lib);
