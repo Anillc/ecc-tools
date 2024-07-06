@@ -29,7 +29,6 @@
 
 #include "Config.hh"
 #include "DesignObject.hh"
-#include "Port.hh"
 #include "Type.hh"
 #include "Vector.hh"
 
@@ -114,16 +113,11 @@ class Net : public DesignObject {
     _net_loads[index] = load;
   }
 
-  void addPort(const char *name, PortDir port_dir);
-  Vector<std::unique_ptr<Port>> &get_ports() { return _ports; }
-
  private:
   Vector<DesignObject *> _pin_ports;
   std::array<std::optional<double>, 4>
       _net_loads{};  //!< store the net loads for quickly calc.
   bool _is_clock_net = false;
-  Vector<std::unique_ptr<ista::Port>>
-      _ports;  //!< store the ports belong the net.
 };
 
 /**

@@ -134,18 +134,6 @@ std::vector<DesignObject*> Net::getLoads() {
 }
 
 /**
- * @brief Add port for the net.
- *
- * @param name
- * @param port_dir
- */
-void Net::addPort(const char* name, PortDir port_dir) {
-  auto port = std::make_unique<Port>(name, port_dir);
-  auto& ret_port = _ports.emplace_back(std::move(port));
-  ret_port->set_net(this);
-}
-
-/**
  * @brief get pin port.
  *
  * @param pin_port_name

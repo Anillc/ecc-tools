@@ -73,6 +73,7 @@ Instance& Instance::operator=(Instance&& rhs) {
   return *this;
 }
 
+// to remove.
 /**
  * @brief clone a instance for cluster timing analysis.
  *

@@ -1787,19 +1787,40 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
           auto snkport2arcset = classify_cell_arc_by_snk_port(lib_cell);
 
           for (const auto& pair : snkport2arcset) {
-            fprintf(stream, "   pin (%s) {", pair.first.c_str());
-            fprintf(stream, "\n");
+            // print input.
             for (const auto& arc : pair.second) {
-              const char* src_port_name = arc->get_src_port();
+              if (arc->isDelayArc()) {
+                const char* src_port_name = arc->get_src_port();
+                fprintf(stream, "   pin (%s) {\n", src_port_name);
+                fprintf(stream, "            direction               : input;\n");
+                fprintf(stream, "   }\n");
+              }
+            }
+          }
+
+          // print check arc and delay arc.
+          for (const auto& pair : snkport2arcset) {
+            fprintf(stream, "   pin (%s) {\n", pair.first.c_str());
+
+            bool first = true;
+            for (const auto& arc : pair.second) {
               LibTableModel* table_model = arc->get_table_model();
               if (arc->isCheckArc()) {
+                if (first) {
+                  fprintf(stream, "            direction               : input;\n");
+                }
                 if (arc->get_timing_type() == LibArc::TimingType::kSetupRising || arc->get_timing_type() == LibArc::TimingType::kHoldRising
                     || arc->get_timing_type() == LibArc::TimingType::kSetupFalling
                     || arc->get_timing_type() == LibArc::TimingType::kHoldFalling) {
                   wirte_check_table_model(arc);
+                  first = false;
                 }
               } else if (arc->isDelayArc()) {
+                if (first) {
+                  fprintf(stream, "            direction               : output;\n");
+                }
                 wirte_delay_table_model(arc);
+                first = false;
               } else {
                 continue;
               }
