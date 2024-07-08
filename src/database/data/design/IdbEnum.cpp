@@ -260,7 +260,7 @@ std::string IdbEnum::get_orient_type_str(IdbOrient type)
       return "MY90";
       break;
     default:
-      return "";
+      return "R0";
       break;
   }
 }

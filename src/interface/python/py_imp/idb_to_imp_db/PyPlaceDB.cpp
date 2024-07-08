@@ -7,6 +7,7 @@
 
 #include "PyPlaceDB.h"
 // #include "ContestDriver.h"
+#include <algorithm>
 #include <boost/polygon/polygon.hpp>
 #include <vector>
 
@@ -73,7 +74,10 @@ void PyPlaceDB::set(idm::DataManager* db)
   std::map<std::string, std::vector<index_type>> mNode2NewNodes;
   std::map<std::string, index_type> mNodeName2ID;
   int node_id = 0;
-  for (IdbInstance* node : db_deisgn->get_instance_list()->get_instance_list()) {
+  std::vector<IdbInstance*> inst_resort_list = db_deisgn->get_instance_list()->get_instance_list();
+  std::stable_sort(inst_resort_list.begin(), inst_resort_list.end(),
+                   [](IdbInstance* a, IdbInstance* b) { return a->is_fixed() < b->is_fixed(); });
+  for (IdbInstance* node : inst_resort_list) {
     mNodeName2ID[node->get_name()] = node_id++;
   }
   std::map<std::string, int> mNet2ID;
@@ -150,7 +154,7 @@ void PyPlaceDB::set(idm::DataManager* db)
 #endif
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
   for (unsigned int i = 0; i < inst_num; ++i) {
-    IdbInstance* node = db_deisgn->get_instance_list()->get_instance_list().at(i);
+    IdbInstance* node = inst_resort_list.at(i);
     // Macro const& macro = db.macro(db.macroId(node));
     if (node->get_status() != IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
       Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(),
@@ -248,7 +252,7 @@ void PyPlaceDB::set(idm::DataManager* db)
   int count = 0;
   for (int i = 0; i < mNode2NewNodes.size(); ++i) {
     auto node_name = node_names[i].cast<std::string>();
-    IdbInstance* node = db_deisgn->get_instance_list()->find_instance(node_name);
+    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
     pybind11::list pins;
     for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
       string inst_name = pin->get_instance()->get_name();
