@@ -9,6 +9,7 @@
 // #include "ContestDriver.h"
 #include <algorithm>
 #include <boost/polygon/polygon.hpp>
+#include <cstdio>
 #include <vector>
 
 namespace python_interface {
@@ -63,8 +64,8 @@ void PyPlaceDB::set(idm::DataManager* db)
   using namespace gtl::operators;
   typedef gtl::polygon_90_set_data<coordinate_type> PolygonSet;
   IdbDesign* db_deisgn = db->get_idb_design();
-  // num_terminal_NIs = db_deisgn->get_io_pin_list()->get_pin_num();  // IO pins
   num_terminal_NIs = 0;  // IO pins
+  // num_terminal_NIs = 0;  // IO pins
 
   double total_fixed_node_area = 0;  // compute total area of fixed cells, which is an upper bound
   // collect boxes for fixed cells and put in a polygon set to remove overlap later
@@ -167,7 +168,7 @@ void PyPlaceDB::set(idm::DataManager* db)
     else  // Jiaqi: To compare with NTUPlace4dr, we have to consider blockages in ISPD2015 benchmarks
     {
       // Macro const& macro = db.macro(db.macroId(node));
-      printf("PyPlaceDB detect fixed cell\n");
+      printf("PyPlaceDB detect fixed cell: ");
       if (false) {
 #if 0
         MacroObs::ObsConstIterator foundObs = macro.obs().obsMap().find("Bookshelf.Shape");
@@ -213,6 +214,9 @@ void PyPlaceDB::set(idm::DataManager* db)
                     node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
                     node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
         addNode(node, node->get_name(), box_tmp, true);
+        printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
+               node->get_coordinate()->get_y(), node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
+               node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
         // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
         num_terminals += 1;
         // compute upper bound of total fixed cell area
