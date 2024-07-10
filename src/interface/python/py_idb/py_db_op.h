@@ -113,7 +113,7 @@ bool write_placement_back(       idm::DataManager*   db,
     }
   }
 
-  db->write_placement_back(vx, vy);
+  db->write_placement_back(vx, vy, lenx);
 
   if (vx) {
     delete[] vx;
