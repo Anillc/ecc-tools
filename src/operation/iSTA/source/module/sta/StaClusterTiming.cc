@@ -111,7 +111,7 @@ void StaClusterTiming ::buildSubnetlistToInst() {
   auto* design_netlist = getSta()->get_netlist();
   design_netlist->reset();
 
-  auto hier_sub_netlists = design_netlist->get_hier_sub_netlists();  // need & ?
+  auto hier_sub_netlists = design_netlist->get_hier_sub_netlists();
   for (const auto& hier_sub_netlist : hier_sub_netlists) {
     const char* liberty_cell_name = hier_sub_netlist->get_name();
     auto* inst_cell = getSta()->findLibertyCell(liberty_cell_name);
@@ -210,7 +210,6 @@ void StaClusterTiming ::buildSubnetlistToInst() {
         }
       }
     }
-    // check std::move().
     design_netlist->addInstance(std::move(remaining_instance));
   }
 }
@@ -229,18 +228,24 @@ void StaClusterTiming::addPortForSubnetlist(Instance& inst,
         << "pin " << pin->getFullName() << " connect net is not exist";
     // subnetlist addNet.
     Net* the_net = subnetlist.findNet(connect_net->get_name());
+
+    /**pin update the connecte net, connect the new net.**/
     if (!the_net) {
-      // const char* net_name = connect_net->get_name();
-      // Net new_net = Net(net_name);
-      Net new_net = Net(*connect_net);
+      const char* net_name = connect_net->get_name();
+      Net new_net = Net(net_name);
+
       // for debugging purposes
-      auto& pin_ports = connect_net->get_pin_ports();
-      for (auto& pin_port : pin_ports) {
-        LOG_INFO << "Debug:pin_port " << pin_port->get_name() << " "
-                 << pin_port;
-      }
-      subnetlist.addNet(std::move(new_net));
+      // auto& pin_ports = connect_net->get_pin_ports();
+      // for (auto& pin_port : pin_ports) {
+      //   LOG_INFO << "Debug:pin_port " << pin_port->get_name() << " "
+      //            << pin_port;
+      // }
+
+      auto& created_net = subnetlist.addNet(std::move(new_net));
+      the_net = &created_net;
     }
+    pin->set_net(the_net);
+    the_net->addPinPort(pin.get());
 
     // subnetlist addPort.
     auto& pin_ports = connect_net->get_pin_ports();
@@ -250,9 +255,28 @@ void StaClusterTiming::addPortForSubnetlist(Instance& inst,
         // subnetlist.addPort(std::move(*pin_port1));
         Port* pin_port1 = dynamic_cast<Port*>(pin_port);
         Port new_port = Port(*pin_port1);
-        subnetlist.addPort(std::move(new_port));
+        auto& created_port = subnetlist.addPort(std::move(new_port));
+        the_net->addPinPort(&created_port);
       }
     }
+
+    /**pin does not update the connecte net, connect the design netlist's
+     * net.**/
+    // if (!the_net) {
+    //   Net new_net = Net(*connect_net);
+    //   subnetlist.addNet(std::move(new_net));
+    // }
+    // // subnetlist addPort.
+    // auto& pin_ports = connect_net->get_pin_ports();
+    // for (auto& pin_port : pin_ports) {
+    //   if (pin_port->isPort()) {
+    //     // Port* pin_port1 = dynamic_cast<Port*>(pin_port);
+    //     // subnetlist.addPort(std::move(*pin_port1));
+    //     Port* pin_port1 = dynamic_cast<Port*>(pin_port);
+    //     Port new_port = Port(*pin_port1);
+    //     subnetlist.addPort(std::move(new_port));
+    //   }
+    // }
   }
 }
 
@@ -430,17 +454,30 @@ void StaClusterTiming::addPortForBoundaryInstance(
 
     } else {
       Net* the_net = subnetlist.findNet(connect_net->get_name());
+      /**pin update the connecte net, connect the new net.**/
       if (!the_net) {
-        Net new_net = Net(*connect_net);
-        // for debugging purposes
-        auto& pin_ports = connect_net->get_pin_ports();
-        for (auto& pin_port : pin_ports) {
-          LOG_INFO << "Debug:pin_port " << pin_port->get_name() << " "
-                   << pin_port;
-        }
+        const char* net_name = connect_net->get_name();
+        Net new_net = Net(net_name);
 
-        subnetlist.addNet(std::move(new_net));
+        // for debugging purposes
+        // auto& pin_ports = connect_net->get_pin_ports();
+        // for (auto& pin_port : pin_ports) {
+        //   LOG_INFO << "Debug:pin_port " << pin_port->get_name() << " "
+        //            << pin_port;
+        // }
+
+        auto& created_net = subnetlist.addNet(std::move(new_net));
+        the_net = &created_net;
       }
+      pin->set_net(the_net);
+      the_net->addPinPort(pin.get());
+
+      /**pin does not update the connecte net, connect the design netlist's
+       * net.**/
+      // if (!the_net) {
+      //   Net new_net = Net(*connect_net);
+      //   subnetlist.addNet(std::move(new_net));
+      // }
     }
   }
 }

@@ -68,10 +68,14 @@ class StaClusterTiming : public StaFunc {
   }
   std::vector<std::set<std::string>> _cluster_instances;
   std::list<Instance>
-      _remaining_instances;  //!< collection of the cluster's instance,where the
-                             //!< cluster only has one instnce.
-  std::list<Net> _remaining_nets;
-  std::list<Port> _remaining_ports;
+      _remaining_instances;  //!< collection of the cluster's instance, where
+                             //!< the cluster only has one instance.
+  std::list<Net>
+      _remaining_nets;  //!< collection of the net connect to the cluster's
+                        //!< instance, where the cluster only has one instance.
+  std::list<Port>
+      _remaining_ports;  //!< collection of the port connect to the cluster's
+                         //!< instance, where the cluster only has one instance.
 };
 
 }  // namespace ista
