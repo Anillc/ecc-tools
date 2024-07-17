@@ -71,10 +71,3 @@ TEST_F(CharacterTimingTest, example1) {
 }
 
 }  // namespace
-
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-
-  testing::GTEST_FLAG(filter) = "CharacterTimingTest.*";
-  return RUN_ALL_TESTS();
-}
