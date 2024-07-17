@@ -71,8 +71,8 @@ void StaClusterTiming::addHierSubNetlist() {
           if (!net) {
             continue;
           }
-
-          auto& new_net = addRemainingNets(Net(net->get_name()));
+          const char* net_name = net->get_name();
+          auto& new_net = addRemainingNets(Net(net_name));
           auto& pin_ports = net->get_pin_ports();
           for (auto& pin_port : pin_ports) {
             std::string own_instance_name("");
@@ -88,8 +88,9 @@ void StaClusterTiming::addHierSubNetlist() {
             } else if (pin_port->isPin() &&
                        Str::equal(new_inst.get_name(),
                                   own_instance_name.c_str())) {
-              // check net_net add inst_pin may be dangling?
-              new_net.addPinPort(pin_port);
+              // new_net.addPinPort(pin) not new_net.addPinPort(pin_port);
+              // because net point to the original net.
+              new_net.addPinPort(pin);
             }
           }
           pin->set_net(&new_net);
@@ -97,9 +98,9 @@ void StaClusterTiming::addHierSubNetlist() {
         addRemainingInstances(std::move(new_inst));
       }
     }
-  }
 
-  design_netlist->set_hier_sub_netlists(hier_sub_netlists);
+    design_netlist->set_hier_sub_netlists(hier_sub_netlists);
+  }
 }
 
 /**
@@ -109,6 +110,7 @@ void StaClusterTiming::addHierSubNetlist() {
 void StaClusterTiming ::buildSubnetlistToInst() {
   auto* design_netlist = getSta()->get_netlist();
   design_netlist->reset();
+
   auto hier_sub_netlists = design_netlist->get_hier_sub_netlists();  // need & ?
   for (const auto& hier_sub_netlist : hier_sub_netlists) {
     const char* liberty_cell_name = hier_sub_netlist->get_name();
@@ -120,8 +122,8 @@ void StaClusterTiming ::buildSubnetlistToInst() {
     FOREACH_PORT(hier_sub_netlist, port) {
       const char* port_name = port->get_name();
       // consider hier_subnetlist's port is LibertyPort,not consider
-      // hier_subnetlist's port is LibertyPortBus. as the current ETM generated
-      // model does not include the pin is LibertyPortBus.
+      // hier_subnetlist's port is LibertyPortBus. as the current ETM
+      // generated model does not include the pin is LibertyPortBus.
       auto* library_port_or_port_bus =
           inst_cell->get_cell_port_or_port_bus(port_name);
 
@@ -145,8 +147,8 @@ void StaClusterTiming ::buildSubnetlistToInst() {
           }
 
         } else {
-          // if port is not virtual port,design netlist need add  net/port with
-          // same name.
+          // if port is not virtual port,design netlist need add net/port
+          // with same name.
           const char* net_name = port_name;
           Net* the_net = design_netlist->findNet(net_name);
           if (the_net) {
@@ -225,6 +227,22 @@ void StaClusterTiming::addPortForSubnetlist(Instance& inst,
     Net* connect_net = pin->get_net();
     LOG_FATAL_IF(!connect_net)
         << "pin " << pin->getFullName() << " connect net is not exist";
+    // subnetlist addNet.
+    Net* the_net = subnetlist.findNet(connect_net->get_name());
+    if (!the_net) {
+      // const char* net_name = connect_net->get_name();
+      // Net new_net = Net(net_name);
+      Net new_net = Net(*connect_net);
+      // for debugging purposes
+      auto& pin_ports = connect_net->get_pin_ports();
+      for (auto& pin_port : pin_ports) {
+        LOG_INFO << "Debug:pin_port " << pin_port->get_name() << " "
+                 << pin_port;
+      }
+      subnetlist.addNet(std::move(new_net));
+    }
+
+    // subnetlist addPort.
     auto& pin_ports = connect_net->get_pin_ports();
     for (auto& pin_port : pin_ports) {
       if (pin_port->isPort()) {
@@ -239,8 +257,8 @@ void StaClusterTiming::addPortForSubnetlist(Instance& inst,
 }
 
 /**
- * @brief judge whether a instance in a cluster is connected to another instance
- * in another cluster.
+ * @brief judge whether a instance in a cluster is connected to another
+ * instance in another cluster.
  *
  * @param inst
  * @param instance_own_cluster
@@ -414,6 +432,13 @@ void StaClusterTiming::addPortForBoundaryInstance(
       Net* the_net = subnetlist.findNet(connect_net->get_name());
       if (!the_net) {
         Net new_net = Net(*connect_net);
+        // for debugging purposes
+        auto& pin_ports = connect_net->get_pin_ports();
+        for (auto& pin_port : pin_ports) {
+          LOG_INFO << "Debug:pin_port " << pin_port->get_name() << " "
+                   << pin_port;
+        }
+
         subnetlist.addNet(std::move(new_net));
       }
     }

@@ -29,12 +29,16 @@ Port::Port(const char* name, PortDir port_dir)
     : DesignObject(name), _port_dir(port_dir), _net(nullptr) {}
 
 Port::Port(const Port& other)
-    : DesignObject(other), _port_dir(other._port_dir), _net(other._net) {}
+    : DesignObject(other),
+      _port_dir(other._port_dir),
+      _net(other._net),
+      _is_virtual_port(other._is_virtual_port) {}
 
 Port::Port(Port&& other) noexcept
     : DesignObject(std::move(other)),
       _port_dir(other._port_dir),
-      _net(other._net) {}
+      _net(other._net),
+      _is_virtual_port(other._is_virtual_port) {}
 
 Port& Port::operator=(Port&& other) noexcept {
   if (this != &other) {
