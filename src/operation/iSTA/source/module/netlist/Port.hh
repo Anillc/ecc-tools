@@ -84,9 +84,10 @@ class Port : public DesignObject {
   PortDir _port_dir;  //!< The port direction.
   Net* _net;          //!< The port connected net.
 
-  PortBus* _port_bus = nullptr;   //!< The port owned by the port bus.
-  unsigned _is_virtual_port = 0;  //!< The flag of  virtual port constructed in
-                                  //!< cluster timing analysis.
+  PortBus* _port_bus = nullptr;       //!< The port owned by the port bus.
+  unsigned _is_virtual_port : 1 = 0;  //!< The flag of  virtual port constructed
+                                      //!< in cluster timing analysis.
+  unsigned _reserverd : 31 = 0;
 };
 
 /**
