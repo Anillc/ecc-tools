@@ -54,7 +54,8 @@ unsigned CmdLinkDesign::exec() {
   ista->linkDesignWithRustParser(cell_name);
   std::set<std::string> exclude_cell_names = {};
   ista->get_netlist()->writeVerilog(
-      "/home/longshuaiying/cluster_timing_model/example1/example1_write1.v",
+      "/home/longshuaiying/cluster_timing_model/example1/verilog/"
+      "example1_write1.v",
       exclude_cell_names);
   std::vector<std::set<std::string>> clusters = {
       {"r1", "u2"}, {"r2", "u1"}, {"r3"}};
@@ -68,20 +69,26 @@ unsigned CmdLinkDesign::exec() {
   std::vector<Netlist*> hier_sub_netlists =
       ista->get_netlist()->get_hier_sub_netlists();
   ista->get_netlist()->writeVerilog(
-      "/home/longshuaiying/cluster_timing_model/example1/example1_write2.v",
+      "/home/longshuaiying/cluster_timing_model/example1/verilog/"
+      "example1_write2.v",
       exclude_cell_names);
   int sub_netlist_index = 1;
   for (const auto& hier_sub_netlist : hier_sub_netlists) {
     std::set<std::string> exclude_cell_names1 = {};
     std::string cluster_verilog_file =
-        std::string("/home/longshuaiying/cluster_timing_model/example1/") +
+        std::string(
+            "/home/longshuaiying/cluster_timing_model/example1/verilog/") +
         std::string("hier_sub_netlist") + std::to_string(sub_netlist_index) +
         ".v";
     hier_sub_netlist->writeVerilog(cluster_verilog_file.c_str(),
                                    exclude_cell_names1);
     sub_netlist_index++;
   }
-
+  sta_cluster_timing.buildSubnetlistToInst();
+  ista->get_netlist()->writeVerilog(
+      "/home/longshuaiying/cluster_timing_model/example1/verilog/"
+      "example1_write3.v",
+      exclude_cell_names);
   return 1;
 }
 

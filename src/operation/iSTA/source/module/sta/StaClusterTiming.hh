@@ -42,6 +42,15 @@ class StaClusterTiming : public StaFunc {
 
   void addHierSubNetlist();
   void buildSubnetlistToInst();
+
+ private:
+  void addPortForSubnetlist(Instance& inst, Netlist& subnetlist);
+  bool isBoundaryInstance(
+      Instance& inst, std::set<std::string> instance_own_cluster,
+      const std::vector<std::set<std::string>>& cluster_instances);
+  void addPortForBoundaryInstance(
+      Instance& boundary_inst, std::set<std::string> boundary_inst_own_cluster,
+      Netlist& subnetlist);
   void addRemainingInstances(Instance&& instance) {
     _remaining_instances.emplace_back(std::move(instance));
   }
@@ -57,21 +66,16 @@ class StaClusterTiming : public StaFunc {
     Port* the_port = &(_remaining_ports.back());
     return *the_port;
   }
-
- private:
-  void addPortForSubnetlist(Instance& inst, Netlist& subnetlist);
-  bool isBoundaryInstance(
-      Instance& inst, std::set<std::string> instance_own_cluster,
-      const std::vector<std::set<std::string>>& cluster_instances);
-  void addPortForBoundaryInstance(
-      Instance& boundary_inst, std::set<std::string> boundary_inst_own_cluster,
-      Netlist& subnetlist);
   std::vector<std::set<std::string>> _cluster_instances;
   std::list<Instance>
-      _remaining_instances;  //!< collection of the cluster's instance,where the
-                             //!< cluster only has one instnce.
-  std::list<Net> _remaining_nets;
-  std::list<Port> _remaining_ports;
+      _remaining_instances;  //!< collection of the cluster's instance, where
+                             //!< the cluster only has one instance.
+  std::list<Net>
+      _remaining_nets;  //!< collection of the net connect to the cluster's
+                        //!< instance, where the cluster only has one instance.
+  std::list<Port>
+      _remaining_ports;  //!< collection of the port connect to the cluster's
+                         //!< instance, where the cluster only has one instance.
 };
 
 }  // namespace ista

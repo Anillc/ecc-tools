@@ -822,9 +822,17 @@ class LibArc : public LibObject
            || (_timing_type == TimingType::kRecoveryFalling) || (_timing_type == TimingType::kRemovalFalling);
   }
 
-  unsigned isRisingTriggerArc() { return (_timing_type == TimingType::kRisingEdge); }
+  unsigned isRisingTriggerArc()
+  {
+    return (_timing_type == TimingType::kRisingEdge) || (_timing_type == TimingType::kSetupRising)
+           || (_timing_type == TimingType::kHoldRising);
+  }
 
-  unsigned isFallingTriggerArc() { return (_timing_type == TimingType::kFallingEdge); }
+  unsigned isFallingTriggerArc()
+  {
+    return (_timing_type == TimingType::kFallingEdge) || (_timing_type == TimingType::kSetupFalling)
+           || (_timing_type == TimingType::kHoldFalling);
+  }
 
   void set_table_model(std::unique_ptr<LibTableModel>&& table_model) { _table_model = std::move(table_model); }
   LibTableModel* get_table_model() { return _table_model.get(); }

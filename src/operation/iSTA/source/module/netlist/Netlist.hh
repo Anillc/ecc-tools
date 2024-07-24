@@ -199,10 +199,6 @@ class Netlist : public DesignObject {
 
   std::vector<Netlist*> _hier_sub_netlists;  //!< The hierarchical netlist.
 
-  std::vector<Net>
-      _virtual_nets;  //!< The virtual net between the hierarchical netlist.
-  StrMap<Net*> _str2virtualnet;  //!< The virtual net name to net for search.
-
   std::list<Net> _nets;
   StrMap<Net*> _str2net;  //!< The net name to net for search.
   std::list<Instance> _instances;
