@@ -67,6 +67,7 @@ class FeatureParser
 
   bool buildRouteData(std::string json_path, RouteAnalyseData* data);
   bool readRouteData(std::string json_path, RouteAnalyseData* data);
+  bool buildMacroDrc(std::string path, std::string drc_path);
 
  private:
   IdbLayout* _layout = nullptr;

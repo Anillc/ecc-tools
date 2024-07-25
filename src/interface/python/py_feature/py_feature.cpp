@@ -45,4 +45,9 @@ bool feature_route_read(const std::string& path)
   return featureInst->read_route_data(path);
 }
 
+bool feature_macro_drc(const std::string& path, const std::string& drc_path)
+{
+  return featureInst->feature_macro_drc(path, drc_path);
+}
+
 }  // namespace python_interface

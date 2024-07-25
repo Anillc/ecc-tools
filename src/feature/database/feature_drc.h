@@ -15,21 +15,37 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#pragma once
 
-#include "py_feature.h"
+#include <map>
+#include <string>
+#include <vector>
 
-namespace python_interface {
-namespace py = pybind11;
-void register_feature(py::module& m)
+namespace ieda_feature {
+/// ###################################################################################///
+///  summary
+/// ###################################################################################///
+struct DrcRect
 {
-  m.def("feature_summary", feature_summary, py::arg("path"));
-  m.def("feature_tool", feature_tool, py::arg("path"), py::arg("step"));
-  m.def("feature_eval_map", feature_eval_map, py::arg("path"), py::arg("bin_cnt_x"), py::arg("bin_cnt_y"));
-  m.def("feature_route", feature_route, py::arg("path"));
-  m.def("feature_route_read", feature_route_read, py::arg("path"));
-  m.def("feature_macro_drc", feature_macro_drc, py::arg("path"), py::arg("drc_path"));
-}
+  int64_t llx;
+  int64_t lly;
+  int64_t urx;
+  int64_t ury;
+};
 
-}  // namespace python_interface
+struct DrcMacroCount
+{
+  std::string name;
+  int64_t llx;
+  int64_t lly;
+  int64_t urx;
+  int64_t ury;
+  uint64_t drc_num;
+};
+
+struct DrcMacroDistribution
+{
+  std::map<std::string, DrcMacroCount> macro_list;
+};
+
+}  // namespace ieda_feature

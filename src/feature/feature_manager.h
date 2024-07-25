@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 
+#include "feature_drc.h"
 #include "feature_irt.h"
 #include "feature_summary.h"
 
@@ -59,6 +60,7 @@ class FeatureManager
   /// route data
   bool save_route_data(std::string path);
   bool read_route_data(std::string path);
+  bool feature_macro_drc(std::string path, std::string drc_path);
 
  private:
   static FeatureManager* _instance;

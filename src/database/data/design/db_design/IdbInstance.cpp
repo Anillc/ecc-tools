@@ -401,6 +401,18 @@ IdbInstanceList::~IdbInstanceList()
   reset();
 }
 
+vector<IdbInstance*> IdbInstanceList::get_macro_list()
+{
+  vector<IdbInstance*> macro_list;
+  for (auto inst : _instance_list) {
+    if (inst->get_cell_master()->is_block()) {
+      macro_list.push_back(inst);
+    }
+  }
+
+  return macro_list;
+}
+
 void IdbInstanceList::reset(bool delete_memory)
 {
   _instance_map.clear();
