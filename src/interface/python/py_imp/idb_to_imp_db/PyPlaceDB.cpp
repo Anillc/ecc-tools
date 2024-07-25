@@ -518,11 +518,11 @@ void PyPlaceDB::set(idm::DataManager* db)
                   int track_num = track_grid->get_track_num();
                   if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
                     // unit_vertical_capacities.append(track_num);
-                    initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
+                    initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
                     // track_axis.get_x_grid_list().push_back(track_grid);
                   } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
                     // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
-                    initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
+                    initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
                     // track_axis.get_y_grid_list().push_back(track_grid);
                     // unit_horizontal_capacities.append(track_num);
                   }
@@ -567,11 +567,11 @@ void PyPlaceDB::set(idm::DataManager* db)
               auto idb_track_grid = track_grid->get_track();
               int track_num = track_grid->get_track_num();
               if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-                initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
                 // track_axis.get_x_grid_list().push_back(track_grid);
+                initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
               } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
                 // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
-                initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
+                initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
                 // track_axis.get_y_grid_list().push_back(track_grid);
               }
             }
@@ -598,12 +598,11 @@ void PyPlaceDB::set(idm::DataManager* db)
           auto idb_track_grid = track_grid->get_track();
           int track_num = track_grid->get_track_num();
           if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-            auto& hvalue = initial_horizontal_routing_map[layer * ie + i];
-            hvalue = std::min(hvalue, track_num);
-
-          } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
             auto& vvalue = initial_vertical_routing_map[layer * ie + i];
             vvalue = std::min(vvalue, track_num);
+          } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+            auto& hvalue = initial_horizontal_routing_map[layer * ie + i];
+            hvalue = std::min(hvalue, track_num);
           }
         }
       }
