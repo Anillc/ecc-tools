@@ -61,7 +61,7 @@ class Instance : public DesignObject {
   using Coordinate = std::pair<double, double>;
 
   unsigned isInstance() override { return 1; }
-  Instance cloneInstance() const;
+  bool isEqual(Instance& other);
 
   Pin* addPin(const char* name, LibPort* cell_port);
   Vector<std::unique_ptr<Pin>> clonePins() const {
