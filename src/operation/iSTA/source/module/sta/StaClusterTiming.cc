@@ -42,8 +42,44 @@ void StaClusterTiming::addHierSubNetlist() {
     auto* sub_netlist = new Netlist();
     std::string design_name = "cluster" + std::to_string(cluster_index);
     sub_netlist->set_name(design_name.c_str());
+    int inst_num = 0;
+    int port_num = 0;
     for (auto& instance_name : cluster_instance) {
       auto* instance = design_netlist->findInstance(instance_name.c_str());
+      // the cluster_instance contains the port.
+      if (!instance) {
+        auto* port = design_netlist->findPort(instance_name.c_str());
+        if (!port) {
+          LOG_INFO << "Physical-use port, don't connect net";
+          continue;
+        } else {
+          ++port_num;
+        }
+        // LOG_FATAL_IF(!port) << "Can not find inst/port according to
+        // cluster.";
+        auto* port_connect_net = port->get_net();
+        if (port_connect_net->isConnectedToAllPorts()) {
+          const char* port_connect_net_name = port_connect_net->get_name();
+          auto* the_net = findRemainingNetConnectedPort(port_connect_net_name);
+          if (the_net) {
+            auto& new_port = addRemainingPortsConnectedPort(Port(
+                port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
+            the_net->addPinPort(&new_port);
+          } else {
+            auto& new_net =
+                addRemainingNetsConnectedPort(Net(port_connect_net_name));
+            auto& new_port = addRemainingPortsConnectedPort(Port(
+                port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
+            new_net.addPinPort(&new_port);
+            // the_net = &new_net;
+          }
+        } else {
+          continue;
+        }
+      } else {
+        ++inst_num;
+      }
+
       Instance new_inst(*instance);
       bool is_boundary_instance =
           isBoundaryInstance(new_inst, cluster_instance, _cluster_instances);
@@ -56,13 +92,52 @@ void StaClusterTiming::addHierSubNetlist() {
       }
     }
     hier_sub_netlists.emplace_back(sub_netlist);
+
+    std::cout << "inst num" << inst_num << std::endl;
+    std::cout << "port num" << port_num << std::endl;
+
+    std::cout << "_boundary_net_set: " << _boundary_net_set.size() << std::endl;
+    std::cout << "_boundary_pin_set: " << _boundary_pin_set.size() << std::endl;
+    std::cout << "_boundary_net_vector: " << _boundary_net_vector.size()
+              << std::endl;
+    std::cout << "_boundary_pin_vector: " << _boundary_pin_vector.size()
+              << std::endl;
+
     cluster_index++;
+    if (cluster_index == 2) {
+      break;
+    }
   }
 
   for (auto& cluster_instance : _cluster_instances) {
     if (cluster_instance.size() == 1) {
       for (auto& instance_name : cluster_instance) {
         auto* instance = design_netlist->findInstance(instance_name.c_str());
+        // the cluster_instance contains the port.
+        if (!instance) {
+          auto* port = design_netlist->findPort(instance_name.c_str());
+          LOG_FATAL_IF(!port) << "Can not find inst/port according to cluster.";
+          auto* port_connect_net = port->get_net();
+          if (port_connect_net->isConnectedToAllPorts()) {
+            const char* port_connect_net_name = port_connect_net->get_name();
+            auto* the_net =
+                findRemainingNetConnectedPort(port_connect_net_name);
+            if (the_net) {
+              auto& new_port = addRemainingPortsConnectedPort(Port(
+                  port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
+              the_net->addPinPort(&new_port);
+            } else {
+              auto& new_net =
+                  addRemainingNetsConnectedPort(Net(port_connect_net_name));
+              auto& new_port = addRemainingPortsConnectedPort(Port(
+                  port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
+              new_net.addPinPort(&new_port);
+              // the_net = &new_net;
+            }
+          } else {
+            continue;
+          }
+        }
         Instance new_inst(*instance);
 
         Pin* pin;
@@ -72,16 +147,19 @@ void StaClusterTiming::addHierSubNetlist() {
             continue;
           }
           const char* net_name = net->get_name();
-          auto& new_net = addRemainingNets(Net(net_name));
+          auto& new_net = addRemainingNetsConnectedInst(Net(net_name));
+          if (net->isClockNet()) {
+            new_net.set_is_clock_net();
+          }
           auto& pin_ports = net->get_pin_ports();
-          for (auto& pin_port : pin_ports) {
+          for (const auto& pin_port : pin_ports) {
             std::string own_instance_name("");
             if (pin_port->isPin()) {
               own_instance_name = pin_port->get_own_instance()->getFullName();
             }
 
             if (pin_port->isPort()) {
-              auto& new_port = addRemainingPorts(
+              auto& new_port = addRemainingPortsConnectedInst(
                   Port(pin_port->get_name(),
                        dynamic_cast<Port*>(pin_port)->get_port_dir()));
               new_net.addPinPort(&new_port);
@@ -212,6 +290,27 @@ void StaClusterTiming ::buildSubnetlistToInst() {
     }
     design_netlist->addInstance(std::move(remaining_instance));
   }
+
+  // when cluster only have one port,and the port connects to the net(the net is
+  // isConnectedToAllPorts)
+  for (auto& remaining_net_connected_port : _remaining_nets_connected_port) {
+    Net* the_net =
+        design_netlist->findNet(remaining_net_connected_port.get_name());
+    if (!the_net) {
+      Net& ret_net =
+          design_netlist->addNet(std::move(remaining_net_connected_port));
+      for (auto& pin_port : ret_net.get_pin_ports()) {
+        if (pin_port->isPort()) {
+          auto* the_port = design_netlist->findPort(pin_port->get_name());
+          if (!the_port) {
+            Port& ret_port = design_netlist->addPort(
+                std::move((*dynamic_cast<Port*>(pin_port))));
+            pin_port = &ret_port;
+          }
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -224,8 +323,10 @@ void StaClusterTiming::addPortForSubnetlist(Instance& inst,
                                             Netlist& subnetlist) {
   for (auto& pin : inst.get_pins()) {
     Net* connect_net = pin->get_net();
-    LOG_FATAL_IF(!connect_net)
-        << "pin " << pin->getFullName() << " connect net is not exist";
+    if (!connect_net) {
+      LOG_INFO << "pin " << pin->getFullName() << " connect net is not exist";
+      continue;
+    }
     // subnetlist addNet.
     Net* the_net = subnetlist.findNet(connect_net->get_name());
 
@@ -297,8 +398,11 @@ bool StaClusterTiming::isBoundaryInstance(
 
   for (auto& pin : inst.get_pins()) {
     Net* connect_net = pin->get_net();
-    LOG_FATAL_IF(!connect_net)
-        << "pin " << pin->getFullName() << " connect net is not exist";
+    if (!connect_net) {
+      LOG_INFO << "pin " << pin->getFullName() << " connect net is not exist";
+      continue;
+    }
+
     auto& pin_ports = connect_net->get_pin_ports();
     for (auto& pin_port : pin_ports) {
       if (pin_port->isPort() ||
@@ -309,13 +413,20 @@ bool StaClusterTiming::isBoundaryInstance(
       std::string own_instance_name =
           pin_port->get_own_instance()->getFullName();
       if (!instance_own_cluster.contains(own_instance_name)) {
+        // std::cout << "pin: " << pin->getFullName()
+        //           << ";connected net: " << connect_net->get_name() <<
+        //           std::endl;
+        _boundary_net_set.insert(connect_net->get_name());
+        _boundary_pin_set.insert(pin->getFullName());
+        _boundary_net_vector.emplace_back(connect_net->get_name());
+        _boundary_pin_vector.emplace_back(pin->getFullName());
         is_boundary_instance = true;
         break;
       }
     }
-    if (is_boundary_instance) {
-      break;
-    }
+    // if (is_boundary_instance) {
+    //   break;
+    // }
   }
 
   return is_boundary_instance;
@@ -340,8 +451,10 @@ void StaClusterTiming::addPortForBoundaryInstance(
   // net with multi-load pin shouold build one port.
   for (auto& pin : boundary_inst.get_pins()) {
     Net* connect_net = pin->get_net();
-    LOG_FATAL_IF(!connect_net)
-        << "pin " << pin->getFullName() << " connect net is not exist";
+    if (!connect_net) {
+      LOG_INFO << "pin " << pin->getFullName() << " connect net is not exist";
+      continue;
+    }
     auto& pin_ports = connect_net->get_pin_ports();
 
     std::list<DesignObject*> boundary_inst_other_pins;
@@ -388,16 +501,25 @@ void StaClusterTiming::addPortForBoundaryInstance(
           // need virtual port on the connect net.
           PortDir dcl_type = PortDir::kIn;
           std::string dcl_name = connect_net->get_name();
-          virtual_port = Port(dcl_name.c_str(), dcl_type);
-          virtual_port.set_is_virtual_port(1);
-          virtual_net = Net(connect_net->get_name());
-          subnetlist.addNet(std::move(virtual_net));
-          subnetlist.addPort(std::move(virtual_port));
-          virtual_net_ptr = subnetlist.findNet(connect_net->get_name());
-          virtual_port_ptr = subnetlist.findPort(dcl_name.c_str());
+
+          auto* the_net = subnetlist.findNet(connect_net->get_name());
+          auto* the_port = subnetlist.findPort(dcl_name.c_str());
+          if (the_net && the_port) {
+            virtual_net_ptr = the_net;
+            virtual_port_ptr = the_port;
+          } else {
+            virtual_port = Port(dcl_name.c_str(), dcl_type);
+            virtual_port.set_is_virtual_port(1);
+            virtual_net = Net(connect_net->get_name());
+            subnetlist.addPort(std::move(virtual_port));
+            subnetlist.addNet(std::move(virtual_net));
+            virtual_port_ptr = subnetlist.findPort(dcl_name.c_str());
+            virtual_net_ptr = subnetlist.findNet(connect_net->get_name());
+            virtual_net_ptr->addPinPort(virtual_port_ptr);
+            virtual_port_ptr->set_net(virtual_net_ptr);
+          }
+
           LOG_FATAL_IF(!virtual_net_ptr || !virtual_port_ptr);
-          virtual_net_ptr->addPinPort(virtual_port_ptr);
-          virtual_port_ptr->set_net(virtual_net_ptr);
         }
       }
     } else if (pin->isOutput()) {
