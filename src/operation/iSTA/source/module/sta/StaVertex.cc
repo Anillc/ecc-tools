@@ -940,7 +940,14 @@ StaVertex::getDifferentStartPathDelayData(AnalysisMode analysis_mode,
         (data->get_trans_type() == trans_type)) {
       auto path_data = dynamic_cast<StaPathDelayData*>(data)->getPathData();
       auto* path_start_vertex = path_data.top()->get_own_vertex();
+
+      if (!start_vertex_path_data_queue.contains(path_start_vertex)) {
+        PathDataQueue data_queue(sta_data_cmp);
+        start_vertex_path_data_queue.emplace(path_start_vertex, data_queue);
+      }
+
       auto& data_queue = start_vertex_path_data_queue[path_start_vertex];
+
       data_queue.push(data);
     }
   }

@@ -222,6 +222,8 @@ class TimingEngine {
   void buildRcTreeAndUpdateRcTreeInfo(
       const char *net_name, std::map<std::string, double> &loadname2wl);
 
+  TimingEngine &checkAndBreakLoop(StaGraph *the_graph);
+
   TimingEngine &incrUpdateTiming();
 
   TimingEngine &updateTiming() {
@@ -334,12 +336,11 @@ class TimingEngine {
   std::vector<std::string> getLibertyCellInputpin(const char *cell_name);
   StaClock *getPropClock(const char *clock_pin_name);
   StaSeqPathData *getWorstSeqData(StaVertex *vertex, AnalysisMode mode,
-                                          TransType trans_type) {
+                                  TransType trans_type) {
     return _ista->getWorstSeqData(vertex, mode, trans_type);
   }
 
-  StaSeqPathData *getWorstSeqData(AnalysisMode mode,
-                                          TransType trans_type) {
+  StaSeqPathData *getWorstSeqData(AnalysisMode mode, TransType trans_type) {
     return _ista->getWorstSeqData(std::nullopt, mode, trans_type);
   }
   std::priority_queue<StaSeqPathData *, std::vector<StaSeqPathData *>,

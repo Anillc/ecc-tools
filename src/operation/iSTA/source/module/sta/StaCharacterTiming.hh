@@ -61,6 +61,7 @@ class StaCharacterTiming : public StaFunc {
  private:
   unsigned init(StaGraph* the_graph);
   unsigned collectInterfaceLogicEndPoint(StaGraph* the_graph);
+  unsigned checkAndBreakLoop(StaGraph* the_graph);
   unsigned propagateSlew(StaGraph* the_graph);
   unsigned propagateDelay(StaGraph* the_graph);
   unsigned propagateATFromPort(StaGraph* the_graph);
