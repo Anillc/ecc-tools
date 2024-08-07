@@ -24,9 +24,11 @@
  */
 #include "StaCharacterTiming.hh"
 
+#include "StaCheck.hh"
 #include "StaDataPropagation.hh"
 #include "StaDelayPropagation.hh"
 #include "StaSlewPropagation.hh"
+#include "ThreadPool/ThreadPool.h"
 
 namespace ista {
 
@@ -177,6 +179,9 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
   // first collect the interface logic endpoint.
   collectInterfaceLogicEndPoint(the_graph);
 
+  // then check and break loop.
+  checkAndBreakLoop(the_graph);
+
   // then propagate the slew from the port to the first sequential cell.
   propagateSlew(the_graph);
 
@@ -186,8 +191,8 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
   // then propagate the AT from port to the first sequential cell.
   propagateATFromPort(the_graph);
 
-  // then back propagate the RT from endpoint to port.
-  backPropagateRTToPort(the_graph);
+  // then back propagate the RT from endpoint to port. not need propagated RT
+  // now, temporary mask code below. backPropagateRTToPort(the_graph);
 
   // finaly gen the timing model.
   genTimingModel(the_graph, _model_path.c_str());
@@ -248,6 +253,32 @@ unsigned StaCharacterTiming::collectInterfaceLogicEndPoint(
 }
 
 /**
+ * @brief check and break loop before propagated.
+ *
+ * @param the_graph
+ * @return unsigned
+ */
+unsigned StaCharacterTiming::checkAndBreakLoop(StaGraph* the_graph) {
+  StaGraph logic_graph(the_graph->get_nl());
+
+  for (auto* the_end_point : _interface_logic_endpoints) {
+    logic_graph.addEndVertex(the_end_point);
+  }
+
+  StaVertex* port_vertex;
+  FOREACH_PORT_VERTEX(the_graph, port_vertex) {
+    if (port_vertex->is_start()) {
+      logic_graph.addStartVertex(port_vertex);
+    }
+  }
+
+  StaCombLoopCheck comb_loop_check;
+  comb_loop_check(&logic_graph);
+
+  return 1;
+}
+
+/**
  * @brief propagate slew from the port to the first sequential cell
  * endpoint.
  *
@@ -255,10 +286,13 @@ unsigned StaCharacterTiming::collectInterfaceLogicEndPoint(
  * @return unsigned
  */
 unsigned StaCharacterTiming::propagateSlew(StaGraph* the_graph) {
+  LOG_INFO << "character timing propagate slew start.";
   _state = kPropagateSlew;
   for (auto* the_end_point : _interface_logic_endpoints) {
     (*this)(the_end_point);
   }
+
+  LOG_INFO << "character timing propagate slew end.";
 
   return 1;
 }
@@ -271,10 +305,13 @@ unsigned StaCharacterTiming::propagateSlew(StaGraph* the_graph) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::propagateDelay(StaGraph* the_graph) {
+  LOG_INFO << "character timing propagate delay start.";
   _state = kPropagateDelay;
   for (auto* the_end_point : _interface_logic_endpoints) {
     (*this)(the_end_point);
   }
+
+  LOG_INFO << "character timing propagate delay end.";
 
   return 1;
 }
@@ -286,10 +323,13 @@ unsigned StaCharacterTiming::propagateDelay(StaGraph* the_graph) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::propagateATFromPort(StaGraph* the_graph) {
+  LOG_INFO << "character timing propagate AT start.";
   _state = kPropagateATFromPort;
   for (auto* the_end_point : _interface_logic_endpoints) {
     (*this)(the_end_point);
   }
+
+  LOG_INFO << "character timing propagate AT end.";
   return 1;
 }
 
@@ -301,9 +341,30 @@ unsigned StaCharacterTiming::propagateATFromPort(StaGraph* the_graph) {
  * @return unsigned
  */
 unsigned StaCharacterTiming::backPropagateRTToPort(StaGraph* the_graph) {
-  _state = kBackPropagateRTToPort;
-  StaVertex* port_vertex;
-  FOREACH_PORT_VERTEX(the_graph, port_vertex) { (*this)(port_vertex); }
+  LOG_INFO << "character timing propagate RT start.";
+
+  {
+    _state = kBackPropagateRTToPort;
+
+    unsigned num_threads = getNumThreads();
+    ThreadPool pool(num_threads);
+
+    StaVertex* port_vertex;
+    FOREACH_PORT_VERTEX(the_graph, port_vertex) {
+      if (port_vertex->is_start()) {
+#if 0
+      (*this)(port_vertex);
+#else
+        // enqueue and store future
+        pool.enqueue([this](StaVertex* port_vertex) { (*this)(port_vertex); },
+                     port_vertex);
+
+#endif
+      }
+    }
+  }
+
+  LOG_INFO << "character timing propagate RT end.";
   return 1;
 }
 
@@ -315,6 +376,7 @@ unsigned StaCharacterTiming::backPropagateRTToPort(StaGraph* the_graph) {
  */
 unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                                             const char* model_path) {
+  LOG_INFO << "gen timing model start.";
   _state = kGenTimingModel;
 
   std::string lib_model_path = model_path;
@@ -510,6 +572,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   }
 
   _design_timing_model->addLibertyCell(std::move(design_timing_cell));
+
+  LOG_INFO << "gen timing model end.";
   return 1;
 }
 

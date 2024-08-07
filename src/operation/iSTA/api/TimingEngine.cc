@@ -41,6 +41,7 @@
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaBuildRCTree.hh"
 #include "sta/StaCharacterTiming.hh"
+#include "sta/StaCheck.hh"
 #include "sta/StaClockPropagation.hh"
 #include "sta/StaClockTree.hh"
 #include "sta/StaConstPropagation.hh"
@@ -476,6 +477,17 @@ void TimingEngine::buildRcTreeAndUpdateRcTreeInfo(
     incrCap(load_node, cap / (2 * loads.size()), is_incremental);
   }
   updateRCTreeInfo(net);
+}
+
+/**
+ * @brief check and break the graph datapath loop.
+ *
+ * @return TimingEngine&
+ */
+TimingEngine& TimingEngine::checkAndBreakLoop(StaGraph* the_graph) {
+  StaCombLoopCheck comb_loop_check;
+  comb_loop_check(the_graph);
+  return *this;
 }
 
 /**
