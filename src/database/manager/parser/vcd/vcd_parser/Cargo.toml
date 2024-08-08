@@ -2,6 +2,12 @@
 name = "vcd_parser"
 version = "0.1.0"
 edition = "2021"
+authors = ["shaozheqing <707005020@qq.com>"]
+include = ["**/*.rs", "*.toml", "*.pest", "LICENSE", "README.md"]
+git = "https://gitee.com/oscc-project/parser.git"
+
+description = "iEDA vcd parser"
+license-file = "LICENSE"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,7 +16,7 @@ cbindgen = "0.26"
 
 [lib]
 name = "vcd_parser"
-crate-type = ["staticlib"]
+# crate-type = ["staticlib"]
 # crate-type = ["cdylib"]
 
 [dependencies]
