@@ -43,12 +43,17 @@ class StaClusterTiming : public StaFunc {
 
   void addHierSubNetlist();
   void buildSubnetlistToInst();
+  // for debugging purposes.
+  std::vector<int> get_cluster_boundary_net_set() {
+    return _cluster_boundary_net_set;
+  }
 
  private:
   void addPortForSubnetlist(Instance& inst, Netlist& subnetlist);
-  bool isBoundaryInstance(
-      Instance& inst, std::set<std::string> instance_own_cluster,
-      const std::vector<std::set<std::string>>& cluster_instances);
+
+  bool isBoundaryInstance(Instance& inst,
+                          std::set<std::string> instance_own_cluster);
+  bool isBoundaryNet(Net& net, std::set<std::string> instance_own_cluster);
   void addPortForBoundaryInstance(
       Instance& boundary_inst, std::set<std::string> boundary_inst_own_cluster,
       Netlist& subnetlist);
@@ -114,10 +119,12 @@ class StaClusterTiming : public StaFunc {
                                         //!< inst's pin, where the cluster
                                         //!< only has one port.
   StrMap<Net*> _str2remainin_net_connected_port;
+  // for debugging purposes.
   std::set<std::string> _boundary_net_set;
   std::set<std::string> _boundary_pin_set;
   std::vector<std::string> _boundary_net_vector;
   std::vector<std::string> _boundary_pin_vector;
+  std::vector<int> _cluster_boundary_net_set;
 };
 
 }  // namespace ista
