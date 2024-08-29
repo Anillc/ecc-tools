@@ -16,28 +16,27 @@
 // ***************************************************************************************
 #pragma once
 
-#include "ConflictAccessPoint.hpp"
+#include "Direction.hpp"
+#include "LayerCoord.hpp"
 
 namespace irt {
 
-class ConflictGroup
+class PAGroup
 {
  public:
-  ConflictGroup() = default;
-  ~ConflictGroup() = default;
+  PAGroup() = default;
+  ~PAGroup() = default;
   // getter
-  std::vector<std::vector<ConflictAccessPoint>>& get_conflict_ap_list_list() { return _conflict_ap_list_list; }
-  std::map<int32_t, std::vector<int32_t>>& get_conflict_map() { return _conflict_map; }
+  bool get_is_target() const { return _is_target; }
+  std::vector<LayerCoord>& get_coord_list() { return _coord_list; }
   // setter
-  void set_conflict_ap_list_list(const std::vector<std::vector<ConflictAccessPoint>>& conflict_ap_list_list)
-  {
-    _conflict_ap_list_list = conflict_ap_list_list;
-  }
-  void set_conflict_map(const std::map<int32_t, std::vector<int32_t>>& conflict_map) { _conflict_map = conflict_map; }
+  void set_is_target(const bool is_target) { _is_target = is_target; }
+  void set_coord_list(const std::vector<LayerCoord>& coord_list) { _coord_list = coord_list; }
   // function
+
  private:
-  std::vector<std::vector<ConflictAccessPoint>> _conflict_ap_list_list;
-  std::map<int32_t, std::vector<int32_t>> _conflict_map;
+  bool _is_target;
+  std::vector<LayerCoord> _coord_list;
 };
 
 }  // namespace irt

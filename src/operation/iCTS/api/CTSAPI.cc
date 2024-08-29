@@ -108,6 +108,9 @@ void CTSAPI::writeGDS()
 
 void CTSAPI::report(const std::string& save_dir)
 {
+  if (!std::filesystem::exists(save_dir)) {
+    std::filesystem::create_directories(save_dir);
+  }
   bool b_read_data = false;
   if (_timing_engine == nullptr) {
     startDbSta();
@@ -197,10 +200,10 @@ void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
     _config->set_gds_file(gds_file_path.string());
     _config->set_output_def_path(def_path.string());
     if (!std::filesystem::exists(work_dir)) {
-      std::filesystem::create_directory(work_dir);
+      std::filesystem::create_directories(work_dir);
     }
     if (!std::filesystem::exists(def_path)) {
-      std::filesystem::create_directory(def_path);
+      std::filesystem::create_directories(def_path);
     }
   }
   _design = new CtsDesign();
@@ -1190,11 +1193,11 @@ ieda_feature::CTSSummary CTSAPI::outputSummary()
   // 可能有多个clk_name，每一个时钟都需要报告tns、wns、freq
   auto clk_list = _timing_engine->getClockList();
   for (auto* clk : clk_list) {
-    ieda_feature::NetTiming net_timing;
+    ieda_feature::ClockTiming net_timing;
 
     auto clk_name = clk->get_clock_name();
 
-    net_timing.net_name = clk_name;
+    net_timing.clock_name = clk_name;
     net_timing.setup_tns = _timing_engine->getTNS(clk_name, AnalysisMode::kMax);
     net_timing.setup_wns = _timing_engine->getWNS(clk_name, AnalysisMode::kMax);
     net_timing.hold_tns = _timing_engine->getTNS(clk_name, AnalysisMode::kMin);

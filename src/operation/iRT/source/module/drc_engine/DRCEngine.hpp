@@ -16,25 +16,37 @@
 // ***************************************************************************************
 #pragma once
 
-#include "PAPin.hpp"
+#include "Config.hpp"
+#include "DataManager.hpp"
+#include "Database.hpp"
+#include "Monitor.hpp"
 
 namespace irt {
 
-class ConflictAccessPoint : public PlanarCoord
+#define RTDE (irt::DRCEngine::getInst())
+
+class DRCEngine
 {
  public:
-  ConflictAccessPoint() = default;
-  ~ConflictAccessPoint() = default;
-  // getter
-  PAPin* get_pa_pin() { return _pa_pin; }
-  AccessPoint* get_access_point() { return _access_point; }
-  // setter
-  void set_pa_pin(PAPin* pa_pin) { _pa_pin = pa_pin; }
-  void set_access_point(AccessPoint* access_point) { _access_point = access_point; }
+  static void initInst();
+  static DRCEngine& getInst();
+  static void destroyInst();
   // function
+  std::vector<Violation> getViolationList(std::string top_name, std::vector<std::pair<EXTLayerRect*, bool>>& env_shape_list,
+                                          std::map<int32_t, std::vector<std::pair<EXTLayerRect*, bool>>>& net_pin_shape_map,
+                                          std::map<int32_t, std::vector<Segment<LayerCoord>>>& net_result_map, std::string stage);
+
  private:
-  PAPin* _pa_pin = nullptr;
-  AccessPoint* _access_point = nullptr;
+  // self
+  static DRCEngine* _de_instance;
+
+  DRCEngine() = default;
+  DRCEngine(const DRCEngine& other) = delete;
+  DRCEngine(DRCEngine&& other) = delete;
+  ~DRCEngine() = default;
+  DRCEngine& operator=(const DRCEngine& other) = delete;
+  DRCEngine& operator=(DRCEngine&& other) = delete;
+  // function
 };
 
 }  // namespace irt
