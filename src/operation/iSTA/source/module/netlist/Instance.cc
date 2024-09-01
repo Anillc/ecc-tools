@@ -61,26 +61,34 @@ bool Instance::isEqual(Instance& other) {
     auto pin_name = _pins[i]->getFullName();
     auto other_pin_name = other._pins[i]->getFullName();
 
-    if (!_pins[i]->get_net() && !other._pins[i]->get_net()) {
-      if (!Str::equal(pin_name.c_str(), other_pin_name.c_str())) {
-        is_equal = false;
-        std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
-                  << std::endl;
-        std::cout << "hier inst pin " << i << ":pin_name " << pin_name
-                  << std::endl;
-      }
-    } else {
-      auto net_name = _pins[i]->get_net()->get_name();
-      auto other_net_name = other._pins[i]->get_net()->get_name();
-      if (!Str::equal(pin_name.c_str(), other_pin_name.c_str()) ||
-          !Str::equal(net_name, other_net_name)) {
-        is_equal = false;
-        std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
-                  << ";net_name " << other_net_name << std::endl;
-        std::cout << "hier inst pin " << i << ":pin_name " << pin_name
-                  << ";net_name " << net_name << std::endl;
-      }
+    if (!Str::equal(pin_name.c_str(), other_pin_name.c_str())) {
+      is_equal = false;
+      std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+                << std::endl;
+      std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+                << std::endl;
     }
+
+    // if (!_pins[i]->get_net() && !other._pins[i]->get_net()) {
+    //   if (!Str::equal(pin_name.c_str(), other_pin_name.c_str())) {
+    //     is_equal = false;
+    //     std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+    //               << std::endl;
+    //     std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+    //               << std::endl;
+    //   }
+    // } else {
+    //   auto net_name = _pins[i]->get_net()->get_name();
+    //   auto other_net_name = other._pins[i]->get_net()->get_name();
+    //   if (!Str::equal(pin_name.c_str(), other_pin_name.c_str()) ||
+    //       !Str::equal(net_name, other_net_name)) {
+    //     is_equal = false;
+    //     std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+    //               << ";net_name " << other_net_name << std::endl;
+    //     std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+    //               << ";net_name " << net_name << std::endl;
+    //   }
+    // }
   }
 
   return is_equal;
