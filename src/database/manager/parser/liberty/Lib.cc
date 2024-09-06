@@ -1569,6 +1569,7 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
     return snkport2arcset;
   };
 
+  // index_1 ("0.00117378,0.00472397,0.0171859,0.0409838,0.0780596,0.130081,0.198535");
   auto wirte_axis = [&stream](LibAxis* lib_axis, int index_order) {
     auto& axis_values = lib_axis->get_axis_values();
     fprintf(stream, "                              index_%d (\"", index_order + 1);
@@ -1582,6 +1583,13 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
     fprintf(stream, "\");\n");
   };
 
+  //values ("0.008926,0.010218,0.011885,0.015193,0.021777,0.034908,0.061143", \
+                                        "0.010260,0.011589,0.013290,0.016642,0.023269,0.036435,0.062693", \
+                                        "0.013256,0.014878,0.016853,0.020533,0.027299,0.040551,0.066873", \
+                                        "0.015423,0.017758,0.020500,0.025336,0.033615,0.048040,0.074579", \
+                                        "0.015331,0.018544,0.022295,0.028819,0.039616,0.057020,0.086181", \
+                                        "0.012501,0.016659,0.021499,0.029880,0.043654,0.065300,0.099189", \
+                                        "0.006705,0.011837,0.017780,0.028095,0.045020,0.071461,0.111709");
   auto wirte_table_values = [&stream](LibTable* lib_table, int columns) {
     auto& lib_table_values = lib_table->get_table_values();
     fprintf(stream, "                                values (\"");
@@ -1786,15 +1794,30 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
           fprintf(stream, "  cell (%s) {\n", lib_cell->get_cell_name());
           auto snkport2arcset = classify_cell_arc_by_snk_port(lib_cell);
 
+          std::set<const char*> written_port_names;
           for (const auto& pair : snkport2arcset) {
-            // print input.
+            // print input port.
             for (const auto& arc : pair.second) {
               if (arc->isDelayArc()) {
                 const char* src_port_name = arc->get_src_port();
+                written_port_names.insert(src_port_name);
                 fprintf(stream, "   pin (%s) {\n", src_port_name);
                 fprintf(stream, "            direction               : input;\n");
                 fprintf(stream, "   }\n");
               }
+            }
+          }
+
+          // print other ports not in written_port_names.
+          auto& cell_ports = lib_cell->get_cell_ports();
+          for (const auto& cell_port : cell_ports) {
+            if (!written_port_names.contains(cell_port->get_port_name())) {
+              fprintf(stream, "   pin (%s) {\n", cell_port->get_port_name());
+              const char* direciton;
+              cell_port->get_port_type() == LibPort::LibertyPortType::kInput ? direciton = "input" : direciton = "output";
+              fprintf(stream, "            direction               : %s;\n", direciton);
+              fprintf(stream, "   }\n");
+              written_port_names.insert(cell_port->get_port_name());
             }
           }
 
