@@ -44,23 +44,122 @@ TEST_F(CharacterTimingTest, example1) {
 
   std::vector<const char*> lib_files{
       "/home/taosimin/nangate45/lib/NangateOpenCellLibrary_typical.lib"};
-  timing_engine->readLiberty(lib_files);
+  std::vector<const char*> t28_lib_files = {
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140hvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140lvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140mblvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140mbssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140opphvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140opplvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140oppssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140oppuhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140oppulvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/tcbn28hpcplusbwp30p140ssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140uhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp30p140ulvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140hvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140lvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140mbhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140mblvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140mbssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140opphvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140opplvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140oppssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140oppuhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140oppulvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/tcbn28hpcplusbwp35p140ssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140uhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp35p140ulvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140ehvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140hvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140lvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140mbhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140mbssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140oppehvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140opphvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140opplvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140oppssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140oppuhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/tcbn28hpcplusbwp40p140ssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "tcbn28hpcplusbwp40p140uhvtssg0p81v125c_ccs.lib",
+      "/home/taosimin/T28/ccslib/"
+      "ts5n28hpcplvta256x32m4fw_130a_ssg0p81v125c.lib",
+      "/home/taosimin/T28/ccslib/"
+      "ts5n28hpcplvta64x128m2fw_130a_ssg0p81v125c.lib",
+      "/home/taosimin/T28/ccslib/tphn28hpcpgv18ssg0p81v1p62v125c.lib",
+      "/home/taosimin/T28/ccslib/PLLTS28HPMLAINT_SS_0P81_125C.lib"};
+  std::vector<const char*> cluster_lib_file{
+      "/home/longshuaiying/cluster_timing_model/asic_top/liberty/cluster1.lib"};
+  timing_engine->readLiberty(t28_lib_files);
+
+  // auto* inst_cell =
+  //     timing_engine->get_ista()->findLibertyCell(liberty_cell_name);
+  // const char* port_name;
+  // auto* library_port_or_port_bus =
+  //     inst_cell->get_cell_port_or_port_bus(port_name);
+  // int a = 0;
 
   timing_engine->get_ista()->set_analysis_mode(ista::AnalysisMode::kMaxMin);
   timing_engine->get_ista()->set_n_worst_path_per_clock(1);
 
-  timing_engine->get_ista()->set_top_module_name("cluster1");
+  for (int sub_netlist_index = 2; sub_netlist_index <= 200;
+       ++sub_netlist_index) {
+    // std::string output_lib_path =
+    //     "/home/longshuaiying/cluster_timing_model/asic_top/liberty/cluster" +
+    //     std::to_string(sub_netlist_index) + ".lib";
+    // std::cout << output_lib_path << " \\" << std::endl;
 
-  timing_engine->readDesign(
-      "/home/longshuaiying/cluster_timing_model/example1/verilog/"
-      "hier_sub_netlist1.v");
+    std::string top_module_name = "cluster" + std::to_string(sub_netlist_index);
+    timing_engine->get_ista()->set_top_module_name(top_module_name.c_str());
+    std::string asic_top_hier_verilog_file =
+        "/home/longshuaiying/cluster_timing_model/asic_top/verilog/"
+        "hier_sub_netlist" +
+        std::to_string(sub_netlist_index) + ".v";
+    timing_engine->readDesign(asic_top_hier_verilog_file.c_str());
+    timing_engine->buildGraph();
+    timing_engine->extractTimingModel(AnalysisMode::kMax, "asic_top.lib",
+                                      sub_netlist_index);
+    timing_engine->get_ista()->resetNetlist();
+    timing_engine->get_ista()->resetGraph();
+  }
 
   // timing_engine->readSdc(
   //     "/home/taosimin/nangate45/design/example/example1.sdc");
 
-  timing_engine->buildGraph();
-
-  timing_engine->extractTimingModel(AnalysisMode::kMax, "example1_v.lib");
   // timing_engine->extractTimingModel(AnalysisMode::kMin,
   // "macro_model_min.lib");
 

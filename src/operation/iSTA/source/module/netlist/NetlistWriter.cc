@@ -173,21 +173,21 @@ void NetlistWriter::writeAssign() {
   FOREACH_NET(&_netlist, net) {
     std::string net_name = net->getFullName();
     std::string new_net_name = Str::replace(net_name, R"(\\)", "");
-    std::string escape_net_name = escapeName(new_net_name);
+    // std::string escape_net_name = escapeName(new_net_name);
     for (const auto &pin_port : net->get_pin_ports()) {
       // assign net = input_port;
       if (pin_port->isPort() && pin_port->isInput() &&
-          !Str::equal(pin_port->get_name(), escape_net_name.c_str())) {
-        fprintf(_stream, "assign %s = %s ;\n", escape_net_name.c_str(),
+          !Str::equal(pin_port->get_name(), new_net_name.c_str())) {
+        fprintf(_stream, "assign %s = %s ;\n", new_net_name.c_str(),
                 pin_port->get_name());
       }
 
       // assign output_port = net;
       // assign output_port = input_port;
       if (pin_port->isPort() && pin_port->isOutput() &&
-          !Str::equal(pin_port->get_name(), escape_net_name.c_str())) {
+          !Str::equal(pin_port->get_name(), new_net_name.c_str())) {
         fprintf(_stream, "assign %s = %s ;\n", pin_port->get_name(),
-                escape_net_name.c_str());
+                new_net_name.c_str());
       }
     }
   }
@@ -233,13 +233,13 @@ void NetlistWriter::writeInstance(Instance *inst) {
     std::string pin_net_name;
     if (auto *net = pin->get_net(); net) {
       pin_net_name = pin->get_net()->get_name();
-      if (strcmp(pin_net_name.c_str(), "u1z") == 0) {
-        LOG_INFO << "Debug";
-      }
-      for (const auto &pin_port : net->get_pin_ports()) {
-        LOG_INFO << pin_port->getFullName();
-        // LOG_INFO << "Debug";
-      }
+      // if (strcmp(pin_net_name.c_str(), "u1z") == 0) {
+      //   LOG_INFO << "Debug";
+      // }
+      // for (const auto &pin_port : net->get_pin_ports()) {
+      //   LOG_INFO << pin_port->getFullName();
+      //   // LOG_INFO << "Debug";
+      // }
     } else {
       if (pin->isInput()) {
         pin_net_name = R"(1'b0)";

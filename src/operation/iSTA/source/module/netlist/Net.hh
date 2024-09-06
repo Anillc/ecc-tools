@@ -79,6 +79,15 @@ class Net : public DesignObject {
     return it != _pin_ports.end();
   }
 
+  bool isConnectedToAllPorts() {
+    for (const auto &pin_port : _pin_ports) {
+      if (!pin_port->isPort()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Vector<DesignObject *> &get_pin_ports() { return _pin_ports; }
 
   DesignObject *getDriver();

@@ -90,7 +90,7 @@ class Netlist : public DesignObject {
     }
     return nullptr;
   }
-
+  auto& get_ports() { return _ports; }
   std::vector<DesignObject*> findPort(const char* pattern, bool regexp,
                                       bool nocase);
 

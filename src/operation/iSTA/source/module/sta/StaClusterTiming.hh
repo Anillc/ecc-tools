@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "StaFunc.hh"
+#include "string/StrMap.hh"
 
 namespace ista {
 
@@ -42,12 +43,17 @@ class StaClusterTiming : public StaFunc {
 
   void addHierSubNetlist();
   void buildSubnetlistToInst();
+  // for debugging purposes.
+  std::vector<int> get_cluster_boundary_net_set() {
+    return _cluster_boundary_net_set;
+  }
 
  private:
   void addPortForSubnetlist(Instance& inst, Netlist& subnetlist);
-  bool isBoundaryInstance(
-      Instance& inst, std::set<std::string> instance_own_cluster,
-      const std::vector<std::set<std::string>>& cluster_instances);
+
+  bool isBoundaryInstance(Instance& inst,
+                          std::set<std::string> instance_own_cluster);
+  bool isBoundaryNet(Net& net, std::set<std::string> instance_own_cluster);
   void addPortForBoundaryInstance(
       Instance& boundary_inst, std::set<std::string> boundary_inst_own_cluster,
       Netlist& subnetlist);
@@ -55,27 +61,70 @@ class StaClusterTiming : public StaFunc {
     _remaining_instances.emplace_back(std::move(instance));
   }
 
-  Net& addRemainingNets(Net&& net) {
-    _remaining_nets.emplace_back(std::move(net));
-    Net* the_net = &(_remaining_nets.back());
+  Net& addRemainingNetsConnectedInst(Net&& net) {
+    _remaining_nets_connected_inst.emplace_back(std::move(net));
+    Net* the_net = &(_remaining_nets_connected_inst.back());
     return *the_net;
   }
 
-  Port& addRemainingPorts(Port&& port) {
-    _remaining_ports.emplace_back(std::move(port));
-    Port* the_port = &(_remaining_ports.back());
+  Port& addRemainingPortsConnectedInst(Port&& port) {
+    _remaining_ports_connected_inst.emplace_back(std::move(port));
+    Port* the_port = &(_remaining_ports_connected_inst.back());
     return *the_port;
   }
+
+  Net& addRemainingNetsConnectedPort(Net&& net) {
+    _remaining_nets_connected_port.emplace_back(std::move(net));
+    Net* the_net = &(_remaining_nets_connected_port.back());
+    const char* net_name = the_net->get_name();
+    _str2remainin_net_connected_port[net_name] = the_net;
+    return *the_net;
+  }
+
+  Net* findRemainingNetConnectedPort(const char* net_name) const {
+    auto found_net = _str2remainin_net_connected_port.find(net_name);
+
+    if (found_net != _str2remainin_net_connected_port.end()) {
+      return found_net->second;
+    }
+    return nullptr;
+  }
+
+  Port& addRemainingPortsConnectedPort(Port&& port) {
+    _remaining_ports_connected_port.emplace_back(std::move(port));
+    Port* the_port = &(_remaining_ports_connected_port.back());
+    return *the_port;
+  }
+
   std::vector<std::set<std::string>> _cluster_instances;
   std::list<Instance>
       _remaining_instances;  //!< collection of the cluster's instance, where
                              //!< the cluster only has one instance.
   std::list<Net>
-      _remaining_nets;  //!< collection of the net connect to the cluster's
-                        //!< instance, where the cluster only has one instance.
+      _remaining_nets_connected_inst;  //!< collection of the net connected to
+                                       //!< the cluster's instance, where the
+                                       //!< cluster only has one instance.
   std::list<Port>
-      _remaining_ports;  //!< collection of the port connect to the cluster's
-                         //!< instance, where the cluster only has one instance.
+      _remaining_ports_connected_inst;  //!< collection of the port connected to
+                                        //!< the cluster's instance, where the
+                                        //!< cluster only has one instance.
+  std::list<Net>
+      _remaining_nets_connected_port;  //!< collection of the net connected
+                                       //!< to ports, not connected to
+                                       //!< inst's pin, where the cluster
+                                       //!< only has one port.
+  std::list<Port>
+      _remaining_ports_connected_port;  //!< collection of the port connected
+                                        //!< to ports, not connected to
+                                        //!< inst's pin, where the cluster
+                                        //!< only has one port.
+  StrMap<Net*> _str2remainin_net_connected_port;
+  // for debugging purposes.
+  std::set<std::string> _boundary_net_set;
+  std::set<std::string> _boundary_pin_set;
+  std::vector<std::string> _boundary_net_vector;
+  std::vector<std::string> _boundary_pin_vector;
+  std::vector<int> _cluster_boundary_net_set;
 };
 
 }  // namespace ista

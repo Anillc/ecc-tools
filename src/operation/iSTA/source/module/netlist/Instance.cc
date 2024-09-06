@@ -45,6 +45,47 @@ Instance::Instance(const Instance& other)
   }
 }
 
+// for debugging purposes.
+//(comparing inst in top netlist with inst in subnetlist when cluster timing.)
+bool Instance::isEqual(Instance& other) {
+  bool is_equal = true;
+  if (!Str::equal(get_name(), other.get_name())) {
+    is_equal = false;
+  }
+
+  if (_pins.size() != other._pins.size()) {
+    is_equal = false;
+  }
+
+  for (size_t i = 0; i < _pins.size(); ++i) {
+    auto pin_name = _pins[i]->getFullName();
+    auto other_pin_name = other._pins[i]->getFullName();
+
+    if (!_pins[i]->get_net() && !other._pins[i]->get_net()) {
+      if (!Str::equal(pin_name.c_str(), other_pin_name.c_str())) {
+        is_equal = false;
+        std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+                  << std::endl;
+        std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+                  << std::endl;
+      }
+    } else {
+      auto net_name = _pins[i]->get_net()->get_name();
+      auto other_net_name = other._pins[i]->get_net()->get_name();
+      if (!Str::equal(pin_name.c_str(), other_pin_name.c_str()) ||
+          !Str::equal(net_name, other_net_name)) {
+        is_equal = false;
+        std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+                  << ";net_name " << other_net_name << std::endl;
+        std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+                  << ";net_name " << net_name << std::endl;
+      }
+    }
+  }
+
+  return is_equal;
+}
+
 Instance::Instance(Instance&& other)
     : DesignObject(std::move(other)),
       _inst_cell(other._inst_cell),
@@ -71,43 +112,6 @@ Instance& Instance::operator=(Instance&& rhs) {
   }
 
   return *this;
-}
-
-// to remove.
-/**
- * @brief clone a instance for cluster timing analysis.
- *
- * @return Instance
- */
-Instance Instance::cloneInstance() const {
-  Instance clone_inst(*this);
-  // Pin* pin;
-  // FOREACH_INSTANCE_PIN(&clone_inst, pin) {
-  //   auto* net = pin->get_net();
-  //   if (!net) {
-  //     continue;
-  //   }
-
-  //   std::unique_ptr<Net> new_net = std::make_unique<Net>(net->get_name());
-  //   auto& pin_ports = net->get_pin_ports();
-  //   for (auto& pin_port : pin_ports) {
-  //     std::string own_instance_name("");
-  //     if (pin_port->isPin()) {
-  //       own_instance_name = pin_port->get_own_instance()->getFullName();
-  //     }
-
-  //     if (pin_port->isPort()) {
-  //       new_net->addPort(pin_port->get_name(),
-  //                        dynamic_cast<Port*>(pin_port)->get_port_dir());
-  //     } else if (pin_port->isPin() &&
-  //                Str::equal(clone_inst.get_name(),
-  //                own_instance_name.c_str())) {
-  //       new_net->addPinPort(pin_port);
-  //     }
-  //   }
-  //   pin->set_net(std::move(new_net));
-  // }
-  return clone_inst;
 }
 
 /**
