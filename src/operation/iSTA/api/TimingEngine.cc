@@ -532,9 +532,7 @@ TimingEngine& TimingEngine::extractTimingModel(AnalysisMode analysis_mode,
 
 // for debug
 #if 1
-  const char* lib_file_name = "./example1_v.lib";
-  character_timing.get_design_timing_model()->printLibertyLibrary(
-      lib_file_name);
+  character_timing.get_design_timing_model()->printLibertyLibrary(model_path);
 #endif
 
   return *this;

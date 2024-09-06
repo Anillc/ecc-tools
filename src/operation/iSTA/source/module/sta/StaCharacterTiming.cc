@@ -560,6 +560,16 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   StaVertex* port_vertex;
   FOREACH_PORT_VERTEX(the_graph, port_vertex) {
     auto* the_port = port_vertex->get_design_obj();
+
+    auto lib_port = std::make_unique<LibPort>(the_port->get_name());
+    auto lib_port_type =
+        the_port->isInput()
+            ? LibPort::LibertyPortType::kInput
+            : LibPort::LibertyPortType::kOutput;  // TODO(to taosimin), fix
+                                                  // inout port.
+    lib_port->set_port_type(lib_port_type);
+    design_timing_cell->addLibertyPort(std::move(lib_port));
+
     if (the_port->isInput() && !_port_to_logic_clkpoint.contains(port_vertex)) {
       // construct the constrain arc, need know the constrained arc, and the
       // constrain port.
