@@ -46,7 +46,7 @@ option(BUILD_GUI "If ON, build GUI." OFF)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(AI_EDA_TOP_DIR /home/zhouping/gitee8/aimp)
+#set(AI_EDA_TOP_DIR /home/zhouping/gitee8/aimp)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(FORT_ENABLE_TESTING OFF CACHE INTERNAL "") # Disable building tests and examples in libfort project
 
