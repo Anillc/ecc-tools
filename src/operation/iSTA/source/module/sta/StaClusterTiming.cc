@@ -35,7 +35,7 @@ void StaClusterTiming::addHierSubNetlist() {
   std::vector<Netlist*> hier_sub_netlists;
   int cluster_index = 1;
   for (auto& cluster_instance : _cluster_instances) {
-    if (cluster_index == 1) {
+    if (cluster_index >= 1 && cluster_index <= 100) {
       if (cluster_instance.size() == 1) {
         continue;
       }
@@ -99,15 +99,15 @@ void StaClusterTiming::addHierSubNetlist() {
       hier_sub_netlists.emplace_back(sub_netlist);
 
       // for debugging purposes.
-      std::cout << "cluster " << cluster_index << ": " << std::endl;
-      std::cout << "_boundary_net_set: " << _boundary_net_set.size()
-                << std::endl;
-      std::cout << "_boundary_pin_set: " << _boundary_pin_set.size()
-                << std::endl;
-      std::cout << "_boundary_net_vector: " << _boundary_net_vector.size()
-                << std::endl;
-      std::cout << "_boundary_pin_vector: " << _boundary_pin_vector.size()
-                << std::endl;
+      // std::cout << "cluster " << cluster_index << ": " << std::endl;
+      // std::cout << "_boundary_net_set: " << _boundary_net_set.size()
+      //           << std::endl;
+      // std::cout << "_boundary_pin_set: " << _boundary_pin_set.size()
+      //           << std::endl;
+      // std::cout << "_boundary_net_vector: " << _boundary_net_vector.size()
+      //           << std::endl;
+      // std::cout << "_boundary_pin_vector: " << _boundary_pin_vector.size()
+      //           << std::endl;
       _cluster_boundary_net_set.push_back(_boundary_net_set.size());
       _boundary_net_set.clear();
       _boundary_pin_set.clear();
@@ -115,9 +115,9 @@ void StaClusterTiming::addHierSubNetlist() {
       _boundary_pin_vector.clear();
     }
     cluster_index++;
-    if (cluster_index == 2) {
-      break;
-    }
+    // if (cluster_index == 2) {
+    //   break;
+    // }
   }
   design_netlist->set_hier_sub_netlists(hier_sub_netlists);
 

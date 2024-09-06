@@ -320,6 +320,21 @@ unsigned Sta::readLiberty(std::vector<std::string> &lib_files) {
 }
 
 /**
+ * @brief read liberty files.
+ *
+ * @param lib_files
+ * @return unsigned
+ */
+unsigned Sta::readLiberty(std::vector<const char *> &lib_files) {
+  std::vector<std::string> tmp;
+  for (const auto *lib_file : lib_files) {
+    tmp.emplace_back(lib_file);
+  }
+  unsigned ret = readLiberty(tmp);
+  return ret;
+}
+
+/**
  * @brief Link liberty according the builded cells to construct the lib data, if
  * build cell is empty, link all.
  *
@@ -333,7 +348,7 @@ unsigned Sta::linkLibertys() {
 
   auto link_lib = [this](auto &lib_rust_reader) {
     auto &link_cells = get_link_cells();
-    lib_rust_reader.set_build_cells(link_cells);
+    // lib_rust_reader.set_build_cells(link_cells);
     lib_rust_reader.linkLib();
     auto lib = lib_rust_reader.get_library_builder()->takeLib();
 

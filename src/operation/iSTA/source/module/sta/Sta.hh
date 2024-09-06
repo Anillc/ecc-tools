@@ -200,6 +200,7 @@ class Sta {
   unsigned readDesignWithRustParser(const char* verilog_file);
   unsigned readLiberty(const char* lib_file);
   unsigned readLiberty(std::vector<std::string>& lib_files);
+  unsigned readLiberty(std::vector<const char*>& lib_files);
   unsigned readSdc(const char* sdc_file);
   unsigned readSpef(const char* spef_file);
   unsigned readAocv(const char* aocv_file);
