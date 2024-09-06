@@ -501,6 +501,12 @@ void SAHierPlacer<T>::initInstanceInfo()
   name2inst.clear();
   inst2cluster.clear();
   for (size_t v_id = 0; v_id < root->netlist().vSize(); ++v_id) {
+    std::string instanceName;
+    instanceName = "victorzhouInstance:";
+    instanceName.append("v_id:");
+    instanceName.append(std::to_string(v_id));
+    instanceName.append(",{");
+
     auto sub_obj = root->netlist().vertex_at(v_id).property();
     auto sub_blk = std::static_pointer_cast<Block, Object>(sub_obj);
     std::set<std::shared_ptr<imp::Instance>> instances = sub_blk->get_instances();
@@ -509,9 +515,13 @@ void SAHierPlacer<T>::initInstanceInfo()
       //   continue;
       // }
       // IO-CELL uses pin-name as instance-name
+      instanceName.append(inst->get_name());
+      instanceName.append(",");
       name2inst[inst->get_name()] = inst;
       inst2cluster[inst->get_name()] = v_id;
     }
+    instanceName.append("}");
+    INFO("instanceName: ", instanceName);
   }
 }
 template <typename T>
