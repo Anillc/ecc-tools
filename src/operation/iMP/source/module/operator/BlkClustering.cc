@@ -93,15 +93,18 @@ void BlkClustering2::singleLevelClustering(Block& block)
   // extract macro as single cluster at last level
   if (block.level() == level_num) {
     // size_t single_macro_cluster_id = nparts;
+    size_t num_macros = 0;
     for (size_t i = 0; i < parts.size(); ++i) {
       auto vertex_prop = block.netlist().vertex_at(i).property();
       if (vertex_prop->isInstance()) {
         auto& inst = dynamic_cast<Instance&>(*vertex_prop);
         if (inst.get_cell_master().isMacro()) {
+          num_macros += 1;
           parts[i] = single_cluster_id++;  // extract macro as a single cluster;
         }
       }
     }
+    INFO("num_macros : ", num_macros);
   }
 
   int i = 0;
@@ -110,9 +113,24 @@ void BlkClustering2::singleLevelClustering(Block& block)
     auto&& [sub_netlist, cuts] = sub_graph(graph, sub_vertices);
     auto new_block = std::make_shared<imp::Block>(block.get_name() + "_" + std::to_string(i++),
                                                   std::make_shared<imp::Netlist>(std::move(sub_netlist)), block.shared_from_this());
+    // bool all_instances_fixed = true;
+    // for (const auto& v : new_block->netlist().vRange()) {
+    //   auto inst = std::dynamic_pointer_cast<Instance>(v.property());
+    //   if (inst && !inst->isFixed()) {
+    //     all_instances_fixed = false;
+    //     break;
+    //   }
+    // }
+
+    // if (all_instances_fixed) {
+    //   new_block->set_fixed();
+    // }
     // new_block->set_shape(imp::geo::make_box(0, 0, w, h));
-    INFO(new_block->get_name(), " num_v: ", new_block->netlist().vSize(), " num_cuts: ", cuts.size(),
-         " num_e: ", new_block->netlist().heSize());
+    INFO(new_block->get_name(), 
+       " num_v: ", new_block->netlist().vSize(), 
+       " num_cuts: ", cuts.size(), 
+       " num_e: ", new_block->netlist().heSize(),
+       " - Fixed: ", new_block->isFixed());
     return new_block;
   };
 
