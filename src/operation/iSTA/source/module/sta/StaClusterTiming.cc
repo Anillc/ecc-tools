@@ -35,7 +35,7 @@ void StaClusterTiming::addHierSubNetlist() {
   std::vector<Netlist*> hier_sub_netlists;
   int cluster_index = 1;
   for (auto& cluster_instance : _cluster_instances) {
-    if (cluster_index == 1) {
+    if (cluster_index >= 1 && cluster_index <= 100) {
       if (cluster_instance.size() == 1) {
         continue;
       }
@@ -98,16 +98,16 @@ void StaClusterTiming::addHierSubNetlist() {
       }
       hier_sub_netlists.emplace_back(sub_netlist);
 
-      std::cout << "cluster " << cluster_index << ": " << std::endl;
-      std::cout << "_boundary_net_set: " << _boundary_net_set.size()
-                << std::endl;
-      std::cout << "_boundary_pin_set: " << _boundary_pin_set.size()
-                << std::endl;
-      std::cout << "_boundary_net_vector: " << _boundary_net_vector.size()
-                << std::endl;
-      std::cout << "_boundary_pin_vector: " << _boundary_pin_vector.size()
-                << std::endl;
-
+      // for debugging purposes.
+      // std::cout << "cluster " << cluster_index << ": " << std::endl;
+      // std::cout << "_boundary_net_set: " << _boundary_net_set.size()
+      //           << std::endl;
+      // std::cout << "_boundary_pin_set: " << _boundary_pin_set.size()
+      //           << std::endl;
+      // std::cout << "_boundary_net_vector: " << _boundary_net_vector.size()
+      //           << std::endl;
+      // std::cout << "_boundary_pin_vector: " << _boundary_pin_vector.size()
+      //           << std::endl;
       _cluster_boundary_net_set.push_back(_boundary_net_set.size());
       _boundary_net_set.clear();
       _boundary_pin_set.clear();
@@ -115,9 +115,9 @@ void StaClusterTiming::addHierSubNetlist() {
       _boundary_pin_vector.clear();
     }
     cluster_index++;
-    if (cluster_index == 2) {
-      break;
-    }
+    // if (cluster_index == 2) {
+    //   break;
+    // }
   }
   design_netlist->set_hier_sub_netlists(hier_sub_netlists);
 
@@ -431,6 +431,7 @@ bool StaClusterTiming::isBoundaryInstance(
         // std::cout << "pin: " << pin->getFullName()
         //           << ";connected net: " << connect_net->get_name() <<
         //           std::endl;
+        // for debugging purposes.
         _boundary_net_set.insert(connect_net->get_name());
         _boundary_pin_set.insert(pin->getFullName());
         _boundary_net_vector.emplace_back(connect_net->get_name());
@@ -546,6 +547,9 @@ void StaClusterTiming::addPortForBoundaryInstance(
             is_boundary_net) {
           std::string dcl_name = connect_net->get_name();
           dcl_name = Str::replace(dcl_name, "/", "_");
+          dcl_name = Str::replace(dcl_name, "\\[", "");
+          dcl_name = Str::replace(dcl_name, "\\]", "");
+          dcl_name = Str::replace(dcl_name, "\\.", "");
           auto* the_net = subnetlist.findNet(dcl_name.c_str());
 
           if (the_net) {
@@ -567,7 +571,13 @@ void StaClusterTiming::addPortForBoundaryInstance(
           // need virtual port on the connect net.
           PortDir dcl_type = PortDir::kIn;
           std::string dcl_name = connect_net->get_name();
+          // the virtual port name should not contaiins escape when adding the
+          // virtual port.(because wirte net need escapeName resulting in port
+          // name and net name is not consistent.)
           dcl_name = Str::replace(dcl_name, "/", "_");
+          dcl_name = Str::replace(dcl_name, "\\[", "");
+          dcl_name = Str::replace(dcl_name, "\\]", "");
+          dcl_name = Str::replace(dcl_name, "\\.", "");
 
           auto* the_net = subnetlist.findNet(dcl_name.c_str());
           auto* the_port = subnetlist.findPort(dcl_name.c_str());
@@ -616,6 +626,9 @@ void StaClusterTiming::addPortForBoundaryInstance(
             PortDir dcl_type = PortDir::kOut;
             std::string dcl_name = connect_net->get_name();
             dcl_name = Str::replace(dcl_name, "/", "_");
+            dcl_name = Str::replace(dcl_name, "\\[", "");
+            dcl_name = Str::replace(dcl_name, "\\]", "");
+            dcl_name = Str::replace(dcl_name, "\\.", "");
 
             auto* the_net = subnetlist.findNet(dcl_name.c_str());
             if (the_net) {

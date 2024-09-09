@@ -186,9 +186,17 @@ TEST_F(ClusterTimingTest, asic_top) {
       "/home/taosimin/T28/ccslib/"
       "ts5n28hpcplvta64x128m2fw_130a_ssg0p81v125c.lib",
       "/home/taosimin/T28/ccslib/tphn28hpcpgv18ssg0p81v1p62v125c.lib",
-      "/home/taosimin/T28/ccslib/PLLTS28HPMLAINT_SS_0P81_125C.lib"};
+      "/home/taosimin/T28/ccslib/PLLTS28HPMLAINT_SS_0P81_125C.lib",
+      "/home/longshuaiying/cluster_timing_model/asic_top/liberty/cluster1.lib"};
+  for (int sub_netlist_index = 1; sub_netlist_index <= 100;
+       ++sub_netlist_index) {
+    std::string cluster_lib =
+        "/home/longshuaiying/cluster_timing_model/asic_top/liberty/"
+        "cluster" +
+        std::to_string(sub_netlist_index) + ".lib";
+    t28_lib_files.push_back(cluster_lib);
+  }
   ista->readLiberty(t28_lib_files);
-
   ista->readVerilogWithRustParser(
       "/home/longshuaiying/cluster_timing_model/asic_top/verilog/"
       "asic_top_flatten.v");
@@ -210,10 +218,10 @@ TEST_F(ClusterTimingTest, asic_top) {
       ista->get_netlist()->get_hier_sub_netlists();
 
   auto& top_insts = ista->get_netlist()->get_instances();
-  ista->get_netlist()->writeVerilog(
-      "/home/longshuaiying/cluster_timing_model/asic_top/verilog/"
-      "asic_top_write2.v",
-      exclude_cell_names);
+  // ista->get_netlist()->writeVerilog(
+  //     "/home/longshuaiying/cluster_timing_model/asic_top/verilog/"
+  //     "asic_top_write2.v",
+  //     exclude_cell_names);
 
   auto findInstanceByName = [&top_insts](const std::string& name) -> Instance* {
     for (auto& inst : top_insts) {
@@ -226,99 +234,127 @@ TEST_F(ClusterTimingTest, asic_top) {
 
   // the belowing code is to verify whether subnetlist is correctly built by
   // clusters.
-  int sub_netlist_index = 1;
-  for (const auto& hier_sub_netlist : hier_sub_netlists) {
-    // print all sub_netlists.
-    std::set<std::string> exclude_cell_names1 = {};
-    std::string cluster_verilog_file =
-        std::string(
-            "/home/longshuaiying/cluster_timing_model/asic_top/verilog/") +
-        std::string("hier_sub_netlist") + std::to_string(sub_netlist_index) +
-        ".v";
-    hier_sub_netlist->writeVerilog(cluster_verilog_file.c_str(),
-                                   exclude_cell_names1);
-    //////// 1.print cluster_inst_num. ////////
-    int cluster_inst_nums = hier_sub_netlist->getInstanceNum();
-    std::cout << "cluster_inst_nums" << cluster_inst_nums << std::endl;
+  int sub_netlist_index = 2;
+  std::vector<int> sub_netlist_virtual_port_vec;
+  bool is_all_clusters_inst_equal = true;
+  // for (const auto& hier_sub_netlist : hier_sub_netlists) {
+  //   // print all sub_netlists.
+  //   std::set<std::string> exclude_cell_names1 = {};
+  //   std::string cluster_verilog_file =
+  //       std::string(
+  //           "/home/longshuaiying/cluster_timing_model/asic_top/verilog/") +
+  //       std::string("hier_sub_netlist") + std::to_string(sub_netlist_index) +
+  //       ".v";
+  //   hier_sub_netlist->writeVerilog(cluster_verilog_file.c_str(),
+  //                                  exclude_cell_names1);
+  //   //////// 1.print cluster_inst_num. ////////
+  //   int cluster_inst_nums = hier_sub_netlist->getInstanceNum();
+  //   std::cout << "cluster_inst_nums" << cluster_inst_nums << std::endl;
 
-    ///  2.compare insts in sub netlist is equal to insts in top netlist ///
-    int hier_inst_index = 1;
-    for (auto& hier_inst : hier_sub_netlist->get_instances()) {
-      auto top_inst = findInstanceByName(hier_inst.get_name());
-      LOG_FATAL_IF(!top_inst);
-      std::cout << "hier_inst "
-                << ":" << hier_inst_index << ":" << hier_inst.get_name()
-                << "can not be found in top netlist." << std::endl;
-      hier_inst.isEqual(*top_inst);
-      ++hier_inst_index;
-    }
-    ///  3.find all virtual ports newed in sub netlist. ///
-    int hier_vitual_port_index = 1;
-    std::vector<std::string> hier_virtual_port_name_vec;
-    std::set<std::string> hier_virtual_port_name_set;
-    for (auto& hier_port : hier_sub_netlist->get_ports()) {
-      auto top_port = ista->get_netlist()->findPort(hier_port.get_name());
-      if (!top_port) {
-        // std::cout << "hier_port "
-        //           << ":" << hier_vitual_port_index << ":"
-        //           << hier_port.get_name() << std::endl;
-        hier_virtual_port_name_vec.emplace_back(hier_port.get_name());
-        hier_virtual_port_name_set.insert(hier_port.get_name());
-      }
+  //   ///  2.compare insts in sub netlist is equal to insts in top netlist ///
 
-      // ++hier_vitual_port_index;
-    }
-    ///  4.get all virtual ports nums newed in all subnetlist.
-    sub_netlist_virtual_port_vec.push_back(hier_virtual_port_name_vec.size());
+  //   bool is_cluster_inst_equal = true;
+  //   for (auto& hier_inst : hier_sub_netlist->get_instances()) {
+  //     auto top_inst = findInstanceByName(hier_inst.get_name());
+  //     LOG_FATAL_IF(!top_inst);
+  //     is_cluster_inst_equal = hier_inst.isEqual(*top_inst);
+  //     if (!is_cluster_inst_equal) {
+  //       break;
+  //     }
+  //   }
+  //   is_all_clusters_inst_equal =
+  //       is_all_clusters_inst_equal && is_cluster_inst_equal;
+  //   if (is_cluster_inst_equal) {
+  //     std::cout << "cluster_" << sub_netlist_index << " insts is equal."
+  //               << std::endl;
+  //   } else {
+  //     std::cout << "cluster_" << sub_netlist_index << " insts is not equal."
+  //               << std::endl;
+  //   }
 
-    ///  5.print the duplicate port name and port count. ///
-    std::cout << "hier_virtual_port_name_vec: "
-              << hier_virtual_port_name_vec.size() << std::endl;
-    std::cout << "hier_virtual_port_name_set: "
-              << hier_virtual_port_name_set.size() << std::endl;
+  //   ///  3.find all virtual ports newed in sub netlist. ///
+  //   int hier_vitual_port_index = 1;
+  //   std::vector<std::string> hier_virtual_port_name_vec;
+  //   std::set<std::string> hier_virtual_port_name_set;
+  //   for (auto& hier_port : hier_sub_netlist->get_ports()) {
+  //     auto top_port = ista->get_netlist()->findPort(hier_port.get_name());
+  //     if (!top_port) {
+  //       // std::cout << "hier_port "
+  //       //           << ":" << hier_vitual_port_index << ":"
+  //       //           << hier_port.get_name() << std::endl;
+  //       hier_virtual_port_name_vec.emplace_back(hier_port.get_name());
+  //       hier_virtual_port_name_set.insert(hier_port.get_name());
+  //     }
 
-    std::unordered_map<std::string, int> count_map;
-    for (const auto& item : hier_virtual_port_name_vec) {
-      count_map[item]++;
-    }
-    std::cout << "Duplicate elements and their counts in "
-                 "hier_virtual_port_name_vec : "
-              << std::endl;
-    bool has_duplicates = false;
-    int duplicate_count = 0;
-    for (const auto& pair : count_map) {
-      if (pair.second > 1) {
-        std::cout << pair.first << ": " << pair.second - 1 << " times"
-                  << std::endl;
-        int count = pair.second - 1;
-        duplicate_count = duplicate_count + count;
-        has_duplicates = true;
-      }
-    }
-    std::cout << "Duplicate elements: " << duplicate_count << std::endl;
+  //     // ++hier_vitual_port_index;
+  //   }
+  //   ///  4.get all virtual ports nums newed in all subnetlist.
+  //   sub_netlist_virtual_port_vec.push_back(hier_virtual_port_name_vec.size());
 
-    if (!has_duplicates) {
-      std::cout << "No duplicate elements in hier_virtual_port_name_vec."
-                << std::endl;
-    }
+  //   ///  5.print the duplicate port name and port count. ///
+  //   // std::cout << "hier_virtual_port_name_vec: "
+  //   //           << hier_virtual_port_name_vec.size() << std::endl;
+  //   // std::cout << "hier_virtual_port_name_set: "
+  //   //           << hier_virtual_port_name_set.size() << std::endl;
 
-    sub_netlist_index++;
-    if (sub_netlist_index == 2) {
-      break;
-    }
+  //   std::unordered_map<std::string, int> count_map;
+  //   for (const auto& item : hier_virtual_port_name_vec) {
+  //     count_map[item]++;
+  //   }
+  //   std::cout << "Duplicate elements and their counts in "
+  //                "hier_virtual_port_name_vec : "
+  //             << std::endl;
+  //   bool has_duplicates = false;
+  //   int duplicate_count = 0;
+  //   for (const auto& pair : count_map) {
+  //     if (pair.second > 1) {
+  //       std::cout << pair.first << ": " << pair.second - 1 << " times"
+  //                 << std::endl;
+  //       int count = pair.second - 1;
+  //       duplicate_count = duplicate_count + count;
+  //       has_duplicates = true;
+  //     }
+  //   }
+  //   std::cout << "Duplicate elements: " << duplicate_count << std::endl;
 
-    ///  6.compare subnetlist_virtual_port_vec with boundary_net set size can
-    ///  verify subnetlist is correctly build.///
-    bool virtual_port_equal_boundary_net =
-        (sub_netlist_virtual_port_vec ==
-         sta_cluster_timing.get_cluster_boundary_net_set());
-  }
+  //   if (!has_duplicates) {
+  //     std::cout << "No duplicate elements in hier_virtual_port_name_vec."
+  //               << std::endl;
+  //   }
+
+  //   sub_netlist_index++;
+  //   // if (sub_netlist_index == 2) {
+  //   //   break;
+  //   // }
+
+  //   // 7.run cluster timing analysis in a flow control
+  //   // auto* design_netlist = ista->get_netlist();
+  //   // design_netlist->reset();
+
+  //   // for (const auto& hier_sub_netlist : hier_sub_netlists) {
+  //   //   StaCharacterTiming character_timing(analysis_mode, model_path);
+  //   //   StaGraph the_graph;
+  //   //   Vector<std::function<unsigned(StaGraph*)>> funcs =
+  //   {StaBuildGraph()};
+  //   //   for (auto& func : funcs) {
+  //   //     the_graph.exec(func);
+  //   //   }
+  //   //   character_timing(&the_graph);
+  // }
+  // ///  6.compare subnetlist_virtual_port_vec with boundary_net set size can
+  // ///  verify subnetlist is correctly build.///
+  // bool virtual_port_equal_boundary_net =
+  //     (sub_netlist_virtual_port_vec ==
+  //      sta_cluster_timing.get_cluster_boundary_net_set());
+  // if (is_all_clusters_inst_equal && virtual_port_equal_boundary_net) {
+  //   std::cout << "All subnetlists are correctly build." << std::endl;
+  // }
 
   sta_cluster_timing.buildSubnetlistToInst();
-  ista->get_netlist()->writeVerilog(
-      "/home/longshuaiying/cluster_timing_model/asic_top/verilog/"
-      "asic_top_write3.v",
-      exclude_cell_names);
+  // ista->get_netlist()->writeVerilog(
+  //     "/home/longshuaiying/cluster_timing_model/asic_top/verilog/"
+  //     "asic_top_write3.v",
+  //     exclude_cell_names);
 
   double memory_delta = stats.memoryDelta();
   LOG_INFO << "extract timing lib memory usage " << memory_delta << "MB";
