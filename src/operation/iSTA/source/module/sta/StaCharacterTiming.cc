@@ -81,6 +81,9 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
     if (the_vertex->is_clock()) {
       if (_state == kCollectEndpoints) {
+        LOG_FATAL_IF(!_current_port_vertex)
+            << "current port vertex is null when clock vertex "
+            << the_vertex->getName() << " is reached.";
         _logic_clkpoint_to_port.insert(the_vertex, _current_port_vertex);
         _port_to_logic_clkpoint.insert(_current_port_vertex, the_vertex);
       }
@@ -403,7 +406,14 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                                           // more than one endpoint
     auto* endpoint_check_arc = logic_endpoint->getCheckArc(analysis_mode);
     auto* clk_point = endpoint_check_arc->get_src();
-    auto* clock_port_vertex = _logic_clkpoint_to_port.values(clk_point).front();
+
+    auto clock_port_vertexes = _logic_clkpoint_to_port.values(clk_point);
+    if (clock_port_vertexes.empty()) {
+      LOG_INFO << clk_point->getName() << " clock port vertex is empty.";
+      return;
+    }
+
+    auto* clock_port_vertex = clock_port_vertexes.front();
 
     // construct the constrain arc.
     auto endpoint_rise_at = logic_endpoint->getArriveTimeNs(
