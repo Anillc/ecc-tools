@@ -121,8 +121,8 @@ struct SAHierPlacer
     auto coarse_shape_op = [get_packing_shapes, core_width, core_height](imp::Block& blk) -> void {
       // calculate current node's discrete_shape_curve based on children node's discrete shapes, only concerns macros
       // assume children node's shape has been calculated..
-      if (blk.isRoot() || blk.is_io_cluster() || blk.is_stdcell_cluster() || blk.is_io_cluster()
-          || blk.isFixed()) {  // root cluster's shape is core-size
+      if (blk.isRoot() || blk.is_io_cluster() || blk.is_stdcell_cluster()) {
+          // || blk.isFixed()) {  // root cluster's shape is core-size
         return;
       }
       if (blk.netlist().vSize() == 1) {  // single macro cluster, set its shape as child-shape

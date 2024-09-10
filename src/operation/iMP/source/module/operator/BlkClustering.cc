@@ -76,6 +76,10 @@ void BlkClustering2::singleLevelClustering(Block& block)
   // extract io-cell as single cluster at level 1
   size_t single_cluster_id = nparts;
   if (block.level() == 1) {
+    std::unordered_map<size_t, std::unordered_set<size_t>> cluster_to_cells;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        cluster_to_cells[parts[i]].insert(i);
+    }
     size_t num_terminals = 0;
     for (size_t i = 0; i < parts.size(); ++i) {
       auto vertex_prop = block.netlist().vertex_at(i).property();
@@ -83,7 +87,11 @@ void BlkClustering2::singleLevelClustering(Block& block)
         auto& inst = dynamic_cast<Instance&>(*vertex_prop);
         if (inst.get_cell_master().isIOCell()) {
           num_terminals++;
-          parts[i] = single_cluster_id++;  // extract io as a single cluster;
+          size_t original_cluster_id = parts[i];
+          cluster_to_cells[original_cluster_id].erase(i);
+          if (!cluster_to_cells[original_cluster_id].empty()) {
+            parts[i] = single_cluster_id++;  // extract io as a single cluster;
+          }
         }
       }
     }
@@ -92,6 +100,10 @@ void BlkClustering2::singleLevelClustering(Block& block)
 
   // extract macro as single cluster at last level
   if (block.level() == level_num) {
+    std::unordered_map<size_t, std::unordered_set<size_t>> cluster_to_cells;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        cluster_to_cells[parts[i]].insert(i);
+    }
     // size_t single_macro_cluster_id = nparts;
     size_t num_macros = 0;
     for (size_t i = 0; i < parts.size(); ++i) {
@@ -100,7 +112,11 @@ void BlkClustering2::singleLevelClustering(Block& block)
         auto& inst = dynamic_cast<Instance&>(*vertex_prop);
         if (inst.get_cell_master().isMacro()) {
           num_macros += 1;
-          parts[i] = single_cluster_id++;  // extract macro as a single cluster;
+          size_t original_cluster_id = parts[i];
+          cluster_to_cells[original_cluster_id].erase(i);
+          if (!cluster_to_cells[original_cluster_id].empty()) {
+            parts[i] = single_cluster_id++;  // extract macro as a single cluster;
+          }
         }
       }
     }
@@ -113,18 +129,18 @@ void BlkClustering2::singleLevelClustering(Block& block)
     auto&& [sub_netlist, cuts] = sub_graph(graph, sub_vertices);
     auto new_block = std::make_shared<imp::Block>(block.get_name() + "_" + std::to_string(i++),
                                                   std::make_shared<imp::Netlist>(std::move(sub_netlist)), block.shared_from_this());
-    // bool all_instances_fixed = true;
-    // for (const auto& v : new_block->netlist().vRange()) {
-    //   auto inst = std::dynamic_pointer_cast<Instance>(v.property());
-    //   if (inst && !inst->isFixed()) {
-    //     all_instances_fixed = false;
-    //     break;
-    //   }
-    // }
+    bool all_instances_fixed = true; // if all instance are fixed, set the cluster fixed
+    for (const auto& v : new_block->netlist().vRange()) {
+      auto inst = std::dynamic_pointer_cast<Instance>(v.property());
+      if (inst && !inst->isFixed()) {
+        all_instances_fixed = false;
+        break;
+      }
+    }
 
-    // if (all_instances_fixed) {
-    //   new_block->set_fixed();
-    // }
+    if (all_instances_fixed) {
+      new_block->set_fixed();
+    }
     // new_block->set_shape(imp::geo::make_box(0, 0, w, h));
     INFO(new_block->get_name(), 
        " num_v: ", new_block->netlist().vSize(), 
