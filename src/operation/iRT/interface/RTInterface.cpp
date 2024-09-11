@@ -343,7 +343,7 @@ void RTInterface::wrapLayerList()
       routing_layer.set_min_area(idb_routing_layer->get_area());
       routing_layer.set_prefer_direction(getRTDirectionByDB(idb_routing_layer->get_direction()));
       wrapTrackAxis(routing_layer, idb_routing_layer);
-      wrapSpacingTable(routing_layer, idb_routing_layer);
+      wrapRoutingSpacingTable(routing_layer, idb_routing_layer);
       routing_layer_list.push_back(std::move(routing_layer));
     } else if (idb_layer->is_cut()) {
       idb::IdbLayerCut* idb_cut_layer = dynamic_cast<idb::IdbLayerCut*>(idb_layer);
@@ -351,7 +351,7 @@ void RTInterface::wrapLayerList()
       cut_layer.set_layer_idx(idb_cut_layer->get_id());
       cut_layer.set_layer_order(idb_cut_layer->get_order());
       cut_layer.set_layer_name(idb_cut_layer->get_name());
-      cut_layer.set_spacing(0);
+      wrapCutSpacingTable(cut_layer, idb_cut_layer);
       cut_layer_list.push_back(std::move(cut_layer));
     }
   }
@@ -377,7 +377,7 @@ void RTInterface::wrapTrackAxis(RoutingLayer& routing_layer, idb::IdbLayerRoutin
   }
 }
 
-void RTInterface::wrapSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer)
+void RTInterface::wrapRoutingSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer)
 {
   std::shared_ptr<idb::IdbParallelSpacingTable> idb_spacing_table;
   if (idb_layer->get_spacing_table().get()->get_parallel().get() != nullptr && idb_layer->get_spacing_table().get()->is_parallel()) {
@@ -385,7 +385,11 @@ void RTInterface::wrapSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRou
   } else if (idb_layer->get_spacing_list() != nullptr && !idb_layer->get_spacing_table().get()->is_parallel()) {
     idb_spacing_table = idb_layer->get_spacing_table_from_spacing_list()->get_parallel();
   } else {
-    RTLOG.error(Loc::current(), "The idb spacing table is error!");
+    idb_spacing_table = std::make_shared<idb::IdbParallelSpacingTable>(1, 1);
+    idb_spacing_table.get()->set_parallel_length(0, 0);
+    idb_spacing_table.get()->set_width(0, 0);
+    idb_spacing_table.get()->set_spacing(0, 0, 0);
+    RTLOG.warn(Loc::current(), "The idb layer ", idb_layer->get_name(), " spacing table is empty!");
   }
 
   SpacingTable& spacing_table = routing_layer.get_spacing_table();
@@ -400,6 +404,20 @@ void RTInterface::wrapSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRou
     for (int32_t y = 0; y < width_parallel_length_map.get_y_size(); y++) {
       width_parallel_length_map[x][y] = idb_spacing_table->get_spacing_table()[x][y];
     }
+  }
+}
+
+void RTInterface::wrapCutSpacingTable(CutLayer& cut_layer, idb::IdbLayerCut* idb_layer)
+{
+  if (!idb_layer->get_spacings().empty()) {
+    cut_layer.set_spacing(idb_layer->get_spacings().front()->get_spacing());
+  } else if (!idb_layer->get_lef58_spacing_table().empty()) {
+    idb::cutlayer::Lef58SpacingTable::CutSpacing cut_spacing
+        = idb_layer->get_lef58_spacing_table().front()->get_cutclass().get_cut_spacing(0, 0);
+    cut_layer.set_spacing(std::max(cut_spacing.get_cut_spacing1().value(), cut_spacing.get_cut_spacing2().value()));
+  } else {
+    cut_layer.set_spacing(0);
+    RTLOG.warn(Loc::current(), "The idb layer ", idb_layer->get_name(), " spacing table is empty!");
   }
 }
 
@@ -1300,6 +1318,7 @@ void RTInterface::updateTimingAndPower(std::vector<std::map<std::string, std::ve
 
   for (size_t net_idx = 0; net_idx < coord_real_pin_map_list.size(); net_idx++) {
     ista::Net* ista_net = sta_net_list->findNet(RTUTIL.escapeBackslash(net_list[net_idx].get_net_name()).c_str());
+    timing_engine->resetRcTree(ista_net);
     for (Segment<RCPin>& segment : getRCSegmentList(coord_real_pin_map_list[net_idx], routing_segment_list_list[net_idx])) {
       RCPin& first_rc_pin = segment.get_first();
       RCPin& second_rc_pin = segment.get_second();
@@ -1319,8 +1338,8 @@ void RTInterface::updateTimingAndPower(std::vector<std::map<std::string, std::ve
       ista::RctNode* first_node = getRctNode(timing_engine, sta_net_list, ista_net, first_rc_pin);
       ista::RctNode* second_node = getRctNode(timing_engine, sta_net_list, ista_net, second_rc_pin);
       timing_engine->makeResistor(ista_net, first_node, second_node, res);
-      timing_engine->incrCap(first_node, cap / 2);
-      timing_engine->incrCap(second_node, cap / 2);
+      timing_engine->incrCap(first_node, cap / 2, true);
+      timing_engine->incrCap(second_node, cap / 2, true);
     }
     timing_engine->updateRCTreeInfo(ista_net);
     // auto* rc_tree = timing_engine->get_ista()->getRcNet(ista_net)->rct();
