@@ -184,6 +184,10 @@ class StaSlewData : public StaData {
 
   int get_slew() const { return _slew; }
   void set_slew(int slew) { _slew = slew; }
+  auto* get_launch_slew_data() { return _launch_slew_data; }
+  void set_launch_slew_data(StaSlewData* launch_slew_data) {
+    _launch_slew_data = launch_slew_data;
+  }
 
   int64_t getCompareValue() const override { return _slew; }
 
@@ -203,6 +207,8 @@ class StaSlewData : public StaData {
 
  private:
   int _slew;  //!< The slew value, unit is fs.
+  StaSlewData* _launch_slew_data =
+      nullptr;  //!< The data origin from the launch slew data.
   std::optional<std::unique_ptr<LibCurrentData>> _output_current_data =
       std::nullopt;  //!< The output current data of driving point.
 };
@@ -309,6 +315,11 @@ class StaPathDelayData : public StaData {
 
   StaClockData* get_launch_clock_data() const { return _launch_clock_data; }
 
+  void set_launch_delay_data(StaPathDelayData* launch_delay_data) {
+    _launch_delay_data = launch_delay_data;
+  }
+  auto* get_launch_delay_data() const { return _launch_delay_data; }
+
   unsigned compareSignature(const StaData* data) const override;
   int64_t getCompareValue() const override { return _arrive_time; }
 
@@ -317,6 +328,9 @@ class StaPathDelayData : public StaData {
   }
   auto get_calibrated_derate() const { return _calibrated_derate; }
 
+  void set_is_need_keep() { _is_need_keep = 1; }
+  unsigned isNeedKeep() const { return _is_need_keep; }
+
  private:
   int64_t _arrive_time;  //!< The arrive time value, unit is fs.
   std::optional<float>
@@ -324,6 +338,10 @@ class StaPathDelayData : public StaData {
   std::optional<int> _req_time =
       std::nullopt;  //!< The req time value, unit is fs.
   StaClockData* _launch_clock_data;
+  StaPathDelayData* _launch_delay_data =
+      nullptr;  //!< The data origin from the launch delay data.
+  unsigned _is_need_keep : 1 =
+      0;  //!< The data need keep when propagated along path.
 };
 
 /**

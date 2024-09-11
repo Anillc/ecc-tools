@@ -213,7 +213,7 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 unsigned StaCharacterTiming::init(StaGraph* the_graph) {
   StaVertex* the_vertex;
   FOREACH_VERTEX(the_graph, the_vertex) {
-    the_vertex->setPathBasedPropagated();
+    // the_vertex->setPathBasedPropagated(); // not use path base for run time.
 
     if (the_vertex->is_port()) {
       // set init slew or AT.

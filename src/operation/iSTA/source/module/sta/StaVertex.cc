@@ -340,6 +340,8 @@ void StaVertex::initSlewData(int init_slew) {
                                 StaVertex* own_vertex, int slew) {
     StaSlewData* slew_data =
         new StaSlewData(delay_type, trans_type, own_vertex, slew);
+    slew_data->set_launch_slew_data(
+        slew_data);  // set origin launch slew data for propagate compare.
     own_vertex->addData(slew_data);
   };
 
@@ -360,6 +362,10 @@ void StaVertex::initPathDelayData(int init_at) {
       [this](AnalysisMode delay_type, TransType trans_type, double init_at) {
         StaPathDelayData* path_delay_data = new StaPathDelayData(
             delay_type, trans_type, NS_TO_FS(init_at), nullptr, this);
+        // path_delay_data->set_is_need_keep();
+        path_delay_data->set_launch_delay_data(
+            path_delay_data);  // set origin launch delay data for propagate
+                               // compare.
         addData(path_delay_data);
       };
 

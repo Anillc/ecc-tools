@@ -61,6 +61,9 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       slew_data->set_bwd(src_slew_data);
       src_slew_data->add_fwd(slew_data);
 
+      slew_data->set_launch_slew_data(
+          dynamic_cast<StaSlewData*>(src_slew_data)->get_launch_slew_data());
+
       own_vertex->addData(slew_data);
     }
 
