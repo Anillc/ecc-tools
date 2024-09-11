@@ -66,7 +66,7 @@ static void preorder_get_instances(Block& blk, std::set<std::shared_ptr<imp::Ins
       }
     } else {
       auto sub_block = std::static_pointer_cast<Block, Object>(sub_obj);
-      preorder_get_instances(*sub_block, instances);
+      preorder_get_instances(*sub_block, instances, cell_type);
     }
   }
 }
