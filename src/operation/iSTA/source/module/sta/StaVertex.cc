@@ -961,8 +961,8 @@ StaVertex::getDifferentStartPathDelayData(AnalysisMode analysis_mode,
   std::map<StaVertex*, StaPathDelayData*> start_vertex_to_worst_data;
 
   for (auto& [start_vertex, data_queue] : start_vertex_path_data_queue) {
-    start_vertex_to_worst_data[start_vertex] =
-        dynamic_cast<StaPathDelayData*>(data_queue.top());
+    auto* path_delay_data = dynamic_cast<StaPathDelayData*>(data_queue.top());
+    start_vertex_to_worst_data[start_vertex] = path_delay_data;
   }
 
   return start_vertex_to_worst_data;

@@ -53,7 +53,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
           _output_port_to_input_port.insert(the_vertex, _current_port_vertex);
         }
 
-        _interface_logic_endpoints.emplace_back(the_vertex);
+        _interface_logic_endpoints.insert(the_vertex);
 
       } else if (_state == kBackPropagateRTToPort) {
         // set the constrain require time.
@@ -117,7 +117,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
     // bwd
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
-      if (snk_arc->isMpwArc()) {
+      if (!snk_arc->isDelayArc()) {
         continue;
       }
 
@@ -248,7 +248,7 @@ unsigned StaCharacterTiming::collectInterfaceLogicEndPoint(
       _current_port_vertex = port_vertex;
       (*this)(port_vertex);
     } else {
-      _interface_logic_endpoints.emplace_back(port_vertex);
+      _interface_logic_endpoints.insert(port_vertex);
     }
   }
 
