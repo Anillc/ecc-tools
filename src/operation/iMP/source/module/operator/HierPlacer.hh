@@ -97,6 +97,7 @@ struct SAHierPlacer
   void initialize(Block& root_cluster);
   void place(Block& blk);
   void initCellArea(Block& root_cluster, T macro_halo);
+  void initFixedLocation(Block& root_cluster, T macro_halo);
   void initTimingEvaluator();
   void initIstaPinNameMap();
   void initInstanceInfo();
@@ -182,7 +183,7 @@ void SAHierPlacer<T>::initialize(Block& root_cluster)
   std::cout << "init cluster area && coarse shaping..." << std::endl;
   initCellArea(root_cluster, macro_halo);                    // init stdcell-area && macro-area
   coarseShaping(root_cluster, generateDifferentTilings<T>);  // init discrete-shapes bottom-up (coarse-shaping, only considers macros)
-
+  initFixedLocation(root_cluster, macro_halo); // init fixed cluster location
   // init timing-engine;
   initTimingEvaluator();
 }
@@ -325,13 +326,44 @@ void SAHierPlacer<T>::initCellArea(Block& root_cluster, T macro_halo)
       }
       mean_x /= obj.netlist().vSize();
       mean_y /= obj.netlist().vSize();
-      obj.set_min_corner(mean_x, mean_y);
+      // obj.set_min_corner(mean_x, mean_y);
       obj.set_shape_curve(geo::make_box(0, 0, 0, 0));  // io-cluster 0 area
       obj.set_fixed();
     }
     return;
   };
   root_cluster.postorder_op(area_op);
+}
+
+template <typename T>
+void SAHierPlacer<T>::initFixedLocation(Block& root_cluster, T macro_halo)
+{
+  auto fix_loc_op = [macro_halo](imp::Block& obj) -> void {
+
+    if (obj.isFixed()) {
+      int new_x = std::numeric_limits<int>::max();
+      int new_y = std::numeric_limits<int>::max();
+      if (obj.is_io_cluster()) {
+        for (auto&& i : obj.netlist().vRange()) {
+          auto sub_obj = i.property();
+          auto min_corner = sub_obj->get_min_corner();
+          new_x = std::min(new_x, min_corner.x());
+          new_y = std::min(new_y, min_corner.y());
+        }
+      } else if (obj.is_macro_cluster()) {
+        for (auto&& i : obj.netlist().vRange()) {
+          auto sub_obj = i.property();
+          auto min_corner = sub_obj->get_min_corner();
+          new_x = std::min(new_x, min_corner.x());
+          new_y = std::min(new_y, min_corner.y());
+        }
+      }
+      obj.set_min_corner(new_x, new_y);
+      assert(new_x != std::numeric_limits<int>::max() && "ERROR: fixed block has no valid X location");
+      assert(new_y != std::numeric_limits<int>::max() && "ERROR: fixed block has no valid Y location");
+    }
+  };
+  root_cluster.postorder_op(fix_loc_op);
 }
 
 template <typename T>
