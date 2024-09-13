@@ -123,6 +123,8 @@ void BlkClustering2::singleLevelClustering(Block& block)
     INFO("num_macros : ", num_macros);
   }
 
+  reorderClusters(parts, block);
+
   int i = 0;
 
   auto sub_block = [&](const Netlist& graph, const std::vector<size_t>& sub_vertices) {
@@ -175,6 +177,81 @@ void BlkClustering2::singleLevelClustering(Block& block)
   block.set_netlist(std::make_shared<Netlist>(std::move(clusters)));
   // std::cout<<"critical_cuts = "<<critical_cut<<std::endl;
   // std::cout<<"non_critical_cuts = "<<non_critical_cut<<std::endl;
+}
+
+void BlkClustering2::findClusterTypes(std::shared_ptr<Object> vertex_prop, std::vector<ClusterType>& clusterTypes, bool& isFixed) 
+{
+  if (vertex_prop->isInstance()) {
+    auto& inst = dynamic_cast<Instance&>(*vertex_prop);
+    if (inst.get_cell_master().isMacro()) {
+      clusterTypes.push_back(MACRO);
+    } else if (inst.get_cell_master().isIOCell()) {
+      clusterTypes.push_back(IO);
+    } else { // Perhaps it can be further subdivided
+      clusterTypes.push_back(STD);
+    }
+    if (!inst.isFixed()) isFixed = false;
+  } else if (vertex_prop->isBlock()) {
+    auto sub_block = std::static_pointer_cast<Block, Object>(vertex_prop);
+    for (auto&& sub_vertex : sub_block->netlist().vRange()) {
+      findClusterTypes(sub_vertex.property(), clusterTypes, isFixed);
+    }
+  }
+}
+
+void BlkClustering2::reorderClusters(std::vector<size_t>& parts, Block& block)
+{
+  std::unordered_map<size_t, std::unordered_set<size_t>> cluster_to_cells;
+  for (size_t i = 0; i < parts.size(); ++i) {
+      cluster_to_cells[parts[i]].insert(i);
+  }
+  struct ClusterInfo {
+    ClusterType type;
+    bool isFixed;
+    size_t ori_cluster_id;  // 对应原cluster的id
+  };
+
+  std::vector<ClusterInfo> clusterInfo;
+
+  for (const auto& parts_set : cluster_to_cells) {
+    std::vector<ClusterType> clusterTypes;
+    bool isFixed = true;
+    for (const auto& i : parts_set.second) {
+      auto vertex_prop = block.netlist().vertex_at(i).property();
+      findClusterTypes(vertex_prop, clusterTypes, isFixed);
+    }
+    assert(!clusterTypes.empty() && "clusterTypes should not be empty");
+    ClusterType firstType = clusterTypes[0];
+    for (const auto& type : clusterTypes) {
+      if (type != firstType) {
+        firstType = MIX;
+        break;
+      }
+    }
+    ClusterInfo info;
+    info.type = firstType;
+    info.isFixed = isFixed;
+    info.ori_cluster_id = parts_set.first;
+    clusterInfo.push_back(info);
+  }
+
+  std::sort(clusterInfo.begin(), clusterInfo.end(), [](const ClusterInfo& a, const ClusterInfo& b) {
+      if (a.type != b.type) {
+          return a.type < b.type;  // ClusterType 越小, 优先级越高, STD, MIX, MACRO, IO
+      }
+      if (a.isFixed != b.isFixed) {
+          return !a.isFixed;
+      }
+      return a.ori_cluster_id < b.ori_cluster_id;
+  });
+
+  for (size_t j = 0; j < clusterInfo.size(); j++) {
+    ClusterInfo info = clusterInfo[j];
+    auto parts_id_set = cluster_to_cells[info.ori_cluster_id];
+    for (const auto& i : parts_id_set) {
+      parts[i] = j;
+    }
+  }
 }
 
 void BlkClustering2::paramCheck()

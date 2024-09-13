@@ -5,12 +5,14 @@
 #include <numeric>
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
 
 namespace imp {
 class Block;
 class HMetis;
 class ParserEngine;
 class Instance;
+class Object;
 
 struct BlkClustering
 {
@@ -34,6 +36,9 @@ struct BlkClustering2
   std::unordered_set<std::string> non_critical_nets_name;
 
   void paramCheck();
+  void reorderClusters(std::vector<size_t>& parts, Block& block);
+  enum ClusterType { STD, MIX, MACRO, IO};
+  void findClusterTypes(std::shared_ptr<Object> vertex_prop, std::vector<ClusterType>& clusterTypes, bool& isFixed);
 };
 
 }  // namespace imp
