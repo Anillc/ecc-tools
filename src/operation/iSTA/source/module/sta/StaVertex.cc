@@ -330,18 +330,22 @@ void StaVertex::setPathBasedPropagated() {
 /**
  * @brief Init slew data, if not create zero slew default.
  */
-void StaVertex::initSlewData(int init_slew) {
+void StaVertex::initSlewData(int init_slew, bool is_set_launch_data) {
   auto& slew_bucket = getSlewBucket();
   if (!slew_bucket.empty()) {
     return;
   }
 
-  auto construct_slew_data = [](AnalysisMode delay_type, TransType trans_type,
-                                StaVertex* own_vertex, int slew) {
+  auto construct_slew_data = [is_set_launch_data](
+                                 AnalysisMode delay_type, TransType trans_type,
+                                 StaVertex* own_vertex, int slew) {
     StaSlewData* slew_data =
         new StaSlewData(delay_type, trans_type, own_vertex, slew);
-    slew_data->set_launch_slew_data(
-        slew_data);  // set origin launch slew data for propagate compare.
+    if (is_set_launch_data) {
+      slew_data->set_launch_slew_data(
+          slew_data);  // set origin launch slew data for propagate compare.
+    }
+
     own_vertex->addData(slew_data);
   };
 

@@ -219,7 +219,7 @@ unsigned StaCharacterTiming::init(StaGraph* the_graph) {
       // set init slew or AT.
       auto* the_port = the_vertex->get_design_obj();
       if (the_port->isInput()) {
-        the_vertex->initSlewData();  // TODO(to taosimin) need decide the
+        the_vertex->initSlewData(0, true);  // TODO(to taosimin) need decide the
         // discrete init slew data point.
         the_vertex->initPathDelayData();
       }
