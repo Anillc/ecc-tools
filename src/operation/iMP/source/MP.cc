@@ -75,4 +75,8 @@ void MP::runMP(std::string output_tcl)
   _parser->write();  // write back to idb
 }
 
+void MP::runRef(std::string output_tcl) {
+  std::cout << " --------------Macro Refinement-----------------"<<std::endl;
+}
+
 }  // namespace imp

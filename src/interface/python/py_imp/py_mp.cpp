@@ -28,4 +28,9 @@ void runMP(std::string output_tcl)
   iMPAPIInst.runMP(output_tcl);
 }
 
+void runRef(std::string output_tcl)
+{
+  iMPAPIInst.initAPI("", dmInst->get_idb_builder());
+  iMPAPIInst.runRef(output_tcl);
+}
 }  // namespace python_interface

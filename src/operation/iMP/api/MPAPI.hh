@@ -38,6 +38,7 @@ class MPAPI
 
   void initAPI(std::string mp_json_path, idb::IdbBuilder* idb_builder);
   void runMP(std::string output_tcl = "");
+  void runRef(std::string output_tcl = "");
 
  private:
   static MPAPI* _s_imp_api_instance;

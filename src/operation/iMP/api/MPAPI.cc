@@ -43,4 +43,9 @@ void MPAPI::runMP(std::string output_tcl)
   _mp->runMP(output_tcl);
 }
 
+void MPAPI::runRef(std::string output_tcl)
+{
+  _mp->runRef(output_tcl);
+}
+
 }  // namespace imp
