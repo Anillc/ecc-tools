@@ -350,6 +350,8 @@ unsigned Sta::linkLibertys() {
   }
 
   auto link_lib = [this](auto &lib_rust_reader) {
+    // auto &link_cells = get_link_cells();
+    // lib_rust_reader.set_build_cells(link_cells);
     lib_rust_reader.linkLib();
     auto lib = lib_rust_reader.get_library_builder()->takeLib();
 
@@ -2276,9 +2278,17 @@ int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
  * @param netlist
  */
 void Sta::writeVerilog(const char *verilog_file_name,
-                       std::set<std::string> &exclude_cell_names) {
-  NetlistWriter writer(verilog_file_name, exclude_cell_names, _netlist);
+                       std::set<std::string> &exclude_cell_names,
+                       bool is_hier_module) {
+  NetlistWriter writer(verilog_file_name, exclude_cell_names, &_netlist);
   writer.writeModule();
+  // Only suitable for two hierarichal-modules situation.
+  if (is_hier_module) {
+    for (auto &hier_netlist : _netlist.get_hier_sub_netlists()) {
+      writer.set_netlist(hier_netlist);
+      writer.writeModule();
+    }
+  }
 }
 
 /**
@@ -2522,7 +2532,7 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
     reportNet();
   }
 
-  writeVerilog(verilog_file_name.c_str(), exclude_cell_names);
+  writeVerilog(verilog_file_name.c_str(), exclude_cell_names, false);
 
   LOG_INFO << "The timing engine run success.";
 
