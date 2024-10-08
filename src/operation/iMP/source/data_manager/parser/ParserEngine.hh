@@ -20,6 +20,14 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+namespace idb {
+class IdbBuilder;
+class IdbInstance;
+class IdbPin;
+class IdbNet;
+class IdbDesign;
+class IdbLayout;
+}  // namespace idb
 namespace imp {
 class Instance;
 class Block;
@@ -37,6 +45,7 @@ class ParserEngine
   ParserEngine& operator=(const ParserEngine&) = delete;
   ParserEngine& operator=(ParserEngine&&) = delete;
 
+  virtual idb::IdbBuilder* getIdbBuilder() const = 0;
   virtual bool read() = 0;
   virtual bool write() = 0;
 

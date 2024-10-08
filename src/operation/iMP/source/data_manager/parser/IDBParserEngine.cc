@@ -113,8 +113,12 @@ void IDBParser::initNetlist()
   initCells();
 
   // Init instances
+  bool has_pad = false;
   std::unordered_map<std::string, size_t> name2pos;
   for (auto* idb_inst : _idb_design->get_instance_list()->get_instance_list()) {
+    if (idb_inst->get_cell_master()->is_pad()) {
+      has_pad = true;
+    }
     auto inst_ptr = transform(idb_inst);
     assert(!_idb2inst.contains(idb_inst) || !_inst2idb.contains(inst_ptr));
     _idb2inst[idb_inst] = inst_ptr;
@@ -142,7 +146,7 @@ void IDBParser::initNetlist()
       // }
     }
 
-    if (idb_net->has_io_pins()) {
+    if (!has_pad&&idb_net->has_io_pins()) {
       for (auto* idb_pin : idb_net->get_io_pins()->get_pin_list()) {
         auto pin = transform(idb_pin);
         pins.push_back(pin);
@@ -191,6 +195,7 @@ void IDBParser::initRows()
 
 void IDBParser::initCells()
 {
+  bool hasPad = false;
   for (auto* idb_cell : _idb_layout->get_cell_master_list()->get_cell_master()) {
     idb_cell->get_term_list();
     auto cell_ptr = std::make_shared<Cell>(idb_cell->get_name());
@@ -204,16 +209,21 @@ void IDBParser::initCells()
       cell_ptr->set_type(CELL_TYPE::kMacro);
     } else if (idb_cell->is_pad_filler() || idb_cell->is_endcap() || idb_cell->is_core_filler()) {
       cell_ptr->set_type(CELL_TYPE::kPhysicalFiller);
+    } else if ((idb_cell->is_pad() && !idb_cell->is_pad_filler())) {
+      cell_ptr->set_type(CELL_TYPE::kIOCell);
+      hasPad = true;
     } else {
       cell_ptr->set_type(CELL_TYPE::kNone);
     }
     _cells[idb_cell->get_name()] = cell_ptr;
   }
   // create Pseudo cell-master for IO-Pin
-  auto io_cell_ptr = std::make_shared<Cell>("Pseudo_IO_Cell");
-  io_cell_ptr->set_shape(geo::make_box(0, 0, 0, 0));  // io-cell has no shape;
-  io_cell_ptr->set_type(CELL_TYPE::kIOCell);
-  _cells[io_cell_ptr->get_name()] = io_cell_ptr;
+  if (!hasPad) {
+    auto io_cell_ptr = std::make_shared<Cell>("Pseudo_IO_Cell");
+    io_cell_ptr->set_shape(geo::make_box(0, 0, 0, 0));  // io-cell has no shape;
+    io_cell_ptr->set_type(CELL_TYPE::kIOCell);
+    _cells[io_cell_ptr->get_name()] = io_cell_ptr;
+  }
 }
 
 std::shared_ptr<Layout> IDBParser::transform(idb::IdbLayout* idb_layout)
