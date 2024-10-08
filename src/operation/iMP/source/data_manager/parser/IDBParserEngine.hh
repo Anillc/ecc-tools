@@ -44,6 +44,9 @@ class IDBParser final : public ParserEngine
   IDBParser(const IDBParser&) = delete;
   IDBParser(IDBParser&&) = delete;
 
+  virtual idb::IdbBuilder* getIdbBuilder() const override {
+    return _idb_builder;
+  }
   virtual bool read() override;
   virtual bool write() override;
 
