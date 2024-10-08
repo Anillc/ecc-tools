@@ -19,12 +19,33 @@
 
 namespace imp {
 
+struct PadInfo {
+    std::string id;
+    std::string name;
+    int32_t x;
+    int32_t y;
+};
+
+struct CoreInfo {
+    int32_t lx;
+    int32_t ly;
+    int32_t ux;
+    int32_t uy;
+};
+
 struct MacroInfo {
     std::string id;       // Unique identifier for the macro in original design
     std::string name;
     int32_t x, y;         // Macro position
     int32_t width, height; // Macro dimensions
     std::string orient;    // Orientation (e.g., R0, R90, MX, MY)
+};
+
+struct BlockageInfo {
+    int32_t lx;
+    int32_t ly;
+    int32_t ux;
+    int32_t uy;
 };
 
 class Refinement
@@ -40,6 +61,12 @@ public:
 
     void extractMacroData();
 
+    void extractBlockageData();
+
+    void extractCoreData();
+
+    void extractPadData();
+
 private:
 
     std::weak_ptr<ParserEngine> _parser;
@@ -50,6 +77,12 @@ private:
     std::vector<MacroInfo> _macros;
 
     std::string orientToString(Orient orient);
+
+    std::vector<BlockageInfo> _blockages;
+
+    CoreInfo _core;
+
+    std::vector<PadInfo> _pads;
 };
 
 }  // namespace imp
