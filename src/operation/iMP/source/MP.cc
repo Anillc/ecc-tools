@@ -111,13 +111,13 @@ void MP::runMP(std::string output_tcl)
 void MP::runRef(std::string output_tcl) {
   std::cout << " --------------Macro Refinement-----------------"<<std::endl;
 
-  float macro_halo_micron = 2.0;
+  float macro_halo_micron = 1.0;
 
-  // Refinement refinement(_parser);
+  Refinement refinement(_parser);
 
-  // refinement.initPostProcessingData(macro_halo_micron);
+  refinement.initPostProcessingData(macro_halo_micron);
 
-  // refinement.runRefinement(output_tcl);
+  refinement.runRefinement(output_tcl);
 
   std::cout << "Refinement process completed." << std::endl;
 }

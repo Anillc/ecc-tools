@@ -67,6 +67,8 @@ public:
 
     void extractPadData();
 
+    void export_to_json(const std::string& filename);
+
 private:
 
     std::weak_ptr<ParserEngine> _parser;

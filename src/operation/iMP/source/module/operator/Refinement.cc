@@ -35,12 +35,10 @@ void Refinement::extractCoreData()
 {
     std::cout << "Extracting core data..." << std::endl;
 
-    // 使用 idb_builder 获取 Core 信息
     idb::IdbBuilder* idb_builder = _parser.lock()->getIdbBuilder();
     auto* layout = idb_builder->get_def_service()->get_layout();
-    idb::IdbCore* core = layout->get_core();  // 获取 core 对象
+    idb::IdbCore* core = layout->get_core();
 
-    // 获取 Core 的 bounding box
     auto* bounding_box = core->get_bounding_box();
 
     _core.lx = bounding_box->get_low_x();
@@ -99,10 +97,44 @@ void Refinement::extractBlockageData()
     for (const auto& [name, inst_ptr] : instances) {
         if (inst_ptr->get_cell_master().isMacro() && inst_ptr->isFixed()) {
             BlockageInfo blockage_info;
-            blockage_info.lx = inst_ptr->get_halo_lx();
-            blockage_info.ly = inst_ptr->get_halo_ly();
-            blockage_info.ux = inst_ptr->get_halo_ux();
-            blockage_info.uy = inst_ptr->get_halo_uy();
+            int lx = inst_ptr->get_lx(); 
+            int ly = inst_ptr->get_ly(); 
+            int width = inst_ptr->get_width(); 
+            int height = inst_ptr->get_height();
+
+            blockage_info.lx = lx;
+            blockage_info.ly = ly;
+
+            switch (inst_ptr->get_orient()) {
+                case Orient::kN_R0:
+                    blockage_info.ux = lx + width;
+                    blockage_info.uy = ly + height;
+                    break;
+                case Orient::kW_R90:
+                    blockage_info.ux = lx + height;
+                    blockage_info.uy = ly + width;
+                    break;
+                case Orient::kS_R180:
+                    blockage_info.ux = lx + width;
+                    blockage_info.uy = ly + height;
+                    break;
+                case Orient::kE_R270:
+                    blockage_info.ux = lx + height;
+                    blockage_info.uy = ly + width;
+                    break;
+                case Orient::kFS_MX:
+                    blockage_info.ux = lx + width;
+                    blockage_info.uy = ly + height;
+                    break;
+                case Orient::kFN_MY:
+                    blockage_info.ux = lx + width;
+                    blockage_info.uy = ly + height;
+                    break;
+                default:
+                    blockage_info.ux = lx + width;
+                    blockage_info.uy = ly + height;
+                    break;
+            }
             _blockages.push_back(blockage_info);
         }
     }
@@ -116,16 +148,16 @@ void Refinement::extractPadData()
 
     const auto& instances = _parser.lock()->get_instances();
     for (const auto& [name, inst_ptr] : instances) {
-        if (inst_ptr->get_cell_master().isIOCell()) {  // 假设 PAD 是 IOCell 类型
+        if (inst_ptr->get_cell_master().isIOCell()) {
             PadInfo pad_info;
             pad_info.id = inst_ptr->get_name();
             pad_info.name = inst_ptr->get_name();
 
             auto bbox = inst_ptr->boundingbox();
-            pad_info.x = bbox.min_corner().x();  // 左下角x坐标
-            pad_info.y = bbox.min_corner().y();  // 左下角y坐标
+            pad_info.x = bbox.min_corner().x();
+            pad_info.y = bbox.min_corner().y();
 
-            _pads.push_back(pad_info);  // 存储 PAD 信息
+            _pads.push_back(pad_info);
         }
     }
 
@@ -160,24 +192,73 @@ void Refinement::runRefinement(std::string output_tcl)
 {
     std::cout << "Running refinement process..." << std::endl;
 
+    if (0) {
+        std::cout << "Core bounds: (" << _core.lx << ", " << _core.ly << ") to ("
+                << _core.ux << ", " << _core.uy << ")" << std::endl;
+
+        for (const auto& macro : _macros) {
+            std::cout << "Refining macro: " << macro.name << std::endl;
+            std::cout << "  ID: " << macro.id << std::endl;
+            std::cout << "  Position: (" << macro.x << ", " << macro.y << ")" << std::endl;
+            std::cout << "  Size: " << macro.width << "x" << macro.height << std::endl;
+            std::cout << "  Orientation: " << macro.orient << std::endl;
+        }
+
+        for (const auto& blockage : _blockages) {
+            std::cout << "Blockage: (" << blockage.lx << ", " << blockage.ly << ") to (" 
+                    << blockage.ux << ", " << blockage.uy << ")" << std::endl;
+        }
+
+        for (const auto& pad : _pads) {
+            std::cout << "Pad: " << pad.name << std::endl;
+            std::cout << "  ID: " << pad.id << std::endl;
+            std::cout << "  Position: (" << pad.x << ", " << pad.y << ")" << std::endl;
+        }
+    }
+
+    // export_to_json("test.json");
+}
+
+void Refinement::export_to_json(const std::string& filename)
+{
+    nlohmann::json json_data;
+
+    json_data["core"] = {
+        {"lx", _core.lx}, {"ly", _core.ly}, {"ux", _core.ux}, {"uy", _core.uy}
+    };
+
     for (const auto& macro : _macros) {
-        std::cout << "Refining macro: " << macro.name << std::endl;
-        std::cout << "  ID: " << macro.id << std::endl;
-        std::cout << "  Position: (" << macro.x << ", " << macro.y << ")" << std::endl;
-        std::cout << "  Size: " << macro.width << "x" << macro.height << std::endl;
-        std::cout << "  Orientation: " << macro.orient << std::endl;
+        json_data["macros"].push_back({
+            {"id", macro.id},
+            {"name", macro.name},
+            {"x", macro.x}, 
+            {"y", macro.y}, 
+            {"width", macro.width},
+            {"height", macro.height},
+            {"orientation", macro.orient}
+        });
     }
 
     for (const auto& blockage : _blockages) {
-        std::cout << "Blockage: (" << blockage.lx << ", " << blockage.ly << ") to (" 
-                  << blockage.ux << ", " << blockage.uy << ")" << std::endl;
+        json_data["blockages"].push_back({
+            {"lx", blockage.lx}, {"ly", blockage.ly}, {"ux", blockage.ux}, {"uy", blockage.uy}
+        });
     }
 
     for (const auto& pad : _pads) {
-        std::cout << "Pad: " << pad.name << std::endl;
-        std::cout << "  ID: " << pad.id << std::endl;
-        std::cout << "  Position: (" << pad.x << ", " << pad.y << ")" << std::endl;
+        json_data["pads"].push_back({
+            {"id", pad.id},
+            {"name", pad.name},
+            {"x", pad.x},
+            {"y", pad.y}
+        });
     }
+
+    std::ofstream file(filename);
+    file << json_data.dump(4);
+    file.close();
+
+    std::cout << "Data exported to " << filename << std::endl;
 }
 
 }  // namespace imp
