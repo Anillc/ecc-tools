@@ -112,4 +112,13 @@ PinBus::PinBus(const char* name, unsigned left, unsigned right, unsigned size)
   std::memset(_pins.get(), 0, sizeof(Pin*) * size);
 }
 
+PinBus::PinBus(const PinBus& other)
+    : DesignObject(other.get_name()),
+      _left(other._left),
+      _right(other._right),
+      _pins(new Pin*[other._size]),
+      _size(other._size) {
+  std::memset(_pins.get(), 0, sizeof(Pin*) * other._size);
+}
+
 };  // namespace ista

@@ -38,10 +38,15 @@ Instance::Instance(const Instance& other)
     : DesignObject(other),
       _inst_cell(other._inst_cell),
       _pins(other.clonePins()),
-      // _pin_buses(other._pin_buses),
+      _pin_buses(other.clonePinBuses()),
       _coordinate(other._coordinate) {
   for (auto& pin : _pins) {
     _str2pin[pin->get_name()] = pin.get();
+    auto [pin_base_name, index] = Str::matchBusName(pin->get_name());
+    auto* found_pin_bus = findPinBus(pin_base_name);
+    if (found_pin_bus) {
+      found_pin_bus->addPin(index.value(), pin.get());
+    }
   }
 }
 
