@@ -150,12 +150,16 @@ SdcConstrain *Sta::getConstrain() {
  * @return unsigned
  */
 unsigned Sta::readDesignWithRustParser(const char *verilog_file) {
+  LOG_INFO << "read design " << verilog_file << " start ";
   if (!IsFileExists(verilog_file)) {
     return 0;
   }
+
   readVerilogWithRustParser(verilog_file);
   auto &top_module_name = get_top_module_name();
   linkDesignWithRustParser(top_module_name.c_str());
+
+  LOG_INFO << "read design " << verilog_file << " end ";
   return 1;
 }
 
@@ -166,10 +170,11 @@ unsigned Sta::readDesignWithRustParser(const char *verilog_file) {
  * @return unsigned
  */
 unsigned Sta::readSdc(const char *sdc_file) {
+  LOG_INFO << "read sdc " << sdc_file << " start ";
   if (!IsFileExists(sdc_file)) {
     return 0;
   }
-  LOG_INFO << "read sdc " << sdc_file << " start ";
+
   Sta::initSdcCmd();
 
   _constrains.reset();
@@ -182,7 +187,7 @@ unsigned Sta::readSdc(const char *sdc_file) {
   LOG_FATAL_IF(result == 1)
       << ScriptEngine::getOrCreateInstance()->evalString(R"(puts $errorInfo)");
 
-  LOG_INFO << "read sdc end";
+  LOG_INFO << "read sdc " << sdc_file << " end ";
 
   return 1;
 }
@@ -194,6 +199,7 @@ unsigned Sta::readSdc(const char *sdc_file) {
  * @return unsigned
  */
 unsigned Sta::readSpef(const char *spef_file) {
+  LOG_INFO << "read spef " << spef_file << " start ";
   if (!IsFileExists(spef_file)) {
     return 0;
   }
@@ -201,6 +207,8 @@ unsigned Sta::readSpef(const char *spef_file) {
 
   StaBuildRCTree func(spef_file, DelayCalcMethod::kElmore);
   func(&the_graph);
+
+  LOG_INFO << "read spef " << spef_file << " end ";
 
   return 1;
 }
@@ -268,6 +276,8 @@ unsigned Sta::readAocv(std::vector<std::string> &aocv_files) {
  * @return unsigned
  */
 unsigned Sta::readLiberty(const char *lib_file) {
+  LOG_INFO << "read liberty " << lib_file << " start ";
+
   if (!IsFileExists(lib_file)) {
     return 0;
   }
@@ -275,6 +285,8 @@ unsigned Sta::readLiberty(const char *lib_file) {
   Lib lib;
   auto load_lib = lib.loadLibertyWithRustParser(lib_file);
   addLibReaders(std::move(load_lib));
+
+  LOG_INFO << "read liberty " << lib_file << " end ";
 
   return 1;
 }
@@ -286,15 +298,6 @@ unsigned Sta::readLiberty(const char *lib_file) {
  * @return unsigned
  */
 unsigned Sta::readLiberty(std::vector<std::string> &lib_files) {
-  bool is_exit = true;
-  for (auto &lib_file : lib_files) {
-    if (!IsFileExists(lib_file.c_str())) {
-      is_exit = false;
-    }
-  }
-  if (!is_exit) {
-    return 0;
-  }
   LOG_INFO << "load lib start";
 
 #if 0
@@ -332,8 +335,6 @@ unsigned Sta::linkLibertys() {
   }
 
   auto link_lib = [this](auto &lib_rust_reader) {
-    auto &link_cells = get_link_cells();
-    lib_rust_reader.set_build_cells(link_cells);
     lib_rust_reader.linkLib();
     auto lib = lib_rust_reader.get_library_builder()->takeLib();
 
@@ -369,10 +370,11 @@ unsigned Sta::linkLibertys() {
  * @param verilog_file
  */
 unsigned Sta::readVerilogWithRustParser(const char *verilog_file) {
+  LOG_INFO << "read verilog file " << verilog_file << " start";
   if (!IsFileExists(verilog_file)) {
     return 0;
   }
-  LOG_INFO << "read verilog file " << verilog_file << " start";
+
   bool is_ok = _rust_verilog_reader.readVerilog(verilog_file);
   _rust_verilog_file_ptr = _rust_verilog_reader.get_verilog_file_ptr();
   LOG_WARNING_IF(!is_ok) << "read verilog file " << verilog_file << " failed.";
@@ -545,11 +547,15 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
       } else if (the_right_net && !the_right_port) {
         // assign output_port = net;
         the_right_net->addPinPort(the_left_port);
-      } else if (!the_right_net && !the_left_net) {
+      } else if (!the_right_net && !the_left_net && the_right_port) {
         // assign output_port = input_port;
         auto &created_net = design_netlist.addNet(Net(right_net_name.c_str()));
         created_net.addPinPort(the_left_port);
         created_net.addPinPort(the_right_port);
+      } else if (!the_right_net && !the_left_net && !the_right_port) {
+        // assign output_port = 1'b0(1'b1);
+        auto &created_net = design_netlist.addNet(Net(left_net_name.c_str()));
+        created_net.addPinPort(the_left_port);
       }
 
     } else if (rust_is_module_inst_stmt(stmt)) {
@@ -920,6 +926,9 @@ void Sta::initSdcCmd() {
   registerTclCmd(CmdSetPropagatedClock, "set_propagated_clock");
   registerTclCmd(CmdSetClockGroups, "set_clock_groups");
   registerTclCmd(CmdSetMulticyclePath, "set_multicycle_path");
+  registerTclCmd(CmdSetFalsePath, "set_false_path");
+  registerTclCmd(CmdSetMaxDelay, "set_max_delay");
+  registerTclCmd(CmdSetMinDelay, "set_min_delay");
   registerTclCmd(CmdSetTimingDerate, "set_timing_derate");
   registerTclCmd(CmdSetClockUncertainty, "set_clock_uncertainty");
   registerTclCmd(CmdSetUnits, "set_units");
@@ -2342,7 +2351,12 @@ unsigned Sta::updateClockTiming() {
       StaCombLoopCheck(),
       StaSlewPropagation(),
       StaDelayPropagation(),
-      StaClockPropagation(StaClockPropagation::PropType::kNormalClockProp)};
+      StaClockPropagation(StaClockPropagation::PropType::kNormalClockProp),
+      StaApplySdc(StaApplySdc::PropType::kApplySdcPostNormalClockProp),
+      StaClockPropagation(
+          StaClockPropagation::PropType::kUpdateGeneratedClockProp),
+      StaApplySdc(StaApplySdc::PropType::kApplySdcPostClockProp)
+      };
 
   for (auto &func : funcs) {
     the_graph.exec(func);
@@ -2412,6 +2426,11 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
 
   LOG_INFO << "start write sta report.";
   LOG_INFO << "output sta report path: " << design_work_space;
+
+  if (design_work_space == nullptr || design_work_space[0] == '\0') {
+    LOG_ERROR << "The design work space is not set.";
+    return 0;
+  }
 
   if (std::filesystem::exists(design_work_space) && is_copy) {
     std::filesystem::create_directories(copy_design_work_space);

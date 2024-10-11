@@ -776,12 +776,12 @@ class Utility
   static bool hasRegularRect(const PlanarRect& rect, const PlanarRect& border)
   {
     // 计算新的左下角坐标
-    int new_ll_x = std::max(rect.get_ll_x(), border.get_ll_x());
-    int new_ll_y = std::max(rect.get_ll_y(), border.get_ll_y());
+    int32_t new_ll_x = std::max(rect.get_ll_x(), border.get_ll_x());
+    int32_t new_ll_y = std::max(rect.get_ll_y(), border.get_ll_y());
 
     // 计算新的右上角坐标
-    int new_ur_x = std::min(rect.get_ur_x(), border.get_ur_x());
-    int new_ur_y = std::min(rect.get_ur_y(), border.get_ur_y());
+    int32_t new_ur_x = std::min(rect.get_ur_x(), border.get_ur_x());
+    int32_t new_ur_y = std::min(rect.get_ur_y(), border.get_ur_y());
 
     // 检查新的坐标是否有效
     return new_ll_x <= new_ur_x && new_ll_y <= new_ur_y;
@@ -847,6 +847,21 @@ class Utility
 
     minusOffset(rect.get_ll(), offset_x, offset_y);
     minusOffset(rect.get_ur(), offset_x, offset_y);
+    return rect;
+  }
+
+  static bool hasShrinkedRect(PlanarRect rect, int32_t shrinked_size)
+  {
+    addOffset(rect.get_ll(), shrinked_size, shrinked_size);
+    minusOffset(rect.get_ur(), shrinked_size, shrinked_size);
+
+    return rect.get_ll_x() <= rect.get_ur_x() && rect.get_ll_y() <= rect.get_ur_y();
+  }
+
+  static PlanarRect getShrinkedRect(PlanarRect rect, int32_t shrinked_size)
+  {
+    addOffset(rect.get_ll(), shrinked_size, shrinked_size);
+    minusOffset(rect.get_ur(), shrinked_size, shrinked_size);
     return rect;
   }
 
@@ -1965,7 +1980,7 @@ class Utility
       }
     }
     bool is_connectivity = true;
-    for (auto [pin_idx, is_visited] : visited_map) {
+    for (auto& [pin_idx, is_visited] : visited_map) {
       if (is_visited == false) {
         RTLOG.warn(Loc::current(), "The pin idx ", pin_idx, " unreachable!");
         is_connectivity = false;
@@ -2433,28 +2448,28 @@ class Utility
 
 #if 1  // reduce
 
-  static std::vector<PlanarRect> getOpenReducedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t ll_x_add_offset,
-                                                               int32_t ll_y_add_offset, int32_t ur_x_minus_offset,
-                                                               int32_t ur_y_minus_offset)
+  static std::vector<PlanarRect> getOpenShrinkedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t ll_x_add_offset,
+                                                                int32_t ll_y_add_offset, int32_t ur_x_minus_offset,
+                                                                int32_t ur_y_minus_offset)
   {
-    return getReducedRectListByBoost(master_list, ll_x_add_offset, ll_y_add_offset, ur_x_minus_offset, ur_y_minus_offset, true);
+    return getShrinkedRectListByBoost(master_list, ll_x_add_offset, ll_y_add_offset, ur_x_minus_offset, ur_y_minus_offset, true);
   }
 
-  static std::vector<PlanarRect> getClosedReducedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t reduced_offset)
+  static std::vector<PlanarRect> getClosedShrinkedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t shrinked_offset)
   {
-    return getReducedRectListByBoost(master_list, reduced_offset, reduced_offset, reduced_offset, reduced_offset, false);
+    return getShrinkedRectListByBoost(master_list, shrinked_offset, shrinked_offset, shrinked_offset, shrinked_offset, false);
   }
 
-  static std::vector<PlanarRect> getClosedReducedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t ll_x_add_offset,
-                                                                 int32_t ll_y_add_offset, int32_t ur_x_minus_offset,
-                                                                 int32_t ur_y_minus_offset)
+  static std::vector<PlanarRect> getClosedShrinkedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t ll_x_add_offset,
+                                                                  int32_t ll_y_add_offset, int32_t ur_x_minus_offset,
+                                                                  int32_t ur_y_minus_offset)
   {
-    return getReducedRectListByBoost(master_list, ll_x_add_offset, ll_y_add_offset, ur_x_minus_offset, ur_y_minus_offset, false);
+    return getShrinkedRectListByBoost(master_list, ll_x_add_offset, ll_y_add_offset, ur_x_minus_offset, ur_y_minus_offset, false);
   }
 
-  static std::vector<PlanarRect> getReducedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t ll_x_add_offset,
-                                                           int32_t ll_y_add_offset, int32_t ur_x_minus_offset, int32_t ur_y_minus_offset,
-                                                           bool is_open)
+  static std::vector<PlanarRect> getShrinkedRectListByBoost(const std::vector<PlanarRect>& master_list, int32_t ll_x_add_offset,
+                                                            int32_t ll_y_add_offset, int32_t ur_x_minus_offset, int32_t ur_y_minus_offset,
+                                                            bool is_open)
   {
     std::vector<PlanarRect> result_list;
 
@@ -2594,7 +2609,7 @@ class Utility
 
   static int32_t getIntScale(double double_scale)
   {
-    int32_t integer_scale = std::round(double_scale);
+    int32_t integer_scale = static_cast<int32_t>(std::round(double_scale));
     if (std::abs(double_scale - integer_scale) > RT_ERROR) {
       RTLOG.error(Loc::current(), "Exceeding the error range of a double!");
     }
@@ -3091,7 +3106,7 @@ class Utility
 
   static void checkFile(std::string file_path)
   {
-    if (0 != access(file_path.c_str(), F_OK)) {
+    if (!std::filesystem::exists(file_path)) {
       RTLOG.error(Loc::current(), "The file ", file_path, " does not exist!");
     }
   }
@@ -3100,13 +3115,34 @@ class Utility
 
   static void createDir(std::string dir_path)
   {
-    if (0 != access(dir_path.c_str(), F_OK)) {
-      RTLOG.info(Loc::current(), "Create directory ", dir_path);
+    if (!std::filesystem::exists(dir_path)) {
       std::error_code system_error;
       if (!std::filesystem::create_directories(dir_path, system_error)) {
-        if (!std::filesystem::exists(dir_path)) {
-          RTLOG.error(Loc::current(), "Failed to create directory '", dir_path, "', system_error:", system_error.message());
-        }
+        RTLOG.error(Loc::current(), "Failed to create directory '", dir_path, "', system_error:", system_error.message());
+      }
+    }
+  }
+
+  static bool existFile(const std::string& file_path) { return std::filesystem::exists(file_path); }
+
+  static void changePermissions(const std::string& dir_path, std::filesystem::perms permissions)
+  {
+    std::error_code system_error;
+    std::filesystem::permissions(dir_path, permissions);
+    if (system_error) {
+      RTLOG.error(Loc::current(), "Failed to change permissions for '", dir_path, "', system_error: ", system_error.message());
+    }
+  }
+
+  static void removeDir(const std::string& dir_path)
+  {
+    std::error_code system_error;
+
+    // 检查文件夹是否存在
+    if (std::filesystem::exists(dir_path, system_error)) {
+      // 尝试删除文件夹
+      if (!std::filesystem::remove_all(dir_path, system_error)) {
+        RTLOG.error(Loc::current(), "Failed to remove directory '", dir_path, "'. Error: ", system_error.message());
       }
     }
   }
@@ -3145,7 +3181,7 @@ class Utility
 
     std::stringstream ss(a);
     std::string result_token;
-    while (getline(ss, result_token, tok)) {
+    while (std::getline(ss, result_token, tok)) {
       if (result_token == "") {
         continue;
       }
@@ -3220,7 +3256,7 @@ class Utility
   {
     std::string sec_string;
 
-    int32_t integer_sec = std::round(sec);
+    int32_t integer_sec = static_cast<int32_t>(std::round(sec));
     int32_t h = integer_sec / 3600;
     int32_t m = (integer_sec % 3600) / 60;
     int32_t s = (integer_sec % 3600) % 60;

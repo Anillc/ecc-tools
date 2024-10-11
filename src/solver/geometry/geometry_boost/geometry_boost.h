@@ -51,11 +51,15 @@ class GeometryBoost : public EngineGeometry
   virtual void addGeometry(EngineGeometry* geometry) override;
   virtual bool isIntersect(int llx, int lly, int urx, int ury) override;
 
+  void addPolyset(GeometryPolygonSet& polyset);
+
   std::vector<GeometryPolygon>& getLayoutPolygons();
   std::vector<GeometryPolygon> getOverlap(EngineGeometry* other = nullptr);
   std::vector<GeometryRect>& getWires();
   std::vector<GeometryRect>& getRects();
   std::vector<GeometryRect> getRectsGrowAnd(int value, GeometryOrientation direction);
+
+  int64_t getMergeRectArea(int llx, int lly, int urx, int ury);
 
  private:
   GeometryPolygonSet _polyset;

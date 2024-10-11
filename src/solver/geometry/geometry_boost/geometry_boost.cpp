@@ -23,6 +23,7 @@ namespace ieda_solver {
 
 GeometryBoost::GeometryBoost()
 {
+  _polyset.clean();
 }
 
 GeometryBoost::~GeometryBoost()
@@ -124,6 +125,13 @@ void GeometryBoost::addGeometry(EngineGeometry* geometry)
   _polyset += boost_geometry->get_polyset();
 }
 
+void GeometryBoost::addPolyset(GeometryPolygonSet& polyset)
+{
+  polyset.clean();
+
+  _polyset += polyset;
+}
+
 std::vector<GeometryPolygon>& GeometryBoost::getLayoutPolygons()
 {
   if (_polygon_list.empty()) {
@@ -152,8 +160,8 @@ std::vector<GeometryPolygon> GeometryBoost::getOverlap(EngineGeometry* other)
   if (other == nullptr) {
     /// check self overlap
     GtlPolygon90Set set(_polyset);
-    set.self_intersect();
-    set.get(overlap_list);
+    auto& intersets = set.self_intersect();
+    intersets.get(overlap_list);
   } else {
     /// check overlap with other geometry
     GtlPolygon90Set self_set(_polyset);  /// self polyset
@@ -212,4 +220,17 @@ std::vector<GeometryRect> GeometryBoost::getRectsGrowAnd(int value, GeometryOrie
   return grow_rects;
 }
 
+int64_t GeometryBoost::getMergeRectArea(int llx, int lly, int urx, int ury)
+{
+  int64_t area;
+
+  GtlPolygon90Set set(_polyset);
+  GtlRect rect(llx, lly, urx, ury);
+
+  set += rect;
+
+  area = (int64_t) getArea(set);
+
+  return area;
+}
 }  // namespace ieda_solver

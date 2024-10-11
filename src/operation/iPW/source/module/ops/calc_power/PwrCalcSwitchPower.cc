@@ -113,7 +113,9 @@ unsigned PwrCalcSwitchPower::operator()(PwrGraph* the_graph) {
     if (driver_sta_vertex) {
       driver_pwr_vertex = the_graph->staToPwrVertex(*driver_sta_vertex);
     } else {
-      LOG_FATAL << "not found driver sta vertex.";
+      // LOG_FATAL << "not found driver sta vertex.";
+      LOG_ERROR << "not found driver sta vertex.";
+      continue;
     }
 
     // get VDD
@@ -132,7 +134,7 @@ unsigned PwrCalcSwitchPower::operator()(PwrGraph* the_graph) {
     // calc swich power of the arc.
     // swich_power = k*toggle*Cap*(VDD^2)
     double arc_swich_power = c_switch_power_K * toggle * cap * vdd * vdd;
-    auto switch_data = std::make_unique<PwrSwitchData>(net, arc_swich_power);
+    auto switch_data = std::make_unique<PwrSwitchData>(net, MW_TO_W(arc_swich_power));
     switch_data->set_nom_voltage(vdd);
     // add power analysis data.
     addSwitchPower(std::move(switch_data));

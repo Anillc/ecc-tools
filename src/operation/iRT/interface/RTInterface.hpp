@@ -26,6 +26,7 @@
 
 namespace idb {
 class IdbLayerRouting;
+class IdbLayerCut;
 class IdbNet;
 class IdbPin;
 enum class IdbLayerDirection : uint8_t;
@@ -36,6 +37,7 @@ class IdbRegularWireSegment;
 
 namespace irt {
 class RoutingLayer;
+class CutLayer;
 class Violation;
 class LayerCoord;
 template <typename T>
@@ -88,7 +90,8 @@ class RTInterface
   void wrapRow();
   void wrapLayerList();
   void wrapTrackAxis(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
-  void wrapSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
+  void wrapRoutingSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
+  void wrapCutSpacingTable(CutLayer& cut_layer, idb::IdbLayerCut* idb_layer);
   void wrapLayerInfo();
   void wrapLayerViaMasterList();
   void wrapObstacleList();
@@ -121,10 +124,10 @@ class RTInterface
 #if 1  // iDRC
   std::vector<Violation> getViolationList(std::vector<std::pair<EXTLayerRect*, bool>>& env_shape_list,
                                           std::map<int32_t, std::vector<std::pair<EXTLayerRect*, bool>>>& net_pin_shape_map,
-                                          std::map<int32_t, std::vector<Segment<LayerCoord>>>& net_result_map, std::string stage);
+                                          std::map<int32_t, std::vector<Segment<LayerCoord>>>& net_result_map);
   std::vector<Violation> getViolationList(std::vector<idb::IdbLayerShape*>& env_shape_list,
                                           std::map<int32_t, std::vector<idb::IdbLayerShape*>>& net_pin_shape_map,
-                                          std::map<int32_t, std::vector<idb::IdbRegularWireSegment*>>& net_result_map, std::string stage);
+                                          std::map<int32_t, std::vector<idb::IdbRegularWireSegment*>>& net_result_map);
 #endif
 
 #if 1  // iSTA
