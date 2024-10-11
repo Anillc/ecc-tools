@@ -71,7 +71,7 @@ public:
         bool consider_std
     );
 
-    void runRefinement(std::string output_tcl);
+    void runRefinement(int method, std::string output_tcl);
 
     void extractMacroData();
 

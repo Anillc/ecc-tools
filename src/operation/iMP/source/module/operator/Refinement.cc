@@ -216,35 +216,22 @@ std::string Refinement::orientToString(Orient orient)
     }
 }
 
-void Refinement::runRefinement(std::string output_tcl)
+void Refinement::runRefinement(int method, std::string output_tcl)
 {
     std::cout << "Running refinement process..." << std::endl;
 
-    if (0) {
-        std::cout << "Core bounds: (" << _core.lx << ", " << _core.ly << ") to ("
-                << _core.ux << ", " << _core.uy << ")" << std::endl;
+    export_to_json("before refinement.json");
 
-        for (const auto& macro : _mov_macros) {
-            std::cout << "Refining macro: " << macro.name << std::endl;
-            std::cout << "  ID: " << macro.id << std::endl;
-            std::cout << "  Position: (" << macro.x << ", " << macro.y << ")" << std::endl;
-            std::cout << "  Size: " << macro.width << "x" << macro.height << std::endl;
-            std::cout << "  Orientation: " << macro.orient << std::endl;
-        }
-
-        for (const auto& blockage : _blockages) {
-            std::cout << "Blockage: (" << blockage.lx << ", " << blockage.ly << ") to (" 
-                    << blockage.ux << ", " << blockage.uy << ")" << std::endl;
-        }
-
-        for (const auto& pad : _pads) {
-            std::cout << "Pad: " << pad.name << std::endl;
-            std::cout << "  ID: " << pad.id << std::endl;
-            std::cout << "  Position: (" << pad.x << ", " << pad.y << ")" << std::endl;
-        }
+    if (method == 0) {
+        std::cout << "Running bounding box method..." << std::endl;
+    } else if (method == 1) {
+        std::cout << "Running MP-tree method..." << std::endl;
+    } else if (method == 2) {
+        std::cout << "Running grids method..." << std::endl;
     }
 
-    export_to_json("test.json");
+    export_to_json("after refinement.json");
+
 }
 
 void Refinement::export_to_json(const std::string& filename)

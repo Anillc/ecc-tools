@@ -111,6 +111,8 @@ void MP::runMP(std::string config, std::string output_tcl)
 void MP::runRef(std::string output_tcl) {
   std::cout << " --------------Macro Refinement-----------------"<<std::endl;
 
+  int method = 0; // 0: Bounding box, 1: MP-tree, 2: Grids
+
   float macro_halo_micron = 1.0;
   std::string original_pin_dir = "R0";
   int exp_space_x = 10;
@@ -145,7 +147,7 @@ void MP::runRef(std::string output_tcl) {
 
   refinement.readTcl(tcl_file_path);
 
-  refinement.runRefinement(output_tcl);
+  refinement.runRefinement(method, output_tcl);
 
   std::cout << "Refinement process completed." << std::endl;
 }
