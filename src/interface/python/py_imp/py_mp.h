@@ -20,7 +20,7 @@
 
 namespace python_interface {
 
-void runMP(std::string output_tcl = "");
+void runMP(std::string config, std::string output_tcl = "");
 void runRef(std::string output_tcl = "");
 
 }  // namespace python_interface

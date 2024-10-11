@@ -16,6 +16,9 @@
 // ***************************************************************************************
 #include "MP.hh"
 
+#include <boost/foreach.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <functional>
 #include <memory>
 
@@ -26,42 +29,35 @@
 #include "NetWeightPre.hh"
 #include "Refinement.hh"
 
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/foreach.hpp>
-
 namespace imp {
 
-//victorzhou 202040906
-void MP::runMP(std::string output_tcl)
+// victorzhou 202040906
+void MP::runMP(std::string config, std::string output_tcl)
 {
   INFO("victorzhou 202041008 MP::runMP");
 
   boost::property_tree::ptree proot;
-  try
-	{
-		  boost::property_tree::read_json("mpconfig.json", proot);
-	}
-	catch(std::exception& e)
-	{
-		std::cout << e.what() << std::endl;
-		return ;
-	}
+  try {
+    boost::property_tree::read_json(config, proot);
+  } catch (std::exception& e) {
+    std::cout << e.what() << std::endl;
+    return;
+  }
 
-  float macro_halo_micron = std::stof(proot.get<std::string>("macro_halo_micron") ) ;
-  float dead_space_ratio = std::stof(proot.get<std::string>("dead_space_ratio")  ) ;
-  float weight_wl = std::stof(proot.get<std::string>("weight_wl")  ) ;
-  float weight_ol = std::stof(proot.get<std::string>("weight_ol")  ) ;
-  float weight_ob = std::stof(proot.get<std::string>("weight_ob")  ) ;
-  float weight_periphery = std::stof(proot.get<std::string>("weight_periphery")  ) ;
-  float weight_blockage = std::stof(proot.get<std::string>("weight_blockage")  ) ;
-  float weight_io = std::stof(proot.get<std::string>("unicaweight_iost")  ) ;
-  size_t max_iters = std::stoull(proot.get<std::string>("max_iters")  ) ;
-  float cool_rate = std::stof(proot.get<std::string>("cool_rate")  ) ;
-  float init_temperature = std::stof(proot.get<std::string>("init_temperature")  ) ;
+  float macro_halo_micron = std::stof(proot.get<std::string>("macro_halo_micron"));
+  float dead_space_ratio = std::stof(proot.get<std::string>("dead_space_ratio"));
+  float weight_wl = std::stof(proot.get<std::string>("weight_wl"));
+  float weight_ol = std::stof(proot.get<std::string>("weight_ol"));
+  float weight_ob = std::stof(proot.get<std::string>("weight_ob"));
+  float weight_periphery = std::stof(proot.get<std::string>("weight_periphery"));
+  float weight_blockage = std::stof(proot.get<std::string>("weight_blockage"));
+  float weight_io = std::stof(proot.get<std::string>("unicaweight_iost"));
+  size_t max_iters = std::stoull(proot.get<std::string>("max_iters"));
+  float cool_rate = std::stof(proot.get<std::string>("cool_rate"));
+  float init_temperature = std::stof(proot.get<std::string>("init_temperature"));
 
-  INFO("victorzhou 202041008 MP::runMP,macro_halo_micron:",macro_halo_micron);
-  
+  INFO("victorzhou 202041008 MP::runMP,macro_halo_micron:", macro_halo_micron);
+
   /*float macro_halo_micron = 2.0;
   float dead_space_ratio = 0.8;
   float weight_wl = 1.0;
@@ -78,12 +74,16 @@ void MP::runMP(std::string output_tcl)
   std::unordered_set<std::string> non_critical_nets_name;
   // timingDrivenNetWeight(root().netlist(), critical_nets_name, non_critical_nets_name);
 
-  BlkClustering2 clustering{.l1_nparts = 200, .level_num = 1, .parser = _parser, .critical_nets_name = critical_nets_name, .non_critical_nets_name = non_critical_nets_name}; // one level place
+  BlkClustering2 clustering{.l1_nparts = 200,
+                            .level_num = 1,
+                            .parser = _parser,
+                            .critical_nets_name = critical_nets_name,
+                            .non_critical_nets_name = non_critical_nets_name};  // one level place
   // BlkClustering2 clustering{.l1_nparts = 10, .l2_nparts = 20, .level_num = 2, .parser = _parser};  // two-level place
   clustering(root());
 
   // calculateAndPrintHedgeWeights(root().netlist());
-  
+
   auto placer = SAHierPlacer<int32_t>{.macro_halo_micron = macro_halo_micron,
                                       .dead_space_ratio = dead_space_ratio,
                                       .weight_wl = weight_wl,
@@ -108,8 +108,9 @@ void MP::runMP(std::string output_tcl)
   _parser->write();  // write back to idb
 }
 
-void MP::runRef(std::string output_tcl) {
-  std::cout << " --------------Macro Refinement-----------------"<<std::endl;
+void MP::runRef(std::string output_tcl)
+{
+  std::cout << " --------------Macro Refinement-----------------" << std::endl;
 
   float macro_halo_micron = 1.0;
 

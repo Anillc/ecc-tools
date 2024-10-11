@@ -22,10 +22,10 @@
 
 namespace python_interface {
 
-void runMP(std::string output_tcl)
+void runMP(std::string config, std::string output_tcl)
 {
   iMPAPIInst.initAPI("", dmInst->get_idb_builder());
-  iMPAPIInst.runMP(output_tcl);
+  iMPAPIInst.runMP(config, output_tcl);
 }
 
 void runRef(std::string output_tcl)
