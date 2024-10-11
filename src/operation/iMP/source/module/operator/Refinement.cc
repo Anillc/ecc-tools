@@ -216,11 +216,105 @@ std::string Refinement::orientToString(Orient orient)
     }
 }
 
+void Refinement::expandMacros() {
+    _exp_mov_macros.clear();
+
+    for (const auto& macro : _mov_macros) {
+        MacroInfo expanded_macro = macro;
+        
+        int32_t original_lx = macro.x;
+        int32_t original_ly = macro.y;
+        int32_t original_ux = macro.x + macro.width;
+        int32_t original_uy = macro.y + macro.height;
+
+        int32_t expanded_lx = original_lx - static_cast<int32_t>(_macro_halo);
+        int32_t expanded_ly = original_ly - static_cast<int32_t>(_macro_halo);
+        int32_t expanded_ux = original_ux + static_cast<int32_t>(_macro_halo);
+        int32_t expanded_uy = original_uy + static_cast<int32_t>(_macro_halo);
+
+        expanded_ly -= _exp_space_y;
+        expanded_uy += _exp_space_y;
+
+        if (macro.orient == _original_pin_dir) {
+            expanded_ux += _exp_space_x;
+        } else if (macro.orient == "MX") {
+            expanded_lx -= _exp_space_x;
+        } else {
+            std::cerr << "Warning: Macro " << macro.name << " has unsupported orientation: "
+                      << macro.orient << ". No lateral expansion applied." << std::endl;
+        }
+
+        expanded_macro.x = expanded_lx;
+        expanded_macro.y = expanded_ly;
+        expanded_macro.width = expanded_ux - expanded_lx;
+        expanded_macro.height = expanded_uy - expanded_ly;
+
+        _exp_mov_macros.push_back(expanded_macro);
+    }
+}
+
+void Refinement::restoreMacros() {
+    if (_exp_mov_macros.size() != _mov_macros.size()) {
+        std::cerr << "Error: The number of macros in _exp_mov_macros does not match _mov_macros." << std::endl;
+        return;
+    }
+
+    for (size_t i = 0; i < _mov_macros.size(); ++i) {
+        auto& exp_macro = _exp_mov_macros[i];
+        auto& original_macro = _mov_macros[i];
+
+        int32_t restored_ly = exp_macro.y + static_cast<int32_t>(_macro_halo + _exp_space_y);
+        int32_t restored_uy = restored_ly + exp_macro.height - 2 * (static_cast<int32_t>(_macro_halo) + _exp_space_y);
+
+        int32_t restored_lx = exp_macro.x + static_cast<int32_t>(_macro_halo);
+        int32_t restored_ux = restored_lx + exp_macro.width - 2 * static_cast<int32_t>(_macro_halo);
+
+        if (exp_macro.orient == _original_pin_dir) {
+            restored_ux -= _exp_space_x;
+        } else if (exp_macro.orient == "MX") {
+            restored_lx += _exp_space_x;
+        } else {
+            std::cerr << "Warning: Macro " << exp_macro.name << " has unsupported orientation: "
+                      << exp_macro.orient << ". No lateral contraction applied." << std::endl;
+        }
+
+        original_macro.x = restored_lx;
+        original_macro.y = restored_ly;
+        original_macro.orient = exp_macro.orient;
+        original_macro.is_fixed = true;
+    }
+
+    std::cout << "Macros successfully restored to original dimensions." << std::endl;
+}
+
+void Refinement::writeTcl(const std::string& tcl_file_path) {
+    std::ofstream tcl_file(tcl_file_path);
+    if (!tcl_file.is_open()) {
+        std::cerr << "Error: Unable to open file " << tcl_file_path << std::endl;
+        return;
+    }
+
+    for (const auto& macro : _mov_macros) {
+        tcl_file << "placeInstance " << macro.name << " "
+                 << static_cast<double>(macro.x) / dbu << " " 
+                 << static_cast<double>(macro.y) / dbu << " "
+                 << macro.orient << "\n";
+
+        tcl_file << "setInstancePlacementStatus -status "
+                 << (macro.is_fixed ? "fixed" : "movable") << " -name " << macro.name << "\n";
+    }
+
+    tcl_file.close();
+    std::cout << "TCL script written to " << tcl_file_path << std::endl;
+}
+
 void Refinement::runRefinement(int method, std::string output_tcl)
 {
     std::cout << "Running refinement process..." << std::endl;
 
-    export_to_json("before refinement.json");
+    export_to_json("before_refinement.json");
+
+    expandMacros();
 
     if (method == 0) {
         std::cout << "Running bounding box method..." << std::endl;
@@ -230,7 +324,9 @@ void Refinement::runRefinement(int method, std::string output_tcl)
         std::cout << "Running grids method..." << std::endl;
     }
 
-    export_to_json("after refinement.json");
+    restoreMacros();
+
+    export_to_json("after_refinement.json");
 
 }
 
@@ -298,8 +394,8 @@ void Refinement::readTcl(const std::string& file_path) {
             bool found = false;
             for (auto& macro : _mov_macros) {
                 if (macro.name == macro_name) {
-                    macro.x = static_cast<int32_t>(x) * dbu;
-                    macro.y = static_cast<int32_t>(y) * dbu;
+                    macro.x = static_cast<int32_t>(x * dbu);
+                    macro.y = static_cast<int32_t>(y * dbu);
                     macro.orient = orientation;
                     found = true;
                     break;

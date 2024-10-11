@@ -85,6 +85,12 @@ public:
 
     void readTcl(const std::string& tcl_file_path);
 
+    void expandMacros();
+
+    void restoreMacros();
+
+    void writeTcl(const std::string& tcl_file_path);
+
 private:
 
     std::weak_ptr<ParserEngine> _parser;
@@ -104,6 +110,8 @@ private:
     bool _consider_std;
 
     std::vector<MacroInfo> _mov_macros;
+
+    std::vector<MacroInfo> _exp_mov_macros;
 
     std::vector<MacroInfo> _fix_macros;
 
