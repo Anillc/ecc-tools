@@ -39,6 +39,7 @@ struct MacroInfo {
     int32_t x, y;         // Macro position
     int32_t width, height; // Macro dimensions
     std::string orient;    // Orientation (e.g., R0, R90, MX, MY)
+    bool is_fixed;         // Whether the macro is fixed
 };
 
 struct BlockageInfo {
@@ -55,7 +56,20 @@ public:
 
     ~Refinement();
 
-    void initPostProcessingData(float macro_halo_micron);
+    void initPostProcessingData(
+        float macro_halo_micron, 
+        const std::string& original_pin_dir, 
+        int exp_space_x, 
+        int exp_space_y, 
+        int search_space_x, 
+        int search_space_y, 
+        int gap, 
+        int virtual_macro_size, 
+        bool beikaobei, 
+        float h_weight, 
+        float v_weight, 
+        bool consider_std
+    );
 
     void runRefinement(std::string output_tcl);
 
@@ -69,14 +83,29 @@ public:
 
     void export_to_json(const std::string& filename);
 
+    void readTcl(const std::string& tcl_file_path);
+
 private:
 
     std::weak_ptr<ParserEngine> _parser;
 
     Block* _root_block;
     float _macro_halo;
+    std::string _original_pin_dir;
+    int _exp_space_x;
+    int _exp_space_y;
+    int _search_space_x;
+    int _search_space_y;
+    int _gap;
+    int _virtual_macro_size;
+    bool _beikaobei;
+    float _h_weight;
+    float _v_weight;
+    bool _consider_std;
 
-    std::vector<MacroInfo> _macros;
+    std::vector<MacroInfo> _mov_macros;
+
+    std::vector<MacroInfo> _fix_macros;
 
     std::string orientToString(Orient orient);
 
@@ -85,6 +114,8 @@ private:
     CoreInfo _core;
 
     std::vector<PadInfo> _pads;
+
+    float dbu;
 };
 
 }  // namespace imp

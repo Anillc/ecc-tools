@@ -12,16 +12,39 @@ Refinement::Refinement(std::weak_ptr<ParserEngine> parser)
 Refinement::~Refinement() {
 }
 
-void Refinement::initPostProcessingData(float macro_halo_micron)
-{
+void Refinement::initPostProcessingData(
+    float macro_halo_micron, 
+    const std::string& original_pin_dir, 
+    int exp_space_x, 
+    int exp_space_y, 
+    int search_space_x, 
+    int search_space_y, 
+    int gap, 
+    int virtual_macro_size, 
+    bool beikaobei, 
+    float h_weight, 
+    float v_weight, 
+    bool consider_std
+) {
     std::cout << "Initializing post-processing data..." << std::endl;
 
     auto shared_parser = _parser.lock();
     assert(shared_parser && "Parser has expired");
 
     idb::IdbBuilder* idb_builder = shared_parser->getIdbBuilder();
-    float dbu = idb_builder->get_def_service()->get_layout()->get_units()->get_micron_dbu();
+    dbu = idb_builder->get_def_service()->get_layout()->get_units()->get_micron_dbu();
     _macro_halo = dbu * macro_halo_micron;
+    _original_pin_dir = original_pin_dir;
+    _exp_space_x = dbu * exp_space_x;
+    _exp_space_y = dbu * exp_space_y;
+    _search_space_x = dbu * search_space_x;
+    _search_space_y = dbu * search_space_y;
+    _gap = dbu * gap;
+    _virtual_macro_size = dbu * virtual_macro_size;
+    _beikaobei = beikaobei;
+    _h_weight = h_weight;
+    _v_weight = v_weight;
+    _consider_std = consider_std;
 
     std::cout << "Macro halo set to: " << _macro_halo << " in database units" << std::endl;
 
@@ -66,10 +89,15 @@ void Refinement::extractMacroData()
             macro_info.height = bbox.max_corner().y() - bbox.min_corner().y(); 
             macro_info.orient = orientToString(inst_ptr->get_orient());
 
-            _macros.push_back(macro_info);
+            if (inst_ptr->isFixed()) {
+                macro_info.is_fixed = true;
+                _fix_macros.push_back(macro_info);
+            } else {
+                macro_info.is_fixed = false;
+                _mov_macros.push_back(macro_info);
+            }
         }
     }
-    std::cout << "Extracted " << _macros.size() << " macros." << std::endl;
 }
 
 void Refinement::extractBlockageData()
@@ -196,7 +224,7 @@ void Refinement::runRefinement(std::string output_tcl)
         std::cout << "Core bounds: (" << _core.lx << ", " << _core.ly << ") to ("
                 << _core.ux << ", " << _core.uy << ")" << std::endl;
 
-        for (const auto& macro : _macros) {
+        for (const auto& macro : _mov_macros) {
             std::cout << "Refining macro: " << macro.name << std::endl;
             std::cout << "  ID: " << macro.id << std::endl;
             std::cout << "  Position: (" << macro.x << ", " << macro.y << ")" << std::endl;
@@ -216,7 +244,7 @@ void Refinement::runRefinement(std::string output_tcl)
         }
     }
 
-    // export_to_json("test.json");
+    export_to_json("test.json");
 }
 
 void Refinement::export_to_json(const std::string& filename)
@@ -227,7 +255,7 @@ void Refinement::export_to_json(const std::string& filename)
         {"lx", _core.lx}, {"ly", _core.ly}, {"ux", _core.ux}, {"uy", _core.uy}
     };
 
-    for (const auto& macro : _macros) {
+    for (const auto& macro : _mov_macros) {
         json_data["macros"].push_back({
             {"id", macro.id},
             {"name", macro.name},
@@ -259,6 +287,49 @@ void Refinement::export_to_json(const std::string& filename)
     file.close();
 
     std::cout << "Data exported to " << filename << std::endl;
+}
+
+void Refinement::readTcl(const std::string& file_path) {
+    std::ifstream file(file_path);
+    if (!file.is_open()) {
+        std::cerr << "Error: Unable to open file " << file_path << std::endl;
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string command;
+        iss >> command;
+
+        if (command == "placeInstance") {
+            std::string macro_name;
+            double x, y;
+            std::string orientation;
+            iss >> macro_name >> x >> y >> orientation;
+
+            bool found = false;
+            for (auto& macro : _mov_macros) {
+                if (macro.name == macro_name) {
+                    macro.x = static_cast<int32_t>(x) * dbu;
+                    macro.y = static_cast<int32_t>(y) * dbu;
+                    macro.orient = orientation;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                std::cerr << "Warning: Macro " << macro_name << " not found in _macros." << std::endl;
+            }
+        } else if (command == "setInstancePlacementStatus") {
+            std::string status_flag, macro_name, status;
+            iss >> status_flag >> status_flag >> status >> status_flag >> macro_name;
+
+        }
+    }
+
+    file.close();
 }
 
 }  // namespace imp

@@ -108,15 +108,42 @@ void MP::runMP(std::string config, std::string output_tcl)
   _parser->write();  // write back to idb
 }
 
-void MP::runRef(std::string output_tcl)
-{
-  std::cout << " --------------Macro Refinement-----------------" << std::endl;
+void MP::runRef(std::string output_tcl) {
+  std::cout << " --------------Macro Refinement-----------------"<<std::endl;
 
   float macro_halo_micron = 1.0;
+  std::string original_pin_dir = "R0";
+  int exp_space_x = 10;
+  int exp_space_y = 2;
+  int search_space_x = 10;
+  int search_space_y = 2;
+  int gap = 100;
+  int virtual_macro_size = 10;
+  bool beikaobei = false;
+  float h_weight = 1.0;
+  float v_weight = 1.0;
+  bool consider_std = false;
 
   Refinement refinement(_parser);
 
-  refinement.initPostProcessingData(macro_halo_micron);
+  refinement.initPostProcessingData(
+      macro_halo_micron, 
+      original_pin_dir, 
+      exp_space_x, 
+      exp_space_y, 
+      search_space_x, 
+      search_space_y, 
+      gap, 
+      virtual_macro_size, 
+      beikaobei, 
+      h_weight, 
+      v_weight, 
+      consider_std
+  );
+
+  std::string tcl_file_path = "/data/project_share/huangzhipeng/Flow_T28/pd_data/pr_1000M/run/test_0926/asic_top_macro_loc_86529777664_26.tcl";
+
+  refinement.readTcl(tcl_file_path);
 
   refinement.runRefinement(output_tcl);
 
