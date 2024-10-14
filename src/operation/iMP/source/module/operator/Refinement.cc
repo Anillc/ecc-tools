@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <cassert>
+#include <numeric>
 
 namespace imp {
 
@@ -308,6 +309,63 @@ void Refinement::writeTcl(const std::string& tcl_file_path) {
     std::cout << "TCL script written to " << tcl_file_path << std::endl;
 }
 
+std::vector<std::vector<Grid>> Refinement::divideCoreIntoGridsWithMacroGCD()
+{
+    std::vector<std::vector<Grid>> grids;
+
+    _gcd_grid_width = _mov_macros[0].width;
+    _gcd_grid_height = _mov_macros[0].height;
+
+    for (const auto& macro : _mov_macros) {
+        _gcd_grid_width = std::gcd(_gcd_grid_width, macro.width);
+        _gcd_grid_height = std::gcd(_gcd_grid_height, macro.height);
+    }
+
+    std::cout << "Grid width based on GCD of macro widths: " << _gcd_grid_width << std::endl;
+    std::cout << "Grid height based on GCD of macro heights: " << _gcd_grid_height << std::endl;
+
+    _gcd_num_grid_x = (_core.ux - _core.lx) / _gcd_grid_width;
+    _gcd_num_grid_y = (_core.uy - _core.ly) / _gcd_grid_height;
+
+    _gcd_reminder_x = (_core.ux - _core.lx) % _gcd_grid_width;
+    _gcd_reminder_y = (_core.uy - _core.ly) % _gcd_grid_height;
+
+    std::cout << "Number of grids: " << _gcd_num_grid_x << " x " << _gcd_num_grid_y << std::endl;
+
+    grids.resize(_gcd_num_grid_x);
+    for (int i = 0; i < _gcd_num_grid_x; ++i) {
+        grids[i].resize(_gcd_num_grid_y);
+    }
+
+    int current_x = _core.lx;
+    int current_y = _core.ly;
+
+    for (int i = 0; i < _gcd_num_grid_x; ++i) {
+        for (int j = 0; j < _gcd_num_grid_y; ++j) {
+            Grid& grid = grids[i][j];
+            // 如果处于前半部分，按照正常计算
+            if (i < _gcd_num_grid_x / 2) {
+                grid.x_start = current_x + i * _gcd_grid_width;
+            } else {
+                // 如果处于后半部分，额外考虑余量
+                grid.x_start = current_x + i * _gcd_grid_width + _gcd_reminder_x;
+            }
+
+            if (j < _gcd_num_grid_y / 2) {
+                grid.y_start = current_y + j * _gcd_grid_height;
+            } else {
+                grid.y_start = current_y + j * _gcd_grid_height + _gcd_reminder_y;
+            }
+            grid.is_used = false;
+        }
+    }
+    assert(grids[0][0].x_start == _core.lx && grids[0][0].y_start == _core.ly);
+    assert(grids[_gcd_num_grid_x - 1][_gcd_num_grid_y - 1].x_start + _gcd_grid_width == _core.ux &&
+           grids[_gcd_num_grid_x - 1][_gcd_num_grid_y - 1].y_start + _gcd_grid_height == _core.uy);
+
+    return grids;
+}
+
 void Refinement::runRefinement(int method, std::string output_tcl)
 {
     std::cout << "Running refinement process..." << std::endl;
@@ -322,12 +380,77 @@ void Refinement::runRefinement(int method, std::string output_tcl)
         std::cout << "Running MP-tree method..." << std::endl;
     } else if (method == 2) {
         std::cout << "Running grids method..." << std::endl;
+        _gcd_grids = divideCoreIntoGridsWithMacroGCD();
     }
+
+    double total_move = calculateMovement(_mov_macros, _exp_mov_macros);
+    std::cout << "Total movement: " << total_move << std::endl;
 
     restoreMacros();
 
+    double peripheral_cost_after = calculatePeripheralCost(_mov_macros);
+    std::cout << "Peripheral cost after refinement: " << peripheral_cost_after << std::endl;
+
     export_to_json("after_refinement.json");
 
+}
+
+double Refinement::calculateMovement(const std::vector<MacroInfo>& mov_macros, const std::vector<MacroInfo>& exp_macros) {
+    double total_movement = 0.0;
+
+    if (mov_macros.size() != exp_macros.size()) {
+        std::cerr << "Error: The number of macros in mov_macros does not match exp_macros." << std::endl;
+        return total_movement;
+    }
+
+    for (size_t i = 0; i < mov_macros.size(); ++i) {
+        const auto& mov_macro = mov_macros[i];
+        const auto& exp_macro = exp_macros[i];
+
+        int32_t restored_lx = exp_macro.x + static_cast<int32_t>(_macro_halo);
+        int32_t restored_ly = exp_macro.y + static_cast<int32_t>(_macro_halo + _exp_space_y);
+
+        // int32_t restored_ux = restored_lx + exp_macro.width - 2 * static_cast<int32_t>(_macro_halo);
+        // int32_t restored_uy = restored_ly + exp_macro.height - 2 * (static_cast<int32_t>(_macro_halo) + _exp_space_y);
+
+        if (exp_macro.orient == _original_pin_dir) {
+            // restored_ux -= _exp_space_x;
+        } else if (exp_macro.orient == "MX") {
+            restored_lx += _exp_space_x;
+        }
+
+        int32_t move_x = std::abs(mov_macro.x - restored_lx);
+        int32_t move_y = std::abs(mov_macro.y - restored_ly);
+
+        total_movement += static_cast<double>(move_x + move_y);
+    }
+
+    return total_movement;
+}
+
+double Refinement::calculatePeripheralCost(const std::vector<MacroInfo>& macros) const
+{
+    double total_peripheral_cost = 0;
+
+    for (const auto& macro : macros) {
+        int macro_left = macro.x;
+        int macro_bottom = macro.y;
+        int macro_right = macro.x + macro.width;
+        int macro_top = macro.y + macro.height;
+
+        double distance_to_left = static_cast<double>(macro_left - _core.lx);
+        double distance_to_bottom = static_cast<double>(macro_bottom - _core.ly);
+        double distance_to_right = static_cast<double>(_core.ux - macro_right);
+        double distance_to_top = static_cast<double>(_core.uy - macro_top);
+
+        double min_distance = std::min({distance_to_left, distance_to_bottom, distance_to_right, distance_to_top});
+
+        double bias_penalty = min_distance * min_distance;
+
+        total_peripheral_cost += bias_penalty;
+    }
+
+    return total_peripheral_cost;
 }
 
 void Refinement::export_to_json(const std::string& filename)

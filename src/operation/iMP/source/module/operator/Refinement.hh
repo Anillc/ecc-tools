@@ -49,6 +49,11 @@ struct BlockageInfo {
     int32_t uy;
 };
 
+struct Grid {
+    int x_start, y_start;
+    bool is_used;
+};
+
 class Refinement
 {
 public:
@@ -89,6 +94,12 @@ public:
 
     void restoreMacros();
 
+    std::vector<std::vector<Grid>> divideCoreIntoGridsWithMacroGCD();
+
+    double calculatePeripheralCost(const std::vector<MacroInfo>& macros) const;
+
+    double calculateMovement(const std::vector<MacroInfo>& mov_macros, const std::vector<MacroInfo>& exp_macros);
+
     void writeTcl(const std::string& tcl_file_path);
 
 private:
@@ -124,6 +135,10 @@ private:
     std::vector<PadInfo> _pads;
 
     float dbu;
+
+    int _gcd_grid_width, _gcd_grid_height, _gcd_num_grid_x, _gcd_num_grid_y, _gcd_reminder_x, _gcd_reminder_y;
+
+    std::vector<std::vector<Grid>> _gcd_grids;
 };
 
 }  // namespace imp
