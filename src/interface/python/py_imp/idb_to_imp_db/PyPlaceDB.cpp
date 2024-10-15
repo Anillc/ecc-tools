@@ -204,7 +204,7 @@ void PyPlaceDB::set(idm::DataManager* db)
     else  // Jiaqi: To compare with NTUPlace4dr, we have to consider blockages in ISPD2015 benchmarks
     {
       // Macro const& macro = db.macro(db.macroId(node));
-      printf("PyPlaceDB detect fixed cell: ");
+      // printf("PyPlaceDB detect fixed cell: ");
       if (false) {
 #if 0
         MacroObs::ObsConstIterator foundObs = macro.obs().obsMap().find("Bookshelf.Shape");
@@ -260,10 +260,66 @@ void PyPlaceDB::set(idm::DataManager* db)
       }
     }
   }
+  int ext_blockage_num = 0;
+  int block_id = 0;
+  for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
+    if (!blockage->is_palcement_blockage()) {
+      continue;
+    }
+    string block_name = "blockage" + std::to_string(block_id++);
+    IdbPlacementBlockage* placement_blockage = dynamic_cast<IdbPlacementBlockage*>(blockage);
+
+    // add obstruction boxes for fixed nodes
+    // initialize node shapes from obstruction
+    // I do not differentiate obstruction boxes at different layers
+    // At least, this is true for DAC/ICCAD 2012 benchmarks
+
+    // put all boxes into a polygon set to remove overlaps
+    // this can make the placement engine more robust
+    PolygonSet ps;
+    for (auto rect : blockage->get_rect_list()) {
+      // convert to absolute box
+      Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
+      ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
+    }
+
+    // Get unique boxes without overlap for each fixed cell
+    // However, there may still be overlapping between fixed cells.
+    // We cannot eliminate these because we want to keep the mapping from boxes to cells.
+    std::vector<gtl::rectangle_data<coordinate_type>> vRect;
+    ps.get_rectangles(vRect);
+    std::vector<Box> vBox;
+    vBox.reserve(vRect.size());
+    for (auto const& rect : vRect) {
+      vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
+      auto box = vBox.back();
+      int id = node_names.size();
+      node_name2id_map[pybind11::str(block_name)] = id;
+      node_names.append(pybind11::str(block_name));
+      dmInst->get_idb_design()->m_instID2Name.push_back(block_name);
+      node_x.append(box.xl);
+      node_y.append(box.yl);
+      // printf("PyPlaceDB::set start!!! Db address is %lld\n", __LINE__);
+      node_orient.append(pybind11::str("R0"));
+      node_size_x.append(box.width());
+      node_size_y.append(box.height());
+      // map new node to original index
+      // node2orig_node_map.append(mNodeName2ID[node->get_name()]);
+      // record original node to new node mapping
+      if (mNode2NewNodes.count(block_name) == 0) {
+        mNode2NewNodes[block_name] = std::vector<index_type>();
+      }
+
+      mNode2NewNodes[block_name].push_back(id);
+    }
+    num_terminals += vBox.size();
+    ext_blockage_num += vBox.size();
+  }
+
   // we only know num_nodes when all fixed cells with shapes are expanded
   // dreamplacePrint(kDEBUG, "num_terminals %d, numFixed %u, numPlaceBlockages %u, num_terminal_NIs %d\n", num_terminals, db.numFixed(),
   //                 db.numPlaceBlockages(), num_terminal_NIs);
-  num_nodes = inst_num;  // db.nodes().size() + num_terminals - db.numFixed() - db.numPlaceBlockages()
+  num_nodes = inst_num + ext_blockage_num;  // db.nodes().size() + num_terminals - db.numFixed() - db.numPlaceBlockages()
   // dreamplaceAssertMsg(num_nodes == node_x.size(),
   //                     "%u != %lu, db.nodes().size = %lu, num_terminals = %d, numFixed = %u, numPlaceBlockages = %u, num_terminal_NIs =
   //                     %d", num_nodes, node_x.size(), db.nodes().size(), num_terminals, db.numFixed(), db.numPlaceBlockages(),
@@ -484,7 +540,7 @@ void PyPlaceDB::set(idm::DataManager* db)
 
       if (node->get_status() == IdbPlacementStatus::kFixed) {
         // Macro const& macro = db.macro(db.macroId(node));
-        printf("PyPlaceDB detect fixed cell: ");
+        // printf("PyPlaceDB detect fixed cell: ");
         for (auto obs : node->get_cell_master()->get_obs_list()) {
           Box box(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(),
                   node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
