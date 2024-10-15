@@ -97,6 +97,7 @@ struct SAHierPlacer
   void initialize(Block& root_cluster);
   void place(Block& blk);
   void initCellArea(Block& root_cluster, T macro_halo);
+  void initFixedLocation(Block& root_cluster, T macro_halo);
   void initTimingEvaluator();
   void initIstaPinNameMap();
   void initInstanceInfo();
@@ -121,8 +122,8 @@ struct SAHierPlacer
     auto coarse_shape_op = [get_packing_shapes, core_width, core_height](imp::Block& blk) -> void {
       // calculate current node's discrete_shape_curve based on children node's discrete shapes, only concerns macros
       // assume children node's shape has been calculated..
-      if (blk.isRoot() || blk.is_io_cluster() || blk.is_stdcell_cluster() || blk.is_io_cluster()
-          || blk.isFixed()) {  // root cluster's shape is core-size
+      if (blk.isRoot() || blk.is_io_cluster() || blk.is_stdcell_cluster()) {
+          // || blk.isFixed()) {  // root cluster's shape is core-size
         return;
       }
       if (blk.netlist().vSize() == 1) {  // single macro cluster, set its shape as child-shape
@@ -182,7 +183,7 @@ void SAHierPlacer<T>::initialize(Block& root_cluster)
   std::cout << "init cluster area && coarse shaping..." << std::endl;
   initCellArea(root_cluster, macro_halo);                    // init stdcell-area && macro-area
   coarseShaping(root_cluster, generateDifferentTilings<T>);  // init discrete-shapes bottom-up (coarse-shaping, only considers macros)
-
+  initFixedLocation(root_cluster, macro_halo); // init fixed cluster location
   // init timing-engine;
   initTimingEvaluator();
 }
@@ -325,13 +326,44 @@ void SAHierPlacer<T>::initCellArea(Block& root_cluster, T macro_halo)
       }
       mean_x /= obj.netlist().vSize();
       mean_y /= obj.netlist().vSize();
-      obj.set_min_corner(mean_x, mean_y);
+      // obj.set_min_corner(mean_x, mean_y);
       obj.set_shape_curve(geo::make_box(0, 0, 0, 0));  // io-cluster 0 area
       obj.set_fixed();
     }
     return;
   };
   root_cluster.postorder_op(area_op);
+}
+
+template <typename T>
+void SAHierPlacer<T>::initFixedLocation(Block& root_cluster, T macro_halo)
+{
+  auto fix_loc_op = [macro_halo](imp::Block& obj) -> void {
+
+    if (obj.isFixed()) {
+      int new_x = std::numeric_limits<int>::max();
+      int new_y = std::numeric_limits<int>::max();
+      if (obj.is_io_cluster()) {
+        for (auto&& i : obj.netlist().vRange()) {
+          auto sub_obj = i.property();
+          auto min_corner = sub_obj->get_min_corner();
+          new_x = std::min(new_x, min_corner.x());
+          new_y = std::min(new_y, min_corner.y());
+        }
+      } else if (obj.is_macro_cluster()) {
+        for (auto&& i : obj.netlist().vRange()) {
+          auto sub_obj = i.property();
+          auto min_corner = sub_obj->get_min_corner();
+          new_x = std::min(new_x, min_corner.x());
+          new_y = std::min(new_y, min_corner.y());
+        }
+      }
+      obj.set_min_corner(new_x, new_y);
+      assert(new_x != std::numeric_limits<int>::max() && "ERROR: fixed block has no valid X location");
+      assert(new_y != std::numeric_limits<int>::max() && "ERROR: fixed block has no valid Y location");
+    }
+  };
+  root_cluster.postorder_op(fix_loc_op);
 }
 
 template <typename T>
@@ -501,6 +533,12 @@ void SAHierPlacer<T>::initInstanceInfo()
   name2inst.clear();
   inst2cluster.clear();
   for (size_t v_id = 0; v_id < root->netlist().vSize(); ++v_id) {
+    std::string instanceName;
+    instanceName = "victorzhouInstance:";
+    instanceName.append("v_id:");
+    instanceName.append(std::to_string(v_id));
+    instanceName.append(",{");
+
     auto sub_obj = root->netlist().vertex_at(v_id).property();
     auto sub_blk = std::static_pointer_cast<Block, Object>(sub_obj);
     std::set<std::shared_ptr<imp::Instance>> instances = sub_blk->get_instances();
@@ -509,9 +547,13 @@ void SAHierPlacer<T>::initInstanceInfo()
       //   continue;
       // }
       // IO-CELL uses pin-name as instance-name
+      instanceName.append(inst->get_name());
+      instanceName.append(",");
       name2inst[inst->get_name()] = inst;
       inst2cluster[inst->get_name()] = v_id;
     }
+    instanceName.append("}");
+    INFO("instanceName: ", instanceName);
   }
 }
 template <typename T>

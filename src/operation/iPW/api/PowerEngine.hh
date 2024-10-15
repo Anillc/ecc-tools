@@ -48,8 +48,8 @@ struct ClusterConnection {
  *
  */
 struct MacroConnection {
-  std::string _src_macro_name;
-  std::string _dst_macro_name;
+  const char* _src_macro_name;
+  const char* _dst_macro_name;
   std::vector<unsigned> _stages_each_hop;
   unsigned _hop;
 };
@@ -67,6 +67,8 @@ class PowerEngine {
   [[nodiscard]] ista::TimingEngine *get_timing_engine() const {
     return _timing_engine;
   }
+
+  bool isBuildGraph() { return _ipower->isBuildGraph(); }
 
   // api for dataflow, first is create seq graph, second is get cluster
   // connection for the max hop.

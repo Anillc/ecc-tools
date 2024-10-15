@@ -20,7 +20,7 @@ project(iEDA)
 
 # option setting
 option(BUILD_PR_FLOW "If ON, build PR flow." ON)
-option(BUILD_STATIC_LIB "If ON, build static lib." ON)
+option(BUILD_STATIC_LIB "If ON, build static lib." OFF)
 if(DEFINED IEDA_BUILD_AS_THIRDPARTY)
     message(STATUS "Build iEDA as third party.")
     set(BUILD_STATIC_LIB ON)
@@ -34,7 +34,7 @@ if(DEFINED IEDA_BUILD_AS_THIRDPARTY)
     message(STATUS "Build iEDA as third party.")
     set(BUILD_PYTHON ON)
 else()
-    option(BUILD_PYTHON "If ON, build python interface." OFF)
+	option(BUILD_PYTHON "If ON, build python interface." ON)
 endif()
 if(BUILD_PYTHON)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
@@ -46,7 +46,7 @@ option(BUILD_GUI "If ON, build GUI." OFF)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
+#set(AI_EDA_TOP_DIR /home/zhouping/gitee8/aimp)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(FORT_ENABLE_TESTING OFF CACHE INTERNAL "") # Disable building tests and examples in libfort project
 
@@ -67,6 +67,7 @@ endif()
 
 set(SANITIZER OFF)
 if(SANITIZER)
+    add_definitions(-DUSE_CPP_STD)
     add_compile_options("-fsanitize=address")
     link_libraries("-fsanitize=address")
     message("address sanitizer load")
@@ -87,6 +88,11 @@ if(CONTEST)
     add_definitions(-DCONTEST)
     add_subdirectory(contest)
 endif()
+
+#include_directories("/pub/tools/others/fpc/software/glog/src/")
+#link_directories("/pub/tools/others/fpc/software/glog/build")
+add_compile_definitions(GLOG_USE_GLOG_EXPORT)
+
 
 set(PYBIND11_PATH ${PROJECT_SOURCE_DIR}/src/third_party/pybind11)
 set(TCL_PATH ${PROJECT_SOURCE_DIR}/src/utility/tcl)

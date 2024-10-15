@@ -76,6 +76,10 @@ void BlkClustering2::singleLevelClustering(Block& block)
   // extract io-cell as single cluster at level 1
   size_t single_cluster_id = nparts;
   if (block.level() == 1) {
+    std::unordered_map<size_t, std::unordered_set<size_t>> cluster_to_cells;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        cluster_to_cells[parts[i]].insert(i);
+    }
     size_t num_terminals = 0;
     for (size_t i = 0; i < parts.size(); ++i) {
       auto vertex_prop = block.netlist().vertex_at(i).property();
@@ -83,7 +87,11 @@ void BlkClustering2::singleLevelClustering(Block& block)
         auto& inst = dynamic_cast<Instance&>(*vertex_prop);
         if (inst.get_cell_master().isIOCell()) {
           num_terminals++;
-          parts[i] = single_cluster_id++;  // extract io as a single cluster;
+          size_t original_cluster_id = parts[i];
+          cluster_to_cells[original_cluster_id].erase(i);
+          if (!cluster_to_cells[original_cluster_id].empty()) {
+            parts[i] = single_cluster_id++;  // extract io as a single cluster;
+          }
         }
       }
     }
@@ -92,17 +100,30 @@ void BlkClustering2::singleLevelClustering(Block& block)
 
   // extract macro as single cluster at last level
   if (block.level() == level_num) {
+    std::unordered_map<size_t, std::unordered_set<size_t>> cluster_to_cells;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        cluster_to_cells[parts[i]].insert(i);
+    }
     // size_t single_macro_cluster_id = nparts;
+    size_t num_macros = 0;
     for (size_t i = 0; i < parts.size(); ++i) {
       auto vertex_prop = block.netlist().vertex_at(i).property();
       if (vertex_prop->isInstance()) {
         auto& inst = dynamic_cast<Instance&>(*vertex_prop);
         if (inst.get_cell_master().isMacro()) {
-          parts[i] = single_cluster_id++;  // extract macro as a single cluster;
+          num_macros += 1;
+          size_t original_cluster_id = parts[i];
+          cluster_to_cells[original_cluster_id].erase(i);
+          if (!cluster_to_cells[original_cluster_id].empty()) {
+            parts[i] = single_cluster_id++;  // extract macro as a single cluster;
+          }
         }
       }
     }
+    INFO("num_macros : ", num_macros);
   }
+
+  reorderClusters(parts, block);
 
   int i = 0;
 
@@ -110,9 +131,24 @@ void BlkClustering2::singleLevelClustering(Block& block)
     auto&& [sub_netlist, cuts] = sub_graph(graph, sub_vertices);
     auto new_block = std::make_shared<imp::Block>(block.get_name() + "_" + std::to_string(i++),
                                                   std::make_shared<imp::Netlist>(std::move(sub_netlist)), block.shared_from_this());
+    bool all_instances_fixed = true; // if all instance are fixed, set the cluster fixed
+    for (const auto& v : new_block->netlist().vRange()) {
+      auto inst = std::dynamic_pointer_cast<Instance>(v.property());
+      if (inst && !inst->isFixed()) {
+        all_instances_fixed = false;
+        break;
+      }
+    }
+
+    if (all_instances_fixed) {
+      new_block->set_fixed();
+    }
     // new_block->set_shape(imp::geo::make_box(0, 0, w, h));
-    INFO(new_block->get_name(), " num_v: ", new_block->netlist().vSize(), " num_cuts: ", cuts.size(),
-         " num_e: ", new_block->netlist().heSize());
+    INFO(new_block->get_name(), 
+       " num_v: ", new_block->netlist().vSize(), 
+       " num_cuts: ", cuts.size(), 
+       " num_e: ", new_block->netlist().heSize(),
+       " - Fixed: ", new_block->isFixed());
     return new_block;
   };
 
@@ -141,6 +177,81 @@ void BlkClustering2::singleLevelClustering(Block& block)
   block.set_netlist(std::make_shared<Netlist>(std::move(clusters)));
   // std::cout<<"critical_cuts = "<<critical_cut<<std::endl;
   // std::cout<<"non_critical_cuts = "<<non_critical_cut<<std::endl;
+}
+
+void BlkClustering2::findClusterTypes(std::shared_ptr<Object> vertex_prop, std::vector<ClusterType>& clusterTypes, bool& isFixed) 
+{
+  if (vertex_prop->isInstance()) {
+    auto& inst = dynamic_cast<Instance&>(*vertex_prop);
+    if (inst.get_cell_master().isMacro()) {
+      clusterTypes.push_back(MACRO);
+    } else if (inst.get_cell_master().isIOCell()) {
+      clusterTypes.push_back(IO);
+    } else { // Perhaps it can be further subdivided
+      clusterTypes.push_back(STD);
+    }
+    if (!inst.isFixed()) isFixed = false;
+  } else if (vertex_prop->isBlock()) {
+    auto sub_block = std::static_pointer_cast<Block, Object>(vertex_prop);
+    for (auto&& sub_vertex : sub_block->netlist().vRange()) {
+      findClusterTypes(sub_vertex.property(), clusterTypes, isFixed);
+    }
+  }
+}
+
+void BlkClustering2::reorderClusters(std::vector<size_t>& parts, Block& block)
+{
+  std::unordered_map<size_t, std::unordered_set<size_t>> cluster_to_cells;
+  for (size_t i = 0; i < parts.size(); ++i) {
+      cluster_to_cells[parts[i]].insert(i);
+  }
+  struct ClusterInfo {
+    ClusterType type;
+    bool isFixed;
+    size_t ori_cluster_id;  // 对应原cluster的id
+  };
+
+  std::vector<ClusterInfo> clusterInfo;
+
+  for (const auto& parts_set : cluster_to_cells) {
+    std::vector<ClusterType> clusterTypes;
+    bool isFixed = true;
+    for (const auto& i : parts_set.second) {
+      auto vertex_prop = block.netlist().vertex_at(i).property();
+      findClusterTypes(vertex_prop, clusterTypes, isFixed);
+    }
+    assert(!clusterTypes.empty() && "clusterTypes should not be empty");
+    ClusterType firstType = clusterTypes[0];
+    for (const auto& type : clusterTypes) {
+      if (type != firstType) {
+        firstType = MIX;
+        break;
+      }
+    }
+    ClusterInfo info;
+    info.type = firstType;
+    info.isFixed = isFixed;
+    info.ori_cluster_id = parts_set.first;
+    clusterInfo.push_back(info);
+  }
+
+  std::sort(clusterInfo.begin(), clusterInfo.end(), [](const ClusterInfo& a, const ClusterInfo& b) {
+      if (a.type != b.type) {
+          return a.type < b.type;  // ClusterType 越小, 优先级越高, STD, MIX, MACRO, IO
+      }
+      if (a.isFixed != b.isFixed) {
+          return !a.isFixed;
+      }
+      return a.ori_cluster_id < b.ori_cluster_id;
+  });
+
+  for (size_t j = 0; j < clusterInfo.size(); j++) {
+    ClusterInfo info = clusterInfo[j];
+    auto parts_id_set = cluster_to_cells[info.ori_cluster_id];
+    for (const auto& i : parts_id_set) {
+      parts[i] = j;
+    }
+  }
 }
 
 void BlkClustering2::paramCheck()

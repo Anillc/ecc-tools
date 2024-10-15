@@ -114,7 +114,11 @@ struct SAPlace
   // data
   size_t num_vertices;
   size_t num_edges;
+  size_t num_io_clusters;
+  size_t num_macro_clusters;
+  size_t num_fixed_clusters;
   std::vector<NodeShape<T>> blk_shapes;   // node-shape
+  std::vector<NodeShape<T>> inst_blk_shapes;
   std::vector<bool> ignore;               // ignore this node in packing
   std::vector<T> initial_lx;              // node-lower-x, not used now
   std::vector<T> initial_ly;              // node-lower-y, not used now
@@ -240,10 +244,20 @@ template <typename T>
 void SAPlace<T>::initPlaceData(Block& cluster)
 {
   // initialize input data
+  num_io_clusters = 0;
+  num_macro_clusters = 0;
+  num_fixed_clusters = 0;
+  for (auto v_iter = cluster.netlist().vbegin(); v_iter != cluster.netlist().vend(); ++v_iter) {
+      auto sub_block = std::static_pointer_cast<Block, Object>((*v_iter).property());
+      if (sub_block->is_io_cluster()) num_io_clusters += 1;
+      else if (sub_block->is_macro_cluster()) num_macro_clusters += 1;
+      if (sub_block->isFixed()) num_fixed_clusters += 1;
+  }
   auto start = std::chrono::high_resolution_clock::now();
   num_vertices = cluster.netlist().vSize();
   num_edges = cluster.netlist().heSize();
   blk_shapes = std::vector<NodeShape<T>>(num_vertices);
+  inst_blk_shapes = std::vector<NodeShape<T>>(num_vertices - num_io_clusters);
   ignore = std::vector<bool>(num_vertices, false);
   initial_lx = std::vector<T>(num_vertices, 0);
   initial_ly = std::vector<T>(num_vertices, 0);
@@ -267,6 +281,7 @@ void SAPlace<T>::initPlaceData(Block& cluster)
     if (sub_obj->isBlock()) {
       auto sub_block = std::static_pointer_cast<Block, Object>(sub_obj);
       blk_shapes[v_pos] = NodeShape(&(sub_block->get_shape_curve()));
+      if (!sub_block->is_io_cluster()) inst_blk_shapes[v_pos] = NodeShape(&(sub_block->get_shape_curve()));
       if (sub_block->isFixed()) {
         ignore[v_pos] = true;
         continue;
@@ -278,6 +293,7 @@ void SAPlace<T>::initPlaceData(Block& cluster)
     } else {
       auto sub_inst = std::static_pointer_cast<Instance, Object>(sub_obj);
       blk_shapes[v_pos] = NodeShape(sub_inst->get_width(), sub_inst->get_height());
+      if (!sub_inst->get_cell_master().isIOCell()) inst_blk_shapes[v_pos] = NodeShape(sub_inst->get_width(), sub_inst->get_height());
       if (sub_inst->isFixed()) {
         ignore[v_pos] = true;
         continue;
@@ -324,7 +340,8 @@ void SAPlace<T>::initRepresent(Block& cluster)
     represent = new Represent(init_represent);
     INFO("Using given initial represent solution");
   } else {
-    represent = new Represent(blk_shapes, gen);
+    // represent = new Represent(blk_shapes, gen);
+    represent = new Represent(inst_blk_shapes, gen);
     INFO("Using random initial represent solution");
   }
 }

@@ -32,8 +32,12 @@
 #include "time/Time.hh"
 
 namespace idb {
-VerilogWriter::VerilogWriter(const char* file_name, std::set<std::string>& exclude_cell_names, IdbDesign& idb_design)
-    : _file_name(file_name), _exclude_cell_names(exclude_cell_names), _idb_design(idb_design)
+VerilogWriter::VerilogWriter(const char* file_name, std::set<std::string>& exclude_cell_names, IdbDesign& idb_design,
+                             bool is_add_space_for_escape_name)
+    : _file_name(file_name),
+      _exclude_cell_names(exclude_cell_names),
+      _idb_design(idb_design),
+      _is_add_space_for_escape_name(is_add_space_for_escape_name)
 {
   _stream = std::fopen(file_name, "w");
 }
@@ -291,8 +295,14 @@ void VerilogWriter::writeAssign()
   for (const auto& net : net_list) {
     std::string net_name = net->get_net_name();
     for (const auto& io_pin : net->get_io_pins()->get_pin_list()) {
+      // assign net=input_port;
       if (io_pin->get_term()->get_direction() == IdbConnectDirection::kInput && io_pin->get_pin_name() != net_name) {
         fprintf(_stream, "assign %s = %s ;\n", net_name.c_str(), io_pin->get_pin_name().c_str());
+      }
+      // assign net=input_port;
+      // assign output_port = input_port;
+      if (io_pin->get_term()->get_direction() == IdbConnectDirection::kOutput && io_pin->get_pin_name() != net_name) {
+        fprintf(_stream, "assign %s = %s ;\n", io_pin->get_pin_name().c_str(), net_name.c_str());
       }
     }
   }
@@ -462,7 +472,13 @@ bool VerilogWriter::isNeedEscape(const std::string& name)
 std::string VerilogWriter::escapeName(const std::string& name)
 {
   std::string trim_name = ieda::Str::trimBackslash(name);
-  std::string escape_name = isNeedEscape(trim_name) ? "\\" + addSpaceForEscapeName(trim_name) : trim_name;
+  std::string escape_name;
+  if (_is_add_space_for_escape_name) {
+    escape_name = isNeedEscape(trim_name) ? "\\" + addSpaceForEscapeName(trim_name) : trim_name;
+  } else {
+    escape_name = isNeedEscape(trim_name) ? "\\" + trim_name : trim_name;
+  }
+
   return escape_name;
 }
 
