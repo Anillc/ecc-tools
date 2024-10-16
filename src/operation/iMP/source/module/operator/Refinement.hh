@@ -40,6 +40,9 @@ struct MacroInfo {
     int32_t width, height; // Macro dimensions
     std::string orient;    // Orientation (e.g., R0, R90, MX, MY)
     bool is_fixed;         // Whether the macro is fixed
+    int grid_count_x;      // Macro occupies how many grids horizontally
+    int grid_count_y;     // Macro occupies how many grids vertically
+    int grid_x, grid_y;    // Macro position in grid
 };
 
 struct BlockageInfo {
@@ -99,6 +102,14 @@ public:
     double calculatePeripheralCost(const std::vector<MacroInfo>& macros) const;
 
     double calculateMovement(const std::vector<MacroInfo>& mov_macros, const std::vector<MacroInfo>& exp_macros);
+
+    double calculateObjectiveFunction();
+
+    void simulatedAnnealingOptimize(int iterations, double temperature, double cooling_rate);
+
+    void adjustMacroOrientationBasedOnGridPosition();
+
+    void placeMacrosNearBoundaryOptimized();
 
     void writeTcl(const std::string& tcl_file_path);
 

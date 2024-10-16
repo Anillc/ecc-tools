@@ -3,6 +3,9 @@
 #include <fstream>
 #include <cassert>
 #include <numeric>
+#include <cmath>
+#include <random>
+#include <limits>
 
 namespace imp {
 
@@ -288,37 +291,33 @@ void Refinement::restoreMacros() {
     std::cout << "Macros successfully restored to original dimensions." << std::endl;
 }
 
-void Refinement::writeTcl(const std::string& tcl_file_path) {
-    std::ofstream tcl_file(tcl_file_path);
-    if (!tcl_file.is_open()) {
-        std::cerr << "Error: Unable to open file " << tcl_file_path << std::endl;
-        return;
-    }
-
-    for (const auto& macro : _mov_macros) {
-        tcl_file << "placeInstance " << macro.name << " "
-                 << static_cast<double>(macro.x) / dbu << " " 
-                 << static_cast<double>(macro.y) / dbu << " "
-                 << macro.orient << "\n";
-
-        tcl_file << "setInstancePlacementStatus -status "
-                 << (macro.is_fixed ? "fixed" : "movable") << " -name " << macro.name << "\n";
-    }
-
-    tcl_file.close();
-    std::cout << "TCL script written to " << tcl_file_path << std::endl;
-}
-
 std::vector<std::vector<Grid>> Refinement::divideCoreIntoGridsWithMacroGCD()
 {
     std::vector<std::vector<Grid>> grids;
 
-    _gcd_grid_width = _mov_macros[0].width;
-    _gcd_grid_height = _mov_macros[0].height;
+    _gcd_grid_width = _exp_mov_macros[0].width;
+    _gcd_grid_height = _exp_mov_macros[0].height;
 
-    for (const auto& macro : _mov_macros) {
+    int total_width = 0;
+    int total_height = 0;
+    for (const auto& macro : _exp_mov_macros) {
+        total_width += macro.width;
+        total_height += macro.height;
         _gcd_grid_width = std::gcd(_gcd_grid_width, macro.width);
         _gcd_grid_height = std::gcd(_gcd_grid_height, macro.height);
+    }
+    double average_macro_width = static_cast<double>(total_width) / _exp_mov_macros.size();
+    double average_macro_height = static_cast<double>(total_height) / _exp_mov_macros.size();
+
+    if (_gcd_grid_width > average_macro_width * 2 / 3) _gcd_grid_width /= 2;
+    if (_gcd_grid_height > average_macro_height * 2 / 3) _gcd_grid_height /= 2;
+
+    for (auto& macro : _exp_mov_macros) {
+        macro.grid_count_x = macro.width / _gcd_grid_width;
+        macro.grid_count_y = macro.height / _gcd_grid_height;
+
+        // std::cout << "Macro " << macro.name << " occupies " << macro.grid_count_x << " grids horizontally and "
+        //           << macro.grid_count_y << " grids vertically." << std::endl;
     }
 
     std::cout << "Grid width based on GCD of macro widths: " << _gcd_grid_width << std::endl;
@@ -359,11 +358,257 @@ std::vector<std::vector<Grid>> Refinement::divideCoreIntoGridsWithMacroGCD()
             grid.is_used = false;
         }
     }
+
+    for (const auto& blockage : _blockages) {
+        for (int i = 0; i < _gcd_num_grid_x; ++i) {
+            for (int j = 0; j < _gcd_num_grid_y; ++j) {
+                Grid& grid = grids[i][j];
+
+                int grid_x_end = grid.x_start + _gcd_grid_width;
+                int grid_y_end = grid.y_start + _gcd_grid_height;
+
+                bool overlaps = !(grid_x_end < blockage.lx || grid.x_start > blockage.ux ||
+                                  grid_y_end < blockage.ly || grid.y_start > blockage.uy);
+
+                if (overlaps) {
+                    grid.is_used = true;
+                }
+            }
+        }
+    }
+
     assert(grids[0][0].x_start == _core.lx && grids[0][0].y_start == _core.ly);
     assert(grids[_gcd_num_grid_x - 1][_gcd_num_grid_y - 1].x_start + _gcd_grid_width == _core.ux &&
            grids[_gcd_num_grid_x - 1][_gcd_num_grid_y - 1].y_start + _gcd_grid_height == _core.uy);
 
     return grids;
+}
+
+void Refinement::adjustMacroOrientationBasedOnGridPosition() {
+    int mid_grid_x = _gcd_num_grid_x / 2;
+
+    for (auto& macro : _exp_mov_macros) {
+        if (macro.grid_x >= mid_grid_x) {
+            if (macro.orient != "MX") {
+                std::cout << "Changing orientation of macro " << macro.name 
+                          << " from " << macro.orient << " to MX." << std::endl;
+                macro.orient = "MX";
+            }
+        } else {
+            if (macro.orient != "R0") {
+                std::cout << "Changing orientation of macro " << macro.name 
+                          << " from " << macro.orient << " to R0." << std::endl;
+                macro.orient = "R0";
+            }
+        }
+    }
+}
+
+void Refinement::placeMacrosNearBoundaryOptimized() {
+
+    std::vector<std::pair<size_t, double>> macro_indices_with_distances;
+
+    for (size_t i = 0; i < _exp_mov_macros.size(); ++i) {
+        const auto& macro = _exp_mov_macros[i];
+        double distance_to_left = static_cast<double>(macro.x - _core.lx);
+        double distance_to_right = static_cast<double>(_core.ux - (macro.x + macro.width));
+        double distance_to_bottom = static_cast<double>(macro.y - _core.ly);
+        double distance_to_top = static_cast<double>(_core.uy - (macro.y + macro.height));
+
+        double min_distance = std::min({distance_to_left, distance_to_right, distance_to_bottom, distance_to_top});
+        macro_indices_with_distances.emplace_back(i, min_distance);
+    }
+
+    std::sort(macro_indices_with_distances.begin(), macro_indices_with_distances.end(),
+              [](const std::pair<size_t, double>& a, const std::pair<size_t, double>& b) {
+                  return a.second < b.second;
+              });
+
+    for (const auto& [macro_index, distance] : macro_indices_with_distances) {
+        MacroInfo& macro = _exp_mov_macros[macro_index];
+        bool placed = false;
+
+        int start_grid_x = (macro.x - _core.lx) / _gcd_grid_width;
+        int end_grid_x = (macro.x + macro.width - _core.lx) / _gcd_grid_width;
+        int start_grid_y = (macro.y - _core.ly) / _gcd_grid_height;
+        int end_grid_y = (macro.y + macro.height - _core.ly) / _gcd_grid_height;
+
+        int closest_grid_x = -1;
+        int closest_grid_y = -1;
+        double min_border_distance = std::numeric_limits<double>::max();
+
+        for (int i = start_grid_x; i <= end_grid_x - macro.grid_count_x + 1; ++i) {
+            for (int j = start_grid_y; j <= end_grid_y - macro.grid_count_y + 1; ++j) {
+                bool can_place = true;
+                double grid_border_distance = std::numeric_limits<double>::max();
+                
+                if (i + macro.grid_count_x > _gcd_num_grid_x || j + macro.grid_count_y > _gcd_num_grid_y) {
+                    std::cout << "Skipping grid (" << i << ", " << j << ") due to grid overflow." << std::endl;
+                    continue;
+                }
+
+                for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+                    for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                        if (_gcd_grids[i + x_offset][j + y_offset].is_used) {
+                            can_place = false;
+                            std::cout << "Grid (" << i << ", " << j << ") already used." << std::endl;
+                            break;
+                        }
+                    }
+                    if (!can_place) break;
+                }
+
+                if (can_place) {
+                    int grid_x_start = _gcd_grids[i][j].x_start;
+                    int grid_y_start = _gcd_grids[i][j].y_start;
+
+                    double distance_to_left = static_cast<double>(grid_x_start - _core.lx);
+                    double distance_to_right = static_cast<double>(_core.ux - (grid_x_start + macro.grid_count_x * _gcd_grid_width));
+                    double distance_to_bottom = static_cast<double>(grid_y_start - _core.ly);
+                    double distance_to_top = static_cast<double>(_core.uy - (grid_y_start + macro.grid_count_y * _gcd_grid_height));
+
+                    grid_border_distance = std::min({distance_to_left, distance_to_right, distance_to_bottom, distance_to_top});
+
+                    if (grid_border_distance < min_border_distance) {
+                        closest_grid_x = i;
+                        closest_grid_y = j;
+                        min_border_distance = grid_border_distance;
+                    }
+
+                    std::cout << "Checking grid (" << i << ", " << j << "), distance to border: " << grid_border_distance << std::endl;
+                }
+            }
+        }
+
+        if (closest_grid_x != -1 && closest_grid_y != -1) {
+            macro.x = _gcd_grids[closest_grid_x][closest_grid_y].x_start;
+            macro.y = _gcd_grids[closest_grid_x][closest_grid_y].y_start;
+
+            macro.grid_x = closest_grid_x;
+            macro.grid_y = closest_grid_y;
+
+            for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+                for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                    _gcd_grids[closest_grid_x + x_offset][closest_grid_y + y_offset].is_used = true;
+                    // std::cout << "Marking grid (" << closest_grid_x + x_offset << ", " 
+                    //         << closest_grid_y + y_offset << ") as used." << std::endl;
+                }
+            }
+
+            std::cout << "Successfully placed macro " << macro.name 
+                    << " at new position (" << macro.x << ", " << macro.y << ")" << std::endl;
+            placed = true;
+        }
+
+        assert(placed && "Error: Unable to place macro!");
+    }
+}
+
+double Refinement::calculateObjectiveFunction() {
+    double total_cost = 0.0;
+
+    total_cost += calculateMovement(_mov_macros, _exp_mov_macros);
+    total_cost += calculatePeripheralCost(_exp_mov_macros);
+
+    return total_cost;
+}
+
+void Refinement::simulatedAnnealingOptimize(int iterations, double temperature, double cooling_rate) {
+
+    double previous_cost = calculateObjectiveFunction();
+
+    for (int iter = 0; iter < iterations; ++iter) {
+        // 随机选择一个宏单元
+        int macro_index = rand() % _exp_mov_macros.size();
+        MacroInfo& macro = _exp_mov_macros[macro_index];
+
+        // 随机选择一个方向：上、下、左、右
+        int direction = rand() % 4;  // 0: up, 1: down, 2: left, 3: right
+        int new_grid_x = macro.grid_x;
+        int new_grid_y = macro.grid_y;
+
+        int old_grid_x = macro.grid_x;
+        int old_grid_y = macro.grid_y;
+        int old_x = macro.x;
+        int old_y = macro.y;
+
+        // 移动宏单元的网格坐标
+        if (direction == 0) new_grid_y += 1;  // 向上
+        else if (direction == 1) new_grid_y -= 1;  // 向下
+        else if (direction == 2) new_grid_x -= 1;  // 向左
+        else if (direction == 3) new_grid_x += 1;  // 向右
+
+        // 检查是否超出边界
+        if (new_grid_x < 0 || new_grid_x + macro.grid_count_x > _gcd_num_grid_x ||
+            new_grid_y < 0 || new_grid_y + macro.grid_count_y > _gcd_num_grid_y) {
+            continue;
+        }
+
+        // 移动之前，将当前占据的网格的 is_used 置为 false
+        for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+            for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                _gcd_grids[macro.grid_x + x_offset][macro.grid_y + y_offset].is_used = false;
+            }
+        }
+
+        // 检查新位置的格子是否已经被使用
+        bool can_move = true;
+        for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+            for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                if (_gcd_grids[new_grid_x + x_offset][new_grid_y + y_offset].is_used) {
+                    can_move = false;
+                    break;
+                }
+            }
+            if (!can_move) break;
+        }
+
+        if (can_move) {
+            macro.grid_x = new_grid_x;
+            macro.grid_y = new_grid_y;
+            macro.x = _gcd_grids[new_grid_x][new_grid_y].x_start;
+            macro.y = _gcd_grids[new_grid_x][new_grid_y].y_start;
+
+            for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+                for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                    _gcd_grids[new_grid_x + x_offset][new_grid_y + y_offset].is_used = true;
+                }
+            }
+
+            double new_cost = calculateObjectiveFunction();  // 计算新的目标函数值
+            double delta_cost = new_cost - previous_cost;
+
+            std::cout << "Iteration " << iter 
+                      << " | Temperature: " << temperature 
+                      << " | Delta cost: " << delta_cost 
+                      << " | ";
+
+            if (delta_cost < 0 || (rand() / RAND_MAX) < exp(-delta_cost / temperature)) {
+                previous_cost = new_cost;
+                std::cout << "Accepted" << std::endl;
+            } else {
+                for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+                    for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                        _gcd_grids[new_grid_x + x_offset][new_grid_y + y_offset].is_used = false;
+                        _gcd_grids[old_grid_x + x_offset][old_grid_y + y_offset].is_used = true;
+                    }
+                }
+                macro.grid_x = old_grid_x;
+                macro.grid_y = old_grid_y;
+                macro.x = old_x;
+                macro.y = old_y;
+                std::cout << "Rejected" << std::endl;
+            }
+        } else {
+            for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
+                for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
+                    _gcd_grids[macro.grid_x + x_offset][macro.grid_y + y_offset].is_used = true;
+                }
+            }
+        }
+
+        temperature *= cooling_rate;
+    }
 }
 
 void Refinement::runRefinement(int method, std::string output_tcl)
@@ -380,7 +625,14 @@ void Refinement::runRefinement(int method, std::string output_tcl)
         std::cout << "Running MP-tree method..." << std::endl;
     } else if (method == 2) {
         std::cout << "Running grids method..." << std::endl;
+        int iterations = 1000;
+        double initial_temperature = 2000.0;
+        double cooling_rate = 0.95;
+
         _gcd_grids = divideCoreIntoGridsWithMacroGCD();
+        placeMacrosNearBoundaryOptimized();
+        simulatedAnnealingOptimize(iterations, initial_temperature, cooling_rate);
+        adjustMacroOrientationBasedOnGridPosition();
     }
 
     double total_move = calculateMovement(_mov_macros, _exp_mov_macros);
@@ -451,6 +703,27 @@ double Refinement::calculatePeripheralCost(const std::vector<MacroInfo>& macros)
     }
 
     return total_peripheral_cost;
+}
+
+void Refinement::writeTcl(const std::string& tcl_file_path) {
+    std::ofstream tcl_file(tcl_file_path);
+    if (!tcl_file.is_open()) {
+        std::cerr << "Error: Unable to open file " << tcl_file_path << std::endl;
+        return;
+    }
+
+    for (const auto& macro : _mov_macros) {
+        tcl_file << "placeInstance " << macro.name << " "
+                 << static_cast<double>(macro.x) / dbu << " " 
+                 << static_cast<double>(macro.y) / dbu << " "
+                 << macro.orient << "\n";
+
+        tcl_file << "setInstancePlacementStatus -status "
+                 << (macro.is_fixed ? "fixed" : "movable") << " -name " << macro.name << "\n";
+    }
+
+    tcl_file.close();
+    std::cout << "TCL script written to " << tcl_file_path << std::endl;
 }
 
 void Refinement::export_to_json(const std::string& filename)
