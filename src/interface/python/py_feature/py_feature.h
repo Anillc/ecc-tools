@@ -29,5 +29,8 @@ bool feature_macro_drc(const std::string& path, const std::string& drc_path);
 bool feature_eval_summary(const std::string& path, int32_t grid_size);
 bool feature_timing_eval_summary(const std::string& path);
 bool feature_net_eval(const std::string& path);
+bool feature_eval_union(const std::string& jsonl_path, const std::string& csv_path, int32_t grid_size);
+bool feature_pl_eval_union(const std::string& jsonl_path, const std::string& csv_path, int32_t grid_size);
+bool feature_cts_eval_union(const std::string& jsonl_path, const std::string& csv_path, int32_t grid_size);
 
 }  // namespace python_interface
