@@ -52,6 +52,7 @@ struct Box
   Box(coordinate_type xl, coordinate_type yl, coordinate_type xh, coordinate_type yh) : xl(xl), yl(yl), xh(xh), yh(yh) {}
   coordinate_type width() const { return xh - xl; }
   coordinate_type height() const { return yh - yl; }
+  int64_t area() const { return 1LL * width() * height(); }
 };
 
 // inline std::pair<Box, bool> intersection(Box const& b1, Box const& b2, bool consider_touch = true)
@@ -194,9 +195,8 @@ void PyPlaceDB::set(idm::DataManager* db)
     IdbInstance* node = inst_resort_list.at(i);
     // Macro const& macro = db.macro(db.macroId(node));
     if (node->get_status() != IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
-      Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(),
-                  node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
-                  node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
+      Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+                  node->get_bounding_box()->get_high_y());
       addNode(node, node->get_name(), box_tmp, false);
     }
     // else if (macro.className() != "DREAMPlace.PlaceBlockage") // fixed cells are special cases, skip placement blockages (looks like
@@ -247,12 +247,12 @@ void PyPlaceDB::set(idm::DataManager* db)
 #endif
       } else {
         Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(),
-                    node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
-                    node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
+                    node->get_bounding_box()->get_high_x(),
+                    node->get_bounding_box()->get_high_y());
         addNode(node, node->get_name(), box_tmp, true);
         printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-               node->get_coordinate()->get_y(), node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
-               node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
+               node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+               node->get_bounding_box()->get_high_y());
         // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
         num_terminals += 1;
         // compute upper bound of total fixed cell area
@@ -261,12 +261,11 @@ void PyPlaceDB::set(idm::DataManager* db)
     }
   }
   int ext_blockage_num = 0;
-  int block_id = 0;
   for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
     if (!blockage->is_palcement_blockage()) {
       continue;
     }
-    string block_name = "blockage" + std::to_string(block_id++);
+
     IdbPlacementBlockage* placement_blockage = dynamic_cast<IdbPlacementBlockage*>(blockage);
 
     // add obstruction boxes for fixed nodes
@@ -282,7 +281,16 @@ void PyPlaceDB::set(idm::DataManager* db)
       Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
       ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
     }
-
+    for (unsigned int i = 0; i < inst_num; ++i) {
+      IdbInstance* node = inst_resort_list.at(i);
+      // Macro const& macro = db.macro(db.macroId(node));
+      if (node->get_status() == IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
+        Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(),
+                    node->get_bounding_box()->get_high_x(),
+                    node->get_bounding_box()->get_high_y());
+        ps -= gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
+      }
+    }
     // Get unique boxes without overlap for each fixed cell
     // However, there may still be overlapping between fixed cells.
     // We cannot eliminate these because we want to keep the mapping from boxes to cells.
@@ -294,6 +302,8 @@ void PyPlaceDB::set(idm::DataManager* db)
       vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
       auto box = vBox.back();
       int id = node_names.size();
+      string block_name = "blockage" + std::to_string(id);
+      printf("PyPlaceDB detect fixed blockage: %s\n", block_name.c_str());
       node_name2id_map[pybind11::str(block_name)] = id;
       node_names.append(pybind11::str(block_name));
       dmInst->get_idb_design()->m_instID2Name.push_back(block_name);
@@ -303,22 +313,18 @@ void PyPlaceDB::set(idm::DataManager* db)
       node_orient.append(pybind11::str("R0"));
       node_size_x.append(box.width());
       node_size_y.append(box.height());
+      printf("Coordinate (%d, %d, %d, %d)\n", box.xl, box.yl, box.xh, box.yh);
       // map new node to original index
-      // node2orig_node_map.append(mNodeName2ID[node->get_name()]);
+      node2orig_node_map.append(id);
       // record original node to new node mapping
-      if (mNode2NewNodes.count(block_name) == 0) {
-        mNode2NewNodes[block_name] = std::vector<index_type>();
-      }
-
-      mNode2NewNodes[block_name].push_back(id);
+      total_fixed_node_area += 1LL * box.area();
     }
     num_terminals += vBox.size();
     ext_blockage_num += vBox.size();
   }
 
   // we only know num_nodes when all fixed cells with shapes are expanded
-  // dreamplacePrint(kDEBUG, "num_terminals %d, numFixed %u, numPlaceBlockages %u, num_terminal_NIs %d\n", num_terminals, db.numFixed(),
-  //                 db.numPlaceBlockages(), num_terminal_NIs);
+  printf("num_terminals %d, numPlaceBlockages %u, num_terminal_NIs %d\n", num_terminals, ext_blockage_num, num_terminal_NIs);
   num_nodes = inst_num + ext_blockage_num;  // db.nodes().size() + num_terminals - db.numFixed() - db.numPlaceBlockages()
   // dreamplaceAssertMsg(num_nodes == node_x.size(),
   //                     "%u != %lu, db.nodes().size = %lu, num_terminals = %d, numFixed = %u, numPlaceBlockages = %u, num_terminal_NIs =
@@ -360,8 +366,11 @@ void PyPlaceDB::set(idm::DataManager* db)
     flat_node2pin_start_map.append(count);
     count += node->get_pin_list()->get_pin_num();
   }
+  for (int i = 0; i < ext_blockage_num; i++) {
+    node2pin_map.append(pybind11::list());
+    flat_node2pin_start_map.append(count);
+  }
   flat_node2pin_start_map.append(count);
-
   num_movable_pins = 0;
   // TODO:
 
@@ -543,8 +552,8 @@ void PyPlaceDB::set(idm::DataManager* db)
         // printf("PyPlaceDB detect fixed cell: ");
         for (auto obs : node->get_cell_master()->get_obs_list()) {
           Box box(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(),
-                  node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
-                  node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
+                  node->get_bounding_box()->get_high_x(),
+                  node->get_bounding_box()->get_high_y());
           // Box box(node.xl + obs_box.xl, node.yl + obs_box.yl, node.xl + obs_box.xh, node.yl + obs_box.yh);
           index_type grid_index_xl = std::max(int((box.xl - routing_grid_xl) / routing_grids_size_x), 0);
           index_type grid_index_yl = std::max(int((box.yl - routing_grid_yl) / routing_grids_size_y), 0);
@@ -581,8 +590,8 @@ void PyPlaceDB::set(idm::DataManager* db)
                 }
               }
               // printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-              //        node->get_coordinate()->get_y(), node->get_coordinate()->get_x() + node->get_cell_master()->get_width(),
-              //        node->get_coordinate()->get_y() + node->get_cell_master()->get_height());
+              //        node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+              //        node->get_bounding_box()->get_high_y());
             }
           }
         }
