@@ -144,7 +144,7 @@ void PyPlaceDB::set(idm::DataManager* db)
   // add a node to a bin
   auto addNode2Bin = [&](Box const& box) { fixed_boxes.emplace_back(box.xl, box.yl, box.xh, box.yh); };
   // general add a node
-  auto addNode = [&](IdbInstance* node, std::string const& name, Box const& box, bool dist2map) {
+  auto addNode = [&](IdbInstance* node, std::string const& name, Box const& box, bool isFixed) {
     // this id may be different from node id
     int id = node_names.size();
     node_name2id_map[pybind11::str(name)] = id;
@@ -164,7 +164,7 @@ void PyPlaceDB::set(idm::DataManager* db)
     }
 
     mNode2NewNodes[node->get_name()].push_back(id);
-    if (dist2map) {
+    if (isFixed) {
       // dreamplacePrint(kDEBUG, "node %s\n", db.nodeName(node).c_str());
       addNode2Bin(box);
     }
@@ -316,6 +316,7 @@ void PyPlaceDB::set(idm::DataManager* db)
       printf("Coordinate (%d, %d, %d, %d)\n", box.xl, box.yl, box.xh, box.yh);
       // map new node to original index
       node2orig_node_map.append(id);
+      fixed_boxes.emplace_back(box.xl, box.yl, box.xh, box.yh);
       // record original node to new node mapping
       total_fixed_node_area += 1LL * box.area();
     }
