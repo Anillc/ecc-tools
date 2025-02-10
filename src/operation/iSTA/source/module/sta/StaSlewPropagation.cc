@@ -53,6 +53,8 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       // find the exist data.
       slew_data =
           own_vertex->getSlewData(delay_type, trans_type, src_slew_data);
+      slew_data->set_slew(slew);
+      slew_data->set_output_current_data(std::move(output_current_data));
     }
 
     if (!slew_data) {
@@ -60,6 +62,9 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
       slew_data->set_bwd(src_slew_data);
       src_slew_data->add_fwd(slew_data);
+
+      slew_data->set_launch_slew_data(
+          dynamic_cast<StaSlewData*>(src_slew_data)->get_launch_slew_data());
 
       slew_data->set_output_current_data(std::move(output_current_data));
       own_vertex->addData(slew_data);

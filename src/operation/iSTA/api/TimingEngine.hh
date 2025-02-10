@@ -63,7 +63,7 @@ class TimingEngine {
   Netlist *get_netlist() { return _ista->get_netlist(); }
   void writeVerilog(const char *verilog_file_name,
                     std::set<std::string> &&exclude_cell_names = {}) {
-    _ista->writeVerilog(verilog_file_name, exclude_cell_names);
+    _ista->writeVerilog(verilog_file_name, exclude_cell_names, false);
   }
 
   // Builder

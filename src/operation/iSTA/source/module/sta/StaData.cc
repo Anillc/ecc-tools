@@ -147,7 +147,9 @@ StaSlewData::StaSlewData(AnalysisMode delay_type, TransType trans_type,
 StaSlewData::~StaSlewData() = default;
 
 StaSlewData::StaSlewData(const StaSlewData& orig)
-    : StaData(orig), _slew(orig._slew) {
+    : StaData(orig),
+      _slew(orig._slew),
+      _launch_slew_data(orig._launch_slew_data) {
   if (orig._output_current_data) {
     auto* new_current_data = (*(orig._output_current_data))->copy();
     _output_current_data = std::unique_ptr<LibCurrentData>(new_current_data);
@@ -158,6 +160,7 @@ StaSlewData& StaSlewData::operator=(const StaSlewData& rhs) {
   if (this != &rhs) {
     StaData::operator=(rhs);
     _slew = rhs._slew;
+    _launch_slew_data = rhs._launch_slew_data;
 
     if (rhs._output_current_data) {
       auto* new_current_data = (*(rhs._output_current_data))->copy();
@@ -170,12 +173,14 @@ StaSlewData& StaSlewData::operator=(const StaSlewData& rhs) {
 StaSlewData::StaSlewData(StaSlewData&& other) noexcept
     : StaData(std::move(other)),
       _slew(other._slew),
+      _launch_slew_data(other._launch_slew_data),
       _output_current_data(std::move(other._output_current_data)) {}
 
 StaSlewData& StaSlewData::operator=(StaSlewData&& rhs) noexcept {
   if (this != &rhs) {
     StaData::operator=(std::move(rhs));
     _slew = rhs._slew;
+    _launch_slew_data = rhs._launch_slew_data;
     _output_current_data = std::move(rhs._output_current_data);
   }
   return *this;
@@ -194,10 +199,12 @@ unsigned StaSlewData::compareSignature(const StaData* data) const {
 
   unsigned is_same = 1;
 
-  const auto* delay_data = dynamic_cast<const StaSlewData*>(data);
-  if (_delay_type != delay_data->get_delay_type()) {
+  const auto* slew_data = dynamic_cast<const StaSlewData*>(data);
+  if (_delay_type != slew_data->get_delay_type()) {
     is_same = 0;
-  } else if (_trans_type != delay_data->get_trans_type()) {
+  } else if (_trans_type != slew_data->get_trans_type()) {
+    is_same = 0;
+  } else if (_launch_slew_data != slew_data->_launch_slew_data) {
     is_same = 0;
   }
 
@@ -250,7 +257,9 @@ StaPathDelayData::StaPathDelayData(const StaPathDelayData& orig)
     : StaData(orig),
       _arrive_time(orig._arrive_time),
       _req_time(orig._req_time),
-      _launch_clock_data(orig._launch_clock_data) {}
+      _launch_clock_data(orig._launch_clock_data),
+      _launch_delay_data(orig._launch_delay_data),
+      _is_need_keep(orig._is_need_keep) {}
 
 StaPathDelayData& StaPathDelayData::operator=(const StaPathDelayData& rhs) {
   if (this != &rhs) {
@@ -258,6 +267,8 @@ StaPathDelayData& StaPathDelayData::operator=(const StaPathDelayData& rhs) {
     _arrive_time = rhs._arrive_time;
     _launch_clock_data = rhs._launch_clock_data;
     _req_time = rhs._req_time;
+    _launch_delay_data = rhs._launch_delay_data;
+    _is_need_keep = rhs._is_need_keep;
   }
   return *this;
 }
@@ -266,7 +277,9 @@ StaPathDelayData::StaPathDelayData(StaPathDelayData&& other) noexcept
     : StaData(std::move(other)),
       _arrive_time(other._arrive_time),
       _req_time(other._req_time),
-      _launch_clock_data(other._launch_clock_data) {}
+      _launch_clock_data(other._launch_clock_data),
+      _launch_delay_data(other._launch_delay_data),
+      _is_need_keep(other._is_need_keep) {}
 
 StaPathDelayData& StaPathDelayData::operator=(StaPathDelayData&& rhs) noexcept {
   if (this != &rhs) {
@@ -274,6 +287,9 @@ StaPathDelayData& StaPathDelayData::operator=(StaPathDelayData&& rhs) noexcept {
     _arrive_time = rhs._arrive_time;
     _launch_clock_data = rhs._launch_clock_data;
     _req_time = rhs._req_time;
+
+    _launch_delay_data = rhs._launch_delay_data;
+    _is_need_keep = rhs._is_need_keep;
   }
   return *this;
 }
@@ -289,21 +305,32 @@ unsigned StaPathDelayData::compareSignature(const StaData* data) const {
     return 0;
   }
 
-  unsigned is_same = 1;
-
   const auto* delay_data = dynamic_cast<const StaPathDelayData*>(data);
+  auto* other_launch_clock_data = delay_data->get_launch_clock_data();
+  if (isNeedKeep() || delay_data->isNeedKeep()) {
+    return 0;
+  }
+
+  unsigned is_same = 1;
   if (_delay_type != delay_data->get_delay_type()) {
     is_same = 0;
   } else if (_trans_type != delay_data->get_trans_type()) {
     is_same = 0;
-  } else if (!_launch_clock_data ||
+  } else if ((!_launch_clock_data && other_launch_clock_data) ||
+             (_launch_clock_data && !(other_launch_clock_data))) {
+    is_same = 0;
+  } else if (_launch_clock_data && other_launch_clock_data &&
              (_launch_clock_data->get_prop_clock() !=
-              delay_data->get_launch_clock_data()->get_prop_clock())) {
+              other_launch_clock_data->get_prop_clock())) {
     is_same = 0;
-  } else if (_launch_clock_data->get_clock_wave_type() !=
-             delay_data->get_launch_clock_data()->get_clock_wave_type()) {
+  } else if (_launch_clock_data && other_launch_clock_data &&
+             _launch_clock_data->get_clock_wave_type() !=
+                 other_launch_clock_data->get_clock_wave_type()) {
     is_same = 0;
-  } /* else if (delay_data->get_bwd()->get_own_vertex() !=
+  } else if (get_launch_delay_data() != delay_data->get_launch_delay_data()) {
+    is_same = 0;
+  }
+  /* else if (delay_data->get_bwd()->get_own_vertex() !=
              get_bwd()->get_own_vertex()) {
     is_same = 0;
   } */
@@ -456,10 +483,6 @@ void StaDataBucket::addData(StaData* data, int track_stack_deep) {
   };
 
   track_stack_deep++;
-
-  // if (track_stack_deep > 4 && data->isPathDelayData()) {
-  //   LOG_INFO << "Debug";
-  // }
 
   if (_data_list.empty()) {
     insertData(data);

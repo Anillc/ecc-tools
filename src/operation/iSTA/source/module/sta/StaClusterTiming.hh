@@ -64,7 +64,18 @@ class StaClusterTiming : public StaFunc {
   Net& addRemainingNetsConnectedInst(Net&& net) {
     _remaining_nets_connected_inst.emplace_back(std::move(net));
     Net* the_net = &(_remaining_nets_connected_inst.back());
+    const char* net_name = the_net->get_name();
+    _str2remainin_net_connected_inst[net_name] = the_net;
     return *the_net;
+  }
+
+  Net* findRemainingNetConnectedInst(const char* net_name) const {
+    auto found_net = _str2remainin_net_connected_inst.find(net_name);
+
+    if (found_net != _str2remainin_net_connected_inst.end()) {
+      return found_net->second;
+    }
+    return nullptr;
   }
 
   Port& addRemainingPortsConnectedInst(Port&& port) {
@@ -118,6 +129,7 @@ class StaClusterTiming : public StaFunc {
                                         //!< to ports, not connected to
                                         //!< inst's pin, where the cluster
                                         //!< only has one port.
+  StrMap<Net*> _str2remainin_net_connected_inst;
   StrMap<Net*> _str2remainin_net_connected_port;
   // for debugging purposes.
   std::set<std::string> _boundary_net_set;

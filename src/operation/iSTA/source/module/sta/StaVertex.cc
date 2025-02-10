@@ -330,16 +330,22 @@ void StaVertex::setPathBasedPropagated() {
 /**
  * @brief Init slew data, if not create zero slew default.
  */
-void StaVertex::initSlewData(int init_slew) {
+void StaVertex::initSlewData(int init_slew, bool is_set_launch_data) {
   auto& slew_bucket = getSlewBucket();
   if (!slew_bucket.empty()) {
     return;
   }
 
-  auto construct_slew_data = [](AnalysisMode delay_type, TransType trans_type,
-                                StaVertex* own_vertex, int slew) {
+  auto construct_slew_data = [is_set_launch_data](
+                                 AnalysisMode delay_type, TransType trans_type,
+                                 StaVertex* own_vertex, int slew) {
     StaSlewData* slew_data =
         new StaSlewData(delay_type, trans_type, own_vertex, slew);
+    if (is_set_launch_data) {
+      slew_data->set_launch_slew_data(
+          slew_data);  // set origin launch slew data for propagate compare.
+    }
+
     own_vertex->addData(slew_data);
   };
 
@@ -360,6 +366,10 @@ void StaVertex::initPathDelayData(int init_at) {
       [this](AnalysisMode delay_type, TransType trans_type, double init_at) {
         StaPathDelayData* path_delay_data = new StaPathDelayData(
             delay_type, trans_type, NS_TO_FS(init_at), nullptr, this);
+        // path_delay_data->set_is_need_keep();
+        path_delay_data->set_launch_delay_data(
+            path_delay_data);  // set origin launch delay data for propagate
+                               // compare.
         addData(path_delay_data);
       };
 
@@ -955,8 +965,8 @@ StaVertex::getDifferentStartPathDelayData(AnalysisMode analysis_mode,
   std::map<StaVertex*, StaPathDelayData*> start_vertex_to_worst_data;
 
   for (auto& [start_vertex, data_queue] : start_vertex_path_data_queue) {
-    start_vertex_to_worst_data[start_vertex] =
-        dynamic_cast<StaPathDelayData*>(data_queue.top());
+    auto* path_delay_data = dynamic_cast<StaPathDelayData*>(data_queue.top());
+    start_vertex_to_worst_data[start_vertex] = path_delay_data;
   }
 
   return start_vertex_to_worst_data;

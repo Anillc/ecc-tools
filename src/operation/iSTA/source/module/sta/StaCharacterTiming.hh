@@ -73,9 +73,9 @@ class StaCharacterTiming : public StaFunc {
   std::string _model_path;      //!< The design timing model path.
   AnalysisMode _analysis_mode;  //!< The analysis mode.
 
-  std::vector<StaVertex*>
+  std::set<StaVertex*>
       _interface_logic_endpoints;  //!< The collected design interface logic
-                                   //!< sequential endpoint.
+                                   //!< sequential endpoint and output port.
   ieda::Multimap<StaVertex*, StaVertex*>
       _port_to_logic_endpoint;  //!< The map from port to logic endpoint.
   ieda::Multimap<StaVertex*, StaVertex*>

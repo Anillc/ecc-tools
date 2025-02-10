@@ -35,7 +35,7 @@ void StaClusterTiming::addHierSubNetlist() {
   std::vector<Netlist*> hier_sub_netlists;
   int cluster_index = 1;
   for (auto& cluster_instance : _cluster_instances) {
-    if (cluster_index >= 1 && cluster_index <= 100) {
+    if (cluster_index >= 1 && cluster_index <= 1) {
       if (cluster_instance.size() == 1) {
         continue;
       }
@@ -121,7 +121,7 @@ void StaClusterTiming::addHierSubNetlist() {
   }
   design_netlist->set_hier_sub_netlists(hier_sub_netlists);
 
-  bool debug_one_instance_cluster = false;
+  bool debug_one_instance_cluster = true;
   if (debug_one_instance_cluster) {
     for (auto& cluster_instance : _cluster_instances) {
       if (cluster_instance.size() == 1) {
@@ -164,38 +164,48 @@ void StaClusterTiming::addHierSubNetlist() {
               continue;
             }
             const char* net_name = net->get_name();
-            auto& new_net = addRemainingNetsConnectedInst(Net(net_name));
-            if (net->isClockNet()) {
-              new_net.set_is_clock_net();
-            }
-            auto& pin_ports = net->get_pin_ports();
-            for (const auto& pin_port : pin_ports) {
-              std::string own_instance_name("");
-              if (pin_port->isPin()) {
-                own_instance_name = pin_port->get_own_instance()->getFullName();
+            auto* the_net = findRemainingNetConnectedInst(net_name);
+            if (!the_net) {
+              auto& new_net = addRemainingNetsConnectedInst(Net(net_name));
+              if (net->isClockNet()) {
+                new_net.set_is_clock_net();
               }
+              auto& pin_ports = net->get_pin_ports();
+              for (const auto& pin_port : pin_ports) {
+                // std::string own_instance_name("");
+                // if (pin_port->isPin()) {
+                //   own_instance_name =
+                //       pin_port->get_own_instance()->getFullName();
+                // }
 
-              if (pin_port->isPort()) {
-                auto& new_port = addRemainingPortsConnectedInst(
-                    Port(pin_port->get_name(),
-                         dynamic_cast<Port*>(pin_port)->get_port_dir()));
-                new_net.addPinPort(&new_port);
-              } else if (pin_port->isPin() &&
-                         Str::equal(new_inst.get_name(),
-                                    own_instance_name.c_str())) {
-                // new_net.addPinPort(pin) not new_net.addPinPort(pin_port);
-                // because net point to the original net.
-                new_net.addPinPort(pin);
+                if (pin_port->isPort()) {
+                  auto& new_port = addRemainingPortsConnectedInst(
+                      Port(pin_port->get_name(),
+                           dynamic_cast<Port*>(pin_port)->get_port_dir()));
+                  new_net.addPinPort(&new_port);
+                  // } else if (pin_port->isPin() &&
+                  //            Str::equal(new_inst.get_name(),
+                  //                       own_instance_name.c_str())) {
+                  // new_net.addPinPort(pin) not new_net.addPinPort(pin_port);
+                  // because net point to the original net.
+                }
               }
+              new_net.addPinPort(pin);
+              the_net = &new_net;
+              pin->set_net(the_net);
+            } else {
+              the_net->addPinPort(pin);
+              pin->set_net(the_net);
             }
-            pin->set_net(&new_net);
           }
+
           addRemainingInstances(std::move(new_inst));
         }
       }
     }
   }
 }
+// namespace ista
 
 /**
  * @brief builid subnetlists to instance of the top netlist.
@@ -282,23 +292,33 @@ void StaClusterTiming ::buildSubnetlistToInst() {
 
       } else {
         auto* connect_net = pin->get_net();
-        Net* the_net = design_netlist->findNet(connect_net->get_name());
-        if (!the_net) {
-          Net& ret_net = design_netlist->addNet(std::move(*connect_net));
-          connect_net = &ret_net;
-          pin->set_net(connect_net);
+        if (!connect_net) {
+          continue;
         }
-        for (auto& pin_port : connect_net->get_pin_ports()) {
-          if (pin_port->isPort()) {
-            auto* the_port = design_netlist->findPort(pin_port->get_name());
-            if (!the_port) {
-              // transfer ownership of port to design_netlist and get the
-              // reference of ret_port.
-              Port& ret_port = design_netlist->addPort(
-                  std::move((*dynamic_cast<Port*>(pin_port))));
-              // Reset the port pointer in connect_net to the new pointer
-              // "&ret_port"
-              pin_port = &ret_port;
+        // for debugging purpose.
+        // auto pin_name = pin->getFullName();
+        Net* the_net = design_netlist->findNet(connect_net->get_name());
+        if (the_net) {
+          connect_net = the_net;
+          pin->set_net(the_net);
+        } else {
+          {
+            Net& ret_net = design_netlist->addNet(std::move(*connect_net));
+            connect_net = &ret_net;
+            pin->set_net(connect_net);
+          }
+          for (auto& pin_port : connect_net->get_pin_ports()) {
+            if (pin_port->isPort()) {
+              auto* the_port = design_netlist->findPort(pin_port->get_name());
+              if (!the_port) {
+                // transfer ownership of port to design_netlist and get the
+                // reference of ret_port.
+                Port& ret_port = design_netlist->addPort(
+                    std::move((*dynamic_cast<Port*>(pin_port))));
+                // Reset the port pointer in connect_net to the new pointer
+                // "&ret_port"
+                pin_port = &ret_port;
+              }
             }
           }
         }
@@ -565,19 +585,21 @@ void StaClusterTiming::addPortForBoundaryInstance(
         // and the net's load pin.
         if (pin_port->isPin() && pin_port->isOutput() &&
             !boundary_inst_own_cluster.contains(own_instance_name)) {
-          // flag the instance'pin to connect to the virtual net.
-          dynamic_cast<Pin*>(pin_port)->set_net_name_between_clusters(
-              connect_net->get_name());
-          // need virtual port on the connect net.
-          PortDir dcl_type = PortDir::kIn;
-          std::string dcl_name = connect_net->get_name();
           // the virtual port name should not contaiins escape when adding the
           // virtual port.(because wirte net need escapeName resulting in port
           // name and net name is not consistent.)
+          std::string dcl_name = connect_net->get_name();
           dcl_name = Str::replace(dcl_name, "/", "_");
           dcl_name = Str::replace(dcl_name, "\\[", "");
           dcl_name = Str::replace(dcl_name, "\\]", "");
           dcl_name = Str::replace(dcl_name, "\\.", "");
+
+          // flag the instance'pin to connect to the virtual net.
+          dynamic_cast<Pin*>(pin_port)->set_net_name_between_clusters(
+              dcl_name.c_str());
+
+          // need virtual port on the connect net.
+          PortDir dcl_type = PortDir::kIn;
 
           auto* the_net = subnetlist.findNet(dcl_name.c_str());
           auto* the_port = subnetlist.findPort(dcl_name.c_str());
@@ -618,17 +640,18 @@ void StaClusterTiming::addPortForBoundaryInstance(
             pin_port->get_own_instance()->getFullName();
 
         if (!boundary_inst_own_cluster.contains(own_instance_name)) {
+          std::string dcl_name = connect_net->get_name();
+          dcl_name = Str::replace(dcl_name, "/", "_");
+          dcl_name = Str::replace(dcl_name, "\\[", "");
+          dcl_name = Str::replace(dcl_name, "\\]", "");
+          dcl_name = Str::replace(dcl_name, "\\.", "");
+
           // flag the instance'pin to connect to the virtual net.
           dynamic_cast<Pin*>(pin_port)->set_net_name_between_clusters(
-              connect_net->get_name());
+              dcl_name.c_str());
           // need virtual port on the connect net.
           if (first) {
             PortDir dcl_type = PortDir::kOut;
-            std::string dcl_name = connect_net->get_name();
-            dcl_name = Str::replace(dcl_name, "/", "_");
-            dcl_name = Str::replace(dcl_name, "\\[", "");
-            dcl_name = Str::replace(dcl_name, "\\]", "");
-            dcl_name = Str::replace(dcl_name, "\\.", "");
 
             auto* the_net = subnetlist.findNet(dcl_name.c_str());
             if (the_net) {

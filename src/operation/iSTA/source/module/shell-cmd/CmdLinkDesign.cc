@@ -57,7 +57,7 @@ unsigned CmdLinkDesign::exec() {
 
   ista->linkDesignWithRustParser(cell_name);
 
-#if TEST_ASIC_TOP
+#if 0
 
   std::set<std::string> exclude_cell_names = {};
   // ista->get_netlist()->writeVerilog(

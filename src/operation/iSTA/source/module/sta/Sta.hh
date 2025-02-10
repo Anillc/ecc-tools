@@ -537,7 +537,8 @@ class Sta {
   int getWorstSlack(StaVertex* end_vertex, AnalysisMode mode,
                     TransType trans_type);
   void writeVerilog(const char* verilog_file_name,
-                    std::set<std::string>& exclude_cell_names);
+                    std::set<std::string>& exclude_cell_names,
+                    bool is_hier_module);
 
   unsigned resetGraphData();
   unsigned resetPathData();

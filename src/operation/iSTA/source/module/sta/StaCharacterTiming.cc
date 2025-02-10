@@ -53,7 +53,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
           _output_port_to_input_port.insert(the_vertex, _current_port_vertex);
         }
 
-        _interface_logic_endpoints.emplace_back(the_vertex);
+        _interface_logic_endpoints.insert(the_vertex);
 
       } else if (_state == kBackPropagateRTToPort) {
         // set the constrain require time.
@@ -81,6 +81,9 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
     if (the_vertex->is_clock()) {
       if (_state == kCollectEndpoints) {
+        LOG_FATAL_IF(!_current_port_vertex)
+            << "current port vertex is null when clock vertex "
+            << the_vertex->getName() << " is reached.";
         _logic_clkpoint_to_port.insert(the_vertex, _current_port_vertex);
         _port_to_logic_clkpoint.insert(_current_port_vertex, the_vertex);
       }
@@ -114,7 +117,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
     // bwd
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
-      if (snk_arc->isMpwArc()) {
+      if (!snk_arc->isDelayArc()) {
         continue;
       }
 
@@ -210,13 +213,13 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 unsigned StaCharacterTiming::init(StaGraph* the_graph) {
   StaVertex* the_vertex;
   FOREACH_VERTEX(the_graph, the_vertex) {
-    the_vertex->setPathBasedPropagated();
+    // the_vertex->setPathBasedPropagated(); // not use path base for run time.
 
     if (the_vertex->is_port()) {
       // set init slew or AT.
       auto* the_port = the_vertex->get_design_obj();
       if (the_port->isInput()) {
-        the_vertex->initSlewData();  // TODO(to taosimin) need decide the
+        the_vertex->initSlewData(0, true);  // TODO(to taosimin) need decide the
         // discrete init slew data point.
         the_vertex->initPathDelayData();
       }
@@ -245,7 +248,7 @@ unsigned StaCharacterTiming::collectInterfaceLogicEndPoint(
       _current_port_vertex = port_vertex;
       (*this)(port_vertex);
     } else {
-      _interface_logic_endpoints.emplace_back(port_vertex);
+      _interface_logic_endpoints.insert(port_vertex);
     }
   }
 
@@ -403,7 +406,14 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                                           // more than one endpoint
     auto* endpoint_check_arc = logic_endpoint->getCheckArc(analysis_mode);
     auto* clk_point = endpoint_check_arc->get_src();
-    auto* clock_port_vertex = _logic_clkpoint_to_port.values(clk_point).front();
+
+    auto clock_port_vertexes = _logic_clkpoint_to_port.values(clk_point);
+    if (clock_port_vertexes.empty()) {
+      LOG_INFO << clk_point->getName() << " clock port vertex is empty.";
+      return;
+    }
+
+    auto* clock_port_vertex = clock_port_vertexes.front();
 
     // construct the constrain arc.
     auto endpoint_rise_at = logic_endpoint->getArriveTimeNs(

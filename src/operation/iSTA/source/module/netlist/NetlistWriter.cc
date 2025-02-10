@@ -31,30 +31,37 @@ namespace ista {
 
 NetlistWriter::NetlistWriter(const char *file_name,
                              std::set<std::string> &exclude_cell_names,
-                             Netlist &netlist)
+                             Netlist *netlist)
     : _file_name(file_name),
       _exclude_cell_names(exclude_cell_names),
       _netlist(netlist) {
   _stream = std::fopen(file_name, "w");
+  std::fprintf(_stream, "//Generate the verilog at %s\n",
+               Time::getNowWallTime());
+  if (!_stream) {
+    LOG_ERROR << "File " << _file_name << " NotWritable";
+  }
+  LOG_INFO << "start write verilog file " << _file_name;
 }
 
-NetlistWriter::~NetlistWriter() { std::fclose(_stream); }
+NetlistWriter::~NetlistWriter() {
+  LOG_INFO << "finish write verilog file " << _file_name;
+  std::fclose(_stream);
+}
 
 /**
  * @brief write the verilog design.
  *
  */
 void NetlistWriter::writeModule() {
+  fprintf(_stream, "module %s (", _netlist->get_name());
   if (!_stream) {
     LOG_ERROR << "File " << _file_name << " NotWritable";
   }
 
   LOG_INFO << "start write verilog file " << _file_name;
 
-  std::fprintf(_stream, "//Generate the verilog at %s by iSTA.\n",
-               Time::getNowWallTime());
-
-  fprintf(_stream, "module %s (", _netlist.get_name());
+  fprintf(_stream, "module %s (", _netlist->get_name());
   fprintf(_stream, "\n");
   writePorts();
   fprintf(_stream, "\n");
@@ -66,9 +73,7 @@ void NetlistWriter::writeModule() {
   fprintf(_stream, "\n");
   writeInstances();
   fprintf(_stream, "\n");
-  fprintf(_stream, "endmodule\n");
-
-  LOG_INFO << "finish write verilog file " << _file_name;
+  fprintf(_stream, "endmodule\n\n");
 }
 
 /**
@@ -78,7 +83,7 @@ void NetlistWriter::writeModule() {
 void NetlistWriter::writePorts() {
   bool first = true;
   Port *port;
-  FOREACH_PORT(&_netlist, port) {
+  FOREACH_PORT(_netlist, port) {
     if (port->get_port_bus()) {
       continue;
     }
@@ -94,7 +99,7 @@ void NetlistWriter::writePorts() {
   }
 
   PortBus *port_bus;
-  FOREACH_PORT_BUS(&_netlist, port_bus) {
+  FOREACH_PORT_BUS(_netlist, port_bus) {
     if (!first) {
       fprintf(_stream, ",\n");
     }
@@ -113,7 +118,7 @@ void NetlistWriter::writePorts() {
  */
 void NetlistWriter::writePortDcls() {
   Port *port;
-  FOREACH_PORT(&_netlist, port) {
+  FOREACH_PORT(_netlist, port) {
     if (port->get_port_bus()) {
       continue;
     }
@@ -132,7 +137,7 @@ void NetlistWriter::writePortDcls() {
   }
 
   PortBus *port_bus;
-  FOREACH_PORT_BUS(&_netlist, port_bus) {
+  FOREACH_PORT_BUS(_netlist, port_bus) {
     PortDir port_dir = port_bus->get_port_dir();
     std::string port_name = port_bus->getFullName();
     const char *bus_range =
@@ -155,7 +160,7 @@ void NetlistWriter::writePortDcls() {
  */
 void NetlistWriter::writeWire() {
   Net *net;
-  FOREACH_NET(&_netlist, net) {
+  FOREACH_NET(_netlist, net) {
     std::string net_name = net->getFullName();
     std::string new_net_name = Str::replace(net_name, R"(\\)", "");
     std::string escape_net_name = escapeName(new_net_name);
@@ -170,7 +175,7 @@ void NetlistWriter::writeWire() {
  */
 void NetlistWriter::writeAssign() {
   Net *net;
-  FOREACH_NET(&_netlist, net) {
+  FOREACH_NET(_netlist, net) {
     std::string net_name = net->getFullName();
     std::string new_net_name = Str::replace(net_name, R"(\\)", "");
     // std::string escape_net_name = escapeName(new_net_name);
@@ -200,7 +205,7 @@ void NetlistWriter::writeAssign() {
 void NetlistWriter::writeInstances() {
   std::vector<Instance *> instances;
   Instance *inst;
-  FOREACH_INSTANCE(&_netlist, inst) {
+  FOREACH_INSTANCE(_netlist, inst) {
     if (inst->isInstance()) {
       instances.push_back(inst);
     }

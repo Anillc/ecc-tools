@@ -128,6 +128,10 @@ class PinBus : public DesignObject {
   Pin* getPin(unsigned index) { return _pins[index]; }
   auto& getPins() { return _pins; }
 
+  std::unique_ptr<PinBus> clone() const {
+    return std::make_unique<PinBus>(*this);
+  }
+
  private:
   unsigned _left;   //!< The left range.
   unsigned _right;  //!< The right range.

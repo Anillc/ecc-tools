@@ -63,7 +63,7 @@ TEST_F(ClusterTimingTest, example1) {
   ista->get_netlist()->writeVerilog(
       "/home/longshuaiying/cluster_timing_model/example1/verilog/"
       "example1_write1.v",
-      exclude_cell_names);
+      exclude_cell_names, true);
   std::vector<std::set<std::string>> clusters = {
       {"r1", "u2"}, {"r2", "u1"}, {"r3"}};
   StaClusterTiming sta_cluster_timing(clusters);
@@ -75,7 +75,7 @@ TEST_F(ClusterTimingTest, example1) {
   ista->get_netlist()->writeVerilog(
       "/home/longshuaiying/cluster_timing_model/example1/verilog/"
       "example1_write2.v",
-      exclude_cell_names);
+      exclude_cell_names, true);
   int sub_netlist_index = 1;
   for (const auto& hier_sub_netlist : hier_sub_netlists) {
     std::set<std::string> exclude_cell_names1 = {};
@@ -85,14 +85,14 @@ TEST_F(ClusterTimingTest, example1) {
         std::string("hier_sub_netlist") + std::to_string(sub_netlist_index) +
         ".v";
     hier_sub_netlist->writeVerilog(cluster_verilog_file.c_str(),
-                                   exclude_cell_names1);
+                                   exclude_cell_names1, true);
     sub_netlist_index++;
   }
   sta_cluster_timing.buildSubnetlistToInst();
   ista->get_netlist()->writeVerilog(
       "/home/longshuaiying/cluster_timing_model/example1/verilog/"
       "example1_write3.v",
-      exclude_cell_names);
+      exclude_cell_names, true);
 
   double memory_delta = stats.memoryDelta();
   LOG_INFO << "extract timing lib memory usage " << memory_delta << "MB";

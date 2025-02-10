@@ -184,7 +184,8 @@ class Netlist : public DesignObject {
   void reset();
 
   void writeVerilog(const char* verilog_file_name,
-                    std::set<std::string> exclude_cell_names);
+                    std::set<std::string> exclude_cell_names,
+                    bool is_hier_module);
 
   void set_hier_sub_netlists(std::vector<Netlist*> hier_sub_netlists) {
     _hier_sub_netlists = hier_sub_netlists;

@@ -95,6 +95,16 @@ class Instance : public DesignObject {
     }
     return nullptr;
   }
+  Vector<std::unique_ptr<PinBus>> clonePinBuses() const {
+    Vector<std::unique_ptr<PinBus>> colned_pin_buses;
+    colned_pin_buses.reserve(_pin_buses.size());
+    for (const auto& pin_bus : _pin_buses) {
+      if (pin_bus) {
+        colned_pin_buses.push_back(pin_bus->clone());
+      }
+    }
+    return colned_pin_buses;
+  }
 
   void set_coordinate(double x, double y) { _coordinate = {x, y}; }
   auto get_coordinate() { return _coordinate; }
