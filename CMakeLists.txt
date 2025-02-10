@@ -21,22 +21,18 @@ project(iEDA)
 set(PYBIND11_PYTHON_VERSION 3.10)
 set(PYTHON_EXECUTABLE /home/zhaoxueyan/anaconda3/envs/iEDA-DSE/bin/python)
 
-# option setting
-option(BUILD_PR_FLOW "If ON, build PR flow." ON)
 option(BUILD_STATIC_LIB "If ON, build static lib." ON)
 
 if(NOT BUILD_STATIC_LIB)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 
-option(BUILD_PYTHON "If ON, build python interface." ON)
+option(BUILD_PYTHON "If ON, build python interface." OFF)
 if(BUILD_PYTHON)
     set(BUILD_STATIC_LIB OFF)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 option(BUILD_GUI "If ON, build GUI." OFF)
-
-# add_subdirectory(src/third_party/mt-kahypar)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
@@ -46,12 +42,11 @@ set(AI_EDA_TOP_DIR /home/zhouping/gitee/ai-mp)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(FORT_ENABLE_TESTING OFF CACHE INTERNAL "") # Disable building tests and examples in libfort project
 
-# SET(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -fPIC")
-set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
-set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
-# set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_BUILD_TYPE "Debug")
-#set(BUILD_SHARED_LIBS ON)
+# set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -Wextra -Werror=return-type")
+# set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -Wextra -Werror=return-type")
+set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -Werror=return-type")
+set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -Werror=return-type")
+set(CMAKE_BUILD_TYPE "Release")
 
 if(NOT DEFINED CMD_BUILD)
     set(SANITIZER OFF)
@@ -60,9 +55,15 @@ endif()
 
 set(SANITIZER OFF)
 if(SANITIZER)
+    add_definitions(-DUSE_CPP_STD)
     add_compile_options("-fsanitize=address")
     link_libraries("-fsanitize=address")
     message("address sanitizer load")
+endif()
+
+set(USE_GPU OFF)
+if (USE_GPU)
+    add_definitions(-DUSE_GPU)
 endif()
 
 include(cmake/setting.cmake)
@@ -70,6 +71,7 @@ include(cmake/third_party.cmake)
 include(cmake/operation/ista.cmake)
 include(cmake/operation/ipw.cmake)
 include(cmake/rust.cmake)
+include(cmake/cuda.cmake)
 
 if(BUILD_GUI)
     add_definitions(-DBUILD_GUI)

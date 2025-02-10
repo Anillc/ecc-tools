@@ -26,6 +26,7 @@
 
 namespace idb {
 class IdbLayerRouting;
+class IdbLayerCut;
 class IdbNet;
 class IdbPin;
 enum class IdbLayerDirection : uint8_t;
@@ -36,6 +37,7 @@ class IdbRegularWireSegment;
 
 namespace irt {
 class RoutingLayer;
+class CutLayer;
 class Violation;
 class LayerCoord;
 template <typename T>
@@ -52,6 +54,7 @@ class PlanarCoord;
 
 namespace ieda_feature {
 class RTSummary;
+class FeatureManager;
 }  // namespace ieda_feature
 
 #endif
@@ -67,6 +70,8 @@ class RTInterface
   static void destroyInst();
 
 #if 1  // 外部调用RT的API
+
+#if 1  // iRT
   void initRT(std::map<std::string, std::any> config_map);
   void runEGR();
   void runRT();
@@ -74,9 +79,11 @@ class RTInterface
   void clearDef();
 #endif
 
+#endif
+
 #if 1  // RT调用外部的API
 
-#if 1  // iDB
+#if 1  // TopData
 
 #if 1  // input
   void input(std::map<std::string, std::any>& config_map);
@@ -84,16 +91,18 @@ class RTInterface
   void wrapDatabase();
   void wrapDBInfo();
   void wrapMicronDBU();
+  void wrapManufactureGrid();
   void wrapDie();
   void wrapRow();
   void wrapLayerList();
   void wrapTrackAxis(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
-  void wrapSpacingTable(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
+  void wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
+  void wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_layer);
   void wrapLayerInfo();
   void wrapLayerViaMasterList();
   void wrapObstacleList();
   void wrapNetList();
-  bool isSkipping(idb::IdbNet* idb_net);
+  bool isSkipping(idb::IdbNet* idb_net, bool with_log);
   void wrapPinList(Net& net, idb::IdbNet* idb_net);
   void wrapPinShapeList(Pin& pin, idb::IdbPin* idb_pin);
   void wrapDrivenPin(Net& net, idb::IdbNet* idb_net);
@@ -106,6 +115,7 @@ class RTInterface
   void outputTrackGrid();
   void outputGCellGrid();
   void outputNetList();
+  void outputSummary();
 #endif
 
 #if 1  // 获得IdbSegment
@@ -121,20 +131,17 @@ class RTInterface
 #if 1  // iDRC
   std::vector<Violation> getViolationList(std::vector<std::pair<EXTLayerRect*, bool>>& env_shape_list,
                                           std::map<int32_t, std::vector<std::pair<EXTLayerRect*, bool>>>& net_pin_shape_map,
-                                          std::map<int32_t, std::vector<Segment<LayerCoord>>>& net_result_map, std::string stage);
+                                          std::map<int32_t, std::vector<Segment<LayerCoord>*>>& net_result_map,
+                                          std::map<int32_t, std::vector<EXTLayerRect*>>& net_patch_map);
   std::vector<Violation> getViolationList(std::vector<idb::IdbLayerShape*>& env_shape_list,
                                           std::map<int32_t, std::vector<idb::IdbLayerShape*>>& net_pin_shape_map,
-                                          std::map<int32_t, std::vector<idb::IdbRegularWireSegment*>>& net_result_map, std::string stage);
+                                          std::map<int32_t, std::vector<idb::IdbRegularWireSegment*>>& net_result_map);
 #endif
 
 #if 1  // iSTA
   void updateTimingAndPower(std::vector<std::map<std::string, std::vector<LayerCoord>>>& real_pin_coord_map_list,
                             std::vector<std::vector<Segment<LayerCoord>>>& routing_segment_list_list,
                             std::map<std::string, std::map<std::string, double>>& clock_timing, std::map<std::string, double>& power);
-#endif
-
-#if 1  // ieda_feature
-  ieda_feature::RTSummary outputSummary();
 #endif
 
 #if 1  // flute

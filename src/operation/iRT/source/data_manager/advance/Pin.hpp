@@ -34,7 +34,8 @@ class Pin
   std::vector<EXTLayerRect>& get_routing_shape_list() { return _routing_shape_list; }
   std::vector<EXTLayerRect>& get_cut_shape_list() { return _cut_shape_list; }
   bool get_is_driven() const { return _is_driven; }
-  std::vector<Segment<LayerCoord>>& get_access_segment_list() { return _access_segment_list; }
+  AccessPoint& get_origin_access_point() { return _origin_access_point; }
+  AccessPoint& get_extend_access_point() { return _extend_access_point; }
   AccessPoint& get_access_point() { return _access_point; }
   // setter
   void set_pin_idx(const int32_t pin_idx) { _pin_idx = pin_idx; }
@@ -42,7 +43,8 @@ class Pin
   void set_routing_shape_list(const std::vector<EXTLayerRect>& routing_shape_list) { _routing_shape_list = routing_shape_list; }
   void set_cut_shape_list(const std::vector<EXTLayerRect>& cut_shape_list) { _cut_shape_list = cut_shape_list; }
   void set_is_driven(const bool is_driven) { _is_driven = is_driven; }
-  void set_access_segment_list(const std::vector<Segment<LayerCoord>>& access_segment_list) { _access_segment_list = access_segment_list; }
+  void set_origin_access_point(const AccessPoint& origin_access_point) { _origin_access_point = origin_access_point; }
+  void set_extend_access_point(const AccessPoint& extend_access_point) { _extend_access_point = extend_access_point; }
   void set_access_point(const AccessPoint& access_point) { _access_point = access_point; }
   // function
 
@@ -52,7 +54,8 @@ class Pin
   std::vector<EXTLayerRect> _routing_shape_list;
   std::vector<EXTLayerRect> _cut_shape_list;
   bool _is_driven = false;
-  std::vector<Segment<LayerCoord>> _access_segment_list;
+  AccessPoint _origin_access_point;
+  AccessPoint _extend_access_point;
   AccessPoint _access_point;
 };
 

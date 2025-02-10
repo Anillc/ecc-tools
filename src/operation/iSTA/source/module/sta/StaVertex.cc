@@ -808,7 +808,7 @@ StaSlewData* StaVertex::getSlewData(AnalysisMode analysis_mode,
   FOREACH_SLEW_DATA(this, data) {
     if ((data->get_delay_type() == analysis_mode) &&
         (data->get_trans_type() == trans_type) &&
-        (src_slew_data == data->get_bwd())) {
+        (!src_slew_data || (src_slew_data == data->get_bwd()))) {
       auto* slew_data = dynamic_cast<StaSlewData*>(data);
       return slew_data;
     }
@@ -883,7 +883,7 @@ StaPathDelayData* StaVertex::getPathDelayData(AnalysisMode analysis_mode,
   FOREACH_DELAY_DATA(this, data) {
     if ((data->get_delay_type() == analysis_mode) &&
         (data->get_trans_type() == trans_type) &&
-        (src_delay_data == data->get_bwd())) {
+        (!src_delay_data || (src_delay_data == data->get_bwd()))) {
       auto* delay_data = dynamic_cast<StaPathDelayData*>(data);
       return delay_data;
     }
@@ -986,6 +986,62 @@ double StaVertex::getLoad(AnalysisMode analysis_mode, TransType trans_type) {
     load_or_cap = obj->cap();
   }
   return load_or_cap;
+}
+
+/**
+ * @brief Get the slew impulse for the net load node.
+ * 
+ * @param analysis_mode 
+ * @param trans_type 
+ * @return double 
+ */
+double StaVertex::getNetSlewImpulse(AnalysisMode analysis_mode, TransType trans_type) {
+  double load_impulse = 0.0;
+
+  auto* obj = get_design_obj();
+  auto* the_net = obj->get_net();
+  if (!the_net) {
+    return 0.0;
+  }
+
+  if (the_net->getDriver() != obj) {
+    auto* rc_net = Sta::getOrCreateSta()->getRcNet(the_net);
+    load_impulse = rc_net ? rc_net->slewImpulse(*obj, analysis_mode, trans_type)
+                         : 0.0;
+  } 
+
+  return load_impulse;
+
+}
+/**
+ * @brief Get the slew delay for the net load node.
+ * 
+ * @param analysis_mode 
+ * @param trans_type 
+ * @return double 
+ */
+double StaVertex::getNetLoadDelay(AnalysisMode analysis_mode, TransType trans_type) {
+  double load_delay = 0.0;
+
+  auto* obj = get_design_obj();
+  auto* the_net = obj->get_net();
+  if (!the_net) {
+    return 0.0;
+  }
+
+  if (the_net->getDriver() != obj) {
+    auto* rc_net = Sta::getOrCreateSta()->getRcNet(the_net);
+    
+    if (rc_net) {
+      auto* rc_tree = rc_net->rct();
+      if (rc_tree) {
+        auto* node = rc_tree->node(obj->getFullName());
+        load_delay = PS_TO_NS(node->delay(analysis_mode, trans_type));
+      }
+    }
+  } 
+
+  return load_delay;
 }
 
 /**

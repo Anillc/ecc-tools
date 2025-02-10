@@ -51,6 +51,12 @@ void GDSPlotter::destroyInst()
 
 // function
 
+void GDSPlotter::init()
+{
+  buildGDSLayerMap();
+  buildGraphLypFile();
+}
+
 void GDSPlotter::plot(GPGDS& gp_gds, std::string gds_file_path)
 {
   buildTopStruct(gp_gds);
@@ -83,12 +89,6 @@ int32_t GDSPlotter::getGDSIdxByCut(int32_t cut_layer_idx)
 // private
 
 GDSPlotter* GDSPlotter::_gp_instance = nullptr;
-
-void GDSPlotter::init()
-{
-  buildGDSLayerMap();
-  buildGraphLypFile();
-}
 
 void GDSPlotter::buildGDSLayerMap()
 {
@@ -132,9 +132,9 @@ void GDSPlotter::buildGraphLypFile()
   std::vector<std::string> pattern_list = {"I5", "I9"};
 
   std::map<GPDataType, bool> routing_data_type_visible_map
-      = {{GPDataType::kNone, false},        {GPDataType::kOpen, false}, {GPDataType::kClose, false},    {GPDataType::kInfo, false},
-         {GPDataType::kNeighbor, false},    {GPDataType::kKey, false},  {GPDataType::kPath, false},     {GPDataType::kShape, true},
-         {GPDataType::kAccessPoint, false}, {GPDataType::kAxis, false}, {GPDataType::kViolation, false}};
+      = {{GPDataType::kNone, false},        {GPDataType::kOpen, false},      {GPDataType::kClose, false}, {GPDataType::kInfo, false},
+         {GPDataType::kNeighbor, false},    {GPDataType::kKey, false},       {GPDataType::kPath, false},  {GPDataType::kShape, true},
+         {GPDataType::kAccessPoint, false}, {GPDataType::kBestCoord, false}, {GPDataType::kAxis, false},  {GPDataType::kViolation, false}};
   std::map<GPDataType, bool> cut_data_type_visible_map = {{GPDataType::kPath, false}, {GPDataType::kShape, false}};
 
   // 0为base_region 最后一个为GCell 中间为cut+routing

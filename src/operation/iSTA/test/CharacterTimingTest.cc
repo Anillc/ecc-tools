@@ -151,8 +151,9 @@ TEST_F(CharacterTimingTest, example1) {
         std::to_string(sub_netlist_index) + ".v";
     timing_engine->readDesign(asic_top_hier_verilog_file.c_str());
     timing_engine->buildGraph();
-    timing_engine->extractTimingModel(AnalysisMode::kMax, "asic_top.lib",
-                                      sub_netlist_index);
+    std::string model_path = std::string("asic_top.lib") + std::to_string(sub_netlist_index);
+    timing_engine->extractTimingModel(
+        AnalysisMode::kMax, model_path.c_str());
     timing_engine->get_ista()->resetNetlist();
     timing_engine->get_ista()->resetGraph();
   }

@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file verilog_writer.h
- * @author shy long (longshy@pcl.ac.cn)
+ * @author longshy (longshy@pcl.ac.cn)
  * @brief
  * @version 0.1
  * @date 2021-12-03
@@ -40,13 +40,14 @@ class IdbInstance;
 class VerilogWriter
 {
  public:
-  VerilogWriter(const char* file_name, std::set<std::string>& exclude_cell_names, IdbDesign& idb_design);
+  VerilogWriter(const char* file_name, std::set<std::string>& exclude_cell_names, IdbDesign& idb_design, bool is_add_space_for_escape_name);
   ~VerilogWriter();
 
   void writeModule();
   bool isNeedEscape(const std::string& name);
   std::string escapeName(const std::string& name);
   std::string addSpaceForEscapeName(const std::string& name);
+  bool isMiddleSquareBracket(const std::string& str);
 
  protected:
   void writePorts();
@@ -62,5 +63,6 @@ class VerilogWriter
 
   FILE* _stream;
   IdbDesign& _idb_design;
+  bool _is_add_space_for_escape_name;
 };
 }  // namespace idb

@@ -67,35 +67,13 @@ bool DataManager::saveDef(string def_path)
   return _idb_builder->saveDef(def_path);
 }
 
-bool DataManager::saveMacroTCL(string tcl_path)
-{
-  std::ofstream out;
-  out.open(tcl_path);
-  if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {
-    return false;
-  }
-  std::string status = "fixed";
-  auto dbu = _layout->get_units()->get_micron_dbu();
-  for (auto& idb_inst : _design->get_instance_list()->get_instance_list()) {
-    if (idb_inst->get_cell_master()->is_block()) {
-      out << "placeInstance " << idb_inst->get_name() << " " << 1.* idb_inst->get_coordinate()->get_x() / dbu << " "
-          << 1.* idb_inst->get_coordinate()->get_y() / dbu << " " << IdbEnum::GetInstance()->get_orient_type_str(idb_inst->get_orient())
-          << std::endl;
-      out << "setInstancePlacementStatus -status " << status << " -name " << idb_inst->get_name() << std::endl;
-    }
-  }
-  return true;
-}
-
-
-
-
-void DataManager::saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names /*={}*/)
+void DataManager::saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names /*={}*/,
+                              bool is_add_space_for_escape_name /*=false*/)
 {
   if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {
     std::cout << "idb_builder error.\n";
   }
-  return _idb_builder->saveVerilog(verilog_path, exclude_cell_names);
+  return _idb_builder->saveVerilog(verilog_path, exclude_cell_names, is_add_space_for_escape_name);
 }
 
 bool DataManager::saveGDSII(string path)
@@ -105,12 +83,12 @@ bool DataManager::saveGDSII(string path)
   }
   return _idb_builder->saveGDSII(path);
 }
-bool DataManager::saveJSON(string path,string options)
+bool DataManager::saveJSON(string path, string options)
 {
   if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {
     return false;
   }
-  return _idb_builder->saveJSON(path,options);
+  return _idb_builder->saveJSON(path, options);
 }
 
 }  // namespace idm

@@ -49,6 +49,9 @@
 #include "netlist/Instance.hh"
 #include "solver/Interpolation.hh"
 #include "utility/EigenMatrixUtility.hh"
+#include "netlist/Net.hh"
+#include "netlist/Pin.hh"
+#include "netlist/Port.hh"
 
 using namespace Eigen;
 
@@ -877,9 +880,8 @@ std::optional<std::pair<double, MatrixXd>> ArnoldiNet::delay(
  * @return std::optional<double>
  */
 std::optional<double> ArnoldiNet::slew(
-    DesignObject& to, double from_slew,
-    std::optional<LibCurrentData*> output_current, AnalysisMode mode,
-    TransType trans_type) {
+    DesignObject& to, double from_slew, std::optional<LibCurrentData*> output_current,
+    AnalysisMode mode, TransType trans_type) {
   // static int prof_count = 0;
   // if (prof_count == 0) {
   //   ProfilerStart("STAPerf.prof");
