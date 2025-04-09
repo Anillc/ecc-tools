@@ -28,17 +28,20 @@ class PAPin : public Pin
   ~PAPin() = default;
   // getter
   std::vector<AccessPoint>& get_access_point_list() { return _access_point_list; }
-  bool get_is_accessed() const { return _is_accessed; }
-  PlanarCoord& get_best_coord() { return _best_coord; }
+  PlanarCoord& get_key_grid_coord() { return _key_grid_coord; }
+  AccessPoint& get_best_origin_access_point() { return _best_origin_access_point; }
+  AccessPoint& get_best_extend_access_point() { return _best_extend_access_point; }
   // setter
   void set_access_point_list(const std::vector<AccessPoint>& access_point_list) { _access_point_list = access_point_list; }
-  void set_is_accessed(const bool is_accessed) { _is_accessed = is_accessed; }
-  void set_best_coord(const PlanarCoord& best_coord) { _best_coord = best_coord; }
+  void set_key_grid_coord(const PlanarCoord& key_grid_coord) { _key_grid_coord = key_grid_coord; }
+  void set_best_origin_access_point(const AccessPoint& best_origin_access_point) { _best_origin_access_point = best_origin_access_point; }
+  void set_best_extend_access_point(const AccessPoint& best_extend_access_point) { _best_extend_access_point = best_extend_access_point; }
   // function
  private:
   std::vector<AccessPoint> _access_point_list;
-  bool _is_accessed = false;
-  PlanarCoord _best_coord;
+  PlanarCoord _key_grid_coord;
+  AccessPoint _best_origin_access_point;
+  AccessPoint _best_extend_access_point;
 };
 
 }  // namespace irt

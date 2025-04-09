@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.11)
 
 set(CMAKE_CXX_STANDARD 20)
 # set(CMAKE_BUILD_TYPE "Debug") include(cmake/conanbuildinfo.cmake)
@@ -45,6 +45,23 @@ if(UPDATE_RELEASE_VERSION)
 
   configure_file("${HOME_OPERATION}/iSTA/source/module/include/Version.hh.in"
                  "${HOME_OPERATION}/iSTA/source/module/include/Version.hh")
+endif()
+
+if (USE_GPU)
+  find_package(CUDAToolkit)
+
+  if(CUDAToolkit_FOUND)
+      set(USE_CUDA_MODE ON)
+      if (USE_CUDA_MODE)
+          message(STATUS "CUDAToolkit is available, use cuda delay")
+          add_definitions(-DCUDA_DELAY=1)
+          add_definitions(-DCUDA_PROPAGATION=1)
+          add_subdirectory(source/module/delay-cuda)
+          add_subdirectory(source/module/propagation-cuda)
+      endif()
+  else()
+      message("CUDAToolkit is not available.")
+  endif()
 endif()
 
 add_subdirectory(api)

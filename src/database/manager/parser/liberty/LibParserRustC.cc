@@ -22,13 +22,12 @@
  * @date 2023-10-13
  *
  */
-#include "LibParserRustC.hh"
-
 #include <map>
 
 #include "BTreeMap.hh"
 #include "BTreeSet.hh"
 #include "Lib.hh"
+#include "LibParserRustC.hh"
 #include "log/Log.hh"
 
 namespace ista {
@@ -38,6 +37,12 @@ namespace ista {
  *
  */
 void RustLibertyExprBuilder::execute() {
+  if (std::string::npos != _expr_str.find('\\')) {
+    // LOG_INFO << "before remove backslash, expr is " << _expr_str;
+    // contain backslash, remove backslash.
+    _expr_str = Str::concateBackSlashStr(_expr_str);
+    // LOG_INFO << "after remove backslash, expr is " << _expr_str;
+  }
   auto* rust_expr_result = rust_parse_expr(_expr_str.c_str());
   _result_expr = rust_convert_expr(rust_expr_result);
 }
@@ -653,8 +658,13 @@ unsigned RustLibertyReader::visitComplexAttri(
 
   if (process_attri.contains(attri_name)) {
     process_attri[attri_name]();
-  } else {
+  } else if (Str::startWith(attri_name, "index") ||
+             Str::equal(attri_name, "values")) {
     is_ok = visitAxisOrValues(attri);
+  }
+  else {
+    LOG_INFO_EVERY_N(10) << "unkown attri name: " << attri_name << " in "
+                         << attri->file_name << " line no " << attri->line_no;
   }
   return is_ok;
 }
@@ -1012,6 +1022,8 @@ unsigned RustLibertyReader::visitInternalPower(RustLibertyGroupStmt* group) {
   lib_power_arc->set_owner_cell(lib_cell);
 
   auto internal_power_info = std::make_unique<LibInternalPowerInfo>();
+  internal_power_info->set_file_name(group->file_name);
+  internal_power_info->set_line_no(group->line_no);
   lib_power_arc->set_internal_power_info(std::move(internal_power_info));
 
   unsigned is_ok = 1;
@@ -1135,6 +1147,9 @@ unsigned RustLibertyReader::visitTable(RustLibertyGroupStmt* group) {
       table_model = std::make_unique<LibDelayTableModel>();
     }
 
+    table_model->set_file_name(group->file_name);
+    table_model->set_line_no(group->line_no);
+
     lib_builder->set_table_model(table_model.get());
     lib_model = lib_builder->get_table_model();
     lib_arc->set_table_model(std::move(table_model));
@@ -1236,6 +1251,7 @@ unsigned RustLibertyReader::visitGroup(RustLibertyGroupStmt* group) {
           {"leakage_power",
            std::bind(&RustLibertyReader::visitLeakagePower, this, _1)},
           {"bus", std::bind(&RustLibertyReader::visitBus, this, _1)},
+          {"bundle", std::bind(&RustLibertyReader::visitBus, this, _1)},
           {"pin", std::bind(&RustLibertyReader::visitPin, this, _1)},
           {"timing", std::bind(&RustLibertyReader::visitTiming, this, _1)},
           {"internal_power",
@@ -1277,13 +1293,12 @@ unsigned RustLibertyReader::readLib() {
 
   LOG_INFO << "load liberty file " << _file_name << " success.";
   return 1;
-
 }
 
 /**
  * @brief link the lib to construct the data.
- * 
- * @return unsigned 
+ *
+ * @return unsigned
  */
 unsigned RustLibertyReader::linkLib() {
   LOG_INFO << "link liberty file " << _file_name << " start.";

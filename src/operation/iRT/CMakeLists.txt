@@ -5,6 +5,7 @@ message(STATUS "############## RT: START CMAKE ##############")
 
 set(CMAKE_CXX_STANDARD 20)
 
+# ADD_COMPILE_OPTIONS("-Wconversion")
 # ADD_COMPILE_OPTIONS("-fsanitize=address")
 # LINK_LIBRARIES("-fsanitize=address")
 
@@ -27,6 +28,7 @@ set(CMAKE_CXX_STANDARD 20)
 # set(DEBUG_IRT_GLOBAL_ROUTER ON)
 # set(DEBUG_IRT_TRACK_ASSIGNER ON) 
 # set(DEBUG_IRT_DETAILED_ROUTER ON)
+# set(DEBUG_IRT_VIOLATION_REPAIRER ON)
 # set(DEBUG_IRT_EARLY_ROUTER ON)
 
 ############################ debug source utility ############################

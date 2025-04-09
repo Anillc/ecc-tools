@@ -21,13 +21,37 @@ pub struct LibertyParser;
 /// process float data.
 fn process_float(pair: Pair<Rule>) -> Result<liberty_data::LibertyParserData, pest::error::Error<Rule>> {
     let pair_span = pair.as_span();
-    match pair.as_str().parse::<f64>() {
-        Ok(value) => Ok(liberty_data::LibertyParserData::Float(liberty_data::LibertyFloatValue { value })),
-        Err(_) => Err(pest::error::Error::new_from_span(
-            pest::error::ErrorVariant::CustomError { message: "Failed to parse float".into() },
-            pair_span,
-        )),
+    let pair_str = pair.as_str();
+
+    let is_contain_underline = pair_str.contains('_');
+    if is_contain_underline {
+        let value_str = pair_str.replace('_', ".");
+        let is_contain_k = value_str.contains('k');
+        if is_contain_k {
+            let mut float_value = value_str.trim_end_matches('k').parse::<f64>().unwrap();
+            float_value *= 1000.0;
+            return Ok(liberty_data::LibertyParserData::Float(liberty_data::LibertyFloatValue { value: float_value }));
+        } else {
+            return Ok(liberty_data::LibertyParserData::Float(liberty_data::LibertyFloatValue { value: value_str.parse::<f64>().unwrap() }))
+        }
     }
+
+    let is_contain_k = pair_str.contains('k');
+    if is_contain_k {
+        let mut float_value = pair_str.trim_end_matches('k').parse::<f64>().unwrap();
+        float_value *= 1000.0;
+        return Ok(liberty_data::LibertyParserData::Float(liberty_data::LibertyFloatValue { value: float_value }));
+    } else {
+        match pair.as_str().parse::<f64>() {
+            Ok(value) => Ok(liberty_data::LibertyParserData::Float(liberty_data::LibertyFloatValue { value })),
+            Err(_) => Err(pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError { message: "Failed to parse float".into() },
+                pair_span,
+            )),
+        }
+    }
+
+
 }
 
 /// process string text data not include quote.
@@ -66,6 +90,8 @@ fn process_multiline_string(
 fn process_string(pair: Pair<Rule>) -> Result<liberty_data::LibertyParserData, pest::error::Error<Rule>> {
     let pair_span = pair.as_span();
 
+    // let pair_clone = pair.clone();
+
     // println!("Rule:    {:?}", pair_clone.as_rule());
     // println!("Span:    {:?}", pair_clone.as_span());
     // println!("Text:    {}", pair_clone.as_str());
@@ -75,7 +101,7 @@ fn process_string(pair: Pair<Rule>) -> Result<liberty_data::LibertyParserData, p
             value: value.trim_matches('"').trim().to_string(),
         })),
         Err(_) => Err(pest::error::Error::new_from_span(
-            pest::error::ErrorVariant::CustomError { message: "Failed to parse float".into() },
+            pest::error::ErrorVariant::CustomError { message: "Failed to parse string".into() },
             pair_span,
         )),
     }
@@ -127,11 +153,28 @@ fn process_simple_attribute(
         let attribute_value = parser_queue.pop_front().unwrap();
         match attribute_value {
             liberty_data::LibertyParserData::String(s) => {
+                // maybe more string value as expr.
+                let mut expr_value = s.get_string_value().to_string();
+                while !parser_queue.is_empty() {
+                    let string_value = parser_queue.pop_front().unwrap();
+                    
+                    match string_value {
+                        liberty_data::LibertyParserData::String(more_str) => {
+                            expr_value = expr_value + more_str.get_string_value();
+                        }
+                        liberty_data::LibertyParserData::Float(more_str) => {
+                            let the_float_str_value = more_str.get_float_value().to_string();
+                            expr_value = expr_value + the_float_str_value.as_str();
+                        }
+                        _ => panic!("should be string type"),
+                    }
+                }
+
                 let simple_stmt = liberty_data::LibertySimpleAttrStmt::new(
                     file_name,
                     line_no,
                     lib_id,
-                    Box::new(s) as Box<dyn liberty_data::LibertyAttrValue>,
+                    Box::new(liberty_data::LibertyStringValue{value: expr_value}) as Box<dyn liberty_data::LibertyAttrValue>,
                 );
                 Ok(liberty_data::LibertyParserData::SimpleStmt(simple_stmt))
             }
@@ -236,6 +279,7 @@ fn process_pair(
         parser_queue.push_back(pair_result.unwrap());
     }
 
+    // let pair_clone = pair.clone();
     // println!("Rule:    {:?}", pair_clone.as_rule());
     // println!("Span:    {:?}", pair_clone.as_span());
     // println!("Text:    {}", pair_clone.as_str());
@@ -248,7 +292,9 @@ fn process_pair(
     match pair.as_rule() {
         Rule::float => process_float(pair),
         Rule::string_text => process_string_text(pair),
+        Rule::expr_operator => process_string(pair),
         Rule::id => process_string(pair),
+        Rule::version_id => process_string(pair),
         Rule::multiline_string => process_multiline_string(&mut substitute_queue),
         Rule::expr_token => process_expr_token(pair, &mut substitute_queue),
         Rule::simple_attribute => process_simple_attribute(pair, lib_file_path, &mut substitute_queue),
@@ -362,7 +408,7 @@ mod tests {
             Ok(pairs) => {
                 for pair in pairs {
                     let data = process_pair(pair, "tbd", &mut parser_queue);
-                    println!("Error: {:#?}", data);
+                    println!("OK: {:#?}", data);
                 }
             }
             Err(err) => {
@@ -468,7 +514,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_attribute() {
-        let input_str = r#"leakage_power_unit : 1nW;"#;
+        let input_str = r#"power_down_function : !VDD+!VDDD+VSSD;"#;
         let parse_result = LibertyParser::parse(Rule::simple_attribute, input_str);
 
         test_process_parse_result(parse_result);

@@ -28,6 +28,7 @@
 #include "PwrArc.hh"
 #include "PwrSeqGraph.hh"
 #include "ops/dump/PwrDumpGraph.hh"
+#include "api/Power.hh"
 
 namespace ipower {
 
@@ -55,8 +56,17 @@ std::optional<double> PwrVertex::getDriveVoltage() {
     // for port.
     auto* the_net = design_obj->get_net();
     auto the_loads = the_net->getLoads();
-    auto* one_load = the_loads.front();
-    design_obj = one_load;
+    for (auto* one_load : the_loads) {
+      if (one_load->isPin()) {
+        design_obj = one_load;
+        break;
+      }      
+    }
+  }
+
+  if (design_obj->isPort()) {
+    // TODO(to taosimin), fix io volatage.
+    return 0.0;
   }
 
   auto* liberty_port = dynamic_cast<Pin*>(design_obj)->get_cell_port();
@@ -193,14 +203,16 @@ double PwrVertex::getToggleData(std::optional<PwrDataSource> data_source) {
   }
 
   if (!toggle_data) {
-    return c_default_toggle;
+    Power* ipower = Power::getOrCreatePower(nullptr);
+    double default_toggle = ipower->get_default_toggle();
+    return default_toggle;
   }
   double toggle_value = toggle_data->get_toggle();
   return toggle_value;
 }
 
 /**
- * @brief
+ * @brief get the vertex sp data.
  *
  * @return double
  */

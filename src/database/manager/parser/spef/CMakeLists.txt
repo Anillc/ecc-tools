@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.11)
 
 set (CMAKE_CXX_STANDARD 20)
 set (CMAKE_BUILD_TYPE "Release")
@@ -23,7 +23,7 @@ if(IEDA_BUILD_AS_THIRDPARTY)
     install(FILES ${RUST_LIB_PATH} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 endif()
 
-message("spef parser rust lib path ${RUST_LIB_PATH}")
+message(STATUS "spef parser rust lib path ${RUST_LIB_PATH}")
 
 ADD_EXTERNAL_PROJ(spef)
 

@@ -16,9 +16,9 @@
 // ***************************************************************************************
 #pragma once
 
+#include "ERComParam.hpp"
 #include "ERNet.hpp"
 #include "ERNode.hpp"
-#include "ERParameter.hpp"
 #include "ERTopo.hpp"
 #include "PriorityQueue.hpp"
 
@@ -31,13 +31,13 @@ class ERModel
   ~ERModel() = default;
   // getter
   std::vector<ERNet>& get_er_net_list() { return _er_net_list; }
-  ERParameter& get_er_parameter() { return _er_parameter; }
+  ERComParam& get_er_com_param() { return _er_com_param; }
   std::vector<ERNet*>& get_er_task_list() { return _er_task_list; }
   GridMap<ERNode>& get_planar_node_map() { return _planar_node_map; }
   std::vector<GridMap<ERNode>>& get_layer_node_map() { return _layer_node_map; }
   // setter
   void set_er_net_list(const std::vector<ERNet>& er_net_list) { _er_net_list = er_net_list; }
-  void set_er_parameter(const ERParameter& er_parameter) { _er_parameter = er_parameter; }
+  void set_er_com_param(const ERComParam& er_com_param) { _er_com_param = er_com_param; }
   void set_er_task_list(const std::vector<ERNet*>& er_task_list) { _er_task_list = er_task_list; }
   void set_planar_node_map(const GridMap<ERNode>& planar_node_map) { _planar_node_map = planar_node_map; }
   void set_layer_node_map(const std::vector<GridMap<ERNode>>& layer_node_map) { _layer_node_map = layer_node_map; }
@@ -51,20 +51,14 @@ class ERModel
   std::vector<ERNode*>& get_single_topo_visited_node_list() { return _single_topo_visited_node_list; }
   std::vector<Segment<LayerCoord>>& get_routing_segment_list() { return _routing_segment_list; }
   void set_curr_er_topo(ERTopo* curr_er_topo) { _curr_er_topo = curr_er_topo; }
-  void set_start_node_list_list(const std::vector<std::vector<ERNode*>>& start_node_list_list)
-  {
-    _start_node_list_list = start_node_list_list;
-  }
+  void set_start_node_list_list(const std::vector<std::vector<ERNode*>>& start_node_list_list) { _start_node_list_list = start_node_list_list; }
   void set_end_node_list_list(const std::vector<std::vector<ERNode*>>& end_node_list_list) { _end_node_list_list = end_node_list_list; }
   void set_path_node_list(const std::vector<ERNode*>& path_node_list) { _path_node_list = path_node_list; }
   void set_single_topo_visited_node_list(const std::vector<ERNode*>& single_topo_visited_node_list)
   {
     _single_topo_visited_node_list = single_topo_visited_node_list;
   }
-  void set_routing_segment_list(const std::vector<Segment<LayerCoord>>& routing_segment_list)
-  {
-    _routing_segment_list = routing_segment_list;
-  }
+  void set_routing_segment_list(const std::vector<Segment<LayerCoord>>& routing_segment_list) { _routing_segment_list = routing_segment_list; }
   // single path
   PriorityQueue<ERNode*, std::vector<ERNode*>, CmpERNodeCost>& get_open_queue() { return _open_queue; }
   std::vector<ERNode*>& get_single_path_visited_node_list() { return _single_path_visited_node_list; }
@@ -81,7 +75,7 @@ class ERModel
 
  private:
   std::vector<ERNet> _er_net_list;
-  ERParameter _er_parameter;
+  ERComParam _er_com_param;
   std::vector<ERNet*> _er_task_list;
   GridMap<ERNode> _planar_node_map;
   std::vector<GridMap<ERNode>> _layer_node_map;

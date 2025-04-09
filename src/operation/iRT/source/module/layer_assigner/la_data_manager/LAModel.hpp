@@ -16,9 +16,9 @@
 // ***************************************************************************************
 #pragma once
 
+#include "LAComParam.hpp"
 #include "LANet.hpp"
 #include "LANode.hpp"
-#include "LAParameter.hpp"
 #include "LATopo.hpp"
 #include "PriorityQueue.hpp"
 
@@ -31,12 +31,12 @@ class LAModel
   ~LAModel() = default;
   // getter
   std::vector<LANet>& get_la_net_list() { return _la_net_list; }
-  LAParameter& get_la_parameter() { return _la_parameter; }
+  LAComParam& get_la_com_param() { return _la_com_param; }
   std::vector<LANet*>& get_la_task_list() { return _la_task_list; }
   std::vector<GridMap<LANode>>& get_layer_node_map() { return _layer_node_map; }
   // setter
   void set_la_net_list(const std::vector<LANet>& la_net_list) { _la_net_list = la_net_list; }
-  void set_la_parameter(const LAParameter& la_parameter) { _la_parameter = la_parameter; }
+  void set_la_com_param(const LAComParam& la_com_param) { _la_com_param = la_com_param; }
   void set_la_task_list(const std::vector<LANet*>& la_task_list) { _la_task_list = la_task_list; }
   void set_layer_node_map(const std::vector<GridMap<LANode>>& layer_node_map) { _layer_node_map = layer_node_map; }
   // function
@@ -49,20 +49,14 @@ class LAModel
   std::vector<LANode*>& get_single_topo_visited_node_list() { return _single_topo_visited_node_list; }
   std::vector<Segment<LayerCoord>>& get_routing_segment_list() { return _routing_segment_list; }
   void set_curr_la_topo(LATopo* curr_la_topo) { _curr_la_topo = curr_la_topo; }
-  void set_start_node_list_list(const std::vector<std::vector<LANode*>>& start_node_list_list)
-  {
-    _start_node_list_list = start_node_list_list;
-  }
+  void set_start_node_list_list(const std::vector<std::vector<LANode*>>& start_node_list_list) { _start_node_list_list = start_node_list_list; }
   void set_end_node_list_list(const std::vector<std::vector<LANode*>>& end_node_list_list) { _end_node_list_list = end_node_list_list; }
   void set_path_node_list(const std::vector<LANode*>& path_node_list) { _path_node_list = path_node_list; }
   void set_single_topo_visited_node_list(const std::vector<LANode*>& single_topo_visited_node_list)
   {
     _single_topo_visited_node_list = single_topo_visited_node_list;
   }
-  void set_routing_segment_list(const std::vector<Segment<LayerCoord>>& routing_segment_list)
-  {
-    _routing_segment_list = routing_segment_list;
-  }
+  void set_routing_segment_list(const std::vector<Segment<LayerCoord>>& routing_segment_list) { _routing_segment_list = routing_segment_list; }
   // single path
   PriorityQueue<LANode*, std::vector<LANode*>, CmpLANodeCost>& get_open_queue() { return _open_queue; }
   std::vector<LANode*>& get_single_path_visited_node_list() { return _single_path_visited_node_list; }
@@ -79,7 +73,7 @@ class LAModel
 
  private:
   std::vector<LANet> _la_net_list;
-  LAParameter _la_parameter;
+  LAComParam _la_com_param;
   std::vector<LANet*> _la_task_list;
   std::vector<GridMap<LANode>> _layer_node_map;
 #if 1  // astar

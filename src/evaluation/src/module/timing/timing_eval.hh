@@ -5,6 +5,9 @@
  * @date 2024-08-28
  * @brief evaluation with timing & power
  */
+
+#pragma once
+
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -23,8 +26,8 @@ class TimingEval
   ~TimingEval() = default;
   static TimingEval* getInst();
 
-  static void runSTA();
-  static void evalTiming(const std::string& routing_type, const bool& rt_done = false);
+  void runSTA();
+  void evalTiming(const std::string& routing_type, const bool& rt_done = false);
 
   static void destroyInst();
 

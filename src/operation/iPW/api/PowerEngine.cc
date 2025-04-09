@@ -27,7 +27,6 @@
 
 #include "PowerEngine.hh"
 #include "ThreadPool/ThreadPool.h"
-#include "gpu-kernel/kernel_common.h"
 #ifdef USE_GPU
 #include "gpu-kernel/power_kernel.cuh"
 #endif
@@ -255,14 +254,12 @@ std::vector<MacroConnection> PowerEngine::buildMacroConnectionMap(
           auto* snk_seq_vertex = src_arc->get_snk();
           stages_each_hop[max_hop - hop] = src_arc->get_combine_depth();
           if (snk_seq_vertex->isMacro() || snk_seq_vertex->isOutputPort()) {
-            const char* src_vertex_name =
-                src_seq_vertex->get_obj_name().data();
+            const char* src_vertex_name = src_seq_vertex->get_obj_name().data();
             const char* snk_vertex_name = snk_seq_vertex->get_obj_name().data();
             if (src_seq_vertex->isInputPort() ||
                 snk_seq_vertex->isOutputPort()) {
-              LOG_INFO_FIRST_N(100) << "port connection "
-                                   << "src_vertex_name " << src_vertex_name
-                                   << " snk_vertex_name " << snk_vertex_name;
+              LOG_INFO_FIRST_N(100) << "port connection: " << src_vertex_name
+                                    << " -> " << snk_vertex_name;
             }
             MacroConnection one_connection(src_vertex_name, snk_vertex_name,
                                            stages_each_hop, max_hop - hop + 1);
@@ -270,6 +267,9 @@ std::vector<MacroConnection> PowerEngine::buildMacroConnectionMap(
               // add connection.
               std::lock_guard lk(connection_mutex);
               macro_connections.emplace_back(std::move(one_connection));
+
+              LOG_INFO_EVERY_N(2000000)
+                  << "build macro connection num: " << macro_connections.size();
             }
           }
 
@@ -325,7 +325,7 @@ std::vector<MacroConnection> PowerEngine::buildMacroConnectionMapWithGPU(
   auto& seq_graph = _ipower->get_power_seq_graph();
   int num_macro = seq_graph.getMacroSeqVertexNum();
   // The first connection point is the src macro vertex.
-  std::vector<GPUConnectionPoint> connection_points(num_macro);
+  std::vector<GPU_Connection_Point> connection_points(num_macro);
 
   std::map<PwrSeqVertex*, unsigned> vertex_to_id;
   int num_seq_vertexes = seq_graph.get_vertexes().size();
@@ -378,7 +378,7 @@ std::vector<MacroConnection> PowerEngine::buildMacroConnectionMapWithGPU(
       << " is not equal to seq graph arc num " << seq_graph.getSeqArcNum();
 
   std::size_t output_connection_size = seq_arcs.size();
-  std::vector<GPUConnectionPoint> out_connection_points(output_connection_size);
+  std::vector<GPU_Connection_Point> out_connection_points(output_connection_size);
   int connection_point_num = connection_points.size();
 
   auto& seq_vertexes = seq_graph.get_vertexes();
@@ -467,5 +467,112 @@ std::vector<MacroConnection> PowerEngine::buildMacroConnectionMapWithGPU(
   return macro_connections;
 }
 #endif
+
+/**
+ * @brief build pg net wire topology.
+ * 
+ * @return unsigned 
+ */
+unsigned PowerEngine::buildPGNetWireTopo() {
+  LOG_INFO << "build pg net wire start";
+
+  auto* idb_adapter =
+      dynamic_cast<ista::TimingIDBAdapter*>(_timing_engine->get_db_adapter());
+  auto* idb_builder = idb_adapter->get_idb();
+  auto* special_net_list =
+      idb_builder->get_def_service()->get_design()->get_special_net_list();
+  // buid pg netlist
+  for (auto* power_net : special_net_list->get_net_list()) {
+    auto* idb_design = idb_builder->get_def_service()->get_design();
+    auto dbu = idb_design->get_units()->get_micron_dbu();
+    auto power_net_name = power_net->get_net_name();
+
+    std::function<double(unsigned, unsigned)> calc_resistance =
+        [idb_adapter, dbu](unsigned layer_id, unsigned distance_dbu) -> double {
+      std::optional<double> width = std::nullopt;
+      double wire_length = double(distance_dbu) / dbu;
+      return idb_adapter->getResistance(layer_id, wire_length, width);
+    };
+
+    auto* io_pins = idb_design->get_io_pin_list();
+    auto* power_io_pin = io_pins->find_pin(power_net_name);
+    if (!power_io_pin) {
+      continue;
+    }
+
+    _pg_netlist_builder.build(power_net, power_io_pin, calc_resistance);
+  }
+
+  _pg_netlist_builder.createRustPGNetlist();
+  _pg_netlist_builder.createRustRCData();
+
+  auto* rc_data = _pg_netlist_builder.get_rust_rc_data();
+
+  _ipower->set_rust_pg_rc_data(rc_data);
+
+  LOG_INFO << "build pg net wire end";
+
+  return 1;
+}
+
+/**
+ * @brief reset ir data for rerun ir analysis.
+ * 
+ */
+void PowerEngine::resetIRAnalysisData() {
+  IRPGNetlistBuilder pg_netlist_builder;
+  _pg_netlist_builder = std::move(pg_netlist_builder);
+
+  _ipower->resetIRAnalysisData();
+}
+
+/**
+ * @brief get instance ir drop map.
+ * 
+ * @return std::map<Instance*, double> 
+ */
+std::map<Instance*, double> PowerEngine::getInstanceIRDrop() {
+  std::map<Instance*, double> instance_to_ir_drop;
+
+  auto& instance_pin_to_ir_drop = _ipower->getInstanceIRDrop();
+  auto sta_netlist = _timing_engine->get_netlist();
+
+  for (auto& [instance_pin_name, inst_ir_drop] : instance_pin_to_ir_drop) {
+    auto instance_name = Str::split(instance_pin_name.c_str(), ":").front();
+
+    auto* sta_inst = sta_netlist->findInstance(instance_name.c_str());
+    if (!sta_inst) {
+      continue;
+    }
+
+    instance_to_ir_drop[sta_inst] = inst_ir_drop;
+  }
+  
+  return instance_to_ir_drop;
+}
+
+/**
+ * @brief function to display ir drop map.
+ * 
+ * @return std::map<Instance::Coordinate, double> 
+ */
+std::map<Instance::Coordinate, double> PowerEngine::displayIRDropMap() {
+  LOG_INFO << "display IR Drop map start";
+
+  std::map<Instance::Coordinate, double> coord_to_ir_drop_map;
+
+  auto instance_to_ir_drop = getInstanceIRDrop();
+
+  for (auto& [sta_inst, inst_ir_drop] : instance_to_ir_drop) {
+
+    auto coord = sta_inst->get_coordinate().value();
+
+    coord_to_ir_drop_map[coord] = inst_ir_drop;
+  }
+
+  LOG_INFO << "display IR Drop map end";
+
+  return coord_to_ir_drop_map;
+}
 
 }  // namespace ipower

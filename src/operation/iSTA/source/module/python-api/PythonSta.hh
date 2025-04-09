@@ -46,18 +46,8 @@ bool set_design_workspace(const std::string& design_workspace) {
 bool read_lef_def(std::vector<std::string>& lef_files,
                   const std::string& def_file) {
   auto* timing_engine = TimingEngine::getOrCreateTimingEngine();
-
-  auto* db_builder = new idb::IdbBuilder();
-  db_builder->buildLef(lef_files);
-
-  db_builder->buildDef(def_file);
-
-  auto db_adapter =
-      std::make_unique<TimingIDBAdapter>(timing_engine->get_ista());
-  db_adapter->set_idb(db_builder);
-  unsigned is_ok = db_adapter->convertDBToTimingNetlist();
-
-  return is_ok;
+  timing_engine->readDefDesign(def_file, lef_files);
+  return 1;
 }
 
 /**
@@ -222,6 +212,34 @@ std::vector<std::string> get_used_libs() {
   }
 
   return ret;
+}
+
+/**
+ * @brief Only build timing graph.
+ * 
+ */
+void build_timing_graph() {
+  auto* ista = ista::Sta::getOrCreateSta();
+  ista->buildGraph();
+}
+
+/**
+ * @brief Only update clock timing.
+ * 
+ */
+void update_clock_timing() {
+  auto* ista = ista::Sta::getOrCreateSta();
+  ista->updateClockTiming(); 
+}
+
+/**
+ * @brief Print the graph in yaml format.
+ * 
+ * @param graph_file 
+ */
+void dump_graph_data(std::string graph_file) {
+  auto* ista = ista::Sta::getOrCreateSta();
+  ista->dumpGraphData(graph_file.c_str());
 }
 
 }  // namespace ista
