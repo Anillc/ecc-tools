@@ -115,6 +115,7 @@ void DataManager::write_placement_back(float* x, float* y, int len)
     float xx = x[i];
     float yy = y[i];
     inst->set_coodinate(xx, yy);
+    inst->set_status_placed();
     i++;
     // flag = true;
   }
