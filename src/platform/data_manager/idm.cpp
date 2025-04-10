@@ -119,7 +119,7 @@ void DataManager::write_placement_back(float* x, float* y, int len)
     // flag = true;
   }
   // output hpwl
-  std::cout << "WriteBack double finished!!" << std::endl;
+  std::cout << "WriteBack placement finished!!" << std::endl;
   // std::cout << "WriteBack double finished, Current Contest DB Total HPWL : " << contest_db->obtainTotalHPWL() <<
   // std::endl;
 
