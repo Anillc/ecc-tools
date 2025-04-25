@@ -86,10 +86,43 @@ void register_imp(pybind11::module& m)
       .def_readwrite("unit_horizontal_capacities", &PyPlaceDB::unit_horizontal_capacities)
       .def_readwrite("unit_vertical_capacities", &PyPlaceDB::unit_vertical_capacities)
       .def_readwrite("initial_horizontal_demand_map", &PyPlaceDB::initial_horizontal_demand_map)
-      .def_readwrite("initial_vertical_demand_map", &PyPlaceDB::initial_vertical_demand_map);
+      .def_readwrite("initial_vertical_demand_map", &PyPlaceDB::initial_vertical_demand_map)
+      .def_readwrite("start_points", &PyPlaceDB::start_points)
+      .def_readwrite("end_points", &PyPlaceDB::end_points)
+      .def_readwrite("cells_by_level", &PyPlaceDB::cells_by_level)
+      .def_readwrite("cells_by_reverse_level", &PyPlaceDB::cells_by_reverse_level)
+      .def_readwrite("inrdelays", &PyPlaceDB::inrdelays)
+      .def_readwrite("infdelays", &PyPlaceDB::infdelays)
+      .def_readwrite("inrtrans", &PyPlaceDB::inrtrans)
+      .def_readwrite("inftrans", &PyPlaceDB::inftrans)
+      .def_readwrite("outcaps", &PyPlaceDB::outcaps)
+      .def_readwrite("net_flat_arcs_start", &PyPlaceDB::net_flat_arcs_start)
+      .def_readwrite("net_flat_arcs", &PyPlaceDB::net_flat_arcs)
+      .def_readwrite("cell_flat_arcs_start", &PyPlaceDB::cell_flat_arcs_start)
+      .def_readwrite("cell_flat_arcs", &PyPlaceDB::cell_flat_arcs)
+      .def_readwrite("cell_main_id_start", &PyPlaceDB::cell_main_id_start)
+      .def_readwrite("libcell_arc_start", &PyPlaceDB::libcell_arc_start)
+      .def_readwrite("inst_main_id", &PyPlaceDB::inst_main_id)
+      .def_readwrite("inst_width", &PyPlaceDB::inst_width)
+      .def_readwrite("f_delay_flat_luts_values", &PyPlaceDB::f_delay_flat_luts_values)
+      .def_readwrite("f_delay_flat_luts_trans_table", &PyPlaceDB::f_delay_flat_luts_trans_table)
+      .def_readwrite("f_delay_flat_luts_cap_table", &PyPlaceDB::f_delay_flat_luts_cap_table)
+      .def_readwrite("f_delay_flat_luts_dim", &PyPlaceDB::f_delay_flat_luts_dim)
+      .def_readwrite("r_delay_flat_luts_values", &PyPlaceDB::r_delay_flat_luts_values)
+      .def_readwrite("r_delay_flat_luts_trans_table", &PyPlaceDB::r_delay_flat_luts_trans_table)
+      .def_readwrite("r_delay_flat_luts_cap_table", &PyPlaceDB::r_delay_flat_luts_cap_table)
+      .def_readwrite("r_delay_flat_luts_dim", &PyPlaceDB::r_delay_flat_luts_dim)
+      .def_readwrite("f_trans_flat_luts_values", &PyPlaceDB::f_trans_flat_luts_values)
+      .def_readwrite("f_trans_flat_luts_trans_table", &PyPlaceDB::f_trans_flat_luts_trans_table)
+      .def_readwrite("f_trans_flat_luts_cap_table", &PyPlaceDB::f_trans_flat_luts_cap_table)
+      .def_readwrite("f_trans_flat_luts_dim", &PyPlaceDB::f_trans_flat_luts_dim)
+      .def_readwrite("r_trans_flat_luts_values", &PyPlaceDB::r_trans_flat_luts_values)
+      .def_readwrite("r_trans_flat_luts_trans_table", &PyPlaceDB::r_trans_flat_luts_trans_table)
+      .def_readwrite("r_trans_flat_luts_cap_table", &PyPlaceDB::r_trans_flat_luts_cap_table)
+      .def_readwrite("r_trans_flat_luts_dim", &PyPlaceDB::r_trans_flat_luts_dim);
+
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
-  m.def(
-      "pydb", [](idm::DataManager* db) { return PyPlaceDB(db); }, "Convert PlaceDB to PyPlaceDB");
+  m.def("pydb", [](idm::DataManager* db) { return PyPlaceDB(db); }, "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
   m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
   m.def("runRef", runRef, py::arg("output_tcl") = "");

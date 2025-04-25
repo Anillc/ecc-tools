@@ -1,9 +1,3 @@
-/**
- * @file   PyPlaceDB.cpp
- * @author Yibo Lin
- * @date   Apr 2020
- * @brief  Placement database for python
- */
 
 #include "PyPlaceDB.h"
 // #include "ContestDriver.h"
@@ -11,6 +5,24 @@
 #include <boost/polygon/polygon.hpp>
 #include <cassert>
 #include <cstdio>
+#include <string>
+#include <vector>
+
+#include "IdbDesign.h"
+#include "IdbEnum.h"
+#include "IdbInstance.h"
+#include "IdbLayout.h"
+#include "IdbPins.h"
+#include "Lib.hh"
+#include "Pin.hh"
+#include "PowerEngine.hh"
+#include "TimingEngine.hh"
+#include "TimingIDBAdapter.hh"
+#include "idm.h"
+// #include "ContestDriver.h"
+#include "PowerEngine.hh"
+// #include "Power.hh"
+#include <boost/polygon/polygon.hpp>
 #include <vector>
 
 namespace python_interface {
@@ -91,6 +103,335 @@ double intersectArea(Box const& b1, Box const& b2)
 // {
 //   return (onBoundary(b, p.x()) && contain(b, p.y())) || (onBoundary(b, p.y()) && contain(b.get(kX), p.x()));
 // }
+void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list)
+{
+  // routebilty driven placement
+  // routing information initialized
+  num_routing_grids_x = 0;
+  num_routing_grids_y = 0;
+  routing_grid_xl = xl;
+  routing_grid_yl = yl;
+  routing_grid_xh = xh;
+  routing_grid_yh = yh;
+  // int pitch = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_pitch();
+  // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->;
+  // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_width();
+
+  // congestion map opt
+  num_routing_grids_x = 256;
+  num_routing_grids_y = 256;
+  double routing_grids_size_x = std::round((routing_grid_xh - routing_grid_xl) / num_routing_grids_x);
+  double routing_grids_size_y = std::round((routing_grid_yh - routing_grid_yl) / num_routing_grids_y);
+  num_routing_grids_x = std::floor((routing_grid_xh - routing_grid_xl) / routing_grids_size_x);
+  num_routing_grids_y = std::floor((routing_grid_yh - routing_grid_yl) / routing_grids_size_y);
+  routing_grid_xh = routing_grid_xl + num_routing_grids_x * routing_grids_size_x;
+  routing_grid_yh = routing_grid_yl + num_routing_grids_y * routing_grids_size_y;
+
+  int track_layer_id = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_layer_list()[0]->get_id();
+  for (index_type layer_idx = 0; layer_idx < db->get_idb_layout()->get_layers()->get_routing_layers_number(); ++layer_idx) {
+    auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer_idx);
+    idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
+    if (idb_routing_layer->get_track_grid_list().empty()) {
+      continue;
+    }
+    double track_ratio = idb_routing_layer->get_track_grid_list().size();
+    for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
+      auto idb_track_grid = track_grid->get_track();
+
+      int track_start = static_cast<int32_t>(idb_track_grid->get_start());
+      int track_pitch = static_cast<int32_t>(idb_track_grid->get_pitch());
+      int track_num = track_grid->get_track_num();
+      if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
+        unit_vertical_capacities.append(track_num / routing_grids_size_x);
+        // track_axis.get_x_grid_list().push_back(track_grid);
+      } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+        unit_horizontal_capacities.append(track_num / routing_grids_size_y);
+      }
+    }
+  }
+  // this is slightly different from db.routingGridOrigin
+  // to be consistent with global placement
+  int all_layer_num = db->get_idb_layout()->get_layers()->get_routing_layers_number();
+  double routing_grid_area = routing_grids_size_x * routing_grids_size_y;
+  std::vector<int> initial_horizontal_routing_map(all_layer_num * num_routing_grids_x * num_routing_grids_y, 0);
+  std::vector<int> initial_vertical_routing_map(initial_horizontal_routing_map.size(), 0);
+
+  for (unsigned int i = 0; i < inst_resort_list.size(); ++i) {
+    IdbInstance* node = inst_resort_list.at(i);
+    // Macro const& macro = db.macro(db.macroId(node));
+    // else if (macro.className() != "DREAMPlace.PlaceBlockage") // fixed cells are special cases, skip placement blockages (looks like
+    // ISPD2015 benchmarks do not process placement blockages)
+
+    if (node->get_status() == IdbPlacementStatus::kFixed) {
+      // Macro const& macro = db.macro(db.macroId(node));
+      // printf("PyPlaceDB detect fixed cell: ");
+      for (auto obs : node->get_cell_master()->get_obs_list()) {
+        Box box(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+                node->get_bounding_box()->get_high_y());
+        // Box box(node.xl + obs_box.xl, node.yl + obs_box.yl, node.xl + obs_box.xh, node.yl + obs_box.yh);
+        index_type grid_index_xl = std::max(int((box.xl - routing_grid_xl) / routing_grids_size_x), 0);
+        index_type grid_index_yl = std::max(int((box.yl - routing_grid_yl) / routing_grids_size_y), 0);
+        index_type grid_index_xh = std::min(unsigned((box.xh - routing_grid_xl) / routing_grids_size_x) + 1, num_routing_grids_x);
+        index_type grid_index_yh = std::min(unsigned((box.yh - routing_grid_yl) / routing_grids_size_y) + 1, num_routing_grids_y);
+        for (index_type k = grid_index_xl; k < grid_index_xh; ++k) {
+          coordinate_type grid_xl = routing_grid_xl + k * routing_grids_size_x;
+          coordinate_type grid_xh = grid_xl + routing_grids_size_x;
+          for (index_type h = grid_index_yl; h < grid_index_yh; ++h) {
+            coordinate_type grid_yl = routing_grid_yl + h * routing_grids_size_y;
+            coordinate_type grid_yh = grid_yl + routing_grids_size_y;
+            Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
+            for (auto obs_layer : obs->get_obs_layer_list()) {
+              int layer_idx = obs_layer->get_shape()->get_layer()->get_id();
+              index_type index = layer_idx * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
+              double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
+              // dreamplaceAssert(intersect_ratio <= 1);
+              auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer_idx);
+              idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
+              if (idb_routing_layer->get_track_grid_list().empty()) {
+                continue;
+              }
+              for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
+                auto idb_track_grid = track_grid->get_track();
+                int track_num = track_grid->get_track_num();
+                if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
+                  initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
+                  // track_axis.get_x_grid_list().push_back(track_grid);
+                } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+                  // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
+                  initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
+                  // track_axis.get_y_grid_list().push_back(track_grid);
+                }
+              }
+            }
+            // printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
+            //        node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+            //        node->get_bounding_box()->get_high_y());
+          }
+        }
+      }
+    }
+  }
+
+  for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
+    if (!blockage->is_routing_blockage()) {
+      continue;
+    }
+    IdbRoutingBlockage* routing_blockage = dynamic_cast<IdbRoutingBlockage*>(blockage);
+    // auto rect = routing_blockage->get_rect();
+
+    index_type layer = routing_blockage->get_layer()->get_id();
+    idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(routing_blockage->get_layer());
+    for (auto rect : blockage->get_rect_list()) {
+      // convert to absolute box
+      Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
+      index_type grid_index_xl = std::max(int((box.xl - routing_grid_xl) / routing_grids_size_x), 0);
+      index_type grid_index_yl = std::max(int((box.yl - routing_grid_yl) / routing_grids_size_y), 0);
+      index_type grid_index_xh = std::min(unsigned((box.xh - routing_grid_xl) / routing_grids_size_x) + 1, num_routing_grids_x);
+      index_type grid_index_yh = std::min(unsigned((box.yh - routing_grid_yl) / routing_grids_size_y) + 1, num_routing_grids_y);
+      for (index_type k = grid_index_xl; k < grid_index_xh; ++k) {
+        coordinate_type grid_xl = routing_grid_xl + k * routing_grids_size_x;
+        coordinate_type grid_xh = grid_xl + routing_grids_size_x;
+        for (index_type h = grid_index_yl; h < grid_index_yh; ++h) {
+          coordinate_type grid_yl = routing_grid_yl + h * routing_grids_size_y;
+          coordinate_type grid_yh = grid_yl + routing_grids_size_y;
+          Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
+          index_type index = layer * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
+          double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
+          // dreamplaceAssert(intersect_ratio <= 1);
+          for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
+            auto idb_track_grid = track_grid->get_track();
+            int track_num = track_grid->get_track_num();
+            if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
+              // track_axis.get_x_grid_list().push_back(track_grid);
+              initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
+            } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+              // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
+              initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
+              // track_axis.get_y_grid_list().push_back(track_grid);
+            }
+          }
+          // initial_horizontal_routing_map[index] += ceil(intersect_ratio * db.numRoutingTracks(PlanarDirectEnum::HORIZONTAL, layer));
+          // initial_vertical_routing_map[index] += ceil(intersect_ratio * db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer));
+          if (layer == 2) {
+            // dreamplaceAssert(db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer) == 0);
+            // dreamplaceAssertMsg(initial_vertical_routing_map[index] == 0,
+            //                     "intersect_ratio %g, initial_vertical_routing_map[%u] = %d, capacity %u, product %g",
+            //                     intersect_ratio, index, initial_vertical_routing_map[index],
+            //                     db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer), intersect_ratio *
+            //                     db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer));
+          }
+        }
+      }
+    }
+  }
+  // clamp maximum for overlapping fixed cells
+  for (index_type layer = 0; layer < all_layer_num; ++layer) {
+    for (int i = 0, ie = num_routing_grids_x * num_routing_grids_y; i < ie; ++i) {
+      auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer);
+      idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
+      for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
+        auto idb_track_grid = track_grid->get_track();
+        int track_num = track_grid->get_track_num();
+        if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
+          auto& vvalue = initial_vertical_routing_map[layer * ie + i];
+          vvalue = std::min(vvalue, track_num);
+        } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+          auto& hvalue = initial_horizontal_routing_map[layer * ie + i];
+          hvalue = std::min(hvalue, track_num);
+        }
+      }
+    }
+  }
+  for (auto item : initial_horizontal_routing_map) {
+    initial_horizontal_demand_map.append(item);
+  }
+  for (auto item : initial_vertical_routing_map) {
+    initial_vertical_demand_map.append(item);
+  }
+}
+
+void PyPlaceDB::init_timing(idm::DataManager* db)
+{
+}
+
+using Graph = std::unordered_map<std::string, std::vector<std::string>>;
+/**
+ * @brief Perform topological sorting and leveling on a given Directed Acyclic Graph (DAG).
+ *
+ * @param graph Adjacency list representation of the graph. Keys are node names, and values are lists of neighbors.
+ * The caller is responsible for constructing this graph based on the design database.
+ * @param start_nodes An optional list of nodes considered as starting points for the topological sort (typically primary inputs or
+ * flip-flop outputs). If empty, the function will treat all nodes with in-degree 0 as starting points. These nodes will have their levels
+ * initialized to 0.
+ *
+ * @return std::tuple containing:
+ * - std::vector<std::string>: List of nodes in topological order. Empty if a cycle is detected.
+ * - std::unordered_map<std::string, int>: Levels of each node (longest path length from starting nodes). Empty if a cycle is detected.
+ * - bool: True if the graph is a DAG and the operation succeeds; false if a cycle is detected.
+ */
+std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool> topologicalSortAndLevelize(
+    const Graph& graph, const std::vector<std::string>& start_nodes = {})
+{
+  // --- Initialization ---
+  std::unordered_map<std::string, int> in_degree;  // Stores the in-degree of each node
+  std::unordered_map<std::string, int> levels;     // Stores the level of each node
+  std::unordered_set<std::string> all_nodes;       // Stores all unique nodes in the graph
+
+  // 1. Collect all nodes and calculate in-degrees (based on the provided graph)
+  // Note: The caller must ensure that the graph structure is correct and reflects the dependencies between nodes.
+  for (const auto& pair : graph) {
+    all_nodes.insert(pair.first);  // Add source node
+    for (const std::string& neighbor : pair.second) {
+      in_degree[neighbor]++;
+      all_nodes.insert(neighbor);  // Add target node
+    }
+  }
+
+  // Ensure all nodes are initialized in in_degree and levels
+  for (const std::string& node : all_nodes) {
+    // Initialize levels to -1 or another marker value, indicating not yet visited/computed
+    // Source nodes will be set to 0 in the next step
+    levels[node] = -1;
+    // Ensure nodes that only appear as targets (with no outgoing edges) are included in in_degree
+    if (in_degree.find(node) == in_degree.end()) {
+      in_degree[node] = 0;
+    }
+  }
+
+  // 2. Initialize the queue
+  std::queue<std::string> q;
+  if (start_nodes.empty()) {
+    // If no starting nodes are specified, add all nodes with in-degree 0 to the queue
+    for (const std::string& node : all_nodes) {
+      if (in_degree[node] == 0) {
+        q.push(node);
+        levels[node] = 0;  // Source nodes have level 0
+      }
+    }
+  } else {
+    // If starting nodes are specified (e.g., from start_points_str in your code snippet)
+    // Add these specified starting nodes to the queue and set their levels to 0
+    // Assume these start_nodes are valid starting points in the graph (in-degree 0 or logical starting points)
+    for (const std::string& start_node : start_nodes) {
+      if (all_nodes.count(start_node)) {  // Ensure the starting node exists in the graph
+                                          // Typically, specified starting nodes should have in-degree 0 or be logical starting points
+                                          // if (in_degree[start_node] == 0) { // Optionally add this check
+        q.push(start_node);
+        levels[start_node] = 0;
+        // } else {
+        //     std::cerr << "Warning: Specified starting node " << start_node << " has non-zero in-degree." << std::endl;
+        // }
+      } else {
+        std::cerr << "Warning: Specified starting node " << start_node << " is not in the graph." << std::endl;
+      }
+    }
+    // Initialize levels for other nodes (if not already set by starting nodes)
+    for (const std::string& node : all_nodes) {
+      if (levels[node] == -1) {  // Only initialize nodes not set as starting nodes
+                                 // For non-starting nodes, keep -1 or set to 0 or another initial value as needed
+                                 // If all nodes are expected to have non-negative levels, keep -1 and handle during updates
+      }
+    }
+  }
+
+  std::vector<std::string> topological_order;  // Stores the result of the topological sort
+
+  // --- Process nodes (Core logic of Kahn's Algorithm) ---
+  while (!q.empty()) {
+    // Dequeue a node
+    std::string u = q.front();
+    q.pop();
+    topological_order.push_back(u);
+
+    // Check if node u exists in the graph keys (i.e., has outgoing edges)
+    if (graph.count(u)) {
+      // Process all neighbors v of node u
+      for (const std::string& v : graph.at(u)) {
+        // Check if neighbor v exists in all_nodes (ensure data consistency)
+        if (all_nodes.count(v)) {
+          // Update the level of neighbor v
+          // Level[v] should be the maximum level of all its predecessors + 1
+          // Only update if the current path provides a longer path
+          if (levels[u] != -1) {  // Ensure the predecessor's level is computed
+            levels[v] = std::max(levels[v], levels[u] + 1);
+          }
+
+          // Decrease the in-degree of neighbor v by 1
+          in_degree[v]--;
+
+          // If the in-degree of neighbor v becomes 0, add it to the queue
+          if (in_degree[v] == 0) {
+            q.push(v);
+          }
+        } else {
+          std::cerr << "Error: Graph data inconsistency, neighbor " << v << " of node " << u << " not found in node list." << std::endl;
+          // Handle the error as needed, e.g., return failure
+        }
+      }
+    }
+  }
+
+  // --- Check for cycles ---
+  if (topological_order.size() == all_nodes.size()) {
+    // Topological sort succeeded, the graph is a DAG
+    // Clean up levels of unreachable nodes (if they remain -1)
+    for (auto it = levels.begin(); it != levels.end();) {
+      if (it->second == -1) {
+        // Handle unreachable nodes, e.g., remove or set to a specific value
+        std::cerr << "Warning: Node " << it->first << " is unreachable in the topological sort, level not computed." << std::endl;
+        it = levels.erase(it);  // For example, remove
+      } else {
+        ++it;
+      }
+    }
+    return std::make_tuple(topological_order, levels, true);
+  } else {
+    // The number of nodes in the topological order is less than the total number of nodes, indicating a cycle
+    std::cerr << "Error: A cycle was detected in the graph! Topological sort failed." << std::endl;
+    // Return empty results and false
+    return std::make_tuple(std::vector<std::string>(), std::unordered_map<std::string, int>(), false);
+  }
+}
 
 void PyPlaceDB::set(idm::DataManager* db)
 {
@@ -361,8 +702,8 @@ void PyPlaceDB::set(idm::DataManager* db)
   // dreamplacePrint(kDEBUG, "fixed area overlap: %g fixed area total: %g, space area = %g\n", total_fixed_node_overlap_area,
   //                 total_fixed_node_area, total_space_area);
 
-  // TODO:
-  // construct node2pin_map and flat_node2pin_map
+  /*----------------------construct node2pin_map and flat_node2pin_map-------------------------------*/
+
   int count = 0;
   for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
     auto node_name = node_names[i].cast<std::string>();
@@ -405,9 +746,9 @@ void PyPlaceDB::set(idm::DataManager* db)
     count += pin_num;
   }
   flat_node2pin_start_map.append(count);
-  num_movable_pins = 0;
-  // TODO:
 
+  /*-----------------------------------------------------*/
+  num_movable_pins = 0;
   unsigned int pin_index = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
@@ -542,192 +883,370 @@ void PyPlaceDB::set(idm::DataManager* db)
   row_height = db->get_idb_layout()->get_rows()->get_row_height();
   site_width = db->get_idb_layout()->get_rows()->get_row_list().at(0)->get_site()->get_width();
 #if 1
-  // routebilty driven placement
-  // routing information initialized
-  num_routing_grids_x = 0;
-  num_routing_grids_y = 0;
-  routing_grid_xl = xl;
-  routing_grid_yl = yl;
-  routing_grid_xh = xh;
-  routing_grid_yh = yh;
-  // int pitch = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_pitch();
-  // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->;
-  // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_width();
 
-  if (true) {
-    num_routing_grids_x = 256;
-    num_routing_grids_y = 256;
-    double routing_grids_size_x = std::round((routing_grid_xh - routing_grid_xl) / num_routing_grids_x);
-    double routing_grids_size_y = std::round((routing_grid_yh - routing_grid_yl) / num_routing_grids_y);
-    num_routing_grids_x = std::floor((routing_grid_xh - routing_grid_xl) / routing_grids_size_x);
-    num_routing_grids_y = std::floor((routing_grid_yh - routing_grid_yl) / routing_grids_size_y);
-    routing_grid_xh = routing_grid_xl + num_routing_grids_x * routing_grids_size_x;
-    routing_grid_yh = routing_grid_yl + num_routing_grids_y * routing_grids_size_y;
+  init_routability(db, inst_resort_list);
 
-    int track_layer_id = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_layer_list()[0]->get_id();
-    for (index_type layer_idx = 0; layer_idx < db->get_idb_layout()->get_layers()->get_routing_layers_number(); ++layer_idx) {
-      auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer_idx);
-      idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
-      if (idb_routing_layer->get_track_grid_list().empty()) {
-        continue;
-      }
-      double track_ratio = idb_routing_layer->get_track_grid_list().size();
-      for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
-        auto idb_track_grid = track_grid->get_track();
+  /*************************************************************************/
+  /*************************************************************************/
+  /*--------------------------------timing init------------------------------------------*/
 
-        int track_start = static_cast<int32_t>(idb_track_grid->get_start());
-        int track_pitch = static_cast<int32_t>(idb_track_grid->get_pitch());
-        int track_num = track_grid->get_track_num();
-        if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-          unit_vertical_capacities.append(track_num / routing_grids_size_x);
-          // track_axis.get_x_grid_list().push_back(track_grid);
-        } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
-          unit_horizontal_capacities.append(track_num / routing_grids_size_y);
-        }
-      }
-    }
-    // this is slightly different from db.routingGridOrigin
-    // to be consistent with global placement
-    int all_layer_num = db->get_idb_layout()->get_layers()->get_routing_layers_number();
-    double routing_grid_area = routing_grids_size_x * routing_grids_size_y;
-    std::vector<int> initial_horizontal_routing_map(all_layer_num * num_routing_grids_x * num_routing_grids_y, 0);
-    std::vector<int> initial_vertical_routing_map(initial_horizontal_routing_map.size(), 0);
+  /*--------------------------------topo init------------------------------------------*/
+  /* topo*/
 
-    for (unsigned int i = 0; i < inst_num; ++i) {
-      IdbInstance* node = inst_resort_list.at(i);
-      // Macro const& macro = db.macro(db.macroId(node));
-      // else if (macro.className() != "DREAMPlace.PlaceBlockage") // fixed cells are special cases, skip placement blockages (looks like
-      // ISPD2015 benchmarks do not process placement blockages)
+  // pybind11::list cells_by_level;          //
+  // pybind11::list cells_by_reverse_level;  //
 
-      if (node->get_status() == IdbPlacementStatus::kFixed) {
-        // Macro const& macro = db.macro(db.macroId(node));
-        // printf("PyPlaceDB detect fixed cell: ");
-        for (auto obs : node->get_cell_master()->get_obs_list()) {
-          Box box(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-                  node->get_bounding_box()->get_high_y());
-          // Box box(node.xl + obs_box.xl, node.yl + obs_box.yl, node.xl + obs_box.xh, node.yl + obs_box.yh);
-          index_type grid_index_xl = std::max(int((box.xl - routing_grid_xl) / routing_grids_size_x), 0);
-          index_type grid_index_yl = std::max(int((box.yl - routing_grid_yl) / routing_grids_size_y), 0);
-          index_type grid_index_xh = std::min(unsigned((box.xh - routing_grid_xl) / routing_grids_size_x) + 1, num_routing_grids_x);
-          index_type grid_index_yh = std::min(unsigned((box.yh - routing_grid_yl) / routing_grids_size_y) + 1, num_routing_grids_y);
-          for (index_type k = grid_index_xl; k < grid_index_xh; ++k) {
-            coordinate_type grid_xl = routing_grid_xl + k * routing_grids_size_x;
-            coordinate_type grid_xh = grid_xl + routing_grids_size_x;
-            for (index_type h = grid_index_yl; h < grid_index_yh; ++h) {
-              coordinate_type grid_yl = routing_grid_yl + h * routing_grids_size_y;
-              coordinate_type grid_yh = grid_yl + routing_grids_size_y;
-              Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
-              for (auto obs_layer : obs->get_obs_layer_list()) {
-                int layer_idx = obs_layer->get_shape()->get_layer()->get_id();
-                index_type index = layer_idx * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
-                double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
-                // dreamplaceAssert(intersect_ratio <= 1);
-                auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer_idx);
-                idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
-                if (idb_routing_layer->get_track_grid_list().empty()) {
-                  continue;
-                }
-                for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
-                  auto idb_track_grid = track_grid->get_track();
-                  int track_num = track_grid->get_track_num();
-                  if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-                    initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
-                    // track_axis.get_x_grid_list().push_back(track_grid);
-                  } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
-                    // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
-                    initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
-                    // track_axis.get_y_grid_list().push_back(track_grid);
-                  }
-                }
-              }
-              // printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-              //        node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-              //        node->get_bounding_box()->get_high_y());
-            }
-          }
-        }
-      }
-    }
-
-    for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
-      if (!blockage->is_routing_blockage()) {
-        continue;
-      }
-      IdbRoutingBlockage* routing_blockage = dynamic_cast<IdbRoutingBlockage*>(blockage);
-      // auto rect = routing_blockage->get_rect();
-
-      index_type layer = routing_blockage->get_layer()->get_id();
-      idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(routing_blockage->get_layer());
-      for (auto rect : blockage->get_rect_list()) {
-        // convert to absolute box
-        Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
-        index_type grid_index_xl = std::max(int((box.xl - routing_grid_xl) / routing_grids_size_x), 0);
-        index_type grid_index_yl = std::max(int((box.yl - routing_grid_yl) / routing_grids_size_y), 0);
-        index_type grid_index_xh = std::min(unsigned((box.xh - routing_grid_xl) / routing_grids_size_x) + 1, num_routing_grids_x);
-        index_type grid_index_yh = std::min(unsigned((box.yh - routing_grid_yl) / routing_grids_size_y) + 1, num_routing_grids_y);
-        for (index_type k = grid_index_xl; k < grid_index_xh; ++k) {
-          coordinate_type grid_xl = routing_grid_xl + k * routing_grids_size_x;
-          coordinate_type grid_xh = grid_xl + routing_grids_size_x;
-          for (index_type h = grid_index_yl; h < grid_index_yh; ++h) {
-            coordinate_type grid_yl = routing_grid_yl + h * routing_grids_size_y;
-            coordinate_type grid_yh = grid_yl + routing_grids_size_y;
-            Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
-            index_type index = layer * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
-            double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
-            // dreamplaceAssert(intersect_ratio <= 1);
-            for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
-              auto idb_track_grid = track_grid->get_track();
-              int track_num = track_grid->get_track_num();
-              if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-                // track_axis.get_x_grid_list().push_back(track_grid);
-                initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
-              } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
-                // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
-                initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
-                // track_axis.get_y_grid_list().push_back(track_grid);
-              }
-            }
-            // initial_horizontal_routing_map[index] += ceil(intersect_ratio * db.numRoutingTracks(PlanarDirectEnum::HORIZONTAL, layer));
-            // initial_vertical_routing_map[index] += ceil(intersect_ratio * db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer));
-            if (layer == 2) {
-              // dreamplaceAssert(db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer) == 0);
-              // dreamplaceAssertMsg(initial_vertical_routing_map[index] == 0,
-              //                     "intersect_ratio %g, initial_vertical_routing_map[%u] = %d, capacity %u, product %g",
-              //                     intersect_ratio, index, initial_vertical_routing_map[index],
-              //                     db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer), intersect_ratio *
-              //                     db.numRoutingTracks(PlanarDirectEnum::VERTICAL, layer));
-            }
-          }
-        }
-      }
-    }
-    // clamp maximum for overlapping fixed cells
-    for (index_type layer = 0; layer < all_layer_num; ++layer) {
-      for (int i = 0, ie = num_routing_grids_x * num_routing_grids_y; i < ie; ++i) {
-        auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer);
-        idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
-        for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
-          auto idb_track_grid = track_grid->get_track();
-          int track_num = track_grid->get_track_num();
-          if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-            auto& vvalue = initial_vertical_routing_map[layer * ie + i];
-            vvalue = std::min(vvalue, track_num);
-          } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
-            auto& hvalue = initial_horizontal_routing_map[layer * ie + i];
-            hvalue = std::min(hvalue, track_num);
-          }
-        }
-      }
-    }
-    for (auto item : initial_horizontal_routing_map) {
-      initial_horizontal_demand_map.append(item);
-    }
-    for (auto item : initial_vertical_routing_map) {
-      initial_vertical_demand_map.append(item);
+  std::vector<string> start_points_str;  // PIs and FFs' output pins
+  std::vector<string> end_points_str;    // POs and FFs' input pins
+  for (auto pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
+    if (pin->is_primary_input()) {
+      start_points_str.push_back(pin->get_pin_name());
+    } else if (pin->is_primary_output()) {
+      end_points_str.push_back(pin->get_pin_name());
     }
   }
 
+  Graph forward_graph;  //
+  Graph reverse_graph;  //
+  for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
+    if (instance->is_flip_flop()) {
+      for (auto pin : instance->get_pin_list()->get_pin_list()) {
+        string pin_full_name = instance->get_name() + pin->get_pin_name();
+        if (mPin2ID.count(pin_full_name)) {
+          // driven pin
+          if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
+            start_points_str.push_back(pin_full_name);
+          } else if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
+            // if (pin->) {
+            // TODO: ignore clock pins
+            end_points_str.push_back(pin_full_name);
+            // }
+          }
+        }
+      }
+    }
+  }
+  for (auto net : db_deisgn->get_net_list()->get_net_list()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+      continue;
+    }
+    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
+    for (auto pin : net->get_load_pins()) {
+      string to_inst_name = pin->get_instance()->get_name();
+      forward_graph[from_inst_name].push_back(to_inst_name);
+      reverse_graph[to_inst_name].push_back(from_inst_name);
+    }
+  }
+  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(forward_graph);
+  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(reverse_graph);
+  assert(forward_is_dag && reverse_is_dag);
+  std::unordered_map<int, std::vector<std::string>> forward_level_to_nodes;
+  std::unordered_map<int, std::vector<std::string>> reverse_level_to_nodes;
+  for (const auto& pair : forward_node_levels) {
+    forward_level_to_nodes[pair.second].push_back(pair.first);
+  }
+  for (const auto& pair : reverse_node_levels) {
+    reverse_level_to_nodes[pair.second].push_back(pair.first);
+  }
+
+  // pybind11::list cells_by_level;          //
+  // pybind11::list cells_by_reverse_level;  //
+  for (auto& [level, inst_list] : forward_level_to_nodes) {
+    pybind11::list tmp_list;
+    for (auto& inst_name : inst_list) {
+      if (mNodeName2ID.count(inst_name)) {
+        // is there a bug ?
+        // FIXME:
+        tmp_list.append(mNodeName2ID[inst_name]);
+      }
+    }
+    cells_by_level.append(tmp_list);
+  }
+  for (auto& [level, inst_list] : reverse_level_to_nodes) {
+    pybind11::list tmp_list;
+    for (auto& inst_name : inst_list) {
+      if (mNodeName2ID.count(inst_name)) {
+        tmp_list.append(mNodeName2ID[inst_name]);
+      }
+    }
+    cells_by_reverse_level.append(tmp_list);
+  }
+
+  for (auto& pin_name : start_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      start_points.append(mPin2ID[pin_name]);
+    }
+  }
+  for (auto& pin_name : end_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      end_points.append(mPin2ID[pin_name]);
+    }
+  }
+
+  /*--------------------------------sdc init------------------------------------------*/
+
+  for (auto& pin_name : start_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      // TODO:
+      // ISTA need to read sdc to initialize
+      inrdelays;  //
+      infdelays;  //
+      inrtrans;   //
+      inftrans;   //
+    }
+  }
+  for (auto& pin_name : end_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      // TODO:
+      outcaps;  //
+    }
+  }
+
+  /*--------------------------------net arcs init------------------------------------------*/
+  int net_arc_count = 0;
+  for (auto net : db_deisgn->get_net_list()->get_net_list()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+      continue;
+    }
+    net_flat_arcs_start.append(net_arc_count);  //
+    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
+    int from_pin_id = mPin2ID[from_inst_name + net->get_driving_pin()->get_pin_name()];
+    pybind11::list tmp_arcs;  //
+    for (auto pin : net->get_load_pins()) {
+      string to_inst_name = pin->get_instance()->get_name();
+      int to_pin_id = mPin2ID[to_inst_name + pin->get_pin_name()];
+      pybind11::list arc;
+      arc.append(from_pin_id);
+      arc.append(to_pin_id);
+      tmp_arcs.append(arc);
+    }
+    net_flat_arcs.append(tmp_arcs);  //
+    net_arc_count += tmp_arcs.size();
+  }
+  net_flat_arcs_start.append(net_arc_count);
+
+  /*--------------------------------cell main type init------------------------------------------*/
+  auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  auto _sta = _timing_engine->get_ista();
+
+  int cell_flat_arc_count = 0;
+  std::unordered_set<std::string> main_types;
+  std::unordered_map<std::string, std::unordered_map<std::string, int>> main_type_with_width;
+  std::unordered_map<std::string, std::vector<LibCell*>> main_type_libcells;
+  std::unordered_map<std::string, std::string> cell_type2main_type;
+
+  std::unordered_map<std::string, int> main_type2main_id;
+  std::unordered_map<std::string, int> cell_type2cell_id;  // cell_id = libcell_start[main_id] + width
+
+  for (auto node : inst_resort_list) {
+    string cell_type = node->get_cell_master()->get_name();
+    auto lib_cell = _sta->findLibertyCell(cell_type.c_str());
+    string main_type = _sta->classifyCells(lib_cell)->at(0)->get_cell_name();
+    main_types.insert(main_type);
+  }
+  int main_id_idx = 0;
+  int cell_id_idx = 0;
+  for (auto& [main_type, cell_types] : main_type_with_width) {
+    auto main_lib_cell = _sta->findLibertyCell(main_type.c_str());
+    Vector<LibCell*> lib_cells = *(_sta->classifyCells(main_lib_cell));
+    main_type2main_id[main_type] = main_id_idx;
+    std::sort(lib_cells.begin(), lib_cells.end(), [](LibCell* a, LibCell* b) {
+      return a->get_leakage_power_list().at(0)->get_value() < a->get_leakage_power_list().at(0)->get_value();
+    });
+    for (int size = 0; size < lib_cells.size(); ++size) {
+      main_type_libcells[main_type].push_back(lib_cells[size]);
+      main_type_with_width[main_type][lib_cells[size]->get_cell_name()] = size;
+      cell_type2main_type[lib_cells[size]->get_cell_name()] = main_type;
+      cell_type2cell_id[lib_cells[size]->get_cell_name()] = cell_id_idx;
+      cell_id_idx++;
+    }
+    main_id_idx++;
+  }
+
+  /*--------------------------------lib cell arcs info------------------------------------------*/
+  /*
+    info_2_arc_idx:   [main_type, from_lib_pin, to_lib_pin] -> arc_idx
+
+    flat_luts_values: torch.Tensor      # [ARC_NUM, MaxT, MaxC]
+    flat_luts_trans_table : torch.Tensor  # [ARC_NUM, MaxT]
+    flat_luts_cap_table : torch.Tensor   # [ARC_NUM, MaxC]
+    flat_luts_dim: torch.Tensor        # [ARC_NUM, 3] - Actual dims [trans_dim]
+
+    cells [main_type, size, lib_arc_idx] -> [, arc_idx]
+
+    cell_type_arc_start :
+
+    main_type -> cell_types -> arc_idx ->
+  */
+
+  std::unordered_map<std::string, int> info_2_arc_idx;
+  int main_type_id = 0;
+  int lib_cell_idx = 0;
+  int arc_idx = 0;
+
+  for (auto& [main_type, lib_cells] : main_type_libcells) {
+    // auto lib_cell_t = lib_cells.at(0);
+    // for (auto& arc_set : lib_cell_t->get_cell_arcs()) {
+    //   for (auto& arc : arc_set->get_arcs()) {
+    //     auto from_lib_pin = arc->get_src_port();
+    //     auto to_lib_pin = arc->get_snk_port();
+    //     string info = main_type + "_" + from_lib_pin + "_" + to_lib_pin;
+    //     info_2_arc_idx[info] = arc_idx++;
+    //     if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
+    //         || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
+    //       continue;
+    //     }
+
+    //     arc->get_timing_sense();
+    //   }
+    // }
+
+    //
+    cell_main_id_start.append(lib_cell_idx);
+    pybind11::list flat_luts_values[4];       // Forward delay flat LUT values
+    pybind11::list flat_luts_trans_table[4];  // Forward delay flat LUT transition table
+    pybind11::list flat_luts_cap_table[4];    // Forward delay flat LUT capacitance table
+    pybind11::list flat_luts_dim[4];
+
+    const int TRAN_AXIS = 0;
+    const int CAP_AXIS = 1;
+    for (auto lib_cell : lib_cells) {
+      libcell_arc_start.append(arc_idx);
+      int num_arcs = 0;
+      for (auto& arc_set : lib_cell->get_cell_arcs()) {
+        for (auto& arc : arc_set->get_arcs()) {
+          auto from_lib_pin = arc->get_src_port();
+          auto to_lib_pin = arc->get_snk_port();
+          string cell_type_name = lib_cell->get_cell_name();
+          string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
+          info_2_arc_idx[info] = arc_idx++;
+          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
+              || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
+            continue;
+          }
+          num_arcs++;
+          auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
+                                    pybind11::list& flat_luts_cap_table, pybind11::list& flat_luts_dim, LibTable* table) {
+            int num_tran = table->get_axes().at(TRAN_AXIS)->get_axis_size();
+            int num_cap = table->get_axes().at(CAP_AXIS)->get_axis_size();
+            pybind11::list luts_dim;
+            pybind11::list luts_values;
+            pybind11::list luts_cap_table;
+            pybind11::list luts_trans_table;
+
+            luts_dim.append(num_tran);
+            luts_dim.append(num_cap);
+
+            for (auto& value : table->get_axes().at(CAP_AXIS)->get_axis_values()) {
+              luts_cap_table.append(value.get());
+            }
+            for (auto& value : table->get_axes().at(TRAN_AXIS)->get_axis_values()) {
+              luts_trans_table.append(value.get());
+            }
+
+            // luts_values??
+            for (auto& value : table->get_table_values()) {
+              luts_values.append(value.get());
+            }
+            flat_luts_values.append(luts_values);
+            flat_luts_trans_table.append(luts_trans_table);
+            flat_luts_cap_table.append(luts_cap_table);
+            flat_luts_dim.append(luts_dim);
+            // flat_luts_dim.append(table->get);
+          };
+          auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
+          auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
+          auto rise_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellRise));
+          auto fall_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
+          auto rise_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
+          init_lut_table(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table, f_delay_flat_luts_dim,
+                         fall_delay_table);
+          init_lut_table(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table, r_delay_flat_luts_dim,
+                         rise_delay_table);
+          init_lut_table(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table, f_trans_flat_luts_dim,
+                         fall_trans_table);
+          init_lut_table(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table, r_trans_flat_luts_dim,
+                         rise_trans_table);
+        }
+      }
+
+      arc_idx += num_arcs;
+    }
+
+    lib_cell_idx += lib_cells.size();
+  }
+  libcell_arc_start.append(arc_idx);
+  cell_main_id_start.append(lib_cell_idx);
+
+  //
+
+  /*--------------------------------cell arcs init------------------------------------------*/
+  /*--------------------------------cell arcs ------------------------------------------*/
+  /*
+  cell_flat_arcs: [inpin, outpin, lib_cell_idx, lib_cell_arc_idx, arc_type]
+                  arc_type: 0 for neg, 1 for postive
+  cell_flat_arcs_start
+   inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
+   inst_width;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
+  */
+  int cell_flat_arcs_idx = 0;
+  // hadle cell arcs
+  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
+    auto node_name = node_names[i].cast<std::string>();
+    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
+    cell_flat_arcs_start.append(cell_flat_arcs_idx);
+
+    string cell_type = node->get_cell_master()->get_name();
+    string main_type = cell_type2main_type[cell_type];
+    std::vector<IdbPin*> input_pins;
+    std::vector<IdbPin*> output_pins;
+    inst_main_id.append(main_type2main_id[main_type]);
+    inst_width.append(main_type_with_width[main_type][cell_type]);
+    for (auto pin : node->get_pin_list()->get_pin_list()) {
+      if (pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
+        input_pins.push_back(pin);
+      } else if (pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
+        output_pins.push_back(pin);
+      }
+    }
+    for (int i = 0; i < input_pins.size(); i++) {
+      for (int j = 0; j < output_pins.size(); j++) {
+        auto input_pin = input_pins[i];
+        auto output_pin = output_pins[j];
+        string from_lib_pin = input_pin->get_pin_name();
+        string to_lib_pin = output_pin->get_pin_name();
+        string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
+        if (info_2_arc_idx.count(info)) {
+          int arc_idx = info_2_arc_idx[info];
+          pybind11::list arc;
+          arc.append(mPin2ID[node_name + from_lib_pin]);
+          arc.append(mPin2ID[node_name + to_lib_pin]);
+          arc.append(cell_type2cell_id[cell_type]);
+          arc.append(arc_idx);
+          cell_flat_arcs.append(arc);
+          cell_flat_arcs_idx++;
+        }
+      }
+    }
+  }
+  // blockage
+  for (int i = 0; i < ext_blockage_num; i++) {
+    cell_flat_arcs_start.append(cell_flat_arcs_idx);
+    inst_main_id.append(-1);
+    inst_width.append(-1);
+  }
+  // IO PINS
+  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
+    cell_flat_arcs_start.append(cell_flat_arcs_idx);
+    inst_main_id.append(-1);
+    inst_width.append(-1);
+  }
+  cell_flat_arcs_start.append(cell_flat_arcs_idx);
+
   printf("PyPlaceDB::set end!!!\n");
+
 #endif
 }
 #endif
