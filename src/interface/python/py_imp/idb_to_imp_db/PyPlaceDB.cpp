@@ -28,8 +28,6 @@
 namespace python_interface {
 
 #if 1
-typedef int coordinate_type;
-typedef int index_type;
 
 static std::string IdbOrientToString(IdbOrient orient)
 {
@@ -290,10 +288,6 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
   }
 }
 
-void PyPlaceDB::init_timing(idm::DataManager* db)
-{
-}
-
 using Graph = std::unordered_map<std::string, std::vector<std::string>>;
 /**
  * @brief Perform topological sorting and leveling on a given Directed Acyclic Graph (DAG).
@@ -433,7 +427,372 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
   }
 }
 
-void PyPlaceDB::set(idm::DataManager* db)
+void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID,
+                            std::map<std::string, index_type>& mNodeName2ID, std::vector<IdbInstance*>& inst_resort_list,
+                            std::map<std::string, std::vector<index_type>>& mNode2NewNodes, int ext_blockage_num)
+{
+  /*************************************************************************/
+  /*************************************************************************/
+  /*--------------------------------timing init------------------------------------------*/
+
+  /*--------------------------------topo init------------------------------------------*/
+  /* topo*/
+
+  // pybind11::list cells_by_level;          //
+  // pybind11::list cells_by_reverse_level;  //
+  auto db_deisgn = db->get_idb_design();
+
+  std::vector<string> start_points_str;  // PIs and FFs' output pins
+  std::vector<string> end_points_str;    // POs and FFs' input pins
+  for (auto pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
+    if (pin->is_primary_input()) {
+      start_points_str.push_back(pin->get_pin_name());
+    } else if (pin->is_primary_output()) {
+      end_points_str.push_back(pin->get_pin_name());
+    }
+  }
+
+  Graph forward_graph;  //
+  Graph reverse_graph;  //
+  for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
+    if (instance->is_flip_flop()) {
+      for (auto pin : instance->get_pin_list()->get_pin_list()) {
+        string pin_full_name = instance->get_name() + pin->get_pin_name();
+        if (mPin2ID.count(pin_full_name)) {
+          // driven pin
+          if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
+            start_points_str.push_back(pin_full_name);
+          } else if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
+            // if (pin->) {
+            // TODO: ignore clock pins
+            end_points_str.push_back(pin_full_name);
+            // }
+          }
+        }
+      }
+    }
+  }
+  for (auto net : db_deisgn->get_net_list()->get_net_list()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+      continue;
+    }
+    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
+    for (auto pin : net->get_load_pins()) {
+      string to_inst_name = pin->get_instance()->get_name();
+      forward_graph[from_inst_name].push_back(to_inst_name);
+      reverse_graph[to_inst_name].push_back(from_inst_name);
+    }
+  }
+  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(forward_graph);
+  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(reverse_graph);
+  assert(forward_is_dag && reverse_is_dag);
+  std::unordered_map<int, std::vector<std::string>> forward_level_to_nodes;
+  std::unordered_map<int, std::vector<std::string>> reverse_level_to_nodes;
+  for (const auto& pair : forward_node_levels) {
+    forward_level_to_nodes[pair.second].push_back(pair.first);
+  }
+  for (const auto& pair : reverse_node_levels) {
+    reverse_level_to_nodes[pair.second].push_back(pair.first);
+  }
+
+  // pybind11::list cells_by_level;          //
+  // pybind11::list cells_by_reverse_level;  //
+  for (auto& [level, inst_list] : forward_level_to_nodes) {
+    pybind11::list tmp_list;
+    for (auto& inst_name : inst_list) {
+      if (mNodeName2ID.count(inst_name)) {
+        // is there a bug ?
+        // FIXME:
+        tmp_list.append(mNodeName2ID[inst_name]);
+      }
+    }
+    cells_by_level.append(tmp_list);
+  }
+  for (auto& [level, inst_list] : reverse_level_to_nodes) {
+    pybind11::list tmp_list;
+    for (auto& inst_name : inst_list) {
+      if (mNodeName2ID.count(inst_name)) {
+        tmp_list.append(mNodeName2ID[inst_name]);
+      }
+    }
+    cells_by_reverse_level.append(tmp_list);
+  }
+
+  for (auto& pin_name : start_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      start_points.append(mPin2ID[pin_name]);
+    }
+  }
+  for (auto& pin_name : end_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      end_points.append(mPin2ID[pin_name]);
+    }
+  }
+
+  /*--------------------------------sdc init------------------------------------------*/
+
+  for (auto& pin_name : start_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      // TODO:
+      // ISTA need to read sdc to initialize
+      inrdelays;  //
+      infdelays;  //
+      inrtrans;   //
+      inftrans;   //
+    }
+  }
+  for (auto& pin_name : end_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      // TODO:
+      outcaps;  //
+    }
+  }
+
+  /*--------------------------------net arcs init------------------------------------------*/
+  int net_arc_count = 0;
+  for (auto net : db_deisgn->get_net_list()->get_net_list()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+      continue;
+    }
+    net_flat_arcs_start.append(net_arc_count);  //
+    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
+    int from_pin_id = mPin2ID[from_inst_name + net->get_driving_pin()->get_pin_name()];
+    pybind11::list tmp_arcs;  //
+    for (auto pin : net->get_load_pins()) {
+      string to_inst_name = pin->get_instance()->get_name();
+      int to_pin_id = mPin2ID[to_inst_name + pin->get_pin_name()];
+      pybind11::list arc;
+      arc.append(from_pin_id);
+      arc.append(to_pin_id);
+      tmp_arcs.append(arc);
+    }
+    net_flat_arcs.append(tmp_arcs);  //
+    net_arc_count += tmp_arcs.size();
+  }
+  net_flat_arcs_start.append(net_arc_count);
+
+  /*--------------------------------cell main type init------------------------------------------*/
+  auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  auto _sta = _timing_engine->get_ista();
+
+  int cell_flat_arc_count = 0;
+  std::unordered_set<std::string> main_types;
+  std::unordered_map<std::string, std::unordered_map<std::string, int>> main_type_with_width;
+  std::unordered_map<std::string, std::vector<LibCell*>> main_type_libcells;
+  std::unordered_map<std::string, std::string> cell_type2main_type;
+
+  std::unordered_map<std::string, int> main_type2main_id;
+  std::unordered_map<std::string, int> cell_type2cell_id;  // cell_id = libcell_start[main_id] + width
+
+  for (auto node : inst_resort_list) {
+    string cell_type = node->get_cell_master()->get_name();
+    auto lib_cell = _sta->findLibertyCell(cell_type.c_str());
+    string main_type = _sta->classifyCells(lib_cell)->at(0)->get_cell_name();
+    main_types.insert(main_type);
+  }
+  int main_id_idx = 0;
+  int cell_id_idx = 0;
+  for (auto& [main_type, cell_types] : main_type_with_width) {
+    auto main_lib_cell = _sta->findLibertyCell(main_type.c_str());
+    Vector<LibCell*> lib_cells = *(_sta->classifyCells(main_lib_cell));
+    main_type2main_id[main_type] = main_id_idx;
+    std::sort(lib_cells.begin(), lib_cells.end(), [](LibCell* a, LibCell* b) {
+      return a->get_leakage_power_list().at(0)->get_value() < a->get_leakage_power_list().at(0)->get_value();
+    });
+    for (int size = 0; size < lib_cells.size(); ++size) {
+      main_type_libcells[main_type].push_back(lib_cells[size]);
+      main_type_with_width[main_type][lib_cells[size]->get_cell_name()] = size;
+      cell_type2main_type[lib_cells[size]->get_cell_name()] = main_type;
+      cell_type2cell_id[lib_cells[size]->get_cell_name()] = cell_id_idx;
+      cell_id_idx++;
+    }
+    main_id_idx++;
+  }
+
+  /*--------------------------------lib cell arcs info------------------------------------------*/
+  /*
+    info_2_arc_idx:   [main_type, from_lib_pin, to_lib_pin] -> arc_idx
+
+    flat_luts_values: torch.Tensor      # [ARC_NUM, MaxT, MaxC]
+    flat_luts_trans_table : torch.Tensor  # [ARC_NUM, MaxT]
+    flat_luts_cap_table : torch.Tensor   # [ARC_NUM, MaxC]
+    flat_luts_dim: torch.Tensor        # [ARC_NUM, 3] - Actual dims [trans_dim]
+
+    cells [main_type, size, lib_arc_idx] -> [, arc_idx]
+
+    cell_type_arc_start :
+
+    main_type -> cell_types -> arc_idx ->
+  */
+
+  std::unordered_map<std::string, int> info_2_arc_idx;
+  int main_type_id = 0;
+  int lib_cell_idx = 0;
+  int arc_idx = 0;
+
+  for (auto& [main_type, lib_cells] : main_type_libcells) {
+    // auto lib_cell_t = lib_cells.at(0);
+    // for (auto& arc_set : lib_cell_t->get_cell_arcs()) {
+    //   for (auto& arc : arc_set->get_arcs()) {
+    //     auto from_lib_pin = arc->get_src_port();
+    //     auto to_lib_pin = arc->get_snk_port();
+    //     string info = main_type + "_" + from_lib_pin + "_" + to_lib_pin;
+    //     info_2_arc_idx[info] = arc_idx++;
+    //     if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
+    //         || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
+    //       continue;
+    //     }
+
+    //     arc->get_timing_sense();
+    //   }
+    // }
+
+    //
+    cell_main_id_start.append(lib_cell_idx);
+    pybind11::list flat_luts_values[4];       // Forward delay flat LUT values
+    pybind11::list flat_luts_trans_table[4];  // Forward delay flat LUT transition table
+    pybind11::list flat_luts_cap_table[4];    // Forward delay flat LUT capacitance table
+    pybind11::list flat_luts_dim[4];
+
+    const int TRAN_AXIS = 0;
+    const int CAP_AXIS = 1;
+    for (auto lib_cell : lib_cells) {
+      libcell_arc_start.append(arc_idx);
+      int num_arcs = 0;
+      for (auto& arc_set : lib_cell->get_cell_arcs()) {
+        for (auto& arc : arc_set->get_arcs()) {
+          auto from_lib_pin = arc->get_src_port();
+          auto to_lib_pin = arc->get_snk_port();
+          string cell_type_name = lib_cell->get_cell_name();
+          string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
+          info_2_arc_idx[info] = arc_idx++;
+          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
+              || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
+            continue;
+          }
+          num_arcs++;
+          auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
+                                    pybind11::list& flat_luts_cap_table, pybind11::list& flat_luts_dim, LibTable* table) {
+            int num_tran = table->get_axes().at(TRAN_AXIS)->get_axis_size();
+            int num_cap = table->get_axes().at(CAP_AXIS)->get_axis_size();
+            pybind11::list luts_dim;
+            pybind11::list luts_values;
+            pybind11::list luts_cap_table;
+            pybind11::list luts_trans_table;
+
+            luts_dim.append(num_tran);
+            luts_dim.append(num_cap);
+
+            for (auto& value : table->get_axes().at(CAP_AXIS)->get_axis_values()) {
+              luts_cap_table.append(value.get());
+            }
+            for (auto& value : table->get_axes().at(TRAN_AXIS)->get_axis_values()) {
+              luts_trans_table.append(value.get());
+            }
+
+            // luts_values??
+            for (auto& value : table->get_table_values()) {
+              luts_values.append(value.get());
+            }
+            flat_luts_values.append(luts_values);
+            flat_luts_trans_table.append(luts_trans_table);
+            flat_luts_cap_table.append(luts_cap_table);
+            flat_luts_dim.append(luts_dim);
+            // flat_luts_dim.append(table->get);
+          };
+          auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
+          auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
+          auto rise_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellRise));
+          auto fall_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
+          auto rise_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
+          init_lut_table(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table, f_delay_flat_luts_dim,
+                         fall_delay_table);
+          init_lut_table(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table, r_delay_flat_luts_dim,
+                         rise_delay_table);
+          init_lut_table(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table, f_trans_flat_luts_dim,
+                         fall_trans_table);
+          init_lut_table(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table, r_trans_flat_luts_dim,
+                         rise_trans_table);
+        }
+      }
+
+      arc_idx += num_arcs;
+    }
+
+    lib_cell_idx += lib_cells.size();
+  }
+  libcell_arc_start.append(arc_idx);
+  cell_main_id_start.append(lib_cell_idx);
+
+  //
+
+  /*--------------------------------cell arcs init------------------------------------------*/
+  /*--------------------------------cell arcs ------------------------------------------*/
+  /*
+  cell_flat_arcs: [inpin, outpin, lib_cell_idx, lib_cell_arc_idx, arc_type]
+                  arc_type: 0 for neg, 1 for postive
+  cell_flat_arcs_start
+   inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
+   inst_width;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
+  */
+  int cell_flat_arcs_idx = 0;
+  // hadle cell arcs
+  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
+    auto node_name = node_names[i].cast<std::string>();
+    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
+    cell_flat_arcs_start.append(cell_flat_arcs_idx);
+
+    string cell_type = node->get_cell_master()->get_name();
+    string main_type = cell_type2main_type[cell_type];
+    std::vector<IdbPin*> input_pins;
+    std::vector<IdbPin*> output_pins;
+    inst_main_id.append(main_type2main_id[main_type]);
+    inst_width.append(main_type_with_width[main_type][cell_type]);
+    for (auto pin : node->get_pin_list()->get_pin_list()) {
+      if (pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
+        input_pins.push_back(pin);
+      } else if (pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
+        output_pins.push_back(pin);
+      }
+    }
+    for (int i = 0; i < input_pins.size(); i++) {
+      for (int j = 0; j < output_pins.size(); j++) {
+        auto input_pin = input_pins[i];
+        auto output_pin = output_pins[j];
+        string from_lib_pin = input_pin->get_pin_name();
+        string to_lib_pin = output_pin->get_pin_name();
+        string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
+        if (info_2_arc_idx.count(info)) {
+          int arc_idx = info_2_arc_idx[info];
+          pybind11::list arc;
+          arc.append(mPin2ID[node_name + from_lib_pin]);
+          arc.append(mPin2ID[node_name + to_lib_pin]);
+          arc.append(cell_type2cell_id[cell_type]);
+          arc.append(arc_idx);
+          cell_flat_arcs.append(arc);
+          cell_flat_arcs_idx++;
+        }
+      }
+    }
+  }
+  // blockage
+  for (int i = 0; i < ext_blockage_num; i++) {
+    cell_flat_arcs_start.append(cell_flat_arcs_idx);
+    inst_main_id.append(-1);
+    inst_width.append(-1);
+  }
+  // IO PINS
+  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
+    cell_flat_arcs_start.append(cell_flat_arcs_idx);
+    inst_main_id.append(-1);
+    inst_width.append(-1);
+  }
+  cell_flat_arcs_start.append(cell_flat_arcs_idx);
+}
+
+void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
 {
   printf("PyPlaceDB::set start!!! Db address is %p\n", db);
   printf("PyPlaceDB::set start!!! idb_design address is %p\n", db->get_idb_design());
@@ -885,366 +1244,9 @@ void PyPlaceDB::set(idm::DataManager* db)
 #if 1
 
   init_routability(db, inst_resort_list);
-
-  /*************************************************************************/
-  /*************************************************************************/
-  /*--------------------------------timing init------------------------------------------*/
-
-  /*--------------------------------topo init------------------------------------------*/
-  /* topo*/
-
-  // pybind11::list cells_by_level;          //
-  // pybind11::list cells_by_reverse_level;  //
-
-  std::vector<string> start_points_str;  // PIs and FFs' output pins
-  std::vector<string> end_points_str;    // POs and FFs' input pins
-  for (auto pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
-    if (pin->is_primary_input()) {
-      start_points_str.push_back(pin->get_pin_name());
-    } else if (pin->is_primary_output()) {
-      end_points_str.push_back(pin->get_pin_name());
-    }
+  if (with_sta) {
+    init_timing(db, mPin2ID, mNodeName2ID, inst_resort_list, mNode2NewNodes, ext_blockage_num);
   }
-
-  Graph forward_graph;  //
-  Graph reverse_graph;  //
-  for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
-    if (instance->is_flip_flop()) {
-      for (auto pin : instance->get_pin_list()->get_pin_list()) {
-        string pin_full_name = instance->get_name() + pin->get_pin_name();
-        if (mPin2ID.count(pin_full_name)) {
-          // driven pin
-          if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
-            start_points_str.push_back(pin_full_name);
-          } else if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
-            // if (pin->) {
-            // TODO: ignore clock pins
-            end_points_str.push_back(pin_full_name);
-            // }
-          }
-        }
-      }
-    }
-  }
-  for (auto net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
-      continue;
-    }
-    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
-    for (auto pin : net->get_load_pins()) {
-      string to_inst_name = pin->get_instance()->get_name();
-      forward_graph[from_inst_name].push_back(to_inst_name);
-      reverse_graph[to_inst_name].push_back(from_inst_name);
-    }
-  }
-  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(forward_graph);
-  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(reverse_graph);
-  assert(forward_is_dag && reverse_is_dag);
-  std::unordered_map<int, std::vector<std::string>> forward_level_to_nodes;
-  std::unordered_map<int, std::vector<std::string>> reverse_level_to_nodes;
-  for (const auto& pair : forward_node_levels) {
-    forward_level_to_nodes[pair.second].push_back(pair.first);
-  }
-  for (const auto& pair : reverse_node_levels) {
-    reverse_level_to_nodes[pair.second].push_back(pair.first);
-  }
-
-  // pybind11::list cells_by_level;          //
-  // pybind11::list cells_by_reverse_level;  //
-  for (auto& [level, inst_list] : forward_level_to_nodes) {
-    pybind11::list tmp_list;
-    for (auto& inst_name : inst_list) {
-      if (mNodeName2ID.count(inst_name)) {
-        // is there a bug ?
-        // FIXME:
-        tmp_list.append(mNodeName2ID[inst_name]);
-      }
-    }
-    cells_by_level.append(tmp_list);
-  }
-  for (auto& [level, inst_list] : reverse_level_to_nodes) {
-    pybind11::list tmp_list;
-    for (auto& inst_name : inst_list) {
-      if (mNodeName2ID.count(inst_name)) {
-        tmp_list.append(mNodeName2ID[inst_name]);
-      }
-    }
-    cells_by_reverse_level.append(tmp_list);
-  }
-
-  for (auto& pin_name : start_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      start_points.append(mPin2ID[pin_name]);
-    }
-  }
-  for (auto& pin_name : end_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      end_points.append(mPin2ID[pin_name]);
-    }
-  }
-
-  /*--------------------------------sdc init------------------------------------------*/
-
-  for (auto& pin_name : start_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      // TODO:
-      // ISTA need to read sdc to initialize
-      inrdelays;  //
-      infdelays;  //
-      inrtrans;   //
-      inftrans;   //
-    }
-  }
-  for (auto& pin_name : end_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      // TODO:
-      outcaps;  //
-    }
-  }
-
-  /*--------------------------------net arcs init------------------------------------------*/
-  int net_arc_count = 0;
-  for (auto net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
-      continue;
-    }
-    net_flat_arcs_start.append(net_arc_count);  //
-    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
-    int from_pin_id = mPin2ID[from_inst_name + net->get_driving_pin()->get_pin_name()];
-    pybind11::list tmp_arcs;  //
-    for (auto pin : net->get_load_pins()) {
-      string to_inst_name = pin->get_instance()->get_name();
-      int to_pin_id = mPin2ID[to_inst_name + pin->get_pin_name()];
-      pybind11::list arc;
-      arc.append(from_pin_id);
-      arc.append(to_pin_id);
-      tmp_arcs.append(arc);
-    }
-    net_flat_arcs.append(tmp_arcs);  //
-    net_arc_count += tmp_arcs.size();
-  }
-  net_flat_arcs_start.append(net_arc_count);
-
-  /*--------------------------------cell main type init------------------------------------------*/
-  auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  auto _sta = _timing_engine->get_ista();
-
-  int cell_flat_arc_count = 0;
-  std::unordered_set<std::string> main_types;
-  std::unordered_map<std::string, std::unordered_map<std::string, int>> main_type_with_width;
-  std::unordered_map<std::string, std::vector<LibCell*>> main_type_libcells;
-  std::unordered_map<std::string, std::string> cell_type2main_type;
-
-  std::unordered_map<std::string, int> main_type2main_id;
-  std::unordered_map<std::string, int> cell_type2cell_id;  // cell_id = libcell_start[main_id] + width
-
-  for (auto node : inst_resort_list) {
-    string cell_type = node->get_cell_master()->get_name();
-    auto lib_cell = _sta->findLibertyCell(cell_type.c_str());
-    string main_type = _sta->classifyCells(lib_cell)->at(0)->get_cell_name();
-    main_types.insert(main_type);
-  }
-  int main_id_idx = 0;
-  int cell_id_idx = 0;
-  for (auto& [main_type, cell_types] : main_type_with_width) {
-    auto main_lib_cell = _sta->findLibertyCell(main_type.c_str());
-    Vector<LibCell*> lib_cells = *(_sta->classifyCells(main_lib_cell));
-    main_type2main_id[main_type] = main_id_idx;
-    std::sort(lib_cells.begin(), lib_cells.end(), [](LibCell* a, LibCell* b) {
-      return a->get_leakage_power_list().at(0)->get_value() < a->get_leakage_power_list().at(0)->get_value();
-    });
-    for (int size = 0; size < lib_cells.size(); ++size) {
-      main_type_libcells[main_type].push_back(lib_cells[size]);
-      main_type_with_width[main_type][lib_cells[size]->get_cell_name()] = size;
-      cell_type2main_type[lib_cells[size]->get_cell_name()] = main_type;
-      cell_type2cell_id[lib_cells[size]->get_cell_name()] = cell_id_idx;
-      cell_id_idx++;
-    }
-    main_id_idx++;
-  }
-
-  /*--------------------------------lib cell arcs info------------------------------------------*/
-  /*
-    info_2_arc_idx:   [main_type, from_lib_pin, to_lib_pin] -> arc_idx
-
-    flat_luts_values: torch.Tensor      # [ARC_NUM, MaxT, MaxC]
-    flat_luts_trans_table : torch.Tensor  # [ARC_NUM, MaxT]
-    flat_luts_cap_table : torch.Tensor   # [ARC_NUM, MaxC]
-    flat_luts_dim: torch.Tensor        # [ARC_NUM, 3] - Actual dims [trans_dim]
-
-    cells [main_type, size, lib_arc_idx] -> [, arc_idx]
-
-    cell_type_arc_start :
-
-    main_type -> cell_types -> arc_idx ->
-  */
-
-  std::unordered_map<std::string, int> info_2_arc_idx;
-  int main_type_id = 0;
-  int lib_cell_idx = 0;
-  int arc_idx = 0;
-
-  for (auto& [main_type, lib_cells] : main_type_libcells) {
-    // auto lib_cell_t = lib_cells.at(0);
-    // for (auto& arc_set : lib_cell_t->get_cell_arcs()) {
-    //   for (auto& arc : arc_set->get_arcs()) {
-    //     auto from_lib_pin = arc->get_src_port();
-    //     auto to_lib_pin = arc->get_snk_port();
-    //     string info = main_type + "_" + from_lib_pin + "_" + to_lib_pin;
-    //     info_2_arc_idx[info] = arc_idx++;
-    //     if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
-    //         || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
-    //       continue;
-    //     }
-
-    //     arc->get_timing_sense();
-    //   }
-    // }
-
-    //
-    cell_main_id_start.append(lib_cell_idx);
-    pybind11::list flat_luts_values[4];       // Forward delay flat LUT values
-    pybind11::list flat_luts_trans_table[4];  // Forward delay flat LUT transition table
-    pybind11::list flat_luts_cap_table[4];    // Forward delay flat LUT capacitance table
-    pybind11::list flat_luts_dim[4];
-
-    const int TRAN_AXIS = 0;
-    const int CAP_AXIS = 1;
-    for (auto lib_cell : lib_cells) {
-      libcell_arc_start.append(arc_idx);
-      int num_arcs = 0;
-      for (auto& arc_set : lib_cell->get_cell_arcs()) {
-        for (auto& arc : arc_set->get_arcs()) {
-          auto from_lib_pin = arc->get_src_port();
-          auto to_lib_pin = arc->get_snk_port();
-          string cell_type_name = lib_cell->get_cell_name();
-          string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
-          info_2_arc_idx[info] = arc_idx++;
-          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
-              || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
-            continue;
-          }
-          num_arcs++;
-          auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
-                                    pybind11::list& flat_luts_cap_table, pybind11::list& flat_luts_dim, LibTable* table) {
-            int num_tran = table->get_axes().at(TRAN_AXIS)->get_axis_size();
-            int num_cap = table->get_axes().at(CAP_AXIS)->get_axis_size();
-            pybind11::list luts_dim;
-            pybind11::list luts_values;
-            pybind11::list luts_cap_table;
-            pybind11::list luts_trans_table;
-
-            luts_dim.append(num_tran);
-            luts_dim.append(num_cap);
-
-            for (auto& value : table->get_axes().at(CAP_AXIS)->get_axis_values()) {
-              luts_cap_table.append(value.get());
-            }
-            for (auto& value : table->get_axes().at(TRAN_AXIS)->get_axis_values()) {
-              luts_trans_table.append(value.get());
-            }
-
-            // luts_values??
-            for (auto& value : table->get_table_values()) {
-              luts_values.append(value.get());
-            }
-            flat_luts_values.append(luts_values);
-            flat_luts_trans_table.append(luts_trans_table);
-            flat_luts_cap_table.append(luts_cap_table);
-            flat_luts_dim.append(luts_dim);
-            // flat_luts_dim.append(table->get);
-          };
-          auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
-          auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
-          auto rise_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellRise));
-          auto fall_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
-          auto rise_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
-          init_lut_table(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table, f_delay_flat_luts_dim,
-                         fall_delay_table);
-          init_lut_table(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table, r_delay_flat_luts_dim,
-                         rise_delay_table);
-          init_lut_table(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table, f_trans_flat_luts_dim,
-                         fall_trans_table);
-          init_lut_table(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table, r_trans_flat_luts_dim,
-                         rise_trans_table);
-        }
-      }
-
-      arc_idx += num_arcs;
-    }
-
-    lib_cell_idx += lib_cells.size();
-  }
-  libcell_arc_start.append(arc_idx);
-  cell_main_id_start.append(lib_cell_idx);
-
-  //
-
-  /*--------------------------------cell arcs init------------------------------------------*/
-  /*--------------------------------cell arcs ------------------------------------------*/
-  /*
-  cell_flat_arcs: [inpin, outpin, lib_cell_idx, lib_cell_arc_idx, arc_type]
-                  arc_type: 0 for neg, 1 for postive
-  cell_flat_arcs_start
-   inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
-   inst_width;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
-  */
-  int cell_flat_arcs_idx = 0;
-  // hadle cell arcs
-  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
-    auto node_name = node_names[i].cast<std::string>();
-    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
-    cell_flat_arcs_start.append(cell_flat_arcs_idx);
-
-    string cell_type = node->get_cell_master()->get_name();
-    string main_type = cell_type2main_type[cell_type];
-    std::vector<IdbPin*> input_pins;
-    std::vector<IdbPin*> output_pins;
-    inst_main_id.append(main_type2main_id[main_type]);
-    inst_width.append(main_type_with_width[main_type][cell_type]);
-    for (auto pin : node->get_pin_list()->get_pin_list()) {
-      if (pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
-        input_pins.push_back(pin);
-      } else if (pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
-        output_pins.push_back(pin);
-      }
-    }
-    for (int i = 0; i < input_pins.size(); i++) {
-      for (int j = 0; j < output_pins.size(); j++) {
-        auto input_pin = input_pins[i];
-        auto output_pin = output_pins[j];
-        string from_lib_pin = input_pin->get_pin_name();
-        string to_lib_pin = output_pin->get_pin_name();
-        string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
-        if (info_2_arc_idx.count(info)) {
-          int arc_idx = info_2_arc_idx[info];
-          pybind11::list arc;
-          arc.append(mPin2ID[node_name + from_lib_pin]);
-          arc.append(mPin2ID[node_name + to_lib_pin]);
-          arc.append(cell_type2cell_id[cell_type]);
-          arc.append(arc_idx);
-          cell_flat_arcs.append(arc);
-          cell_flat_arcs_idx++;
-        }
-      }
-    }
-  }
-  // blockage
-  for (int i = 0; i < ext_blockage_num; i++) {
-    cell_flat_arcs_start.append(cell_flat_arcs_idx);
-    inst_main_id.append(-1);
-    inst_width.append(-1);
-  }
-  // IO PINS
-  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
-    cell_flat_arcs_start.append(cell_flat_arcs_idx);
-    inst_main_id.append(-1);
-    inst_width.append(-1);
-  }
-  cell_flat_arcs_start.append(cell_flat_arcs_idx);
-
   printf("PyPlaceDB::set end!!!\n");
 
 #endif

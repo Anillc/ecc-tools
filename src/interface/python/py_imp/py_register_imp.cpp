@@ -122,7 +122,7 @@ void register_imp(pybind11::module& m)
       .def_readwrite("r_trans_flat_luts_dim", &PyPlaceDB::r_trans_flat_luts_dim);
 
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
-  m.def("pydb", [](idm::DataManager* db) { return PyPlaceDB(db); }, "Convert PlaceDB to PyPlaceDB");
+  m.def("pydb", [](idm::DataManager* db, bool with_sta) { return PyPlaceDB(db, with_sta); }, "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
   m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
   m.def("runRef", runRef, py::arg("output_tcl") = "");

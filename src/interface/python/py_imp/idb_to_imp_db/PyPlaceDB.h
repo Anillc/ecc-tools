@@ -19,6 +19,8 @@
 #include "idm.h"
 // #include <boost/timer/timer.hpp>
 namespace python_interface {
+typedef int coordinate_type;
+typedef int index_type;
 /// database for python
 struct PyPlaceDB
 {
@@ -97,11 +99,9 @@ struct PyPlaceDB
   pybind11::list cell_main_id_start;  // [num_main_type, ] cell_main_id_start + cell_width -> cell_id
   // main_id -> cell_id
   pybind11::list libcell_arc_start;  //[num_lib_cells, ] libcell_arc_start + arc_offset -> arc
-  
-  
-  pybind11::list inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
-  pybind11::list inst_width;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
 
+  pybind11::list inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_width;    // [num_main_type, ] cell_main_id + cell_width -> cell_id
 
   /**/
   /* luts table*/
@@ -151,12 +151,14 @@ struct PyPlaceDB
 
   PyPlaceDB() {}
 
-  PyPlaceDB(idm::DataManager* db) { set(db); }
+  PyPlaceDB(idm::DataManager* db, bool with_sta) { set(db, with_sta); }
 
-  void set(idm::DataManager* db);
+  void set(idm::DataManager* db, bool with_sta);
   void set_sta();
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
-  void init_timing(idm::DataManager* db);
+  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::map<std::string, index_type>& mNodeName2ID,
+                   std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
+                   int ext_blockage_num);
 };
 
 }  // namespace python_interface
