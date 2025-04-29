@@ -18,6 +18,11 @@
 #include "PowerEngine.hh"
 #include "TimingEngine.hh"
 #include "TimingIDBAdapter.hh"
+
+#include "sdc/SdcSetIODelay.hh"
+#include "sdc/SdcSetInputTransition.hh"
+#include "sdc/SdcSetLoad.hh"
+
 #include "idm.h"
 // #include "ContestDriver.h"
 #include "PowerEngine.hh"
@@ -543,6 +548,64 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   }
 
   /*--------------------------------sdc init------------------------------------------*/
+  auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  auto ista = timing_engine->get_ista();
+  SdcConstrain* the_constrain = ista->getConstrain();
+  auto& sdc_io_constraints = the_constrain->get_sdc_io_constraints();
+  for (auto& io_constraint : sdc_io_constraints) {
+    if (io_constraint->isSetInputDelay()) {
+      auto set_io_delay = dynamic_cast<SdcSetIODelay*>(io_constraint);
+      auto& objs = set_io_delay->get_objs();
+      double delay_value = set_io_delay->get_delay_value();
+      for (auto* obj : objs) {
+        std::string pin_or_port_name = obj->getFullName();
+        if (set_io_delay->isRise() && set_io_delay->isMax()) {
+          // inrdelays[pin_or_port_name].append(delay_value);
+        } else if (set_io_delay->isRise() && set_io_delay->isMin()) {
+   
+        } else if (set_io_delay->isFall() && set_io_delay->isMax()) {
+          // infdelays[pin_or_port_name].append(delay_value);
+  
+        } else if (set_io_delay->isFall() && set_io_delay->isMin()) {
+   
+        }
+      }
+
+    } else if (io_constraint->isSetOutputDelay()) {
+      // may be not need.      
+    } else if (io_constraint->isSetInputTransition()) {
+      auto* set_input_transition =
+      dynamic_cast<SdcSetInputTransition*>(io_constraint.get());
+      double slew = set_input_transition->get_transition_value();
+      auto& objs = set_input_transition->get_objs();
+      for (auto* obj : objs) {
+        if (set_input_transition->isMax() && set_input_transition->isRise()) {
+          // inrtrans[obj->getFullName()].append(slew);
+        } else if (set_input_transition->isMax() && set_input_transition->isFall()) {
+          // inftrans[obj->getFullName()].append(slew);
+        } else if (set_input_transition->isMin() && set_input_transition->isRise()) {
+          // inrtrans[obj->getFullName()].append(slew);
+        } else if (set_input_transition->isMin() && set_input_transition->isFall()) {
+          // inftrans[obj->getFullName()].append(slew);
+        }
+      }
+    } else if (io_constraint->isSetLoad()) {
+      auto* set_load = dynamic_cast<SdcSetLoad*>(io_constraint.get());
+      double load = set_load->get_load_value();
+      auto& objs = set_load->get_objs();
+      for (auto* obj : objs) {
+        if (set_load->isMax() && set_load->isRise()) {
+          // outcaps[obj->getFullName()].append(load);
+        } else if (set_load->isMax() && set_load->isFall()) {
+          // outcaps[obj->getFullName()].append(load);
+        } else if (set_load->isMin() && set_load->isRise()) {
+          // outcaps[obj->getFullName()].append(load);
+        } else if (set_load->isMin() && set_load->isFall()) {
+          // outcaps[obj->getFullName()].append(load);
+        }
+      }
+    }
+  }
 
   for (auto& pin_name : start_points_str) {
     if (mPin2ID.count(pin_name)) {
