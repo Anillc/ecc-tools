@@ -445,6 +445,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   std::vector<string> start_points_str;  // PIs and FFs' output pins
   std::vector<string> end_points_str;    // POs and FFs' input pins
   for (auto pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
+    if (pin->get_net() == nullptr || pin->get_net()->is_ground() || pin->get_net()->is_power() || pin->get_net()->is_pdn()
+        || pin->get_net()->is_clock()) {
+      continue;
+    }
     if (pin->is_primary_input()) {
       start_points_str.push_back(pin->get_pin_name());
     } else if (pin->is_primary_output()) {
@@ -455,7 +459,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   Graph forward_graph;  //
   Graph reverse_graph;  //
   for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
-    if (instance->is_flip_flop()) {
+    if (instance->is_flip_flop() || instance->is_clock_instance()) {
       for (auto pin : instance->get_pin_list()->get_pin_list()) {
         string pin_full_name = instance->get_name() + pin->get_pin_name();
         if (mPin2ID.count(pin_full_name)) {
@@ -473,13 +477,21 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     }
   }
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
+        || net->get_driving_pin()->get_instance() == nullptr) {
+      continue;
+    }
+    auto from_inst = net->get_driving_pin()->get_instance();
+    if (from_inst->is_clock_instance() || from_inst->is_flip_flop()) {
       continue;
     }
     auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
     for (auto pin : net->get_load_pins()) {
+      if (pin->get_instance() == nullptr || pin->get_instance()->is_flip_flop() || pin->get_instance()->is_clock_instance()) {
+        continue;
+      }
       string to_inst_name = pin->get_instance()->get_name();
+      // printf(" %s -> %s\n", from_inst_name.c_str(), to_inst_name.c_str());
       forward_graph[from_inst_name].push_back(to_inst_name);
       reverse_graph[to_inst_name].push_back(from_inst_name);
     }
@@ -557,25 +569,45 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       continue;
     }
     net_flat_arcs_start.append(net_arc_count);  //
-    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
-    int from_pin_id = mPin2ID[from_inst_name + net->get_driving_pin()->get_pin_name()];
-    pybind11::list tmp_arcs;  //
+    string pin_full_name;
+    if (net->get_driving_pin()->is_io_pin()) {
+      pin_full_name = net->get_driving_pin()->get_pin_name();
+    } else {
+      pin_full_name = net->get_driving_pin()->get_instance()->get_name() + net->get_driving_pin()->get_pin_name();
+    }
+    assert(mPin2ID.count(pin_full_name));
+    int from_pin_id = mPin2ID[pin_full_name];
+    int arc_num = 0;  //
     for (auto pin : net->get_load_pins()) {
-      string to_inst_name = pin->get_instance()->get_name();
-      int to_pin_id = mPin2ID[to_inst_name + pin->get_pin_name()];
+      string pin_full_name;
+      if (pin->is_io_pin()) {
+        pin_full_name = pin->get_pin_name();
+      } else {
+        pin_full_name = pin->get_instance()->get_name() + pin->get_pin_name();
+      }
+      assert(mPin2ID.count(pin_full_name));
+      int to_pin_id = mPin2ID[pin_full_name];
       pybind11::list arc;
       arc.append(from_pin_id);
       arc.append(to_pin_id);
-      tmp_arcs.append(arc);
+      net_flat_arcs.append(arc);
+      arc_num++;
     }
-    net_flat_arcs.append(tmp_arcs);  //
-    net_arc_count += tmp_arcs.size();
+    net_arc_count += arc_num;
   }
   net_flat_arcs_start.append(net_arc_count);
 
   /*--------------------------------cell main type init------------------------------------------*/
   auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
   auto _sta = _timing_engine->get_ista();
+
+  vector<LibLibrary*> equiv_libs;
+  auto& all_libs = _sta->getAllLib();
+  for (auto& lib : all_libs) {
+    equiv_libs.push_back(lib.get());
+  }
+
+  _sta->makeClassifiedCells(equiv_libs);
 
   int cell_flat_arc_count = 0;
   std::unordered_set<std::string> main_types;
@@ -588,8 +620,13 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   for (auto node : inst_resort_list) {
     string cell_type = node->get_cell_master()->get_name();
+    string main_type;
     auto lib_cell = _sta->findLibertyCell(cell_type.c_str());
-    string main_type = _sta->classifyCells(lib_cell)->at(0)->get_cell_name();
+    if (_sta->classifyCells(lib_cell)) {
+      main_type = _sta->classifyCells(lib_cell)->at(0)->get_cell_name();
+    } else {
+      main_type = cell_type;
+    }
     main_types.insert(main_type);
   }
   int main_id_idx = 0;
@@ -1047,7 +1084,6 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   double total_fixed_node_overlap_area = 0;
   // compute total area uniquely
   // std::cout << __LINE__ << std::endl;
-  // TODO:
   PolygonSet ps(gtl::HORIZONTAL, fixed_boxes.begin(), fixed_boxes.end());
   // critical to make sure only overlap with the die area is computed
   IdbRect* core_rect = db->get_idb_layout()->get_core()->get_bounding_box();
@@ -1183,7 +1219,6 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   flat_net2pin_start_map.append(count);
 
   for (IdbRow* idb_row : db->get_idb_layout()->get_rows()->get_row_list()) {
-    // TODO:
     IdbRect* row_rect = idb_row->get_bounding_box();
     pybind11::tuple row
         = pybind11::make_tuple(row_rect->get_low_x(), row_rect->get_low_y(), row_rect->get_high_x(), row_rect->get_high_y());

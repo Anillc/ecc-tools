@@ -126,6 +126,7 @@ void register_imp(pybind11::module& m)
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
   m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
   m.def("runRef", runRef, py::arg("output_tcl") = "");
+
 }
 
 }  // namespace python_interface

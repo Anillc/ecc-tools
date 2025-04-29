@@ -20,9 +20,9 @@
 
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
+#include "idm.h"
 #include "log/Log.hh"
 #include "sta/Sta.hh"
-
 namespace python_interface {
 bool staRun(const std::string& output)
 {
@@ -125,4 +125,16 @@ bool initLog(std::string log_dir)
   return true;
 }
 
+void convertDBToTimingNetlist()
+{
+  auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+
+  auto idb_adapter = std::make_unique<idb::TimingIDBAdapter>(timing_engine->get_ista());
+
+  idb::IdbBuilder* idb = dmInst->get_idb_builder();
+  idb_adapter->set_idb(idb);
+  idb_adapter->convertDBToTimingNetlist(true);
+  timing_engine->set_db_adapter(std::move(idb_adapter));
+  
+}
 }  // namespace python_interface

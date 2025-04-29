@@ -39,5 +39,6 @@ void register_ista(py::module& m)
   m.def("report_timing", reportTiming, py::arg("digits"), py::arg("delay_type"), py::arg("exclude_cell_names"), py::arg("derate"));
 
   m.def("get_used_libs", get_used_libs);
+  m.def("convert_idb_to_timing_netlist", convertDBToTimingNetlist);
 }
 }  // namespace python_interface
