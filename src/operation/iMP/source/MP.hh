@@ -28,7 +28,7 @@ class MP
   Block& root() { return *_root; }
   const Block& root() const { return *_root; }
   std::shared_ptr<Block> root_ptr() { return _root; }
-  void runMP(std::string config, std::string output_tcl = "");
+  void runMP(std::string config ="", std::string output_tcl = "");
   void runRef(std::string output_tcl = "");
 
  private:

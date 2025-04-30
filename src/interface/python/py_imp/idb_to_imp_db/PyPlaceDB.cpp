@@ -18,12 +18,10 @@
 #include "PowerEngine.hh"
 #include "TimingEngine.hh"
 #include "TimingIDBAdapter.hh"
-
+#include "idm.h"
 #include "sdc/SdcSetIODelay.hh"
 #include "sdc/SdcSetInputTransition.hh"
 #include "sdc/SdcSetLoad.hh"
-
-#include "idm.h"
 // #include "ContestDriver.h"
 #include "PowerEngine.hh"
 // #include "Power.hh"
@@ -515,26 +513,31 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   // pybind11::list cells_by_level;          //
   // pybind11::list cells_by_reverse_level;  //
+  int level_cells_idx = 0;
   for (auto& [level, inst_list] : forward_level_to_nodes) {
-    pybind11::list tmp_list;
+    flat_cells_by_level_start.append(level_cells_idx);
     for (auto& inst_name : inst_list) {
       if (mNodeName2ID.count(inst_name)) {
         // is there a bug ?
         // FIXME:
-        tmp_list.append(mNodeName2ID[inst_name]);
+        flat_cells_by_level.append(mNodeName2ID[inst_name]);
+        level_cells_idx++;
       }
     }
-    cells_by_level.append(tmp_list);
   }
+  flat_cells_by_level_start.append(level_cells_idx);
+
+  int reverse_level_cells_idx = 0;
   for (auto& [level, inst_list] : reverse_level_to_nodes) {
-    pybind11::list tmp_list;
+    flat_cells_by_reverse_level_start.append(reverse_level_cells_idx);
     for (auto& inst_name : inst_list) {
       if (mNodeName2ID.count(inst_name)) {
-        tmp_list.append(mNodeName2ID[inst_name]);
+        flat_cells_by_reverse_level.append(mNodeName2ID[inst_name]);
+        reverse_level_cells_idx++;
       }
     }
-    cells_by_reverse_level.append(tmp_list);
   }
+  flat_cells_by_reverse_level_start.append(reverse_level_cells_idx);
 
   for (auto& pin_name : start_points_str) {
     if (mPin2ID.count(pin_name)) {
@@ -554,7 +557,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   auto& sdc_io_constraints = the_constrain->get_sdc_io_constraints();
   for (auto& io_constraint : sdc_io_constraints) {
     if (io_constraint->isSetInputDelay()) {
-      auto set_io_delay = dynamic_cast<SdcSetIODelay*>(io_constraint);
+      auto set_io_delay = dynamic_cast<SdcSetIODelay*>(io_constraint.get());
       auto& objs = set_io_delay->get_objs();
       double delay_value = set_io_delay->get_delay_value();
       for (auto* obj : objs) {
@@ -562,20 +565,17 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         if (set_io_delay->isRise() && set_io_delay->isMax()) {
           // inrdelays[pin_or_port_name].append(delay_value);
         } else if (set_io_delay->isRise() && set_io_delay->isMin()) {
-   
         } else if (set_io_delay->isFall() && set_io_delay->isMax()) {
           // infdelays[pin_or_port_name].append(delay_value);
-  
+
         } else if (set_io_delay->isFall() && set_io_delay->isMin()) {
-   
         }
       }
 
     } else if (io_constraint->isSetOutputDelay()) {
-      // may be not need.      
+      // may be not need.
     } else if (io_constraint->isSetInputTransition()) {
-      auto* set_input_transition =
-      dynamic_cast<SdcSetInputTransition*>(io_constraint.get());
+      auto* set_input_transition = dynamic_cast<SdcSetInputTransition*>(io_constraint.get());
       double slew = set_input_transition->get_transition_value();
       auto& objs = set_input_transition->get_objs();
       for (auto* obj : objs) {
@@ -641,6 +641,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     assert(mPin2ID.count(pin_full_name));
     int from_pin_id = mPin2ID[pin_full_name];
     int arc_num = 0;  //
+    net2driver_pin_map.append(from_pin_id);
     for (auto pin : net->get_load_pins()) {
       string pin_full_name;
       if (pin->is_io_pin()) {

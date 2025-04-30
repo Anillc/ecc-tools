@@ -76,11 +76,17 @@ struct PyPlaceDB
   pybind11::list initial_horizontal_demand_map;  ///< initial routing demand from fixed cells, indexed by (layer, grid x, grid y)
   pybind11::list initial_vertical_demand_map;    ///< initial routing demand from fixed cells, indexed by (layer, grid x, grid y)
 
+  pybind11::list net2driver_pin_map;
+  
   /* topo */
-  pybind11::list start_points;            //
-  pybind11::list end_points;              //
-  pybind11::list cells_by_level;          //
-  pybind11::list cells_by_reverse_level;  //
+  pybind11::list start_points;  //
+  pybind11::list end_points;    //
+
+  pybind11::list flat_cells_by_level;          //
+  pybind11::list flat_cells_by_reverse_level;  //
+
+  pybind11::list flat_cells_by_level_start;          //
+  pybind11::list flat_cells_by_reverse_level_start;  //
 
   /*sdc */
   pybind11::list inrdelays;  //

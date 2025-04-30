@@ -89,8 +89,8 @@ void register_imp(pybind11::module& m)
       .def_readwrite("initial_vertical_demand_map", &PyPlaceDB::initial_vertical_demand_map)
       .def_readwrite("start_points", &PyPlaceDB::start_points)
       .def_readwrite("end_points", &PyPlaceDB::end_points)
-      .def_readwrite("cells_by_level", &PyPlaceDB::cells_by_level)
-      .def_readwrite("cells_by_reverse_level", &PyPlaceDB::cells_by_reverse_level)
+      // .def_readwrite("cells_by_level", &PyPlaceDB::cells_by_level)
+      // .def_readwrite("cells_by_reverse_level", &PyPlaceDB::cells_by_reverse_level)
       .def_readwrite("inrdelays", &PyPlaceDB::inrdelays)
       .def_readwrite("infdelays", &PyPlaceDB::infdelays)
       .def_readwrite("inrtrans", &PyPlaceDB::inrtrans)
@@ -119,14 +119,17 @@ void register_imp(pybind11::module& m)
       .def_readwrite("r_trans_flat_luts_values", &PyPlaceDB::r_trans_flat_luts_values)
       .def_readwrite("r_trans_flat_luts_trans_table", &PyPlaceDB::r_trans_flat_luts_trans_table)
       .def_readwrite("r_trans_flat_luts_cap_table", &PyPlaceDB::r_trans_flat_luts_cap_table)
-      .def_readwrite("r_trans_flat_luts_dim", &PyPlaceDB::r_trans_flat_luts_dim);
-
+      .def_readwrite("r_trans_flat_luts_dim", &PyPlaceDB::r_trans_flat_luts_dim)
+      .def_readwrite("flat_cells_by_level", &PyPlaceDB::flat_cells_by_level)
+      .def_readwrite("flat_cells_by_reverse_level", &PyPlaceDB::flat_cells_by_reverse_level)
+      .def_readwrite("flat_cells_by_level_start", &PyPlaceDB::flat_cells_by_level_start)
+      .def_readwrite("net2driver_pin_map", &PyPlaceDB::net2driver_pin_map)
+      .def_readwrite("flat_cells_by_reverse_level_start", &PyPlaceDB::flat_cells_by_reverse_level_start);
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
   m.def("pydb", [](idm::DataManager* db, bool with_sta) { return PyPlaceDB(db, with_sta); }, "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
   m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
   m.def("runRef", runRef, py::arg("output_tcl") = "");
-
 }
 
 }  // namespace python_interface
