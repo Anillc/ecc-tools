@@ -77,7 +77,7 @@ struct PyPlaceDB
   pybind11::list initial_vertical_demand_map;    ///< initial routing demand from fixed cells, indexed by (layer, grid x, grid y)
 
   pybind11::list net2driver_pin_map;
-  
+
   /* topo */
   pybind11::list start_points;  //
   pybind11::list end_points;    //
@@ -101,13 +101,21 @@ struct PyPlaceDB
   pybind11::list cell_flat_arcs_start;  //
   pybind11::list cell_flat_arcs;        //
 
-  /* */
-  pybind11::list cell_main_id_start;  // [num_main_type, ] cell_main_id_start + cell_width -> cell_id
+  /* ------------------------info for gate sizing----------------------*/
+  pybind11::list main_id_2_cell_id_start;  // [num_main_type, ] main_id_2_cell_id_start + cell_width -> cell_id
   // main_id -> cell_id
-  pybind11::list libcell_arc_start;  //[num_lib_cells, ] libcell_arc_start + arc_offset -> arc
+  pybind11::list cell_id_2_arc_id_start;  //[num_lib_cells, ] cell_id_2_arc_id_start + arc_offset -> arc
 
-  pybind11::list inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
-  pybind11::list inst_width;    // [num_main_type, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_main_id;  // [inst_num, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_width;    // [inst_num, ] cell_main_id + cell_width -> cell_id
+
+  pybind11::list cell_id_2_libpin_id_start;  // [num_lib_cells, ] cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
+  pybind11::list pin_2_libpin_offset; 
+  pybind11::list flat_lib_pin_cap;           // 
+  pybind11::list flat_lib_pin_cap_limit;     // 
+  pybind11::list flat_lib_pin_slew_limit;    // 
+
+  /* ------------------------end info for gate sizing----------------------*/
 
   /**/
   /* luts table*/

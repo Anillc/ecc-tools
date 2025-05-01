@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstdio>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "IdbDesign.h"
@@ -607,23 +608,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     }
   }
 
-  for (auto& pin_name : start_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      // TODO:
-      // ISTA need to read sdc to initialize
-      inrdelays;  //
-      infdelays;  //
-      inrtrans;   //
-      inftrans;   //
-    }
-  }
-  for (auto& pin_name : end_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      // TODO:
-      outcaps;  //
-    }
-  }
-
   /*--------------------------------net arcs init------------------------------------------*/
   int net_arc_count = 0;
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
@@ -674,39 +658,54 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   _sta->makeClassifiedCells(equiv_libs);
 
   int cell_flat_arc_count = 0;
-  std::unordered_set<std::string> main_types;
-  std::unordered_map<std::string, std::unordered_map<std::string, int>> main_type_with_width;
-  std::unordered_map<std::string, std::vector<LibCell*>> main_type_libcells;
-  std::unordered_map<std::string, std::string> cell_type2main_type;
+  std::unordered_set<size_t> main_types;
+  std::unordered_map<size_t, std::vector<LibCell*>> main_type_libcells;
+  std::unordered_map<size_t, std::unordered_map<std::string, int>> main_type_with_width;
+  std::unordered_map<std::string, size_t> cell_type2main_type;
 
-  std::unordered_map<std::string, int> main_type2main_id;
+  std::unordered_map<size_t, int> main_type2main_id;
   std::unordered_map<std::string, int> cell_type2cell_id;  // cell_id = libcell_start[main_id] + width
-
+  int main_idx = 0;
   for (auto node : inst_resort_list) {
     string cell_type = node->get_cell_master()->get_name();
-    string main_type;
+    // if ("sg13g2_o21ai_1" == cell_type) {
+    //   std::cout << "sg13g2_o21ai_1" << std::endl;
+    // }
     auto lib_cell = _sta->findLibertyCell(cell_type.c_str());
-    if (_sta->classifyCells(lib_cell)) {
-      main_type = _sta->classifyCells(lib_cell)->at(0)->get_cell_name();
-    } else {
-      main_type = cell_type;
+    if (cell_type2main_type.count(lib_cell->get_cell_name()) == 0) {
+      size_t main_type = main_idx;
+      std::vector<LibCell*> lib_cells;
+      main_types.insert(main_type);
+      lib_cells.push_back(lib_cell);
+      if (_sta->classifyCells(lib_cell)) {
+        for (auto lib_cell_other : *(_sta->classifyCells(lib_cell))) {
+          lib_cells.push_back(lib_cell_other);
+        };
+      }
+      for (auto cell_t : lib_cells) {
+        cell_type2main_type[cell_t->get_cell_name()] = main_type;
+      }
+      main_type_libcells[main_type] = lib_cells;
+      main_idx++;
     }
-    main_types.insert(main_type);
   }
   int main_id_idx = 0;
   int cell_id_idx = 0;
-  for (auto& [main_type, cell_types] : main_type_with_width) {
-    auto main_lib_cell = _sta->findLibertyCell(main_type.c_str());
-    Vector<LibCell*> lib_cells = *(_sta->classifyCells(main_lib_cell));
+  for (auto& [main_type, lib_cells] : main_type_libcells) {
     main_type2main_id[main_type] = main_id_idx;
     std::sort(lib_cells.begin(), lib_cells.end(), [](LibCell* a, LibCell* b) {
       return a->get_leakage_power_list().at(0)->get_value() < a->get_leakage_power_list().at(0)->get_value();
     });
-    for (int size = 0; size < lib_cells.size(); ++size) {
-      main_type_libcells[main_type].push_back(lib_cells[size]);
-      main_type_with_width[main_type][lib_cells[size]->get_cell_name()] = size;
-      cell_type2main_type[lib_cells[size]->get_cell_name()] = main_type;
-      cell_type2cell_id[lib_cells[size]->get_cell_name()] = cell_id_idx;
+    // if (lib_cells.size() >= 1000) {
+    //   std::cerr << "Error: too many cells in one main type, please check the library." << std::endl;
+    //   exit(1);
+    // }
+    for (size_t size = 0; size < lib_cells.size(); ++size) {
+      const auto lib_cell = lib_cells[size];
+      // main_type_libcells[main_type].push_back(lib_cell);
+      main_type_with_width[main_type][lib_cell->get_cell_name()] = size;
+      cell_type2main_type[lib_cell->get_cell_name()] = main_type;
+      cell_type2cell_id[lib_cell->get_cell_name()] = cell_id_idx;
       cell_id_idx++;
     }
     main_id_idx++;
@@ -732,7 +731,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   int main_type_id = 0;
   int lib_cell_idx = 0;
   int arc_idx = 0;
-
+  int lib_pin_idx = 0;
+  std::unordered_map<std::string, int> libpin_name2libpin_offset;
   for (auto& [main_type, lib_cells] : main_type_libcells) {
     // auto lib_cell_t = lib_cells.at(0);
     // for (auto& arc_set : lib_cell_t->get_cell_arcs()) {
@@ -751,7 +751,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     // }
 
     //
-    cell_main_id_start.append(lib_cell_idx);
+    main_id_2_cell_id_start.append(lib_cell_idx);
     pybind11::list flat_luts_values[4];       // Forward delay flat LUT values
     pybind11::list flat_luts_trans_table[4];  // Forward delay flat LUT transition table
     pybind11::list flat_luts_cap_table[4];    // Forward delay flat LUT capacitance table
@@ -759,9 +759,14 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
     const int TRAN_AXIS = 0;
     const int CAP_AXIS = 1;
+    double default_cap = 0;
+    double default_slew = 0;
     for (auto lib_cell : lib_cells) {
-      libcell_arc_start.append(arc_idx);
-      int num_arcs = 0;
+      // if ("sg13g2_o21ai_1" == lib_cell->get_cell_name()) {
+      //   std::cout << "sg13g2_o21ai_1" << std::endl;
+      // }
+      cell_id_2_arc_id_start.append(arc_idx);
+      cell_id_2_libpin_id_start.append(lib_pin_idx);
       for (auto& arc_set : lib_cell->get_cell_arcs()) {
         for (auto& arc : arc_set->get_arcs()) {
           auto from_lib_pin = arc->get_src_port();
@@ -773,7 +778,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
               || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
             continue;
           }
-          num_arcs++;
           auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
                                     pybind11::list& flat_luts_cap_table, pybind11::list& flat_luts_dim, LibTable* table) {
             int num_tran = table->get_axes().at(TRAN_AXIS)->get_axis_size();
@@ -818,15 +822,58 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
                          rise_trans_table);
         }
       }
-
-      arc_idx += num_arcs;
+      int pin_offset = 0;
+      for (auto& libpin : lib_cell->get_cell_ports()) {
+        string libcell_name = lib_cell->get_cell_name();
+        string libpin_name = libpin->get_port_name();
+        string info = libcell_name + "_" + libpin_name;
+        libpin_name2libpin_offset[info] = pin_offset++;
+        lib_pin_idx++;
+        if (libpin->isInput()) {
+          flat_lib_pin_cap.append(libpin->get_port_cap());
+        } else {
+          flat_lib_pin_cap.append(0);
+        }
+        double cap_limit = libpin->get_port_cap_limit(AnalysisMode::kMax).has_value()
+                               ? libpin->get_port_cap_limit(AnalysisMode::kMax).value()
+                               : default_cap;
+        double slew_limit = libpin->get_port_slew_limit(AnalysisMode::kMax).has_value()
+                                ? libpin->get_port_slew_limit(AnalysisMode::kMax).value()
+                                : default_slew;
+        flat_lib_pin_cap_limit.append(cap_limit);
+        flat_lib_pin_slew_limit.append(slew_limit);
+      }
+      // arc_idx += num_arcs;
     }
 
     lib_cell_idx += lib_cells.size();
   }
-  libcell_arc_start.append(arc_idx);
-  cell_main_id_start.append(lib_cell_idx);
+  cell_id_2_arc_id_start.append(arc_idx);
+  cell_id_2_libpin_id_start.append(lib_pin_idx);
+  main_id_2_cell_id_start.append(lib_cell_idx);
 
+  /*--------------------pin2libpin_offset-------------------------------*/
+  for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
+    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+      continue;
+    }
+    for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
+      auto lib_cell = pin->get_instance()->get_cell_master();
+      string libcell_name = lib_cell->get_name();
+      string libpin_name = pin->get_term_name();
+      string info = libcell_name + "_" + libpin_name;  // sg13g2_o21ai_1
+      assert(libpin_name2libpin_offset.count(info));
+      pin_2_libpin_offset.append(libpin_name2libpin_offset[info]);
+      // Pin const& pin = db.pin(i);
+    }
+
+    for (IdbPin* pin : net->get_io_pins()->get_pin_list()) {
+      pin_2_libpin_offset.append(-1);
+      // Pin const& pin = db.pin(i);
+    }
+  }
+  /*---------------------------------------------------*/
   //
 
   /*--------------------------------cell arcs init------------------------------------------*/
@@ -846,7 +893,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     cell_flat_arcs_start.append(cell_flat_arcs_idx);
 
     string cell_type = node->get_cell_master()->get_name();
-    string main_type = cell_type2main_type[cell_type];
+    size_t main_type = cell_type2main_type[cell_type];
     std::vector<IdbPin*> input_pins;
     std::vector<IdbPin*> output_pins;
     inst_main_id.append(main_type2main_id[main_type]);
