@@ -107,7 +107,7 @@ struct PyPlaceDB
   pybind11::list cell_id_2_arc_id_start;  //[num_lib_cells, ] cell_id_2_arc_id_start + arc_offset -> arc
 
   pybind11::list inst_main_id;  // [inst_num, ] cell_main_id + cell_width -> cell_id
-  pybind11::list inst_width;    // [inst_num, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_size;    // [inst_num, ] cell_main_id + cell_width -> cell_id
 
   pybind11::list cell_id_2_libpin_id_start;  // [num_lib_cells, ] cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
   pybind11::list pin_2_libpin_offset; 
@@ -139,6 +139,10 @@ struct PyPlaceDB
   pybind11::list r_trans_flat_luts_cap_table;    // Reverse transition flat LUT capacitance table
   pybind11::list r_trans_flat_luts_dim;          // Reverse transition flat LUT dimensions
 
+  /*-------------RC------------*/
+  double c_unit;
+  double r_unit;
+  
   int xl;
   int yl;
   int xh;

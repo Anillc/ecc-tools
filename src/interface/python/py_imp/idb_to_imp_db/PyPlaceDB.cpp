@@ -883,7 +883,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
                   arc_type: 0 for neg, 1 for postive
   cell_flat_arcs_start
    inst_main_id;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
-   inst_width;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
+   inst_size;  // [num_main_type, ] cell_main_id + cell_width -> cell_id
   */
   int cell_flat_arcs_idx = 0;
   // hadle cell arcs
@@ -897,7 +897,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     std::vector<IdbPin*> input_pins;
     std::vector<IdbPin*> output_pins;
     inst_main_id.append(main_type2main_id[main_type]);
-    inst_width.append(main_type_with_width[main_type][cell_type]);
+    inst_size.append(main_type_with_width[main_type][cell_type]);
     for (auto pin : node->get_pin_list()->get_pin_list()) {
       if (pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
         input_pins.push_back(pin);
@@ -929,15 +929,25 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   for (int i = 0; i < ext_blockage_num; i++) {
     cell_flat_arcs_start.append(cell_flat_arcs_idx);
     inst_main_id.append(-1);
-    inst_width.append(-1);
+    inst_size.append(-1);
   }
   // IO PINS
   for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
     cell_flat_arcs_start.append(cell_flat_arcs_idx);
     inst_main_id.append(-1);
-    inst_width.append(-1);
+    inst_size.append(-1);
   }
   cell_flat_arcs_start.append(cell_flat_arcs_idx);
+  /*---------------------------RC ---------------------------*/
+
+  IdbLayerRouting* routing_layer = dynamic_cast<IdbLayerRouting*>(db->get_idb_layout()->get_layers()->get_routing_layers().at(1));
+  double segment_width = (double) routing_layer->get_width() / db->get_idb_layout()->get_units()->get_micron_dbu();
+  double lef_capacitance = routing_layer->get_capacitance();
+  double lef_edge_capacitance = routing_layer->get_edge_capacitance();
+  c_unit = (lef_capacitance * segment_width) + (lef_edge_capacitance * 2);
+  double lef_resistance = routing_layer->get_resistance();
+
+  r_unit = lef_resistance / segment_width;
 }
 
 void PyPlaceDB::set(idm::DataManager* db, bool with_sta)

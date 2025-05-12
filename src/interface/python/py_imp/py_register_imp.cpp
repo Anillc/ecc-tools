@@ -103,7 +103,7 @@ void register_imp(pybind11::module& m)
       .def_readwrite("main_id_2_cell_id_start", &PyPlaceDB::main_id_2_cell_id_start)
       .def_readwrite("cell_id_2_arc_id_start", &PyPlaceDB::cell_id_2_arc_id_start)
       .def_readwrite("inst_main_id", &PyPlaceDB::inst_main_id)
-      .def_readwrite("inst_width", &PyPlaceDB::inst_width)
+      .def_readwrite("inst_size", &PyPlaceDB::inst_size)
       .def_readwrite("f_delay_flat_luts_values", &PyPlaceDB::f_delay_flat_luts_values)
       .def_readwrite("f_delay_flat_luts_trans_table", &PyPlaceDB::f_delay_flat_luts_trans_table)
       .def_readwrite("f_delay_flat_luts_cap_table", &PyPlaceDB::f_delay_flat_luts_cap_table)
@@ -129,7 +129,10 @@ void register_imp(pybind11::module& m)
       .def_readwrite("flat_lib_pin_cap", &PyPlaceDB::flat_lib_pin_cap)
       .def_readwrite("flat_lib_pin_cap_limit", &PyPlaceDB::flat_lib_pin_cap_limit)
       .def_readwrite("flat_lib_pin_slew_limit", &PyPlaceDB::flat_lib_pin_slew_limit)
-      .def_readwrite("flat_cells_by_reverse_level_start", &PyPlaceDB::flat_cells_by_reverse_level_start);
+      .def_readwrite("flat_cells_by_reverse_level_start", &PyPlaceDB::flat_cells_by_reverse_level_start)
+      .def_readwrite("c_unit", &PyPlaceDB::c_unit)
+      .def_readwrite("r_unit", &PyPlaceDB::r_unit);
+
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
   m.def("pydb", [](idm::DataManager* db, bool with_sta) { return PyPlaceDB(db, with_sta); }, "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
