@@ -1185,8 +1185,19 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
 
   // IO PINS
   for (auto io_pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
-    int lx = io_pin->get_location()->get_x();
-    int ly = io_pin->get_location()->get_y();
+    int lx = 0;
+    int ly = 0;
+    IdbTerm* term = io_pin->get_term();
+    if (term->is_port_exist()) {
+      for (auto port : term->get_port_list()) {
+        lx = port->get_io_average_coordinate()->get_x();
+        ly = port->get_io_average_coordinate()->get_y();
+        break;
+      }
+    } else {
+      lx = io_pin->get_location()->get_x();
+      ly = io_pin->get_location()->get_y();
+    }
     Box box_tmp(lx, ly, lx + 1, ly + 1);
     addNode("R0", io_pin->get_pin_name(), box_tmp, true);
     printf("IO Pin %s, Coordinate (%d, %d)\n", io_pin->get_pin_name().c_str(), lx, ly);
