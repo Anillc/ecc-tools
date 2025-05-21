@@ -676,11 +676,11 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   int cell_flat_arc_count = 0;
   std::unordered_set<size_t> main_types;
-  std::unordered_map<size_t, std::vector<LibCell*>> main_type_libcells;
-  std::unordered_map<size_t, std::unordered_map<std::string, int>> main_type_with_width;
+  std::map<size_t, std::vector<LibCell*>> main_type_libcells;
+  std::map<size_t, std::unordered_map<std::string, int>> main_type_with_width;
   std::unordered_map<std::string, size_t> cell_type2main_type;
 
-  std::unordered_map<size_t, int> main_type2main_id;
+  std::map<size_t, int> main_type2main_id;
   std::unordered_map<std::string, int> cell_type2cell_id;  // cell_id = libcell_start[main_id] + width
   int main_idx = 0;
   for (auto node : inst_resort_list) {
@@ -791,8 +791,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           string cell_type_name = lib_cell->get_cell_name();
           string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
           info_2_arc_idx[info] = arc_idx++;
-          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
-              || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
+          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall && arc->get_timing_type() != ista::LibArc::TimingType::kCombRise
+              && arc->get_timing_type() != ista::LibArc::TimingType::kComb) {
             continue;
           }
           auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
@@ -807,16 +807,16 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             luts_dim.append(num_tran);
             luts_dim.append(num_cap);
 
-            for (auto& value : table->get_axes().at(CAP_AXIS)->get_axis_values()) {
-              luts_cap_table.append(value.get());
+            for (auto& value : table->getAxis(CAP_AXIS).get_axis_values()) {
+              luts_cap_table.append(value.get()->getFloatValue());
             }
-            for (auto& value : table->get_axes().at(TRAN_AXIS)->get_axis_values()) {
-              luts_trans_table.append(value.get());
+            for (auto& value : table->getAxis(TRAN_AXIS).get_axis_values()) {
+              luts_trans_table.append(value.get()->getFloatValue());
             }
 
             // luts_values??
             for (auto& value : table->get_table_values()) {
-              luts_values.append(value.get());
+              luts_values.append(value.get()->getFloatValue());
             }
             flat_luts_values.append(luts_values);
             flat_luts_trans_table.append(luts_trans_table);
