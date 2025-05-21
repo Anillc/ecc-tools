@@ -436,6 +436,67 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
                             std::map<std::string, std::vector<index_type>>& mNode2NewNodes, int ext_blockage_num)
 {
   /*************************************************************************/
+  std::map<std::string, double> sdc_inrdelays;  //
+  std::map<std::string, double> sdc_infdelays;  //
+  std::map<std::string, double> sdc_inrtrans;   //
+  std::map<std::string, double> sdc_inftrans;   //
+  std::map<std::string, double> sdc_outcaps;    //
+  /*--------------------------------sdc init------------------------------------------*/
+  auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  auto ista = timing_engine->get_ista();
+  SdcConstrain* the_constrain = ista->getConstrain();
+  auto& sdc_io_constraints = the_constrain->get_sdc_io_constraints();
+  for (auto& io_constraint : sdc_io_constraints) {
+    if (io_constraint->isSetInputDelay()) {
+      auto set_io_delay = dynamic_cast<SdcSetIODelay*>(io_constraint.get());
+      auto& objs = set_io_delay->get_objs();
+      double delay_value = set_io_delay->get_delay_value();
+      for (auto* obj : objs) {
+        std::string pin_or_port_name = obj->getFullName();
+        if (set_io_delay->isRise() && set_io_delay->isMax()) {
+          sdc_inrdelays[pin_or_port_name] = delay_value;
+        } else if (set_io_delay->isRise() && set_io_delay->isMin()) {
+        } else if (set_io_delay->isFall() && set_io_delay->isMax()) {
+          sdc_infdelays[pin_or_port_name] = delay_value;
+        } else if (set_io_delay->isFall() && set_io_delay->isMin()) {
+        }
+      }
+
+    } else if (io_constraint->isSetOutputDelay()) {
+      // may be not need.
+    } else if (io_constraint->isSetInputTransition()) {
+      auto* set_input_transition = dynamic_cast<SdcSetInputTransition*>(io_constraint.get());
+      double slew = set_input_transition->get_transition_value();
+      auto& objs = set_input_transition->get_objs();
+      for (auto* obj : objs) {
+        if (set_input_transition->isMax() && set_input_transition->isRise()) {
+          sdc_inrtrans[obj->getFullName()] = slew;
+        } else if (set_input_transition->isMax() && set_input_transition->isFall()) {
+          sdc_inftrans[obj->getFullName()] = slew;
+        } else if (set_input_transition->isMin() && set_input_transition->isRise()) {
+          // inrtrans[obj->getFullName()].append(slew);
+        } else if (set_input_transition->isMin() && set_input_transition->isFall()) {
+          // inftrans[obj->getFullName()].append(slew);
+        }
+      }
+    } else if (io_constraint->isSetLoad()) {
+      auto* set_load = dynamic_cast<SdcSetLoad*>(io_constraint.get());
+      double load = set_load->get_load_value();
+      auto& objs = set_load->get_objs();
+      for (auto* obj : objs) {
+        if (set_load->isMax() && set_load->isRise()) {
+          sdc_outcaps[obj->getFullName()] = load;
+        } else if (set_load->isMax() && set_load->isFall()) {
+          sdc_outcaps[obj->getFullName()] = load;
+        } else if (set_load->isMin() && set_load->isRise()) {
+          // outcaps[obj->getFullName()].append(load);
+        } else if (set_load->isMin() && set_load->isFall()) {
+          // outcaps[obj->getFullName()].append(load);
+        }
+      }
+    }
+  }
+
   /*************************************************************************/
   /*--------------------------------timing init------------------------------------------*/
 
@@ -460,8 +521,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     }
   }
 
-  Graph forward_graph;  //
-  Graph reverse_graph;  //
   for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
     if (instance->is_flip_flop() || instance->is_clock_instance()) {
       for (auto pin : instance->get_pin_list()->get_pin_list()) {
@@ -470,17 +529,43 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           // driven pin
           if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
             start_points_str.push_back(pin_full_name);
+            // FIXME: ignore clock pins
+            sdc_inrdelays[pin_full_name] = 0;  //
+            sdc_infdelays[pin_full_name] = 0;  //
+            sdc_inrtrans[pin_full_name] = 0;   //
+            sdc_inftrans[pin_full_name] = 0;   //
           } else if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
             // if (pin->) {
             // TODO: ignore clock pins
             end_points_str.push_back(pin_full_name);
+            sdc_outcaps[pin_full_name] = 0;
             // }
           }
         }
       }
     }
   }
+
+  for (auto& pin_name : start_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      start_points.append(mPin2ID[pin_name]);
+      inrdelays.append(sdc_inrdelays[pin_name]);  //
+      infdelays.append(sdc_infdelays[pin_name]);  //
+      inrtrans.append(sdc_inrtrans[pin_name]);    //
+      inftrans.append(sdc_inftrans[pin_name]);    //
+    }
+  }
+  for (auto& pin_name : end_points_str) {
+    if (mPin2ID.count(pin_name)) {
+      end_points.append(mPin2ID[pin_name]);
+      outcaps.append(sdc_outcaps[pin_name]);  //
+    }
+  }
+
+  Graph forward_graph;  //
+  Graph reverse_graph;  //
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
+    assert(net->get_driving_pin());
     if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
         || net->get_driving_pin()->get_instance() == nullptr) {
       continue;
@@ -539,74 +624,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     }
   }
   flat_cells_by_reverse_level_start.append(reverse_level_cells_idx);
-
-  for (auto& pin_name : start_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      start_points.append(mPin2ID[pin_name]);
-    }
-  }
-  for (auto& pin_name : end_points_str) {
-    if (mPin2ID.count(pin_name)) {
-      end_points.append(mPin2ID[pin_name]);
-    }
-  }
-
-  /*--------------------------------sdc init------------------------------------------*/
-  auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  auto ista = timing_engine->get_ista();
-  SdcConstrain* the_constrain = ista->getConstrain();
-  auto& sdc_io_constraints = the_constrain->get_sdc_io_constraints();
-  for (auto& io_constraint : sdc_io_constraints) {
-    if (io_constraint->isSetInputDelay()) {
-      auto set_io_delay = dynamic_cast<SdcSetIODelay*>(io_constraint.get());
-      auto& objs = set_io_delay->get_objs();
-      double delay_value = set_io_delay->get_delay_value();
-      for (auto* obj : objs) {
-        std::string pin_or_port_name = obj->getFullName();
-        if (set_io_delay->isRise() && set_io_delay->isMax()) {
-          // inrdelays[pin_or_port_name].append(delay_value);
-        } else if (set_io_delay->isRise() && set_io_delay->isMin()) {
-        } else if (set_io_delay->isFall() && set_io_delay->isMax()) {
-          // infdelays[pin_or_port_name].append(delay_value);
-
-        } else if (set_io_delay->isFall() && set_io_delay->isMin()) {
-        }
-      }
-
-    } else if (io_constraint->isSetOutputDelay()) {
-      // may be not need.
-    } else if (io_constraint->isSetInputTransition()) {
-      auto* set_input_transition = dynamic_cast<SdcSetInputTransition*>(io_constraint.get());
-      double slew = set_input_transition->get_transition_value();
-      auto& objs = set_input_transition->get_objs();
-      for (auto* obj : objs) {
-        if (set_input_transition->isMax() && set_input_transition->isRise()) {
-          // inrtrans[obj->getFullName()].append(slew);
-        } else if (set_input_transition->isMax() && set_input_transition->isFall()) {
-          // inftrans[obj->getFullName()].append(slew);
-        } else if (set_input_transition->isMin() && set_input_transition->isRise()) {
-          // inrtrans[obj->getFullName()].append(slew);
-        } else if (set_input_transition->isMin() && set_input_transition->isFall()) {
-          // inftrans[obj->getFullName()].append(slew);
-        }
-      }
-    } else if (io_constraint->isSetLoad()) {
-      auto* set_load = dynamic_cast<SdcSetLoad*>(io_constraint.get());
-      double load = set_load->get_load_value();
-      auto& objs = set_load->get_objs();
-      for (auto* obj : objs) {
-        if (set_load->isMax() && set_load->isRise()) {
-          // outcaps[obj->getFullName()].append(load);
-        } else if (set_load->isMax() && set_load->isFall()) {
-          // outcaps[obj->getFullName()].append(load);
-        } else if (set_load->isMin() && set_load->isRise()) {
-          // outcaps[obj->getFullName()].append(load);
-        } else if (set_load->isMin() && set_load->isFall()) {
-          // outcaps[obj->getFullName()].append(load);
-        }
-      }
-    }
-  }
 
   /*--------------------------------net arcs init------------------------------------------*/
   int net_arc_count = 0;
