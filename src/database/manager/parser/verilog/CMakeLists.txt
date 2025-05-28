@@ -22,6 +22,9 @@ else()
     set(RUST_BUILD_CMD_OPTION "--release")
 endif()
 
+if(IEDA_BUILD_AS_THIRDPARTY)
+    install(FILES ${RUST_LIB_PATH} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+endif()
 
 message(STATUS "verilog parser rust lib path ${RUST_LIB_PATH}")
 

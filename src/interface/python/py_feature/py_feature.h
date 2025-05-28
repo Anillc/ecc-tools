@@ -25,6 +25,7 @@ bool feature_tool(const std::string& path, const std::string& step);
 bool feature_eval_map(const std::string& path, const int& bin_cnt_x, const int& bin_cnt_y);
 bool feature_route(const std::string& path);
 bool feature_route_read(const std::string& path);
+bool feature_macro_drc(const std::string& path, const std::string& drc_path);
 bool feature_eval_summary(const std::string& path, int32_t grid_size);
 bool feature_timing_eval_summary(const std::string& path);
 bool feature_net_eval(const std::string& path);

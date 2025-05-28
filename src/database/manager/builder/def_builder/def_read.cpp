@@ -913,7 +913,8 @@ int32_t DefRead::parse_component(defiComponent* def_component)
   instance->set_cell_master(_cur_cell_master);
   instance->set_status_by_def_enum(def_component->placementStatus());
   instance->set_orient_by_enum(def_component->placementOrient());
-
+  // printf("def_component %p, instance name %s, placementOrient %d\n", def_component, instance->get_name().c_str(),
+  //        def_component->placementOrient());
   if (def_component->hasSource()) {
     instance->set_type(def_component->source());
   }

@@ -488,7 +488,7 @@ class IdbEnum
   IdbLayerProperty* get_layer_property() { return _layer_property; }
   IdbCellProperty* get_cell_property() { return _cell_property; }
   IdbRegionProperty* get_region_property() { return _region_property; }
-
+  std::string get_orient_type_str(IdbOrient type);
  private:
   IdbEnum();
   IdbEnum(IdbEnum& other) = delete;
