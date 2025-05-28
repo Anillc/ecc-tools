@@ -34,7 +34,7 @@
 #include "feature_drc.h"
 #include "feature_irt.h"
 #include "feature_summary.h"
-
+#include "../database/interaction/RT_DRC/ids.hpp"
 #define featureInst ieda_feature::FeatureManager::getInstance()
 
 namespace ieda_feature {
