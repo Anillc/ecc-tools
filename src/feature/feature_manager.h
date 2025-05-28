@@ -53,6 +53,10 @@ class FeatureManager
   ///
   FeatureSummary* get_summary() { return _summary; }
   RouteAnalyseData& get_route_data() { return _route_data; }
+  std::map<std::string, std::map<std::string, std::vector<ids::Violation>>>& get_type_layer_violation_map()
+  {
+    return _type_layer_violation_map;
+  }
 
   bool save_summary(std::string path);
   bool save_tools(std::string path, std::string step);
@@ -75,6 +79,7 @@ class FeatureManager
 
   FeatureSummary* _summary = nullptr;
   RouteAnalyseData _route_data;
+  std::map<std::string, std::map<std::string, std::vector<ids::Violation>>> _type_layer_violation_map;
 
   FeatureManager();
   ~FeatureManager();

@@ -67,6 +67,9 @@ if(NOT COMPATIBILITY_MODE)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
     set(CMAKE_AR "gcc-ar")
     set(CMAKE_RANLIB "gcc-ranlib")
+    
+    # diable use gpu for lto confilct with cuda
+    set(USE_GPU OFF)
 endif()
 
 if(USE_PROFILER)
@@ -85,6 +88,7 @@ endif()
 if(BUILD_GUI)
     add_definitions(-DBUILD_GUI)
 endif()
+
 
 if (USE_GPU)
     add_definitions(-DUSE_GPU)

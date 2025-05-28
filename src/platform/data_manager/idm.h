@@ -88,6 +88,7 @@ class DataManager
   /// iDB save
   bool save(string name, string def_path = "");
   bool saveDef(string def_path);
+  bool saveLef(string lef_path);
   bool saveMacroTCL(string tcl_path);
   void saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names = {}, bool is_add_space_for_escape_name = false);
   bool saveGDSII(string path);
