@@ -42,7 +42,7 @@ bool readSpef(const std::string& file_name);
 
 bool readSdc(const std::string& file_name);
 bool reportTiming(int digits, const std::string& delay_type, std::set<std::string> exclude_cell_names, bool derate);
-
+void convertDBToTimingNetlist();
 std::vector<std::string> get_used_libs();
 
 }  // namespace python_interface

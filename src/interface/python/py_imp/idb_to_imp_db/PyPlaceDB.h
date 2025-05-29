@@ -8,20 +8,23 @@
 #ifndef _DREAMPLACE_PLACE_IO_PYPLACEDB_H
 #define _DREAMPLACE_PLACE_IO_PYPLACEDB_H
 
-//#include <pybind11/stl.h>
+// #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl_bind.h>
+
+#include <sstream>
 
 #include "IdbEnum.h"
 #include "IdbInstance.h"
 #include "idm.h"
-#include <sstream>
-//#include <boost/timer/timer.hpp>
+// #include <boost/timer/timer.hpp>
 namespace python_interface {
+typedef int coordinate_type;
+typedef int index_type;
 /// database for python
 struct PyPlaceDB
 {
-public:
+ public:
   unsigned int num_nodes;           ///< number of nodes, including terminals and terminal_NIs
   unsigned int num_terminals;       ///< number of terminals, essentially fixed macros
   unsigned int num_terminal_NIs;    ///< number of terminal_NIs, essentially IO pins
@@ -73,6 +76,73 @@ public:
   pybind11::list initial_horizontal_demand_map;  ///< initial routing demand from fixed cells, indexed by (layer, grid x, grid y)
   pybind11::list initial_vertical_demand_map;    ///< initial routing demand from fixed cells, indexed by (layer, grid x, grid y)
 
+  pybind11::list net2driver_pin_map;
+
+  /* topo */
+  pybind11::list start_points;  //
+  pybind11::list end_points;    //
+
+  pybind11::list flat_cells_by_level;          //
+  pybind11::list flat_cells_by_reverse_level;  //
+
+  pybind11::list flat_cells_by_level_start;          //
+  pybind11::list flat_cells_by_reverse_level_start;  //
+
+  /*sdc */
+  pybind11::list inrdelays;  //
+  pybind11::list infdelays;  //
+  pybind11::list inrtrans;   //
+  pybind11::list inftrans;   //
+  pybind11::list outcaps;    //
+
+  /*instance arcs */
+  pybind11::list net_flat_arcs_start;   //
+  pybind11::list net_flat_arcs;         //
+  pybind11::list cell_flat_arcs_start;  //
+  pybind11::list cell_flat_arcs;        //
+
+  /* ------------------------info for gate sizing----------------------*/
+  pybind11::list main_id_2_cell_id_start;  // [num_main_type, ] main_id_2_cell_id_start + cell_width -> cell_id
+  // main_id -> cell_id
+  pybind11::list cell_id_2_arc_id_start;  //[num_lib_cells, ] cell_id_2_arc_id_start + arc_offset -> arc
+
+  pybind11::list inst_main_id;  // [inst_num, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_size;    // [inst_num, ] cell_main_id + cell_width -> cell_id
+
+  pybind11::list cell_id_2_libpin_id_start;  // [num_lib_cells, ] cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
+  pybind11::list pin_2_libpin_offset; 
+  pybind11::list flat_lib_pin_cap;           // 
+  pybind11::list flat_lib_pin_cap_limit;     // 
+  pybind11::list flat_lib_pin_slew_limit;    // 
+
+  /* ------------------------end info for gate sizing----------------------*/
+
+  /**/
+  /* luts table*/
+  pybind11::list f_delay_flat_luts_values;       // Forward delay flat LUT values
+  pybind11::list f_delay_flat_luts_trans_table;  // Forward delay flat LUT transition table
+  pybind11::list f_delay_flat_luts_cap_table;    // Forward delay flat LUT capacitance table
+  pybind11::list f_delay_flat_luts_dim;          // Forward delay flat LUT dimensions
+
+  pybind11::list r_delay_flat_luts_values;       // Reverse delay flat LUT values
+  pybind11::list r_delay_flat_luts_trans_table;  // Reverse delay flat LUT transition table
+  pybind11::list r_delay_flat_luts_cap_table;    // Reverse delay flat LUT capacitance table
+  pybind11::list r_delay_flat_luts_dim;          // Reverse delay flat LUT dimensions
+
+  pybind11::list f_trans_flat_luts_values;       // Forward transition flat LUT values
+  pybind11::list f_trans_flat_luts_trans_table;  // Forward transition flat LUT transition table
+  pybind11::list f_trans_flat_luts_cap_table;    // Forward transition flat LUT capacitance table
+  pybind11::list f_trans_flat_luts_dim;          // Forward transition flat LUT dimensions
+
+  pybind11::list r_trans_flat_luts_values;       // Reverse transition flat LUT values
+  pybind11::list r_trans_flat_luts_trans_table;  // Reverse transition flat LUT transition table
+  pybind11::list r_trans_flat_luts_cap_table;    // Reverse transition flat LUT capacitance table
+  pybind11::list r_trans_flat_luts_dim;          // Reverse transition flat LUT dimensions
+
+  /*-------------RC------------*/
+  double c_unit;
+  double r_unit;
+  
   int xl;
   int yl;
   int xh;
@@ -99,9 +169,14 @@ public:
 
   PyPlaceDB() {}
 
-  PyPlaceDB(idm::DataManager* db) { set(db); }
+  PyPlaceDB(idm::DataManager* db, bool with_sta) { set(db, with_sta); }
 
-  void set(idm::DataManager* db);
+  void set(idm::DataManager* db, bool with_sta);
+  void set_sta();
+  void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
+  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::map<std::string, index_type>& mNodeName2ID,
+                   std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
+                   int ext_blockage_num);
 };
 
 }  // namespace python_interface
