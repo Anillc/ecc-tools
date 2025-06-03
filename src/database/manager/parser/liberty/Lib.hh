@@ -549,6 +549,9 @@ class LibPort : public LibObject
   void set_port_type(LibertyPortType port_type) { _port_type = port_type; }
   LibertyPortType get_port_type() { return _port_type; }
 
+  void set_is_clock_pin(bool is_clock_pin) { _is_clock_pin = is_clock_pin; }
+  bool get_is_clock_pin() { return _is_clock_pin; }
+
   void set_clock_gate_clock_pin(bool clock_gate_clock_pin) { _clock_gate_clock_pin = clock_gate_clock_pin; }
   bool get_clock_gate_clock_pin() { return _clock_gate_clock_pin; }
 
@@ -606,6 +609,7 @@ class LibPort : public LibObject
   std::string _port_name;
   LibCell* _ower_cell;  //!< The cell owner the port.
   LibertyPortType _port_type = LibertyPortType::kDefault;
+  bool _is_clock_pin = false;           //!< The flag of clock pin.
   bool _clock_gate_clock_pin = false;   //!< The flag of gate clock pin.
   bool _clock_gate_enable_pin = false;  //!< The flag of gate enable pin.
   RustLibertyExpr* _func_expr = nullptr;

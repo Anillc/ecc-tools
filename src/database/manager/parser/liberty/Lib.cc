@@ -885,10 +885,11 @@ double LibPort::driveResistance()
  *
  * @return true
  * @return false
-      }
-    }
-  }
-  return false;
+ */
+
+bool LibPort::isClock()
+{
+  return _is_clock_pin;
 }
 
 /**

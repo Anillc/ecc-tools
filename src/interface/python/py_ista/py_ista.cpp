@@ -103,6 +103,18 @@ bool reportTiming(int digits, const std::string& delay_type, std::set<std::strin
   return true;
 }
 
+void build_timing_graph()
+{
+  auto* ista = ista::Sta::getOrCreateSta();
+  ista->buildGraph();
+}
+
+void update_clock_timing()
+{
+  auto* ista = ista::Sta::getOrCreateSta();
+  ista->updateClockTiming();
+}
+
 std::vector<std::string> get_used_libs()
 {
   auto* ista = ista::Sta::getOrCreateSta();

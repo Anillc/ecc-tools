@@ -25,7 +25,7 @@
  */
 
 #include "IDBWrapper.hh"
-
+#include "TimingEngine.hh"
 #include <regex>
 
 #include "utility/Utility.hh"
@@ -523,11 +523,21 @@ void IDBWrapper::wrapIdbInstance(IdbInstance* idb_inst)
 
   // cover cell type.
   // TODO : where is clock buffer?
+  auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  auto _sta = _timing_engine->get_ista();
+  auto lib_cell = _sta->findLibertyCell(idb_inst->get_cell_master()->get_name().c_str());
+  bool is_clock = false;
+  for (auto &port : lib_cell->get_cell_ports()) {
+    if (port->isClock()) {
+      is_clock = true;
+      break;
+    }
+  }
   if (idb_inst->get_cell_master()->is_block()) {
     cell_ptr->set_type(CELL_TYPE::kMacro);
   } else if (inst_ptr->isOutsideInstance()) {
     cell_ptr->set_type(CELL_TYPE::kIOCell);
-  } else if (idb_inst->is_flip_flop()) {
+  } else if (is_clock || idb_inst->is_flip_flop()) {
     cell_ptr->set_type(CELL_TYPE::kFlipflop);
   } else if (idb_inst->get_type() == IdbInstanceType::kDist) {
     cell_ptr->set_type(CELL_TYPE::kPhysicalFiller);

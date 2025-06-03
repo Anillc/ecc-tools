@@ -38,6 +38,8 @@ void register_ista(py::module& m)
   m.def("read_sdc", readSdc, py::arg("file_name"));
   m.def("report_timing", reportTiming, py::arg("digits"), py::arg("delay_type"), py::arg("exclude_cell_names"), py::arg("derate"));
 
+  m.def("build_timing_graph", build_timing_graph);
+  m.def("update_clock_timing", update_clock_timing);
   m.def("get_used_libs", get_used_libs);
   m.def("convert_idb_to_timing_netlist", convertDBToTimingNetlist);
 }

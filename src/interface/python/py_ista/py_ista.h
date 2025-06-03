@@ -17,7 +17,6 @@
 #pragma once
 
 #include <set>
-#include <vector>
 #include <string>
 #include <vector>
 
@@ -42,6 +41,8 @@ bool readSpef(const std::string& file_name);
 
 bool readSdc(const std::string& file_name);
 bool reportTiming(int digits, const std::string& delay_type, std::set<std::string> exclude_cell_names, bool derate);
+void build_timing_graph();
+void update_clock_timing();
 void convertDBToTimingNetlist();
 std::vector<std::string> get_used_libs();
 
