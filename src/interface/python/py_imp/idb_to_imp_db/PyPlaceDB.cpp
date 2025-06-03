@@ -5,6 +5,8 @@
 #include <boost/polygon/polygon.hpp>
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -183,6 +185,10 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
             coordinate_type grid_yh = grid_yl + routing_grids_size_y;
             Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
             for (auto obs_layer : obs->get_obs_layer_list()) {
+              if (obs_layer->get_shape()->get_layer() == nullptr) {
+                std::cout << "continue because obs_layer->get_shape()->get_layer() is nullptr" << std::endl;
+                continue;
+              }
               int layer_idx = obs_layer->get_shape()->get_layer()->get_id();
               index_type index = layer_idx * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
               double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
@@ -293,6 +299,62 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
 }
 
 using Graph = std::unordered_map<std::string, std::vector<std::string>>;
+
+bool findOneCycleDFS(const std::string& u, const Graph& graph, std::unordered_map<std::string, int>& visit_status,
+                     std::vector<std::string>& current_path_nodes, std::vector<std::string>& cycle_found_nodes)
+{
+  visit_status[u] = 1;  // Mark as visiting (in recursion stack for this path)
+  current_path_nodes.push_back(u);
+
+  if (graph.count(u)) {  // If node u has outgoing edges
+    for (const std::string& v : graph.at(u)) {
+      if (!graph.count(v) && visit_status.find(v) == visit_status.end()) {
+        // Neighbor v is a sink node not explicitly in graph keys, ensure it's in visit_status
+        // This case should ideally be handled by ensuring all_nodes are in visit_status initially
+        // For robustness, if v is not in visit_status map, it means it's a new sink node.
+        // It cannot cause a cycle by itself if it's a new sink.
+        // However, for safety, one might initialize it.
+        // visit_status[v] = 0; // Or handle as an error if all nodes aren't pre-initialized
+      }
+
+      if (visit_status.count(v)) {   // Make sure neighbor v is in the status map
+        if (visit_status[v] == 1) {  // Cycle detected: back edge to a node in the current recursion stack
+          cycle_found_nodes.clear();
+          auto cycle_start_it = std::find(current_path_nodes.begin(), current_path_nodes.end(), v);
+          if (cycle_start_it != current_path_nodes.end()) {
+            // The cycle includes nodes from 'v' up to 'u' (which is current_path_nodes.back())
+            for (auto it = cycle_start_it; it != current_path_nodes.end(); ++it) {
+              cycle_found_nodes.push_back(*it);
+            }
+            cycle_found_nodes.push_back(v);  // Add 'v' again to close the cycle visually (v -> ... -> u -> v)
+          } else {
+            // This should not happen if v is in recursion_stack (status 1)
+            // and current_path_nodes correctly reflects the recursion stack.
+            // Fallback or error. For simplicity, we assume path is consistent.
+            cycle_found_nodes.push_back(u);  // At least report current node
+            cycle_found_nodes.push_back(v);  // and the problematic neighbor
+          }
+          return true;  // Cycle found
+        }
+        if (visit_status[v] == 0) {  // If neighbor is unvisited
+          if (findOneCycleDFS(v, graph, visit_status, current_path_nodes, cycle_found_nodes)) {
+            return true;  // Propagate cycle found signal
+          }
+        }
+        // If visit_status[v] == 2, node v has been fully processed in a previous DFS path, no cycle through it from here.
+      } else {
+        // This case implies 'v' was a neighbor but not in 'all_nodes' initially, which
+        // should be caught by graph consistency checks earlier or by ensuring all_nodes are in visit_status.
+        // std::cerr << "Warning: Neighbor " << v << " of node " << u << " not found in visit_status map during DFS." << std::endl;
+      }
+    }
+  }
+
+  current_path_nodes.pop_back();  // Backtrack
+  visit_status[u] = 2;            // Mark as fully visited (finished processing descendants)
+  return false;                   // No cycle found along this path
+}
+
 /**
  * @brief Perform topological sorting and leveling on a given Directed Acyclic Graph (DAG).
  *
@@ -308,7 +370,7 @@ using Graph = std::unordered_map<std::string, std::vector<std::string>>;
  * - bool: True if the graph is a DAG and the operation succeeds; false if a cycle is detected.
  */
 std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool> topologicalSortAndLevelize(
-    const Graph& graph, const std::vector<std::string>& start_nodes = {})
+    const Graph& graph, idm::DataManager* db, const std::vector<std::string>& start_nodes = {})
 {
   // --- Initialization ---
   std::unordered_map<std::string, int> in_degree;  // Stores the in-degree of each node
@@ -424,10 +486,106 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
     }
     return std::make_tuple(topological_order, levels, true);
   } else {
-    // The number of nodes in the topological order is less than the total number of nodes, indicating a cycle
-    std::cerr << "Error: A cycle was detected in the graph! Topological sort failed." << std::endl;
-    // Return empty results and false
-    return std::make_tuple(std::vector<std::string>(), std::unordered_map<std::string, int>(), false);
+    // The number of nodes in the topological order is less than the total number of nodes,
+    // indicating a cycle (or nodes unreachable due to a cycle).
+    std::cerr << "Error: Kahn's algorithm detected a cycle or unreachable nodes! Topological sort failed. Count: "
+              << topological_order.size() << "/" << all_nodes.size() << ". Attempting DFS to find a cycle." << std::endl;
+
+    std::vector<std::string> cycle_path_report;
+    std::unordered_map<std::string, int> dfs_visit_status;
+
+    for (const std::string& node_name : all_nodes) {
+      dfs_visit_status[node_name] = 0;
+    }
+
+    bool cycle_found_by_dfs = false;
+    for (const std::string& node : all_nodes) {
+      if (dfs_visit_status[node] == 0 && (in_degree.count(node) && in_degree.at(node) > 0)) {
+        std::vector<std::string> current_dfs_path;
+        if (findOneCycleDFS(node, graph, dfs_visit_status, current_dfs_path, cycle_path_report)) {
+          cycle_found_by_dfs = true;
+          std::cerr << "DFS发现一个环: " << std::endl;  // Newline after initial message
+          int nodes_on_line = 0;
+          std::string indent = "    ";  // Indentation for subsequent lines
+          for (size_t i = 0; i < cycle_path_report.size(); ++i) {
+            if (nodes_on_line == 0 && i > 0) {
+              std::cerr << indent;
+            }
+            std::cerr << cycle_path_report[i] << "("
+                      << db->get_idb_design()->get_instance_list()->find_instance(cycle_path_report[i])->get_cell_master()->get_name()
+                      << ")";
+            nodes_on_line++;
+
+            if (i < cycle_path_report.size() - 1) {
+              std::cerr << " -> ";
+            }
+
+            if (nodes_on_line >= 3 && i < cycle_path_report.size() - 1) {
+              std::cerr << std::endl;
+              nodes_on_line = 0;
+            }
+          }
+          std::cerr << std::endl;  // Final newline for this cycle report
+          break;
+        }
+      }
+    }
+
+    if (!cycle_found_by_dfs && cycle_path_report.empty()) {
+      std::cerr << "Kahn算法指示有环，但DFS未从剩余入度 > 0 的节点中分离出特定路径。列出所有剩余入度 > 0 的节点:" << std::endl;
+      int nodes_on_line = 0;
+      std::string indent = "    ";
+      bool first_node_printed = false;
+      for (const std::string& n : all_nodes) {
+        if (in_degree.count(n) && in_degree.at(n) > 0) {
+          cycle_path_report.push_back(n);                  // Still populate for return
+          if (nodes_on_line == 0 && first_node_printed) {  // Indent if not the first line of this section
+            std::cerr << indent;
+          } else if (nodes_on_line == 0 && !first_node_printed) {
+            std::cerr << indent;  // Indent the very first line of nodes too
+          }
+          std::cerr << "- 节点: " << n << " (最终入度: " << in_degree.at(n) << ")  ";
+          nodes_on_line++;
+          first_node_printed = true;
+          if (nodes_on_line >= 2) {  // Print 2 such verbose items per line
+            std::cerr << std::endl;
+            nodes_on_line = 0;
+          }
+        }
+      }
+      if (nodes_on_line > 0) {  // Ensure a final newline if the last line wasn't full
+        std::cerr << std::endl;
+      }
+
+      if (cycle_path_report.empty() && topological_order.size() != all_nodes.size()) {
+        std::cerr << "警告：Kahn算法失败，但没有入度 > 0 的节点且DFS未找到特定环。这可能表示未处理的断开组件。" << std::endl;
+        std::cerr << "不在拓扑顺序中的节点:" << std::endl;
+        nodes_on_line = 0;  // Reset for this section
+        first_node_printed = false;
+        for (const std::string& n : all_nodes) {
+          if (std::find(topological_order.begin(), topological_order.end(), n) == topological_order.end()) {
+            cycle_path_report.push_back(n);
+            if (nodes_on_line == 0 && first_node_printed) {
+              std::cerr << indent;
+            } else if (nodes_on_line == 0 && !first_node_printed) {
+              std::cerr << indent;
+            }
+            std::cerr << n << "  ";
+            nodes_on_line++;
+            first_node_printed = true;
+            if (nodes_on_line >= 4) {  // 4 nodes per line for this list
+              std::cerr << std::endl;
+              nodes_on_line = 0;
+            }
+          }
+        }
+        if (nodes_on_line > 0) {
+          std::cerr << std::endl;
+        }
+      }
+    }
+
+    return std::make_tuple(cycle_path_report, std::unordered_map<std::string, int>(), false);
   }
 }
 
@@ -499,6 +657,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   /*************************************************************************/
   /*--------------------------------timing init------------------------------------------*/
+  auto& _sta = ista;
 
   /*--------------------------------topo init------------------------------------------*/
   /* topo*/
@@ -522,7 +681,15 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   }
 
   for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
-    if (instance->is_flip_flop() || instance->is_clock_instance()) {
+    auto lib_cell = _sta->findLibertyCell(instance->get_cell_master()->get_name().c_str());
+    bool is_clock = false;
+    for (auto &port : lib_cell->get_cell_ports()) {
+      if (port->isClock()) {
+        is_clock = true;
+        break;
+      }
+    }
+    if (is_clock || instance->is_flip_flop() || instance->is_clock_instance()) {
       for (auto pin : instance->get_pin_list()->get_pin_list()) {
         string pin_full_name = instance->get_name() + pin->get_pin_name();
         if (mPin2ID.count(pin_full_name)) {
@@ -571,7 +738,15 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       continue;
     }
     auto from_inst = net->get_driving_pin()->get_instance();
-    if (from_inst->is_clock_instance() || from_inst->is_flip_flop()) {
+    auto lib_cell = _sta->findLibertyCell(from_inst->get_cell_master()->get_name().c_str());
+    bool is_clock = false;
+    for (auto &port : lib_cell->get_cell_ports()) {
+      if (port->isClock()) {
+        is_clock = true;
+        break;
+      }
+    }
+    if (from_inst->is_clock_instance() || is_clock || from_inst->is_flip_flop()) {
       continue;
     }
     auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
@@ -585,8 +760,12 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       reverse_graph[to_inst_name].push_back(from_inst_name);
     }
   }
-  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(forward_graph);
-  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(reverse_graph);
+  // DEBUG
+  std::cout << "now performing Forward topo sort...\n";
+  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(forward_graph, db);
+  // DEBUG
+  std::cout << "now performing Reverse topo sort...\n";
+  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(reverse_graph, db);
   assert(forward_is_dag && reverse_is_dag);
   std::unordered_map<int, std::vector<std::string>> forward_level_to_nodes;
   std::unordered_map<int, std::vector<std::string>> reverse_level_to_nodes;
@@ -663,9 +842,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   net_flat_arcs_start.append(net_arc_count);
 
   /*--------------------------------cell main type init------------------------------------------*/
-  auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  auto _sta = _timing_engine->get_ista();
-
   vector<LibLibrary*> equiv_libs;
   auto& all_libs = _sta->getAllLib();
   for (auto& lib : all_libs) {
@@ -712,7 +888,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     main_type2main_id[main_type] = main_id_idx;
     std::sort(lib_cells.begin(), lib_cells.end(), [](LibCell* a, LibCell* b) {
       return a->get_leakage_power_list().at(0)->get_value() < a->get_leakage_power_list().at(0)->get_value();
-    });
+    });//
     // if (lib_cells.size() >= 1000) {
     //   std::cerr << "Error: too many cells in one main type, please check the library." << std::endl;
     //   exit(1);
@@ -1304,7 +1480,14 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       IdbInstance* node = pin->get_instance();
       pin_direct.append(pybind11::str(IdbOrientToString(node->get_orient())));
       // for fixed macros with multiple boxes, put all pins to the first one
-      index_type new_node_id = mNode2NewNodes[node->get_name()].at(0);
+      string temp_name = node->get_name();
+      if (mNode2NewNodes.find(node->get_name()) == mNode2NewNodes.end()
+          || (mNode2NewNodes.find(node->get_name()) != mNode2NewNodes.end() && mNode2NewNodes[node->get_name()].size() == 0)) {
+        std::cout << "Error: node " << node->get_name() << " not found in mNode2NewNodes" << std::endl;
+      } else if (mNode2NewNodes[node->get_name()].size() == 0) {
+        std::cout << "Error: node " << node->get_name() << " has no new nodes" << std::endl;
+      }
+      index_type new_node_id = mNode2NewNodes[node->get_name()].at(0);  //==0
       IdbCoordinate<int>* inst_coord = pin->get_instance()->get_coordinate();
       IdbCoordinate<int>* pin_coord = pin->get_average_coordinate();
       // Pin::point_type pin_pos(node.pinPos(pin));
