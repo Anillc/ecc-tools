@@ -15,36 +15,45 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file PwrConfig.hh
- * @author simin tao (taosm@pcl.ac.cn)
- * @brief The power tool global config.
+ * @file timing_io.h
+ * @author qiming chu (me@emin.chat)
+ * @brief Timing evaluation IO for tcl interface.
  * @version 0.1
- * @date 2023-04-08
+ * @date 2025-06-02
  */
 
-#pragma once
+#ifndef EVALTIMING_H
+#define EVALTIMING_H
 
-constexpr unsigned c_num_threads = 48;
+#include <string>
 
-#ifndef COMPRESS_BIT
-#define COMPRESS_BIT
-#endif
+#include "log/Log.hh"
+#include "idm.h"
+#include "json/json.hpp"
+#include "idm.h"
+#include "timing_api.hh"
 
-constexpr bool c_zlib_compress = false;
-constexpr unsigned c_compress_bit_size = 32;
+namespace ieval {
+class EvalTiming
+{
+ public:
+  static bool runTimingEval(const std::string& routing_type = "FLUTE");
 
-constexpr bool c_is_debug = false;
-constexpr double c_default_sp = 0.5;
-constexpr double c_default_clock_toggle = 2.0;
-constexpr double c_default_clock_sp = 0.5;
-constexpr double c_switch_power_K = 0.5;
+  static void printTimingResult();
 
-constexpr double c_default_toggle = 0.02;  //  time unit: ns, set by tcl cmd, not used anymore.
-constexpr double c_default_period = 10;  // time unit: ns
-constexpr double c_default_toggle_relative_clk = 0.125;  // time unit: period
+  static void getConfig(idm::DataConfig& config)
+  {
+    config = dmInst->get_config();
+  }
 
-// for estimate IR
-constexpr double c_resistance_coef = 0.33;
+  static void setOutputPath(const std::string& path);
 
-namespace ista {}
-using namespace ista;
+ private:
+  EvalTiming();
+  ~EvalTiming();
+  std::string _routing_type;
+  static std::string _output_path;
+};
+}  // namespace ieval
+
+#endif  // EVALTIMING_H

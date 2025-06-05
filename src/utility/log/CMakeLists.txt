@@ -3,15 +3,17 @@ SET (CMAKE_CXX_STANDARD 20)
 
 AUX_SOURCE_DIRECTORY(./ SRC)
 
-SET(LINK_glog   "glog")
-SET(LINK_gflags "gflags")
 SET(LINK_unwind "unwind")
 
 # TODO:
 # FIXME:
 if(BUILD_STATIC_LIB)
+  SET(LINK_glog   "libglog.a")
+  SET(LINK_gflags "libgflags.a")
   ADD_LIBRARY(log STATIC ${SRC})
 else()
+  SET(LINK_glog   "glog")
+  SET(LINK_gflags "gflags")
   ADD_LIBRARY(log SHARED ${SRC})
 endif()
 
