@@ -1411,12 +1411,13 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   for (std::vector<int>::const_iterator it = vNode2FenceRegion.begin(), ite = vNode2FenceRegion.end(); it != ite; ++it) {
     node2fence_region_map.append(*it);
   }
+  auto core = db->get_idb_layout()->get_core();
+  xl = core->get_bounding_box()->get_low_x();
+  yl = core->get_bounding_box()->get_low_y();
+  xh = core->get_bounding_box()->get_high_x();
+  yh = core->get_bounding_box()->get_high_y();
 
-  xl = db->get_idb_layout()->get_core()->get_bounding_box()->get_low_x();
-  yl = db->get_idb_layout()->get_core()->get_bounding_box()->get_low_y();
-  xh = db->get_idb_layout()->get_core()->get_bounding_box()->get_high_x();
-  yh = db->get_idb_layout()->get_core()->get_bounding_box()->get_high_y();
-
+  assert(yl >= 0 && xl >= 0 && xh > xl && yh > yl);
   // origin_xl = db.get_origin_xl;
   // origin_yl = db.get_origin_yl;
   // origin_xh = db.get_origin_xh;
