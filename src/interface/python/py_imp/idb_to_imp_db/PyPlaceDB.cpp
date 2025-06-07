@@ -109,8 +109,8 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
 {
   // routebilty driven placement
   // routing information initialized
-  num_routing_grids_x = 0;
-  num_routing_grids_y = 0;
+  num_routing_grids_x = 256;
+  num_routing_grids_y = 256;
   routing_grid_xl = xl;
   routing_grid_yl = yl;
   routing_grid_xh = xh;
@@ -118,36 +118,39 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
   // int pitch = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_pitch();
   // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->;
   // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_width();
-
-  // congestion map opt
-  num_routing_grids_x = 256;
-  num_routing_grids_y = 256;
-  double routing_grids_size_x = std::round((routing_grid_xh - routing_grid_xl) / num_routing_grids_x);
-  double routing_grids_size_y = std::round((routing_grid_yh - routing_grid_yl) / num_routing_grids_y);
-  num_routing_grids_x = std::floor((routing_grid_xh - routing_grid_xl) / routing_grids_size_x);
-  num_routing_grids_y = std::floor((routing_grid_yh - routing_grid_yl) / routing_grids_size_y);
-  routing_grid_xh = routing_grid_xl + num_routing_grids_x * routing_grids_size_x;
-  routing_grid_yh = routing_grid_yl + num_routing_grids_y * routing_grids_size_y;
-
-  int track_layer_id = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_layer_list()[0]->get_id();
-  for (index_type layer_idx = 0; layer_idx < db->get_idb_layout()->get_layers()->get_routing_layers_number(); ++layer_idx) {
-    auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer_idx);
-    idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
-    if (idb_routing_layer->get_track_grid_list().empty()) {
-      continue;
+  auto first_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(0);
+  idb::IdbLayerRouting* first_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(first_routing_layer);
+  assert(first_idb_routing_layer->get_track_grid_list().size() == 2);
+  double routing_grids_size_x;
+  double routing_grids_size_y;
+  for (IdbTrackGrid* track_grid : first_idb_routing_layer->get_track_grid_list()) {
+    auto idb_track_grid = track_grid->get_track();
+    int track_num = track_grid->get_track_num();
+    if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+      // num_routing_grids_x = track_num;
+      routing_grid_xl = track_grid->get_track()->get_start();
+      routing_grid_xh = routing_grid_xl + track_num * idb_track_grid->get_pitch();
+      // unit_horizontal_capacities.append(1.0 / idb_track_grid->get_pitch());
+      routing_grids_size_x = (routing_grid_xh - routing_grid_xl) / num_routing_grids_x;
+      // track_axis.get_x_grid_list().push_back(track_grid);
+    } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
+      // num_routing_grids_y = track_num;
+      routing_grid_yl = track_grid->get_track()->get_start();
+      routing_grid_yh = routing_grid_yl + track_num * idb_track_grid->get_pitch();
+      // unit_vertical_capacities.append(1.0 / idb_track_grid->get_pitch());
+      routing_grids_size_y = (routing_grid_yh - routing_grid_yl) / num_routing_grids_y;
     }
-    double track_ratio = idb_routing_layer->get_track_grid_list().size();
-    for (IdbTrackGrid* track_grid : idb_routing_layer->get_track_grid_list()) {
+  }
+  for (auto layer : db->get_idb_layout()->get_layers()->get_routing_layers()) {
+    idb::IdbLayerRouting* first_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(layer);
+    for (IdbTrackGrid* track_grid : first_idb_routing_layer->get_track_grid_list()) {
       auto idb_track_grid = track_grid->get_track();
-
-      int track_start = static_cast<int32_t>(idb_track_grid->get_start());
-      int track_pitch = static_cast<int32_t>(idb_track_grid->get_pitch());
       int track_num = track_grid->get_track_num();
-      if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-        unit_vertical_capacities.append(track_num / routing_grids_size_x);
+      if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
+        unit_horizontal_capacities.append(1. * track_num / routing_grids_size_x);
         // track_axis.get_x_grid_list().push_back(track_grid);
-      } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
-        unit_horizontal_capacities.append(track_num / routing_grids_size_y);
+      } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
+        unit_vertical_capacities.append(1. * track_num / routing_grids_size_y);
       }
     }
   }
@@ -155,8 +158,8 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
   // to be consistent with global placement
   int all_layer_num = db->get_idb_layout()->get_layers()->get_routing_layers_number();
   double routing_grid_area = routing_grids_size_x * routing_grids_size_y;
-  std::vector<int> initial_horizontal_routing_map(all_layer_num * num_routing_grids_x * num_routing_grids_y, 0);
-  std::vector<int> initial_vertical_routing_map(initial_horizontal_routing_map.size(), 0);
+  std::vector<double> initial_horizontal_routing_map(all_layer_num * num_routing_grids_x * num_routing_grids_y, 0);
+  std::vector<double> initial_vertical_routing_map(initial_horizontal_routing_map.size(), 0);
 
   for (unsigned int i = 0; i < inst_resort_list.size(); ++i) {
     IdbInstance* node = inst_resort_list.at(i);
@@ -167,7 +170,7 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
     if (node->get_status() == IdbPlacementStatus::kFixed) {
       // Macro const& macro = db.macro(db.macroId(node));
       // printf("PyPlaceDB detect fixed cell: ");
-      for (auto obs : node->get_cell_master()->get_obs_list()) {
+      for (auto obs : node->get_obs_box_list()) {
         Box box(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
                 node->get_bounding_box()->get_high_y());
         // Box box(node.xl + obs_box.xl, node.yl + obs_box.yl, node.xl + obs_box.xh, node.yl + obs_box.yh);
@@ -182,13 +185,13 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
             coordinate_type grid_yl = routing_grid_yl + h * routing_grids_size_y;
             coordinate_type grid_yh = grid_yl + routing_grids_size_y;
             Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
-            for (auto obs_layer : obs->get_obs_layer_list()) {
-              int layer_idx = obs_layer->get_shape()->get_layer()->get_id();
+            auto obs_layer = obs->get_layer();
+            if (obs_layer->is_routing()) {
+              int layer_idx = obs_layer->get_id();
               index_type index = layer_idx * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
               double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
               // dreamplaceAssert(intersect_ratio <= 1);
-              auto idb_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(layer_idx);
-              idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(idb_layer);
+              idb::IdbLayerRouting* idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(obs_layer);
               if (idb_routing_layer->get_track_grid_list().empty()) {
                 continue;
               }
@@ -196,11 +199,11 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
                 auto idb_track_grid = track_grid->get_track();
                 int track_num = track_grid->get_track_num();
                 if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-                  initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
+                  initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num / num_routing_grids_y);  //
                   // track_axis.get_x_grid_list().push_back(track_grid);
                 } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
                   // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
-                  initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
+                  initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num / num_routing_grids_x);  //
                   // track_axis.get_y_grid_list().push_back(track_grid);
                 }
               }
@@ -245,10 +248,10 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
             int track_num = track_grid->get_track_num();
             if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
               // track_axis.get_x_grid_list().push_back(track_grid);
-              initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num);
+              initial_vertical_routing_map[index] += ceil(intersect_ratio * track_num / num_routing_grids_y);  //
             } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
               // int track_num = static_cast<int32_t>((routing_grid_xh - routing_grid_xl) / track_pitch);
-              initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num);
+              initial_horizontal_routing_map[index] += ceil(intersect_ratio * track_num / num_routing_grids_x);  //
               // track_axis.get_y_grid_list().push_back(track_grid);
             }
           }
@@ -276,10 +279,10 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
         int track_num = track_grid->get_track_num();
         if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
           auto& vvalue = initial_vertical_routing_map[layer * ie + i];
-          vvalue = std::min(vvalue, track_num);
+          vvalue = std::min(vvalue, 1. * track_num / num_routing_grids_x);  //
         } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
           auto& hvalue = initial_horizontal_routing_map[layer * ie + i];
-          hvalue = std::min(hvalue, track_num);
+          hvalue = std::min(hvalue, 1. * track_num / num_routing_grids_y);  /// num_routing_grids_y
         }
       }
     }
