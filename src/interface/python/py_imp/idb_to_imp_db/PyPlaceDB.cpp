@@ -1083,12 +1083,22 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   };
 #endif
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
-  for (unsigned int i = 0; i < inst_num; ++i) {
+  for (int i = 0; i < inst_num; ++i) {
     IdbInstance* node = inst_resort_list.at(i);
     // Macro const& macro = db.macro(db.macroId(node));
     if (node->get_status() != IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
       Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
                   node->get_bounding_box()->get_high_y());
+      if (node->get_halo()) {
+        // Jiaqi: add halo for fixed cells
+        // printf("PyPlaceDB detect fixed cell with halo: ");
+        box_tmp.xl -= node->get_halo()->get_extend_lef();
+        box_tmp.yl -= node->get_halo()->get_extend_bottom();
+        box_tmp.xh += node->get_halo()->get_extend_right();
+        box_tmp.yh += node->get_halo()->get_extend_top();
+        printf("Instance %s, Halo (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_halo()->get_extend_lef(),
+               node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
+      }
       addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, false);
     }
     // else if (macro.className() != "DREAMPlace.PlaceBlockage") // fixed cells are special cases, skip placement blockages (looks like
@@ -1140,9 +1150,19 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       } else {
         Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
                     node->get_bounding_box()->get_high_y());
+        if (node->get_halo()) {
+          // Jiaqi: add halo for fixed cells
+          // printf("PyPlaceDB detect fixed cell with halo: ");
+          box_tmp.xl -= node->get_halo()->get_extend_lef();
+          box_tmp.yl -= node->get_halo()->get_extend_bottom();
+          box_tmp.xh += node->get_halo()->get_extend_right();
+          box_tmp.yh += node->get_halo()->get_extend_top();
+          printf("Instance %s, Halo (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_halo()->get_extend_lef(),
+                 node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
+        }
         addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, true);
-        printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-               node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
+        // printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
+        //        node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
         // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
         num_terminals += 1;
         // compute upper bound of total fixed cell area
