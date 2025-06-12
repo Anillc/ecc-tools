@@ -76,7 +76,7 @@ class Solver
   // member
   std::string _net_name;
   CtsPin* _cts_driver;
-  std::vector<CtsPin*> _cts_pins;
+  std::vector<CtsPin*> _cts_pins; // one net's all load pins
   std::vector<std::vector<Inst*>> _level_insts;
   std::vector<Pin*> _sink_pins;
   std::vector<Pin*> _top_pins;

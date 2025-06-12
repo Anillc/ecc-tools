@@ -103,13 +103,25 @@ void Router::printLog()
 void Router::routing(CtsNet* clk_net)
 {
   auto pins = clk_net->get_load_pins();
+  auto driver_pin = clk_net->get_driver_pin();
   if (pins.empty()) {
-    LOG_WARNING << "Net: " << clk_net->get_net_name() << " is empty!";
+    LOG_WARNING << "Net: " << clk_net->get_net_name() << " load pin is empty!";
+    return;
+  }
+  if (driver_pin == nullptr) {
+    LOG_WARNING << "Net: " << clk_net->get_net_name() << " driver pin is empty!";
+    return;
+  }
+  if (driver_pin->get_instance() == nullptr) {
+    return;
+  }
+  if (pins.size() == 1 && pins.front()->get_instance() == nullptr) {
+    LOG_WARNING << "Net: " << clk_net->get_net_name() << " load pin is empty!";
     return;
   }
   auto net_name = clk_net->get_net_name();
   // total topology
-  auto solver = Solver(net_name, clk_net->get_driver_pin(), pins);
+  auto solver = Solver(net_name, driver_pin, pins);
   solver.set_max_thread(1);
   solver.run();
   auto clk_nets = solver.get_solver_nets();

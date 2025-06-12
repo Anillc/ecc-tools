@@ -386,9 +386,9 @@ void CTSAPI::readClockNetNames() const
     if (sta_net->isClockNet()) {
       auto* sta_clock = _timing_engine->getPropClockOfNet(sta_net);
       // HARD CODE debug
-      if (std::string(sta_clock->get_clock_name()) == "CLK_spi_clk") {
-        continue;
-      }
+      // if (std::string(sta_clock->get_clock_name()) == "CLK_spi_clk") {
+      //   continue;
+      // }
       _design->addClockNetName(sta_clock->get_clock_name(), sta_net->get_name());
       LOG_INFO << "Clock [" << sta_clock->get_clock_name() << "] have net \"" << sta_net->get_name() << "\"";
       CTSAPIInst.saveToLog("Clock [", sta_clock->get_clock_name(), "] have net \"", sta_net->get_name(), "\"");

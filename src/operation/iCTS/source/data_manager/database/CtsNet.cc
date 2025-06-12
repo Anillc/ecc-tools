@@ -34,16 +34,27 @@ void CtsNet::addPin(CtsPin* pin)
 
 CtsPin* CtsNet::get_driver_pin() const
 {
+  std::vector<CtsPin*> driver_pin_candidates;
   for (auto* pin : _pins) {
     if (pin->is_io()) {
-      // if (pin->get_pin_type() == CtsPinType::kIn) {
-      return pin;
-      // }
+      if (pin->get_pin_type() == CtsPinType::kIn || pin->get_pin_type() == CtsPinType::kInOut) {
+        driver_pin_candidates.push_back(pin);
+      }
     } else {
-      if (pin->get_pin_type() == CtsPinType::kOut) {
-        return pin;
+      if (pin->get_pin_type() == CtsPinType::kOut || pin->get_pin_type() == CtsPinType::kInOut) {
+        driver_pin_candidates.push_back(pin);
       }
     }
+  }
+  if (driver_pin_candidates.size() == 1) {
+    return driver_pin_candidates[0];
+  } else if (driver_pin_candidates.size() > 1) {
+    for (auto* pin : driver_pin_candidates) {
+      if (pin->get_pin_type() != CtsPinType::kInOut) {
+        return pin;  // Prefer InOut pins as driver
+      }
+    }
+    return driver_pin_candidates[0];  // If all are InOut, return the first one
   }
   return nullptr;
 }
@@ -77,10 +88,11 @@ std::vector<CtsInstance*> CtsNet::get_instances() const
 
 std::vector<CtsPin*> CtsNet::get_load_pins() const
 {
+  auto driver_pin = get_driver_pin();
   std::vector<CtsPin*> load_pins;
   // std::set<std::string> unique_insts;
   for (auto* pin : _pins) {
-    if (pin->get_pin_type() != CtsPinType::kOut && !pin->is_io()) {
+    if (pin != driver_pin) {
       // if (unique_insts.count(pin->get_instance()->get_name()) == 0) {
       //   unique_insts.insert(pin->get_instance()->get_name());
       // } else {
