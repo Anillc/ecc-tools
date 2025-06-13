@@ -48,13 +48,6 @@ void CtsDBWrapper::read()
     auto& net_name = clock_net_name.second;
 
     auto* idb_net = idb_net_list->find_net(net_name);
-    if (idb_net->has_io_pins()) {
-      auto io_pin = idb_net->get_io_pins()->get_pin_list().at(0);
-      if (io_pin->get_average_coordinate()->get_x() == -1 && io_pin->get_average_coordinate()->get_y() == -1) {
-        LOG_WARNING << "Net " << net_name << " has no valid io pin coordinates, skipping.";
-        continue;  // skip nets with no valid io pin coordinates
-      }
-    }
 
     CtsNet* net = idbToCts(idb_net);
     net->set_is_newly(false);

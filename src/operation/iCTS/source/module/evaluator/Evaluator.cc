@@ -20,7 +20,9 @@
  */
 #include "Evaluator.hh"
 
+#include <cassert>
 #include <fstream>
+#include <unordered_set>
 
 #include "CTSAPI.hh"
 #include "Net.hh"
@@ -185,9 +187,14 @@ void Evaluator::calcPathBufStats()
   }
   // set depth
   std::function<void(TreeNode*)> set_depth = [&](TreeNode* node) {
+    if (node->children.empty()) {
+      return;
+    }
     for (auto child : node->children) {
-      child->depth = node->depth + 1;
-      set_depth(child);
+      if (child->depth == -1) {
+        child->depth = node->depth + 1;
+        set_depth(child);
+      }
     }
   };
   std::ranges::for_each(roots, set_depth);
@@ -195,12 +202,17 @@ void Evaluator::calcPathBufStats()
     // find min and max depth of leaf
     int min_depth = std::numeric_limits<int>::max();
     int max_depth = 0;
+    std::unordered_set<TreeNode*> visited;
     std::function<void(TreeNode*)> find_depth = [&](TreeNode* node) {
       if (node->children.empty()) {
         min_depth = std::min(min_depth, node->depth);
         max_depth = std::max(max_depth, node->depth);
       } else {
         for (auto child : node->children) {
+          if (visited.count(child) > 0) {
+            continue;  // avoid cycles
+          }
+          visited.insert(child);
           find_depth(child);
         }
       }
