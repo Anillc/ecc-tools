@@ -82,7 +82,7 @@ void CTSAPI::runCTS()
   readData();
   routing();
   evaluate();
-  writeGDS();
+  // writeGDS();
   LOG_INFO << "**Flow memory usage " << stats.memoryDelta() << "MB";
   LOG_INFO << "**Flow elapsed time " << stats.elapsedRunTime() << "s";
 

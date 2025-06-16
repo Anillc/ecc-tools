@@ -31,6 +31,10 @@
 
 namespace python_interface {
 
+auto is_ignore_net = [](IdbNet* net) {
+  return net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
+         || net->get_instance_pin_list()->get_pin_list().size() > 100;
+};
 #if 1
 
 static std::string IdbOrientToString(IdbOrient orient)
@@ -513,8 +517,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   std::vector<string> start_points_str;  // PIs and FFs' output pins
   std::vector<string> end_points_str;    // POs and FFs' input pins
   for (auto pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
-    if (pin->get_net() == nullptr || pin->get_net()->is_ground() || pin->get_net()->is_power() || pin->get_net()->is_pdn()
-        || pin->get_net()->is_clock()) {
+    if (pin->get_net() == nullptr || is_ignore_net(pin->get_net())) {
       continue;
     }
     if (pin->is_primary_input()) {
@@ -569,8 +572,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   Graph reverse_graph;  //
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
     assert(net->get_driving_pin());
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
-        || net->get_driving_pin()->get_instance() == nullptr) {
+    if (is_ignore_net(net) || net->get_driving_pin()->get_instance() == nullptr) {
       continue;
     }
     auto from_inst = net->get_driving_pin()->get_instance();
@@ -631,8 +633,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   /*--------------------------------net arcs init------------------------------------------*/
   int net_arc_count = 0;
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (is_ignore_net(net)) {
       continue;
     }
     net_flat_arcs_start.append(net_arc_count);  //
@@ -874,8 +875,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   /*--------------------pin2libpin_offset-------------------------------*/
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (is_ignore_net(net)) {
       continue;
     }
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
@@ -1004,8 +1004,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   int net_id = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     // is special net
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (is_ignore_net(net)) {
       continue;
     }
 
@@ -1014,8 +1013,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   std::unordered_map<std::string, int> mPin2ID;
   int pin_id = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (is_ignore_net(net)) {
       continue;
     }
 
@@ -1085,6 +1083,9 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
   for (int i = 0; i < inst_num; ++i) {
     IdbInstance* node = inst_resort_list.at(i);
+    if (node->get_cell_master()->is_block()) {
+      printf("node %s is a block \n", node->get_name().c_str());
+    }
     // Macro const& macro = db.macro(db.macroId(node));
     if (node->get_status() != IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
       Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
@@ -1161,8 +1162,10 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
                  node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
         }
         addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, true);
-        // printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-        //        node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
+        if (node->get_cell_master()->is_block()) {
+          printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
+                 node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
+        }
         // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
         num_terminals += 1;
         // compute upper bound of total fixed cell area
@@ -1318,8 +1321,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   num_movable_pins = 0;
   unsigned int pin_index = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (is_ignore_net(net)) {
       continue;
     }
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
@@ -1358,8 +1360,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
 
   count = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-    if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
-        || net->get_instance_pin_list()->get_pin_list().size() == 0) {
+    if (is_ignore_net(net)) {
       continue;
     }
     // Net const& net = db.net(i);
