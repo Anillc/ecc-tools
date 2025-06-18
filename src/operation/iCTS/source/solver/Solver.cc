@@ -21,12 +21,16 @@
 
 #include "Solver.hh"
 
+#include <algorithm>
 #include <filesystem>
 #include <numeric>
 #include <ranges>
+#include <utility>
 
 #include "BalanceClustering.hh"
 #include "CtsDesign.hh"
+#include "CtsPoint.hh"
+#include "Pin.hh"
 #include "ThreadPool/ThreadPool.h"
 #include "TimingPropagator.hh"
 #include "TreeBuilder.hh"
@@ -86,6 +90,30 @@ void Solver::resolveSinks()
   std::vector<Inst*> insts;
   std::ranges::for_each(_sink_pins, [&](Pin* pin) { insts.push_back(pin->get_inst()); });
   _level_insts.push_back(insts);
+
+  std::vector<std::pair<Point, Pin*>> fixed_locs;
+  std::set<Point> fixed_loc_set;
+  for (Pin* pin : _sink_pins) {
+    if (!pin->isBufferPin()) {
+      fixed_locs.push_back({pin->get_location(), pin});
+      if (fixed_loc_set.find(pin->get_location()) != fixed_loc_set.end()) {
+        LOG_WARNING << "Pin " << pin->get_name() << " has the same location as another pin.";
+      } else {
+        fixed_loc_set.insert(pin->get_location());
+      }
+    }
+  }
+  std::sort(fixed_locs.begin(), fixed_locs.end());
+  if (fixed_loc_set.size() != fixed_locs.size()) {
+    LOG_WARNING << "There are duplicate pin locations in the sink pins.";
+    for (size_t i = 0; i < fixed_locs.size() - 1; ++i) {
+      if (fixed_locs[i].first == fixed_locs[i + 1].first) {
+        LOG_WARNING << "Pin " << fixed_locs[i].second->get_name() << " and Pin " << fixed_locs[i + 1].second->get_name()
+                    << " have the same location: " << fixed_locs[i].first;
+      }
+    }
+  }
+  assert(fixed_loc_set.size() == fixed_locs.size());
   // clustering
   while (insts.size() > 1) {
     auto assign = get_level_assign(_level);
