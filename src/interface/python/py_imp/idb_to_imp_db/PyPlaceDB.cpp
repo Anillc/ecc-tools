@@ -439,8 +439,8 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
 }
 
 void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID,
-                            std::map<std::string, index_type>& mNodeName2ID, std::vector<IdbInstance*>& inst_resort_list,
-                            std::map<std::string, std::vector<index_type>>& mNode2NewNodes, int ext_blockage_num)
+                            std::map<std::string, index_type>& mNode2PyNondeID, std::vector<IdbInstance*>& inst_resort_list,
+                            int ext_blockage_num)
 {
   /*************************************************************************/
   std::map<std::string, double> sdc_inrdelays;  //
@@ -608,10 +608,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   for (auto& [level, inst_list] : forward_level_to_nodes) {
     flat_cells_by_level_start.append(level_cells_idx);
     for (auto& inst_name : inst_list) {
-      if (mNodeName2ID.count(inst_name)) {
+      if (mNode2PyNondeID.count(inst_name)) {
         // is there a bug ?
         // FIXME:
-        flat_cells_by_level.append(mNodeName2ID[inst_name]);
+        flat_cells_by_level.append(mNode2PyNondeID[inst_name]);
         level_cells_idx++;
       }
     }
@@ -622,8 +622,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   for (auto& [level, inst_list] : reverse_level_to_nodes) {
     flat_cells_by_reverse_level_start.append(reverse_level_cells_idx);
     for (auto& inst_name : inst_list) {
-      if (mNodeName2ID.count(inst_name)) {
-        flat_cells_by_reverse_level.append(mNodeName2ID[inst_name]);
+      if (mNode2PyNondeID.count(inst_name)) {
+        flat_cells_by_reverse_level.append(mNode2PyNondeID[inst_name]);
         reverse_level_cells_idx++;
       }
     }
@@ -907,9 +907,9 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   */
   int cell_flat_arcs_idx = 0;
   // hadle cell arcs
-  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
+  for (int i = 0; i < mNode2PyNondeID.size() - num_terminal_NIs - ext_blockage_num; ++i) {
     auto node_name = node_names[i].cast<std::string>();
-    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
+    IdbInstance* node = inst_resort_list[mNode2PyNondeID[node_name]];
     cell_flat_arcs_start.append(cell_flat_arcs_idx);
 
     string cell_type = node->get_cell_master()->get_name();
@@ -952,7 +952,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     inst_size.append(-1);
   }
   // IO PINS
-  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
+  for (int i = mNode2PyNondeID.size() - num_terminal_NIs; i < mNode2PyNondeID.size(); ++i) {
     cell_flat_arcs_start.append(cell_flat_arcs_idx);
     inst_main_id.append(-1);
     inst_size.append(-1);
@@ -988,17 +988,17 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   std::vector<gtl::rectangle_data<coordinate_type>> fixed_boxes;
   // record original node to new node mapping
   int inst_num = db_deisgn->get_instance_list()->get_num();
-  std::map<std::string, std::vector<index_type>> mNode2NewNodes;
-  std::map<std::string, index_type> mNodeName2ID;
+  std::map<std::string, index_type> mNode2PyNondeID;
+  std::map<std::string, index_type> mNode2idbID;
   int node_id = 0;
   std::vector<IdbInstance*> inst_resort_list = db_deisgn->get_instance_list()->get_instance_list();
   std::stable_sort(inst_resort_list.begin(), inst_resort_list.end(),
                    [](IdbInstance* a, IdbInstance* b) { return a->is_fixed() < b->is_fixed(); });
   for (IdbInstance* node : inst_resort_list) {
-    mNodeName2ID[node->get_name()] = node_id++;
+    mNode2idbID[node->get_name()] = node->get_id();
   }
   // for(auto io_pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
-  //   mNodeName2ID[io_pin->get_pin_name()] = -1;
+  //   mNode2PyNondeID[io_pin->get_pin_name()] = -1;
   // }
   std::map<std::string, int> mNet2ID;
   int net_id = 0;
@@ -1043,17 +1043,18 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     node_size_x.append(box.width());
     node_size_y.append(box.height());
     // map new node to original index
-    if (mNodeName2ID.count(name)) {
-      node2orig_node_map.append(mNodeName2ID[name]);
+    if (mNode2idbID.count(name)) {
+      node2orig_node_map.append(mNode2idbID[name]);
     } else {
       node2orig_node_map.append(-1);
     }
+    assert(mNode2PyNondeID.count(name) == 0);
     // record original node to new node mapping
-    if (mNode2NewNodes.count(name) == 0) {
-      mNode2NewNodes[name] = std::vector<index_type>();
-    }
+    // if (mNode2PyNondeID.count(name) == 0) {
+    //   mNode2PyNondeID[name] = std::vector<index_type>();
+    // }
 
-    mNode2NewNodes[name].push_back(id);
+    mNode2PyNondeID[name] = id;
     if (isFixed) {
       // dreamplacePrint(kDEBUG, "node %s\n", db.nodeName(node).c_str());
       addNode2Bin(box);
@@ -1234,9 +1235,9 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   /*----------------------construct node2pin_map and flat_node2pin_map-------------------------------*/
 
   int count = 0;
-  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
+  for (int i = 0; i < mNode2PyNondeID.size() - num_terminal_NIs - ext_blockage_num; ++i) {
     auto node_name = node_names[i].cast<std::string>();
-    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
+    IdbInstance* node = inst_resort_list[mNode2PyNondeID[node_name]];
     pybind11::list pins;
     int pin_num = 0;
     for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
@@ -1260,7 +1261,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     flat_node2pin_start_map.append(count);
   }
   // IO PINS
-  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
+  for (int i = mNode2PyNondeID.size() - num_terminal_NIs; i < mNode2PyNondeID.size(); ++i) {
     auto io_pin_name = node_names[i].cast<std::string>();
     pybind11::list pins;
     int pin_num = 0;
@@ -1288,8 +1289,8 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       IdbInstance* node = pin->get_instance();
       pin_direct.append(pybind11::str(IdbOrientToString(node->get_orient())));
       // for fixed macros with multiple boxes, put all pins to the first one
-      assert(mNode2NewNodes.count(node->get_name()));
-      index_type new_node_id = mNode2NewNodes[node->get_name()].at(0);
+      assert(mNode2PyNondeID.count(node->get_name()));
+      index_type new_node_id = mNode2PyNondeID[node->get_name()];
       IdbCoordinate<int>* inst_coord = pin->get_instance()->get_coordinate();
       IdbCoordinate<int>* pin_coord = pin->get_average_coordinate();
       // Pin::point_type pin_pos(node.pinPos(pin));
@@ -1309,8 +1310,8 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       string io_pin_name = pin->get_pin_name();
       pin_direct.append(pybind11::str("R0"));
       // for fixed macros with multiple boxes, put all pins to the first one
-      assert(mNode2NewNodes.count(io_pin_name));
-      index_type new_node_id = mNode2NewNodes[io_pin_name].at(0);
+      assert(mNode2PyNondeID.count(io_pin_name));
+      index_type new_node_id = mNode2PyNondeID[io_pin_name];
       // Pin::point_type pin_pos(node.pinPos(pin));
       pin_offset_x.append(0);
       pin_offset_y.append(0);
@@ -1386,7 +1387,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     if (region->get_type() == IdbRegionType::kFence) {
       for (IdbInstance* inst : region->get_instance_list()) {
         // FIXME:
-        index_type node_id = mNode2NewNodes[inst->get_name()].at(0);
+        index_type node_id = mNode2PyNondeID[inst->get_name()];
         if (inst->get_status() != IdbPlacementStatus::kFixed)  // ignore fixed cells
         {
           vNode2FenceRegion.at(node_id) = region_id;
@@ -1417,7 +1418,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
 
   init_routability(db, inst_resort_list);
   if (with_sta) {
-    init_timing(db, mPin2ID, mNodeName2ID, inst_resort_list, mNode2NewNodes, ext_blockage_num);
+    init_timing(db, mPin2ID, mNode2PyNondeID, inst_resort_list, ext_blockage_num);
   }
   printf("PyPlaceDB::set end!!!\n");
 

@@ -107,13 +107,13 @@ struct PyPlaceDB
   pybind11::list cell_id_2_arc_id_start;  //[num_lib_cells, ] cell_id_2_arc_id_start + arc_offset -> arc
 
   pybind11::list inst_main_id;  // [inst_num, ] cell_main_id + cell_width -> cell_id
-  pybind11::list inst_size;    // [inst_num, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_size;     // [inst_num, ] cell_main_id + cell_width -> cell_id
 
   pybind11::list cell_id_2_libpin_id_start;  // [num_lib_cells, ] cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
-  pybind11::list pin_2_libpin_offset; 
-  pybind11::list flat_lib_pin_cap;           // 
-  pybind11::list flat_lib_pin_cap_limit;     // 
-  pybind11::list flat_lib_pin_slew_limit;    // 
+  pybind11::list pin_2_libpin_offset;
+  pybind11::list flat_lib_pin_cap;         //
+  pybind11::list flat_lib_pin_cap_limit;   //
+  pybind11::list flat_lib_pin_slew_limit;  //
 
   /* ------------------------end info for gate sizing----------------------*/
 
@@ -142,7 +142,7 @@ struct PyPlaceDB
   /*-------------RC------------*/
   double c_unit;
   double r_unit;
-  
+
   int xl;
   int yl;
   int xh;
@@ -174,9 +174,8 @@ struct PyPlaceDB
   void set(idm::DataManager* db, bool with_sta);
   void set_sta();
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
-  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::map<std::string, index_type>& mNodeName2ID,
-                   std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
-                   int ext_blockage_num);
+  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::map<std::string, index_type>& mNode2PyNondeID,
+                   std::vector<IdbInstance*>& inst_resort_list, int ext_blockage_num);
 };
 
 }  // namespace python_interface
