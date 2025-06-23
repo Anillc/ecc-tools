@@ -32,8 +32,8 @@
 namespace python_interface {
 
 auto is_ignore_net = [](IdbNet* net) {
-  return net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
-         || net->get_instance_pin_list()->get_pin_list().size() > 100;
+  return net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+         || net->get_instance_pin_list()->get_pin_list().size() == 0;
 };
 #if 1
 
@@ -1108,69 +1108,28 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     {
       // Macro const& macro = db.macro(db.macroId(node));
       // printf("PyPlaceDB detect fixed cell: ");
-      if (false) {
-#if 0
-        MacroObs::ObsConstIterator foundObs = macro.obs().obsMap().find("Bookshelf.Shape");
-        // add obstruction boxes for fixed nodes
-        // initialize node shapes from obstruction
-        // I do not differentiate obstruction boxes at different layers
-        // At least, this is true for DAC/ICCAD 2012 benchmarks
 
-        // put all boxes into a polygon set to remove overlaps
-        // this can make the placement engine more robust
-        PolygonSet ps;
-        if (foundObs != macro.obs().end())  // for BOOKSHELF
-        {
-          for (auto const& box : foundObs->second) {
-            ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
-          }
-        } else {
-          for (auto it = macro.obs().begin(), ite = macro.obs().end(); it != ite; ++it) {
-            for (auto const& box : it->second) {
-              ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
-            }
-          }
-
-          // I do not know whether we should add the bounding box of this fixed cell as well
-          ps.insert(gtl::rectangle_data<coordinate_type>(0, 0, node.width(), node.height()));
-        }
-
-        // Get unique boxes without overlap for each fixed cell
-        // However, there may still be overlapping between fixed cells.
-        // We cannot eliminate these because we want to keep the mapping from boxes to cells.
-        std::vector<gtl::rectangle_data<coordinate_type>> vRect;
-        ps.get_rectangles(vRect);
-        std::vector<Box<coordinate_type>> vBox;
-        vBox.reserve(vRect.size());
-        for (auto const& rect : vRect) {
-          vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
-        }
-        addObsBoxes(node, vBox, true);
-        num_terminals += vBox.size();
-#endif
-      } else {
-        Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-                    node->get_bounding_box()->get_high_y());
-        if (node->get_halo()) {
-          // Jiaqi: add halo for fixed cells
-          // printf("PyPlaceDB detect fixed cell with halo: ");
-          box_tmp.xl -= node->get_halo()->get_extend_lef();
-          box_tmp.yl -= node->get_halo()->get_extend_bottom();
-          box_tmp.xh += node->get_halo()->get_extend_right();
-          box_tmp.yh += node->get_halo()->get_extend_top();
-          printf("Instance %s, Halo (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_halo()->get_extend_lef(),
-                 node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
-        }
-        addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, true);
-        if (node->get_cell_master()->is_block()) {
-          printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-                 node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
-        }
-        // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
-        num_terminals += 1;
-        // compute upper bound of total fixed cell area
-        total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
+      Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+                  node->get_bounding_box()->get_high_y());
+      if (node->get_halo()) {
+        // Jiaqi: add halo for fixed cells
+        // printf("PyPlaceDB detect fixed cell with halo: ");
+        box_tmp.xl -= node->get_halo()->get_extend_lef();
+        box_tmp.yl -= node->get_halo()->get_extend_bottom();
+        box_tmp.xh += node->get_halo()->get_extend_right();
+        box_tmp.yh += node->get_halo()->get_extend_top();
+        printf("Macro Instance %s, Halo (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_halo()->get_extend_lef(),
+               node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
       }
+      addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, true);
+      if (node->get_cell_master()->is_io_cell()) {
+        printf("Fixed IO Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
+               node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
+      }
+      // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
+      num_terminals += 1;
+      // compute upper bound of total fixed cell area
+      total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
     }
   }
 
@@ -1242,7 +1201,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       ly = io_pin->get_location()->get_y();
     }
     Box box_tmp(lx, ly, lx + 1, ly + 1);
-    addNode("R0", io_pin->get_pin_name(), box_tmp, true);
+    addNode("R0", io_pin->get_pin_name(), box_tmp, false);
     printf("IO Pin %s, Coordinate (%d, %d)\n", io_pin->get_pin_name().c_str(), lx, ly);
     // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
     num_terminal_NIs += 1;
@@ -1329,6 +1288,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       IdbInstance* node = pin->get_instance();
       pin_direct.append(pybind11::str(IdbOrientToString(node->get_orient())));
       // for fixed macros with multiple boxes, put all pins to the first one
+      assert(mNode2NewNodes.count(node->get_name()));
       index_type new_node_id = mNode2NewNodes[node->get_name()].at(0);
       IdbCoordinate<int>* inst_coord = pin->get_instance()->get_coordinate();
       IdbCoordinate<int>* pin_coord = pin->get_average_coordinate();
@@ -1336,6 +1296,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       pin_offset_x.append(pin_coord->get_x() - inst_coord->get_x());
       pin_offset_y.append(pin_coord->get_y() - inst_coord->get_y());
       pin2node_map.append(new_node_id);
+      assert(mNet2ID.count(pin->get_net()->get_net_name()));
       pin2net_map.append(mNet2ID[pin->get_net()->get_net_name()]);
 
       if (node->get_status() != IdbPlacementStatus::kFixed /*&& node.status() != PlaceStatusEnum::DUMMY_FIXED*/) {
@@ -1370,9 +1331,11 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     pybind11::list pins;
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
       string inst_name = pin->get_instance()->get_name();
+      assert(mPin2ID.count(inst_name + pin->get_pin_name()));
       pins.append(mPin2ID[inst_name + pin->get_pin_name()]);
     }
     for (IdbPin* pin : net->get_io_pins()->get_pin_list()) {
+      assert(mPin2ID.count(pin->get_pin_name()));
       pins.append(mPin2ID[pin->get_pin_name()]);
     }
     net2pin_map.append(pins);

@@ -106,6 +106,7 @@ void Solver::resolveSinks()
   std::sort(fixed_locs.begin(), fixed_locs.end());
   if (fixed_loc_set.size() != fixed_locs.size()) {
     LOG_WARNING << "There are duplicate pin locations in the sink pins.";
+    LOG_WARNING << "Net name: " << _net_name;
     for (size_t i = 0; i < fixed_locs.size() - 1; ++i) {
       if (fixed_locs[i].first == fixed_locs[i + 1].first) {
         LOG_WARNING << "Pin " << fixed_locs[i].second->get_name() << " and Pin " << fixed_locs[i + 1].second->get_name()
