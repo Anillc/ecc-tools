@@ -117,7 +117,7 @@ void Solver::resolveSinks()
     }
   }
   assert(fixed_loc_set.size() == fixed_locs.size());
-
+  _level_load_pins.push_back(cur_pins);
   // clustering
   while (cur_pins.size() > 1) {
     auto assign = get_level_assign(_level);
