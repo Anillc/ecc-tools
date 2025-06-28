@@ -813,6 +813,9 @@ void CTSAPI::buildRCTree(const icts::EvalNet& eval_net)
 #ifdef DEBUG_ICTS_EVALUATOR
   LOG_INFO << "Evaluate: " << net_name;
 #endif
+  // if (net_name == "iCLK_50_109") {
+  //   std::cout << "debug: " << net_name << std::endl;
+  // }
   resetRCTree(net_name);
   auto* sta_net = findStaNet(eval_net);
   auto layer_id = _config->get_routing_layers().back();
@@ -928,7 +931,10 @@ void CTSAPI::latencySkewLog() const
       ista::StaPathEnd* path_end;
       ista::StaPathData* path_data;
       FOREACH_PATH_GROUP_END(seq_path_group.get(), path_end)
-      FOREACH_PATH_END_DATA(path_end, mode, path_data) { seq_data_queue.push(path_data); }
+      FOREACH_PATH_END_DATA(path_end, mode, path_data)
+      {
+        seq_data_queue.push(path_data);
+      }
       auto* worst_seq_data = seq_data_queue.top();
       auto* launch_clock_data = worst_seq_data->get_launch_clock_data();
       auto* capture_clock_data = worst_seq_data->get_capture_clock_data();

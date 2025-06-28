@@ -23,11 +23,13 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <iostream>
 #include <numeric>
 #include <ranges>
 #include <utility>
 
 #include "BalanceClustering.hh"
+#include "CtsConfig.hh"
 #include "CtsDesign.hh"
 #include "CtsPoint.hh"
 #include "Pin.hh"
@@ -340,7 +342,14 @@ Pin* Solver::netAssign(const std::vector<Pin*>& load_pins, const Assign& assign,
     auto shift_dist = std::min(max_dist - net_dist, allow_center_dist);
     guide_loc = center_dist > 0 ? (guide_center - center) * (1.0 * shift_dist / center_dist) + center : center;
   }
-  auto net_name = CTSAPIInst.toString(_net_name, "_", CTSAPIInst.genId());
+  int net_id = CTSAPIInst.genId();
+  // if (_net_name == "iCLK_50" && net_id == 109) {
+  //   std::cout << "Net name : " << _net_name << " , index " << net_id << std::endl;
+  //   for (auto* pin : load_pins) {
+  //     std::cout << "-------- Pin: " << pin->get_name() << std::endl;
+  //   }
+  // }
+  auto net_name = CTSAPIInst.toString(_net_name, "_", net_id);
   // if (!shift) {
   if (load_pins.size() == 1) {
     auto* buffer = TreeBuilder::genBufInst(net_name, guide_loc);

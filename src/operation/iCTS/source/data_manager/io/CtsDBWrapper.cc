@@ -20,6 +20,8 @@
  */
 #include "CtsDBWrapper.hh"
 
+#include <cassert>
+
 #include "CTSAPI.hh"
 
 namespace icts {
@@ -354,9 +356,9 @@ void CtsDBWrapper::linkInstanceCood(CtsInstance* inst, IdbInstance* idb_inst)
 
 bool CtsDBWrapper::ctsConnect(CtsInstance* inst, CtsPin* pin, CtsNet* net)
 {
-  if (inst->is_virtual()) {
-    return true;
-  }
+  // if (inst->is_virtual()) {
+  //   return true;
+  // }
   net->addPin(pin);
   pin->set_net(net);
   return true;
@@ -365,22 +367,29 @@ bool CtsDBWrapper::idbConnect(CtsPin* pin, CtsNet* net)
 {
   auto* inst = pin->get_instance();
   ctsConnect(inst, pin, net);
-  if (inst->is_virtual()) {
-    return true;
-  }
-  IdbNet* idb_net = ctsToIdb(net);
-  IdbInstance* idb_inst = ctsToIdb(inst);
+  // if (inst->is_virtual()) {
+  //   return true;
+  // }
+  if (pin->is_io()) {
+    IdbNet* idb_net = ctsToIdb(net);
+    auto* idb_pin = ctsToIdb(pin);
+    assert(idb_pin);
+    idb_net->add_io_pin(idb_pin);
+  } else {
+    IdbNet* idb_net = ctsToIdb(net);
+    IdbInstance* idb_inst = ctsToIdb(inst);
 
-  auto* idb_pin_list = idb_inst->get_pin_list();
-  if (idb_pin_list == nullptr) {
-    return false;
-  }
+    auto* idb_pin_list = idb_inst->get_pin_list();
+    if (idb_pin_list == nullptr) {
+      return false;
+    }
 
-  for (auto* idb_pin : idb_pin_list->get_pin_list()) {
-    if (idb_pin->get_pin_name() == pin->get_pin_name()) {
-      idb_net->add_instance_pin(idb_pin);
-      idb_pin->set_net(idb_net);
-      return true;
+    for (auto* idb_pin : idb_pin_list->get_pin_list()) {
+      if (idb_pin->get_pin_name() == pin->get_pin_name()) {
+        idb_net->add_instance_pin(idb_pin);
+        idb_pin->set_net(idb_net);
+        return true;
+      }
     }
   }
   return false;
