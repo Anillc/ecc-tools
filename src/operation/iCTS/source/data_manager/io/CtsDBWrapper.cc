@@ -375,6 +375,8 @@ bool CtsDBWrapper::idbConnect(CtsPin* pin, CtsNet* net)
     auto* idb_pin = ctsToIdb(pin);
     assert(idb_pin);
     idb_net->add_io_pin(idb_pin);
+    idb_pin->set_net(idb_net);
+    return true;
   } else {
     IdbNet* idb_net = ctsToIdb(net);
     IdbInstance* idb_inst = ctsToIdb(inst);
