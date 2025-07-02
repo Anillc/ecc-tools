@@ -48,7 +48,7 @@ void register_imp(pybind11::module& m)
       .def_readwrite("pin_direct", &PyPlaceDB::pin_direct)
       .def_readwrite("pin_offset_x", &PyPlaceDB::pin_offset_x)
       .def_readwrite("pin_offset_y", &PyPlaceDB::pin_offset_y)
-      // .def_readwrite("pin_names", &PyPlaceDB::pin_names)
+      .def_readwrite("pin_names", &PyPlaceDB::pin_names)
       .def_readwrite("net_name2id_map", &PyPlaceDB::net_name2id_map)
       // .def_readwrite("pin_name2id_map", &PyPlaceDB::pin_name2id_map)
       .def_readwrite("net_names", &PyPlaceDB::net_names)
@@ -131,7 +131,10 @@ void register_imp(pybind11::module& m)
       .def_readwrite("flat_lib_pin_slew_limit", &PyPlaceDB::flat_lib_pin_slew_limit)
       .def_readwrite("flat_cells_by_reverse_level_start", &PyPlaceDB::flat_cells_by_reverse_level_start)
       .def_readwrite("c_unit", &PyPlaceDB::c_unit)
-      .def_readwrite("r_unit", &PyPlaceDB::r_unit);
+      .def_readwrite("r_unit", &PyPlaceDB::r_unit)
+      .def_readwrite("dbu", &PyPlaceDB::dbu)
+      .def_readwrite("endpoints_rRAT", &PyPlaceDB::endpoints_rRAT)
+      .def_readwrite("endpoints_fRAT", &PyPlaceDB::endpoints_fRAT);
 
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
   m.def("pydb", [](idm::DataManager* db, bool with_sta) { return PyPlaceDB(db, with_sta); }, "Convert PlaceDB to PyPlaceDB");

@@ -42,6 +42,7 @@ struct PyPlaceDB
   pybind11::list pin_direct;    ///< 1D array, pin direction IO
   pybind11::list pin_offset_x;  ///< 1D array, pin offset x to its node
   pybind11::list pin_offset_y;  ///< 1D array, pin offset y to its node
+  pybind11::list pin_names;  ///< 1D array, pin name
 
   pybind11::dict net_name2id_map;         ///< net name to id map
   pybind11::list net_names;               ///< net name
@@ -71,6 +72,7 @@ struct PyPlaceDB
   int routing_grid_yl;
   int routing_grid_xh;
   int routing_grid_yh;
+  int dbu; ///< database unit, used to convert coordinate to integer
   pybind11::list unit_horizontal_capacities;     ///< number of horizontal tracks of layers per unit distance
   pybind11::list unit_vertical_capacities;       /// number of vertical tracks of layers per unit distance
   pybind11::list initial_horizontal_demand_map;  ///< initial routing demand from fixed cells, indexed by (layer, grid x, grid y)
@@ -94,6 +96,9 @@ struct PyPlaceDB
   pybind11::list inrtrans;   //
   pybind11::list inftrans;   //
   pybind11::list outcaps;    //
+  pybind11::list endpoints_rRAT;
+  pybind11::list endpoints_fRAT;
+
 
   /*instance arcs */
   pybind11::list net_flat_arcs_start;   //
