@@ -530,7 +530,8 @@ int32_t DefWrite::write_pin()
     string use = IdbEnum::GetInstance()->get_connect_property()->get_type_name(pin->get_term()->get_type());
     string is_special = pin->is_special_net_pin() || pin->get_term()->is_special_net() ? "+ SPECIAL " : "";
 
-    writestr(" - %s + NET %s %s+ DIRECTION %s", pin->get_pin_name().c_str(), pin->get_net()->get_net_name().c_str(), is_special.c_str(),
+    writestr(" - %s + NET %s %s+ DIRECTION %s", pin->get_pin_name().c_str(),
+             pin->get_net_name() == "" ? pin->get_net()->get_net_name().c_str() : pin->get_net_name().c_str(), is_special.c_str(),
              direction.c_str());
 
     if (use.empty()) {
