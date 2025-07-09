@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <boost/polygon/polygon.hpp>
 #include <cassert>
+#include <cfloat>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -1587,13 +1588,30 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       pins.append(mPin2ID[pin->get_pin_name()]);
     }
     net2pin_map.append(pins);
-    int pin_num = 0;
+
+    // Make driving pin the first pin
+    IdbPin* driver = net->get_driving_pin();
+    std::string driver_name;
+    if (driver->get_instance() != nullptr) { // Instance Pin
+      driver_name = driver->get_instance()->get_name() + driver->get_pin_name();
+    } else { // IO Pin
+      driver_name = driver->get_pin_name();
+    }
+    flat_net2pin_map.append(mPin2ID[driver_name]);
+    int pin_num = 1;  // include driving pin
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
+      if (pin == driver) {
+        continue;
+      }
       string inst_name = pin->get_instance()->get_name();
       flat_net2pin_map.append(mPin2ID[inst_name + pin->get_pin_name()]);
+      pin_num += 1;
     }
-    pin_num = net->get_instance_pin_list()->get_pin_num();
+
     for (IdbPin* pin : net->get_io_pins()->get_pin_list()) {
+      if (pin == driver) {
+        continue;
+      }
       flat_net2pin_map.append(mPin2ID[pin->get_pin_name()]);
       pin_num += 1;
     }
