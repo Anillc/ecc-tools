@@ -30,6 +30,7 @@
 #include <stack>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "Sta.hh"
 #include "StaDump.hh"
@@ -85,6 +86,7 @@ unsigned StaReportPathSummary::operator()(StaSeqPathData* seq_path_data) {
   unsigned is_ok = 1;
   Sta* ista = Sta::getOrCreateSta();
   auto& report_tbl_summary = ista->get_report_tbl_summary();
+  auto& report_json = ista->getSummaryJsonReport();
 
   auto* capture_clock = seq_path_data->get_capture_clock();
 
@@ -132,11 +134,33 @@ unsigned StaReportPathSummary::operator()(StaSeqPathData* seq_path_data) {
                           << capture_clock->get_clock_name() << delay_type_str
                           << arrive_time_str << req_time_str << cppr_str
                           << slack_str << freq_str << TABLE_ENDLINE;
+
+    if (_json_report_enabled) {
+      report_json.push_back({{"endpoint", endpoint->getName()},
+                             {"clock_group", capture_clock->get_clock_name()},
+                             {"delay_type", delay_type_str},
+                             {"path_delay", arrive_time_str},
+                             {"path_required", req_time_str},
+                             {"cppr", cppr_str},
+                             {"slack", slack_str},
+                             {"freq", freq_str}});
+    }
   } else {
     const char* capture_clock_str = "**clock_gating_default**";
     (*report_tbl_summary) << endpoint->getName() << capture_clock_str
                           << delay_type_str << arrive_time_str << req_time_str
                           << cppr_str << slack_str << "NA" << TABLE_ENDLINE;
+
+    if (_json_report_enabled) {
+      report_json.push_back({{"endpoint", endpoint->getName()},
+                             {"clock_group", capture_clock_str},
+                             {"delay_type", delay_type_str},
+                             {"path_delay", arrive_time_str},
+                             {"path_required", req_time_str},
+                             {"cppr", cppr_str},
+                             {"slack", slack_str},
+                             {"freq", "NA"}});
+    }
   }
 
   return is_ok;
@@ -239,6 +263,17 @@ unsigned StaReportClockTNS::operator()(StaSeqPathData* seq_path_data) {
 
   (*report_tbl_TNS) << capture_clock->get_clock_name() << delay_type_str
                     << fix_point_str(TNS) << TABLE_ENDLINE;
+
+  if (isJsonReportEnabled()) {
+    auto& report_json = ista->getSlackJsonReport();
+    auto WNS = ista->getWNS(capture_clock_name, delay_type);
+
+    report_json.push_back({{"clock", capture_clock->get_clock_name()},
+                           {"delay_type", delay_type_str},
+                           {"TNS", fix_point_str(TNS)},
+                           {"WNS", fix_point_str(WNS)}});
+  }
+
   return is_ok;
 }
 
@@ -299,22 +334,24 @@ unsigned StaReportPathDetail::operator()(StaSeqPathData* seq_path_data) {
 
 #if CUDA_PROPAGATION
   auto& at_to_index = ista->get_at_to_index();
-#else 
-  std::map<ista::StaPathDelayData *, unsigned int> at_to_index;
+#else
+  std::map<ista::StaPathDelayData*, unsigned int> at_to_index;
 #endif
 
-  auto print_path_data = [&report_tbl, &fix_point_str, &is_derate, &at_to_index](
-                             auto& path_stack, auto clock_path_arrive_time) {
+  auto print_path_data = [&report_tbl, &fix_point_str, &is_derate,
+                          &at_to_index](auto& path_stack,
+                                        auto clock_path_arrive_time) {
     double last_arrive_time = 0;
     StaVertex* last_vertex = nullptr;
     while (!path_stack.empty()) {
       auto* path_delay_data = path_stack.top();
       std::string path_delay_index_str;
 #if CUDA_PROPAGATION
-      unsigned gpu_at_index = at_to_index[dynamic_cast<StaPathDelayData*>(path_delay_data)];
+      unsigned gpu_at_index =
+          at_to_index[dynamic_cast<StaPathDelayData*>(path_delay_data)];
       path_delay_index_str = Str::printf("(GPU AT %d)", gpu_at_index);
 #endif
-  
+
       auto* own_vertex = path_delay_data->get_own_vertex();
       auto trans_type = path_delay_data->get_trans_type();
       auto delay_type = path_delay_data->get_delay_type();
@@ -719,6 +756,148 @@ unsigned StaReportPathDetail::operator()(StaSeqPathData* seq_path_data) {
   return is_ok;
 }
 
+StaReportPathDetailJson::StaReportPathDetailJson(const char* rpt_file_name,
+                                                 AnalysisMode analysis_mode,
+                                                 unsigned n_worst,
+                                                 bool is_derate)
+    : StaReportPathDetail(rpt_file_name, analysis_mode, n_worst, is_derate) {}
+
+/**
+ * @brief Report seq path detail information in json format.
+ *
+ * @param seq_path_data
+ * @return unsigned
+ */
+unsigned StaReportPathDetailJson::operator()(StaSeqPathData* seq_path_data) {
+  unsigned is_ok = 1;
+  auto* ista = Sta::getOrCreateSta();
+  auto& report_json = ista->getDetailJsonReport();
+  std::string fix_str = "%." + std::to_string(get_significant_digits()) + "f";
+  auto fix_point_str = [fix_str](double data) {
+    return Str::printf(fix_str.c_str(), data);
+  };
+
+  auto print_path_data = [&](auto& path_stack, auto clock_path_arrive_time,
+                             nlohmann::json& path_json) {
+    double last_arrive_time = 0;
+    StaVertex* last_vertex = nullptr;
+
+    auto& detail_json = path_json["detail"];
+    auto& summary_json = path_json["summary"] = nlohmann::json::array();
+
+    // Helper function to extract module name from hierarchical vertex name
+    bool failed_extract_module_name = false;
+    auto extract_module_name = [](const std::string& name) -> std::string {
+      auto pos = name.find('/');
+      if (pos != std::string::npos) {
+        return name.substr(0, pos);
+      }
+      return "";
+    };
+
+    // Module statistics tracking
+    struct stats {
+      unsigned count = 0;
+      double total_delay = 0.0;
+    };
+
+    std::unordered_map<std::string, stats> module_stats_map;
+
+    while (!path_stack.empty()) {
+      auto* path_delay_data = path_stack.top();
+      std::string path_delay_index_str;
+
+      auto* own_vertex = path_delay_data->get_own_vertex();
+      auto trans_type = path_delay_data->get_trans_type();
+
+      auto arrive_time = FS_TO_NS(path_delay_data->get_arrive_time());
+
+      // if vertex is clock, use trigger type to report.
+      if (own_vertex->is_clock()) {
+        trans_type = own_vertex->isRisingTriggered() ? TransType::kRise
+                                                     : TransType::kFall;
+      }
+
+      const char* trans_type_str = (trans_type == TransType::kRise) ? "r" : "f";
+      auto incr_time = arrive_time - last_arrive_time;
+      last_arrive_time = arrive_time;
+
+      auto name = own_vertex->getNameWithCellName();
+
+      detail_json.push_back(
+          {{"name", name},
+           {"incr_delay", fix_point_str(incr_time)},
+           {"path_delay",
+            std::string(fix_point_str(arrive_time + clock_path_arrive_time)) +
+                trans_type_str}});
+
+      // Check if hierarchical naming convention is followed for module
+      // extraction
+      auto module_name = extract_module_name(name);
+      if (module_name.empty() && !failed_extract_module_name) {
+        LOG_WARNING
+            << "Cannot extract module name from vertex: " << name
+            << ". Hierarchical naming (e.g., 'module/instance') is required "
+            << ", but Yosys may flatten hierarchy.";
+        failed_extract_module_name = true;
+      }
+
+      // If once failed to extract module name, do not count it again.
+      if (!failed_extract_module_name) {
+        module_stats_map[module_name].count++;
+        module_stats_map[module_name].total_delay += incr_time;
+      }
+
+      last_vertex = own_vertex;
+      path_stack.pop();
+    }
+
+    if (!failed_extract_module_name) {
+      for (const auto& [module, stat] : module_stats_map) {
+        summary_json.push_back({{"module", module},
+                                {"count", stat.count},
+                                {"total_delay", stat.total_delay}});
+      }
+    }
+
+    path_json["end_point"] = last_vertex->getNameWithCellName();
+  };
+
+  // The arrive time
+  std::stack<StaPathDelayData*> path_stack = seq_path_data->getPathDelayData();
+
+  nlohmann::json path_json = nlohmann::json::object();
+
+  // Set the clock domain
+  auto* capture_clock = seq_path_data->get_capture_clock();
+  path_json["clock_field"] = capture_clock->get_clock_name();
+
+  // Determain the delay type
+  auto* check_arc = seq_path_data->get_check_arc();
+  path_json["type"] = check_arc->isSetupArc() ? "setup" : "hold";
+
+  // Set the path delay
+  auto slack = seq_path_data->getSlack();
+  path_json["slack"] = fix_point_str(FS_TO_NS(slack));
+
+  // Set the starting point of the timing path
+  auto* start_end = path_stack.top();
+  path_json["start_point"] = start_end->get_own_vertex()->getNameWithCellName();
+
+  // Calculate the total clock path arrival time
+  auto* path_delay_data = path_stack.top();
+  auto* launch_clock_data = path_delay_data->get_launch_clock_data();
+  auto launch_network_time = FS_TO_NS(launch_clock_data->get_arrive_time());
+  double launch_edge = FS_TO_NS(seq_path_data->getLaunchEdge());
+  double clock_path_arrive_time = launch_edge + launch_network_time;
+
+  // Populate detailed path information
+  print_path_data(path_stack, clock_path_arrive_time, path_json);
+
+  report_json.push_back(path_json);
+  return is_ok;
+}
+
 StaReportPathDump::StaReportPathDump(const char* rpt_file_name,
                                      AnalysisMode analysis_mode,
                                      unsigned n_worst)
@@ -751,8 +930,7 @@ unsigned StaReportPathDump::operator()(StaSeqPathData* seq_path_data) {
     path_stack.pop();
   }
 
-  std::string design_work_space =
-      dump_yaml.getSta()->get_design_work_space();
+  std::string design_work_space = dump_yaml.getSta()->get_design_work_space();
   std::string path_dir = design_work_space + "/path";
   std::filesystem::create_directories(path_dir);
 
@@ -814,6 +992,46 @@ unsigned StaReportPathYaml::operator()(StaSeqPathData* seq_path_data) {
       "%s/path_delay_%s_%d.yaml", path_dir.c_str(), tmp.c_str(), file_id++);
 
   dump_delay_yaml.printText(text_file_name);
+
+  return 1;
+}
+
+StaReportPathTimingData::StaReportPathTimingData(const char* rpt_file_name,
+                                                 AnalysisMode analysis_mode,
+                                                 unsigned n_worst)
+    : StaReportPathSummary(rpt_file_name, analysis_mode, n_worst) {}
+
+/**
+ * @brief report path timing data in memory for python call.
+ *
+ * @param seq_path_data
+ * @return unsigned
+ */
+unsigned StaReportPathTimingData::operator()(StaSeqPathData* seq_path_data) {
+  StaDumpTimingData dump_timing_data;
+
+  std::stack<StaPathDelayData*> path_stack = seq_path_data->getPathDelayData();
+
+  StaVertex* last_vertex = nullptr;
+  while (!path_stack.empty()) {
+    auto* path_delay_data = path_stack.top();
+    auto* own_vertex = path_delay_data->get_own_vertex();
+    dump_timing_data.set_analysis_mode(path_delay_data->get_delay_type());
+    dump_timing_data.set_trans_type(path_delay_data->get_trans_type());
+
+    if (last_vertex) {
+      auto snk_arcs = last_vertex->getSnkArc(own_vertex);
+      auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
+      snk_arc->exec(dump_timing_data);
+    }
+
+    last_vertex = own_vertex;
+
+    path_stack.pop();
+  }
+
+  auto wire_timing_datas = dump_timing_data.get_wire_timing_datas();
+  set_path_timing_data(std::move(wire_timing_datas));
 
   return 1;
 }

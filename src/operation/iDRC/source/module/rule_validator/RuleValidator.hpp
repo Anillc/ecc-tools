@@ -48,13 +48,14 @@ class RuleValidator
   // function
   RVModel initRVModel(std::vector<DRCShape>& drc_env_shape_list, std::vector<DRCShape>& drc_result_shape_list);
   void setRVComParam(RVModel& rv_model);
-  void buildRVModel(RVModel& rv_model);
+  void buildRVBoxList(RVModel& rv_model);
   void verifyRVModel(RVModel& rv_model);
   bool needVerifying(RVBox& rv_box);
   void buildViolationSet(RVBox& rv_box);
   void verifyRVBox(RVBox& rv_box);
   void verifyAdjacentCutSpacing(RVBox& rv_box);
   void verifyCornerFillSpacing(RVBox& rv_box);
+  void verifyCornerSpacing(RVBox& rv_box);
   void verifyCutEOLSpacing(RVBox& rv_box);
   void verifyCutShort(RVBox& rv_box);
   void verifyDifferentLayerCutSpacing(RVBox& rv_box);

@@ -122,7 +122,7 @@ double getSegmentCapacitance(int layer_id, double segment_length) {
   return capacitance;
 }
 
-bool makeRCTreeInnerNode(const std::string& net_name, int id, float cap)
+std::string makeRCTreeInnerNode(const std::string& net_name, int id, float cap)
 {
   auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
   auto* ista = ista::Sta::getOrCreateSta();
@@ -130,10 +130,10 @@ bool makeRCTreeInnerNode(const std::string& net_name, int id, float cap)
   auto* rc_node = timing_engine->makeOrFindRCTreeNode(the_net, id);
   rc_node->incrCap(cap);
 
-  return true;
+  return rc_node->get_name();
 }
 
-bool makeRCTreeObjNode(const std::string& pin_port_name, float cap) {
+std::string makeRCTreeObjNode(const std::string& pin_port_name, float cap) {
   auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
   auto* ista = ista::Sta::getOrCreateSta();
 
@@ -143,7 +143,7 @@ bool makeRCTreeObjNode(const std::string& pin_port_name, float cap) {
   auto* rc_node = timing_engine->makeOrFindRCTreeNode(the_pin_ports.front());
   rc_node->incrCap(cap);
 
-  return true;
+  return rc_node->get_name();
 }
 
 bool makeRCTreeEdge(const std::string& net_name, std::string& node1, std::string& node2, float res) {
@@ -171,6 +171,7 @@ bool updateRCTreeInfo(const std::string& net_name) {
 bool updateTiming()
 {
   auto* ista = ista::Sta::getOrCreateSta();
+  ista->buildGraph();
   ista->updateTiming();
   return true;
 }
@@ -182,7 +183,36 @@ bool reportSta()
   return true;
 }
 
+std::vector<PathWireTimingData> getWireTimingData(unsigned n_worst_path_per_clock)
+{
+  auto* ista = ista::Sta::getOrCreateSta();
+  auto path_wire_timing_data = ista->reportTimingData(n_worst_path_per_clock);
 
+  std::vector<PathWireTimingData> ret_timing_data;
+
+  for (auto& one_path_wire_timing_data : path_wire_timing_data) {
+    PathWireTimingData ret_one_path_data;
+    for (auto& wire_timing_data : one_path_wire_timing_data) {
+      WireTimingData ret_wire_data;
+      ret_wire_data._from_node_name = std::move(wire_timing_data._from_node_name);
+      ret_wire_data._to_node_name = std::move(wire_timing_data._to_node_name);
+      ret_wire_data._wire_resistance = wire_timing_data._wire_resistance;
+      ret_wire_data._wire_capacitance = wire_timing_data._wire_capacitance;
+      ret_wire_data._wire_delay = wire_timing_data._wire_delay;
+      ret_wire_data._wire_from_slew = wire_timing_data._wire_from_slew;
+      ret_wire_data._wire_to_slew = wire_timing_data._wire_to_slew;
+
+      ret_one_path_data.emplace_back(std::move(ret_wire_data));
+    }
+
+    ret_timing_data.emplace_back(std::move(ret_one_path_data));
+
+  }
+
+  LOG_INFO << "get wire data size: " << ret_timing_data.size();
+
+  return ret_timing_data;
+}
 
 bool reportTiming(int digits, const std::string& delay_type, std::set<std::string> exclude_cell_names, bool derate)
 {

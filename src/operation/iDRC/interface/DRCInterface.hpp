@@ -93,8 +93,13 @@ class DRCInterface
   bool isSkipping(idb::IdbNet* idb_net);
   std::vector<ids::Shape> buildResultShapeList();
   void printSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map);
+  void outputViolationJson(std::map<std::string, std::vector<ids::Violation>>& type_violation_map);
   void outputSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map);
   DRCShape convertToDRCShape(const ids::Shape& ids_shape);
+#endif
+
+#if 1  // ecos
+  void sendNotification(std::string stage, std::string json_path);
 #endif
 
 #endif

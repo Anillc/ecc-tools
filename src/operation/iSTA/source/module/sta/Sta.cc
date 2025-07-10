@@ -94,8 +94,8 @@ Sta::Sta()
       _clock_groups(sta_clock_cmp) {
   char config[] = "iSTA";
   char *argv[] = {config, nullptr};
-  // We need to initialize the log system here, because Sta() may be called in pybind,
-  // which does not have a main function to initialize the log system.
+  // We need to initialize the log system here, because Sta() may be called in
+  // pybind, which does not have a main function to initialize the log system.
   Log::init(argv);
 
   _report_tbl_summary = StaReportPathSummary::createReportTable("sta");
@@ -1840,6 +1840,7 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate /*=true*/) {
 
       StaReportPathSummary report_path_summary(rpt_file_name, mode, n_worst);
       report_path_summary.set_significant_digits(get_significant_digits());
+      report_path_summary.enableJsonReport(isJsonReportEnabled());
 
       StaReportPathDetail report_path_detail(rpt_file_name, mode, n_worst,
                                              is_derate);
@@ -1847,6 +1848,7 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate /*=true*/) {
 
       StaReportClockTNS report_path_TNS(rpt_file_name, mode, 1);
       report_path_TNS.set_significant_digits(get_significant_digits());
+      report_path_TNS.enableJsonReport(isJsonReportEnabled());
 
       std::vector<StaReportPathSummary *> report_funcs{
           &report_path_summary, &report_path_detail, &report_path_TNS};
@@ -1856,6 +1858,13 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate /*=true*/) {
 
       if (c_print_delay_yaml) {
         report_funcs.emplace_back(&report_path_dump);
+      }
+
+      StaReportPathDetailJson report_path_detail_json(rpt_file_name, mode,
+                                                      n_worst, is_derate);
+
+      if (isJsonReportEnabled()) {
+        report_funcs.emplace_back(&report_path_detail_json);
       }
 
       for (auto *report_fun : report_funcs) {
@@ -1889,6 +1898,24 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate /*=true*/) {
 
   for (auto &report_tbl_detail : _report_tbl_details) {
     std::fprintf(f.get(), "%s", report_tbl_detail->c_str());
+  }
+
+  if (isJsonReportEnabled()) {
+    nlohmann::json dump_json;
+    dump_json["summary"] = _summary_json_report;
+    dump_json["slack"] = _slack_json_report;
+    dump_json["detail"] = _detail_json_report;
+
+    auto *report_path = Str::printf("%s.json", rpt_file_name);
+
+    std::ofstream out_file(report_path);
+    if (out_file.is_open()) {
+      out_file << dump_json.dump(4);  // 4 spaces indent
+      LOG_INFO << "JSON report written to: " << report_path;
+      out_file.close();
+    } else {
+      LOG_ERROR << "Failed to open JSON report file: " << report_path;
+    }
   }
 
   return 1;
@@ -3069,6 +3096,36 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
   LOG_INFO << "The timing engine run success.";
 
   return 1;
+}
+
+/**
+ * @brief report timing data in memory for online analysis.
+ *
+ * @param n_worst_path_per_clock
+ * @return unsigned
+ */
+std::vector<StaPathWireTimingData> Sta::reportTimingData(unsigned n_worst_path_per_clock) {
+  LOG_INFO << "get wire timing start";
+  std::vector<StaPathWireTimingData> path_timing_data;
+
+  set_n_worst_path_per_clock(n_worst_path_per_clock);
+
+  for (auto analysi_mode : {AnalysisMode::kMax, AnalysisMode::kMin}) {
+    StaReportPathTimingData report_path_timing_data_func(
+        nullptr, analysi_mode, n_worst_path_per_clock);
+    for (auto &[capture_clock, seq_path_group] : _clock_groups) {
+      auto group_timing_data =
+          report_path_timing_data_func.getPathGroupTimingData(
+              seq_path_group.get());
+      path_timing_data.insert(path_timing_data.end(), group_timing_data.begin(),
+                              group_timing_data.end());
+    }
+  }
+
+  LOG_INFO << "the wire timing data size: " << path_timing_data.size();
+  LOG_INFO << "get wire timing end";
+
+  return path_timing_data;
 }
 
 /**
