@@ -32,6 +32,8 @@
 #include "IdbEnum.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 
 using namespace std;
 
@@ -226,7 +228,8 @@ string IdbSiteProperty::get_orient_name(IdbOrient oreint_value)
 {
   auto iter = _orient_string_list.find(oreint_value);
   if (iter == _orient_string_list.end()) {
-    return string("");
+    printf("Error : IdbSiteProperty::get_orient_name: Invalid IdbOrient value");
+    exit(1);
   }
 
   return iter->second;
