@@ -387,7 +387,7 @@ void CTSAPI::readClockNetNames() const
         auto io_pin = idb_net->get_io_pins()->get_pin_list().at(0);
         int io_pin_num = idb_net->get_io_pins()->get_pin_num();
         int inst_pin_num = idb_net->get_instance_pin_list()->get_pin_num();
-        if (io_pin_num == 1 && inst_pin_num == 1) {
+        if (io_pin_num == 1 && inst_pin_num <= 1) {
           LOG_WARNING << "Clock :" << sta_clock->get_clock_name() << ", Net: " << sta_net->get_name()
                       << " has no valid io pin coordinates, skipping.";
           idb_net->set_connect_type(IdbConnectType::kClock);
@@ -1192,6 +1192,5 @@ ieda_feature::CTSSummary CTSAPI::outputSummary()
 
   return summary;
 }
-
 
 }  // namespace icts

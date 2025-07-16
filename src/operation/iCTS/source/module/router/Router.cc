@@ -210,11 +210,11 @@ void Router::synthesisNet(Net* net)
   std::ranges::for_each(net->get_pins(), [&](Pin* pin) {
     auto* cts_pin = design->findPin(pin->get_name());
     LOG_FATAL_IF(!cts_pin) << "Can't found pin " << pin->get_name() << " in net " << net->get_name();
-    if (cts_pin->is_io() && cts_pin->get_pin_type() == CtsPinType::kIn) {
-      return;
-    }
+    // if (cts_pin->is_io() && cts_pin->get_pin_type() == CtsPinType::kIn) {
+    //   return;
+    // }
     if (cts_pin->is_io()) {
-      std::cout << "IO pin: " << cts_pin->get_pin_name() << " in net: " << net->get_name() << std::endl;
+      std::cout << "SynthesisNet: IO pin: " << cts_pin->get_pin_name() << " in net: " << net->get_name() << std::endl;
     }
     db_wrapper->idbDisconnect(cts_pin);
     db_wrapper->idbConnect(cts_pin, cts_net);
