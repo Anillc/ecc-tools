@@ -117,6 +117,8 @@ struct PyPlaceDB
   pybind11::list cell_id_2_libpin_id_start;  // [num_lib_cells, ] cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
   pybind11::list pin_2_libpin_offset; 
   pybind11::list flat_lib_pin_cap;           // 
+  pybind11::list flat_lib_pin_rcap;          //
+  pybind11::list flat_lib_pin_fcap;          //
   pybind11::list flat_lib_pin_cap_limit;     // 
   pybind11::list flat_lib_pin_slew_limit;    // 
 

@@ -772,14 +772,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   Graph reverse_graph;  //
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
     assert(net->get_driving_pin());
-    if (net->get_net_name().find("uio_oe_1_") != std::string::npos) {
-      // DEBUG
-      std::cout << "DEBUG: net " << net->get_net_name() << ": " << net->is_clock() << " is pdn: " << net->is_pdn()
-                << " is power: " << net->is_power() << " is ground: " << net->is_ground()
-                << " no driving pin: " << (net->get_driving_pin()->get_instance() == nullptr)
-                << " no pin list: " << (net->get_instance_pin_list()->get_pin_list().size() == 0) << std::endl;
-      // DEBUG
-    }
     if (net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
         || net->get_driving_pin()->get_instance() == nullptr) {
       continue;
@@ -949,7 +941,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   /*--------------------------------lib cell arcs info------------------------------------------*/
   /*
-    info_2_arc_idx:   [main_type, from_lib_pin, to_lib_pin] -> arc_idx
+    info2arc_idx:   [main_type, from_lib_pin, to_lib_pin] -> arc_idx
 
     flat_luts_values: torch.Tensor      # [ARC_NUM, MaxT, MaxC]
     flat_luts_trans_table : torch.Tensor  # [ARC_NUM, MaxT]
@@ -963,7 +955,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     main_type -> cell_types -> arc_idx ->
   */
 
-  std::unordered_map<std::string, int> info_2_arc_idx;
+  std::unordered_map<std::string, std::vector<int>> info2arc_idx;
+  std::unordered_map<std::string, std::vector<ista::LibArc::TimingSense>> info2arc_sense;
   int main_type_id = 0;
   int lib_cell_idx = 0;
   int arc_idx = 0;
@@ -976,7 +969,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     //     auto from_lib_pin = arc->get_src_port();
     //     auto to_lib_pin = arc->get_snk_port();
     //     string info = main_type + "_" + from_lib_pin + "_" + to_lib_pin;
-    //     info_2_arc_idx[info] = arc_idx++;
+    //     info2arc_idx[info] = arc_idx++;
     //     if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall
     //         || arc->get_timing_type() != ista::LibArc::TimingType::kCombRise) {
     //       continue;
@@ -1013,7 +1006,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
               && arc->get_timing_type() != ista::LibArc::TimingType::kComb) {
             continue;
           }
-          info_2_arc_idx[info] = arc_idx++;
+          info2arc_idx[info].push_back(arc_idx++);
+          info2arc_sense[info].push_back(arc->get_timing_sense());
           auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
                                     pybind11::list& flat_luts_cap_table, pybind11::list& flat_luts_dim, LibTable* table) {
             int num_tran = table->get_axes().at(TRAN_AXIS)->get_axis_size();
@@ -1066,9 +1060,21 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         libpin_name2libpin_offset[info] = pin_offset++;
         lib_pin_idx++;
         if (libpin->isInput()) {
-          flat_lib_pin_cap.append(libpin->get_port_cap());
+          auto cap = libpin->get_port_cap();
+          auto rcap = libpin->get_port_cap(AnalysisMode::kMaxMin, TransType::kRise);
+          auto fcap = libpin->get_port_cap(AnalysisMode::kMaxMin, TransType::kFall);
+          flat_lib_pin_cap.append(cap);
+          if (rcap.has_value() && fcap.has_value()) {
+            flat_lib_pin_rcap.append(rcap.value());
+            flat_lib_pin_fcap.append(fcap.value());
+          } else {
+            flat_lib_pin_rcap.append(cap);
+            flat_lib_pin_fcap.append(cap);
+          }
         } else {
           flat_lib_pin_cap.append(0);
+          flat_lib_pin_rcap.append(0);
+          flat_lib_pin_fcap.append(0);
         }
         double cap_limit = libpin->get_port_cap_limit(AnalysisMode::kMax).has_value()
                                ? libpin->get_port_cap_limit(AnalysisMode::kMax).value()
@@ -1153,15 +1159,29 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         string from_lib_pin = input_pin->get_pin_name();
         string to_lib_pin = output_pin->get_pin_name();
         string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
-        if (info_2_arc_idx.count(info)) {
-          int arc_idx = info_2_arc_idx[info];
+        if (info2arc_idx.count(info)) {
+          for (int i = 0; i < info2arc_idx[info].size(); i++) {
+            int arc_idx = info2arc_idx[info][i];
+            auto sense = info2arc_sense[info][i];
+            int arc_sense = 0;
+            if (sense == ista::LibArc::TimingSense::kNegativeUnate) {
+              arc_sense = -1;  // negative
+            } else if (sense == ista::LibArc::TimingSense::kNonUnate) {
+              arc_sense = 0;  // none
+            } else if (sense == ista::LibArc::TimingSense::kPositiveUnate) {
+              arc_sense = 1;  // positive
+            } else {
+              arc_sense = 1;  // by default
+            }
           pybind11::list arc;
           arc.append(mPin2ID[node_name + from_lib_pin]);
           arc.append(mPin2ID[node_name + to_lib_pin]);
           arc.append(cell_type2cell_id[cell_type]);
           arc.append(arc_idx);
+            arc.append(arc_sense);
           cell_flat_arcs.append(arc);
           cell_flat_arcs_idx++;
+          }
         }
       }
     }
@@ -1244,7 +1264,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
       std::string inst_name = pin->get_instance()->get_name();
       std::string pin_name = pin->get_pin_name();
-      std::string full_pin_name = inst_name + "/" + pin_name;
+      std::string full_pin_name = inst_name + ":" + pin_name; //: or /
       pin_names.append(full_pin_name);
       mPin2ID[inst_name + pin->get_pin_name()] = pin_id++;
     }

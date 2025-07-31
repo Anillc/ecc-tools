@@ -40,6 +40,8 @@ void register_ista(py::module& m)
 
   m.def("build_timing_graph", build_timing_graph);
   m.def("update_clock_timing", update_clock_timing);
+  m.def("build_rc_tree_from_flat_data", buildRcTreeFromFlatData);
+  m.def("update_and_get_all_pin_timings", updateAndGetAllPinTimings);
   m.def("get_used_libs", get_used_libs);
   m.def("convert_idb_to_timing_netlist", convertDBToTimingNetlist);
 }
