@@ -15,24 +15,38 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
+#include <string>
 
-#include "LayerCoord.hpp"
+#include "vec_layout.h"
 
-namespace irt {
+namespace ivec {
 
-class LAGroup
+class VecFeatureDrc
 {
  public:
-  LAGroup() = default;
-  ~LAGroup() = default;
-  // getter
-  std::vector<LayerCoord>& get_coord_list() { return _coord_list; }
-  // setter
-  void set_coord_list(const std::vector<LayerCoord>& coord_list) { _coord_list = coord_list; }
-  // function
+  VecFeatureDrc(VecLayout* layout, std::string drc_path)
+  {
+    _layout = layout;
+    _drc_path = drc_path;
+  }
+  ~VecFeatureDrc() {}
+
+  void build();
 
  private:
-  std::vector<LayerCoord> _coord_list;
+  VecLayout* _layout;
+  std::string _drc_path;
+  int origin_drc_num = 0;
+  int mark_drc_num = 0;
+
+  void feature_graph();
+  void feature_patch();
+
+  void markNodes();
+  void markWires();
+  void markNets();
+
+  std::map<int, std::string> _drc_id_to_type;
 };
 
-}  // namespace irt
+}  // namespace ivec

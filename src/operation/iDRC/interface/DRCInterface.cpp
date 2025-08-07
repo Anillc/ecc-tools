@@ -83,7 +83,7 @@ void DRCInterface::initDRC(std::map<std::string, std::any> config_map, bool enab
 void DRCInterface::checkDef()
 {
   std::map<std::string, std::vector<ids::Violation>> type_violation_map;
-  for (ids::Violation& ids_violation : getViolationList(buildEnvShapeList(), buildResultShapeList())) {
+  for (ids::Violation& ids_violation : getViolationList(buildEnvShapeList(), buildResultShapeList(), {}, {})) {
     type_violation_map[ids_violation.violation_type].push_back(ids_violation);
   }
   printSummary(type_violation_map);
@@ -118,7 +118,9 @@ void DRCInterface::destroyDRC()
 }
 
 std::vector<ids::Violation> DRCInterface::getViolationList(const std::vector<ids::Shape>& ids_env_shape_list,
-                                                           const std::vector<ids::Shape>& ids_result_shape_list)
+                                                           const std::vector<ids::Shape>& ids_result_shape_list,
+                                                           const std::set<std::string>& ids_check_type_set,
+                                                           const std::vector<ids::Shape>& ids_check_region_list)
 {
   std::vector<DRCShape> drc_env_shape_list;
   drc_env_shape_list.reserve(ids_env_shape_list.size());
@@ -130,8 +132,16 @@ std::vector<ids::Violation> DRCInterface::getViolationList(const std::vector<ids
   for (const ids::Shape& ids_result_shape : ids_result_shape_list) {
     drc_result_shape_list.push_back(convertToDRCShape(ids_result_shape));
   }
+  std::set<ViolationType> drc_check_type_set;
+  for (std::string ids_check_type : ids_check_type_set) {
+    drc_check_type_set.insert(GetViolationTypeByName()(ids_check_type));
+  }
+  std::vector<DRCShape> drc_check_region_list;
+  for (const ids::Shape& ids_check_region : ids_check_region_list) {
+    drc_check_region_list.push_back(convertToDRCShape(ids_check_region));
+  }
   std::vector<ids::Violation> ids_violation_list;
-  for (Violation& violation : DRCRV.verify(drc_env_shape_list, drc_result_shape_list)) {
+  for (Violation& violation : DRCRV.verify(drc_env_shape_list, drc_result_shape_list, drc_check_type_set, drc_check_region_list)) {
     ids::Violation ids_violation;
     ids_violation.violation_type = GetViolationTypeName()(violation.get_violation_type());
     ids_violation.ll_x = violation.get_ll_x();
@@ -169,7 +179,6 @@ void DRCInterface::wrapConfig(std::map<std::string, std::any>& config_map)
   DRCDM.getConfig().temp_directory_path = DRCUTIL.getConfigValue<std::string>(config_map, "-temp_directory_path", "./drc_temp_directory");
   DRCDM.getConfig().thread_number = DRCUTIL.getConfigValue<int32_t>(config_map, "-thread_number", 128);
   DRCDM.getConfig().golden_directory_path = DRCUTIL.getConfigValue<std::string>(config_map, "-golden_directory_path", "null");
-  DRCDM.getConfig().enable_notification = DRCUTIL.getConfigValue<int32_t>(config_map, "-enable_notification", 0);
   omp_set_num_threads(std::max(DRCDM.getConfig().thread_number, 1));
   /////////////////////////////////////////////
 }
@@ -993,10 +1002,7 @@ void DRCInterface::outputViolationJson(std::map<std::string, std::vector<ids::Vi
   std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
   std::string& temp_directory_path = DRCDM.getConfig().temp_directory_path;
-  int32_t enable_notification = DRCDM.getConfig().enable_notification;
-  if (!enable_notification) {
-    return;
-  }
+
   std::vector<idb::IdbNet*>& idb_net_list = dmInst->get_idb_def_service()->get_design()->get_net_list()->get_net_list();
   std::vector<nlohmann::json> violation_json_list;
   for (auto& [type, violation_list] : type_violation_map) {
@@ -1024,7 +1030,6 @@ void DRCInterface::outputViolationJson(std::map<std::string, std::vector<ids::Vi
   std::ofstream* violation_json_file = DRCUTIL.getOutputFileStream(violation_json_file_path);
   (*violation_json_file) << violation_json_list;
   DRCUTIL.closeFileStream(violation_json_file);
-  sendNotification(DRCUTIL.getString("DRC_violation_map"), violation_json_file_path);
 }
 
 void DRCInterface::outputSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
@@ -1055,20 +1060,6 @@ DRCShape DRCInterface::convertToDRCShape(const ids::Shape& ids_shape)
   drc_shape.set_layer_idx(ids_shape.layer_idx);
   drc_shape.set_is_routing(ids_shape.is_routing);
   return drc_shape;
-}
-
-#endif
-
-#if 1  // ecos
-
-void DRCInterface::sendNotification(std::string stage, std::string json_path)
-{
-  std::map<std::string, std::string> notification;
-  notification["stage"] = stage;
-  notification["json_path"] = json_path;
-  if (!ieda::NotificationUtility::getInstance().sendNotification("iDRC", notification).success) {
-    DRCLOG.warn(Loc::current(), "Failed to send notification!");
-  }
 }
 
 #endif

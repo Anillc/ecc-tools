@@ -58,10 +58,14 @@ class DataManager
 #endif
 
 #if 1  // 获得NetShapeList
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list);
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, Segment<LayerCoord>& segment);
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree);
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, Segment<LayerCoord>& segment);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, Segment<LayerCoord>& segment);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord);
 #endif
 
 #if 1  // 获得唯一的pitch
@@ -123,7 +127,8 @@ class DataManager
   void printConfig();
   void printDatabase();
   void outputScript();
-  void outputEnvJson();
+  void outputJson();
+  std::string outputEnvJson();
 #endif
 
 #if 1  // destroy

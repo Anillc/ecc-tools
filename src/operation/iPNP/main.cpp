@@ -35,7 +35,7 @@
 #include "PNPConfig.hh"
 #include <ctime>
 #include "tcl/UserShell.hh"
-#include "tcl-cmd/ShellCmd.hh"
+#include "pnp-cmd/PNPShellCmd.hh"
 
 using namespace idb;
 using namespace ipnp;
@@ -48,6 +48,8 @@ int registerCommands() {
 }
 
 int main(int argc, char** argv) {
+
+  Log::init(argv, "/home/sujianrong/iEDA/src/operation/iPNP/example/result/log_info/");
 
   std::string hello_info =
       "\033[49;32m***************************\n"
@@ -172,5 +174,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  Log::end();
+  
   return 0;
 }

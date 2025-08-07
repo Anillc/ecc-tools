@@ -33,6 +33,7 @@
 #include "py_register_ista.h"
 #include "py_register_ito.h"
 #include "py_register_report.h"
+#include "py_register_vec.h"
 #include "python_module.h"
 
 namespace python_interface {
@@ -58,6 +59,7 @@ PYBIND11_MODULE(ieda_py, m)
   register_feature(m);
   register_eval(m);
   register_imp(m);
+  register_vectorization(m);
 }
 
 }  // namespace python_interface

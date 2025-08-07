@@ -19,4 +19,8 @@ else()
 endif()
 
 TARGET_LINK_LIBRARIES(log PUBLIC ${LINK_glog} ${LINK_gflags} ${LINK_unwind})
-# install(TARGETS log DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+target_include_directories(log
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
