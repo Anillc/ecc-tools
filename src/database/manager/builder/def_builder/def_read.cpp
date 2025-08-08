@@ -33,6 +33,7 @@
 
 #include "def_read.h"
 
+#include <cstdio>
 #include <regex>
 
 #include "../../../data/design/IdbDesign.h"
@@ -1581,7 +1582,9 @@ int32_t DefRead::parse_pin(defiPin* def_pin)
 
   std::string pin_name = def_pin->pinName();
   std::string new_pin_name = ieda::Str::trimEscape(pin_name);
-
+  if (pin_name == "oDRAM1_CLK") {
+    printf("hhh");
+  }
   IdbPin* pin = pin_list->add_pin_list(new_pin_name);
   if (pin == nullptr) {
     std::cout << "Create Pin Error..." << std::endl;
@@ -1661,8 +1664,12 @@ int32_t DefRead::parse_pin(defiPin* def_pin)
         }
       }
     }
-
+    auto port_0 = io_term->get_port_list().at(0);
+    auto port_0_coordinate = port_0->get_io_average_coordinate();
     pin->set_port_layer_shape();
+    pin->set_location(port_0_coordinate->get_x(), port_0_coordinate->get_y());
+    pin->set_average_coordinate(port_0_coordinate->get_x(), port_0_coordinate->get_y());
+    // pin->set_bounding_box();
 
   } else {
     int32_t bounding_box_ll_x = INT_MAX;

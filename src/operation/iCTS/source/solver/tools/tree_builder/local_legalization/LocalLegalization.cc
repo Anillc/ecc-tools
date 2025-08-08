@@ -68,7 +68,7 @@ LocalLegalization::LocalLegalization(std::vector<Pin*>& pins)
         auto pin_1 = tmp_fixed_map[pin->get_location()];
         auto pin_2 = pin;
         LOG_INFO << "Pin 1: " << pin_1->get_name() << " Pin 2: " << pin_2->get_name() << std::endl;
-        // LOG_FATAL << "Fixed locations are not legal " << pin->get_location() << std::endl;
+        LOG_FATAL << "Fixed locations are not legal " << pin->get_location() << std::endl;
       }
       tmp_fixed_set.insert(pin->get_location());
       tmp_fixed_map[pin->get_location()] = pin;
