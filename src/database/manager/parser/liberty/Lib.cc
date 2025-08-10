@@ -171,7 +171,7 @@ double LibTable::findValue(double slew, double constrain_slew_or_load)
   }
 
   // first check that slew and constrain_slew_or_load are within the table
-  // ranges 
+  // ranges
   auto check_val = [this](auto axis_index, auto val) {
     auto num_val = getAxis(axis_index).get_axis_size();
     auto min_val = getAxis(axis_index)[0];
@@ -184,7 +184,7 @@ double LibTable::findValue(double slew, double constrain_slew_or_load)
     return num_val;
   };
 
-  // Find the interpolation interval on the axis, 
+  // Find the interpolation interval on the axis,
   // and return the two endpoint values required for interpolation and the left index value.
   auto get_axis_region = [this](auto axis_index, auto num_val, auto val) {
     auto x2 = 0.0;
@@ -1108,6 +1108,9 @@ unsigned LibArc::isMpwArc()
  */
 unsigned LibArc::isClockGateCheckArc()
 {
+  if (this->get_timing_type() == TimingType::kMaxClockTree || this->get_timing_type() == TimingType::kMinClockTree) {
+    return 0;  // clock tree arc is not clock gate arc.
+  }
   const char* src_port_name = this->get_src_port();
   const char* snk_port_name = this->get_snk_port();
   auto* src_port = _owner_cell->get_cell_port_or_port_bus(src_port_name);
