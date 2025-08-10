@@ -190,7 +190,7 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
             coordinate_type grid_yh = grid_yl + routing_grids_size_y;
             Box grid_box(grid_xl, grid_yl, grid_xh, grid_yh);
             auto obs_layer = obs->get_layer();
-            if (obs_layer->is_routing()) {
+            if (obs_layer && obs_layer->is_routing()) {
               int layer_idx = obs_layer->get_id();
               index_type index = layer_idx * num_routing_grids_x * num_routing_grids_y + (k * num_routing_grids_y + h);
               double intersect_ratio = intersectArea(box, grid_box) / routing_grid_area;
