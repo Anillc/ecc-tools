@@ -4,7 +4,7 @@ add_library(imp-partition
 target_link_libraries(imp-partition
                       PRIVATE
                       imp-logger
-                      ${MtKahypar_PATH}/libmtkahypar.so
+                    #   ${MtKahypar_PATH}/libmtkahypar.so
                       )
 
 target_include_directories(imp-partition
