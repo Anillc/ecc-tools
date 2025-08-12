@@ -8,7 +8,7 @@
 #ifndef _DREAMPLACE_PLACE_IO_PYPLACEDB_H
 #define _DREAMPLACE_PLACE_IO_PYPLACEDB_H
 
-// #include <pybind11/stl.h>
+#include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl_bind.h>
 
@@ -81,8 +81,12 @@ struct PyPlaceDB
   pybind11::list net2driver_pin_map;
 
   /* topo */
+  pybind11::list FF_ids;  //
   pybind11::list start_points;  //
   pybind11::list end_points;    //
+  pybind11::list clock_pins;    //
+  pybind11::list clk_pin_rtran;  //
+  pybind11::list clk_pin_ftran;  //
 
   pybind11::list flat_cells_by_level;          //
   pybind11::list flat_cells_by_reverse_level;  //
@@ -103,8 +107,9 @@ struct PyPlaceDB
   /*instance arcs */
   pybind11::list net_flat_arcs_start;   //
   pybind11::list net_flat_arcs;         //
-  pybind11::list cell_flat_arcs_start;  //
-  pybind11::list cell_flat_arcs;        //
+  pybind11::list inst_flat_arcs_start;  //
+  pybind11::list inst_flat_arcs;        //
+  pybind11::list cell_flat_clk_arcs;        //
 
   /* ------------------------info for gate sizing----------------------*/
   pybind11::list main_id_2_cell_id_start;  // [num_main_type, ] main_id_2_cell_id_start + cell_width -> cell_id
@@ -181,7 +186,8 @@ struct PyPlaceDB
   void set(idm::DataManager* db, bool with_sta);
   void set_sta();
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
-  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::map<std::string, index_type>& mNodeName2ID,
+  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, 
+                   std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
                    std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
                    int ext_blockage_num);
 };
