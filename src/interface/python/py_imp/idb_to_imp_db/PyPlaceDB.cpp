@@ -377,10 +377,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   std::map<std::string, double> sdc_outcaps;         //
   std::map<std::string, double> sdc_endpoints_rRAT;  //
   std::map<std::string, double> sdc_endpoints_fRAT;  //
-  std::map<std::string, double> name2clk_rtran;  //
-  std::map<std::string, double> name2clk_ftran;  //
+  std::map<std::string, double> name2clk_rtran;      //
+  std::map<std::string, double> name2clk_ftran;      //
   /*--------------------------------sdc init------------------------------------------*/
-  std::set<std::string> FFs_str; //mNodeName2ID
+  std::set<std::string> FFs_str;  // mNodeName2ID
   auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
   auto ista = timing_engine->get_ista();
   SdcConstrain* the_constrain = ista->getConstrain();
@@ -507,7 +507,14 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       }
       // DEBUG
     } else if (pin->is_primary_output()) {
-      end_points_str.push_back(pin->get_pin_name());
+      auto sta_clk_vertex = ista->findVertex(pin->get_pin_name().c_str());  // input can only find vertex
+      if (sta_clk_vertex && sta_clk_vertex->getClockBucket().bucket_size()) {
+        double clock_period = sta_clk_vertex->getPropClock()->getPeriodNs();  // FIXME: ns OR ps ???
+        end_points_str.push_back(pin->get_pin_name());
+        sdc_endpoints_fRAT[pin->get_pin_name()] = clock_period;  // FIXME: ns OR ps ???
+        sdc_endpoints_rRAT[pin->get_pin_name()] = clock_period;
+        sdc_outcaps[pin->get_pin_name()] = 0;  // FIXME
+      }
     }
   }
 
@@ -556,7 +563,9 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       double setup_time_rise = FS_TO_NS(setup_arc->get_arc_delay(AnalysisMode::kMax, TransType::kRise));
       double setup_time_fall = FS_TO_NS(setup_arc->get_arc_delay(AnalysisMode::kMax, TransType::kFall));
       assert(sta_clk_vertex->getPropClock());
-      double clock_period = sta_clk_vertex->getPropClock()->getPeriodNs();  // FIXME: ns OR ps ???
+      
+      // note: us ```PS``` in the db. 
+      double clock_period = NS_TO_PS(sta_clk_vertex->getPropClock()->getPeriodNs());  
       for (auto pin : instance->get_pin_list()->get_pin_list()) {
         string pin_full_name = instance->get_name() + pin->get_pin_name();
         // DEBUG
@@ -586,7 +595,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         } else if (mClkPin2ID.count(pin_full_name)) {
           // clock pin
           if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
-            name2clk_rtran[pin_full_name] = 0.0;   // TODO: need to be set 
+            name2clk_rtran[pin_full_name] = 0.0;  // TODO: need to be set
             name2clk_ftran[pin_full_name] = 0.0;
           }
         }
@@ -605,10 +614,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     std::vector<double> rtrans_vector(num_clk_pins);
     std::vector<double> ftrans_vector(num_clk_pins);
     for (const auto& [clk_pin_name, clk_pin_id] : mClkPin2ID) {
-        if (clk_pin_id < num_clk_pins && name2clk_rtran.count(clk_pin_name)) {
-            rtrans_vector[clk_pin_id] = name2clk_rtran[clk_pin_name];
-            ftrans_vector[clk_pin_id] = name2clk_ftran[clk_pin_name];
-        }
+      if (clk_pin_id < num_clk_pins && name2clk_rtran.count(clk_pin_name)) {
+        rtrans_vector[clk_pin_id] = name2clk_rtran[clk_pin_name];
+        ftrans_vector[clk_pin_id] = name2clk_ftran[clk_pin_name];
+      }
     }
     clk_pin_rtran = pybind11::cast(rtrans_vector);
     clk_pin_ftran = pybind11::cast(ftrans_vector);
@@ -868,18 +877,20 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           auto to_lib_pin = arc->get_snk_port();
           string cell_type_name = lib_cell->get_cell_name();
           string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
-          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall 
-              && arc->get_timing_type() != ista::LibArc::TimingType::kCombRise
+          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall && arc->get_timing_type() != ista::LibArc::TimingType::kCombRise
               && arc->get_timing_type() != ista::LibArc::TimingType::kComb
               && arc->get_timing_type() != ista::LibArc::TimingType::kFallingEdge
               && arc->get_timing_type() != ista::LibArc::TimingType::kRisingEdge) {
-                continue;
-              }
+            continue;
+          }
           // DEBUG
           auto tempres = arc->get_timing_type();
           std::cout << "arc type: " << static_cast<int>(tempres) << " in cell: " << cell_type_name << " from pin: " << from_lib_pin
                     << " to pin: " << to_lib_pin << std::endl;
           // DEBUG
+          if (arc_idx == 144) {
+            printf("hjj");
+          }
           info2arc_idx[info].push_back(arc_idx++);
           info2arc_sense[info].push_back(arc->get_timing_sense());
           auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
@@ -891,19 +902,51 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             pybind11::list luts_cap_table;
             pybind11::list luts_trans_table;
 
+            auto time_unit = lib_cell->get_owner_lib()->get_time_unit();
+            auto cap_unit = lib_cell->get_owner_lib()->get_cap_unit();
             luts_dim.append(num_tran);
             luts_dim.append(num_cap);
 
             for (auto& value : table->getAxis(CAP_AXIS).get_axis_values()) {
-              luts_cap_table.append(value.get()->getFloatValue());
+              auto val = value.get()->getFloatValue();
+              if (CapacitiveUnit::kPF == cap_unit) {
+              } else if (CapacitiveUnit::kFF == cap_unit) {
+                val /= 1000;
+              } else if (CapacitiveUnit::kF == cap_unit) {
+                val *= 1e12;
+              } else {
+                std::cerr << "Error: unsupported cap unit: " << static_cast<int>(cap_unit) << std::endl;
+                exit(1);
+              }
+              luts_cap_table.append(val);
             }
             for (auto& value : table->getAxis(TRAN_AXIS).get_axis_values()) {
-              luts_trans_table.append(value.get()->getFloatValue());
+              auto val = value.get()->getFloatValue();
+              if (TimeUnit::kPS == time_unit) {
+              } else if (TimeUnit::kFS == time_unit) {
+                val /= 1000;
+              } else if (TimeUnit::kNS == time_unit) {
+                val *= 1000;
+              } else {
+                std::cerr << "Error: unsupported time unit: " << static_cast<int>(time_unit) << std::endl;
+                exit(1);
+              }
+              luts_trans_table.append(val);
             }
 
             // luts_values??
             for (auto& value : table->get_table_values()) {
-              luts_values.append(value.get()->getFloatValue());
+              auto val = value.get()->getFloatValue();
+              if (TimeUnit::kPS == time_unit) {
+              } else if (TimeUnit::kFS == time_unit) {
+                val /= 1000;
+              } else if (TimeUnit::kNS == time_unit) {
+                val *= 1000;
+              } else {
+                std::cerr << "Error: unsupported time unit: " << static_cast<int>(time_unit) << std::endl;
+                exit(1);
+              }
+              luts_values.append(val);
             }
             flat_luts_values.append(luts_values);
             flat_luts_trans_table.append(luts_trans_table);
@@ -968,6 +1011,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
     lib_cell_idx += lib_cells.size();
   }
+  assert(f_delay_flat_luts_values.size() == arc_idx);
   cell_id_2_arc_id_start.append(arc_idx);
   cell_id_2_libpin_id_start.append(lib_pin_idx);
   main_id_2_cell_id_start.append(lib_cell_idx);
@@ -1029,12 +1073,16 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         // output_pins.push_back(pin);
       }
     }
+
     for (int i = 0; i < input_pins.size(); i++) {
       for (int j = 0; j < output_pins.size(); j++) {
         auto input_pin = input_pins[i];
         auto output_pin = output_pins[j];
         string from_lib_pin = input_pin->get_pin_name();
         string to_lib_pin = output_pin->get_pin_name();
+        if (node_name == "_28734_" && from_lib_pin == "B" && to_lib_pin == "Y") {
+          std::cout << "_21993_ A -> Z" << std::endl;
+        }
         string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
         auto timing_sense2int = [](ista::LibArc::TimingSense sense) {
           if (sense == ista::LibArc::TimingSense::kNegativeUnate) {
@@ -1049,17 +1097,21 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         };
         if (info2arc_idx.count(info)) {
           for (int i = 0; i < static_cast<int>(info2arc_idx[info].size()); i++) {
-            int arc_idx = info2arc_idx[info][i];
+            int lib_arc_idx = info2arc_idx[info][i];
             int arc_sense = timing_sense2int(info2arc_sense[info][i]);
             pybind11::list arc;
-            if (FFs_str.count(node_name)) { // inst
+            int from_lib_pin_id;
+            if (FFs_str.count(node_name)) {
               arc.append(mClkPin2ID[node_name + from_lib_pin]);
+              from_lib_pin_id = mClkPin2ID[node_name + from_lib_pin];
             } else {
               arc.append(mPin2ID[node_name + from_lib_pin]);
+              from_lib_pin_id = mPin2ID[node_name + from_lib_pin];
             }
+            int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
             arc.append(mPin2ID[node_name + to_lib_pin]);
             arc.append(cell_type2cell_id[cell_type]);
-            arc.append(arc_idx);
+            arc.append(lib_arc_idx);
             arc.append(arc_sense);
             inst_flat_arcs.append(arc);
             inst_flat_arcs_idx++;
