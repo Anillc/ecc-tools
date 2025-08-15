@@ -484,6 +484,7 @@ int32_t DefWrite::write_component()
     string orient = IdbEnum::GetInstance()->get_site_property()->get_orient_name(instance->get_orient());
 
     if (instance->has_placed()) {
+      assert(orient != "");
       writestr("    - %s %s %s + %s ( %d %d ) %s \n", new_inst_name.c_str(), instance->get_cell_master()->get_name().c_str(), type.c_str(),
                status.c_str(), instance->get_coordinate()->get_x(), instance->get_coordinate()->get_y(), orient.c_str());
     } else {

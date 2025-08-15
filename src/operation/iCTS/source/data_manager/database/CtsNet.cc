@@ -56,6 +56,7 @@ CtsPin* CtsNet::get_driver_pin() const
     }
     return driver_pin_candidates[0];  // If all are InOut, return the first one
   }
+  LOG_WARNING << "No driver pin found for net " << _net_name;
   return nullptr;
 }
 
