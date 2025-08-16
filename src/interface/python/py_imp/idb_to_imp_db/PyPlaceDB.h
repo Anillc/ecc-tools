@@ -17,6 +17,13 @@
 #include "IdbEnum.h"
 #include "IdbInstance.h"
 #include "idm.h"
+
+// Forward declarations
+namespace ista {
+class LibTable;
+class LibCell;
+}
+
 // #include <boost/timer/timer.hpp>
 namespace python_interface {
 typedef int coordinate_type;
@@ -126,7 +133,8 @@ struct PyPlaceDB
   pybind11::list net_flat_arcs;         //
   pybind11::list inst_flat_arcs_start;  //
   pybind11::list inst_flat_arcs;        //
-  pybind11::list cell_flat_clk_arcs;        //
+
+  pybind11::list endpoints_constraint_arcs;   // constraint arcs, 
 
   /* ------------------------info for gate sizing----------------------*/
   pybind11::list main_id_2_cell_id_start;  // [num_main_type, ] main_id_2_cell_id_start + cell_width -> cell_id
@@ -168,6 +176,11 @@ struct PyPlaceDB
   pybind11::list r_trans_flat_luts_cap_table;    // Reverse transition flat LUT capacitance table
   pybind11::list r_trans_flat_luts_dim;          // Reverse transition flat LUT dimensions
 
+  // 把rise setup 存到 r_delay
+  // 把clk trans 存到 trans
+  // 把data trans 存到 cap 
+
+
   /*-------------RC------------*/
   double c_unit;
   double r_unit;
@@ -207,6 +220,16 @@ struct PyPlaceDB
                    std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
                    std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
                    int ext_blockage_num);
+
+private:
+  // 统一的LUT表格初始化函数
+  void init_lut_table_unified(pybind11::list& flat_luts_values, 
+                              pybind11::list& flat_luts_axis1_table,
+                              pybind11::list& flat_luts_axis2_table, 
+                              pybind11::list& flat_luts_dim, 
+                              ista::LibTable* table,
+                              ista::LibCell* lib_cell,
+                              bool is_constraint_table = false);
 };
 
 }  // namespace python_interface

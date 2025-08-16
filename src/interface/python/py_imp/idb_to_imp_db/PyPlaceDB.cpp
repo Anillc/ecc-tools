@@ -364,6 +364,127 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
   }
 }
 
+struct InstArc
+{
+  std::string from_pin;
+  std::string to_pin;
+  std::string cell_type;
+  int lib_arc_idx;
+  int arc_sense;
+};
+
+// 统一的LUT表格初始化函数
+void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind11::list& flat_luts_axis1_table,
+                                       pybind11::list& flat_luts_axis2_table, pybind11::list& flat_luts_dim, ista::LibTable* table,
+                                       ista::LibCell* lib_cell, bool is_constraint_table)
+{
+  pybind11::list luts_dim;
+  pybind11::list luts_values;
+  pybind11::list luts_axis1_table;
+  pybind11::list luts_axis2_table;
+
+  if (table == nullptr) {
+    flat_luts_values.append(luts_values);
+    flat_luts_axis1_table.append(luts_axis1_table);
+    flat_luts_axis2_table.append(luts_axis2_table);
+    luts_dim.append(0);
+    luts_dim.append(0);
+    flat_luts_dim.append(luts_dim);
+    return;
+  }
+
+  // 根据表格类型确定轴的含义和顺序
+  int AXIS1, AXIS2;
+  int num_axis1, num_axis2;
+
+  if (is_constraint_table) {
+    // 约束表格：轴1是clk transition，轴2是data transition
+    AXIS1
+        = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION ? 0 : 1;
+    AXIS2 = !AXIS1;
+    num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // clk transition
+    num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // data transition
+  } else {
+    // 延迟/转换表格：轴1是transition，轴2是capacitance
+    AXIS1 = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION ? 0 : 1;
+    AXIS2 = !AXIS1;
+    num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // transition
+    num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // capacitance
+  }
+
+  auto time_unit = lib_cell->get_owner_lib()->get_time_unit();
+  double time_coeff = 1.0;
+  if (TimeUnit::kPS == time_unit) {
+  } else if (TimeUnit::kFS == time_unit) {
+    time_coeff /= 1000;
+  } else if (TimeUnit::kNS == time_unit) {
+    time_coeff *= 1000;
+  } else {
+    std::cerr << "Error: unsupported time unit: " << static_cast<int>(time_unit) << std::endl;
+    exit(1);
+  }
+
+  double cap_coeff = 1.0;
+  if (!is_constraint_table) {
+    auto cap_unit = lib_cell->get_owner_lib()->get_cap_unit();
+    if (CapacitiveUnit::kPF == cap_unit) {
+    } else if (CapacitiveUnit::kFF == cap_unit) {
+      cap_coeff /= 1000;
+    } else if (CapacitiveUnit::kF == cap_unit) {
+      cap_coeff *= 1e12;
+    } else {
+      std::cerr << "Error: unsupported cap unit: " << static_cast<int>(cap_unit) << std::endl;
+      exit(1);
+    }
+  }
+
+  luts_dim.append(num_axis1);
+  luts_dim.append(num_axis2);
+
+  // 处理轴1的值（transition 或 data_transition）
+  for (auto& value : table->getAxis(AXIS1).get_axis_values()) {
+    auto val = value.get()->getFloatValue() * time_coeff;
+    luts_axis1_table.append(val);
+  }
+
+  // 处理轴2的值（capacitance 或 clk_transition）
+  for (auto& value : table->getAxis(AXIS2).get_axis_values()) {
+    auto val = value.get()->getFloatValue();
+    if (is_constraint_table) {
+      val *= time_coeff;  // 约束表格两个轴都是时间单位
+    } else {
+      val *= cap_coeff;  // 延迟表格轴2是电容单位
+    }
+    luts_axis2_table.append(val);
+  }
+
+  // 处理表格数据值，考虑转置
+  std::vector<std::unique_ptr<LibAttrValue>>& table_values = table->get_table_values();
+  bool need_transpose = (AXIS1 == 1);  // 如果轴1是第二个轴，需要转置
+
+  if (need_transpose) {
+    // 转置：原始数据按轴2主导存储，转换为按轴1主导存储
+    for (int i = 0; i < num_axis1; i++) {
+      for (int j = 0; j < num_axis2; j++) {
+        int original_index = j * num_axis1 + i;  // 轴2主导的索引
+        auto val = table_values[original_index].get()->getFloatValue() * time_coeff;
+        luts_values.append(val);
+      }
+    }
+  } else {
+    // 不需要转置，按原始顺序处理
+    for (auto& value : table_values) {
+      auto val = value.get()->getFloatValue() * time_coeff;
+      luts_values.append(val);
+    }
+  }
+
+  flat_luts_values.append(luts_values);
+  flat_luts_axis1_table.append(luts_axis1_table);
+  flat_luts_axis2_table.append(luts_axis2_table);
+  flat_luts_dim.append(luts_dim);
+}
+
 void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID,
                             std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
                             std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
@@ -564,12 +685,12 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       }
 
       assert(setup_arc != nullptr);
-      double setup_time_rise = FS_TO_NS(setup_arc->get_arc_delay(AnalysisMode::kMax, TransType::kRise));
-      double setup_time_fall = FS_TO_NS(setup_arc->get_arc_delay(AnalysisMode::kMax, TransType::kFall));
+      // double setup_time_rise = FS_TO_PS(setup_arc->get_arc_delay(AnalysisMode::kMax, TransType::kRise));
+      // double setup_time_fall = FS_TO_PS(setup_arc->get_arc_delay(AnalysisMode::kMax, TransType::kFall));
       assert(sta_clk_vertex->getPropClock());
-      
-      // note: us ```PS``` in the db. 
-      double clock_period = NS_TO_PS(sta_clk_vertex->getPropClock()->getPeriodNs());  
+
+      // note: us ```PS``` in the db.
+      double clock_period = NS_TO_PS(sta_clk_vertex->getPropClock()->getPeriodNs());
       for (auto pin : instance->get_pin_list()->get_pin_list()) {
         string pin_full_name = instance->get_name() + pin->get_pin_name();
         // DEBUG
@@ -579,6 +700,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         }
         // DEBUG
         if (mPin2ID.count(pin_full_name)) {
+          assert(clock_pin->get_name() != pin->get_pin_name());
           // driven pin
           if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
             start_points_str.push_back(pin_full_name);
@@ -593,8 +715,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             sdc_outcaps[pin_full_name] = 0;
             // FIXME: skew or trans time need to be considered ?
             // TODO: Need to calc clock period, clock_uncertainty
-            sdc_endpoints_fRAT[pin_full_name] = clock_period - setup_time_fall;  // - setup time - clock_uncertainty
-            sdc_endpoints_rRAT[pin_full_name] = clock_period - setup_time_rise;  // - setup time - clock_uncertainty
+            sdc_endpoints_fRAT[pin_full_name] = clock_period;  // - setup time - clock_uncertainty
+            sdc_endpoints_rRAT[pin_full_name] = clock_period;  // - setup time - clock_uncertainty
           }
         } else if (mClkPin2ID.count(pin_full_name)) {
           // clock pin
@@ -865,8 +987,19 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     pybind11::list flat_luts_cap_table[4];    // Forward delay flat LUT capacitance table
     pybind11::list flat_luts_dim[4];
 
-    const int TRAN_AXIS = 0;
-    const int CAP_AXIS = 1;
+    // const std::map<std::string_view, LibLutTableTemplate::Variable> LibLutTableTemplate::_str2var
+    // = {{"total_output_net_capacitance", LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE},
+    //    {"input_net_transition", LibLutTableTemplate::Variable::INPUT_NET_TRANSITION},
+    //    {"related_pin_transition", LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION},
+    //    {"constrained_pin_transition", LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION},
+    //    {"input_transition_time", LibLutTableTemplate::Variable::INPUT_TRANSITION_TIME},
+    //    {"time", LibLutTableTemplate::Variable::TIME},
+    //    {"input_voltage", LibLutTableTemplate::Variable::INPUT_VOLTAGE},
+    //    {"output_voltage", LibLutTableTemplate::Variable::OUTPUT_VOLTAGE},
+    //    {"input_noise_height", LibLutTableTemplate::Variable::INPUT_NOISE_HEIGHT},
+    //    {"input_noise_width", LibLutTableTemplate::Variable::INPUT_NOISE_WIDTH},
+    //    {"normalized_voltage", LibLutTableTemplate::Variable::NORMALIZED_VOLTAGE}};
+
     double default_cap = 0;
     double default_slew = 0;
     for (auto lib_cell : lib_cells) {
@@ -881,100 +1014,68 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           auto to_lib_pin = arc->get_snk_port();
           string cell_type_name = lib_cell->get_cell_name();
           string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
-          if (arc->get_timing_type() != ista::LibArc::TimingType::kCombFall && arc->get_timing_type() != ista::LibArc::TimingType::kCombRise
-              && arc->get_timing_type() != ista::LibArc::TimingType::kComb
-              && arc->get_timing_type() != ista::LibArc::TimingType::kFallingEdge
-              && arc->get_timing_type() != ista::LibArc::TimingType::kRisingEdge) {
-            continue;
+          // clang-format off
+          if (   arc->get_timing_type() == ista::LibArc::TimingType::kCombFall 
+              || arc->get_timing_type() == ista::LibArc::TimingType::kCombRise
+              || arc->get_timing_type() == ista::LibArc::TimingType::kComb
+              || arc->get_timing_type() == ista::LibArc::TimingType::kFallingEdge
+              || arc->get_timing_type() == ista::LibArc::TimingType::kRisingEdge) {
+            // clang-format on
+
+            // DEBUG
+            auto tempres = arc->get_timing_type();
+            std::cout << "arc type: " << static_cast<int>(tempres) << " in cell: " << cell_type_name << " from pin: " << from_lib_pin
+                      << " to pin: " << to_lib_pin << std::endl;
+            // DEBUG
+
+            info2arc_idx[info].push_back(arc_idx++);
+            info2arc_sense[info].push_back(arc->get_timing_sense());
+
+            auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
+            auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
+            auto rise_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellRise));
+            auto fall_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
+            auto rise_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
+
+            assert(fall_delay_table != nullptr);
+            assert(rise_delay_table != nullptr);
+
+            init_lut_table_unified(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table,
+                                   f_delay_flat_luts_dim, fall_delay_table, lib_cell, false);
+            init_lut_table_unified(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table,
+                                   r_delay_flat_luts_dim, rise_delay_table, lib_cell, false);
+            init_lut_table_unified(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table,
+                                   f_trans_flat_luts_dim, fall_trans_table, lib_cell, false);
+            init_lut_table_unified(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table,
+                                   r_trans_flat_luts_dim, rise_trans_table, lib_cell, false);
+          } else if (arc->get_timing_type() == ista::LibArc::TimingType::kSetupRising
+                     || arc->get_timing_type() == ista::LibArc::TimingType::kSetupFalling) {
+            // 把rise setup 存到 r_delay
+
+            // ----- 坐标轴 -----
+            // 把clk trans 存到 trans
+            // 把data trans 存到 cap
+            info2arc_idx[info].push_back(arc_idx++);
+            info2arc_sense[info].push_back(arc->get_timing_sense());
+
+            auto* lib_check_model = dynamic_cast<LibCheckTableModel*>(arc->get_table_model());
+            auto rise_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseConstrain));
+            auto fall_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallConstrain));
+            auto fall_delay_table = nullptr;  // lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
+            auto fall_trans_table = nullptr;  // lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
+
+            // assert(fall_delay_table != nullptr);
+            // assert(rise_delay_table != nullptr);
+
+            init_lut_table_unified(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table,
+                                   r_delay_flat_luts_dim, rise_constraint_table, lib_cell, true);
+            init_lut_table_unified(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table,
+                                   r_trans_flat_luts_dim, fall_constraint_table, lib_cell, true);
+            init_lut_table_unified(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table,
+                                   f_delay_flat_luts_dim, fall_delay_table, lib_cell, true);
+            init_lut_table_unified(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table,
+                                   f_trans_flat_luts_dim, fall_trans_table, lib_cell, true);
           }
-          // DEBUG
-          auto tempres = arc->get_timing_type();
-          std::cout << "arc type: " << static_cast<int>(tempres) << " in cell: " << cell_type_name << " from pin: " << from_lib_pin
-                    << " to pin: " << to_lib_pin << std::endl;
-          // DEBUG
-          if (arc_idx == 144) {
-            printf("hjj");
-          }
-          info2arc_idx[info].push_back(arc_idx++);
-          info2arc_sense[info].push_back(arc->get_timing_sense());
-          auto init_lut_table = [&](pybind11::list& flat_luts_values, pybind11::list& flat_luts_trans_table,
-                                    pybind11::list& flat_luts_cap_table, pybind11::list& flat_luts_dim, LibTable* table) {
-            int num_tran = table->get_axes().at(TRAN_AXIS)->get_axis_size();
-            int num_cap = table->get_axes().at(CAP_AXIS)->get_axis_size();
-            pybind11::list luts_dim;
-            pybind11::list luts_values;
-            pybind11::list luts_cap_table;
-            pybind11::list luts_trans_table;
-
-            auto time_unit = lib_cell->get_owner_lib()->get_time_unit();
-            auto cap_unit = lib_cell->get_owner_lib()->get_cap_unit();
-            luts_dim.append(num_tran);
-            luts_dim.append(num_cap);
-
-            for (auto& value : table->getAxis(CAP_AXIS).get_axis_values()) {
-              auto val = value.get()->getFloatValue();
-              if (CapacitiveUnit::kPF == cap_unit) {
-              } else if (CapacitiveUnit::kFF == cap_unit) {
-                val /= 1000;
-              } else if (CapacitiveUnit::kF == cap_unit) {
-                val *= 1e12;
-              } else {
-                std::cerr << "Error: unsupported cap unit: " << static_cast<int>(cap_unit) << std::endl;
-                exit(1);
-              }
-              luts_cap_table.append(val);
-            }
-            for (auto& value : table->getAxis(TRAN_AXIS).get_axis_values()) {
-              auto val = value.get()->getFloatValue();
-              if (TimeUnit::kPS == time_unit) {
-              } else if (TimeUnit::kFS == time_unit) {
-                val /= 1000;
-              } else if (TimeUnit::kNS == time_unit) {
-                val *= 1000;
-              } else {
-                std::cerr << "Error: unsupported time unit: " << static_cast<int>(time_unit) << std::endl;
-                exit(1);
-              }
-              luts_trans_table.append(val);
-            }
-
-            // luts_values??
-            for (auto& value : table->get_table_values()) {
-              auto val = value.get()->getFloatValue();
-              if (TimeUnit::kPS == time_unit) {
-              } else if (TimeUnit::kFS == time_unit) {
-                val /= 1000;
-              } else if (TimeUnit::kNS == time_unit) {
-                val *= 1000;
-              } else {
-                std::cerr << "Error: unsupported time unit: " << static_cast<int>(time_unit) << std::endl;
-                exit(1);
-              }
-              luts_values.append(val);
-            }
-            flat_luts_values.append(luts_values);
-            flat_luts_trans_table.append(luts_trans_table);
-            flat_luts_cap_table.append(luts_cap_table);
-            flat_luts_dim.append(luts_dim);
-            // flat_luts_dim.append(table->get);
-          };
-          auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
-          auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
-          auto rise_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellRise));
-          auto fall_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
-          auto rise_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
-
-          assert(fall_delay_table != nullptr);
-          assert(rise_delay_table != nullptr);
-
-          init_lut_table(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table, f_delay_flat_luts_dim,
-                         fall_delay_table);
-          init_lut_table(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table, r_delay_flat_luts_dim,
-                         rise_delay_table);
-          init_lut_table(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table, f_trans_flat_luts_dim,
-                         fall_trans_table);
-          init_lut_table(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table, r_trans_flat_luts_dim,
-                         rise_trans_table);
         }
       }
       int pin_offset = 0;
@@ -1077,6 +1178,57 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         // output_pins.push_back(pin);
       }
     }
+    auto timing_sense2int = [](ista::LibArc::TimingSense sense) {
+      if (sense == ista::LibArc::TimingSense::kNegativeUnate) {
+        return -1;  // negative
+      } else if (sense == ista::LibArc::TimingSense::kNonUnate) {
+        return 0;  // none
+      } else if (sense == ista::LibArc::TimingSense::kPositiveUnate) {
+        return 1;  // positive
+      } else {
+        return 1;  // by default
+      }
+    };
+
+    // Helper function to build and append arc
+    auto append_arc = [&](int from_id, int to_id, int lib_arc_idx, int arc_sense, pybind11::list& target_list) {
+      pybind11::list arc;
+      arc.append(from_id);
+      arc.append(to_id);
+      arc.append(cell_type2cell_id[cell_type]);
+      arc.append(lib_arc_idx);
+      arc.append(arc_sense);
+      target_list.append(arc);
+    };
+
+    bool isFF = FFs_str.count(node_name);
+
+    // handle clk->D arcs (constraint arcs)
+    if (isFF) {
+      string clock_pin_name = "";
+      for (int i = 0; i < input_pins.size(); i++) {
+        auto input_pin = input_pins[i];
+        string sta_full_pin_name = node_name + ":" + input_pin->get_pin_name();
+        auto pin_vertex = _sta->findVertex(sta_full_pin_name.c_str());  // ensure the pin is in the sta graph
+        if (pin_vertex->is_clock()) {
+          clock_pin_name = input_pin->get_pin_name();
+        }
+      }
+      for (IdbPin* input_pin : input_pins) {
+        string to_lib_pin_name = input_pin->get_pin_name();
+        string info = cell_type + "_" + clock_pin_name + "_" + to_lib_pin_name;
+        if (info2arc_idx.count(info)) {
+          for (int i = 0; i < static_cast<int>(info2arc_idx[info].size()); i++) {
+            int lib_arc_idx = info2arc_idx[info][i];
+            int arc_sense = timing_sense2int(info2arc_sense[info][i]);
+
+            int from_lib_pin_id = mClkPin2ID[node_name + clock_pin_name];
+            int to_lib_pin_id = mPin2ID[node_name + to_lib_pin_name];
+            append_arc(from_lib_pin_id, to_lib_pin_id, lib_arc_idx, arc_sense, endpoints_constraint_arcs);
+          }
+        }
+      }
+    }
 
     for (int i = 0; i < input_pins.size(); i++) {
       for (int j = 0; j < output_pins.size(); j++) {
@@ -1088,37 +1240,27 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           std::cout << "_21993_ A -> Z" << std::endl;
         }
         string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
-        auto timing_sense2int = [](ista::LibArc::TimingSense sense) {
-          if (sense == ista::LibArc::TimingSense::kNegativeUnate) {
-            return -1;  // negative
-          } else if (sense == ista::LibArc::TimingSense::kNonUnate) {
-            return 0;  // none
-          } else if (sense == ista::LibArc::TimingSense::kPositiveUnate) {
-            return 1;  // positive
-          } else {
-            return 1;  // by default
-          }
-        };
         if (info2arc_idx.count(info)) {
           for (int i = 0; i < static_cast<int>(info2arc_idx[info].size()); i++) {
             int lib_arc_idx = info2arc_idx[info][i];
             int arc_sense = timing_sense2int(info2arc_sense[info][i]);
-            pybind11::list arc;
-            int from_lib_pin_id;
-            if (FFs_str.count(node_name)) {
-              arc.append(mClkPin2ID[node_name + from_lib_pin]);
-              from_lib_pin_id = mClkPin2ID[node_name + from_lib_pin];
+
+            if (isFF) {
+              assert(mClkPin2ID.count(node_name + from_lib_pin));
+              // Check if this is a clock-to-Q arc
+              string outpin_full_name = node_name + output_pin->get_pin_name();
+              // Handle clk->q arcs
+              int from_lib_pin_id = mClkPin2ID[node_name + from_lib_pin];
+              int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
+              append_arc(from_lib_pin_id, to_lib_pin_id, lib_arc_idx, arc_sense, inst_flat_arcs);
+              inst_flat_arcs_idx++;
             } else {
-              arc.append(mPin2ID[node_name + from_lib_pin]);
-              from_lib_pin_id = mPin2ID[node_name + from_lib_pin];
+              // Handle regular combinational arcs
+              int from_lib_pin_id = mPin2ID[node_name + from_lib_pin];
+              int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
+              append_arc(from_lib_pin_id, to_lib_pin_id, lib_arc_idx, arc_sense, inst_flat_arcs);
+              inst_flat_arcs_idx++;
             }
-            int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
-            arc.append(mPin2ID[node_name + to_lib_pin]);
-            arc.append(cell_type2cell_id[cell_type]);
-            arc.append(lib_arc_idx);
-            arc.append(arc_sense);
-            inst_flat_arcs.append(arc);
-            inst_flat_arcs_idx++;
           }
         }
       }
