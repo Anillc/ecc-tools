@@ -1059,22 +1059,23 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             info2arc_sense[info].push_back(arc->get_timing_sense());
 
             auto* lib_check_model = dynamic_cast<LibCheckTableModel*>(arc->get_table_model());
-            auto rise_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseConstrain));
-            auto fall_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallConstrain));
-            auto fall_delay_table = nullptr;  // lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
-            auto fall_trans_table = nullptr;  // lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
-
+            auto rise_setup_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseConstrain));
+            auto fall_setup_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallConstrain));
+            auto rise_hold_constraint_table = nullptr;
+            auto fall_hold_constraint_table = nullptr;
+            // lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
+            // lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
             // assert(fall_delay_table != nullptr);
             // assert(rise_delay_table != nullptr);
 
             init_lut_table_unified(r_delay_flat_luts_values, r_delay_flat_luts_trans_table, r_delay_flat_luts_cap_table,
-                                   r_delay_flat_luts_dim, rise_constraint_table, lib_cell, true);
-            init_lut_table_unified(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table,
-                                   r_trans_flat_luts_dim, fall_constraint_table, lib_cell, true);
+                                   r_delay_flat_luts_dim, rise_setup_constraint_table, lib_cell, true);
             init_lut_table_unified(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table,
-                                   f_delay_flat_luts_dim, fall_delay_table, lib_cell, true);
+                                   f_delay_flat_luts_dim, fall_setup_constraint_table, lib_cell, true);
+            init_lut_table_unified(r_trans_flat_luts_values, r_trans_flat_luts_trans_table, r_trans_flat_luts_cap_table,
+                                   r_trans_flat_luts_dim, rise_hold_constraint_table, lib_cell, true);
             init_lut_table_unified(f_trans_flat_luts_values, f_trans_flat_luts_trans_table, f_trans_flat_luts_cap_table,
-                                   f_trans_flat_luts_dim, fall_trans_table, lib_cell, true);
+                                   f_trans_flat_luts_dim, fall_hold_constraint_table, lib_cell, true);
           }
         }
       }
@@ -1121,6 +1122,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   cell_id_2_libpin_id_start.append(lib_pin_idx);
   main_id_2_cell_id_start.append(lib_cell_idx);
 
+  for (auto& [info, arc_idxs] : info2arc_idx) {
+    printf("info: %s, arc num: %d\n", info.c_str(), arc_idxs.size());
+  }
+  
   /*--------------------pin2libpin_offset-------------------------------*/
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     if (isInvailidNet(net)) {
