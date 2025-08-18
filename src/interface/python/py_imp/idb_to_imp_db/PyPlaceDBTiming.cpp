@@ -779,23 +779,22 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       continue;
     }
     auto from_inst = net->get_driving_pin()->get_instance();
-    auto lib_cell = _sta->findLibertyCell(from_inst->get_cell_master()->get_name().c_str());
-    bool is_clock = false;
-    for (auto& port : lib_cell->get_cell_ports()) {  // check if the cell is flipflop
-      if (port->isClock()) {
-        is_clock = true;
-        break;
-      }
-    }
-    if (from_inst->is_clock_instance() || is_clock || from_inst->is_flip_flop()) {
+    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
+
+    if (FFs_str.count(from_inst_name) || from_inst->is_flip_flop()) {
       continue;
     }
-    auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
     for (auto pin : net->get_load_pins()) {
-      if (pin->get_instance() == nullptr || pin->get_instance()->is_flip_flop() || pin->get_instance()->is_clock_instance()) {
+      // TODO: Fix clock gate cell.
+      // FIXME: clock_instance may be the clock gate cell, which is not a flip flop.
+      // pin->get_instance()->is_clock_instance() 
+      if (pin->get_instance() == nullptr || pin->get_instance()->is_flip_flop()) {
         continue;
       }
       string to_inst_name = pin->get_instance()->get_name();
+      if (FFs_str.count(to_inst_name)) {
+        continue;
+      }
       // printf(" %s -> %s\n", from_inst_name.c_str(), to_inst_name.c_str());
       forward_graph[from_inst_name].push_back(to_inst_name);
       reverse_graph[to_inst_name].push_back(from_inst_name);
@@ -1125,7 +1124,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   for (auto& [info, arc_idxs] : info2arc_idx) {
     printf("info: %s, arc num: %d\n", info.c_str(), arc_idxs.size());
   }
-  
+
   /*--------------------pin2libpin_offset-------------------------------*/
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     if (isInvailidNet(net)) {
