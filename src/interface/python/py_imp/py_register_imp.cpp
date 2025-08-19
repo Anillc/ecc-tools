@@ -20,7 +20,7 @@
 
 #include <pybind11/cast.h>
 
-#include "../../../operation/iMP/api/MPAPI.hh"
+// #include "../../../operation/iMP/api/MPAPI.hh"
 #include "idb_to_imp_db/PyPlaceDB.h"
 
 // #include "../../../operation/iMP/api/MPAPI.hh"
@@ -30,7 +30,7 @@ namespace py = pybind11;
 
 void register_imp(pybind11::module& m)
 {
-  m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
+  // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
 
   pybind11::class_<PyPlaceDB>(m, "PyPlaceDB")
       .def(pybind11::init<>())
@@ -146,8 +146,8 @@ void register_imp(pybind11::module& m)
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
   m.def("pydb", [](idm::DataManager* db, bool with_sta) { return PyPlaceDB(db, with_sta); }, "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
-  m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
-  m.def("runRef", runRef, py::arg("output_tcl") = "");
+  // m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
+  // m.def("runRef", runRef, py::arg("output_tcl") = "");
 }
 
 }  // namespace python_interface

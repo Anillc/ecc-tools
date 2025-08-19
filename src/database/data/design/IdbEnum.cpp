@@ -32,6 +32,8 @@
 #include "IdbEnum.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 
 using namespace std;
 
@@ -226,6 +228,7 @@ string IdbSiteProperty::get_orient_name(IdbOrient oreint_value)
 {
   auto iter = _orient_string_list.find(oreint_value);
   if (iter == _orient_string_list.end()) {
+    // printf("Warning : IdbSiteProperty::get_orient_name: Invalid IdbOrient value\n");
     return string("");
   }
 
@@ -334,6 +337,18 @@ IdbConnectType IdbConnectProperty::get_type(string name)
   }
 
   return result->first;
+}
+
+bool IdbConnectProperty::is_net(std::string name)
+{
+  auto type = get_type(name);
+  return type == IdbConnectType::kSignal || type == IdbConnectType::kClock;
+}
+
+bool IdbConnectProperty::is_pdn(std::string name)
+{
+  auto type = get_type(name);
+  return type == IdbConnectType::kPower || type == IdbConnectType::kGround;
 }
 
 string IdbConnectProperty::get_type_name(IdbConnectType type)

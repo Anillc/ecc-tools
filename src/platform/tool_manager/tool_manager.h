@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 
+#include "vec_net.h"
 
 namespace iplf {
 
@@ -65,6 +66,7 @@ class ToolManager
   void guiReadDb();
   void guiShowDrc(std::string detail_drc_path = "", int max_num = 100000);
   void guiShowClockTree();
+  void guiShowGraph(std::map<int, ivec::VecNet> graph);
 
   void guiCaptrueDesign(std::string path = "");
   /// Eval
@@ -77,7 +79,7 @@ class ToolManager
   //   bool floorplanInit();
 
   /// iPL
-  bool autoRunPlacer(std::string config = "");
+  bool autoRunPlacer(std::string config = "", bool enableJsonOutput = false);
   bool runPlacerFiller(std::string config = "");
   bool runPlacerIncrementalFlow(std::string config);
   bool runPlacerIncrementalLegalization();
@@ -96,13 +98,13 @@ class ToolManager
   bool RunTOBuffering(std::string config = "", std::string net_name = "");
 
   /// iCTS
-  bool autoRunCTS(std::string config = "", std::string work_dir="");
+  bool autoRunCTS(std::string config = "", std::string work_dir = "");
   bool reportCTS(std::string path = "");
   /// iRT
   bool autoRunRouter(std::string config_file_path = "");
 
   /// iDRC
-  bool autoRunDRC(std::string config = "", std::string path = "");
+  bool autoRunDRC(std::string config = "", std::string path = "", bool has_init = false);
   bool readDrcDetailFromFile(std::string path = "");
   bool saveDrcDetailToFile(std::string path = "");
 

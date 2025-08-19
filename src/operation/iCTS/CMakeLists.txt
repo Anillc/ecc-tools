@@ -1,63 +1,32 @@
-# # Python Model Option system python vertion
-# set(SYS_PYTHON3_VERSION 3.8)
-# set(PY_MODEL ON)
-# # Save timing data to csv for model training
-# set(SAVE_TRAINING_DATA ON)
-# # Use external python model
-# set(USE_EXTERNAL_MODEL ON)
-# # Print timing information to log
-# set(TIMING_LOG ON)
-# # Use routing
-# set(USE_ROUTING ON)
-
 # # DEBUG CTS
-# set(DEBUG_ICTS_API ON)
-# # DEBUG DATA MANAGER
-# set(DEBUG_ICTS_CONFIG ON)
-# set(DEBUG_ICTS_DATABASE ON)
-# set(DEBUG_ICTS_IO ON)
-# set(DEBUG_ICTS_REPORT ON)
+set(DEBUG_ICTS_API OFF)
+# DEBUG DATA MANAGER
+set(DEBUG_ICTS_CONFIG OFF)
+set(DEBUG_ICTS_DATABASE OFF)
+set(DEBUG_ICTS_IO OFF)
+set(DEBUG_ICTS_REPORT OFF)
 
-# # DEBUG MODEL
-# set(DEBUG_ICTS_MODEL ON)
-# set(DEBUG_ICTS_MPL_HELPER ON)
+# DEBUG MODEL
+set(DEBUG_ICTS_MODEL OFF)
 
-# # DEBUG MODULE
-# set(DEBUG_ICTS_EVALUATOR ON)
-# set(DEBUG_ICTS_ROUTER ON)
+# DEBUG MODULE
+set(DEBUG_ICTS_EVALUATOR OFF)
+set(DEBUG_ICTS_ROUTER OFF)
 
 # DEBUG SOLVER
-# set(DEBUG_ICTS_SOLVER ON)
-# set(DEBUG_ICTS_SOLVER_DATABASE ON)
-# set(DEBUG_ICTS_BALANCE_CLUSTERING ON)
-# set(DEBUG_ICTS_ANNEAL_OPT ON)
-# set(DEBUG_ICTS_MIN_COST_FLOW ON)
-# set(DEBUG_ICTS_TIMING_PROPAGATOR ON)
-# set(DEBUG_ICTS_TREE_BUILDER ON)
-# set(DEBUG_ICTS_BST ON)
-# set(DEBUG_ICTS_CBS ON)
-# set(DEBUG_ICTS_LOCAL_LEGALIZATION ON)
+set(DEBUG_ICTS_SOLVER OFF)
+set(DEBUG_ICTS_SOLVER_DATABASE OFF)
+set(DEBUG_ICTS_BALANCE_CLUSTERING OFF)
+set(DEBUG_ICTS_ANNEAL_OPT OFF)
+set(DEBUG_ICTS_MIN_COST_FLOW OFF)
+set(DEBUG_ICTS_TIMING_PROPAGATOR OFF)
+set(DEBUG_ICTS_TREE_BUILDER OFF)
+set(DEBUG_ICTS_BST OFF)
+set(DEBUG_ICTS_CBS OFF)
+set(DEBUG_ICTS_LOCAL_LEGALIZATION OFF)
 
 # # DEBUG TEST
 # set(DEBUG_ICTS_TEST ON)
-# set(DEBUG_ICTS_PYTHON ON)
-
-# Tool definitions
-if(PY_MODEL)
-  add_compile_definitions(PY_MODEL)
-endif()
-if(SAVE_TRAINING_DATA)
-  add_compile_definitions(SAVE_TRAINING_DATA)
-endif()
-if(USE_EXTERNAL_MODEL)
-  add_compile_definitions(USE_EXTERNAL_MODEL)
-endif()
-if(TIMING_LOG)
-  add_compile_definitions(TIMING_LOG)
-endif()
-if(USE_ROUTING)
-  add_compile_definitions(USE_ROUTING)
-endif()
 
 # Debug definitions
 if(DEBUG_ICTS_API)
@@ -77,9 +46,6 @@ if(DEBUG_ICTS_REPORT)
 endif()
 if(DEBUG_ICTS_MODEL)
   add_compile_definitions(DEBUG_ICTS_MODEL)
-endif()
-if(DEBUG_ICTS_MPL_HELPER)
-  add_compile_definitions(DEBUG_ICTS_MPL_HELPER)
 endif()
 if(DEBUG_ICTS_EVALUATOR)
   add_compile_definitions(DEBUG_ICTS_EVALUATOR)
@@ -134,4 +100,4 @@ set(ICTS_TEST ${HOME_ICTS}/test)
 add_subdirectory(${ICTS_API})
 add_subdirectory(${ICTS_EXTERNAL_LIBS})
 add_subdirectory(${ICTS_SOURCE})
-add_subdirectory(${ICTS_TEST})
+# add_subdirectory(${ICTS_TEST})

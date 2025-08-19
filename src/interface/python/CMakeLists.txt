@@ -1,7 +1,7 @@
 # add_subdirectory(${HOME_THIRDPARTY}/pybind11 binary_dir)
 
-
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+
 # DEFINE PYTHON MODULE & CMAKE TARGET
 include_directories(${PYBIND11_PATH}/include)
 include_directories(${TCL_PATH})
@@ -34,6 +34,11 @@ add_subdirectory(py_imp)
 # ADD SOURCE FILES 
 #file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
 # file(GLOB PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS *.cpp)
+add_subdirectory(py_vec)
+
+# ADD SOURCE FILES
+# file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
+file(GLOB PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS *.cpp .h)
 
 # SET SOURCE FILES
 target_sources(ieda_py PUBLIC python_moodule.cc)
@@ -118,7 +123,7 @@ target_link_libraries(ieda_py
         py_eval
         log
         py_imp
-
+        py_vec
         -u_ZTVN3ipl21ElectricFieldGradientE
         -u_ZN3ipl8Nesterov17correctNextCoordiEiNS_5PointIiEE
         -u_ZN3ipl21ElectricFieldGradient17initElectro2DListEv
@@ -137,3 +142,4 @@ install(TARGETS ieda_py
 get_target_property(DEPENDENCIES ieda_py INTERFACE_LINK_LIBRARIES)
 message(STATUS "ieda_py install prefix: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ieda_py dependencies: ${INTERFACE_LINK_LIBRARIES}")
+

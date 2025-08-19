@@ -70,7 +70,6 @@ class FeatureParser
   bool buildMacroDrc(std::string path, std::string drc_path);
 
   bool buildSummaryEval(std::string json_path);
-  bool buildSummaryEvalJsonl(std::string jsonl_path);
   bool buildSummaryTimingEval(std::string json_path);
   bool buildNetEval(std::string csv_path);
   bool buildCongMap(std::string stage, std::string csv_dir);

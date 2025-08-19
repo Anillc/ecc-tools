@@ -38,16 +38,16 @@ void FixFanout::fixFanout() {
   auto      *design_nl = _timing_engine->get_netlist();
   ista::Net *sta_net;
   FOREACH_NET(design_nl, sta_net) {
+    auto fanout = (int)sta_net->getFanouts();
+    auto idb_adpat =
+        dynamic_cast<ista::TimingIDBAdapter *>(_timing_engine->get_db_adapter());
+    IdbNet *db_net = idb_adpat->staToDb(sta_net);
     if (sta_net->isClockNet()) {
+      db_net->set_connect_type(idb::IdbConnectType::kClock);
       continue;
     }
-    auto fanout = (int)sta_net->getFanouts();
     if (fanout > _max_fanout) {
       _fanout_vio_num++;
-
-      auto idb_adpat =
-          dynamic_cast<ista::TimingIDBAdapter *>(_timing_engine->get_db_adapter());
-      IdbNet *db_net = idb_adpat->staToDb(sta_net);
       fixFanout(db_net);
     }
   }
@@ -64,11 +64,11 @@ void FixFanout::fixFanout() {
 }
 
 void FixFanout::fixFanout(IdbNet *net) {
-  int fanout = net->get_load_pins().size();
+  int  fanout = net->get_load_pins().size();
   bool have_switch_name = false;
   while (fanout > _max_fanout) {
     auto load_pins = net->get_load_pins();
-    bool connect_to_port = false;  // if net connect to a port need rename for the net
+    bool connect_to_port = false; // if net connect to a port need rename for the net
     for (auto pin : load_pins) {
       if (pin->is_io_pin()) {
         connect_to_port = true;
@@ -119,7 +119,7 @@ void FixFanout::fixFanout(IdbNet *net) {
         have_switch_name = true;
       }
       // 1
-      disconnectPin(idb_pin);
+      disconnectPin(idb_pin, in_net);
       // 2
       connect(idb_pin->get_instance(), idb_pin, out_net);
     }
@@ -148,15 +148,14 @@ IdbInstance *FixFanout::makeInstance(string master_name, string inst_name) {
   return idb_inst;
 }
 
-void FixFanout::disconnectPin(IdbPin *dpin) {
-  if (dpin) {
-    auto *dnet = dpin->get_net();
+void FixFanout::disconnectPin(IdbPin *dpin, IdbNet *dnet) {
+  if (dpin && dnet) {
     dnet->remove_pin(dpin);
   }
 }
 
 void FixFanout::connect(IdbInstance *dinst, IdbPin *dpin, IdbNet *dnet) {
-  if(dinst) {
+  if (dinst) {
     auto  &dpin_list = dinst->get_pin_list()->get_pin_list();
     string port_name = dpin->get_pin_name();
     for (auto dpin : dpin_list) {

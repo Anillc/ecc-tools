@@ -218,7 +218,7 @@ struct PyPlaceDB
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
   void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, 
                    std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
-                   std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
+                   std::vector<IdbInstance*>& inst_resort_list,
                    int ext_blockage_num);
 
 private:

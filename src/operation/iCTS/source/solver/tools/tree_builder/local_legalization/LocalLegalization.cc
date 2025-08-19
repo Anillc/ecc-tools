@@ -25,9 +25,9 @@
 namespace icts {
 bool LocalLegalization::_ignore_core = false;
 
-LocalLegalization::LocalLegalization(Inst* inst, const std::vector<Pin*>& load_pins)
+LocalLegalization::LocalLegalization(Pin* driver_pin, const std::vector<Pin*>& load_pins)
 {
-  _variable_locations.push_back(inst->get_location());
+  _variable_locations.push_back(driver_pin->get_location());
   std::ranges::for_each(load_pins, [&](Pin* pin) {
     if (pin->isBufferPin()) {
       _variable_locations.push_back(pin->get_location());
@@ -36,11 +36,14 @@ LocalLegalization::LocalLegalization(Inst* inst, const std::vector<Pin*>& load_p
     }
   });
   legalize();
+  driver_pin->set_location(_variable_locations.front());
+  auto* inst = driver_pin->get_inst();
   inst->set_location(_variable_locations.front());
   if (_variable_locations.size() > 1) {
     _variable_locations.erase(_variable_locations.begin());
     std::ranges::for_each(load_pins, [&](Pin* pin) {
       if (pin->isBufferPin()) {
+        pin->set_location(_variable_locations.front());
         auto* inst = pin->get_inst();
         inst->set_location(_variable_locations.front());
         _variable_locations.erase(_variable_locations.begin());
@@ -53,11 +56,22 @@ LocalLegalization::LocalLegalization(std::vector<Pin*>& pins)
   if (pins.size() <= 1) {
     return;
   }
+  std::set<Point> tmp_fixed_set;
+  std::map<Point, Pin*> tmp_fixed_map;
+
   std::ranges::for_each(pins, [&](Pin* pin) {
     if (pin->isBufferPin()) {
       _variable_locations.push_back(pin->get_location());
     } else {
       _fixed_locations.push_back(pin->get_location());
+      if (tmp_fixed_set.contains(pin->get_location())) {
+        auto pin_1 = tmp_fixed_map[pin->get_location()];
+        auto pin_2 = pin;
+        LOG_INFO << "Pin 1: " << pin_1->get_name() << " Pin 2: " << pin_2->get_name() << std::endl;
+        LOG_FATAL << "Fixed locations are not legal " << pin->get_location() << std::endl;
+      }
+      tmp_fixed_set.insert(pin->get_location());
+      tmp_fixed_map[pin->get_location()] = pin;
     }
   });
   if (_variable_locations.empty()) {
@@ -66,6 +80,7 @@ LocalLegalization::LocalLegalization(std::vector<Pin*>& pins)
   legalize();
   std::ranges::for_each(pins, [&](Pin* pin) {
     if (pin->isBufferPin()) {
+      pin->set_location(_variable_locations.front());
       auto* inst = pin->get_inst();
       inst->set_location(_variable_locations.front());
       _variable_locations.erase(_variable_locations.begin());

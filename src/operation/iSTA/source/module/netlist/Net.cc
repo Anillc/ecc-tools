@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
-// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
+// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan PSL v2.
-// You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan
+// PSL v2. You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -83,18 +83,34 @@ double Net::getLoad(AnalysisMode mode, TransType trans_type) {
  * @return DesignObject*
  */
 DesignObject* Net::getDriver() {
+  std::vector<DesignObject*> drivers;
   for (auto* obj : _pin_ports) {
     if (obj->isPort()) {
       auto* port = dynamic_cast<Port*>(obj);
       if (port->isInput()) {
-        return port;
+        drivers.push_back(port);
       }
     } else {  // for pin.
       auto* pin = dynamic_cast<Pin*>(obj);
       if (pin->isOutput()) {
-        return pin;
+        drivers.push_back(pin);
       }
     }
+  }
+
+  if (drivers.size() == 1) {
+    return drivers[0];
+  } else if (drivers.size() > 1) {
+    for (auto* driver : drivers) {
+      if (!driver->isInout()) {
+        return driver;
+      }
+    }
+
+    LOG_INFO << "Net " << get_name()
+             << " connect multiple inout pin/port, random select driver:"
+             << drivers[0]->getFullName();
+    return drivers[0];
   }
 
   return nullptr;
@@ -106,18 +122,11 @@ DesignObject* Net::getDriver() {
  * @return std::vector<DesignObject*>
  */
 std::vector<DesignObject*> Net::getLoads() {
+  auto driver = getDriver();
   std::vector<DesignObject*> loads;
   for (auto* obj : _pin_ports) {
-    if (obj->isPort()) {
-      auto* port = static_cast<Port*>(obj);
-      if (port->isOutput()) {
-        loads.push_back(obj);
-      }
-    } else {  // for pin.
-      auto* pin = static_cast<Pin*>(obj);
-      if (pin->isInput()) {
-        loads.push_back(obj);
-      }
+    if (obj != driver) {
+      loads.push_back(obj);
     }
   }
 

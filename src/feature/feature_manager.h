@@ -34,7 +34,7 @@
 #include "feature_drc.h"
 #include "feature_irt.h"
 #include "feature_summary.h"
-
+#include "../database/interaction/RT_DRC/ids.hpp"
 #define featureInst ieda_feature::FeatureManager::getInstance()
 
 namespace ieda_feature {
@@ -53,6 +53,10 @@ class FeatureManager
   ///
   FeatureSummary* get_summary() { return _summary; }
   RouteAnalyseData& get_route_data() { return _route_data; }
+  std::map<std::string, std::map<std::string, std::vector<ids::Violation>>>& get_type_layer_violation_map()
+  {
+    return _type_layer_violation_map;
+  }
 
   bool save_summary(std::string path);
   bool save_tools(std::string path, std::string step);
@@ -67,14 +71,15 @@ class FeatureManager
   bool save_eval_summary(std::string path, int32_t grid_size);
   bool save_timing_eval_summary(std::string path);
   bool save_eval_union(std::string jsonl_path, std::string csv_path, int32_t grid_size);
-  bool save_pl_eval_union(std::string jsonl_path, std::string csv_path, int32_t grid_size);
-  bool save_cts_eval_union(std::string jsonl_path, std::string csv_path, int32_t grid_size);
+  bool save_pl_eval(std::string json_path, int32_t grid_size = 1);
+  bool save_cts_eval(std::string json_path, int32_t grid_size = 1);
 
  private:
   static FeatureManager* _instance;
 
   FeatureSummary* _summary = nullptr;
   RouteAnalyseData _route_data;
+  std::map<std::string, std::map<std::string, std::vector<ids::Violation>>> _type_layer_violation_map;
 
   FeatureManager();
   ~FeatureManager();

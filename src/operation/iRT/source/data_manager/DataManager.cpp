@@ -59,7 +59,8 @@ void DataManager::input(std::map<std::string, std::any>& config_map)
   buildDatabase();
   printConfig();
   printDatabase();
-  writePYScript();
+  outputScript();
+  outputJson();
   RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
@@ -107,17 +108,32 @@ void DataManager::updateFixedRectToGCellMap(ChangeType change_type, int32_t net_
   }
 }
 
-void DataManager::updateAccessNetPointToGCellMap(ChangeType change_type, int32_t net_idx, AccessPoint* access_point)
+void DataManager::updateNetAccessPointToGCellMap(ChangeType change_type, int32_t net_idx, AccessPoint* access_point)
 {
+  ScaleAxis& gcell_axis = _database.get_gcell_axis();
+  Die& die = _database.get_die();
   GridMap<GCell>& gcell_map = _database.get_gcell_map();
-
-  auto& net_access_point_map = gcell_map[access_point->get_grid_x()][access_point->get_grid_y()].get_net_access_point_map();
-  if (change_type == ChangeType::kAdd) {
-    net_access_point_map[net_idx].insert(access_point);
-  } else if (change_type == ChangeType::kDel) {
-    net_access_point_map[net_idx].erase(access_point);
-    if (net_access_point_map[net_idx].empty()) {
-      net_access_point_map.erase(net_idx);
+  int32_t detection_distance = _database.get_detection_distance();
+  if (detection_distance == -1) {
+    RTLOG.error(Loc::current(), "The detection_distance is not initialize!");
+  }
+  PlanarRect real_rect = RTUTIL.getEnlargedRect(access_point->get_real_coord(), detection_distance);
+  if (!RTUTIL.hasRegularRect(real_rect, die.get_real_rect())) {
+    return;
+  }
+  real_rect = RTUTIL.getRegularRect(real_rect, die.get_real_rect());
+  PlanarRect grid_rect = RTUTIL.getClosedGCellGridRect(real_rect, gcell_axis);
+  for (int32_t x = grid_rect.get_ll_x(); x <= grid_rect.get_ur_x(); x++) {
+    for (int32_t y = grid_rect.get_ll_y(); y <= grid_rect.get_ur_y(); y++) {
+      auto& net_access_point_map = gcell_map[x][y].get_net_access_point_map();
+      if (change_type == ChangeType::kAdd) {
+        net_access_point_map[net_idx].insert(access_point);
+      } else if (change_type == ChangeType::kDel) {
+        net_access_point_map[net_idx].erase(access_point);
+        if (net_access_point_map[net_idx].empty()) {
+          net_access_point_map.erase(net_idx);
+        }
+      }
     }
   }
   if (change_type == ChangeType::kDel) {
@@ -134,7 +150,7 @@ void DataManager::updateNetPinAccessResultToGCellMap(ChangeType change_type, int
   if (detection_distance == -1) {
     RTLOG.error(Loc::current(), "The detection_distance is not initialize!");
   }
-  for (NetShape& net_shape : getNetShapeList(net_idx, *segment)) {
+  for (NetShape& net_shape : getNetDetailedShapeList(net_idx, *segment)) {
     PlanarRect real_rect = RTUTIL.getEnlargedRect(net_shape, detection_distance);
     if (!RTUTIL.hasRegularRect(real_rect, die.get_real_rect())) {
       continue;
@@ -161,6 +177,43 @@ void DataManager::updateNetPinAccessResultToGCellMap(ChangeType change_type, int
   if (change_type == ChangeType::kDel) {
     delete segment;
     segment = nullptr;
+  }
+}
+
+void DataManager::updateNetPinAccessPatchToGCellMap(ChangeType change_type, int32_t net_idx, int32_t pin_idx, EXTLayerRect* ext_layer_rect)
+{
+  ScaleAxis& gcell_axis = _database.get_gcell_axis();
+  Die& die = _database.get_die();
+  GridMap<GCell>& gcell_map = _database.get_gcell_map();
+  int32_t detection_distance = _database.get_detection_distance();
+  if (detection_distance == -1) {
+    RTLOG.error(Loc::current(), "The detection_distance is not initialize!");
+  }
+  PlanarRect real_rect = RTUTIL.getEnlargedRect(ext_layer_rect->get_real_rect(), detection_distance);
+  if (!RTUTIL.hasRegularRect(real_rect, die.get_real_rect())) {
+    return;
+  }
+  real_rect = RTUTIL.getRegularRect(real_rect, die.get_real_rect());
+  PlanarRect grid_rect = RTUTIL.getClosedGCellGridRect(real_rect, gcell_axis);
+  for (int32_t x = grid_rect.get_ll_x(); x <= grid_rect.get_ur_x(); x++) {
+    for (int32_t y = grid_rect.get_ll_y(); y <= grid_rect.get_ur_y(); y++) {
+      auto& net_pin_access_patch_map = gcell_map[x][y].get_net_pin_access_patch_map();
+      if (change_type == ChangeType::kAdd) {
+        net_pin_access_patch_map[net_idx][pin_idx].insert(ext_layer_rect);
+      } else if (change_type == ChangeType::kDel) {
+        net_pin_access_patch_map[net_idx][pin_idx].erase(ext_layer_rect);
+        if (net_pin_access_patch_map[net_idx][pin_idx].empty()) {
+          net_pin_access_patch_map[net_idx].erase(pin_idx);
+        }
+        if (net_pin_access_patch_map[net_idx].empty()) {
+          net_pin_access_patch_map.erase(net_idx);
+        }
+      }
+    }
+  }
+  if (change_type == ChangeType::kDel) {
+    delete ext_layer_rect;
+    ext_layer_rect = nullptr;
   }
 }
 
@@ -206,7 +259,7 @@ void DataManager::updateNetDetailedResultToGCellMap(ChangeType change_type, int3
   if (detection_distance == -1) {
     RTLOG.error(Loc::current(), "The detection_distance is not initialize!");
   }
-  for (NetShape& net_shape : getNetShapeList(net_idx, *segment)) {
+  for (NetShape& net_shape : getNetDetailedShapeList(net_idx, *segment)) {
     PlanarRect real_rect = RTUTIL.getEnlargedRect(net_shape, detection_distance);
     if (!RTUTIL.hasRegularRect(real_rect, die.get_real_rect())) {
       continue;
@@ -233,43 +286,7 @@ void DataManager::updateNetDetailedResultToGCellMap(ChangeType change_type, int3
   }
 }
 
-void DataManager::updateNetFinalResultToGCellMap(ChangeType change_type, int32_t net_idx, Segment<LayerCoord>* segment)
-{
-  ScaleAxis& gcell_axis = _database.get_gcell_axis();
-  Die& die = _database.get_die();
-  GridMap<GCell>& gcell_map = _database.get_gcell_map();
-  int32_t detection_distance = _database.get_detection_distance();
-  if (detection_distance == -1) {
-    RTLOG.error(Loc::current(), "The detection_distance is not initialize!");
-  }
-  for (NetShape& net_shape : getNetShapeList(net_idx, *segment)) {
-    PlanarRect real_rect = RTUTIL.getEnlargedRect(net_shape, detection_distance);
-    if (!RTUTIL.hasRegularRect(real_rect, die.get_real_rect())) {
-      continue;
-    }
-    real_rect = RTUTIL.getRegularRect(real_rect, die.get_real_rect());
-    PlanarRect grid_rect = RTUTIL.getClosedGCellGridRect(real_rect, gcell_axis);
-    for (int32_t x = grid_rect.get_ll_x(); x <= grid_rect.get_ur_x(); x++) {
-      for (int32_t y = grid_rect.get_ll_y(); y <= grid_rect.get_ur_y(); y++) {
-        auto& net_final_result_map = gcell_map[x][y].get_net_final_result_map();
-        if (change_type == ChangeType::kAdd) {
-          net_final_result_map[net_idx].insert(segment);
-        } else if (change_type == ChangeType::kDel) {
-          net_final_result_map[net_idx].erase(segment);
-          if (net_final_result_map[net_idx].empty()) {
-            net_final_result_map.erase(net_idx);
-          }
-        }
-      }
-    }
-  }
-  if (change_type == ChangeType::kDel) {
-    delete segment;
-    segment = nullptr;
-  }
-}
-
-void DataManager::updateNetFinalPatchToGCellMap(ChangeType change_type, int32_t net_idx, EXTLayerRect* ext_layer_rect)
+void DataManager::updateNetDetailedPatchToGCellMap(ChangeType change_type, int32_t net_idx, EXTLayerRect* ext_layer_rect)
 {
   ScaleAxis& gcell_axis = _database.get_gcell_axis();
   Die& die = _database.get_die();
@@ -286,13 +303,13 @@ void DataManager::updateNetFinalPatchToGCellMap(ChangeType change_type, int32_t 
   PlanarRect grid_rect = RTUTIL.getClosedGCellGridRect(real_rect, gcell_axis);
   for (int32_t x = grid_rect.get_ll_x(); x <= grid_rect.get_ur_x(); x++) {
     for (int32_t y = grid_rect.get_ll_y(); y <= grid_rect.get_ur_y(); y++) {
-      auto& net_final_patch_map = gcell_map[x][y].get_net_final_patch_map();
+      auto& net_detailed_patch_map = gcell_map[x][y].get_net_detailed_patch_map();
       if (change_type == ChangeType::kAdd) {
-        net_final_patch_map[net_idx].insert(ext_layer_rect);
+        net_detailed_patch_map[net_idx].insert(ext_layer_rect);
       } else if (change_type == ChangeType::kDel) {
-        net_final_patch_map[net_idx].erase(ext_layer_rect);
-        if (net_final_patch_map[net_idx].empty()) {
-          net_final_patch_map.erase(net_idx);
+        net_detailed_patch_map[net_idx].erase(ext_layer_rect);
+        if (net_detailed_patch_map[net_idx].empty()) {
+          net_detailed_patch_map.erase(net_idx);
         }
       }
     }
@@ -376,6 +393,23 @@ std::map<int32_t, std::map<int32_t, std::set<Segment<LayerCoord>*>>> DataManager
   return net_pin_access_result_map;
 }
 
+std::map<int32_t, std::map<int32_t, std::set<EXTLayerRect*>>> DataManager::getNetPinAccessPatchMap(EXTPlanarRect& region)
+{
+  GridMap<GCell>& gcell_map = _database.get_gcell_map();
+
+  std::map<int32_t, std::map<int32_t, std::set<EXTLayerRect*>>> net_pin_access_patch_map;
+  for (int32_t x = region.get_grid_ll_x(); x <= region.get_grid_ur_x(); x++) {
+    for (int32_t y = region.get_grid_ll_y(); y <= region.get_grid_ur_y(); y++) {
+      for (auto& [net_idx, pin_access_patch_map] : gcell_map[x][y].get_net_pin_access_patch_map()) {
+        for (auto& [pin_idx, patch_set] : pin_access_patch_map) {
+          net_pin_access_patch_map[net_idx][pin_idx].insert(patch_set.begin(), patch_set.end());
+        }
+      }
+    }
+  }
+  return net_pin_access_patch_map;
+}
+
 std::map<int32_t, std::set<Segment<LayerCoord>*>> DataManager::getNetGlobalResultMap(EXTPlanarRect& region)
 {
   GridMap<GCell>& gcell_map = _database.get_gcell_map();
@@ -406,34 +440,19 @@ std::map<int32_t, std::set<Segment<LayerCoord>*>> DataManager::getNetDetailedRes
   return net_detailed_result_map;
 }
 
-std::map<int32_t, std::set<Segment<LayerCoord>*>> DataManager::getNetFinalResultMap(EXTPlanarRect& region)
+std::map<int32_t, std::set<EXTLayerRect*>> DataManager::getNetDetailedPatchMap(EXTPlanarRect& region)
 {
   GridMap<GCell>& gcell_map = _database.get_gcell_map();
 
-  std::map<int32_t, std::set<Segment<LayerCoord>*>> net_final_result_map;
+  std::map<int32_t, std::set<EXTLayerRect*>> net_detailed_patch_map;
   for (int32_t x = region.get_grid_ll_x(); x <= region.get_grid_ur_x(); x++) {
     for (int32_t y = region.get_grid_ll_y(); y <= region.get_grid_ur_y(); y++) {
-      for (auto& [net_idx, segment_set] : gcell_map[x][y].get_net_final_result_map()) {
-        net_final_result_map[net_idx].insert(segment_set.begin(), segment_set.end());
+      for (auto& [net_idx, patch_set] : gcell_map[x][y].get_net_detailed_patch_map()) {
+        net_detailed_patch_map[net_idx].insert(patch_set.begin(), patch_set.end());
       }
     }
   }
-  return net_final_result_map;
-}
-
-std::map<int32_t, std::set<EXTLayerRect*>> DataManager::getNetFinalPatchMap(EXTPlanarRect& region)
-{
-  GridMap<GCell>& gcell_map = _database.get_gcell_map();
-
-  std::map<int32_t, std::set<EXTLayerRect*>> net_final_patch_map;
-  for (int32_t x = region.get_grid_ll_x(); x <= region.get_grid_ur_x(); x++) {
-    for (int32_t y = region.get_grid_ll_y(); y <= region.get_grid_ur_y(); y++) {
-      for (auto& [net_idx, patch_set] : gcell_map[x][y].get_net_final_patch_map()) {
-        net_final_patch_map[net_idx].insert(patch_set.begin(), patch_set.end());
-      }
-    }
-  }
-  return net_final_patch_map;
+  return net_detailed_patch_map;
 }
 
 std::set<Violation*> DataManager::getViolationSet(EXTPlanarRect& region)
@@ -453,41 +472,101 @@ std::set<Violation*> DataManager::getViolationSet(EXTPlanarRect& region)
 
 #if 1  // 获得NetShapeList
 
-std::vector<NetShape> DataManager::getNetShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list)
+std::vector<NetShape> DataManager::getNetGlobalShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list)
 {
   std::vector<NetShape> net_shape_list;
   for (Segment<LayerCoord>& segment : segment_list) {
-    for (NetShape& net_shape : getNetShapeList(net_idx, segment)) {
+    for (NetShape& net_shape : getNetGlobalShapeList(net_idx, segment)) {
       net_shape_list.push_back(net_shape);
     }
   }
   return net_shape_list;
 }
 
-std::vector<NetShape> DataManager::getNetShapeList(int32_t net_idx, Segment<LayerCoord>& segment)
+std::vector<NetShape> DataManager::getNetGlobalShapeList(int32_t net_idx, Segment<LayerCoord>& segment)
 {
   std::vector<NetShape> net_shape_list;
-  for (NetShape& net_shape : getNetShapeList(net_idx, segment.get_first(), segment.get_second())) {
+  for (NetShape& net_shape : getNetGlobalShapeList(net_idx, segment.get_first(), segment.get_second())) {
     net_shape_list.push_back(net_shape);
   }
   return net_shape_list;
 }
 
-std::vector<NetShape> DataManager::getNetShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree)
+std::vector<NetShape> DataManager::getNetGlobalShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree)
 {
   std::vector<NetShape> net_shape_list;
   for (Segment<TNode<LayerCoord>*>& coord_segment : RTUTIL.getSegListByTree(coord_tree)) {
-    for (NetShape& net_shape : getNetShapeList(net_idx, coord_segment.get_first()->value(), coord_segment.get_second()->value())) {
+    for (NetShape& net_shape : getNetGlobalShapeList(net_idx, coord_segment.get_first()->value(), coord_segment.get_second()->value())) {
       net_shape_list.push_back(net_shape);
     }
   }
   return net_shape_list;
 }
 
-std::vector<NetShape> DataManager::getNetShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord)
+std::vector<NetShape> DataManager::getNetGlobalShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord)
 {
-  std::vector<RoutingLayer>& routing_layer_list = RTDM.getDatabase().get_routing_layer_list();
-  std::vector<std::vector<ViaMaster>>& layer_via_master_list = RTDM.getDatabase().get_layer_via_master_list();
+  ScaleAxis& gcell_axis = _database.get_gcell_axis();
+  std::map<int32_t, std::vector<int32_t>>& routing_to_adjacent_cut_map = _database.get_routing_to_adjacent_cut_map();
+
+  PlanarRect first_gcell = RTUTIL.getRealRectByGCell(first_coord, gcell_axis);
+  int32_t first_layer_idx = first_coord.get_layer_idx();
+  PlanarRect second_gcell = RTUTIL.getRealRectByGCell(second_coord, gcell_axis);
+  int32_t second_layer_idx = second_coord.get_layer_idx();
+
+  std::vector<NetShape> net_shape_list;
+  if (first_layer_idx != second_layer_idx) {
+    RTUTIL.swapByASC(first_layer_idx, second_layer_idx);
+    for (int32_t routing_layer_idx = first_layer_idx; routing_layer_idx < second_layer_idx; routing_layer_idx++) {
+      int32_t cut_layer_idx = -1;
+      {
+        std::vector<int32_t>& cut_layer_idx_list = routing_to_adjacent_cut_map[routing_layer_idx];
+        cut_layer_idx = *std::max_element(cut_layer_idx_list.begin(), cut_layer_idx_list.end());
+      }
+      LayerRect gcell_rect(first_gcell, cut_layer_idx);
+      net_shape_list.emplace_back(net_idx, gcell_rect, false);
+    }
+  } else {
+    LayerRect gcell_rect(RTUTIL.getBoundingBox({first_gcell, second_gcell}), first_layer_idx);
+    net_shape_list.emplace_back(net_idx, gcell_rect, true);
+  }
+  return net_shape_list;
+}
+
+std::vector<NetShape> DataManager::getNetDetailedShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list)
+{
+  std::vector<NetShape> net_shape_list;
+  for (Segment<LayerCoord>& segment : segment_list) {
+    for (NetShape& net_shape : getNetDetailedShapeList(net_idx, segment)) {
+      net_shape_list.push_back(net_shape);
+    }
+  }
+  return net_shape_list;
+}
+
+std::vector<NetShape> DataManager::getNetDetailedShapeList(int32_t net_idx, Segment<LayerCoord>& segment)
+{
+  std::vector<NetShape> net_shape_list;
+  for (NetShape& net_shape : getNetDetailedShapeList(net_idx, segment.get_first(), segment.get_second())) {
+    net_shape_list.push_back(net_shape);
+  }
+  return net_shape_list;
+}
+
+std::vector<NetShape> DataManager::getNetDetailedShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree)
+{
+  std::vector<NetShape> net_shape_list;
+  for (Segment<TNode<LayerCoord>*>& coord_segment : RTUTIL.getSegListByTree(coord_tree)) {
+    for (NetShape& net_shape : getNetDetailedShapeList(net_idx, coord_segment.get_first()->value(), coord_segment.get_second()->value())) {
+      net_shape_list.push_back(net_shape);
+    }
+  }
+  return net_shape_list;
+}
+
+std::vector<NetShape> DataManager::getNetDetailedShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord)
+{
+  std::vector<RoutingLayer>& routing_layer_list = _database.get_routing_layer_list();
+  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
 
   std::vector<NetShape> net_shape_list;
   int32_t first_layer_idx = first_coord.get_layer_idx();
@@ -569,11 +648,13 @@ void DataManager::buildConfig()
   if (_config.bottom_routing_layer_idx >= _config.top_routing_layer_idx) {
     RTLOG.error(Loc::current(), "The routing layer should be at least two layers!");
   }
+  // **********    DataManager    ********** //
+  _config.dm_temp_directory_path = _config.temp_directory_path + "data_manager/";
   // **********     DRCEngine     ********** //
   _config.de_temp_directory_path = _config.temp_directory_path + "drc_engine/";
   // **********     GDSPlotter    ********** //
   _config.gp_temp_directory_path = _config.temp_directory_path + "gds_plotter/";
-  // **********   PinAccessor     ********** //
+  // **********    PinAccessor    ********** //
   _config.pa_temp_directory_path = _config.temp_directory_path + "pin_accessor/";
   // ********     SupplyAnalyzer    ******** //
   _config.sa_temp_directory_path = _config.temp_directory_path + "supply_analyzer/";
@@ -581,14 +662,14 @@ void DataManager::buildConfig()
   _config.tg_temp_directory_path = _config.temp_directory_path + "topology_generator/";
   // **********   LayerAssigner   ********** //
   _config.la_temp_directory_path = _config.temp_directory_path + "layer_assigner/";
-  // **********   GlobalRouter    ********** //
-  _config.gr_temp_directory_path = _config.temp_directory_path + "global_router/";
+  // **********    SpaceRouter    ********** //
+  _config.sr_temp_directory_path = _config.temp_directory_path + "space_router/";
   // **********   TrackAssigner   ********** //
   _config.ta_temp_directory_path = _config.temp_directory_path + "track_assigner/";
   // **********  DetailedRouter   ********** //
   _config.dr_temp_directory_path = _config.temp_directory_path + "detailed_router/";
-  // ********** ViolationRepairer ********** //
-  _config.vr_temp_directory_path = _config.temp_directory_path + "violation_repairer/";
+  // ********** ViolationReporter ********** //
+  _config.vr_temp_directory_path = _config.temp_directory_path + "violation_reporter/";
   // **********    EarlyRouter    ********** //
   _config.er_temp_directory_path = _config.temp_directory_path + "early_router/";
   /////////////////////////////////////////////
@@ -596,11 +677,13 @@ void DataManager::buildConfig()
   RTUTIL.removeDir(_config.temp_directory_path);
   RTUTIL.createDir(_config.temp_directory_path);
   RTUTIL.createDirByFile(_config.log_file_path);
+  // **********    DataManager    ********** //
+  RTUTIL.createDir(_config.dm_temp_directory_path);
   // **********     DRCEngine     ********** //
   RTUTIL.createDir(_config.de_temp_directory_path);
   // **********    GDSPlotter     ********** //
   RTUTIL.createDir(_config.gp_temp_directory_path);
-  // **********   PinAccessor     ********** //
+  // **********    PinAccessor    ********** //
   RTUTIL.createDir(_config.pa_temp_directory_path);
   // **********  SupplyAnalyzer   ********** //
   RTUTIL.createDir(_config.sa_temp_directory_path);
@@ -608,13 +691,13 @@ void DataManager::buildConfig()
   RTUTIL.createDir(_config.tg_temp_directory_path);
   // **********   LayerAssigner   ********** //
   RTUTIL.createDir(_config.la_temp_directory_path);
-  // **********   GlobalRouter    ********** //
-  RTUTIL.createDir(_config.gr_temp_directory_path);
+  // **********    SpaceRouter    ********** //
+  RTUTIL.createDir(_config.sr_temp_directory_path);
   // **********   TrackAssigner   ********** //
   RTUTIL.createDir(_config.ta_temp_directory_path);
   // **********  DetailedRouter   ********** //
   RTUTIL.createDir(_config.dr_temp_directory_path);
-  // ********** ViolationRepairer ********** //
+  // ********** ViolationReporter ********** //
   RTUTIL.createDir(_config.vr_temp_directory_path);
   // **********    EarlyRouter    ********** //
   RTUTIL.createDir(_config.er_temp_directory_path);
@@ -628,10 +711,10 @@ void DataManager::buildDatabase()
   buildLayerInfo();
   buildGCellAxis();
   buildDie();
-  buildObstacleList();
-  buildNetList();
   buildLayerViaMasterList();
   buildLayerViaMasterInfo();
+  buildObstacleList();
+  buildNetList();
   buildDetectionDistance();
   buildGCellMap();
 }
@@ -767,6 +850,9 @@ void DataManager::checkLayerList()
     SpacingTable& prl_spacing_table = routing_layer.get_prl_spacing_table();
     if (prl_spacing_table.get_width_list().empty()) {
       RTLOG.error(Loc::current(), "The layer '", layer_name, "' spacing width_list is empty!");
+    }
+    if (routing_layer.get_notch_spacing() == -1) {
+      RTLOG.error(Loc::current(), "The layer '", layer_name, "' notch_spacing == -1!");
     }
     if (prl_spacing_table.get_parallel_length_list().empty()) {
       RTLOG.error(Loc::current(), "The layer '", layer_name, "' spacing parallel_length_list is empty!");
@@ -951,11 +1037,129 @@ void DataManager::checkDie()
   }
 }
 
+void DataManager::buildLayerViaMasterList()
+{
+  transLayerViaMasterList();
+  makeLayerViaMasterList();
+}
+
+void DataManager::transLayerViaMasterList()
+{
+  std::map<int32_t, int32_t>& routing_idb_layer_id_to_idx_map = _database.get_routing_idb_layer_id_to_idx_map();
+  std::map<int32_t, int32_t>& cut_idb_layer_id_to_idx_map = _database.get_cut_idb_layer_id_to_idx_map();
+  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
+
+  for (std::vector<ViaMaster>& via_master_list : layer_via_master_list) {
+    for (ViaMaster& via_master : via_master_list) {
+      // above
+      LayerRect& above_enclosure = via_master.get_above_enclosure();
+      above_enclosure.set_layer_idx(routing_idb_layer_id_to_idx_map[above_enclosure.get_layer_idx()]);
+      // below
+      LayerRect& below_enclosure = via_master.get_below_enclosure();
+      below_enclosure.set_layer_idx(routing_idb_layer_id_to_idx_map[below_enclosure.get_layer_idx()]);
+      // cut
+      via_master.set_cut_layer_idx(cut_idb_layer_id_to_idx_map[via_master.get_cut_layer_idx()]);
+    }
+  }
+}
+
+void DataManager::makeLayerViaMasterList()
+{
+  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
+  std::vector<RoutingLayer>& routing_layer_list = _database.get_routing_layer_list();
+  std::vector<Net>& net_list = _database.get_net_list();
+  {
+    std::vector<ViaMaster> first_via_master_list;
+    for (ViaMaster& via_master : layer_via_master_list.front()) {
+      int32_t below_layer_idx = via_master.get_below_enclosure().get_layer_idx();
+      if (below_layer_idx == 0) {
+        first_via_master_list.push_back(via_master);
+      } else {
+        layer_via_master_list[below_layer_idx].push_back(via_master);
+      }
+    }
+    layer_via_master_list[0] = first_via_master_list;
+  }
+  for (size_t layer_idx = 0; layer_idx < layer_via_master_list.size(); layer_idx++) {
+    std::vector<ViaMaster>& via_master_list = layer_via_master_list[layer_idx];
+    for (ViaMaster& via_master : via_master_list) {
+      // above
+      LayerRect& above_enclosure = via_master.get_above_enclosure();
+      via_master.set_above_direction(above_enclosure.getRectDirection(Direction::kNone));
+      // below
+      LayerRect& below_enclosure = via_master.get_below_enclosure();
+      via_master.set_below_direction(below_enclosure.getRectDirection(Direction::kNone));
+    }
+  }
+  std::vector<Direction> direction_list;
+  {
+    for (RoutingLayer& routing_layer : routing_layer_list) {
+      direction_list.push_back(routing_layer.get_prefer_direction());
+    }
+    // 只对第一层进行方向分析
+    std::map<Direction, int32_t> direction_num_map;
+    for (Net& net : net_list) {
+      for (Pin& pin : net.get_pin_list()) {
+        for (EXTLayerRect& routing_shape : pin.get_routing_shape_list()) {
+          if (routing_shape.get_layer_idx() != 0) {
+            continue;
+          }
+          direction_num_map[routing_shape.get_real_rect().getRectDirection(routing_layer_list[routing_shape.get_layer_idx()].get_prefer_direction())]++;
+        }
+      }
+    }
+    Direction first_direction = direction_list.front();
+    int32_t max_num = INT32_MIN;
+    for (auto& [direction, num] : direction_num_map) {
+      if (max_num < num) {
+        first_direction = direction;
+        max_num = num;
+      }
+    }
+    direction_list.front() = first_direction;
+  }
+  for (int32_t layer_idx = 0; layer_idx < static_cast<int32_t>(layer_via_master_list.size()); layer_idx++) {
+    std::vector<ViaMaster>& via_master_list = layer_via_master_list[layer_idx];
+    std::sort(via_master_list.begin(), via_master_list.end(), [&direction_list](ViaMaster& a, ViaMaster& b) { return CmpViaMaster()(a, b, direction_list); });
+    for (int32_t i = 0; i < static_cast<int32_t>(via_master_list.size()); i++) {
+      via_master_list[i].set_via_master_idx(layer_idx, i);
+    }
+  }
+}
+
+void DataManager::buildLayerViaMasterInfo()
+{
+  std::vector<RoutingLayer>& routing_layer_list = _database.get_routing_layer_list();
+  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
+  std::map<int32_t, PlanarRect>& layer_enclosure_map = _database.get_layer_enclosure_map();
+  std::map<int32_t, PlanarRect>& layer_cut_shape_map = _database.get_layer_cut_shape_map();
+
+  int32_t start_layer_idx = 0;
+  int32_t end_layer_idx = static_cast<int32_t>(routing_layer_list.size()) - 1;
+
+  layer_enclosure_map[start_layer_idx] = layer_via_master_list[start_layer_idx].front().get_below_enclosure();
+  for (int32_t layer_idx = 1; layer_idx < end_layer_idx; layer_idx++) {
+    std::vector<PlanarRect> rect_list;
+    rect_list.push_back(layer_via_master_list[layer_idx - 1].front().get_above_enclosure());
+    rect_list.push_back(layer_via_master_list[layer_idx].front().get_below_enclosure());
+    layer_enclosure_map[layer_idx] = RTUTIL.getBoundingBox(rect_list);
+  }
+  layer_enclosure_map[end_layer_idx] = layer_via_master_list[end_layer_idx - 1].front().get_above_enclosure();
+
+  for (int32_t layer_idx = 0; layer_idx < end_layer_idx; layer_idx++) {
+    ViaMaster& via_master = layer_via_master_list[layer_idx].front();
+    layer_cut_shape_map[via_master.get_cut_layer_idx()] = via_master.get_cut_shape_list().front();
+  }
+}
+
 void DataManager::buildObstacleList()
 {
+  Monitor monitor;
+  RTLOG.info(Loc::current(), "Starting...");
   transObstacleList();
   makeObstacleList();
   checkObstacleList();
+  RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
 void DataManager::transObstacleList()
@@ -979,16 +1183,27 @@ void DataManager::makeObstacleList()
 {
   ScaleAxis& gcell_axis = _database.get_gcell_axis();
   Die& die = _database.get_die();
+  std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = _database.get_cut_to_adjacent_routing_map();
   std::vector<Obstacle>& routing_obstacle_list = _database.get_routing_obstacle_list();
   std::vector<Obstacle>& cut_obstacle_list = _database.get_cut_obstacle_list();
 
-#pragma omp parallel for
+  std::map<int32_t, std::vector<PlanarRect>> routing_rect_list_map;
   for (Obstacle& routing_obstacle : routing_obstacle_list) {
     if (!RTUTIL.hasRegularRect(routing_obstacle.get_real_rect(), die.get_real_rect())) {
       RTLOG.error(Loc::current(), "This shape is outside the die!");
     }
-    routing_obstacle.set_real_rect(RTUTIL.getRegularRect(routing_obstacle.get_real_rect(), die.get_real_rect()));
-    routing_obstacle.set_grid_rect(RTUTIL.getClosedGCellGridRect(routing_obstacle.get_real_rect(), gcell_axis));
+    PlanarRect regular_rect = RTUTIL.getRegularRect(routing_obstacle.get_real_rect(), die.get_real_rect());
+    routing_rect_list_map[routing_obstacle.get_layer_idx()].push_back(regular_rect);
+  }
+  routing_obstacle_list.clear();
+  for (auto& [routing_layer_idx, rect_list] : routing_rect_list_map) {
+    for (PlanarRect& real_rect : RTUTIL.getMaxRectList(rect_list)) {
+      Obstacle routing_obstacle;
+      routing_obstacle.set_real_rect(real_rect);
+      routing_obstacle.set_grid_rect(RTUTIL.getClosedGCellGridRect(routing_obstacle.get_real_rect(), gcell_axis));
+      routing_obstacle.set_layer_idx(routing_layer_idx);
+      routing_obstacle_list.push_back(routing_obstacle);
+    }
   }
 #pragma omp parallel for
   for (Obstacle& cut_obstacle : cut_obstacle_list) {
@@ -998,6 +1213,19 @@ void DataManager::makeObstacleList()
     cut_obstacle.set_real_rect(RTUTIL.getRegularRect(cut_obstacle.get_real_rect(), die.get_real_rect()));
     cut_obstacle.set_grid_rect(RTUTIL.getClosedGCellGridRect(cut_obstacle.get_real_rect(), gcell_axis));
   }
+  std::set<int32_t> ignore_cut_layer_idx_set;
+  for (auto& [cut_layer_idx, routing_layer_idx_list] : cut_to_adjacent_routing_map) {
+    if (routing_layer_idx_list.size() == 1) {
+      ignore_cut_layer_idx_set.insert(cut_layer_idx);
+    }
+  }
+  std::vector<Obstacle> cut_obstacle_list_temp;
+  for (Obstacle& cut_obstacle : cut_obstacle_list) {
+    if (!RTUTIL.exist(ignore_cut_layer_idx_set, cut_obstacle.get_layer_idx())) {
+      cut_obstacle_list_temp.push_back(cut_obstacle);
+    }
+  }
+  cut_obstacle_list = cut_obstacle_list_temp;
 }
 
 void DataManager::checkObstacleList()
@@ -1031,6 +1259,8 @@ void DataManager::checkObstacleList()
 
 void DataManager::buildNetList()
 {
+  Monitor monitor;
+  RTLOG.info(Loc::current(), "Starting...");
   std::vector<Net>& net_list = _database.get_net_list();
 #pragma omp parallel for
   for (size_t net_idx = 0; net_idx < net_list.size(); net_idx++) {
@@ -1038,6 +1268,7 @@ void DataManager::buildNetList()
     net.set_net_idx(static_cast<int32_t>(net_idx));
     buildPinList(net);
   }
+  RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
 void DataManager::buildPinList(Net& net)
@@ -1115,132 +1346,18 @@ void DataManager::checkPinList(Net& net)
   }
 }
 
-void DataManager::buildLayerViaMasterList()
-{
-  transLayerViaMasterList();
-  makeLayerViaMasterList();
-}
-
-void DataManager::transLayerViaMasterList()
-{
-  std::map<int32_t, int32_t>& routing_idb_layer_id_to_idx_map = _database.get_routing_idb_layer_id_to_idx_map();
-  std::map<int32_t, int32_t>& cut_idb_layer_id_to_idx_map = _database.get_cut_idb_layer_id_to_idx_map();
-  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
-
-  for (std::vector<ViaMaster>& via_master_list : layer_via_master_list) {
-    for (ViaMaster& via_master : via_master_list) {
-      // above
-      LayerRect& above_enclosure = via_master.get_above_enclosure();
-      above_enclosure.set_layer_idx(routing_idb_layer_id_to_idx_map[above_enclosure.get_layer_idx()]);
-      // below
-      LayerRect& below_enclosure = via_master.get_below_enclosure();
-      below_enclosure.set_layer_idx(routing_idb_layer_id_to_idx_map[below_enclosure.get_layer_idx()]);
-      // cut
-      via_master.set_cut_layer_idx(cut_idb_layer_id_to_idx_map[via_master.get_cut_layer_idx()]);
-    }
-  }
-}
-
-void DataManager::makeLayerViaMasterList()
-{
-  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
-  std::vector<RoutingLayer>& routing_layer_list = _database.get_routing_layer_list();
-  std::vector<Net>& net_list = _database.get_net_list();
-  {
-    std::vector<ViaMaster> first_via_master_list;
-    for (ViaMaster& via_master : layer_via_master_list.front()) {
-      int32_t below_layer_idx = via_master.get_below_enclosure().get_layer_idx();
-      if (below_layer_idx == 0) {
-        first_via_master_list.push_back(via_master);
-      } else {
-        layer_via_master_list[below_layer_idx].push_back(via_master);
-      }
-    }
-    layer_via_master_list[0] = first_via_master_list;
-  }
-  for (size_t layer_idx = 0; layer_idx < layer_via_master_list.size(); layer_idx++) {
-    std::vector<ViaMaster>& via_master_list = layer_via_master_list[layer_idx];
-    for (ViaMaster& via_master : via_master_list) {
-      // above
-      LayerRect& above_enclosure = via_master.get_above_enclosure();
-      Direction above_layer_direction = routing_layer_list[above_enclosure.get_layer_idx()].get_prefer_direction();
-      via_master.set_above_direction(above_enclosure.getRectDirection(above_layer_direction));
-      // below
-      LayerRect& below_enclosure = via_master.get_below_enclosure();
-      Direction below_layer_direction = routing_layer_list[below_enclosure.get_layer_idx()].get_prefer_direction();
-      via_master.set_below_direction(below_enclosure.getRectDirection(below_layer_direction));
-    }
-  }
-  std::vector<Direction> direction_list;
-  {
-    for (RoutingLayer& routing_layer : routing_layer_list) {
-      direction_list.push_back(routing_layer.get_prefer_direction());
-    }
-    // 只对第一层进行方向分析
-    std::map<Direction, int32_t> direction_num_map;
-    for (Net& net : net_list) {
-      for (Pin& pin : net.get_pin_list()) {
-        for (EXTLayerRect& routing_shape : pin.get_routing_shape_list()) {
-          if (routing_shape.get_layer_idx() != 0) {
-            continue;
-          }
-          direction_num_map[routing_shape.get_real_rect().getRectDirection()]++;
-        }
-      }
-    }
-    Direction first_direction = direction_list.front();
-    int32_t max_num = INT32_MIN;
-    for (auto& [direction, num] : direction_num_map) {
-      if (max_num < num) {
-        first_direction = direction;
-        max_num = num;
-      }
-    }
-    direction_list.front() = first_direction;
-  }
-  for (int32_t layer_idx = 0; layer_idx < static_cast<int32_t>(layer_via_master_list.size()); layer_idx++) {
-    std::vector<ViaMaster>& via_master_list = layer_via_master_list[layer_idx];
-    std::sort(via_master_list.begin(), via_master_list.end(), [&direction_list](ViaMaster& a, ViaMaster& b) { return CmpViaMaster()(a, b, direction_list); });
-    for (int32_t i = 0; i < static_cast<int32_t>(via_master_list.size()); i++) {
-      via_master_list[i].set_via_master_idx(layer_idx, i);
-    }
-  }
-}
-
-void DataManager::buildLayerViaMasterInfo()
-{
-  std::vector<RoutingLayer>& routing_layer_list = _database.get_routing_layer_list();
-  std::vector<std::vector<ViaMaster>>& layer_via_master_list = _database.get_layer_via_master_list();
-  std::map<int32_t, PlanarRect>& layer_enclosure_map = _database.get_layer_enclosure_map();
-  std::map<int32_t, PlanarRect>& layer_cut_shape_map = _database.get_layer_cut_shape_map();
-
-  int32_t start_layer_idx = 0;
-  int32_t end_layer_idx = static_cast<int32_t>(routing_layer_list.size()) - 1;
-
-  layer_enclosure_map[start_layer_idx] = layer_via_master_list[start_layer_idx].front().get_below_enclosure();
-  for (int32_t layer_idx = 1; layer_idx < end_layer_idx; layer_idx++) {
-    std::vector<PlanarRect> rect_list;
-    rect_list.push_back(layer_via_master_list[layer_idx - 1].front().get_above_enclosure());
-    rect_list.push_back(layer_via_master_list[layer_idx].front().get_below_enclosure());
-    layer_enclosure_map[layer_idx] = RTUTIL.getBoundingBox(rect_list);
-  }
-  layer_enclosure_map[end_layer_idx] = layer_via_master_list[end_layer_idx - 1].front().get_above_enclosure();
-
-  for (int32_t layer_idx = 0; layer_idx < end_layer_idx; layer_idx++) {
-    ViaMaster& via_master = layer_via_master_list[layer_idx].front();
-    layer_cut_shape_map[via_master.get_cut_layer_idx()] = via_master.get_cut_shape_list().front();
-  }
-}
-
 void DataManager::buildDetectionDistance()
 {
-  _database.set_detection_distance(2 * getOnlyPitch());
+  _database.set_detection_distance(5 * getOnlyPitch());
 }
 
 void DataManager::buildGCellMap()
 {
+  Monitor monitor;
+  RTLOG.info(Loc::current(), "Starting...");
   initGCellMap();
   updateGCellMap();
+  RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
 void DataManager::initGCellMap()
@@ -1263,9 +1380,6 @@ void DataManager::initGCellMap()
 
 void DataManager::updateGCellMap()
 {
-  Monitor monitor;
-  RTLOG.info(Loc::current(), "Starting...");
-
   ScaleAxis& gcell_axis = _database.get_gcell_axis();
   Die& die = _database.get_die();
   std::vector<Obstacle>& routing_obstacle_list = _database.get_routing_obstacle_list();
@@ -1360,7 +1474,6 @@ void DataManager::updateGCellMap()
     }
     updateFixedRectToGCellMap(ChangeType::kAdd, aux_shape.net_idx, aux_shape.rect, aux_shape.is_routing);
   }
-  RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
 int32_t DataManager::getBucketIdx(int32_t scale_start, int32_t scale_end, int32_t bucket_start, int32_t bucket_end, int32_t bucket_length)
@@ -1391,8 +1504,12 @@ void DataManager::printConfig()
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.top_routing_layer);
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "output_inter_result");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.output_inter_result);
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "enable_notification");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.enable_notification);
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "enable_timing");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.enable_timing);
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "enable_fast_mode");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.enable_fast_mode);
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "enable_lsa");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.enable_lsa);
   // **********        RT         ********** //
@@ -1403,6 +1520,10 @@ void DataManager::printConfig()
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.bottom_routing_layer_idx);
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "top_routing_layer_idx");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), _config.top_routing_layer_idx);
+  // **********     DataManager     ********** //
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "DataManager");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "dm_temp_directory_path");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.dm_temp_directory_path);
   // **********     DRCEngine     ********** //
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "DRCEngine");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "de_temp_directory_path");
@@ -1411,7 +1532,7 @@ void DataManager::printConfig()
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "GDSPlotter");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "gp_temp_directory_path");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.gp_temp_directory_path);
-  // **********   PinAccessor     ********** //
+  // **********    PinAccessor    ********** //
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "PinAccessor");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "pa_temp_directory_path");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.pa_temp_directory_path);
@@ -1427,10 +1548,10 @@ void DataManager::printConfig()
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "LayerAssigner");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "la_temp_directory_path");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.la_temp_directory_path);
-  // **********   GlobalRouter    ********** //
-  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "GlobalRouter");
-  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "gr_temp_directory_path");
-  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.gr_temp_directory_path);
+  // **********    SpaceRouter    ********** //
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "SpaceRouter");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "sr_temp_directory_path");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.sr_temp_directory_path);
   // **********   TrackAssigner   ********** //
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "TrackAssigner");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "ta_temp_directory_path");
@@ -1439,8 +1560,8 @@ void DataManager::printConfig()
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "DetailedRouter");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "dr_temp_directory_path");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.dr_temp_directory_path);
-  // ********** ViolationRepairer ********** //
-  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "ViolationRepairer");
+  // ********** ViolationReporter ********** //
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "ViolationReporter");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "vr_temp_directory_path");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.vr_temp_directory_path);
   // **********    EarlyRouter    ********** //
@@ -1566,11 +1687,11 @@ void DataManager::printDatabase()
   /////////////////////////////////////////////
 }
 
-void DataManager::writePYScript()
+void DataManager::outputScript()
 {
-  std::string& temp_directory_path = RTDM.getConfig().temp_directory_path;
+  std::string& dm_temp_directory_path = _config.dm_temp_directory_path;
 
-  std::ofstream* python_file = RTUTIL.getOutputFileStream(RTUTIL.getString(temp_directory_path, "plot.py"));
+  std::ofstream* python_file = RTUTIL.getOutputFileStream(RTUTIL.getString(dm_temp_directory_path, "plot.py"));
   RTUTIL.pushStream(python_file, "import os", "\n");
   RTUTIL.pushStream(python_file, "import pandas as pd", "\n");
   RTUTIL.pushStream(python_file, "import matplotlib.pyplot as plt", "\n");
@@ -1595,6 +1716,65 @@ void DataManager::writePYScript()
   RTUTIL.closeFileStream(python_file);
 }
 
+void DataManager::outputJson()
+{
+  int32_t enable_notification = _config.enable_notification;
+  if (!enable_notification) {
+    return;
+  }
+  std::map<std::string, std::string> json_path_map;
+  json_path_map["env_map"] = outputEnvJson();
+  RTI.sendNotification("DM", 1, json_path_map);
+}
+
+std::string DataManager::outputEnvJson()
+{
+  Die& die = _database.get_die();
+  std::vector<RoutingLayer>& routing_layer_list = _database.get_routing_layer_list();
+  std::vector<CutLayer>& cut_layer_list = _database.get_cut_layer_list();
+  std::vector<Net>& net_list = _database.get_net_list();
+  std::string& dm_temp_directory_path = _config.dm_temp_directory_path;
+
+  std::vector<nlohmann::json> env_json_list;
+  {
+    nlohmann::json die_json;
+    die_json["die"] = {die.get_real_ll_x(), die.get_real_ll_y(), die.get_real_ur_x(), die.get_real_ur_y()};
+    env_json_list.push_back(die_json);
+  }
+  {
+    nlohmann::json env_shape_json;
+    for (Obstacle& routing_obstacle : _database.get_routing_obstacle_list()) {
+      env_shape_json["env_shape"]["obs"]["shape"].push_back({routing_obstacle.get_real_ll_x(), routing_obstacle.get_real_ll_y(),
+                                                             routing_obstacle.get_real_ur_x(), routing_obstacle.get_real_ur_y(),
+                                                             routing_layer_list[routing_obstacle.get_layer_idx()].get_layer_name()});
+    }
+    for (Obstacle& cut_obstacle : _database.get_cut_obstacle_list()) {
+      env_shape_json["env_shape"]["obs"]["shape"].push_back({cut_obstacle.get_real_ll_x(), cut_obstacle.get_real_ll_y(), cut_obstacle.get_real_ur_x(),
+                                                             cut_obstacle.get_real_ur_y(), cut_layer_list[cut_obstacle.get_layer_idx()].get_layer_name()});
+    }
+    for (Net& net : net_list) {
+      for (Pin& pin : net.get_pin_list()) {
+        for (EXTLayerRect& routing_shape : pin.get_routing_shape_list()) {
+          env_shape_json["env_shape"][net.get_net_name()]["shape"].push_back({routing_shape.get_real_ll_x(), routing_shape.get_real_ll_y(),
+                                                                              routing_shape.get_real_ur_x(), routing_shape.get_real_ur_y(),
+                                                                              routing_layer_list[routing_shape.get_layer_idx()].get_layer_name()});
+        }
+        for (EXTLayerRect& cut_shape : pin.get_cut_shape_list()) {
+          env_shape_json["env_shape"][net.get_net_name()]["shape"].push_back({cut_shape.get_real_ll_x(), cut_shape.get_real_ll_y(), cut_shape.get_real_ur_x(),
+                                                                              cut_shape.get_real_ur_y(),
+                                                                              cut_layer_list[cut_shape.get_layer_idx()].get_layer_name()});
+        }
+      }
+    }
+    env_json_list.push_back(env_shape_json);
+  }
+  std::string env_json_file_path = RTUTIL.getString(dm_temp_directory_path, "env_map.json");
+  std::ofstream* env_json_file = RTUTIL.getOutputFileStream(env_json_file_path);
+  (*env_json_file) << env_json_list;
+  RTUTIL.closeFileStream(env_json_file);
+  return env_json_file_path;
+}
+
 #endif
 
 #if 1  // destroy
@@ -1610,6 +1790,13 @@ void DataManager::destroyGCellMap()
       }
     }
   }
+  for (auto& [net_idx, pin_access_patch_map] : getNetPinAccessPatchMap(die)) {
+    for (auto& [pin_idx, patch_set] : pin_access_patch_map) {
+      for (EXTLayerRect* patch : patch_set) {
+        RTDM.updateNetPinAccessPatchToGCellMap(ChangeType::kDel, net_idx, pin_idx, patch);
+      }
+    }
+  }
   for (auto& [net_idx, segment_set] : getNetGlobalResultMap(die)) {
     for (Segment<LayerCoord>* segment : segment_set) {
       RTDM.updateNetGlobalResultToGCellMap(ChangeType::kDel, net_idx, segment);
@@ -1620,14 +1807,9 @@ void DataManager::destroyGCellMap()
       RTDM.updateNetDetailedResultToGCellMap(ChangeType::kDel, net_idx, segment);
     }
   }
-  for (auto& [net_idx, segment_set] : getNetFinalResultMap(die)) {
-    for (Segment<LayerCoord>* segment : segment_set) {
-      RTDM.updateNetFinalResultToGCellMap(ChangeType::kDel, net_idx, segment);
-    }
-  }
-  for (auto& [net_idx, patch_set] : getNetFinalPatchMap(die)) {
+  for (auto& [net_idx, patch_set] : getNetDetailedPatchMap(die)) {
     for (EXTLayerRect* patch : patch_set) {
-      RTDM.updateNetFinalPatchToGCellMap(ChangeType::kDel, net_idx, patch);
+      RTDM.updateNetDetailedPatchToGCellMap(ChangeType::kDel, net_idx, patch);
     }
   }
   for (Violation* violation : getViolationSet(die)) {

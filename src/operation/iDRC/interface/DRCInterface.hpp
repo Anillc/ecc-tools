@@ -17,6 +17,7 @@
 #pragma once
 
 #include <any>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <string>
@@ -58,7 +59,8 @@ class DRCInterface
   void initDRC(std::map<std::string, std::any> config_map, bool enable_quiet);
   void checkDef();
   void destroyDRC();
-  std::vector<ids::Violation> getViolationList(std::vector<ids::Shape>& ids_env_shape_list, std::vector<ids::Shape>& ids_result_shape_list);
+  std::vector<ids::Violation> getViolationList(const std::vector<ids::Shape>& ids_env_shape_list, const std::vector<ids::Shape>& ids_result_shape_list,
+                                               const std::set<std::string>& ids_check_type_set, const std::vector<ids::Shape>& ids_check_region_list);
 #endif
 
 #endif
@@ -72,8 +74,8 @@ class DRCInterface
   void wrapConfig(std::map<std::string, std::any>& config_map);
   void wrapDatabase();
   void wrapMicronDBU();
-  void wrapManufactureGrid();
   void wrapDie();
+  void wrapDesignRule();
   void wrapLayerList();
   void wrapTrackAxis(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
   void wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLayerRouting* idb_layer);
@@ -88,14 +90,14 @@ class DRCInterface
 
 #endif
 
-#if 1  // form def
+#if 1  // check
   std::vector<ids::Shape> buildEnvShapeList();
   bool isSkipping(idb::IdbNet* idb_net);
   std::vector<ids::Shape> buildResultShapeList();
-#endif
-
-#if 1  // form tool
-  DRCShape convertToDRCShape(ids::Shape& ids_shape);
+  void printSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map);
+  void outputViolationJson(std::map<std::string, std::vector<ids::Violation>>& type_violation_map);
+  void outputSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map);
+  DRCShape convertToDRCShape(const ids::Shape& ids_shape);
 #endif
 
 #endif

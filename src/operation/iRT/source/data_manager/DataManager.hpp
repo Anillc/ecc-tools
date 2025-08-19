@@ -40,28 +40,32 @@ class DataManager
 
 #if 1  // 更新GCellMap
   void updateFixedRectToGCellMap(ChangeType change_type, int32_t net_idx, EXTLayerRect* ext_layer_rect, bool is_routing);
-  void updateAccessNetPointToGCellMap(ChangeType change_type, int32_t net_idx, AccessPoint* access_point);
+  void updateNetAccessPointToGCellMap(ChangeType change_type, int32_t net_idx, AccessPoint* access_point);
   void updateNetPinAccessResultToGCellMap(ChangeType change_type, int32_t net_idx, int32_t pin_idx, Segment<LayerCoord>* segment);
+  void updateNetPinAccessPatchToGCellMap(ChangeType change_type, int32_t net_idx, int32_t pin_idx, EXTLayerRect* ext_layer_rect);
   void updateNetGlobalResultToGCellMap(ChangeType change_type, int32_t net_idx, Segment<LayerCoord>* segment);
   void updateNetDetailedResultToGCellMap(ChangeType change_type, int32_t net_idx, Segment<LayerCoord>* segment);
-  void updateNetFinalResultToGCellMap(ChangeType change_type, int32_t net_idx, Segment<LayerCoord>* segment);
-  void updateNetFinalPatchToGCellMap(ChangeType change_type, int32_t net_idx, EXTLayerRect* ext_layer_rect);
+  void updateNetDetailedPatchToGCellMap(ChangeType change_type, int32_t net_idx, EXTLayerRect* ext_layer_rect);
   void updateViolationToGCellMap(ChangeType change_type, Violation* violation);
   std::map<bool, std::map<int32_t, std::map<int32_t, std::set<EXTLayerRect*>>>> getTypeLayerNetFixedRectMap(EXTPlanarRect& region);
   std::map<int32_t, std::set<AccessPoint*>> getNetAccessPointMap(EXTPlanarRect& region);
   std::map<int32_t, std::map<int32_t, std::set<Segment<LayerCoord>*>>> getNetPinAccessResultMap(EXTPlanarRect& region);
+  std::map<int32_t, std::map<int32_t, std::set<EXTLayerRect*>>> getNetPinAccessPatchMap(EXTPlanarRect& region);
   std::map<int32_t, std::set<Segment<LayerCoord>*>> getNetGlobalResultMap(EXTPlanarRect& region);
   std::map<int32_t, std::set<Segment<LayerCoord>*>> getNetDetailedResultMap(EXTPlanarRect& region);
-  std::map<int32_t, std::set<Segment<LayerCoord>*>> getNetFinalResultMap(EXTPlanarRect& region);
-  std::map<int32_t, std::set<EXTLayerRect*>> getNetFinalPatchMap(EXTPlanarRect& region);
+  std::map<int32_t, std::set<EXTLayerRect*>> getNetDetailedPatchMap(EXTPlanarRect& region);
   std::set<Violation*> getViolationSet(EXTPlanarRect& region);
 #endif
 
 #if 1  // 获得NetShapeList
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list);
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, Segment<LayerCoord>& segment);
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree);
-  std::vector<NetShape> getNetShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, Segment<LayerCoord>& segment);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree);
+  std::vector<NetShape> getNetGlobalShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, std::vector<Segment<LayerCoord>>& segment_list);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, Segment<LayerCoord>& segment);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, MTree<LayerCoord>& coord_tree);
+  std::vector<NetShape> getNetDetailedShapeList(int32_t net_idx, LayerCoord& first_coord, LayerCoord& second_coord);
 #endif
 
 #if 1  // 获得唯一的pitch
@@ -101,6 +105,10 @@ class DataManager
   void buildDie();
   void makeDie();
   void checkDie();
+  void buildLayerViaMasterList();
+  void transLayerViaMasterList();
+  void makeLayerViaMasterList();
+  void buildLayerViaMasterInfo();
   void buildObstacleList();
   void transObstacleList();
   void makeObstacleList();
@@ -110,10 +118,6 @@ class DataManager
   void transPinList(Net& net);
   void makePinList(Net& net);
   void checkPinList(Net& net);
-  void buildLayerViaMasterList();
-  void transLayerViaMasterList();
-  void makeLayerViaMasterList();
-  void buildLayerViaMasterInfo();
   void buildDetectionDistance();
   void buildGCellMap();
   void initGCellMap();
@@ -121,7 +125,9 @@ class DataManager
   int32_t getBucketIdx(int32_t scale_start, int32_t scale_end, int32_t bucket_start, int32_t bucket_end, int32_t bucket_length);
   void printConfig();
   void printDatabase();
-  void writePYScript();
+  void outputScript();
+  void outputJson();
+  std::string outputEnvJson();
 #endif
 
 #if 1  // destroy

@@ -29,12 +29,13 @@ class WirelengthAPI
   NetWLSummary netWL(PointSet point_set);
   PathWLSummary pathWL(PointSet point_set, PointPair point_pair);
 
-  float totalEGRWL(std::string guide_path);
+  double totalEGRWL(std::string guide_path);
   float netEGRWL(std::string guide_path, std::string net_name);
   float pathEGRWL(std::string guide_path, std::string net_name, std::string load_name);
 
   void evalNetInfo();
   void evalNetInfoPure();
+  void evalNetFlute();
   int32_t findNetHPWL(std::string net_name);
   int32_t findNetFLUTE(std::string net_name);
   int32_t findNetGRWL(std::string net_name);

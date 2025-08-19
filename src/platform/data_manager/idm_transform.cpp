@@ -213,7 +213,7 @@ bool DataManager::isNeedTransformByDie()
   }
 
   /// if original location is on (0,0)
-  if (idb_die->get_llx() == 0 && idb_die->get_lly() == 0) {
+  if (idb_die->get_llx() >= 0 && idb_die->get_lly() >= 0) {
     return false;
   }
 

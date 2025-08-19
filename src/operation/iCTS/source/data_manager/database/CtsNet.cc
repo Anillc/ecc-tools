@@ -20,6 +20,8 @@
  */
 #include "CtsNet.hh"
 
+#include <set>
+
 #include "log/Log.hh"
 namespace icts {
 class CtsInstance;
@@ -32,17 +34,29 @@ void CtsNet::addPin(CtsPin* pin)
 
 CtsPin* CtsNet::get_driver_pin() const
 {
+  std::vector<CtsPin*> driver_pin_candidates;
   for (auto* pin : _pins) {
     if (pin->is_io()) {
-      // if (pin->get_pin_type() == CtsPinType::kIn) {
-      return pin;
-      // }
+      if (pin->get_pin_type() == CtsPinType::kIn || pin->get_pin_type() == CtsPinType::kInOut) {
+        driver_pin_candidates.push_back(pin);
+      }
     } else {
-      if (pin->get_pin_type() == CtsPinType::kOut) {
-        return pin;
+      if (pin->get_pin_type() == CtsPinType::kOut || pin->get_pin_type() == CtsPinType::kInOut) {
+        driver_pin_candidates.push_back(pin);
       }
     }
   }
+  if (driver_pin_candidates.size() == 1) {
+    return driver_pin_candidates[0];
+  } else if (driver_pin_candidates.size() > 1) {
+    for (auto* pin : driver_pin_candidates) {
+      if (pin->get_pin_type() != CtsPinType::kInOut) {
+        return pin;  // Prefer InOut pins as driver
+      }
+    }
+    return driver_pin_candidates[0];  // If all are InOut, return the first one
+  }
+  LOG_WARNING << "No driver pin found for net " << _net_name;
   return nullptr;
 }
 
@@ -75,10 +89,16 @@ std::vector<CtsInstance*> CtsNet::get_instances() const
 
 std::vector<CtsPin*> CtsNet::get_load_pins() const
 {
+  auto driver_pin = get_driver_pin();
   std::vector<CtsPin*> load_pins;
-
+  // std::set<std::string> unique_insts;
   for (auto* pin : _pins) {
-    if (pin->get_pin_type() != CtsPinType::kOut && !pin->is_io()) {
+    if (pin != driver_pin) {
+      // if (unique_insts.count(pin->get_instance()->get_name()) == 0) {
+      //   unique_insts.insert(pin->get_instance()->get_name());
+      // } else {
+      //   continue;
+      // }
       load_pins.push_back(pin);
     }
   }
@@ -116,11 +136,9 @@ std::vector<CtsSignalWire>& CtsNet::get_signal_wires()
       }
     }
     LOG_FATAL_IF(driver_pin == nullptr) << "No driver pin found for net " << _net_name;
-    auto* driver_inst = driver_pin->get_instance();
-    Endpoint first = {driver_inst->get_name(), driver_inst->get_location()};
+    Endpoint first = {driver_pin->get_full_name(), driver_pin->get_location()};
     for (auto* load_pin : get_load_pins()) {
-      auto* load_inst = load_pin->get_instance();
-      Endpoint second = {load_inst->get_name(), load_inst->get_location()};
+      Endpoint second = {load_pin->get_full_name(), load_pin->get_location()};
       add_signal_wire(CtsSignalWire(first, second));
     }
   }

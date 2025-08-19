@@ -11,16 +11,35 @@
 #include "idm.h"
 
 void TestDensityMap();
-void TestDensityMapFromIDB();
+void TestDensityMapFromIDB(const string& db_config_path);
 void TestMarginMap();
 
-int main()
-{
-  // TestDensityMap();
-  // TestDensityMapFromIDB();
-  TestMarginMap();
+void PrintUsage(const char* program_name) {
+  std::cout << "Density Evaluation" << std::endl;
+  std::cout << "Usage: " << program_name << " <function_name>" << std::endl;
+  std::cout << "Available parameters:" << std::endl;
+  std::cout << "  <db_config_path> Path to the database configuration file." << std::endl;
+  std::cout << "  --help, -h       Show this help message and exit." << std::endl;
+}
 
-  return 0;
+int main(const int argc, const char* argv[])
+{
+
+  if (argc == 2) {
+    if (const std::string arg = argv[1]; arg == "--help" || arg == "-h") {
+      PrintUsage(argv[0]);
+      return 0;
+    } else {
+      // Here are some test functions that can be uncommented to run
+      // TestDensityMap();
+      // TestMarginMap();
+      TestDensityMapFromIDB(arg);
+      return 0;
+    }
+  }
+  std::cerr << "Error: Incorrect number of arguments." << std::endl;
+  PrintUsage(argv[0]);
+  return 1;
 }
 
 void TestDensityMap()
@@ -96,9 +115,9 @@ void TestDensityMap()
   std::cout << "All net density: " << net_map_summary.allnet_density << std::endl;
 }
 
-void TestDensityMapFromIDB()
+void TestDensityMapFromIDB(const string& db_config_path)
 {
-  dmInst->init("/data/yhqiu/benchmark/AiEDA/application/benchmark/28nm/gcd/config/db_default_config_test.json");
+  dmInst->init(db_config_path);
   int32_t grid_size = 2000;
   std::string stage = "place";
 
@@ -154,8 +173,9 @@ void TestMarginMap()
   cells.push_back(cell2);
 
   int32_t grid_size = 25;
+  std::string stage = "place";
 
-  ieval::MacroMarginSummary macro_margin_summary = density_api.macroMarginMap(cells, die, core, grid_size);
+  ieval::MacroMarginSummary macro_margin_summary = density_api.macroMarginMap(cells, die, core, grid_size, stage);
   std::cout << "Horizontal margin: " << macro_margin_summary.horizontal_margin << std::endl;
   std::cout << "Vertical margin: " << macro_margin_summary.vertical_margin << std::endl;
   std::cout << "Union margin: " << macro_margin_summary.union_margin << std::endl;

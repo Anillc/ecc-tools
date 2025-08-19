@@ -12,7 +12,7 @@ ${PY_MACRO_ISTA_SRC}
 
 target_link_libraries(py_imp
     PUBLIC
-    imp_api
+    # imp_api
     idm
     str
     sta

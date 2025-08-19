@@ -56,17 +56,17 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   std::vector<gtl::rectangle_data<coordinate_type>> fixed_boxes;
   // record original node to new node mapping
   int inst_num = db_deisgn->get_instance_list()->get_num();
-  std::map<std::string, std::vector<index_type>> mNode2NewNodes;
-  std::map<std::string, index_type> mNodeName2ID;
+  std::map<std::string, index_type> mNode2PyNondeID;
+  std::map<std::string, index_type> mNode2idbID;
   int node_id = 0;
   std::vector<IdbInstance*> inst_resort_list = db_deisgn->get_instance_list()->get_instance_list();
   std::stable_sort(inst_resort_list.begin(), inst_resort_list.end(),
                    [](IdbInstance* a, IdbInstance* b) { return a->is_fixed() < b->is_fixed(); });
   for (IdbInstance* node : inst_resort_list) {
-    mNodeName2ID[node->get_name()] = node_id++;
+    mNode2idbID[node->get_name()] = node->get_id();
   }
   // for(auto io_pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
-  //   mNodeName2ID[io_pin->get_pin_name()] = -1;
+  //   mNode2PyNondeID[io_pin->get_pin_name()] = -1;
   // }
   std::map<std::string, int> mNet2ID;
   int net_id = 0;
@@ -128,17 +128,18 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     node_size_x.append(box.width());
     node_size_y.append(box.height());
     // map new node to original index
-    if (mNodeName2ID.count(name)) {
-      node2orig_node_map.append(mNodeName2ID[name]);
+    if (mNode2idbID.count(name)) {
+      node2orig_node_map.append(mNode2idbID[name]);
     } else {
       node2orig_node_map.append(-1);
     }
+    assert(mNode2PyNondeID.count(name) == 0);
     // record original node to new node mapping
-    if (mNode2NewNodes.count(name) == 0) {
-      mNode2NewNodes[name] = std::vector<index_type>();
-    }
+    // if (mNode2PyNondeID.count(name) == 0) {
+    //   mNode2PyNondeID[name] = std::vector<index_type>();
+    // }
 
-    mNode2NewNodes[name].push_back(id);
+    mNode2PyNondeID[name] = id;
     if (isFixed) {
       // dreamplacePrint(kDEBUG, "node %s\n", db.nodeName(node).c_str());
       addNode2Bin(box);
@@ -166,12 +167,25 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   };
 #endif
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
-  for (unsigned int i = 0; i < inst_num; ++i) {
+  for (int i = 0; i < inst_num; ++i) {
     IdbInstance* node = inst_resort_list.at(i);
+    if (node->get_cell_master()->is_block()) {
+      printf("node %s is a block \n", node->get_name().c_str());
+    }
     // Macro const& macro = db.macro(db.macroId(node));
     if (node->get_status() != IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
       Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
                   node->get_bounding_box()->get_high_y());
+      if (node->get_halo()) {
+        // Jiaqi: add halo for fixed cells
+        // printf("PyPlaceDB detect fixed cell with halo: ");
+        box_tmp.xl -= node->get_halo()->get_extend_lef();
+        box_tmp.yl -= node->get_halo()->get_extend_bottom();
+        box_tmp.xh += node->get_halo()->get_extend_right();
+        box_tmp.yh += node->get_halo()->get_extend_top();
+        printf("Instance %s, Halo (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_halo()->get_extend_lef(),
+               node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
+      }
       addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, false);
     }
     // else if (macro.className() != "DREAMPlace.PlaceBlockage") // fixed cells are special cases, skip placement blockages (looks like
@@ -180,57 +194,28 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     {
       // Macro const& macro = db.macro(db.macroId(node));
       // printf("PyPlaceDB detect fixed cell: ");
-      if (false) {
-#if 0
-        MacroObs::ObsConstIterator foundObs = macro.obs().obsMap().find("Bookshelf.Shape");
-        // add obstruction boxes for fixed nodes
-        // initialize node shapes from obstruction
-        // I do not differentiate obstruction boxes at different layers
-        // At least, this is true for DAC/ICCAD 2012 benchmarks
 
-        // put all boxes into a polygon set to remove overlaps
-        // this can make the placement engine more robust
-        PolygonSet ps;
-        if (foundObs != macro.obs().end())  // for BOOKSHELF
-        {
-          for (auto const& box : foundObs->second) {
-            ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
-          }
-        } else {
-          for (auto it = macro.obs().begin(), ite = macro.obs().end(); it != ite; ++it) {
-            for (auto const& box : it->second) {
-              ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
-            }
-          }
-
-          // I do not know whether we should add the bounding box of this fixed cell as well
-          ps.insert(gtl::rectangle_data<coordinate_type>(0, 0, node.width(), node.height()));
-        }
-
-        // Get unique boxes without overlap for each fixed cell
-        // However, there may still be overlapping between fixed cells.
-        // We cannot eliminate these because we want to keep the mapping from boxes to cells.
-        std::vector<gtl::rectangle_data<coordinate_type>> vRect;
-        ps.get_rectangles(vRect);
-        std::vector<Box<coordinate_type>> vBox;
-        vBox.reserve(vRect.size());
-        for (auto const& rect : vRect) {
-          vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
-        }
-        addObsBoxes(node, vBox, true);
-        num_terminals += vBox.size();
-#endif
-      } else {
-        Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-                    node->get_bounding_box()->get_high_y());
-        addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, true);
-        printf("Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
-               node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
-        // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
-        num_terminals += 1;
-        // compute upper bound of total fixed cell area
-        total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
+      Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
+                  node->get_bounding_box()->get_high_y());
+      if (node->get_halo()) {
+        // Jiaqi: add halo for fixed cells
+        // printf("PyPlaceDB detect fixed cell with halo: ");
+        box_tmp.xl -= node->get_halo()->get_extend_lef();
+        box_tmp.yl -= node->get_halo()->get_extend_bottom();
+        box_tmp.xh += node->get_halo()->get_extend_right();
+        box_tmp.yh += node->get_halo()->get_extend_top();
+        printf("Macro Instance %s, Halo (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_halo()->get_extend_lef(),
+               node->get_halo()->get_extend_bottom(), node->get_halo()->get_extend_right(), node->get_halo()->get_extend_top());
       }
+      addNode(IdbOrientToString(node->get_orient()), node->get_name(), box_tmp, true);
+      if (node->get_cell_master()->is_io_cell()) {
+        printf("Fixed IO Instance %s, Coordinate (%d, %d, %d, %d)\n", node->get_name().c_str(), node->get_coordinate()->get_x(),
+               node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(), node->get_bounding_box()->get_high_y());
+      }
+      // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
+      num_terminals += 1;
+      // compute upper bound of total fixed cell area
+      total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
     }
   }
 
@@ -302,7 +287,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       ly = io_pin->get_location()->get_y();
     }
     Box box_tmp(lx, ly, lx + 1, ly + 1);
-    addNode("R0", io_pin->get_pin_name(), box_tmp, true);
+    addNode("R0", io_pin->get_pin_name(), box_tmp, false);
     printf("IO Pin %s, Coordinate (%d, %d)\n", io_pin->get_pin_name().c_str(), lx, ly);
     // addNode(node, db.nodeName(node), Orient(node.orient()), node, true);
     num_terminal_NIs += 1;
@@ -335,9 +320,9 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   /*----------------------construct node2pin_map and flat_node2pin_map-------------------------------*/
 
   int count = 0;
-  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
+  for (int i = 0; i < mNode2PyNondeID.size() - num_terminal_NIs - ext_blockage_num; ++i) {
     auto node_name = node_names[i].cast<std::string>();
-    IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
+    IdbInstance* node = inst_resort_list[mNode2PyNondeID[node_name]];
     pybind11::list pins;
     int pin_num = 0;
     for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
@@ -361,7 +346,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     flat_node2pin_start_map.append(count);
   }
   // IO PINS
-  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
+  for (int i = mNode2PyNondeID.size() - num_terminal_NIs; i < mNode2PyNondeID.size(); ++i) {
     auto io_pin_name = node_names[i].cast<std::string>();
     pybind11::list pins;
     int pin_num = 0;
@@ -390,19 +375,21 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       pin_direct.append(pybind11::str(IdbOrientToString(node->get_orient())));
       // for fixed macros with multiple boxes, put all pins to the first one
       string temp_name = node->get_name();
-      if (mNode2NewNodes.find(node->get_name()) == mNode2NewNodes.end()
-          || (mNode2NewNodes.find(node->get_name()) != mNode2NewNodes.end() && mNode2NewNodes[node->get_name()].size() == 0)) {
-        std::cout << "Error: node " << node->get_name() << " not found in mNode2NewNodes" << std::endl;
-      } else if (mNode2NewNodes[node->get_name()].size() == 0) {
-        std::cout << "Error: node " << node->get_name() << " has no new nodes" << std::endl;
-      }
-      index_type new_node_id = mNode2NewNodes[node->get_name()].at(0);  //==0
+      // if (mNode2PyNondeID.find(node->get_name()) == mNode2PyNondeID.end()
+      //     || (mNode2PyNondeID.find(node->get_name()) != mNode2PyNondeID.end() && mNode2PyNondeID[node->get_name()].size() == 0)) {
+      //   std::cout << "Error: node " << node->get_name() << " not found in mNode2PyNondeID" << std::endl;
+      // } else if (mNode2PyNondeID[node->get_name()].size() == 0) {
+      //   std::cout << "Error: node " << node->get_name() << " has no new nodes" << std::endl;
+      // }
+      assert(mNode2PyNondeID.count(temp_name));
+      index_type new_node_id = mNode2PyNondeID[node->get_name()];  //==0
       IdbCoordinate<int>* inst_coord = pin->get_instance()->get_coordinate();
       IdbCoordinate<int>* pin_coord = pin->get_average_coordinate();
       // Pin::point_type pin_pos(node.pinPos(pin));
       pin_offset_x.append(pin_coord->get_x() - inst_coord->get_x());
       pin_offset_y.append(pin_coord->get_y() - inst_coord->get_y());
       pin2node_map.append(new_node_id);
+      assert(mNet2ID.count(pin->get_net()->get_net_name()));
       pin2net_map.append(mNet2ID[pin->get_net()->get_net_name()]);
 
       if (node->get_status() != IdbPlacementStatus::kFixed /*&& node.status() != PlaceStatusEnum::DUMMY_FIXED*/) {
@@ -415,8 +402,8 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       string io_pin_name = pin->get_pin_name();
       pin_direct.append(pybind11::str("R0"));
       // for fixed macros with multiple boxes, put all pins to the first one
-      assert(mNode2NewNodes.count(io_pin_name));
-      index_type new_node_id = mNode2NewNodes[io_pin_name].at(0);
+      assert(mNode2PyNondeID.count(io_pin_name));
+      index_type new_node_id = mNode2PyNondeID[io_pin_name];
       // Pin::point_type pin_pos(node.pinPos(pin));
       pin_offset_x.append(0);
       pin_offset_y.append(0);
@@ -437,9 +424,11 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     pybind11::list pins;
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
       string inst_name = pin->get_instance()->get_name();
+      assert(mPin2ID.count(inst_name + pin->get_pin_name()));
       pins.append(mPin2ID[inst_name + pin->get_pin_name()]);
     }
     for (IdbPin* pin : net->get_io_pins()->get_pin_list()) {
+      assert(mPin2ID.count(pin->get_pin_name()));
       pins.append(mPin2ID[pin->get_pin_name()]);
     }
     net2pin_map.append(pins);
@@ -507,7 +496,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     if (region->get_type() == IdbRegionType::kFence) {
       for (IdbInstance* inst : region->get_instance_list()) {
         // FIXME:
-        index_type node_id = mNode2NewNodes[inst->get_name()].at(0);
+        index_type node_id = mNode2PyNondeID[inst->get_name()];
         if (inst->get_status() != IdbPlacementStatus::kFixed)  // ignore fixed cells
         {
           vNode2FenceRegion.at(node_id) = region_id;
@@ -519,12 +508,13 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   for (std::vector<int>::const_iterator it = vNode2FenceRegion.begin(), ite = vNode2FenceRegion.end(); it != ite; ++it) {
     node2fence_region_map.append(*it);
   }
+  auto core = db->get_idb_layout()->get_core();
+  xl = core->get_bounding_box()->get_low_x();
+  yl = core->get_bounding_box()->get_low_y();
+  xh = core->get_bounding_box()->get_high_x();
+  yh = core->get_bounding_box()->get_high_y();
 
-  xl = db->get_idb_layout()->get_core()->get_bounding_box()->get_low_x();
-  yl = db->get_idb_layout()->get_core()->get_bounding_box()->get_low_y();
-  xh = db->get_idb_layout()->get_core()->get_bounding_box()->get_high_x();
-  yh = db->get_idb_layout()->get_core()->get_bounding_box()->get_high_y();
-
+  assert(yl >= 0 && xl >= 0 && xh > xl && yh > yl);
   // origin_xl = db.get_origin_xl;
   // origin_yl = db.get_origin_yl;
   // origin_xh = db.get_origin_xh;
@@ -537,7 +527,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
 
   init_routability(db, inst_resort_list);
   if (with_sta) {
-    init_timing(db, mPin2ID, mClkPin2ID, mNodeName2ID, inst_resort_list, mNode2NewNodes, ext_blockage_num);
+    init_timing(db, mPin2ID, mClkPin2ID, mNode2PyNondeID, inst_resort_list, ext_blockage_num);
   }
   printf("PyPlaceDB::set end!!!\n");
 

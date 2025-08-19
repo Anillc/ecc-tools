@@ -1,12 +1,13 @@
 macro(ADD_CUDA_PROJ proj_name)
 
-  cmake_minimum_required(VERSION 3.24.0)
+cmake_minimum_required(VERSION 3.24)
 
-  cmake_policy(SET CMP0128 NEW)
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  set(CMAKE_CUDA_ARCHITECTURES native)
-  # set(CMAKE_CUDA_ARCHITECTURES "70") # set architecture according your
-  # platform
+cmake_policy(SET CMP0128 NEW)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_CUDA_ARCHITECTURES native)
+# set(CMAKE_CUDA_ARCHITECTURES "90") # set architecture according your platform
+
+set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 
   # set(CMAKE_BUILD_TYPE "Debug")
   find_package(CUDAToolkit)
@@ -16,7 +17,9 @@ macro(ADD_CUDA_PROJ proj_name)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-  enable_language(CUDA)
+set(CMAKE_CUDA_COMPILER /usr/local/cuda-12.1/bin/nvcc)
+
+enable_language(CUDA)
 
   include(CheckLanguage)
   check_language(CUDA)
@@ -53,6 +56,6 @@ macro(ADD_CUDA_PROJ proj_name)
                              PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
   target_compile_options(${lib_name}
                          PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${NVCC_FLAGS}>)
-  target_link_libraries(${lib_name} PRIVATE CUDA::cudart)
+  target_link_libraries(${lib_name} PRIVATE CUDA::cudart CUDA::cusparse CUDA::cublas CUDA::cusolver)
 
 endmacro()

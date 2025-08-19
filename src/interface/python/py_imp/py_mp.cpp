@@ -17,20 +17,20 @@
 
 #include "py_mp.h"
 
-#include "iMP/api/MPAPI.hh"
+// #include "iMP/api/MPAPI.hh"
 #include "idm.h"
 
 namespace python_interface {
 
-void runMP(std::string config, std::string output_tcl)
-{
-  iMPAPIInst.initAPI("", dmInst->get_idb_builder());
-  iMPAPIInst.runMP(config, output_tcl);
-}
+// void runMP(std::string config, std::string output_tcl)
+// {
+//   iMPAPIInst.initAPI("", dmInst->get_idb_builder());
+//   iMPAPIInst.runMP(config, output_tcl);
+// }
 
-void runRef(std::string output_tcl)
-{
-  iMPAPIInst.initAPI("", dmInst->get_idb_builder());
-  iMPAPIInst.runRef(output_tcl);
-}
+// void runRef(std::string output_tcl)
+// {
+//   iMPAPIInst.initAPI("", dmInst->get_idb_builder());
+//   iMPAPIInst.runRef(output_tcl);
+// }
 }  // namespace python_interface

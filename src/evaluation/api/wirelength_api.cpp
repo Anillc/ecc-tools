@@ -127,7 +127,7 @@ PathWLSummary WirelengthAPI::pathWL(PointSet point_set, PointPair point_pair)
   return path_wirelength_summary;
 }
 
-float WirelengthAPI::totalEGRWL(std::string guide_path)
+double WirelengthAPI::totalEGRWL(std::string guide_path)
 {
   return EVAL_WIRELENGTH_INST->evalTotalEGRWL(guide_path);
 }
@@ -174,5 +174,17 @@ int32_t WirelengthAPI::findNetGRWL(std::string net_name)
 {
   return EVAL_WIRELENGTH_INST->findGRWL(net_name);
 }
+
+void WirelengthAPI::evalNetFlute()
+{
+  EVAL_WIRELENGTH_INST->initIDB();
+  EVAL_WIRELENGTH_INST->initFlute();
+
+  EVAL_WIRELENGTH_INST->evalNetFlute();
+
+  EVAL_WIRELENGTH_INST->destroyIDB();
+  EVAL_WIRELENGTH_INST->destroyFlute();
+}
+
 
 }  // namespace ieval

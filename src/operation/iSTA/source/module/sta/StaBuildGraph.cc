@@ -23,6 +23,9 @@
  */
 #include "StaBuildGraph.hh"
 
+#include <cstdio>
+
+#include "Log.hh"
 #include "netlist/Netlist.hh"
 
 namespace ista {
@@ -39,7 +42,7 @@ unsigned StaBuildGraph::buildPort(StaGraph* the_graph, Port* port) {
   the_vertex->set_is_port();
 
   if (port->isInout()) {
-    // for inout pin, we set input as main, output as assistant.
+    // for inout port, we set input as main, output as assistant.
     the_vertex->set_is_start();
     the_vertex->set_is_bidirection();
     the_graph->addStartVertex(the_vertex.get());
@@ -136,6 +139,11 @@ unsigned StaBuildGraph::buildInst(StaGraph* the_graph, Instance* inst) {
   LibCell* lib_cell = inst->get_inst_cell();
   for (auto& cell_arc_set : lib_cell->get_cell_arcs()) {
     auto* cell_arc = cell_arc_set->front();
+    if (cell_arc->get_timing_type() == LibArc::TimingType::kMinClockTree ||
+        cell_arc->get_timing_type() == LibArc::TimingType::kMaxClockTree) {
+      LOG_WARNING << "The arc type kMinClockTree is not supported.";
+      continue;  // skip the kMinClockTree arc.
+    }
     const char* src_port_name = cell_arc->get_src_port();
     const char* snk_port_name = cell_arc->get_snk_port();
 
@@ -259,7 +267,7 @@ unsigned StaBuildGraph::buildNet(StaGraph* the_graph, Net* net) {
     // FIXME disable the power gate arc.
     if (auto* vertex_own_cell = (*driver_vertex)->getOwnCell();
         vertex_own_cell && vertex_own_cell->isSequentialCell() &&
-        !vertex_own_cell->isICG()) {
+        !vertex_own_cell->isICG() && !vertex_own_cell->isMacroCell()) {
       if ((*load_vertex)->is_clock()) {
         net_arc->set_is_disable_arc(true);
       }

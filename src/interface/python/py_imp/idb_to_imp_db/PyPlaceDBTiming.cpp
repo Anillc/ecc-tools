@@ -487,7 +487,7 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
 
 void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID,
                             std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
-                            std::vector<IdbInstance*>& inst_resort_list, std::map<std::string, std::vector<index_type>>& mNode2NewNodes,
+                            std::vector<IdbInstance*>& inst_resort_list,
                             int ext_blockage_num)
 {
   /*************************************************************************/
@@ -1159,7 +1159,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   */
   int inst_flat_arcs_idx = 0;
   // hadle cell arcs
-  for (int i = 0; i < mNode2NewNodes.size() - num_terminal_NIs - ext_blockage_num; ++i) {
+  for (int i = 0; i < mNodeName2ID.size() - num_terminal_NIs - ext_blockage_num; ++i) {
     auto node_name = node_names[i].cast<std::string>();
     IdbInstance* node = inst_resort_list[mNodeName2ID[node_name]];
     inst_flat_arcs_start.append(inst_flat_arcs_idx);
@@ -1277,7 +1277,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     inst_size.append(-1);
   }
   // IO PINS
-  for (int i = mNode2NewNodes.size() - num_terminal_NIs; i < mNode2NewNodes.size(); ++i) {
+  for (int i = mNodeName2ID.size() - num_terminal_NIs; i < mNodeName2ID.size(); ++i) {
     inst_flat_arcs_start.append(inst_flat_arcs_idx);
     inst_main_id.append(-1);
     inst_size.append(-1);

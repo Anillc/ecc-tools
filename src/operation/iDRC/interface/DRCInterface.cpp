@@ -20,7 +20,9 @@
 #include "DataManager.hpp"
 #include "GDSPlotter.hpp"
 #include "Monitor.hpp"
+#include "NotificationUtility.h"
 #include "RuleValidator.hpp"
+#include "feature_manager.h"
 #include "idm.h"
 
 namespace idrc {
@@ -80,9 +82,13 @@ void DRCInterface::initDRC(std::map<std::string, std::any> config_map, bool enab
 
 void DRCInterface::checkDef()
 {
-  std::vector<ids::Shape> ids_env_shape_list = buildEnvShapeList();
-  std::vector<ids::Shape> ids_result_shape_list = buildResultShapeList();
-  getViolationList(ids_env_shape_list, ids_result_shape_list);
+  std::map<std::string, std::vector<ids::Violation>> type_violation_map;
+  for (ids::Violation& ids_violation : getViolationList(buildEnvShapeList(), buildResultShapeList(), {}, {})) {
+    type_violation_map[ids_violation.violation_type].push_back(ids_violation);
+  }
+  printSummary(type_violation_map);
+  outputViolationJson(type_violation_map);
+  outputSummary(type_violation_map);
 }
 
 void DRCInterface::destroyDRC()
@@ -111,20 +117,31 @@ void DRCInterface::destroyDRC()
   Logger::destroyInst();
 }
 
-std::vector<ids::Violation> DRCInterface::getViolationList(std::vector<ids::Shape>& ids_env_shape_list, std::vector<ids::Shape>& ids_result_shape_list)
+std::vector<ids::Violation> DRCInterface::getViolationList(const std::vector<ids::Shape>& ids_env_shape_list,
+                                                           const std::vector<ids::Shape>& ids_result_shape_list,
+                                                           const std::set<std::string>& ids_check_type_set,
+                                                           const std::vector<ids::Shape>& ids_check_region_list)
 {
   std::vector<DRCShape> drc_env_shape_list;
   drc_env_shape_list.reserve(ids_env_shape_list.size());
-  for (ids::Shape& ids_env_shape : ids_env_shape_list) {
+  for (const ids::Shape& ids_env_shape : ids_env_shape_list) {
     drc_env_shape_list.push_back(convertToDRCShape(ids_env_shape));
   }
   std::vector<DRCShape> drc_result_shape_list;
   drc_result_shape_list.reserve(ids_result_shape_list.size());
-  for (ids::Shape& ids_result_shape : ids_result_shape_list) {
+  for (const ids::Shape& ids_result_shape : ids_result_shape_list) {
     drc_result_shape_list.push_back(convertToDRCShape(ids_result_shape));
   }
+  std::set<ViolationType> drc_check_type_set;
+  for (std::string ids_check_type : ids_check_type_set) {
+    drc_check_type_set.insert(GetViolationTypeByName()(ids_check_type));
+  }
+  std::vector<DRCShape> drc_check_region_list;
+  for (const ids::Shape& ids_check_region : ids_check_region_list) {
+    drc_check_region_list.push_back(convertToDRCShape(ids_check_region));
+  }
   std::vector<ids::Violation> ids_violation_list;
-  for (Violation& violation : DRCRV.verify(drc_env_shape_list, drc_result_shape_list)) {
+  for (Violation& violation : DRCRV.verify(drc_env_shape_list, drc_result_shape_list, drc_check_type_set, drc_check_region_list)) {
     ids::Violation ids_violation;
     ids_violation.violation_type = GetViolationTypeName()(violation.get_violation_type());
     ids_violation.ll_x = violation.get_ll_x();
@@ -169,8 +186,8 @@ void DRCInterface::wrapConfig(std::map<std::string, std::any>& config_map)
 void DRCInterface::wrapDatabase()
 {
   wrapMicronDBU();
-  wrapManufactureGrid();
   wrapDie();
+  wrapDesignRule();
   wrapLayerList();
   wrapLayerInfo();
 }
@@ -180,11 +197,6 @@ void DRCInterface::wrapMicronDBU()
   DRCDM.getDatabase().set_micron_dbu(dmInst->get_idb_def_service()->get_design()->get_units()->get_micron_dbu());
 }
 
-void DRCInterface::wrapManufactureGrid()
-{
-  DRCDM.getDatabase().set_manufacture_grid(dmInst->get_idb_lef_service()->get_layout()->get_munufacture_grid());
-}
-
 void DRCInterface::wrapDie()
 {
   idb::IdbDie* idb_die = dmInst->get_idb_lef_service()->get_layout()->get_die();
@@ -192,6 +204,34 @@ void DRCInterface::wrapDie()
   Die& die = DRCDM.getDatabase().get_die();
   die.set_ll(idb_die->get_llx(), idb_die->get_lly());
   die.set_ur(idb_die->get_urx(), idb_die->get_ury());
+}
+
+void DRCInterface::wrapDesignRule()
+{
+  std::set<ViolationType>& exist_rule_set = DRCDM.getDatabase().get_exist_rule_set();
+
+  // default
+  {
+    exist_rule_set.insert(ViolationType::kOutOfDie);
+  }
+  // MaxViaStackRule
+  {
+    MaxViaStackRule& max_via_stack_rule = DRCDM.getDatabase().get_max_via_stack_rule();
+    idb::IdbLayers* idb_layer_list = dmInst->get_idb_def_service()->get_layout()->get_layers();
+    idb::IdbMaxViaStack* idb_max_via_stack = dmInst->get_idb_lef_service()->get_layout()->get_max_via_stack();
+    if (idb_max_via_stack != nullptr) {
+      max_via_stack_rule.max_via_stack_num = idb_max_via_stack->get_stacked_via_num();
+      max_via_stack_rule.bottom_routing_layer_idx = idb_layer_list->find_layer(idb_max_via_stack->get_layer_bottom())->get_id();
+      max_via_stack_rule.top_routing_layer_idx = idb_layer_list->find_layer(idb_max_via_stack->get_layer_top())->get_id();
+      exist_rule_set.insert(ViolationType::kMaxViaStack);
+    }
+  }
+  // OffGridOrWrongWayRule
+  {
+    OffGridOrWrongWayRule& off_grid_or_wrong_way_rule = DRCDM.getDatabase().get_off_grid_or_wrong_way_rule();
+    off_grid_or_wrong_way_rule.manufacture_grid = dmInst->get_idb_lef_service()->get_layout()->get_munufacture_grid();
+    exist_rule_set.insert(ViolationType::kOffGridOrWrongWay);
+  }
 }
 
 void DRCInterface::wrapLayerList()
@@ -238,57 +278,168 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
   {
     exist_rule_set.insert(ViolationType::kMetalShort);
   }
-  // min width
+  // CornerFillSpacingRule
   {
-    routing_layer.set_min_width(idb_layer->get_min_width());
-    exist_rule_set.insert(ViolationType::kMinimumWidth);
-    exist_rule_set.insert(ViolationType::kNonsufficientMetalOverlap);
+    CornerFillSpacingRule& corner_fill_spacing_rule = routing_layer.get_corner_fill_spacing_rule();
+    idb::routinglayer::Lef58CornerFillSpacing* idb_corner_fill = idb_layer->get_lef58_corner_fill_spacing().get();
+    if (idb_corner_fill != nullptr) {
+      corner_fill_spacing_rule.has_corner_fill = true;
+      corner_fill_spacing_rule.corner_fill_spacing = idb_corner_fill->get_spacing();
+      corner_fill_spacing_rule.edge_length_1 = idb_corner_fill->get_edge_length1();
+      corner_fill_spacing_rule.edge_length_2 = idb_corner_fill->get_edge_length2();
+      corner_fill_spacing_rule.adjacent_eol = idb_corner_fill->get_eol_width();
+      exist_rule_set.insert(ViolationType::kCornerFillSpacing);
+    }
   }
-  // max width
+  // EndOfLineSpacingRule
   {
-    routing_layer.set_max_width(idb_layer->get_max_width());
+    std::vector<EndOfLineSpacingRule>& end_of_line_spacing_rule_list = routing_layer.get_end_of_line_spacing_rule_list();
+    if (!idb_layer->get_lef58_spacing_eol_list().empty()) {
+      for (std::shared_ptr<idb::routinglayer::Lef58SpacingEol> idb_spacing_eol : idb_layer->get_lef58_spacing_eol_list()) {
+        EndOfLineSpacingRule end_of_line_spacing_rule;
+
+        end_of_line_spacing_rule.eol_spacing = idb_spacing_eol.get()->get_eol_space();
+        end_of_line_spacing_rule.eol_width = idb_spacing_eol.get()->get_eol_width();
+        end_of_line_spacing_rule.eol_within = idb_spacing_eol.get()->get_eol_within().value();
+
+        end_of_line_spacing_rule.has_ete = idb_spacing_eol.get()->get_end_to_end().has_value();
+        if (idb_spacing_eol.get()->get_end_to_end().has_value()) {
+          end_of_line_spacing_rule.ete_spacing = idb_spacing_eol.get()->get_end_to_end().value().get_end_to_end_space();
+        }
+
+        end_of_line_spacing_rule.has_par = idb_spacing_eol.get()->get_parallel_edge().has_value();
+        if (idb_spacing_eol.get()->get_parallel_edge().has_value()) {
+          end_of_line_spacing_rule.has_subtrace_eol_width = idb_spacing_eol.get()->get_parallel_edge().value().is_subtract_eol_width();
+          end_of_line_spacing_rule.par_spacing = idb_spacing_eol.get()->get_parallel_edge().value().get_par_space();
+          end_of_line_spacing_rule.par_within = idb_spacing_eol.get()->get_parallel_edge().value().get_par_within();
+          end_of_line_spacing_rule.has_two_edges = idb_spacing_eol.get()->get_parallel_edge().value().is_two_edges();
+          end_of_line_spacing_rule.has_min_length = idb_spacing_eol.get()->get_parallel_edge().value().get_min_length().has_value();
+          if (idb_spacing_eol.get()->get_parallel_edge().value().get_min_length().has_value()) {
+            end_of_line_spacing_rule.min_length = idb_spacing_eol.get()->get_parallel_edge().value().get_min_length().value();
+          }
+          end_of_line_spacing_rule.has_same_metal = idb_spacing_eol.get()->get_parallel_edge().value().is_same_metal();
+        }
+
+        end_of_line_spacing_rule.has_enclose_cut = idb_spacing_eol.get()->get_enclose_cut().has_value();
+        if (idb_spacing_eol.get()->get_enclose_cut().has_value()) {
+          end_of_line_spacing_rule.has_below
+              = idb_spacing_eol.get()->get_enclose_cut().value().get_direction() == idb::routinglayer::Lef58SpacingEol::Direction::kBelow;
+          end_of_line_spacing_rule.has_above
+              = idb_spacing_eol.get()->get_enclose_cut().value().get_direction() == idb::routinglayer::Lef58SpacingEol::Direction::kAbove;
+          end_of_line_spacing_rule.enclosed_dist = idb_spacing_eol.get()->get_enclose_cut().value().get_enclose_dist();
+          end_of_line_spacing_rule.cut_to_metal_spacing = idb_spacing_eol.get()->get_enclose_cut().value().get_cut_to_metal_space();
+          end_of_line_spacing_rule.has_all_cuts = idb_spacing_eol.get()->get_enclose_cut().value().is_all_cuts();
+        }
+        end_of_line_spacing_rule_list.push_back(end_of_line_spacing_rule);
+      }
+      exist_rule_set.insert(ViolationType::kEndOfLineSpacing);
+    }
+  }
+  // MaximumWidthRule
+  {
+    MaximumWidthRule& maximum_width_rule = routing_layer.get_maximum_width_rule();
+    int32_t max_width = INT32_MAX;
+    if (idb_layer->get_max_width() != -1) {
+      max_width = idb_layer->get_max_width();
+    }
+    maximum_width_rule.max_width = max_width;
     exist_rule_set.insert(ViolationType::kMaximumWidth);
   }
-  // min area
+  // MinHoleRule
   {
-    routing_layer.set_min_area(idb_layer->get_area());
-    exist_rule_set.insert(ViolationType::kMinimumArea);
-  }
-  // min hole area
-  {
+    MinHoleRule& min_hole_rule = routing_layer.get_min_hole_rule();
     std::vector<IdbMinEncloseArea>& min_area_list = idb_layer->get_min_enclose_area_list()->get_min_area_list();
     if (!min_area_list.empty()) {
-      routing_layer.set_min_hole_area(min_area_list.front()._area);
+      min_hole_rule.min_hole_area = min_area_list.front()._area;
       exist_rule_set.insert(ViolationType::kMinHole);
     }
   }
-  // min step
+  // MinimumAreaRule
   {
+    MinimumAreaRule& minimum_area_rule = routing_layer.get_minimum_area_rule();
+    minimum_area_rule.min_area = idb_layer->get_area();
+    exist_rule_set.insert(ViolationType::kMinimumArea);
+  }
+  // MinimumCutRule
+  {
+    std::vector<MinimumCutRule>& minimum_cut_rule_list = routing_layer.get_minimum_cut_rule_list();
+    if (!idb_layer->get_lef58_minimum_cut().empty()) {
+      for (std::shared_ptr<idb::routinglayer::Lef58MinimumCut>& idb_minimum_cut : idb_layer->get_lef58_minimum_cut()) {
+        MinimumCutRule minimum_cut_rule;
+        if (idb_minimum_cut.get()->get_num_cuts().has_value()) {
+          minimum_cut_rule.num_cuts = idb_minimum_cut.get()->get_num_cuts().value();
+        } else {
+          for (const idb::routinglayer::Lef58MinimumCut::CutClass& idb_cut_class : idb_minimum_cut.get()->get_cut_classes()) {
+            if (idb_cut_class.get_class_name() == "VSINGLECUT") {
+              minimum_cut_rule.num_cuts = idb_cut_class.get_num_cuts();
+              break;
+            }
+          }
+        }
+        minimum_cut_rule.width = idb_minimum_cut.get()->get_width();
+        minimum_cut_rule.has_within_cut_distance = idb_minimum_cut.get()->get_within_cut_distance().has_value();
+        if (idb_minimum_cut.get()->get_within_cut_distance().has_value()) {
+          minimum_cut_rule.within_cut_distance = idb_minimum_cut.get()->get_within_cut_distance().value();
+        }
+        minimum_cut_rule.has_from_above = idb_minimum_cut.get()->get_orient() == idb::routinglayer::Lef58MinimumCut::Orient::kFromAbove ? true : false;
+        minimum_cut_rule.has_from_below = idb_minimum_cut.get()->get_orient() == idb::routinglayer::Lef58MinimumCut::Orient::kFromBelow ? true : false;
+        minimum_cut_rule.has_length = idb_minimum_cut.get()->get_length().has_value();
+        if (idb_minimum_cut.get()->get_length().has_value()) {
+          minimum_cut_rule.length = idb_minimum_cut.get()->get_length().value().get_length();
+          minimum_cut_rule.distance = idb_minimum_cut.get()->get_length().value().get_distance();
+        }
+        minimum_cut_rule_list.push_back(minimum_cut_rule);
+      }
+      exist_rule_set.insert(ViolationType::kMinimumCut);
+    }
+  }
+  // MinimumWidthRule
+  {
+    MinimumWidthRule& minimum_width_rule = routing_layer.get_minimum_width_rule();
+    minimum_width_rule.min_width = idb_layer->get_min_width();
+    exist_rule_set.insert(ViolationType::kMinimumWidth);
+  }
+  // MinStepRule
+  {
+    MinStepRule& min_step_rule = routing_layer.get_min_step_rule();
     idb::IdbMinStep* idb_min_step = idb_layer->get_min_step().get();
     std::vector<std::shared_ptr<idb::routinglayer::Lef58MinStep>>& idb_lef58_min_step_list = idb_layer->get_lef58_min_step();
     if (idb_min_step != nullptr && !idb_lef58_min_step_list.empty()) {
-      routing_layer.set_min_step(idb_min_step->get_min_step_length());
-      routing_layer.set_max_edges(idb_min_step->get_max_edges());
+      min_step_rule.min_step = idb_min_step->get_min_step_length();
+      min_step_rule.max_edges = idb_min_step->get_max_edges();
       for (std::shared_ptr<idb::routinglayer::Lef58MinStep>& idb_lef58_min_step : idb_layer->get_lef58_min_step()) {
-        routing_layer.set_lef58_min_step(idb_lef58_min_step.get()->get_min_step_length());
-        routing_layer.set_lef58_min_adjacent_length(idb_lef58_min_step.get()->get_min_adjacent_length().value().get_min_adj_length());
+        min_step_rule.lef58_min_step = idb_lef58_min_step.get()->get_min_step_length();
+        min_step_rule.lef58_min_adjacent_length = idb_lef58_min_step.get()->get_min_adjacent_length().value().get_min_adj_length();
         break;
       }
       exist_rule_set.insert(ViolationType::kMinStep);
     }
   }
-  // notch
+  // NonsufficientMetalOverlapRule
   {
-    idb::routinglayer::Lef58SpacingNotchlength* idb_notch = idb_layer->get_lef58_spacing_notchlength().get();
-    if (idb_notch != nullptr) {
-      routing_layer.set_notch_spacing(idb_notch->get_min_spacing());
-      routing_layer.set_notch_length(idb_notch->get_min_notch_length());
-      routing_layer.set_concave_ends(idb_notch->get_concave_ends_side_of_notch_width());
+    NonsufficientMetalOverlapRule& nonsufficient_metal_overlap_rule = routing_layer.get_nonsufficient_metal_overlap_rule();
+    nonsufficient_metal_overlap_rule.min_width = idb_layer->get_min_width();
+    exist_rule_set.insert(ViolationType::kNonsufficientMetalOverlap);
+  }
+  // NotchSpacingRule
+  {
+    NotchSpacingRule& notch_spacing_rule = routing_layer.get_notch_spacing_rule();
+    IdbLayerSpacingNotchLength& idb_notch = idb_layer->get_spacing_notchlength();
+    idb::routinglayer::Lef58SpacingNotchlength* idb_lef58_notch = idb_layer->get_lef58_spacing_notchlength().get();
+    if (idb_notch.exist()) {
+      notch_spacing_rule.notch_spacing = idb_notch.get_min_spacing();
+      notch_spacing_rule.notch_length = idb_notch.get_notch_length();
+      exist_rule_set.insert(ViolationType::kNotchSpacing);
+    } else if (idb_lef58_notch != nullptr) {
+      notch_spacing_rule.notch_spacing = idb_lef58_notch->get_min_spacing();
+      notch_spacing_rule.notch_length = idb_lef58_notch->get_min_notch_length();
+      notch_spacing_rule.concave_ends = idb_lef58_notch->get_concave_ends_side_of_notch_width();
       exist_rule_set.insert(ViolationType::kNotchSpacing);
     }
   }
-  // prl
+  // ParallelRunLengthSpacingRule
   {
+    ParallelRunLengthSpacingRule& parallel_run_length_spacing_rule = routing_layer.get_parallel_run_length_spacing_rule();
     std::shared_ptr<idb::IdbParallelSpacingTable> idb_spacing_table;
     bool exist_spacing_table = false;
     if (idb_layer->get_spacing_table().get()->get_parallel().get() != nullptr && idb_layer->get_spacing_table().get()->is_parallel()) {
@@ -299,10 +450,9 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
       exist_spacing_table = true;
     }
     if (exist_spacing_table) {
-      SpacingTable& prl_spacing_table = routing_layer.get_prl_spacing_table();
-      std::vector<int32_t>& width_list = prl_spacing_table.get_width_list();
-      std::vector<int32_t>& parallel_length_list = prl_spacing_table.get_parallel_length_list();
-      GridMap<int32_t>& width_parallel_length_map = prl_spacing_table.get_width_parallel_length_map();
+      std::vector<int32_t>& width_list = parallel_run_length_spacing_rule.width_list;
+      std::vector<int32_t>& parallel_length_list = parallel_run_length_spacing_rule.parallel_length_list;
+      GridMap<int32_t>& width_parallel_length_map = parallel_run_length_spacing_rule.width_parallel_length_map;
 
       width_list = idb_spacing_table->get_width_list();
       parallel_length_list = idb_spacing_table->get_parallel_length_list();
@@ -315,23 +465,6 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
       exist_rule_set.insert(ViolationType::kParallelRunLengthSpacing);
     }
   }
-  // eol
-  {
-    if (!idb_layer->get_lef58_spacing_eol_list().empty()) {
-      routinglayer::Lef58SpacingEol* idb_spacing_eol = idb_layer->get_lef58_spacing_eol_list().front().get();
-
-      int32_t eol_spacing = idb_spacing_eol->get_eol_space();
-      int32_t eol_ete = 0;
-      if (idb_spacing_eol->get_end_to_end().has_value()) {
-        eol_ete = idb_spacing_eol->get_end_to_end().value().get_end_to_end_space();
-      }
-      int32_t eol_within = idb_spacing_eol->get_eol_within().value();
-      routing_layer.set_eol_spacing(eol_spacing);
-      routing_layer.set_eol_ete(eol_ete);
-      routing_layer.set_eol_within(eol_within);
-      exist_rule_set.insert(ViolationType::kEndOfLineSpacing);
-    }
-  }
 }
 
 void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_layer)
@@ -342,12 +475,98 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
   {
     exist_rule_set.insert(ViolationType::kCutShort);
   }
-  // prl
+  // CutEOLSpacingRule
   {
+    CutEOLSpacingRule& cut_eol_spacing_rule = cut_layer.get_cut_eol_spacing_rule();
+    if (idb_layer->get_lef58_eol_spacing().get() != nullptr) {
+      idb::cutlayer::Lef58EolSpacing* idb_eol_spacing = idb_layer->get_lef58_eol_spacing().get();
+      cut_eol_spacing_rule.eol_spacing = idb_eol_spacing->get_cut_spacing1();
+      cut_eol_spacing_rule.eol_prl = idb_eol_spacing->get_prl();
+      cut_eol_spacing_rule.eol_prl_spacing = idb_eol_spacing->get_cut_spacing2();
+      cut_eol_spacing_rule.eol_width = idb_eol_spacing->get_eol_width();
+      cut_eol_spacing_rule.smaller_overhang = idb_eol_spacing->get_smaller_overhang();
+      cut_eol_spacing_rule.equal_overhang = idb_eol_spacing->get_equal_overhang();
+      cut_eol_spacing_rule.side_ext = idb_eol_spacing->get_side_ext();
+      cut_eol_spacing_rule.backward_ext = idb_eol_spacing->get_backward_ext();
+      cut_eol_spacing_rule.span_length = idb_eol_spacing->get_span_length();
+      exist_rule_set.insert(ViolationType::kCutEOLSpacing);
+    }
+  }
+  // DifferentLayerCutSpacingRule
+  {
+    DifferentLayerCutSpacingRule& different_layer_cut_spacing_rule = cut_layer.get_different_layer_cut_spacing_rule();
+    if (!idb_layer->get_lef58_spacing_table().empty()) {
+      idb::cutlayer::Lef58SpacingTable* spacing_table = nullptr;
+      for (std::shared_ptr<idb::cutlayer::Lef58SpacingTable>& spacing_table_ptr : idb_layer->get_lef58_spacing_table()) {
+        if (!spacing_table_ptr.get()->get_second_layer().has_value()) {
+          continue;
+        }
+        spacing_table = spacing_table_ptr.get();
+      }
+      if (spacing_table != nullptr) {
+        idb::cutlayer::Lef58SpacingTable::CutSpacing cut_spacing = spacing_table->get_cutclass().get_cut_spacing(0, 0);
+
+        int32_t below_spacing = cut_spacing.get_cut_spacing1().value();
+        int32_t below_prl = spacing_table->get_prl().value().get_prl();
+        int32_t below_prl_spacing = cut_spacing.get_cut_spacing2().value();
+        different_layer_cut_spacing_rule.below_spacing = below_spacing;
+        different_layer_cut_spacing_rule.below_prl = below_prl;
+        different_layer_cut_spacing_rule.below_prl_spacing = below_prl_spacing;
+        exist_rule_set.insert(ViolationType::kDifferentLayerCutSpacing);
+      }
+    }
+  }
+  // EnclosureEdgeRule
+  {
+    std::vector<EnclosureEdgeRule>& enclosure_edge_rule_list = cut_layer.get_enclosure_edge_rule_list();
+    if (!idb_layer->get_lef58_enclosure_edge_list().empty()) {
+      for (std::shared_ptr<idb::cutlayer::Lef58EnclosureEdge>& idb_enclosure_edge : idb_layer->get_lef58_enclosure_edge_list()) {
+        if (idb_enclosure_edge.get()->get_convex_corners().has_value()) {
+          continue;
+        }
+        EnclosureEdgeRule enclosure_edge_rule;
+        enclosure_edge_rule.has_above = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kAbove);
+        enclosure_edge_rule.has_below = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kBelow);
+        enclosure_edge_rule.overhang = idb_enclosure_edge.get()->get_overhang();
+        enclosure_edge_rule.min_width = idb_enclosure_edge.get()->get_min_width().value();
+        enclosure_edge_rule.par_length = idb_enclosure_edge.get()->get_par_length().value();
+        enclosure_edge_rule.par_within = idb_enclosure_edge.get()->get_par_within().value();
+        enclosure_edge_rule.has_except_two_edges = idb_enclosure_edge.get()->has_except_twoedges();
+        enclosure_edge_rule_list.push_back(enclosure_edge_rule);
+      }
+      exist_rule_set.insert(ViolationType::kEnclosureEdge);
+    }
+  }
+  // EnclosureParallelRule
+  {
+    EnclosureParallelRule& enclosure_parallel_rule = cut_layer.get_enclosure_parallel_rule();
+    if (idb_layer->get_lef58_eol_enclosure().get() != nullptr) {
+      idb::cutlayer::Lef58EolEnclosure* idb_eol_enclosure = idb_layer->get_lef58_eol_enclosure().get();
+      enclosure_parallel_rule.eol_width = idb_eol_enclosure->get_eol_width();
+      enclosure_parallel_rule.has_above = (idb_eol_enclosure->get_direction() == idb::cutlayer::Lef58EolEnclosure::Direction::kAbove);
+      enclosure_parallel_rule.has_below = (idb_eol_enclosure->get_direction() == idb::cutlayer::Lef58EolEnclosure::Direction::kBelow);
+      enclosure_parallel_rule.overhang = idb_eol_enclosure->get_overhang();
+      if (idb_eol_enclosure->get_par_space().has_value()) {
+        enclosure_parallel_rule.par_spacing = idb_eol_enclosure->get_par_space().value();
+      }
+      if (idb_eol_enclosure->get_extension().has_value()) {
+        enclosure_parallel_rule.backward_ext = idb_eol_enclosure->get_extension().value().get_backward_ext();
+        enclosure_parallel_rule.forward_ext = idb_eol_enclosure->get_extension().value().get_forward_ext();
+      }
+      enclosure_parallel_rule.has_min_length = idb_eol_enclosure->get_min_length().has_value();
+      if (idb_eol_enclosure->get_min_length().has_value()) {
+        enclosure_parallel_rule.min_length = idb_eol_enclosure->get_min_length().value();
+      }
+      exist_rule_set.insert(ViolationType::kEnclosureParallel);
+    }
+  }
+  // SameLayerCutSpacingRule
+  {
+    SameLayerCutSpacingRule& same_layer_cut_spacing_rule = cut_layer.get_same_layer_cut_spacing_rule();
     if (!idb_layer->get_spacings().empty()) {
-      cut_layer.set_curr_spacing(idb_layer->get_spacings().front()->get_spacing());
-      cut_layer.set_curr_prl(0);
-      cut_layer.set_curr_prl_spacing(idb_layer->get_spacings().front()->get_spacing());
+      same_layer_cut_spacing_rule.curr_spacing = idb_layer->get_spacings().front()->get_spacing();
+      same_layer_cut_spacing_rule.curr_prl = 0;
+      same_layer_cut_spacing_rule.curr_prl_spacing = idb_layer->get_spacings().front()->get_spacing();
       exist_rule_set.insert(ViolationType::kSameLayerCutSpacing);
     } else if (!idb_layer->get_lef58_spacing_table().empty()) {
       idb::cutlayer::Lef58SpacingTable* spacing_table = nullptr;
@@ -361,49 +580,12 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
         idb::cutlayer::Lef58SpacingTable::CutSpacing cut_spacing = spacing_table->get_cutclass().get_cut_spacing(0, 0);
 
         int32_t curr_spacing = cut_spacing.get_cut_spacing1().value();
-        int32_t curr_prl = -1 * spacing_table->get_prl().value().get_prl();
+        int32_t curr_prl = spacing_table->get_prl().value().get_prl();
         int32_t curr_prl_spacing = cut_spacing.get_cut_spacing2().value();
-        cut_layer.set_curr_spacing(curr_spacing);
-        cut_layer.set_curr_prl(curr_prl);
-        cut_layer.set_curr_prl_spacing(curr_prl_spacing);
+        same_layer_cut_spacing_rule.curr_spacing = curr_spacing;
+        same_layer_cut_spacing_rule.curr_prl = curr_prl;
+        same_layer_cut_spacing_rule.curr_prl_spacing = curr_prl_spacing;
         exist_rule_set.insert(ViolationType::kSameLayerCutSpacing);
-      }
-    }
-  }
-  // eol
-  {
-    if (idb_layer->get_lef58_eol_spacing().get() != nullptr) {
-      idb::cutlayer::Lef58EolSpacing* idb_eol_spacing = idb_layer->get_lef58_eol_spacing().get();
-
-      int32_t curr_eol_spacing = idb_eol_spacing->get_cut_spacing1();
-      int32_t curr_eol_prl = -1 * idb_eol_spacing->get_prl();
-      int32_t curr_eol_prl_spacing = idb_eol_spacing->get_cut_spacing2();
-      cut_layer.set_curr_eol_spacing(curr_eol_spacing);
-      cut_layer.set_curr_eol_prl(curr_eol_prl);
-      cut_layer.set_curr_eol_prl_spacing(curr_eol_prl_spacing);
-      exist_rule_set.insert(ViolationType::kCutEOLSpacing);
-    }
-  }
-  // diff layer spacing
-  {
-    if (!idb_layer->get_lef58_spacing_table().empty()) {
-      idb::cutlayer::Lef58SpacingTable* spacing_table = nullptr;
-      for (std::shared_ptr<idb::cutlayer::Lef58SpacingTable>& spacing_table_ptr : idb_layer->get_lef58_spacing_table()) {
-        if (!spacing_table_ptr.get()->get_second_layer().has_value()) {
-          continue;
-        }
-        spacing_table = spacing_table_ptr.get();
-      }
-      if (spacing_table != nullptr) {
-        idb::cutlayer::Lef58SpacingTable::CutSpacing cut_spacing = spacing_table->get_cutclass().get_cut_spacing(0, 0);
-
-        int32_t below_spacing = cut_spacing.get_cut_spacing1().value();
-        int32_t below_prl = -1 * spacing_table->get_prl().value().get_prl();
-        int32_t below_prl_spacing = cut_spacing.get_cut_spacing2().value();
-        cut_layer.set_below_spacing(below_spacing);
-        cut_layer.set_below_prl(below_prl);
-        cut_layer.set_below_prl_spacing(below_prl_spacing);
-        exist_rule_set.insert(ViolationType::kDifferentLayerCutSpacing);
       }
     }
   }
@@ -451,7 +633,7 @@ void DRCInterface::output()
 
 #endif
 
-#if 1  // form def
+#if 1  // check
 
 std::vector<ids::Shape> DRCInterface::buildEnvShapeList()
 {
@@ -792,11 +974,84 @@ std::vector<ids::Shape> DRCInterface::buildResultShapeList()
   return result_shape_list;
 }
 
-#endif
+void DRCInterface::printSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+{
+  std::string& golden_directory_path = DRCDM.getConfig().golden_directory_path;
+  if (golden_directory_path != "null") {
+    return;
+  }
+  int32_t total_violation_num = 0;
+  for (auto& [type, violation_list] : type_violation_map) {
+    total_violation_num += static_cast<int32_t>(violation_list.size());
+  }
+  fort::char_table type_violation_map_table;
+  {
+    type_violation_map_table.set_cell_text_align(fort::text_align::right);
+    type_violation_map_table << fort::header << "violation_type"
+                             << "violation_num" << "prop" << fort::endr;
+    for (auto& [type, violation_list] : type_violation_map) {
+      type_violation_map_table << type << violation_list.size() << DRCUTIL.getPercentage(violation_list.size(), total_violation_num) << fort::endr;
+    }
+    type_violation_map_table << fort::header << "Total" << total_violation_num << DRCUTIL.getPercentage(total_violation_num, total_violation_num) << fort::endr;
+  }
+  DRCUTIL.printTableList({type_violation_map_table});
+}
 
-#if 1  // form tool
+void DRCInterface::outputViolationJson(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+{
+  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
+  std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
+  std::string& temp_directory_path = DRCDM.getConfig().temp_directory_path;
 
-DRCShape DRCInterface::convertToDRCShape(ids::Shape& ids_shape)
+  std::vector<idb::IdbNet*>& idb_net_list = dmInst->get_idb_def_service()->get_design()->get_net_list()->get_net_list();
+  std::vector<nlohmann::json> violation_json_list;
+  for (auto& [type, violation_list] : type_violation_map) {
+    for (ids::Violation& violation : violation_list) {
+      nlohmann::json violation_json;
+      violation_json["type"] = violation.violation_type;
+
+      int32_t layer_idx = violation.layer_idx;
+      if (!violation.is_routing) {
+        std::vector<int32_t>& routing_layer_idx_list = cut_to_adjacent_routing_map[layer_idx];
+        layer_idx = *std::min_element(routing_layer_idx_list.begin(), routing_layer_idx_list.end());
+      }
+      violation_json["shape"] = {violation.ll_x, violation.ll_y, violation.ur_x, violation.ur_y, routing_layer_list[layer_idx].get_layer_name()};
+      for (int32_t net_idx : violation.violation_net_set) {
+        if (net_idx != -1) {
+          violation_json["net"].push_back(idb_net_list[net_idx]->get_net_name());
+        } else {
+          violation_json["net"].push_back("obs");
+        }
+      }
+      violation_json_list.push_back(violation_json);
+    }
+  }
+  std::string violation_json_file_path = DRCUTIL.getString(temp_directory_path, "violation_map.json");
+  std::ofstream* violation_json_file = DRCUTIL.getOutputFileStream(violation_json_file_path);
+  (*violation_json_file) << violation_json_list;
+  DRCUTIL.closeFileStream(violation_json_file);
+}
+
+void DRCInterface::outputSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+{
+  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
+  std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
+
+  featureInst->get_type_layer_violation_map().clear();
+  for (auto& [type, violation_list] : type_violation_map) {
+    for (ids::Violation& violation : violation_list) {
+      std::string layer_name;
+      if (violation.is_routing) {
+        layer_name = routing_layer_list[violation.layer_idx].get_layer_name();
+      } else {
+        layer_name = cut_layer_list[violation.layer_idx].get_layer_name();
+      }
+      featureInst->get_type_layer_violation_map()[type][layer_name].push_back(violation);
+    }
+  }
+}
+
+DRCShape DRCInterface::convertToDRCShape(const ids::Shape& ids_shape)
 {
   DRCShape drc_shape;
   drc_shape.set_net_idx(ids_shape.net_idx);

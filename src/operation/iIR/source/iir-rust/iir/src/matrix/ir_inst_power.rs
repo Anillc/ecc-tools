@@ -10,6 +10,8 @@ use serde::Deserialize;
 use crate::matrix::ir_inst_power;
 use crate::matrix::ir_rc::RCOneNetData;
 
+use super::ir_rc::POWER_INNER_RESISTANCE;
+
 #[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct InstancePowerRecord {
@@ -72,20 +74,26 @@ pub fn build_instance_current_vector(
     inst_power_data: &Vec<InstancePowerRecord>,
     net_data: &RCOneNetData,
 ) -> Result<HashMap<usize, f64>, Box<dyn StdError + 'static>> {
-    log::info!("build instance current vector for power net {}", net_data.get_name());
+    let pg_net_name = net_data.get_name();
+    log::info!("build instance current vector for power net {}", pg_net_name);
     let instance_current_map = ir_inst_power::get_instance_current(inst_power_data);
 
     let mut instance_current_data: HashMap<usize, f64> = HashMap::new();
 
+    let nominal_voltage = inst_power_data[0].nominal_voltage;
+
     for (instance_name, instance_current) in instance_current_map {
         let mut instance_power_pin_name = instance_name; // TODO(to taosimin) fix power pin name.
         instance_power_pin_name += ":";
-        instance_power_pin_name += net_data.get_name();
-        let node_index = net_data.get_node_id(&instance_power_pin_name).unwrap_or_else(||{
-            log::error!("node {} not found in net {}", instance_power_pin_name, net_data.get_name());
-            0
+        instance_power_pin_name += pg_net_name;
+        let node_index = net_data.get_node_id(&instance_power_pin_name).unwrap_or_else(|| {
+            log::error!("node {} not found in net {}", instance_power_pin_name, pg_net_name);
+            usize::MAX
         });
-        instance_current_data.insert(node_index, instance_current);
+        
+        if node_index != usize::MAX {
+            instance_current_data.insert(node_index, instance_current);
+        }
     }
 
     let nodes = net_data.get_nodes();
@@ -94,8 +102,15 @@ pub fn build_instance_current_vector(
             let node_name = node.get_node_name();
             let node_index = net_data.get_node_id(node_name).unwrap();
             // bump current value is opposite of the instance value, so we use negative value instead.
-            let current_val: f64 = -1.0 / 1e-9;
-            instance_current_data.insert(node_index, current_val);
+            if pg_net_name.contains("VDD") {
+                let current_val: f64 = -nominal_voltage / POWER_INNER_RESISTANCE;
+                instance_current_data.insert(node_index, current_val);
+            } else if pg_net_name.contains("VSS") {
+                let current_val: f64 = 0.0; // VSS is ground, so current is 0.
+                instance_current_data.insert(node_index, current_val);
+            } else {
+                panic!("unknown power net name {}", pg_net_name);
+            }
         }
     }
 

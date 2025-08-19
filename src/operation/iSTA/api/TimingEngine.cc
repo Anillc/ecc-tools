@@ -24,6 +24,7 @@
 
 #include "TimingEngine.hh"
 
+#include <cassert>
 #include <iostream>
 #include <optional>
 
@@ -35,6 +36,7 @@
 #include "netlist/Instance.hh"
 #include "netlist/Netlist.hh"
 #include "sdc-cmd/Cmd.hh"
+#include "sdc/SdcSetLoad.hh"
 #include "sta/Sta.hh"
 #include "sta/StaAnalyze.hh"
 #include "sta/StaApplySdc.hh"
@@ -104,10 +106,10 @@ void TimingEngine::set_db_adapter(std::unique_ptr<TimingDBAdapter> db_adapter) {
 
 /**
  * @brief read def design for construct netlist db.
- * 
- * @param def_file 
- * @param lef_files 
- * @return TimingEngine& 
+ *
+ * @param def_file
+ * @param lef_files
+ * @return TimingEngine&
  */
 TimingEngine& TimingEngine::readDefDesign(std::string def_file,
                                           std::vector<std::string>& lef_files) {
@@ -117,6 +119,23 @@ TimingEngine& TimingEngine::readDefDesign(std::string def_file,
 
   auto db_adapter = std::make_unique<TimingIDBAdapter>(get_ista());
   db_adapter->set_idb(db_builder);
+  db_adapter->convertDBToTimingNetlist();
+
+  set_db_adapter(std::move(db_adapter));
+
+  return *this;
+}
+
+/**
+ * @brief set the db builder which has read def design.
+ *
+ * @param db_builder
+ * @return TimingEngine&
+ */
+TimingEngine& TimingEngine::setDefDesignBuilder(void* db_builder) {
+  auto db_adapter = std::make_unique<TimingIDBAdapter>(get_ista());
+
+  db_adapter->set_idb(static_cast<idb::IdbBuilder*>(db_builder));
   db_adapter->convertDBToTimingNetlist();
 
   set_db_adapter(std::move(db_adapter));
@@ -136,6 +155,7 @@ TimingEngine& TimingEngine::readDefDesign(std::string def_file,
 LibTable* TimingEngine::getCellLibertyTable(const char* cell_name,
                                             LibTable::TableType table_type) {
   LibCell* lib_cell = _ista->findLibertyCell(cell_name);
+  LOG_FATAL_IF(!lib_cell) << cell_name << " lib cell is not found.";
   const char* from_port_name = nullptr;
   const char* to_port_name = nullptr;
 
@@ -353,6 +373,12 @@ void TimingEngine::initRcTree() {
   FOREACH_NET(design_nl, net) { initRcTree(net); }
 }
 
+RcTree& TimingEngine::initVirtualRcTree(const char* rc_tree_name) {
+  RcTree virtual_rc_tree;
+  _virtual_rc_trees[rc_tree_name] = std::move(virtual_rc_tree);
+  return _virtual_rc_trees[rc_tree_name];
+}
+
 /**
  * @brief reset rc tree to nullptr.
  *
@@ -369,7 +395,7 @@ void TimingEngine::resetRcTree(Net* net) {
  * @param id
  * @return RctNode*
  */
-RctNode* TimingEngine::makeOrFindRCTreeNode(Net* net, int id) {
+RctNode* TimingEngine::makeOrFindRCTreeNode(Net* net, int64_t id) {
   StaBuildRCTree build_rc_tree;
   auto* rc_net = _timing_engine->get_ista()->getRcNet(net);
   if (!rc_net) {
@@ -384,7 +410,7 @@ RctNode* TimingEngine::makeOrFindRCTreeNode(Net* net, int id) {
   }
 
   auto* rc_tree = rc_net->rct();
-  std::string node_name = Str::printf("%s:%d", net->get_name(), id);
+  std::string node_name = Str::printf("%s:%lld", net->get_name(), id);
 
   auto* node = rc_tree->node(node_name);
   if (!node) {
@@ -427,6 +453,44 @@ RctNode* TimingEngine::makeOrFindRCTreeNode(DesignObject* pin_or_port) {
   return node;
 }
 
+/**
+ * @brief make or find the virtual rc tree node. The virtual rc tree is
+ * used to not complete net or virtual net.
+ *
+ * @param node_name
+ * @return RctNode*
+ */
+RctNode* TimingEngine::makeOrFindVirtualRCTreeNode(const char* rc_tree_name,
+                                                   const char* node_name) {
+  if (!_virtual_rc_trees.contains(rc_tree_name)) {
+    LOG_FATAL << "rc tree " << rc_tree_name << " not found";
+  }
+
+  auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
+
+  auto* node = virtual_rc_tree.node(node_name);
+  if (!node) {
+    return virtual_rc_tree.insertNode(node_name);
+  }
+
+  return node;
+}
+
+/**
+ * @brief find the exist rc tree node.
+ *
+ * @param net
+ * @param node_name
+ * @return RctNode*
+ */
+RctNode* TimingEngine::findRCTreeNode(Net* net, std::string& node_name) {
+  auto* rc_net = _timing_engine->get_ista()->getRcNet(net);
+  LOG_FATAL_IF(!rc_net) << net->get_name() << " rc net is not found.";
+  auto* rc_tree = rc_net->rct();
+
+  return rc_tree->node(node_name);
+}
+
 void TimingEngine::incrCap(RctNode* node, double cap, bool is_incremental) {
   is_incremental ? node->incrCap(cap) : node->setCap(cap);
 }
@@ -446,8 +510,49 @@ void TimingEngine::makeResistor(Net* net, RctNode* from_node, RctNode* to_node,
   }
   auto* rc_tree = rc_net->rct();
 
+  auto from_fanouts = from_node->get_fanout();
+
+  // judge whether the edge is already exist.
+  auto found = std::ranges::find_if(
+      from_fanouts, [&](auto* edge) { return &(edge->get_to()) == to_node; });
+
+  if (found != from_fanouts.end()) {
+    return;
+  }
+
   rc_tree->insertEdge(from_node, to_node, res, true);
   rc_tree->insertEdge(to_node, from_node, res, false);
+}
+
+/**
+ * @brief make virtual rc tree edge.
+ *
+ * @param rc_tree_name
+ * @param from_node
+ * @param to_node
+ * @param res
+ */
+void TimingEngine::makeVirtualRCTreeResistor(const char* rc_tree_name,
+                                             RctNode* from_node,
+                                             RctNode* to_node, double res) {
+  if (!_virtual_rc_trees.contains(rc_tree_name)) {
+    LOG_FATAL << "rc tree " << rc_tree_name << " not found";
+  }
+
+  auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
+
+  auto from_fanouts = from_node->get_fanout();
+
+  // judge whether the edge is already exist.
+  auto found = std::ranges::find_if(
+      from_fanouts, [&](auto* edge) { return &(edge->get_to()) == to_node; });
+
+  if (found != from_fanouts.end()) {
+    return;
+  }
+
+  virtual_rc_tree.insertEdge(from_node, to_node, res, true);
+  virtual_rc_tree.insertEdge(to_node, from_node, res, false);
 }
 
 /**
@@ -457,19 +562,31 @@ void TimingEngine::makeResistor(Net* net, RctNode* from_node, RctNode* to_node,
  */
 void TimingEngine::updateRCTreeInfo(Net* net) {
   auto* rc_net = _timing_engine->get_ista()->getRcNet(net);
+  
   if (rc_net) {
     rc_net->updateRcTreeInfo();
     auto* rct = rc_net->rct();
     if (rct) {
+      // check and break loop.
+      rc_net->checkLoop();
       rct->updateRcTiming();
     }
   }
 }
 
+/**
+ * @brief update virutal rc tree rc timing.
+ *
+ * @param rc_tree_name
+ */
+void TimingEngine::updateVirtualRCTreeInfo(const char* rc_tree_name) {
+  auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
+  virtual_rc_tree.updateRcTiming();
+}
 
 /**
  * @brief update all rc tree elmore delay use gpu speedup.
- * 
+ *
  */
 void TimingEngine::updateAllRCTree() {
 #if CUDA_DELAY
@@ -477,7 +594,6 @@ void TimingEngine::updateAllRCTree() {
   calc_rc_timing(all_rc_nets);
 #endif
 }
-
 
 /**
  * @brief build balanced rc tree of the net and update rc tree info.
@@ -513,6 +629,49 @@ void TimingEngine::buildRcTreeAndUpdateRcTreeInfo(
     incrCap(load_node, cap / (2 * loads.size()), is_incremental);
   }
   updateRCTreeInfo(net);
+}
+
+/**
+ * @brief Get all node slew of virtual rc tree.
+ *
+ * @param rc_tree_name
+ * @param driver_slew
+ * @return std::map<std::string, double>
+ */
+std::map<std::string, double> TimingEngine::getVirtualRCTreeAllNodeSlew(
+    const char* rc_tree_name, double driver_slew, TransType trans_type) {
+  if (!_virtual_rc_trees.contains(rc_tree_name)) {
+    LOG_FATAL << "virtual RC tree " << rc_tree_name << " does not exist!";
+  }
+
+  auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
+
+  std::map<std::string, double> all_node_slews;
+  all_node_slews = virtual_rc_tree.getAllNodeSlew(driver_slew, AnalysisMode::kMax, trans_type);
+
+  return all_node_slews;
+}
+
+/**
+ * @brief get all node delay of virtual rc tree.
+ *
+ * @param rc_tree_name
+ * @return std::map<std::string, double>
+ */
+std::map<std::string, double> TimingEngine::getVirtualRCTreeAllNodeDelay(
+    const char* rc_tree_name) {
+  if (!_virtual_rc_trees.contains(rc_tree_name)) {
+    LOG_FATAL << "virtual RC tree " << rc_tree_name << " does not exist!";
+  }
+  auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
+
+  std::map<std::string, double> all_node_delays;
+
+  for (auto& [node_name, node] : virtual_rc_tree.get_nodes()) {
+    all_node_delays[node_name] = node.delay();
+  }
+
+  return all_node_delays;
 }
 
 /**
@@ -587,10 +746,15 @@ bool TimingEngine::isPropagatedClock(const char* clock_name) {
 StaClock* TimingEngine::getPropClockOfNet(Net* clock_net) {
   auto* driver = clock_net->getDriver();
   auto* driver_vertex = _ista->findVertex(driver);
-  if (driver->isInout()) {
-    driver_vertex = _ista->get_graph().getAssistant(driver_vertex);
-  }
   auto* prop_clock = driver_vertex->getPropClock();
+  if (driver->isInout() && !prop_clock) {
+    auto* driver_assistant_vertex =
+        _ista->get_graph().getAssistant(driver_vertex);
+    prop_clock = driver_assistant_vertex->getPropClock();
+  }
+
+  LOG_FATAL_IF(!prop_clock)
+      << "No propagated clock found for net: " << clock_net->get_name();
   return prop_clock;
 }
 
@@ -1445,6 +1609,12 @@ double TimingEngine::getInstPinCapacitance(const char* pin_name) {
   auto* design_netlist = ista->get_netlist();
   std::vector<DesignObject*> match_pins =
       design_netlist->findPin(pin_name, false, false);
+  if (match_pins.empty()) {
+    auto* port = design_netlist->findPort(pin_name);
+    assert(port);
+    return port->cap();
+  }
+
   auto* pin = match_pins.front();
   auto* pin1 = dynamic_cast<Pin*>(pin);
   double cap = pin1->cap();
