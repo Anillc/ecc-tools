@@ -26,6 +26,7 @@
 
 #include "CTSAPI.hh"
 #include "Net.hh"
+#include "log/Log.hh"
 #include "report/CtsReport.hh"
 #include "time/Time.hh"
 namespace icts {
@@ -265,7 +266,11 @@ void Evaluator::recursiveSetLevel(CtsNet* net) const
     return;
   }
   auto* driver = net->get_driver_inst();
-  if (driver->get_level() > 0) {
+  if (driver == nullptr) {
+    LOG_WARNING << "Driver instance is null for net: " << net->get_net_name();
+    return;
+  }
+  if (!driver || driver->get_level() > 0) {
     return;
   }
 
