@@ -35,6 +35,7 @@ add_subdirectory(py_imp)
 #file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
 # file(GLOB PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS *.cpp)
 add_subdirectory(py_vec)
+add_subdirectory(py_ipnp)
 
 # ADD SOURCE FILES
 # file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
@@ -124,6 +125,8 @@ target_link_libraries(ieda_py
         log
         py_imp
         py_vec
+        py_vec
+        py_ipnp
         -u_ZTVN3ipl21ElectricFieldGradientE
         -u_ZN3ipl8Nesterov17correctNextCoordiEiNS_5PointIiEE
         -u_ZN3ipl21ElectricFieldGradient17initElectro2DListEv

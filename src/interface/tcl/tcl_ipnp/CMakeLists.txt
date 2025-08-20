@@ -10,8 +10,8 @@ target_link_libraries(tcl_ipnp
         tcl 
         shell-cmd 
         str
-        pnp
-        iPNPApi
+        tcl_util
+        ipnp_api
 )
 
 target_include_directories(tcl_ipnp

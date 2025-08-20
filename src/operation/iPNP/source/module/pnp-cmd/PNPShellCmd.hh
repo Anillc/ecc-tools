@@ -17,7 +17,7 @@
 /**
  * @file PNPShellCmd.hh
  * @author Jianrong Su
- * @brief 
+ * @brief
  * @version 1.0
  * @date 2025-06-30
  */
@@ -28,38 +28,38 @@
 
 namespace ipnp {
 
-using ieda::ScriptEngine;
-using ieda::TclCmd;
-using ieda::TclCmds;
-using ieda::TclDoubleListOption;
-using ieda::TclDoubleOption;
-using ieda::TclEncodeResult;
-using ieda::TclIntListOption;
-using ieda::TclIntOption;
-using ieda::TclOption;
-using ieda::TclStringListListOption;
-using ieda::TclStringListOption;
-using ieda::TclStringOption;
-using ieda::TclSwitchOption;
+  using ieda::ScriptEngine;
+  using ieda::TclCmd;
+  using ieda::TclCmds;
+  using ieda::TclDoubleListOption;
+  using ieda::TclDoubleOption;
+  using ieda::TclEncodeResult;
+  using ieda::TclIntListOption;
+  using ieda::TclIntOption;
+  using ieda::TclOption;
+  using ieda::TclStringListListOption;
+  using ieda::TclStringListOption;
+  using ieda::TclStringOption;
+  using ieda::TclSwitchOption;
 
-// Function to register commands
+  // Function to register commands
 
-class CmdRunPnp : public TclCmd {
-public:
-  explicit CmdRunPnp(const char* cmd_name);
-  ~CmdRunPnp() override = default;
+  class CmdRunPnp : public TclCmd {
+  public:
+    explicit CmdRunPnp(const char* cmd_name);
+    ~CmdRunPnp() override = default;
 
-  unsigned check() override;
-  unsigned exec() override;
-};
+    unsigned check() override;
+    unsigned exec() override;
+  };
 
-class CmdAddVIA1 : public TclCmd {
-public:
-  explicit CmdAddVIA1(const char* cmd_name);
-  ~CmdAddVIA1() override = default;
+  class CmdAddVIA1 : public TclCmd {
+  public:
+    explicit CmdAddVIA1(const char* cmd_name);
+    ~CmdAddVIA1() override = default;
 
-  unsigned check() override;
-  unsigned exec() override;
-};
+    unsigned check() override;
+    unsigned exec() override;
+  };
 
 } // namespace ipnp

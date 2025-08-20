@@ -19,10 +19,8 @@
 #include "ScriptEngine.hh"
 #include "UserShell.hh"
 #include "tcl_ipnp.h"
-#include "PNPShellCmd.hh"
 
 using namespace ieda;
-using namespace ipnp;
 
 namespace tcl {
 
@@ -34,4 +32,4 @@ int registerCmdPNP()
   return EXIT_SUCCESS;
 }
 
-}  // namespace tcl 
+}  // namespace tcl
