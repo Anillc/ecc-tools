@@ -371,6 +371,7 @@ void IRPGNetlistBuilder::build(
 
   // Finally, connect the instance pin list and PG Port.
   auto instance_pin_list = special_net->get_instance_pin_list()->get_pin_list();
+  std::set<std::string> connect_instance_names;  // for check the instance pin.
   for (auto* instance_pin : instance_pin_list) {
     // LOG_INFO << "connect instance pin: "
     //          << instance_pin->get_instance()->get_name() << ":"
@@ -384,13 +385,16 @@ void IRPGNetlistBuilder::build(
       continue;
     }
 
+    connect_instance_names.insert(instance_name);
+
     auto* instance_pin_coord = instance_pin->get_grid_coordinate();
     auto* instance_pin_node = &(pg_netlist.addNode(
         {instance_pin_coord->get_x(), instance_pin_coord->get_y()},
         instance_pin_layer));
     instance_pin_node->set_is_instance_pin();
-
-    std::string node_name = instance_name + ":" + instance_pin->get_pin_name();
+    
+    // update instance node name.
+    std::string node_name = instance_name + ":" + special_net_name;
     pg_netlist.addNodeIdToName(instance_pin_node->get_node_id(),
                                std::move(node_name));
     auto& stored_node_name =
@@ -454,10 +458,18 @@ void IRPGNetlistBuilder::build(
     }
   }
 
+  // check the instance pin connect.
+  for (auto& instance_name : _instance_names) {
+    if (!connect_instance_names.contains(instance_name)) {
+      LOG_FATAL << "instance pin " << instance_name << ":" << special_net_name
+                << " is not connected in wire topo";
+    }
+  }
+
   idb::IdbLayerShape* port_layer_shape = nullptr;
   idb::IdbCoordinate<int32_t> middle_point;
   int layer_id = 0;
-  if (io_pin->get_port_box_list().size() > 0) {
+  if (io_pin->get_port_box_list().size() > 1) {
     port_layer_shape = io_pin->get_port_box_list().front();
     // connect io node to the segment node.
     auto layer_name = port_layer_shape->get_layer()->get_name();
@@ -465,6 +477,7 @@ void IRPGNetlistBuilder::build(
     auto bounding_box = port_layer_shape->get_bounding_box();
     middle_point = bounding_box.get_middle_point();
   } else {
+    // for idb, maybe need chooset to term to get the port layer shape.
     auto* io_port = io_pin->get_term()->get_port_list().front();
     if (io_port->get_layer_shape().size() == 0) {
       LOG_FATAL << "io port layer shape is empty";

@@ -15,25 +15,52 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file iPNPCommon.hh
- * @author Xinhao li
+ * @file ipnp_api.hh
+ * @author Jianrong Su
  * @brief
- * @version 0.1
- * @date 2024-07-15
+ * @version 1.0
+ * @date 2025-06-23
  */
 
-#pragma once
+#ifndef IPNP_API_HH
+#define IPNP_API_HH
 
-#include "IdbCellMaster.h"
-#include "IdbDesign.h"
-#include "IdbEnum.h"
-#include "IdbGeometry.h"
-#include "IdbInstance.h"
-#include "IdbLayer.h"
-#include "IdbLayout.h"
-#include "IdbNet.h"
-#include "IdbPins.h"
-#include "builder.h"
-#include "def_service.h"
-#include "lef_service.h"
+#pragma once
+#include <filesystem>
+#include <iostream>
+#include <string>
+
 #include "log/Log.hh"
+
+namespace idb {
+class IdbBuilder;
+}
+
+#define PNPApiInst (ipnp::PNPApi::getInstance())
+
+namespace ipnp {
+
+class iPNP;
+
+class PNPApi
+{
+ public:
+  static PNPApi* getInstance()
+  {
+    if (_instance == nullptr) {
+      _instance = new PNPApi();
+    }
+
+    return _instance;
+  }
+
+  static void run_pnp(std::string config);
+  static void connect_M2_M1(std::string config);
+
+ private:
+  static PNPApi* _instance;
+};
+
+}  // namespace ipnp
+
+#endif  // IPNP_API_HH

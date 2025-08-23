@@ -35,6 +35,7 @@ add_subdirectory(py_imp)
 #file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
 # file(GLOB PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS *.cpp)
 add_subdirectory(py_vec)
+add_subdirectory(py_ipnp)
 
 # ADD SOURCE FILES
 # file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
@@ -118,6 +119,7 @@ target_link_libraries(ieda_py
         py_ista
         py_ipw
         py_ito
+        py_ipnp
         py_report
         py_feature
         py_eval

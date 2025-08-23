@@ -14,37 +14,11 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-/**
- * @file iPNPApi.hh
- * @author Jianrong Su
- * @brief
- * @version 1.0
- * @date 2025-06-23
- */
-
-#ifndef IPNP_API_HH
-#define IPNP_API_HH
-
 #pragma once
-#include <iostream>
+
 #include <string>
-#include <filesystem>
+#include <vector>
 
-#include "log/Log.hh"
-
-namespace ipnp {
-
-class iPNP;
-
-class iPNPApi {
-public:
-    static void setInstance(iPNP* ipnp);
-    static iPNP* getInstance();
-
-private:
-    static iPNP* _ipnp_instance;
-};
-
-}  // namespace ipnp
-
-#endif // IPNP_API_HH
+namespace python_interface {
+bool run_pnp(const std::string& config);
+}  // namespace python_interface

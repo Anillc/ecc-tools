@@ -14,28 +14,29 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-/**
- * @file iPNPApi.hh
- * @author Jianrong Su
- * @brief
- * @version 1.0
- * @date 2025-06-23
- */
+#pragma once
 
-#include "iPNPApi.hh"
+#include <string>
 
-#include "iPNP.hh"
+namespace iplf {
+#define pnpInst PnpIO::getInstance()
 
-namespace ipnp {
+class PnpIO {
+ public:
+  static PnpIO* getInstance() {
+    if (!_instance) {
+      _instance = new PnpIO;
+    }
+    return _instance;
+  }
 
-iPNP* iPNPApi::_ipnp_instance = nullptr;
+  bool runPNP(std::string config = "");
 
-void iPNPApi::setInstance(iPNP* ipnp) {
-    _ipnp_instance = ipnp;
-}
+ private:
+  static PnpIO* _instance;
 
-iPNP* iPNPApi::getInstance() {
-    return _ipnp_instance;
-}
+  PnpIO() = default;
+  ~PnpIO() = default;
+};
 
-} // namespace ipnp 
+}  // namespace iplf

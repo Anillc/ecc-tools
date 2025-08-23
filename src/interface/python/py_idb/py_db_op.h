@@ -18,7 +18,7 @@
 
 #include <idm.h>
 #include <report_manager.h>
-
+#include <pybind11/numpy.h>
 #include "IdbEnum.h"
 #include "IdbInstance.h"
 
