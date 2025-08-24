@@ -400,7 +400,7 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
   if (is_constraint_table) {
     // 约束表格：轴1是clk transition，轴2是data transition
     AXIS1
-        = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION ? 0 : 1;
+        = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION ? 0 : 1;
     AXIS2 = !AXIS1;
     num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // clk transition
     num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // data transition
@@ -487,8 +487,7 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
 
 void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID,
                             std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
-                            std::vector<IdbInstance*>& inst_resort_list,
-                            int ext_blockage_num)
+                            std::vector<IdbInstance*>& inst_resort_list, int ext_blockage_num)
 {
   /*************************************************************************/
   std::map<std::string, double> sdc_inrdelays;       //
@@ -500,6 +499,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   std::map<std::string, double> sdc_endpoints_fRAT;  //
   std::map<std::string, double> name2clk_rtran;      //
   std::map<std::string, double> name2clk_ftran;      //
+  std::map<std::string, std::string> name2clk_pin_names;
   /*--------------------------------sdc init------------------------------------------*/
   std::set<std::string> FFs_str;  // mNodeName2ID
   auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
@@ -656,11 +656,11 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         auto curnet = sta_pin->get_net();
         if (curnet) {
           auto netname = curnet->getFullName();
-          std::cout << "Clock pin: " << sta_pin->getFullName() << " in net: " << netname << " isClock:" << curnet->isClockNet()
-                    << std::endl;
+          // std::cout << "Clock pin: " << sta_pin->getFullName() << " in net: " << netname << " isClock:" << curnet->isClockNet()
+          //           << std::endl;
 
         } else {
-          std::cout << "Clock pin: " << sta_pin->getFullName() << " in net: NULL" << std::endl;
+          // std::cout << "Clock pin: " << sta_pin->getFullName() << " in net: NULL" << std::endl;
         }
         // DEBUG
         clock_pin = sta_pin;  // Found a clock pin
@@ -696,7 +696,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         // DEBUG
         if (pin_full_name.find("CLK") != string::npos || pin_full_name.find("clk") != string::npos) {
           // clock pin
-          std::cout << "Clock pin found: " << pin_full_name << std::endl;
+          // std::cout << "Clock pin found: " << pin_full_name << std::endl;
         }
         // DEBUG
         if (mPin2ID.count(pin_full_name)) {
@@ -721,8 +721,12 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         } else if (mClkPin2ID.count(pin_full_name)) {
           // clock pin
           if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
-            name2clk_rtran[pin_full_name] = 0.0;  // TODO: need to be set
-            name2clk_ftran[pin_full_name] = 0.0;
+            string _sta_pin_name = instance->get_name() + ":" + pin->get_pin_name();
+            double r_clk_slew_ns = timing_engine->getSlew(_sta_pin_name.c_str(), AnalysisMode::kMax, TransType::kRise);
+            double f_clk_slew_ns = timing_engine->getSlew(_sta_pin_name.c_str(), AnalysisMode::kMax, TransType::kFall);
+            name2clk_pin_names[pin_full_name] = _sta_pin_name;
+            name2clk_rtran[pin_full_name] = NS_TO_PS(r_clk_slew_ns);  // TODO: need to be set
+            name2clk_ftran[pin_full_name] = NS_TO_PS(f_clk_slew_ns);
           }
         }
       }
@@ -739,14 +743,17 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     int num_clk_pins = mClkPin2ID.size();
     std::vector<double> rtrans_vector(num_clk_pins);
     std::vector<double> ftrans_vector(num_clk_pins);
+    std::vector<std::string> clk_pin_names_vector(num_clk_pins);
     for (const auto& [clk_pin_name, clk_pin_id] : mClkPin2ID) {
       if (clk_pin_id < num_clk_pins && name2clk_rtran.count(clk_pin_name)) {
         rtrans_vector[clk_pin_id] = name2clk_rtran[clk_pin_name];
         ftrans_vector[clk_pin_id] = name2clk_ftran[clk_pin_name];
+        clk_pin_names_vector[clk_pin_id] = name2clk_pin_names[clk_pin_name];
       }
     }
     clk_pin_rtran = pybind11::cast(rtrans_vector);
     clk_pin_ftran = pybind11::cast(ftrans_vector);
+    clk_pin_names = pybind11::cast(clk_pin_names_vector);
   }
   for (auto& pin_name : start_points_str) {
     if (mPin2ID.count(pin_name)) {
@@ -787,7 +794,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     for (auto pin : net->get_load_pins()) {
       // TODO: Fix clock gate cell.
       // FIXME: clock_instance may be the clock gate cell, which is not a flip flop.
-      // pin->get_instance()->is_clock_instance() 
+      // pin->get_instance()->is_clock_instance()
       if (pin->get_instance() == nullptr || pin->get_instance()->is_flip_flop()) {
         continue;
       }
@@ -1023,8 +1030,9 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
             // DEBUG
             auto tempres = arc->get_timing_type();
-            std::cout << "arc type: " << static_cast<int>(tempres) << " in cell: " << cell_type_name << " from pin: " << from_lib_pin
-                      << " to pin: " << to_lib_pin << std::endl;
+
+            std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
+                      << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
             // DEBUG
 
             info2arc_idx[info].push_back(arc_idx++);
@@ -1054,6 +1062,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // ----- 坐标轴 -----
             // 把clk trans 存到 trans
             // 把data trans 存到 cap
+            auto tempres = arc->get_timing_type();
+
+            std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
+                      << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
             info2arc_idx[info].push_back(arc_idx++);
             info2arc_sense[info].push_back(arc->get_timing_sense());
 

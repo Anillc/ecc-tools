@@ -112,6 +112,7 @@ struct PyPlaceDB
   pybind11::list clock_pins;    //
   pybind11::list clk_pin_rtran;  //
   pybind11::list clk_pin_ftran;  //
+  pybind11::list clk_pin_names;     ///< 1D array, pin name
 
   pybind11::list flat_cells_by_level;          //
   pybind11::list flat_cells_by_reverse_level;  //
