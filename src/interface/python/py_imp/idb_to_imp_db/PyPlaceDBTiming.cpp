@@ -145,22 +145,13 @@ bool findOneCycleDFS(const std::string& u, const Graph& graph, std::unordered_ma
  * - bool: True if the graph is a DAG and the operation succeeds; false if a cycle is detected.
  */
 std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool> topologicalSortAndLevelize(
-    const Graph& graph, idm::DataManager* db, const std::vector<std::string>& start_nodes = {})
+    const std::unordered_set<std::string>& all_nodes, const Graph& graph, idm::DataManager* db,
+    const std::vector<std::string>& start_nodes = {})
 {
   // --- Initialization ---
   std::unordered_map<std::string, int> in_degree;  // Stores the in-degree of each node
   std::unordered_map<std::string, int> levels;     // Stores the level of each node
-  std::unordered_set<std::string> all_nodes;       // Stores all unique nodes in the graph
-
-  // 1. Collect all nodes and calculate in-degrees (based on the provided graph)
-  // Note: The caller must ensure that the graph structure is correct and reflects the dependencies between nodes.
-  for (const auto& pair : graph) {
-    all_nodes.insert(pair.first);  // Add source node
-    for (const std::string& neighbor : pair.second) {
-      in_degree[neighbor]++;
-      all_nodes.insert(neighbor);  // Add target node
-    }
-  }
+  ;                                                // Stores all unique nodes in the graph
 
   // Ensure all nodes are initialized in in_degree and levels
   for (const std::string& node : all_nodes) {
@@ -399,8 +390,7 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
 
   if (is_constraint_table) {
     // 约束表格：轴1是clk transition，轴2是data transition
-    AXIS1
-        = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION ? 0 : 1;
+    AXIS1 = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION ? 0 : 1;
     AXIS2 = !AXIS1;
     num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // clk transition
     num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // data transition
@@ -522,9 +512,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         }
       }
     }
-    if (io_constraint->isSetOutputDelay()) {
-      // may be not need.//
-    }
     if (io_constraint->isSetInputTransition()) {
       auto* set_input_transition = dynamic_cast<SdcSetInputTransition*>(io_constraint.get());
       double slew = set_input_transition->get_transition_value();
@@ -560,11 +547,18 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
     if (io_constraint->isSetOutputDelay()) {
       auto* set_io_delay = dynamic_cast<SdcSetIODelay*>(io_constraint.get());
-      double out_delay = set_io_delay->get_delay_value();
+      double out_delay = NS_TO_PS(set_io_delay->get_delay_value());
       auto& objs = set_io_delay->get_objs();
       for (auto* obj : objs) {
-        // FIXME: need to be checked
+        auto sta_clk_vertex = ista->findVertex(obj->getFullName().c_str());  // input can only find vertex
         double clock_period = DBL_MAX;
+        if (sta_clk_vertex && sta_clk_vertex->getClockBucket().bucket_size()) {
+          clock_period = NS_TO_PS(sta_clk_vertex->getPropClock()->getPeriodNs());
+          // end_points_str.push_back(pin->get_pin_name());
+          // sdc_endpoints_fRAT[pin->get_pin_name()] = clock_period;
+          // sdc_endpoints_rRAT[pin->get_pin_name()] = clock_period;
+          // sdc_outcaps[pin->get_pin_name()] = 0;  // FIXME
+        }
         // TODO: Need to calc clock period, clock_uncertainty
         if (set_io_delay->isMax() && set_io_delay->isRise()) {
           sdc_endpoints_rRAT[obj->getFullName()] = clock_period - out_delay;  // clock_uncertainty
@@ -624,18 +618,27 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       auto instance = pin->get_instance();
       if (instance) {
         auto instname = instance->get_name();
-        std::cout << "Instance for primary input pin: " << instname << std::endl;
+        // std::cout << "Instance for primary input pin: " << instname << std::endl;
       }
       // DEBUG
-    } else if (pin->is_primary_output()) {
-      auto sta_clk_vertex = ista->findVertex(pin->get_pin_name().c_str());  // input can only find vertex
-      if (sta_clk_vertex && sta_clk_vertex->getClockBucket().bucket_size()) {
-        double clock_period = sta_clk_vertex->getPropClock()->getPeriodNs();  // FIXME: ns OR ps ???
-        end_points_str.push_back(pin->get_pin_name());
-        sdc_endpoints_fRAT[pin->get_pin_name()] = clock_period;  // FIXME: ns OR ps ???
-        sdc_endpoints_rRAT[pin->get_pin_name()] = clock_period;
+    } else if (pin->is_primary_output()
+               && (sdc_endpoints_fRAT.count(pin->get_pin_name()) || sdc_endpoints_rRAT.count(pin->get_pin_name()))) {
+      // auto sta_clk_vertex = ista->findVertex(pin->get_pin_name().c_str());  // input can only find vertex
+      end_points_str.push_back(pin->get_pin_name());
+      if (sdc_outcaps.count(pin->get_pin_name()) == 0) {
         sdc_outcaps[pin->get_pin_name()] = 0;  // FIXME
       }
+      if (sdc_endpoints_fRAT.count(pin->get_pin_name()) == 0) {
+        sdc_endpoints_fRAT[pin->get_pin_name()] = DBL_MAX;
+      }
+      if (sdc_endpoints_rRAT.count(pin->get_pin_name()) == 0) {
+        sdc_endpoints_rRAT[pin->get_pin_name()] = DBL_MAX;
+      }
+      // if (sta_clk_vertex && sta_clk_vertex->getClockBucket().bucket_size()) {
+      //
+      //   sdc_endpoints_fRAT[pin->get_pin_name()] = NS_TO_PS(clock_period);
+      //   sdc_endpoints_rRAT[pin->get_pin_name()] = NS_TO_PS(clock_period);
+      // }
     }
   }
 
@@ -704,8 +707,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           // driven pin
           if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kOutput) {
             start_points_str.push_back(pin_full_name);
-            // FIXME: ignore clock pins
-            // TODO: Need to calc clk2q delay, slew, arcs
+            // NOTE: clk -> q arc has been considered in timing propagation
             sdc_inrdelays[pin_full_name] = 0;  //
             sdc_infdelays[pin_full_name] = 0;  //
             sdc_inrtrans[pin_full_name] = 0;   //
@@ -713,8 +715,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           } else if (pin->is_net_pin() && pin->get_term()->get_direction() == IdbConnectDirection::kInput) {
             end_points_str.push_back(pin_full_name);
             sdc_outcaps[pin_full_name] = 0;
-            // FIXME: skew or trans time need to be considered ?
-            // TODO: Need to calc clock period, clock_uncertainty
+            // NOTE: clk -> d arc has been considered in timing propagation
             sdc_endpoints_fRAT[pin_full_name] = clock_period;  // - setup time - clock_uncertainty
             sdc_endpoints_rRAT[pin_full_name] = clock_period;  // - setup time - clock_uncertainty
           }
@@ -725,7 +726,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             double r_clk_slew_ns = timing_engine->getSlew(_sta_pin_name.c_str(), AnalysisMode::kMax, TransType::kRise);
             double f_clk_slew_ns = timing_engine->getSlew(_sta_pin_name.c_str(), AnalysisMode::kMax, TransType::kFall);
             name2clk_pin_names[pin_full_name] = _sta_pin_name;
-            name2clk_rtran[pin_full_name] = NS_TO_PS(r_clk_slew_ns);  // TODO: need to be set
+            name2clk_rtran[pin_full_name] = NS_TO_PS(r_clk_slew_ns);  // Note: clk in slew from iSTA
             name2clk_ftran[pin_full_name] = NS_TO_PS(f_clk_slew_ns);
           }
         }
@@ -772,7 +773,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   for (auto& pin_name : end_points_str) {
     if (mPin2ID.count(pin_name)) {
       end_points.append(mPin2ID[pin_name]);
-      outcaps.append(sdc_outcaps[pin_name]);                //
+      outcaps.append(sdc_outcaps[pin_name]);  //
+      // printf("End point: %s, pin id: %d, sdc_endpoints_rRAT: %.3f\n", pin_name.c_str(), mPin2ID[pin_name], sdc_endpoints_rRAT[pin_name]);
       endpoints_rRAT.append(sdc_endpoints_rRAT[pin_name]);  //
       endpoints_fRAT.append(sdc_endpoints_fRAT[pin_name]);  //
     }
@@ -780,6 +782,13 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
   Graph forward_graph;  //
   Graph reverse_graph;  //
+  std::unordered_set<std::string> all_nodes;
+  for (auto inst : db_deisgn->get_instance_list()->get_instance_list()) {
+    string inst_name = inst->get_name();
+    if (!FFs_str.count(inst_name) && mNodeName2ID.count(inst_name)) {
+      all_nodes.insert(inst_name);
+    }
+  }
   for (auto net : db_deisgn->get_net_list()->get_net_list()) {
     assert(net->get_driving_pin());
     if (isInvailidNet(net)) {
@@ -807,8 +816,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       reverse_graph[to_inst_name].push_back(from_inst_name);
     }
   }
-  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(forward_graph, db);
-  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(reverse_graph, db);
+  auto [_t1, forward_node_levels, forward_is_dag] = topologicalSortAndLevelize(all_nodes, forward_graph, db);
+  auto [_t2, reverse_node_levels, reverse_is_dag] = topologicalSortAndLevelize(all_nodes, reverse_graph, db);
   assert(forward_is_dag && reverse_is_dag);
   std::map<int, std::vector<std::string>> forward_level_to_nodes;
   std::map<int, std::vector<std::string>> reverse_level_to_nodes;
@@ -826,8 +835,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     flat_cells_by_level_start.append(level_cells_idx);
     for (auto& inst_name : inst_list) {
       if (mNodeName2ID.count(inst_name)) {
-        // is there a bug ?
-        // FIXME:
         flat_cells_by_level.append(mNodeName2ID[inst_name]);
         level_cells_idx++;
       }
@@ -1020,6 +1027,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           auto to_lib_pin = arc->get_snk_port();
           string cell_type_name = lib_cell->get_cell_name();
           string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
+          if (cell_type_name == "CKND0BWP40P140UHVT") {
+            int a = 0;
+            printf("CKND0BWP40P140UHVT\n");
+          }
           // clang-format off
           if (   arc->get_timing_type() == ista::LibArc::TimingType::kCombFall 
               || arc->get_timing_type() == ista::LibArc::TimingType::kCombRise
@@ -1044,8 +1055,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             auto fall_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kFallTransition));
             auto rise_trans_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseTransition));
 
-            assert(fall_delay_table != nullptr);
-            assert(rise_delay_table != nullptr);
+            // assert(fall_delay_table != nullptr);
+            // assert(rise_delay_table != nullptr);
 
             init_lut_table_unified(f_delay_flat_luts_values, f_delay_flat_luts_trans_table, f_delay_flat_luts_cap_table,
                                    f_delay_flat_luts_dim, fall_delay_table, lib_cell, false);
@@ -1252,7 +1263,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         auto output_pin = output_pins[j];
         string from_lib_pin = input_pin->get_pin_name();
         string to_lib_pin = output_pin->get_pin_name();
-        if (node_name == "_28734_" && from_lib_pin == "B" && to_lib_pin == "Y") {
+        if (node_name == "U3961" && from_lib_pin == "B" && to_lib_pin == "Y") {
           std::cout << "_21993_ A -> Z" << std::endl;
         }
         string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;

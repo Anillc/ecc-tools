@@ -802,7 +802,7 @@ class LibArc : public LibObject
     kNoChangeLowLow,
     kDefault
   };
-
+  static std::string timingTypeToString(TimingType timing_type);
   LibArc();
   ~LibArc() override = default;
 
@@ -824,7 +824,7 @@ class LibArc : public LibObject
   void set_owner_cell(LibCell* ower_cell) { _owner_cell = ower_cell; }
   LibCell* get_owner_cell() { return _owner_cell; }
 
-  void set_is_disable_arc() { _is_disable_arc = 1;}
+  void set_is_disable_arc() { _is_disable_arc = 1; }
   unsigned isDisableArc() { return _is_disable_arc; }
 
   unsigned isCheckArc();
@@ -892,7 +892,7 @@ class LibArc : public LibObject
 
   static BTreeMap<std::string, TimingType> _str_to_type;
 
-  unsigned _is_disable_arc = 0; //!< Forbidden arc.
+  unsigned _is_disable_arc = 0;  //!< Forbidden arc.
 
   FORBIDDEN_COPY(LibArc);
 };

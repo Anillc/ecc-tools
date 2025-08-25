@@ -1697,6 +1697,79 @@ LibWireLoad::LibWireLoad(const char* wire_load_name) : _wire_load_name(wire_load
 {
 }
 
+std::string LibArc::timingTypeToString(TimingType timing_type)
+{
+  switch (timing_type) {
+    case TimingType::kSetupRising:
+      return "setup_rising";
+    case TimingType::kHoldRising:
+      return "hold_rising";
+    case TimingType::kRecoveryRising:
+      return "recovery_rising";
+    case TimingType::kRemovalRising:
+      return "removal_rising";
+    case TimingType::kRisingEdge:
+      return "rising_edge";
+    case TimingType::kPreset:
+      return "preset";
+    case TimingType::kClear:
+      return "clear";
+    case TimingType::kThreeStateEnable:
+      return "three_state_enable";
+    case TimingType::kThreeStateEnableRise:
+      return "three_state_enable_rise";
+    case TimingType::kThreeStateEnableFall:
+      return "three_state_enable_fall";
+    case TimingType::kThreeStateDisable:
+      return "three_state_disable";
+    case TimingType::kThreeStateDisableRise:
+      return "three_state_disable_rise";
+    case TimingType::kThreeStateDisableFall:
+      return "three_state_disable_fall";
+    case TimingType::kSetupFalling:
+      return "setup_falling";
+    case TimingType::kHoldFalling:
+      return "hold_falling";
+    case TimingType::kRecoveryFalling:
+      return "recovery_falling";
+    case TimingType::kRemovalFalling:
+      return "removal_falling";
+    case TimingType::kFallingEdge:
+      return "falling_edge";
+    case TimingType::kMinPulseWidth:
+      return "min_pulse_width";
+    case TimingType::kCombRise:
+      return "comb_rise";
+    case TimingType::kCombFall:
+      return "comb_fall";
+    case TimingType::kComb:
+      return "comb";
+    case TimingType::kNonSeqSetupRising:
+      return "non_seq_setup_rising";
+    case TimingType::kNonSeqSetupFalling:
+      return "non_seq_setup_falling";
+    case TimingType::kNonSeqHoldRising:
+      return "non_seq_hold_rising";
+    case TimingType::kNonSeqHoldFalling:
+      return "non_seq_hold_falling";
+    case TimingType::kSkewRising:
+      return "skew_rising";
+    case TimingType::kSkewFalling:
+      return "skew_falling";
+    case TimingType::kMinimunPeriod:
+      return "minimun_period";
+    case TimingType::kMaxClockTree:
+      return "max_clock_tree";
+    case TimingType::kMinClockTree:
+      return "min_clock_tree";
+    case TimingType::kNoChangeHighHigh:
+      return "no_change_high_high";
+    case TimingType::kNoChangeHighLow:
+      return "no_change_high_low";
+  }
+  return "default";
+}
+
 LibLutTableTemplate::LibLutTableTemplate(const char* template_name) : _template_name(template_name)
 {
 }
