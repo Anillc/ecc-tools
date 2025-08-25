@@ -151,8 +151,14 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
   // --- Initialization ---
   std::unordered_map<std::string, int> in_degree;  // Stores the in-degree of each node
   std::unordered_map<std::string, int> levels;     // Stores the level of each node
-  ;                                                // Stores all unique nodes in the graph
 
+  // 1. Collect all nodes and calculate in-degrees (based on the provided graph)
+  // Note: The caller must ensure that the graph structure is correct and reflects the dependencies between nodes.
+  for (const auto& pair : graph) {
+    for (const std::string& neighbor : pair.second) {
+      in_degree[neighbor]++;
+    }
+  }
   // Ensure all nodes are initialized in in_degree and levels
   for (const std::string& node : all_nodes) {
     // Initialize levels to -1 or another marker value, indicating not yet visited/computed
@@ -602,6 +608,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   std::vector<string> start_points_str;  // PIs and FFs' output pins
   std::vector<string> clock_pins_str;    // FFs' clock pins
   std::vector<string> end_points_str;    // POs and FFs' input pins
+  int tot_unconstrained_io_pins = 0;
   for (auto pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
     if (pin->get_net() == nullptr || pin->get_net()->is_ground() || pin->get_net()->is_power() || pin->get_net()->is_pdn()
         || pin->get_net()->is_clock()) {
@@ -621,18 +628,21 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         // std::cout << "Instance for primary input pin: " << instname << std::endl;
       }
       // DEBUG
-    } else if (pin->is_primary_output()
-               && (sdc_endpoints_fRAT.count(pin->get_pin_name()) || sdc_endpoints_rRAT.count(pin->get_pin_name()))) {
+    } else if (pin->is_primary_output()) {
       // auto sta_clk_vertex = ista->findVertex(pin->get_pin_name().c_str());  // input can only find vertex
       end_points_str.push_back(pin->get_pin_name());
       if (sdc_outcaps.count(pin->get_pin_name()) == 0) {
-        sdc_outcaps[pin->get_pin_name()] = 0;  // FIXME
+        sdc_outcaps[pin->get_pin_name()] = 0;
       }
       if (sdc_endpoints_fRAT.count(pin->get_pin_name()) == 0) {
-        sdc_endpoints_fRAT[pin->get_pin_name()] = DBL_MAX;
+        tot_unconstrained_io_pins += 1;
+        printf("Error: Primary output pin %s has no fRAT constraint, set to default 9e7 ps\n", pin->get_pin_name().c_str());
+        sdc_endpoints_fRAT[pin->get_pin_name()] = 9e7;  // NOTE: less than 1e8 in timing propagation
       }
       if (sdc_endpoints_rRAT.count(pin->get_pin_name()) == 0) {
-        sdc_endpoints_rRAT[pin->get_pin_name()] = DBL_MAX;
+        tot_unconstrained_io_pins += 1;
+        printf("Error: Primary output pin %s has no fRAT constraint, set to default 9e7 ps\n", pin->get_pin_name().c_str());
+        sdc_endpoints_rRAT[pin->get_pin_name()] = 9e7;
       }
       // if (sta_clk_vertex && sta_clk_vertex->getClockBucket().bucket_size()) {
       //
@@ -641,7 +651,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       // }
     }
   }
-
+  printf("Total primary output pins without RAT constraints: %d\n", tot_unconstrained_io_pins);
   for (auto instance : db_deisgn->get_instance_list()->get_instance_list()) {
     auto lib_cell = _sta->findLibertyCell(instance->get_cell_master()->get_name().c_str());
     bool is_clock = false;
@@ -1042,8 +1052,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // DEBUG
             auto tempres = arc->get_timing_type();
 
-            std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
-                      << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
+            // std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
+            //           << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
             // DEBUG
 
             info2arc_idx[info].push_back(arc_idx++);
@@ -1075,8 +1085,8 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // 把data trans 存到 cap
             auto tempres = arc->get_timing_type();
 
-            std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
-                      << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
+            // std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
+            //           << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
             info2arc_idx[info].push_back(arc_idx++);
             info2arc_sense[info].push_back(arc->get_timing_sense());
 
@@ -1145,7 +1155,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   main_id_2_cell_id_start.append(lib_cell_idx);
 
   for (auto& [info, arc_idxs] : info2arc_idx) {
-    printf("info: %s, arc num: %d\n", info.c_str(), arc_idxs.size());
+    // printf("info: %s, arc num: %d\n", info.c_str(), arc_idxs.size());
   }
 
   /*--------------------pin2libpin_offset-------------------------------*/
