@@ -155,50 +155,50 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
         if (!lib_arc->isMatchTimingType(out_trans_type)) {
           continue;
         }
-        // DEBUG
-        // ==============================================================================
-        // ★★★ 在这里插入您的特定Arc调试代码 ★★★
-        // ==============================================================================
+        // // DEBUG
+        // // ==============================================================================
+        // // ★★★ 在这里插入您的特定Arc调试代码 ★★★
+        // // ==============================================================================
         
-        // --- 1. 定义您想追踪的目标实例名称列表 ---
-        //    从您之前的报告中，挑选几个差异大的实例名填入这里
-        const std::vector<std::string> target_instances = {
-            "_38914_", 
-            "_26626_", 
-            "_21349_"
-        };
+        // // --- 1. 定义您想追踪的目标实例名称列表 ---
+        // //    从您之前的报告中，挑选几个差异大的实例名填入这里
+        // const std::vector<std::string> target_instances = {
+        //     "soc_I.clint_I.mtimecmp_12__reg", 
+        //     "soc_I.kianv_I.datapath_unit_I.A2_29__reg", 
+        //     "soc_I.spi0_I.sio0_si_mosi_reg"
+        // };
 
-        // --- 2. 获取当前arc的实例名和引脚名 ---
-        std::string from_pin_name = src_vertex->get_design_obj()->get_own_instance()->get_name();
-        from_pin_name += ":" + std::string(src_vertex->get_design_obj()->get_name());
-        std::string to_pin_name = snk_vertex->get_design_obj()->get_own_instance()->get_name();
-        to_pin_name += ":" + std::string(snk_vertex->get_design_obj()->get_name());
-        auto src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
-        auto snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
-        std::string snk_instance_name = snk_pin->get_own_instance()->get_name();
-        std::string inst_name = src_pin->get_own_instance()->get_name();
+        // // --- 2. 获取当前arc的实例名和引脚名 ---
+        // std::string from_pin_name = src_vertex->get_design_obj()->get_own_instance()->get_name();
+        // from_pin_name += ":" + std::string(src_vertex->get_design_obj()->get_name());
+        // std::string to_pin_name = snk_vertex->get_design_obj()->get_own_instance()->get_name();
+        // to_pin_name += ":" + std::string(snk_vertex->get_design_obj()->get_name());
+        // auto src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
+        // auto snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
+        // std::string snk_instance_name = snk_pin->get_own_instance()->get_name();
+        // std::string inst_name = src_pin->get_own_instance()->get_name();
 
-        // --- 3. 检查是否是我们的目标之一 ---
-        for (const auto& target_inst : target_instances) {
-            if (inst_name == target_inst) {
+        // // --- 3. 检查是否是我们的目标之一 ---
+        // for (const auto& target_inst : target_instances) {
+        //     if (inst_name == target_inst) {
                 
-                // --- 4. 如果是，打印所有送入LUT前的详细信息 ---
-                LOG_INFO << "==============[ LUT INPUT DEBUG on " << inst_name << " ]==============";
-                LOG_INFO << " Arc                 : " << from_pin_name << " -> " << to_pin_name;
-                LOG_INFO << " ------------------ LUT INPUTS ------------------";
-                LOG_INFO << "  - Input Slew (ns)       : " << in_slew;
-                LOG_INFO << "  - Output Load (lib units) : " << load;
-                LOG_INFO << "  - LUT Table Target Trans: " << transTypeToString(out_trans_type);
-                LOG_INFO << "===================================================";
+        //         // --- 4. 如果是，打印所有送入LUT前的详细信息 ---
+        //         LOG_INFO << "==============[ LUT INPUT DEBUG on " << inst_name << " ]==============";
+        //         LOG_INFO << " Arc                 : " << from_pin_name << " -> " << to_pin_name;
+        //         LOG_INFO << " ------------------ LUT INPUTS ------------------";
+        //         LOG_INFO << "  - Input Slew (ns)       : " << in_slew;
+        //         LOG_INFO << "  - Output Load (lib units) : " << load;
+        //         LOG_INFO << "  - LUT Table Target Trans: " << transTypeToString(out_trans_type);
+        //         LOG_INFO << "===================================================";
                 
-                break; // 找到并打印后即可跳出循环
-            }
-        }
+        //         break; // 找到并打印后即可跳出循环
+        //     }
+        // }
         
-        // ==============================================================================
-        // ★★★ 调试代码结束 ★★★
-        // ==============================================================================
-        // DEBUG
+        // // ==============================================================================
+        // // ★★★ 调试代码结束 ★★★
+        // // ==============================================================================
+        // // DEBUG
 
         auto out_slew_ns = lib_arc->getSlewNs(out_trans_type, in_slew, load);
 
@@ -232,16 +232,16 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       } else {  // net arc
         auto* rc_net = getSta()->getRcNet(the_net);
         // DEBUG
-        auto* src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
-        auto* snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
-        if (src_pin && snk_pin) {
-          std::string src_name = src_pin->getFullName();
-          std::string snk_name = snk_pin->getFullName();
-          if (src_name.find("soc_I.PC_0__reg") != std::string::npos) {
-            std::cout << "Processing net arc from " << src_name << " to " << snk_name << std::endl;
-            std::cout << "   rc_net: " << (rc_net ? "exists" : "not exists") << std::endl;
-          }
-        }
+        // auto* src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
+        // auto* snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
+        // if (src_pin && snk_pin) {
+        //   std::string src_name = src_pin->getFullName();
+        //   std::string snk_name = snk_pin->getFullName();
+        //   if (src_name.find("soc_I.PC_0__reg") != std::string::npos) {
+        //     std::cout << "Processing net arc from " << src_name << " to " << snk_name << std::endl;
+        //     std::cout << "   rc_net: " << (rc_net ? "exists" : "not exists") << std::endl;
+        //   }
+        // }
         // DEBUG
         auto net_out_slew =
             rc_net ? rc_net->slew(*the_pin, NS_TO_PS(in_slew),
