@@ -361,13 +361,26 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
   }
 }
 
-struct InstArc
-{
-  std::string from_pin;
-  std::string to_pin;
-  std::string cell_type;
-  int lib_arc_idx;
-  int arc_sense;
+struct TempLibArc {
+  int _lib_arc_idx;
+  ista::LibArc* _lib_arc_ptr;
+  explicit TempLibArc(int lib_arc_idx, ista::LibArc* lib_arc_ptr)
+      : _lib_arc_idx(lib_arc_idx), _lib_arc_ptr(lib_arc_ptr) {}
+  int senseToInt() const {
+    switch (_lib_arc_ptr->get_timing_sense()) {
+      case ista::LibArc::TimingSense::kPositiveUnate: return 1;
+      case ista::LibArc::TimingSense::kNonUnate: return 0;
+      case ista::LibArc::TimingSense::kNegativeUnate: return -1;
+      default: return 1;
+    }
+  }
+  int typeToInt() const {
+    switch (_lib_arc_ptr->get_timing_type()) {
+      case ista::LibArc::TimingType::kRisingEdge: return 1;
+      case ista::LibArc::TimingType::kFallingEdge: return -1;
+      default: return 0;
+    }
+  }
 };
 
 // 统一的LUT表格初始化函数
@@ -1014,9 +1027,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
     main_type -> cell_types -> arc_idx ->
   */
-
-  std::unordered_map<std::string, std::vector<int>> info2arc_idx;
-  std::unordered_map<std::string, std::vector<ista::LibArc::TimingSense>> info2arc_sense;
+  std::unordered_map<std::string, std::vector<TempLibArc>> info2lib_arcs;
   int main_type_id = 0;
   int lib_cell_idx = 0;
   int arc_idx = 0;
@@ -1080,16 +1091,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
               || arc->get_timing_type() == ista::LibArc::TimingType::kFallingEdge
               || arc->get_timing_type() == ista::LibArc::TimingType::kRisingEdge) {
             // clang-format on
-
-            // DEBUG
-            auto tempres = arc->get_timing_type();
-
-            // std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
-            //           << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
-            // DEBUG
-
-            info2arc_idx[info].push_back(arc_idx++);
-            info2arc_sense[info].push_back(arc->get_timing_sense());
+            
+            // Group the current arc by its 'info' key.
+            auto [iter, inserted] = info2lib_arcs.try_emplace(info, std::vector<TempLibArc>{});
+            iter->second.emplace_back(arc_idx++, arc.get());
 
             auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
             auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
@@ -1115,15 +1120,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // ----- 坐标轴 -----
             // 把clk trans 存到 trans
             // 把data trans 存到 cap
-            auto tempres = arc->get_timing_type();
-            // if (cell_type_name == "TS5N28HPCPLVTA256X64M2FW") {
-            //   std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
-            //             << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
-            // }
-            // std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
-            //           << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
-            info2arc_idx[info].push_back(arc_idx++);
-            info2arc_sense[info].push_back(arc->get_timing_sense());
+            
+            // Group the current arc by its 'info' key.
+            auto [iter, inserted] = info2lib_arcs.try_emplace(info, std::vector<TempLibArc>{});
+            iter->second.emplace_back(arc_idx++, arc.get());
 
             auto* lib_check_model = dynamic_cast<LibCheckTableModel*>(arc->get_table_model());
             auto rise_setup_constraint_table = lib_check_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kRiseConstrain));
@@ -1185,10 +1185,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         string libcell_name = lib_cell->get_cell_name();
         string libpin_name = libpin->get_port_name();
         string info = libcell_name + "_" + libpin_name;
-        if (libcell_name == "TS5N28HPCPLVTA256X64M2FW") {
-          std::cout << info << std::endl;
-          printf("HHH\n");
-        }
+        // if (libcell_name == "TS5N28HPCPLVTA256X64M2FW") {
+        //   std::cout << info << std::endl;
+        //   printf("HHH\n");
+        // }
         libpin_name2libpin_offset[info] = pin_offset++;
         lib_pin_idx++;
         if (libpin->isInput()) {
@@ -1227,9 +1227,11 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   cell_id_2_libpin_id_start.append(lib_pin_idx);
   main_id_2_cell_id_start.append(lib_cell_idx);
 
-  for (auto& [info, arc_idxs] : info2arc_idx) {
-    // printf("info: %s, arc num: %d\n", info.c_str(), arc_idxs.size());
+  // DEBUG
+  for (auto& [info, arcs] : info2lib_arcs) {
+    // printf("info: %s, arc num: %d\n", info.c_str(), static_cast<int>(arcs.size()));
   }
+  // DEBUG
 
   /*--------------------pin2libpin_offset-------------------------------*/
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
@@ -1292,31 +1294,20 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         // output_pins.push_back(pin);
       }
     }
-    auto timing_sense2int = [](ista::LibArc::TimingSense sense) {
-      if (sense == ista::LibArc::TimingSense::kNegativeUnate) {
-        return -1;  // negative
-      } else if (sense == ista::LibArc::TimingSense::kNonUnate) {
-        return 0;  // none
-      } else if (sense == ista::LibArc::TimingSense::kPositiveUnate) {
-        return 1;  // positive
-      } else {
-        return 1;  // by default
-      }
-    };
-
-    // Helper function to build and append arc
-    auto append_arc = [&](int from_id, int to_id, int lib_arc_idx, int arc_sense, pybind11::list& target_list) {
-      pybind11::list arc;
-      arc.append(from_id);
-      arc.append(to_id);
-      arc.append(cell_type2cell_id[cell_type]);
-      arc.append(lib_arc_idx);
-      arc.append(arc_sense);
-      target_list.append(arc);
-    };
 
     bool isFF = FFs_str.count(node_name);
 
+    auto append_arc = [&](int from_pin_id, int to_pin_id, int lib_cell_id, 
+                                    const TempLibArc& lib_arc, pybind11::list& target_list) {
+      pybind11::list arc;
+      arc.append(from_pin_id);
+      arc.append(to_pin_id);
+      arc.append(lib_cell_id);
+      arc.append(lib_arc._lib_arc_idx);
+      arc.append(lib_arc.senseToInt());
+      arc.append(lib_arc.typeToInt());
+      target_list.append(arc);
+    };
     // handle clk->D arcs (constraint arcs)
     if (isFF) {
       string clock_pin_name = "";
@@ -1331,14 +1322,12 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       for (IdbPin* input_pin : input_pins) {
         string to_lib_pin_name = input_pin->get_pin_name();
         string info = cell_type + "_" + clock_pin_name + "_" + to_lib_pin_name;
-        if (info2arc_idx.count(info)) {
-          for (int i = 0; i < static_cast<int>(info2arc_idx[info].size()); i++) {
-            int lib_arc_idx = info2arc_idx[info][i];
-            int arc_sense = timing_sense2int(info2arc_sense[info][i]);
-
+        if (info2lib_arcs.count(info)) {
+          for (const auto& lib_arc : info2lib_arcs[info]) {
             int from_lib_pin_id = mClkPin2ID[node_name + clock_pin_name];
             int to_lib_pin_id = mPin2ID[node_name + to_lib_pin_name];
-            append_arc(from_lib_pin_id, to_lib_pin_id, lib_arc_idx, arc_sense, endpoints_constraint_arcs);
+            int lib_cell_id = cell_type2cell_id[cell_type];
+            append_arc(from_lib_pin_id, to_lib_pin_id, lib_cell_id, lib_arc, endpoints_constraint_arcs);
           }
         }
       }
@@ -1354,31 +1343,22 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           std::cout << "_21993_ A -> Z" << std::endl;
         }
         string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
-        if (info2arc_idx.count(info)) {
-          for (int i = 0; i < static_cast<int>(info2arc_idx[info].size()); i++) {
-            int lib_arc_idx = info2arc_idx[info][i];
-            int arc_sense = timing_sense2int(info2arc_sense[info][i]);
-
-            if (isFF) {
+        if (info2lib_arcs.count(info)) {
+          for (const auto& lib_arc : info2lib_arcs[info]) {
+            int from_lib_pin_id = 0;
+            if (isFF) {   // Handle clk->q arcs
               if (!mClkPin2ID.count(node_name + from_lib_pin)) {
                 // FIXME:This isn't a clock pin, skip to avoid double counting
                 continue;
               }
-              assert(mClkPin2ID.count(node_name + from_lib_pin));
-              // Check if this is a clock-to-Q arc
-              string outpin_full_name = node_name + output_pin->get_pin_name();
-              // Handle clk->q arcs
-              int from_lib_pin_id = mClkPin2ID[node_name + from_lib_pin];
-              int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
-              append_arc(from_lib_pin_id, to_lib_pin_id, lib_arc_idx, arc_sense, inst_flat_arcs);
-              inst_flat_arcs_idx++;
-            } else {
-              // Handle regular combinational arcs
-              int from_lib_pin_id = mPin2ID[node_name + from_lib_pin];
-              int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
-              append_arc(from_lib_pin_id, to_lib_pin_id, lib_arc_idx, arc_sense, inst_flat_arcs);
-              inst_flat_arcs_idx++;
+              from_lib_pin_id = mClkPin2ID[node_name + from_lib_pin];
+            } else {      // Handle combinational arcs
+              from_lib_pin_id = mPin2ID[node_name + from_lib_pin];
             }
+            int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
+            int lib_cell_id = cell_type2cell_id[cell_type];
+            append_arc(from_lib_pin_id, to_lib_pin_id, lib_cell_id, lib_arc, inst_flat_arcs);
+            inst_flat_arcs_idx++;
           }
         }
       }
