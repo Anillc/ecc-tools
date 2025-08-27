@@ -389,25 +389,7 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
     flat_luts_dim.append(luts_dim);
     return;
   }
-
-  // 根据表格类型确定轴的含义和顺序
-  int AXIS1, AXIS2;
-  int num_axis1, num_axis2;
-
-  if (is_constraint_table) {
-    // 约束表格：轴1是clk transition，轴2是data transition
-    AXIS1 = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION ? 0 : 1;
-    AXIS2 = !AXIS1;
-    num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // clk transition
-    num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // data transition
-  } else {
-    // 延迟/转换表格：轴1是transition，轴2是capacitance
-    AXIS1 = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION ? 0 : 1;
-    AXIS2 = !AXIS1;
-    num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // transition
-    num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // capacitance
-  }
-
+  auto& axes = table->get_axes();
   auto time_unit = lib_cell->get_owner_lib()->get_time_unit();
   double time_coeff = 1.0;
   if (TimeUnit::kPS == time_unit) {
@@ -432,6 +414,60 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
       std::cerr << "Error: unsupported cap unit: " << static_cast<int>(cap_unit) << std::endl;
       exit(1);
     }
+  }
+  // 根据表格类型确定轴的含义和顺序
+  int AXIS1, AXIS2;
+  int num_axis1, num_axis2;
+  if (axes.size() == 1) {
+    // 维度信息
+    assert(!is_constraint_table);
+    bool first_var_is_intrans
+        = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION;
+    double coeff = first_var_is_intrans ? time_coeff : cap_coeff;
+    int size1 = table->get_axes().at(0)->get_axis_size();
+
+    for (auto& vpt : table->getAxis(0).get_axis_values()) {
+      auto val = vpt.get()->getFloatValue();
+      val *= coeff;
+      if (first_var_is_intrans) {
+        luts_axis1_table.append(val);
+      } else {
+        luts_axis2_table.append(val);
+      }
+    }
+    // 填充一维表格的数据值
+    for (auto& vptr : table->get_table_values()) {
+      double val = vptr.get()->getFloatValue();
+      val *= coeff;
+      luts_values.append(val);
+    }
+    if (first_var_is_intrans) {
+      luts_dim.append(size1);
+      luts_dim.append(0);
+    } else {
+      luts_dim.append(0);
+      luts_dim.append(size1);
+    }
+
+    flat_luts_values.append(luts_values);
+    flat_luts_axis1_table.append(luts_axis1_table);
+    flat_luts_axis2_table.append(luts_axis2_table);
+    flat_luts_dim.append(luts_dim);
+    return;
+  }
+
+  if (is_constraint_table) {
+    // 约束表格：轴1是clk transition，轴2是data transition
+    AXIS1 = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION ? 0 : 1;
+    AXIS2 = !AXIS1;
+    num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // clk transition
+    num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // data transition
+  } else {
+    // 延迟/转换表格：轴1是transition，轴2是capacitance
+    AXIS1 = table->get_table_template()->get_template_variable1() == ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION ? 0 : 1;
+    AXIS2 = !AXIS1;
+    num_axis1 = table->get_axes().at(AXIS1)->get_axis_size();  // transition
+    num_axis2 = table->get_axes().at(AXIS2)->get_axis_size();  // capacitance
   }
 
   luts_dim.append(num_axis1);
@@ -1037,10 +1073,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           auto to_lib_pin = arc->get_snk_port();
           string cell_type_name = lib_cell->get_cell_name();
           string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
-          if (cell_type_name == "CKND0BWP40P140UHVT") {
-            int a = 0;
-            printf("CKND0BWP40P140UHVT\n");
-          }
           // clang-format off
           if (   arc->get_timing_type() == ista::LibArc::TimingType::kCombFall 
               || arc->get_timing_type() == ista::LibArc::TimingType::kCombRise
@@ -1084,7 +1116,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // 把clk trans 存到 trans
             // 把data trans 存到 cap
             auto tempres = arc->get_timing_type();
-
+            // if (cell_type_name == "TS5N28HPCPLVTA256X64M2FW") {
+            //   std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
+            //             << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
+            // }
             // std::cout << "arc type: " << ista::LibArc::timingTypeToString(tempres) << " in cell: " << cell_type_name
             //           << " from pin: " << from_lib_pin << " to pin: " << to_lib_pin << std::endl;
             info2arc_idx[info].push_back(arc_idx++);
@@ -1144,6 +1179,44 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         flat_lib_pin_cap_limit.append(cap_limit);
         flat_lib_pin_slew_limit.append(slew_limit);
       }
+
+      for (auto& libpin : lib_cell->get_cell_buses()) {
+        // && lib_cell->get_cell_port_or_port_bus(const char *port_name)
+        string libcell_name = lib_cell->get_cell_name();
+        string libpin_name = libpin->get_port_name();
+        string info = libcell_name + "_" + libpin_name;
+        if (libcell_name == "TS5N28HPCPLVTA256X64M2FW") {
+          std::cout << info << std::endl;
+          printf("HHH\n");
+        }
+        libpin_name2libpin_offset[info] = pin_offset++;
+        lib_pin_idx++;
+        if (libpin->isInput()) {
+          auto cap = libpin->get_port_cap();
+          auto rcap = libpin->get_port_cap(AnalysisMode::kMaxMin, TransType::kRise);
+          auto fcap = libpin->get_port_cap(AnalysisMode::kMaxMin, TransType::kFall);
+          flat_lib_pin_cap.append(cap);
+          if (rcap.has_value() && fcap.has_value()) {
+            flat_lib_pin_rcap.append(rcap.value());
+            flat_lib_pin_fcap.append(fcap.value());
+          } else {
+            flat_lib_pin_rcap.append(cap);
+            flat_lib_pin_fcap.append(cap);
+          }
+        } else {
+          flat_lib_pin_cap.append(0);
+          flat_lib_pin_rcap.append(0);
+          flat_lib_pin_fcap.append(0);
+        }
+        double cap_limit = libpin->get_port_cap_limit(AnalysisMode::kMax).has_value()
+                               ? libpin->get_port_cap_limit(AnalysisMode::kMax).value()
+                               : default_cap;
+        double slew_limit = libpin->get_port_slew_limit(AnalysisMode::kMax).has_value()
+                                ? libpin->get_port_slew_limit(AnalysisMode::kMax).value()
+                                : default_slew;
+        flat_lib_pin_cap_limit.append(cap_limit);
+        flat_lib_pin_slew_limit.append(slew_limit);
+      }
       // arc_idx += num_arcs;
     }
 
@@ -1167,6 +1240,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       auto lib_cell = pin->get_instance()->get_cell_master();
       string libcell_name = lib_cell->get_name();
       string libpin_name = pin->get_term_name();
+      auto bracket_pos = libpin_name.find('[');
+      if (bracket_pos != string::npos) {
+        libpin_name = libpin_name.substr(0, bracket_pos);
+      }
       string info = libcell_name + "_" + libpin_name;  // sg13g2_o21ai_1
       assert(libpin_name2libpin_offset.count(info));
       pin_2_libpin_offset.append(libpin_name2libpin_offset[info]);
@@ -1283,6 +1360,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             int arc_sense = timing_sense2int(info2arc_sense[info][i]);
 
             if (isFF) {
+              if (!mClkPin2ID.count(node_name + from_lib_pin)) {
+                // FIXME:This isn't a clock pin, skip to avoid double counting
+                continue;
+              }
               assert(mClkPin2ID.count(node_name + from_lib_pin));
               // Check if this is a clock-to-Q arc
               string outpin_full_name = node_name + output_pin->get_pin_name();

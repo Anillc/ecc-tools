@@ -1072,7 +1072,7 @@ class LibCell : public LibObject
 
   auto& get_str2ports() { return _str2ports; }
   auto& get_cell_ports() { return _cell_ports; }
-
+  auto& get_cell_buses() { return _cell_port_buses; }
   LibLibrary* get_owner_lib() { return _owner_lib; }
   void set_owner_lib(LibLibrary* owner_lib) { _owner_lib = owner_lib; }
 
