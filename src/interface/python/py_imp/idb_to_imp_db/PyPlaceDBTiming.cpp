@@ -361,24 +361,33 @@ std::tuple<std::vector<std::string>, std::unordered_map<std::string, int>, bool>
   }
 }
 
-struct TempLibArc {
+struct TempLibArc
+{
   int _lib_arc_idx;
   ista::LibArc* _lib_arc_ptr;
-  explicit TempLibArc(int lib_arc_idx, ista::LibArc* lib_arc_ptr)
-      : _lib_arc_idx(lib_arc_idx), _lib_arc_ptr(lib_arc_ptr) {}
-  int senseToInt() const {
+  explicit TempLibArc(int lib_arc_idx, ista::LibArc* lib_arc_ptr) : _lib_arc_idx(lib_arc_idx), _lib_arc_ptr(lib_arc_ptr) {}
+  int senseToInt() const
+  {
     switch (_lib_arc_ptr->get_timing_sense()) {
-      case ista::LibArc::TimingSense::kPositiveUnate: return 1;
-      case ista::LibArc::TimingSense::kNonUnate: return 0;
-      case ista::LibArc::TimingSense::kNegativeUnate: return -1;
-      default: return 1;
+      case ista::LibArc::TimingSense::kPositiveUnate:
+        return 1;
+      case ista::LibArc::TimingSense::kNonUnate:
+        return 0;
+      case ista::LibArc::TimingSense::kNegativeUnate:
+        return -1;
+      default:
+        return 1;
     }
   }
-  int typeToInt() const {
+  int typeToInt() const
+  {
     switch (_lib_arc_ptr->get_timing_type()) {
-      case ista::LibArc::TimingType::kRisingEdge: return 1;
-      case ista::LibArc::TimingType::kFallingEdge: return -1;
-      default: return 0;
+      case ista::LibArc::TimingType::kRisingEdge:
+        return 1;
+      case ista::LibArc::TimingType::kFallingEdge:
+        return -1;
+      default:
+        return 0;
     }
   }
 };
@@ -1091,7 +1100,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
               || arc->get_timing_type() == ista::LibArc::TimingType::kFallingEdge
               || arc->get_timing_type() == ista::LibArc::TimingType::kRisingEdge) {
             // clang-format on
-            
+
             // Group the current arc by its 'info' key.
             auto [iter, inserted] = info2lib_arcs.try_emplace(info, std::vector<TempLibArc>{});
             iter->second.emplace_back(arc_idx++, arc.get());
@@ -1120,7 +1129,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // ----- 坐标轴 -----
             // 把clk trans 存到 trans
             // 把data trans 存到 cap
-            
+
             // Group the current arc by its 'info' key.
             auto [iter, inserted] = info2lib_arcs.try_emplace(info, std::vector<TempLibArc>{});
             iter->second.emplace_back(arc_idx++, arc.get());
@@ -1297,8 +1306,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
 
     bool isFF = FFs_str.count(node_name);
 
-    auto append_arc = [&](int from_pin_id, int to_pin_id, int lib_cell_id, 
-                                    const TempLibArc& lib_arc, pybind11::list& target_list) {
+    auto append_arc = [&](int from_pin_id, int to_pin_id, int lib_cell_id, const TempLibArc& lib_arc, pybind11::list& target_list) {
       pybind11::list arc;
       arc.append(from_pin_id);
       arc.append(to_pin_id);
@@ -1325,6 +1333,11 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         if (info2lib_arcs.count(info)) {
           for (const auto& lib_arc : info2lib_arcs[info]) {
             int from_lib_pin_id = mClkPin2ID[node_name + clock_pin_name];
+            if(mPin2ID.count(node_name + to_lib_pin_name) == 0) {
+              std::cout << "Warning: pin is floating id for " << node_name + to_lib_pin_name << std::endl;
+              continue;
+            }
+            assert(mPin2ID.count(node_name + to_lib_pin_name));
             int to_lib_pin_id = mPin2ID[node_name + to_lib_pin_name];
             int lib_cell_id = cell_type2cell_id[cell_type];
             append_arc(from_lib_pin_id, to_lib_pin_id, lib_cell_id, lib_arc, endpoints_constraint_arcs);
@@ -1339,22 +1352,29 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         auto output_pin = output_pins[j];
         string from_lib_pin = input_pin->get_pin_name();
         string to_lib_pin = output_pin->get_pin_name();
+        string info_from_lib_pin = getLibPinName(from_lib_pin);
+        string info_to_lib_pin = getLibPinName(to_lib_pin);
         if (node_name == "U3961" && from_lib_pin == "B" && to_lib_pin == "Y") {
           std::cout << "_21993_ A -> Z" << std::endl;
         }
-        string info = cell_type + "_" + from_lib_pin + "_" + to_lib_pin;
+        string info = cell_type + "_" + info_from_lib_pin + "_" + info_to_lib_pin;
         if (info2lib_arcs.count(info)) {
           for (const auto& lib_arc : info2lib_arcs[info]) {
             int from_lib_pin_id = 0;
-            if (isFF) {   // Handle clk->q arcs
+            if (isFF) {  // Handle clk->q arcs
               if (!mClkPin2ID.count(node_name + from_lib_pin)) {
                 // FIXME:This isn't a clock pin, skip to avoid double counting
                 continue;
               }
               from_lib_pin_id = mClkPin2ID[node_name + from_lib_pin];
-            } else {      // Handle combinational arcs
+            } else {  // Handle combinational arcs
               from_lib_pin_id = mPin2ID[node_name + from_lib_pin];
             }
+            if (mPin2ID.count(node_name + to_lib_pin) == 0) {
+              std::cout << "Warning: pin is floating id for " << node_name + to_lib_pin << std::endl;
+              continue;
+            }
+            assert(mPin2ID.count(node_name + to_lib_pin));
             int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
             int lib_cell_id = cell_type2cell_id[cell_type];
             append_arc(from_lib_pin_id, to_lib_pin_id, lib_cell_id, lib_arc, inst_flat_arcs);

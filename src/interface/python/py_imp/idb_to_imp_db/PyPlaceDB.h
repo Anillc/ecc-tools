@@ -8,8 +8,8 @@
 #ifndef _DREAMPLACE_PLACE_IO_PYPLACEDB_H
 #define _DREAMPLACE_PLACE_IO_PYPLACEDB_H
 
-#include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 
 #include <sstream>
@@ -22,7 +22,7 @@
 namespace ista {
 class LibTable;
 class LibCell;
-}
+}  // namespace ista
 
 // #include <boost/timer/timer.hpp>
 namespace python_interface {
@@ -106,13 +106,13 @@ struct PyPlaceDB
   pybind11::list net2driver_pin_map;
 
   /* topo */
-  pybind11::list FF_ids;  //
-  pybind11::list start_points;  //
-  pybind11::list end_points;    //
-  pybind11::list clock_pins;    //
+  pybind11::list FF_ids;         //
+  pybind11::list start_points;   //
+  pybind11::list end_points;     //
+  pybind11::list clock_pins;     //
   pybind11::list clk_pin_rtran;  //
   pybind11::list clk_pin_ftran;  //
-  pybind11::list clk_pin_names;     ///< 1D array, pin name
+  pybind11::list clk_pin_names;  ///< 1D array, pin name
 
   pybind11::list flat_cells_by_level;          //
   pybind11::list flat_cells_by_reverse_level;  //
@@ -135,7 +135,7 @@ struct PyPlaceDB
   pybind11::list inst_flat_arcs_start;  //
   pybind11::list inst_flat_arcs;        //
 
-  pybind11::list endpoints_constraint_arcs;   // constraint arcs, 
+  pybind11::list endpoints_constraint_arcs;  // constraint arcs,
 
   /* ------------------------info for gate sizing----------------------*/
   pybind11::list main_id_2_cell_id_start;  // [num_main_type, ] main_id_2_cell_id_start + cell_width -> cell_id
@@ -179,8 +179,7 @@ struct PyPlaceDB
 
   // 把rise setup 存到 r_delay
   // 把clk trans 存到 trans
-  // 把data trans 存到 cap 
-
+  // 把data trans 存到 cap
 
   /*-------------RC------------*/
   double c_unit;
@@ -217,20 +216,22 @@ struct PyPlaceDB
   void set(idm::DataManager* db, bool with_sta);
   void set_sta();
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
-  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, 
-                   std::unordered_map<std::string, int>& mClkPin2ID, std::map<std::string, index_type>& mNodeName2ID,
-                   std::vector<IdbInstance*>& inst_resort_list,
-                   int ext_blockage_num);
+  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::unordered_map<std::string, int>& mClkPin2ID,
+                   std::map<std::string, index_type>& mNodeName2ID, std::vector<IdbInstance*>& inst_resort_list, int ext_blockage_num);
 
-private:
+ private:
   // 统一的LUT表格初始化函数
-  void init_lut_table_unified(pybind11::list& flat_luts_values, 
-                              pybind11::list& flat_luts_axis1_table,
-                              pybind11::list& flat_luts_axis2_table, 
-                              pybind11::list& flat_luts_dim, 
-                              ista::LibTable* table,
-                              ista::LibCell* lib_cell,
-                              bool is_constraint_table = false);
+  void init_lut_table_unified(pybind11::list& flat_luts_values, pybind11::list& flat_luts_axis1_table,
+                              pybind11::list& flat_luts_axis2_table, pybind11::list& flat_luts_dim, ista::LibTable* table,
+                              ista::LibCell* lib_cell, bool is_constraint_table = false);
+  std::string getLibPinName(std::string libpin_name)
+  {
+    auto bracket_pos = libpin_name.find('[');
+    if (bracket_pos != string::npos) {
+      libpin_name = libpin_name.substr(0, bracket_pos);
+    }
+    return libpin_name;
+  }
 };
 
 }  // namespace python_interface

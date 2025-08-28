@@ -448,6 +448,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
         continue;
       }
       string inst_name = pin->get_instance()->get_name();
+      assert(mPin2ID.count(inst_name + pin->get_pin_name()));
       flat_net2pin_map.append(mPin2ID[inst_name + pin->get_pin_name()]);
       pin_num += 1;
     }
