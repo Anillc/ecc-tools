@@ -444,35 +444,49 @@ int32_t RustVerilogRead::build_assign()
 
             // std::cout << "merge " << left_net_name << " = " << right_net_name << "\n";
 
+            auto merge_nets = [idb_net_list, &remove_to_merge_nets](IdbNet* from_net, IdbNet* to_net, const std::string& from_net_name,
+                                                                    const std::string& to_net_name) {
+              if (!from_net || !to_net || from_net == to_net) {
+                return;
+              }
+
+              auto from_instance_pin_list = from_net->get_instance_pin_list()->get_pin_list();
+              auto from_io_pin_list = from_net->get_io_pins()->get_pin_list();
+
+              // merge from_net to to_net
+              for (auto* from_instance_pin : from_instance_pin_list) {
+                to_net->add_instance_pin(from_instance_pin);
+                from_net->remove_pin(from_instance_pin);
+                from_instance_pin->set_net(to_net);
+                from_instance_pin->set_net_name(to_net_name);
+              }
+
+              for (auto* from_io_pin : from_io_pin_list) {
+                to_net->add_io_pin(from_io_pin);
+                from_net->remove_pin(from_io_pin);
+                from_io_pin->set_net(to_net);
+                from_io_pin->set_net_name(to_net_name);
+              }
+
+              // update remove_to_merge_nets mapping
+              for (auto& [remove_net_name, merge_idb_net] : remove_to_merge_nets) {
+                if (merge_idb_net->get_net_name() == from_net_name) {
+                  remove_to_merge_nets[remove_net_name] = to_net;
+                }
+              }
+
+              idb_net_list->remove_net(from_net_name);
+              remove_to_merge_nets[from_net_name] = to_net;
+            };
+
             auto left_instance_pin_list = the_left_idb_net->get_instance_pin_list()->get_pin_list();
             auto left_io_pin_list = the_left_idb_net->get_io_pins()->get_pin_list();
 
-            // merge left to right net.
-            for (auto* left_instance_pin : left_instance_pin_list) {
-              the_right_idb_net->add_instance_pin(left_instance_pin);
-              the_left_idb_net->remove_pin(left_instance_pin);
-              left_instance_pin->set_net(the_right_idb_net);
-              left_instance_pin->set_net_name(right_net_name);
+            if (left_io_pin_list.size() == 0) {
+              merge_nets(the_left_idb_net, the_right_idb_net, left_net_name, right_net_name);
+            } else {
+              merge_nets(the_right_idb_net, the_left_idb_net, right_net_name, left_net_name);
             }
-
-            for (auto* left_io_pin : left_io_pin_list) {
-              the_right_idb_net->add_io_pin(left_io_pin);
-              the_left_idb_net->remove_pin(left_io_pin);
-              left_io_pin->set_net(the_right_idb_net);
-              left_io_pin->set_net_name(right_net_name);
-            }
-
-            assert(the_left_idb_net != the_right_idb_net);
-            // the remove map to merge net maybe removed, need update the new net.
-            for (auto [remove_net_name, merge_idb_net] : remove_to_merge_nets) {
-              if (merge_idb_net->get_net_name() == left_net_name) {
-                remove_to_merge_nets[remove_net_name] = the_right_idb_net;
-              }
-            }
-
-            idb_net_list->remove_net(left_net_name);
-            remove_to_merge_nets[left_net_name] = the_right_idb_net;
-
           } else if (the_left_idb_net && !the_left_io_pin) {
             // assign net = input_port;
             if (the_right_io_pin && the_right_io_pin->is_io_pin()) {
