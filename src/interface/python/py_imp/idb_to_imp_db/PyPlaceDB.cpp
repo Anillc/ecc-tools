@@ -5,6 +5,7 @@
 #include <boost/polygon/polygon.hpp>
 #include <cassert>
 #include <cstdio>
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -1082,6 +1083,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   };
 #endif
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
+  PolygonSet fixed_node_ps;
   for (int i = 0; i < inst_num; ++i) {
     IdbInstance* node = inst_resort_list.at(i);
     if (node->get_cell_master()->is_block()) {
@@ -1131,60 +1133,66 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       num_terminals += 1;
       // compute upper bound of total fixed cell area
       total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
+
+      fixed_node_ps += gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
     }
   }
 
-  // blockage
-  int ext_blockage_num = 0;
+  PolygonSet blockage_ps_list;
+  // def blockage list
   for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
     if (!blockage->is_palcement_blockage()) {
       continue;
     }
-
     IdbPlacementBlockage* placement_blockage = dynamic_cast<IdbPlacementBlockage*>(blockage);
-
-    // add obstruction boxes for fixed nodes
-    // initialize node shapes from obstruction
-    // I do not differentiate obstruction boxes at different layers
-    // At least, this is true for DAC/ICCAD 2012 benchmarks
-
-    // put all boxes into a polygon set to remove overlaps
-    // this can make the placement engine more robust
     PolygonSet ps;
     for (auto rect : blockage->get_rect_list()) {
       // convert to absolute box
       Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
       ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
     }
-    for (unsigned int i = 0; i < inst_num; ++i) {
-      IdbInstance* node = inst_resort_list.at(i);
-      // Macro const& macro = db.macro(db.macroId(node));
-      if (node->get_status() == IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
-        Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-                    node->get_bounding_box()->get_high_y());
-        ps -= gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
+    blockage_ps_list += ps;
+  }
+  auto first_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(0);
+  idb::IdbLayerRouting* first_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(first_routing_layer);
+  // IO PIN external blockage
+  for (auto* special_net : db_deisgn->get_special_net_list()->get_net_list()) {
+    if (special_net->is_vdd() || special_net->is_vss()) {
+      int via_num = special_net->get_via_num();
+      for (auto segment : special_net->get_wire_list()->get_wire_list()) {
+        for (auto* seg : segment->get_segment_list()) {
+          if (seg->is_via()) {
+            auto idb_via = seg->get_via();
+            PolygonSet ps;
+            idb::IdbLayerShape idb_shape_bottom = idb_via->get_bottom_layer_shape();
+            auto layer = idb_shape_bottom.get_layer();
+            if (layer->is_routing() && layer == first_idb_routing_layer) {
+              auto rect = idb_shape_bottom.get_bounding_box();
+              Box box(rect.get_low_x(), rect.get_low_y(), rect.get_high_x(), rect.get_high_y());
+              ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
+              blockage_ps_list += ps;
+            }
+          }
+        }
       }
     }
-    // Get unique boxes without overlap for each fixed cell
-    // However, there may still be overlapping between fixed cells.
-    // We cannot eliminate these because we want to keep the mapping from boxes to cells.
-    std::vector<gtl::rectangle_data<coordinate_type>> vRect;
-    ps.get_rectangles(vRect);
-    std::vector<Box> vBox;
-    vBox.reserve(vRect.size());
-    for (auto const& rect : vRect) {
-      vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
-      auto box = vBox.back();
-      int id = node_names.size();
-      string block_name = "blockage" + std::to_string(id);
-      printf("PyPlaceDB detect fixed blockage: %s\n", block_name.c_str());
-      addNode("R0", block_name, box, true);
-      // record original node to new node mapping
-      total_fixed_node_area += 1LL * box.area();
-    }
-    num_terminals += vBox.size();
-    ext_blockage_num += vBox.size();
   }
+  blockage_ps_list -= fixed_node_ps;  // remove overlap with fixed cells
+  int ext_blockage_num = 0;
+
+  std::vector<gtl::rectangle_data<coordinate_type>> vRect;
+  blockage_ps_list.get_rectangles(vRect);
+  for (auto const& rect : vRect) {
+    Box box(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
+    int id = node_names.size();
+    string block_name = "blockage" + std::to_string(id);
+    printf("PyPlaceDB detect fixed blockage: %s\n", block_name.c_str());
+    addNode("R0", block_name, box, true);
+    // record original node to new node mapping
+    total_fixed_node_area += 1LL * box.area();
+  }
+  num_terminals += vRect.size();
+  ext_blockage_num += vRect.size();
 
   // IO PINS
   for (auto io_pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
