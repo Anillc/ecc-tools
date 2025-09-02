@@ -1153,6 +1153,8 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     }
     blockage_ps_list += ps;
   }
+  auto core = db->get_idb_layout()->get_core();
+  row_height = db->get_idb_layout()->get_rows()->get_row_height();
   auto first_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(0);
   idb::IdbLayerRouting* first_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(first_routing_layer);
   // IO PIN external blockage
@@ -1168,7 +1170,25 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
             auto layer = idb_shape_bottom.get_layer();
             if (layer->is_routing() && layer == first_idb_routing_layer) {
               auto rect = idb_shape_bottom.get_bounding_box();
-              Box box(rect.get_low_x(), rect.get_low_y(), rect.get_high_x(), rect.get_high_y());
+
+              // 获取原始边界框
+              int xl = core->get_bounding_box()->get_low_x();
+              int yl = core->get_bounding_box()->get_low_y();
+
+              coordinate_type orig_xl = rect.get_low_x();
+              coordinate_type orig_yl = rect.get_low_y();
+              coordinate_type orig_xh = rect.get_high_x();
+              coordinate_type orig_yh = rect.get_high_y();
+              if(orig_yh - orig_yl > row_height * 2) {
+                printf("Via %s has too large height (%d), skip it\n", idb_via->get_name().c_str(), orig_yh - orig_yl);
+              }
+              // 计算包含该形状的行范围
+              int start_row = (orig_yl - yl) / row_height;
+              int end_row = (orig_yh - yl) / row_height;
+              coordinate_type aligned_yl = yl + start_row * row_height;      // 起始行底部
+              coordinate_type aligned_yh = yl + (end_row + 1) * row_height;  // 结束行顶部
+
+              Box box(orig_xl, aligned_yl, orig_xh, aligned_yh);
               ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
               blockage_ps_list += ps;
             }
@@ -1186,7 +1206,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     Box box(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
     int id = node_names.size();
     string block_name = "blockage" + std::to_string(id);
-    printf("PyPlaceDB detect fixed blockage: %s\n", block_name.c_str());
+    printf("PyPlaceDB detect fixed blockage: %s, (%d, %d, %d, %d)\n", block_name.c_str(), box.xl, box.yl, box.xh, box.yh);
     addNode("R0", block_name, box, true);
     // record original node to new node mapping
     total_fixed_node_area += 1LL * box.area();
@@ -1407,7 +1427,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   for (std::vector<int>::const_iterator it = vNode2FenceRegion.begin(), ite = vNode2FenceRegion.end(); it != ite; ++it) {
     node2fence_region_map.append(*it);
   }
-  auto core = db->get_idb_layout()->get_core();
+  // auto core = db->get_idb_layout()->get_core();
   xl = core->get_bounding_box()->get_low_x();
   yl = core->get_bounding_box()->get_low_y();
   xh = core->get_bounding_box()->get_high_x();
