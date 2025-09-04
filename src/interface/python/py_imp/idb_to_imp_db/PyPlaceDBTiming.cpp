@@ -67,8 +67,8 @@ double intersectArea(Box const& b1, Box const& b2)
 
 bool isInvailidNet(IdbNet* net)
 {
-  return net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock() || net->get_instance_pin_list()->get_pin_list().size() == 0
-         || net->get_driving_pin()->get_instance() == nullptr;
+  return net->is_ground() || net->is_power() || net->is_pdn() || net->is_clock()
+         || net->get_instance_pin_list()->get_pin_list().size() == 0;
 }
 
 #if 1
@@ -863,6 +863,9 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       continue;
     }
     auto from_inst = net->get_driving_pin()->get_instance();
+    if (from_inst == nullptr) {
+      continue;
+    }
     auto from_inst_name = net->get_driving_pin()->get_instance()->get_name();
 
     if (FFs_str.count(from_inst_name) || from_inst->is_flip_flop()) {
@@ -1333,7 +1336,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         if (info2lib_arcs.count(info)) {
           for (const auto& lib_arc : info2lib_arcs[info]) {
             int from_lib_pin_id = mClkPin2ID[node_name + clock_pin_name];
-            if(mPin2ID.count(node_name + to_lib_pin_name) == 0) {
+            if (mPin2ID.count(node_name + to_lib_pin_name) == 0) {
               std::cout << "Warning: pin is floating id for " << node_name + to_lib_pin_name << std::endl;
               continue;
             }
@@ -1403,10 +1406,10 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   double segment_width = (double) routing_layer->get_width() / db->get_idb_layout()->get_units()->get_micron_dbu();
   double lef_capacitance = routing_layer->get_capacitance();
   double lef_edge_capacitance = routing_layer->get_edge_capacitance();
-  c_unit = (lef_capacitance * segment_width) + (lef_edge_capacitance * 2);
+  c_unit = (lef_capacitance * segment_width) + (lef_edge_capacitance * 2);  // pF per micron
   double lef_resistance = routing_layer->get_resistance();
 
-  r_unit = lef_resistance / segment_width;
+  r_unit = lef_resistance / segment_width;  // ohm per micron
 }
 
 #endif

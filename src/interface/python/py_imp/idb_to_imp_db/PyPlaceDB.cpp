@@ -24,7 +24,9 @@
 #include "Type.hh"
 #include "idm.h"
 #include "netlist/Instance.hh"
+#include "netlist/Net.hh"
 #include "netlist/Pin.hh"
+#include "netlist/Port.hh"
 #include "sdc/SdcSetIODelay.hh"
 #include "sdc/SdcSetInputTransition.hh"
 #include "sdc/SdcSetLoad.hh"
@@ -50,6 +52,22 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   num_terminal_NIs = 0;  // IO pins
   // num_terminal_NIs = 0;  // IO pins
   dbu = db_deisgn->get_layout()->get_units()->get_micron_dbu();
+
+  if (with_sta) {
+    for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
+      auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+
+      auto ista = timing_engine->get_ista();
+      ista::Net* sta_net = ista->get_netlist()->findNet(net->get_net_name().c_str());
+      if (sta_net == nullptr) {
+        continue;
+      }
+      if (sta_net->isClockNet()) {
+        net->set_connect_type(IdbConnectType::kClock);
+        continue;
+      }
+    }
+  }
 
   double total_fixed_node_area = 0;  // compute total area of fixed cells, which is an upper bound
   // collect boxes for fixed cells and put in a polygon set to remove overlap later
