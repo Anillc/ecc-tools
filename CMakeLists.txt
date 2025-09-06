@@ -36,6 +36,7 @@ option(USE_PROFILER "Enable performance profiling (default OFF)" OFF)
 option(SANITIZER "Enable address sanitizer (default OFF)" OFF)
 option(BUILD_GUI "Enable GUI components (default OFF)" OFF)
 option(USE_GPU "Enable GPU acceleration (default OFF)" OFF)
+option(BUILD_AI_PREDICTOR "Enable AI predictor modules (default OFF)" OFF)
 option(COMPATIBILITY_MODE "Enable compatibility mode (disable aggressive optimizations)" ON)
 
 # Define GLOG_USE_GLOG_EXPORT for glog 0.7.1+ compatibility
@@ -63,6 +64,9 @@ if (BUILD_STATIC_LIB)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libs" FORCE)
     set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
+else()
+    # When building shared libraries, ensure position independent code
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
 if(NOT COMPATIBILITY_MODE)
