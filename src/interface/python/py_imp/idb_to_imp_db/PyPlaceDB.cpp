@@ -1158,6 +1158,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   auto first_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(0);
   idb::IdbLayerRouting* first_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(first_routing_layer);
   // IO PIN external blockage
+  # if 0
   for (auto* special_net : db_deisgn->get_special_net_list()->get_net_list()) {
     if (special_net->is_vdd() || special_net->is_vss()) {
       int via_num = special_net->get_via_num();
@@ -1197,6 +1198,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       }
     }
   }
+#endif
   blockage_ps_list -= fixed_node_ps;  // remove overlap with fixed cells
   int ext_blockage_num = 0;
 
