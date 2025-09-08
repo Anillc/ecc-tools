@@ -54,10 +54,9 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   dbu = db_deisgn->get_layout()->get_units()->get_micron_dbu();
 
   if (with_sta) {
+    auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+    auto ista = timing_engine->get_ista();
     for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
-      auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-
-      auto ista = timing_engine->get_ista();
       ista::Net* sta_net = ista->get_netlist()->findNet(net->get_net_name().c_str());
       if (sta_net == nullptr) {
         continue;
@@ -118,16 +117,24 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     }
   }
   std::unordered_map<std::string, int> mClkPin2ID;
-  int clk_pin_id = 0;
-  for (IdbInstance* node : db_deisgn->get_instance_list()->get_instance_list()) {
-    std::string inst_name = node->get_name();
-    for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
-      std::string pin_name = pin->get_term_name();
-      std::string full_pin_name = inst_name + ":" + pin_name;  //: or /
-      if (!pin->is_flip_flop_clk()) {
-        continue;
+  if (with_sta) {
+    int clk_pin_id = 0;
+    auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+    auto ista = timing_engine->get_ista();
+    for (IdbInstance* node : db_deisgn->get_instance_list()->get_instance_list()) {
+      std::string inst_name = node->get_name();
+      for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
+        std::string pin_name = pin->get_term_name();
+        if (pin->get_term()->is_pdn() || pin->get_term()->is_power() || pin->get_term()->is_ground()) {
+          continue;
+        }
+        std::string full_pin_name = inst_name + ":" + pin_name;     //: or /
+        auto pin_vertex = ista->findVertex(full_pin_name.c_str());  // ensure the pin is in the sta graph
+        if (!pin_vertex || !pin_vertex->is_clock()) {
+          continue;
+        }
+        mClkPin2ID[inst_name + pin->get_pin_name()] = clk_pin_id++;
       }
-      mClkPin2ID[inst_name + pin->get_pin_name()] = clk_pin_id++;
     }
   }
   // add a node to a bin
