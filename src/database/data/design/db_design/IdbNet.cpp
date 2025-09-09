@@ -140,7 +140,7 @@ IdbPin* IdbNet::get_driving_pin()
   //   }
   //   }
 
-  std::cout << "Error : No driver pin exist..." << std::endl;
+  std::cout << "Error : No driver pin exist in net " << get_net_name() << std::endl;
   return nullptr;
 }
 

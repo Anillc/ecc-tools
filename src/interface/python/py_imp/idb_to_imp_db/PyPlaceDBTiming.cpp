@@ -720,11 +720,16 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     auto* instance_temp = design_netlist->findInstance(instance_name.c_str());
     auto& the_graph = ista->get_graph();
     ista::Pin* sta_pin = nullptr;
+    if (instance_temp == nullptr) {
+      std::cout << "Warning: Instance " << instance_name << " not found in iSTA netlist." << std::endl;
+      continue;
+    }
     FOREACH_INSTANCE_PIN(instance_temp, sta_pin)
     {
       if (sta_pin->get_cell_port()->isClock()) {
         // DEBUG
         auto curnet = sta_pin->get_net();
+        FFs_str.insert(instance_name);
         if (curnet) {
           auto netname = curnet->getFullName();
           // std::cout << "Clock pin: " << sta_pin->getFullName() << " in net: " << netname << " isClock:" << curnet->isClockNet()
@@ -740,12 +745,13 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         if (!sta_clk_vertex->getClockBucket().empty() && sta_clk_vertex->getPropClock()) {
           is_clock = true;
           break;
+        } else {
+          std::cout << "Warning: Clock pin " << clock_pin->getFullName() << " has no associated clock in STA." << std::endl;
         }
       }
     }
 
     if (is_clock) {
-      FFs_str.insert(instance_name);
       auto sta_clk_vertex = the_graph.findVertex(clock_pin).value();  // input can only find vertex
       StaArc* setup_arc = nullptr;
       for (auto* snk_arc : sta_clk_vertex->get_src_arcs()) {
@@ -1101,7 +1107,9 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
               || arc->get_timing_type() == ista::LibArc::TimingType::kCombRise
               || arc->get_timing_type() == ista::LibArc::TimingType::kComb
               || arc->get_timing_type() == ista::LibArc::TimingType::kFallingEdge
-              || arc->get_timing_type() == ista::LibArc::TimingType::kRisingEdge) {
+              || arc->get_timing_type() == ista::LibArc::TimingType::kRisingEdge
+              || arc->get_timing_type() == ista::LibArc::TimingType::kDefault
+            ) {
             // clang-format on
 
             // Group the current arc by its 'info' key.
@@ -1357,12 +1365,12 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         string to_lib_pin = output_pin->get_pin_name();
         string info_from_lib_pin = getLibPinName(from_lib_pin);
         string info_to_lib_pin = getLibPinName(to_lib_pin);
-        if (node_name == "U3961" && from_lib_pin == "B" && to_lib_pin == "Y") {
-          std::cout << "_21993_ A -> Z" << std::endl;
-        }
         string info = cell_type + "_" + info_from_lib_pin + "_" + info_to_lib_pin;
         if (info2lib_arcs.count(info)) {
           for (const auto& lib_arc : info2lib_arcs[info]) {
+            if (node_name == "U4339" && from_lib_pin == "B1" && to_lib_pin == "ZN") {
+              std::cout << "U4339 B1->ZN lib_arc_idx" << lib_arc._lib_arc_idx << std::endl;
+            }
             int from_lib_pin_id = 0;
             if (isFF) {  // Handle clk->q arcs
               if (!mClkPin2ID.count(node_name + from_lib_pin)) {
