@@ -699,7 +699,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
       }
       if (sdc_endpoints_rRAT.count(pin->get_pin_name()) == 0) {
         tot_unconstrained_io_pins += 1;
-        printf("Error: Primary output pin %s has no fRAT constraint, set to default 9e7 ps\n", pin->get_pin_name().c_str());
+        printf("Error: Primary output pin %s has no rRAT constraint, set to default 9e7 ps\n", pin->get_pin_name().c_str());
         sdc_endpoints_rRAT[pin->get_pin_name()] = 9e7;
       }
       // if (sta_clk_vertex && sta_clk_vertex->getClockBucket().bucket_size()) {

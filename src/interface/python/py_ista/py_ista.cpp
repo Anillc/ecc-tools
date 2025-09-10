@@ -409,14 +409,31 @@ void updateAndGetAllPinTimings(
       if (pin_name.find("uio_oe[1]_reg") != std::string::npos) {
         LOG_INFO << "Processing pin: " << pin_name;
       }
+      // auto* timingEngine = (ista::TimingEngine::getOrCreateTimingEngine());
       // DEBUG
-        double at_late = ieval::TimingAPI::getInst()->getArrivalLateTime(pin_name);
+      //  auto rise_value = STA_INST->getAT(pin_name.c_str(), ista::AnalysisMode::kMin, ista::TransType::kRise);
+        auto rise_max_at = timingEngine.getAT(pin_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise);
+        auto fall_max_at = timingEngine.getAT(pin_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall);
+        auto rise_min_rt = timingEngine.getRT(pin_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise);
+        auto fall_min_rt = timingEngine.getRT(pin_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall);
+        
+        // double at_late = timingEngine->get// ieval::TimingAPI::getInst()->getArrivalLateTime(pin_name);
+        // double at_early = ieval::TimingAPI::getInst()->getArrivalEarlyTime(pin_name);
+        pybind11::list at_max_list;
+        at_max_list.append(rise_max_at.has_value() ? rise_max_at.value() : 0);
+        at_max_list.append(fall_max_at.has_value() ? fall_max_at.value() : 0);
+
+        pybind11::list rt_max_list;
+        rt_max_list.append(rise_min_rt.has_value() ? rise_min_rt.value() : std::numeric_limits<double>::infinity());
+        rt_max_list.append(fall_min_rt.has_value() ? fall_min_rt.value() : std::numeric_limits<double>::infinity());
+
         double at_early = ieval::TimingAPI::getInst()->getArrivalEarlyTime(pin_name);
-        double rt_late = ieval::TimingAPI::getInst()->getRequiredLateTime(pin_name);
         double rt_early = ieval::TimingAPI::getInst()->getRequiredEarlyTime(pin_name);
-        arrival_late_times.append(at_late);
+
+        arrival_late_times.append(at_max_list);
+        required_late_times.append(rt_max_list);
+        
         arrival_early_times.append(at_early);
-        required_late_times.append(rt_late);
         required_early_times.append(rt_early);
         
         auto pinObjects = timingEngine.get_netlist()->findObj(pin_name.c_str(), false, false);
