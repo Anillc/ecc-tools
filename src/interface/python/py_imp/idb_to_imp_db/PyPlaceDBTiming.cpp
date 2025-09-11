@@ -675,10 +675,21 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
     if (pin->is_primary_input()) {
       start_points_str.push_back(pin->get_pin_name());
       // DEBUG
+
       auto net = pin->get_net();
       if (net) {
         auto netname = net->get_net_name();
         std::cout << "Primary input pin found: " << pin->get_pin_name() << " on net: " << netname << std::endl;
+      }
+      if (sdc_infdelays.count(pin->get_pin_name()) == 0) {
+        std::cout << "Warning: Primary input pin " << pin->get_pin_name() << " has no fall delay constraint., set to default -1e8"
+                  << std::endl;
+        sdc_infdelays[pin->get_pin_name()] = -1e8;
+      }
+      if (sdc_inrdelays.count(pin->get_pin_name()) == 0) {
+        std::cout << "Warning: Primary input pin " << pin->get_pin_name() << " has no rise delay constraint., set to default -1e8"
+                  << std::endl;
+        sdc_inrdelays[pin->get_pin_name()] = -1e8;
       }
       auto instance = pin->get_instance();
       if (instance) {
@@ -1115,7 +1126,9 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             // Group the current arc by its 'info' key.
             auto [iter, inserted] = info2lib_arcs.try_emplace(info, std::vector<TempLibArc>{});
             iter->second.emplace_back(arc_idx++, arc.get());
-
+            if (cell_type_name == "MUX2D0BWP40P140UHVT" && from_lib_pin == "S" && to_lib_pin == "Z") {
+              std::cout << "find MUX2D0BWP40P140UHVT S->Z arc" << std::endl;
+            }
             auto* lib_delay_model = dynamic_cast<LibDelayTableModel*>(arc->get_table_model());
             auto fall_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellFall));
             auto rise_delay_table = lib_delay_model->getTable(CAST_TYPE_TO_INDEX(LibTable::TableType::kCellRise));
@@ -1368,9 +1381,6 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
         string info = cell_type + "_" + info_from_lib_pin + "_" + info_to_lib_pin;
         if (info2lib_arcs.count(info)) {
           for (const auto& lib_arc : info2lib_arcs[info]) {
-            if (node_name == "U4339" && from_lib_pin == "B1" && to_lib_pin == "ZN") {
-              std::cout << "U4339 B1->ZN lib_arc_idx" << lib_arc._lib_arc_idx << std::endl;
-            }
             int from_lib_pin_id = 0;
             if (isFF) {  // Handle clk->q arcs
               if (!mClkPin2ID.count(node_name + from_lib_pin)) {
@@ -1388,6 +1398,13 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
             assert(mPin2ID.count(node_name + to_lib_pin));
             int to_lib_pin_id = mPin2ID[node_name + to_lib_pin];
             int lib_cell_id = cell_type2cell_id[cell_type];
+
+            if (node_name == "U1831" && from_lib_pin == "S" && to_lib_pin == "Z") {
+              printf("%s %s->%s arc, from_pin_id: %d, to_pin_id: %d, lib_cell_id: %d, lib_arc_idx: %d\n", node_name.c_str(),
+                     from_lib_pin.c_str(), to_lib_pin.c_str(), from_lib_pin_id, to_lib_pin_id, lib_cell_id, lib_arc._lib_arc_idx);
+              // std::cout << node_name<<  B1->ZN lib_arc_idx" << lib_arc._lib_arc_idx << std::endl;
+            }
+
             append_arc(from_lib_pin_id, to_lib_pin_id, lib_cell_id, lib_arc, inst_flat_arcs);
             inst_flat_arcs_idx++;
           }
