@@ -49,6 +49,18 @@ struct VecNetWireFeature
   std::vector<std::string> drc_type = {};
 };
 
+struct VecPlaceFeature
+{
+  int pin_num = 0;
+  int aspect_ratio = 0;
+  int64_t width = 0;
+  int64_t height = 0;
+  int64_t area = 0;
+  float l_ness = 0.0;
+  int64_t hpwl = 0;
+  int64_t rsmt = 0;
+};
+
 struct VecNetFeature
 {
   int llx = 0;
@@ -63,16 +75,14 @@ struct VecNetFeature
   double power = 0.0;
   double delay = 0.0;
   double slew = 0.0;
-  int fanout = 0;
   int aspect_ratio = 0;
   int64_t width = 0;
   int64_t height = 0;
   int64_t area = 0;
-  float l_ness = 0.0;
-  std::vector<std::string> drc_type = {};
   int64_t volume = 0;
-  std::vector<int> layer_ratio = {};
-  int rsmt = 0;
+  std::vector<std::string> drc_type = {};
+  std::vector<float> layer_ratio = {};
+  VecPlaceFeature place_feature;
 };
 
 static int64_t wire_id_index = 0;
@@ -158,6 +168,7 @@ class VecNet
 
   // getter
   int get_net_id() { return _net_id; }
+  std::string get_net_name() { return _net_name; }
   std::vector<VecNetWire>& get_wires() { return _wires; }
   std::vector<int>& get_pin_ids() { return _pin_ids; }
   VecNetFeature* get_feature(bool b_create = false);
@@ -165,6 +176,7 @@ class VecNet
   NetRoutingGraph get_routing_graph() { return _routing_graph; }
   // setter
   void set_net_id(int net_id) { _net_id = net_id; }
+  void set_net_name(std::string name) { _net_name = name; }
   void set_routing_graph(const NetRoutingGraph& routing_graph) { _routing_graph = routing_graph; }
 
   // operator
@@ -176,6 +188,7 @@ class VecNet
 
  private:
   int _net_id = -1;
+  std::string _net_name;
   std::vector<VecNetWire> _wires;
   std::vector<int> _pin_ids;
   std::map<int, VecPin> _pin_list;

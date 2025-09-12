@@ -35,6 +35,8 @@
 
 namespace ipl {
 
+class AIWirelength;
+
 class DetailPlacer
 {
  public:
@@ -54,10 +56,19 @@ class DetailPlacer
 
   void runDetailPlaceNFS();
 
+#ifdef ENABLE_AI
+  // AI wirelength prediction methods
+  bool init_ai_wirelength_model(const std::string& model_path, const std::string& params_path);
+  int64_t calTotalAIWirelength();
+#endif
+
  private:
   DPConfig _config;
   DPDatabase _database;
   DPOperator _operator;
+#ifdef ENABLE_AI
+  bool _use_ai_wirelength = false;
+#endif
 
   void initDPConfig(Config* pl_config);
   void initDPDatabase(PlacerDB* placer_db);

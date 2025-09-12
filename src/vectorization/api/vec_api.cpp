@@ -15,8 +15,9 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 
-#include "init_sta.hh"
 #include "vec_api.h"
+
+#include "init_sta.hh"
 #include "vectorization.h"
 
 namespace ivec {
@@ -46,11 +47,11 @@ std::map<int, VecNet> VectorizationApi::getGraph(std::string path)
   return vectorization.getGraph(path);
 }
 
-bool VectorizationApi::buildVectorizationFeature(const std::string dir, int patch_row_step, int patch_col_step)
+bool VectorizationApi::buildVectorizationFeature(const std::string dir, int patch_row_step, int patch_col_step, bool batch_mode)
 {
   Vectorization vectorization;
 
-  vectorization.buildFeature(dir, patch_row_step, patch_col_step);
+  vectorization.buildFeature(dir, patch_row_step, patch_col_step, batch_mode);
 
   return true;
 }
@@ -66,4 +67,19 @@ bool VectorizationApi::runVecSTA(const std::string dir)
 
   return true;
 }
+
+bool VectorizationApi::readVectorsNets(std::string nets_dir)
+{
+  Vectorization vectorization;
+  vectorization.buildLayoutData();
+  return vectorization.readNetsToIDB(nets_dir);
+}
+
+bool VectorizationApi::readVectorsNetsPatterns(std::string path)
+{
+  Vectorization vectorization;
+  vectorization.buildLayoutData();
+  return vectorization.readNetsPatternToIDB(path);
+}
+
 }  // namespace ivec

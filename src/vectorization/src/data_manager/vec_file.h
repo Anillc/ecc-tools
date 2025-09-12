@@ -30,23 +30,26 @@ using json = nlohmann::ordered_json;
 class VecLayoutFileIO
 {
  public:
-  VecLayoutFileIO(std::string dir, VecLayout* layout, VecPatchGrid* patch_grid = nullptr)
+  VecLayoutFileIO(std::string path, VecLayout* layout, VecPatchGrid* patch_grid = nullptr)
   {
-    _dir = dir;
+    _path = path;
     _layout = layout;
     _patch_grid = patch_grid;
   }
   ~VecLayoutFileIO() {}
 
-  bool saveJson();
+  bool saveJson(bool batch_mode = true);
+  bool readJsonNets();
+  bool readJsonNetsPattern();
 
  private:
-  std::string _dir = "";
+  std::string _path = "";
   VecLayout* _layout = nullptr;
   VecPatchGrid* _patch_grid = nullptr;
 
-  bool saveJsonNets();
-  bool saveJsonPatchs();
+  bool saveJsonNets(bool batch_mode = true);
+  bool saveJsonPatchs(bool batch_mode = true);
+  bool saveJsonTech();
   bool saveJsonCells();
   bool saveJsonInstances();
 

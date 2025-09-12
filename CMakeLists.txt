@@ -123,6 +123,11 @@ include(cmake/operation/ista.cmake)
 include(cmake/operation/ipa.cmake)
 include(cmake/rust.cmake)
 
+if(ENABLE_AI)
+add_definitions(-DENABLE_AI)
+add_subdirectory(src/ai)
+endif()
+
 add_subdirectory(src/third_party)
 add_subdirectory(src/utility)
 add_subdirectory(src/apps)

@@ -70,7 +70,7 @@ std::map<int, VecNet> Vectorization::getGraph(std::string path)
   return _data_manager.getGraph(path);
 }
 
-void Vectorization::buildFeature(const std::string dir, int patch_row_step, int patch_col_step)
+void Vectorization::buildFeature(const std::string dir, int patch_row_step, int patch_col_step, bool batch_mode)
 {
   {
     /// build layout data
@@ -100,7 +100,7 @@ void Vectorization::buildFeature(const std::string dir, int patch_row_step, int 
   generateFeature(dir);
 
   /// save
-  _data_manager.saveData(dir);
+  _data_manager.saveData(dir, batch_mode);
 }
 
 void Vectorization::generateFeature(const std::string dir)
@@ -139,6 +139,26 @@ bool Vectorization::buildPatchData(const std::string dir)
 bool Vectorization::buildPatchData(const std::string dir, int patch_row_step, int patch_col_step)
 {
   return _data_manager.buildPatchData(dir, patch_row_step, patch_col_step);
+}
+
+bool Vectorization::readNetsToIDB(const std::string dir)
+{
+  bool b_success = _data_manager.buildLayoutData();
+  if (b_success) {
+    b_success = _data_manager.readNetsToIDB(dir);
+  }
+
+  return b_success;
+}
+
+bool Vectorization::readNetsPatternToIDB(const std::string path)
+{
+  bool b_success = _data_manager.buildLayoutData();
+  if (b_success) {
+    b_success = _data_manager.readNetsPatternToIDB(path);
+  }
+
+  return b_success;
 }
 
 }  // namespace ivec

@@ -35,13 +35,13 @@ bool layout_graph(const std::string& path)
   return lm_api.buildVectorizationGraphData(path);
 }
 
-bool generate_vectors(std::string dir, int patch_row_step, int patch_col_step)
+bool generate_vectors(std::string dir, int patch_row_step, int patch_col_step, bool batch_mode)
 {
   if (dir == "") {
     dir = "./vectors";
   }
   ivec::VectorizationApi lm_api;
-  return lm_api.buildVectorizationFeature(dir, patch_row_step, patch_col_step);
+  return lm_api.buildVectorizationFeature(dir, patch_row_step, patch_col_step, batch_mode);
 }
 
 ieval::TimingWireGraph get_timing_wire_graph(std::string wire_graph_path)
@@ -80,6 +80,24 @@ ieval::TimingInstanceGraph get_timing_instance_graph(std::string instance_graph_
   delete timing_instance_graph_ptr;
 
   return timing_instance_graph;
+}
+
+bool read_vectors_nets(std::string dir)
+{
+  if (dir == "") {
+    return false;
+  }
+  ivec::VectorizationApi lm_api;
+  return lm_api.readVectorsNets(dir);
+}
+
+bool read_vectors_nets_patterns(std::string path)
+{
+  if (path == "") {
+    return false;
+  }
+  ivec::VectorizationApi lm_api;
+  return lm_api.readVectorsNetsPatterns(path);
 }
 
 }  // namespace python_interface

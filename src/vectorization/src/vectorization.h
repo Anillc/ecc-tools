@@ -28,15 +28,17 @@ class Vectorization
   Vectorization();
   ~Vectorization() {}
 
-  bool buildLayoutData(const std::string path);
+  bool buildLayoutData(const std::string path = "");
   bool buildGraphData(const std::string path);
   bool buildGraphDataWithoutSave(const std::string path);
   std::map<int, VecNet> getGraph(std::string path);
-  void buildFeature(const std::string dir, int patch_row_step, int patch_col_step);
+  void buildFeature(const std::string dir, int patch_row_step, int patch_col_step, bool batch_mode);
   bool buildPatchData(const std::string dir);
   bool buildPatchData(const std::string dir, int patch_row_step, int patch_col_step);
 
   bool runVecSTA(const std::string dir);
+  bool readNetsToIDB(const std::string dir);
+  bool readNetsPatternToIDB(const std::string path);
 
  private:
   VecDataManager _data_manager;  /// top module data manager

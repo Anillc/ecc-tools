@@ -18,11 +18,14 @@
 
 #include "module/evaluator/density/Density.hh"
 #include "module/evaluator/wirelength/HPWirelength.hh"
+#ifdef ENABLE_AI
+#include "ai_wirelength.hh"
+#endif
 #include "operation/BinOpt.hh"
 #include "operation/InstanceSwap.hh"
 #include "operation/LocalReorder.hh"
-#include "operation/RowOpt.hh"
 #include "operation/NFSpread.hh"
+#include "operation/RowOpt.hh"
 #include "usage/usage.hh"
 #include "utility/Utility.hh"
 
@@ -97,8 +100,9 @@ void DetailPlacer::wrapRowList()
     DPRow* row = new DPRow(pl_row->get_name(), row_site, pl_row->get_site_num());
     row->set_coordinate(row_shift_x, row_shift_y);
     row->set_orient(std::move(pl_site->get_orient()));
-    
-    Rectangle<int64_t> rect(row_shift_x, row_shift_y, row_shift_x + pl_row->get_site_num() * row_site->get_width(), row_shift_y + row_site->get_height());
+
+    Rectangle<int64_t> rect(row_shift_x, row_shift_y, row_shift_x + pl_row->get_site_num() * row_site->get_width(),
+                            row_shift_y + row_site->get_height());
     row->set_bound(rect);
 
     row_2d_list.at(row_index).push_back(row);
@@ -582,20 +586,45 @@ void DetailPlacer::runDetailPlaceNFS()
   double time_delta = dp_status.elapsedRunTime();
   LOG_INFO << "Detail Plaement Total Time Elapsed: " << time_delta << "s";
   LOG_INFO << "-----------------Finish Network Flow Cell Spreading-----------------";
-
 }
 
 void DetailPlacer::notifyPLPlaceDensity()
 {
- auto* grid_manager = _operator.get_grid_manager();
- PlacerDBInst.place_density[2] = grid_manager->obtainAvgGridDensity(); 
+  auto* grid_manager = _operator.get_grid_manager();
+  PlacerDBInst.place_density[2] = grid_manager->obtainAvgGridDensity();
 }
 
 int64_t DetailPlacer::calTotalHPWL()
 {
-  HPWirelength hpwl_eval(_operator.get_topo_manager());
-  return hpwl_eval.obtainTotalWirelength() + _database._outside_wl;
+#ifdef ENABLE_AI
+  if (_use_ai_wirelength && aiPLWireLengthInst->isModelLoaded()) {
+    LOG_INFO << "Calculate Total Wirelength using AI model.";
+    return calTotalAIWirelength() + _database._outside_wl;
+  } else {
+#endif
+    HPWirelength hpwl_eval(_operator.get_topo_manager());
+    return hpwl_eval.obtainTotalWirelength() + _database._outside_wl;
+#ifdef ENABLE_AI
+  }
+#endif
 }
+
+#ifdef ENABLE_AI
+bool DetailPlacer::init_ai_wirelength_model(const std::string& model_path, const std::string& params_path)
+{
+  _use_ai_wirelength = aiPLWireLengthInst->init(model_path, params_path, _operator.get_topo_manager());
+
+  return _use_ai_wirelength;
+}
+
+int64_t DetailPlacer::calTotalAIWirelength()
+{
+  if (_use_ai_wirelength && aiPLWireLengthInst->isModelLoaded()) {
+    return aiPLWireLengthInst->obtainTotalWirelength();
+  }
+  return 0;
+}
+#endif
 
 float DetailPlacer::calPeakBinDensity()
 {

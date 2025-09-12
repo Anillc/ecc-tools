@@ -92,7 +92,7 @@ void PLAPI::initAPI(std::string pl_json_path, idb::IdbBuilder* idb_builder)
   createPLDirectory();
 
   char config[] = "info_ipl_glog";
-  char* argv[] = { config };
+  char* argv[] = {config};
 
   std::string log_home_path = this->obtainTargetDir() + "/pl/log/";
   // std::string design_name = idb_builder->get_def_service()->get_design()->get_design_name();
@@ -457,6 +457,51 @@ void PLAPI::runFlow()
   writeBackSourceDataBase();
 }
 
+void PLAPI::runAiFlow(const std::string& onnx_path, const std::string& normalization_path)
+{
+  runGP();
+  notifyPLWLInfo(0);
+
+  if (PlacerDBInst.get_placer_config()->get_buffer_config().isMaxLengthOpt()) {
+    std::cout << std::endl;
+    runBufferInsertion();
+    printHPWLInfo();
+  }
+
+  if (PlacerDBInst.get_placer_config()->get_dp_config().isEnableNetworkflow()) {
+    std::cout << std::endl;
+    runNetworkFlowSpread();
+  }
+
+  std::cout << std::endl;
+  runLG();
+  notifyPLWLInfo(1);
+
+  std::cout << std::endl;
+  if (isSTAStarted()) {
+    runPostGP();
+  } else {
+#ifdef ENABLE_AI
+    runDPwithAiWireLengthPredictor(onnx_path, normalization_path);
+#else
+    runDP();
+#endif
+  }
+  notifyPLWLInfo(2);
+
+  std::cout << std::endl;
+
+  reportPLInfo();
+  std::cout << std::endl;
+  LOG_INFO << "Log has been writed to dir: ./result/pl/log/";
+
+  if (isSTAStarted()) {
+    _external_api->destroyTimingEval();
+  }
+
+  writeBackSourceDataBase();
+}
+
 void PLAPI::insertLayoutFiller()
 {
   notifyPLOriginInfo();
@@ -537,6 +582,31 @@ void PLAPI::runDP()
     LOG_WARNING << "DP result is not legal";
   }
 }
+
+#ifdef ENABLE_AI
+void PLAPI::runDPwithAiWireLengthPredictor(const std::string& onnx_path, const std::string& normalization_path)
+{
+  bool legal_flag = checkLegality();
+  if (!legal_flag) {
+    LOG_WARNING << "Design Instances before detail placement are not legal";
+    return;
+  }
+
+  DetailPlacer detail_place(PlacerDBInst.get_placer_config(), &PlacerDBInst);
+
+  if (!detail_place.init_ai_wirelength_model(onnx_path, normalization_path)) {
+    LOG_ERROR << "Failed to load AI wirelength model: " << onnx_path;
+    LOG_ERROR << "Falling back to traditional HPWL";
+    return;
+  }
+
+  detail_place.runDetailPlace();
+
+  if (!checkLegality()) {
+    LOG_WARNING << "DP result is not legal";
+  }
+}
+#endif
 
 // run networkflow to spread cell
 // Input: after global placement. Output: low density distribution result with overlap.

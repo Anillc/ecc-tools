@@ -45,6 +45,7 @@ class PLAPI
 
   void initAPI(std::string pl_json_path, idb::IdbBuilder* idb_builder);
   void runFlow();
+  void runAiFlow(const std::string& onnx_path, const std::string& normalization_path);
   void runIncrementalFlow();
   void insertLayoutFiller();
 
@@ -57,6 +58,9 @@ class PLAPI
   bool runIncrLG(std::vector<std::string> inst_name_list);
   void runPostGP();
   void runDP();
+#ifdef ENABLE_AI
+  void runDPwithAiWireLengthPredictor(const std::string& onnx_path, const std::string& normalization_path);
+#endif
   void runBufferInsertion();
   void writeBackSourceDataBase();
 

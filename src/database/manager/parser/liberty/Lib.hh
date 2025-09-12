@@ -392,6 +392,7 @@ class LibDelayTableModel final : public LibTableModel
   }
 
   LibTable* getTable(int index) override { return _tables[index].get(); }
+  auto& get_tables() { return _tables; }
 
   unsigned addCurrentTable(std::unique_ptr<LibCCSTable>&& table)
   {
@@ -476,6 +477,7 @@ class LibPowerTableModel final : public LibTableModel
   LibTable* getTable(int index) override { return _tables[index].get(); }
 
   double gatePower(TransType trans_type, double slew, std::optional<double> load) override;
+  auto& get_tables() { return _tables; }
 
  private:
   std::array<std::unique_ptr<LibTable>, kTableNum> _tables;  // power table,include rise power/fall power.
@@ -843,6 +845,8 @@ class LibArc : public LibObject
 
   unsigned isNegativeArc() { return _timing_sense == TimingSense::kNegativeUnate; }
 
+  unsigned isNonUnateArc() { return _timing_sense == TimingSense::kNonUnate;}
+
   unsigned isSetupArc() { return (_timing_type == TimingType::kSetupRising) || (_timing_type == TimingType::kSetupFalling); }
 
   unsigned isHoldArc() { return (_timing_type == TimingType::kHoldRising) || (_timing_type == TimingType::kHoldFalling); }
@@ -915,7 +919,14 @@ class LibArcSet
   LibArc* front() { return _arcs.front().get(); }
   auto& get_arcs() { return _arcs; }
 
-  std::vector<double> getDelayOrConstrainCheckNs(TransType trans_type, double slew, double load_or_constrain_slew);
+  std::vector<double> getDelayOrConstrainCheckNs(TransType input_trans_type, TransType output_trans_type, double slew, double load_or_constrain_slew);
+  std::vector<double> getSlewNs(TransType input_trans_type, TransType output_trans_type, double slew, double load);
+  bool isMatchTimingType(TransType trans_type);
+
+  unsigned isPositiveArc();
+  unsigned isNegativeArc();
+  unsigned isUnateArc();
+  unsigned isTwoTypeSenseArcSet();
 
  private:
   Vector<std::unique_ptr<LibArc>> _arcs;

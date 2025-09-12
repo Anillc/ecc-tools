@@ -29,12 +29,15 @@ class VectorizationApi
 
   bool buildVectorizationLayoutData(const std::string path);
   bool buildVectorizationGraphData(const std::string path);
-  bool buildVectorizationFeature(const std::string dir, int patch_row_step, int patch_col_step);
+  bool buildVectorizationFeature(const std::string dir, int patch_row_step, int patch_col_step, bool batch_mode = true);
 
   // run the vectorization sta for get timing data.
   bool runVecSTA(const std::string dir = "VEC_STA");
 
   std::map<int, VecNet> getGraph(std::string path = "");
+
+  bool readVectorsNets(std::string nets_dir);
+  bool readVectorsNetsPatterns(std::string path);
 
  private:
 };

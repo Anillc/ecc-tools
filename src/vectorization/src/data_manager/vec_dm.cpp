@@ -78,10 +78,22 @@ std::map<int, VecNet> VecDataManager::getGraph(std::string path)
   return layout_dm.get_graph();
 }
 
-void VecDataManager::saveData(const std::string dir)
+void VecDataManager::saveData(const std::string dir, bool batch_mode)
 {
   VecLayoutFileIO file_io(dir, &layout_dm.get_layout(), &patch_dm->get_patch_grid());
-  file_io.saveJson();
+  file_io.saveJson(batch_mode);
+}
+
+bool VecDataManager::readNetsToIDB(std::string dir)
+{
+  VecLayoutFileIO file_io(dir, &layout_dm.get_layout());
+  return file_io.readJsonNets();
+}
+
+bool VecDataManager::readNetsPatternToIDB(std::string path)
+{
+  VecLayoutFileIO file_io(path, &layout_dm.get_layout());
+  return file_io.readJsonNetsPattern();
 }
 
 }  // namespace ivec
