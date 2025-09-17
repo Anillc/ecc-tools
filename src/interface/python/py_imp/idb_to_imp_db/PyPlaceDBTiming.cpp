@@ -440,6 +440,17 @@ void PyPlaceDB::init_lut_table_unified(pybind11::list& flat_luts_values, pybind1
   // 根据表格类型确定轴的含义和顺序
   int AXIS1, AXIS2;
   int num_axis1, num_axis2;
+  if (table->get_table_values().size() == 1) {
+    // scalar constraint table
+    luts_dim.append(1);
+    luts_dim.append(1);
+    luts_values.append(table->get_table_values().at(0)->getFloatValue() * time_coeff);
+    flat_luts_values.append(luts_values);
+    flat_luts_axis1_table.append(luts_axis1_table);
+    flat_luts_axis2_table.append(luts_axis2_table);
+    flat_luts_dim.append(luts_dim);
+    return;
+  }
   if (axes.size() == 1) {
     // 维度信息
     assert(!is_constraint_table);

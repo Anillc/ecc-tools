@@ -121,20 +121,29 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
     int clk_pin_id = 0;
     auto timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
     auto ista = timing_engine->get_ista();
+    std::map<std::string, std::string> is_ff_map;
     for (IdbInstance* node : db_deisgn->get_instance_list()->get_instance_list()) {
       std::string inst_name = node->get_name();
-      for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
-        std::string pin_name = pin->get_term_name();
-        if (pin->get_term()->is_pdn() || pin->get_term()->is_power() || pin->get_term()->is_ground()) {
-          continue;
+      string cell_type = node->get_cell_master()->get_name();
+      auto lib_cell = ista->findLibertyCell(cell_type.c_str());
+      string clock_pin_name;
+      if (is_ff_map.count(cell_type) > 0) {
+        clock_pin_name = is_ff_map[cell_type];
+      } else {
+        string pin_name = "-1";
+        for (auto& port : lib_cell->get_cell_ports()) {
+          if (port->isClock()) {
+            pin_name = port->get_port_name();
+            break;
+          }
         }
-        std::string full_pin_name = inst_name + ":" + pin_name;     //: or /
-        auto pin_vertex = ista->findVertex(full_pin_name.c_str());  // ensure the pin is in the sta graph
-        if (!pin_vertex || !pin_vertex->is_clock()) {
-          continue;
-        }
-        mClkPin2ID[inst_name + pin->get_pin_name()] = clk_pin_id++;
+        is_ff_map[cell_type] = pin_name;
+        clock_pin_name = pin_name;
       }
+      if (clock_pin_name == "-1") {
+        continue;
+      }
+      mClkPin2ID[inst_name + clock_pin_name] = clk_pin_id++;
     }
   }
   // add a node to a bin
