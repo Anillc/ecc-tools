@@ -613,23 +613,21 @@ StaDumpGraphJson::json StaDumpGraphJson::dumpEdges(StaGraph* the_graph) {
   auto& the_arcs = the_graph->get_arcs();
   for (auto& the_arc : the_arcs) {
     if (the_arc->isDelayArc()) {
-    int src_id = vertex_id_map[the_arc->get_src()];
-    int snk_id = vertex_id_map[the_arc->get_snk()];
+      int src_id = vertex_id_map[the_arc->get_src()];
+      int snk_id = vertex_id_map[the_arc->get_snk()];
 
-    if (the_arc->isInstArc() && the_arc->isDelayArc()) {
-      edges["cell_out"]["src"].push_back(src_id);
-      edges["cell_out"]["dst"].push_back(snk_id);
-    } else if (the_arc->isNetArc()) {
-      edges["net_out"]["src"].push_back(src_id);
-      edges["net_out"]["dst"].push_back(snk_id);
+      if (the_arc->isInstArc() && the_arc->isDelayArc()) {
+        edges["cell_out"]["src"].push_back(src_id);
+        edges["cell_out"]["dst"].push_back(snk_id);
+      } else if (the_arc->isNetArc()) {
+        edges["net_out"]["src"].push_back(src_id);
+        edges["net_out"]["dst"].push_back(snk_id);
 
-      // reverse direction for net out
-      edges["net_in"]["src"].push_back(snk_id);
-      edges["net_in"]["dst"].push_back(src_id);
+        // reverse direction for net out
+        edges["net_in"]["src"].push_back(snk_id);
+        edges["net_in"]["dst"].push_back(src_id);
+      }
     }
-
-    }
-
   }
   return edges;
 }
@@ -689,6 +687,14 @@ StaDumpGraphJson::json StaDumpGraphJson::dumpNodeNetDelay(StaGraph* the_graph) {
     std::string obj_name = the_obj->getFullName();
     auto* the_net = the_obj->get_net();
     auto* rc_net = getSta()->getRcNet(the_net);
+    if (rc_net == nullptr) {
+      one_vertex_net_delay_array.push_back(0.0);
+      one_vertex_net_delay_array.push_back(0.0);
+      one_vertex_net_delay_array.push_back(0.0);
+      one_vertex_net_delay_array.push_back(0.0);
+      all_vertex_node_net_delay_array.push_back(one_vertex_net_delay_array);
+      continue;
+    }
     auto* rc_tree = rc_net->rct();
 
     double max_rise_delay = 0.0;
