@@ -34,6 +34,9 @@ void register_imp(pybind11::module& m)
 
   pybind11::class_<PyPlaceDB>(m, "PyPlaceDB")
       .def(pybind11::init<>())
+      /*----------functions ---------*/
+      .def("getCongestionMap", &PyPlaceDB::getCongestionMap)
+      /*----------end  functions ---------*/
       .def_readwrite("num_nodes", &PyPlaceDB::num_nodes)
       .def_readwrite("num_terminals", &PyPlaceDB::num_terminals)
       .def_readwrite("num_terminal_NIs", &PyPlaceDB::num_terminal_NIs)
@@ -145,7 +148,12 @@ void register_imp(pybind11::module& m)
       .def_readwrite("endpoints_fRAT", &PyPlaceDB::endpoints_fRAT);
 
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
-  m.def("pydb", [](idm::DataManager* db, bool with_sta) { return PyPlaceDB(db, with_sta); }, "Convert PlaceDB to PyPlaceDB");
+  m.def(
+      "pydb",
+      [](idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta) {
+        return PyPlaceDB(db, numRoutingGridsX, numRoutingGridsY, with_routability, with_sta);
+      },
+      "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
   // m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
   // m.def("runRef", runRef, py::arg("output_tcl") = "");

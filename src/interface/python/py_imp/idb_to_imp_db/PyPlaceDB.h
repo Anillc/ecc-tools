@@ -211,13 +211,17 @@ struct PyPlaceDB
 
   PyPlaceDB() {}
 
-  PyPlaceDB(idm::DataManager* db, bool with_sta) { set(db, with_sta); }
+  PyPlaceDB(idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta)
+  {
+    set(db, numRoutingGridsX, numRoutingGridsY, with_routability, with_sta);
+  }
 
-  void set(idm::DataManager* db, bool with_sta);
+  void set(idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta);
   void set_sta();
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
   void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::unordered_map<std::string, int>& mClkPin2ID,
                    std::map<std::string, index_type>& mNodeName2ID, std::vector<IdbInstance*>& inst_resort_list, int ext_blockage_num);
+  void getCongestionMap();
 
  private:
   // 统一的LUT表格初始化函数

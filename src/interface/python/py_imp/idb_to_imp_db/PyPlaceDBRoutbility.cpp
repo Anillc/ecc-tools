@@ -1,5 +1,3 @@
-
-
 #include "PyPlaceDB.h"
 // #include "ContestDriver.h"
 #include <algorithm>
@@ -35,6 +33,8 @@
 #include <boost/polygon/polygon.hpp>
 #include <vector>
 
+#include "congestion_api.h"
+
 namespace python_interface {
 
 std::string IdbOrientToString(IdbOrient orient)
@@ -69,8 +69,6 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
 {
   // routebilty driven placement
   // routing information initialized
-  num_routing_grids_x = 0;
-  num_routing_grids_y = 0;
   routing_grid_xl = xl;
   routing_grid_yl = yl;
   routing_grid_xh = xh;
@@ -80,8 +78,7 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
   // double tarck_width = db->get_idb_layout()->get_track_grid_list()->get_track_grid_list()[0]->get_track()->get_width();
 
   // congestion map opt
-  num_routing_grids_x = 256;
-  num_routing_grids_y = 256;
+
   double routing_grids_size_x = std::round((routing_grid_xh - routing_grid_xl) / num_routing_grids_x);
   double routing_grids_size_y = std::round((routing_grid_yh - routing_grid_yl) / num_routing_grids_y);
   num_routing_grids_x = std::floor((routing_grid_xh - routing_grid_xl) / routing_grids_size_x);
@@ -253,6 +250,28 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
   }
   for (auto item : initial_vertical_routing_map) {
     initial_vertical_demand_map.append(item);
+  }
+}
+
+void PyPlaceDB::getCongestionMap()
+{
+  std::map<std::string, std::vector<std::vector<int>>> result = CONGESTION_API_INST->getEGRMap(true);
+  for (auto const& [key, val] : result) {
+    int old_size_x = val.size();
+    int old_size_y = val[0].size();
+    int new_size_x = num_routing_grids_x;
+    int new_size_y = num_routing_grids_y;
+    double ratio_x = static_cast<double>(old_size_x) / new_size_x;
+    double ratio_y = static_cast<double>(old_size_y) / new_size_y;
+    std::vector<std::vector<int>> new_val(new_size_x, std::vector<int>(new_size_y, 0));
+    for (int i = 0; i < new_size_x; i++) {
+      for (int j = 0; j < new_size_y; j++) {
+        int old_x = static_cast<int>(i * ratio_x);
+        int old_y = static_cast<int>(j * ratio_y);
+        new_val[i][j] = val[old_x][old_y];
+      }
+    }
+    result[key] = new_val;
   }
 }
 }  // namespace python_interface

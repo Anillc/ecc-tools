@@ -39,11 +39,12 @@
 
 namespace python_interface {
 
-void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
+void PyPlaceDB::set(idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta)
 {
   printf("PyPlaceDB::set start!!! Db address is %p\n", db);
   printf("PyPlaceDB::set start!!! idb_design address is %p\n", db->get_idb_design());
-
+  num_routing_grids_x = numRoutingGridsX;
+  num_routing_grids_y = numRoutingGridsY;
   using namespace idb;
   namespace gtl = boost::polygon;
   using namespace gtl::operators;
