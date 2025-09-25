@@ -68,4 +68,5 @@ void register_idb_op(pybind11::module& m)
 
   // m.def("write_placement_back", &write_placement_back, "A function which returns a DataManager instance");
 }
+
 }  // namespace python_interface

@@ -201,6 +201,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   };
 #endif
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
+  PolygonSet fixed_node_ps;
   for (int i = 0; i < inst_num; ++i) {
     IdbInstance* node = inst_resort_list.at(i);
     if (node->get_cell_master()->is_block()) {
@@ -250,60 +251,87 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
       num_terminals += 1;
       // compute upper bound of total fixed cell area
       total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
+
+      fixed_node_ps += gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
     }
   }
 
-  // blockage
-  int ext_blockage_num = 0;
+  PolygonSet blockage_ps_list;
+  // def blockage list
   for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
     if (!blockage->is_palcement_blockage()) {
       continue;
     }
-
     IdbPlacementBlockage* placement_blockage = dynamic_cast<IdbPlacementBlockage*>(blockage);
-
-    // add obstruction boxes for fixed nodes
-    // initialize node shapes from obstruction
-    // I do not differentiate obstruction boxes at different layers
-    // At least, this is true for DAC/ICCAD 2012 benchmarks
-
-    // put all boxes into a polygon set to remove overlaps
-    // this can make the placement engine more robust
     PolygonSet ps;
     for (auto rect : blockage->get_rect_list()) {
       // convert to absolute box
       Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
       ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
     }
-    for (unsigned int i = 0; i < inst_num; ++i) {
-      IdbInstance* node = inst_resort_list.at(i);
-      // Macro const& macro = db.macro(db.macroId(node));
-      if (node->get_status() == IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
-        Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-                    node->get_bounding_box()->get_high_y());
-        ps -= gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
+    blockage_ps_list += ps;
+  }
+  auto core = db->get_idb_layout()->get_core();
+  row_height = db->get_idb_layout()->get_rows()->get_row_height();
+  auto second_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(1);
+  assert(second_routing_layer->get_name().find("2") != std::string::npos);
+  idb::IdbLayerRouting* second_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(second_routing_layer);
+// IO PIN external blockage
+#if 1
+  for (auto* special_net : db_deisgn->get_special_net_list()->get_net_list()) {
+    if (special_net->is_vdd() || special_net->is_vss()) {
+      int via_num = special_net->get_via_num();
+      for (auto segment : special_net->get_wire_list()->get_wire_list()) {
+        for (auto* seg : segment->get_segment_list()) {
+          if (seg->is_line()) {
+            auto layer = seg->get_layer();
+            PolygonSet ps;
+            if (layer->is_routing() && layer == second_idb_routing_layer) {
+              auto rect = seg->get_bounding_box();
+
+              // 获取原始边界框
+              int xl = core->get_bounding_box()->get_low_x();
+              int yl = core->get_bounding_box()->get_low_y();
+
+              coordinate_type orig_xl = rect->get_low_x();
+              coordinate_type orig_yl = rect->get_low_y();
+              coordinate_type orig_xh = rect->get_high_x();
+              coordinate_type orig_yh = rect->get_high_y();
+              // if (orig_yh - orig_yl > row_height * 2) {
+              //   printf("Via %s has too large height (%d), skip it\n", idb_via->get_name().c_str(), orig_yh - orig_yl);
+              // }
+              // // 计算包含该形状的行范围
+              // int start_row = (orig_yl - yl) / row_height;
+              // int end_row = (orig_yh - yl) / row_height;
+              // coordinate_type aligned_yl = yl + start_row * row_height;      // 起始行底部
+              // coordinate_type aligned_yh = yl + (end_row + 1) * row_height;  // 结束行顶部
+
+              Box box(orig_xl, orig_yl, orig_xh, orig_yh);
+              ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
+              blockage_ps_list += ps;
+            }
+          }
+        }
       }
     }
-    // Get unique boxes without overlap for each fixed cell
-    // However, there may still be overlapping between fixed cells.
-    // We cannot eliminate these because we want to keep the mapping from boxes to cells.
-    std::vector<gtl::rectangle_data<coordinate_type>> vRect;
-    ps.get_rectangles(vRect);
-    std::vector<Box> vBox;
-    vBox.reserve(vRect.size());
-    for (auto const& rect : vRect) {
-      vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
-      auto box = vBox.back();
-      int id = node_names.size();
-      string block_name = "blockage" + std::to_string(id);
-      printf("PyPlaceDB detect fixed blockage: %s\n", block_name.c_str());
-      addNode("R0", block_name, box, true);
-      // record original node to new node mapping
-      total_fixed_node_area += 1LL * box.area();
-    }
-    num_terminals += vBox.size();
-    ext_blockage_num += vBox.size();
   }
+#endif
+  blockage_ps_list -= fixed_node_ps;  // remove overlap with fixed cells
+  int ext_blockage_num = 0;
+
+  std::vector<gtl::rectangle_data<coordinate_type>> vRect;
+  blockage_ps_list.get_rectangles(vRect);
+  for (auto const& rect : vRect) {
+    Box box(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
+    int id = node_names.size();
+    string block_name = "blockage" + std::to_string(id);
+    printf("PyPlaceDB detect fixed blockage: %s, (%d, %d, %d, %d)\n", block_name.c_str(), box.xl, box.yl, box.xh, box.yh);
+    addNode("R0", block_name, box, true);
+    // record original node to new node mapping
+    total_fixed_node_area += 1LL * box.area();
+  }
+  num_terminals += vRect.size();
+  ext_blockage_num += vRect.size();
 
   // IO PINS
   for (auto io_pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
@@ -543,7 +571,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   for (std::vector<int>::const_iterator it = vNode2FenceRegion.begin(), ite = vNode2FenceRegion.end(); it != ite; ++it) {
     node2fence_region_map.append(*it);
   }
-  auto core = db->get_idb_layout()->get_core();
+  // auto core = db->get_idb_layout()->get_core();
   xl = core->get_bounding_box()->get_low_x();
   yl = core->get_bounding_box()->get_low_y();
   xh = core->get_bounding_box()->get_high_x();

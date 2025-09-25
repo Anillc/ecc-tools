@@ -126,6 +126,8 @@ target_link_libraries(ieda_py
         log
         py_imp
         py_vec
+        py_vec
+        py_ipnp
         -u_ZTVN3ipl21ElectricFieldGradientE
         -u_ZN3ipl8Nesterov17correctNextCoordiEiNS_5PointIiEE
         -u_ZN3ipl21ElectricFieldGradient17initElectro2DListEv
