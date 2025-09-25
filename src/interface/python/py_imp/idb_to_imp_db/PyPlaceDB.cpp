@@ -1155,41 +1155,40 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta)
   }
   auto core = db->get_idb_layout()->get_core();
   row_height = db->get_idb_layout()->get_rows()->get_row_height();
-  auto first_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(0);
-  idb::IdbLayerRouting* first_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(first_routing_layer);
-  // IO PIN external blockage
-  # if 0
+  auto second_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(1);
+  assert(second_routing_layer->get_name().find("2") != std::string::npos);
+  idb::IdbLayerRouting* second_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(second_routing_layer);
+// IO PIN external blockage
+#if 1
   for (auto* special_net : db_deisgn->get_special_net_list()->get_net_list()) {
     if (special_net->is_vdd() || special_net->is_vss()) {
       int via_num = special_net->get_via_num();
       for (auto segment : special_net->get_wire_list()->get_wire_list()) {
         for (auto* seg : segment->get_segment_list()) {
-          if (seg->is_via()) {
-            auto idb_via = seg->get_via();
+          if (seg->is_line()) {
+            auto layer = seg->get_layer();
             PolygonSet ps;
-            idb::IdbLayerShape idb_shape_bottom = idb_via->get_bottom_layer_shape();
-            auto layer = idb_shape_bottom.get_layer();
-            if (layer->is_routing() && layer == first_idb_routing_layer) {
-              auto rect = idb_shape_bottom.get_bounding_box();
+            if (layer->is_routing() && layer == second_idb_routing_layer) {
+              auto rect = seg->get_bounding_box();
 
               // 获取原始边界框
               int xl = core->get_bounding_box()->get_low_x();
               int yl = core->get_bounding_box()->get_low_y();
 
-              coordinate_type orig_xl = rect.get_low_x();
-              coordinate_type orig_yl = rect.get_low_y();
-              coordinate_type orig_xh = rect.get_high_x();
-              coordinate_type orig_yh = rect.get_high_y();
-              if(orig_yh - orig_yl > row_height * 2) {
-                printf("Via %s has too large height (%d), skip it\n", idb_via->get_name().c_str(), orig_yh - orig_yl);
-              }
-              // 计算包含该形状的行范围
-              int start_row = (orig_yl - yl) / row_height;
-              int end_row = (orig_yh - yl) / row_height;
-              coordinate_type aligned_yl = yl + start_row * row_height;      // 起始行底部
-              coordinate_type aligned_yh = yl + (end_row + 1) * row_height;  // 结束行顶部
+              coordinate_type orig_xl = rect->get_low_x();
+              coordinate_type orig_yl = rect->get_low_y();
+              coordinate_type orig_xh = rect->get_high_x();
+              coordinate_type orig_yh = rect->get_high_y();
+              // if (orig_yh - orig_yl > row_height * 2) {
+              //   printf("Via %s has too large height (%d), skip it\n", idb_via->get_name().c_str(), orig_yh - orig_yl);
+              // }
+              // // 计算包含该形状的行范围
+              // int start_row = (orig_yl - yl) / row_height;
+              // int end_row = (orig_yh - yl) / row_height;
+              // coordinate_type aligned_yl = yl + start_row * row_height;      // 起始行底部
+              // coordinate_type aligned_yh = yl + (end_row + 1) * row_height;  // 结束行顶部
 
-              Box box(orig_xl, aligned_yl, orig_xh, aligned_yh);
+              Box box(orig_xl, orig_yl, orig_xh, orig_yh);
               ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
               blockage_ps_list += ps;
             }
