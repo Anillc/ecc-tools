@@ -253,25 +253,66 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
   }
 }
 
-void PyPlaceDB::getCongestionMap()
+std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method)
 {
-  std::map<std::string, std::vector<std::vector<int>>> result = CONGESTION_API_INST->getEGRMap(true);
-  for (auto const& [key, val] : result) {
-    int old_size_x = val.size();
-    int old_size_y = val[0].size();
-    int new_size_x = num_routing_grids_x;
-    int new_size_y = num_routing_grids_y;
+  std::map<std::string, std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>>> result
+      = CONGESTION_API_INST->getAllEGRMap(true);
+  int new_size_x = num_routing_grids_x;
+  int new_size_y = num_routing_grids_y;
+  std::vector<std::vector<float>> result_map(new_size_x, std::vector<float>(new_size_y, 0));
+  std::vector<std::vector<int>> sum_supply_map(new_size_x, std::vector<int>(new_size_y, 0));
+  std::vector<std::vector<int>> sum_demand_map(new_size_x, std::vector<int>(new_size_y, 0));
+
+  for (auto const& [key, demand_supply_pair] : result) {
+    auto& demand_matrix = demand_supply_pair.first;
+    auto& supply_matrix = demand_supply_pair.second;
+    int old_size_x = supply_matrix.size();
+    int old_size_y = supply_matrix[0].size();
+    assert(num_routing_grids_x <= old_size_x);
+    assert(num_routing_grids_y <= old_size_y);
     double ratio_x = static_cast<double>(old_size_x) / new_size_x;
     double ratio_y = static_cast<double>(old_size_y) / new_size_y;
-    std::vector<std::vector<int>> new_val(new_size_x, std::vector<int>(new_size_y, 0));
+    // std::vector<std::vector<int>> new_val(new_size_x, std::vector<int>(new_size_y, 0));
     for (int i = 0; i < new_size_x; i++) {
       for (int j = 0; j < new_size_y; j++) {
         int old_x = static_cast<int>(i * ratio_x);
         int old_y = static_cast<int>(j * ratio_y);
-        new_val[i][j] = val[old_x][old_y];
+        old_x = std::min(old_x, old_size_x - 1);
+        old_y = std::min(old_y, old_size_y - 1);
+        if (method == "sum") {
+          sum_supply_map[i][j] += supply_matrix[old_x][old_y];
+          sum_demand_map[i][j] += demand_matrix[old_x][old_y];
+        } else if (method == "max") {
+          result_map[i][j] = std::max(result_map[i][j], 1.f * demand_matrix[old_x][old_y] / supply_matrix[old_x][old_y]);
+          // sum_demand_map[i][j] = std::max(sum_demand_map[i][j], demand_matrix[old_x][old_y]);
+        } else {
+          std::cerr << "Error: unsupported method " << method << ", use sum instead." << std::endl;
+          sum_supply_map[i][j] += supply_matrix[old_x][old_y];
+          sum_demand_map[i][j] += demand_matrix[old_x][old_y];
+        }
       }
     }
-    result[key] = new_val;
   }
+  for (int i = 0; i < new_size_x; i++) {
+    for (int j = 0; j < new_size_y; j++) {
+      if (method == "max") {
+        result_map[i][j] = std::max(result_map[i][j] - 1, 0.0f);  // cap max congestion to 5
+        continue;
+      }
+      int supply = sum_supply_map[i][j];
+      int demand = sum_demand_map[i][j];
+      double new_val = 0;
+      if (supply > 0) {
+        new_val = std::max(static_cast<double>(demand) / supply - 1, 0.0);
+      } else if (demand > 0) {
+        new_val = 5;  // inf overflow
+      } else {
+        new_val = 0;
+      }
+      result_map[i][j] = new_val;
+    }
+  }
+
+  return result_map;
 }
 }  // namespace python_interface
