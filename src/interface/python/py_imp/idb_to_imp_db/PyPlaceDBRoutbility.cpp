@@ -103,10 +103,10 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
       int track_pitch = static_cast<int32_t>(idb_track_grid->get_pitch());
       int track_num = track_grid->get_track_num();
       if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionX) {
-        unit_vertical_capacities.append(track_num / routing_grids_size_x);
+        unit_vertical_capacities.append(1. * track_num / routing_grids_size_x);
         // track_axis.get_x_grid_list().push_back(track_grid);
       } else if (idb_track_grid->get_direction() == idb::IdbTrackDirection::kDirectionY) {
-        unit_horizontal_capacities.append(track_num / routing_grids_size_y);
+        unit_horizontal_capacities.append(1. * track_num / routing_grids_size_y);
       }
     }
   }
