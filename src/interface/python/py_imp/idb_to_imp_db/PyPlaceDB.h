@@ -97,6 +97,8 @@ struct PyPlaceDB
   int routing_grid_yl;
   int routing_grid_xh;
   int routing_grid_yh;
+  int routing_grids_size_x;
+  int routing_grids_size_y;
   int dbu;                                       ///< database unit, used to convert coordinate to integer
   pybind11::list unit_horizontal_capacities;     ///< number of horizontal tracks of layers per unit distance
   pybind11::list unit_vertical_capacities;       /// number of vertical tracks of layers per unit distance

@@ -16,6 +16,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 
 #include "general_ops.h"
 #include "idm.h"
@@ -1692,7 +1693,7 @@ std::map<std::string, std::vector<std::vector<int>>> CongestionEval::getDemandSu
   return diff_map;
 }
 
-std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>> CongestionEval::getDemandSupplyMap(bool is_run_egr)
+std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> CongestionEval::getDemandSupplyMap(bool is_run_egr)
 {
   // 如果未指定目录，使用默认路径
   std::string congestion_dir = dmInst->get_config().get_output_path() + "/rt/rt_temp_directory";
@@ -1705,7 +1706,7 @@ std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>> CongestionE
 
   // 构造early_router和supply_analyzer的完整路径
   std::string demand_dir = congestion_dir + "/early_router";
-  std::string supply_dir = congestion_dir + "/supply_analyzer";
+  std::string supply_dir = congestion_dir + "/early_router";
 
   printf("demand_dir: %s\nsupply_dir: %s\n", demand_dir.c_str(), supply_dir.c_str());
 
@@ -1786,7 +1787,32 @@ std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>> CongestionE
     }
   }
 
-  return result_map;
+  // read gcell info
+  std::vector<GCellInfo> gcell_info_list;
+  string gcell_file_path  =  demand_dir + "/gcell.csv";
+  
+  std::ifstream file(gcell_file_path);
+  std::string line;  
+  while (std::getline(file, line)) {
+    std::vector<int> row;
+    std::istringstream iss(line);
+    std::string value;
+    while (std::getline(iss, value, ',')) {
+      row.push_back(std::stod(value));
+    }
+    GCellInfo gcell_info;
+    gcell_info.grid_x = row[0];
+    gcell_info.grid_y = row[1];
+    
+    gcell_info.lx = row[2];
+    gcell_info.ly = row[3];
+    gcell_info.ux = row[4];
+    gcell_info.uy = row[5];
+
+    gcell_info_list.push_back(gcell_info);
+  }
+
+  return std::make_tuple(result_map, gcell_info_list);
 }
 
 std::map<int, double> CongestionEval::patchRUDYCongestion(CongestionNets nets,

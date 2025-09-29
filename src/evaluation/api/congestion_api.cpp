@@ -308,7 +308,7 @@ std::map<std::string, std::vector<std::vector<int>>> CongestionAPI::getEGRMap(bo
   return EVAL_CONGESTION_INST->getDemandSupplyDiffMap(is_run_egr);
 }
 
-std::map<std::string, std::pair< std::vector<std::vector<int>>,std::vector<std::vector<int>>>> CongestionAPI::getAllEGRMap(bool is_run_egr)
+std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> CongestionAPI::getAllEGRMap(bool is_run_egr)
 {
   return EVAL_CONGESTION_INST->getDemandSupplyMap(is_run_egr);
 }

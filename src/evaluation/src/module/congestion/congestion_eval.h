@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include "congestion_db.h"
+#include "congestion_api.h"
 
 namespace ieval {
 
@@ -22,7 +23,6 @@ struct NetMetadata
   int32_t lx, ly, ux, uy;     // 预计算的net边界框
   double hor_rudy, ver_rudy;  // 预计算的RUDY因子
 };
-typedef std::vector<std::vector<int>> CongestionMatrix;
 
 class CongestionEval
 {
@@ -103,7 +103,7 @@ class CongestionEval
 
   std::map<std::string, std::vector<std::vector<int>>> getEGRMap(bool is_run_egr = true);
   std::map<std::string, std::vector<std::vector<int>>> getDemandSupplyDiffMap(bool is_run_egr = true);
-  std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>> getDemandSupplyMap(bool is_run_egr);
+  std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> getDemandSupplyMap(bool is_run_egr);
   std::map<int, double> patchRUDYCongestion(CongestionNets nets,
                                             std::map<int, std::pair<std::pair<int, int>, std::pair<int, int>>> patch_coords);
   std::map<int, double> patchEGRCongestion(std::map<int, std::pair<std::pair<int, int>, std::pair<int, int>>> patch_coords);

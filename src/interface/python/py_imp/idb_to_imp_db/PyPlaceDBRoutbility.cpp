@@ -4,10 +4,12 @@
 #include <boost/polygon/polygon.hpp>
 #include <cassert>
 #include <cfloat>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -79,10 +81,10 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
 
   // congestion map opt
 
-  double routing_grids_size_x = std::round((routing_grid_xh - routing_grid_xl) / num_routing_grids_x);
-  double routing_grids_size_y = std::round((routing_grid_yh - routing_grid_yl) / num_routing_grids_y);
-  num_routing_grids_x = std::floor((routing_grid_xh - routing_grid_xl) / routing_grids_size_x);
-  num_routing_grids_y = std::floor((routing_grid_yh - routing_grid_yl) / routing_grids_size_y);
+  routing_grids_size_x = std::ceil((routing_grid_xh - routing_grid_xl) / num_routing_grids_x);
+  routing_grids_size_y = std::ceil((routing_grid_yh - routing_grid_yl) / num_routing_grids_y);
+  // num_routing_grids_x = std::floor((routing_grid_xh - routing_grid_xl) / routing_grids_size_x);
+  // num_routing_grids_y = std::floor((routing_grid_yh - routing_grid_yl) / routing_grids_size_y);
   routing_grid_xh = routing_grid_xl + num_routing_grids_x * routing_grids_size_x;
   routing_grid_yh = routing_grid_yl + num_routing_grids_y * routing_grids_size_y;
 
@@ -255,46 +257,75 @@ void PyPlaceDB::init_routability(idm::DataManager* db, std::vector<IdbInstance*>
 
 std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method)
 {
-  std::map<std::string, std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>>> result
-      = CONGESTION_API_INST->getAllEGRMap(true);
+  auto result_tuple = CONGESTION_API_INST->getAllEGRMap(true);
   int new_size_x = num_routing_grids_x;
   int new_size_y = num_routing_grids_y;
-  std::vector<std::vector<float>> result_map(new_size_x, std::vector<float>(new_size_y, 0));
-  std::vector<std::vector<int>> sum_supply_map(new_size_x, std::vector<int>(new_size_y, 0));
-  std::vector<std::vector<int>> sum_demand_map(new_size_x, std::vector<int>(new_size_y, 0));
+  std::vector<std::vector<float>> result_map(new_size_y, std::vector<float>(new_size_x, 0));
+  std::vector<std::vector<int>> sum_supply_map(new_size_y, std::vector<int>(new_size_x, 0));
+  std::vector<std::vector<int>> sum_demand_map(new_size_y, std::vector<int>(new_size_x, 0));
 
-  for (auto const& [key, demand_supply_pair] : result) {
+  // std::vector<std::tuple<int, int, Box>> fixed_boxes;  // grid_x, grid_y, rect
+  auto demand_supply_map = std::get<0>(result_tuple);
+  auto gcell_info_list = std::get<1>(result_tuple);
+
+  for (auto const& [key, demand_supply_pair] : demand_supply_map) {
     auto& demand_matrix = demand_supply_pair.first;
     auto& supply_matrix = demand_supply_pair.second;
-    int old_size_x = supply_matrix.size();
-    int old_size_y = supply_matrix[0].size();
+    int old_size_y = supply_matrix.size();     // 行数 (Y-dim)
+    int old_size_x = supply_matrix[0].size();  // 列数 (X-dim)
     assert(num_routing_grids_x <= old_size_x);
     assert(num_routing_grids_y <= old_size_y);
-    double ratio_x = static_cast<double>(old_size_x) / new_size_x;
-    double ratio_y = static_cast<double>(old_size_y) / new_size_y;
+    std::vector<std::vector<float>> result_map_supply(new_size_y, std::vector<float>(new_size_x, 0));
+    std::vector<std::vector<float>> result_map_demand(new_size_y, std::vector<float>(new_size_x, 0));
     // std::vector<std::vector<int>> new_val(new_size_x, std::vector<int>(new_size_y, 0));
-    for (int i = 0; i < new_size_x; i++) {
-      for (int j = 0; j < new_size_y; j++) {
-        int old_x = static_cast<int>(i * ratio_x);
-        int old_y = static_cast<int>(j * ratio_y);
-        old_x = std::min(old_x, old_size_x - 1);
-        old_y = std::min(old_y, old_size_y - 1);
+    for (auto& gcell_info : gcell_info_list) {
+      if (gcell_info.lx < routing_grid_xl || gcell_info.ly < routing_grid_yl || gcell_info.ux > routing_grid_xh
+          || gcell_info.uy > routing_grid_yh) {
+        continue;
+      }
+      int py_grid_x_start = std::max(int((gcell_info.lx - routing_grid_xl) / routing_grids_size_x), 0);
+      int py_grid_y_start = std::max(int((gcell_info.ly - routing_grid_yl) / routing_grids_size_y), 0);
+      int py_grid_x_end = std::min(unsigned((gcell_info.ux - routing_grid_xl) / routing_grids_size_x) + 1, num_routing_grids_x);
+      int py_grid_y_end = std::min(unsigned((gcell_info.uy - routing_grid_yl) / routing_grids_size_y) + 1, num_routing_grids_y);
+      int old_x = gcell_info.grid_x;
+      int old_y = gcell_info.grid_y;
+      Box gcell_box(gcell_info.lx, gcell_info.ly, gcell_info.ux, gcell_info.uy);
+      for (int py_y = py_grid_y_start; py_y < py_grid_y_end; py_y++) {
+        for (int py_x = py_grid_x_start; py_x < py_grid_x_end; py_x++) {
+          double intersect_ratio
+              = intersectArea(gcell_box,
+                              Box(routing_grid_xl + py_x * routing_grids_size_x, routing_grid_yl + py_y * routing_grids_size_y,
+                                  routing_grid_xl + (py_x + 1) * routing_grids_size_x, routing_grid_yl + (py_y + 1) * routing_grids_size_y))
+                / gcell_box.area();
+          result_map_supply[py_y][py_x] += intersect_ratio * supply_matrix[old_y][old_x];
+          result_map_demand[py_y][py_x] += intersect_ratio * demand_matrix[old_y][old_x];
+          // supply_matrix[py_x][py_y] = 0;
+          // demand_matrix[py_x][py_y] = 0;
+        }
+      }
+    }
+
+    for (int i = 0; i < new_size_y; i++) {
+      for (int j = 0; j < new_size_x; j++) {
+        int supply_val = result_map_supply[i][j];
+        int demand_val = result_map_demand[i][j];
+
         if (method == "sum") {
-          sum_supply_map[i][j] += supply_matrix[old_x][old_y];
-          sum_demand_map[i][j] += demand_matrix[old_x][old_y];
+          sum_supply_map[i][j] += supply_val;
+          sum_demand_map[i][j] += demand_val;
         } else if (method == "max") {
-          result_map[i][j] = std::max(result_map[i][j], 1.f * demand_matrix[old_x][old_y] / supply_matrix[old_x][old_y]);
-          // sum_demand_map[i][j] = std::max(sum_demand_map[i][j], demand_matrix[old_x][old_y]);
+          result_map[i][j] = std::max(result_map[i][j], 1.f * demand_val / supply_val);
         } else {
           std::cerr << "Error: unsupported method " << method << ", use sum instead." << std::endl;
-          sum_supply_map[i][j] += supply_matrix[old_x][old_y];
-          sum_demand_map[i][j] += demand_matrix[old_x][old_y];
+          sum_supply_map[i][j] += supply_val;
+          sum_demand_map[i][j] += demand_val;
         }
       }
     }
   }
-  for (int i = 0; i < new_size_x; i++) {
-    for (int j = 0; j < new_size_y; j++) {
+
+  for (int i = 0; i < new_size_y; i++) {
+    for (int j = 0; j < new_size_x; j++) {
       if (method == "max") {
         result_map[i][j] = std::max(result_map[i][j] - 1, 0.0f);  // cap max congestion to 5
         continue;
