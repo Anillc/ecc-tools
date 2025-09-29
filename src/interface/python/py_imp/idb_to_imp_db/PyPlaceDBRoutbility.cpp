@@ -327,14 +327,14 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method)
   for (int i = 0; i < new_size_y; i++) {
     for (int j = 0; j < new_size_x; j++) {
       if (method == "max") {
-        result_map[i][j] = std::max(result_map[i][j] - 1, 0.0f);  // cap max congestion to 5
+        result_map[i][j] = std::max(result_map[i][j], 0.0f);  // cap max congestion to 5
         continue;
       }
       int supply = sum_supply_map[i][j];
       int demand = sum_demand_map[i][j];
       double new_val = 0;
       if (supply > 0) {
-        new_val = std::max(static_cast<double>(demand) / supply - 1, 0.0);
+        new_val = std::max(static_cast<double>(demand) / supply, 0.0);
       } else if (demand > 0) {
         new_val = 5;  // inf overflow
       } else {
