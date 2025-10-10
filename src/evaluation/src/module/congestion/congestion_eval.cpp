@@ -1715,9 +1715,9 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
   std::filesystem::path demand_path(demand_dir);
   for (const auto& entry : std::filesystem::directory_iterator(demand_path)) {
     std::string filename = entry.path().filename().string();
-    if (filename.find("demand_map_") == 0) {
-      // 提取层名 (AP, M1, M2等)
-      std::string layer_name = filename.substr(11, filename.length() - 15);
+    if (filename.find("net_map_") == 0) {
+      // extract layer name (net_map_ = 8 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(8, filename.length() - 8 - 4);
 
       // 读取文件内容
       std::ifstream file(entry.path());
@@ -1744,7 +1744,8 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
     std::string filename = entry.path().filename().string();
     if (filename.find("supply_map_") == 0) {
       // 提取层名 (AP, M1, M2等)
-      std::string layer_name = filename.substr(11, filename.length() - 15);
+      // extract layer name (supply_map_ = 11 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(11, filename.length() - 11 - 4);
 
       // 读取文件内容
       std::ifstream file(entry.path());
@@ -1784,7 +1785,7 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
 
   // read gcell info
   std::vector<GCellInfo> gcell_info_list;
-  string gcell_file_path  =  demand_dir + "/gcell.csv";
+  string gcell_file_path  =  demand_dir + "/gcell.info";
   
   std::ifstream file(gcell_file_path);
   std::string line;  
