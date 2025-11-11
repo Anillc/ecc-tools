@@ -509,6 +509,8 @@ void PyPlaceDB::set(idm::DataManager* db, int numRoutingGridsX, int numRoutingGr
       flat_net2pin_map.append(mPin2ID[driver_name]);
       pin_num = 1;  // include driving pin
     } else {
+      printf("Error: Net %s has no driver.\n", net->get_net_name().c_str());
+      exit(0);
       pin_num = 0;
     }
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
