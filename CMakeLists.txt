@@ -44,7 +44,7 @@ option(BUILD_GUI "Enable GUI components (default OFF)" OFF)
 option(USE_GPU "Enable GPU acceleration (default OFF)" OFF)
 option(COMPATIBILITY_MODE "Enable compatibility mode (disable aggressive optimizations)" OFF)
 
-set(PYTHON_EXECUTABLE /home/zhaoxueyan/anaconda3/envs/PlaceOPT/bin/python)
+
 set(BUILD_PYTHON ON)
 set(BUILD_STATIC_LIB OFF)
 set(COMPATIBILITY_MODE ON)
