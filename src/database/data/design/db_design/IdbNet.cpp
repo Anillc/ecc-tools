@@ -140,12 +140,13 @@ IdbPin* IdbNet::get_driving_pin()
   //   }
   //   }
 
-  // if (!_io_pin_list->get_pin_list().empty()) {
-  //   return _io_pin_list->get_pin_list().front();
-  // }
-  // if (!_instance_pin_list->get_pin_list().empty()) {
-  //   return _instance_pin_list->get_pin_list().front();
-  // }
+  // 临时修复，可能会有问题，zzs
+  if (!_io_pin_list->get_pin_list().empty()) {
+    return _io_pin_list->get_pin_list().front();
+  }
+  if (!_instance_pin_list->get_pin_list().empty()) {
+    return _instance_pin_list->get_pin_list().front();
+  }
 
   std::cout << "Error : No driver pin exist..." << std::endl;
   return nullptr;
