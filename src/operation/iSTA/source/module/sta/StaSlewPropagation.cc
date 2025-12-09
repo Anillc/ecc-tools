@@ -229,7 +229,7 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
                             slew_data);
 
         /*The non-unate arc or tco should split two.*/
-        if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() || src_vertex->is_clock()) {
+        if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc()) { // || src_vertex->is_clock()
           auto out_trans_type1 = flip_trans_type(trans_type);
 
           // fix the timing type not match the trans type, which would lead to
