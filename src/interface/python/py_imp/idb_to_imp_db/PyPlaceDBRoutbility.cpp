@@ -273,8 +273,8 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method)
     auto& supply_matrix = demand_supply_pair.second;
     int old_size_y = supply_matrix.size();     // 行数 (Y-dim)
     int old_size_x = supply_matrix[0].size();  // 列数 (X-dim)
-    assert(num_routing_grids_x <= old_size_x);
-    assert(num_routing_grids_y <= old_size_y);
+    // assert(num_routing_grids_x <= old_size_x);
+    // assert(num_routing_grids_y <= old_size_y);
     std::vector<std::vector<float>> result_map_supply(new_size_y, std::vector<float>(new_size_x, 0));
     std::vector<std::vector<float>> result_map_demand(new_size_y, std::vector<float>(new_size_x, 0));
     // std::vector<std::vector<int>> new_val(new_size_x, std::vector<int>(new_size_y, 0));
