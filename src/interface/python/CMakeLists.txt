@@ -54,3 +54,7 @@ target_link_libraries(ieda_py
     py_vec
     py_ipnp
 )
+
+set_target_properties(ieda_py PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
