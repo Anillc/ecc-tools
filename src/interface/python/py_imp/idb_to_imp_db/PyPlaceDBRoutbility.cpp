@@ -309,11 +309,15 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
       for (int j = 0; j < new_size_x; j++) {
         int supply_val = result_map_supply[i][j];
         int demand_val = result_map_demand[i][j];
-
+        assert(supply_val >= 0);
         if (method == "sum") {
           sum_supply_map[i][j] += supply_val;
           sum_demand_map[i][j] += demand_val;
         } else if (method == "max") {
+          if (supply_val == 0) {
+            result_map[i][j] = std::min(1 + demand_val / 2, 4);
+            continue;
+          }
           result_map[i][j] = std::max(result_map[i][j], 1.f * demand_val / supply_val);
         } else {
           std::cerr << "Error: unsupported method " << method << ", use sum instead." << std::endl;
