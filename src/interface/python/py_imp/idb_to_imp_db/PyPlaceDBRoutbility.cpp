@@ -271,8 +271,18 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
   for (auto const& [key, demand_supply_pair] : demand_supply_map) {
     auto& demand_matrix = demand_supply_pair.first;
     auto& supply_matrix = demand_supply_pair.second;
+
     int old_size_y = supply_matrix.size();     // 行数 (Y-dim)
     int old_size_x = supply_matrix[0].size();  // 列数 (X-dim)
+    int num_overflow = 0;
+    for (int i = 0; i < old_size_y; i++) {
+      for (int j = 0; j < old_size_x; j++) {
+        if (demand_matrix[i][j] > supply_matrix[i][j]) {
+          num_overflow++;
+        }
+      }
+    }
+    printf("Layer %s, Overflow num :%d / %d\n", key.c_str(), num_overflow, old_size_x * old_size_y);
     // assert(num_routing_grids_x <= old_size_x);
     // assert(num_routing_grids_y <= old_size_y);
     std::vector<std::vector<float>> result_map_supply(new_size_y, std::vector<float>(new_size_x, 0));
@@ -307,8 +317,8 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
 
     for (int i = 0; i < new_size_y; i++) {
       for (int j = 0; j < new_size_x; j++) {
-        int supply_val = result_map_supply[i][j];
-        int demand_val = result_map_demand[i][j];
+        float supply_val = result_map_supply[i][j];
+        float demand_val = result_map_demand[i][j];
         assert(supply_val >= 0);
         if (method == "sum") {
           sum_supply_map[i][j] += supply_val;
