@@ -315,7 +315,8 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
           sum_demand_map[i][j] += demand_val;
         } else if (method == "max") {
           if (supply_val == 0) {
-            result_map[i][j] = std::min(1 + demand_val / 2, 4);
+            float tmp_val = std::min(1 + 1. * demand_val / 2, 4.0);
+            result_map[i][j] = std::max(result_map[i][j], 1.f * tmp_val);
             continue;
           }
           result_map[i][j] = std::max(result_map[i][j], 1.f * demand_val / supply_val);
