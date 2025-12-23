@@ -265,19 +265,19 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
   std::vector<std::vector<int>> sum_demand_map(new_size_y, std::vector<int>(new_size_x, 0));
 
   // std::vector<std::tuple<int, int, Box>> fixed_boxes;  // grid_x, grid_y, rect
-  auto demand_supply_map = std::get<0>(result_tuple);
+  auto overflow_supply_map = std::get<0>(result_tuple);
   auto gcell_info_list = std::get<1>(result_tuple);
 
-  for (auto const& [key, demand_supply_pair] : demand_supply_map) {
-    auto& demand_matrix = demand_supply_pair.first;
-    auto& supply_matrix = demand_supply_pair.second;
+  for (auto const& [key, overflow_supply_pair] : overflow_supply_map) {
+    auto& overflow_matrix = overflow_supply_pair.first;
+    auto& supply_matrix = overflow_supply_pair.second;
 
     int old_size_y = supply_matrix.size();     // 行数 (Y-dim)
     int old_size_x = supply_matrix[0].size();  // 列数 (X-dim)
     int num_overflow = 0;
     for (int i = 0; i < old_size_y; i++) {
       for (int j = 0; j < old_size_x; j++) {
-        if (demand_matrix[i][j] > supply_matrix[i][j]) {
+        if (overflow_matrix[i][j] > 0) {
           num_overflow++;
         }
       }
@@ -308,9 +308,9 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
                                   routing_grid_xl + (py_x + 1) * routing_grids_size_x, routing_grid_yl + (py_y + 1) * routing_grids_size_y))
                 / gcell_box.area();
           result_map_supply[py_y][py_x] += intersect_ratio * supply_matrix[old_y][old_x];
-          result_map_demand[py_y][py_x] += intersect_ratio * demand_matrix[old_y][old_x];
+          result_map_demand[py_y][py_x] += intersect_ratio * (overflow_matrix[old_y][old_x]+ supply_matrix[old_y][old_x]);
           // supply_matrix[py_x][py_y] = 0;
-          // demand_matrix[py_x][py_y] = 0;
+          // overflow_matrix[py_x][py_y] = 0;
         }
       }
     }

@@ -1690,7 +1690,7 @@ std::map<std::string, std::vector<std::vector<int>>> CongestionEval::getDemandSu
   return diff_map;
 }
 
-std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> CongestionEval::getDemandSupplyMap(bool is_run_egr, std::string stage, std::string resolve_congestion)
+std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> CongestionEval::getOverflowSupplyMap(bool is_run_egr, std::string stage, std::string resolve_congestion)
 {
   // 如果未指定目录，使用默认路径
   std::string congestion_dir = dmInst->get_config().get_output_path() + "/rt/rt_temp_directory";
@@ -1713,11 +1713,11 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
   std::map<std::string, std::vector<std::vector<int>>> demand_matrices;
   std::map<std::string, std::vector<std::vector<int>>> supply_matrices;
 
-  // 读取demand矩阵
+  // 读取overflow矩阵
   std::filesystem::path demand_path(demand_dir);
   for (const auto& entry : std::filesystem::directory_iterator(demand_path)) {
     std::string filename = entry.path().filename().string();
-    if (filename.find("net_map_") == 0) {
+    if (filename.find("overflow_map_") == 0) {
       // extract layer name (net_map_ = 8 chars, .csv = 4 chars)
       std::string layer_name = filename.substr(8, filename.length() - 8 - 4);
 
