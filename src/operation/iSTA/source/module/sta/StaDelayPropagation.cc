@@ -271,7 +271,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
           // DEBUG
           construct_delay_data(analysis_mode, out_trans_type, the_arc, delay);
           /*The unate arc should split two.*/
-          if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() || src_vertex->is_clock()) {
+          if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc()) { // || src_vertex->is_clock()
             auto out_trans_type1 = flip_trans_type(trans_type);
 
             // fix the timing type not match the trans type, which would lead to
