@@ -1,7 +1,7 @@
-if(NOT DEFINED CMD_BUILD)
-    # set(CMAKE_BUILD_TYPE "Release")
-    set(CMAKE_BUILD_TYPE "Debug")
-endif()
+# if(NOT DEFINED CMD_BUILD)
+#     # set(CMAKE_BUILD_TYPE "Release")
+#     set(CMAKE_BUILD_TYPE "Debug")
+# endif()
 
 # Congestion Evaluation APP
 add_executable(congestion_app
