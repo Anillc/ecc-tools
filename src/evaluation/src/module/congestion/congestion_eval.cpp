@@ -1718,8 +1718,8 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
   for (const auto& entry : std::filesystem::directory_iterator(demand_path)) {
     std::string filename = entry.path().filename().string();
     if (filename.find("overflow_map_") == 0) {
-      // extract layer name (net_map_ = 8 chars, .csv = 4 chars)
-      std::string layer_name = filename.substr(8, filename.length() - 8 - 4);
+      // extract layer name (overflow_map_ = 13 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(13, filename.length() - 13 - 4);
 
       // 读取文件内容
       std::ifstream file(entry.path());
