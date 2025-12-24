@@ -183,7 +183,7 @@ void RuleValidator::verifyRVModel(RVModel& rv_model)
 {
   Monitor monitor;
   DRCLOG.info(Loc::current(), "Starting...");
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
   for (RVCluster& rv_cluster : rv_model.get_rv_cluster_list()) {
     buildRVCluster(rv_cluster);
     if (needVerifying(rv_cluster)) {
