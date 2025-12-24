@@ -107,17 +107,18 @@ enum class IdbSiteClass : uint8_t
   kNone = 0,
   kCore,
   kPad,
-  kMax
-};
-
-enum class IdbSiteType : uint8_t
-{
-  kNone = 0,
-  kCore,
-  kPad,
   kCorner,
   kMax
 };
+
+// enum class IdbSiteType : uint8_t
+// {
+//   kNone = 0,
+//   kCore,
+//   kPad,
+//   kCorner,
+//   kMax
+// };
 
 enum class IdbSymmetry : uint8_t
 {
