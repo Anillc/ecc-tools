@@ -94,7 +94,6 @@ class RuleValidator
 #if 1  // debug
   void debugPlotRVModel(RVModel& rv_model, std::string flag);
   void debugPlotRVCluster(RVCluster& rv_cluster, std::string flag);
-  void debugOutputViolation(RVModel& rv_model);
 #endif
 };
 

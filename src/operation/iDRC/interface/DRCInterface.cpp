@@ -87,7 +87,8 @@ void DRCInterface::checkDef()
   }
   printSummary(type_violation_map);
   outputViolationJson(type_violation_map);
-  outputSummary(type_violation_map);
+  // outputViolationFile(type_violation_map);
+  outputTofeature(type_violation_map);
 }
 
 void DRCInterface::destroyDRC()
@@ -1187,7 +1188,47 @@ void DRCInterface::outputViolationJson(std::map<std::string, std::vector<ids::Vi
   DRCUTIL.closeFileStream(violation_json_file);
 }
 
-void DRCInterface::outputSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+void DRCInterface::outputViolationFile(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+{
+  Monitor monitor;
+  DRCLOG.info(Loc::current(), "Starting...");
+
+  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
+  std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
+  std::string& temp_directory_path = DRCDM.getConfig().temp_directory_path;
+
+  std::vector<idb::IdbNet*>& idb_net_list = dmInst->get_idb_def_service()->get_design()->get_net_list()->get_net_list();
+  for (auto& [type, violation_list] : type_violation_map) {
+    std::ofstream* violation_file = DRCUTIL.getOutputFileStream(DRCUTIL.getString(temp_directory_path, type, ".txt"));
+    for (ids::Violation& violation : violation_list) {
+      DRCUTIL.pushStream(violation_file, violation.ll_x, " ", violation.ll_y, " ", violation.ur_x, " ", violation.ur_y, " ");
+      if (violation.is_routing) {
+        DRCUTIL.pushStream(violation_file, routing_layer_list[violation.layer_idx].get_layer_name(), " ");
+      } else {
+        DRCUTIL.pushStream(violation_file, cut_layer_list[violation.layer_idx].get_layer_name(), " ");
+      }
+      DRCUTIL.pushStream(violation_file, violation.is_routing ? "true" : "false", " ");
+
+      DRCUTIL.pushStream(violation_file, "{ ");
+      for (int32_t net_idx : violation.violation_net_set) {
+        if (net_idx != -1) {
+          DRCUTIL.pushStream(violation_file, idb_net_list[net_idx]->get_net_name(), " ");
+        } else {
+          DRCUTIL.pushStream(violation_file, "-1", " ");
+        }
+      }
+      DRCUTIL.pushStream(violation_file, "}", " ");
+
+      DRCUTIL.pushStream(violation_file, violation.required_size, " ");
+      DRCUTIL.pushStream(violation_file, "\n");
+    }
+    DRCUTIL.closeFileStream(violation_file);
+  }
+
+  DRCLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
+}
+
+void DRCInterface::outputTofeature(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
 {
   std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
