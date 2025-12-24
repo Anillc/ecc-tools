@@ -274,15 +274,18 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
 
     int old_size_y = supply_matrix.size();     // 行数 (Y-dim)
     int old_size_x = supply_matrix[0].size();  // 列数 (X-dim)
-    int num_overflow = 0;
+    double sum_overflow = 0;
+    double sum_supply = 0;
     for (int i = 0; i < old_size_y; i++) {
       for (int j = 0; j < old_size_x; j++) {
+        sum_supply += supply_matrix[i][j];
         if (overflow_matrix[i][j] > 0) {
-          num_overflow++;
+          sum_overflow += overflow_matrix[i][j];
         }
       }
     }
-    printf("Layer %s, Overflow num :%d / %d\n", key.c_str(), num_overflow, old_size_x * old_size_y);
+    printf("Num gcell is %d\n", (int) gcell_info_list.size());
+    printf("Layer %s, Overflow :%f / %f\n", key.c_str(), sum_overflow, sum_supply);
     // assert(num_routing_grids_x <= old_size_x);
     // assert(num_routing_grids_y <= old_size_y);
     std::vector<std::vector<float>> result_map_supply(new_size_y, std::vector<float>(new_size_x, 0));
@@ -308,7 +311,8 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
                                   routing_grid_xl + (py_x + 1) * routing_grids_size_x, routing_grid_yl + (py_y + 1) * routing_grids_size_y))
                 / gcell_box.area();
           result_map_supply[py_y][py_x] += intersect_ratio * supply_matrix[old_y][old_x];
-          result_map_demand[py_y][py_x] += intersect_ratio * (overflow_matrix[old_y][old_x]+ supply_matrix[old_y][old_x]);
+          result_map_demand[py_y][py_x]
+              = std::max(result_map_demand[py_y][py_x], 1.f * (overflow_matrix[old_y][old_x] + supply_matrix[old_y][old_x]));
           // supply_matrix[py_x][py_y] = 0;
           // overflow_matrix[py_x][py_y] = 0;
         }
@@ -330,10 +334,10 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
           } else {
             result_map[i][j] = std::max(result_map[i][j], 1.f * demand_val / supply_val);
           }
-          if (result_map[i][j] > 5.0) {
-            result_map[i][j] = 5.0;
-            // printf("Warning: too large for congestion map\n");
-          }
+          // if (result_map[i][j] > 5.0) {
+          //   result_map[i][j] = 5.0;
+          //   // printf("Warning: too large for congestion map\n");
+          // }
         } else {
           std::cerr << "Error: unsupported method " << method << ", use sum instead." << std::endl;
           sum_supply_map[i][j] += supply_val;
