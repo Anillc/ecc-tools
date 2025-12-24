@@ -59,9 +59,9 @@ class IdbSite
   const int32_t get_height() const { return _heigtht; }
   const IdbOrient get_orient() { return _orient; }
 
-  bool is_core_site() { return _type == IdbSiteType::kCore ? true : false; }
-  bool is_pad_site() { return _type == IdbSiteType::kPad ? true : false; }
-  bool is_corner_site() { return _type == IdbSiteType::kCorner ? true : false; }
+  bool is_core_site() { return _site_class == IdbSiteClass::kCore ? true : false; }
+  bool is_pad_site() { return _site_class == IdbSiteClass::kPad ? true : false; }
+  bool is_corner_site() { return _site_class == IdbSiteClass::kCorner ? true : false; }
 
   IdbSite* clone();
 
@@ -76,9 +76,9 @@ class IdbSite
   void set_width(int32_t width) { _width = width; }
   void set_height(int32_t height) { _heigtht = height; }
 
-  void set_type_core() { _type = IdbSiteType::kCore; }
-  void set_type_pad() { _type = IdbSiteType::kPad; }
-  void set_type_corner() { _type = IdbSiteType::kCorner; }
+  void set_type_core() { _site_class = IdbSiteClass::kCore; }
+  void set_type_pad() { _site_class = IdbSiteClass::kPad; }
+  void set_type_corner() { _site_class = IdbSiteClass::kCorner; }
 
  private:
   string _name;
@@ -90,7 +90,7 @@ class IdbSite
   IdbSymmetry _symmetry;
   IdbOrient _orient;
 
-  IdbSiteType _type = IdbSiteType::kNone;
+  // IdbSiteType _type = IdbSiteType::kNone;
 
   // RowPattern预留
 };
