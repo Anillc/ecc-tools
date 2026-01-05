@@ -276,15 +276,17 @@ std::vector<std::vector<float>> PyPlaceDB::getCongestionMap(string method, strin
     int old_size_x = supply_matrix[0].size();  // 列数 (X-dim)
     double sum_overflow = 0;
     double sum_supply = 0;
+    int overflow_gcell_num = 0;
     for (int i = 0; i < old_size_y; i++) {
       for (int j = 0; j < old_size_x; j++) {
         sum_supply += supply_matrix[i][j];
         if (overflow_matrix[i][j] > 0) {
           sum_overflow += overflow_matrix[i][j];
+          overflow_gcell_num ++;
         }
       }
     }
-    printf("Num gcell is %d\n", (int) gcell_info_list.size());
+    printf("Num gcell is %d /%d \n", overflow_gcell_num, (int) gcell_info_list.size());
     printf("Layer %s, Overflow :%f / %f\n", key.c_str(), sum_overflow, sum_supply);
     // assert(num_routing_grids_x <= old_size_x);
     // assert(num_routing_grids_y <= old_size_y);
