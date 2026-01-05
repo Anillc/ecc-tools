@@ -61,7 +61,7 @@ class IdbSite
 
   bool is_core_site() { return _site_class == IdbSiteClass::kCore ? true : false; }
   bool is_pad_site() { return _site_class == IdbSiteClass::kPad ? true : false; }
-  bool is_corner_site() { return _site_class == IdbSiteClass::kCorner ? true : false; }
+  bool is_corner_site() { return _site_class == IdbSiteClass::kCorner || _width == _heigtht ? true : false; }
 
   IdbSite* clone();
 
@@ -111,23 +111,42 @@ class IdbSites
   // setter
   void set_io_site(IdbSite* site)
   {
-    site->set_type_pad();
     _io_site = site;
   }
   void set_corener_site(IdbSite* site)
   {
-    site->set_type_corner();
     _corner_site = site;
   }
   void set_core_site(IdbSite* site)
   {
-    site->set_type_core();
+
     _core_site = site;
   }
   void set_sites_number(uint32_t number) { _site_num = number; }
   IdbSite* add_site_list(IdbSite* site = nullptr);
   IdbSite* add_site_list(string site_name);
   void reset();
+  
+  bool is_core_site(string site_name){
+   if(_core_site != nullptr && _core_site->get_name() == site_name){
+     return true;
+   }
+    return false;
+  }
+
+  bool is_corner_site(string site_name){
+   if(_corner_site != nullptr && _corner_site->get_name() == site_name){
+     return true;
+   }
+    return false;
+  }
+
+  bool is_io_site(string site_name){
+   if(_io_site != nullptr && _io_site->get_name() == site_name){
+     return true;
+   }
+    return false;
+  }
 
  private:
   uint32_t _site_num;
