@@ -88,7 +88,11 @@ bool InitDesign::initCore(double core_lx, double core_ly, double core_ux, double
     auto orient = row % 2 == 0 ? idb::IdbOrient::kFS_MX : idb::IdbOrient::kN_R0;
 
     /// set original horizontal
-    dmInst->createRow(("ROW_" + std::to_string(row)), core_site_name, core_lx_int, index_y, orient, site_number, 1, site_dx, 0);
+    auto idb_row = dmInst->createRow(("ROW_" + std::to_string(row)), core_site_name, core_lx_int, index_y, orient, site_number, 1, site_dx, 0);
+      if (idb_row->get_site()->is_core_site() == false) {
+        std::cout << "crate row " << idb_row->get_name() << " " << idb_row->get_site()->get_name() << " is not core site!" << std::endl;
+        continue;
+      }
 
     index_y += site_dy;
   }
