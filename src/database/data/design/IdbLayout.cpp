@@ -34,6 +34,7 @@
 #include <limits.h>
 
 #include <algorithm>
+#include <cstdio>
 
 namespace idb {
 
@@ -112,7 +113,14 @@ IdbCore* IdbLayout::get_core()
     int32_t max_x = INT_MIN;
     int32_t max_y = INT_MIN;
     for (IdbRow* row : _rows->get_row_list()) {
+      if (row->get_site() != nullptr && row->get_site()->is_core_site() == false) {
+        std::cout << "Warning: row " << row->get_name() << " " << row->get_site()->get_name() << " site is not core site!" << std::endl;
+        continue;
+      }
       IdbRect* row_rect = row->get_bounding_box();
+      if (row_rect == nullptr) {
+        continue;
+      }
       min_x = std::min(min_x, row_rect->get_low_x());
       min_y = std::min(min_y, row_rect->get_low_y());
       max_x = std::max(max_x, row_rect->get_high_x());
