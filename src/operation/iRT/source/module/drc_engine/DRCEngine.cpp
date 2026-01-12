@@ -71,18 +71,6 @@ std::vector<Violation> DRCEngine::getViolationList(DETask& de_task)
   return de_task.get_violation_list();
 }
 
-void DRCEngine::addTempIgnoredViolation(std::vector<Violation>& violation_list)
-{
-  for (Violation& violation : violation_list) {
-    _temp_ignored_violation_set.insert(violation);
-  }
-}
-
-void DRCEngine::clearTempIgnoredViolationSet()
-{
-  _temp_ignored_violation_set.clear();
-}
-
 void DRCEngine::destroy()
 {
   Monitor monitor;
@@ -172,7 +160,7 @@ void DRCEngine::filterViolationList(DETask& de_task)
       // net不包含布线net的舍弃
       continue;
     }
-    if (RTUTIL.exist(_ignored_violation_set, violation) || RTUTIL.exist(_temp_ignored_violation_set, violation)) {
+    if (RTUTIL.exist(_ignored_violation_set, violation)) {
       // 自带的违例舍弃
       continue;
     }

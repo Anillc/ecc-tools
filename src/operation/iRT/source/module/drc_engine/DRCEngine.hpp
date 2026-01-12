@@ -35,15 +35,12 @@ class DRCEngine
   // function
   void init();
   std::vector<Violation> getViolationList(DETask& de_task);
-  void addTempIgnoredViolation(std::vector<Violation>& violation_list);
-  void clearTempIgnoredViolationSet();
   void destroy();
 
  private:
   // self
   static DRCEngine* _de_instance;
   std::set<Violation, CmpViolation> _ignored_violation_set;
-  std::set<Violation, CmpViolation> _temp_ignored_violation_set;
 
   DRCEngine() = default;
   DRCEngine(const DRCEngine& other) = delete;
