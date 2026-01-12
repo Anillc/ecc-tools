@@ -110,9 +110,9 @@ TGNet TopologyGenerator::convertToTGNet(Net& net)
 
 void TopologyGenerator::setTGComParam(TGModel& tg_model)
 {
-  int32_t topo_spilt_length = 10;
-  int32_t expand_step_num = 5;
-  int32_t expand_step_length = 2;
+  int32_t topo_spilt_length = 30;
+  int32_t expand_step_num = 30;
+  int32_t expand_step_length = 1;
   double prefer_wire_unit = 1;
   double non_prefer_wire_unit = 2.5 * prefer_wire_unit;
   double overflow_unit = 4 * non_prefer_wire_unit;
