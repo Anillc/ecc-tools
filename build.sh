@@ -375,7 +375,7 @@ opt_non_interactive()
 opt_build_aieda()
 {
   CMAKE_OPTIONS+=("-DBUILD_AIEDA=ON")
-  opt_build_target "ieda_py"
+  opt_build_target "ecc_py"
 }
 
 # invalid args

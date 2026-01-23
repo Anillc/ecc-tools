@@ -38,7 +38,7 @@
 
 namespace python_interface {
 
-PYBIND11_MODULE(ieda_py, m)
+PYBIND11_MODULE(ecc_py, m)
 {
   register_config(m);
   register_flow(m);

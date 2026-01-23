@@ -3,7 +3,7 @@
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 
 # DEFINE PYTHON MODULE & CMAKE TARGET
-pybind11_add_module(ieda_py)
+pybind11_add_module(ecc_py)
 
 add_subdirectory(py_idb)
 add_subdirectory(py_config)
@@ -30,9 +30,9 @@ add_subdirectory(py_ipnp)
 file(GLOB PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS *.cpp .h)
 
 # SET SOURCE FILES
-target_sources(ieda_py PUBLIC ${PYTHON_INTERFACE_SRC})
+target_sources(ecc_py PUBLIC ${PYTHON_INTERFACE_SRC})
 
-target_link_libraries(ieda_py
+target_link_libraries(ecc_py
     PRIVATE
     py_idb
     py_config
