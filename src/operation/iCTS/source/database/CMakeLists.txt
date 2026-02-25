@@ -1,0 +1,42 @@
+set(ICTS_DATABASE_CONFIG ${ICTS_DATABASE}/config)
+set(ICTS_DATABASE_DESIGN ${ICTS_DATABASE}/design)
+set(ICTS_DATABASE_IO ${ICTS_DATABASE}/io)
+set(ICTS_DATABASE_SPATIAL ${ICTS_DATABASE}/spatial)
+set(ICTS_DATABASE_CHARACTERIZATION ${ICTS_DATABASE}/characterization)
+
+# build
+add_subdirectory(${ICTS_DATABASE_CONFIG})
+add_subdirectory(${ICTS_DATABASE_DESIGN})
+add_subdirectory(${ICTS_DATABASE_IO})
+add_subdirectory(${ICTS_DATABASE_SPATIAL})
+add_subdirectory(${ICTS_DATABASE_CHARACTERIZATION})
+
+add_library(icts_source_database INTERFACE)
+
+target_link_libraries(
+  icts_source_database
+  INTERFACE
+  icts_source_database_config
+  icts_source_database_design
+  icts_source_database_io
+  icts_source_database_spatial
+  icts_source_database_characterization
+)
+
+target_include_directories(
+  icts_source_database
+  INTERFACE
+  ${ICTS_DATABASE_CONFIG}
+  ${ICTS_DATABASE_DESIGN}
+  ${ICTS_DATABASE_IO}
+  ${ICTS_DATABASE_SPATIAL}
+  ${ICTS_DATABASE_CHARACTERIZATION}
+)
+
+if(DEBUG_ICTS_SOURCE_DATABASE)
+  if(MSVC)
+    target_compile_options(icts_source_database INTERFACE /Zi /Od /Ob0)
+  else()
+    target_compile_options(icts_source_database INTERFACE -g3 -O0 -fno-inline -fno-omit-frame-pointer)
+  endif()
+endif()

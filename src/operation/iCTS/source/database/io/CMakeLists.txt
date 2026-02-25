@@ -1,0 +1,14 @@
+add_library(icts_source_database_io ${ICTS_DATABASE_IO}/Wrapper.cc)
+
+target_include_directories(icts_source_database_io PUBLIC ${ICTS_DATABASE_IO})
+
+target_link_libraries(icts_source_database_io PRIVATE idm icts_source_database_design)
+
+if(DEBUG_ICTS_SOURCE_DATABASE_IO)
+  if(MSVC)
+    target_compile_options(icts_source_database_io PRIVATE /Zi /Od /Ob0)
+    target_link_options(icts_source_database_io PRIVATE /DEBUG)
+  else()
+    target_compile_options(icts_source_database_io PRIVATE -g3 -O0 -fno-inline -fno-omit-frame-pointer)
+  endif()
+endif()

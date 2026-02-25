@@ -1,0 +1,17 @@
+add_library(icts_source_database_config ${ICTS_DATABASE_CONFIG}/Config.cc)
+
+target_include_directories(
+  icts_source_database_config
+  PUBLIC
+  ${ICTS_DATABASE_CONFIG}
+  ${HOME_THIRDPARTY}/json
+)
+
+if(DEBUG_ICTS_SOURCE_DATABASE_CONFIG)
+  if(MSVC)
+    target_compile_options(icts_source_database_config PRIVATE /Zi /Od /Ob0)
+    target_link_options(icts_source_database_config PRIVATE /DEBUG)
+  else()
+    target_compile_options(icts_source_database_config PRIVATE -g3 -O0 -fno-inline -fno-omit-frame-pointer)
+  endif()
+endif()
