@@ -1,12 +1,14 @@
 # Backend Development Guidelines
 
-> Best practices for backend development in this project.
+> Best practices for backend development in the iCTS module.
 
 ---
 
 ## Overview
 
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
+This directory contains guidelines for C++ backend development in `src/operation/iCTS/`. All guidelines are based on actual codebase patterns and conventions.
+
+**Before writing any code**, read `project-constraints.md` for mandatory constraints.
 
 ---
 
@@ -14,25 +16,51 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 | Guide | Description | Status |
 |-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Project Constraints](../project-constraints.md) | **MANDATORY** — Git read-only, file extensions, copyright, clang-format, clang-tidy, CMake workflow, terminology | Filled |
+| [Directory Structure](./directory-structure.md) | Three-tier architecture (api/source/test), module organization, CMake patterns | Filled |
+| [Database Guidelines](./database-guidelines.md) | Data model, singleton pattern, memory management, getter/setter conventions | Filled |
+| [Error Handling](./error-handling.md) | Logging-based error handling, no exceptions, severity patterns | Filled |
+| [Logging Guidelines](./logging-guidelines.md) | CTS_LOG_* macros, log levels, usage patterns | Filled |
+| [Quality Guidelines](./quality-guidelines.md) | clang-format, clang-tidy, naming conventions, forbidden patterns | Filled |
 
 ---
 
-## How to Fill These Guidelines
+## Quick Reference
 
-For each guideline file:
+### File Extensions
+- Headers: `.hh` (PascalCase)
+- Sources: `.cc` (PascalCase)
 
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
+### Naming Summary
+- Classes: `PascalCase` (e.g., `Clock`, `TopologyGen`)
+- Methods: `camelBack` (e.g., `runCTS()`)
+- Getters/Setters: `get_name()`, `set_name()`
+- Members: `_lower_case` (e.g., `_clock_name`)
+- Locals: `lower_case` (e.g., `clock_name`)
+- Enums: `enum class` with `kPrefix` values
+- Namespace: `icts`
 
-The goal is to help AI assistants and new team members understand how YOUR project works.
+### Singleton Macros
+- `CTSAPIInst` — Main API
+- `CTSDesignInst` — Design database
+- `CTSConfigInst` — Configuration
+- `CTSWrapperInst` — iDB adapter
+- `CTSLogInst` — Logger
+
+### Logging
+```cpp
+CTS_LOG_INFO << "message";       // Status
+CTS_LOG_WARNING << "message";    // Non-fatal
+CTS_LOG_ERROR << "message";      // Error
+CTS_LOG_FATAL << "message";      // Terminates
+```
+
+### CMake-First Workflow
+1. Update CMakeLists.txt
+2. Create placeholder header
+3. Compile to verify
+4. Then implement
 
 ---
 
-**Language**: All documentation should be written in **English**.
+**Language**: All documentation is written in **English**.
