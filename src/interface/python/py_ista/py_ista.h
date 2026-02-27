@@ -80,7 +80,6 @@ bool reportSta();
 
 std::vector<PathWireTimingData> getWireTimingData(unsigned n_worst_path_per_clock);
 
-bool reportTiming(int digits, const std::string& delay_type, std::set<std::string> exclude_cell_names, bool derate);
 void build_timing_graph();
 void update_clock_timing();
 void buildRcTreeFromFlatData(
@@ -108,6 +107,19 @@ void updateAndGetAllPinTimings(
   pybind11::list& net_timing_details // 结果将直接填充到这里
 );
 void convertDBToTimingNetlist();
+bool reportTiming(int digits, 
+  const std::string& delay_type, 
+  std::vector<std::string> exclude_cell_names, 
+  bool derate, 
+  bool is_clock_cap, 
+  bool is_not_bak_rpt, 
+  int max_path, 
+  int nworst, 
+  std::vector<std::string> from_list, 
+  std::vector<std::vector<std::string>> through, 
+  std::vector<std::string> to_list, 
+  bool is_json);
+
 std::vector<std::string> get_used_libs();
 
 }  // namespace python_interface

@@ -48,7 +48,19 @@ void register_ista(py::module& m)
   m.def("update_timing", updateTiming);
   m.def("report_sta", reportSta);
 
-  m.def("report_timing", reportTiming, py::arg("digits"), py::arg("delay_type"), py::arg("exclude_cell_names"), py::arg("derate"));
+  m.def("report_timing", reportTiming, 
+    py::arg("digits"), 
+    py::arg("delay_type"), 
+    py::arg("exclude_cell_names"), 
+    py::arg("derate"), 
+    py::arg("is_clock_cap"), 
+    py::arg("is_not_bak_rpt"),
+    py::arg("max_path"),
+    py::arg("nworst"),
+    py::arg("from_list"),
+    py::arg("through"),
+    py::arg("to_list"),
+    py::arg("is_json"));
 
   m.def("build_timing_graph", build_timing_graph);
   m.def("update_clock_timing", update_clock_timing);

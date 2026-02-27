@@ -216,12 +216,65 @@ std::vector<PathWireTimingData> getWireTimingData(unsigned n_worst_path_per_cloc
   return ret_timing_data;
 }
 
-bool reportTiming(int digits, const std::string& delay_type, std::set<std::string> exclude_cell_names, bool derate)
+bool reportTiming(int digits, 
+  const std::string& delay_type, 
+  std::vector<std::string> exclude_cell_names, 
+  bool derate, 
+  bool is_clock_cap, 
+  bool is_not_bak_rpt, 
+  int max_path, 
+  int nworst, 
+  std::vector<std::string> from_list, 
+  std::vector<std::vector<std::string>> through, 
+  std::vector<std::string> to_list, 
+  bool is_json)
 {
+  // Get Sta instance
   auto* ista = ista::Sta::getOrCreateSta();
+
+  // Set significant digits
+  ista->set_significant_digits(digits);
+
+  // Set analysis mode
+  if (!delay_type.empty()) {
+    if (delay_type == "max_min") {
+      ista->set_analysis_mode(ista::AnalysisMode::kMaxMin);
+    } else if (delay_type == "max") {
+      ista->set_analysis_mode(ista::AnalysisMode::kMax);
+    } else if (delay_type == "min") {
+      ista->set_analysis_mode(ista::AnalysisMode::kMin);
+    }
+  }
+
+  // Set max path per clock
+  ista->set_n_worst_path_per_clock(max_path);
+
+  // Set max path per endpoint
+  ista->set_n_worst_path_per_endpoint(nworst);
+
+  // Set report spec
+  ista->setReportSpec(std::move(from_list), std::move(through), std::move(to_list));
+
+  // Enable json report if needed
+  if (is_json) {
+    ista->enableJsonReport();
+  }
+
+  // Build graph
   ista->buildGraph();
+
+  // Update timing
   ista->updateTiming();
-  ista->reportTiming(std::move(exclude_cell_names), derate);
+
+  // Convert exclude_cell_names to set
+  std::set<std::string> exclude_cell_names_set;
+  for (const auto& exclude_cell_name : exclude_cell_names) {
+    exclude_cell_names_set.insert(exclude_cell_name);
+  }
+
+  // Report timing
+  ista->reportTiming(std::move(exclude_cell_names_set), derate, is_clock_cap, is_not_bak_rpt);
+
   return true;
 }
 

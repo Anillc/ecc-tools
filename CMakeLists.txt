@@ -17,6 +17,7 @@
 
 cmake_minimum_required(VERSION 3.11)
 project(iEDA)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -31,7 +32,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -Werror=return-typ
 #     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default: Release)" FORCE)
 # endif()
 
-if(DEFINED BUILD_AIEDA)
+if(DEFINED BUILD_ECOS)
     option(BUILD_STATIC_LIB "Build static library OFF" OFF)
     option(BUILD_PYTHON "Build Python bindings ON" ON)
 else()
