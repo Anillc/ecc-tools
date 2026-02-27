@@ -58,15 +58,15 @@ struct NullPruner
  * @brief Hash-Join concatenation of two tables.
  *
  * Performs Hash-Join with:
- * - Build phase: index downstream by build_key
- * - Probe phase: probe upstream against index using probe_key
+ * - Build phase: index downstream by buildKey
+ * - Probe phase: probe upstream against index using probeKey
  *
  * Complexity:
  * - Average: O(|U| + |D| + J) where J = number of matches
  * - Worst: O(|U| × |D|) if all keys collide
  *
  * @tparam CharT Characterization type (SegmentChar or HTreeTopologyChar)
- * @tparam Traits Traits class providing build_key, probe_key, compose
+ * @tparam Traits Traits class providing buildKey, probeKey, compose
  * @tparam CombinerT Pattern combiner type
  * @tparam PrunerT Pruner type (use NullPruner to disable)
  *
@@ -77,18 +77,18 @@ struct NullPruner
  * @param pruner Optional pruner (nullptr to disable)
  */
 template <class CharT, class Traits, class CombinerT, class PrunerT>
-inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream, const CombinerT& combiner,
+inline void hashJoinConcat(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream, const CombinerT& combiner,
                            std::vector<CharT>& out, [[maybe_unused]] const PrunerT* pruner = nullptr)
 {
   if (upstream.empty() || downstream.empty()) {
     return;
   }
 
-  // Build phase: hash downstream entries by build_key
+  // Build phase: hash downstream entries by buildKey
   std::unordered_map<uint32_t, std::vector<std::size_t>> index;
   index.reserve(downstream.size());  // Reduce rehashing
   for (std::size_t i = 0; i < downstream.size(); ++i) {
-    index[Traits::build_key(downstream[i])].push_back(i);
+    index[Traits::buildKey(downstream[i])].push_back(i);
   }
 
   // Estimate output size for reserve (assume ~1 match per upstream on average)
@@ -96,7 +96,7 @@ inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
 
   // Probe phase: probe upstream against index
   for (const auto& up : upstream) {
-    uint32_t key = Traits::probe_key(up);
+    uint32_t key = Traits::probeKey(up);
     auto it = index.find(key);
     if (it == index.end()) {
       continue;
@@ -113,9 +113,9 @@ inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
           // Simple Pareto check: skip if dominated by existing in same group
           // Full implementation would maintain frontier per group
           bool dominated = false;
-          uint64_t group = pruner->group_key(result);
+          uint64_t group = pruner->groupKey(result);
           for (const auto& existing : out) {
-            if (pruner->group_key(existing) == group && pruner->dominates(existing, result)) {
+            if (pruner->groupKey(existing) == group && pruner->dominates(existing, result)) {
               dominated = true;
               break;
             }
@@ -125,7 +125,7 @@ inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
           }
           // Remove entries dominated by new result
           auto new_end = std::remove_if(out.begin(), out.end(), [&](const CharT& existing) {
-            return pruner->group_key(existing) == group && pruner->dominates(result, existing);
+            return pruner->groupKey(existing) == group && pruner->dominates(result, existing);
           });
           out.erase(new_end, out.end());
         }

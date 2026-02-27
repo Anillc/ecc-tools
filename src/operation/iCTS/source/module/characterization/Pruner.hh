@@ -50,7 +50,7 @@ struct ParetoPruner
    * Entries are only compared within the same group.
    * Default: group by pattern ID.
    */
-  uint64_t group_key(const CharT& c) const { return c.get_pattern_id().pack(); }
+  uint64_t groupKey(const CharT& c) const { return c.get_pattern_id().pack(); }
 
   /**
    * @brief Check if entry 'a' dominates entry 'b'.
@@ -78,7 +78,7 @@ struct ParetoPruner
    *
    * @return 0 means no limit (keep all non-dominated)
    */
-  std::size_t max_per_group() const { return 0; }
+  std::size_t maxPerGroup() const { return 0; }
 };
 
 /**
@@ -90,7 +90,7 @@ struct ParetoPruner
 template <class CharT>
 struct InputBoundaryPruner
 {
-  uint64_t group_key(const CharT& c) const { return (static_cast<uint64_t>(c.get_input_slew()) << 16) | c.get_driven_cap(); }
+  uint64_t groupKey(const CharT& c) const { return (static_cast<uint64_t>(c.get_input_slew()) << 16) | c.get_driven_cap(); }
 
   bool dominates(const CharT& a, const CharT& b) const
   {
@@ -103,7 +103,7 @@ struct InputBoundaryPruner
            || (a.get_power() < b.get_power());
   }
 
-  std::size_t max_per_group() const { return 0; }
+  std::size_t maxPerGroup() const { return 0; }
 };
 
 }  // namespace icts

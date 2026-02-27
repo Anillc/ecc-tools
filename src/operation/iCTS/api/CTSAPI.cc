@@ -325,11 +325,11 @@ double CTSAPI::queryWireCapacitance(int routing_layer, double length, double wir
   return idb_adapter->getCapacitance(routing_layer, length, width_opt);
 }
 
-double CTSAPI::queryCellOutPortCapLimit(const std::string& cell_name) const
+double CTSAPI::queryCellOutPinCapLimit(const std::string& cell_master) const
 {
-  auto* lib_cell = STAInst->findLibertyCell(cell_name.c_str());
+  auto* lib_cell = STAInst->findLibertyCell(cell_master.c_str());
   if (!lib_cell) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_name << " not found.";
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
     return 0.0;
   }
 
@@ -343,25 +343,25 @@ double CTSAPI::queryCellOutPortCapLimit(const std::string& cell_name) const
   double cap = output->get_port_cap();
   auto cap_limit = output->get_port_cap_limit(ista::AnalysisMode::kMax);
   if (cap_limit.has_value() == false) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_name << " output port has no cap limit defined.";
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " output pin has no cap limit defined.";
     return cap;
   }
   cap = *cap_limit;
 
   // Convert to pF
   auto* lib = lib_cell->get_owner_lib();
-  CTS_LOG_WARNING_IF(lib == nullptr) << "Liberty cell " << cell_name << " has no owner liberty.";
+  CTS_LOG_WARNING_IF(lib == nullptr) << "Liberty cell " << cell_master << " has no owner liberty.";
   if (lib) {
     cap = ista::ConvertCapUnit(lib->get_cap_unit(), ista::CapacitiveUnit::kPF, cap);
   }
   return cap;
 }
 
-double CTSAPI::queryCellInPortSlewLimit(const std::string& cell_name) const
+double CTSAPI::queryCellInPinSlewLimit(const std::string& cell_master) const
 {
-  auto* lib_cell = STAInst->findLibertyCell(cell_name.c_str());
+  auto* lib_cell = STAInst->findLibertyCell(cell_master.c_str());
   if (!lib_cell) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_name << " not found.";
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
     return 0.0;
   }
 
@@ -369,21 +369,21 @@ double CTSAPI::queryCellInPortSlewLimit(const std::string& cell_name) const
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
   if (!input) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_name << " has no input port defined.";
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " has no input pin defined.";
     return 0.0;
   }
 
   double slew = 0.0;
   auto slew_limit = input->get_port_slew_limit(ista::AnalysisMode::kMax);
   if (slew_limit.has_value() == false) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_name << " input port has no slew limit defined.";
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " input pin has no slew limit defined.";
     return slew;
   }
   slew = *slew_limit;
 
   // Convert to ps
   auto* lib = lib_cell->get_owner_lib();
-  CTS_LOG_WARNING_IF(lib == nullptr) << "Liberty cell " << cell_name << " has no owner liberty.";
+  CTS_LOG_WARNING_IF(lib == nullptr) << "Liberty cell " << cell_master << " has no owner liberty.";
   if (lib) {
     slew = lib->convert_time_unit_to_ns(slew);
     slew = NS_TO_PS(slew);

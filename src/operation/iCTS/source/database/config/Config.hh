@@ -37,8 +37,8 @@ class Config
  public:
   static Config& getInst()
   {
-    static Config instance;
-    return instance;
+    static Config inst;
+    return inst;
   }
 
   // Delete copy and move constructors

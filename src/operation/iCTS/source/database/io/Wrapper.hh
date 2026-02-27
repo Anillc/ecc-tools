@@ -43,8 +43,8 @@ class Wrapper
  public:
   static Wrapper& getInst()
   {
-    static Wrapper instance;
-    return instance;
+    static Wrapper inst;
+    return inst;
   }
 
   // Delete copy and move constructors

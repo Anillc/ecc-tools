@@ -85,7 +85,7 @@ class HTreeTopologyCharTable
                                     const PrunerT* pruner = nullptr) const
   {
     HTreeTopologyCharTable result;
-    detail::HashJoinConcat<HTreeTopologyChar, HTreeTraits>(_chars, downstream._chars, combiner, result._chars, pruner);
+    detail::hashJoinConcat<HTreeTopologyChar, HTreeTraits>(_chars, downstream._chars, combiner, result._chars, pruner);
     return result;
   }
 

@@ -45,7 +45,7 @@ struct HTreeTraits
    *
    * Key = pack(input_slew, driven_cap)
    */
-  static uint32_t build_key(const HTreeTopologyChar& c) { return detail::pack(c.get_input_slew(), c.get_driven_cap()); }
+  static uint32_t buildKey(const HTreeTopologyChar& c) { return detail::pack(c.get_input_slew(), c.get_driven_cap()); }
 
   /**
    * @brief Probe key from upstream entry.
@@ -54,7 +54,7 @@ struct HTreeTraits
    *
    * NOTE: Integer division (floor) for cap halving.
    */
-  static uint32_t probe_key(const HTreeTopologyChar& c)
+  static uint32_t probeKey(const HTreeTopologyChar& c)
   {
     return detail::pack(c.get_output_slew(), static_cast<uint16_t>(c.get_load_cap() / 2));
   }

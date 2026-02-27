@@ -35,8 +35,8 @@ class Design
  public:
   static Design& getInst()
   {
-    static Design instance;
-    return instance;
+    static Design inst;
+    return inst;
   }
 
   // Delete copy and move constructors

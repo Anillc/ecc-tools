@@ -62,8 +62,8 @@ class CTSAPI
   bool isClockNet(const std::string& net_name) const;
   double queryWireResistance(int routing_layer, double length, double wire_width = 0.0) const;
   double queryWireCapacitance(int routing_layer, double length, double wire_width = 0.0) const;
-  double queryCellOutPortCapLimit(const std::string& cell_name) const;
-  double queryCellInPortSlewLimit(const std::string& cell_name) const;
+  double queryCellOutPinCapLimit(const std::string& cell_master) const;
+  double queryCellInPinSlewLimit(const std::string& cell_master) const;
 
  private:
   CTSAPI() = default;

@@ -71,7 +71,7 @@ class HTreeTopologyChar
    * - delay = upstream.delay + downstream.delay
    * - power = upstream.power + 2 * downstream.power (binary fan-out)
    *
-   * The /2 cap relationship is enforced by HTreeTraits::probe_key,
+   * The /2 cap relationship is enforced by HTreeTraits::probeKey,
    * not here in compose.
    *
    * @param upstream Upstream H-tree (closer to root)

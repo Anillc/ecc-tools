@@ -84,7 +84,7 @@ class SegmentCharTable
   SegmentCharTable concatWith(const SegmentCharTable& downstream, const CombinerT& combiner, const PrunerT* pruner = nullptr) const
   {
     SegmentCharTable result;
-    detail::HashJoinConcat<SegmentChar, SegmentTraits>(_chars, downstream._chars, combiner, result._chars, pruner);
+    detail::hashJoinConcat<SegmentChar, SegmentTraits>(_chars, downstream._chars, combiner, result._chars, pruner);
     return result;
   }
 
