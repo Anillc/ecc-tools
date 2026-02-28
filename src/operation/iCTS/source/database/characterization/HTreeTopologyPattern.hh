@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <vector>
 
 #include "PatternId.hh"
@@ -43,14 +42,14 @@ class HTreeTopologyPattern
  public:
   HTreeTopologyPattern() = default;
 
-  HTreeTopologyPattern(PatternId pattern_id, uint32_t levels, std::vector<PatternId> level_segment_ids)
+  HTreeTopologyPattern(PatternId pattern_id, unsigned levels, std::vector<PatternId> level_segment_ids)
       : _pattern_id(pattern_id), _levels(levels), _level_segment_pattern_ids(std::move(level_segment_ids))
   {
   }
 
   // Getters
   PatternId get_pattern_id() const { return _pattern_id; }
-  uint32_t get_levels() const { return _levels; }
+  unsigned get_levels() const { return _levels; }
   const std::vector<PatternId>& get_level_segment_pattern_ids() const { return _level_segment_pattern_ids; }
 
   /**
@@ -76,7 +75,7 @@ class HTreeTopologyPattern
 
  private:
   PatternId _pattern_id{PatternDomain::kTopologyPattern, 0};
-  uint32_t _levels = 0;
+  unsigned _levels = 0;
   std::vector<PatternId> _level_segment_pattern_ids;  ///< domain=kSegmentPattern
 };
 

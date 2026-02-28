@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include "CharCore.hh"
 #include "PatternId.hh"
 
@@ -45,19 +43,19 @@ class HTreeTopologyChar
  public:
   HTreeTopologyChar() = default;
 
-  HTreeTopologyChar(CharCore core, uint32_t levels) : _core(std::move(core)), _levels(levels) {}
+  HTreeTopologyChar(CharCore core, unsigned levels) : _core(std::move(core)), _levels(levels) {}
 
   // Forwarded getters from CharCore
-  uint16_t get_input_slew() const { return _core.get_input_slew(); }
-  uint16_t get_output_slew() const { return _core.get_output_slew(); }
-  uint16_t get_driven_cap() const { return _core.get_driven_cap(); }
-  uint16_t get_load_cap() const { return _core.get_load_cap(); }
+  unsigned get_input_slew_idx() const { return _core.get_input_slew_idx(); }
+  unsigned get_output_slew_idx() const { return _core.get_output_slew_idx(); }
+  unsigned get_driven_cap_idx() const { return _core.get_driven_cap_idx(); }
+  unsigned get_load_cap_idx() const { return _core.get_load_cap_idx(); }
   double get_delay() const { return _core.get_delay(); }
   double get_power() const { return _core.get_power(); }
   PatternId get_pattern_id() const { return _core.get_pattern_id(); }
 
   // H-tree specific getter
-  uint32_t get_levels() const { return _levels; }
+  unsigned get_levels() const { return _levels; }
 
   /**
    * @brief Compose two H-tree topology characterizations.
@@ -80,10 +78,10 @@ class HTreeTopologyChar
    */
   static HTreeTopologyChar compose(const HTreeTopologyChar& upstream, const HTreeTopologyChar& downstream, PatternId merged_topo_pid)
   {
-    CharCore merged_core(upstream.get_input_slew(),                      // input from upstream
-                         downstream.get_output_slew(),                   // output from downstream
-                         upstream.get_driven_cap(),                      // driven_cap from upstream
-                         downstream.get_load_cap(),                      // load_cap from downstream
+    CharCore merged_core(upstream.get_input_slew_idx(),                  // input from upstream
+                         downstream.get_output_slew_idx(),               // output from downstream
+                         upstream.get_driven_cap_idx(),                  // driven_cap from upstream
+                         downstream.get_load_cap_idx(),                  // load_cap from downstream
                          upstream.get_delay() + downstream.get_delay(),  // additive delay
                          // Binary fan-out: downstream power is doubled
                          upstream.get_power() + 2.0 * downstream.get_power(), merged_topo_pid);
@@ -92,7 +90,7 @@ class HTreeTopologyChar
 
  private:
   CharCore _core;
-  uint32_t _levels = 0;
+  unsigned _levels = 0;
 };
 
 }  // namespace icts

@@ -23,6 +23,8 @@
 #pragma once
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../database/interaction/ids.hpp"
 namespace ieda_feature {
@@ -64,6 +66,25 @@ class CTSAPI
   double queryWireCapacitance(int routing_layer, double length, double wire_width = 0.0) const;
   double queryCellOutPinCapLimit(const std::string& cell_master) const;
   double queryCellInPinSlewLimit(const std::string& cell_master) const;
+
+  // DB query API
+  int32_t queryDbUnit() const;
+
+  // Characterization API
+  std::string createCharInstance(const std::string& cell_master, const std::string& inst_name);
+  std::string createCharNet(const std::string& net_name);
+  void attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name);
+  void buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap);
+  void createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns);
+  void destroyCharClock();
+  void setCharInputSlew(const std::string& pin_full_name, double slew_ns);
+  void updateCharTiming();
+  double queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) const;
+  double queryCharSlew(const std::string& pin_full_name) const;
+  double queryCharInputPinCap(const std::string& cell_master) const;
+  std::pair<std::string, std::string> queryBufferPorts(const std::string& cell_master) const;
+  void destroyCharInstance(const std::string& inst_name);
+  void destroyCharNet(const std::string& net_name);
 
  private:
   CTSAPI() = default;

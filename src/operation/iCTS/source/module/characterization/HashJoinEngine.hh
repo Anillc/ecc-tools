@@ -26,7 +26,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -42,9 +41,9 @@ namespace detail {
  *
  * Key format: [slew:16][cap:16]
  */
-inline uint32_t pack(uint16_t slew, uint16_t cap)
+inline unsigned pack(unsigned slew, unsigned cap)
 {
-  return (static_cast<uint32_t>(slew) << 16) | cap;
+  return (slew << 16) | cap;
 }
 
 /**
@@ -85,7 +84,7 @@ inline void hashJoinConcat(const std::vector<CharT>& upstream, const std::vector
   }
 
   // Build phase: hash downstream entries by buildKey
-  std::unordered_map<uint32_t, std::vector<std::size_t>> index;
+  std::unordered_map<unsigned, std::vector<std::size_t>> index;
   index.reserve(downstream.size());  // Reduce rehashing
   for (std::size_t i = 0; i < downstream.size(); ++i) {
     index[Traits::buildKey(downstream[i])].push_back(i);
@@ -96,7 +95,7 @@ inline void hashJoinConcat(const std::vector<CharT>& upstream, const std::vector
 
   // Probe phase: probe upstream against index
   for (const auto& up : upstream) {
-    uint32_t key = Traits::probeKey(up);
+    unsigned key = Traits::probeKey(up);
     auto it = index.find(key);
     if (it == index.end()) {
       continue;
@@ -113,7 +112,7 @@ inline void hashJoinConcat(const std::vector<CharT>& upstream, const std::vector
           // Simple Pareto check: skip if dominated by existing in same group
           // Full implementation would maintain frontier per group
           bool dominated = false;
-          uint64_t group = pruner->groupKey(result);
+          unsigned group = pruner->groupKey(result);
           for (const auto& existing : out) {
             if (pruner->groupKey(existing) == group && pruner->dominates(existing, result)) {
               dominated = true;

@@ -47,6 +47,9 @@
 #include "netlist/Pin.hh"
 #include "netlist/Port.hh"
 #include "sdc/SdcSetInputTransition.hh"
+#include "sta/StaBuildGraph.hh"
+#include "sta/StaClock.hh"
+#include "sta/StaData.hh"
 #include "sta/StaGraph.hh"
 #include "sta/StaVertex.hh"
 #include "usage/usage.hh"
@@ -390,6 +393,215 @@ double CTSAPI::queryCellInPinSlewLimit(const std::string& cell_master) const
   }
 
   return slew;
+}
+
+// DB query API
+
+int32_t CTSAPI::queryDbUnit() const
+{
+  return CTSWrapperInst.getDbUnit();
+}
+
+// Characterization API
+
+std::string CTSAPI::createCharInstance(const std::string& cell_master, const std::string& inst_name)
+{
+  auto* lib_cell = STAInst->findLibertyCell(cell_master.c_str());
+  CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Cannot find liberty cell: " << cell_master;
+  auto* adapter = STAInst->getIDBAdapter();
+  auto* inst = adapter->createInstance(lib_cell, inst_name.c_str());
+  CTS_LOG_FATAL_IF(inst == nullptr) << "Failed to create instance: " << inst_name;
+  // Build graph nodes for the new instance
+  auto* ista = STAInst->get_ista();
+  if (ista->isBuildGraph()) {
+    auto& the_graph = ista->get_graph();
+    ista::StaBuildGraph build_graph;
+    build_graph.buildInst(&the_graph, inst);
+  }
+  return inst_name;
+}
+
+std::string CTSAPI::createCharNet(const std::string& net_name)
+{
+  auto* adapter = STAInst->getIDBAdapter();
+  auto* net = adapter->createNet(net_name.c_str(), nullptr);
+  CTS_LOG_FATAL_IF(net == nullptr) << "Failed to create net: " << net_name;
+  return net_name;
+}
+
+void CTSAPI::attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name)
+{
+  auto* sta_netlist = STAInst->get_netlist();
+  auto* inst = sta_netlist->findInstance(inst_name.c_str());
+  CTS_LOG_FATAL_IF(inst == nullptr) << "Cannot find instance: " << inst_name;
+  auto* net = sta_netlist->findNet(net_name.c_str());
+  CTS_LOG_FATAL_IF(net == nullptr) << "Cannot find net: " << net_name;
+  auto* adapter = STAInst->getIDBAdapter();
+  adapter->attach(inst, port_name.c_str(), net);
+}
+
+void CTSAPI::buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap)
+{
+  auto* sta_netlist = STAInst->get_netlist();
+  auto* net = sta_netlist->findNet(net_name.c_str());
+  CTS_LOG_FATAL_IF(net == nullptr) << "Cannot find net for RC tree: " << net_name;
+
+  STAInst->initRcTree(net);
+
+  // Get driver and load pins
+  auto* driver_pin = net->getDriver();
+  CTS_LOG_FATAL_IF(driver_pin == nullptr) << "Net " << net_name << " has no driver pin";
+
+  auto* driver_node = STAInst->makeOrFindRCTreeNode(driver_pin);
+
+  // Build Pi-model: driver -- C/2 -- R -- C/2+load -- load_pin
+  auto load_pins = net->getLoads();
+  for (auto* load_pin : load_pins) {
+    auto* load_node = STAInst->makeOrFindRCTreeNode(load_pin);
+    STAInst->makeResistor(net, driver_node, load_node, wire_res);
+    // Near-end cap on driver node
+    STAInst->incrCap(driver_node, wire_cap / 2.0, true);
+    // Far-end cap + load on load node
+    STAInst->incrCap(load_node, wire_cap / 2.0 + load_cap, true);
+  }
+
+  STAInst->updateRCTreeInfo(net);
+}
+
+void CTSAPI::setCharInputSlew(const std::string& pin_full_name, double slew_ns)
+{
+  auto* ista = STAInst->get_ista();
+  auto& the_graph = ista->get_graph();
+
+  auto* sta_netlist = STAInst->get_netlist();
+  auto match_pins = sta_netlist->findPin(pin_full_name.c_str(), false, false);
+  CTS_LOG_FATAL_IF(match_pins.empty()) << "Cannot find pin: " << pin_full_name;
+
+  auto the_vertex = the_graph.findVertex(match_pins.front());
+  CTS_LOG_FATAL_IF(!the_vertex) << "Cannot find vertex for pin: " << pin_full_name;
+
+  auto* vertex = *the_vertex;
+  int slew_fs = NS_TO_FS(slew_ns);
+
+  // Set annotated slew for both rise and fall in max mode
+  auto* rise_slew_data = new ista::StaSlewData(ista::AnalysisMode::kMax, ista::TransType::kRise, vertex, slew_fs);
+  vertex->addData(rise_slew_data);
+  auto* fall_slew_data = new ista::StaSlewData(ista::AnalysisMode::kMax, ista::TransType::kFall, vertex, slew_fs);
+  vertex->addData(fall_slew_data);
+}
+
+void CTSAPI::updateCharTiming()
+{
+  STAInst->updateTiming();
+}
+
+double CTSAPI::queryCharSlew(const std::string& pin_full_name) const
+{
+  double rise_slew = STAInst->getSlew(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise);
+  double fall_slew = STAInst->getSlew(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall);
+  return (rise_slew + fall_slew) / 2.0;  // average in ns
+}
+
+void CTSAPI::createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns)
+{
+  auto* ista = STAInst->get_ista();
+  auto& the_graph = ista->get_graph();
+
+  // Find the source pin vertex
+  auto* sta_netlist = STAInst->get_netlist();
+  auto match_pins = sta_netlist->findPin(source_pin_full_name.c_str(), false, false);
+  CTS_LOG_FATAL_IF(match_pins.empty()) << "Cannot find pin for clock source: " << source_pin_full_name;
+
+  auto the_vertex = the_graph.findVertex(match_pins.front());
+  CTS_LOG_FATAL_IF(!the_vertex) << "Cannot find vertex for clock source: " << source_pin_full_name;
+
+  // Create a propagated clock
+  int period_ps = NS_TO_PS(period_ns);
+  auto sta_clock = std::make_unique<ista::StaClock>(clock_name.c_str(), ista::StaClock::ClockType::kPropagated, period_ps);
+
+  // Set waveform: rise at 0, fall at half-period
+  ista::StaWaveForm wave_form;
+  wave_form.addWaveEdge(0);
+  wave_form.addWaveEdge(period_ps / 2);
+  sta_clock->set_wave_form(std::move(wave_form));
+
+  // Bind to the source vertex
+  sta_clock->addVertex(*the_vertex);
+
+  // Add to STA
+  ista->addClock(std::move(sta_clock));
+}
+
+void CTSAPI::destroyCharClock()
+{
+  auto* ista = STAInst->get_ista();
+  // Remove all characterization clocks and re-read the original SDC
+  ista->resetSdcConstrain();
+  ista->resetConstraint();
+  const char* sdc_path = DBConfig.get_sdc_path().c_str();
+  ista->readSdc(sdc_path);
+}
+
+double CTSAPI::queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) const
+{
+  auto result = STAInst->getClockAT(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall, clock_name);
+  if (!result.has_value()) {
+    CTS_LOG_WARNING << "No clock arrival time at pin: " << pin_full_name << " for clock: " << clock_name;
+    return 0.0;
+  }
+  return result.value();  // ns
+}
+
+double CTSAPI::queryCharInputPinCap(const std::string& cell_master) const
+{
+  auto* lib_cell = STAInst->findLibertyCell(cell_master.c_str());
+  if (!lib_cell) {
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    return 0.0;
+  }
+  ista::LibPort* input = nullptr;
+  ista::LibPort* output = nullptr;
+  lib_cell->bufferPorts(input, output);
+  if (!input) {
+    return 0.0;
+  }
+  double cap = input->get_port_cap();
+  auto* lib = lib_cell->get_owner_lib();
+  if (lib) {
+    cap = ista::ConvertCapUnit(lib->get_cap_unit(), ista::CapacitiveUnit::kPF, cap);
+  }
+  return cap;
+}
+
+std::pair<std::string, std::string> CTSAPI::queryBufferPorts(const std::string& cell_master) const
+{
+  auto* lib_cell = STAInst->findLibertyCell(cell_master.c_str());
+  if (!lib_cell) {
+    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    return {"", ""};
+  }
+  ista::LibPort* input = nullptr;
+  ista::LibPort* output = nullptr;
+  lib_cell->bufferPorts(input, output);
+  std::string in_name = input ? input->get_port_name() : "";
+  std::string out_name = output ? output->get_port_name() : "";
+  return {in_name, out_name};
+}
+
+void CTSAPI::destroyCharInstance(const std::string& inst_name)
+{
+  auto* adapter = STAInst->getIDBAdapter();
+  adapter->deleteInstance(inst_name.c_str());
+}
+
+void CTSAPI::destroyCharNet(const std::string& net_name)
+{
+  auto* sta_netlist = STAInst->get_netlist();
+  auto* net = sta_netlist->findNet(net_name.c_str());
+  if (net) {
+    auto* adapter = STAInst->getIDBAdapter();
+    adapter->deleteNet(net);
+  }
 }
 
 }  // namespace icts

@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/tasks/02-27-cts-characterization/coding-constraints.md", "reason": "Task-specific coding constraints"}
+{"file": ".trellis/tasks/02-27-cts-characterization/research-summary.md", "reason": "API reference and design patterns"}

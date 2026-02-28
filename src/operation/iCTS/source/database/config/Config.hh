@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,6 +60,10 @@ class Config
     _max_length = 300;
     _routing_layers.clear();
     _buffer_types.clear();
+    _slew_steps = 20;
+    _cap_steps = 20;
+    _length_steps = 20;
+    _char_buf_redundancy_pct = 0.0;
     _work_dir = "./result/cts";
     _output_def_path = "./result/cts/output";
     _log_file = "./result/cts/cts.log";
@@ -75,14 +78,15 @@ class Config
   double get_max_sink_tran() const { return _max_sink_tran; }
   double get_max_cap() const { return _max_cap; }
   double get_max_length() const { return _max_length; }
-  double get_slew_unit() const { return _slew_unit; }
-  double get_cap_unit() const { return _cap_unit; }
-  double get_length_unit() const { return _length_unit; }
+  unsigned get_slew_steps() const { return _slew_steps; }
+  unsigned get_cap_steps() const { return _cap_steps; }
+  unsigned get_length_steps() const { return _length_steps; }
   unsigned get_max_pattern_nodes() const { return _max_pattern_nodes; }
   double get_wire_width() const { return _wire_width; }
   unsigned get_max_fanout() const { return _max_fanout; }
   const std::vector<unsigned>& get_routing_layers() const { return _routing_layers; }
   const std::vector<std::string>& get_buffer_types() const { return _buffer_types; }
+  double get_char_buf_redundancy_pct() const { return _char_buf_redundancy_pct; }
 
   // file
   const std::string& get_work_dir() const { return _work_dir; }
@@ -98,14 +102,15 @@ class Config
   void set_max_sink_tran(double max_sink_tran) { _max_sink_tran = max_sink_tran; }
   void set_max_cap(double max_cap) { _max_cap = max_cap; }
   void set_max_length(double max_length) { _max_length = max_length; }
-  void set_slew_unit(double slew_unit) { _slew_unit = slew_unit; }
-  void set_cap_unit(double cap_unit) { _cap_unit = cap_unit; }
-  void set_length_unit(double length_unit) { _length_unit = length_unit; }
+  void set_slew_steps(unsigned steps) { _slew_steps = steps; }
+  void set_cap_steps(unsigned steps) { _cap_steps = steps; }
+  void set_length_steps(unsigned steps) { _length_steps = steps; }
   void set_max_pattern_nodes(unsigned nodes) { _max_pattern_nodes = nodes; }
   void set_wire_width(double wire_width) { _wire_width = wire_width; }
   void set_max_fanout(unsigned max_fanout) { _max_fanout = max_fanout; }
   void set_routing_layers(const std::vector<unsigned>& routing_layers) { _routing_layers = routing_layers; }
   void set_buffer_types(const std::vector<std::string>& types) { _buffer_types = types; }
+  void set_char_buf_redundancy_pct(double pct) { _char_buf_redundancy_pct = pct; }
 
   // file
   void set_work_dir(const std::string& work_dir) { _work_dir = work_dir; }
@@ -128,14 +133,15 @@ class Config
   double _max_sink_tran = 0.0;
   double _max_cap = 0.0;
   double _max_length = 0.0;
-  double _slew_unit = 0.05;
-  double _cap_unit = 0.05;
-  double _length_unit = 25;
+  unsigned _slew_steps = 20;
+  unsigned _cap_steps = 20;
+  unsigned _length_steps = 20;
   unsigned _max_pattern_nodes = 8;
   double _wire_width = 0.0;
   unsigned _max_fanout = 32;
   std::vector<unsigned> _routing_layers;
   std::vector<std::string> _buffer_types;
+  double _char_buf_redundancy_pct = 0.0;
 
   // file
   std::string _work_dir = "./result/cts";

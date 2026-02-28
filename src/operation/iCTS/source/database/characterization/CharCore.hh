@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include "PatternId.hh"
 
 namespace icts {
@@ -40,12 +38,12 @@ class CharCore
  public:
   CharCore() = default;
 
-  CharCore(uint16_t input_slew, uint16_t output_slew, uint16_t driven_cap, uint16_t load_cap, double delay, double power,
+  CharCore(unsigned input_slew_idx, unsigned output_slew_idx, unsigned driven_cap_idx, unsigned load_cap_idx, double delay, double power,
            PatternId pattern_id)
-      : _input_slew(input_slew),
-        _output_slew(output_slew),
-        _driven_cap(driven_cap),
-        _load_cap(load_cap),
+      : _input_slew_idx(input_slew_idx),
+        _output_slew_idx(output_slew_idx),
+        _driven_cap_idx(driven_cap_idx),
+        _load_cap_idx(load_cap_idx),
         _delay(delay),
         _power(power),
         _pattern_id(pattern_id)
@@ -53,19 +51,19 @@ class CharCore
   }
 
   // Getters - following iCTS naming convention
-  uint16_t get_input_slew() const { return _input_slew; }
-  uint16_t get_output_slew() const { return _output_slew; }
-  uint16_t get_driven_cap() const { return _driven_cap; }
-  uint16_t get_load_cap() const { return _load_cap; }
+  unsigned get_input_slew_idx() const { return _input_slew_idx; }
+  unsigned get_output_slew_idx() const { return _output_slew_idx; }
+  unsigned get_driven_cap_idx() const { return _driven_cap_idx; }
+  unsigned get_load_cap_idx() const { return _load_cap_idx; }
   double get_delay() const { return _delay; }
   double get_power() const { return _power; }
   PatternId get_pattern_id() const { return _pattern_id; }
 
  private:
-  uint16_t _input_slew = 0;
-  uint16_t _output_slew = 0;
-  uint16_t _driven_cap = 0;
-  uint16_t _load_cap = 0;
+  unsigned _input_slew_idx = 0;
+  unsigned _output_slew_idx = 0;
+  unsigned _driven_cap_idx = 0;
+  unsigned _load_cap_idx = 0;
   double _delay = 0.0;
   double _power = 0.0;
   PatternId _pattern_id{PatternDomain::kSegmentPattern, 0};

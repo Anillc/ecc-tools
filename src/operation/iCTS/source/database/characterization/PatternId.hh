@@ -46,26 +46,26 @@ enum class PatternDomain : uint8_t
 struct PatternId
 {
   PatternDomain domain;
-  uint32_t local_id;
+  unsigned local_id;
 
   /**
    * @brief Create a segment pattern ID.
    */
-  static PatternId segment(uint32_t id) { return PatternId{PatternDomain::kSegmentPattern, id}; }
+  static PatternId segment(unsigned id) { return PatternId{PatternDomain::kSegmentPattern, id}; }
 
   /**
    * @brief Create a topology pattern ID.
    */
-  static PatternId topology(uint32_t id) { return PatternId{PatternDomain::kTopologyPattern, id}; }
+  static PatternId topology(unsigned id) { return PatternId{PatternDomain::kTopologyPattern, id}; }
 
   bool operator==(const PatternId& other) const { return domain == other.domain && local_id == other.local_id; }
 
   bool operator!=(const PatternId& other) const { return !(*this == other); }
 
   /**
-   * @brief Pack into a single uint64_t for use as hash key.
+   * @brief Pack into a single unsigned for use as hash key.
    */
-  uint64_t pack() const { return (static_cast<uint64_t>(domain) << 32) | local_id; }
+  unsigned pack() const { return (static_cast<unsigned>(domain) << 30) | local_id; }
 };
 
 }  // namespace icts
@@ -75,7 +75,7 @@ namespace std {
 template <>
 struct hash<icts::PatternId>
 {
-  std::size_t operator()(const icts::PatternId& pid) const noexcept { return std::hash<uint64_t>{}(pid.pack()); }
+  std::size_t operator()(const icts::PatternId& pid) const noexcept { return std::hash<unsigned>{}(pid.pack()); }
 };
 
 }  // namespace std

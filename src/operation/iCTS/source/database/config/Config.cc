@@ -151,14 +151,14 @@ void Config::parse(const std::string& json_file)
   if (json.contains("max_length")) {
     set_max_length(parse_double(json["max_length"], get_max_length()));
   }
-  if (json.contains("slew_unit")) {
-    set_slew_unit(parse_double(json["slew_unit"], get_slew_unit()));
+  if (json.contains("slew_steps")) {
+    set_slew_steps(parse_unsigned(json["slew_steps"], get_slew_steps()));
   }
-  if (json.contains("cap_unit")) {
-    set_cap_unit(parse_double(json["cap_unit"], get_cap_unit()));
+  if (json.contains("cap_steps")) {
+    set_cap_steps(parse_unsigned(json["cap_steps"], get_cap_steps()));
   }
-  if (json.contains("length_unit")) {
-    set_length_unit(parse_double(json["length_unit"], get_length_unit()));
+  if (json.contains("length_steps")) {
+    set_length_steps(parse_unsigned(json["length_steps"], get_length_steps()));
   }
   if (json.contains("max_pattern_nodes")) {
     set_max_pattern_nodes(parse_unsigned(json["max_pattern_nodes"], get_max_pattern_nodes()));
@@ -177,6 +177,9 @@ void Config::parse(const std::string& json_file)
   }
   if (json.contains("buffer_type")) {
     set_buffer_types(parse_string_list(json["buffer_type"]));
+  }
+  if (json.contains("char_buf_redundancy_pct")) {
+    set_char_buf_redundancy_pct(parse_double(json["char_buf_redundancy_pct"], get_char_buf_redundancy_pct()));
   }
 
   if (json.contains("use_netlist")) {

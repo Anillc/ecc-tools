@@ -23,7 +23,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstdint>
 #include <vector>
 
 #include "database/characterization/CharCore.hh"
@@ -40,16 +39,16 @@ namespace icts_test {
 namespace {
 
 // Helper to create SegmentChar with given parameters
-icts::SegmentChar makeSegmentChar(uint16_t input_slew, uint16_t output_slew, uint16_t driven_cap, uint16_t load_cap, double delay,
-                                  double power, uint32_t pid, uint64_t length)
+icts::SegmentChar makeSegmentChar(unsigned input_slew, unsigned output_slew, unsigned driven_cap, unsigned load_cap, double delay,
+                                  double power, unsigned pid, unsigned length_idx)
 {
   icts::CharCore core(input_slew, output_slew, driven_cap, load_cap, delay, power, icts::PatternId::segment(pid));
-  return icts::SegmentChar(core, length);
+  return icts::SegmentChar(core, length_idx);
 }
 
 // Helper to create HTreeTopologyChar with given parameters
-icts::HTreeTopologyChar makeHTreeChar(uint16_t input_slew, uint16_t output_slew, uint16_t driven_cap, uint16_t load_cap, double delay,
-                                      double power, uint32_t pid, uint32_t levels)
+icts::HTreeTopologyChar makeHTreeChar(unsigned input_slew, unsigned output_slew, unsigned driven_cap, unsigned load_cap, double delay,
+                                      double power, unsigned pid, unsigned levels)
 {
   icts::CharCore core(input_slew, output_slew, driven_cap, load_cap, delay, power, icts::PatternId::topology(pid));
   return icts::HTreeTopologyChar(core, levels);
@@ -83,13 +82,13 @@ TEST(SegmentJoinTest, BasicEqualJoin)
 
   const auto& merged = result.get_chars()[0];
   // Verify composition rules
-  EXPECT_EQ(merged.get_input_slew(), 80);     // from upstream
-  EXPECT_EQ(merged.get_output_slew(), 120);   // from downstream
-  EXPECT_EQ(merged.get_driven_cap(), 40);     // from upstream
-  EXPECT_EQ(merged.get_load_cap(), 60);       // from downstream
-  EXPECT_DOUBLE_EQ(merged.get_delay(), 3.0);  // 1.0 + 2.0
-  EXPECT_DOUBLE_EQ(merged.get_power(), 0.8);  // 0.5 + 0.3
-  EXPECT_EQ(merged.get_length(), 3000U);      // 1000 + 2000
+  EXPECT_EQ(merged.get_input_slew_idx(), 80);    // from upstream
+  EXPECT_EQ(merged.get_output_slew_idx(), 120);  // from downstream
+  EXPECT_EQ(merged.get_driven_cap_idx(), 40);    // from upstream
+  EXPECT_EQ(merged.get_load_cap_idx(), 60);      // from downstream
+  EXPECT_DOUBLE_EQ(merged.get_delay(), 3.0);     // 1.0 + 2.0
+  EXPECT_DOUBLE_EQ(merged.get_power(), 0.8);     // 0.5 + 0.3
+  EXPECT_EQ(merged.get_length_idx(), 3000U);     // 1000 + 2000
   EXPECT_EQ(merged.get_pattern_id().domain, icts::PatternDomain::kSegmentPattern);
 }
 
@@ -152,10 +151,10 @@ TEST(HTreeJoinTest, HalfCapJoin)
 
   const auto& merged = result.get_chars()[0];
   // Verify H-tree composition rules
-  EXPECT_EQ(merged.get_input_slew(), 80);
-  EXPECT_EQ(merged.get_output_slew(), 120);
-  EXPECT_EQ(merged.get_driven_cap(), 40);
-  EXPECT_EQ(merged.get_load_cap(), 60);
+  EXPECT_EQ(merged.get_input_slew_idx(), 80);
+  EXPECT_EQ(merged.get_output_slew_idx(), 120);
+  EXPECT_EQ(merged.get_driven_cap_idx(), 40);
+  EXPECT_EQ(merged.get_load_cap_idx(), 60);
   EXPECT_DOUBLE_EQ(merged.get_delay(), 3.0);  // 1.0 + 2.0
   // Power: upstream + 2 * downstream = 0.5 + 2*0.3 = 1.1
   EXPECT_DOUBLE_EQ(merged.get_power(), 1.1);
@@ -255,7 +254,7 @@ TEST(PrunerTest, WithPruning)
   // The first downstream produces a better result than the second
   EXPECT_EQ(result.size(), 1U);
   // The surviving entry should have the better output_slew
-  EXPECT_EQ(result.get_chars()[0].get_output_slew(), 110);
+  EXPECT_EQ(result.get_chars()[0].get_output_slew_idx(), 110);
 }
 
 // ============================================================================
@@ -295,7 +294,7 @@ TEST(PatternIdTest, PackUnique)
 
 TEST(HashJoinEngineTest, PackFunction)
 {
-  uint32_t key = icts::detail::pack(0x1234, 0x5678);
+  unsigned key = icts::detail::pack(0x1234, 0x5678);
   EXPECT_EQ(key, 0x12345678U);
 
   key = icts::detail::pack(0xFFFF, 0x0000);

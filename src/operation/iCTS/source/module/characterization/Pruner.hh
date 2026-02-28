@@ -24,7 +24,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 
 namespace icts {
 
@@ -50,7 +49,7 @@ struct ParetoPruner
    * Entries are only compared within the same group.
    * Default: group by pattern ID.
    */
-  uint64_t groupKey(const CharT& c) const { return c.get_pattern_id().pack(); }
+  unsigned groupKey(const CharT& c) const { return c.get_pattern_id().pack(); }
 
   /**
    * @brief Check if entry 'a' dominates entry 'b'.
@@ -61,15 +60,15 @@ struct ParetoPruner
   bool dominates(const CharT& a, const CharT& b) const
   {
     // All metrics: a must be >= b in desirability
-    bool all_ge = (a.get_output_slew() <= b.get_output_slew()) && (a.get_load_cap() >= b.get_load_cap()) && (a.get_delay() <= b.get_delay())
-                  && (a.get_power() <= b.get_power());
+    bool all_ge = (a.get_output_slew_idx() <= b.get_output_slew_idx()) && (a.get_load_cap_idx() >= b.get_load_cap_idx())
+                  && (a.get_delay() <= b.get_delay()) && (a.get_power() <= b.get_power());
     if (!all_ge) {
       return false;
     }
 
     // At least one metric: a must be strictly better
-    bool any_gt = (a.get_output_slew() < b.get_output_slew()) || (a.get_load_cap() > b.get_load_cap()) || (a.get_delay() < b.get_delay())
-                  || (a.get_power() < b.get_power());
+    bool any_gt = (a.get_output_slew_idx() < b.get_output_slew_idx()) || (a.get_load_cap_idx() > b.get_load_cap_idx())
+                  || (a.get_delay() < b.get_delay()) || (a.get_power() < b.get_power());
     return any_gt;
   }
 
@@ -90,17 +89,17 @@ struct ParetoPruner
 template <class CharT>
 struct InputBoundaryPruner
 {
-  uint64_t groupKey(const CharT& c) const { return (static_cast<uint64_t>(c.get_input_slew()) << 16) | c.get_driven_cap(); }
+  unsigned groupKey(const CharT& c) const { return (c.get_input_slew_idx() << 16) | c.get_driven_cap_idx(); }
 
   bool dominates(const CharT& a, const CharT& b) const
   {
-    bool all_ge = (a.get_output_slew() <= b.get_output_slew()) && (a.get_load_cap() >= b.get_load_cap()) && (a.get_delay() <= b.get_delay())
-                  && (a.get_power() <= b.get_power());
+    bool all_ge = (a.get_output_slew_idx() <= b.get_output_slew_idx()) && (a.get_load_cap_idx() >= b.get_load_cap_idx())
+                  && (a.get_delay() <= b.get_delay()) && (a.get_power() <= b.get_power());
     if (!all_ge) {
       return false;
     }
-    return (a.get_output_slew() < b.get_output_slew()) || (a.get_load_cap() > b.get_load_cap()) || (a.get_delay() < b.get_delay())
-           || (a.get_power() < b.get_power());
+    return (a.get_output_slew_idx() < b.get_output_slew_idx()) || (a.get_load_cap_idx() > b.get_load_cap_idx())
+           || (a.get_delay() < b.get_delay()) || (a.get_power() < b.get_power());
   }
 
   std::size_t maxPerGroup() const { return 0; }

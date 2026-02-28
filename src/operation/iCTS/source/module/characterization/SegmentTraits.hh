@@ -42,14 +42,14 @@ struct SegmentTraits
    *
    * Key = pack(input_slew, driven_cap)
    */
-  static uint32_t buildKey(const SegmentChar& c) { return detail::pack(c.get_input_slew(), c.get_driven_cap()); }
+  static unsigned buildKey(const SegmentChar& c) { return detail::pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
 
   /**
    * @brief Probe key from upstream entry.
    *
-   * Key = pack(output_slew, load_cap)
+   * Key = pack(output_slew_idx, load_cap_idx)
    */
-  static uint32_t probeKey(const SegmentChar& c) { return detail::pack(c.get_output_slew(), c.get_load_cap()); }
+  static unsigned probeKey(const SegmentChar& c) { return detail::pack(c.get_output_slew_idx(), c.get_load_cap_idx()); }
 
   /**
    * @brief Compose upstream and downstream into merged result.

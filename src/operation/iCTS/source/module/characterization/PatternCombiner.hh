@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include "database/characterization/PatternId.hh"
 
 namespace icts {
@@ -39,14 +37,14 @@ namespace icts {
 class SegmentPatternCombiner
 {
  public:
-  explicit SegmentPatternCombiner(uint32_t start_id = 0) : _next_id(start_id) {}
+  explicit SegmentPatternCombiner(unsigned start_id = 0) : _next_id(start_id) {}
 
   PatternId combine([[maybe_unused]] PatternId up, [[maybe_unused]] PatternId down) const { return PatternId::segment(_next_id++); }
 
-  uint32_t get_next_id() const { return _next_id; }
+  unsigned get_next_id() const { return _next_id; }
 
  private:
-  mutable uint32_t _next_id;
+  mutable unsigned _next_id;
 };
 
 /**
@@ -57,14 +55,14 @@ class SegmentPatternCombiner
 class TopologyPatternCombiner
 {
  public:
-  explicit TopologyPatternCombiner(uint32_t start_id = 0) : _next_id(start_id) {}
+  explicit TopologyPatternCombiner(unsigned start_id = 0) : _next_id(start_id) {}
 
   PatternId combine([[maybe_unused]] PatternId up, [[maybe_unused]] PatternId down) const { return PatternId::topology(_next_id++); }
 
-  uint32_t get_next_id() const { return _next_id; }
+  unsigned get_next_id() const { return _next_id; }
 
  private:
-  mutable uint32_t _next_id;
+  mutable unsigned _next_id;
 };
 
 }  // namespace icts

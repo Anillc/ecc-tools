@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -37,14 +36,16 @@ namespace icts {
  * Represents a wire segment with optional buffer insertions.
  * Buffer positions are normalized to (0, 1] relative to segment length.
  * Supports concatenation for segment composition.
+ *
+ * _length_idx is a discretized bin index (length_um / length_step_um).
  */
 class BufferingPattern
 {
  public:
   BufferingPattern() = default;
 
-  BufferingPattern(uint64_t length_dbu, PatternId pattern_id, std::vector<double> buffer_positions, std::vector<std::string> cell_masters)
-      : _length_dbu(length_dbu),
+  BufferingPattern(unsigned length_idx, PatternId pattern_id, std::vector<double> buffer_positions, std::vector<std::string> cell_masters)
+      : _length_idx(length_idx),
         _pattern_id(pattern_id),
         _buffer_positions(std::move(buffer_positions)),
         _cell_masters(std::move(cell_masters))
@@ -52,7 +53,7 @@ class BufferingPattern
   }
 
   // Getters
-  uint64_t get_length() const { return _length_dbu; }
+  unsigned get_length_idx() const { return _length_idx; }
   PatternId get_pattern_id() const { return _pattern_id; }
   const std::vector<double>& get_buffer_positions() const { return _buffer_positions; }
   const std::vector<std::string>& get_cell_masters() const { return _cell_masters; }
@@ -75,12 +76,12 @@ class BufferingPattern
    */
   static BufferingPattern concat(const BufferingPattern& upstream, const BufferingPattern& downstream)
   {
-    uint64_t total_length = upstream._length_dbu + downstream._length_dbu;
+    unsigned total_length = upstream._length_idx + downstream._length_idx;
     if (total_length == 0) {
       return BufferingPattern{0, PatternId::segment(0), {}, {}};
     }
 
-    double up_ratio = static_cast<double>(upstream._length_dbu) / total_length;
+    double up_ratio = static_cast<double>(upstream._length_idx) / total_length;
 
     // Renormalize upstream positions to [0, up_ratio]
     std::vector<double> merged_positions;
@@ -104,7 +105,7 @@ class BufferingPattern
   }
 
  private:
-  uint64_t _length_dbu = 0;
+  unsigned _length_idx = 0;
   PatternId _pattern_id{PatternDomain::kSegmentPattern, 0};
   std::vector<double> _buffer_positions;   ///< Normalized positions in (0, 1]
   std::vector<std::string> _cell_masters;  ///< Cell master names for each buffer

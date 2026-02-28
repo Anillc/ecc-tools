@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include "CharCore.hh"
 #include "PatternId.hh"
 
@@ -35,35 +33,38 @@ namespace icts {
  *
  * Combines CharCore (electrical boundaries + cost) with segment length.
  * Supports composition for segment concatenation via Hash-Join.
+ *
+ * Discretized index fields (*_idx) are integer bin indices in [1, *_steps].
+ * Physical values can be recovered via: value = idx * step_size.
  */
 class SegmentChar
 {
  public:
   SegmentChar() = default;
 
-  SegmentChar(CharCore core, uint64_t length_dbu) : _core(std::move(core)), _length_dbu(length_dbu) {}
+  SegmentChar(CharCore core, unsigned length_idx) : _core(std::move(core)), _length_idx(length_idx) {}
 
   // Forwarded getters from CharCore
-  uint16_t get_input_slew() const { return _core.get_input_slew(); }
-  uint16_t get_output_slew() const { return _core.get_output_slew(); }
-  uint16_t get_driven_cap() const { return _core.get_driven_cap(); }
-  uint16_t get_load_cap() const { return _core.get_load_cap(); }
+  unsigned get_input_slew_idx() const { return _core.get_input_slew_idx(); }
+  unsigned get_output_slew_idx() const { return _core.get_output_slew_idx(); }
+  unsigned get_driven_cap_idx() const { return _core.get_driven_cap_idx(); }
+  unsigned get_load_cap_idx() const { return _core.get_load_cap_idx(); }
   double get_delay() const { return _core.get_delay(); }
   double get_power() const { return _core.get_power(); }
   PatternId get_pattern_id() const { return _core.get_pattern_id(); }
 
   // Segment-specific getter
-  uint64_t get_length() const { return _length_dbu; }
+  unsigned get_length_idx() const { return _length_idx; }
 
   /**
    * @brief Compose two segment characterizations.
    *
    * Composition rules (fixed):
-   * - length = upstream.length + downstream.length
-   * - input_slew = upstream.input_slew
-   * - output_slew = downstream.output_slew
-   * - driven_cap = upstream.driven_cap (unchanged from source)
-   * - load_cap = downstream.load_cap
+   * - length_idx = upstream.length_idx + downstream.length_idx
+   * - input_slew_idx = upstream.input_slew_idx
+   * - output_slew_idx = downstream.output_slew_idx
+   * - driven_cap_idx = upstream.driven_cap_idx (unchanged from source)
+   * - load_cap_idx = downstream.load_cap_idx
    * - delay = upstream.delay + downstream.delay
    * - power = upstream.power + downstream.power
    *
@@ -73,19 +74,19 @@ class SegmentChar
    */
   static SegmentChar compose(const SegmentChar& upstream, const SegmentChar& downstream, PatternId merged_pid)
   {
-    CharCore merged_core(upstream.get_input_slew(),                      // input from upstream
-                         downstream.get_output_slew(),                   // output from downstream
-                         upstream.get_driven_cap(),                      // driven_cap from upstream (source side)
-                         downstream.get_load_cap(),                      // load_cap from downstream (sink side)
+    CharCore merged_core(upstream.get_input_slew_idx(),                  // input from upstream
+                         downstream.get_output_slew_idx(),               // output from downstream
+                         upstream.get_driven_cap_idx(),                  // driven_cap from upstream (source side)
+                         downstream.get_load_cap_idx(),                  // load_cap from downstream (sink side)
                          upstream.get_delay() + downstream.get_delay(),  // additive delay
                          upstream.get_power() + downstream.get_power(),  // additive power
                          merged_pid);
-    return SegmentChar(std::move(merged_core), upstream._length_dbu + downstream._length_dbu);
+    return SegmentChar(std::move(merged_core), upstream._length_idx + downstream._length_idx);
   }
 
  private:
   CharCore _core;
-  uint64_t _length_dbu = 0;
+  unsigned _length_idx = 0;
 };
 
 }  // namespace icts
