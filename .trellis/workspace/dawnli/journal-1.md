@@ -86,3 +86,77 @@ Ran 5 parallel checks against the established specs. Results:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: CTS Characterization: iSTA Clock Propagation + Steps-Based Discretization
+
+**Date**: 2026-02-28
+**Task**: CTS Characterization: iSTA Clock Propagation + Steps-Based Discretization
+
+### Summary
+
+Refactored CTS characterization module to use iSTA clock propagation and unified unsigned types
+
+### Main Changes
+
+
+## Major Changes
+
+### 1. CTSAPI Extension (src/operation/iCTS/api/)
+- Added characterization circuit management APIs:
+  - `createCharClock()` / `destroyCharClock()` - Clock propagation setup
+  - `queryCharClockAT()` - Total delay via iSTA clock arrival time
+  - `createCharInstance/Net/Pin`, `buildCharRcTree` - Temporary circuit construction
+  - `updateCharTiming()`, `setCharInputSlew()`, `queryCharSlew()`
+
+### 2. CharBuilder Implementation (src/operation/iCTS/source/module/characterization/)
+- New `CharBuilder` class for pattern enumeration and characterization
+- Uses real iDB nets with RC trees (Pi-model)
+- Clock-based timing: create clock on source buffer → `updateTiming()` → `getClockAT()` at sink
+- Variable wire segment lengths based on buffer positions
+- Monotonic buffer enumeration (non-decreasing buffer indices)
+- Configurable near-neighbor redundancy removal (default off)
+
+### 3. Data Structure Refactoring (src/operation/iCTS/source/database/characterization/)
+- Unified all integer types to `unsigned` (removed uint16_t/uint32_t/uint64_t)
+- Steps-based discretization: `*_steps` (count) instead of `*_unit` (step size)
+- Naming convention: `*_idx` suffix for discretized indices (e.g., `input_slew_idx`)
+- Physical values use `*_um`/`*_ns`/`*_pf` suffixes when ambiguous
+- Hash key packing: `(slew << 16) | cap` (32-bit), `(domain << 30) | local_id`
+
+### 4. Config Updates (src/operation/iCTS/source/database/config/)
+- Replaced `slew_unit/cap_unit/length_unit` with `slew_steps/cap_steps/length_steps`
+- Default: 20 bins for each dimension
+- Added `get_char_buf_redundancy_pct()` for buffer pruning threshold
+
+### 5. Test Updates
+- Updated `CharacterizationTest.cc` to use new `_idx` getters and `unsigned` types
+
+## Verification
+- Build: 248 targets, zero errors
+- clang-format: clean on all modified files
+- Redundant casts removed from HashJoinEngine.hh and Pruner.hh
+
+## Task Spec Updates
+- Section 4: Unit Protocol (um/ns/pF, no DBU conversion in char module)
+- Section 7: Steps-based discretization documentation
+- Added data type unification guidelines (`unsigned`, `*_idx` naming)
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `53241a8e5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

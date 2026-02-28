@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
-- **Last Active**: 2026-02-27
+- **Total Sessions**: 2
+- **Last Active**: 2026-02-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~88 | Active |
+| `journal-1.md` | ~162 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits |
 |---|------|-------|---------|
+| 2 | 2026-02-28 | CTS Characterization: iSTA Clock Propagation + Steps-Based Discretization | `53241a8e5` |
 | 1 | 2026-02-27 | Bootstrap Guidelines + Code Compliance Audit & Fix | `d230616bb` |
 <!-- @@@/auto:session-history -->
 
