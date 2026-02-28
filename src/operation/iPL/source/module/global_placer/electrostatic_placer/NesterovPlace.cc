@@ -62,6 +62,7 @@ namespace ipl {
 void NesterovPlace::initNesConfig(Config* config)
 {
   _nes_config = config->get_nes_config();
+  _global_right_padding = _nes_config.get_global_padding();
 
   if (_nes_config.isOptMaxWirelength() || _nes_config.isOptTiming()) {
     _nes_config.add_opt_target_overflow(0.15);
@@ -154,7 +155,11 @@ void NesterovPlace::wrapNesInstanceList()
 
 void NesterovPlace::wrapNesInstance(Instance* inst, NesInstance* nesInst)
 {
-  nesInst->set_origin_shape(std::move(inst->get_shape()));
+  auto inst_shape = inst->get_shape();
+  int32_t site_width = _nes_database->_placer_db->get_layout()->get_site_width();
+  int32_t right_padding = _global_right_padding * site_width;
+  nesInst->set_origin_shape(
+      Rectangle<int32_t>(inst_shape.get_ll_x(), inst_shape.get_ll_y(), inst_shape.get_ur_x() + right_padding, inst_shape.get_ur_y()));
 
   if (inst->isFixed()) {
     nesInst->set_fixed();
@@ -1771,11 +1776,17 @@ void NesterovPlace::printDensityMapToCsv(std::string file_name)
 void NesterovPlace::writeBackPlacerDB()
 {
   // #pragma omp parallel for num_threads(_nes_config.get_thread_num())
+  int32_t site_width = _nes_database->_placer_db->get_layout()->get_site_width();
+  int32_t right_padding = _global_right_padding * site_width;
+  int32_t center_compensation_x = right_padding / 2;
+
   for (auto pair : _nes_database->_instance_map) {
     auto* n_inst = pair.first;
     auto* inst = pair.second;
 
-    inst->update_center_coordi(n_inst->get_density_center_coordi());
+    auto inst_center = n_inst->get_density_center_coordi();
+    inst_center.set_x(inst_center.get_x() - center_compensation_x);
+    inst->update_center_coordi(inst_center);
   }
   PlacerDBInst.updateGridManager();
 }

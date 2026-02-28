@@ -68,6 +68,7 @@ class NesterovPlace
   float _quad_penalty_coeff = 0.005;
   int64_t _total_inst_area = 0;
   bool _enable_json_output = false;
+    int32_t _global_right_padding = 0;
 
   void resetOverflowRecordList();
   void resetHPWLRecordList();
