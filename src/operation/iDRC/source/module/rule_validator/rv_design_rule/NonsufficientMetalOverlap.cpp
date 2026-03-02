@@ -81,19 +81,17 @@ void RuleValidator::verifyNonsufficientMetalOverlap(RVCluster& rv_cluster)
           if (diag_length >= min_width) {
             continue;
           }
-          if (overlap_rect.get_ll() == overlap_rect.get_ur()) {
-            continue;
-          }
           std::vector<BGRectInt> overlap_rect_env_list;
           {
-            PlanarRect check_rect = overlap_rect;
+            PlanarRect check_rect = DRCUTIL.getEnlargedRect(overlap_rect, 1);
             routing_net_bg_rtree_map[routing_layer_idx][net_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(check_rect)),
                                                                        std::back_inserter(overlap_rect_env_list));
           }
           bool is_inside = false;
           for (auto& overlap_rect_env : overlap_rect_env_list) {
             PlanarRect thirdrect = DRCUTIL.convertToPlanarRect(overlap_rect_env);
-            if ((DRCUTIL.isInside(thirdrect, overlap_rect) && DRCUTIL.isOpenOverlap(thirdrect, overlap_rect)) && thirdrect != rect && thirdrect != env_rect
+            // 如果有第三个矩形包含overlap， 且和rect env_rect还有其他重叠，称该违例在金属中，跳过
+            if ((DRCUTIL.isInside(thirdrect, overlap_rect) && DRCUTIL.isClosedOverlap(thirdrect, overlap_rect)) && thirdrect != rect && thirdrect != env_rect
                 && thirdrect.getWidth() >= min_width && DRCUTIL.getOverlap(thirdrect, rect) != overlap_rect
                 && DRCUTIL.getOverlap(thirdrect, env_rect) != overlap_rect) {
               is_inside = true;
@@ -112,7 +110,6 @@ void RuleValidator::verifyNonsufficientMetalOverlap(RVCluster& rv_cluster)
             y_enlarge_size = half_width - overlap_rect.getYSpan();
           }
           PlanarRect violation_rect = DRCUTIL.getEnlargedRect(overlap_rect, x_enlarge_size, y_enlarge_size, x_enlarge_size, y_enlarge_size);
-
           Violation violation;
           violation.set_violation_type(ViolationType::kNonsufficientMetalOverlap);
           violation.set_is_routing(true);

@@ -16,27 +16,29 @@
 // ***************************************************************************************
 #pragma once
 
-#include "DRCHeader.hpp"
+#include "RTHeader.hpp"
+#include "PlanarRect.hpp"
+#include "RANetNode.hpp"
 
-namespace idrc {
 
-class Config
+namespace irt {
+
+class RAGCell
 {
  public:
-  Config() = default;
-  ~Config() = default;
-  //////////////////////////////////////////////
-  // **********        DRC         ********** //
-  std::string temp_directory_path;  // required
-  int32_t thread_number;            // optional
-  /////////////////////////////////////////////
-  // **********        DRC         ********** //
-  std::string log_file_path;  // building
-  // **********   RuleValidator    ********** //
-  std::string rv_temp_directory_path;  // building
-  // **********     GDSPlotter     ********** //
-  std::string gp_temp_directory_path;  // building
-  //////////////////////////////////////////////
+  RAGCell() = default;
+  ~RAGCell() = default;
+  // getter
+  double get_track_supply() const { return _track_supply; }
+  std::vector<RANetNode>& get_ra_net_node_list() { return _ra_net_node_list; }
+  // setter
+  void set_track_supply(const double track_supply) { _track_supply = track_supply; }
+  void set_ra_net_node_list(const std::vector<RANetNode>& ra_net_node_list) { _ra_net_node_list = ra_net_node_list; }
+  // function
+
+ private:
+  double _track_supply = 0;
+  std::vector<RANetNode> _ra_net_node_list;
 };
 
-}  // namespace idrc
+}  // namespace irt

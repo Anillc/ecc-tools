@@ -39,7 +39,6 @@ class RVCluster
   std::vector<DRCShape*>& get_drc_result_shape_list() { return _drc_result_shape_list; }
   std::set<ViolationType>* get_drc_check_type_set() { return _drc_check_type_set; }
   std::vector<DRCShape>* get_drc_check_region_list() { return _drc_check_region_list; }
-  std::set<Violation, CmpViolation>& get_env_violation_set() { return _env_violation_set; }
   std::vector<Violation>& get_violation_list() { return _violation_list; }
   // setter
   void set_cluster_idx(const int32_t cluster_idx) { _cluster_idx = cluster_idx; }
@@ -49,7 +48,6 @@ class RVCluster
   void set_drc_result_shape_list(const std::vector<DRCShape*>& drc_result_shape_list) { _drc_result_shape_list = drc_result_shape_list; }
   void set_drc_check_type_set(std::set<ViolationType>* drc_check_type_set) { _drc_check_type_set = drc_check_type_set; }
   void set_drc_check_region_list(std::vector<DRCShape>* drc_check_region_list) { _drc_check_region_list = drc_check_region_list; }
-  void set_env_violation_set(const std::set<Violation, CmpViolation>& env_violation_set) { _env_violation_set = env_violation_set; }
   void set_violation_list(const std::vector<Violation>& violation_list) { _violation_list = violation_list; }
   // function
  private:
@@ -60,7 +58,6 @@ class RVCluster
   std::vector<DRCShape*> _drc_result_shape_list;
   std::set<ViolationType>* _drc_check_type_set;
   std::vector<DRCShape>* _drc_check_region_list;
-  std::set<Violation, CmpViolation> _env_violation_set;
   std::vector<Violation> _violation_list;
 };
 

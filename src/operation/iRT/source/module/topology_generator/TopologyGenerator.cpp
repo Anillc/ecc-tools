@@ -105,14 +105,15 @@ TGNet TopologyGenerator::convertToTGNet(Net& net)
     tg_net.get_tg_pin_list().push_back(TGPin(pin));
   }
   tg_net.set_bounding_box(net.get_bounding_box());
+  tg_net.set_resource_cost_map(net.get_resource_cost_map());
   return tg_net;
 }
 
 void TopologyGenerator::setTGComParam(TGModel& tg_model)
 {
-  int32_t topo_spilt_length = 10;
-  int32_t expand_step_num = 5;
-  int32_t expand_step_length = 2;
+  int32_t topo_spilt_length = 30;
+  int32_t expand_step_num = 30;
+  int32_t expand_step_length = 1;
   double prefer_wire_unit = 1;
   double non_prefer_wire_unit = 2.5 * prefer_wire_unit;
   double overflow_unit = 4 * non_prefer_wire_unit;
@@ -255,14 +256,7 @@ void TopologyGenerator::initSingleTask(TGModel& tg_model, TGNet* tg_task)
 
 std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGModel& tg_model)
 {
-  std::vector<Segment<PlanarCoord>> planar_topo_list = getPlanarTopoList(tg_model);
-
-  std::vector<TGCandidate> tg_candidate_list;
-  for (size_t i = 0; i < planar_topo_list.size(); i++) {
-    for (std::vector<Segment<PlanarCoord>> routing_segment_list : getRoutingSegmentListList(tg_model, planar_topo_list[i])) {
-      tg_candidate_list.emplace_back(i, routing_segment_list, 0, false, 0);
-    }
-  }
+  std::vector<TGCandidate> tg_candidate_list = getTGCandidateList(tg_model);
 #pragma omp parallel for
   for (TGCandidate& tg_candidate : tg_candidate_list) {
     updateTGCandidate(tg_model, tg_candidate);
@@ -275,14 +269,22 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGMod
       continue;
     }
     TGCandidate* current_best = topo_candidate_map[topo_idx];
-    if (!tg_candidate.get_is_blocked() && current_best->get_is_blocked()) {
+    if (!tg_candidate.get_is_path_blocked() && current_best->get_is_path_blocked()) {
       topo_candidate_map[topo_idx] = &tg_candidate;
-    } else if (!tg_candidate.get_is_blocked() && !current_best->get_is_blocked()) {
-      if (tg_candidate.get_total_length() < current_best->get_total_length()) {
+    } else if (!tg_candidate.get_is_path_blocked() && !current_best->get_is_path_blocked()) {
+      if (tg_candidate.get_total_resource_cost() < current_best->get_total_resource_cost()) {
         topo_candidate_map[topo_idx] = &tg_candidate;
+      } else if (tg_candidate.get_total_resource_cost() == current_best->get_total_resource_cost()) {
+        if (tg_candidate.get_total_wire_length() < current_best->get_total_wire_length()) {
+          topo_candidate_map[topo_idx] = &tg_candidate;
+        } else if (tg_candidate.get_total_wire_length() == current_best->get_total_wire_length()) {
+          if (tg_candidate.get_total_corner_num() < current_best->get_total_corner_num()) {
+            topo_candidate_map[topo_idx] = &tg_candidate;
+          }
+        }
       }
-    } else if (tg_candidate.get_is_blocked() && current_best->get_is_blocked()) {
-      if (tg_candidate.get_total_cost() < current_best->get_total_cost()) {
+    } else if (tg_candidate.get_is_path_blocked() && current_best->get_is_path_blocked()) {
+      if (tg_candidate.get_total_overflow_cost() < current_best->get_total_overflow_cost()) {
         topo_candidate_map[topo_idx] = &tg_candidate;
       }
     }
@@ -294,6 +296,28 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGMod
     }
   }
   return routing_segment_list;
+}
+
+std::vector<TGCandidate> TopologyGenerator::getTGCandidateList(TGModel& tg_model)
+{
+  std::vector<Segment<PlanarCoord>> planar_topo_list = getPlanarTopoList(tg_model);
+  std::vector<std::pair<int32_t, std::vector<std::vector<Segment<PlanarCoord>>> (TopologyGenerator::*)(TGModel&, Segment<PlanarCoord>&)>> strategy_list;
+  strategy_list.emplace_back(0, &TopologyGenerator::getRoutingSegmentListByStraight);
+  strategy_list.emplace_back(1, &TopologyGenerator::getRoutingSegmentListByLPattern);
+  strategy_list.emplace_back(2, &TopologyGenerator::getRoutingSegmentListByZPattern);
+  strategy_list.emplace_back(2, &TopologyGenerator::getRoutingSegmentListByUPattern);
+  strategy_list.emplace_back(3, &TopologyGenerator::getRoutingSegmentListByInner3Bends);
+  strategy_list.emplace_back(3, &TopologyGenerator::getRoutingSegmentListByOuter3Bends);
+
+  std::vector<TGCandidate> tg_candidate_list;
+  for (size_t i = 0; i < planar_topo_list.size(); i++) {
+    for (const auto& [corner_num, getRoutingSegmentList] : strategy_list) {
+      for (const std::vector<Segment<PlanarCoord>>& routing_segment_list : (this->*getRoutingSegmentList)(tg_model, planar_topo_list[i])) {
+        tg_candidate_list.emplace_back(i, routing_segment_list, corner_num, 0, false, 0, 0);
+      }
+    }
+  }
+  return tg_candidate_list;
 }
 
 std::vector<Segment<PlanarCoord>> TopologyGenerator::getPlanarTopoList(TGModel& tg_model)
@@ -345,22 +369,6 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getPlanarTopoList(TGModel& 
     }
   }
   return planar_topo_list;
-}
-
-std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListList(TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
-{
-  std::vector<std::vector<Segment<PlanarCoord>>> routing_segment_list_list;
-  for (auto getRoutingSegmentList : {std::bind(&TopologyGenerator::getRoutingSegmentListByStraight, this, std::placeholders::_1, std::placeholders::_2),
-                                     std::bind(&TopologyGenerator::getRoutingSegmentListByLPattern, this, std::placeholders::_1, std::placeholders::_2),
-                                     std::bind(&TopologyGenerator::getRoutingSegmentListByZPattern, this, std::placeholders::_1, std::placeholders::_2),
-                                     std::bind(&TopologyGenerator::getRoutingSegmentListByUPattern, this, std::placeholders::_1, std::placeholders::_2),
-                                     std::bind(&TopologyGenerator::getRoutingSegmentListByInner3Bends, this, std::placeholders::_1, std::placeholders::_2),
-                                     std::bind(&TopologyGenerator::getRoutingSegmentListByOuter3Bends, this, std::placeholders::_1, std::placeholders::_2)}) {
-    for (std::vector<Segment<PlanarCoord>> routing_segment_list : getRoutingSegmentList(tg_model, planar_topo)) {
-      routing_segment_list_list.push_back(routing_segment_list);
-    }
-  }
-  return routing_segment_list_list;
 }
 
 std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByStraight(TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
@@ -699,19 +707,21 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
   double overflow_unit = tg_model.get_tg_com_param().get_overflow_unit();
   GridMap<TGNode>& tg_node_map = tg_model.get_tg_node_map();
   int32_t curr_net_idx = tg_model.get_curr_tg_task()->get_net_idx();
+  BoundingBox& curr_bounding_box = tg_model.get_curr_tg_task()->get_bounding_box();
+  GridMap<double>& curr_resource_cost_map = tg_model.get_curr_tg_task()->get_resource_cost_map();
 
-  int32_t total_length = 0;
-  for (Segment<PlanarCoord>& coord_segment : tg_candidate.get_routing_segment_list()) {
-    total_length += RTUTIL.getManhattanDistance(coord_segment.get_first(), coord_segment.get_second());
-  }
-  bool is_blocked = false;
-  double total_cost = 0;
+  int32_t total_wire_length = 0;
+  bool is_path_blocked = false;
+  double total_resource_cost = 0;
+  double total_overflow_cost = 0;
   for (Segment<PlanarCoord>& coord_segment : tg_candidate.get_routing_segment_list()) {
     PlanarCoord& first_coord = coord_segment.get_first();
     PlanarCoord& second_coord = coord_segment.get_second();
     if (!RTUTIL.isRightAngled(first_coord, second_coord)) {
       RTLOG.error(Loc::current(), "The direction is error!");
     }
+    total_wire_length += RTUTIL.getManhattanDistance(first_coord, second_coord);
+
     int32_t first_x = first_coord.get_x();
     int32_t second_x = second_coord.get_x();
     int32_t first_y = first_coord.get_y();
@@ -723,15 +733,19 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
       for (int32_t y = first_y; y <= second_y; y++) {
         double overflow_cost = tg_node_map[x][y].getOverflowCost(curr_net_idx, direction, overflow_unit);
         if (overflow_cost > 1) {
-          is_blocked = true;
+          is_path_blocked = true;
         }
-        total_cost += overflow_cost;
+        int32_t local_x = x - curr_bounding_box.get_grid_ll_x();
+        int32_t local_y = y - curr_bounding_box.get_grid_ll_y();
+        total_resource_cost += (curr_resource_cost_map.isInside(local_x, local_y) ? curr_resource_cost_map[local_x][local_y] : 1);
+        total_overflow_cost += overflow_cost;
       }
     }
   }
-  tg_candidate.set_total_length(total_length);
-  tg_candidate.set_is_blocked(is_blocked);
-  tg_candidate.set_total_cost(total_cost);
+  tg_candidate.set_total_wire_length(total_wire_length);
+  tg_candidate.set_is_path_blocked(is_path_blocked);
+  tg_candidate.set_total_resource_cost(total_resource_cost);
+  tg_candidate.set_total_overflow_cost(total_overflow_cost);
 }
 
 MTree<PlanarCoord> TopologyGenerator::getCoordTree(TGModel& tg_model, std::vector<Segment<PlanarCoord>>& routing_segment_list)

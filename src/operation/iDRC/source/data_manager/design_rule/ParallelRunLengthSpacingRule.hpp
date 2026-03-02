@@ -30,16 +30,16 @@ class ParallelRunLengthSpacingRule
   int32_t getSpacing(int32_t width, int32_t parallel_length)
   {
     int32_t width_idx = static_cast<int32_t>(width_list.size()) - 1;
-    for (int32_t i = width_idx; 0 <= i; i--) {
-      if (width_list[i] <= width) {
-        width_idx = i;
+    for (int32_t i = 1; i <= width_idx; i++) {
+      if (width <= width_list[i]) {
+        width_idx = i - 1;
         break;
       }
     }
     int32_t parallel_length_idx = static_cast<int32_t>(parallel_length_list.size()) - 1;
-    for (int32_t i = parallel_length_idx; 0 <= i; i--) {
-      if (parallel_length_list[i] <= parallel_length) {
-        parallel_length_idx = i;
+    for (int32_t i = 1; i <= parallel_length_idx; i++) {
+      if (parallel_length <= parallel_length_list[i]) {
+        parallel_length_idx = i - 1;
         break;
       }
     }

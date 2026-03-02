@@ -87,7 +87,8 @@ void DRCInterface::checkDef()
   }
   printSummary(type_violation_map);
   outputViolationJson(type_violation_map);
-  outputSummary(type_violation_map);
+  // outputViolationFile(type_violation_map);
+  outputTofeature(type_violation_map);
 }
 
 void DRCInterface::destroyDRC()
@@ -271,7 +272,7 @@ void DRCInterface::cmpViolation(std::map<std::string, std::any> config_map)
         std::ifstream fin(violation_txt);
         if (fin.is_open()) {
           std::string line;
-          int llx, lly, urx, ury;
+          int32_t llx, lly, urx, ury;
           std::string layer;
 
           while (std::getline(fin, line)) {
@@ -680,10 +681,20 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
     std::vector<EnclosureEdgeRule>& enclosure_edge_rule_list = cut_layer.get_enclosure_edge_rule_list();
     if (!idb_layer->get_lef58_enclosure_edge_list().empty()) {
       for (std::shared_ptr<idb::cutlayer::Lef58EnclosureEdge>& idb_enclosure_edge : idb_layer->get_lef58_enclosure_edge_list()) {
+        EnclosureEdgeRule enclosure_edge_rule;
         if (idb_enclosure_edge.get()->get_convex_corners().has_value()) {
+          auto convex_corner = idb_enclosure_edge->get_convex_corners().value();
+          enclosure_edge_rule.has_convexcorners = true;
+          enclosure_edge_rule.convex_length = convex_corner.get_convex_length();
+          enclosure_edge_rule.adjacent_length = convex_corner.get_adjacent_length();
+          enclosure_edge_rule.convex_par_within = convex_corner.get_par_within();
+          enclosure_edge_rule.length = convex_corner.get_length();
+          enclosure_edge_rule.has_above = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kAbove);
+          enclosure_edge_rule.has_below = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kBelow);
+          enclosure_edge_rule.overhang = idb_enclosure_edge.get()->get_overhang();
+          enclosure_edge_rule_list.push_back(enclosure_edge_rule);
           continue;
         }
-        EnclosureEdgeRule enclosure_edge_rule;
         enclosure_edge_rule.has_above = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kAbove);
         enclosure_edge_rule.has_below = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kBelow);
         enclosure_edge_rule.overhang = idb_enclosure_edge.get()->get_overhang();
@@ -1187,7 +1198,47 @@ void DRCInterface::outputViolationJson(std::map<std::string, std::vector<ids::Vi
   DRCUTIL.closeFileStream(violation_json_file);
 }
 
-void DRCInterface::outputSummary(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+void DRCInterface::outputViolationFile(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
+{
+  Monitor monitor;
+  DRCLOG.info(Loc::current(), "Starting...");
+
+  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
+  std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
+  std::string& temp_directory_path = DRCDM.getConfig().temp_directory_path;
+
+  std::vector<idb::IdbNet*>& idb_net_list = dmInst->get_idb_def_service()->get_design()->get_net_list()->get_net_list();
+  for (auto& [type, violation_list] : type_violation_map) {
+    std::ofstream* violation_file = DRCUTIL.getOutputFileStream(DRCUTIL.getString(temp_directory_path, type, ".txt"));
+    for (ids::Violation& violation : violation_list) {
+      DRCUTIL.pushStream(violation_file, violation.ll_x, " ", violation.ll_y, " ", violation.ur_x, " ", violation.ur_y, " ");
+      if (violation.is_routing) {
+        DRCUTIL.pushStream(violation_file, routing_layer_list[violation.layer_idx].get_layer_name(), " ");
+      } else {
+        DRCUTIL.pushStream(violation_file, cut_layer_list[violation.layer_idx].get_layer_name(), " ");
+      }
+      DRCUTIL.pushStream(violation_file, violation.is_routing ? "true" : "false", " ");
+
+      DRCUTIL.pushStream(violation_file, "{ ");
+      for (int32_t net_idx : violation.violation_net_set) {
+        if (net_idx != -1) {
+          DRCUTIL.pushStream(violation_file, idb_net_list[net_idx]->get_net_name(), " ");
+        } else {
+          DRCUTIL.pushStream(violation_file, "-1", " ");
+        }
+      }
+      DRCUTIL.pushStream(violation_file, "}", " ");
+
+      DRCUTIL.pushStream(violation_file, violation.required_size, " ");
+      DRCUTIL.pushStream(violation_file, "\n");
+    }
+    DRCUTIL.closeFileStream(violation_file);
+  }
+
+  DRCLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
+}
+
+void DRCInterface::outputTofeature(std::map<std::string, std::vector<ids::Violation>>& type_violation_map)
 {
   std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();

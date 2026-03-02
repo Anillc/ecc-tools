@@ -14,7 +14,11 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
+#include "DRCShape.hpp"
+#include "Logger.hpp"
+#include "PlanarRect.hpp"
 #include "RuleValidator.hpp"
+#include "Utility.hpp"
 
 namespace idrc {
 
@@ -99,7 +103,13 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
   }
   std::map<int32_t, std::vector<PlanarRect>> cut_rect_map;
   for (DRCShape* drc_shape : rv_cluster.get_drc_result_shape_list()) {
-    if (!drc_shape->get_is_routing()) {
+    if (!drc_shape->get_is_routing() && drc_shape->get_net_idx() != -1) {
+      cut_rect_map[drc_shape->get_layer_idx()].push_back(drc_shape->get_rect());
+    }
+  }
+  for (DRCShape* drc_shape : rv_cluster.get_drc_env_shape_list()) {
+    // 不考虑obs
+    if (!drc_shape->get_is_routing() && drc_shape->get_net_idx() != -1) {
       cut_rect_map[drc_shape->get_layer_idx()].push_back(drc_shape->get_rect());
     }
   }
@@ -127,7 +137,7 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
           std::map<Orientation, int32_t> orient_overhang_map;
           for (auto& [bg_rect, net_poly_info_idx_pair] : bg_rect_net_pair_list) {
             PlanarRect routing_rect = DRCUTIL.convertToPlanarRect(bg_rect);
-            if (!DRCUTIL.isClosedOverlap(routing_rect, cut_rect)) {
+            if (!DRCUTIL.isOpenOverlap(routing_rect, cut_rect)) {
               continue;
             }
             if (routing_rect.get_ll_x() <= cut_rect.get_ll_x()) {
@@ -157,10 +167,23 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
         for (auto& [bg_rect, net_poly_info_idx_pair] : bg_rect_net_pair_list) {
           int32_t net_idx = net_poly_info_idx_pair.first;
           PlanarRect routing_rect = DRCUTIL.convertToPlanarRect(bg_rect);
-          if (!DRCUTIL.isClosedOverlap(routing_rect, cut_rect)) {
+          if (!DRCUTIL.isOpenOverlap(routing_rect, cut_rect)) {
             continue;
           }
           PolyInfo& poly_info = routing_net_poly_info_map[routing_layer_idx][net_idx][net_poly_info_idx_pair.second];
+          // 只考虑完全包含cut的net（允许切成矩形后openoverlap）
+          std::vector<GTLRectInt> gtl_rect_list;
+          gtl::get_max_rectangles(gtl_rect_list, poly_info.gtl_hole_poly);
+          bool is_contained = false;
+          for (GTLRectInt gtl_rect : gtl_rect_list) {
+            if (DRCUTIL.isInside(DRCUTIL.convertToPlanarRect(gtl_rect), cut_rect)) {
+              is_contained = true;
+              break;
+            }
+          }
+          if (!is_contained) {
+            continue;
+          }
           for (Orientation& orient : orientation_list) {
             int32_t edge_idx = -1;
             for (int32_t eol_idx : poly_info.eol_edge_idx_set) {
@@ -177,6 +200,11 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
               continue;
             }
             if (DRCUTIL.getManhattanDistance(curr_segment.get_first(), curr_segment.get_second()) >= curr_rule.eol_width) {
+              continue;
+            }
+            PlanarRect eol_edge_rect = DRCUTIL.getRect(curr_segment.get_first(), curr_segment.get_second());
+            PlanarRect cut_edge_rect = DRCUTIL.getRect(cut_rect.getOrientEdge(orient).get_first(), cut_rect.getOrientEdge(orient).get_second());
+            if (DRCUTIL.getEuclideanDistance(eol_edge_rect, cut_edge_rect) >= curr_rule.overhang) {
               continue;
             }
             int32_t pre_segment_length;
@@ -230,7 +258,11 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
               std::set<int32_t> right_par_net_idx_set;
               for (auto& [bg_env_rect, env_net_poly_info_idx_pair] : env_bg_rect_net_pair_list) {
                 PlanarRect env_routing_rect = DRCUTIL.convertToPlanarRect(bg_env_rect);
-                if (DRCUTIL.isClosedOverlap(routing_rect, env_routing_rect)) {
+                // 不考虑obs的边在 window中有重叠的情况
+                if (env_net_poly_info_idx_pair.first == -1) {
+                  continue;
+                }
+                if (DRCUTIL.isClosedOverlap(routing_rect, env_routing_rect) && net_idx == env_net_poly_info_idx_pair.first) {
                   continue;
                 }
                 if (DRCUTIL.isOpenOverlap(env_routing_rect, left_par_rect)) {

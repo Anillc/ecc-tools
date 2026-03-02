@@ -132,7 +132,9 @@ void RuleValidator::verifyCornerFillSpacing(RVCluster& rv_cluster)
             PlanarRect env_rect = DRCUTIL.convertToPlanarRect(bg_env_rect);
             GTLRectInt env_gtl_rect = DRCUTIL.convertToGTLRectInt(bg_env_rect);
             if (gtl::area(gtl_hole_poly & env_gtl_rect) == gtl::area(env_gtl_rect)) {
-              continue;
+              if (net_idx == env_net_idx) {
+                continue;
+              }
             }
             if (!DRCUTIL.isOpenOverlap(env_rect, check_rect)) {
               continue;
