@@ -81,15 +81,15 @@ RVModel RuleValidator::initRVModel(std::vector<DRCShape>& drc_env_shape_list, st
 void RuleValidator::setRVComParam(RVModel& rv_model)
 {
   int32_t only_pitch = DRCDM.getOnlyPitch();
-  int32_t grid_size = 100 * only_pitch;
+  int32_t cluster_size = 100 * only_pitch;
   int32_t expand_size = 5 * only_pitch;
   /**
-   * grid_size, expand_size
+   * cluster_size, expand_size
    */
   // clang-format off
-  RVComParam rv_com_param(grid_size, expand_size);
+  RVComParam rv_com_param(cluster_size, expand_size);
   // clang-format on
-  DRCLOG.info(Loc::current(), "grid_size: ", rv_com_param.get_grid_size());
+  DRCLOG.info(Loc::current(), "cluster_size: ", rv_com_param.get_cluster_size());
   DRCLOG.info(Loc::current(), "expand_size: ", rv_com_param.get_expand_size());
   rv_model.set_rv_com_param(rv_com_param);
 }
@@ -97,7 +97,7 @@ void RuleValidator::setRVComParam(RVModel& rv_model)
 void RuleValidator::buildRVClusterList(RVModel& rv_model)
 {
   std::vector<RVCluster>& rv_cluster_list = rv_model.get_rv_cluster_list();
-  int32_t grid_size = rv_model.get_rv_com_param().get_grid_size();
+  int32_t cluster_size = rv_model.get_rv_com_param().get_cluster_size();
   int32_t expand_size = rv_model.get_rv_com_param().get_expand_size();
 
   PlanarRect bounding_box(INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN);
@@ -120,26 +120,26 @@ void RuleValidator::buildRVClusterList(RVModel& rv_model)
     }
     offset_x = bounding_box.get_ll_x();
     offset_y = bounding_box.get_ll_y();
-    grid_x_size = bounding_box.getXSpan() / grid_size + 1;
-    grid_y_size = bounding_box.getYSpan() / grid_size + 1;
+    grid_x_size = bounding_box.getXSpan() / cluster_size + 1;
+    grid_y_size = bounding_box.getYSpan() / cluster_size + 1;
   }
   rv_cluster_list.resize(grid_x_size * grid_y_size);
   for (int32_t grid_x = 0; grid_x < grid_x_size; grid_x++) {
     for (int32_t grid_y = 0; grid_y < grid_y_size; grid_y++) {
       RVCluster& rv_cluster = rv_cluster_list[grid_x + grid_y * grid_x_size];
       rv_cluster.set_cluster_idx(grid_x + grid_y * grid_x_size);
-      rv_cluster.get_cluster_rect_list().emplace_back(grid_x * grid_size + offset_x, grid_y * grid_size + offset_y, (grid_x + 1) * grid_size + offset_x,
-                                                      (grid_y + 1) * grid_size + offset_y);
+      rv_cluster.get_cluster_rect_list().emplace_back(grid_x * cluster_size + offset_x, grid_y * cluster_size + offset_y,
+                                                      (grid_x + 1) * cluster_size + offset_x, (grid_y + 1) * cluster_size + offset_y);
       rv_cluster.set_rv_com_param(&rv_model.get_rv_com_param());
     }
   }
   for (DRCShape& drc_env_shape : rv_model.get_drc_env_shape_list()) {
     PlanarRect searched_rect = DRCUTIL.getEnlargedRect(drc_env_shape.get_rect(), expand_size);
     searched_rect = DRCUTIL.getRegularRect(searched_rect, bounding_box);
-    int32_t grid_ll_x = (searched_rect.get_ll_x() - offset_x) / grid_size;
-    int32_t grid_ll_y = (searched_rect.get_ll_y() - offset_y) / grid_size;
-    int32_t grid_ur_x = (searched_rect.get_ur_x() - offset_x) / grid_size;
-    int32_t grid_ur_y = (searched_rect.get_ur_y() - offset_y) / grid_size;
+    int32_t grid_ll_x = (searched_rect.get_ll_x() - offset_x) / cluster_size;
+    int32_t grid_ll_y = (searched_rect.get_ll_y() - offset_y) / cluster_size;
+    int32_t grid_ur_x = (searched_rect.get_ur_x() - offset_x) / cluster_size;
+    int32_t grid_ur_y = (searched_rect.get_ur_y() - offset_y) / cluster_size;
     for (int32_t grid_x = grid_ll_x; grid_x <= grid_ur_x; grid_x++) {
       for (int32_t grid_y = grid_ll_y; grid_y <= grid_ur_y; grid_y++) {
         int32_t cluster_idx = grid_x + grid_y * grid_x_size;
@@ -153,10 +153,10 @@ void RuleValidator::buildRVClusterList(RVModel& rv_model)
   for (DRCShape& drc_result_shape : rv_model.get_drc_result_shape_list()) {
     PlanarRect searched_rect = DRCUTIL.getEnlargedRect(drc_result_shape.get_rect(), expand_size);
     searched_rect = DRCUTIL.getRegularRect(searched_rect, bounding_box);
-    int32_t grid_ll_x = (searched_rect.get_ll_x() - offset_x) / grid_size;
-    int32_t grid_ll_y = (searched_rect.get_ll_y() - offset_y) / grid_size;
-    int32_t grid_ur_x = (searched_rect.get_ur_x() - offset_x) / grid_size;
-    int32_t grid_ur_y = (searched_rect.get_ur_y() - offset_y) / grid_size;
+    int32_t grid_ll_x = (searched_rect.get_ll_x() - offset_x) / cluster_size;
+    int32_t grid_ll_y = (searched_rect.get_ll_y() - offset_y) / cluster_size;
+    int32_t grid_ur_x = (searched_rect.get_ur_x() - offset_x) / cluster_size;
+    int32_t grid_ur_y = (searched_rect.get_ur_y() - offset_y) / cluster_size;
     for (int32_t grid_x = grid_ll_x; grid_x <= grid_ur_x; grid_x++) {
       for (int32_t grid_y = grid_ll_y; grid_y <= grid_ur_y; grid_y++) {
         int32_t cluster_idx = grid_x + grid_y * grid_x_size;
@@ -186,7 +186,6 @@ void RuleValidator::verifyRVModel(RVModel& rv_model)
   for (RVCluster& rv_cluster : rv_model.get_rv_cluster_list()) {
     buildRVCluster(rv_cluster);
     if (needVerifying(rv_cluster)) {
-      buildEnvViolation(rv_cluster);
       buildViolationList(rv_cluster);
       // debugPlotRVCluster(rv_cluster, "best");
     }
@@ -250,17 +249,10 @@ bool RuleValidator::needVerifying(RVCluster& rv_cluster)
   return false;
 }
 
-void RuleValidator::buildEnvViolation(RVCluster& rv_cluster)
+void RuleValidator::buildViolationList(RVCluster& rv_cluster)
 {
-  std::vector<DRCShape*> temp = rv_cluster.get_drc_result_shape_list();
-  rv_cluster.get_drc_result_shape_list().clear();
   verifyRVCluster(rv_cluster);
   processRVCluster(rv_cluster);
-  for (Violation& violation : rv_cluster.get_violation_list()) {
-    rv_cluster.get_env_violation_set().insert(violation);
-  }
-  rv_cluster.set_drc_result_shape_list(temp);
-  rv_cluster.get_violation_list().clear();
 }
 
 void RuleValidator::verifyRVCluster(RVCluster& rv_cluster)
@@ -362,9 +354,6 @@ void RuleValidator::processRVCluster(RVCluster& rv_cluster)
 {
   std::vector<Violation> new_violation_list;
   for (Violation& violation : rv_cluster.get_violation_list()) {
-    if (DRCUTIL.exist(rv_cluster.get_env_violation_set(), violation)) {
-      continue;
-    }
     bool has_overlap = false;
     for (PlanarRect& cluster_rect : rv_cluster.get_cluster_rect_list()) {
       if (DRCUTIL.isOpenOverlap(cluster_rect, violation.get_rect())) {
@@ -380,12 +369,6 @@ void RuleValidator::processRVCluster(RVCluster& rv_cluster)
   std::sort(new_violation_list.begin(), new_violation_list.end(), CmpViolation());
   new_violation_list.erase(std::unique(new_violation_list.begin(), new_violation_list.end()), new_violation_list.end());
   rv_cluster.set_violation_list(new_violation_list);
-}
-
-void RuleValidator::buildViolationList(RVCluster& rv_cluster)
-{
-  verifyRVCluster(rv_cluster);
-  processRVCluster(rv_cluster);
 }
 
 void RuleValidator::buildViolationList(RVModel& rv_model)

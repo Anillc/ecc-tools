@@ -16,8 +16,6 @@
 // ***************************************************************************************
 #pragma once
 
-#include <thread>
-
 #include "DRCHeader.hpp"
 #include "LogLevel.hpp"
 

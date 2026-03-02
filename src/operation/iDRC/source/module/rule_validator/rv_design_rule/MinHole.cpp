@@ -41,21 +41,33 @@ void RuleValidator::verifyMinHole(RVCluster& rv_cluster)
       std::vector<GTLHolePolyInt> gtl_hole_poly_list;
       gtl_poly_set.get(gtl_hole_poly_list);
       for (GTLHolePolyInt& gtl_hole_poly : gtl_hole_poly_list) {
-        for (auto iter = gtl_hole_poly.begin_holes(); iter != gtl_hole_poly.end_holes(); iter++) {
-          GTLPolyInt gtl_poly = *iter;
-          if (gtl::area(gtl_poly) >= min_hole_area) {
-            continue;
+        // 将顶点扩大1个单位，防止内环顶点和外环顶点重合，这种情况boost geometry并不算是正常几何
+        GTLPolySetInt new_poly;
+        new_poly += gtl_hole_poly;
+        for (auto iter = gtl_hole_poly.begin(); iter != gtl_hole_poly.end(); iter++) {
+          PlanarCoord vertex = DRCUTIL.convertToPlanarCoord(*iter);
+          new_poly += DRCUTIL.convertToGTLRectInt(DRCUTIL.getEnlargedRect(DRCUTIL.getRect(vertex, vertex), 1));
+        }
+
+        std::vector<GTLHolePolyInt> large_hole_poly_list;
+        new_poly.get(large_hole_poly_list);
+        for (GTLHolePolyInt& large_hole_poly : large_hole_poly_list) {
+          for (auto iter = large_hole_poly.begin_holes(); iter != large_hole_poly.end_holes(); iter++) {
+            GTLPolyInt gtl_poly = *iter;
+            if (gtl::area(gtl_poly) >= min_hole_area) {
+              continue;
+            }
+            GTLRectInt gtl_rect;
+            gtl::extents(gtl_rect, gtl_poly);
+            Violation violation;
+            violation.set_violation_type(ViolationType::kMinHole);
+            violation.set_is_routing(true);
+            violation.set_violation_net_set({net_idx});
+            violation.set_required_size(min_hole_area);
+            violation.set_layer_idx(routing_layer_idx);
+            violation.set_rect(DRCUTIL.convertToPlanarRect(gtl_rect));
+            rv_cluster.get_violation_list().push_back(violation);
           }
-          GTLRectInt gtl_rect;
-          gtl::extents(gtl_rect, gtl_poly);
-          Violation violation;
-          violation.set_violation_type(ViolationType::kMinHole);
-          violation.set_is_routing(true);
-          violation.set_violation_net_set({net_idx});
-          violation.set_required_size(min_hole_area);
-          violation.set_layer_idx(routing_layer_idx);
-          violation.set_rect(DRCUTIL.convertToPlanarRect(gtl_rect));
-          rv_cluster.get_violation_list().push_back(violation);
         }
       }
     }

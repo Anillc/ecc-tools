@@ -16,27 +16,21 @@
 // ***************************************************************************************
 #pragma once
 
-#include "DRCHeader.hpp"
+#include "Pin.hpp"
 
-namespace idrc {
+namespace irt {
 
-class Config
+class RAPin : public Pin
 {
  public:
-  Config() = default;
-  ~Config() = default;
-  //////////////////////////////////////////////
-  // **********        DRC         ********** //
-  std::string temp_directory_path;  // required
-  int32_t thread_number;            // optional
-  /////////////////////////////////////////////
-  // **********        DRC         ********** //
-  std::string log_file_path;  // building
-  // **********   RuleValidator    ********** //
-  std::string rv_temp_directory_path;  // building
-  // **********     GDSPlotter     ********** //
-  std::string gp_temp_directory_path;  // building
-  //////////////////////////////////////////////
+  RAPin() = default;
+  explicit RAPin(const Pin& pin) : Pin(pin) {}
+  ~RAPin() = default;
+  // getter
+  // setter
+  // function
+
+ private:
 };
 
-}  // namespace idrc
+}  // namespace irt

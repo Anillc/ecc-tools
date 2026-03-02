@@ -272,7 +272,7 @@ void DRCInterface::cmpViolation(std::map<std::string, std::any> config_map)
         std::ifstream fin(violation_txt);
         if (fin.is_open()) {
           std::string line;
-          int llx, lly, urx, ury;
+          int32_t llx, lly, urx, ury;
           std::string layer;
 
           while (std::getline(fin, line)) {
@@ -681,10 +681,20 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
     std::vector<EnclosureEdgeRule>& enclosure_edge_rule_list = cut_layer.get_enclosure_edge_rule_list();
     if (!idb_layer->get_lef58_enclosure_edge_list().empty()) {
       for (std::shared_ptr<idb::cutlayer::Lef58EnclosureEdge>& idb_enclosure_edge : idb_layer->get_lef58_enclosure_edge_list()) {
+        EnclosureEdgeRule enclosure_edge_rule;
         if (idb_enclosure_edge.get()->get_convex_corners().has_value()) {
+          auto convex_corner = idb_enclosure_edge->get_convex_corners().value();
+          enclosure_edge_rule.has_convexcorners = true;
+          enclosure_edge_rule.convex_length = convex_corner.get_convex_length();
+          enclosure_edge_rule.adjacent_length = convex_corner.get_adjacent_length();
+          enclosure_edge_rule.convex_par_within = convex_corner.get_par_within();
+          enclosure_edge_rule.length = convex_corner.get_length();
+          enclosure_edge_rule.has_above = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kAbove);
+          enclosure_edge_rule.has_below = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kBelow);
+          enclosure_edge_rule.overhang = idb_enclosure_edge.get()->get_overhang();
+          enclosure_edge_rule_list.push_back(enclosure_edge_rule);
           continue;
         }
-        EnclosureEdgeRule enclosure_edge_rule;
         enclosure_edge_rule.has_above = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kAbove);
         enclosure_edge_rule.has_below = (idb_enclosure_edge.get()->get_direction() == idb::cutlayer::Lef58EnclosureEdge::Direction::kBelow);
         enclosure_edge_rule.overhang = idb_enclosure_edge.get()->get_overhang();

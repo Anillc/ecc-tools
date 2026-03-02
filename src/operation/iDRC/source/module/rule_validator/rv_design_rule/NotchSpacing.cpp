@@ -122,7 +122,9 @@ void RuleValidator::verifyNotchSpacing(RVCluster& rv_cluster)
                         if (concave_ends < origin_rect.getWidth()) {
                           has_violation = false;
                         }
-                        break;
+                        if (has_violation == false) {
+                          break;
+                        }
                       }
                     }
                   }

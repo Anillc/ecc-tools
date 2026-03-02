@@ -20,88 +20,188 @@ namespace idrc {
 
 void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
 {
-#if 1  // 数据结构定义
-  struct PolyInfo
-  {
-    int32_t coord_size = -1;
-    std::vector<PlanarCoord> coord_list;
-    std::vector<bool> convex_corner_list;
-    std::vector<Segment<PlanarCoord>> edge_list;
-    std::vector<int32_t> edge_length_list;
-    std::set<int32_t> eol_edge_idx_set;
-    GTLHolePolyInt gtl_hole_poly;
-    int32_t poly_info_idx = -1;
-  };
-#endif
-  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
-  std::map<int32_t, std::vector<int32_t>>& routing_to_adjacent_cut_map = DRCDM.getDatabase().get_routing_to_adjacent_cut_map();
+  static constexpr Orientation kOrients[] = {Orientation::kNorth, Orientation::kWest, Orientation::kSouth, Orientation::kEast};
 
-  std::map<int32_t, std::map<int32_t, std::vector<PolyInfo>>> routing_net_poly_info_map;
+  struct EolInfo
   {
-    std::map<int32_t, std::map<int32_t, GTLPolySetInt>> routing_net_gtl_poly_set_map;
+    int32_t pre_length, curr_length, post_length;
+    Segment<PlanarCoord> pre_seg, curr_seg, post_seg;
+    Orientation orient = Orientation::kNone;
+    Orientation pre_orient = Orientation::kNone;
+    Orientation post_orient = Orientation::kNone;
+  };
+
+  std::map<int32_t, std::map<PlanarRect, EolInfo, CmpPlanarRectByXASC>> global_eol_info_map;
+  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, const EolInfo*>, bgi::quadratic<16>>> eol_rtree_map;
+
+  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>> shape_bg_rtree_map;
+  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>> cut_bg_rtree_map;
+  std::map<int32_t, bgi::rtree<BGRectInt, bgi::quadratic<16>>> obs_bg_rtree_map;
+  std::map<int32_t, std::vector<GTLPolySetInt>> layer_connected_components;
+  std::map<int32_t, std::vector<std::map<Orientation, std::vector<PlanarRect>>>> layer_component_edge;
+
+  std::map<int32_t, std::map<PlanarRect, int32_t, CmpPlanarRectByXASC>> layer_seg_EOL_length;
+
+  // preprocess
+  {
+    std::map<int32_t, GTLPolySetInt> layer_polyset_map;
+    std::map<int32_t, std::vector<PlanarRect>> layer_rects;
+    std::map<int32_t, GTLPolySetInt> layer_obs;
     for (DRCShape* drc_shape : rv_cluster.get_drc_env_shape_list()) {
       if (drc_shape->get_is_routing()) {
-        routing_net_gtl_poly_set_map[drc_shape->get_layer_idx()][drc_shape->get_net_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
+        layer_polyset_map[drc_shape->get_layer_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
+        layer_obs[drc_shape->get_layer_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
       }
     }
     for (DRCShape* drc_shape : rv_cluster.get_drc_result_shape_list()) {
       if (drc_shape->get_is_routing()) {
-        routing_net_gtl_poly_set_map[drc_shape->get_layer_idx()][drc_shape->get_net_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
+        layer_polyset_map[drc_shape->get_layer_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
       }
     }
-    for (auto& [routing_layer_idx, net_gtl_poly_set_map] : routing_net_gtl_poly_set_map) {
-      for (auto& [net_idx, gtl_poly_set] : net_gtl_poly_set_map) {
-        std::vector<GTLHolePolyInt> gtl_hole_poly_list;
-        gtl_poly_set.get(gtl_hole_poly_list);
-        for (GTLHolePolyInt& gtl_hole_poly : gtl_hole_poly_list) {
-          int32_t coord_size = static_cast<int32_t>(gtl_hole_poly.size());
+
+    // 还是和之前一样，减去env。
+    for (auto& [routing_layer_idx, obs_gtl_poly_set] : layer_obs) {
+      std::vector<GTLRectInt> gtl_rects;
+      gtl::get_max_rectangles(gtl_rects, obs_gtl_poly_set);
+      for (auto& gtl_rect : gtl_rects) {
+        obs_bg_rtree_map[routing_layer_idx].insert(DRCUTIL.convertToBGRectInt(gtl_rect));
+      }
+    }
+
+    for (auto& [routing_layer_idx, global_gtl_poly_set] : layer_polyset_map) {
+      std::vector<GTLHolePolyInt> global_hole_poly_list;
+      global_gtl_poly_set.get(global_hole_poly_list);
+      for (size_t i = 0; i < global_hole_poly_list.size(); i++) {
+        GTLHolePolyInt global_hole_poly = global_hole_poly_list[i];
+        GTLPolySetInt temp;
+        temp += global_hole_poly;
+        layer_connected_components[routing_layer_idx].push_back(temp);
+        layer_component_edge[routing_layer_idx].push_back(DRCUTIL.getPolyExtEdges(temp));
+
+        std::vector<GTLRectInt> gtl_rect_list;
+        gtl::get_max_rectangles(gtl_rect_list, global_hole_poly);
+        for (GTLRectInt rect : gtl_rect_list) {
+          PlanarRect planar_rect = DRCUTIL.convertToPlanarRect(rect);
+          shape_bg_rtree_map[routing_layer_idx].insert({DRCUTIL.convertToBGRectInt(planar_rect), i});
+          layer_rects[routing_layer_idx].push_back(planar_rect);
+        }
+      }
+    }
+
+    // build eol info
+    for (auto& [routing_layer_idx, global_gtl_poly_set] : layer_polyset_map) {
+      std::vector<GTLHolePolyInt> global_hole_poly_list;
+      global_gtl_poly_set.get(global_hole_poly_list);
+      for (GTLHolePolyInt& global_hole_poly : global_hole_poly_list) {
+        std::vector<std::pair<GTLHolePolyInt, bool>> check_hole_pair_list;
+        {
+          check_hole_pair_list.emplace_back(global_hole_poly, false);
+          for (auto iter = global_hole_poly.begin_holes(); iter != global_hole_poly.end_holes(); iter++) {
+            GTLPolyInt gtl_poly = *iter;
+            GTLHolePolyInt check_hole_poly;
+            check_hole_poly.set(gtl_poly.begin(), gtl_poly.end());
+            check_hole_pair_list.emplace_back(check_hole_poly, true);
+          }
+        }
+        for (auto& [check_hole_poly, is_hole] : check_hole_pair_list) {
+          int32_t coord_size = static_cast<int32_t>(check_hole_poly.size());
           if (coord_size < 4) {
             continue;
           }
           std::vector<PlanarCoord> coord_list;
-          for (auto iter = gtl_hole_poly.begin(); iter != gtl_hole_poly.end(); iter++) {
+          for (auto iter = check_hole_poly.begin(); iter != check_hole_poly.end(); iter++) {
             coord_list.push_back(DRCUTIL.convertToPlanarCoord(*iter));
           }
           std::vector<bool> convex_corner_list;
           std::vector<Segment<PlanarCoord>> edge_list;
-          std::vector<int32_t> edge_length_list;
           for (int32_t i = 0; i < coord_size; i++) {
             PlanarCoord& pre_coord = coord_list[getIdx(i - 1, coord_size)];
             PlanarCoord& curr_coord = coord_list[i];
             PlanarCoord& post_coord = coord_list[getIdx(i + 1, coord_size)];
-            convex_corner_list.push_back(DRCUTIL.isConvexCorner(DRCUTIL.getRotation(gtl_hole_poly), pre_coord, curr_coord, post_coord));
+            if (is_hole) {
+              convex_corner_list.push_back(DRCUTIL.isConcaveCorner(DRCUTIL.getRotation(check_hole_poly), pre_coord, curr_coord, post_coord));
+            } else {
+              convex_corner_list.push_back(DRCUTIL.isConvexCorner(DRCUTIL.getRotation(check_hole_poly), pre_coord, curr_coord, post_coord));
+            }
             edge_list.push_back(Segment<PlanarCoord>(pre_coord, curr_coord));
-            edge_length_list.push_back(DRCUTIL.getManhattanDistance(pre_coord, curr_coord));
           }
-          std::set<int32_t> eol_edge_idx_set;
           for (int32_t i = 0; i < coord_size; i++) {
+            PlanarCoord& pre_coord = coord_list[getIdx(i - 1, coord_size)];
+            PlanarCoord& curr_coord = coord_list[i];
             if (convex_corner_list[getIdx(i - 1, coord_size)] && convex_corner_list[i]) {
-              eol_edge_idx_set.insert(i);
+              // 检查eol边扩展出去的1个单位，排除单点接触
+              Direction direction = DRCUTIL.getDirection(pre_coord, curr_coord);
+              PlanarRect start_probe, end_probe;
+              if (direction == Direction::kHorizontal) {
+                int32_t x_min = std::min(pre_coord.get_x(), curr_coord.get_x());
+                int32_t x_max = std::max(pre_coord.get_x(), curr_coord.get_x());
+                int32_t y = pre_coord.get_y();
+                start_probe = PlanarRect(x_min - 2, y, x_min - 1, y);
+                end_probe = PlanarRect(x_max + 1, y, x_max + 2, y);
+              } else {
+                int32_t y_min = std::min(pre_coord.get_y(), curr_coord.get_y());
+                int32_t y_max = std::max(pre_coord.get_y(), curr_coord.get_y());
+                int32_t x = pre_coord.get_x();
+                start_probe = PlanarRect(x, y_min - 2, x, y_min - 1);
+                end_probe = PlanarRect(x, y_max + 1, x, y_max + 2);
+              }
+              std::vector<std::pair<BGRectInt, int32_t>> overlap_list;
+              shape_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(start_probe)), std::back_inserter(overlap_list));
+              shape_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(end_probe)), std::back_inserter(overlap_list));
+              if (!overlap_list.empty()) {
+                continue;
+              }
+              auto pre_edge = edge_list[getIdx(i - 1, coord_size)];
+              auto curr_edge = edge_list[getIdx(i, coord_size)];
+              auto post_edge = edge_list[getIdx(i + 1, coord_size)];
+              int32_t pre_length = DRCUTIL.getManhattanDistance(pre_edge.get_first(), pre_edge.get_second());
+              int32_t cur_length = DRCUTIL.getManhattanDistance(curr_edge.get_first(), curr_edge.get_second());
+              int32_t post_length = DRCUTIL.getManhattanDistance(post_edge.get_first(), post_edge.get_second());
+              // get eol edge orient
+              PlanarRect bbox = DRCUTIL.getBoundingBox({pre_edge.get_first(), pre_edge.get_second(), post_edge.get_first(), post_edge.get_second()});
+              Orientation orient = DRCUTIL.getTouchedEdgeOrient(bbox, curr_edge);
+              Orientation pre_orient = DRCUTIL.getTouchedEdgeOrient(bbox, pre_edge);
+              Orientation post_orient = DRCUTIL.getTouchedEdgeOrient(bbox, post_edge);
+
+              GTLPolySetInt component_polyset;
+              component_polyset += global_hole_poly;
+              EolInfo eol_info{pre_length, cur_length, post_length, pre_edge, curr_edge, post_edge, orient, pre_orient, post_orient};
+              global_eol_info_map[routing_layer_idx][DRCUTIL.getRect(curr_edge)] = eol_info;
+
+              eol_rtree_map[routing_layer_idx].insert(
+                  {DRCUTIL.convertToBGRectInt(DRCUTIL.getRect(curr_edge)), &global_eol_info_map[routing_layer_idx][DRCUTIL.getRect(curr_edge)]});
             }
           }
-          routing_net_poly_info_map[routing_layer_idx][net_idx].emplace_back(coord_size, coord_list, convex_corner_list, edge_list, edge_length_list,
-                                                                             eol_edge_idx_set, gtl_hole_poly);
         }
       }
     }
-  }
-  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, std::pair<int32_t, int32_t>>, bgi::quadratic<16>>> routing_bg_rtree_map;
-  {
-    for (auto& [routing_layer_idx, net_poly_info_map] : routing_net_poly_info_map) {
-      for (auto& [net_idx, poly_info_list] : net_poly_info_map) {
-        for (int32_t i = 0; i < static_cast<int32_t>(poly_info_list.size()); i++) {
-          std::vector<GTLRectInt> gtl_rect_list;
-          gtl::get_max_rectangles(gtl_rect_list, poly_info_list[i].gtl_hole_poly);
-          for (GTLRectInt& gtl_rect : gtl_rect_list) {
-            routing_bg_rtree_map[routing_layer_idx].insert(std::make_pair(DRCUTIL.convertToBGRectInt(gtl_rect), std::make_pair(net_idx, i)));
+
+    for (auto& [routing_layer_idx, rects] : layer_rects) {
+      if (eol_rtree_map.find(routing_layer_idx) == eol_rtree_map.end()) {
+        continue;
+      }
+      const auto& eol_rtree = eol_rtree_map[routing_layer_idx];
+      auto& seg_len_map = layer_seg_EOL_length[routing_layer_idx];
+
+      for (PlanarRect& rect : rects) {
+        for (Orientation orient : kOrients) {
+          PlanarRect orient_rect = DRCUTIL.getRect(rect.getOrientEdge(orient));
+
+          std::vector<std::pair<BGRectInt, const EolInfo*>> query_res;
+          eol_rtree.query(bgi::intersects(DRCUTIL.convertToBGRectInt(orient_rect)), std::back_inserter(query_res));
+
+          for (const auto& res : query_res) {
+            auto first_rect = res.first;
+            if (DRCUTIL.isInside(DRCUTIL.convertToPlanarRect(first_rect), orient_rect)) {
+              seg_len_map[orient_rect] = res.second->curr_length;
+              break;
+            }
           }
-          poly_info_list[i].poly_info_idx = i;
         }
       }
     }
-  }
-  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>> cut_bg_rtree_map;
-  {
+
+    // build cut shapes
     for (DRCShape* drc_shape : rv_cluster.get_drc_env_shape_list()) {
       if (!drc_shape->get_is_routing()) {
         cut_bg_rtree_map[drc_shape->get_layer_idx()].insert(std::make_pair(DRCUTIL.convertToBGRectInt(drc_shape->get_rect()), drc_shape->get_net_idx()));
@@ -113,325 +213,293 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
       }
     }
   }
-  for (auto& [routing_layer_idx, net_poly_info_map] : routing_net_poly_info_map) {
+  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
+  std::map<int32_t, std::vector<int32_t>>& routing_to_adjacent_cut_map = DRCDM.getDatabase().get_routing_to_adjacent_cut_map();
+
+  // check each eol struct
+  std::map<PlanarRect, std::vector<Violation>, CmpPlanarRectByXASC> edge_violation_map;
+  for (auto& [routing_layer_idx, eol_rect_map] : global_eol_info_map) {
     std::vector<EndOfLineSpacingRule>& end_of_line_spacing_rule_list = routing_layer_list[routing_layer_idx].get_end_of_line_spacing_rule_list();
-    bool need_cut_shape = false;
-    for (EndOfLineSpacingRule& end_of_line_spacing_rule : end_of_line_spacing_rule_list) {
-      if (end_of_line_spacing_rule.has_enclose_cut) {
-        need_cut_shape = true;
-        break;
-      }
-    }
-    std::map<Segment<PlanarCoord>, std::vector<std::pair<Violation, Segment<PlanarCoord>>>, CmpSegmentXASC> edge_violation_edge_map;
-    for (auto& [net_idx, poly_info_list] : net_poly_info_map) {
-      for (PolyInfo& poly_info : poly_info_list) {
-        if (DRCUTIL.getRotation(poly_info.gtl_hole_poly) != Rotation::kCounterclockwise) {
-          DRCLOG.error(Loc::current(), "The poly is error!");
+    for (auto& [eol_edge_rect, eol_info] : eol_rect_map) {
+      PlanarRect eol_rect = DRCUTIL.getBoundingBox(
+          {eol_info.pre_seg.get_first(), eol_info.pre_seg.get_second(), eol_info.post_seg.get_first(), eol_info.post_seg.get_second()});
+      Direction direction = DRCUTIL.getDirection(eol_info.curr_seg.get_first(), eol_info.curr_seg.get_second());
+
+      // to be checked spacing rects
+      std::vector<std::pair<BGRectInt, int32_t>> env_checking_poly_list;
+      // par left and right neighbors
+      std::vector<std::pair<BGRectInt, int32_t>> env_routing_poly_list;
+      // enclosed cut rects
+      std::vector<std::pair<BGRectInt, int32_t>> env_cut_bg_net_list;
+      {
+        bool need_cut_shape = false;
+        int32_t max_eol_spacing = 0;
+        int32_t max_ete_spacing = 0;
+        int32_t max_eol_width = 0;
+        int32_t max_par_spacing = 0;
+        int32_t max_par_within = 0;
+        int32_t max_eol_within = 0;
+        for (const EndOfLineSpacingRule& eol_rule : end_of_line_spacing_rule_list) {
+          if (eol_rule.has_enclose_cut) {
+            need_cut_shape = true;
+          }
+          max_eol_within = std::max(max_eol_within, eol_rule.eol_within);
+          max_eol_spacing = std::max(max_eol_spacing, eol_rule.eol_spacing);
+          max_eol_width = std::max(max_eol_width, eol_rule.eol_width);
+          if (eol_rule.has_ete) {
+            max_ete_spacing = std::max(max_ete_spacing, eol_rule.ete_spacing);
+          }
+          if (eol_rule.has_subtrace_eol_width) {
+            max_par_spacing = std::max(max_par_spacing, eol_rule.par_spacing - eol_info.curr_length);
+          } else {
+            max_par_spacing = std::max(max_par_spacing, eol_rule.par_spacing);
+          }
+          max_par_within = std::max(max_par_within, eol_rule.par_within);
         }
-        std::vector<PlanarRect> adjacent_cut_shape_list;
+
         if (need_cut_shape) {
-          std::vector<GTLRectInt> gtl_rect_list;
-          gtl::get_max_rectangles(gtl_rect_list, poly_info.gtl_hole_poly);
-          for (GTLRectInt& gtl_rect : gtl_rect_list) {
-            std::vector<std::pair<BGRectInt, int32_t>> cut_bg_rect_net_pair_list;
-            {
-              // !现在只能处理below的cut
-              std::vector<int32_t>& cut_layer_idx_list = routing_to_adjacent_cut_map[routing_layer_idx];
-              int32_t cut_layer_idx = *std::min_element(cut_layer_idx_list.begin(), cut_layer_idx_list.end());
-              cut_bg_rtree_map[cut_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(gtl_rect)), std::back_inserter(cut_bg_rect_net_pair_list));
-            }
-            for (auto& [bg_env_rect, env_net_idx] : cut_bg_rect_net_pair_list) {
-              adjacent_cut_shape_list.push_back(DRCUTIL.convertToPlanarRect(bg_env_rect));
-            }
+          std::vector<int32_t>& cut_layer_idx_list = routing_to_adjacent_cut_map[routing_layer_idx];
+          int32_t cut_layer_idx = *std::min_element(cut_layer_idx_list.begin(), cut_layer_idx_list.end());
+          cut_bg_rtree_map[cut_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(eol_rect)), std::back_inserter(env_cut_bg_net_list));
+        }
+
+        PlanarRect max_check_rect = DRCUTIL.getRect(eol_info.curr_seg);
+        max_check_rect = DRCUTIL.getEnlargedPartRect(max_check_rect, eol_info.orient, std::max(max_eol_spacing, max_ete_spacing));
+
+        PlanarRect max_par_rect = DRCUTIL.getRect(eol_info.curr_seg);
+
+        int32_t hori_enlargement = max_par_spacing;
+        int32_t vert_enlargement = std::max(max_par_within, max_eol_within);
+        if (direction == Direction::kHorizontal) {
+          max_par_rect = DRCUTIL.getEnlargedRect(max_par_rect, hori_enlargement, vert_enlargement);
+          max_check_rect = DRCUTIL.getEnlargedRect(max_check_rect, max_eol_within, 0);
+        } else {
+          max_par_rect = DRCUTIL.getEnlargedRect(max_par_rect, vert_enlargement, hori_enlargement);
+          max_check_rect = DRCUTIL.getEnlargedRect(max_check_rect, 0, max_eol_within);
+        }
+        PlanarRect merge_rect = DRCUTIL.getBoundingBox({max_check_rect, max_par_rect});
+        std::vector<std::pair<BGRectInt, int32_t>> merge_rects;
+        shape_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(merge_rect)), std::back_inserter(merge_rects));
+        env_checking_poly_list.reserve(merge_rects.size());
+        env_routing_poly_list.reserve(merge_rects.size());
+        for (auto& [bg_rect, idx] : merge_rects) {
+          PlanarRect rect = DRCUTIL.convertToPlanarRect(bg_rect);
+          if (DRCUTIL.isOpenOverlap(rect, max_check_rect)) {
+            env_checking_poly_list.push_back({bg_rect, idx});
+          }
+          if (DRCUTIL.isOpenOverlap(rect, max_par_rect)) {
+            env_routing_poly_list.push_back({bg_rect, idx});
           }
         }
-        for (int32_t eol_edge_idx : poly_info.eol_edge_idx_set) {
-          PlanarCoord pre_coord = poly_info.coord_list[getIdx(eol_edge_idx - 1, poly_info.coord_size)];
-          PlanarCoord curr_coord = poly_info.coord_list[getIdx(eol_edge_idx, poly_info.coord_size)];
-          if (!DRCUTIL.isRightAngled(pre_coord, curr_coord)) {
-            DRCLOG.error(Loc::current(), "The edge is error!");
+      }
+      if (env_checking_poly_list.empty()) {
+        continue;
+      }
+
+      for (const EndOfLineSpacingRule& eol_rule : end_of_line_spacing_rule_list) {
+        int32_t par_spacing = 0;
+        if (eol_rule.has_subtrace_eol_width) {
+          par_spacing = std::max(par_spacing, eol_rule.par_spacing - eol_info.curr_length);
+        } else {
+          par_spacing = std::max(par_spacing, eol_rule.par_spacing);
+        }
+        PlanarRect pre_rect = DRCUTIL.getRect({eol_info.pre_seg.get_second(), eol_info.pre_seg.get_second()});
+        PlanarRect post_rect = DRCUTIL.getRect({eol_info.post_seg.get_first(), eol_info.post_seg.get_first()});
+
+        switch (eol_info.orient) {
+          case Orientation::kNorth:
+            pre_rect = DRCUTIL.getEnlargedRect(pre_rect, 0, eol_rule.par_within, par_spacing, eol_rule.eol_within);
+            post_rect = DRCUTIL.getEnlargedRect(post_rect, par_spacing, eol_rule.par_within, 0, eol_rule.eol_within);
+            break;
+          case Orientation::kSouth:
+            pre_rect = DRCUTIL.getEnlargedRect(pre_rect, par_spacing, eol_rule.eol_within, 0, eol_rule.par_within);
+            post_rect = DRCUTIL.getEnlargedRect(post_rect, 0, eol_rule.eol_within, par_spacing, eol_rule.par_within);
+            break;
+          case Orientation::kWest:
+            pre_rect = DRCUTIL.getEnlargedRect(pre_rect, eol_rule.eol_within, 0, eol_rule.par_within, par_spacing);
+            post_rect = DRCUTIL.getEnlargedRect(post_rect, eol_rule.eol_within, par_spacing, eol_rule.par_within, 0);
+            break;
+          case Orientation::kEast:
+            pre_rect = DRCUTIL.getEnlargedRect(pre_rect, eol_rule.par_within, par_spacing, eol_rule.eol_within, 0);
+            post_rect = DRCUTIL.getEnlargedRect(post_rect, eol_rule.par_within, 0, eol_rule.eol_within, par_spacing);
+            break;
+          default:
+            DRCLOG.error(Loc::current(), "The orientation is error!");
+        }
+
+        for (auto& [bg_rect, poly_idx] : env_checking_poly_list) {
+          PlanarRect env_rect = DRCUTIL.convertToPlanarRect(bg_rect);
+          if (DRCUTIL.isClosedOverlap(env_rect, eol_rect)) {
+            continue;
           }
-          Direction direction = DRCUTIL.getDirection(pre_coord, curr_coord);
-          Orientation orientation = DRCUTIL.getOrientation(pre_coord, curr_coord);
-          // all spacing rect
-          std::vector<PlanarRect> eol_spacing_rect_list;
-          std::vector<PlanarRect> ete_spacing_rect_list;
-          std::vector<PlanarRect> left_par_spacing_rect_list;
-          std::vector<PlanarRect> right_par_spacing_rect_list;
-          for (EndOfLineSpacingRule& end_of_line_spacing_rule : end_of_line_spacing_rule_list) {
-            int32_t eol_spacing = end_of_line_spacing_rule.eol_spacing;
-            int32_t eol_within = end_of_line_spacing_rule.eol_within;
-            int32_t ete_spacing = end_of_line_spacing_rule.ete_spacing;
-            int32_t par_spacing = 0;
-            if (end_of_line_spacing_rule.has_subtrace_eol_width) {
-              par_spacing = end_of_line_spacing_rule.par_spacing - poly_info.edge_length_list[eol_edge_idx];
-            } else {
-              par_spacing = end_of_line_spacing_rule.par_spacing;
-            }
-            int32_t par_within = end_of_line_spacing_rule.par_within;
-            if (orientation == Orientation::kWest) {
-              eol_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_within, 0, eol_within, eol_spacing));
-              left_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(curr_coord, par_spacing, par_within, 0, eol_within));
-              right_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, 0, par_within, par_spacing, eol_within));
-              if (end_of_line_spacing_rule.has_ete) {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_within, 0, eol_within, ete_spacing));
-              } else {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_within, 0, eol_within, eol_spacing));
-              }
-            } else if (orientation == Orientation::kEast) {
-              eol_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_within, eol_spacing, eol_within, 0));
-              left_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(curr_coord, 0, eol_within, par_spacing, par_within));
-              right_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, par_spacing, eol_within, 0, par_within));
-              if (end_of_line_spacing_rule.has_ete) {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_within, ete_spacing, eol_within, 0));
-              } else {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_within, eol_spacing, eol_within, 0));
-              }
-            } else if (orientation == Orientation::kSouth) {
-              eol_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_spacing, eol_within, 0, eol_within));
-              left_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(curr_coord, eol_within, par_spacing, par_within, 0));
-              right_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, eol_within, 0, par_within, par_spacing));
-              if (end_of_line_spacing_rule.has_ete) {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, ete_spacing, eol_within, 0, eol_within));
-              } else {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, eol_spacing, eol_within, 0, eol_within));
-              }
-            } else if (orientation == Orientation::kNorth) {
-              eol_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, 0, eol_within, eol_spacing, eol_within));
-              left_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(curr_coord, par_within, 0, eol_within, par_spacing));
-              right_par_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, par_within, par_spacing, eol_within, 0));
-              if (end_of_line_spacing_rule.has_ete) {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, 0, eol_within, ete_spacing, eol_within));
-              } else {
-                ete_spacing_rect_list.push_back(DRCUTIL.getEnlargedRect(pre_coord, curr_coord, 0, eol_within, eol_spacing, eol_within));
-              }
-            }
+
+          if (eol_info.curr_length >= eol_rule.eol_width) {
+            continue;
           }
-          // env_net_poly_info_idx_map
-          std::map<int32_t, std::set<int32_t>> env_net_poly_info_idx_map;
-          {
-            int32_t max_eol_spacing = 0;
-            int32_t max_eol_width = 0;
-            int32_t max_par_spacing = 0;
-            int32_t max_par_within = 0;
-            for (const EndOfLineSpacingRule& end_of_line_spacing_rule : end_of_line_spacing_rule_list) {
-              max_eol_spacing = std::max(max_eol_spacing, end_of_line_spacing_rule.eol_spacing);
-              max_eol_width = std::max(max_eol_width, end_of_line_spacing_rule.eol_width);
-              if (end_of_line_spacing_rule.has_subtrace_eol_width) {
-                max_par_spacing = std::max(max_par_spacing, end_of_line_spacing_rule.par_spacing - poly_info.edge_length_list[eol_edge_idx]);
-              } else {
-                max_par_spacing = std::max(max_par_spacing, end_of_line_spacing_rule.par_spacing);
-              }
-              max_par_within = std::max(max_par_within, end_of_line_spacing_rule.par_within);
-            }
-            PlanarRect max_check_rect;
-            if (orientation == Orientation::kEast) {
-              max_check_rect = DRCUTIL.getEnlargedRect(pre_coord, curr_coord, std::max(max_eol_width, max_par_spacing), max_eol_spacing,
-                                                       std::max(max_eol_width, max_par_spacing), max_par_within);
-            } else if (orientation == Orientation::kWest) {
-              max_check_rect = DRCUTIL.getEnlargedRect(pre_coord, curr_coord, std::max(max_eol_width, max_par_spacing), max_par_within,
-                                                       std::max(max_eol_width, max_par_spacing), max_eol_spacing);
-            } else if (orientation == Orientation::kSouth) {
-              max_check_rect = DRCUTIL.getEnlargedRect(pre_coord, curr_coord, max_eol_spacing, std::max(max_eol_width, max_par_spacing), max_par_within,
-                                                       std::max(max_eol_width, max_par_spacing));
-            } else if (orientation == Orientation::kNorth) {
-              max_check_rect = DRCUTIL.getEnlargedRect(pre_coord, curr_coord, max_par_within, std::max(max_eol_width, max_par_spacing), max_eol_spacing,
-                                                       std::max(max_eol_width, max_par_spacing));
-            } else {
-              DRCLOG.error(Loc::current(), "The orientation is error!");
-            }
-            std::vector<std::pair<BGRectInt, std::pair<int32_t, int32_t>>> bg_rect_net_pair_list;
-            routing_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(max_check_rect)),
-                                                          std::back_inserter(bg_rect_net_pair_list));
-            for (auto& [bg_env_rect, net_poly_info_idx_pair] : bg_rect_net_pair_list) {
-              env_net_poly_info_idx_map[net_poly_info_idx_pair.first].insert(net_poly_info_idx_pair.second);
-            }
+
+          bool is_ete = false;
+          PlanarRect env_eol_rect = DRCUTIL.getRect(env_rect.getOrientEdge(DRCUTIL.getOppositeOrientation(eol_info.orient)));
+          if (DRCUTIL.exist(layer_seg_EOL_length[routing_layer_idx], env_eol_rect)
+              && layer_seg_EOL_length[routing_layer_idx][env_eol_rect] < eol_rule.eol_width) {
+            is_ete = true;
           }
-          // skip_rule_idx_set
-          std::set<int32_t> skip_rule_idx_set;
-          for (int32_t i = 0; i < static_cast<int32_t>(end_of_line_spacing_rule_list.size()); i++) {
-            if (poly_info.edge_length_list[eol_edge_idx] >= end_of_line_spacing_rule_list[i].eol_width) {
-              skip_rule_idx_set.insert(i);
-            }
-            if (end_of_line_spacing_rule_list[i].has_min_length) {
-              if (poly_info.edge_length_list[getIdx(eol_edge_idx - 1, poly_info.coord_size)] < end_of_line_spacing_rule_list[i].min_length
-                  && poly_info.edge_length_list[getIdx(eol_edge_idx + 1, poly_info.coord_size)] < end_of_line_spacing_rule_list[i].min_length) {
-                skip_rule_idx_set.insert(i);
-              }
-            }
+          PlanarRect check_rect = DRCUTIL.getEnlargedPartRect(eol_edge_rect, eol_info.orient, is_ete ? eol_rule.ete_spacing : eol_rule.eol_spacing);
+          if (direction == Direction::kHorizontal) {
+            check_rect = DRCUTIL.getEnlargedRect(check_rect, eol_rule.eol_within, 0);
+          } else {
+            check_rect = DRCUTIL.getEnlargedRect(check_rect, 0, eol_rule.eol_within);
           }
-          // par status
-          std::vector<bool> left_par_status_list(end_of_line_spacing_rule_list.size(), false);
-          std::vector<bool> right_par_status_list(end_of_line_spacing_rule_list.size(), false);
-          for (auto& [env_net_idx, env_poly_info_idx_set] : env_net_poly_info_idx_map) {
-            for (int32_t env_poly_info_idx : env_poly_info_idx_set) {
-              if (env_net_idx == net_idx && env_poly_info_idx == poly_info.poly_info_idx) {
+          if (!DRCUTIL.isOpenOverlap(check_rect, env_eol_rect)) {
+            continue;
+          }
+
+          std::vector<BGRectInt> pre_overlap, post_overlap;
+          bool pre_par = false, post_par = false;
+          if (eol_rule.has_par) {
+            for (auto& [par_env_rect, par_poly_idx] : env_routing_poly_list) {
+              PlanarRect par_rect = DRCUTIL.convertToPlanarRect(par_env_rect);
+              if (DRCUTIL.isClosedOverlap(par_rect, eol_rect)) {
                 continue;
               }
-              for (Segment<PlanarCoord>& env_edge : net_poly_info_map[env_net_idx][env_poly_info_idx].edge_list) {
-                if (DRCUTIL.getDirection(env_edge.get_first(), env_edge.get_second()) == direction) {
-                  continue;
+              std::map<Orientation, std::vector<PlanarRect>> par_poly_edges = layer_component_edge[routing_layer_idx][par_poly_idx];
+              for (PlanarRect& rect : par_poly_edges[DRCUTIL.getOppositeOrientation(eol_info.pre_orient)]) {
+                bool find_that = false;
+                if (DRCUTIL.isOpenOverlap(rect, pre_rect)) {
+                  if (par_poly_idx == poly_idx) {
+                    pre_overlap.push_back(par_env_rect);
+                  }
+                  pre_par = true;
+                  find_that = true;
                 }
-                for (size_t i = 0; i < end_of_line_spacing_rule_list.size(); i++) {
-                  if (!end_of_line_spacing_rule_list[i].has_par || end_of_line_spacing_rule_list[i].has_same_metal) {
-                    continue;
-                  }
-                  if (DRCUTIL.isOpenOverlap(env_edge.get_first(), env_edge.get_second(), left_par_spacing_rect_list[i])) {
-                    left_par_status_list[i] = true;
-                  }
-                  if (DRCUTIL.isOpenOverlap(env_edge.get_first(), env_edge.get_second(), right_par_spacing_rect_list[i])) {
-                    right_par_status_list[i] = true;
-                  }
+                if (find_that) {
+                  break;
                 }
               }
-            }
-          }
-          // check
-          PlanarRect curr_edge_rect = DRCUTIL.getRect(pre_coord, curr_coord);
-          PlanarRect curr_max_rect = DRCUTIL.getRect(pre_coord, poly_info.coord_list[getIdx(eol_edge_idx + 1, poly_info.coord_size)]);
-          for (auto& [env_net_idx, env_poly_info_idx_set] : env_net_poly_info_idx_map) {
-            if (net_idx == -1 && env_net_idx == -1) {
-              continue;
-            }
-            for (int32_t env_poly_info_idx : env_poly_info_idx_set) {
-              PolyInfo& env_poly_info = net_poly_info_map[env_net_idx][env_poly_info_idx];
-              std::vector<Segment<PlanarCoord>>& env_edge_list = env_poly_info.edge_list;
-              int32_t env_edge_size = static_cast<int32_t>(env_edge_list.size());
-              for (int32_t env_edge_idx = 0; env_edge_idx < env_edge_size; env_edge_idx++) {
-                Segment<PlanarCoord>& env_edge = env_edge_list[env_edge_idx];
-                if (DRCUTIL.getDirection(env_edge.get_first(), env_edge.get_second()) != direction) {
-                  continue;
+              for (PlanarRect& rect : par_poly_edges[DRCUTIL.getOppositeOrientation(eol_info.post_orient)]) {
+                bool find_that = false;
+                if (DRCUTIL.isOpenOverlap(rect, post_rect)) {
+                  if (par_poly_idx == poly_idx) {
+                    post_overlap.push_back(par_env_rect);
+                  }
+                  post_par = true;
+                  find_that = true;
                 }
-                if (DRCUTIL.getOrientation(env_edge.get_first(), env_edge.get_second()) == orientation) {
-                  continue;
-                }
-                PlanarRect env_edge_rect = DRCUTIL.getRect(env_edge.get_first(), env_edge.get_second());
-                for (int32_t eol_rule_idx = static_cast<int32_t>(end_of_line_spacing_rule_list.size()) - 1; eol_rule_idx >= 0; eol_rule_idx--) {
-                  if (DRCUTIL.exist(skip_rule_idx_set, eol_rule_idx)) {
-                    continue;
-                  }
-                  EndOfLineSpacingRule& curr_rule = end_of_line_spacing_rule_list[eol_rule_idx];
-                  // has_enclose_cut
-                  if (curr_rule.has_enclose_cut) {
-                    bool is_cut_require = false;
-                    for (PlanarRect& adjacent_cut_shape : adjacent_cut_shape_list) {
-                      if (DRCUTIL.isClosedOverlap(curr_max_rect, adjacent_cut_shape)) {
-                        if (DRCUTIL.getEuclideanDistance(adjacent_cut_shape, curr_edge_rect) < curr_rule.enclosed_dist
-                            && DRCUTIL.getEuclideanDistance(adjacent_cut_shape, env_edge_rect) < curr_rule.cut_to_metal_spacing) {
-                          is_cut_require = true;
-                          break;
-                        }
-                      }
-                    }
-                    if (!is_cut_require) {
-                      continue;
-                    }
-                  }
-                  // has_par
-                  if (curr_rule.has_par) {
-                    if (curr_rule.has_same_metal) {
-                      bool pre_left = false;
-                      bool pre_right = false;
-                      {
-                        Segment<PlanarCoord> edge = env_edge_list[getIdx(env_edge_idx - 1, env_edge_size)];
-                        PlanarRect rect = DRCUTIL.getRect(edge.get_first(), edge.get_second());
-                        if (DRCUTIL.isOpenOverlap(rect, left_par_spacing_rect_list[eol_rule_idx])
-                            && DRCUTIL.getParallelLength(rect, left_par_spacing_rect_list[eol_rule_idx]) < curr_rule.par_within) {
-                          pre_left = true;
-                        } else if (DRCUTIL.isOpenOverlap(rect, right_par_spacing_rect_list[eol_rule_idx])
-                                   && DRCUTIL.getParallelLength(rect, right_par_spacing_rect_list[eol_rule_idx]) < curr_rule.par_within) {
-                          pre_right = true;
-                        }
-                      }
-                      bool post_left = false;
-                      bool post_right = false;
-                      {
-                        Segment<PlanarCoord> edge = env_edge_list[getIdx(env_edge_idx + 1, env_edge_size)];
-                        PlanarRect rect = DRCUTIL.getBoundingBox({edge.get_first(), edge.get_second()});
-                        if (DRCUTIL.isOpenOverlap(rect, left_par_spacing_rect_list[eol_rule_idx])
-                            && DRCUTIL.getParallelLength(rect, left_par_spacing_rect_list[eol_rule_idx]) < curr_rule.par_within) {
-                          post_left = true;
-                        } else if (DRCUTIL.isOpenOverlap(rect, right_par_spacing_rect_list[eol_rule_idx])
-                                   && DRCUTIL.getParallelLength(rect, right_par_spacing_rect_list[eol_rule_idx]) < curr_rule.par_within) {
-                          post_right = true;
-                        }
-                      }
-                      if (curr_rule.has_two_edges) {
-                        if (!(pre_left && post_right) && !(pre_right && post_left)) {
-                          continue;
-                        }
-                      } else {
-                        if (!(pre_left || pre_right) && !(post_left || post_right)) {
-                          continue;
-                        }
-                      }
-                    } else {
-                      if (curr_rule.has_two_edges) {
-                        if (!(left_par_status_list[eol_rule_idx] && right_par_status_list[eol_rule_idx])) {
-                          continue;
-                        }
-                      } else {
-                        if (!(left_par_status_list[eol_rule_idx] || right_par_status_list[eol_rule_idx])) {
-                          continue;
-                        }
-                      }
-                    }
-                  }
-                  // eol & ete
-                  PlanarRect spacing_rect = eol_spacing_rect_list[eol_rule_idx];
-                  if (curr_rule.has_ete) {
-                    if (DRCUTIL.exist(env_poly_info.eol_edge_idx_set, env_edge_idx) && env_poly_info.edge_length_list[env_edge_idx] < curr_rule.eol_width) {
-                      spacing_rect = ete_spacing_rect_list[eol_rule_idx];
-                    }
-                  }
-                  if (!DRCUTIL.isOpenOverlap(spacing_rect, env_edge_rect)) {
-                    continue;
-                  }
-                  Violation violation;
-                  violation.set_violation_type(ViolationType::kEndOfLineSpacing);
-                  violation.set_required_size(direction == Direction::kHorizontal ? spacing_rect.getYSpan() : spacing_rect.getXSpan());
-                  violation.set_is_routing(true);
-                  violation.set_violation_net_set({net_idx, env_net_idx});
-                  violation.set_layer_idx(routing_layer_idx);
-                  violation.set_rect(DRCUTIL.getSpacingRect(curr_edge_rect, env_edge_rect));
-                  edge_violation_edge_map[poly_info.edge_list[eol_edge_idx]].push_back(std::make_pair(violation, env_edge_list[env_edge_idx]));
+                if (find_that) {
                   break;
                 }
               }
             }
+            pre_par = eol_info.pre_length >= eol_rule.min_length ? pre_par : false;
+            post_par = eol_info.post_length >= eol_rule.min_length ? post_par : false;
+            if (eol_rule.has_two_edges) {
+              if (!(pre_par && post_par)) {
+                continue;
+              }
+            } else {
+              if (!(pre_par || post_par)) {
+                continue;
+              }
+            }
+
+            if (eol_rule.has_same_metal) {
+              if (pre_overlap.empty() || post_overlap.empty()) {
+                continue;
+              }
+              bool is_samenet = false;
+              for (auto pre_bg_rect : pre_overlap) {
+                for (auto post_bg_rect : post_overlap) {
+                  PlanarRect pre_par_rect = DRCUTIL.convertToPlanarRect(pre_bg_rect);
+                  PlanarRect post_par_rect = DRCUTIL.convertToPlanarRect(post_bg_rect);
+                  if (DRCUTIL.isClosedOverlap(pre_par_rect, post_par_rect)) {
+                    continue;
+                  }
+
+                  PlanarRect space_rect = DRCUTIL.getSpacingRect(pre_par_rect, post_par_rect);
+                  if (!DRCUTIL.isOpenOverlap(space_rect, eol_rect)) {
+                    continue;
+                  }
+                  GTLPolySetInt pre_polyset, post_polyset;
+                  pre_polyset += layer_connected_components[routing_layer_idx][poly_idx] & DRCUTIL.convertToGTLRectInt(pre_rect);
+                  post_polyset += layer_connected_components[routing_layer_idx][poly_idx] & DRCUTIL.convertToGTLRectInt(post_rect);
+                  int32_t pre_prl_length = DRCUTIL.getPolysetMaxPRL(pre_polyset, eol_rect);
+                  int32_t post_prl_length = DRCUTIL.getPolysetMaxPRL(post_polyset, eol_rect);
+                  if (pre_prl_length >= eol_rule.par_within) {
+                    continue;
+                  }
+                  if (post_prl_length >= eol_rule.par_within) {
+                    continue;
+                  }
+                  is_samenet = true;
+                  break;
+                }
+                if (is_samenet) {
+                  break;
+                }
+              }
+              if (!is_samenet) {
+                continue;
+              }
+            }
           }
+
+          if (eol_rule.has_enclose_cut) {
+            bool is_pass_cut = false;
+            for (auto& [cut_bg_rect, cut_idx] : env_cut_bg_net_list) {
+              PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_bg_rect);
+              if ((DRCUTIL.getEuclideanDistance(cut_rect, eol_edge_rect) < eol_rule.enclosed_dist)
+                  && (DRCUTIL.getEuclideanDistance(cut_rect, env_rect)) < eol_rule.cut_to_metal_spacing) {
+                is_pass_cut = true;
+              }
+            }
+            if (!is_pass_cut) {
+              continue;
+            }
+          }
+
+          bool has_eol_rect = false, has_env_rect = false;
+          has_eol_rect
+              = obs_bg_rtree_map[routing_layer_idx].qbegin(bgi::intersects(DRCUTIL.convertToBGRectInt(eol_rect))) != obs_bg_rtree_map[routing_layer_idx].qend();
+          has_env_rect
+              = obs_bg_rtree_map[routing_layer_idx].qbegin(bgi::intersects(DRCUTIL.convertToBGRectInt(env_rect))) != obs_bg_rtree_map[routing_layer_idx].qend();
+          if (has_env_rect && has_eol_rect) {
+            continue;
+          }
+
+          PlanarRect spacing_rect = DRCUTIL.getSpacingRect(eol_rect, env_rect);
+          Violation violation;
+          violation.set_violation_type(ViolationType::kEndOfLineSpacing);
+          violation.set_required_size(is_ete ? eol_rule.ete_spacing : eol_rule.eol_spacing);
+          violation.set_is_routing(true);
+          violation.set_violation_net_set({-1});
+          violation.set_layer_idx(routing_layer_idx);
+          violation.set_rect(spacing_rect);
+          edge_violation_map[eol_rect].push_back(violation);
         }
       }
     }
-    std::set<Violation, CmpViolation> invalid_violation_set;
-    for (auto& [edge, violation_edge_list] : edge_violation_edge_map) {
-      int32_t min_length = INT32_MAX;
-      for (auto& [violation, edge] : violation_edge_list) {
-        if (DRCUTIL.isHorizontal(edge.get_first(), edge.get_second())) {
-          min_length = std::min(min_length, violation.getYSpan());
-        } else {
-          min_length = std::min(min_length, violation.getXSpan());
+  }
+  std::set<Violation, CmpViolation> invalid_violation_set;
+  std::set<Violation, CmpViolation> unique_violation;
+  for (auto& [edge, violation_list] : edge_violation_map) {
+    for (auto& violation : violation_list) {
+      unique_violation.insert(violation);
+    }
+  }
+  // 输出required size最大的violation
+  for (auto violation : unique_violation) {
+    for (auto other_violation : unique_violation) {
+      if (violation.get_rect() == other_violation.get_rect()) {
+        if (violation.get_required_size() < other_violation.get_required_size()) {
+          invalid_violation_set.insert(violation);
         }
-      }
-      for (auto& [violation, edge] : violation_edge_list) {
-        if (DRCUTIL.isHorizontal(edge.get_first(), edge.get_second())) {
-          if (min_length != violation.getYSpan()) {
-            invalid_violation_set.insert(violation);
-          }
-        } else {
-          if (min_length != violation.getXSpan()) {
-            invalid_violation_set.insert(violation);
-          }
-        }
+      } else if (DRCUTIL.isInside(other_violation.get_rect(), violation.get_rect())) {
+        invalid_violation_set.insert(violation);
       }
     }
-    for (auto& [segment, violation_edge_list] : edge_violation_edge_map) {
-      for (auto& [violation, edge] : violation_edge_list) {
-        if (DRCUTIL.exist(invalid_violation_set, violation)) {
-          continue;
-        }
-        rv_cluster.get_violation_list().push_back(violation);
-      }
+  }
+  for (auto violation : unique_violation) {
+    if (!DRCUTIL.exist(invalid_violation_set, violation)) {
+      rv_cluster.get_violation_list().push_back(violation);
     }
   }
 }

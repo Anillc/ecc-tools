@@ -32,6 +32,7 @@ class TGNet
   ConnectType& get_connect_type() { return _connect_type; }
   std::vector<TGPin>& get_tg_pin_list() { return _tg_pin_list; }
   BoundingBox& get_bounding_box() { return _bounding_box; }
+  GridMap<double>& get_resource_cost_map() { return _resource_cost_map; }
   // const getter
   const ConnectType& get_connect_type() const { return _connect_type; }
   const std::vector<TGPin>& get_tg_pin_list() const { return _tg_pin_list; }
@@ -42,6 +43,7 @@ class TGNet
   void set_connect_type(const ConnectType& connect_type) { _connect_type = connect_type; }
   void set_tg_pin_list(const std::vector<TGPin>& tg_pin_list) { _tg_pin_list = tg_pin_list; }
   void set_bounding_box(const BoundingBox& bounding_box) { _bounding_box = bounding_box; }
+  void set_resource_cost_map(const GridMap<double>& resource_cost_map) { _resource_cost_map = resource_cost_map; }
   // function
 
  private:
@@ -50,6 +52,7 @@ class TGNet
   ConnectType _connect_type = ConnectType::kNone;
   std::vector<TGPin> _tg_pin_list;
   BoundingBox _bounding_box;
+  GridMap<double> _resource_cost_map;
 };
 
 struct CmpTGNet

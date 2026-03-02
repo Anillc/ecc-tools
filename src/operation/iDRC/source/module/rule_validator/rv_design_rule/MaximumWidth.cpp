@@ -14,8 +14,6 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include <cstdint>
-
 #include "RuleValidator.hpp"
 
 namespace idrc {

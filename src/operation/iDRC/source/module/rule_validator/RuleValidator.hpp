@@ -54,7 +54,7 @@ class RuleValidator
   void verifyRVModel(RVModel& rv_model);
   void buildRVCluster(RVCluster& rv_cluster);
   bool needVerifying(RVCluster& rv_cluster);
-  void buildEnvViolation(RVCluster& rv_cluster);
+  void buildViolationList(RVCluster& rv_cluster);
   void verifyRVCluster(RVCluster& rv_cluster);
   void verifyAdjacentCutSpacing(RVCluster& rv_cluster);
   void verifyCornerFillSpacing(RVCluster& rv_cluster);
@@ -84,7 +84,6 @@ class RuleValidator
   void verifySameLayerCutSpacing(RVCluster& rv_cluster);
   bool needVerifying(RVCluster& rv_cluster, ViolationType violation_type);
   void processRVCluster(RVCluster& rv_cluster);
-  void buildViolationList(RVCluster& rv_cluster);
   void buildViolationList(RVModel& rv_model);
 
 #if 1  // aux

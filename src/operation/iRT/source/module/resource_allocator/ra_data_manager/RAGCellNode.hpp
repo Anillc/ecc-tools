@@ -16,27 +16,31 @@
 // ***************************************************************************************
 #pragma once
 
-#include "DRCHeader.hpp"
+#include "RTHeader.hpp"
 
-namespace idrc {
+namespace irt {
 
-class Config
+class RAGCellNode
 {
  public:
-  Config() = default;
-  ~Config() = default;
-  //////////////////////////////////////////////
-  // **********        DRC         ********** //
-  std::string temp_directory_path;  // required
-  int32_t thread_number;            // optional
-  /////////////////////////////////////////////
-  // **********        DRC         ********** //
-  std::string log_file_path;  // building
-  // **********   RuleValidator    ********** //
-  std::string rv_temp_directory_path;  // building
-  // **********     GDSPlotter     ********** //
-  std::string gp_temp_directory_path;  // building
-  //////////////////////////////////////////////
+  RAGCellNode() = default;
+  RAGCellNode(const int32_t ra_gcell_idx, const int32_t result_idx)
+  {
+    _ra_gcell_idx = ra_gcell_idx;
+    _result_idx = result_idx;
+  }
+  ~RAGCellNode() = default;
+  // getter
+  int32_t get_ra_gcell_idx() const { return _ra_gcell_idx; }
+  int32_t get_result_idx() const { return _result_idx; }
+
+  // setter
+
+  // function
+
+ private:
+  int32_t _ra_gcell_idx = -1;
+  int32_t _result_idx = -1;
 };
 
-}  // namespace idrc
+}  // namespace irt

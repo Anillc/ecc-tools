@@ -26,6 +26,7 @@
 #include "NotificationUtility.h"
 #include "PinAccessor.hpp"
 #include "RTInterface.hpp"
+#include "ResourceAllocator.hpp"
 #include "SpaceRouter.hpp"
 #include "SupplyAnalyzer.hpp"
 #include "TopologyGenerator.hpp"
@@ -125,6 +126,10 @@ void RTInterface::runRT()
   SupplyAnalyzer::initInst();
   RTSA.analyze();
   SupplyAnalyzer::destroyInst();
+
+  ResourceAllocator::initInst();
+  RTRA.allocate();
+  ResourceAllocator::destroyInst();
 
   TopologyGenerator::initInst();
   RTTG.generate();
@@ -349,38 +354,6 @@ void RTInterface::fixFanout()
     }
     RTLOG.info(Loc::current(), "Fixed ", origin_net_set.size(), " nets!( +", idb_net_list->get_num() - begin_net_num, " nets )");
   }
-}
-
-void RTInterface::getCongestion()
-{
-  Monitor monitor;
-  RTLOG.info(Loc::current(), "Starting...");
-
-  initFlute();
-  RTGP.init();
-  RTDE.init();
-
-  PinAccessor::initInst();
-  RTPA.access();
-  PinAccessor::destroyInst();
-
-  SupplyAnalyzer::initInst();
-  RTSA.analyze();
-  SupplyAnalyzer::destroyInst();
-
-  TopologyGenerator::initInst();
-  RTTG.generate();
-  TopologyGenerator::destroyInst();
-
-  LayerAssigner::initInst();
-  RTLA.assign();
-  LayerAssigner::destroyInst();
-
-  destroyFlute();
-  RTGP.destroy();
-  RTDE.destroy();
-
-  RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
 #endif

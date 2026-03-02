@@ -684,6 +684,8 @@ void DataManager::buildConfig()
   _config.pa_temp_directory_path = _config.temp_directory_path + "pin_accessor/";
   // ********     SupplyAnalyzer    ******** //
   _config.sa_temp_directory_path = _config.temp_directory_path + "supply_analyzer/";
+  // ********   ResourceAllocator   ******** //
+  _config.ra_temp_directory_path = _config.temp_directory_path + "resource_allocator/";
   // ********   TopologyGenerator   ******** //
   _config.tg_temp_directory_path = _config.temp_directory_path + "topology_generator/";
   // **********   LayerAssigner   ********** //
@@ -713,6 +715,8 @@ void DataManager::buildConfig()
   RTUTIL.createDir(_config.pa_temp_directory_path);
   // **********  SupplyAnalyzer   ********** //
   RTUTIL.createDir(_config.sa_temp_directory_path);
+  // ********   ResourceAllocator   ******** //
+  RTUTIL.createDir(_config.ra_temp_directory_path);
   // *********  TopologyGenerator  ********* //
   RTUTIL.createDir(_config.tg_temp_directory_path);
   // **********   LayerAssigner   ********** //
@@ -1594,6 +1598,10 @@ void DataManager::printConfig()
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "SupplyAnalyzer");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "sa_temp_directory_path");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.sa_temp_directory_path);
+  // ********   ResourceAllocator   ******** //
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "ResourceAllocator");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "ra_temp_directory_path");
+  RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(3), _config.ra_temp_directory_path);
   // ********** TopologyGenerator  ********* //
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(1), "TopologyGenerator");
   RTLOG.info(Loc::current(), RTUTIL.getSpaceByTabNum(2), "tg_temp_directory_path");
