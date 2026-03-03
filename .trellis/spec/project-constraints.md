@@ -39,8 +39,8 @@ Every new `.cc` and `.hh` file **must** begin with the following copyright block
 ```cpp
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
 // You can use this software according to the terms and conditions of the Mulan PSL v2.
