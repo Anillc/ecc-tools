@@ -92,6 +92,18 @@ void RuleValidator::verifyParallelRunLengthSpacing(RVCluster& rv_cluster)
     std::vector<PlanarRect> violation_env_rect_list;
     for (auto& [net_idx, rect_list] : net_rect_map) {
       for (PlanarRect& rect : rect_list) {
+        bool inside_obs = false;
+        std::vector<std::pair<BGRectInt, int32_t>> shape_in_obs;
+        routing_net_total_rtrees[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(rect)), std::back_inserter(shape_in_obs));
+        for (auto& [bg_rect, net_idx] : shape_in_obs) {
+          PlanarRect obs_rect = DRCUTIL.convertToPlanarRect(bg_rect);
+          if (net_idx == -1 && DRCUTIL.isInside(obs_rect, rect)) {
+            inside_obs = true;
+            break;
+          }
+        }
+        if (inside_obs) { continue; }
+
         bg_rect_net_pair_list.clear();
         violation_env_rect_list.clear();
         {
@@ -116,9 +128,6 @@ void RuleValidator::verifyParallelRunLengthSpacing(RVCluster& rv_cluster)
           }
 
           PlanarRect violation_rect = DRCUTIL.getSpacingRect(rect, env_rect);
-          if (prl < 0 && env_net_idx == -1) {
-            continue;
-          }
 
           if (prl > 0 || (prl < 0 && env_net_idx == net_idx)) {
             GTLPolySetInt vioaltion_around_set;

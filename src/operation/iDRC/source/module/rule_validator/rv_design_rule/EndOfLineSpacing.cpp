@@ -41,6 +41,8 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
   std::map<int32_t, std::vector<std::map<Orientation, std::vector<PlanarRect>>>> layer_component_edge;
 
   std::map<int32_t, std::map<PlanarRect, int32_t, CmpPlanarRectByXASC>> layer_seg_EOL_length;
+  // for net_id query
+  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>> routing_bg_rtree_map;
 
   // preprocess
   {
@@ -51,11 +53,13 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
       if (drc_shape->get_is_routing()) {
         layer_polyset_map[drc_shape->get_layer_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
         layer_obs[drc_shape->get_layer_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
+        routing_bg_rtree_map[drc_shape->get_layer_idx()].insert({DRCUTIL.convertToBGRectInt(drc_shape->get_rect()), drc_shape->get_net_idx()});
       }
     }
     for (DRCShape* drc_shape : rv_cluster.get_drc_result_shape_list()) {
       if (drc_shape->get_is_routing()) {
         layer_polyset_map[drc_shape->get_layer_idx()] += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
+        routing_bg_rtree_map[drc_shape->get_layer_idx()].insert({DRCUTIL.convertToBGRectInt(drc_shape->get_rect()), drc_shape->get_net_idx()});
       }
     }
 
@@ -250,6 +254,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
             max_ete_spacing = std::max(max_ete_spacing, eol_rule.ete_spacing);
           }
           if (eol_rule.has_subtrace_eol_width) {
+            // 应该找到原来polygon， 再计算不同部分的subtrace长度， 但是现在先简单处理成curr_length
             max_par_spacing = std::max(max_par_spacing, eol_rule.par_spacing - eol_info.curr_length);
           } else {
             max_par_spacing = std::max(max_par_spacing, eol_rule.par_spacing);
@@ -337,19 +342,23 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
             continue;
           }
 
+          // 0: normal eol spacing, 1: ete spacing， 2: par spacing, 3: same metal spacing
+          int violation_type = 0;
+          PlanarRect par_vio_rect;
           bool is_ete = false;
           PlanarRect env_eol_rect = DRCUTIL.getRect(env_rect.getOrientEdge(DRCUTIL.getOppositeOrientation(eol_info.orient)));
           if (DRCUTIL.exist(layer_seg_EOL_length[routing_layer_idx], env_eol_rect)
               && layer_seg_EOL_length[routing_layer_idx][env_eol_rect] < eol_rule.eol_width) {
             is_ete = true;
           }
+          violation_type = is_ete ? 1 : 0;
           PlanarRect check_rect = DRCUTIL.getEnlargedPartRect(eol_edge_rect, eol_info.orient, is_ete ? eol_rule.ete_spacing : eol_rule.eol_spacing);
           if (direction == Direction::kHorizontal) {
             check_rect = DRCUTIL.getEnlargedRect(check_rect, eol_rule.eol_within, 0);
           } else {
             check_rect = DRCUTIL.getEnlargedRect(check_rect, 0, eol_rule.eol_within);
           }
-          if (!DRCUTIL.isOpenOverlap(check_rect, env_eol_rect)) {
+          if (!DRCUTIL.isOpenOverlap(check_rect, env_eol_rect) && !eol_rule.has_same_metal) {
             continue;
           }
 
@@ -370,6 +379,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
                   }
                   pre_par = true;
                   find_that = true;
+                  par_vio_rect = rect;
                 }
                 if (find_that) {
                   break;
@@ -383,6 +393,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
                   }
                   post_par = true;
                   find_that = true;
+                  par_vio_rect = rect;
                 }
                 if (find_that) {
                   break;
@@ -439,6 +450,10 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
               if (!is_samenet) {
                 continue;
               }
+              violation_type = 2;
+            }
+            if (violation_type == 0) {
+              violation_type = 3;
             }
           }
 
@@ -456,21 +471,51 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
             }
           }
 
-          bool has_eol_rect = false, has_env_rect = false;
-          has_eol_rect
-              = obs_bg_rtree_map[routing_layer_idx].qbegin(bgi::intersects(DRCUTIL.convertToBGRectInt(eol_rect))) != obs_bg_rtree_map[routing_layer_idx].qend();
-          has_env_rect
-              = obs_bg_rtree_map[routing_layer_idx].qbegin(bgi::intersects(DRCUTIL.convertToBGRectInt(env_rect))) != obs_bg_rtree_map[routing_layer_idx].qend();
-          if (has_env_rect && has_eol_rect) {
+          auto check_inside = [&](const auto& target_rect) {
+            auto query_box = DRCUTIL.convertToBGRectInt(target_rect);
+            auto& rtree = obs_bg_rtree_map[routing_layer_idx];
+
+            for (auto iter = rtree.qbegin(bgi::intersects(query_box)); iter != rtree.qend(); ++iter) {
+              auto iter_rect = *iter;
+              if (DRCUTIL.isInside(DRCUTIL.convertToPlanarRect(iter_rect), target_rect)) {
+                return true;
+              }
+            }
+            return false;
+          };
+
+          if (check_inside(eol_edge_rect) && check_inside(env_eol_rect)) {
             continue;
           }
 
           PlanarRect spacing_rect = DRCUTIL.getSpacingRect(eol_rect, env_rect);
+          std::vector<std::pair<BGRectInt, int32_t>> net_in_vio;
+          routing_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(eol_edge_rect)), std::back_inserter(net_in_vio));
+          std::set<int32_t> net_list;
+          // checking netID
+          net_list.insert(net_in_vio.empty() ? -1 : net_in_vio[0].second);
+          
+          // par violation netID
+          if (violation_type >= 2) {
+            std::vector<std::pair<BGRectInt, int32_t>> net_in_vio;
+            routing_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(par_vio_rect)), std::back_inserter(net_in_vio));
+            if (!net_in_vio.empty()) {
+              net_list.insert(net_in_vio[0].second);
+            }
+          } else {
+            std::vector<std::pair<BGRectInt, int32_t>> net_in_vio;
+            routing_bg_rtree_map[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(env_eol_rect)), std::back_inserter(net_in_vio));
+            if (!net_in_vio.empty()) {
+              net_list.insert(net_in_vio[0].second);
+            }
+          }
+          
+
           Violation violation;
           violation.set_violation_type(ViolationType::kEndOfLineSpacing);
-          violation.set_required_size(is_ete ? eol_rule.ete_spacing : eol_rule.eol_spacing);
+          violation.set_required_size(violation_type == 1 ? eol_rule.ete_spacing : eol_rule.eol_spacing);
           violation.set_is_routing(true);
-          violation.set_violation_net_set({-1});
+          violation.set_violation_net_set(net_list);
           violation.set_layer_idx(routing_layer_idx);
           violation.set_rect(spacing_rect);
           edge_violation_map[eol_rect].push_back(violation);

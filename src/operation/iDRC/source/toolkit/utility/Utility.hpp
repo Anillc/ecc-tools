@@ -660,8 +660,6 @@ class Utility
           // 对于 CCW 外轮廓：+X方向的边位于底部(South)，+Y方向的边位于右侧(East)，以此类推
           // 如果是 CW 或者内孔，则逻辑翻转
           bool reverse = !is_ccw;
-          if (is_hole)
-            reverse = !reverse;
 
           Orientation orient = Orientation::kNone;
           if (p1.get_y() == p2.get_y()) {  // 水平边

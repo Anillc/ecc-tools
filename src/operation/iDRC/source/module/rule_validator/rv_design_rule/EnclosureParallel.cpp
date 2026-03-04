@@ -272,11 +272,8 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
                   right_par_net_idx_set.insert(env_net_poly_info_idx_pair.first);
                 }
               }
-              for (int32_t left_par_net_idx : left_par_net_idx_set) {
-                violation_net_set_set.insert({left_par_net_idx, net_idx});
-              }
-              for (int32_t right_par_net_idx : right_par_net_idx_set) {
-                violation_net_set_set.insert({right_par_net_idx, net_idx});
+              if (!left_par_net_idx_set.empty() || !right_par_net_idx_set.empty()) {
+                violation_net_set_set.insert({net_idx});
               }
             }
             for (const std::set<int32_t>& violation_net_set : violation_net_set_set) {
