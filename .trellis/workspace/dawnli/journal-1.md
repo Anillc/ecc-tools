@@ -160,3 +160,61 @@ Refactored CTS characterization module to use iSTA clock propagation and unified
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Restore and update iCTS backend spec from codebase
+
+**Date**: 2026-03-05
+**Task**: Restore and update iCTS backend spec from codebase
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+## Summary
+Restored backend spec files from empty templates and updated against current iCTS codebase.
+
+## Changes
+
+| File | Key Updates |
+|------|-------------|
+| `database-guidelines.md` | Added HTreeTopologyPattern, PatternId factories, updated CharCore fields from uint16_t to unsigned |
+| `directory-structure.md` | Added routing sub-modules, characterization internals (CharBuilder, HashJoinEngine), module enable/disable status |
+| `error-handling.md` | Verified examples match current CTSAPI.cc |
+| `logging-guidelines.md` | Updated Logger API (set_log_file vs init) |
+| `quality-guidelines.md` | Deduplicated clang-format section (ref project-constraints.md) |
+
+## Process
+- Analyzed git diff to recover original spec content (the `-` lines)
+- Verified all content against current source code
+- Launched 3 research agents to explore data model, directory structure, logging patterns
+- Added new characterization types discovered in codebase
+
+## Files Modified
+- `.trellis/spec/backend/index.md`
+- `.trellis/spec/backend/database-guidelines.md`
+- `.trellis/spec/backend/directory-structure.md`
+- `.trellis/spec/backend/error-handling.md`
+- `.trellis/spec/backend/logging-guidelines.md`
+- `.trellis/spec/backend/quality-guidelines.md`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f4a3732e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
