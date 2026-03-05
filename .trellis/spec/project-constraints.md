@@ -107,23 +107,26 @@ The project uses clang-tidy for static analysis. Reference config at `src/utilit
 
 ### Naming Convention Rules (enforced by clang-tidy)
 
-| Element | Case | Prefix | Example |
-|---------|------|--------|---------|
-| Class | CamelCase | — | `Clock`, `CTSAPI` |
-| Class method | camelBack | — | `runCTS()`, `readData()` |
-| Getter/Setter (simple) | snake_case | `get_`/`set_` | `get_name()`, `set_type()` |
-| Getter/Setter (complex) | camelBack | — | `calcDelay()`, `fetchNetlist()` |
-| Boolean query (simple) | snake_case | `is_` | `is_buffer()`, `is_flipflop()` |
-| Boolean query (complex) | camelBack | — | `hasViolation()`, `canInsertBuffer()` |
-| Member variable | lower_case | `_` | `_clock_name`, `_max_fanout` |
-| Local variable | lower_case | — | `clock_name`, `inst_type` |
-| Enum (scoped) | CamelCase | — | `enum class InstType` |
-| Enum value | CamelCase | `k` | `kBuffer`, `kFlipFlop` |
-| Global constant | CamelCase | `k` | `kFileName` |
-| Global variable | CamelCase | `g` | `gFileName` |
-| Macro | UPPER_CASE | — | `CTS_LOG_INFO` |
-| Namespace | lower_case | — | `icts`, `idb` |
-| Abstract class | CamelCase | — (suffix) | `Interface` suffix required |
+| Element | Case | Prefix | Suffix | Example |
+|---------|------|--------|--------|---------|
+| Class | CamelCase | — | — | `Clock`, `CTSAPI`, `TopologyGen` |
+| Abstract class | CamelCase | — | `Interface` | `RouterInterface` |
+| Class method | camelBack | — | — | `runCTS()`, `readData()`, `summaryClockDistribution()` |
+| Getter (simple) | snake_case | `get_` | — | `get_name()`, `get_type()`, `get_clock_source()` |
+| Setter (simple) | snake_case | `set_` | — | `set_name()`, `set_type()`, `set_location()` |
+| Getter (complex) | camelBack | — | — | `calcDelay()`, `estimateCapacitance()`, `fetchNetlist()` |
+| Setter (complex) | camelBack | — | — | `updateTiming()`, `applyTransform()` |
+| Boolean query (simple) | snake_case | `is_` | — | `is_buffer()`, `is_flipflop()`, `is_clock_gate()` |
+| Boolean query (complex) | camelBack | — | — | `hasViolation()`, `canInsertBuffer()` |
+| Member variable | lower_case | `_` | — | `_clock_name`, `_max_fanout`, `_loads` |
+| Local variable | lower_case | — | — | `clock_name`, `inst_type`, `num_sinks` |
+| Enum (scoped) | CamelCase | — | — | `enum class InstType`, `enum class PinType` |
+| Enum value | CamelCase | `k` | — | `kBuffer`, `kFlipFlop`, `kUnknown` |
+| Global/Free function | CamelCase | — | — | `Manhattan()`, `CalcCenter()` |
+| Global constant | CamelCase | `k` | — | `kFileName` |
+| Global variable | CamelCase | `g` | — | `gFileName` |
+| Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst` |
+| Namespace | lower_case | — | — | `icts`, `idb`, `ieda` |
 
 ### Getter/Setter Exception
 
@@ -185,7 +188,7 @@ When writing code for iCTS (Clock Tree Synthesis), use the established domain te
 | inserted_insts | Buffers/inverters added by CTS | `Clock::_inserted_insts` |
 | inserted_nets | New nets created by CTS | `Clock::_inserted_nets` |
 | cell_master | Liberty cell type name | `Inst::_cell_master` |
-| dbu | Design Base Unit (integer coordinates) | `Wrapper::getDbUnit()` |
+| dbu | Design Base Unit (integer coordinates) | `Wrapper::get_db_unit()` |
 
 ### Electrical Terms
 

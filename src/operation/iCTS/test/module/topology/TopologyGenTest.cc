@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -78,7 +78,7 @@ class LogGuard
 
 bool is_valid_pos(const icts::Point<int>& pos)
 {
-  return pos.x() >= 0 && pos.y() >= 0;
+  return pos.get_x() >= 0 && pos.get_y() >= 0;
 }
 
 }  // namespace
@@ -114,7 +114,7 @@ TEST_P(TopologyGenFixture, BuildAndVisualize)
 
   ASSERT_TRUE(analyze_topology(tree, data.loads, stats, cluster_map, centers, error)) << error;
 
-  EXPECT_EQ(stats.tree_size, tree.size());
+  EXPECT_EQ(stats.tree_size, tree.get_size());
   EXPECT_GE(stats.leaf_count, 1U);
   EXPECT_LE(stats.leaf_count, data.loads.size());
   EXPECT_EQ(cluster_map.size(), data.loads.size());
@@ -130,48 +130,48 @@ TEST_P(TopologyGenFixture, BuildAndVisualize)
   std::size_t missing_edge_count = 0;
   std::size_t zero_edge_count = 0;
 
-  for (std::size_t id = 0; id < tree.size(); ++id) {
-    if (id == tree.root()) {
+  for (std::size_t id = 0; id < tree.get_size(); ++id) {
+    if (id == tree.get_root()) {
       continue;
     }
-    const auto* node = tree.node(id);
+    const auto* node = tree.get_node(id);
     if (node == nullptr) {
       continue;
     }
-    const auto parent_id = node->parent();
-    if (parent_id == invalid_id || parent_id >= tree.size()) {
+    const auto parent_id = node->get_parent();
+    if (parent_id == invalid_id || parent_id >= tree.get_size()) {
       ++invalid_parent_count;
       CTS_LOG_WARNING << "Edge issue: node=" << id << " invalid parent id=" << parent_id;
       continue;
     }
-    const auto* parent = tree.node(parent_id);
+    const auto* parent = tree.get_node(parent_id);
     if (parent == nullptr) {
       ++invalid_parent_count;
       CTS_LOG_WARNING << "Edge issue: node=" << id << " parent missing id=" << parent_id;
       continue;
     }
 
-    const auto& child_pos = node->position();
-    const auto& parent_pos = parent->position();
+    const auto& child_pos = node->get_position();
+    const auto& parent_pos = parent->get_position();
     const bool child_valid = is_valid_pos(child_pos);
     const bool parent_valid = is_valid_pos(parent_pos);
     if (!child_valid) {
       ++invalid_pos_count;
-      CTS_LOG_WARNING << "Edge issue: node=" << id << " invalid child pos=(" << child_pos.x() << "," << child_pos.y() << ")";
+      CTS_LOG_WARNING << "Edge issue: node=" << id << " invalid child pos=(" << child_pos.get_x() << "," << child_pos.get_y() << ")";
       continue;
     }
     if (!parent_valid) {
       ++missing_edge_count;
-      CTS_LOG_WARNING << "Edge issue: node=" << id << " parent=" << parent_id << " invalid parent pos=(" << parent_pos.x() << ","
-                      << parent_pos.y() << ")";
+      CTS_LOG_WARNING << "Edge issue: node=" << id << " parent=" << parent_id << " invalid parent pos=(" << parent_pos.get_x() << ","
+                      << parent_pos.get_y() << ")";
       continue;
     }
 
-    const double dist = icts::geometry::manhattan(child_pos, parent_pos);
+    const double dist = icts::geometry::Manhattan(child_pos, parent_pos);
     if (dist == 0.0) {
       ++zero_edge_count;
-      CTS_LOG_WARNING << "Edge issue: node=" << id << " parent=" << parent_id << " zero-length edge child=(" << child_pos.x() << ","
-                      << child_pos.y() << ") parent=(" << parent_pos.x() << "," << parent_pos.y() << ")";
+      CTS_LOG_WARNING << "Edge issue: node=" << id << " parent=" << parent_id << " zero-length edge child=(" << child_pos.get_x() << ","
+                      << child_pos.get_y() << ") parent=(" << parent_pos.get_x() << "," << parent_pos.get_y() << ")";
     }
   }
 

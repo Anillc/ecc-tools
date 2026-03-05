@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -45,7 +45,7 @@ struct HTreeTraits
    *
    * Key = pack(input_slew, driven_cap)
    */
-  static unsigned buildKey(const HTreeTopologyChar& c) { return detail::pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
+  static unsigned buildKey(const HTreeTopologyChar& c) { return detail::Pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
 
   /**
    * @brief Probe key from upstream entry.
@@ -54,7 +54,7 @@ struct HTreeTraits
    *
    * NOTE: Integer division (floor) for cap halving.
    */
-  static unsigned probeKey(const HTreeTopologyChar& c) { return detail::pack(c.get_output_slew_idx(), c.get_load_cap_idx() / 2); }
+  static unsigned probeKey(const HTreeTopologyChar& c) { return detail::Pack(c.get_output_slew_idx(), c.get_load_cap_idx() / 2); }
 
   /**
    * @brief Compose upstream and downstream into merged result.

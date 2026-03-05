@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -41,7 +41,7 @@ namespace detail {
  *
  * Key format: [slew:16][cap:16]
  */
-inline unsigned pack(unsigned slew, unsigned cap)
+inline unsigned Pack(unsigned slew, unsigned cap)
 {
   return (slew << 16) | cap;
 }
@@ -76,7 +76,7 @@ struct NullPruner
  * @param pruner Optional pruner (nullptr to disable)
  */
 template <class CharT, class Traits, class CombinerT, class PrunerT>
-inline void hashJoinConcat(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream, const CombinerT& combiner,
+inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream, const CombinerT& combiner,
                            std::vector<CharT>& out, [[maybe_unused]] const PrunerT* pruner = nullptr)
 {
   if (upstream.empty() || downstream.empty()) {

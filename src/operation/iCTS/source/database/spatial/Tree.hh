@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -40,14 +40,14 @@ class TreeNode
   explicit TreeNode(std::size_t id) : _id(id) {}
   ~TreeNode() = default;
 
-  std::size_t id() const { return _id; }
-  std::size_t parent() const { return _parent; }
-  const std::vector<std::size_t>& children() const { return _children; }
-  std::vector<std::size_t>& children() { return _children; }
-  const Point<int>& position() const { return _position; }
-  Point<int>& position() { return _position; }
-  const std::vector<Pin*>& loads() const { return _loads; }
-  std::vector<Pin*>& loads() { return _loads; }
+  std::size_t get_id() const { return _id; }
+  std::size_t get_parent() const { return _parent; }
+  const std::vector<std::size_t>& get_children() const { return _children; }
+  std::vector<std::size_t>& get_children() { return _children; }
+  const Point<int>& get_position() const { return _position; }
+  Point<int>& get_position() { return _position; }
+  const std::vector<Pin*>& get_loads() const { return _loads; }
+  std::vector<Pin*>& get_loads() { return _loads; }
 
   void set_parent(std::size_t parent) { _parent = parent; }
   void set_child(std::size_t index, std::size_t child)
@@ -58,7 +58,7 @@ class TreeNode
     _children[index] = child;
   }
   void add_child(std::size_t child) { _children.push_back(child); }
-  bool is_leaf() const
+  bool isLeaf() const
   {
     for (auto child : _children) {
       if (child != std::numeric_limits<std::size_t>::max()) {
@@ -95,12 +95,12 @@ class Tree
 
   std::size_t add_child(std::size_t parent, std::size_t index)
   {
-    auto* parent_node = node(parent);
+    auto* parent_node = get_node(parent);
     if (parent_node == nullptr) {
       return std::numeric_limits<std::size_t>::max();
     }
     std::size_t child = create_node();
-    auto* child_node = node(child);
+    auto* child_node = get_node(child);
     child_node->set_parent(parent);
     parent_node->set_child(index, child);
     return child;
@@ -108,25 +108,25 @@ class Tree
 
   std::size_t add_child(std::size_t parent)
   {
-    auto* parent_node = node(parent);
+    auto* parent_node = get_node(parent);
     if (parent_node == nullptr) {
       return std::numeric_limits<std::size_t>::max();
     }
     std::size_t child = create_node();
-    auto* child_node = node(child);
+    auto* child_node = get_node(child);
     child_node->set_parent(parent);
     parent_node->add_child(child);
     return child;
   }
 
-  TreeNode* node(std::size_t id)
+  TreeNode* get_node(std::size_t id)
   {
     if (id >= _nodes.size()) {
       return nullptr;
     }
     return _nodes[id].get();
   }
-  const TreeNode* node(std::size_t id) const
+  const TreeNode* get_node(std::size_t id) const
   {
     if (id >= _nodes.size()) {
       return nullptr;
@@ -135,8 +135,8 @@ class Tree
   }
 
   void set_root(std::size_t root) { _root = root; }
-  std::size_t root() const { return _root; }
-  std::size_t size() const { return _nodes.size(); }
+  std::size_t get_root() const { return _root; }
+  std::size_t get_size() const { return _nodes.size(); }
 
   std::vector<std::vector<std::size_t>> levels() const
   {
@@ -156,11 +156,11 @@ class Tree
         queue.pop();
         level.push_back(id);
 
-        const auto* node_ptr = node(id);
+        const auto* node_ptr = get_node(id);
         if (node_ptr == nullptr) {
           continue;
         }
-        for (auto child : node_ptr->children()) {
+        for (auto child : node_ptr->get_children()) {
           if (child != std::numeric_limits<std::size_t>::max()) {
             queue.push(child);
           }

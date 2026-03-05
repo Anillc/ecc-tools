@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -94,7 +94,7 @@ class Config
   const std::string& get_log_file() const { return _log_file; }
   const std::string& get_gds_file() const { return _gds_file; }
   bool is_use_netlist() const { return _use_netlist; }
-  const std::vector<std::pair<std::string, std::string>> get_clock_netlist() const { return _net_list; }
+  const std::vector<std::pair<std::string, std::string>> get_net_list() const { return _net_list; }
 
   // algorithm
   void set_skew_bound(double skew_bound) { _skew_bound = skew_bound; }
@@ -118,7 +118,7 @@ class Config
   void set_log_file(const std::string& file) { _log_file = file; }
   void set_gds_file(const std::string& file) { _gds_file = file; }
   void set_use_netlist(bool use_netlist) { _use_netlist = use_netlist; }
-  void set_netlist(const std::vector<std::pair<std::string, std::string>>& net_list) { _net_list = net_list; }
+  void set_net_list(const std::vector<std::pair<std::string, std::string>>& net_list) { _net_list = net_list; }
 
   // parse from json file
   void parse(const std::string& json_file);

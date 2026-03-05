@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -74,17 +74,17 @@ Bounds compute_bounds(const std::vector<icts::Pin*>& loads, const std::vector<ic
   Bounds bounds;
   for (const auto* pin : loads) {
     const auto& loc = pin->get_location();
-    bounds.min_x = std::min(bounds.min_x, loc.x());
-    bounds.min_y = std::min(bounds.min_y, loc.y());
-    bounds.max_x = std::max(bounds.max_x, loc.x());
-    bounds.max_y = std::max(bounds.max_y, loc.y());
+    bounds.min_x = std::min(bounds.min_x, loc.get_x());
+    bounds.min_y = std::min(bounds.min_y, loc.get_y());
+    bounds.max_x = std::max(bounds.max_x, loc.get_x());
+    bounds.max_y = std::max(bounds.max_y, loc.get_y());
     bounds.valid = true;
   }
   for (const auto& point : extras) {
-    bounds.min_x = std::min(bounds.min_x, point.x());
-    bounds.min_y = std::min(bounds.min_y, point.y());
-    bounds.max_x = std::max(bounds.max_x, point.x());
-    bounds.max_y = std::max(bounds.max_y, point.y());
+    bounds.min_x = std::min(bounds.min_x, point.get_x());
+    bounds.min_y = std::min(bounds.min_y, point.get_y());
+    bounds.max_x = std::max(bounds.max_x, point.get_x());
+    bounds.max_y = std::max(bounds.max_y, point.get_y());
     bounds.valid = true;
   }
   return bounds;
@@ -95,25 +95,25 @@ Bounds compute_bounds(const std::vector<icts::Pin*>& loads, const icts::Tree& tr
   Bounds bounds;
   for (const auto* pin : loads) {
     const auto& loc = pin->get_location();
-    bounds.min_x = std::min(bounds.min_x, loc.x());
-    bounds.min_y = std::min(bounds.min_y, loc.y());
-    bounds.max_x = std::max(bounds.max_x, loc.x());
-    bounds.max_y = std::max(bounds.max_y, loc.y());
+    bounds.min_x = std::min(bounds.min_x, loc.get_x());
+    bounds.min_y = std::min(bounds.min_y, loc.get_y());
+    bounds.max_x = std::max(bounds.max_x, loc.get_x());
+    bounds.max_y = std::max(bounds.max_y, loc.get_y());
     bounds.valid = true;
   }
-  for (std::size_t id = 0; id < tree.size(); ++id) {
-    const auto* node = tree.node(id);
+  for (std::size_t id = 0; id < tree.get_size(); ++id) {
+    const auto* node = tree.get_node(id);
     if (node == nullptr) {
       continue;
     }
-    const auto& pos = node->position();
-    if (pos.x() < 0 || pos.y() < 0) {
+    const auto& pos = node->get_position();
+    if (pos.get_x() < 0 || pos.get_y() < 0) {
       continue;
     }
-    bounds.min_x = std::min(bounds.min_x, pos.x());
-    bounds.min_y = std::min(bounds.min_y, pos.y());
-    bounds.max_x = std::max(bounds.max_x, pos.x());
-    bounds.max_y = std::max(bounds.max_y, pos.y());
+    bounds.min_x = std::min(bounds.min_x, pos.get_x());
+    bounds.min_y = std::min(bounds.min_y, pos.get_y());
+    bounds.max_x = std::max(bounds.max_x, pos.get_x());
+    bounds.max_y = std::max(bounds.max_y, pos.get_y());
     bounds.valid = true;
   }
   return bounds;
@@ -212,8 +212,8 @@ GeneratedPins make_gaussian_mixture(std::size_t count, int width, int height, un
   points.reserve(count);
   for (std::size_t i = 0; i < count; ++i) {
     const int cluster = pick(gen);
-    std::normal_distribution<double> dist_x(centers[cluster].x(), sigma_x);
-    std::normal_distribution<double> dist_y(centers[cluster].y(), sigma_y);
+    std::normal_distribution<double> dist_x(centers[cluster].get_x(), sigma_x);
+    std::normal_distribution<double> dist_y(centers[cluster].get_y(), sigma_y);
     const int x = sample_and_clamp(gen, dist_x, 0, width);
     const int y = sample_and_clamp(gen, dist_y, 0, height);
     points.emplace_back(x, y);
@@ -283,24 +283,24 @@ bool analyze_topology(const icts::Tree& tree, const std::vector<icts::Pin*>& loa
   cluster_map.clear();
   centers.clear();
 
-  if (tree.size() == 0) {
+  if (tree.get_size() == 0) {
     error = "tree is empty";
     return false;
   }
-  if (tree.root() == std::numeric_limits<std::size_t>::max()) {
+  if (tree.get_root() == std::numeric_limits<std::size_t>::max()) {
     error = "tree root is invalid";
     return false;
   }
 
-  stats.tree_size = tree.size();
+  stats.tree_size = tree.get_size();
   std::vector<std::size_t> leaf_ids;
-  leaf_ids.reserve(tree.size());
-  for (std::size_t id = 0; id < tree.size(); ++id) {
-    const auto* node = tree.node(id);
+  leaf_ids.reserve(tree.get_size());
+  for (std::size_t id = 0; id < tree.get_size(); ++id) {
+    const auto* node = tree.get_node(id);
     if (node == nullptr) {
       continue;
     }
-    if (node->is_leaf()) {
+    if (node->isLeaf()) {
       leaf_ids.push_back(id);
     }
   }
@@ -319,20 +319,20 @@ bool analyze_topology(const icts::Tree& tree, const std::vector<icts::Pin*>& loa
   centers.reserve(leaf_ids.size());
 
   for (std::size_t idx = 0; idx < leaf_ids.size(); ++idx) {
-    const auto* node = tree.node(leaf_ids[idx]);
+    const auto* node = tree.get_node(leaf_ids[idx]);
     if (node == nullptr) {
       continue;
     }
-    const std::size_t load_count = node->loads().size();
+    const std::size_t load_count = node->get_loads().size();
     total_loads += load_count;
     if (load_count == 0) {
       ++stats.empty_leaf_count;
     }
     stats.min_leaf_load = std::min(stats.min_leaf_load, load_count);
     stats.max_leaf_load = std::max(stats.max_leaf_load, load_count);
-    centers.push_back(node->position());
+    centers.push_back(node->get_position());
 
-    for (const auto* pin : node->loads()) {
+    for (const auto* pin : node->get_loads()) {
       cluster_map[pin] = idx;
     }
   }
@@ -362,16 +362,16 @@ namespace {
 // Helper: recursively collect all loads under a node
 void collect_loads_under_node(const icts::Tree& tree, std::size_t node_id, std::vector<icts::Pin*>& collected_loads)
 {
-  const auto* node = tree.node(node_id);
+  const auto* node = tree.get_node(node_id);
   if (node == nullptr) {
     return;
   }
   // Collect loads directly attached to this node
-  for (auto* pin : node->loads()) {
+  for (auto* pin : node->get_loads()) {
     collected_loads.push_back(pin);
   }
   // Recursively collect from children
-  for (auto child_id : node->children()) {
+  for (auto child_id : node->get_children()) {
     if (child_id != std::numeric_limits<std::size_t>::max()) {
       collect_loads_under_node(tree, child_id, collected_loads);
     }
@@ -388,8 +388,8 @@ icts::Point<int> compute_centroid(const std::vector<icts::Pin*>& loads)
   long long sum_y = 0;
   for (const auto* pin : loads) {
     const auto& loc = pin->get_location();
-    sum_x += loc.x();
-    sum_y += loc.y();
+    sum_x += loc.get_x();
+    sum_y += loc.get_y();
   }
   return icts::Point<int>(static_cast<int>(sum_x / static_cast<long long>(loads.size())),
                           static_cast<int>(sum_y / static_cast<long long>(loads.size())));
@@ -403,24 +403,24 @@ bool analyze_first_level_clusters(const icts::Tree& tree, const std::vector<icts
   cluster_map.clear();
   centers.clear();
 
-  if (tree.size() == 0) {
+  if (tree.get_size() == 0) {
     error = "tree is empty";
     return false;
   }
-  const std::size_t root_id = tree.root();
+  const std::size_t root_id = tree.get_root();
   if (root_id == std::numeric_limits<std::size_t>::max()) {
     error = "tree root is invalid";
     return false;
   }
 
-  const auto* root_node = tree.node(root_id);
+  const auto* root_node = tree.get_node(root_id);
   if (root_node == nullptr) {
     error = "root node is null";
     return false;
   }
 
   // Get first-level children (biPartition result)
-  const auto& children = root_node->children();
+  const auto& children = root_node->get_children();
   std::vector<std::size_t> valid_children;
   for (auto child_id : children) {
     if (child_id != std::numeric_limits<std::size_t>::max()) {
@@ -486,14 +486,14 @@ bool write_cluster_svg(const std::string& path, const std::vector<icts::Pin*>& l
     const auto it = cluster_map.find(pin);
     const std::size_t cluster_id = (it == cluster_map.end()) ? 0 : it->second;
     const auto& loc = pin->get_location();
-    ofs << "<circle cx=\"" << transform.map_x(loc.x()) << "\" cy=\"" << transform.map_y(loc.y()) << "\" r=\"2\" fill=\""
+    ofs << "<circle cx=\"" << transform.map_x(loc.get_x()) << "\" cy=\"" << transform.map_y(loc.get_y()) << "\" r=\"2\" fill=\""
         << kPalette[cluster_id % kPalette.size()] << "\" fill-opacity=\"0.8\" />\n";
   }
 
   for (std::size_t i = 0; i < centers.size(); ++i) {
     const auto& center = centers[i];
-    const double cx = transform.map_x(center.x());
-    const double cy = transform.map_y(center.y());
+    const double cx = transform.map_x(center.get_x());
+    const double cy = transform.map_y(center.get_y());
     ofs << "<circle cx=\"" << cx << "\" cy=\"" << cy << "\" r=\"5\" fill=\"none\" stroke=\"" << kPalette[i % kPalette.size()]
         << "\" stroke-width=\"2\" />\n";
     ofs << "<line x1=\"" << (cx - 6) << "\" y1=\"" << cy << "\" x2=\"" << (cx + 6) << "\" y2=\"" << cy
@@ -508,7 +508,7 @@ bool write_cluster_svg(const std::string& path, const std::vector<icts::Pin*>& l
 
 bool write_topology_svg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads)
 {
-  if (tree.size() == 0) {
+  if (tree.get_size() == 0) {
     return false;
   }
   const auto bounds = compute_bounds(loads, tree);
@@ -524,44 +524,44 @@ bool write_topology_svg(const std::string& path, const icts::Tree& tree, const s
       << "\" viewBox=\"0 0 " << transform.width << " " << transform.height << "\">\n";
   ofs << "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\" />\n";
 
-  for (std::size_t id = 0; id < tree.size(); ++id) {
-    const auto* node = tree.node(id);
+  for (std::size_t id = 0; id < tree.get_size(); ++id) {
+    const auto* node = tree.get_node(id);
     if (node == nullptr) {
       continue;
     }
-    if (node->parent() == std::numeric_limits<std::size_t>::max()) {
+    if (node->get_parent() == std::numeric_limits<std::size_t>::max()) {
       continue;
     }
-    const auto* parent = tree.node(node->parent());
+    const auto* parent = tree.get_node(node->get_parent());
     if (parent == nullptr) {
       continue;
     }
-    const auto& src = node->position();
-    const auto& dst = parent->position();
-    if (src.x() < 0 || src.y() < 0 || dst.x() < 0 || dst.y() < 0) {
+    const auto& src = node->get_position();
+    const auto& dst = parent->get_position();
+    if (src.get_x() < 0 || src.get_y() < 0 || dst.get_x() < 0 || dst.get_y() < 0) {
       continue;
     }
-    ofs << "<line x1=\"" << transform.map_x(src.x()) << "\" y1=\"" << transform.map_y(src.y()) << "\" x2=\"" << transform.map_x(dst.x())
-        << "\" y2=\"" << transform.map_y(dst.y()) << "\" stroke=\"#666666\" stroke-width=\"1\" />\n";
+    ofs << "<line x1=\"" << transform.map_x(src.get_x()) << "\" y1=\"" << transform.map_y(src.get_y()) << "\" x2=\"" << transform.map_x(dst.get_x())
+        << "\" y2=\"" << transform.map_y(dst.get_y()) << "\" stroke=\"#666666\" stroke-width=\"1\" />\n";
   }
 
-  for (std::size_t id = 0; id < tree.size(); ++id) {
-    const auto* node = tree.node(id);
+  for (std::size_t id = 0; id < tree.get_size(); ++id) {
+    const auto* node = tree.get_node(id);
     if (node == nullptr) {
       continue;
     }
-    const auto& pos = node->position();
-    if (pos.x() < 0 || pos.y() < 0) {
+    const auto& pos = node->get_position();
+    if (pos.get_x() < 0 || pos.get_y() < 0) {
       continue;
     }
-    const bool is_root = node->parent() == std::numeric_limits<std::size_t>::max();
-    ofs << "<circle cx=\"" << transform.map_x(pos.x()) << "\" cy=\"" << transform.map_y(pos.y()) << "\" r=\"" << (is_root ? 5 : 3)
+    const bool is_root = node->get_parent() == std::numeric_limits<std::size_t>::max();
+    ofs << "<circle cx=\"" << transform.map_x(pos.get_x()) << "\" cy=\"" << transform.map_y(pos.get_y()) << "\" r=\"" << (is_root ? 5 : 3)
         << "\" fill=\"" << (is_root ? "#d62728" : "#444444") << "\" />\n";
   }
 
   for (const auto* pin : loads) {
     const auto& loc = pin->get_location();
-    ofs << "<circle cx=\"" << transform.map_x(loc.x()) << "\" cy=\"" << transform.map_y(loc.y()) << "\" r=\"2\" fill=\"#1f77b4\""
+    ofs << "<circle cx=\"" << transform.map_x(loc.get_x()) << "\" cy=\"" << transform.map_y(loc.get_y()) << "\" r=\"2\" fill=\"#1f77b4\""
         << " fill-opacity=\"0.6\" />\n";
   }
 

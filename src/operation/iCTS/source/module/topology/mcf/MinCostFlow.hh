@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -26,7 +26,6 @@
 #include "lemon/maps.h"
 #include "lemon/network_simplex.h"
 
-using namespace lemon;
 namespace icts {
 /**
  * @brief MinCostFlow template class for solving clustring by min cost flow
@@ -54,15 +53,15 @@ class MinCostFlow
     // requirement: meet the max_cluster_size (like max_fanout) constraint
 
     // Define the node and arc types
-    using Node = ListDigraph::Node;
-    using NodeMap = ListDigraph::NodeMap<std::pair<int, int>>;
-    using Arc = ListDigraph::Arc;
-    using ArcMap = ListDigraph::ArcMap<int>;
-    using ArcIt = ListDigraph::ArcIt;
-    using MinCostFlowSolver = NetworkSimplex<ListDigraph, int, int>;
+    using Node = lemon::ListDigraph::Node;
+    using NodeMap = lemon::ListDigraph::NodeMap<std::pair<int, int>>;
+    using Arc = lemon::ListDigraph::Arc;
+    using ArcMap = lemon::ListDigraph::ArcMap<int>;
+    using ArcIt = lemon::ListDigraph::ArcIt;
+    using MinCostFlowSolver = lemon::NetworkSimplex<lemon::ListDigraph, int, int>;
 
     // Define the network
-    ListDigraph network;
+    lemon::ListDigraph network;
 
     // Add nodes to the network
     Node source = network.addNode();
@@ -144,7 +143,7 @@ class MinCostFlow
 
     // get the clusters
     std::vector<std::vector<Value>> clusters(_centers.size());
-    for (ArcIt it(network); it != INVALID; ++it) {
+    for (ArcIt it(network); it != lemon::INVALID; ++it) {
       if (solution[it] == 0) {
         continue;
       }

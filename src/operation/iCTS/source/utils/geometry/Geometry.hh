@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -26,60 +26,101 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 #include "database/spatial/Point.hh"
 
 namespace icts::geometry {
 
+/**
+ * @brief Manhattan (L1) distance between two points.
+ *
+ * Accepts any coordinate type T (int, double, etc.).
+ * Always returns double — distance is inherently real-valued.
+ */
 template <typename T>
-inline double manhattan(const Point<T>& a, const Point<T>& b)
+inline double Manhattan(const Point<T>& a, const Point<T>& b)
 {
-  return std::fabs(static_cast<double>(a.x()) - static_cast<double>(b.x()))
-         + std::fabs(static_cast<double>(a.y()) - static_cast<double>(b.y()));
+  return std::fabs(static_cast<double>(a.get_x()) - static_cast<double>(b.get_x()))
+         + std::fabs(static_cast<double>(a.get_y()) - static_cast<double>(b.get_y()));
 }
 
+/**
+ * @brief Center of mass (arithmetic mean) of a collection of points.
+ *
+ * The getter extracts a Point from each element in the collection.
+ * Return type is always floating-point:
+ *   - integer coords  → Point<double>
+ *   - floating coords → Point<same floating type>
+ */
 template <typename Value, typename PointGetter>
-inline Point<double> calc_center(const std::vector<Value>& values, PointGetter getter)
+inline auto CalcCenter(const std::vector<Value>& values, PointGetter getter)
 {
+  using PointT = std::decay_t<decltype(getter(std::declval<const Value&>()))>;
+  using CoordT = typename PointT::CoordType;
+  using FloatT = std::conditional_t<std::is_floating_point_v<CoordT>, CoordT, double>;
+
   if (values.empty()) {
-    return Point<double>(0.0, 0.0);
+    return Point<FloatT>{};
   }
-  double sum_x = 0.0;
-  double sum_y = 0.0;
+  FloatT sum_x = 0;
+  FloatT sum_y = 0;
   for (const auto& value : values) {
     auto p = getter(value);
-    sum_x += static_cast<double>(p.x());
-    sum_y += static_cast<double>(p.y());
+    sum_x += static_cast<FloatT>(p.get_x());
+    sum_y += static_cast<FloatT>(p.get_y());
   }
-  const double count = static_cast<double>(values.size());
-  return Point<double>(sum_x / count, sum_y / count);
+  const auto count = static_cast<FloatT>(values.size());
+  return Point<FloatT>(sum_x / count, sum_y / count);
 }
 
+/**
+ * @brief Coordinate-wise median of a collection of points.
+ *
+ * The getter extracts a Point from each element in the collection.
+ * Return type matches the getter's Point coordinate type:
+ *   - getter returns Point<int>    → returns Point<int>
+ *   - getter returns Point<double> → returns Point<double>
+ */
 template <typename Value, typename PointGetter>
-inline Point<int> calc_median(const std::vector<Value>& values, PointGetter getter)
+inline auto CalcMedian(const std::vector<Value>& values, PointGetter getter)
 {
+  using PointT = std::decay_t<decltype(getter(std::declval<const Value&>()))>;
+  using CoordT = typename PointT::CoordType;
+
   if (values.empty()) {
-    return Point<int>(-1, -1);
+    return PointT{};
   }
-  std::vector<int> xs;
-  std::vector<int> ys;
+  std::vector<CoordT> xs;
+  std::vector<CoordT> ys;
   xs.reserve(values.size());
   ys.reserve(values.size());
   for (const auto& value : values) {
     auto p = getter(value);
-    xs.push_back(static_cast<int>(std::lround(p.x())));
-    ys.push_back(static_cast<int>(std::lround(p.y())));
+    xs.push_back(p.get_x());
+    ys.push_back(p.get_y());
   }
 
   const auto mid = xs.size() / 2;
   std::nth_element(xs.begin(), xs.begin() + mid, xs.end());
   std::nth_element(ys.begin(), ys.begin() + mid, ys.end());
-  return Point<int>(xs[mid], ys[mid]);
+  return PointT(xs[mid], ys[mid]);
 }
 
-inline Point<int> project_to_l1_circle(const Point<int>& center, const Point<int>& point, double r, int min_x = 0, int min_y = 0,
-                                       int max_x = std::numeric_limits<int>::max(), int max_y = std::numeric_limits<int>::max())
+/**
+ * @brief Project a point onto the closest position on an L1 circle, snapped to an integer grid.
+ *
+ * This function is specific to integer (DBU) coordinates because it performs
+ * floor/ceil/round snapping to find the best integer grid point.
+ *
+ * @param center  Center of the L1 circle
+ * @param point   Point to project
+ * @param r       Radius of the L1 circle
+ * @param min_x, min_y, max_x, max_y  Bounding box constraints
+ */
+inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& point, double r, int min_x = 0, int min_y = 0,
+                                    int max_x = std::numeric_limits<int>::max(), int max_y = std::numeric_limits<int>::max())
 {
   if (min_x > max_x) {
     std::swap(min_x, max_x);
@@ -92,7 +133,7 @@ inline Point<int> project_to_l1_circle(const Point<int>& center, const Point<int
   auto clampd = [](double v, double lo, double hi) { return std::max(lo, std::min(v, hi)); };
 
   if (r <= 0.0) {
-    return Point<int>(clampi(center.x(), min_x, max_x), clampi(center.y(), min_y, max_y));
+    return Point<int>(clampi(center.get_x(), min_x, max_x), clampi(center.get_y(), min_y, max_y));
   }
 
   auto inside = [&](double x, double y) {
@@ -100,10 +141,10 @@ inline Point<int> project_to_l1_circle(const Point<int>& center, const Point<int
            && y <= static_cast<double>(max_y);
   };
 
-  const double cx = static_cast<double>(center.x());
-  const double cy = static_cast<double>(center.y());
-  const double tx = static_cast<double>(point.x());
-  const double ty = static_cast<double>(point.y());
+  const double cx = static_cast<double>(center.get_x());
+  const double cy = static_cast<double>(center.get_y());
+  const double tx = static_cast<double>(point.get_x());
+  const double ty = static_cast<double>(point.get_y());
 
   auto to_int_best = [&](double x, double y) {
     const int fx = static_cast<int>(std::floor(x));

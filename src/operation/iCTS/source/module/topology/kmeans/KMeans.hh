@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
-// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan
-// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
-// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -70,7 +70,7 @@ class KMeans
         int best_index = 0;
         double best_dist = std::numeric_limits<double>::max();
         for (std::size_t c = 0; c < result.centers.size(); ++c) {
-          const double dist = geometry::manhattan(point, result.centers[c]);
+          const double dist = geometry::Manhattan(point, result.centers[c]);
           if (dist < best_dist) {
             best_dist = dist;
             best_index = static_cast<int>(c);
@@ -89,8 +89,8 @@ class KMeans
       for (std::size_t i = 0; i < values.size(); ++i) {
         const int label = result.labels[i];
         const auto point = toPoint(getter(values[i]));
-        sum_x[label] += point.x();
-        sum_y[label] += point.y();
+        sum_x[label] += point.get_x();
+        sum_y[label] += point.get_y();
         ++counts[label];
       }
 
@@ -100,7 +100,7 @@ class KMeans
           continue;
         }
         Point<double> new_center(sum_x[c] / counts[c], sum_y[c] / counts[c]);
-        max_shift = std::max(max_shift, geometry::manhattan(result.centers[c], new_center));
+        max_shift = std::max(max_shift, geometry::Manhattan(result.centers[c], new_center));
         result.centers[c] = new_center;
       }
 
@@ -127,7 +127,7 @@ class KMeans
         const auto point = toPoint(getter(values[i]));
         double nearest = std::numeric_limits<double>::max();
         for (const auto& center : centers) {
-          nearest = std::min(nearest, geometry::manhattan(point, center));
+          nearest = std::min(nearest, geometry::Manhattan(point, center));
         }
         if (nearest > best_dist) {
           best_dist = nearest;
@@ -143,7 +143,7 @@ class KMeans
   template <typename PointType>
   Point<double> toPoint(const PointType& point) const
   {
-    return Point<double>(static_cast<double>(point.x()), static_cast<double>(point.y()));
+    return Point<double>(static_cast<double>(point.get_x()), static_cast<double>(point.get_y()));
   }
 };
 

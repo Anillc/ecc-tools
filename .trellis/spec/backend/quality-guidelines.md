@@ -23,7 +23,7 @@ For full clang-format/clang-tidy details, see [Project Constraints](../project-c
 | Class method | camelBack | — | — | `runCTS()`, `readData()`, `summaryClockDistribution()` |
 | Getter (simple) | snake_case | `get_` | — | `get_name()`, `get_type()`, `get_clock_source()` |
 | Setter (simple) | snake_case | `set_` | — | `set_name()`, `set_type()`, `set_location()` |
-| Getter (complex) | camelBack | — | — | `calcDelay()`, `estimateCapacitance()` |
+| Getter (complex) | camelBack | — | — | `calcDelay()`, `estimateCapacitance()`, `fetchNetlist()` |
 | Setter (complex) | camelBack | — | — | `updateTiming()`, `applyTransform()` |
 | Boolean query (simple) | snake_case | `is_` | — | `is_buffer()`, `is_flipflop()`, `is_clock_gate()` |
 | Boolean query (complex) | camelBack | — | — | `hasViolation()`, `canInsertBuffer()` |
@@ -31,6 +31,7 @@ For full clang-format/clang-tidy details, see [Project Constraints](../project-c
 | Local variable | lower_case | — | — | `clock_name`, `inst_type`, `num_sinks` |
 | Enum (scoped) | CamelCase | — | — | `enum class InstType`, `enum class PinType` |
 | Enum value | CamelCase | `k` | — | `kBuffer`, `kFlipFlop`, `kUnknown` |
+| Global/Free function | CamelCase | — | — | `Manhattan()`, `CalcCenter()` |
 | Global constant | CamelCase | `k` | — | `kFileName` |
 | Global variable | CamelCase | `g` | — | `gFileName` |
 | Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst` |
