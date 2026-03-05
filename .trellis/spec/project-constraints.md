@@ -111,8 +111,10 @@ The project uses clang-tidy for static analysis. Reference config at `src/utilit
 |---------|------|--------|---------|
 | Class | CamelCase | — | `Clock`, `CTSAPI` |
 | Class method | camelBack | — | `runCTS()`, `readData()` |
-| Getter/Setter | snake_case | `get_`/`set_` | `get_name()`, `set_type()` |
-| Boolean query | snake_case | `is_` | `is_buffer()`, `is_flipflop()` |
+| Getter/Setter (simple) | snake_case | `get_`/`set_` | `get_name()`, `set_type()` |
+| Getter/Setter (complex) | camelBack | — | `calcDelay()`, `fetchNetlist()` |
+| Boolean query (simple) | snake_case | `is_` | `is_buffer()`, `is_flipflop()` |
+| Boolean query (complex) | camelBack | — | `hasViolation()`, `canInsertBuffer()` |
 | Member variable | lower_case | `_` | `_clock_name`, `_max_fanout` |
 | Local variable | lower_case | — | `clock_name`, `inst_type` |
 | Enum (scoped) | CamelCase | — | `enum class InstType` |
@@ -128,6 +130,31 @@ The project uses clang-tidy for static analysis. Reference config at `src/utilit
 Getters and setters are explicitly allowed in snake_case by the clang-tidy regex:
 ```
 ClassMethodIgnoredRegexp: '[gs]et_[a-zA-Z_]+'
+```
+
+### Getter/Setter Naming Boundary
+
+**snake_case** (`get_`/`set_`/`is_`) is reserved for **trivial accessors** — methods that directly read/write a private member (or perform minimal logic like a single comparison).
+
+**camelBack** should be used when the method involves:
+- Computation or transformation (e.g., `calcDelay()`, `estimateCapacitance()`)
+- External system queries (e.g., `fetchTimingData()`, `queryLiberty()`)
+- Multi-step logic or aggregation (e.g., `buildNetlist()`, `hasViolation()`)
+- Side effects beyond simple assignment
+
+**Rule of thumb**: If the method body is more than a direct `return _member;` / `_member = value;` / `return _member == kSomething;`, use camelBack.
+
+Examples:
+```cpp
+// Simple accessor → snake_case
+const std::string& get_name() const { return _name; }
+void set_type(InstType type) { _type = type; }
+bool is_buffer() const { return _type == InstType::kBuffer; }
+
+// Complex logic → camelBack
+double calcDelay() const { /* multi-step computation */ }
+bool hasViolation() const { /* checks multiple conditions */ }
+std::vector<Pin*> collectSinkPins() const { /* traversal logic */ }
 ```
 
 ---

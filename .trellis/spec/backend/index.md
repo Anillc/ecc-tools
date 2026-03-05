@@ -1,6 +1,8 @@
 # Backend Development Guidelines
 
 > Best practices for backend development in the iCTS module.
+>
+> **Note**: This is a backend-only project (C++ / iCTS). Frontend guidelines are N/A.
 
 ---
 
@@ -34,7 +36,10 @@ This directory contains guidelines for C++ backend development in `src/operation
 ### Naming Summary
 - Classes: `PascalCase` (e.g., `Clock`, `TopologyGen`)
 - Methods: `camelBack` (e.g., `runCTS()`)
-- Getters/Setters: `get_name()`, `set_name()`
+- Getters/Setters (simple): `get_name()`, `set_name()` — direct member access only
+- Getters/Setters (complex): `camelBack` (e.g., `calcDelay()`) — computation/logic involved
+- Boolean (simple): `is_buffer()` — direct member comparison
+- Boolean (complex): `camelBack` (e.g., `hasViolation()`) — multi-step check
 - Members: `_lower_case` (e.g., `_clock_name`)
 - Locals: `lower_case` (e.g., `clock_name`)
 - Enums: `enum class` with `kPrefix` values

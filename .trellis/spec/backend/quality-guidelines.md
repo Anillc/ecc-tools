@@ -21,9 +21,12 @@ For full clang-format/clang-tidy details, see [Project Constraints](../project-c
 | Class | CamelCase | — | — | `Clock`, `CTSAPI`, `TopologyGen` |
 | Abstract class | CamelCase | — | `Interface` | `RouterInterface` |
 | Class method | camelBack | — | — | `runCTS()`, `readData()`, `summaryClockDistribution()` |
-| Getter | snake_case | `get_` | — | `get_name()`, `get_type()`, `get_clock_source()` |
-| Setter | snake_case | `set_` | — | `set_name()`, `set_type()`, `set_location()` |
-| Boolean query | snake_case | `is_` | — | `is_buffer()`, `is_flipflop()`, `is_clock_gate()` |
+| Getter (simple) | snake_case | `get_` | — | `get_name()`, `get_type()`, `get_clock_source()` |
+| Setter (simple) | snake_case | `set_` | — | `set_name()`, `set_type()`, `set_location()` |
+| Getter (complex) | camelBack | — | — | `calcDelay()`, `estimateCapacitance()` |
+| Setter (complex) | camelBack | — | — | `updateTiming()`, `applyTransform()` |
+| Boolean query (simple) | snake_case | `is_` | — | `is_buffer()`, `is_flipflop()`, `is_clock_gate()` |
+| Boolean query (complex) | camelBack | — | — | `hasViolation()`, `canInsertBuffer()` |
 | Member variable | lower_case | `_` | — | `_clock_name`, `_max_fanout`, `_loads` |
 | Local variable | lower_case | — | — | `clock_name`, `inst_type`, `num_sinks` |
 | Enum (scoped) | CamelCase | — | — | `enum class InstType`, `enum class PinType` |
@@ -40,6 +43,24 @@ Getters and setters use snake_case (not camelBack) and are explicitly allowed by
 ClassMethodIgnoredRegexp: '[gs]et_[a-zA-Z_]+'
 ```
 
+### Simple vs Complex Accessor Naming
+
+**snake_case** (`get_`/`set_`/`is_`) — only for trivial accessors that directly read/write a private member or do a simple comparison:
+```cpp
+const std::string& get_name() const { return _name; }
+void set_type(InstType type) { _type = type; }
+bool is_buffer() const { return _type == InstType::kBuffer; }
+```
+
+**camelBack** — for anything involving computation, traversal, external queries, or multi-step logic:
+```cpp
+double calcDelay() const { /* computation */ }
+bool hasViolation() const { /* checks multiple conditions */ }
+std::vector<Pin*> collectSinkPins() const { /* traversal */ }
+```
+
+**Rule of thumb**: If the body is more than `return _member;` / `_member = value;` / `return _member == kX;`, use camelBack.
+
 ### Examples from Codebase
 
 ```cpp
@@ -50,12 +71,16 @@ class TopologyGen
   // Method: camelBack
   Tree build(const std::vector<Pin*>& loads);
 
-  // Getter/Setter: snake_case with get_/set_ prefix
+  // Simple getter/setter: snake_case with get_/set_ prefix
   const std::string& get_name() const { return _name; }
   void set_name(const std::string& name) { _name = name; }
 
-  // Boolean query: snake_case with is_ prefix
+  // Simple boolean query: snake_case with is_ prefix
   bool is_buffer() const { return _type == InstType::kBuffer; }
+
+  // Complex accessor: camelBack (involves computation / multi-step logic)
+  double calcDelay() const { /* ... */ }
+  bool hasViolation() const { /* ... */ }
 
  private:
   // Member variable: underscore prefix + lower_case
