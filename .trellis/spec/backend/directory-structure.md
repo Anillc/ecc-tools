@@ -32,27 +32,54 @@ src/operation/iCTS/
 │   │   ├── logger/             # Logger singleton + CTS_LOG_* macros
 │   │   └── geometry/           # Geometry helpers
 │   ├── module/                 # Algorithm modules
-│   │   ├── topology/           # Tree topology generation
+│   │   ├── topology/           # [ENABLED] Tree topology generation
 │   │   │   ├── clustering/     # Bi-partition clustering
 │   │   │   ├── kmeans/         # K-means clustering
 │   │   │   └── mcf/            # Min-cost flow
-│   │   ├── characterization/   # Characterization table + engine
-│   │   ├── routing/            # Clock tree routing (FLUTE, SALT, BST)
-│   │   ├── buffering/          # Buffer insertion (stub)
-│   │   ├── drv/                # Design rule violation fixing (stub)
-│   │   ├── optimization/       # Post-CTS optimization (stub)
-│   │   └── report/             # Report generation (stub)
-│   └── flow/                   # Flow orchestration (disabled)
+│   │   ├── characterization/   # [ENABLED] STA-based characterization
+│   │   │   ├── CharBuilder.*   # Characterization builder (main entry)
+│   │   │   ├── SegmentCharTable.hh   # Segment char lookup table
+│   │   │   ├── HTreeTopologyCharTable.hh # H-tree char lookup table
+│   │   │   ├── HashJoinEngine.hh     # Hash-join for pattern composition
+│   │   │   ├── PatternCombiner.hh    # Pattern combination logic
+│   │   │   ├── Pruner.hh            # Pattern pruning
+│   │   │   ├── SegmentTraits.hh     # Segment-specific traits
+│   │   │   └── HTreeTraits.hh      # H-tree-specific traits
+│   │   ├── routing/            # [DISABLED] Clock tree routing
+│   │   │   ├── flute/          # FLUTE routing
+│   │   │   ├── salt/           # SALT routing
+│   │   │   ├── bound_skew_tree/ # Bound Skew Tree
+│   │   │   └── concurrent_bst_salt/ # Concurrent BST + SALT
+│   │   ├── buffering/          # [DISABLED] Buffer insertion
+│   │   ├── drv/                # [DISABLED] Design rule violation fixing
+│   │   ├── optimization/       # [DISABLED] Post-CTS optimization
+│   │   └── report/             # [DISABLED] Report generation
+│   └── flow/                   # Flow orchestration
 ├── test/                       # TIER 3: Tests
 │   ├── CMakeLists.txt          # Single executable linking all tests
 │   ├── main.cc                 # Test entry point
-│   ├── common/                 # Test utilities (TestUtils.cc/hh)
+│   ├── common/                 # Test utilities
 │   ├── module/                 # Module-level tests
 │   │   ├── topology/
-│   │   └── characterization/
-│   ├── database/               # Database tests (placeholder)
-│   ├── flow/                   # Flow tests (placeholder)
-│   └── utils/                  # Utility tests (placeholder)
+│   │   │   ├── clustering/
+│   │   │   ├── kmeans/
+│   │   │   └── mcf/
+│   │   ├── characterization/
+│   │   ├── routing/
+│   │   ├── buffering/
+│   │   ├── drv/
+│   │   ├── optimization/
+│   │   ├── report/
+│   │   └── timing/
+│   ├── database/               # Database tests
+│   │   ├── config/
+│   │   ├── design/
+│   │   ├── io/
+│   │   └── spatial/
+│   ├── flow/                   # Flow tests
+│   └── utils/                  # Utility tests
+│       ├── geometry/
+│       └── logger/
 └── external_libs/              # External dependency declarations
     ├── CMakeLists.txt
     ├── icts_api_external_libs.cmake
@@ -81,7 +108,21 @@ src/operation/iCTS/
 | database | `source/database/` | `icts_source_database` | Data model, config, IO adapter |
 | utils | `source/utils/` | `icts_source_utils` | Logging, geometry helpers |
 | module | `source/module/` | `icts_source_module` | CTS algorithm implementations |
-| flow | `source/flow/` | `icts_source_flow` | Flow orchestration (currently disabled) |
+| flow | `source/flow/` | `icts_source_flow` | Flow orchestration (currently not linked) |
+
+### Module Enable/Disable Status
+
+Modules are enabled/disabled by including/excluding `add_subdirectory()` in `source/module/CMakeLists.txt`:
+
+| Module | Status | Purpose |
+|--------|--------|---------|
+| `topology` | **Enabled** | Tree topology generation (clustering, kmeans, mcf) |
+| `characterization` | **Enabled** | STA-based characterization (CharBuilder, hash-join engine) |
+| `routing` | Disabled | Clock tree routing (FLUTE, SALT, BST, CBS) |
+| `buffering` | Disabled | Buffer insertion |
+| `drv` | Disabled | Design rule violation fixing |
+| `optimization` | Disabled | Post-CTS optimization |
+| `report` | Disabled | Report generation |
 
 ---
 
@@ -148,3 +189,4 @@ target_link_libraries(icts_source_database_newdata INTERFACE <dependencies>)
 - **`source/database/design/`** — Clean header-only data model (Clock, Inst, Net, Pin)
 - **`source/utils/logger/`** — Logger singleton with macros
 - **`source/module/topology/`** — Algorithm module with sub-modules (clustering, kmeans, mcf)
+- **`source/database/characterization/`** — Characterization types (CharCore, SegmentChar, BufferingPattern, etc.)

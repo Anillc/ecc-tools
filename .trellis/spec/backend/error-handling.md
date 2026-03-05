@@ -8,7 +8,7 @@
 
 iCTS uses **logging-based error handling**. There are no exceptions thrown in the codebase. Errors are reported via `CTS_LOG_*` macros at the appropriate severity level, and functions return default values or terminate the process depending on severity.
 
-**Key rule**: No `throw` / `try` / `catch` in iCTS code (with one narrow exception for JSON parsing).
+**Key rule**: No `throw` / `try` / `catch` in iCTS code (with one narrow exception for JSON parsing in `Config.cc`).
 
 ---
 
@@ -25,9 +25,7 @@ CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name
     << " type is unknown (not found instance in iDB) which cell is "
     << lib_cell->get_cell_name();
 
-CTS_LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name
-    << " type is unknown (none pin in iDB) which cell is "
-    << lib_cell->get_cell_name();
+CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Cannot find liberty cell: " << cell_master;
 ```
 
 **Behavior**: Delegates to global `LOG_FATAL`, which terminates the process. No return value needed.

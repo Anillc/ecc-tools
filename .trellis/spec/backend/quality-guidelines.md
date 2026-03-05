@@ -8,41 +8,7 @@
 
 Code quality is enforced through automated tools (`clang-format`, `clang-tidy`) and naming conventions. This document describes the standards every code change must meet.
 
----
-
-## Code Formatting (clang-format)
-
-The project uses a Google-based `.clang-format` at the project root.
-
-### Key Rules
-
-| Setting | Value |
-|---------|-------|
-| `BasedOnStyle` | Google |
-| `ColumnLimit` | 140 |
-| `Standard` | c++20 |
-| `BreakBeforeBraces` | Custom (new line for class/struct/enum/function) |
-| `AllowShortIfStatementsOnASingleLine` | false |
-| `AllowShortLoopsOnASingleLine` | false |
-| `AllowShortFunctionsOnASingleLine` | InlineOnly |
-| `DerivePointerAlignment` | false |
-| `BreakBeforeBinaryOperators` | All |
-
-### Formatting Command
-
-```bash
-clang-format -i <file>
-```
-
-Always format before submitting code.
-
----
-
-## Static Analysis (clang-tidy)
-
-Reference config: `src/utility/.clang-tidy`
-
-clang-tidy enforces identifier naming conventions automatically. The rules below are extracted from the `.clang-tidy` config.
+For full clang-format/clang-tidy details, see [Project Constraints](../project-constraints.md).
 
 ---
 

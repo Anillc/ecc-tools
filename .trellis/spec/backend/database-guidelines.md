@@ -105,7 +105,7 @@ Pin
 Inst
  ├─ string      _name
  ├─ string      _cell_master (Liberty cell name)
- ├─ InstType    _type        (kBuffer, kFlipFlop, kInverter, ...)
+ ├─ InstType    _type        (kBuffer, kFlipFlop, kInverter, kClockGate, kMux, kUnknown)
  ├─ Point<int>  _location
  └─ vector<Pin*> _pins       (first pin = driver pin by convention)
 ```
@@ -115,8 +115,9 @@ Inst
 ```
 Point<T>  — Template 2D point with arithmetic operators (used as Point<int>)
 
-Tree      — Topology tree
- └─ vector<unique_ptr<TreeNode>>  _nodes
+Tree      — Topology tree (non-copyable, movable)
+ ├─ vector<unique_ptr<TreeNode>>  _nodes
+ └─ size_t  _root
 
 TreeNode
  ├─ size_t           _id, _parent
@@ -128,23 +129,35 @@ TreeNode
 ### Characterization Types
 
 ```
+PatternId — Domain-tagged pattern ID
+ ├─ PatternDomain domain  (kSegmentPattern, kTopologyPattern)
+ └─ unsigned local_id
+ Static factories: PatternId::segment(id), PatternId::topology(id)
+ Hashable via pack() method
+
 CharCore — Base electrical boundary + cost
- ├─ uint16_t  _input_slew, _output_slew, _driven_cap, _load_cap
+ ├─ unsigned  _input_slew_idx, _output_slew_idx, _driven_cap_idx, _load_cap_idx
  ├─ double    _delay, _power
  └─ PatternId _pattern_id
 
-SegmentChar     (CharCore + uint64_t _length_dbu)
-HTreeTopologyChar (CharCore + uint32_t _levels)
+SegmentChar     (CharCore + unsigned _length_idx)
+ - compose() static: merges upstream + downstream segments
+
+HTreeTopologyChar (CharCore + unsigned _levels)
+ - compose() static: merges with binary fan-out (power *= 2 for downstream)
 
 BufferingPattern
- ├─ uint64_t           _length_dbu
+ ├─ unsigned           _length_idx
  ├─ PatternId          _pattern_id
  ├─ vector<double>     _buffer_positions  (normalized 0..1)
  └─ vector<string>     _cell_masters
+ - concat() static: merges patterns with position renormalization
 
-PatternId — Domain-tagged pattern ID
- ├─ PatternDomain domain  (kSegmentPattern, kTopologyPattern)
- └─ uint32_t local_id
+HTreeTopologyPattern
+ ├─ PatternId              _pattern_id
+ ├─ unsigned               _levels
+ └─ vector<PatternId>      _level_segment_pattern_ids
+ - concat() static: merges level segment references
 ```
 
 ---

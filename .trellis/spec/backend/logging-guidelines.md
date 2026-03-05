@@ -155,8 +155,8 @@ CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name
 ## Logger Lifecycle
 
 ```cpp
-// Initialization (in CTSAPI::runCTS or similar entry point)
-CTSLogInst.init(log_file_path);
+// Initialization (in CTSAPI::init or similar entry point)
+CTSLogInst.set_log_file(log_file_path);
 
 // Usage throughout code
 CTS_LOG_INFO << "Processing...";
