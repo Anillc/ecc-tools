@@ -218,3 +218,80 @@ Restored backend spec files from empty templates and updated against current iCT
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Free Function CamelCase Rename & Spec Alignment
+
+**Date**: 2026-03-06
+**Task**: Free Function CamelCase Rename & Spec Alignment
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+## Summary
+
+Completed GlobalFunctionCase: CamelCase enforcement across the entire iCTS module, and aligned the naming convention tables in both spec files.
+
+## Changes
+
+### Free Function Renames (GlobalFunctionCase: CamelCase)
+
+| File | Old Name | New Name |
+|------|----------|----------|
+| `Geometry.hh` | `manhattan`, `calcCenter`, `calcMedian`, `projectToL1Circle` | `Manhattan`, `CalcCenter`, `CalcMedian`, `ProjectToL1Circle` |
+| `HashJoinEngine.hh` | `pack`, `hashJoinConcat` | `Pack`, `HashJoinConcat` |
+| `TopologyGen.cc` | `calcLoadBounds` | `CalcLoadBounds` |
+| `Clustering.cc` | `splitByPosition`, `calcCenters` | `SplitByPosition`, `CalcCenters` |
+| `CharacterizationTest.cc` | `makeSegmentChar`, `makeHTreeChar` | `MakeSegmentChar`, `MakeHTreeChar` |
+
+### Call Site Updates (11 files total)
+
+- `TopologyGen.cc` — geometry calls + `CalcLoadBounds`
+- `Clustering.cc` — geometry calls + `SplitByPosition`, `CalcCenters`
+- `KMeans.hh` — `geometry::Manhattan`
+- `TopologyGenTest.cc` — `geometry::Manhattan`
+- `SegmentTraits.hh` — `detail::Pack` ×2
+- `HTreeTraits.hh` — `detail::Pack` ×2
+- `SegmentCharTable.hh` — `detail::HashJoinConcat`
+- `HTreeTopologyCharTable.hh` — `detail::HashJoinConcat`
+- `CharacterizationTest.cc` — `detail::Pack` ×3, `MakeSegmentChar`, `MakeHTreeChar`
+
+### Geometry.hh Type Generalization
+
+- `Manhattan<T>` — template input, `double` return (distance is real-valued)
+- `CalcCenter` — auto return via `std::decay_t` + `std::conditional_t` (int→Point<double>, float→Point<float>)
+- `CalcMedian` — auto return, preserves getter's Point coordinate type
+- `ProjectToL1Circle` — explicitly `Point<int>` (DBU grid-specific)
+
+### Spec Alignment
+
+- Added `Global/Free function | CamelCase` row to both naming tables
+- Unified both tables to 5-column format (Element | Case | Prefix | Suffix | Example)
+- Unified row order and example sets (union of both)
+- Fixed `Wrapper::getDbUnit()` → `Wrapper::get_db_unit()` in project-constraints.md
+
+### Verification
+
+- Grep confirmed zero remaining old function names across entire iCTS module
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6c88474ab` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
