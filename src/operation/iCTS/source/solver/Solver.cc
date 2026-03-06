@@ -257,7 +257,8 @@ std::vector<Pin*> Solver::assignApply(const std::vector<Pin*>& load_pins, const 
         = BalanceClustering::clusteringEnhancement(enhanced_clusters, max_fanout, max_cap, max_net_len, skew_bound, 200, 0.95, 10000);
   }
   // top guide
-  auto guide_centers = BalanceClustering::guideCenter(enhanced_clusters, std::nullopt, TimingPropagator::getMinLength(), 1);
+  // auto guide_centers = BalanceClustering::guideCenter(enhanced_clusters, std::nullopt, TimingPropagator::getMinLength(), 1);
+  auto guide_centers = BalanceClustering::getCentroids(enhanced_clusters);
   std::vector<icts::Pin*> next_level_load_pins;
   // if (_level > 1) {
   //   higherDelayOpt(enhanced_clusters, guide_centers, next_level_load_pins);

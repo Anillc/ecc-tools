@@ -59,7 +59,6 @@ std::vector<Violation> RuleValidator::verify(std::vector<DRCShape>& drc_env_shap
   verifyRVModel(rv_model);
   buildViolationList(rv_model);
   // debugPlotRVModel(rv_model, "best");
-  // debugOutputViolation(rv_model);
   DRCLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
   return rv_model.get_violation_list();
 }
@@ -183,7 +182,7 @@ void RuleValidator::verifyRVModel(RVModel& rv_model)
 {
   Monitor monitor;
   DRCLOG.info(Loc::current(), "Starting...");
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
   for (RVCluster& rv_cluster : rv_model.get_rv_cluster_list()) {
     buildRVCluster(rv_cluster);
     if (needVerifying(rv_cluster)) {
@@ -542,45 +541,6 @@ void RuleValidator::debugPlotRVCluster(RVCluster& rv_cluster, std::string flag)
   std::string gds_file_path = DRCUTIL.getString(rv_temp_directory_path, flag, "_rv_cluster_", rv_cluster.get_cluster_idx(), ".gds");
 
   DRCGP.plot(gp_gds, gds_file_path);
-}
-
-void RuleValidator::debugOutputViolation(RVModel& rv_model)
-{
-  Monitor monitor;
-  DRCLOG.info(Loc::current(), "Starting...");
-
-  std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
-  std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
-  std::string& rv_temp_directory_path = DRCDM.getConfig().rv_temp_directory_path;
-
-  std::map<ViolationType, std::vector<Violation*>> type_violation_list_map;
-  for (Violation& violation : rv_model.get_violation_list()) {
-    type_violation_list_map[violation.get_violation_type()].push_back(&violation);
-  }
-  for (auto& [type, violation_list] : type_violation_list_map) {
-    std::ofstream* violation_file = DRCUTIL.getOutputFileStream(DRCUTIL.getString(rv_temp_directory_path, GetViolationTypeName()(type), ".txt"));
-    for (Violation* violation : violation_list) {
-      DRCUTIL.pushStream(violation_file, violation->get_ll_x(), " ", violation->get_ll_y(), " ", violation->get_ur_x(), " ", violation->get_ur_y(), " ");
-      if (violation->get_is_routing()) {
-        DRCUTIL.pushStream(violation_file, routing_layer_list[violation->get_layer_idx()].get_layer_name(), " ");
-      } else {
-        DRCUTIL.pushStream(violation_file, cut_layer_list[violation->get_layer_idx()].get_layer_name(), " ");
-      }
-      DRCUTIL.pushStream(violation_file, violation->get_is_routing() ? "true" : "false", " ");
-
-      DRCUTIL.pushStream(violation_file, "{ ");
-      for (int32_t net_idx : violation->get_violation_net_set()) {
-        DRCUTIL.pushStream(violation_file, net_idx, " ");
-      }
-      DRCUTIL.pushStream(violation_file, "}", " ");
-
-      DRCUTIL.pushStream(violation_file, violation->get_required_size(), " ");
-      DRCUTIL.pushStream(violation_file, "\n");
-    }
-    DRCUTIL.closeFileStream(violation_file);
-  }
-
-  DRCLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
 }
 
 #endif
