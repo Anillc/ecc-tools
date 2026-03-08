@@ -15,28 +15,43 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file BalanceClustering.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Minimal balance clustering compatibility helpers for routing migration
  */
 
 #pragma once
 
-#include <string>
 #include <vector>
+
+#include "Pin.hh"
 
 namespace icts {
 
-class Pin;
-
-class FLUTERouter
+class BalanceClustering
 {
  public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
+  BalanceClustering() = delete;
+  ~BalanceClustering() = default;
 
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
+  static Point calcCentroid(const std::vector<Pin*>& load_pins)
+  {
+    if (load_pins.empty()) {
+      return Point(0, 0);
+    }
+
+    long long sum_x = 0;
+    long long sum_y = 0;
+    for (auto* pin : load_pins) {
+      auto loc = pin->get_location();
+      sum_x += loc.x();
+      sum_y += loc.y();
+    }
+
+    auto size = static_cast<long long>(load_pins.size());
+    return Point(static_cast<int>(sum_x / size), static_cast<int>(sum_y / size));
+  }
 };
 
 }  // namespace icts

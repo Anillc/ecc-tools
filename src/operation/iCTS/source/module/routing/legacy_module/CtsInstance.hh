@@ -15,28 +15,18 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file CtsInstance.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Minimal legacy instance compatibility include for routing migration
  */
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include "CtsPoint.hh"
 
 namespace icts {
 
-class Pin;
-
-class FLUTERouter
-{
- public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
-
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
-};
+// Stage-1 routing migration keeps only the shared Point compatibility surface.
 
 }  // namespace icts

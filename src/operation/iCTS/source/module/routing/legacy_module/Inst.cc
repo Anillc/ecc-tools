@@ -15,28 +15,52 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file Inst.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Legacy routing instance model implementation for stage-1 migration
  */
-
-#pragma once
-
-#include <string>
-#include <vector>
+#include "Inst.hh"
 
 namespace icts {
-
-class Pin;
-
-class FLUTERouter
+const double& Inst::getCapLoad() const
 {
- public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
+  return _load_pin->get_cap_load();
+}
 
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
-};
+const double& Inst::getCapOut() const
+{
+  return _driver_pin->get_cap_load();
+}
+
+void Inst::init()
+{
+  if (isBuffer() || isNoneLib()) {
+    _driver_pin = new Pin(this, _location, _name + "_driver", PinType::kDriver);
+  }
+  _load_pin = new Pin(this, _location, _name + "_load", PinType::kLoad);
+}
+
+void Inst::release()
+{
+  if (_driver_pin) {
+    delete _driver_pin;
+    _driver_pin = nullptr;
+  }
+  if (_load_pin) {
+    delete _load_pin;
+    _load_pin = nullptr;
+  }
+}
+
+void Inst::updatePinLocation(const Point& location)
+{
+  if (_load_pin) {
+    _load_pin->set_location(location);
+  }
+  if (_driver_pin) {
+    _driver_pin->set_location(location);
+  }
+}
 
 }  // namespace icts

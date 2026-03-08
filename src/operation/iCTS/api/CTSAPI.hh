@@ -69,6 +69,7 @@ class CTSAPI
 
   // DB query API
   int32_t queryDbUnit() const;
+  bool withinCore(int x, int y) const;
 
   // Characterization API
   std::string createCharInstance(const std::string& cell_master, const std::string& inst_name);

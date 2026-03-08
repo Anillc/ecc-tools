@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Mandatory project constraints for routing migration"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Module organization and CMake patterns"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Required CTS_LOG macro usage"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming and file conventions"}

@@ -15,28 +15,22 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file Log.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Routing compatibility logging macros backed by iCTS logger
  */
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include "utils/logger/Logger.hh"
 
-namespace icts {
+#define LOG_INFO CTS_LOG_INFO
+#define LOG_WARNING CTS_LOG_WARNING
+#define LOG_ERROR CTS_LOG_ERROR
+#define LOG_FATAL CTS_LOG_FATAL
 
-class Pin;
-
-class FLUTERouter
-{
- public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
-
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
-};
-
-}  // namespace icts
+#define LOG_INFO_IF CTS_LOG_INFO_IF
+#define LOG_WARNING_IF CTS_LOG_WARNING_IF
+#define LOG_ERROR_IF CTS_LOG_ERROR_IF
+#define LOG_FATAL_IF CTS_LOG_FATAL_IF

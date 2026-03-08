@@ -14,29 +14,38 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
+
 /**
- * @file FLUTE.hh
+ * @file LocalLegalization.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Local legalization helpers for stage-1 routing
  */
-
 #pragma once
 
-#include <string>
 #include <vector>
 
+#include "Pin.hh"
 namespace icts {
-
-class Pin;
-
-class FLUTERouter
+/**
+ * @brief Local legalization only consider the input location but not the global instance and shape
+ *
+ */
+class LocalLegalization
 {
  public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
+  LocalLegalization(Pin* driver_pin, const std::vector<Pin*>& load_pins);
+  LocalLegalization(std::vector<Pin*>& pins);
+  LocalLegalization(std::vector<Point>& variable_locations, const std::vector<Point>& fixed_locations = std::vector<Point>());
 
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
+  ~LocalLegalization() = default;
+  static void setIgnoreCore(const bool& ignore_core) { _ignore_core = ignore_core; }
+
+ private:
+  void legalize();
+  static bool _ignore_core;
+  std::vector<Point> _variable_locations;
+  std::vector<Point> _fixed_locations;
 };
 
 }  // namespace icts

@@ -10,7 +10,7 @@ set(ICTS_MODULE_CHARACTERIZATION ${ICTS_MODULE}/characterization)
 # add_subdirectory(${ICTS_MODULE_DRV})
 # add_subdirectory(${ICTS_MODULE_OPTIMIZATION})
 # add_subdirectory(${ICTS_MODULE_REPORT})
-# add_subdirectory(${ICTS_MODULE_ROUTING})
+add_subdirectory(${ICTS_MODULE_ROUTING})
 add_subdirectory(${ICTS_MODULE_TOPOLOGY})
 add_subdirectory(${ICTS_MODULE_CHARACTERIZATION})
 
@@ -24,7 +24,7 @@ target_link_libraries(
   # icts_source_module_drv
   # icts_source_module_optimization
   # icts_source_module_report
-  # icts_source_module_routing
+  icts_source_module_routing
   icts_source_module_topology
   icts_source_module_characterization
 )

@@ -17,13 +17,19 @@
 /**
  * @file FLUTE.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @brief FLUTE-based Steiner tree routing implementation
+ * @date 2026-03-08
+ * @brief FLUTE-based Steiner tree routing facade implementation
  */
 
 #include "FLUTE.hh"
 
+#include "TreeBuilder.hh"
+
 namespace icts {
 
-// TBD
+void FLUTERouter::route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins)
+{
+  TreeBuilder::fluteTree(net_name, driver_pin, load_pins);
+}
 
 }  // namespace icts

@@ -17,13 +17,19 @@
 /**
  * @file SALT.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @brief SALT-based Steiner tree routing implementation
+ * @date 2026-03-08
+ * @brief SALT-based Steiner tree routing facade implementation
  */
 
 #include "SALT.hh"
 
+#include "TreeBuilder.hh"
+
 namespace icts {
 
-// TBD
+void SALTRouter::route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins)
+{
+  TreeBuilder::shallowLightTree(net_name, driver_pin, load_pins);
+}
 
 }  // namespace icts

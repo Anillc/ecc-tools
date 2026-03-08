@@ -17,18 +17,100 @@
 /**
  * @file CBS.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @brief Concurrent BST-SALT routing
+ * @date 2026-03-08
+ * @brief Concurrent BST-SALT router interface
  */
-
 #pragma once
+
+#include "BoundSkewTree.hh"
+#include "TimingPropagator.hh"
+#include "salt/salt.h"
 
 namespace icts {
 
-class CBS
+/**
+ * @brief Balance skEw lAtency Tree
+ *
+ */
+template <typename T>
+concept DelayType = requires(T t)
+{
+  {
+    t.id
+  }
+  ->std::convertible_to<int>;
+  {
+    t.loc
+  }
+  ->std::convertible_to<salt::Point>;
+};
+
+class CBSInterface
+{
+ protected:
+  std::vector<std::shared_ptr<salt::TreeNode>> _nodes;  // nodes of the bound-skew tree
+  std::vector<double> _shortest_latency;
+  std::vector<double> _cur_latency;
+  std::shared_ptr<salt::TreeNode> _src;  // source node of the bound-skew tree
+
+  void init(salt::Tree& min_tree, std::shared_ptr<salt::Pin> src_pin);  // tree of minimum weight
+  void finalize(const salt::Net& net, salt::Tree& tree);
+  virtual bool relax(const std::shared_ptr<salt::TreeNode>& u, const std::shared_ptr<salt::TreeNode>& v) = 0;  // from u to v
+  virtual void dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps) = 0;
+};
+
+class TreeSaltBuilder : public CBSInterface
 {
  public:
-  CBS() = default;
-  ~CBS() = default;
+  void run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level = 3);
+
+ protected:
+  bool relax(const std::shared_ptr<salt::TreeNode>& u,
+             const std::shared_ptr<salt::TreeNode>& v);  // from u to v
+  void dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps);
+};
+
+class TempBuilder : public CBSInterface
+{
+ public:
+  void run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level = 3);
+
+ protected:
+  std::vector<double> _cap_loads;
+  template <DelayType T1, DelayType T2>
+  double delay(const T1& from, const T2& to) const
+  {
+    auto from_loc = from.loc;
+    auto to_loc = to.loc;
+    auto len = utils::Dist(from_loc, to_loc) / TimingPropagator::getDbUnit();
+    auto cap_load = _cap_loads[to.id];
+    return TimingPropagator::calcElmoreDelay(cap_load, len);
+  }
+  template <DelayType T1, DelayType T2>
+  double delay(const std::shared_ptr<T1>& from, const std::shared_ptr<T2>& to) const
+  {
+    auto from_loc = from->loc;
+    auto to_loc = to->loc;
+    auto len = utils::Dist(from_loc, to_loc) / TimingPropagator::getDbUnit();
+    auto cap_load = _cap_loads[to->id];
+    return TimingPropagator::calcElmoreDelay(cap_load, len);
+  }
+  void init(salt::Tree& min_tree, std::shared_ptr<salt::Pin> src_pin);
+  void resetParent(const std::shared_ptr<salt::TreeNode>& child, const std::shared_ptr<salt::TreeNode>& parent);
+  bool relax(const std::shared_ptr<salt::TreeNode>& u,
+             const std::shared_ptr<salt::TreeNode>& v);  // from u to v
+  void dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps);
+};
+
+class CBSRouter
+{
+ public:
+  CBSRouter() = delete;
+  ~CBSRouter() = default;
+
+  static Inst* route(const std::string& net_name, const std::vector<Pin*>& load_pins,
+                     const std::optional<double>& skew_bound = std::nullopt, const std::optional<Point>& guide_loc = std::nullopt,
+                     const TopoType& topo_type = TopoType::kGreedyDist);
 };
 
 }  // namespace icts

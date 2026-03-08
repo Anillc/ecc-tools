@@ -15,28 +15,17 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file Net.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Legacy routing net model implementation for stage-1 migration
  */
-
-#pragma once
-
-#include <string>
-#include <vector>
-
+#include "Net.hh"
 namespace icts {
-
-class Pin;
-
-class FLUTERouter
+void Net::init()
 {
- public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
-
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
-};
+  _driver_pin->set_net(this);
+  std::ranges::for_each(_load_pins, [this](Pin* load_pin) { load_pin->set_net(this); });
+}
 
 }  // namespace icts

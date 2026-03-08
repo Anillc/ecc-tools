@@ -23,10 +23,12 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <ranges>
 #include <set>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -89,6 +91,10 @@ void CTSAPI::readData()
     {
       if (sta_net->isClockNet()) {
         auto* sta_clock = STAInst->getPropClockOfNet(sta_net);
+        if (sta_clock == nullptr) {
+          CTS_LOG_WARNING << "Clock net \"" << sta_net->get_name() << "\" has no propagated clock in STA.";
+          continue;
+        }
         auto* clock = new icts::Clock(sta_clock->get_clock_name(), sta_net->get_name());
         CTSDesignInst.add_clock(clock);
         CTS_LOG_INFO << "Clock [" << sta_clock->get_clock_name() << "] have net \"" << sta_net->get_name() << "\"";
@@ -147,7 +153,7 @@ void CTSAPI::summaryClockDistribution()
 
 void CTSAPI::report(const std::string&)
 {
-  // TBD
+  // TBD(clw): stage-1 placeholder. Reporting flow is not implemented yet.
 }
 
 void CTSAPI::resetAPI()
@@ -168,13 +174,16 @@ void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
   if (!std::filesystem::exists(dir)) {
     std::filesystem::create_directories(dir);
   }
-  CTSConfigInst.set_work_dir(dir_str);
-  CTSConfigInst.set_log_file(dir.append("cts.log").string());
-  CTSConfigInst.set_gds_file(dir.append("cts.gds").string());
-  auto def_path = dir.append("output");
+  CTSConfigInst.set_work_dir(dir.string());
+
+  const auto log_path = (dir / "cts.log").string();
+  const auto gds_path = (dir / "cts.gds").string();
+  const auto def_path = dir / "output";
   if (!std::filesystem::exists(def_path)) {
     std::filesystem::create_directories(def_path);
   }
+  CTSConfigInst.set_log_file(log_path);
+  CTSConfigInst.set_gds_file(gds_path);
   CTSConfigInst.set_output_def_path(def_path.string());
 
   // Logger
@@ -192,7 +201,7 @@ void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
 
 ieda_feature::CTSSummary CTSAPI::outputSummary()
 {
-  // TBD
+  // TBD(clw): stage-1 placeholder. Summary export is not implemented yet.
   return ieda_feature::CTSSummary{};
 }
 
@@ -234,10 +243,14 @@ icts::InstType CTSAPI::queryInstType(const std::string& inst_name) const
   auto name = inst_name;
   name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
   auto* sta_netlist = STAInst->get_netlist();
+  CTS_LOG_FATAL_IF(sta_netlist == nullptr) << "STA netlist is null.";
   auto* sta_inst = sta_netlist->findInstance(name.c_str());
-  CTS_LOG_ERROR_IF(sta_inst == nullptr) << "Instance " << name << " is not found in the STA netlist.";
-  auto* lib_cell = sta_inst->get_inst_cell();
-  if (lib_cell->isSequentialCell()) {
+  auto* lib_cell = sta_inst != nullptr ? sta_inst->get_inst_cell() : nullptr;
+  if (sta_inst == nullptr) {
+    CTS_LOG_ERROR << "Instance " << name << " is not found in the STA netlist.";
+  } else if (lib_cell == nullptr) {
+    CTS_LOG_ERROR << "Instance " << name << " has no liberty cell in the STA netlist.";
+  } else if (lib_cell->isSequentialCell()) {
     inst_type = icts::InstType::kFlipFlop;
   } else if (lib_cell->isBuffer()) {
     inst_type = icts::InstType::kBuffer;
@@ -250,16 +263,19 @@ icts::InstType CTSAPI::queryInstType(const std::string& inst_name) const
     return inst_type;
   }
 
-  // TBD: judge MUX type
+  const std::string cell_master = lib_cell != nullptr ? lib_cell->get_cell_name() : "unknown";
+
+  // TBD(clw): stage-1 heuristic. MUX detection still falls back to iDB clock-input counting.
   auto* idb_design = CTSWrapperInst.get_idb_design();
+  CTS_LOG_FATAL_IF(idb_design == nullptr) << "iDB design is null when querying instance type for " << name;
   auto* inst_list = idb_design->get_instance_list();
+  CTS_LOG_FATAL_IF(inst_list == nullptr) << "iDB instance list is null when querying instance type for " << name;
   idb::IdbInstance* idb_inst = inst_list->find_instance(inst_name);
   CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " type is unknown (not found instance in iDB) which cell is "
-                                        << lib_cell->get_cell_name();
+                                        << cell_master;
 
   auto* pin_list = idb_inst->get_pin_list();
-  CTS_LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is "
-                                        << lib_cell->get_cell_name();
+  CTS_LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
 
   std::size_t clock_input_pins = 0;
   for (auto* idb_pin : pin_list->get_pin_list()) {
@@ -272,11 +288,11 @@ icts::InstType CTSAPI::queryInstType(const std::string& inst_name) const
     CTS_LOG_FATAL_IF(idb_net == nullptr) << "Instance " << name << " pin " << idb_pin->get_pin_name()
                                          << " is not connected to any net, error in inst type judgement, which "
                                             "cell is "
-                                         << lib_cell->get_cell_name();
+                                         << cell_master;
 
     if (idb_net->is_clock() == false) {
       CTS_LOG_WARNING << "Instance " << name << " pin " << idb_pin->get_pin_name() << " connected net " << idb_net->get_net_name()
-                      << " is not clock net, warning in inst type judgement, which cell is " << lib_cell->get_cell_name();
+                      << " is not clock net, warning in inst type judgement, which cell is " << cell_master;
       continue;
     }
     ++clock_input_pins;
@@ -286,8 +302,7 @@ icts::InstType CTSAPI::queryInstType(const std::string& inst_name) const
     }
   }
 
-  CTS_LOG_WARNING_IF(inst_type == icts::InstType::kUnknown)
-      << "Instance " << name << " type is unknown which cell is " << lib_cell->get_cell_name();
+  CTS_LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master;
   return inst_type;
 }
 
@@ -301,8 +316,16 @@ bool CTSAPI::isFlipFlop(const std::string& inst_name) const
 
 bool CTSAPI::isClockNet(const std::string& net_name) const
 {
-  auto* sta_net = STAInst->get_netlist()->findNet(net_name.c_str());
-  CTS_LOG_ERROR_IF(sta_net == nullptr) << "Net " << net_name << " is not found in the STA netlist.";
+  auto* sta_netlist = STAInst->get_netlist();
+  if (sta_netlist == nullptr) {
+    CTS_LOG_ERROR << "STA netlist is not ready.";
+    return false;
+  }
+  auto* sta_net = sta_netlist->findNet(net_name.c_str());
+  if (sta_net == nullptr) {
+    CTS_LOG_ERROR << "Net " << net_name << " is not found in the STA netlist.";
+    return false;
+  }
   return sta_net->isClockNet();
 }
 
@@ -399,7 +422,18 @@ double CTSAPI::queryCellInPinSlewLimit(const std::string& cell_master) const
 
 int32_t CTSAPI::queryDbUnit() const
 {
-  return CTSWrapperInst.get_db_unit();
+  auto* idb_design = CTSWrapperInst.get_idb_design();
+  if (idb_design == nullptr || idb_design->get_units() == nullptr) {
+    CTS_LOG_ERROR << "iDB design units are not ready.";
+    return 1;
+  }
+  return CTSWrapperInst.queryDbUnit();
+}
+
+bool CTSAPI::withinCore(int x, int y) const
+{
+  // Thin wrapper: stage-1 routing still depends on CTSAPI.hh instead of including Wrapper.hh directly.
+  return CTSWrapperInst.withinCore(x, y);
 }
 
 // Characterization API

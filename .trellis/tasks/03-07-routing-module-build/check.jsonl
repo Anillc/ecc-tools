@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Mandatory project constraints for routing migration"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Module organization and CMake patterns"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Required CTS_LOG macro usage"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming and file conventions"}

@@ -17,18 +17,47 @@
 /**
  * @file Router.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @brief Clock tree routing interface
+ * @date 2026-03-08
+ * @brief Unified stage-1 routing dispatch facade
  */
 
 #pragma once
 
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "legacy_module/CtsPoint.hh"
+
 namespace icts {
+
+class Inst;
+class Pin;
+
+enum class SteinerRouterType
+{
+  kFlute,
+  kSalt,
+};
+
+enum class ClockTreeRouterType
+{
+  kBst,
+  kBstSalt,
+  kCbs,
+  kDefault,
+};
 
 class Router
 {
  public:
-  Router() = default;
+  Router() = delete;
   ~Router() = default;
+
+  static void routeSteiner(SteinerRouterType router_type, const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
+
+  static Inst* routeClockTree(ClockTreeRouterType router_type, const std::string& net_name, const std::vector<Pin*>& load_pins,
+                              const std::optional<double>& skew_bound = std::nullopt, const std::optional<Point>& guide_loc = std::nullopt);
 };
 
 }  // namespace icts

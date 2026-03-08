@@ -15,28 +15,30 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file Enum.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @brief Legacy routing enums for stage-1 migration
  */
-
 #pragma once
 
-#include <string>
-#include <vector>
-
 namespace icts {
-
-class Pin;
-
-class FLUTERouter
+enum class NodeType
 {
- public:
-  FLUTERouter() = delete;
-  ~FLUTERouter() = default;
-
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
+  kSinkPin,
+  kBufferPin,
+  kNoneLibPin,
+  kSteiner,
 };
-
+enum class PinType
+{
+  kDriver,
+  kLoad,
+};
+enum class InstType
+{
+  kBuffer,
+  kSink,
+  kNoneLib,
+};
 }  // namespace icts

@@ -10,12 +10,18 @@ target_link_libraries(
   icts_source_database_characterization
 )
 
-target_include_directories(icts_source_module_characterization PUBLIC ${ICTS_SOURCE} ${ICTS_API})
+target_include_directories(
+  icts_source_module_characterization
+  PUBLIC
+  ${ICTS_SOURCE}
+  PRIVATE
+  ${ICTS_API}
+)
 
 if(DEBUG_ICTS_SOURCE_MODULE_CHARACTERIZATION)
   if(MSVC)
-    target_compile_options(icts_source_module_characterization PUBLIC /Zi /Od /Ob0)
+    target_compile_options(icts_source_module_characterization PRIVATE /Zi /Od /Ob0)
   else()
-    target_compile_options(icts_source_module_characterization PUBLIC -g3 -O0 -fno-inline -fno-omit-frame-pointer)
+    target_compile_options(icts_source_module_characterization PRIVATE -g3 -O0 -fno-inline -fno-omit-frame-pointer)
   endif()
 endif()

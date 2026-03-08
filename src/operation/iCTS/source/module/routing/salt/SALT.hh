@@ -17,18 +17,26 @@
 /**
  * @file SALT.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @brief SALT-based Steiner tree routing
+ * @date 2026-03-08
+ * @brief SALT-based Steiner tree routing facade
  */
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 namespace icts {
 
-class SALT
+class Pin;
+
+class SALTRouter
 {
  public:
-  SALT() = default;
-  ~SALT() = default;
+  SALTRouter() = delete;
+  ~SALTRouter() = default;
+
+  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
 };
 
 }  // namespace icts

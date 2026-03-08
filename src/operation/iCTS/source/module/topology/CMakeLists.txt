@@ -8,6 +8,7 @@ target_link_libraries(
   icts_source_module_topology
   PUBLIC
   icts_source_database
+  PRIVATE
   icts_source_utils
   lemon
 )

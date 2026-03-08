@@ -22,17 +22,23 @@
  */
 
 #pragma once
+#include <cstdint>
 #include <unordered_map>
 
 #include "../design/Inst.hh"
 #include "../design/Net.hh"
 #include "../design/Pin.hh"
-#include "IdbDesign.h"
-#include "IdbInstance.h"
-#include "IdbLayout.h"
-#include "IdbNet.h"
-#include "IdbPins.h"
-#include "builder.h"
+
+namespace idb {
+class IdbBuilder;
+class IdbDesign;
+class IdbLayout;
+class IdbPin;
+class IdbInstance;
+class IdbNet;
+template <typename T>
+class IdbCoordinate;
+}
 
 namespace icts {
 
@@ -54,12 +60,7 @@ class Wrapper
   Wrapper& operator=(Wrapper&& rhs) = delete;
 
   // Initialize with idb builder
-  void init(idb::IdbBuilder* idb)
-  {
-    _idb = idb;
-    _idb_design = _idb->get_def_service()->get_design();
-    _idb_layout = _idb->get_lef_service()->get_layout();
-  }
+  void init(idb::IdbBuilder* idb);
 
   // Reset wrapper
   void reset()
@@ -80,20 +81,15 @@ class Wrapper
   idb::IdbDesign* get_idb_design() const { return _idb_design; }
   idb::IdbLayout* get_idb_layout() const { return _idb_layout; }
 
-  int32_t get_db_unit() const { return _idb_design->get_units()->get_micron_dbu(); }
+  int32_t queryDbUnit() const;
 
   // Setter
-  void initIdb(idb::IdbBuilder* idb)
-  {
-    _idb = idb;
-    _idb_design = _idb->get_def_service()->get_design();
-    _idb_layout = _idb->get_lef_service()->get_layout();
-  }
   void set_idb_design(idb::IdbDesign* design) { _idb_design = design; }
   void set_idb_layout(idb::IdbLayout* layout) { _idb_layout = layout; }
 
   // Interface
   void read();
+  bool withinCore(int32_t x, int32_t y) const;
 
  private:
   Wrapper() = default;
@@ -101,7 +97,6 @@ class Wrapper
 
   // DB to CTS
   Point<int> idbToCts(idb::IdbCoordinate<int32_t>& coord) const;
-  PinType idbToCts(idb::IdbConnectType idb_pin_type, idb::IdbConnectDirection idb_pin_direction) const;
   Pin* idbToCts(idb::IdbPin* idb_pin);
   Inst* idbToCts(idb::IdbInstance* idb_inst);
   Net* idbToCts(idb::IdbNet* idb_net);

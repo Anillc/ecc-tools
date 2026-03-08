@@ -1,6 +1,6 @@
 add_library(icts_source_flow ${ICTS_FLOW}/FlowManager.cc)
 
-target_link_libraries(icts_source_flow PUBLIC icts_source_module)
+target_link_libraries(icts_source_flow PRIVATE icts_source_module)
 
 target_include_directories(icts_source_flow PUBLIC ${ICTS_FLOW})
 

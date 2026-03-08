@@ -1,6 +1,15 @@
 add_library(icts_source_database_io ${ICTS_DATABASE_IO}/Wrapper.cc)
 
-target_include_directories(icts_source_database_io PUBLIC ${ICTS_DATABASE_IO})
+target_include_directories(
+  icts_source_database_io
+  PUBLIC
+  ${ICTS_DATABASE_IO}
+  ${HOME_DATABASE}/data/design
+  ${HOME_DATABASE}/data/design/db_design
+  ${HOME_DATABASE}/data/design/db_layout
+  PRIVATE
+  ${HOME_DATABASE}/manager/builder
+)
 
 target_link_libraries(icts_source_database_io PRIVATE idm icts_source_database_design)
 
