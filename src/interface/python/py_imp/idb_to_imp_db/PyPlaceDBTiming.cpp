@@ -1036,7 +1036,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
   for (auto& [main_type, lib_cells] : main_type_libcells) {
     main_type2main_id[main_type] = main_id_idx;
     std::sort(lib_cells.begin(), lib_cells.end(),
-              [](LibCell* a, LibCell* b) { return a->get_cell_leakage_power() < a->get_cell_leakage_power(); });  //
+              [](LibCell* a, LibCell* b) { return a->get_cell_leakage_power() < b->get_cell_leakage_power(); });  //
     // if (lib_cells.size() >= 1000) {
     //   std::cerr << "Error: too many cells in one main type, please check the library." << std::endl;
     //   exit(1);
