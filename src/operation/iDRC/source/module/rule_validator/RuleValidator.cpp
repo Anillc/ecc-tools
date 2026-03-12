@@ -19,6 +19,7 @@
 #include "DRCHeader.hpp"
 #include "GDSPlotter.hpp"
 #include "Monitor.hpp"
+#include "RVCluster.hpp"
 
 namespace idrc {
 
@@ -251,8 +252,158 @@ bool RuleValidator::needVerifying(RVCluster& rv_cluster)
 
 void RuleValidator::buildViolationList(RVCluster& rv_cluster)
 {
+  prepareRVCluster(rv_cluster);
   verifyRVCluster(rv_cluster);
+
+  // destroy cluster cache after verify
+  rv_cluster.get_layer_data().clear();
+  rv_cluster.get_layer_cut_net_rtrees().clear();
+
   processRVCluster(rv_cluster);
+}
+
+void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
+{
+  std::map<int32_t, RVLayerData>& layer_data = rv_cluster.get_layer_data();
+  auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
+
+  layer_data.clear();
+  layer_cut_net_rtrees.clear();
+  std::map<int32_t, std::vector<std::pair<GTLRectInt, int32_t>>> cut_rtree_inputs;
+
+  auto add_shape_to_layer_data = [&](DRCShape* drc_shape) {
+    if (!drc_shape->get_is_routing()) {
+      // Cut cache only keeps the per-layer rtree; build inputs are temporary.
+      cut_rtree_inputs[drc_shape->get_layer_idx()].emplace_back(DRCUTIL.convertToGTLRectInt(drc_shape->get_rect()), drc_shape->get_net_idx());
+      return;
+    }
+    layer_data[drc_shape->get_layer_idx()].nets[drc_shape->get_net_idx()].polyset += DRCUTIL.convertToGTLRectInt(drc_shape->get_rect());
+  };
+  for (DRCShape* drc_shape : rv_cluster.get_drc_env_shape_list()) {
+    add_shape_to_layer_data(drc_shape);
+  }
+  for (DRCShape* drc_shape : rv_cluster.get_drc_result_shape_list()) {
+    add_shape_to_layer_data(drc_shape);
+  }
+
+  auto append_boundary_edges = [this](RVLayerData& rv_layer_data, GTLHolePolyInt& check_hole_poly, bool is_hole, int32_t polygon_id,
+                                      std::vector<std::pair<GTLRectInt, int32_t>>& boundary_rtree_inputs) {
+    int32_t coord_size = static_cast<int32_t>(check_hole_poly.size());
+    if (coord_size < 2) {
+      return;
+    }
+
+    std::vector<PlanarCoord> coord_list;
+    coord_list.reserve(coord_size);
+    for (auto iter = check_hole_poly.begin(); iter != check_hole_poly.end(); iter++) {
+      coord_list.push_back(DRCUTIL.convertToPlanarCoord(*iter));
+    }
+    if (coord_list.size() < 2) {
+      return;
+    }
+
+    std::vector<bool> convex_corner_list(coord_size, false);
+    if (coord_size >= 3) {
+      Rotation rotation = DRCUTIL.getRotation(check_hole_poly);
+      for (int32_t i = 0; i < coord_size; i++) {
+        PlanarCoord& pre_coord = coord_list[getIdx(i - 1, coord_size)];
+        PlanarCoord& curr_coord = coord_list[i];
+        PlanarCoord& post_coord = coord_list[getIdx(i + 1, coord_size)];
+        convex_corner_list[i] = is_hole ? DRCUTIL.isConcaveCorner(rotation, pre_coord, curr_coord, post_coord)
+                                        : DRCUTIL.isConvexCorner(rotation, pre_coord, curr_coord, post_coord);
+      }
+    }
+
+    std::vector<int32_t> ring_boundary_ids;
+    ring_boundary_ids.reserve(coord_size);
+    for (int32_t i = 0; i < coord_size; i++) {
+      PlanarCoord& pre_coord = coord_list[getIdx(i - 1, coord_size)];
+      PlanarCoord& curr_coord = coord_list[i];
+      if (pre_coord == curr_coord) {
+        continue;
+      }
+
+      BoundaryData boundary_data;
+      boundary_data.edge = DRCUTIL.convertToGTLRectInt(DRCUTIL.getRect(pre_coord, curr_coord));
+      boundary_data.begin_coord = pre_coord;
+      boundary_data.end_coord = curr_coord;
+      boundary_data.polygon_id = polygon_id;
+      boundary_data.edge_length = DRCUTIL.getManhattanDistance(pre_coord, curr_coord);
+      boundary_data.isConvex = convex_corner_list[i];
+      boundary_data.isHole = is_hole;
+
+      rv_layer_data.boundary_pool.push_back(boundary_data);
+      int32_t boundary_id = static_cast<int32_t>(rv_layer_data.boundary_pool.size()) - 1;
+      ring_boundary_ids.push_back(boundary_id);
+      boundary_rtree_inputs.push_back({boundary_data.edge, boundary_id});
+    }
+
+    int32_t ring_size = static_cast<int32_t>(ring_boundary_ids.size());
+    if (ring_size < 2) {
+      return;
+    }
+    for (int32_t i = 0; i < ring_size; i++) {
+      BoundaryData& boundary_data = rv_layer_data.boundary_pool[ring_boundary_ids[i]];
+      boundary_data.prev_boundary_id = ring_boundary_ids[getIdx(i - 1, ring_size)];
+      boundary_data.next_boundary_id = ring_boundary_ids[getIdx(i + 1, ring_size)];
+    }
+  };
+
+  for (auto& [layer_idx, rv_layer_data] : layer_data) {
+    std::vector<std::pair<GTLRectInt, int32_t>> rect_rtree_inputs;
+    std::vector<std::pair<GTLRectInt, int32_t>> boundary_rtree_inputs;
+    rv_layer_data.polygon_pool.clear();
+    rv_layer_data.max_rect_pool.clear();
+    rv_layer_data.boundary_pool.clear();
+    for (auto& [net_idx, routing_net] : rv_layer_data.nets) {
+      std::vector<GTLHolePolyInt> gtl_hole_poly_list;
+      routing_net.polyset.get(gtl_hole_poly_list);
+      routing_net.polygon_begin = static_cast<int32_t>(rv_layer_data.polygon_pool.size());
+      routing_net.max_rect_begin = static_cast<int32_t>(rv_layer_data.max_rect_pool.size());
+      routing_net.boundary_begin = static_cast<int32_t>(rv_layer_data.boundary_pool.size());
+      rv_layer_data.polygon_pool.reserve(rv_layer_data.polygon_pool.size() + gtl_hole_poly_list.size());
+
+      for (GTLHolePolyInt& gtl_hole_poly : gtl_hole_poly_list) {
+        int32_t polygon_id = static_cast<int32_t>(rv_layer_data.polygon_pool.size());
+        rv_layer_data.polygon_pool.push_back({net_idx, static_cast<int32_t>(rv_layer_data.max_rect_pool.size()), 0,
+                                              static_cast<int32_t>(rv_layer_data.boundary_pool.size()), 0});
+        PolygonData& polygon_data = rv_layer_data.polygon_pool.back();
+
+        std::vector<GTLRectInt> gtl_rect_list;
+        gtl::get_max_rectangles(gtl_rect_list, gtl_hole_poly);
+        rv_layer_data.max_rect_pool.reserve(rv_layer_data.max_rect_pool.size() + gtl_rect_list.size());
+        for (GTLRectInt& gtl_rect : gtl_rect_list) {
+          MaxRectData max_rect_data;
+          max_rect_data.rect = gtl_rect;
+          max_rect_data.polygon_id = polygon_id;
+
+          rv_layer_data.max_rect_pool.push_back(max_rect_data);
+          int32_t max_rect_id = static_cast<int32_t>(rv_layer_data.max_rect_pool.size()) - 1;
+          rect_rtree_inputs.push_back({gtl_rect, max_rect_id});
+        }
+        polygon_data.max_rect_count = static_cast<int32_t>(rv_layer_data.max_rect_pool.size()) - polygon_data.max_rect_begin;
+
+        append_boundary_edges(rv_layer_data, gtl_hole_poly, false, polygon_id, boundary_rtree_inputs);
+        for (auto iter = gtl_hole_poly.begin_holes(); iter != gtl_hole_poly.end_holes(); iter++) {
+          GTLPolyInt gtl_poly = *iter;
+          GTLHolePolyInt check_hole_poly;
+          check_hole_poly.set(gtl_poly.begin(), gtl_poly.end());
+          append_boundary_edges(rv_layer_data, check_hole_poly, true, polygon_id, boundary_rtree_inputs);
+        }
+        polygon_data.boundary_count = static_cast<int32_t>(rv_layer_data.boundary_pool.size()) - polygon_data.boundary_begin;
+      }
+      routing_net.polygon_count = static_cast<int32_t>(rv_layer_data.polygon_pool.size()) - routing_net.polygon_begin;
+      routing_net.max_rect_count = static_cast<int32_t>(rv_layer_data.max_rect_pool.size()) - routing_net.max_rect_begin;
+      routing_net.boundary_count = static_cast<int32_t>(rv_layer_data.boundary_pool.size()) - routing_net.boundary_begin;
+    }
+
+    rv_layer_data.rect_rtrees = decltype(rv_layer_data.rect_rtrees)(rect_rtree_inputs);
+    rv_layer_data.boundary_rtrees = decltype(rv_layer_data.boundary_rtrees)(boundary_rtree_inputs);
+  }
+
+  for (auto& [layer_idx, rect_net_pairs] : cut_rtree_inputs) {
+    layer_cut_net_rtrees[layer_idx] = bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>>(rect_net_pairs);
+  }
 }
 
 void RuleValidator::verifyRVCluster(RVCluster& rv_cluster)

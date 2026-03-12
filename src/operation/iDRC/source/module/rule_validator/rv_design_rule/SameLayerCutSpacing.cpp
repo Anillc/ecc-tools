@@ -22,28 +22,9 @@ void RuleValidator::verifySameLayerCutSpacing(RVCluster& rv_cluster)
 {
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
+  auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
 
-  std::map<int32_t, std::vector<std::pair<BGRectInt, int32_t>>> routing_cut_net_map;
-  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>> cut_bg_rtree_map;
-  // preprocess for cut rect, do not merge
-  {
-    for (DRCShape* drc_shape : rv_cluster.get_drc_env_shape_list()) {
-      if (!drc_shape->get_is_routing() && drc_shape->get_net_idx() != -1) {
-        routing_cut_net_map[drc_shape->get_layer_idx()].push_back({DRCUTIL.convertToBGRectInt(drc_shape->get_rect()), drc_shape->get_net_idx()});
-      }
-    }
-    for (DRCShape* drc_shape : rv_cluster.get_drc_result_shape_list()) {
-      if (!drc_shape->get_is_routing() && drc_shape->get_net_idx() != -1) {
-        routing_cut_net_map[drc_shape->get_layer_idx()].push_back({DRCUTIL.convertToBGRectInt(drc_shape->get_rect()), drc_shape->get_net_idx()});
-      }
-    }
-
-    for (auto& [layer_idx, rect_net_pairs] : routing_cut_net_map) {
-      cut_bg_rtree_map[layer_idx] = bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>(rect_net_pairs);
-    }
-  }
-
-  for (auto& [cut_layer_idx, rect_net_pairs] : routing_cut_net_map) {
+  for (auto& [cut_layer_idx, cut_net_rtree] : layer_cut_net_rtrees) {
     std::vector<Violation> layer_violations;
     int32_t routing_layer_idx = -1;
     {
@@ -56,17 +37,23 @@ void RuleValidator::verifySameLayerCutSpacing(RVCluster& rv_cluster)
     int32_t curr_prl_spacing = same_layer_cut_spacing_rule.curr_prl_spacing;
     int32_t curr_prl = -1 * same_layer_cut_spacing_rule.curr_prl;
 
-    for (auto& [cut_bg_rect, net_idx] : rect_net_pairs) {
-      PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_bg_rect);
+    for (auto [cut_gtl_rect, net_idx] : cut_net_rtree) {
+      if (net_idx == -1) {
+        continue;
+      }
+      PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_gtl_rect);
       PlanarRect checking_region_vertical = DRCUTIL.getEnlargedRect(cut_rect, curr_prl, curr_prl_spacing);
       PlanarRect checking_region_horizontal = DRCUTIL.getEnlargedRect(cut_rect, curr_prl_spacing, curr_prl);
-      std::vector<std::pair<BGRectInt, int32_t>> bg_rect_net_pair_list;
+      std::vector<std::pair<GTLRectInt, int32_t>> gtl_rect_net_pair_list;
       {
         PlanarRect check_rect = DRCUTIL.getEnlargedRect(cut_rect, std::max({curr_spacing, curr_prl, curr_prl_spacing}));
-        cut_bg_rtree_map[cut_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(check_rect)), std::back_inserter(bg_rect_net_pair_list));
+        cut_net_rtree.query(bgi::intersects(DRCUTIL.convertToGTLRectInt(check_rect)), std::back_inserter(gtl_rect_net_pair_list));
       }
-      for (auto& [bg_env_rect, env_net_idx] : bg_rect_net_pair_list) {
-        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(bg_env_rect);
+      for (auto& [gtl_env_rect, env_net_idx] : gtl_rect_net_pair_list) {
+        if (env_net_idx == -1) {
+          continue;
+        }
+        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(gtl_env_rect);
         if (DRCUTIL.isClosedOverlap(cut_rect, env_rect)) {
           continue;
         }
