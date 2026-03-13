@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -62,8 +63,8 @@ class CTSAPI
   icts::InstType queryInstType(const std::string& inst_name) const;
   bool isFlipFlop(const std::string& inst_name) const;
   bool isClockNet(const std::string& net_name) const;
-  double queryWireResistance(int routing_layer, double length, double wire_width = 0.0) const;
-  double queryWireCapacitance(int routing_layer, double length, double wire_width = 0.0) const;
+  double queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) const;
+  double queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) const;
   double queryCellOutPinCapLimit(const std::string& cell_master) const;
   double queryCellInPinSlewLimit(const std::string& cell_master) const;
 

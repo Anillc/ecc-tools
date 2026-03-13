@@ -23,6 +23,7 @@
 #include "TimingPropagator.hh"
 
 #include <algorithm>
+#include <optional>
 #include <ranges>
 
 #include "CTSAPI.hh"
@@ -76,16 +77,17 @@ void TimingPropagator::ensureInit()
 void TimingPropagator::init()
 {
   auto wire_width = getWireWidth();
+  std::optional<double> wire_width_opt = wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
   auto single_layer = getRoutingLayer(LayerPattern::kNone);
   auto h_layer = getRoutingLayer(LayerPattern::kH);
   auto v_layer = getRoutingLayer(LayerPattern::kV);
 
-  _unit_cap = CTSAPIInst.queryWireCapacitance(single_layer, 1.0, wire_width);
-  _unit_res = CTSAPIInst.queryWireResistance(single_layer, 1.0, wire_width) / 1000.0;
-  _unit_h_cap = CTSAPIInst.queryWireCapacitance(h_layer, 1.0, wire_width);
-  _unit_h_res = CTSAPIInst.queryWireResistance(h_layer, 1.0, wire_width) / 1000.0;
-  _unit_v_cap = CTSAPIInst.queryWireCapacitance(v_layer, 1.0, wire_width);
-  _unit_v_res = CTSAPIInst.queryWireResistance(v_layer, 1.0, wire_width) / 1000.0;
+  _unit_cap = CTSAPIInst.queryWireCapacitance(single_layer, 1.0, wire_width_opt);
+  _unit_res = CTSAPIInst.queryWireResistance(single_layer, 1.0, wire_width_opt) / 1000.0;
+  _unit_h_cap = CTSAPIInst.queryWireCapacitance(h_layer, 1.0, wire_width_opt);
+  _unit_h_res = CTSAPIInst.queryWireResistance(h_layer, 1.0, wire_width_opt) / 1000.0;
+  _unit_v_cap = CTSAPIInst.queryWireCapacitance(v_layer, 1.0, wire_width_opt);
+  _unit_v_res = CTSAPIInst.queryWireResistance(v_layer, 1.0, wire_width_opt) / 1000.0;
   _db_unit = std::max(CTSAPIInst.queryDbUnit(), int32_t{1});
 
   _skew_bound = CTSConfigInst.get_skew_bound();

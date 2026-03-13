@@ -329,26 +329,24 @@ bool CTSAPI::isClockNet(const std::string& net_name) const
   return sta_net->isClockNet();
 }
 
-double CTSAPI::queryWireResistance(int routing_layer, double length, double wire_width) const
+double CTSAPI::queryWireResistance(int routing_layer, double length, std::optional<double> wire_width) const
 {
   auto* idb_adapter = STAInst->getIDBAdapter();
   if (!idb_adapter) {
     CTS_LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
   }
-  std::optional<double> width_opt = wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
-  return idb_adapter->getResistance(routing_layer, length, width_opt);
+  return idb_adapter->getResistance(routing_layer, length, wire_width);
 }
 
-double CTSAPI::queryWireCapacitance(int routing_layer, double length, double wire_width) const
+double CTSAPI::queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width) const
 {
   auto* idb_adapter = STAInst->getIDBAdapter();
   if (!idb_adapter) {
     CTS_LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
   }
-  std::optional<double> width_opt = wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
-  return idb_adapter->getCapacitance(routing_layer, length, width_opt);
+  return idb_adapter->getCapacitance(routing_layer, length, wire_width);
 }
 
 double CTSAPI::queryCellOutPinCapLimit(const std::string& cell_master) const

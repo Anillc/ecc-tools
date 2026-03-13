@@ -154,7 +154,10 @@ void CharBuilder::initCharParams()
   CTS_LOG_INFO << "CharBuilder: routing_layer = " << _routing_layer;
 
   // Wire width
-  _wire_width = CTSConfigInst.get_wire_width();
+  {
+    double wire_width = CTSConfigInst.get_wire_width();
+    _wire_width = wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
+  }
 
   // Max values for discretization ranges
   _max_slew = CTSConfigInst.get_max_buf_tran();
