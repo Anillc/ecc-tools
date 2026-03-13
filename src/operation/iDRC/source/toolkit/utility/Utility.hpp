@@ -68,7 +68,7 @@ class Utility
     }
   }
 
-  static int32_t getParallelLength(PlanarRect& a, PlanarRect& b)
+  static int32_t getParallelLength(const PlanarRect& a, const PlanarRect& b)
   {
     int32_t x_parallel_length = std::min(a.get_ur_x(), b.get_ur_x()) - std::max(a.get_ll_x(), b.get_ll_x());
     int32_t y_parallel_length = std::min(a.get_ur_y(), b.get_ur_y()) - std::max(a.get_ll_y(), b.get_ll_y());

@@ -63,6 +63,7 @@ struct BoundaryData {
     GTLRectInt edge;
     PlanarCoord begin_coord;
     PlanarCoord end_coord;
+    Orientation orient = Orientation::kNone;
     int32_t polygon_id;
     int32_t prev_boundary_id = -1;
     int32_t next_boundary_id = -1;

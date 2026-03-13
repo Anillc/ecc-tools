@@ -302,9 +302,47 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
       return;
     }
 
+    Rotation rotation = DRCUTIL.getRotation(check_hole_poly);
+    auto get_boundary_orient = [is_hole, rotation](const PlanarCoord& begin_coord, const PlanarCoord& end_coord) {
+      auto rotate_left = [](Orientation orient) {
+        switch (orient) {
+          case Orientation::kEast:
+            return Orientation::kNorth;
+          case Orientation::kNorth:
+            return Orientation::kWest;
+          case Orientation::kWest:
+            return Orientation::kSouth;
+          case Orientation::kSouth:
+            return Orientation::kEast;
+          default:
+            return Orientation::kNone;
+        }
+      };
+      auto rotate_right = [](Orientation orient) {
+        switch (orient) {
+          case Orientation::kEast:
+            return Orientation::kSouth;
+          case Orientation::kSouth:
+            return Orientation::kWest;
+          case Orientation::kWest:
+            return Orientation::kNorth;
+          case Orientation::kNorth:
+            return Orientation::kEast;
+          default:
+            return Orientation::kNone;
+        }
+      };
+
+      Orientation travel_orient = DRCUTIL.getOrientation(begin_coord, end_coord);
+      bool metal_on_left = (rotation == Rotation::kCounterclockwise);
+      if (is_hole) {
+        metal_on_left = !metal_on_left;
+      }
+      return metal_on_left ? rotate_right(travel_orient) : rotate_left(travel_orient);
+    };
+
     std::vector<bool> convex_corner_list(coord_size, false);
     if (coord_size >= 3) {
-      Rotation rotation = DRCUTIL.getRotation(check_hole_poly);
       for (int32_t i = 0; i < coord_size; i++) {
         PlanarCoord& pre_coord = coord_list[getIdx(i - 1, coord_size)];
         PlanarCoord& curr_coord = coord_list[i];
@@ -327,6 +365,7 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
       boundary_data.edge = DRCUTIL.convertToGTLRectInt(DRCUTIL.getRect(pre_coord, curr_coord));
       boundary_data.begin_coord = pre_coord;
       boundary_data.end_coord = curr_coord;
+      boundary_data.orient = get_boundary_orient(pre_coord, curr_coord);
       boundary_data.polygon_id = polygon_id;
       boundary_data.edge_length = DRCUTIL.getManhattanDistance(pre_coord, curr_coord);
       boundary_data.isConvex = convex_corner_list[i];
