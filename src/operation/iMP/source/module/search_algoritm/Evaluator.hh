@@ -71,7 +71,7 @@ struct EvalOutOfBound
     const auto& dy = product.dy;
     const auto& lx = product.x;
     const auto& ly = product.y;
-    const auto outline_ux = outline_lx + outline_height;
+    const auto outline_ux = outline_lx + outline_width;
     const auto outline_uy = outline_ly + outline_height;
     for (size_t i = 0; i < product.dx.size(); ++i) {
       if (lx[i] + dx[i] > outline_ux || ly[i] + dy[i] > outline_uy) {
