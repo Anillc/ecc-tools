@@ -1587,9 +1587,7 @@ int32_t DefRead::parse_pin(defiPin* def_pin)
 
   std::string pin_name = def_pin->pinName();
   std::string new_pin_name = ieda::Str::trimEscape(pin_name);
-  if (pin_name == "oDRAM1_CLK") {
-    printf("hhh");
-  }
+
   IdbPin* pin = pin_list->add_pin_list(new_pin_name);
   if (pin == nullptr) {
     std::cout << "Create Pin Error..." << std::endl;

@@ -3,7 +3,7 @@
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 
 # DEFINE PYTHON MODULE & CMAKE TARGET
-pybind11_add_module(ecc_py)
+pybind11_add_module(ecc_py python_moodule.cc)
 
 add_subdirectory(py_idb)
 add_subdirectory(py_config)
@@ -23,9 +23,6 @@ add_subdirectory(py_report)
 add_subdirectory(py_feature)
 add_subdirectory(py_eval)
 add_subdirectory(py_imp)
-# ADD SOURCE FILES 
-#file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
-# file(GLOB PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS *.cpp)
 add_subdirectory(py_vec)
 add_subdirectory(py_ipnp)
 
@@ -72,11 +69,11 @@ target_link_libraries(ecc_py
         -u_ZN3ipl20WAWirelengthGradientC1EPNS_15TopologyManagerE
 )
 
-install(TARGETS ieda_py
+install(TARGETS ecc_py
  DESTINATION ${CMAKE_INSTALL_PREFIX}
     )
 
-get_target_property(DEPENDENCIES ieda_py INTERFACE_LINK_LIBRARIES)
-message(STATUS "ieda_py install prefix: ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "ieda_py dependencies: ${INTERFACE_LINK_LIBRARIES}")
+get_target_property(DEPENDENCIES ecc_py INTERFACE_LINK_LIBRARIES)
+message(STATUS "ecc_py install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "ecc_py dependencies: ${DEPENDENCIES}")
 
