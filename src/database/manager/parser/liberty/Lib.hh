@@ -552,6 +552,9 @@ class LibPort : public LibObject
   void set_port_type(LibertyPortType port_type) { _port_type = port_type; }
   LibertyPortType get_port_type() { return _port_type; }
 
+  void set_is_clock_pin(bool is_clock_pin) { _is_clock_pin = is_clock_pin; }
+  bool get_is_clock_pin() { return _is_clock_pin; }
+
   void set_clock_gate_clock_pin(bool clock_gate_clock_pin) { _clock_gate_clock_pin = clock_gate_clock_pin; }
   bool get_clock_gate_clock_pin() { return _clock_gate_clock_pin; }
 
@@ -609,6 +612,7 @@ class LibPort : public LibObject
   std::string _port_name;
   LibCell* _ower_cell;  //!< The cell owner the port.
   LibertyPortType _port_type = LibertyPortType::kDefault;
+  bool _is_clock_pin = false;           //!< The flag of clock pin.
   bool _clock_gate_clock_pin = false;   //!< The flag of gate clock pin.
   bool _clock_gate_enable_pin = false;  //!< The flag of gate enable pin.
   RustLibertyExpr* _func_expr = nullptr;
@@ -800,7 +804,7 @@ class LibArc : public LibObject
     kNoChangeLowLow,
     kDefault
   };
-
+  static std::string timingTypeToString(TimingType timing_type);
   LibArc();
   ~LibArc() override = default;
 
@@ -822,7 +826,7 @@ class LibArc : public LibObject
   void set_owner_cell(LibCell* ower_cell) { _owner_cell = ower_cell; }
   LibCell* get_owner_cell() { return _owner_cell; }
 
-  void set_is_disable_arc() { _is_disable_arc = 1;}
+  void set_is_disable_arc() { _is_disable_arc = 1; }
   unsigned isDisableArc() { return _is_disable_arc; }
 
   unsigned isCheckArc();
@@ -892,7 +896,7 @@ class LibArc : public LibObject
 
   static BTreeMap<std::string, TimingType> _str_to_type;
 
-  unsigned _is_disable_arc = 0; //!< Forbidden arc.
+  unsigned _is_disable_arc = 0;  //!< Forbidden arc.
 
   FORBIDDEN_COPY(LibArc);
 };
@@ -1079,7 +1083,7 @@ class LibCell : public LibObject
 
   auto& get_str2ports() { return _str2ports; }
   auto& get_cell_ports() { return _cell_ports; }
-
+  auto& get_cell_buses() { return _cell_port_buses; }
   LibLibrary* get_owner_lib() { return _owner_lib; }
   void set_owner_lib(LibLibrary* owner_lib) { _owner_lib = owner_lib; }
 

@@ -21,12 +21,18 @@
 
 #include "Solver.hh"
 
+#include <algorithm>
 #include <filesystem>
+#include <iostream>
 #include <numeric>
 #include <ranges>
+#include <utility>
 
 #include "BalanceClustering.hh"
+#include "CtsConfig.hh"
 #include "CtsDesign.hh"
+#include "CtsPoint.hh"
+#include "Pin.hh"
 #include "ThreadPool/ThreadPool.h"
 #include "TimingPropagator.hh"
 #include "TreeBuilder.hh"
@@ -54,9 +60,9 @@ void Solver::init()
 
   std::ranges::for_each(_cts_pins, [&](CtsPin* cts_pin) {
     auto* cts_inst = cts_pin->get_instance();
-    auto type = cts_inst->get_type() == CtsInstanceType::kSink
-                    ? InstType::kSink
-                    : cts_inst->get_type() == CtsInstanceType::kMux ? InstType::kBuffer : InstType::kBuffer;
+    auto type = cts_inst->get_type() == CtsInstanceType::kSink  ? InstType::kSink
+                : cts_inst->get_type() == CtsInstanceType::kMux ? InstType::kBuffer
+                                                                : InstType::kBuffer;
     auto* inst = new Inst(cts_inst->get_name(), cts_inst->get_location(), type);
     auto* load_pin = inst->get_load_pin();
     load_pin->set_name(cts_pin->is_io() ? cts_pin->get_pin_name() : cts_pin->get_full_name());
@@ -88,9 +94,34 @@ void Solver::resolveSinks()
     _top_pins.push_back(_sink_pins.front());
     return;
   }
-  // convert to inst
+
   auto cur_pins = _sink_pins;
-  _level_load_pins.push_back(_sink_pins);
+
+  std::vector<std::pair<Point, Pin*>> fixed_locs;
+  std::set<Point> fixed_loc_set;
+  for (Pin* pin : _sink_pins) {
+    if (!pin->isBufferPin()) {
+      fixed_locs.push_back({pin->get_location(), pin});
+      if (fixed_loc_set.find(pin->get_location()) != fixed_loc_set.end()) {
+        LOG_WARNING << "Pin " << pin->get_name() << " has the same location as another pin.";
+      } else {
+        fixed_loc_set.insert(pin->get_location());
+      }
+    }
+  }
+  std::sort(fixed_locs.begin(), fixed_locs.end());
+  if (fixed_loc_set.size() != fixed_locs.size()) {
+    LOG_WARNING << "There are duplicate pin locations in the sink pins.";
+    LOG_WARNING << "Net name: " << _net_name;
+    for (size_t i = 0; i < fixed_locs.size() - 1; ++i) {
+      if (fixed_locs[i].first == fixed_locs[i + 1].first) {
+        LOG_WARNING << "Pin " << fixed_locs[i].second->get_name() << " and Pin " << fixed_locs[i + 1].second->get_name()
+                    << " have the same location: " << fixed_locs[i].first;
+      }
+    }
+  }
+  assert(fixed_loc_set.size() == fixed_locs.size());
+  _level_load_pins.push_back(cur_pins);
   // clustering
   while (cur_pins.size() > 1) {
     auto assign = get_level_assign(_level);
@@ -226,7 +257,8 @@ std::vector<Pin*> Solver::assignApply(const std::vector<Pin*>& load_pins, const 
         = BalanceClustering::clusteringEnhancement(enhanced_clusters, max_fanout, max_cap, max_net_len, skew_bound, 200, 0.95, 10000);
   }
   // top guide
-  auto guide_centers = BalanceClustering::guideCenter(enhanced_clusters, std::nullopt, TimingPropagator::getMinLength(), 1);
+  // auto guide_centers = BalanceClustering::guideCenter(enhanced_clusters, std::nullopt, TimingPropagator::getMinLength(), 1);
+  auto guide_centers = BalanceClustering::getCentroids(enhanced_clusters);
   std::vector<icts::Pin*> next_level_load_pins;
   // if (_level > 1) {
   //   higherDelayOpt(enhanced_clusters, guide_centers, next_level_load_pins);
@@ -313,7 +345,14 @@ Pin* Solver::netAssign(const std::vector<Pin*>& load_pins, const Assign& assign,
     auto shift_dist = std::min(max_dist - net_dist, allow_center_dist);
     guide_loc = center_dist > 0 ? (guide_center - center) * (1.0 * shift_dist / center_dist) + center : center;
   }
-  auto net_name = CTSAPIInst.toString(_net_name, "_", CTSAPIInst.genId());
+  int net_id = CTSAPIInst.genId();
+  // if (_net_name == "iCLK_50" && net_id == 109) {
+  //   std::cout << "Net name : " << _net_name << " , index " << net_id << std::endl;
+  //   for (auto* pin : load_pins) {
+  //     std::cout << "-------- Pin: " << pin->get_name() << std::endl;
+  //   }
+  // }
+  auto net_name = CTSAPIInst.toString(_net_name, "_", net_id);
   // if (!shift) {
   if (load_pins.size() == 1) {
     auto* buffer = TreeBuilder::genBufInst(net_name, guide_loc);

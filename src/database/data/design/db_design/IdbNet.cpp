@@ -140,6 +140,7 @@ IdbPin* IdbNet::get_driving_pin()
   //   }
   //   }
 
+  // 临时修复，可能会有问题，zzs
   if (!_io_pin_list->get_pin_list().empty()) {
     return _io_pin_list->get_pin_list().front();
   }

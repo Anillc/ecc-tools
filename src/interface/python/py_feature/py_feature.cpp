@@ -50,6 +50,11 @@ bool feature_route_read(const std::string& path)
   return featureInst->read_route_data(path);
 }
 
+bool feature_macro_drc(const std::string& path, const std::string& drc_path)
+{
+  return featureInst->feature_macro_drc(path, drc_path);
+}
+
 bool feature_eval_summary(const std::string& path, int32_t grid_size)
 {
   return featureInst->save_eval_summary(path, grid_size);

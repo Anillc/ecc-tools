@@ -32,6 +32,8 @@
 #include "IdbEnum.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 
 using namespace std;
 
@@ -226,12 +228,45 @@ string IdbSiteProperty::get_orient_name(IdbOrient oreint_value)
 {
   auto iter = _orient_string_list.find(oreint_value);
   if (iter == _orient_string_list.end()) {
+    // printf("Warning : IdbSiteProperty::get_orient_name: Invalid IdbOrient value\n");
     return string("");
   }
 
   return iter->second;
 }
 
+std::string IdbEnum::get_orient_type_str(IdbOrient type)
+{
+  switch (type) {
+    case IdbOrient::kN_R0:
+      return "R0";
+      break;
+    case IdbOrient::kW_R90:
+      return "R90";
+      break;
+    case IdbOrient::kS_R180:
+      return "R180";
+      break;
+    case IdbOrient::kE_R270:
+      return "R270";
+      break;
+    case IdbOrient::kFN_MY:
+      return "MY";
+      break;
+    case IdbOrient::kFW_MX90:
+      return "MX90";
+      break;
+    case IdbOrient::kFS_MX:
+      return "MX";
+      break;
+    case IdbOrient::kFE_MY90:
+      return "MY90";
+      break;
+    default:
+      return "R0";
+      break;
+  }
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

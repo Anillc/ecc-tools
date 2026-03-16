@@ -23,6 +23,7 @@
 #include "py_register_idb.h"
 #include "py_register_idrc.h"
 #include "py_register_ifp.h"
+#include "py_register_imp.h"
 #include "py_register_ino.h"
 #include "py_register_inst.h"
 #include "py_register_ipdn.h"
@@ -59,6 +60,7 @@ PYBIND11_MODULE(ecc_py, m)
   register_report(m);
   register_feature(m);
   register_eval(m);
+  register_imp(m);
   register_vectorization(m);
 }
 

@@ -34,7 +34,34 @@
 #include "netlist/Port.hh"
 
 namespace ista {
+// DEBUG
+inline std::string timingSenseToString(ista::LibArc::TimingSense sense) {
+    switch (sense) {
+        case ista::LibArc::TimingSense::kPositiveUnate: return "PositiveUnate (1)";
+        case ista::LibArc::TimingSense::kNegativeUnate: return "NegativeUnate (-1)";
+        case ista::LibArc::TimingSense::kNonUnate:      return "NonUnate (0)";
+        case ista::LibArc::TimingSense::kDefault:       return "Default (1)";
+        default:                                      return "Unknown";
+    }
+}
+inline int timingSenseToInt(ista::LibArc::TimingSense sense) {
+    switch (sense) {
+        case ista::LibArc::TimingSense::kPositiveUnate: return 1;
+        case ista::LibArc::TimingSense::kNegativeUnate: return -1;
+        case ista::LibArc::TimingSense::kNonUnate:      return 0;
+        case ista::LibArc::TimingSense::kDefault:       return 1;
+        default:                                      return 1;
+    }
+}
 
+inline std::string transTypeToString(ista::TransType trans) {
+    switch (trans) {
+        case ista::TransType::kRise: return "Rise";
+        case ista::TransType::kFall: return "Fall";
+        default:                     return "Unknown";
+    }
+}
+// DEBUG
 /**
  * @brief The delay propagation from  the arc.
  *
@@ -156,9 +183,95 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
                                 : delay_values.back();
           auto delay = NS_TO_FS(delay_ns);
 
+          // DEBUG
+          // 使用 dynamic_cast 获取引脚和实例信息
+          auto* src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
+          auto* snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
+          // ==============================================================================
+          // ★★★ 在这里插入您的特定Arc调试代码 ★★★
+          // ==============================================================================
+          
+          // --- 1. 定义您想追踪的目标Arc ---
+          // 您可以随时修改这些字符串来追踪任何感兴趣的arc
+          const std::string target_inst = "_22990_";
+          const std::string target_from_pin = "A";
+          const std::string target_to_pin = "X";
+
+          // --- 2. 获取当前arc的信息 ---
+          // 注意：这里的 get_name() 可能需要根据您的Pin类API调整为 get_term_name()
+          std::string inst_name = src_pin->get_own_instance()->get_name();
+          std::string from_pin_name = src_pin->get_name(); 
+          std::string to_pin_name = snk_pin->get_name();
+
+        // // --- 3. 检查是否是我们的目标 ---
+        // if (lib_arc->get_timing_sense() == ista::LibArc::TimingSense::kNegativeUnate) {
+        //   // 如果是目标arc，打印调试信息
+        //   LOG_INFO << "Debugging Arc: " << inst_name << " " << from_pin_name
+        //            << " -> " << to_pin_name;
+        //     LOG_INFO << "==============[ ARC DEBUG TRIGGERED ]==============";
+        //     LOG_INFO << " Instance            : " << inst_name;
+        //     LOG_INFO << " Arc                 : " << from_pin_name << " -> " << to_pin_name;
+        //     LOG_INFO << " Arc Sense           : " << timingSenseToString(lib_arc->get_timing_sense());
+        //     LOG_INFO << " -------------------------------------------------";
+        //     LOG_INFO << " INPUT Slew          : " << in_slew << " ns";
+        //     LOG_INFO << " INPUT Slew Trans    : " << transTypeToString(trans_type);
+        //     LOG_INFO << " -------------------------------------------------";
+        //     LOG_INFO << " OUTPUT Load         : " << load << " (in lib units, e.g., pf/ff)";
+        //     // 关键：我们打印出用于获取这个load值的跳变类型，即输入跳变类型
+        //     LOG_INFO << " OUTPUT Load Trans   : " << transTypeToString(trans_type) << " (used to get load)";
+        //     LOG_INFO << " -------------------------------------------------";
+        //     LOG_INFO << " Calculated Delay    : " << delay_ns << " ns";
+        //     LOG_INFO << " Delay Calc Trans    : " << transTypeToString(out_trans_type) << " (used to calculate delay)";
+        //     LOG_INFO << "===================================================";
+        // }
+          if (inst_name.find("_22990_") != std::string::npos) {
+            
+            // --- 4. 如果是，打印所有详细信息 ---
+            LOG_INFO << "==============[ ARC DEBUG TRIGGERED ]==============";
+            LOG_INFO << " Instance            : " << inst_name;
+            LOG_INFO << " Arc                 : " << from_pin_name << " -> " << to_pin_name;
+            LOG_INFO << " Arc Sense           : " << timingSenseToString(lib_arc->get_timing_sense());
+            LOG_INFO << " -------------------------------------------------";
+            LOG_INFO << " INPUT Slew          : " << in_slew << " ns";
+            LOG_INFO << " INPUT Slew Trans    : " << transTypeToString(trans_type);
+            LOG_INFO << " -------------------------------------------------";
+            LOG_INFO << " OUTPUT Load         : " << load_array[trans_to_index(out_trans_type)] << " (in lib units, e.g., pf/ff)";
+            // 关键：我们打印出用于获取这个load值的跳变类型，即输入跳变类型
+            LOG_INFO << " OUTPUT Load Trans   : " << transTypeToString(trans_type) << " (used to get load)";
+            LOG_INFO << " -------------------------------------------------";
+            LOG_INFO << " Calculated Delay    : " << delay_ns << " ns";
+            LOG_INFO << " Delay Calc Trans    : " << transTypeToString(out_trans_type) << " (used to calculate delay)";
+            LOG_INFO << "===================================================";
+          }
+        
+        // ==============================================================================
+        // ★★★ 调试代码结束 ★★★
+        // ==============================================================================
+
+          if (src_pin && snk_pin) {
+              // 填充调试信息结构体
+              ArcDebugInfo info;
+              info.inst_name = src_pin->get_own_instance()->get_name();
+              info.from_pin = src_pin->getFullName();
+              info.to_pin = snk_pin->getFullName();
+            if (info.from_pin.find("_23155_:A") != std::string::npos
+                && info.to_pin.find("_23155_:Y") != std::string::npos) {
+
+                }
+              info.analysis_mode = (analysis_mode == AnalysisMode::kMax ? "Max" : "Min");
+              info.transition = (out_trans_type == TransType::kRise ? "Rise" : "Fall");
+              info.in_slew_ns = in_slew;
+              info.load_cap = load_array[trans_to_index(out_trans_type)];
+              info.delay_ns = delay_ns;
+              info.timing_sense = timingSenseToInt(lib_arc->get_timing_sense());
+
+              // 将信息存入线程安全的管理器
+              ArcDebugDataManager::getInstance().addArcInfo(info);
+          }
+          // DEBUG
           construct_delay_data(analysis_mode, out_trans_type, the_arc, delay);
           /*The unate arc should split two.*/
-          if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() || src_vertex->is_clock()) {
+          if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc()) { // || src_vertex->is_clock()
             auto out_trans_type1 = flip_trans_type(trans_type);
 
             // fix the timing type not match the trans type, which would lead to

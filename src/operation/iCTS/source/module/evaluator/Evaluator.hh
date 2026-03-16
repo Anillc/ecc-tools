@@ -40,7 +40,7 @@ struct CellStatsProperty
 struct TreeNode
 {
   std::string name;
-  int depth;
+  int depth = -1;
   TreeNode* parent;
   std::vector<TreeNode*> children;
 };

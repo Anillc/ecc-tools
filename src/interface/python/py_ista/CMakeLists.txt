@@ -6,6 +6,7 @@ target_link_libraries(py_ista
     PUBLIC
         tool_manager
         sta
+        eval_timing_api
         pybind11::pybind11
 
 )

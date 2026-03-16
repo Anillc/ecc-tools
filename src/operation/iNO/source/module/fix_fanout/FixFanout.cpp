@@ -138,16 +138,16 @@ void FixFanout::fixFanout() {
   auto      *design_nl = _timing_engine->get_netlist();
   ista::Net *sta_net;
   FOREACH_NET(design_nl, sta_net) {
+    auto fanout = (int)sta_net->getFanouts();
+    auto idb_adpat =
+        dynamic_cast<ista::TimingIDBAdapter *>(_timing_engine->get_db_adapter());
+    IdbNet *db_net = idb_adpat->staToDb(sta_net);
     if (sta_net->isClockNet()) {
+      db_net->set_connect_type(idb::IdbConnectType::kClock);
       continue;
     }
-    auto fanout = (int)sta_net->getFanouts();
     if (fanout > _max_fanout) {
       _fanout_vio_num++;
-
-      auto idb_adpat =
-          dynamic_cast<ista::TimingIDBAdapter *>(_timing_engine->get_db_adapter());
-      IdbNet *db_net = idb_adpat->staToDb(sta_net);
       fixFanout(db_net);
     }
   }

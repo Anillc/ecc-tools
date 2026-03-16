@@ -59,7 +59,7 @@ void InitEGR::runEGR(bool enable_timing)
   auto* idb_layout = dmInst->get_idb_lef_service()->get_layout();
   auto routing_layers = idb_layout->get_layers()->get_routing_layers();
   auto logic_layer_name = routing_layers.size() >= 2 ? routing_layers[1]->get_name() : routing_layers[0]->get_name();
-  auto clock_layer_name = routing_layers.size() >= 4 ? routing_layers[routing_layers.size() - 4]->get_name() : logic_layer_name;
+  auto clock_layer_name = routing_layers.size() >= 4 ? routing_layers[routing_layers.size() - 3]->get_name() : logic_layer_name;
   std::string bottom = _bottom_layer_override.empty() ? logic_layer_name : _bottom_layer_override;
   std::string top = _top_layer_override.empty() ? clock_layer_name : _top_layer_override;
   bool use_timing = _enable_timing_override_set ? _enable_timing_override : enable_timing;

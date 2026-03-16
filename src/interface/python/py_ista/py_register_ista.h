@@ -62,17 +62,22 @@ void register_ista(py::module& m)
     py::arg("to_list"),
     py::arg("is_json"));
 
+  m.def("build_timing_graph", build_timing_graph);
+  m.def("update_clock_timing", update_clock_timing);
+  m.def("build_rc_tree_from_flat_data", buildRcTreeFromFlatData);
+  m.def("update_and_get_all_pin_timings", updateAndGetAllPinTimings);
   m.def("get_used_libs", get_used_libs);
+  m.def("convert_idb_to_timing_netlist", convertDBToTimingNetlist);
 
   // get wire timing data
   py::class_<WireTimingData>(m, "WireTimingData")
-  .def_readwrite("from_node_name", &WireTimingData::_from_node_name)
-  .def_readwrite("to_node_name", &WireTimingData::_to_node_name)
-  .def_readwrite("wire_resistance", &WireTimingData::_wire_resistance)
-  .def_readwrite("wire_capacitance", &WireTimingData::_wire_capacitance)
-  .def_readwrite("wire_from_slew", &WireTimingData::_wire_from_slew)
-  .def_readwrite("wire_to_slew", &WireTimingData::_wire_to_slew)
-  .def_readwrite("wire_delay", &WireTimingData::_wire_delay);
+      .def_readwrite("from_node_name", &WireTimingData::_from_node_name)
+      .def_readwrite("to_node_name", &WireTimingData::_to_node_name)
+      .def_readwrite("wire_resistance", &WireTimingData::_wire_resistance)
+      .def_readwrite("wire_capacitance", &WireTimingData::_wire_capacitance)
+      .def_readwrite("wire_from_slew", &WireTimingData::_wire_from_slew)
+      .def_readwrite("wire_to_slew", &WireTimingData::_wire_to_slew)
+      .def_readwrite("wire_delay", &WireTimingData::_wire_delay);
 
   m.def("get_wire_timing_data", getWireTimingData);
 }

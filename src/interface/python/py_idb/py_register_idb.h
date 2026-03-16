@@ -22,7 +22,9 @@
 
 #include "py_db.h"
 #include "py_db_op.h"
-
+#include <pybind11/cast.h>
+#include <pybind11/numpy.h>
+#include <pybind11/stl_bind.h>
 namespace python_interface {
 namespace py = pybind11;
 
@@ -34,6 +36,8 @@ void register_idb(py::module& m)
   m.def("def_init", initDef, py::arg("def_path"));
   m.def("verilog_init", initVerilog, py::arg("verilog_path"), py::arg("top_module"));
   m.def("def_save", saveDef, py::arg("def_name"));
+  // TODO:
+  m.def("tcl_save", saveMacroTCL, py::arg("tcl_name"));
   m.def("netlist_save", saveNetList, py::arg("netlist_path"), py::arg("exclude_cell_names") = std::set<std::string>{},
         py::arg("is_add_space_for_escape_name") = false);
   m.def("gds_save", saveGDSII, py::arg("gds_name"));
@@ -50,5 +54,19 @@ void register_idb_op(pybind11::module& m)
   m.def("create_inst", idbCreateInstance, py::arg("inst_name"), py::arg("cell_master"), py::arg("coord_x") = 0, py::arg("coord_y") = 0,
         py::arg("orient") = "", py::arg("type") = "", py::arg("status") = "");
   m.def("create_net", idbCreateNet, py::arg("net_name"), py::arg("conn_type") = "");
+
+  pybind11::class_<idm::DataManager>(m, "DataManager").def(pybind11::init<>());
+
+  m.def("get_dmInst", &getDMInst, "A function which returns a DataManager instance");
+  m.def(
+      "write_placement_back",
+      [](idm::DataManager* db, pybind11::array_t<float, pybind11::array::c_style | pybind11::array::forcecast> const& x,
+         pybind11::array_t<float, pybind11::array::c_style | pybind11::array::forcecast> const& y) {
+        return write_placement_back(db, x, y);
+      },
+      "Write Placement Solution (float)");
+
+  // m.def("write_placement_back", &write_placement_back, "A function which returns a DataManager instance");
 }
+
 }  // namespace python_interface
