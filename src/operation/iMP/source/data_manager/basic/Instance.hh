@@ -104,8 +104,8 @@ inline void Instance::set_extend(int32_t left, int32_t right, int32_t bottom, in
 {
   set_extend_left(left);
   set_extend_right(right);
-  set_extend_top(bottom);
-  set_extend_bottom(top);
+  set_extend_bottom(bottom);
+  set_extend_top(top);
 }
 }  // namespace imp
 
