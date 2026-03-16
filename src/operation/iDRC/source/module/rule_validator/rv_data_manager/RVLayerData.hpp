@@ -54,9 +54,24 @@ namespace boost::geometry::traits {
 
 namespace idrc {
 
+struct CutData {
+    GTLRectInt rect;
+    int32_t net_idx = -1;
+    bool isEnv = false;
+
+    bool operator==(const CutData& other) const = default;
+};
+
+struct CutDataIndexable {
+    using result_type = GTLRectInt const&;
+
+    GTLRectInt const& operator()(CutData const& cut_data) const { return cut_data.rect; }
+};
+
 struct MaxRectData {
     GTLRectInt rect;
     int32_t polygon_id = -1;
+    bool isEnv = false;
 };
 
 struct BoundaryData {
@@ -70,6 +85,7 @@ struct BoundaryData {
     int32_t edge_length = 0;
     bool isConvex = false;
     bool isHole = false;
+    bool isEnv = false;
 };
 
 struct PolygonData {
@@ -92,12 +108,17 @@ struct RVRoutingNet{
 
 struct RVLayerData {
     std::map<int32_t, RVRoutingNet> nets;
+    std::vector<CutData> cut_pool;
     std::vector<PolygonData> polygon_pool;
     std::vector<MaxRectData> max_rect_pool;
     std::vector<BoundaryData> boundary_pool;
     bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>> rect_rtrees;
     bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>> boundary_rtrees;
+    bgi::rtree<CutData, bgi::quadratic<16>, CutDataIndexable> cut_rtrees;
+    
 
+    const CutData& getCut(int32_t cut_id) const { return cut_pool[cut_id]; }
+    int32_t getCutId(const CutData& cut_data) const { return static_cast<int32_t>(&cut_data - cut_pool.data()); }
     const PolygonData& getPolygon(int32_t polygon_id) const { return polygon_pool[polygon_id]; }
     int32_t getPolygonId(const PolygonData& polygon_data) const { return static_cast<int32_t>(&polygon_data - polygon_pool.data()); }
     const MaxRectData& getMaxRect(int32_t max_rect_id) const { return max_rect_pool[max_rect_id]; }
@@ -106,9 +127,15 @@ struct RVLayerData {
     const BoundaryData& getPrevBoundary(int32_t boundary_id) const { return getBoundary(getBoundary(boundary_id).prev_boundary_id); }
     const BoundaryData& getNextBoundary(int32_t boundary_id) const { return getBoundary(getBoundary(boundary_id).next_boundary_id); }
 
+    int32_t getNetIdxByCutId(int32_t cut_id) const { return getCut(cut_id).net_idx; }
     int32_t getNetIdxByPolygonId(int32_t polygon_id) const { return getPolygon(polygon_id).net_id; }
     int32_t getNetIdxByMaxRectId(int32_t max_rect_id) const { return getNetIdxByPolygonId(getMaxRect(max_rect_id).polygon_id); }
     int32_t getNetIdxByBoundaryId(int32_t boundary_id) const { return getNetIdxByPolygonId(getBoundary(boundary_id).polygon_id); }
+
+    std::span<const CutData> getCuts() const
+    {
+      return std::span<const CutData>(cut_pool.data(), cut_pool.size());
+    }
 
     std::span<const PolygonData> getPolygons(const RVRoutingNet& routing_net) const
     {
@@ -156,6 +183,12 @@ struct RVLayerData {
     void queryBoundaries(const GTLRectInt& query_rect, OutputIt out) const
     {
       boundary_rtrees.query(bgi::intersects(query_rect), out);
+    }
+
+    template <typename OutputIt>
+    void queryCuts(const GTLRectInt& query_rect, OutputIt out) const
+    {
+      cut_rtrees.query(bgi::intersects(query_rect), out);
     }
 
    private:

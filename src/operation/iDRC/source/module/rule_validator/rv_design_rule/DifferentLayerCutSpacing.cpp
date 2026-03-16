@@ -22,15 +22,18 @@ void RuleValidator::verifyDifferentLayerCutSpacing(RVCluster& rv_cluster)
 {
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
-  auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
+  const auto& layer_data = rv_cluster.get_layer_data();
 
-  for (auto& [cut_layer_idx, cut_net_rtree] : layer_cut_net_rtrees) {
+  for (const auto& [cut_layer_idx, cut_layer_data] : layer_data) {
+    if (cut_layer_data.cut_pool.empty()) {
+      continue;
+    }
     int32_t below_cut_layer_idx = cut_layer_idx - 1;
     if (below_cut_layer_idx < 0) {
       continue;
     }
-    auto below_cut_rtree_it = layer_cut_net_rtrees.find(below_cut_layer_idx);
-    if (below_cut_rtree_it == layer_cut_net_rtrees.end()) {
+    auto below_cut_layer_it = layer_data.find(below_cut_layer_idx);
+    if (below_cut_layer_it == layer_data.end() || below_cut_layer_it->second.cut_pool.empty()) {
       continue;
     }
     int32_t routing_layer_idx = -1;
@@ -43,21 +46,24 @@ void RuleValidator::verifyDifferentLayerCutSpacing(RVCluster& rv_cluster)
     int32_t curr_spacing = different_layer_cut_spacing_rule.below_spacing;
     int32_t curr_prl_spacing = different_layer_cut_spacing_rule.below_prl_spacing;
     int32_t curr_prl = different_layer_cut_spacing_rule.below_prl;
-    for (auto [cut_gtl_rect, net_idx] : cut_net_rtree) {
+    for (const CutData& cut_data : cut_layer_data.getCuts()) {
+      GTLRectInt cut_gtl_rect = cut_data.rect;
+      int32_t net_idx = cut_data.net_idx;
       PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_gtl_rect);
-      std::vector<std::pair<GTLRectInt, int32_t>> gtl_rect_net_pair_list;
+      std::vector<CutData> overlap_cut_list;
       {
         PlanarRect check_rect = DRCUTIL.getEnlargedRect(cut_rect, std::max({curr_spacing, curr_prl, curr_prl_spacing}));
-        below_cut_rtree_it->second.query(bgi::intersects(DRCUTIL.convertToBGRectInt(check_rect)), std::back_inserter(gtl_rect_net_pair_list));
+        below_cut_layer_it->second.queryCuts(DRCUTIL.convertToGTLRectInt(check_rect), std::back_inserter(overlap_cut_list));
       }
-      for (auto& [gtl_env_rect, env_net_idx] : gtl_rect_net_pair_list) {
-        if (net_idx == -1 && env_net_idx == -1) {
+      for (const CutData& overlap_cut_data : overlap_cut_list) {
+        int32_t env_net_idx = overlap_cut_data.net_idx;
+        if (cut_data.isEnv && overlap_cut_data.isEnv) {
           continue;
         }
         if (net_idx == env_net_idx) {
           continue;
         }
-        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(gtl_env_rect);
+        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(overlap_cut_data.rect);
         if (DRCUTIL.isClosedOverlap(cut_rect, env_rect)) {
           continue;
         }

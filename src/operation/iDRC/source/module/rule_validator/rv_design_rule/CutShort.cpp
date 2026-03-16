@@ -21,9 +21,12 @@ namespace idrc {
 void RuleValidator::verifyCutShort(RVCluster& rv_cluster)
 {
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
-  auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
+  const auto& layer_data = rv_cluster.get_layer_data();
 
-  for (auto& [cut_layer_idx, cut_net_rtree] : layer_cut_net_rtrees) {
+  for (const auto& [cut_layer_idx, rv_layer_data] : layer_data) {
+    if (rv_layer_data.cut_pool.empty()) {
+      continue;
+    }
     std::vector<Violation> layer_violations;
     int32_t routing_layer_idx = -1;
     {
@@ -31,30 +34,27 @@ void RuleValidator::verifyCutShort(RVCluster& rv_cluster)
       routing_layer_idx = *std::min_element(routing_layer_idx_list.begin(), routing_layer_idx_list.end());
     }
 
-    for (const auto& [cut_gtl_rect, net_idx] : cut_net_rtree) {
-      if (net_idx == -1) {
+    for (const CutData& cut_data : rv_layer_data.getCuts()) {
+      if (cut_data.isEnv) {
         continue;
       }
-      GTLRectInt curr_cut_gtl_rect = cut_gtl_rect;
+      GTLRectInt curr_cut_gtl_rect = cut_data.rect;
       PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(curr_cut_gtl_rect);
-      std::vector<std::pair<GTLRectInt, int32_t>> gtl_rect_net_pair_list;
-      cut_net_rtree.query(bgi::intersects(cut_gtl_rect), std::back_inserter(gtl_rect_net_pair_list));
-      for (auto& [env_gtl_rect, env_net_idx] : gtl_rect_net_pair_list) {
-        if (env_net_idx == -1) {
+      std::vector<CutData> overlap_cut_list;
+      rv_layer_data.queryCuts(cut_data.rect, std::back_inserter(overlap_cut_list));
+      for (const CutData& overlap_cut_data : overlap_cut_list) {
+        if (overlap_cut_data.net_idx > cut_data.net_idx) {
           continue;
         }
-        if (env_net_idx > net_idx) {
-          continue;
-        }
-        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(env_gtl_rect);
-        if (cut_rect == env_rect) {
+        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(overlap_cut_data.rect);
+        if (cut_data.net_idx == overlap_cut_data.net_idx && cut_rect == env_rect) {
           continue;
         }
         Violation violation;
         violation.set_violation_type(ViolationType::kCutShort);
         violation.set_required_size(0);
         violation.set_is_routing(true);
-        violation.set_violation_net_set({net_idx, env_net_idx});
+        violation.set_violation_net_set({cut_data.net_idx, overlap_cut_data.net_idx});
         violation.set_layer_idx(routing_layer_idx);
         violation.set_rect(DRCUTIL.getOverlap(cut_rect, env_rect));
         layer_violations.push_back(std::move(violation));

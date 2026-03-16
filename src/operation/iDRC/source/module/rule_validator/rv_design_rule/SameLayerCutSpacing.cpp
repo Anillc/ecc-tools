@@ -22,9 +22,12 @@ void RuleValidator::verifySameLayerCutSpacing(RVCluster& rv_cluster)
 {
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
-  auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
+  const auto& layer_data = rv_cluster.get_layer_data();
 
-  for (auto& [cut_layer_idx, cut_net_rtree] : layer_cut_net_rtrees) {
+  for (const auto& [cut_layer_idx, cut_layer_data] : layer_data) {
+    if (cut_layer_data.cut_pool.empty()) {
+      continue;
+    }
     std::vector<Violation> layer_violations;
     int32_t routing_layer_idx = -1;
     {
@@ -37,23 +40,24 @@ void RuleValidator::verifySameLayerCutSpacing(RVCluster& rv_cluster)
     int32_t curr_prl_spacing = same_layer_cut_spacing_rule.curr_prl_spacing;
     int32_t curr_prl = -1 * same_layer_cut_spacing_rule.curr_prl;
 
-    for (auto [cut_gtl_rect, net_idx] : cut_net_rtree) {
-      if (net_idx == -1) {
+    for (const CutData& cut_data : cut_layer_data.getCuts()) {
+      GTLRectInt cut_gtl_rect = cut_data.rect;
+      int32_t net_idx = cut_data.net_idx;
+      if (cut_data.isEnv) {
         continue;
       }
       PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_gtl_rect);
       PlanarRect checking_region_vertical = DRCUTIL.getEnlargedRect(cut_rect, curr_prl, curr_prl_spacing);
       PlanarRect checking_region_horizontal = DRCUTIL.getEnlargedRect(cut_rect, curr_prl_spacing, curr_prl);
-      std::vector<std::pair<GTLRectInt, int32_t>> gtl_rect_net_pair_list;
+      std::vector<CutData> overlap_cut_list;
       {
         PlanarRect check_rect = DRCUTIL.getEnlargedRect(cut_rect, std::max({curr_spacing, curr_prl, curr_prl_spacing}));
-        cut_net_rtree.query(bgi::intersects(DRCUTIL.convertToGTLRectInt(check_rect)), std::back_inserter(gtl_rect_net_pair_list));
+        cut_layer_data.queryCuts(DRCUTIL.convertToGTLRectInt(check_rect), std::back_inserter(overlap_cut_list));
       }
-      for (auto& [gtl_env_rect, env_net_idx] : gtl_rect_net_pair_list) {
-        if (env_net_idx == -1) {
-          continue;
-        }
-        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(gtl_env_rect);
+      for (const CutData& overlap_cut_data : overlap_cut_list) {
+        int32_t env_net_idx = overlap_cut_data.net_idx;
+        PlanarRect env_rect = DRCUTIL.convertToPlanarRect(overlap_cut_data.rect);
+        //  ignore cutShort
         if (DRCUTIL.isClosedOverlap(cut_rect, env_rect)) {
           continue;
         }

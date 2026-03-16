@@ -33,6 +33,7 @@ void RuleValidator::verifyMinimumArea(RVCluster& rv_cluster)
   for (const auto& [routing_layer_idx, rv_layer_data] : layer_data) {
     int32_t min_area = routing_layer_list[routing_layer_idx].get_minimum_area_rule().min_area;
     std::vector<Violation> layer_violations;
+    std::vector<GTLPolyInt> layer_violation_poly_list;
     for (const auto& [net_idx, routing_net] : rv_layer_data.nets) {
       if (net_idx == -1) {
         continue;
@@ -53,6 +54,7 @@ void RuleValidator::verifyMinimumArea(RVCluster& rv_cluster)
         violation.set_layer_idx(routing_layer_idx);
         violation.set_rect(DRCUTIL.convertToPlanarRect(bbox));
         layer_violations.push_back(std::move(violation));
+        layer_violation_poly_list.push_back(gtl_poly);
       }
     }
 
@@ -63,16 +65,19 @@ void RuleValidator::verifyMinimumArea(RVCluster& rv_cluster)
       const auto& env_rtree = env_rtree_it->second;
       std::vector<Violation> filtered_violations;
       filtered_violations.reserve(layer_violations.size());
-      for (Violation& violation : layer_violations) {
-        const PlanarRect& violation_rect = violation.get_rect();
-        GTLRectInt gtl_violation_rect = DRCUTIL.convertToGTLRectInt(violation_rect);
+      for (size_t violation_idx = 0; violation_idx < layer_violations.size(); ++violation_idx) {
+        Violation& violation = layer_violations[violation_idx];
+        const GTLPolyInt& violation_poly = layer_violation_poly_list[violation_idx];
+        GTLRectInt gtl_violation_bbox;
+        gtl::extents(gtl_violation_bbox, violation_poly);
         std::vector<GTLRectInt> overlap_env_rect_list;
-        env_rtree.query(bgi::intersects(gtl_violation_rect), std::back_inserter(overlap_env_rect_list));
+        env_rtree.query(bgi::intersects(gtl_violation_bbox), std::back_inserter(overlap_env_rect_list));
         if (overlap_env_rect_list.empty()) {
           filtered_violations.push_back(std::move(violation));
           continue;
         }
 
+        const PlanarRect violation_rect = DRCUTIL.convertToPlanarRect(gtl_violation_bbox);
         bool fully_covered = false;
         for (const GTLRectInt& env_gtl_rect : overlap_env_rect_list) {
           if (DRCUTIL.isInside(DRCUTIL.convertToPlanarRect(env_gtl_rect), violation_rect)) {
@@ -81,13 +86,13 @@ void RuleValidator::verifyMinimumArea(RVCluster& rv_cluster)
           }
         }
         if (!fully_covered) {
+          GTLPolySetInt violation_polyset;
+          violation_polyset += violation_poly;
           GTLPolySetInt overlap_polyset;
           for (const GTLRectInt& env_gtl_rect : overlap_env_rect_list) {
-            if (gtl::area(gtl_violation_rect & env_gtl_rect) > 0) {
-              overlap_polyset += env_gtl_rect;
-            }
+            overlap_polyset += env_gtl_rect;
           }
-          fully_covered = (gtl::area(overlap_polyset & gtl_violation_rect) == gtl::area(gtl_violation_rect));
+          fully_covered = (gtl::area(overlap_polyset & violation_polyset) == gtl::area(violation_polyset));
         }
         if (fully_covered) {
           continue;
