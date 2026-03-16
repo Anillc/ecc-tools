@@ -69,7 +69,6 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
   const auto& layer_data = rv_cluster.get_layer_data();
-  const auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
 
   std::map<int32_t, std::vector<EnclosureEdgeRule>> cut_layer_sorted_rule_map;
   std::map<int32_t, std::vector<int32_t>> layer_width_ranges;
@@ -78,8 +77,10 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
   std::map<int32_t, std::map<int32_t, std::map<PlanarRect, std::vector<ConvexCandidate>, CmpPlanarRectByXASC>>> layer_polygon_convex_candidates;
 
   // preprocess: sort rules and collect width ranges by routing layer.
-  for (const auto& [cut_layer_idx, cut_net_rtree] : layer_cut_net_rtrees) {
-    (void) cut_net_rtree;
+  for (const auto& [cut_layer_idx, cut_layer_data] : layer_data) {
+    if (cut_layer_data.cut_pool.empty()) {
+      continue;
+    }
     auto routing_layer_it = cut_to_adjacent_routing_map.find(cut_layer_idx);
     if (routing_layer_it == cut_to_adjacent_routing_map.end() || routing_layer_it->second.size() < 2) {
       continue;
@@ -280,7 +281,10 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
   }
 
   // check each cut.
-  for (const auto& [cut_layer_idx, cut_net_rtree] : layer_cut_net_rtrees) {
+  for (const auto& [cut_layer_idx, cut_layer_data] : layer_data) {
+    if (cut_layer_data.cut_pool.empty()) {
+      continue;
+    }
     auto routing_layer_it = cut_to_adjacent_routing_map.find(cut_layer_idx);
     if (routing_layer_it == cut_to_adjacent_routing_map.end() || routing_layer_it->second.size() < 2) {
       continue;
@@ -295,8 +299,8 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
     int32_t above_routing_layer_idx = *std::max_element(routing_layer_idx_list.begin(), routing_layer_idx_list.end());
     int32_t below_routing_layer_idx = *std::min_element(routing_layer_idx_list.begin(), routing_layer_idx_list.end());
 
-    for (const auto& [cut_gtl_rect, cut_net_idx] : cut_net_rtree) {
-      (void) cut_net_idx;
+    for (const CutData& cut_data : cut_layer_data.getCuts()) {
+      GTLRectInt cut_gtl_rect = cut_data.rect;
       PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_gtl_rect);
       if (!isValidRect(cut_rect)) {
         continue;

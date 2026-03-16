@@ -572,10 +572,12 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
         rv_layer_data.polygon_pool.push_back({net_idx, static_cast<int32_t>(rv_layer_data.max_rect_pool.size()), 0,
                                               static_cast<int32_t>(rv_layer_data.boundary_pool.size()), 0});
         PolygonData& polygon_data = rv_layer_data.polygon_pool.back();
+        polygon_data.hole_poly = gtl_hole_poly;
 
         std::vector<GTLRectInt> gtl_rect_list;
         gtl::get_max_rectangles(gtl_rect_list, gtl_hole_poly);
         rv_layer_data.max_rect_pool.reserve(rv_layer_data.max_rect_pool.size() + gtl_rect_list.size());
+        bool is_polygon_env = !gtl_rect_list.empty();
         for (GTLRectInt& gtl_rect : gtl_rect_list) {
           MaxRectData max_rect_data;
           max_rect_data.rect = gtl_rect;
@@ -583,12 +585,14 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
           if (!env_rect_rtree.empty()) {
             max_rect_data.isEnv = isRectCoveredByEnv(gtl_rect, env_rect_rtree);
           }
+          is_polygon_env = is_polygon_env && max_rect_data.isEnv;
 
           rv_layer_data.max_rect_pool.push_back(max_rect_data);
           int32_t max_rect_id = static_cast<int32_t>(rv_layer_data.max_rect_pool.size()) - 1;
           rect_rtree_inputs.push_back({gtl_rect, max_rect_id});
         }
         polygon_data.max_rect_count = static_cast<int32_t>(rv_layer_data.max_rect_pool.size()) - polygon_data.max_rect_begin;
+        polygon_data.isEnv = is_polygon_env;
 
         std::vector<int32_t> ring_boundary_ids;
         collectBoundaryEdges(gtl_hole_poly, false, polygon_id, rv_layer_data.boundary_pool, ring_boundary_ids);

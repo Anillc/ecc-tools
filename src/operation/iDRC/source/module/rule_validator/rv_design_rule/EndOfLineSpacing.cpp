@@ -34,7 +34,6 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
   };
 
   const auto& layer_data = rv_cluster.get_layer_data();
-  const auto& layer_cut_net_rtrees = rv_cluster.get_layer_cut_net_rtrees();
 
   // query original net, return -1 if not exist
   auto queryNetIdxByRect = [] (const RVLayerData& rv_layer_data, const PlanarRect& query_rect) -> int32_t {
@@ -423,15 +422,15 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
       std::vector<std::pair<GTLRectInt, int32_t>> env_checking_poly_list;
 
       // enclosed cut rects
-      std::vector<std::pair<GTLRectInt, int32_t>> env_cut_gtl_net_list;
+      std::vector<CutData> env_cut_list;
       {
         if (layer_rule_profile.need_cut_shape) {
           auto cut_layer_it = routing_to_adjacent_cut_map.find(routing_layer_idx);
           if (cut_layer_it != routing_to_adjacent_cut_map.end() && !cut_layer_it->second.empty()) {
             int32_t cut_layer_idx = *std::min_element(cut_layer_it->second.begin(), cut_layer_it->second.end());
-            auto cut_rtree_it = layer_cut_net_rtrees.find(cut_layer_idx);
-            if (cut_rtree_it != layer_cut_net_rtrees.end()) {
-              cut_rtree_it->second.query(bgi::intersects(DRCUTIL.convertToGTLRectInt(eol_rect)), std::back_inserter(env_cut_gtl_net_list));
+            auto cut_layer_data_it = layer_data.find(cut_layer_idx);
+            if (cut_layer_data_it != layer_data.end()) {
+              cut_layer_data_it->second.queryCuts(DRCUTIL.convertToGTLRectInt(eol_rect), std::back_inserter(env_cut_list));
             }
           }
         }
@@ -467,7 +466,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
         if (eol_boundary.edge_length >= eol_rule.eol_width) {
           continue;
         }
-        if (eol_rule.has_enclose_cut && env_cut_gtl_net_list.empty()) {
+        if (eol_rule.has_enclose_cut && env_cut_list.empty()) {
           continue;
         }
         bool pre_length_ok = pre_boundary.edge_length >= eol_rule.min_length;
@@ -606,8 +605,8 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
 
           if (eol_rule.has_enclose_cut) {
             bool is_pass_cut = false;
-            for (auto& [cut_gtl_rect, cut_idx] : env_cut_gtl_net_list) {
-              PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_gtl_rect);
+            for (const CutData& cut_data : env_cut_list) {
+              PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_data.rect);
               if ((DRCUTIL.getEuclideanDistance(cut_rect, eol_edge_rect) < eol_rule.enclosed_dist)
                   && (DRCUTIL.getEuclideanDistance(cut_rect, env_rect)) < eol_rule.cut_to_metal_spacing) {
                 is_pass_cut = true;

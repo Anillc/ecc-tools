@@ -35,18 +35,9 @@ void RuleValidator::verifyParallelRunLengthSpacing(RVCluster& rv_cluster)
       }
       for (const MaxRectData& max_rect_data : rv_layer_data.getMaxRects(routing_net)) {
         PlanarRect rect = DRCUTIL.convertToPlanarRect(max_rect_data.rect);
-        bool inside_obs = false;
-        std::vector<std::pair<GTLRectInt, int32_t>> shape_in_obs;
-        rv_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(rect), std::back_inserter(shape_in_obs));
-        for (const auto& [obs_gtl_rect, obs_max_rect_id] : shape_in_obs) {
-          PlanarRect obs_rect = DRCUTIL.convertToPlanarRect(obs_gtl_rect);
-          int32_t obs_net_idx = rv_layer_data.getNetIdxByMaxRectId(obs_max_rect_id);
-          if (obs_net_idx == -1 && DRCUTIL.isInside(obs_rect, rect)) {
-            inside_obs = true;
-            break;
-          }
+        if (max_rect_data.isEnv) {
+          continue;
         }
-        if (inside_obs) { continue; }
 
         gtl_rect_id_pair_list.clear();
         violation_env_rect_list.clear();

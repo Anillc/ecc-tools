@@ -94,6 +94,8 @@ struct PolygonData {
     int32_t max_rect_count = 0;
     int32_t boundary_begin = 0;
     int32_t boundary_count = 0;
+    GTLHolePolyInt hole_poly;
+    bool isEnv = false;
 };
 
 struct RVRoutingNet{
