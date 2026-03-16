@@ -50,11 +50,11 @@ CtsPin* CtsNet::get_driver_pin() const
     return driver_pin_candidates[0];
   } else if (driver_pin_candidates.size() > 1) {
     for (auto* pin : driver_pin_candidates) {
-      if (pin->get_pin_type() != CtsPinType::kInOut) {
+      if (pin->get_pin_type() == CtsPinType::kInOut) {
         return pin;  // Prefer InOut pins as driver
       }
     }
-    return driver_pin_candidates[0];  // If all are InOut, return the first one
+    return driver_pin_candidates[0];  // If no InOut pins, return the first candidate
   }
   LOG_WARNING << "No driver pin found for net " << _net_name;
   return nullptr;
