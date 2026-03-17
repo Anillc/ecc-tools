@@ -161,7 +161,7 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double slew_derate_from_library = rust_attri_value->value;
-         current_lib->set_output_threshold_pct_fall(slew_derate_from_library);
+         current_lib->set_slew_derate_from_library(slew_derate_from_library);
          rust_free_float_value(rust_attri_value);
        }},
       {"pulling_resistance_unit",
@@ -361,14 +361,14 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double max_slew_limit = rust_attri_value->value;
-         lib_port->set_port_cap_limit(AnalysisMode::kMax, max_slew_limit);
+         lib_port->set_port_slew_limit(AnalysisMode::kMax, max_slew_limit);
          rust_free_float_value(rust_attri_value);
        }},
       {"min_transition",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double min_slew_limit = rust_attri_value->value;
-         lib_port->set_port_cap_limit(AnalysisMode::kMin, min_slew_limit);
+         lib_port->set_port_slew_limit(AnalysisMode::kMin, min_slew_limit);
          rust_free_float_value(rust_attri_value);
        }},
       {"function",
