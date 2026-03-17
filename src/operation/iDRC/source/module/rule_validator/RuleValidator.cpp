@@ -25,11 +25,6 @@ namespace idrc {
 
 namespace {
 
-bool isPositiveAreaRect(const PlanarRect& rect)
-{
-  return rect.get_ll_x() < rect.get_ur_x() && rect.get_ll_y() < rect.get_ur_y();
-}
-
 Orientation getBoundaryOrient(Rotation rotation, bool is_hole, const PlanarCoord& begin_coord, const PlanarCoord& end_coord)
 {
   auto rotate_left = [](Orientation orient) {
@@ -193,37 +188,6 @@ bool isBoundaryCoveredByEnv(const BoundaryData& boundary_data,
     }
   }
   return false;
-}
-
-bool isRectCoveredByEnv(const GTLRectInt& gtl_rect, const bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>>& env_rect_rtree)
-{
-  std::vector<std::pair<GTLRectInt, int32_t>> env_rect_pairs;
-  env_rect_rtree.query(bgi::intersects(gtl_rect), std::back_inserter(env_rect_pairs));
-  if (env_rect_pairs.empty()) {
-    return false;
-  }
-
-  PlanarRect rect = DRCUTIL.convertToPlanarRect(gtl_rect);
-  for (const auto& [env_gtl_rect, env_rect_id] : env_rect_pairs) {
-    (void) env_rect_id;
-    if (DRCUTIL.isInside(DRCUTIL.convertToPlanarRect(env_gtl_rect), rect)) {
-      return true;
-    }
-  }
-
-  GTLPolySetInt covered_polyset;
-  for (const auto& [env_gtl_rect, env_rect_id] : env_rect_pairs) {
-    (void) env_rect_id;
-    PlanarRect overlap_rect = DRCUTIL.getOverlap(rect, DRCUTIL.convertToPlanarRect(env_gtl_rect));
-    if (!isPositiveAreaRect(overlap_rect)) {
-      continue;
-    }
-    covered_polyset += DRCUTIL.convertToGTLRectInt(overlap_rect);
-  }
-
-  GTLPolySetInt rect_polyset;
-  rect_polyset += gtl_rect;
-  return gtl::area(covered_polyset) == gtl::area(rect_polyset);
 }
 
 }  // namespace
@@ -392,25 +356,7 @@ void RuleValidator::verifyRVModel(RVModel& rv_model)
   for (RVCluster& rv_cluster : rv_model.get_rv_cluster_list()) {
     buildRVCluster(rv_cluster);
     if (needVerifying(rv_cluster)) {
-      // std::vector<Violation> env_violations;
-      // if (!rv_cluster.get_drc_env_shape_list().empty()) {
-      //   RVCluster env_only_cluster = rv_cluster;
-      //   env_only_cluster.set_drc_result_shape_list({});
-      //   buildViolationList(env_only_cluster);
-      //   env_violations = env_only_cluster.get_violation_list();
-      // }
-
       buildViolationList(rv_cluster);
-
-      // if (!env_violations.empty()) {
-      //   std::set<Violation, CmpViolation> env_violation_set(env_violations.begin(), env_violations.end());
-      //   std::vector<Violation>& violation_list = rv_cluster.get_violation_list();
-      //   violation_list.erase(std::remove_if(violation_list.begin(), violation_list.end(), [&](const Violation& violation) {
-      //                          return env_violation_set.find(violation) != env_violation_set.end();
-      //                        }),
-      //                        violation_list.end());
-      // }
-      // debugPlotRVCluster(rv_cluster, "best");
     }
   }
   DRCLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
@@ -513,52 +459,64 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
   }
 
   for (auto& [layer_idx, rv_layer_data] : layer_data) {
+    using DeltaRectRTree = bgi::rtree<GTLRectInt, bgi::quadratic<16>>;
+
     std::vector<std::pair<GTLRectInt, int32_t>> rect_rtree_inputs;
     std::vector<std::pair<GTLRectInt, int32_t>> boundary_rtree_inputs;
     rv_layer_data.polygon_pool.clear();
     rv_layer_data.max_rect_pool.clear();
     rv_layer_data.boundary_pool.clear();
     for (auto& [net_idx, routing_net] : rv_layer_data.nets) {
-      // Build env-only local indices once per (layer, net), then reuse them for all merged maxRects/boundaries.
       std::vector<BoundaryData> env_boundary_pool;
-      bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>> env_rect_rtree;
       bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>> env_boundary_rtree;
+      const GTLPolySetInt* env_polyset = nullptr;
+      GTLPolySetInt delta_polyset;
+      DeltaRectRTree delta_rect_rtree;
+      bool has_delta_geometry = false;
       {
         auto layer_env_it = env_routing_polysets.find(layer_idx);
         if (layer_env_it != env_routing_polysets.end()) {
           auto net_env_it = layer_env_it->second.find(net_idx);
           if (net_env_it != layer_env_it->second.end()) {
-            std::vector<std::pair<GTLRectInt, int32_t>> env_rect_rtree_inputs;
-            std::vector<std::pair<GTLRectInt, int32_t>> env_boundary_rtree_inputs;
-            std::vector<GTLHolePolyInt> env_hole_poly_list;
-            net_env_it->second.get(env_hole_poly_list);
-            for (GTLHolePolyInt& env_hole_poly : env_hole_poly_list) {
-              std::vector<GTLRectInt> env_rect_list;
-              gtl::get_max_rectangles(env_rect_list, env_hole_poly);
-              for (const GTLRectInt& env_gtl_rect : env_rect_list) {
-                env_rect_rtree_inputs.push_back({env_gtl_rect, static_cast<int32_t>(env_rect_rtree_inputs.size())});
-              }
-
-              std::vector<int32_t> env_ring_boundary_ids;
-              collectBoundaryEdges(env_hole_poly, false, -1, env_boundary_pool, env_ring_boundary_ids);
-              for (int32_t boundary_id : env_ring_boundary_ids) {
-                env_boundary_rtree_inputs.push_back({env_boundary_pool[boundary_id].edge, boundary_id});
-              }
-              for (auto iter = env_hole_poly.begin_holes(); iter != env_hole_poly.end_holes(); iter++) {
-                GTLPolyInt gtl_poly = *iter;
-                GTLHolePolyInt env_hole_boundary;
-                env_hole_boundary.set(gtl_poly.begin(), gtl_poly.end());
-                collectBoundaryEdges(env_hole_boundary, true, -1, env_boundary_pool, env_ring_boundary_ids);
-                for (int32_t boundary_id : env_ring_boundary_ids) {
-                  env_boundary_rtree_inputs.push_back({env_boundary_pool[boundary_id].edge, boundary_id});
-                }
-              }
+            env_polyset = &net_env_it->second;
+            delta_polyset = routing_net.polyset;
+            delta_polyset -= *env_polyset;
+            has_delta_geometry = !gtl::empty(delta_polyset);
+            if (has_delta_geometry) {
+              std::vector<GTLRectInt> delta_rect_list;
+              gtl::get_max_rectangles(delta_rect_list, delta_polyset);
+              delta_rect_rtree = DeltaRectRTree(delta_rect_list);
             }
-            env_rect_rtree = decltype(env_rect_rtree)(env_rect_rtree_inputs);
-            env_boundary_rtree = decltype(env_boundary_rtree)(env_boundary_rtree_inputs);
           }
         }
       }
+
+      auto build_env_boundary_rtree = [&]() {
+        if (env_polyset == nullptr || !has_delta_geometry || !env_boundary_rtree.empty()) {
+          return;
+        }
+
+        std::vector<std::pair<GTLRectInt, int32_t>> env_boundary_rtree_inputs;
+        std::vector<GTLHolePolyInt> env_hole_poly_list;
+        env_polyset->get(env_hole_poly_list);
+        for (GTLHolePolyInt& env_hole_poly : env_hole_poly_list) {
+          std::vector<int32_t> env_ring_boundary_ids;
+          collectBoundaryEdges(env_hole_poly, false, -1, env_boundary_pool, env_ring_boundary_ids);
+          for (int32_t boundary_id : env_ring_boundary_ids) {
+            env_boundary_rtree_inputs.push_back({env_boundary_pool[boundary_id].edge, boundary_id});
+          }
+          for (auto iter = env_hole_poly.begin_holes(); iter != env_hole_poly.end_holes(); iter++) {
+            GTLPolyInt gtl_poly = *iter;
+            GTLHolePolyInt env_hole_boundary;
+            env_hole_boundary.set(gtl_poly.begin(), gtl_poly.end());
+            collectBoundaryEdges(env_hole_boundary, true, -1, env_boundary_pool, env_ring_boundary_ids);
+            for (int32_t boundary_id : env_ring_boundary_ids) {
+              env_boundary_rtree_inputs.push_back({env_boundary_pool[boundary_id].edge, boundary_id});
+            }
+          }
+        }
+        env_boundary_rtree = decltype(env_boundary_rtree)(env_boundary_rtree_inputs);
+      };
 
       std::vector<GTLHolePolyInt> gtl_hole_poly_list;
       routing_net.polyset.get(gtl_hole_poly_list);
@@ -577,13 +535,19 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
         std::vector<GTLRectInt> gtl_rect_list;
         gtl::get_max_rectangles(gtl_rect_list, gtl_hole_poly);
         rv_layer_data.max_rect_pool.reserve(rv_layer_data.max_rect_pool.size() + gtl_rect_list.size());
-        bool is_polygon_env = !gtl_rect_list.empty();
+        bool is_polygon_env = (env_polyset != nullptr) && !gtl_rect_list.empty();
         for (GTLRectInt& gtl_rect : gtl_rect_list) {
           MaxRectData max_rect_data;
           max_rect_data.rect = gtl_rect;
           max_rect_data.polygon_id = polygon_id;
-          if (!env_rect_rtree.empty()) {
-            max_rect_data.isEnv = isRectCoveredByEnv(gtl_rect, env_rect_rtree);
+          if (env_polyset != nullptr) {
+            if (!has_delta_geometry) {
+              max_rect_data.isEnv = true;
+            } else {
+              std::vector<GTLRectInt> delta_overlap_list;
+              delta_rect_rtree.query(bgi::intersects(gtl_rect), std::back_inserter(delta_overlap_list));
+              max_rect_data.isEnv = delta_overlap_list.empty();
+            }
           }
           is_polygon_env = is_polygon_env && max_rect_data.isEnv;
 
@@ -594,12 +558,15 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
         polygon_data.max_rect_count = static_cast<int32_t>(rv_layer_data.max_rect_pool.size()) - polygon_data.max_rect_begin;
         polygon_data.isEnv = is_polygon_env;
 
+        if (!is_polygon_env) {
+          build_env_boundary_rtree();
+        }
         std::vector<int32_t> ring_boundary_ids;
         collectBoundaryEdges(gtl_hole_poly, false, polygon_id, rv_layer_data.boundary_pool, ring_boundary_ids);
         for (int32_t boundary_id : ring_boundary_ids) {
           BoundaryData& boundary_data = rv_layer_data.boundary_pool[boundary_id];
-          if (!env_boundary_rtree.empty()) {
-            boundary_data.isEnv = isBoundaryCoveredByEnv(boundary_data, env_boundary_rtree, env_boundary_pool);
+          if (env_polyset != nullptr) {
+            boundary_data.isEnv = is_polygon_env ? true : isBoundaryCoveredByEnv(boundary_data, env_boundary_rtree, env_boundary_pool);
           }
           boundary_rtree_inputs.push_back({boundary_data.edge, boundary_id});
         }
@@ -610,8 +577,8 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
           collectBoundaryEdges(check_hole_poly, true, polygon_id, rv_layer_data.boundary_pool, ring_boundary_ids);
           for (int32_t boundary_id : ring_boundary_ids) {
             BoundaryData& boundary_data = rv_layer_data.boundary_pool[boundary_id];
-            if (!env_boundary_rtree.empty()) {
-              boundary_data.isEnv = isBoundaryCoveredByEnv(boundary_data, env_boundary_rtree, env_boundary_pool);
+            if (env_polyset != nullptr) {
+              boundary_data.isEnv = is_polygon_env ? true : isBoundaryCoveredByEnv(boundary_data, env_boundary_rtree, env_boundary_pool);
             }
             boundary_rtree_inputs.push_back({boundary_data.edge, boundary_id});
           }

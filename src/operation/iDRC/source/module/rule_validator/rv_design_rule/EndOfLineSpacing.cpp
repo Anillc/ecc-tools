@@ -15,7 +15,11 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #include <cstdint>
+#include <iterator>
+#include <vector>
 #include "DataManager.hpp"
+#include "Orientation.hpp"
+#include "PlanarRect.hpp"
 #include "RVLayerData.hpp"
 #include "RoutingLayer.hpp"
 #include "RuleValidator.hpp"
@@ -444,16 +448,48 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
         } else {
           max_check_rect = DRCUTIL.getEnlargedRect(max_check_rect, 0, layer_rule_profile.max_eol_within);
         }
+        Orientation oppo_orient = DRCUTIL.getOppositeOrientation(eol_boundary.orient);
         std::vector<std::pair<GTLRectInt, int32_t>> env_rects;
         merged_layer_data.queryBoundaries(DRCUTIL.convertToGTLRectInt(max_check_rect), std::back_inserter(env_rects));
+        std::vector<std::pair<GTLRectInt, int32_t>> env_max_rects;
+        merged_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(max_check_rect), std::back_inserter(env_max_rects));
 
-        env_checking_poly_list.reserve(env_rects.size());
+        std::vector<std::pair<GTLRectInt, int32_t>> temp_checking_poly_list;
+        for (auto& [gtl_rect, idx] : env_max_rects) {
+          PlanarRect rect = DRCUTIL.convertToPlanarRect(gtl_rect);
+          if (DRCUTIL.isOpenOverlap(rect, max_check_rect)) {
+            PlanarRect rect_edge = DRCUTIL.getRect(rect.getOrientEdge(oppo_orient));
+            temp_checking_poly_list.push_back({DRCUTIL.convertToGTLRectInt(rect_edge), -1});
+          }
+        }
+
         for (auto& [gtl_rect, idx] : env_rects) {
           PlanarRect rect = DRCUTIL.convertToPlanarRect(gtl_rect);
           if (DRCUTIL.isOpenOverlap(rect, max_check_rect)) {
             if (eol_boundary.orient == DRCUTIL.getOppositeOrientation(merged_layer_data.getBoundary(idx).orient)) {
               env_checking_poly_list.push_back({gtl_rect, idx});
             }
+          }
+        }
+
+        env_checking_poly_list.reserve(env_checking_poly_list.size() + temp_checking_poly_list.size());
+        std::vector<PlanarRect> env_checking_rect_list;
+        env_checking_rect_list.reserve(env_checking_poly_list.size() + temp_checking_poly_list.size());
+        for (const auto& env_poly : env_checking_poly_list) {
+          env_checking_rect_list.emplace_back(DRCUTIL.convertToPlanarRect(env_poly.first));
+        }
+        for (const auto& temp_poly : temp_checking_poly_list) {
+          PlanarRect temp_rect = DRCUTIL.convertToPlanarRect(temp_poly.first);
+          bool has_overlap = false;
+          for (const auto& env_rect : env_checking_rect_list) {
+            if (DRCUTIL.isClosedOverlap(temp_rect, env_rect)) {
+              has_overlap = true;
+              break;
+            }
+          }
+          if (!has_overlap) {
+            env_checking_poly_list.push_back(temp_poly);
+            env_checking_rect_list.emplace_back(temp_rect);
           }
         }
       }
@@ -489,14 +525,16 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
           if (DRCUTIL.isClosedOverlap(env_rect, eol_rect)) {
             continue;
           }
-          const BoundaryData& env_boundary = merged_layer_data.getBoundary(boundary_idx);
 
           // 0: normal eol spacing, 1: ete spacing， 2: par spacing, 3: same metal spacing
           int violation_type = 0;
           bool is_ete = false;
-          if (boundary_idx >= 0 && boundary_idx < static_cast<int32_t>(is_eol_boundary.size()) && is_eol_boundary[boundary_idx]) {
-            if (env_boundary.edge_length < eol_rule.eol_width) {
-              is_ete = true;
+          if (boundary_idx >= 0) {
+            const BoundaryData& env_boundary = merged_layer_data.getBoundary(boundary_idx);
+            if (boundary_idx >= 0 && boundary_idx < static_cast<int32_t>(is_eol_boundary.size()) && is_eol_boundary[boundary_idx]) {
+              if (env_boundary.edge_length < eol_rule.eol_width) {
+                is_ete = true;
+              }
             }
           }
           violation_type = is_ete ? 1 : 0;
@@ -599,7 +637,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
               if (pre_prl_length >= eol_rule.par_within || post_prl_length >= eol_rule.par_within) {
                 continue;
               }
-              violation_type = 3;
+              violation_type = is_ete ? 1 : 3;
             }
           }
 
@@ -635,10 +673,14 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
           }
           PlanarRect spacing_rect = DRCUTIL.getSpacingRect(eol_rect, env_rect);
           std::set<int32_t> net_list {getCheckingNet(), queryNetIdxByRect(rv_layer_data, env_rect)};
+          int32_t req_size = violation_type == 1 ? eol_rule.ete_spacing : eol_rule.eol_spacing;
+          if (DRCUTIL.getEuclideanDistance(eol_edge_rect, env_rect) >= req_size) {
+            continue;
+          }
 
           Violation violation;
           violation.set_violation_type(ViolationType::kEndOfLineSpacing);
-          violation.set_required_size(violation_type == 1 ? eol_rule.ete_spacing : eol_rule.eol_spacing);
+          violation.set_required_size(req_size);
           violation.set_is_routing(true);
           violation.set_violation_net_set(net_list);
           violation.set_layer_idx(routing_layer_idx);
