@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #pragma once
 
+#include <cstdint>
 #include "DRCShape.hpp"
 #include "LayerRect.hpp"
 #include "PlanarRect.hpp"
@@ -23,6 +24,7 @@
 #include "RVSummary.hpp"
 #include "Segment.hpp"
 #include "Violation.hpp"
+#include "RVLayerData.hpp"
 
 namespace idrc {
 
@@ -40,6 +42,7 @@ class RVCluster
   std::set<ViolationType>* get_drc_check_type_set() { return _drc_check_type_set; }
   std::vector<DRCShape>* get_drc_check_region_list() { return _drc_check_region_list; }
   std::vector<Violation>& get_violation_list() { return _violation_list; }
+  std::map<int32_t, RVLayerData>& get_layer_data() { return _layer_data; }
   // setter
   void set_cluster_idx(const int32_t cluster_idx) { _cluster_idx = cluster_idx; }
   void set_cluster_rect_list(const std::vector<PlanarRect>& cluster_rect_list) { _cluster_rect_list = cluster_rect_list; }
@@ -49,6 +52,7 @@ class RVCluster
   void set_drc_check_type_set(std::set<ViolationType>* drc_check_type_set) { _drc_check_type_set = drc_check_type_set; }
   void set_drc_check_region_list(std::vector<DRCShape>* drc_check_region_list) { _drc_check_region_list = drc_check_region_list; }
   void set_violation_list(const std::vector<Violation>& violation_list) { _violation_list = violation_list; }
+  void set_layer_data(std::map<int32_t, RVLayerData>& layer_data) { _layer_data = layer_data; }
   // function
  private:
   int32_t _cluster_idx = -1;
@@ -59,6 +63,7 @@ class RVCluster
   std::set<ViolationType>* _drc_check_type_set;
   std::vector<DRCShape>* _drc_check_region_list;
   std::vector<Violation> _violation_list;
+  std::map<int32_t, RVLayerData> _layer_data;
 };
 
 }  // namespace idrc

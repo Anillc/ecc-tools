@@ -68,7 +68,7 @@ class Utility
     }
   }
 
-  static int32_t getParallelLength(PlanarRect& a, PlanarRect& b)
+  static int32_t getParallelLength(const PlanarRect& a, const PlanarRect& b)
   {
     int32_t x_parallel_length = std::min(a.get_ur_x(), b.get_ur_x()) - std::max(a.get_ll_x(), b.get_ll_x());
     int32_t y_parallel_length = std::min(a.get_ur_y(), b.get_ur_y()) - std::max(a.get_ll_y(), b.get_ll_y());
@@ -660,8 +660,6 @@ class Utility
           // 对于 CCW 外轮廓：+X方向的边位于底部(South)，+Y方向的边位于右侧(East)，以此类推
           // 如果是 CW 或者内孔，则逻辑翻转
           bool reverse = !is_ccw;
-          if (is_hole)
-            reverse = !reverse;
 
           Orientation orient = Orientation::kNone;
           if (p1.get_y() == p2.get_y()) {  // 水平边
@@ -689,9 +687,9 @@ class Utility
 
   static PlanarCoord convertToPlanarCoord(GTLPointInt gtl_point) { return PlanarCoord(gtl_point.x(), gtl_point.y()); }
 
-  static PlanarRect convertToPlanarRect(GTLRectInt& gtl_rect) { return PlanarRect(gtl::xl(gtl_rect), gtl::yl(gtl_rect), gtl::xh(gtl_rect), gtl::yh(gtl_rect)); }
+  static PlanarRect convertToPlanarRect(const GTLRectInt& gtl_rect) { return PlanarRect(gtl::xl(gtl_rect), gtl::yl(gtl_rect), gtl::xh(gtl_rect), gtl::yh(gtl_rect)); }
 
-  static PlanarRect convertToPlanarRect(BGRectInt& boost_box)
+  static PlanarRect convertToPlanarRect(const BGRectInt& boost_box)
   {
     return PlanarRect(boost_box.min_corner().x(), boost_box.min_corner().y(), boost_box.max_corner().x(), boost_box.max_corner().y());
   }
