@@ -24,7 +24,7 @@
 #pragma once
 
 #include "HashJoinEngine.hh"
-#include "database/characterization/SegmentChar.hh"
+#include "SegmentChar.hh"
 
 namespace icts {
 

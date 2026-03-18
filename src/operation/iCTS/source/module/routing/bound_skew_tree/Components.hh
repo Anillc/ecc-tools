@@ -22,15 +22,21 @@
  */
 #pragma once
 
-#include "TimingPropagator.hh"
-#include "log/Log.hh"
-namespace icts {
-namespace bst {
-/**
- * @brief Tool namespace
- *
- */
-using Timing = TimingPropagator;
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <concepts>
+#include <cstdlib>
+#include <string>
+#include <type_traits>
+#include <vector>
+
+#include "BSTTypes.hh"
+#include "logger/Logger.hh"
+namespace icts::bst {
+
+template <typename T>
+concept Numeric = std::is_arithmetic_v<T>;
 
 /**
  * @brief Global constant
@@ -52,7 +58,7 @@ constexpr static double kEpsilon = 1e-7;
  * @brief Global function
  *
  */
-#define FOR_EACH_SIDE(side) for (size_t side = 0; side < 2; ++side)
+#define FOR_EACH_BST_SIDE(side) for (size_t side = 0; side < 2; ++side)
 
 template <Numeric T1, Numeric T2>
 constexpr static bool Equal(const T1& a, const T2& b, const double& epsilon = kEpsilon)
@@ -60,39 +66,39 @@ constexpr static bool Equal(const T1& a, const T2& b, const double& epsilon = kE
   return std::abs(a - b) < epsilon;
 }
 
-class Pt
+class Point
 {
  public:
-  Pt() = default;
-  Pt(const double& t_x, const double& t_y, const double& t_max, const double& t_min, const double& t_val)
+  Point() = default;
+  Point(const double& t_x, const double& t_y, const double& t_max, const double& t_min, const double& t_val)
       : x(t_x), y(t_y), max(t_max), min(t_min), val(t_val)
   {
   }
-  Pt(const double& t_x, const double& t_y) : x(t_x), y(t_y), max(0), min(0), val(0) {}
+  Point(const double& t_x, const double& t_y) : x(t_x), y(t_y), max(0), min(0), val(0) {}
 
-  Pt operator+(const Pt& other) const { return Pt(x + other.x, y + other.y); }
-  Pt operator-(const Pt& other) const { return Pt(x - other.x, y - other.y); }
-  Pt operator*(const double& scale) const { return Pt(x * scale, y * scale); }
-  Pt operator/(const double& scale) const { return Pt(x / scale, y / scale); }
-  Pt operator+=(const Pt& other)
+  Point operator+(const Point& other) const { return Point(x + other.x, y + other.y); }
+  Point operator-(const Point& other) const { return Point(x - other.x, y - other.y); }
+  Point operator*(const double& scale) const { return Point(x * scale, y * scale); }
+  Point operator/(const double& scale) const { return Point(x / scale, y / scale); }
+  Point operator+=(const Point& other)
   {
     x += other.x;
     y += other.y;
     return *this;
   }
-  Pt operator-=(const Pt& other)
+  Point operator-=(const Point& other)
   {
     x -= other.x;
     y -= other.y;
     return *this;
   }
-  Pt operator*=(const double& scale)
+  Point operator*=(const double& scale)
   {
     x *= scale;
     y *= scale;
     return *this;
   }
-  Pt operator/=(const double& scale)
+  Point operator/=(const double& scale)
   {
     x /= scale;
     y /= scale;
@@ -110,11 +116,11 @@ class Pt
  * @brief type alias
  *
  */
-using JoinSegment = std::vector<Pt>;
-using Pts = std::vector<Pt>;
-using Region = std::vector<Pt>;
-using Line = std::array<Pt, 2>;
-using PtPair = std::array<Pt, 2>;
+using JoinSegment = std::vector<Point>;
+using Points = std::vector<Point>;
+using Region = std::vector<Point>;
+using Line = std::array<Point, 2>;
+using PointPair = std::array<Point, 2>;
 template <typename T>
 using Side = std::array<T, 2>;
 
@@ -122,30 +128,21 @@ class Area
 {
  public:
   Area(const size_t& id) { _name = "steiner_" + std::to_string(id); };
-  Area(Node* node) : _name(node->get_name())
+  Area(const std::string& name, const Point& location, const double& cap_load, const double& sub_len = 0.0,
+       const RCPattern& pattern = RCPattern::kHV, const bool is_fixed_terminal = false)
+      : _name(name), _cap_load(cap_load), _sub_len(sub_len), _pattern(pattern), _location(location), _is_fixed_terminal(is_fixed_terminal)
   {
-    _pattern = node->get_pattern();
-    if (_pattern == RCPattern::kSingle) {
-      _pattern = static_cast<RCPattern>(1 + std::rand() % 2);
-    }
-    auto loc = node->get_location();
-    auto x = 1.0 * loc.x() / Timing::getDbUnit();
-    auto y = 1.0 * loc.y() / Timing::getDbUnit();
-    _location = Pt(x, y, node->get_max_delay(), node->get_min_delay(), node->get_cap_load());
-    _sub_len = 1.0 * node->get_sub_len() / Timing::getDbUnit();
-    _cap_load = node->get_cap_load();
-    if (node->isPin() && node->isLoad()) {
+    if (is_fixed_terminal) {
       _mr.push_back(_location);
       _convex_hull.push_back(_location);
     }
   }
 
-  Area(const std::string& name, const double& x, const double& y, const double& cap_load) : _name(name)
+  Area(const std::string& name, const double& x, const double& y, const double& cap_load, const double& min_delay = 0.0,
+       const double& max_delay = 0.0, const double& sub_len = 0.0, const RCPattern& pattern = RCPattern::kHV,
+       const bool is_fixed_terminal = false)
+      : Area(name, Point(x, y, max_delay, min_delay, cap_load), cap_load, sub_len, pattern, is_fixed_terminal)
   {
-    _location = Pt(x, y, 0, 0, cap_load);
-    _cap_load = cap_load;
-    _mr.push_back(_location);
-    _convex_hull.push_back(_location);
   }
   // get
   const std::string& get_name() const { return _name; }
@@ -155,7 +152,7 @@ class Area
   const double& get_radius() const { return _radius; }
   const RCPattern& get_pattern() const { return _pattern; }
 
-  const Pt& get_location() const { return _location; }
+  const Point& get_location() const { return _location; }
   Area* get_parent() const { return _parent; }
   Area* get_left() const { return _left; }
   Area* get_right() const { return _right; }
@@ -190,7 +187,7 @@ class Area
   void set_radius(const double& radius) { _radius = radius; }
   void set_pattern(const RCPattern& pattern) { _pattern = pattern; }
 
-  void set_location(const Pt& location) { _location = location; }
+  void set_location(const Point& location) { _location = location; }
   void set_parent(Area* parent) { _parent = parent; }
   void set_left(Area* left) { _left = left; }
   void set_right(Area* right) { _right = right; }
@@ -199,8 +196,11 @@ class Area
   void set_convex_hull(const Region& convex_hull) { _convex_hull = convex_hull; }
 
   // add
-  void add_mr_point(const Pt& point) { _mr.push_back(point); }
-  void add_convex_hull_point(const Pt& point) { _convex_hull.push_back(point); }
+  void add_mr_point(const Point& point) { _mr.push_back(point); }
+  void add_convex_hull_point(const Point& point) { _convex_hull.push_back(point); }
+
+  bool is_fixed_terminal() const { return _is_fixed_terminal; }
+  void set_is_fixed_terminal(bool is_fixed_terminal) { _is_fixed_terminal = is_fixed_terminal; }
 
  private:
   std::string _name;
@@ -210,13 +210,14 @@ class Area
   double _radius = 0;
   RCPattern _pattern = RCPattern::kHV;
 
-  Pt _location;
+  Point _location;
   Area* _parent = nullptr;
   Area* _left = nullptr;
   Area* _right = nullptr;
   Side<Line> _lines;
   Region _mr;
   Region _convex_hull;
+  bool _is_fixed_terminal = false;
 };
 
 struct Match
@@ -268,15 +269,15 @@ class Interval
   double _high = 0;
 };
 
-class Trr
+class TransformedRect
 {
  public:
-  Trr() = default;
-  Trr(const double& x_low, const double& x_high, const double& y_low, const double& y_high)
+  TransformedRect() = default;
+  TransformedRect(const double& x_low, const double& x_high, const double& y_low, const double& y_high)
       : _x_low(x_low), _x_high(x_high), _y_low(y_low), _y_high(y_high)
   {
   }
-  Trr(const Pt& point, const double& radius) { makeDiamond(point, radius); }
+  TransformedRect(const Point& point, const double& radius) { makeDiamond(point, radius); }
 
   void init()
   {
@@ -298,7 +299,7 @@ class Trr
     auto y_interval = Interval(_y_low, _y_high);
     return x_interval.is_empty() || y_interval.is_empty();
   }
-  void makeDiamond(const Pt& point, const double& radius)
+  void makeDiamond(const Point& point, const double& radius)
   {
     auto val = point.x - point.y;
     _x_low = val - radius;
@@ -307,7 +308,7 @@ class Trr
     _y_low = val - radius;
     _y_high = val + radius;
   }
-  void enclose(const Trr& other)
+  void enclose(const TransformedRect& other)
   {
     if (is_empty()) {
       _x_low = other._x_low;
@@ -333,13 +334,13 @@ class Trr
 
   double diameter() const { return std::max(width(0), width(1)); }
 
-  Trr intersect(const Trr& trr1, const Trr& trr2)
+  TransformedRect intersect(const TransformedRect& trr1, const TransformedRect& trr2)
   {
     auto x_low = std::max(trr1._x_low, trr2._x_low);
     auto x_high = std::min(trr1._x_high, trr2._x_high);
     auto y_low = std::max(trr1._y_low, trr2._y_low);
     auto y_high = std::min(trr1._y_high, trr2._y_high);
-    auto trr = Trr(x_low, x_high, y_low, y_high);
+    auto trr = TransformedRect(x_low, x_high, y_low, y_high);
     trr.check();
     return trr;
   }
@@ -348,8 +349,8 @@ class Trr
   void check()
   {
     correction();
-    LOG_FATAL_IF(is_empty()) << "TRR is empty, which x_low: " << _x_low << ", x_high: " << _x_high << ", y_low: " << _y_low
-                             << ", y_high: " << _y_high;
+    CTS_LOG_FATAL_IF(is_empty()) << "TRR is empty, which x_low: " << _x_low << ", x_high: " << _x_high << ", y_low: " << _y_low
+                                 << ", y_high: " << _y_high;
   }
 
   void correction()
@@ -370,5 +371,4 @@ class Trr
   double _y_low = 1;
   double _y_high = 0;
 };
-}  // namespace bst
-}  // namespace icts
+}  // namespace icts::bst

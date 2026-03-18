@@ -26,10 +26,13 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <vector>
 
-#include "database/spatial/Point.hh"
+#include "Point.hh"
+#include "Rect.hh"
+#include "Region.hh"
 
 namespace icts::geometry {
 
@@ -37,13 +40,25 @@ namespace icts::geometry {
  * @brief Manhattan (L1) distance between two points.
  *
  * Accepts any coordinate type T (int, double, etc.).
- * Always returns double — distance is inherently real-valued.
+ * Returns the same coordinate type T to preserve the caller's distance semantics.
  */
 template <typename T>
-inline double Manhattan(const Point<T>& a, const Point<T>& b)
+inline T Manhattan(const Point<T>& a, const Point<T>& b)
 {
-  return std::fabs(static_cast<double>(a.get_x()) - static_cast<double>(b.get_x()))
-         + std::fabs(static_cast<double>(a.get_y()) - static_cast<double>(b.get_y()));
+  using std::abs;
+  return abs(a.get_x() - b.get_x()) + abs(a.get_y() - b.get_y());
+}
+
+template <typename T>
+inline T Manhattan(const Point<T>& point, const Rect<T>& rect)
+{
+  return Manhattan(point, rect.clamp(point));
+}
+
+template <typename T>
+inline std::optional<Point<T>> ProjectNearest(const Region<T>& region, const Point<T>& point)
+{
+  return region.project_nearest(point);
 }
 
 /**
@@ -136,15 +151,12 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
     return Point<int>(clampi(center.get_x(), min_x, max_x), clampi(center.get_y(), min_y, max_y));
   }
 
-  auto inside = [&](double x, double y) {
-    return x >= static_cast<double>(min_x) && x <= static_cast<double>(max_x) && y >= static_cast<double>(min_y)
-           && y <= static_cast<double>(max_y);
-  };
+  auto inside = [&](double x, double y) { return x >= min_x && x <= max_x && y >= min_y && y <= max_y; };
 
-  const double cx = static_cast<double>(center.get_x());
-  const double cy = static_cast<double>(center.get_y());
-  const double tx = static_cast<double>(point.get_x());
-  const double ty = static_cast<double>(point.get_y());
+  const double cx = center.get_x();
+  const double cy = center.get_y();
+  const double tx = point.get_x();
+  const double ty = point.get_y();
 
   auto to_int_best = [&](double x, double y) {
     const int fx = static_cast<int>(std::floor(x));
@@ -168,11 +180,11 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
       if (ix < min_x || ix > max_x || iy < min_y || iy > max_y)
         continue;
 
-      const double l1 = std::fabs(static_cast<double>(ix) - cx) + std::fabs(static_cast<double>(iy) - cy);
+      const double l1 = std::fabs(ix - cx) + std::fabs(iy - cy);
       const double l1err = std::fabs(l1 - r);
 
-      const double dx = static_cast<double>(ix) - x;
-      const double dy = static_cast<double>(iy) - y;
+      const double dx = ix - x;
+      const double dy = iy - y;
       const double d2 = dx * dx + dy * dy;
 
       if (!has || l1err < best_l1err || (l1err == best_l1err && d2 < best_d2)) {
@@ -221,21 +233,21 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
         return tL <= tR;
       };
 
-      if (!intersect_t(static_cast<double>(su), cx, min_x, max_x))
+      if (!intersect_t(su, cx, min_x, max_x))
         continue;
-      if (!intersect_t(static_cast<double>(-sv), cy + static_cast<double>(sv) * r, min_y, max_y))
+      if (!intersect_t(-sv, cy + sv * r, min_y, max_y))
         continue;
 
       const double ax = cx;
-      const double ay = cy + static_cast<double>(sv) * r;
-      const double dx = static_cast<double>(su);
-      const double dy = static_cast<double>(-sv);
+      const double ay = cy + sv * r;
+      const double dx = su;
+      const double dy = -sv;
       const double num = (tx - ax) * dx + (ty - ay) * dy;
       const double den = dx * dx + dy * dy;
       double t = num / den;
       t = clampd(t, tL, tR);
 
-      relax(cx + static_cast<double>(su) * t, cy + static_cast<double>(sv) * (r - t));
+      relax(cx + su * t, cy + sv * (r - t));
     }
 
   if (found) {

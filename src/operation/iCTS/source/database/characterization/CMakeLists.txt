@@ -5,7 +5,7 @@ target_link_libraries(
   INTERFACE
 )
 
-target_include_directories(icts_source_database_characterization INTERFACE ${ICTS_DATABASE_CHARACTERIZATION})
+target_include_directories(icts_source_database_characterization INTERFACE ${ICTS_DATABASE_CHARACTERIZATION} ${ICTS_DATABASE})
 
 if(DEBUG_ICTS_SOURCE_DATABASE_CHARACTERIZATION)
   if(MSVC)

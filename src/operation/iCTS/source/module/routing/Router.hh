@@ -25,39 +25,57 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "legacy_module/CtsPoint.hh"
+#include "RCTree.hh"
+#include "RoutingTypes.hh"
+#include "bound_skew_tree/BSTRouter.hh"
+#include "concurrent_bst_salt/CBSRouter.hh"
+#include "flute/FLUTERouter.hh"
+#include "local_legalization/LocalLegalization.hh"
+#include "salt/SALTRouter.hh"
 
 namespace icts {
 
-class Inst;
 class Pin;
-
-enum class SteinerRouterType
-{
-  kFlute,
-  kSalt,
-};
-
-enum class ClockTreeRouterType
-{
-  kBst,
-  kBstSalt,
-  kCbs,
-  kDefault,
-};
 
 class Router
 {
  public:
+  using Terminal = RoutingTerminal;
+  using SteinerTreeType = SteinerTree<int>;
+  using ClockSteinerTreeType = ClockSteinerTree<int>;
+  using RCTreeType = RCTree;
+  using LegalizationRegion = LocalLegalization::RegionType;
+  using LegalizationOptions = LocalLegalization::Options;
+  using LegalizationResult = LocalLegalization::Result;
+
+  struct RCTreeBuildOptions
+  {
+    std::unordered_map<std::string, double> lumped_cap_map;
+    std::optional<int> routing_layer = std::nullopt;
+    std::optional<double> wire_width = std::nullopt;
+  };
+
   Router() = delete;
   ~Router() = default;
 
-  static void routeSteiner(SteinerRouterType router_type, const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
+  static SteinerTreeType buildFluteTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
+  static SteinerTreeType buildSaltTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
+  static ClockSteinerTreeType buildBstTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
+  static ClockSteinerTreeType buildCbsTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
 
-  static Inst* routeClockTree(ClockTreeRouterType router_type, const std::string& net_name, const std::vector<Pin*>& load_pins,
-                              const std::optional<double>& skew_bound = std::nullopt, const std::optional<Point>& guide_loc = std::nullopt);
+  static LegalizationResult legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins,
+                                         const LegalizationRegion& feasible_region, const LegalizationRegion& block_region);
+  static LegalizationResult legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins,
+                                         const LegalizationRegion& feasible_region, const LegalizationRegion& block_region,
+                                         const LegalizationOptions& options);
+
+  static RCTreeType buildRCTree(const SteinerTreeType& steiner_tree);
+  static RCTreeType buildRCTree(const SteinerTreeType& steiner_tree, const RCTreeBuildOptions& options);
+  static RCTreeType buildRCTree(const ClockSteinerTreeType& clock_tree);
+  static RCTreeType buildRCTree(const ClockSteinerTreeType& clock_tree, const RCTreeBuildOptions& options);
 };
 
 }  // namespace icts

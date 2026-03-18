@@ -7,7 +7,7 @@ target_link_libraries(
   icts_source_database_config
 )
 
-target_include_directories(icts_source_database_design INTERFACE ${ICTS_DATABASE_DESIGN})
+target_include_directories(icts_source_database_design INTERFACE ${ICTS_DATABASE_DESIGN} ${ICTS_DATABASE})
 
 if(DEBUG_ICTS_SOURCE_DATABASE_DESIGN)
   if(MSVC)

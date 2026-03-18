@@ -13,7 +13,13 @@ target_link_libraries(
   lemon
 )
 
-target_include_directories(icts_source_module_topology PUBLIC ${ICTS_SOURCE})
+target_include_directories(
+  icts_source_module_topology
+  PUBLIC
+  ${ICTS_MODULE_TOPOLOGY}
+  PRIVATE
+  ${ICTS_UTILS}
+)
 
 if(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY)
   if(MSVC)

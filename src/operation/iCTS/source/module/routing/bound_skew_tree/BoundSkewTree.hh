@@ -23,31 +23,19 @@
 #pragma once
 #include <array>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "BalanceClustering.hh"
+#include "BSTTypes.hh"
 #include "Components.hh"
 #include "GeomCalc.hh"
-#include "Inst.hh"
-#include "Net.hh"
-#include "Pin.hh"
 
-namespace icts {
-enum class TopoType
-{
-  kGreedyDist,
-  kGreedyMerge,
-  kBiPartition,
-  kBiCluster,
-  kInputTopo,
-};
-namespace bst {
+namespace icts::bst {
 /**
  * @brief Tool namespace
  *
  */
 using Geom = GeomCalc;
-using Cluster = BalanceClustering;
 /**
  * @brief bound skew tree
  *
@@ -55,24 +43,14 @@ using Cluster = BalanceClustering;
 class BoundSkewTree
 {
  public:
-  BoundSkewTree(const std::string& net_name, const std::vector<Pin*>& pins, const std::optional<double>& skew_bound = std::nullopt,
-                const TopoType& topo_type = TopoType::kGreedyDist, const bool& estimation = true);
-  BoundSkewTree(const std::string& net_name, Pin* driver_pin, const std::optional<double>& skew_bound = std::nullopt,
-                const bool& estimation = true);
+  BoundSkewTree(std::vector<Area*> load_areas, const BSTParameters& parameters, const TopoType& topo_type);
+  BoundSkewTree(Area* root, const BSTParameters& parameters);
   ~BoundSkewTree() = default;
 
-  Inst* get_root_buf() const { return _root_buf; }
-
   void run();
-  // wrapper interface if not input topology
-  void convert();
+  Area* get_root() const { return _root; }
 
-  void set_root_guide(const Point& root_guide)
-  {
-    auto x = root_guide.x();
-    auto y = root_guide.y();
-    _root_guide = Pt(1.0 * x / Timing::getDbUnit(), 1.0 * y / Timing::getDbUnit(), 0, 0, 0);
-  }
+  void set_root_guide(const double& x, const double& y) { _root_guide = Point(x, y, 0, 0, 0); }
 
   void set_pattern(const RCPattern& pattern) { _pattern = pattern; }
 
@@ -95,8 +73,8 @@ class BoundSkewTree
   void biPartition();
   Area* biPartition(std::vector<Area*>& areas);
   std::pair<std::vector<Area*>, std::vector<Area*>> octagonDivide(std::vector<Area*>& areas) const;
-  std::vector<Pt> calcOctagon(const std::vector<Area*>& areas) const;
-  std::vector<Area*> areaOnOctagonBound(const std::vector<Area*> areas, const std::vector<Pt>& octagon) const;
+  std::vector<Point> calcOctagon(const std::vector<Area*>& areas) const;
+  std::vector<Area*> areaOnOctagonBound(const std::vector<Area*> areas, const std::vector<Point>& octagon) const;
   void biCluster();
   Area* biCluster(const std::vector<Area*>& areas);
   std::vector<std::vector<Area*>> kMeansPlus(const std::vector<Area*>& areas, const size_t& k, const int& seed = 0,
@@ -123,7 +101,7 @@ class BoundSkewTree
   void initSide();
   void calcJS(Area* cur, Line& left, Line& right);
   void calcJsDelay(Area* left, Area* right);
-  void updateJS(Area* cur, Line& left, Line& right, PtPair closest);
+  void updateJS(Area* cur, Line& left, Line& right, PointPair closest);
   void addJsPts(Area* parent, Area* left, Area* right);
   double delayFromJs(const size_t& js_side, const size_t& side, const size_t& idx, const size_t& timing_type,
                      const Side<double>& delay_from) const;
@@ -140,14 +118,15 @@ class BoundSkewTree
 
   // Balance Point
   void calcBalancePt(Area* cur);
-  void calcBalBetweenPts(Pt& p1, Pt& p2, const size_t& timing_type, const size_t& bal_ref_side, double& d1, double& d2, Pt& bal_pt,
+  void calcBalBetweenPts(Point& p1, Point& p2, const size_t& timing_type, const size_t& bal_ref_side, double& d1, double& d2, Point& bal_pt,
                          const RCPattern& pattern) const;
-  void calcBalPtOnLine(Pt& p1, Pt& p2, const size_t& timing_type, double& d1, double& d2, Pt& bal_pt, const RCPattern& pattern) const;
-  void calcBalPtNotOnLine(Pt& p1, Pt& p2, const size_t& timing_type, const size_t& bal_ref_side, double& d1, double& d2, Pt& bal_pt,
-                          const RCPattern& pattern) const;
+  void calcBalPtOnLine(Point& p1, Point& p2, const size_t& timing_type, double& d1, double& d2, Point& bal_pt,
+                       const RCPattern& pattern) const;
+  void calcBalPtNotOnLine(Point& p1, Point& p2, const size_t& timing_type, const size_t& bal_ref_side, double& d1, double& d2,
+                          Point& bal_pt, const RCPattern& pattern) const;
   void calcMergeDist(const double& r, const double& c, const double& cap1, const double& delay1, const double& cap2, const double& delay2,
                      const double& dist, double& d1, double& d2) const;
-  void calcPtCoordOnLine(const Pt& p1, const Pt& p2, const double& d1, const double& d2, Pt& pt) const;
+  void calcPtCoordOnLine(const Point& p1, const Point& p2, const double& d1, const double& d2, Point& pt) const;
   double calcXBalPosition(const double& delay1, const double& delay2, const double& cap1, const double& cap2, const double& h,
                           const double& v, const size_t& bal_ref_side) const;
   double calcYBalPosition(const double& delay1, const double& delay2, const double& cap1, const double& cap2, const double& h,
@@ -155,8 +134,8 @@ class BoundSkewTree
 
   // Feasible Merging Section
   void calcFmsPt(Area* cur);
-  bool calcFmsOnLine(Area* cur, Pt& pt, const Pt& q, const size_t& end_side);
-  void calcFmsBetweenPts(const Pt& high_skew_pt, const Pt& low_skew_pt, Pt& fms_pt) const;
+  bool calcFmsOnLine(Area* cur, Point& pt, const Point& q, const size_t& end_side);
+  void calcFmsBetweenPts(const Point& high_skew_pt, const Point& low_skew_pt, Point& fms_pt) const;
   bool existFmsOnJr() const;
 
   // Merging Region
@@ -172,54 +151,42 @@ class BoundSkewTree
   void calcDetourEdgeLen(Area* cur) const;
   void refineMrDelay(Area* cur) const;
 
-  void constructTrrMr(Area* cur) const;
+  void constructTransformedRectMr(Area* cur) const;
 
   // Embedding
   void embedding(Area* parent, Area* child, const size_t& side) const;
-  bool isTrrArea(Area* cur) const;
+  bool isTransformedRectArea(Area* cur) const;
   bool isManhattanArea(Area* cur) const;
-  void mrToTrr(const Region& mr, Trr& trr) const;
-
-  // convert
-  void inputTopologyConvert();
-  void noneInputTopologyConvert();
+  void mrToTransformedRect(const Region& mr, TransformedRect& trr) const;
 
   // basic function
   LineType calcAreaLineType(Area* cur) const;
   void calcConvexHull(Area* cur) const;
   double calcJrArea(const Line& l1, const Line& l2) const;
 
-  void calcBsLocated(Area* cur, Pt& pt, Line& line) const;
-  void calcPtDelays(Area* cur, Pt& pt, Line& line) const;
-  void updatePtDelaysByEndSide(Area* cur, const size_t& end_side, Pt& pt) const;
-  void calcIrregularPtDelays(Area* cur, Pt& pt, Line& line) const;
-  double ptDelayIncrease(Pt& p1, Pt& p2, const double& cap, const RCPattern& pattern) const;
-  double ptDelayIncrease(Pt& p1, Pt& p2, const double& len, const double& cap, const RCPattern& pattern) const;
+  void calcBsLocated(Area* cur, Point& pt, Line& line) const;
+  void calcPtDelays(Area* cur, Point& pt, Line& line) const;
+  void updatePtDelaysByEndSide(Area* cur, const size_t& end_side, Point& pt) const;
+  void calcIrregularPtDelays(Area* cur, Point& pt, Line& line) const;
+  double ptDelayIncrease(Point& p1, Point& p2, const double& cap, const RCPattern& pattern) const;
+  double ptDelayIncrease(Point& p1, Point& p2, const double& len, const double& cap, const RCPattern& pattern) const;
   double calcDelayIncrease(const double& x, const double& y, const double& cap, const RCPattern& pattern) const;
-  double ptSkew(const Pt& pt) const;
+  double ptSkew(const Point& pt) const;
   Line getJrLine(const size_t& side) const;
   Line getJsLine(const size_t& side) const;
   void setJrLine(const size_t& side, const Line& line);
   void setJsLine(const size_t& side, const Line& line);
-  void checkPtDelay(Pt& pt) const;
+  void checkPtDelay(Point& pt) const;
   void checkJsMs() const;
   void checkUpdateJs(const Area* cur, Line& left, Line& right) const;
-  void printPoint(const Pt& pt) const;
-  void printArea(const Area* area) const;
-  void writePy(const std::vector<Pt>& pts, const std::string& file = "debug") const;
-  void writePy(Area* area, const std::string& file = "debug") const;
   /**
    * @brief data
    *
    */
   size_t _id = 0;
-  std::string _net_name = "";
 
-  Inst* _root_buf = nullptr;
-  std::vector<Pin*> _load_pins;
   std::vector<Area*> _unmerged_nodes;
-  std::unordered_map<std::string, Node*> _node_map;
-  std::optional<Pt> _root_guide;
+  std::optional<Point> _root_guide;
   TopoType _topo_type = TopoType::kInputTopo;
 
   Area* _root = nullptr;
@@ -227,31 +194,18 @@ class BoundSkewTree
   double _skew_bound = 0;
   RCPattern _pattern = RCPattern::kHV;
 
-  const int _db_unit = Timing::getDbUnit();
-  const double _unit_h_cap = Timing::getUnitCap(LayerPattern::kH);
-  const double _unit_h_res = Timing::getUnitRes(LayerPattern::kH);
-  const double _unit_v_cap = Timing::getUnitCap(LayerPattern::kV);
-  const double _unit_v_res = Timing::getUnitRes(LayerPattern::kV);
-  const Side<double> _K = {0.5 * _unit_h_res * _unit_h_cap, 0.5 * _unit_v_res* _unit_v_cap};
+  double _unit_h_cap = 0.0;
+  double _unit_h_res = 0.0;
+  double _unit_v_cap = 0.0;
+  double _unit_v_res = 0.0;
+  Side<double> _K = {0.0, 0.0};
 
-  Side<Pts> _join_region;
-  Side<Pts> _join_segment;
-  Side<Trr> _ms;
-  Side<Pts> _bal_points;  // balance points which skew equal to 0
-  Side<Pt> _join_corner;
-  Side<Pts> _fms_points;  // feasible merging section
-};
-}  // namespace bst
-
-class BSTRouter
-{
- public:
-  BSTRouter() = delete;
-  ~BSTRouter() = default;
-
-  static Inst* route(const std::string& net_name, const std::vector<Pin*>& load_pins,
-                     const std::optional<double>& skew_bound = std::nullopt, const std::optional<Point>& guide_loc = std::nullopt,
-                     const TopoType& topo_type = TopoType::kGreedyDist);
+  Side<Points> _join_region;
+  Side<Points> _join_segment;
+  Side<TransformedRect> _ms;
+  Side<Points> _bal_points;  // balance points which skew equal to 0
+  Side<Point> _join_corner;
+  Side<Points> _fms_points;  // feasible merging section
 };
 
-}  // namespace icts
+}  // namespace icts::bst

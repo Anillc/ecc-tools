@@ -15,22 +15,32 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Log.hh
+ * @file SALTRouter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief Routing compatibility logging macros backed by iCTS logger
+ * @date 2026-03-15
+ * @brief SALT router adapter for stage-2 routing refactor.
  */
 
 #pragma once
 
-#include "utils/logger/Logger.hh"
+#include <string>
+#include <vector>
 
-#define LOG_INFO CTS_LOG_INFO
-#define LOG_WARNING CTS_LOG_WARNING
-#define LOG_ERROR CTS_LOG_ERROR
-#define LOG_FATAL CTS_LOG_FATAL
+#include "RoutingTypes.hh"
+#include "SteinerTree.hh"
 
-#define LOG_INFO_IF CTS_LOG_INFO_IF
-#define LOG_WARNING_IF CTS_LOG_WARNING_IF
-#define LOG_ERROR_IF CTS_LOG_ERROR_IF
-#define LOG_FATAL_IF CTS_LOG_FATAL_IF
+namespace icts {
+
+class SALTRouter
+{
+ public:
+  using Terminal = RoutingTerminal;
+  using SteinerTreeType = SteinerTree<int>;
+
+  SALTRouter() = delete;
+  ~SALTRouter() = default;
+
+  static SteinerTreeType buildTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
+};
+
+}  // namespace icts

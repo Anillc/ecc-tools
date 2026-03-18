@@ -199,10 +199,10 @@ void CtsIO::wrapTree(std::vector<std::unique_ptr<ista::StaClockTree>>& sta_tree_
     /// save child
     for (auto& sta_child_node : sta_tree->get_child_nodes()) {
       /// get delay
-      double parent_input_max_rise_AT = 0;
-      auto parent_input_max_rise_ATs = sta_child_node->getInputPinMaxRiseAT();
-      if (parent_input_max_rise_ATs.size() > 0) {
-        parent_input_max_rise_AT = (*parent_input_max_rise_ATs.begin()).second;
+      double parent_input_max_rise_at = 0;
+      auto parent_input_max_rise_ats = sta_child_node->getInputPinMaxRiseAT();
+      if (parent_input_max_rise_ats.size() > 0) {
+        parent_input_max_rise_at = (*parent_input_max_rise_ats.begin()).second;
       }
 
       CtsFileTreeNode file_node;
@@ -210,7 +210,7 @@ void CtsIO::wrapTree(std::vector<std::unique_ptr<ista::StaClockTree>>& sta_tree_
 
       CtsTreeNode* node = new CtsTreeNode(file_node);
       node->set_node_name(sta_child_node->get_inst_name_str());
-      node->set_delay(parent_input_max_rise_AT);
+      node->set_delay(parent_input_max_rise_at);
 
       node_map->addNode(node);
     }

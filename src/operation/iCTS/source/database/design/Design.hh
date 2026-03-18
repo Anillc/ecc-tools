@@ -28,7 +28,7 @@
 
 namespace icts {
 
-#define CTSDesignInst (icts::Design::getInst())
+#define DesignInst (icts::Design::getInst())
 
 class Design
 {

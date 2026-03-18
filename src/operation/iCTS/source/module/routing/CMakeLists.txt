@@ -1,27 +1,24 @@
+add_subdirectory(${ICTS_MODULE_ROUTING}/flute)
+add_subdirectory(${ICTS_MODULE_ROUTING}/salt)
+add_subdirectory(${ICTS_MODULE_ROUTING}/bound_skew_tree)
+add_subdirectory(${ICTS_MODULE_ROUTING}/concurrent_bst_salt)
+
 add_library(
   icts_source_module_routing
   ${ICTS_MODULE_ROUTING}/Router.cc
-  ${ICTS_MODULE_ROUTING}/flute/FLUTE.cc
-  ${ICTS_MODULE_ROUTING}/salt/SALT.cc
-  ${ICTS_MODULE_ROUTING}/legacy_module/Inst.cc
-  ${ICTS_MODULE_ROUTING}/legacy_module/Pin.cc
-  ${ICTS_MODULE_ROUTING}/legacy_module/Net.cc
-  ${ICTS_MODULE_ROUTING}/legacy_module/TreeBuilder.cc
-  ${ICTS_MODULE_ROUTING}/timing/TimingPropagator.cc
   ${ICTS_MODULE_ROUTING}/local_legalization/LocalLegalization.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/GeomCalc.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTree.cc
-  ${ICTS_MODULE_ROUTING}/concurrent_bst_salt/CBS.cc
 )
 
 target_link_libraries(
   icts_source_module_routing
   PUBLIC
   icts_source_database
+  icts_source_module_routing_flute
+  icts_source_module_routing_bst
+  icts_source_module_routing_cbs
+  icts_source_module_routing_salt
   icts_source_utils
-  PRIVATE
-  salt
-  flute
+  lemon
 )
 
 target_include_directories(
@@ -29,15 +26,8 @@ target_include_directories(
   PUBLIC
   ${ICTS_MODULE_ROUTING}
   PRIVATE
-  ${ICTS_SOURCE}
-  ${ICTS_API}
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree
-  ${ICTS_MODULE_ROUTING}/concurrent_bst_salt
-  ${ICTS_MODULE_ROUTING}/flute
-  ${ICTS_MODULE_ROUTING}/salt
-  ${ICTS_MODULE_ROUTING}/local_legalization
-  ${ICTS_MODULE_ROUTING}/timing
-  ${ICTS_MODULE_ROUTING}/legacy_module
+  ${ICTS_DATABASE}
+  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_MODULE_ROUTING)

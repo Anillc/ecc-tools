@@ -44,9 +44,9 @@ struct GeneratedPins
   int height = 0;
 };
 
-GeneratedPins make_normal(std::size_t count, int width, int height, unsigned seed);
-GeneratedPins make_gaussian_mixture(std::size_t count, int width, int height, unsigned seed);
-GeneratedPins make_weighted_quadrants(std::size_t count, int width, int height, unsigned seed, const std::array<double, 4>& weights);
+GeneratedPins MakeNormal(std::size_t count, int width, int height, unsigned seed);
+GeneratedPins MakeGaussianMixture(std::size_t count, int width, int height, unsigned seed);
+GeneratedPins MakeWeightedQuadrants(std::size_t count, int width, int height, unsigned seed, const std::array<double, 4>& weights);
 
 struct TopologyStats
 {
@@ -58,20 +58,20 @@ struct TopologyStats
   double avg_leaf_load = 0.0;
 };
 
-bool analyze_topology(const icts::Tree& tree, const std::vector<icts::Pin*>& loads, TopologyStats& stats,
-                      std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
-                      std::string& error);
+bool AnalyzeTopology(const icts::Tree& tree, const std::vector<icts::Pin*>& loads, TopologyStats& stats,
+                     std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
+                     std::string& error);
 
 // Analyze only first-level clusters (biPartition result)
 // This produces cleaner visualization with only 2 clusters
-bool analyze_first_level_clusters(const icts::Tree& tree, const std::vector<icts::Pin*>& loads,
-                                  std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
-                                  std::string& error);
+bool AnalyzeFirstLevelClusters(const icts::Tree& tree, const std::vector<icts::Pin*>& loads,
+                               std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
+                               std::string& error);
 
-bool write_cluster_svg(const std::string& path, const std::vector<icts::Pin*>& loads,
-                       const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers);
-bool write_topology_svg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads);
+bool WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loads,
+                     const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers);
+bool WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads);
 
-std::filesystem::path resolve_output_dir();
+std::filesystem::path ResolveOutputDir();
 
 }  // namespace icts_test

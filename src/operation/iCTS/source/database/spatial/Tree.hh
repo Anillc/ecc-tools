@@ -28,8 +28,8 @@
 #include <queue>
 #include <vector>
 
-#include "database/design/Pin.hh"
-#include "database/spatial/Point.hh"
+#include "Pin.hh"
+#include "Point.hh"
 
 namespace icts {
 

@@ -13,9 +13,10 @@ target_link_libraries(
 target_include_directories(
   icts_source_module_characterization
   PUBLIC
-  ${ICTS_SOURCE}
+  ${ICTS_MODULE_CHARACTERIZATION}
   PRIVATE
-  ${ICTS_API}
+  ${ICTS_DATABASE}
+  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_MODULE_CHARACTERIZATION)

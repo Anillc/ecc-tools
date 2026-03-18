@@ -15,10 +15,10 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.hh
+ * @file FLUTERouter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade
+ * @date 2026-03-15
+ * @brief FLUTE router adapter for stage-2 routing refactor.
  */
 
 #pragma once
@@ -26,17 +26,21 @@
 #include <string>
 #include <vector>
 
-namespace icts {
+#include "RoutingTypes.hh"
+#include "SteinerTree.hh"
 
-class Pin;
+namespace icts {
 
 class FLUTERouter
 {
  public:
+  using Terminal = RoutingTerminal;
+  using SteinerTreeType = SteinerTree<int>;
+
   FLUTERouter() = delete;
   ~FLUTERouter() = default;
 
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
+  static SteinerTreeType buildTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
 };
 
 }  // namespace icts

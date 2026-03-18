@@ -27,8 +27,8 @@
 #include <string>
 #include <vector>
 
-#include "database/characterization/BufferingPattern.hh"
-#include "database/characterization/SegmentChar.hh"
+#include "BufferingPattern.hh"
+#include "SegmentChar.hh"
 
 namespace icts {
 
@@ -93,13 +93,13 @@ class CharBuilder
   std::vector<BufferInfo> _sorted_buffers;
 
   // Characterization parameters (from Config)
-  std::vector<double> _wire_lengths_um;  // wire lengths to enumerate (um)
-  std::vector<double> _slews_to_test;    // input slew values (ns)
-  std::vector<double> _loads_to_test;    // output load values (pF)
-  unsigned _max_nodes = 4;               // max nodes per wire segment
-  int _routing_layer = 1;                         // routing layer for wire R/C
+  std::vector<double> _wire_lengths_um;              // wire lengths to enumerate (um)
+  std::vector<double> _slews_to_test;                // input slew values (ns)
+  std::vector<double> _loads_to_test;                // output load values (pF)
+  unsigned _max_nodes = 4;                           // max nodes per wire segment
+  int _routing_layer = 1;                            // routing layer for wire R/C
   std::optional<double> _wire_width = std::nullopt;  // absent = default width
-  double _redundancy_pct = 0.0;                   // buffer near-neighbor removal threshold
+  double _redundancy_pct = 0.0;                      // buffer near-neighbor removal threshold
 
   // Max values and steps for discretization (from Config)
   double _max_slew = 0.0;       // max slew (ns)

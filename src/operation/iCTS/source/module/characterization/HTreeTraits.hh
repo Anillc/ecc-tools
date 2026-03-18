@@ -23,8 +23,8 @@
 
 #pragma once
 
+#include "HTreeTopologyChar.hh"
 #include "HashJoinEngine.hh"
-#include "database/characterization/HTreeTopologyChar.hh"
 
 namespace icts {
 

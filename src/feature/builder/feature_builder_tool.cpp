@@ -71,7 +71,6 @@ NetOptSummary FeatureBuilder::buildNetOptSummary()
 TimingOptSummary FeatureBuilder::buildTimingOptSummary()
 {
   TimingOptSummary summary = ToApiInst.outputSummary();
-  
 
   return summary;
 }

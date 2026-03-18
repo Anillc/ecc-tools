@@ -22,15 +22,19 @@ src/operation/iCTS/
 │   └── CTSAPI.hh
 ├── source/                     # TIER 2: Implementation (all internal logic)
 │   ├── CMakeLists.txt          # Aggregates sub-categories
-│   ├── database/               # Data model layer
+│   ├── database/               # Data/model + adapter layer
+│   │   ├── adapter/            # External subsystem adapters colocated with DB-facing integration
+│   │   │   └── sta/            # iSTA adapter for iCTS internal use
 │   │   ├── config/             # Configuration (Config singleton)
 │   │   ├── design/             # Core objects: Clock, Inst, Net, Pin, Design
 │   │   ├── io/                 # iDB adapter (Wrapper singleton)
-│   │   ├── spatial/            # Geometric types: Point, Tree
+│   │   ├── spatial/            # Geometric types: Point, Rect, Region, Tree
+│   │   ├── routing/            # Routing DB types: terminals, Steiner tree
+│   │   ├── timing/             # Timing DB types: RCTree
 │   │   └── characterization/   # Electrical characterization data
 │   ├── utils/                  # Utility layer
 │   │   ├── logger/             # Logger singleton + CTS_LOG_* macros
-│   │   └── geometry/           # Geometry helpers
+│   │   └── geometry/           # Shared geometry helpers
 │   ├── module/                 # Algorithm modules
 │   │   ├── topology/           # [ENABLED] Tree topology generation
 │   │   │   ├── clustering/     # Bi-partition clustering
@@ -45,11 +49,13 @@ src/operation/iCTS/
 │   │   │   ├── Pruner.hh            # Pattern pruning
 │   │   │   ├── SegmentTraits.hh     # Segment-specific traits
 │   │   │   └── HTreeTraits.hh      # H-tree-specific traits
-│   │   ├── routing/            # [DISABLED] Clock tree routing
+│   │   ├── routing/            # [ENABLED] Clock tree routing facade + legalization
+│   │   │   ├── local_legalization/ # Standalone point-based legalization
 │   │   │   ├── flute/          # FLUTE routing
 │   │   │   ├── salt/           # SALT routing
 │   │   │   ├── bound_skew_tree/ # Bound Skew Tree
 │   │   │   └── concurrent_bst_salt/ # Concurrent BST + SALT
+│   │   ├── timing/             # [ENABLED] RCTree timing propagation
 │   │   ├── buffering/          # [DISABLED] Buffer insertion
 │   │   ├── drv/                # [DISABLED] Design rule violation fixing
 │   │   ├── optimization/       # [DISABLED] Post-CTS optimization
@@ -93,7 +99,7 @@ src/operation/iCTS/
 
 | Tier | Directory | CMake Target | Role |
 |------|-----------|--------------|------|
-| **API** | `api/` | `icts_api` | Public interface, the only entry point for external callers |
+| **API** | `api/` | `icts_api` | Public interface for external callers; accessed via `CTSAPIInst` |
 | **Source** | `source/` | `icts_source` | All internal implementation, composed of sub-targets |
 | **Test** | `test/` | `icts_test` (executable) | Links `icts_source` + `icts_api` |
 
@@ -105,10 +111,10 @@ src/operation/iCTS/
 
 | Category | Directory | CMake Target | Purpose |
 |----------|-----------|--------------|---------|
-| database | `source/database/` | `icts_source_database` | Data model, config, IO adapter |
+| database | `source/database/` | `icts_source_database` | Data model, DB-facing adapters, config, IO, routing/timing/spatial data |
 | utils | `source/utils/` | `icts_source_utils` | Logging, geometry helpers |
 | module | `source/module/` | `icts_source_module` | CTS algorithm implementations |
-| flow | `source/flow/` | `icts_source_flow` | Flow orchestration (currently not linked) |
+| flow | `source/flow/` | `icts_source_flow` | Flow orchestration (present but currently not linked) |
 
 ### Module Enable/Disable Status
 
@@ -118,7 +124,8 @@ Modules are enabled/disabled by including/excluding `add_subdirectory()` in `sou
 |--------|--------|---------|
 | `topology` | **Enabled** | Tree topology generation (clustering, kmeans, mcf) |
 | `characterization` | **Enabled** | STA-based characterization (CharBuilder, hash-join engine) |
-| `routing` | Disabled | Clock tree routing (FLUTE, SALT, BST, CBS) |
+| `routing` | **Enabled** | Clock tree routing (FLUTE, SALT, BST, CBS) |
+| `timing` | **Enabled** | RCTree timing propagation |
 | `buffering` | Disabled | Buffer insertion |
 | `drv` | Disabled | Design rule violation fixing |
 | `optimization` | Disabled | Post-CTS optimization |
@@ -135,6 +142,7 @@ icts_{tier}_{category}_{module}
 
 Examples:
 - `icts_api`
+- `icts_source_database_adapter_sta`
 - `icts_source_database_config`
 - `icts_source_module_topology`
 - `icts_source_utils_logger`
@@ -187,6 +195,7 @@ target_link_libraries(icts_source_database_newdata INTERFACE <dependencies>)
 ## Examples of Well-Organized Modules
 
 - **`source/database/design/`** — Clean header-only data model (Clock, Inst, Net, Pin)
+- **`source/database/adapter/sta/`** — Dedicated iSTA adapter used by routing / timing / characterization internals
 - **`source/utils/logger/`** — Logger singleton with macros
 - **`source/module/topology/`** — Algorithm module with sub-modules (clustering, kmeans, mcf)
 - **`source/database/characterization/`** — Characterization types (CharCore, SegmentChar, BufferingPattern, etc.)

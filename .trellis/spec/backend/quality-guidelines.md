@@ -34,7 +34,7 @@ For full clang-format/clang-tidy details, see [Project Constraints](../project-c
 | Global/Free function | CamelCase | — | — | `Manhattan()`, `CalcCenter()` |
 | Global constant | CamelCase | `k` | — | `kFileName` |
 | Global variable | CamelCase | `g` | — | `gFileName` |
-| Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst` |
+| Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst`, `ConfigInst`, `STAAdapterInst` |
 | Namespace | lower_case | — | — | `icts`, `idb`, `ieda` |
 
 ### Getter/Setter clang-tidy Exception
@@ -132,7 +132,7 @@ namespace icts {
 | Doxygen file comment | Every new file | `@file`, `@author`, `@date`, `@brief` |
 | Namespace closing comment | All namespace blocks | `}  // namespace icts` |
 | Scoped enums | All enums | `enum class InstType { ... }` |
-| Singleton macro | Singleton classes | `#define CTSConfigInst (icts::Config::getInst())` |
+| Singleton macro | Singleton classes | `#define ConfigInst (icts::Config::getInst())` |
 
 ---
 

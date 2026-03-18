@@ -1,6 +1,6 @@
 add_library(icts_source_database_spatial INTERFACE)
 
-target_include_directories(icts_source_database_spatial INTERFACE ${ICTS_DATABASE_SPATIAL})
+target_include_directories(icts_source_database_spatial INTERFACE ${ICTS_DATABASE_SPATIAL} ${ICTS_DATABASE})
 
 if(DEBUG_ICTS_SOURCE_DATABASE_SPATIAL)
   if(MSVC)

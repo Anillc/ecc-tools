@@ -22,46 +22,45 @@
  */
 #include "GeomCalc.hh"
 
-#include "log/Log.hh"
-namespace icts {
-namespace bst {
-bool GeomCalc::isSame(const Pt& p1, const Pt& p2)
+#include "logger/Logger.hh"
+namespace icts::bst {
+bool GeomCalc::isSame(const Point& p1, const Point& p2)
 {
   auto dist = distance(p1, p2);
   return Equal(dist, 0);
 }
 
-double GeomCalc::distance(const Pt& p1, const Pt& p2)
+double GeomCalc::distance(const Point& p1, const Point& p2)
 {
   return std::abs(p1.x - p2.x) + std::abs(p1.y - p2.y);
 }
 
-double GeomCalc::ptToLineDistManhattan(Pt& p, const Line& l, Pt& closest)
+double GeomCalc::ptToLineDistManhattan(Point& p, const Line& l, Point& closest)
 {
   // manhattan arc
-  Trr ms_p = Trr(p, 0);
-  Trr ms_l;
+  TransformedRect ms_p = TransformedRect(p, 0);
+  TransformedRect ms_l;
   lineToMs(ms_l, l);
   auto dist = msDistance(ms_p, ms_l);
-  Trr new_ms_p;
+  TransformedRect new_ms_p;
   new_ms_p.makeDiamond(p, dist);
-  Trr intersect_ms;
+  TransformedRect intersect_ms;
   makeIntersect(new_ms_p, ms_l, intersect_ms);
   coreMidPoint(intersect_ms, closest);
   return dist;
 }
 
-double GeomCalc::ptToLineDistNotManhattan(Pt& p, const Line& l, Pt& closest)
+double GeomCalc::ptToLineDistNotManhattan(Point& p, const Line& l, Point& closest)
 {
-  std::vector<Pt> candidate;
+  std::vector<Point> candidate;
   if (!Equal(l[kHead].x, l[kTail].x) && (p.x - l[kHead].x) * (p.x - l[kTail].x) <= 0) {
-    Pt pt;
+    Point pt;
     pt.x = p.x;
     pt.y = (l[kTail].x - p.x) * (l[kHead].y - l[kTail].y) / (l[kTail].x - l[kHead].x) + l[kTail].y;
     candidate.push_back(pt);
   }
   if (!Equal(l[kHead].y, l[kTail].y) && (p.y - l[kHead].y) * (p.y - l[kTail].y) <= 0) {
-    Pt pt;
+    Point pt;
     pt.x = (l[kTail].y - p.y) * (l[kHead].x - l[kTail].x) / (l[kTail].y - l[kHead].y) + l[kTail].x;
     pt.y = p.y;
     candidate.push_back(pt);
@@ -81,7 +80,7 @@ double GeomCalc::ptToLineDistNotManhattan(Pt& p, const Line& l, Pt& closest)
   return min_dist;
 }
 
-double GeomCalc::ptToLineDist(Pt& p, const Line& l, Pt& closest)
+double GeomCalc::ptToLineDist(Point& p, const Line& l, Point& closest)
 {
   auto min_dist = std::numeric_limits<double>::max();
   auto delta_x = std::abs(l[kHead].x - l[kTail].x);
@@ -99,17 +98,17 @@ double GeomCalc::ptToLineDist(Pt& p, const Line& l, Pt& closest)
     // not manhattan arc
     min_dist = ptToLineDistNotManhattan(p, l, closest);
   }
-  LOG_FATAL_IF(onLine(closest, l) == false) << "closest point is not on line";
+  CTS_LOG_FATAL_IF(onLine(closest, l) == false) << "closest point is not on line";
   return min_dist;
 }
 
-double GeomCalc::ptToTrrDist(Pt& p, Trr& ms)
+double GeomCalc::ptToTransformedRectDist(Point& p, TransformedRect& ms)
 {
-  Trr pt_trr(p, 0);
-  if (isTrrContain(pt_trr, ms)) {
+  TransformedRect pt_trr(p, 0);
+  if (isTransformedRectContain(pt_trr, ms)) {
     return 0;
   }
-  std::vector<Trr> trrs(4, ms);
+  std::vector<TransformedRect> trrs(4, ms);
   trrs[kLeft + kHead].y_low(ms.y_high());
   trrs[kLeft + kTail].y_high(ms.y_low());
   trrs[kRight + kHead].x_low(ms.x_high());
@@ -122,7 +121,7 @@ double GeomCalc::ptToTrrDist(Pt& p, Trr& ms)
   return min_dist;
 }
 
-void GeomCalc::calcCoord(Pt& p, const Line& l, const double& shift)
+void GeomCalc::calcCoord(Point& p, const Line& l, const double& shift)
 {
   auto line_type = lineType(l);
   double d0 = 0;
@@ -138,7 +137,7 @@ void GeomCalc::calcCoord(Pt& p, const Line& l, const double& shift)
   p.y = (l[kHead].y * d1 + l[kTail].y * d0) / (d0 + d1);
 }
 
-void GeomCalc::calcRelativeCoord(Pt& p, const RelativeType& type, const double& shift)
+void GeomCalc::calcRelativeCoord(Point& p, const RelativeType& type, const double& shift)
 {
   switch (type) {
     case RelativeType::kLeft:
@@ -158,7 +157,7 @@ void GeomCalc::calcRelativeCoord(Pt& p, const RelativeType& type, const double& 
   }
 }
 
-double GeomCalc::crossProduct(const Pt& p1, const Pt& p2, const Pt& p3)
+double GeomCalc::crossProduct(const Point& p1, const Point& p2, const Point& p3)
 {
   return (p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y);
 };
@@ -168,7 +167,7 @@ LineType GeomCalc::lineType(const Line& l)
   return lineType(l[kHead], l[kTail]);
 }
 
-LineType GeomCalc::lineType(const Pt& p1, const Pt& p2)
+LineType GeomCalc::lineType(const Point& p1, const Point& p2)
 {
   auto d_x = std::abs(p1.x - p2.x);
   auto d_y = std::abs(p1.y - p2.y);
@@ -180,15 +179,13 @@ LineType GeomCalc::lineType(const Pt& p1, const Pt& p2)
     return LineType::kHorizontal;
   } else if (d_x > d_y) {
     return LineType::kFlat;
-  } else {
-    return LineType::kTilt;
   }
-  LOG_FATAL << "line type error";
+  return LineType::kTilt;
 }
 
-IntersectType GeomCalc::lineIntersect(Pt& p, Line& l1, Line& l2)
+IntersectType GeomCalc::lineIntersect(Point& p, Line& l1, Line& l2)
 {
-  LOG_FATAL_IF(Equal(distance(l1[kHead], l1[kTail]), 0) || Equal(distance(l2[kHead], l2[kTail]), 0)) << "line length is zero";
+  CTS_LOG_FATAL_IF(Equal(distance(l1[kHead], l1[kTail]), 0) || Equal(distance(l2[kHead], l2[kTail]), 0)) << "line length is zero";
   if (!boundBoxOverlap(l1, l2)) {
     return IntersectType::kNone;
   }
@@ -197,23 +194,23 @@ IntersectType GeomCalc::lineIntersect(Pt& p, Line& l1, Line& l2)
     return IntersectType::kSame;
   }
   size_t count = 0;
-  FOR_EACH_SIDE(side)
+  FOR_EACH_BST_SIDE(side)
   {
     if (onLine(l1[side], l2)) {
       p = l1[side];
       ++count;
     }
   }
-  FOR_EACH_SIDE(side)
+  FOR_EACH_BST_SIDE(side)
   {
     if (onLine(l2[side], l1)) {
       p = l2[side];
       ++count;
     }
   }
-  FOR_EACH_SIDE(left_side)
+  FOR_EACH_BST_SIDE(left_side)
   {
-    FOR_EACH_SIDE(right_side)
+    FOR_EACH_BST_SIDE(right_side)
     {
       if (distance(l1[left_side], l2[right_side]) < kEpsilon) {
         --count;
@@ -257,7 +254,7 @@ RelativeType GeomCalc::lineRelative(const Line& l1, const Line& l2, const size_t
   // return the position of one line relative to ref line
   auto line_type = lineType(l1);
   auto t_line_type = lineType(l2);
-  LOG_FATAL_IF(line_type != t_line_type) << "line type is not same";
+  CTS_LOG_FATAL_IF(line_type != t_line_type) << "line type is not same";
   if (line_type == LineType::kVertical || line_type == LineType::kTilt) {
     auto max_x1 = std::max(l1[kHead].x, l1[kTail].x);
     auto max_x2 = std::max(l2[kHead].x, l2[kTail].x);
@@ -276,16 +273,16 @@ RelativeType GeomCalc::lineRelative(const Line& l1, const Line& l2, const size_t
     }
   } else if (line_type == LineType::kManhattan) {
     return RelativeType::kManhattanParallel;
-  } else {
-    LOG_FATAL << "line type error";
   }
+  CTS_LOG_FATAL << "line type error";
+  return RelativeType::kManhattanParallel;
 }
 
-double GeomCalc::lineDist(Line& l1, Line& l2, PtPair& closest)
+double GeomCalc::lineDist(Line& l1, Line& l2, PointPair& closest)
 {
   double dist, min_dist = std::numeric_limits<double>::max();
-  Pt intersect;
-  Side<Side<Pt>> pt;
+  Point intersect;
+  Side<Side<Point>> pt;
   pt[kLeft] = l1;
   pt[kRight] = l2;
   size_t n1 = 2;
@@ -316,7 +313,7 @@ double GeomCalc::lineDist(Line& l1, Line& l2, PtPair& closest)
   return min_dist;
 }
 
-bool GeomCalc::onLine(Pt& p, const Line& l)
+bool GeomCalc::onLine(Point& p, const Line& l)
 {
   auto len = distance(l[kHead], l[kTail]);
   auto len_to_head = distance(p, l[kHead]);
@@ -366,7 +363,7 @@ bool GeomCalc::isParallel(const Line& l1, const Line& l2)
   return false;
 }
 
-bool GeomCalc::inBoundBox(const Pt& p, const Line& l)
+bool GeomCalc::inBoundBox(const Point& p, const Line& l)
 {
   if (p.x <= std::max(l[kHead].x, l[kTail].x) + kEpsilon && p.x >= std::min(l[kHead].x, l[kTail].x) - kEpsilon
       && p.y <= std::max(l[kHead].y, l[kTail].y) + kEpsilon && p.y >= std::min(l[kHead].y, l[kTail].y) - kEpsilon) {
@@ -398,11 +395,11 @@ bool GeomCalc::boundBoxOverlap(const double& x1, const double& y1, const double&
   return true;
 }
 
-double GeomCalc::msDistance(Trr& ms1, Trr& ms2)
+double GeomCalc::msDistance(TransformedRect& ms1, TransformedRect& ms2)
 {
   checkMs(ms1);
   checkMs(ms2);
-  // Trr<T> is in a Linfinity metric space
+  // TransformedRect is in a Linfinity metric space
   auto x1_low = ms1.x_low();
   auto x1_high = ms1.x_high();
   auto y1_low = ms1.y_low();
@@ -442,7 +439,7 @@ double GeomCalc::msDistance(Trr& ms1, Trr& ms2)
   }
 }
 
-void GeomCalc::makeIntersect(Trr& ms1, Trr& ms2, Trr& intersect)
+void GeomCalc::makeIntersect(TransformedRect& ms1, TransformedRect& ms2, TransformedRect& intersect)
 {
   intersect.x_low(std::max(ms1.x_low(), ms2.x_low()));
   intersect.x_high(std::min(ms1.x_high(), ms2.x_high()));
@@ -451,7 +448,7 @@ void GeomCalc::makeIntersect(Trr& ms1, Trr& ms2, Trr& intersect)
   checkMs(intersect);
 }
 
-void GeomCalc::coreMidPoint(Trr& ms, Pt& mid)
+void GeomCalc::coreMidPoint(TransformedRect& ms, Point& mid)
 {
   auto x = (ms.x_low() + ms.x_high()) / 2;
   auto y = (ms.y_low() + ms.y_high()) / 2;
@@ -459,7 +456,7 @@ void GeomCalc::coreMidPoint(Trr& ms, Pt& mid)
   mid.y = (y - x) / 2;
 }
 
-bool GeomCalc::isTrrContain(const Trr& small, const Trr& huge)
+bool GeomCalc::isTransformedRectContain(const TransformedRect& small, const TransformedRect& huge)
 {
   if (small.x_high() <= huge.x_high() + kEpsilon && small.x_low() >= huge.x_low() - kEpsilon && small.y_high() <= huge.y_high() + kEpsilon
       && small.y_low() >= huge.y_low() - kEpsilon) {
@@ -468,7 +465,7 @@ bool GeomCalc::isTrrContain(const Trr& small, const Trr& huge)
   return false;
 }
 
-void GeomCalc::buildTrr(const Trr& ms, const double& r, Trr& build_trr)
+void GeomCalc::buildTransformedRect(const TransformedRect& ms, const double& r, TransformedRect& build_trr)
 {
   build_trr.x_low(ms.x_low() - r);
   build_trr.x_high(ms.x_high() + r);
@@ -476,7 +473,7 @@ void GeomCalc::buildTrr(const Trr& ms, const double& r, Trr& build_trr)
   build_trr.y_high(ms.y_high() + r);
 }
 
-void GeomCalc::trrCore(const Trr& trr, Trr& core)
+void GeomCalc::trrCore(const TransformedRect& trr, TransformedRect& core)
 {
   if (trr.x_high() - trr.x_low() < trr.y_high() - trr.y_low()) {
     core.y_low(trr.y_low());
@@ -493,31 +490,31 @@ void GeomCalc::trrCore(const Trr& trr, Trr& core)
   }
 }
 
-void GeomCalc::trrToPt(const Trr& trr, Pt& pt)
+void GeomCalc::trrToPt(const TransformedRect& trr, Point& pt)
 {
   pt.x = (trr.y_low() + trr.x_high()) / 2;
   pt.y = (trr.y_low() - trr.x_high()) / 2;
 }
 
-void GeomCalc::trrToRegion(Trr& trr, Region& region)
+void GeomCalc::trrToRegion(TransformedRect& trr, Region& region)
 {
   auto x = trr.x_high() - trr.x_low();
   auto y = trr.y_high() - trr.y_low();
   if (Equal(x, 0) && Equal(y, 0)) {
-    Pt pt;
+    Point pt;
     trrToPt(trr, pt);
     region.push_back(pt);
     return;
   } else if (Equal(x, 0) || Equal(y, 0)) {
-    Pt head, tail;
+    Point head, tail;
     msToLine(trr, head, tail);
     region.push_back(head);
     region.push_back(tail);
     return;
   }
 
-  Trr ms(trr.x_high(), trr.x_high(), trr.y_low(), trr.y_high());
-  Pt head, tail;
+  TransformedRect ms(trr.x_high(), trr.x_high(), trr.y_low(), trr.y_high());
+  Point head, tail;
 
   msToLine(ms, head, tail);
   region.push_back(head);
@@ -531,41 +528,41 @@ void GeomCalc::trrToRegion(Trr& trr, Region& region)
   region.push_back(tail);
 }
 
-bool GeomCalc::isSegmentTrr(const Trr& trr)
+bool GeomCalc::isSegmentTransformedRect(const TransformedRect& trr)
 {
   return Equal(trr.x_low(), trr.x_high()) || Equal(trr.y_low(), trr.y_high());
 }
 
-void GeomCalc::sortPtsByFront(Pts& pts)
+void GeomCalc::sortPtsByFront(Points& pts)
 {
   // sort by dist to first point
-  std::ranges::for_each(pts, [&pts](Pt& p) { p.val = distance(p, pts.front()); });
+  std::ranges::for_each(pts, [&pts](Point& p) { p.val = distance(p, pts.front()); });
   sortPtsByVal(pts);
 }
 
-void GeomCalc::sortPtsByVal(Pts& pts)
+void GeomCalc::sortPtsByVal(Points& pts)
 {
   if (pts.empty()) {
     return;
   }
-  std::ranges::sort(pts, [](const Pt& p1, const Pt& p2) { return p1.val < p2.val; });
+  std::ranges::sort(pts, [](const Point& p1, const Point& p2) { return p1.val < p2.val; });
 }
 
-void GeomCalc::sortPtsByValDec(Pts& pts)
+void GeomCalc::sortPtsByValDec(Points& pts)
 {
   if (pts.empty()) {
     return;
   }
-  std::ranges::sort(pts, [](const Pt& p1, const Pt& p2) { return p1.val > p2.val; });
+  std::ranges::sort(pts, [](const Point& p1, const Point& p2) { return p1.val > p2.val; });
 }
 
-void GeomCalc::uniquePtsLoc(std::vector<Pt>& pts)
+void GeomCalc::uniquePtsLoc(std::vector<Point>& pts)
 {
   if (pts.size() < 2) {
     return;
   }
-  std::vector<Pt> unique_pts = {pts.front()};
-  std::ranges::for_each(pts, [&unique_pts](const Pt& p) {
+  std::vector<Point> unique_pts = {pts.front()};
+  std::ranges::for_each(pts, [&unique_pts](const Point& p) {
     if (!isSame(p, unique_pts.back())) {
       unique_pts.push_back(p);
     }
@@ -576,12 +573,12 @@ void GeomCalc::uniquePtsLoc(std::vector<Pt>& pts)
   pts = unique_pts;
 }
 
-void GeomCalc::uniquePtsVal(std::vector<Pt>& pts)
+void GeomCalc::uniquePtsVal(std::vector<Point>& pts)
 {
-  pts.erase(std::unique(pts.begin(), pts.end(), [](const Pt& p1, const Pt& p2) { return Equal(p1.val, p2.val); }), pts.end());
+  pts.erase(std::unique(pts.begin(), pts.end(), [](const Point& p1, const Point& p2) { return Equal(p1.val, p2.val); }), pts.end());
 }
 
-std::vector<Line> GeomCalc::getLines(const std::vector<Pt>& pts)
+std::vector<Line> GeomCalc::getLines(const std::vector<Point>& pts)
 {
   if (pts.size() == 2) {
     return {{pts.front(), pts.back()}};
@@ -594,7 +591,7 @@ std::vector<Line> GeomCalc::getLines(const std::vector<Pt>& pts)
   return lines;
 }
 
-void GeomCalc::convexHull(std::vector<Pt>& pts)
+void GeomCalc::convexHull(std::vector<Point>& pts)
 {
   // check pts num
   if (pts.size() < 2) {
@@ -608,8 +605,8 @@ void GeomCalc::convexHull(std::vector<Pt>& pts)
     return;
   }
   // calculate convex hull by Andrew algorithm
-  std::ranges::sort(pts, [](const Pt& p1, const Pt& p2) { return p1.x + kEpsilon < p2.x || (Equal(p1.x, p2.x) && p1.y < p2.y); });
-  std::vector<Pt> ans(2 * pts.size());
+  std::ranges::sort(pts, [](const Point& p1, const Point& p2) { return p1.x + kEpsilon < p2.x || (Equal(p1.x, p2.x) && p1.y < p2.y); });
+  std::vector<Point> ans(2 * pts.size());
   size_t k = 0;
   for (size_t i = 0; i < pts.size(); ++i) {
     while (k > 1 && crossProduct(ans[k - 2], ans[k - 1], pts[i]) <= kEpsilon) {
@@ -626,20 +623,20 @@ void GeomCalc::convexHull(std::vector<Pt>& pts)
   pts = {ans.begin(), ans.begin() + k - 1};
 }
 
-Pt GeomCalc::centerPt(const std::vector<Pt>& pts)
+Point GeomCalc::centerPt(const std::vector<Point>& pts)
 {
   if (pts.empty()) {
     return {0, 0};
   }
   double x = 0, y = 0;
-  std::ranges::for_each(pts, [&x, &y](const Pt& p) {
+  std::ranges::for_each(pts, [&x, &y](const Point& p) {
     x += p.x;
     y += p.y;
   });
   return {x / pts.size(), y / pts.size()};
 }
 
-bool GeomCalc::isRegionContain(const Pt& p, const std::vector<Pt>& region)
+bool GeomCalc::isRegionContain(const Point& p, const std::vector<Point>& region)
 {
   auto is_in_region = false;
   auto p_x = p.x;
@@ -670,14 +667,14 @@ bool GeomCalc::isRegionContain(const Pt& p, const std::vector<Pt>& region)
   return false;
 }
 
-Pt GeomCalc::closestPtOnRegion(const Pt& p, const std::vector<Pt>& region)
+Point GeomCalc::closestPtOnRegion(const Point& p, const std::vector<Point>& region)
 {
   if (isRegionContain(p, region)) {
     return p;
   }
   auto pt = p;
-  Pt closest;
-  Pt ans;
+  Point closest;
+  Point ans;
   auto min_dist = std::numeric_limits<double>::max();
   for (size_t i = 0; i < region.size(); ++i) {
     auto j = (i + 1) % region.size();
@@ -690,12 +687,12 @@ Pt GeomCalc::closestPtOnRegion(const Pt& p, const std::vector<Pt>& region)
   return ans;
 }
 
-void GeomCalc::lineToMs(Trr& ms, const Line& l)
+void GeomCalc::lineToMs(TransformedRect& ms, const Line& l)
 {
   lineToMs(ms, l[kHead], l[kTail]);
 }
 
-void GeomCalc::lineToMs(Trr& ms, const Pt& p1, const Pt& p2)
+void GeomCalc::lineToMs(TransformedRect& ms, const Point& p1, const Point& p2)
 {
   if (p1.y <= p2.y) {
     ms.x_low(p2.x - p2.y);
@@ -711,22 +708,22 @@ void GeomCalc::lineToMs(Trr& ms, const Pt& p1, const Pt& p2)
   checkMs(ms);
 }
 
-void GeomCalc::msToLine(Trr& ms, Line& l)
+void GeomCalc::msToLine(TransformedRect& ms, Line& l)
 {
   msToLine(ms, l[kHead], l[kTail]);
 }
 
-void GeomCalc::msToLine(Trr& ms, Pt& p1, Pt& p2)
+void GeomCalc::msToLine(TransformedRect& ms, Point& p1, Point& p2)
 {
   checkMs(ms);
   p1.x = (ms.y_low() + ms.x_high()) / 2;
   p1.y = (ms.y_low() - ms.x_high()) / 2;
   p2.x = (ms.y_high() + ms.x_low()) / 2;
   p2.y = (ms.y_high() - ms.x_low()) / 2;
-  LOG_FATAL_IF(p1.y > p2.y) << "p2.y should be larger than p1.y";
+  CTS_LOG_FATAL_IF(p1.y > p2.y) << "p2.y should be larger than p1.y";
 }
 
-void GeomCalc::checkMs(Trr& ms)
+void GeomCalc::checkMs(TransformedRect& ms)
 {
   auto x_low = ms.x_low();
   auto x_high = ms.x_high();
@@ -742,8 +739,7 @@ void GeomCalc::checkMs(Trr& ms)
     ms.y_low(avg);
     ms.y_high(avg);
   }
-  LOG_FATAL_IF(ms.x_low() > ms.x_high() || ms.y_low() > ms.y_high()) << "ms is not valid";
+  CTS_LOG_FATAL_IF(ms.x_low() > ms.x_high() || ms.y_low() > ms.y_high()) << "ms is not valid";
 }
 
-}  // namespace bst
-}  // namespace icts
+}  // namespace icts::bst

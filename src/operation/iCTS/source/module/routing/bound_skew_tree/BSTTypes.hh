@@ -15,28 +15,51 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Pin.cc
+ * @file BSTTypes.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief Legacy routing pin model implementation for stage-1 migration
+ * @date 2026-03-16
+ * @brief Shared BST routing types for standalone router adaptation and core algorithm.
  */
 
-#include "Pin.hh"
+#pragma once
+
+#include <optional>
+#include <string>
+#include <unordered_map>
+
+#include "Point.hh"
+
 namespace icts {
 
-void Pin::init()
+enum class RCPattern
 {
-  if (_inst->isSink()) {
-    set_type(NodeType::kSinkPin);
-  } else if (_inst->isBuffer()) {
-    set_type(NodeType::kBufferPin);
-  } else {
-    set_type(NodeType::kNoneLibPin);
-  }
-}
-std::string Pin::get_cell_master() const
+  kSingle,
+  kHV,
+  kVH,
+};
+
+enum class TopoType
 {
-  return _inst->get_cell_master();
-}
+  kGreedyDist,
+  kGreedyMerge,
+  kBiPartition,
+  kBiCluster,
+  kInputTopo,
+};
+
+struct BSTParameters
+{
+  double skew_bound = 0.0;
+  int db_unit = 0;
+  double unit_h_cap = 0.0;
+  double unit_h_res = 0.0;
+  double unit_v_cap = 0.0;
+  double unit_v_res = 0.0;
+  TopoType topo_type = TopoType::kGreedyDist;
+  RCPattern pattern = RCPattern::kHV;
+  std::optional<Point<int>> root_guide = std::nullopt;
+  std::unordered_map<std::string, double> init_delay_map;
+  std::unordered_map<std::string, double> init_cap_map;
+};
 
 }  // namespace icts

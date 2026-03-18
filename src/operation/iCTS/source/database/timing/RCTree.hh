@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file RCTree.hh
- * @author Claude
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-11
  * @brief RC tree data structures for iCTS timing database.
  */
@@ -26,6 +26,8 @@
 #include <cstddef>
 #include <limits>
 #include <queue>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace icts {
@@ -35,11 +37,16 @@ struct RCTreeVertex
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
 
   std::size_t id = kInvalidId;
+  std::string name = "";
   bool is_terminal = false;
   std::size_t parent_arc_id = kInvalidId;
   std::vector<std::size_t> child_arc_ids;
   double lumped_cap = 0.0;
   double downstream_cap = 0.0;
+  double arrival = 0.0;
+  double slew = 0.0;
+  double min_downstream_delay = 0.0;
+  double max_downstream_delay = 0.0;
 };
 
 struct RCTreeArc
@@ -51,6 +58,7 @@ struct RCTreeArc
   std::size_t sink_vertex_id = kInvalidId;
   double resistance = 0.0;
   double capacitance = 0.0;
+  double increase_delay = 0.0;
 };
 
 class RCTree
@@ -68,24 +76,42 @@ class RCTree
   RCTree& operator=(RCTree&&) = default;
   ~RCTree() = default;
 
-  void reserve_vertices(std::size_t n) { _vertices.reserve(n); }
-  void reserve_arcs(std::size_t n) { _arcs.reserve(n); }
+  void reserveVertices(std::size_t n) { _vertices.reserve(n); }
+  void reserveArcs(std::size_t n) { _arcs.reserve(n); }
 
-  std::size_t add_vertex(bool is_terminal = false, double lumped_cap = 0.0)
+  std::size_t addVertex(const std::string& name, bool is_terminal = false, double lumped_cap = 0.0)
   {
+    if (name.empty() || _vertex_name_to_id.contains(name)) {
+      return kInvalidId;
+    }
+
     std::size_t id = _vertices.size();
-    _vertices.push_back(VertexType{id, is_terminal, kInvalidId, {}, lumped_cap, 0.0});
+    _vertices.push_back(VertexType{id, name, is_terminal, kInvalidId, std::vector<std::size_t>{}, lumped_cap, 0.0, 0.0, 0.0, 0.0, 0.0});
+    _vertex_name_to_id[name] = id;
     return id;
   }
 
-  void set_root(std::size_t vertex_id)
+  std::size_t findVertexId(const std::string& name) const
+  {
+    auto iter = _vertex_name_to_id.find(name);
+    if (iter == _vertex_name_to_id.end()) {
+      return kInvalidId;
+    }
+    return iter->second;
+  }
+
+  VertexType* findVertex(const std::string& name) { return get_vertex(findVertexId(name)); }
+  const VertexType* findVertex(const std::string& name) const { return get_vertex(findVertexId(name)); }
+  bool hasVertex(const std::string& name) const { return _vertex_name_to_id.contains(name); }
+
+  void setRoot(std::size_t vertex_id)
   {
     if (vertex_id < _vertices.size()) {
       _root_vertex_id = vertex_id;
     }
   }
 
-  std::size_t add_arc(std::size_t source_vertex_id, std::size_t sink_vertex_id, double resistance = 0.0, double capacitance = 0.0)
+  std::size_t addArc(std::size_t source_vertex_id, std::size_t sink_vertex_id, double resistance = 0.0, double capacitance = 0.0)
   {
     if (source_vertex_id >= _vertices.size() || sink_vertex_id >= _vertices.size() || source_vertex_id == sink_vertex_id) {
       return kInvalidId;
@@ -97,10 +123,21 @@ class RCTree
     }
 
     std::size_t arc_id = _arcs.size();
-    _arcs.push_back(ArcType{arc_id, source_vertex_id, sink_vertex_id, resistance, capacitance});
+    _arcs.push_back(ArcType{arc_id, source_vertex_id, sink_vertex_id, resistance, capacitance, 0.0});
     _vertices[source_vertex_id].child_arc_ids.push_back(arc_id);
     sink_vertex.parent_arc_id = arc_id;
     return arc_id;
+  }
+
+  std::size_t addArc(const std::string& source_vertex_name, const std::string& sink_vertex_name, double resistance = 0.0,
+                     double capacitance = 0.0)
+  {
+    auto source_vertex_id = findVertexId(source_vertex_name);
+    auto sink_vertex_id = findVertexId(sink_vertex_name);
+    if (source_vertex_id == kInvalidId || sink_vertex_id == kInvalidId) {
+      return kInvalidId;
+    }
+    return addArc(source_vertex_id, sink_vertex_id, resistance, capacitance);
   }
 
   VertexType* get_vertex(std::size_t id)
@@ -137,6 +174,7 @@ class RCTree
   std::vector<VertexType>& get_vertices() { return _vertices; }
   const std::vector<ArcType>& get_arcs() const { return _arcs; }
   std::vector<ArcType>& get_arcs() { return _arcs; }
+  const std::unordered_map<std::string, std::size_t>& get_vertex_name_map() const { return _vertex_name_to_id; }
 
   std::size_t get_root() const { return _root_vertex_id; }
   std::size_t vertex_count() const { return _vertices.size(); }
@@ -150,10 +188,17 @@ class RCTree
     return vertex != nullptr && vertex->child_arc_ids.empty();
   }
 
-  void clear_timing_cache()
+  void clearTimingCache()
   {
     for (auto& vertex : _vertices) {
       vertex.downstream_cap = 0.0;
+      vertex.arrival = 0.0;
+      vertex.slew = 0.0;
+      vertex.min_downstream_delay = 0.0;
+      vertex.max_downstream_delay = 0.0;
+    }
+    for (auto& arc : _arcs) {
+      arc.increase_delay = 0.0;
     }
   }
 
@@ -179,11 +224,16 @@ class RCTree
       ++indegree[arc.sink_vertex_id];
     }
 
+    std::unordered_map<std::string, std::size_t> validated_name_to_id;
     for (std::size_t vertex_id = 0; vertex_id < _vertices.size(); ++vertex_id) {
       const auto& vertex = _vertices[vertex_id];
-      if (vertex.id != vertex_id) {
+      if (vertex.id != vertex_id || vertex.name.empty()) {
         return false;
       }
+      if (validated_name_to_id.contains(vertex.name)) {
+        return false;
+      }
+      validated_name_to_id[vertex.name] = vertex_id;
       if (is_root(vertex_id)) {
         if (vertex.parent_arc_id != kInvalidId || indegree[vertex_id] != 0) {
           return false;
@@ -228,12 +278,13 @@ class RCTree
       }
     }
 
-    return visited_count == _vertices.size();
+    return visited_count == _vertices.size() && validated_name_to_id == _vertex_name_to_id;
   }
 
  private:
   std::vector<VertexType> _vertices;
   std::vector<ArcType> _arcs;
+  std::unordered_map<std::string, std::size_t> _vertex_name_to_id;
   std::size_t _root_vertex_id = kInvalidId;
 };
 

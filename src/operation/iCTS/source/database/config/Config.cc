@@ -18,6 +18,7 @@
  * @file Config.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-01-11
+ * @brief Configuration parser for iCTS.
  */
 #include "Config.hh"
 
@@ -28,6 +29,7 @@
 #include <vector>
 
 #include "json.hpp"
+#include "logger/Logger.hh"
 
 namespace icts {
 namespace {
@@ -130,6 +132,7 @@ void Config::parse(const std::string& json_file)
 {
   std::ifstream ifs(json_file);
   if (!ifs) {
+    CTS_LOG_ERROR << "Failed to open iCTS config file: " << json_file;
     return;
   }
 

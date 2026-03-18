@@ -27,9 +27,9 @@
 #include <cmath>
 #include <utility>
 
-#include "module/topology/kmeans/KMeans.hh"
-#include "module/topology/mcf/MinCostFlow.hh"
-#include "utils/geometry/Geometry.hh"
+#include "geometry/Geometry.hh"
+#include "kmeans/KMeans.hh"
+#include "mcf/MinCostFlow.hh"
 
 namespace icts {
 namespace {
@@ -103,7 +103,8 @@ ClusterResult Clustering::biPartition(const std::vector<Pin*>& loads, std::size_
   max_cluster_size = std::max<std::size_t>(1, max_cluster_size);
 
   KMeans<Pin*> kmeans;
-  auto kmeans_result = kmeans.run(loads, 2, [](Pin* pin) { return pin->get_location(); }, 5);
+  auto kmeans_result = kmeans.run(
+      loads, 2, [](Pin* pin) { return pin->get_location(); }, 5);
 
   auto centers = kmeans_result.centers;
   if (centers.size() < 2) {
@@ -116,10 +117,10 @@ ClusterResult Clustering::biPartition(const std::vector<Pin*>& loads, std::size_
     MinCostFlow<Pin*> mcf;
     for (auto* pin : loads) {
       const auto& loc = pin->get_location();
-      mcf.add_node(static_cast<double>(loc.get_x()), static_cast<double>(loc.get_y()), pin);
+      mcf.addNode(loc.get_x(), loc.get_y(), pin);
     }
     for (const auto& center : centers) {
-      mcf.add_center(center.get_x(), center.get_y());
+      mcf.addCenter(center.get_x(), center.get_y());
     }
 
     clusters = mcf.run(max_cluster_size);

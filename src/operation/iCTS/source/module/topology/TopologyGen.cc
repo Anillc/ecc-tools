@@ -27,8 +27,8 @@
 #include <cmath>
 #include <limits>
 
-#include "utils/geometry/Geometry.hh"
-#include "utils/logger/Logger.hh"
+#include "geometry/Geometry.hh"
+#include "logger/Logger.hh"
 
 namespace icts {
 namespace {
@@ -134,7 +134,7 @@ void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) const
 
   const int width = max_x - min_x;
   const int height = max_y - min_y;
-  const double core_area = static_cast<double>(width) * static_cast<double>(height);
+  const double core_area = static_cast<double>(width) * height;
   const double core_length = std::sqrt(std::max(0.0, core_area));
 
   const auto center = geometry::CalcCenter(loads, [](Pin* pin) { return pin->get_location(); });
@@ -142,8 +142,8 @@ void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) const
 
   CTS_LOG_INFO << "Load distribution: bbox=(" << min_x << "," << min_y << ") - (" << max_x << "," << max_y << "), area=" << core_area
                << "DBU^2, sqrt_area=" << core_length << "DBU, (|X|+|Y|)/2=" << (max_x + max_y - min_x - min_y) / 2 << "DBU";
-  CTS_LOG_INFO << "Load distribution: center=(" << center.get_x() << "," << center.get_y() << "), median=(" << median.get_x() << "," << median.get_y()
-               << ")";
+  CTS_LOG_INFO << "Load distribution: center=(" << center.get_x() << "," << center.get_y() << "), median=(" << median.get_x() << ","
+               << median.get_y() << ")";
 }
 
 void TopologyGen::reportRootToLeafLengths(const Tree& tree) const
@@ -153,9 +153,9 @@ void TopologyGen::reportRootToLeafLengths(const Tree& tree) const
     return;
   }
 
-  double min_len = std::numeric_limits<double>::max();
-  double max_len = 0.0;
-  double sum_len = 0.0;
+  int min_len = std::numeric_limits<int>::max();
+  int max_len = 0;
+  int sum_len = 0;
   std::size_t leaf_count = 0;
   std::size_t invalid_count = 0;
 
@@ -164,7 +164,7 @@ void TopologyGen::reportRootToLeafLengths(const Tree& tree) const
     if (node == nullptr || !node->isLeaf()) {
       continue;
     }
-    double length = 0.0;
+    int length = 0;
     bool valid = true;
     std::size_t cur = id;
     while (cur != tree.get_root()) {
@@ -203,7 +203,7 @@ void TopologyGen::reportRootToLeafLengths(const Tree& tree) const
     return;
   }
 
-  const double avg_len = sum_len / static_cast<double>(leaf_count);
+  const double avg_len = static_cast<double>(sum_len) / leaf_count;
   CTS_LOG_INFO << "Topology source-to-leaf length: min=" << min_len << ", max=" << max_len << ", avg=" << avg_len
                << ", leafs=" << leaf_count << ", invalid=" << invalid_count;
 }
@@ -283,7 +283,7 @@ void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, i
   }
 
   for (std::size_t level = 1; level < levels.size(); ++level) {
-    double sum_dist = 0.0;
+    int sum_dist = 0;
     std::size_t count = 0;
     for (const auto node_id : levels[level]) {
       auto* node = tree.get_node(node_id);
@@ -300,7 +300,7 @@ void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, i
     if (count == 0) {
       continue;
     }
-    const double avg_dist = sum_dist / static_cast<double>(count);
+    const double avg_dist = static_cast<double>(sum_dist) / count;
     for (const auto node_id : levels[level]) {
       auto* node = tree.get_node(node_id);
       if (node == nullptr || node->get_parent() == std::numeric_limits<std::size_t>::max()) {
@@ -310,7 +310,8 @@ void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, i
       if (parent == nullptr) {
         continue;
       }
-      node->get_position() = geometry::ProjectToL1Circle(parent->get_position(), node->get_position(), avg_dist, min_x, min_y, max_x, max_y);
+      node->get_position()
+          = geometry::ProjectToL1Circle(parent->get_position(), node->get_position(), avg_dist, min_x, min_y, max_x, max_y);
     }
   }
 }

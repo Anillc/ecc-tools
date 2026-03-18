@@ -26,8 +26,8 @@
 #include <vector>
 
 #include "HashJoinEngine.hh"
+#include "SegmentChar.hh"
 #include "SegmentTraits.hh"
-#include "database/characterization/SegmentChar.hh"
 
 namespace icts {
 

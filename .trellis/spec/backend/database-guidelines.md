@@ -6,7 +6,7 @@
 
 ## Overview
 
-iCTS uses a singleton-based data model where core design objects (Clock, Inst, Net, Pin) are managed through the `Design` singleton. Configuration is handled by the `Config` singleton, and iDB integration through the `Wrapper` singleton.
+iCTS uses a singleton-based data model where core design objects (Clock, Inst, Net, Pin) are managed through the `Design` singleton. Configuration is handled by the `Config` singleton, iDB integration through the `Wrapper` singleton, and external timing-system access through the database-level `STAAdapter` singleton. External callers still enter through `CTSAPIInst`.
 
 ---
 
@@ -18,7 +18,7 @@ All singletons use the **Meyers Singleton** pattern with a macro alias.
 
 ```cpp
 // In header file
-#define CTSConfigInst (icts::Config::getInst())
+#define ConfigInst (icts::Config::getInst())
 
 class Config
 {
@@ -45,32 +45,31 @@ class Config
 
 | Macro | Class | Defined In | Purpose |
 |-------|-------|------------|---------|
-| `CTSAPIInst` | `CTSAPI` | `api/CTSAPI.hh` | Main API entry point |
-| `CTSDesignInst` | `Design` | `database/design/Design.hh` | Design database |
-| `CTSConfigInst` | `Config` | `database/config/Config.hh` | Configuration |
-| `CTSWrapperInst` | `Wrapper` | `database/io/Wrapper.hh` | iDB adapter |
-| `CTSLogInst` | `Logger` | `utils/logger/Logger.hh` | Logging |
+| `CTSAPIInst` | `CTSAPI` | `api/CTSAPI.hh` | Main external API entry point |
+| `DesignInst` | `Design` | `database/design/Design.hh` | Design database |
+| `ConfigInst` | `Config` | `database/config/Config.hh` | Configuration |
+| `WrapperInst` | `Wrapper` | `database/io/Wrapper.hh` | iDB adapter |
+| `STAAdapterInst` | `STAAdapter` | `database/adapter/sta/STAAdapter.hh` | iSTA adapter for routing / timing / characterization internals |
+| `LogInst` | `Logger` | `utils/logger/Logger.hh` | Logging |
 
 ### Usage Example
 
 ```cpp
-// Read config
-if (CTSConfigInst.is_use_netlist()) {
-  auto& net_list = CTSConfigInst.get_clock_netlist();
+// External entry uses CTSAPIInst
+CTSAPIInst.init(config_file, work_dir);
+CTSAPIInst.runCTS();
+
+// Internal source-layer code uses narrowed singletons
+if (ConfigInst.is_use_netlist()) {
+  auto net_list = ConfigInst.get_net_list();
   for (auto& [clock_name, net_name] : net_list) {
     auto* clock = new icts::Clock(clock_name, net_name);
-    CTSDesignInst.add_clock(clock);
+    DesignInst.add_clock(clock);
   }
 }
 
-// Read design data via wrapper
-CTSWrapperInst.read();
-
-// Reset all singletons
-CTSConfigInst.reset();
-CTSDesignInst.reset();
-CTSWrapperInst.reset();
-CTSLogInst.close();
+WrapperInst.read();
+LogInst.close();
 ```
 
 ---
@@ -78,7 +77,7 @@ CTSLogInst.close();
 ## Data Model Hierarchy
 
 ```
-Design (singleton, CTSDesignInst)
+Design (singleton, DesignInst)
  └─ vector<Clock*>  _clocks
        │
        Clock

@@ -25,7 +25,7 @@
 
 #include <string>
 
-#include "../spatial/Point.hh"
+#include "spatial/Point.hh"
 namespace icts {
 
 class Inst;

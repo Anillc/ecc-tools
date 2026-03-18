@@ -57,8 +57,8 @@ struct SvgTransform
   int width = 0;
   int height = 0;
 
-  double map_x(int x) const { return (static_cast<double>(x - min_x) * scale) + margin; }
-  double map_y(int y) const { return (static_cast<double>(max_y - y) * scale) + margin; }
+  double map_x(int x) const { return ((x - min_x) * scale) + margin; }
+  double map_y(int y) const { return ((max_y - y) * scale) + margin; }
 };
 
 const std::array<const char*, 12> kPalette
@@ -131,7 +131,7 @@ SvgTransform make_transform(const Bounds& bounds)
   const int width = std::max(1, bounds.max_x - bounds.min_x);
   const int height = std::max(1, bounds.max_y - bounds.min_y);
   const int canvas_max = 1000;
-  const double scale = static_cast<double>(canvas_max) / static_cast<double>(std::max(width, height));
+  const double scale = static_cast<double>(canvas_max) / std::max(width, height);
 
   transform.min_x = bounds.min_x;
   transform.max_y = bounds.max_y;
@@ -167,7 +167,7 @@ GeneratedPins build_pins(std::vector<icts::Point<int>> points, int width, int he
 
 }  // namespace
 
-GeneratedPins make_normal(std::size_t count, int width, int height, unsigned seed)
+GeneratedPins MakeNormal(std::size_t count, int width, int height, unsigned seed)
 {
   if (count == 0 || width <= 0 || height <= 0) {
     return {};
@@ -192,7 +192,7 @@ GeneratedPins make_normal(std::size_t count, int width, int height, unsigned see
   return build_pins(std::move(points), width, height);
 }
 
-GeneratedPins make_gaussian_mixture(std::size_t count, int width, int height, unsigned seed)
+GeneratedPins MakeGaussianMixture(std::size_t count, int width, int height, unsigned seed)
 {
   if (count == 0 || width <= 0 || height <= 0) {
     return {};
@@ -221,7 +221,7 @@ GeneratedPins make_gaussian_mixture(std::size_t count, int width, int height, un
   return build_pins(std::move(points), width, height);
 }
 
-GeneratedPins make_weighted_quadrants(std::size_t count, int width, int height, unsigned seed, const std::array<double, 4>& weights)
+GeneratedPins MakeWeightedQuadrants(std::size_t count, int width, int height, unsigned seed, const std::array<double, 4>& weights)
 {
   if (count == 0 || width <= 0 || height <= 0) {
     return {};
@@ -275,9 +275,9 @@ GeneratedPins make_weighted_quadrants(std::size_t count, int width, int height, 
   return build_pins(std::move(points), width, height);
 }
 
-bool analyze_topology(const icts::Tree& tree, const std::vector<icts::Pin*>& loads, TopologyStats& stats,
-                      std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
-                      std::string& error)
+bool AnalyzeTopology(const icts::Tree& tree, const std::vector<icts::Pin*>& loads, TopologyStats& stats,
+                     std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
+                     std::string& error)
 {
   stats = {};
   cluster_map.clear();
@@ -340,7 +340,7 @@ bool analyze_topology(const icts::Tree& tree, const std::vector<icts::Pin*>& loa
   if (stats.min_leaf_load == std::numeric_limits<std::size_t>::max()) {
     stats.min_leaf_load = 0;
   }
-  stats.avg_leaf_load = stats.leaf_count == 0 ? 0.0 : static_cast<double>(total_loads) / static_cast<double>(stats.leaf_count);
+  stats.avg_leaf_load = stats.leaf_count == 0 ? 0.0 : static_cast<double>(total_loads) / stats.leaf_count;
 
   if (total_loads != loads.size()) {
     std::ostringstream oss;
@@ -396,9 +396,9 @@ icts::Point<int> compute_centroid(const std::vector<icts::Pin*>& loads)
 }
 }  // namespace
 
-bool analyze_first_level_clusters(const icts::Tree& tree, const std::vector<icts::Pin*>& loads,
-                                  std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
-                                  std::string& error)
+bool AnalyzeFirstLevelClusters(const icts::Tree& tree, const std::vector<icts::Pin*>& loads,
+                               std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
+                               std::string& error)
 {
   cluster_map.clear();
   centers.clear();
@@ -462,8 +462,8 @@ bool analyze_first_level_clusters(const icts::Tree& tree, const std::vector<icts
   return true;
 }
 
-bool write_cluster_svg(const std::string& path, const std::vector<icts::Pin*>& loads,
-                       const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers)
+bool WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loads,
+                     const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers)
 {
   if (loads.empty()) {
     return false;
@@ -506,7 +506,7 @@ bool write_cluster_svg(const std::string& path, const std::vector<icts::Pin*>& l
   return true;
 }
 
-bool write_topology_svg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads)
+bool WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads)
 {
   if (tree.get_size() == 0) {
     return false;
@@ -541,8 +541,8 @@ bool write_topology_svg(const std::string& path, const icts::Tree& tree, const s
     if (src.get_x() < 0 || src.get_y() < 0 || dst.get_x() < 0 || dst.get_y() < 0) {
       continue;
     }
-    ofs << "<line x1=\"" << transform.map_x(src.get_x()) << "\" y1=\"" << transform.map_y(src.get_y()) << "\" x2=\"" << transform.map_x(dst.get_x())
-        << "\" y2=\"" << transform.map_y(dst.get_y()) << "\" stroke=\"#666666\" stroke-width=\"1\" />\n";
+    ofs << "<line x1=\"" << transform.map_x(src.get_x()) << "\" y1=\"" << transform.map_y(src.get_y()) << "\" x2=\""
+        << transform.map_x(dst.get_x()) << "\" y2=\"" << transform.map_y(dst.get_y()) << "\" stroke=\"#666666\" stroke-width=\"1\" />\n";
   }
 
   for (std::size_t id = 0; id < tree.get_size(); ++id) {
@@ -569,7 +569,7 @@ bool write_topology_svg(const std::string& path, const icts::Tree& tree, const s
   return true;
 }
 
-std::filesystem::path resolve_output_dir()
+std::filesystem::path ResolveOutputDir()
 {
   const char* env_dir = std::getenv("ICTS_TEST_OUTPUT_DIR");
   if (env_dir != nullptr && env_dir[0] != '\0') {

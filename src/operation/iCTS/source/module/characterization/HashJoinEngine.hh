@@ -31,7 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "database/characterization/PatternId.hh"
+#include "PatternId.hh"
 
 namespace icts {
 namespace detail {

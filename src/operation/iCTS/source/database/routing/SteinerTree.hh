@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file SteinerTree.hh
- * @author Claude
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-11
  * @brief Point-based Steiner tree data structures for iCTS routing.
  */
@@ -26,10 +26,12 @@
 #include <cstddef>
 #include <limits>
 #include <queue>
+#include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "database/spatial/Point.hh"
+#include "Point.hh"
 
 namespace icts {
 
@@ -39,6 +41,7 @@ struct SteinerNode
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
 
   std::size_t id = kInvalidId;
+  std::string name = "";
   Point<T> location;
   bool is_terminal = false;
   std::size_t parent_edge_id = kInvalidId;
@@ -53,7 +56,7 @@ struct SteinerEdge
   std::size_t id = kInvalidId;
   std::size_t source_node_id = kInvalidId;
   std::size_t target_node_id = kInvalidId;
-  T dist_length{};
+  T distance{};  // Embedded geometric edge distance in coordinate type T.
 };
 
 template <typename T, typename EdgeT = SteinerEdge<T>>
@@ -73,17 +76,22 @@ class SteinerTree
   SteinerTree& operator=(SteinerTree&&) = default;
   ~SteinerTree() = default;
 
-  void reserve_nodes(std::size_t n) { _nodes.reserve(n); }
-  void reserve_edges(std::size_t n) { _edges.reserve(n); }
+  void reserveNodes(std::size_t n) { _nodes.reserve(n); }
+  void reserveEdges(std::size_t n) { _edges.reserve(n); }
 
-  std::size_t add_node(const Point<T>& location, bool is_terminal = false)
+  std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal = false)
   {
+    if (name.empty() || _node_name_to_id.contains(name)) {
+      return kInvalidId;
+    }
+
     std::size_t id = _nodes.size();
-    _nodes.push_back(NodeType{id, location, is_terminal, kInvalidId, {}});
+    _nodes.push_back(NodeType{id, name, location, is_terminal, kInvalidId, std::vector<std::size_t>{}});
+    _node_name_to_id[name] = id;
     return id;
   }
 
-  void set_root(std::size_t node_id)
+  void setRoot(std::size_t node_id)
   {
     if (node_id < _nodes.size()) {
       _root_node_id = node_id;
@@ -91,7 +99,7 @@ class SteinerTree
   }
 
   template <typename... EdgeArgs>
-  std::size_t add_edge(std::size_t source_node_id, std::size_t target_node_id, const T& dist_length, EdgeArgs&&... edge_args)
+  std::size_t addEdge(std::size_t source_node_id, std::size_t target_node_id, const T& distance, EdgeArgs&&... edge_args)
   {
     if (source_node_id >= _nodes.size() || target_node_id >= _nodes.size() || source_node_id == target_node_id) {
       return kInvalidId;
@@ -103,7 +111,7 @@ class SteinerTree
     }
 
     std::size_t edge_id = _edges.size();
-    _edges.push_back(EdgeType{edge_id, source_node_id, target_node_id, dist_length, std::forward<EdgeArgs>(edge_args)...});
+    _edges.push_back(EdgeType{edge_id, source_node_id, target_node_id, distance, std::forward<EdgeArgs>(edge_args)...});
     _nodes[source_node_id].child_edge_ids.push_back(edge_id);
     target_node.parent_edge_id = edge_id;
     return edge_id;
@@ -139,8 +147,30 @@ class SteinerTree
     return &_edges[id];
   }
 
+  NodeType* findNode(const std::string& name)
+  {
+    auto iter = _node_name_to_id.find(name);
+    return iter == _node_name_to_id.end() ? nullptr : get_node(iter->second);
+  }
+  const NodeType* findNode(const std::string& name) const
+  {
+    auto iter = _node_name_to_id.find(name);
+    return iter == _node_name_to_id.end() ? nullptr : get_node(iter->second);
+  }
+  const std::unordered_map<std::string, std::size_t>& get_node_name_map() const { return _node_name_to_id; }
+
+  template <typename... EdgeArgs>
+  std::size_t addEdge(const std::string& source_node_name, const std::string& target_node_name, const T& distance, EdgeArgs&&... edge_args)
+  {
+    auto source_iter = _node_name_to_id.find(source_node_name);
+    auto target_iter = _node_name_to_id.find(target_node_name);
+    if (source_iter == _node_name_to_id.end() || target_iter == _node_name_to_id.end()) {
+      return kInvalidId;
+    }
+    return addEdge(source_iter->second, target_iter->second, distance, std::forward<EdgeArgs>(edge_args)...);
+  }
+
   const std::vector<NodeType>& get_nodes() const { return _nodes; }
-  std::vector<NodeType>& get_nodes() { return _nodes; }
   const std::vector<EdgeType>& get_edges() const { return _edges; }
   std::vector<EdgeType>& get_edges() { return _edges; }
 
@@ -178,11 +208,16 @@ class SteinerTree
       ++indegree[edge.target_node_id];
     }
 
+    std::unordered_map<std::string, std::size_t> validated_name_to_id;
     for (std::size_t node_id = 0; node_id < _nodes.size(); ++node_id) {
       const auto& node = _nodes[node_id];
-      if (node.id != node_id) {
+      if (node.id != node_id || node.name.empty()) {
         return false;
       }
+      if (validated_name_to_id.contains(node.name)) {
+        return false;
+      }
+      validated_name_to_id[node.name] = node_id;
       if (is_root(node_id)) {
         if (node.parent_edge_id != kInvalidId || indegree[node_id] != 0) {
           return false;
@@ -227,19 +262,20 @@ class SteinerTree
       }
     }
 
-    return visited_count == _nodes.size();
+    return visited_count == _nodes.size() && validated_name_to_id == _node_name_to_id;
   }
 
  protected:
   std::vector<NodeType> _nodes;
   std::vector<EdgeType> _edges;
   std::size_t _root_node_id = kInvalidId;
+  std::unordered_map<std::string, std::size_t> _node_name_to_id;
 };
 
 template <typename T>
 struct ClockSteinerEdge : public SteinerEdge<T>
 {
-  T routed_length{};
+  T routed_distance{};  // Routed wire distance in coordinate type T.
 };
 
 template <typename T>

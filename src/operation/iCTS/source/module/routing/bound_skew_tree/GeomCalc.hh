@@ -24,8 +24,7 @@
 
 #include "Components.hh"
 
-namespace icts {
-namespace bst {
+namespace icts::bst {
 enum class LineType
 {
   kVertical,
@@ -59,75 +58,74 @@ class GeomCalc
   GeomCalc() = delete;
   /* Calculate */
   // point
-  static bool isSame(const Pt& p1, const Pt& p2);
+  static bool isSame(const Point& p1, const Point& p2);
 
-  static double distance(const Pt& p1, const Pt& p2);
+  static double distance(const Point& p1, const Point& p2);
 
-  static double ptToLineDistManhattan(Pt& p, const Line& l, Pt& closest);
+  static double ptToLineDistManhattan(Point& p, const Line& l, Point& closest);
 
-  static double ptToLineDistNotManhattan(Pt& p, const Line& l, Pt& closest);
+  static double ptToLineDistNotManhattan(Point& p, const Line& l, Point& closest);
 
-  static double ptToLineDist(Pt& p, const Line& l, Pt& closest);
+  static double ptToLineDist(Point& p, const Line& l, Point& closest);
 
-  static double ptToTrrDist(Pt& p, Trr& ms);
+  static double ptToTransformedRectDist(Point& p, TransformedRect& ms);
 
-  static void calcCoord(Pt& p, const Line& l, const double& shift);
+  static void calcCoord(Point& p, const Line& l, const double& shift);
 
-  static void calcRelativeCoord(Pt& p, const RelativeType& type, const double& shift);
+  static void calcRelativeCoord(Point& p, const RelativeType& type, const double& shift);
 
-  static double crossProduct(const Pt& p1, const Pt& p2, const Pt& p3);
+  static double crossProduct(const Point& p1, const Point& p2, const Point& p3);
   // line
   static LineType lineType(const Line& l);
 
-  static LineType lineType(const Pt& p1, const Pt& p2);
+  static LineType lineType(const Point& p1, const Point& p2);
 
-  static IntersectType lineIntersect(Pt& p, Line& l1, Line& l2);
+  static IntersectType lineIntersect(Point& p, Line& l1, Line& l2);
 
   static RelativeType lineRelative(const Line& l1, const Line& l2, const size_t& ref);
 
-  static double lineDist(Line& l1, Line& l2, PtPair& closest);
+  static double lineDist(Line& l1, Line& l2, PointPair& closest);
 
-  static bool onLine(Pt& p, const Line& l);
+  static bool onLine(Point& p, const Line& l);
 
   static bool isParallel(const Line& l1, const Line& l2);
   // box
-  static bool inBoundBox(const Pt& p, const Line& l);
+  static bool inBoundBox(const Point& p, const Line& l);
 
   static bool boundBoxOverlap(const Line& l1, const Line& l2, const double& epsilon = kEpsilon);
 
   static bool boundBoxOverlap(const double& x1, const double& y1, const double& x2, const double& y2, const double& x3, const double& y3,
                               const double& x4, const double& y4, const double& epsilon = kEpsilon);
 
-  // Trr
-  static double msDistance(Trr& ms1, Trr& ms2);
-  static void makeIntersect(Trr& ms1, Trr& ms2, Trr& intersect);
-  static void coreMidPoint(Trr& ms, Pt& mid);
-  static bool isTrrContain(const Trr& small, const Trr& large);
-  static void buildTrr(const Trr& ms, const double& r, Trr& build_trr);
-  static void trrCore(const Trr& trr, Trr& core);
-  static void trrToPt(const Trr& trr, Pt& pt);
-  static void trrToRegion(Trr& trr, Region& region);
-  static bool isSegmentTrr(const Trr& trr);
-  // Pts
-  static void sortPtsByFront(Pts& pts);
-  static void sortPtsByVal(Pts& pts);
-  static void sortPtsByValDec(Pts& pts);
-  static void uniquePtsLoc(std::vector<Pt>& pts);
-  static void uniquePtsVal(std::vector<Pt>& pts);
+  // TransformedRect
+  static double msDistance(TransformedRect& ms1, TransformedRect& ms2);
+  static void makeIntersect(TransformedRect& ms1, TransformedRect& ms2, TransformedRect& intersect);
+  static void coreMidPoint(TransformedRect& ms, Point& mid);
+  static bool isTransformedRectContain(const TransformedRect& small, const TransformedRect& large);
+  static void buildTransformedRect(const TransformedRect& ms, const double& r, TransformedRect& build_trr);
+  static void trrCore(const TransformedRect& trr, TransformedRect& core);
+  static void trrToPt(const TransformedRect& trr, Point& pt);
+  static void trrToRegion(TransformedRect& trr, Region& region);
+  static bool isSegmentTransformedRect(const TransformedRect& trr);
+  // Points
+  static void sortPtsByFront(Points& pts);
+  static void sortPtsByVal(Points& pts);
+  static void sortPtsByValDec(Points& pts);
+  static void uniquePtsLoc(std::vector<Point>& pts);
+  static void uniquePtsVal(std::vector<Point>& pts);
   // Region
-  static std::vector<Line> getLines(const std::vector<Pt>& pts);
-  static void convexHull(std::vector<Pt>& pts);
-  static Pt centerPt(const std::vector<Pt>& pts);
-  static bool isRegionContain(const Pt& p, const std::vector<Pt>& region);
-  static Pt closestPtOnRegion(const Pt& p, const std::vector<Pt>& region);
+  static std::vector<Line> getLines(const std::vector<Point>& pts);
+  static void convexHull(std::vector<Point>& pts);
+  static Point centerPt(const std::vector<Point>& pts);
+  static bool isRegionContain(const Point& p, const std::vector<Point>& region);
+  static Point closestPtOnRegion(const Point& p, const std::vector<Point>& region);
   /* Convert */
-  static void lineToMs(Trr& ms, const Line& l);
-  static void lineToMs(Trr& ms, const Pt& p1, const Pt& p2);
-  static void msToLine(Trr& ms, Line& l);
-  static void msToLine(Trr& ms, Pt& p1, Pt& p2);
+  static void lineToMs(TransformedRect& ms, const Line& l);
+  static void lineToMs(TransformedRect& ms, const Point& p1, const Point& p2);
+  static void msToLine(TransformedRect& ms, Line& l);
+  static void msToLine(TransformedRect& ms, Point& p1, Point& p2);
   /* Check */
-  static void checkMs(Trr& ms);
+  static void checkMs(TransformedRect& ms);
 };
 
-}  // namespace bst
-}  // namespace icts
+}  // namespace icts::bst

@@ -46,11 +46,12 @@ This directory contains guidelines for C++ backend development in `src/operation
 - Namespace: `icts`
 
 ### Singleton Macros
-- `CTSAPIInst` — Main API
-- `CTSDesignInst` — Design database
-- `CTSConfigInst` — Configuration
-- `CTSWrapperInst` — iDB adapter
-- `CTSLogInst` — Logger
+- `CTSAPIInst` — Main external API entry point
+- `DesignInst` — Design database
+- `ConfigInst` — Configuration
+- `WrapperInst` — iDB adapter
+- `STAAdapterInst` — iSTA adapter for internal source-layer use
+- `LogInst` — Logger
 
 ### Logging
 ```cpp

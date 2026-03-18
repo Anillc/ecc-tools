@@ -28,15 +28,15 @@
 #include <unordered_map>
 #include <vector>
 
-#include "CTSAPI.hh"
 #include "Design.hh"
 #include "IdbDesign.h"
 #include "IdbInstance.h"
 #include "IdbLayout.h"
 #include "IdbNet.h"
 #include "IdbPins.h"
+#include "adapter/sta/STAAdapter.hh"
 #include "builder.h"
-#include "utils/logger/Logger.hh"
+#include "logger/Logger.hh"
 
 namespace icts {
 namespace {
@@ -79,10 +79,12 @@ int32_t Wrapper::queryDbUnit() const
 bool Wrapper::withinCore(int32_t x, int32_t y) const
 {
   if (_idb_layout == nullptr) {
+    CTS_LOG_WARNING << "iDB layout is null when checking core boundary; treating point as inside core.";
     return true;
   }
   auto* core = _idb_layout->get_core();
   if (core == nullptr || core->get_bounding_box() == nullptr) {
+    CTS_LOG_WARNING << "iDB core boundary is unavailable; treating point as inside core.";
     return true;
   }
   auto* core_box = core->get_bounding_box();
@@ -112,7 +114,7 @@ void Wrapper::read()
     return;
   }
 
-  std::ranges::for_each(CTSDesignInst.get_clocks(), [&](Clock* clock) {
+  std::ranges::for_each(DesignInst.get_clocks(), [&](Clock* clock) {
     if (clock == nullptr) {
       CTS_LOG_WARNING << "Skip null clock in CTS design.";
       return;
@@ -194,7 +196,7 @@ Inst* Wrapper::idbToCts(idb::IdbInstance* idb_inst)
   auto name = idb_inst->get_name();
   auto cell_master_name = cell_master->get_name();
   auto location = idbToCts(*coord);
-  auto type = CTSAPIInst.queryInstType(name);
+  auto type = STAAdapterInst.queryInstType(name);
 
   auto* cts_inst = new Inst(name, cell_master_name, type, location);
   crossRef(idb_inst, cts_inst);

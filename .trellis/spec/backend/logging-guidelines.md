@@ -14,7 +14,7 @@ iCTS uses its own logging system (`CTS_LOG_*` macros) that provides **dual outpu
 
 ## Logger Architecture
 
-- **Singleton**: `Logger` class accessed via `CTSLogInst` macro
+- **Singleton**: `Logger` class accessed via `LogInst` macro
 - **Defined in**: `source/utils/logger/Logger.hh` and `Logger.cc`
 - **Thread-safe**: File writes protected by `std::mutex`
 - **Dual output**: Every message goes to both file and console
@@ -118,10 +118,10 @@ Use for:
 - Query functions that cannot produce a valid result
 
 ```cpp
-auto* idb_adapter = STAInst->getIDBAdapter();
-if (!idb_adapter) {
-  CTS_LOG_ERROR << "STA IDB adapter is not ready.";
-  return 0.0;
+auto* idb_design = WrapperInst.get_idb_design();
+if (idb_design == nullptr || idb_design->get_units() == nullptr) {
+  CTS_LOG_ERROR << "iDB design units are not ready.";
+  return 1;
 }
 ```
 
@@ -156,11 +156,11 @@ CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name
 
 ```cpp
 // Initialization (in CTSAPI::init or similar entry point)
-CTSLogInst.set_log_file(log_file_path);
+LogInst.set_log_file(log_file_path);
 
 // Usage throughout code
 CTS_LOG_INFO << "Processing...";
 
 // Cleanup (in CTSAPI::resetAPI)
-CTSLogInst.close();
+LogInst.close();
 ```

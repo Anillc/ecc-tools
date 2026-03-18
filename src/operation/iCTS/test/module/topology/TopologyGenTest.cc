@@ -60,20 +60,20 @@ GeneratedPins generate_case(const TopologyCase& test_case)
 {
   switch (test_case.kind) {
     case DistKind::kNormal:
-      return make_normal(test_case.count, test_case.width, test_case.height, test_case.seed);
+      return MakeNormal(test_case.count, test_case.width, test_case.height, test_case.seed);
     case DistKind::kMixture:
-      return make_gaussian_mixture(test_case.count, test_case.width, test_case.height, test_case.seed);
+      return MakeGaussianMixture(test_case.count, test_case.width, test_case.height, test_case.seed);
     case DistKind::kQuadrants:
     default:
-      return make_weighted_quadrants(test_case.count, test_case.width, test_case.height, test_case.seed, test_case.quadrant_weights);
+      return MakeWeightedQuadrants(test_case.count, test_case.width, test_case.height, test_case.seed, test_case.quadrant_weights);
   }
 }
 
 class LogGuard
 {
  public:
-  explicit LogGuard(const std::filesystem::path& path) { CTSLogInst.set_log_file(path.string()); }
-  ~LogGuard() { CTSLogInst.close(); }
+  explicit LogGuard(const std::filesystem::path& path) { LogInst.set_log_file(path.string()); }
+  ~LogGuard() { LogInst.close(); }
 };
 
 bool is_valid_pos(const icts::Point<int>& pos)
@@ -90,7 +90,7 @@ class TopologyGenFixture : public ::testing::TestWithParam<TopologyCase>
 TEST_P(TopologyGenFixture, BuildAndVisualize)
 {
   const auto& test_case = GetParam();
-  const auto output_dir = resolve_output_dir();
+  const auto output_dir = ResolveOutputDir();
 
   std::error_code ec;
   std::filesystem::create_directories(output_dir, ec);
@@ -112,7 +112,7 @@ TEST_P(TopologyGenFixture, BuildAndVisualize)
   std::vector<icts::Point<int>> centers;
   std::string error;
 
-  ASSERT_TRUE(analyze_topology(tree, data.loads, stats, cluster_map, centers, error)) << error;
+  ASSERT_TRUE(AnalyzeTopology(tree, data.loads, stats, cluster_map, centers, error)) << error;
 
   EXPECT_EQ(stats.tree_size, tree.get_size());
   EXPECT_GE(stats.leaf_count, 1U);
@@ -167,8 +167,8 @@ TEST_P(TopologyGenFixture, BuildAndVisualize)
       continue;
     }
 
-    const double dist = icts::geometry::Manhattan(child_pos, parent_pos);
-    if (dist == 0.0) {
+    const auto dist = icts::geometry::Manhattan(child_pos, parent_pos);
+    if (dist == 0) {
       ++zero_edge_count;
       CTS_LOG_WARNING << "Edge issue: node=" << id << " parent=" << parent_id << " zero-length edge child=(" << child_pos.get_x() << ","
                       << child_pos.get_y() << ") parent=(" << parent_pos.get_x() << "," << parent_pos.get_y() << ")";
@@ -184,18 +184,18 @@ TEST_P(TopologyGenFixture, BuildAndVisualize)
   std::unordered_map<const icts::Pin*, std::size_t> first_level_cluster_map;
   std::vector<icts::Point<int>> first_level_centers;
   std::string first_level_error;
-  ASSERT_TRUE(analyze_first_level_clusters(tree, data.loads, first_level_cluster_map, first_level_centers, first_level_error))
+  ASSERT_TRUE(AnalyzeFirstLevelClusters(tree, data.loads, first_level_cluster_map, first_level_centers, first_level_error))
       << first_level_error;
 
   const std::string cluster_name = "cluster_" + test_case.name + "_" + std::to_string(test_case.count) + ".svg";
   const auto cluster_path = output_dir / cluster_name;
-  EXPECT_TRUE(write_cluster_svg(cluster_path.string(), data.loads, first_level_cluster_map, first_level_centers))
+  EXPECT_TRUE(WriteClusterSvg(cluster_path.string(), data.loads, first_level_cluster_map, first_level_centers))
       << "Failed to write cluster svg: " << cluster_path.string();
   CTS_LOG_INFO << "Cluster svg saved (first-level only): " << cluster_path.string();
 
   const std::string topo_name = "topology_" + test_case.name + "_" + std::to_string(test_case.count) + ".svg";
   const auto topo_path = output_dir / topo_name;
-  EXPECT_TRUE(write_topology_svg(topo_path.string(), tree, data.loads)) << "Failed to write topology svg: " << topo_path.string();
+  EXPECT_TRUE(WriteTopologySvg(topo_path.string(), tree, data.loads)) << "Failed to write topology svg: " << topo_path.string();
   CTS_LOG_INFO << "Topology svg saved: " << topo_path.string();
 }
 

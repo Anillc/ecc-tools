@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "../spatial/Point.hh"
+#include "spatial/Point.hh"
 namespace icts {
 class Pin;
 

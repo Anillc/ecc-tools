@@ -15,30 +15,37 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Enum.hh
+ * @file BSTRouter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief Legacy routing enums for stage-1 migration
+ * @date 2026-03-16
+ * @brief Standalone BST router adapter for stage-2 routing refactor.
  */
+
 #pragma once
 
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "BSTTypes.hh"
+#include "RoutingTypes.hh"
+#include "SteinerTree.hh"
+
 namespace icts {
-enum class NodeType
+
+class BSTRouter
 {
-  kSinkPin,
-  kBufferPin,
-  kNoneLibPin,
-  kSteiner,
+ public:
+  using Terminal = RoutingTerminal;
+  using ClockSteinerTreeType = ClockSteinerTree<int>;
+
+  BSTRouter() = delete;
+  ~BSTRouter() = default;
+
+  static ClockSteinerTreeType buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
+
+  static ClockSteinerTreeType buildTreeFromTopology(const ClockSteinerTreeType& input_topology, const BSTParameters& parameters);
 };
-enum class PinType
-{
-  kDriver,
-  kLoad,
-};
-enum class InstType
-{
-  kBuffer,
-  kSink,
-  kNoneLib,
-};
+
 }  // namespace icts

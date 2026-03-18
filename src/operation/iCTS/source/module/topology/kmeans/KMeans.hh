@@ -28,8 +28,8 @@
 #include <limits>
 #include <vector>
 
-#include "database/spatial/Point.hh"
-#include "utils/geometry/Geometry.hh"
+#include "Point.hh"
+#include "geometry/Geometry.hh"
 
 namespace icts {
 
@@ -143,7 +143,7 @@ class KMeans
   template <typename PointType>
   Point<double> toPoint(const PointType& point) const
   {
-    return Point<double>(static_cast<double>(point.get_x()), static_cast<double>(point.get_y()));
+    return Point<double>(point.get_x(), point.get_y());
   }
 };
 

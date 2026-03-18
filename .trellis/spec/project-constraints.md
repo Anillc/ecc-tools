@@ -125,7 +125,7 @@ The project uses clang-tidy for static analysis. Reference config at `src/utilit
 | Global/Free function | CamelCase | — | — | `Manhattan()`, `CalcCenter()` |
 | Global constant | CamelCase | `k` | — | `kFileName` |
 | Global variable | CamelCase | `g` | — | `gFileName` |
-| Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst` |
+| Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst`, `ConfigInst`, `STAAdapterInst` |
 | Namespace | lower_case | — | — | `icts`, `idb`, `ieda` |
 
 ### Getter/Setter Exception

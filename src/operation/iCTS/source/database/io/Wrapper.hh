@@ -25,9 +25,9 @@
 #include <cstdint>
 #include <unordered_map>
 
-#include "../design/Inst.hh"
-#include "../design/Net.hh"
-#include "../design/Pin.hh"
+#include "design/Inst.hh"
+#include "design/Net.hh"
+#include "design/Pin.hh"
 
 namespace idb {
 class IdbBuilder;
@@ -38,11 +38,11 @@ class IdbInstance;
 class IdbNet;
 template <typename T>
 class IdbCoordinate;
-}
+}  // namespace idb
 
 namespace icts {
 
-#define CTSWrapperInst (icts::Wrapper::getInst())
+#define WrapperInst (icts::Wrapper::getInst())
 
 class Wrapper
 {

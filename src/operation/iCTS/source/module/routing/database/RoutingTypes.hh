@@ -15,43 +15,24 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file BalanceClustering.hh
+ * @file RoutingTypes.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief Minimal balance clustering compatibility helpers for routing migration
+ * @date 2026-03-16
+ * @brief Shared stage-2 routing value types.
  */
 
 #pragma once
 
-#include <vector>
+#include <string>
 
-#include "Pin.hh"
+#include "Point.hh"
 
 namespace icts {
 
-class BalanceClustering
+struct RoutingTerminal
 {
- public:
-  BalanceClustering() = delete;
-  ~BalanceClustering() = default;
-
-  static Point calcCentroid(const std::vector<Pin*>& load_pins)
-  {
-    if (load_pins.empty()) {
-      return Point(0, 0);
-    }
-
-    long long sum_x = 0;
-    long long sum_y = 0;
-    for (auto* pin : load_pins) {
-      auto loc = pin->get_location();
-      sum_x += loc.x();
-      sum_y += loc.y();
-    }
-
-    auto size = static_cast<long long>(load_pins.size());
-    return Point(static_cast<int>(sum_x / size), static_cast<int>(sum_y / size));
-  }
+  std::string name = "";
+  Point<int> location = Point<int>(-1, -1);
 };
 
 }  // namespace icts

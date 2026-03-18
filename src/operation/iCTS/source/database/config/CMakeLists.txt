@@ -6,6 +6,7 @@ target_include_directories(
   ${ICTS_DATABASE_CONFIG}
   PRIVATE
   ${HOME_THIRDPARTY}/json
+  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_DATABASE_CONFIG)

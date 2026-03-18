@@ -14,38 +14,90 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-
 /**
  * @file LocalLegalization.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief Local legalization helpers for stage-1 routing
+ * @date 2026-03-17
+ * @brief Standalone point-based local legalization.
  */
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
-#include "Pin.hh"
+#include "Point.hh"
+#include "Rect.hh"
+#include "Region.hh"
+
 namespace icts {
-/**
- * @brief Local legalization only consider the input location but not the global instance and shape
- *
- */
+
 class LocalLegalization
 {
  public:
-  LocalLegalization(Pin* driver_pin, const std::vector<Pin*>& load_pins);
-  LocalLegalization(std::vector<Pin*>& pins);
-  LocalLegalization(std::vector<Point>& variable_locations, const std::vector<Point>& fixed_locations = std::vector<Point>());
+  using PointType = Point<int>;
+  using RectType = Rect<int>;
+  using RegionType = Region<int>;
 
+  enum class FailurePolicy
+  {
+    kFail,
+    kKeepOriginal,
+  };
+
+  struct Options
+  {
+    std::size_t candidate_budget = 32;
+    int local_search_radius = 6;
+    int max_expansion_rounds = 8;
+    FailurePolicy failure_policy = FailurePolicy::kFail;
+  };
+
+  struct Problem
+  {
+    std::vector<PointType> movable_points;
+    std::vector<PointType> fixed_points;
+    RegionType feasible_region;
+    RegionType block_region;
+  };
+
+  struct Result
+  {
+    std::vector<PointType> legalized_points;
+    long long total_displacement = 0;
+    bool success = false;
+  };
+
+  LocalLegalization() = delete;
   ~LocalLegalization() = default;
-  static void setIgnoreCore(const bool& ignore_core) { _ignore_core = ignore_core; }
+
+  static Result legalize(const Problem& problem);
+  static Result legalize(const Problem& problem, const Options& options);
+  static Result legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points = {},
+                         const RegionType& feasible_region = RegionType{}, const RegionType& block_region = RegionType{});
+  static Result legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
+                         const RegionType& feasible_region, const RegionType& block_region, const Options& options);
 
  private:
-  void legalize();
-  static bool _ignore_core;
-  std::vector<Point> _variable_locations;
-  std::vector<Point> _fixed_locations;
+  struct CandidateSite
+  {
+    PointType point = PointType(-1, -1);
+  };
+
+  static RegionType buildLegalRegion(const RegionType& feasible_region, const RegionType& block_region);
+
+  static std::vector<CandidateSite> generateCandidates(const PointType& origin, const RegionType& legal_region,
+                                                       const std::vector<PointType>& fixed_points, std::size_t candidate_budget,
+                                                       int local_search_radius);
+  static std::vector<CandidateSite> enumerateProjectedNeighbors(const PointType& seed, const RegionType& legal_region,
+                                                                const std::vector<PointType>& fixed_points, int max_radius,
+                                                                std::size_t candidate_budget);
+  static std::vector<CandidateSite> enumerateBoundaryBreakpoints(const PointType& origin, const RegionType& legal_region,
+                                                                 const std::vector<PointType>& fixed_points, std::size_t candidate_budget);
+  static std::vector<PointType> solveAssignment(const std::vector<PointType>& movable_points,
+                                                const std::vector<std::vector<CandidateSite>>& candidate_sets);
+  static long long computeTotalDisplacement(const std::vector<PointType>& original_points, const std::vector<PointType>& legalized_points);
+  static void appendCandidate(std::vector<CandidateSite>& candidates, const PointType& point, const RegionType& legal_region,
+                              const std::vector<PointType>& fixed_points, std::size_t candidate_budget);
 };
 
 }  // namespace icts

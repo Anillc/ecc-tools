@@ -26,9 +26,9 @@
 #include <cstddef>
 #include <vector>
 
-#include "database/design/Pin.hh"
-#include "database/spatial/Tree.hh"
-#include "module/topology/clustering/Clustering.hh"
+#include "Pin.hh"
+#include "Tree.hh"
+#include "clustering/Clustering.hh"
 
 namespace icts {
 

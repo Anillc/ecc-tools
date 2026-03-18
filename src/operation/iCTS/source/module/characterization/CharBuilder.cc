@@ -29,9 +29,9 @@
 #include <utility>
 #include <vector>
 
-#include "CTSAPI.hh"
-#include "database/config/Config.hh"
-#include "utils/logger/Logger.hh"
+#include "adapter/sta/STAAdapter.hh"
+#include "config/Config.hh"
+#include "logger/Logger.hh"
 
 namespace icts {
 
@@ -75,7 +75,7 @@ void CharBuilder::build()
 void CharBuilder::initBufferList()
 {
   _sorted_buffers.clear();
-  const auto& buffer_types = CTSConfigInst.get_buffer_types();
+  const auto& buffer_types = ConfigInst.get_buffer_types();
   if (buffer_types.empty()) {
     CTS_LOG_WARNING << "CharBuilder: no buffer types configured in Config";
     return;
@@ -83,17 +83,17 @@ void CharBuilder::initBufferList()
 
   // Collect buffer info from liberty via CTSAPI
   for (const auto& cell_master : buffer_types) {
-    double max_cap = CTSAPIInst.queryCellOutPinCapLimit(cell_master);
+    double max_cap = STAAdapterInst.queryCellOutPinCapLimit(cell_master);
     if (max_cap <= 0.0) {
       CTS_LOG_WARNING << "CharBuilder: buffer " << cell_master << " has invalid max_cap (" << max_cap << " pF), skipped";
       continue;
     }
 
     // Query input pin capacitance via CTSAPI
-    double input_cap = CTSAPIInst.queryCharInputPinCap(cell_master);
+    double input_cap = STAAdapterInst.queryCharInputPinCap(cell_master);
 
     // Resolve buffer port names from liberty
-    auto [in_pin, out_pin] = CTSAPIInst.queryBufferPorts(cell_master);
+    auto [in_pin, out_pin] = STAAdapterInst.queryBufferPorts(cell_master);
     if (in_pin.empty() || out_pin.empty()) {
       CTS_LOG_WARNING << "CharBuilder: buffer " << cell_master << " has unresolved port names, skipped";
       continue;
@@ -112,7 +112,7 @@ void CharBuilder::initBufferList()
   std::ranges::sort(_sorted_buffers, [](const BufferInfo& a, const BufferInfo& b) { return a.max_cap_pf < b.max_cap_pf; });
 
   // Near-neighbor redundancy removal (default disabled: _redundancy_pct == 0)
-  _redundancy_pct = CTSConfigInst.get_char_buf_redundancy_pct();
+  _redundancy_pct = ConfigInst.get_char_buf_redundancy_pct();
   if (_redundancy_pct > 0.0 && _sorted_buffers.size() > 1) {
     std::vector<BufferInfo> filtered;
     filtered.push_back(_sorted_buffers.front());
@@ -140,14 +140,14 @@ void CharBuilder::initBufferList()
 void CharBuilder::initCharParams()
 {
   // Max pattern nodes
-  _max_nodes = CTSConfigInst.get_max_pattern_nodes();
+  _max_nodes = ConfigInst.get_max_pattern_nodes();
   if (_max_nodes == 0) {
     _max_nodes = 4;
   }
   CTS_LOG_INFO << "CharBuilder: max_pattern_nodes = " << _max_nodes;
 
   // Routing layer
-  const auto& routing_layers = CTSConfigInst.get_routing_layers();
+  const auto& routing_layers = ConfigInst.get_routing_layers();
   if (!routing_layers.empty()) {
     _routing_layer = static_cast<int>(routing_layers.front());
   }
@@ -155,26 +155,26 @@ void CharBuilder::initCharParams()
 
   // Wire width
   {
-    double wire_width = CTSConfigInst.get_wire_width();
+    double wire_width = ConfigInst.get_wire_width();
     _wire_width = wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
   }
 
   // Max values for discretization ranges
-  _max_slew = CTSConfigInst.get_max_buf_tran();
-  _max_cap = CTSConfigInst.get_max_cap();
-  _max_length = CTSConfigInst.get_max_length();
+  _max_slew = ConfigInst.get_max_buf_tran();
+  _max_cap = ConfigInst.get_max_cap();
+  _max_length = ConfigInst.get_max_length();
 
   // Discretization steps
-  _slew_steps = CTSConfigInst.get_slew_steps();
-  _cap_steps = CTSConfigInst.get_cap_steps();
-  _length_steps = CTSConfigInst.get_length_steps();
+  _slew_steps = ConfigInst.get_slew_steps();
+  _cap_steps = ConfigInst.get_cap_steps();
+  _length_steps = ConfigInst.get_length_steps();
 
   // Compute wire lengths to test (in um)
   _wire_lengths_um.clear();
   if (_max_length > 0.0 && _length_steps > 0) {
     double length_step_um = _max_length / _length_steps;
     for (unsigned i = 1; i <= _length_steps; ++i) {
-      _wire_lengths_um.push_back(static_cast<double>(i) * length_step_um);
+      _wire_lengths_um.push_back(i * length_step_um);
     }
   }
   CTS_LOG_INFO << "CharBuilder: " << _wire_lengths_um.size() << " wire lengths to test"
@@ -185,7 +185,7 @@ void CharBuilder::initCharParams()
   if (_max_slew > 0.0 && _slew_steps > 0) {
     double slew_step_ns = _max_slew / _slew_steps;
     for (unsigned i = 1; i <= _slew_steps; ++i) {
-      _slews_to_test.push_back(static_cast<double>(i) * slew_step_ns);
+      _slews_to_test.push_back(i * slew_step_ns);
     }
   }
   CTS_LOG_INFO << "CharBuilder: " << _slews_to_test.size() << " slew values to test"
@@ -196,7 +196,7 @@ void CharBuilder::initCharParams()
   if (_max_cap > 0.0 && _cap_steps > 0) {
     double cap_step_pf = _max_cap / _cap_steps;
     for (unsigned i = 1; i <= _cap_steps; ++i) {
-      _loads_to_test.push_back(static_cast<double>(i) * cap_step_pf);
+      _loads_to_test.push_back(i * cap_step_pf);
     }
   }
   CTS_LOG_INFO << "CharBuilder: " << _loads_to_test.size() << " load values to test"
@@ -396,20 +396,20 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     setCharParasitics(topo, effective_load);
 
     // Create a propagated clock on the source buffer's output pin
-    CTSAPIInst.createCharClock(_source_out_pin, _char_clock_name, 10.0);
+    STAAdapterInst.createCharClock(_source_out_pin, _char_clock_name, 10.0);
 
     for (double input_slew_ns : _slews_to_test) {
       // Annotate input slew on the source buffer's output vertex
-      CTSAPIInst.setCharInputSlew(_source_out_pin, input_slew_ns);
+      STAAdapterInst.setCharInputSlew(_source_out_pin, input_slew_ns);
 
       // Full timing update (clock + slew + delay propagation)
-      CTSAPIInst.updateCharTiming();
+      STAAdapterInst.updateTiming();
 
       // Query total delay via clock arrival time at sink input pin
-      double delay_ns = CTSAPIInst.queryCharClockAT(_sink_in_pin, _char_clock_name);
+      double delay_ns = STAAdapterInst.queryCharClockAT(_sink_in_pin, _char_clock_name);
 
       // Query output slew at sink input pin
-      double output_slew_ns = CTSAPIInst.queryCharSlew(_sink_in_pin);
+      double output_slew_ns = STAAdapterInst.queryCharSlew(_sink_in_pin);
 
       // Power: iSTA has no per-instance power API; deferred to iPA integration
       double power_w = 0.0;
@@ -418,13 +418,13 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
       double input_cap_pf = 0.0;
       if (!buf_masters.empty()) {
         // Buffered: first buffer input cap + first wire segment cap
-        input_cap_pf = CTSAPIInst.queryCharInputPinCap(buf_masters.front());
-        input_cap_pf += CTSAPIInst.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
+        input_cap_pf = STAAdapterInst.queryCharInputPinCap(buf_masters.front());
+        input_cap_pf += STAAdapterInst.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
       } else {
         // Pure wire: load + total wire cap
         input_cap_pf = load_pf;
         for (double seg_len_um : topo.wire_segments_um) {
-          input_cap_pf += CTSAPIInst.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
+          input_cap_pf += STAAdapterInst.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
         }
       }
 
@@ -441,7 +441,7 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     }
 
     // Remove the clock definition and restore original SDC for next iteration
-    CTSAPIInst.destroyCharClock();
+    STAAdapterInst.destroyCharClock();
   }
 
   // Cleanup temporary circuit
@@ -465,18 +465,18 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
 
   // Create source buffer instance
   _source_inst_name = id_prefix + "source";
-  CTSAPIInst.createCharInstance(endpoint_buf.cell_master, _source_inst_name);
+  STAAdapterInst.createCharInstance(endpoint_buf.cell_master, _source_inst_name);
   _source_out_pin = _source_inst_name + "/" + endpoint_buf.output_pin;
 
   // Create sink buffer instance
   _sink_inst_name = id_prefix + "sink";
-  CTSAPIInst.createCharInstance(endpoint_buf.cell_master, _sink_inst_name);
+  STAAdapterInst.createCharInstance(endpoint_buf.cell_master, _sink_inst_name);
   _sink_in_pin = _sink_inst_name + "/" + endpoint_buf.input_pin;
 
   // Create characterization buffer instances
   for (size_t i = 0; i < buf_masters.size(); ++i) {
     std::string inst_name = id_prefix + "buf_" + std::to_string(i);
-    CTSAPIInst.createCharInstance(buf_masters[i], inst_name);
+    STAAdapterInst.createCharInstance(buf_masters[i], inst_name);
     _temp_inst_names.push_back(inst_name);
   }
 
@@ -487,13 +487,13 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   //   net_N: last_buf_out -> sink_in
   for (size_t i = 0; i < topo.wire_segments_um.size(); ++i) {
     std::string net_name = id_prefix + "net_" + std::to_string(i);
-    CTSAPIInst.createCharNet(net_name);
+    STAAdapterInst.createCharNet(net_name);
     _temp_net_names.push_back(net_name);
   }
 
   // Connect the chain: source_out -> net_0 -> [buf_0_in / buf_0_out] -> net_1 -> ... -> sink_in
   // First net: source output drives it
-  CTSAPIInst.attachCharPin(_source_inst_name, endpoint_buf.output_pin, _temp_net_names.front());
+  STAAdapterInst.attachCharPin(_source_inst_name, endpoint_buf.output_pin, _temp_net_names.front());
 
   // Connect characterization buffers between nets
   for (size_t bi = 0; bi < buf_masters.size(); ++bi) {
@@ -505,16 +505,20 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
         break;
       }
     }
-    CTS_LOG_FATAL_IF(buf_info == nullptr) << "Buffer info not found for: " << buf_masters[bi];
+    if (buf_info == nullptr) {
+      CTS_LOG_FATAL << "Buffer info not found for: " << buf_masters[bi];
+      return;
+    }
+    const auto& buffer_info = *buf_info;
 
     // Buffer input connects to net[bi] (the net coming into this buffer)
-    CTSAPIInst.attachCharPin(_temp_inst_names[bi], buf_info->input_pin, _temp_net_names[bi]);
+    STAAdapterInst.attachCharPin(_temp_inst_names[bi], buffer_info.input_pin, _temp_net_names[bi]);
     // Buffer output connects to net[bi+1] (the net going out of this buffer)
-    CTSAPIInst.attachCharPin(_temp_inst_names[bi], buf_info->output_pin, _temp_net_names[bi + 1]);
+    STAAdapterInst.attachCharPin(_temp_inst_names[bi], buffer_info.output_pin, _temp_net_names[bi + 1]);
   }
 
   // Last net: sink input receives it
-  CTSAPIInst.attachCharPin(_sink_inst_name, endpoint_buf.input_pin, _temp_net_names.back());
+  STAAdapterInst.attachCharPin(_sink_inst_name, endpoint_buf.input_pin, _temp_net_names.back());
 
   // Set the clock name for this circuit
   _char_clock_name = id_prefix + "clk";
@@ -527,12 +531,12 @@ void CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf)
   // Build Pi-model RC tree for each wire segment
   for (size_t i = 0; i < _temp_net_names.size(); ++i) {
     double seg_len_um = topo.wire_segments_um[i];
-    double wire_res = CTSAPIInst.queryWireResistance(_routing_layer, seg_len_um, _wire_width);
-    double wire_cap = CTSAPIInst.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
+    double wire_res = STAAdapterInst.queryWireResistance(_routing_layer, seg_len_um, _wire_width);
+    double wire_cap = STAAdapterInst.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
 
     // Add external load to the last segment's far-end capacitance
     double seg_load = (i == _temp_net_names.size() - 1) ? load_pf : 0.0;
-    CTSAPIInst.buildCharRcTree(_temp_net_names[i], wire_res, wire_cap, seg_load);
+    STAAdapterInst.buildCharRcTree(_temp_net_names[i], wire_res, wire_cap, seg_load);
   }
 }
 
@@ -540,17 +544,17 @@ void CharBuilder::destroyCharCircuit()
 {
   // Cleanup in reverse order: nets first, then characterization buffers, then source/sink
   for (auto it = _temp_net_names.rbegin(); it != _temp_net_names.rend(); ++it) {
-    CTSAPIInst.destroyCharNet(*it);
+    STAAdapterInst.destroyCharNet(*it);
   }
   for (auto it = _temp_inst_names.rbegin(); it != _temp_inst_names.rend(); ++it) {
-    CTSAPIInst.destroyCharInstance(*it);
+    STAAdapterInst.destroyCharInstance(*it);
   }
   if (!_sink_inst_name.empty()) {
-    CTSAPIInst.destroyCharInstance(_sink_inst_name);
+    STAAdapterInst.destroyCharInstance(_sink_inst_name);
     _sink_inst_name.clear();
   }
   if (!_source_inst_name.empty()) {
-    CTSAPIInst.destroyCharInstance(_source_inst_name);
+    STAAdapterInst.destroyCharInstance(_source_inst_name);
     _source_inst_name.clear();
   }
   _temp_net_names.clear();

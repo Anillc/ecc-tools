@@ -31,7 +31,7 @@
 
 namespace icts {
 
-#define CTSLogInst (icts::Logger::getInst())
+#define LogInst (icts::Logger::getInst())
 
 class Logger
 {

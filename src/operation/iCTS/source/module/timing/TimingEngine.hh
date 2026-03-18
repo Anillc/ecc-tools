@@ -15,21 +15,48 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file SALT.cc
+ * @file TimingEngine.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief SALT-based Steiner tree routing facade implementation
+ * @date 2026-03-16
+ * @brief Pure RCTree timing propagation engine for stage-2 timing module.
  */
 
-#include "SALT.hh"
+#pragma once
 
-#include "TreeBuilder.hh"
+#include <cstddef>
+
+#include "RCTree.hh"
 
 namespace icts {
 
-void SALTRouter::route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins)
+class TimingEngine
 {
-  TreeBuilder::shallowLightTree(net_name, driver_pin, load_pins);
-}
+ public:
+  struct Metrics
+  {
+    double skew = 0.0;
+    double min_delay = 0.0;
+    double max_delay = 0.0;
+    double max_slew = 0.0;
+    double total_cap = 0.0;
+  };
+
+  TimingEngine() = delete;
+  ~TimingEngine() = default;
+
+  static Metrics update(RCTree& rc_tree);
+
+  static void updateDownstreamCap(RCTree& rc_tree);
+  static void updateIncreaseDelay(RCTree& rc_tree);
+  static void updateArrival(RCTree& rc_tree);
+  static void updateSlew(RCTree& rc_tree);
+  static void updateDownstreamDelay(RCTree& rc_tree);
+
+  static Metrics evaluate(const RCTree& rc_tree);
+  static double calcSkew(const RCTree& rc_tree);
+
+  static double calcArcDelay(double downstream_cap, double resistance, double capacitance);
+  static double calcIdealSlew(double arc_delay);
+};
 
 }  // namespace icts

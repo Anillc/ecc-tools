@@ -15,21 +15,24 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FLUTE.cc
+ * @file RoutingTypes.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief FLUTE-based Steiner tree routing facade implementation
+ * @date 2026-03-16
+ * @brief Shared stage-2 routing value types.
  */
 
-#include "FLUTE.hh"
+#pragma once
 
-#include "TreeBuilder.hh"
+#include <string>
+
+#include "Point.hh"
 
 namespace icts {
 
-void FLUTERouter::route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins)
+struct RoutingTerminal
 {
-  TreeBuilder::fluteTree(net_name, driver_pin, load_pins);
-}
+  std::string name = "";
+  Point<int> location = Point<int>(-1, -1);
+};
 
 }  // namespace icts

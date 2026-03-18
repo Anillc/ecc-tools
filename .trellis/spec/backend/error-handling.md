@@ -42,10 +42,10 @@ CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Cannot find liberty cell: " << cell_ma
 **When**: A required resource is unavailable, but the function can return a safe default.
 
 ```cpp
-auto* idb_adapter = STAInst->getIDBAdapter();
-if (!idb_adapter) {
-  CTS_LOG_ERROR << "STA IDB adapter is not ready.";
-  return 0.0;
+auto* idb_design = WrapperInst.get_idb_design();
+if (idb_design == nullptr || idb_design->get_units() == nullptr) {
+  CTS_LOG_ERROR << "iDB design units are not ready.";
+  return 1;
 }
 ```
 

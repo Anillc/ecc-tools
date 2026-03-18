@@ -15,28 +15,23 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file SALT.hh
+ * @file BoundSkewTreeDebug.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-08
- * @brief SALT-based Steiner tree routing facade
+ * @date 2026-03-16
+ * @brief Debug-only helpers for bound-skew tree visualization and logging.
  */
-
 #pragma once
 
 #include <string>
 #include <vector>
 
-namespace icts {
+#include "Components.hh"
 
-class Pin;
+namespace icts::bst::debug {
 
-class SALTRouter
-{
- public:
-  SALTRouter() = delete;
-  ~SALTRouter() = default;
+void PrintPoint(const Point& pt);
+void PrintArea(const Area* area);
+void WritePy(const std::vector<Point>& pts, const std::string& file = "debug");
+void WritePy(Area* area, const std::string& file = "debug");
 
-  static void route(const std::string& net_name, Pin* driver_pin, const std::vector<Pin*>& load_pins);
-};
-
-}  // namespace icts
+}  // namespace icts::bst::debug

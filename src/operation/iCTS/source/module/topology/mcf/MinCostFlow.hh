@@ -17,6 +17,7 @@
 /**
  * @file MinCostFlow.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
+ * @brief Min-cost flow helper for topology clustering.
  */
 #pragma once
 #include <ranges>
@@ -28,10 +29,10 @@
 
 namespace icts {
 /**
- * @brief MinCostFlow template class for solving clustring by min cost flow
- *       input: nodes, centers
- *       constraint: max_dist, max_cluster_size (like max_fanout)
- *       output: clusters
+ * @brief MinCostFlow template class for solving clustering by min-cost flow.
+ *        input: nodes, centers
+ *        constraint: max_cluster_size (like max_fanout)
+ *        output: clusters
  *
  * @tparam Value
  */
@@ -42,14 +43,14 @@ class MinCostFlow
   MinCostFlow() = default;
   ~MinCostFlow() = default;
 
-  void add_node(const double& x, const double& y, Value& value) { _nodes.push_back({FlowPoint{x, y}, value}); }
+  void addNode(double x, double y, Value& value) { _nodes.push_back({FlowPoint{x, y}, value}); }
 
-  void add_center(const double& x, const double& y) { _centers.push_back({x, y}); }
+  void addCenter(double x, double y) { _centers.push_back({x, y}); }
 
   std::vector<std::vector<Value>> run(const size_t& max_cluster_size)
   {
     // Flow problem:
-    // virturl source -> [sinks] -> [buffers] -> virturl target
+    // virtual source -> [sinks] -> [buffers] -> virtual target
     // requirement: meet the max_cluster_size (like max_fanout) constraint
 
     // Define the node and arc types
