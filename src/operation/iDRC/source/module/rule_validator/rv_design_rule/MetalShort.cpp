@@ -20,24 +20,15 @@ namespace idrc {
 
 void RuleValidator::verifyMetalShort(RVCluster& rv_cluster)
 {
+  const auto& layer_data = rv_cluster.get_layer_data();
   std::map<int32_t, std::map<int32_t, GTLPolySetInt>> routing_net_checking_polysets;
-  std::map<int32_t, bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>> routing_net_total_rtrees;
-  // preprocess for routing result and env
+
+  // checking polyset keeps the result routing only.
   {
-    std::map<int32_t, std::map<int32_t, GTLPolySetInt>> routing_net_total_polysets;
-    std::map<int32_t, std::map<int32_t, std::vector<GTLRectInt>>> net_rects_to_merge_total;
     std::map<int32_t, std::map<int32_t, std::vector<GTLRectInt>>> net_rects_to_merge_checking;
-    for (DRCShape* drc_shape : rv_cluster.get_drc_env_shape_list()) {
-      if (drc_shape->get_is_routing()) {
-        net_rects_to_merge_total[drc_shape->get_layer_idx()][drc_shape->get_net_idx()].push_back(DRCUTIL.convertToGTLRectInt(drc_shape->get_rect()));
-      }
-    }
     for (DRCShape* drc_shape : rv_cluster.get_drc_result_shape_list()) {
-      if (drc_shape->get_is_routing()) {
-        net_rects_to_merge_total[drc_shape->get_layer_idx()][drc_shape->get_net_idx()].push_back(DRCUTIL.convertToGTLRectInt(drc_shape->get_rect()));
-        if (drc_shape->get_net_idx() != -1) {
-          net_rects_to_merge_checking[drc_shape->get_layer_idx()][drc_shape->get_net_idx()].push_back(DRCUTIL.convertToGTLRectInt(drc_shape->get_rect()));
-        }
+      if (drc_shape->get_is_routing() && drc_shape->get_net_idx() != -1) {
+        net_rects_to_merge_checking[drc_shape->get_layer_idx()][drc_shape->get_net_idx()].push_back(DRCUTIL.convertToGTLRectInt(drc_shape->get_rect()));
       }
     }
     for (auto& [layer_idx, net_map] : net_rects_to_merge_checking) {
@@ -46,46 +37,32 @@ void RuleValidator::verifyMetalShort(RVCluster& rv_cluster)
         target_net_map[net_idx].insert(rect_vec.begin(), rect_vec.end());
       }
     }
-
-    for (auto& [layer_idx, net_map] : net_rects_to_merge_total) {
-      auto& target_net_map = routing_net_total_polysets[layer_idx];
-      for (auto& [net_idx, rect_vec] : net_map) {
-        target_net_map[net_idx].insert(rect_vec.begin(), rect_vec.end());
-      }
-    }
-
-    for (auto& [routing_layer_idx, net_gtl_poly_set_map] : routing_net_total_polysets) {
-      std::vector<std::pair<BGRectInt, int32_t>> rtree_inputs;
-      std::vector<GTLRectInt> rects;
-      for (auto& [net_idx, gtl_poly_set] : net_gtl_poly_set_map) {
-        rects.clear();
-        gtl::get_max_rectangles(rects, gtl_poly_set);
-        for (GTLRectInt& gtl_rect : rects) {
-          rtree_inputs.push_back({DRCUTIL.convertToBGRectInt(gtl_rect), net_idx});
-        }
-      }
-      routing_net_total_rtrees[routing_layer_idx] = bgi::rtree<std::pair<BGRectInt, int32_t>, bgi::quadratic<16>>(rtree_inputs);
-    }
   }
 
   // check rules
-  for (auto& [routing_layer_idx, net_polyset] : routing_net_checking_polysets) {
+  for (const auto& [routing_layer_idx, net_polyset] : routing_net_checking_polysets) {
+    auto layer_data_it = layer_data.find(routing_layer_idx);
+    if (layer_data_it == layer_data.end()) {
+      continue;
+    }
+    const RVLayerData& rv_layer_data = layer_data_it->second;
     std::vector<Violation> layer_violations;
+    std::vector<std::pair<GTLRectInt, int32_t>> overlap_max_rects;
     for (auto& [net_idx, polyset] : net_polyset) {
       std::vector<GTLRectInt> rect_list;
       gtl::get_max_rectangles(rect_list, polyset);
 
       for (GTLRectInt& gtl_rect : rect_list) {
         PlanarRect rect = DRCUTIL.convertToPlanarRect(gtl_rect);
-        std::vector<std::pair<BGRectInt, int32_t>> bg_rect_net_pair_list;
-        {
-          routing_net_total_rtrees[routing_layer_idx].query(bgi::intersects(DRCUTIL.convertToBGRectInt(rect)), std::back_inserter(bg_rect_net_pair_list));
-        }
-        for (auto& [bg_env_rect, env_net_idx] : bg_rect_net_pair_list) {
+
+        overlap_max_rects.clear();
+        rv_layer_data.queryMaxRects(gtl_rect, std::back_inserter(overlap_max_rects));
+        for (auto [env_gtl_rect, env_max_rect_id] : overlap_max_rects) {
+          int32_t env_net_idx = rv_layer_data.getNetIdxByMaxRectId(env_max_rect_id);
           if (net_idx == env_net_idx) {
             continue;
           }
-          PlanarRect env_rect = DRCUTIL.convertToPlanarRect(bg_env_rect);
+          PlanarRect env_rect = DRCUTIL.convertToPlanarRect(env_gtl_rect);
           if (!DRCUTIL.isClosedOverlap(rect, env_rect)) {
             continue;
           }

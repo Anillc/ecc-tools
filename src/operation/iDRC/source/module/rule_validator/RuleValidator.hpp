@@ -55,6 +55,7 @@ class RuleValidator
   void buildRVCluster(RVCluster& rv_cluster);
   bool needVerifying(RVCluster& rv_cluster);
   void buildViolationList(RVCluster& rv_cluster);
+  void prepareRVCluster(RVCluster& rv_cluster);
   void verifyRVCluster(RVCluster& rv_cluster);
   void verifyAdjacentCutSpacing(RVCluster& rv_cluster);
   void verifyCornerFillSpacing(RVCluster& rv_cluster);
