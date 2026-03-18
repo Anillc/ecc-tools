@@ -14,11 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "DRCShape.hpp"
-#include "Logger.hpp"
-#include "PlanarRect.hpp"
 #include "RuleValidator.hpp"
-#include "Utility.hpp"
 
 namespace idrc {
 
@@ -27,30 +23,36 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
   const auto& layer_data = rv_cluster.get_layer_data();
-  auto build_outer_ring_info = [this](const RVLayerData& rv_layer_data, const PolygonData& polygon_data, int32_t& coord_size,
-                                      std::vector<Segment<PlanarCoord>>& edge_list, std::vector<int32_t>& edge_length_list,
-                                      std::set<int32_t>& eol_edge_idx_set) {
-    edge_list.clear();
-    edge_length_list.clear();
-    eol_edge_idx_set.clear();
-
-    std::vector<bool> convex_corner_list;
-    for (const BoundaryData& boundary_data : rv_layer_data.getBoundaries(polygon_data)) {
-      if (boundary_data.isHole) {
+  auto is_eol_boundary = [](const RVLayerData& rv_layer_data, int32_t boundary_id, int32_t eol_width) {
+    const BoundaryData& curr_boundary = rv_layer_data.getBoundary(boundary_id);
+    if (curr_boundary.edge_length >= eol_width) {
+      return false;
+    }
+    const BoundaryData& prev_boundary = rv_layer_data.getPrevBoundary(boundary_id);
+    return prev_boundary.isConvex && curr_boundary.isConvex;
+  };
+  auto build_parallel_windows = [this](const BoundaryData& boundary_data, const EnclosureParallelRule& curr_rule, PlanarRect& pre_rect,
+                                       PlanarRect& post_rect) {
+    int32_t par_spacing = curr_rule.par_spacing - boundary_data.edge_length;
+    switch (boundary_data.orient) {
+      case Orientation::kEast:
+        pre_rect = DRCUTIL.getEnlargedRect(boundary_data.begin_coord, curr_rule.backward_ext, par_spacing, curr_rule.forward_ext, 0);
+        post_rect = DRCUTIL.getEnlargedRect(boundary_data.end_coord, curr_rule.backward_ext, 0, curr_rule.forward_ext, par_spacing);
         break;
-      }
-      edge_list.emplace_back(boundary_data.begin_coord, boundary_data.end_coord);
-      edge_length_list.push_back(boundary_data.edge_length);
-      convex_corner_list.push_back(boundary_data.isConvex);
-    }
-    coord_size = static_cast<int32_t>(edge_list.size());
-    if (coord_size < 4) {
-      return;
-    }
-    for (int32_t i = 0; i < coord_size; i++) {
-      if (convex_corner_list[getIdx(i - 1, coord_size)] && convex_corner_list[i]) {
-        eol_edge_idx_set.insert(i);
-      }
+      case Orientation::kWest:
+        pre_rect = DRCUTIL.getEnlargedRect(boundary_data.begin_coord, curr_rule.forward_ext, 0, curr_rule.backward_ext, par_spacing);
+        post_rect = DRCUTIL.getEnlargedRect(boundary_data.end_coord, curr_rule.forward_ext, par_spacing, curr_rule.backward_ext, 0);
+        break;
+      case Orientation::kSouth:
+        pre_rect = DRCUTIL.getEnlargedRect(boundary_data.begin_coord, par_spacing, curr_rule.forward_ext, 0, curr_rule.backward_ext);
+        post_rect = DRCUTIL.getEnlargedRect(boundary_data.end_coord, 0, curr_rule.forward_ext, par_spacing, curr_rule.backward_ext);
+        break;
+      case Orientation::kNorth:
+        pre_rect = DRCUTIL.getEnlargedRect(boundary_data.begin_coord, 0, curr_rule.backward_ext, par_spacing, curr_rule.forward_ext);
+        post_rect = DRCUTIL.getEnlargedRect(boundary_data.end_coord, par_spacing, curr_rule.backward_ext, 0, curr_rule.forward_ext);
+        break;
+      default:
+        DRCLOG.error(Loc::current(), "The orientation is error!");
     }
   };
   for (const auto& [cut_layer_idx, cut_layer_data] : layer_data) {
@@ -71,7 +73,6 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
         continue;
       }
       PlanarRect cut_rect = DRCUTIL.convertToPlanarRect(cut_gtl_rect);
-      std::set<Segment<PlanarCoord>, CmpSegmentXASC> processed_segment_set;
       for (int32_t routing_layer_idx : routing_layer_idx_list) {
         if (curr_rule.has_above && (routing_layer_idx != above_routing_layer_idx)) {
           continue;
@@ -86,154 +87,104 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
         const RVLayerData& rv_layer_data = layer_it->second;
         std::vector<std::pair<GTLRectInt, int32_t>> rect_polygon_pair_list;
         rv_layer_data.queryMaxRects(cut_gtl_rect, std::back_inserter(rect_polygon_pair_list));
-        std::vector<Orientation> orientation_list;
-        {
-          std::map<Orientation, int32_t> orient_overhang_map;
-          for (const auto& [gtl_rect, max_rect_id] : rect_polygon_pair_list) {
-            (void) max_rect_id;
-            PlanarRect routing_rect = DRCUTIL.convertToPlanarRect(gtl_rect);
-            if (!DRCUTIL.isOpenOverlap(routing_rect, cut_rect)) {
-              continue;
-            }
-            if (routing_rect.get_ll_x() <= cut_rect.get_ll_x()) {
-              orient_overhang_map[Orientation::kWest]
-                  = std::max(orient_overhang_map[Orientation::kWest], std::abs(cut_rect.get_ll_x() - routing_rect.get_ll_x()));
-            }
-            if (routing_rect.get_ur_x() >= cut_rect.get_ur_x()) {
-              orient_overhang_map[Orientation::kEast]
-                  = std::max(orient_overhang_map[Orientation::kEast], std::abs(cut_rect.get_ur_x() - routing_rect.get_ur_x()));
-            }
-            if (routing_rect.get_ur_y() >= cut_rect.get_ur_y()) {
-              orient_overhang_map[Orientation::kNorth]
-                  = std::max(orient_overhang_map[Orientation::kNorth], std::abs(cut_rect.get_ur_y() - routing_rect.get_ur_y()));
-            }
-            if (routing_rect.get_ll_y() <= cut_rect.get_ll_y()) {
-              orient_overhang_map[Orientation::kSouth]
-                  = std::max(orient_overhang_map[Orientation::kSouth], std::abs(cut_rect.get_ll_y() - routing_rect.get_ll_y()));
-            }
-          }
-          orientation_list.reserve(orient_overhang_map.size());
-          for (auto& [orient, overhang] : orient_overhang_map) {
-            if (overhang >= curr_rule.overhang) {
-              continue;
-            }
-            orientation_list.push_back(orient);
-          }
-        }
+        std::map<int32_t, std::vector<PlanarRect>> polygon_containing_rect_map;
         for (const auto& [gtl_rect, max_rect_id] : rect_polygon_pair_list) {
-          int32_t polygon_id = rv_layer_data.getMaxRect(max_rect_id).polygon_id;
-          int32_t net_idx = rv_layer_data.getNetIdxByPolygonId(polygon_id);
-          const PolygonData& polygon_data = rv_layer_data.getPolygon(polygon_id);
           PlanarRect routing_rect = DRCUTIL.convertToPlanarRect(gtl_rect);
           if (!DRCUTIL.isOpenOverlap(routing_rect, cut_rect)) {
             continue;
           }
-          // 只考虑完全包含cut的net（允许切成矩形后openoverlap）
-          bool is_contained = false;
-          for (const MaxRectData& polygon_max_rect : rv_layer_data.getMaxRects(polygon_data)) {
-            if (DRCUTIL.isInside(DRCUTIL.convertToPlanarRect(polygon_max_rect.rect), cut_rect)) {
-              is_contained = true;
+          int32_t polygon_id = rv_layer_data.getMaxRect(max_rect_id).polygon_id;
+          polygon_containing_rect_map[polygon_id].push_back(routing_rect);
+        }
+        if (polygon_containing_rect_map.empty()) {
+          continue;
+        }
+
+        std::set<int32_t> processed_boundary_set;
+        for (const auto& [polygon_id, containing_rect_list] : polygon_containing_rect_map) {
+          int32_t net_idx = rv_layer_data.getNetIdxByPolygonId(polygon_id);
+          const PolygonData& polygon_data = rv_layer_data.getPolygon(polygon_id);
+          for (const BoundaryData& boundary_data : rv_layer_data.getBoundaries(polygon_data)) {
+            int32_t boundary_id = rv_layer_data.getBoundaryId(boundary_data);
+            if (DRCUTIL.exist(processed_boundary_set, boundary_id)) {
+              continue;
+            }
+            if (!is_eol_boundary(rv_layer_data, boundary_id, curr_rule.eol_width)) {
+              continue;
+            }
+
+            const BoundaryData& pre_boundary = rv_layer_data.getPrevBoundary(boundary_id);
+            const BoundaryData& post_boundary = rv_layer_data.getNextBoundary(boundary_id);
+            if (curr_rule.has_min_length && pre_boundary.edge_length < curr_rule.min_length && post_boundary.edge_length < curr_rule.min_length) {
+              continue;
+            }
+
+            Segment<PlanarCoord> boundary_segment(boundary_data.begin_coord, boundary_data.end_coord);
+            PlanarRect boundary_rect = DRCUTIL.convertToPlanarRect(boundary_data.edge);
+            PlanarRect cut_edge_rect = DRCUTIL.getRect(cut_rect.getOrientEdge(boundary_data.orient));
+            const PlanarRect* routing_rect_ptr = nullptr;
+            for (const PlanarRect& routing_rect : containing_rect_list) {
+
+              if (!DRCUTIL.isInside(boundary_segment, routing_rect.getOrientEdge(boundary_data.orient))) {
+                continue;
+              }
+              if (DRCUTIL.getEuclideanDistance(boundary_rect, cut_edge_rect) >= curr_rule.overhang) {
+                continue;
+              }
+              routing_rect_ptr = &routing_rect;
               break;
             }
-          }
-          if (!is_contained) {
-            continue;
-          }
-          int32_t coord_size = 0;
-          std::vector<Segment<PlanarCoord>> edge_list;
-          std::vector<int32_t> edge_length_list;
-          std::set<int32_t> eol_edge_idx_set;
-          build_outer_ring_info(rv_layer_data, polygon_data, coord_size, edge_list, edge_length_list, eol_edge_idx_set);
-          if (coord_size < 4) {
-            continue;
-          }
-          for (Orientation& orient : orientation_list) {
-            int32_t edge_idx = -1;
-            for (int32_t eol_idx : eol_edge_idx_set) {
-              if (DRCUTIL.isInside(edge_list[eol_idx], routing_rect.getOrientEdge(orient))) {
-                edge_idx = eol_idx;
-                break;
-              }
-            }
-            if (edge_idx == -1) {
+            if (routing_rect_ptr == nullptr) {
               continue;
             }
-            Segment<PlanarCoord> curr_segment = edge_list[getIdx(edge_idx, coord_size)];
-            if (DRCUTIL.exist(processed_segment_set, curr_segment)) {
-              continue;
-            }
-            if (DRCUTIL.getManhattanDistance(curr_segment.get_first(), curr_segment.get_second()) >= curr_rule.eol_width) {
-              continue;
-            }
-            PlanarRect eol_edge_rect = DRCUTIL.getRect(curr_segment.get_first(), curr_segment.get_second());
-            PlanarRect cut_edge_rect = DRCUTIL.getRect(cut_rect.getOrientEdge(orient).get_first(), cut_rect.getOrientEdge(orient).get_second());
-            if (DRCUTIL.getEuclideanDistance(eol_edge_rect, cut_edge_rect) >= curr_rule.overhang) {
-              continue;
-            }
-            int32_t pre_segment_length;
-            int32_t post_segment_length;
-            {
-              Segment<PlanarCoord> pre_segment = edge_list[getIdx(edge_idx - 1, coord_size)];
-              Segment<PlanarCoord> post_segment = edge_list[getIdx(edge_idx + 1, coord_size)];
-              pre_segment_length = DRCUTIL.getManhattanDistance(pre_segment.get_first(), pre_segment.get_second());
-              post_segment_length = DRCUTIL.getManhattanDistance(post_segment.get_first(), post_segment.get_second());
-            }
-            if (curr_rule.has_min_length && pre_segment_length < curr_rule.min_length && post_segment_length < curr_rule.min_length) {
-              continue;
-            }
-            processed_segment_set.insert(curr_segment);
+
+            processed_boundary_set.insert(boundary_id);
+
+            int32_t pre_segment_length = pre_boundary.edge_length;
+            int32_t post_segment_length = post_boundary.edge_length;
             bool has_parallel_neighbor = false;
             {
-              PlanarRect left_par_rect;
-              PlanarRect right_par_rect;
+              PlanarRect pre_rect;
+              PlanarRect post_rect;
+              build_parallel_windows(boundary_data, curr_rule, pre_rect, post_rect);
+
+              PlanarRect check_rect;
+              bool should_query = false;
               {
-                int32_t par_spacing = curr_rule.par_spacing - DRCUTIL.getManhattanDistance(curr_segment.get_first(), curr_segment.get_second());
-                if (orient == Orientation::kEast) {
-                  left_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_first(), curr_rule.backward_ext + 1, par_spacing, curr_rule.forward_ext + 1, 0);
-                  right_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_second(), curr_rule.backward_ext + 1, 0, curr_rule.forward_ext + 1, par_spacing);
-                } else if (orient == Orientation::kWest) {
-                  left_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_first(), curr_rule.forward_ext + 1, 0, curr_rule.backward_ext + 1, par_spacing);
-                  right_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_second(), curr_rule.forward_ext + 1, par_spacing, curr_rule.backward_ext + 1, 0);
-                } else if (orient == Orientation::kSouth) {
-                  left_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_first(), par_spacing, curr_rule.forward_ext + 1, 0, curr_rule.backward_ext + 1);
-                  right_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_second(), 0, curr_rule.forward_ext + 1, par_spacing, curr_rule.backward_ext + 1);
-                } else if (orient == Orientation::kNorth) {
-                  left_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_first(), 0, curr_rule.backward_ext + 1, par_spacing, curr_rule.forward_ext + 1);
-                  right_par_rect = DRCUTIL.getEnlargedRect(curr_segment.get_second(), par_spacing, curr_rule.backward_ext + 1, 0, curr_rule.forward_ext + 1);
-                } else {
-                  DRCLOG.error(Loc::current(), "The orientation is error!");
-                }
-              }
-              std::vector<std::pair<GTLRectInt, int32_t>> env_rect_polygon_pair_list;
-              {
-                PlanarRect check_rect;
                 if (pre_segment_length >= curr_rule.min_length && post_segment_length >= curr_rule.min_length) {
-                  check_rect = DRCUTIL.getBoundingBox({left_par_rect.get_ll(), left_par_rect.get_ur(), right_par_rect.get_ll(), right_par_rect.get_ur()});
+                  check_rect = DRCUTIL.getBoundingBox({pre_rect.get_ll(), pre_rect.get_ur(), post_rect.get_ll(), post_rect.get_ur()});
+                  should_query = true;
                 } else if (pre_segment_length >= curr_rule.min_length) {
-                  check_rect = left_par_rect;
+                  check_rect = pre_rect;
+                  should_query = true;
                 } else if (post_segment_length >= curr_rule.min_length) {
-                  check_rect = right_par_rect;
+                  check_rect = post_rect;
+                  should_query = true;
                 }
-                // 是否需要按边的朝向来去掉rect所在的polygon的重叠？此类型违例几乎不存在，先不考虑
-                rv_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(check_rect), std::back_inserter(env_rect_polygon_pair_list));
               }
+              if (!should_query) {
+                continue;
+              }
+
+              std::vector<std::pair<GTLRectInt, int32_t>> env_rect_polygon_pair_list;
+              rv_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(check_rect), std::back_inserter(env_rect_polygon_pair_list));
+
               bool has_left_neighbor = false;
               bool has_right_neighbor = false;
               for (const auto& [env_gtl_rect, env_max_rect_id] : env_rect_polygon_pair_list) {
                 int32_t env_polygon_id = rv_layer_data.getMaxRect(env_max_rect_id).polygon_id;
                 int32_t env_net_idx = rv_layer_data.getNetIdxByPolygonId(env_polygon_id);
                 PlanarRect env_routing_rect = DRCUTIL.convertToPlanarRect(env_gtl_rect);
-                // 不考虑obs的边在 window中有重叠的情况
                 if (env_net_idx == -1) {
                   continue;
                 }
-                if (DRCUTIL.isClosedOverlap(routing_rect, env_routing_rect) && net_idx == env_net_idx) {
+                if (DRCUTIL.isClosedOverlap(*routing_rect_ptr, env_routing_rect) && net_idx == env_net_idx) {
                   continue;
                 }
-                if (DRCUTIL.isOpenOverlap(env_routing_rect, left_par_rect)) {
+                if (DRCUTIL.isOpenOverlap(env_routing_rect, pre_rect)) {
                   has_left_neighbor = true;
                 }
-                if (DRCUTIL.isOpenOverlap(env_routing_rect, right_par_rect)) {
+                if (DRCUTIL.isOpenOverlap(env_routing_rect, post_rect)) {
                   has_right_neighbor = true;
                 }
                 if (has_left_neighbor || has_right_neighbor) {

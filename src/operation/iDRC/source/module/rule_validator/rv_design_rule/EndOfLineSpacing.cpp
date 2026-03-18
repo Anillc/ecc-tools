@@ -624,6 +624,9 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
             violation_type = violation_type == 0 ? 2 : violation_type;
 
             if (eol_rule.has_same_metal) {
+              if (pre_par_idx == -1 || post_par_idx == -1) {
+                continue;
+              }
               auto& pre_polygon = merged_layer_data.getPolygon(merged_layer_data.getBoundary(pre_par_idx).polygon_id);
               auto& post_polygon = merged_layer_data.getPolygon(merged_layer_data.getBoundary(post_par_idx).polygon_id);
 
@@ -634,7 +637,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
               GTLRectInt post_edge_rect = merged_layer_data.getBoundary(post_par_idx).edge;
               int32_t pre_prl_length = DRCUTIL.getParallelLength(pre_rect, DRCUTIL.convertToPlanarRect(pre_edge_rect));
               int32_t post_prl_length = DRCUTIL.getParallelLength(post_rect, DRCUTIL.convertToPlanarRect(post_edge_rect));
-              if (pre_prl_length >= eol_rule.par_within || post_prl_length >= eol_rule.par_within) {
+              if (pre_prl_length >= eol_rule.par_within || post_prl_length >= eol_rule.par_within || pre_prl_length <= 0 || post_prl_length <= 0) {
                 continue;
               }
               violation_type = is_ete ? 1 : 3;
@@ -702,6 +705,9 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
   // 输出required size最大的violation
   for (auto violation : unique_violation) {
     for (auto other_violation : unique_violation) {
+      if (violation.get_layer_idx() != other_violation.get_layer_idx()) {
+        continue;
+      }
       if (violation.get_rect() == other_violation.get_rect()) {
         if (violation.get_required_size() < other_violation.get_required_size()) {
           invalid_violation_set.insert(violation);
