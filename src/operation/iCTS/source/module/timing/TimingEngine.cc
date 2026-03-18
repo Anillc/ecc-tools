@@ -18,7 +18,7 @@
  * @file TimingEngine.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-16
- * @brief Pure RCTree timing propagation engine for stage-2 timing module.
+ * @brief Pure RCTree timing propagation engine for the timing module.
  */
 
 #include "TimingEngine.hh"

@@ -136,7 +136,7 @@ void CTSAPI::summaryClockDistribution()
 
 void CTSAPI::report(const std::string&)
 {
-  // TBD(clw): stage-1 placeholder. Reporting flow is not implemented yet.
+  // TBD(clw): Reporting flow is not implemented yet.
 }
 
 void CTSAPI::resetAPI()
@@ -184,7 +184,7 @@ void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
 
 ieda_feature::CTSSummary CTSAPI::outputSummary()
 {
-  // TBD(clw): stage-1 placeholder. Summary export is not implemented yet.
+  // TBD(clw): Summary export is not implemented yet.
   return ieda_feature::CTSSummary{};
 }
 

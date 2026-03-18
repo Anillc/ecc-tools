@@ -18,7 +18,7 @@
  * @file BSTRouter.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-16
- * @brief Standalone BST router adapter implementation for stage-2 routing refactor.
+ * @brief Standalone BST router adapter implementation for bounded-skew routing.
  */
 
 #include "BSTRouter.hh"

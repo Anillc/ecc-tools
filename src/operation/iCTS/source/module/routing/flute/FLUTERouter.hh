@@ -18,7 +18,7 @@
  * @file FLUTERouter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-15
- * @brief FLUTE router adapter for stage-2 routing refactor.
+ * @brief FLUTE router adapter for Steiner tree construction.
  */
 
 #pragma once

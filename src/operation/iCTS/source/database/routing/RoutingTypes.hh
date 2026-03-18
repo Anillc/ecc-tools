@@ -18,7 +18,7 @@
  * @file RoutingTypes.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-16
- * @brief Shared stage-2 routing value types.
+ * @brief Shared routing value types.
  */
 
 #pragma once

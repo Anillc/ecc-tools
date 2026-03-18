@@ -18,7 +18,7 @@
  * @file Router.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief Unified stage-1 routing dispatch facade
+ * @brief Unified routing dispatch facade
  */
 
 #pragma once

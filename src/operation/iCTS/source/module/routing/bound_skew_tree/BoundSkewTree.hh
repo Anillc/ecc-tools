@@ -18,7 +18,7 @@
  * @file BoundSkewTree.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief Stage-1 bound-skew tree router interface
+ * @brief Bound-skew tree construction interface.
  */
 #pragma once
 #include <array>

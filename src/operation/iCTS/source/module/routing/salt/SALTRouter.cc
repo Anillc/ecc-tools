@@ -18,7 +18,7 @@
  * @file SALTRouter.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-15
- * @brief SALT router adapter implementation for stage-2 routing refactor.
+ * @brief SALT router adapter implementation for Steiner tree construction.
  */
 
 #include "SALTRouter.hh"

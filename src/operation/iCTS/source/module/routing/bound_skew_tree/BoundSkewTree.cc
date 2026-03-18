@@ -18,7 +18,7 @@
  * @file BoundSkewTree.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-03-08
- * @brief Stage-1 bound-skew tree router implementation
+ * @brief Bound-skew tree construction implementation.
  */
 #include "BoundSkewTree.hh"
 
