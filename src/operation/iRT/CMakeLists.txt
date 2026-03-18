@@ -11,25 +11,13 @@ set(CMAKE_CXX_STANDARD 20)
 
 ############################ debug interface ############################
 
-set(DEBUG_IRT_INTERFACE OFF)
+# set(DEBUG_IRT_INTERFACE ON)
 
-########################### debug source data_manager ############################
+############################ debug source data_manager ############################
 
-set(DEBUG_IRT_DATA_MANAGER OFF)
-set(DEBUG_IRT_API OFF)
-########################### debug source module ############################
+# set(DEBUG_IRT_DATA_MANAGER ON)
 
-set(DEBUG_IRT_DRC_ENGINE OFF)
-set(DEBUG_IRT_GDS_PLOTTER OFF)
-set(DEBUG_IRT_PIN_ACCESSOR OFF)
-set(DEBUG_IRT_SUPPLY_ANALYZER OFF) 
-set(DEBUG_IRT_TOPOLOGY_GENERATOR OFF)
-set(DEBUG_IRT_LAYER_ASSIGNER OFF)
-set(DEBUG_IRT_SPACE_ROUTER OFF)
-set(DEBUG_IRT_TRACK_ASSIGNER OFF) 
-set(DEBUG_IRT_DETAILED_ROUTER OFF)
-set(DEBUG_IRT_VIOLATION_REPORTER OFF)
-set(DEBUG_IRT_EARLY_ROUTER OFF)
+############################ debug source module ############################
 
 # set(DEBUG_IRT_DRC_ENGINE ON)
 # set(DEBUG_IRT_GDS_PLOTTER ON)
@@ -44,9 +32,11 @@ set(DEBUG_IRT_EARLY_ROUTER OFF)
 # set(DEBUG_IRT_VIOLATION_REPORTER ON)
 # set(DEBUG_IRT_EARLY_ROUTER ON)
 
-set(DEBUG_IRT_LOGGER OFF)
-set(DEBUG_IRT_MONITOR OFF)
-set(DEBUG_IRT_UTILITY OFF)
+############################ debug source utility ############################
+
+# set(DEBUG_IRT_LOGGER ON)
+# set(DEBUG_IRT_MONITOR ON)
+# set(DEBUG_IRT_UTILITY ON)
 
 ############################ setting path ############################
 
