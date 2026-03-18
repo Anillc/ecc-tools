@@ -344,3 +344,50 @@ Completed full code standards audit for iCTS module.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: iCTS routing and timing refactor cleanup
+
+**Date**: 2026-03-18
+**Task**: iCTS routing and timing refactor cleanup
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| API boundary | Restored `CTSAPIInst` as the external API entry point while removing redundant `CTSAPI` DB-query wrappers. |
+| Internal singletons | Renamed internal iCTS singleton macros to `ConfigInst`, `DesignInst`, `WrapperInst`, `LogInst`, and kept `STAAdapterInst` for internal STA access. |
+| STA integration | Finalized the database-level STA adapter under `source/database/adapter/sta/` and aligned internal callers to use it. |
+| Routing internals | Removed `bst_detail`, introduced `icts::bst` for BST internals, simplified internal type names, and renamed `Trr` to `TransformedRect`. |
+| Include hierarchy | Normalized iCTS include paths to follow CMake layer roots instead of broad `${ICTS_SOURCE}` or `../...` relative includes, except for the special `CTSAPI.hh -> ids.hpp` case. |
+| Spec sync | Updated backend spec docs to match the current routing/timing/database adapter structure and singleton conventions. |
+| Verification | Re-ran `clang-format`, iCTS-focused `clang-tidy`, rebuilt `icts_test`, and verified all 28 tests pass. |
+
+**Key outcomes**:
+- Completed stage-2 routing/timing refactor cleanup for iCTS.
+- Simplified API and include layering to better match module boundaries.
+- Kept external entry stable while shrinking internal legacy surface.
+- Confirmed build and test stability after refactors.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `06a6480b6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
