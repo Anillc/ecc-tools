@@ -701,12 +701,12 @@ std::string Str::trimEscape(std::string origin_str)
  */
 std::string Str::addBackslash(std::string origin_str)
 {
-  if (ieda::Str::contain(origin_str.c_str(), "[") && ieda::Str::contain(origin_str.c_str(), "]")) {
-    std::string new_value_1 = replace(origin_str, R"(\[)", R"(\[)");
-    std::string new_value_2 = replace(new_value_1, R"(\])", R"(\])");
+  // if (ieda::Str::contain(origin_str.c_str(), "[") && ieda::Str::contain(origin_str.c_str(), "]")) {
+  //   std::string new_value_1 = replace(origin_str, R"(\[)", R"(\[)");
+  //   std::string new_value_2 = replace(new_value_1, R"(\])", R"(\])");
 
-    return new_value_2;
-  }
+  //   return new_value_2;
+  // }
 
   return origin_str;
 }

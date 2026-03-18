@@ -56,11 +56,22 @@ LocalLegalization::LocalLegalization(std::vector<Pin*>& pins)
   if (pins.size() <= 1) {
     return;
   }
+  std::set<Point> tmp_fixed_set;
+  std::map<Point, Pin*> tmp_fixed_map;
+
   std::ranges::for_each(pins, [&](Pin* pin) {
     if (pin->isBufferPin()) {
       _variable_locations.push_back(pin->get_location());
     } else {
       _fixed_locations.push_back(pin->get_location());
+      if (tmp_fixed_set.contains(pin->get_location())) {
+        auto pin_1 = tmp_fixed_map[pin->get_location()];
+        auto pin_2 = pin;
+        LOG_INFO << "Pin 1: " << pin_1->get_name() << " Pin 2: " << pin_2->get_name() << std::endl;
+        LOG_FATAL << "Fixed locations are not legal " << pin->get_location() << std::endl;
+      }
+      tmp_fixed_set.insert(pin->get_location());
+      tmp_fixed_map[pin->get_location()] = pin;
     }
   });
   if (_variable_locations.empty()) {

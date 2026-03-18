@@ -78,7 +78,7 @@ void CTSAPI::runCTS()
   readData();
   routing();
   evaluate();
-  writeGDS();
+  // writeGDS();
   LOG_INFO << "**Flow memory usage " << stats.memoryDelta() << "MB";
   LOG_INFO << "**Flow elapsed time " << stats.elapsedRunTime() << "s";
 
@@ -370,14 +370,29 @@ void CTSAPI::readClockNetNames() const
 {
   _timing_engine->updateTiming();
   auto* netlist = _timing_engine->get_netlist();
+  auto idb = _db_wrapper->get_idb();
+  auto idb_design = idb->get_def_service()->get_design();
+  auto* idb_net_list = idb_design->get_net_list();
   ista::Net* sta_net = nullptr;
   FOREACH_NET(netlist, sta_net)
   {
     if (sta_net->isClockNet()) {
       auto* sta_clock = _timing_engine->getPropClockOfNet(sta_net);
       // HARD CODE debug
-      if (std::string(sta_clock->get_clock_name()) == "CLK_spi_clk") {
-        continue;
+      // if (std::string(sta_clock->get_clock_name()) == "CLK_spi_clk") {
+      //   continue;
+      // }
+      auto idb_net = idb_net_list->find_net(sta_net->get_name());
+      if (idb_net->has_io_pins()) {
+        auto io_pin = idb_net->get_io_pins()->get_pin_list().at(0);
+        int io_pin_num = idb_net->get_io_pins()->get_pin_num();
+        int inst_pin_num = idb_net->get_instance_pin_list()->get_pin_num();
+        if (io_pin_num == 1 && inst_pin_num <= 1) {
+          LOG_WARNING << "Clock :" << sta_clock->get_clock_name() << ", Net: " << sta_net->get_name()
+                      << " has no valid io pin coordinates, skipping.";
+          idb_net->set_connect_type(IdbConnectType::kClock);
+          continue;  // skip nets with no valid io pin coordinates
+        }
       }
       _design->addClockNetName(sta_clock->get_clock_name(), sta_net->get_name());
       LOG_INFO << "Clock [" << sta_clock->get_clock_name() << "] have net \"" << sta_net->get_name() << "\"";
@@ -799,6 +814,9 @@ void CTSAPI::buildRCTree(const icts::EvalNet& eval_net)
 #ifdef DEBUG_ICTS_EVALUATOR
   LOG_INFO << "Evaluate: " << net_name;
 #endif
+  // if (net_name == "iCLK_50_109") {
+  //   std::cout << "debug: " << net_name << std::endl;
+  // }
   resetRCTree(net_name);
   auto* sta_net = findStaNet(eval_net);
   auto layer_id = _config->get_routing_layers().back();
@@ -914,7 +932,10 @@ void CTSAPI::latencySkewLog() const
       ista::StaPathEnd* path_end;
       ista::StaPathData* path_data;
       FOREACH_PATH_GROUP_END(seq_path_group.get(), path_end)
-      FOREACH_PATH_END_DATA(path_end, mode, path_data) { seq_data_queue.push(path_data); }
+      FOREACH_PATH_END_DATA(path_end, mode, path_data)
+      {
+        seq_data_queue.push(path_data);
+      }
       auto* worst_seq_data = seq_data_queue.top();
       auto* launch_clock_data = worst_seq_data->get_launch_clock_data();
       auto* capture_clock_data = worst_seq_data->get_capture_clock_data();
@@ -1171,6 +1192,5 @@ ieda_feature::CTSSummary CTSAPI::outputSummary()
 
   return summary;
 }
-
 
 }  // namespace icts

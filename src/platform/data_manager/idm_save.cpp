@@ -27,6 +27,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <fstream>
+#include <iostream>
+
 #include "idm.h"
 
 namespace idm {
@@ -71,6 +74,25 @@ bool DataManager::saveLef(string lef_path)
     return false;
   }
   return _idb_builder->saveLef(lef_path);
+}
+bool DataManager::saveMacroTCL(string tcl_path)
+{
+  std::ofstream out;
+  out.open(tcl_path);
+  if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {
+    return false;
+  }
+  std::string status = "fixed";
+  auto dbu = _layout->get_units()->get_micron_dbu();
+  for (auto& idb_inst : _design->get_instance_list()->get_instance_list()) {
+    if (idb_inst->get_cell_master()->is_block()) {
+      out << "placeInstance " << idb_inst->get_name() << " " << 1.* idb_inst->get_coordinate()->get_x() / dbu << " "
+          << 1.* idb_inst->get_coordinate()->get_y() / dbu << " " << IdbEnum::GetInstance()->get_orient_type_str(idb_inst->get_orient())
+          << std::endl;
+      out << "setInstancePlacementStatus -status " << status << " -name " << idb_inst->get_name() << std::endl;
+    }
+  }
+  return true;
 }
 
 void DataManager::saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names /*={}*/,

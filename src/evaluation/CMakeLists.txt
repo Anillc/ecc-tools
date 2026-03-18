@@ -1,6 +1,5 @@
 ## cmake flag
 set(CMAKE_CXX_STANDARD 20)
-
 ## set path
 set(EVAL_API ${HOME_EVALUATION}/api)
 set(EVAL_APPS ${HOME_EVALUATION}/apps)

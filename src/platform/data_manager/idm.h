@@ -61,7 +61,9 @@ class DataManager
     }
     return _instance;
   }
-
+  /// constructor
+  DataManager() {}
+  ~DataManager() = default;
   /// getter
   DataConfig& get_config() { return _config; };
   IdbBuilder* get_idb_builder() { return _idb_builder; }
@@ -91,6 +93,7 @@ class DataManager
   bool save(string name, string def_path = "");
   bool saveDef(string def_path);
   bool saveLef(string lef_path);
+  bool saveMacroTCL(string tcl_path);
   void saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names = {}, bool is_add_space_for_escape_name = false);
   bool saveGDSII(string path);
   bool saveJSON(string path, string options);
@@ -215,7 +218,7 @@ class DataManager
   bool isOnDieBoundary(int32_t llx, int32_t lly, int32_t urx, int32_t ury, IdbOrient orient);
   bool isOnIOSite(int32_t llx, int32_t lly, int32_t urx, int32_t ury, IdbOrient orient);
   bool checkInstPlacer(int32_t llx, int32_t lly, int32_t urx, int32_t ury, IdbOrient orient);
-
+  void write_placement_back(float* x, float* y, int len);
   std::tuple<bool, std::vector<std::string>, std::vector<std::string>, int> isAllNetConnected();
   bool isNetConnected(std::string net_name);
   bool isNetConnected(IdbNet* net);
@@ -233,9 +236,7 @@ class DataManager
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  /// constructor
-  DataManager() {}
-  ~DataManager() = default;
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

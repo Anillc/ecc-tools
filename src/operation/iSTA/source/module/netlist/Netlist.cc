@@ -89,7 +89,7 @@ std::vector<DesignObject*> Netlist::findPin(const char* pattern, bool regexp,
     LOG_FATAL_IF(!the_instance)
         << "The instance " << instance_name << " is not exist.";
     auto the_pin = the_instance->getPin(pin_name.c_str());
-    LOG_FATAL_IF(!the_pin) << "The pin " << pin_name
+    LOG_WARNING_IF_EVERY_N(!the_pin, 100) << "The pin " << pin_name
                            << " is not exist of instance " << instance_name;
     match_pins.push_back(*the_pin);
 
