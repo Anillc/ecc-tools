@@ -437,20 +437,46 @@ void IDBWrapper::deleteInstsForTest()
 
 void IDBWrapper::wrapIdbInstance(IdbInstance* idb_inst)
 {
+  if (!idb_inst) {
+    LOG_ERROR << "[wrapIdbInstance] null IdbInstance pointer.";
+    return;
+  }
+
   auto* ipl_design = _idbw_database->_design;
   auto* ipl_layout = _idbw_database->_layout;
+  if (!ipl_design || !ipl_layout) {
+    LOG_ERROR << "[wrapIdbInstance] invalid wrapper database context for inst ptr=" << idb_inst;
+    return;
+  }
 
   std::string inst_name = fixSlash(idb_inst->get_name());
   Instance* inst_ptr = new Instance(inst_name);
 
-  Cell* cell_ptr = ipl_layout->find_cell(idb_inst->get_cell_master()->get_name());
-  LOG_ERROR_IF(!cell_ptr) << "Cell Master has not been created!";
+  auto* idb_cell_master = idb_inst->get_cell_master();
+  if (!idb_cell_master) {
+    LOG_ERROR << "[wrapIdbInstance] null cell master. inst=" << inst_name;
+    delete inst_ptr;
+    return;
+  }
+
+  std::string master_name = idb_cell_master->get_name();
+  Cell* cell_ptr = ipl_layout->find_cell(master_name);
+  if (!cell_ptr) {
+    LOG_ERROR << "[wrapIdbInstance] Cell Master has not been created! inst=" << inst_name << ", master=" << master_name;
+    delete inst_ptr;
+    return;
+  }
   inst_ptr->set_cell_master(cell_ptr);
   if ("IO_BOND_pad_vddio_e0" == inst_name) {
     LOG_INFO << "IO_BOND_pad_vddio_e0";
   }
   // set instace coordinate.
   auto bbox = idb_inst->get_bounding_box();
+  if (!bbox) {
+    LOG_ERROR << "[wrapIdbInstance] null bounding box. inst=" << inst_name;
+    delete inst_ptr;
+    return;
+  }
   inst_ptr->set_shape(bbox->get_low_x(), bbox->get_low_y(), bbox->get_high_x(), bbox->get_high_y());
 
   // set instance state.
@@ -526,16 +552,21 @@ void IDBWrapper::wrapIdbInstance(IdbInstance* idb_inst)
   // cover cell type.
   // TODO : where is clock buffer?
   auto _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  auto _sta = _timing_engine->get_ista();
-  auto lib_cell = _sta->findLibertyCell(idb_inst->get_cell_master()->get_name().c_str());
+  auto _sta = _timing_engine ? _timing_engine->get_ista() : nullptr;
+  auto lib_cell = _sta ? _sta->findLibertyCell(master_name.c_str()) : nullptr;
   bool is_clock = false;
-  for (auto &port : lib_cell->get_cell_ports()) {
-    if (port->isClock()) {
-      is_clock = true;
-      break;
+  if (!lib_cell) {
+    LOG_WARNING << "[wrapIdbInstance] liberty cell not found. inst=" << inst_name << ", master=" << master_name;
+  } else {
+    for (auto& port : lib_cell->get_cell_ports()) {
+      if (port->isClock()) {
+        is_clock = true;
+        break;
+      }
     }
   }
-  if (idb_inst->get_cell_master()->is_block()) {
+
+  if (idb_cell_master->is_block()) {
     cell_ptr->set_type(CELL_TYPE::kMacro);
   } else if (inst_ptr->isOutsideInstance()) {
     cell_ptr->set_type(CELL_TYPE::kIOCell);
