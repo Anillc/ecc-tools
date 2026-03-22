@@ -27,14 +27,13 @@ class TGCandidate
  public:
   TGCandidate() = default;
   TGCandidate(int32_t topo_idx, const std::vector<Segment<PlanarCoord>>& routing_segment_list, int32_t total_corner_num, int32_t total_wire_length,
-              bool is_path_blocked, double total_resource_cost, double total_overflow_cost)
+              bool is_path_blocked, double total_overflow_cost)
   {
     _topo_idx = topo_idx;
     _routing_segment_list = routing_segment_list;
     _total_corner_num = total_corner_num;
     _total_wire_length = total_wire_length;
     _is_path_blocked = is_path_blocked;
-    _total_resource_cost = total_resource_cost;
     _total_overflow_cost = total_overflow_cost;
   }
   ~TGCandidate() = default;
@@ -44,7 +43,6 @@ class TGCandidate
   int32_t get_total_corner_num() const { return _total_corner_num; }
   int32_t get_total_wire_length() const { return _total_wire_length; }
   bool get_is_path_blocked() const { return _is_path_blocked; }
-  double get_total_resource_cost() const { return _total_resource_cost; }
   double get_total_overflow_cost() const { return _total_overflow_cost; }
   // setter
   void set_topo_idx(const int32_t topo_idx) { _topo_idx = topo_idx; }
@@ -52,7 +50,6 @@ class TGCandidate
   void set_total_corner_num(const int32_t total_corner_num) { _total_corner_num = total_corner_num; }
   void set_total_wire_length(const int32_t total_wire_length) { _total_wire_length = total_wire_length; }
   void set_is_path_blocked(const bool is_path_blocked) { _is_path_blocked = is_path_blocked; }
-  void set_total_resource_cost(const double total_resource_cost) { _total_resource_cost = total_resource_cost; }
   void set_total_overflow_cost(const double total_overflow_cost) { _total_overflow_cost = total_overflow_cost; }
   // function
 
@@ -62,7 +59,6 @@ class TGCandidate
   int32_t _total_corner_num = 0;
   int32_t _total_wire_length = 0;
   bool _is_path_blocked = false;
-  double _total_resource_cost = 0.0;
   double _total_overflow_cost = 0.0;
 };
 

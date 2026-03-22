@@ -105,7 +105,6 @@ TGNet TopologyGenerator::convertToTGNet(Net& net)
     tg_net.get_tg_pin_list().push_back(TGPin(pin));
   }
   tg_net.set_bounding_box(net.get_bounding_box());
-  tg_net.set_resource_cost_map(net.get_resource_cost_map());
   return tg_net;
 }
 
@@ -272,15 +271,11 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGMod
     if (!tg_candidate.get_is_path_blocked() && current_best->get_is_path_blocked()) {
       topo_candidate_map[topo_idx] = &tg_candidate;
     } else if (!tg_candidate.get_is_path_blocked() && !current_best->get_is_path_blocked()) {
-      if (tg_candidate.get_total_resource_cost() < current_best->get_total_resource_cost()) {
+      if (tg_candidate.get_total_wire_length() < current_best->get_total_wire_length()) {
         topo_candidate_map[topo_idx] = &tg_candidate;
-      } else if (tg_candidate.get_total_resource_cost() == current_best->get_total_resource_cost()) {
-        if (tg_candidate.get_total_wire_length() < current_best->get_total_wire_length()) {
+      } else if (tg_candidate.get_total_wire_length() == current_best->get_total_wire_length()) {
+        if (tg_candidate.get_total_corner_num() < current_best->get_total_corner_num()) {
           topo_candidate_map[topo_idx] = &tg_candidate;
-        } else if (tg_candidate.get_total_wire_length() == current_best->get_total_wire_length()) {
-          if (tg_candidate.get_total_corner_num() < current_best->get_total_corner_num()) {
-            topo_candidate_map[topo_idx] = &tg_candidate;
-          }
         }
       }
     } else if (tg_candidate.get_is_path_blocked() && current_best->get_is_path_blocked()) {
@@ -313,7 +308,7 @@ std::vector<TGCandidate> TopologyGenerator::getTGCandidateList(TGModel& tg_model
   for (size_t i = 0; i < planar_topo_list.size(); i++) {
     for (const auto& [corner_num, getRoutingSegmentList] : strategy_list) {
       for (const std::vector<Segment<PlanarCoord>>& routing_segment_list : (this->*getRoutingSegmentList)(tg_model, planar_topo_list[i])) {
-        tg_candidate_list.emplace_back(i, routing_segment_list, corner_num, 0, false, 0, 0);
+        tg_candidate_list.emplace_back(i, routing_segment_list, corner_num, 0, false, 0);
       }
     }
   }
@@ -707,12 +702,9 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
   double overflow_unit = tg_model.get_tg_com_param().get_overflow_unit();
   GridMap<TGNode>& tg_node_map = tg_model.get_tg_node_map();
   int32_t curr_net_idx = tg_model.get_curr_tg_task()->get_net_idx();
-  BoundingBox& curr_bounding_box = tg_model.get_curr_tg_task()->get_bounding_box();
-  GridMap<double>& curr_resource_cost_map = tg_model.get_curr_tg_task()->get_resource_cost_map();
 
   int32_t total_wire_length = 0;
   bool is_path_blocked = false;
-  double total_resource_cost = 0;
   double total_overflow_cost = 0;
   for (Segment<PlanarCoord>& coord_segment : tg_candidate.get_routing_segment_list()) {
     PlanarCoord& first_coord = coord_segment.get_first();
@@ -735,16 +727,12 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
         if (overflow_cost > 1) {
           is_path_blocked = true;
         }
-        int32_t local_x = x - curr_bounding_box.get_grid_ll_x();
-        int32_t local_y = y - curr_bounding_box.get_grid_ll_y();
-        total_resource_cost += (curr_resource_cost_map.isInside(local_x, local_y) ? curr_resource_cost_map[local_x][local_y] : 1);
         total_overflow_cost += overflow_cost;
       }
     }
   }
   tg_candidate.set_total_wire_length(total_wire_length);
   tg_candidate.set_is_path_blocked(is_path_blocked);
-  tg_candidate.set_total_resource_cost(total_resource_cost);
   tg_candidate.set_total_overflow_cost(total_overflow_cost);
 }
 
