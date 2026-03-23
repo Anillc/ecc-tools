@@ -83,7 +83,7 @@ class LocalLegalization
     PointType point = PointType(-1, -1);
   };
 
-  static RegionType buildLegalRegion(const RegionType& feasible_region, const RegionType& block_region);
+  static RegionType buildLegalRegion(const Problem& problem);
 
   static std::vector<CandidateSite> generateCandidates(const PointType& origin, const RegionType& legal_region,
                                                        const std::vector<PointType>& fixed_points, std::size_t candidate_budget,

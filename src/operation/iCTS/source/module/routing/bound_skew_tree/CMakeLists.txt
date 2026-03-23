@@ -2,7 +2,7 @@ add_library(
   icts_source_module_routing_bst
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouter.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTree.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeDebug.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/Components.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/GeomCalc.cc
 )
 
@@ -10,6 +10,7 @@ target_link_libraries(
   icts_source_module_routing_bst
   PUBLIC
   icts_source_database
+  PRIVATE
   icts_source_utils
 )
 

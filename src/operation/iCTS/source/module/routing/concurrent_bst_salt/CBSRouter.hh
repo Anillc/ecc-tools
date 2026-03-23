@@ -25,23 +25,30 @@
 #include <memory>
 #include <vector>
 
-#include "BSTRouter.hh"
 #include "RoutingTypes.hh"
 #include "SteinerTree.hh"
-#include "salt/salt.h"
+
+namespace salt {
+class Net;
+class Pin;
+class Tree;
+class TreeNode;
+}  // namespace salt
 
 namespace icts {
+
+struct BSTParameters;
 
 class CustomSaltBuilder
 {
  public:
   CustomSaltBuilder() = default;
-  ~CustomSaltBuilder() = default;
+  ~CustomSaltBuilder();
 
   void run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level = 3);
 
  private:
-  bool relax(const std::shared_ptr<salt::TreeNode>& from, const std::shared_ptr<salt::TreeNode>& to);
+  bool relax(const std::shared_ptr<salt::TreeNode>& source_node, const std::shared_ptr<salt::TreeNode>& target_node);
   void dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps);
   void init(const salt::Tree& min_tree, const std::shared_ptr<salt::Pin>& src_pin);
   void finalize(const salt::Net& net, salt::Tree& tree) const;

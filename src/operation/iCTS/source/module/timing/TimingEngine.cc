@@ -25,15 +25,21 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <ranges>
 #include <vector>
 
+#include "RCTree.hh"
 #include "logger/Logger.hh"
 
 namespace icts {
 namespace {
 
-std::vector<std::size_t> BuildPreOrder(const RCTree& rc_tree)
+constexpr double kPiRcElmoreFactor = 2.0;
+constexpr double kLogNine = 9.0;
+
+auto BuildPreOrder(const RCTree& rc_tree) -> std::vector<std::size_t>
 {
   std::vector<std::size_t> order;
   if (rc_tree.vertex_count() == 0) {
@@ -49,8 +55,8 @@ std::vector<std::size_t> BuildPreOrder(const RCTree& rc_tree)
     const auto* vertex = rc_tree.get_vertex(vertex_id);
     CTS_LOG_FATAL_IF(vertex == nullptr) << "RCTree vertex is null during preorder traversal.";
 
-    for (auto arc_iter = vertex->child_arc_ids.rbegin(); arc_iter != vertex->child_arc_ids.rend(); ++arc_iter) {
-      const auto* arc = rc_tree.get_arc(*arc_iter);
+    for (const auto child_arc_id : std::ranges::reverse_view(vertex->child_arc_ids)) {
+      const auto* arc = rc_tree.get_arc(child_arc_id);
       CTS_LOG_FATAL_IF(arc == nullptr) << "RCTree arc is null during preorder traversal.";
       stack.push_back(arc->sink_vertex_id);
     }
@@ -61,7 +67,7 @@ std::vector<std::size_t> BuildPreOrder(const RCTree& rc_tree)
 
 }  // namespace
 
-TimingEngine::Metrics TimingEngine::update(RCTree& rc_tree)
+auto TimingEngine::update(RCTree& rc_tree) -> TimingEngine::Metrics
 {
   CTS_LOG_FATAL_IF(!rc_tree.validate()) << "RCTree is invalid before timing update.";
   if (rc_tree.vertex_count() == 0) {
@@ -79,9 +85,9 @@ TimingEngine::Metrics TimingEngine::update(RCTree& rc_tree)
 
 void TimingEngine::updateDownstreamCap(RCTree& rc_tree)
 {
-  auto preorder = BuildPreOrder(rc_tree);
-  for (auto iter = preorder.rbegin(); iter != preorder.rend(); ++iter) {
-    auto* vertex = rc_tree.get_vertex(*iter);
+  const auto preorder = BuildPreOrder(rc_tree);
+  for (const auto vertex_id : std::ranges::reverse_view(preorder)) {
+    auto* vertex = rc_tree.get_vertex(vertex_id);
     CTS_LOG_FATAL_IF(vertex == nullptr) << "RCTree vertex is null during downstream capacitance update.";
 
     double downstream_cap = vertex->lumped_cap;
@@ -162,9 +168,9 @@ void TimingEngine::updateSlew(RCTree& rc_tree)
 
 void TimingEngine::updateDownstreamDelay(RCTree& rc_tree)
 {
-  auto preorder = BuildPreOrder(rc_tree);
-  for (auto iter = preorder.rbegin(); iter != preorder.rend(); ++iter) {
-    auto* vertex = rc_tree.get_vertex(*iter);
+  const auto preorder = BuildPreOrder(rc_tree);
+  for (const auto vertex_id : std::ranges::reverse_view(preorder)) {
+    auto* vertex = rc_tree.get_vertex(vertex_id);
     CTS_LOG_FATAL_IF(vertex == nullptr) << "RCTree vertex is null during downstream delay update.";
 
     if (vertex->child_arc_ids.empty()) {
@@ -190,7 +196,7 @@ void TimingEngine::updateDownstreamDelay(RCTree& rc_tree)
   }
 }
 
-TimingEngine::Metrics TimingEngine::evaluate(const RCTree& rc_tree)
+auto TimingEngine::evaluate(const RCTree& rc_tree) -> TimingEngine::Metrics
 {
   if (rc_tree.vertex_count() == 0) {
     return {};
@@ -208,7 +214,7 @@ TimingEngine::Metrics TimingEngine::evaluate(const RCTree& rc_tree)
                  root->arrival + root->max_downstream_delay, max_slew, root->downstream_cap};
 }
 
-double TimingEngine::calcSkew(const RCTree& rc_tree)
+auto TimingEngine::calcSkew(const RCTree& rc_tree) -> double
 {
   if (rc_tree.vertex_count() == 0) {
     return 0.0;
@@ -219,14 +225,14 @@ double TimingEngine::calcSkew(const RCTree& rc_tree)
   return root->max_downstream_delay - root->min_downstream_delay;
 }
 
-double TimingEngine::calcArcDelay(double downstream_cap, double resistance, double capacitance)
+auto TimingEngine::calcArcDelay(double downstream_cap, double resistance, double capacitance) -> double
 {
-  return resistance * (capacitance / 2.0 + downstream_cap);
+  return resistance * (capacitance / kPiRcElmoreFactor + downstream_cap);
 }
 
-double TimingEngine::calcIdealSlew(double arc_delay)
+auto TimingEngine::calcIdealSlew(double arc_delay) -> double
 {
-  return std::log(9.0) * arc_delay;
+  return std::log(kLogNine) * arc_delay;
 }
 
 }  // namespace icts

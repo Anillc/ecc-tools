@@ -23,6 +23,8 @@
 #include "LocalLegalization.hh"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdlib>
 #include <limits>
 #include <map>
 #include <optional>
@@ -37,12 +39,75 @@ namespace {
 
 constexpr long long kForbiddenCost = std::numeric_limits<int>::max() / 4;
 
-bool ContainsPoint(const std::vector<LocalLegalization::PointType>& points, const LocalLegalization::PointType& point)
+auto ContainsPoint(const std::vector<LocalLegalization::PointType>& points, const LocalLegalization::PointType& point) -> bool
 {
   return std::ranges::find(points, point) != points.end();
 }
 
-std::vector<std::size_t> HungarianSolve(const std::vector<std::vector<long long>>& cost_matrix)
+struct HungarianColumnState
+{
+  std::vector<std::size_t>* matched_row_by_col = nullptr;
+  std::vector<std::size_t>* predecessor_col_by_col = nullptr;
+};
+
+void AdvanceAugmentingColumn(const std::vector<std::vector<long long>>& cost_matrix, std::vector<long long>& row_potential,
+                             std::vector<long long>& col_potential, const HungarianColumnState& column_state, std::size_t col_count,
+                             std::size_t& col0)
+{
+  std::vector<long long> min_v(col_count + 1, std::numeric_limits<long long>::max());
+  std::vector<bool> used(col_count + 1, false);
+
+  while (true) {
+    used[col0] = true;
+    const std::size_t row0 = (*column_state.matched_row_by_col)[col0];
+    long long delta = std::numeric_limits<long long>::max();
+    std::size_t next_col = 0;
+
+    for (std::size_t col = 1; col <= col_count; ++col) {
+      if (used[col]) {
+        continue;
+      }
+      const long long current = cost_matrix[row0 - 1][col - 1] - row_potential[row0] - col_potential[col];
+      if (current < min_v[col]) {
+        min_v[col] = current;
+        (*column_state.predecessor_col_by_col)[col] = col0;
+      }
+      if (min_v[col] < delta) {
+        delta = min_v[col];
+        next_col = col;
+      }
+    }
+
+    for (std::size_t col = 0; col <= col_count; ++col) {
+      if (used[col]) {
+        row_potential[(*column_state.matched_row_by_col)[col]] += delta;
+        col_potential[col] -= delta;
+        continue;
+      }
+      min_v[col] -= delta;
+    }
+
+    col0 = next_col;
+    if ((*column_state.matched_row_by_col)[col0] == 0) {
+      break;
+    }
+  }
+}
+
+void ApplyAugmentingPath(std::vector<std::size_t>& matched_row_by_col, const std::vector<std::size_t>& predecessor_col_by_col,
+                         std::size_t col0)
+{
+  while (true) {
+    const std::size_t prev_col = predecessor_col_by_col[col0];
+    matched_row_by_col[col0] = matched_row_by_col[prev_col];
+    col0 = prev_col;
+    if (col0 == 0) {
+      break;
+    }
+  }
+}
+
+auto HungarianSolve(const std::vector<std::vector<long long>>& cost_matrix) -> std::vector<std::size_t>
 {
   const std::size_t row_count = cost_matrix.size();
   const std::size_t col_count = row_count == 0 ? 0 : cost_matrix.front().size();
@@ -50,60 +115,23 @@ std::vector<std::size_t> HungarianSolve(const std::vector<std::vector<long long>
     return {};
   }
 
-  std::vector<long long> u(row_count + 1, 0);
-  std::vector<long long> v(col_count + 1, 0);
-  std::vector<std::size_t> p(col_count + 1, 0);
-  std::vector<std::size_t> way(col_count + 1, 0);
+  std::vector<long long> row_potential(row_count + 1, 0);
+  std::vector<long long> col_potential(col_count + 1, 0);
+  std::vector<std::size_t> matched_row_by_col(col_count + 1, 0);
+  std::vector<std::size_t> predecessor_col_by_col(col_count + 1, 0);
 
-  for (std::size_t i = 1; i <= row_count; ++i) {
-    p[0] = i;
+  const HungarianColumnState column_state{&matched_row_by_col, &predecessor_col_by_col};
+  for (std::size_t row = 1; row <= row_count; ++row) {
+    matched_row_by_col[0] = row;
     std::size_t col0 = 0;
-    std::vector<long long> min_v(col_count + 1, std::numeric_limits<long long>::max());
-    std::vector<bool> used(col_count + 1, false);
-
-    do {
-      used[col0] = true;
-      const std::size_t row0 = p[col0];
-      long long delta = std::numeric_limits<long long>::max();
-      std::size_t col1 = 0;
-
-      for (std::size_t col = 1; col <= col_count; ++col) {
-        if (used[col]) {
-          continue;
-        }
-        const long long current = cost_matrix[row0 - 1][col - 1] - u[row0] - v[col];
-        if (current < min_v[col]) {
-          min_v[col] = current;
-          way[col] = col0;
-        }
-        if (min_v[col] < delta) {
-          delta = min_v[col];
-          col1 = col;
-        }
-      }
-
-      for (std::size_t col = 0; col <= col_count; ++col) {
-        if (used[col]) {
-          u[p[col]] += delta;
-          v[col] -= delta;
-        } else {
-          min_v[col] -= delta;
-        }
-      }
-      col0 = col1;
-    } while (p[col0] != 0);
-
-    do {
-      const std::size_t col1 = way[col0];
-      p[col0] = p[col1];
-      col0 = col1;
-    } while (col0 != 0);
+    AdvanceAugmentingColumn(cost_matrix, row_potential, col_potential, column_state, col_count, col0);
+    ApplyAugmentingPath(matched_row_by_col, predecessor_col_by_col, col0);
   }
 
   std::vector<std::size_t> assignment(row_count, std::numeric_limits<std::size_t>::max());
   for (std::size_t col = 1; col <= col_count; ++col) {
-    if (p[col] != 0) {
-      assignment[p[col] - 1] = col - 1;
+    if (matched_row_by_col[col] != 0) {
+      assignment[matched_row_by_col[col] - 1] = col - 1;
     }
   }
   return assignment;
@@ -111,22 +139,22 @@ std::vector<std::size_t> HungarianSolve(const std::vector<std::vector<long long>
 
 }  // namespace
 
-LocalLegalization::RegionType LocalLegalization::buildLegalRegion(const RegionType& feasible_region, const RegionType& block_region)
+auto LocalLegalization::buildLegalRegion(const Problem& problem) -> LocalLegalization::RegionType
 {
-  if (feasible_region.empty()) {
-    return feasible_region;
+  if (problem.feasible_region.empty()) {
+    return problem.feasible_region;
   }
-  auto legal_region = feasible_region;
-  legal_region.subtract(block_region);
+  auto legal_region = problem.feasible_region;
+  legal_region.subtract(problem.block_region);
   return legal_region;
 }
 
-LocalLegalization::Result LocalLegalization::legalize(const Problem& problem)
+auto LocalLegalization::legalize(const Problem& problem) -> LocalLegalization::Result
 {
   return legalize(problem, Options{});
 }
 
-LocalLegalization::Result LocalLegalization::legalize(const Problem& problem, const Options& options)
+auto LocalLegalization::legalize(const Problem& problem, const Options& options) -> LocalLegalization::Result
 {
   Result result;
   result.legalized_points = problem.movable_points;
@@ -136,7 +164,7 @@ LocalLegalization::Result LocalLegalization::legalize(const Problem& problem, co
     return result;
   }
 
-  const auto legal_region = buildLegalRegion(problem.feasible_region, problem.block_region);
+  const auto legal_region = buildLegalRegion(problem);
   for (int round = 0; round < std::max(1, options.max_expansion_rounds); ++round) {
     const auto candidate_budget = std::max<std::size_t>(1, options.candidate_budget * static_cast<std::size_t>(round + 1));
     const int local_search_radius = std::max(0, options.local_search_radius * (round + 1));
@@ -179,15 +207,15 @@ LocalLegalization::Result LocalLegalization::legalize(const Problem& problem, co
   return result;
 }
 
-LocalLegalization::Result LocalLegalization::legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
-                                                      const RegionType& feasible_region, const RegionType& block_region)
+auto LocalLegalization::legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
+                                 const RegionType& feasible_region, const RegionType& block_region) -> LocalLegalization::Result
 {
   return legalize(movable_points, fixed_points, feasible_region, block_region, Options{});
 }
 
-LocalLegalization::Result LocalLegalization::legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
-                                                      const RegionType& feasible_region, const RegionType& block_region,
-                                                      const Options& options)
+auto LocalLegalization::legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
+                                 const RegionType& feasible_region, const RegionType& block_region,
+                                 const Options& options) -> LocalLegalization::Result
 {
   Problem problem;
   problem.movable_points = movable_points;
@@ -202,9 +230,9 @@ LocalLegalization::Result LocalLegalization::legalize(std::vector<PointType>& mo
   return result;
 }
 
-std::vector<LocalLegalization::CandidateSite> LocalLegalization::generateCandidates(const PointType& origin, const RegionType& legal_region,
-                                                                                    const std::vector<PointType>& fixed_points,
-                                                                                    std::size_t candidate_budget, int local_search_radius)
+auto LocalLegalization::generateCandidates(const PointType& origin, const RegionType& legal_region,
+                                           const std::vector<PointType>& fixed_points, std::size_t candidate_budget,
+                                           int local_search_radius) -> std::vector<LocalLegalization::CandidateSite>
 {
   std::vector<CandidateSite> candidates;
   candidates.reserve(candidate_budget);
@@ -253,20 +281,19 @@ std::vector<LocalLegalization::CandidateSite> LocalLegalization::generateCandida
   return candidates;
 }
 
-std::vector<LocalLegalization::CandidateSite> LocalLegalization::enumerateProjectedNeighbors(const PointType& seed,
-                                                                                             const RegionType& legal_region,
-                                                                                             const std::vector<PointType>& fixed_points,
-                                                                                             int max_radius, std::size_t candidate_budget)
+auto LocalLegalization::enumerateProjectedNeighbors(const PointType& seed, const RegionType& legal_region,
+                                                    const std::vector<PointType>& fixed_points, int max_radius,
+                                                    std::size_t candidate_budget) -> std::vector<LocalLegalization::CandidateSite>
 {
   std::vector<CandidateSite> candidates;
   candidates.reserve(candidate_budget);
 
   for (int radius = 1; radius <= max_radius && candidates.size() < candidate_budget; ++radius) {
     for (int dx = -radius; dx <= radius && candidates.size() < candidate_budget; ++dx) {
-      const int dy = radius - std::abs(dx);
-      appendCandidate(candidates, PointType(seed.get_x() + dx, seed.get_y() + dy), legal_region, fixed_points, candidate_budget);
-      if (dy != 0 && candidates.size() < candidate_budget) {
-        appendCandidate(candidates, PointType(seed.get_x() + dx, seed.get_y() - dy), legal_region, fixed_points, candidate_budget);
+      const int delta_y = radius - std::abs(dx);
+      appendCandidate(candidates, PointType(seed.get_x() + dx, seed.get_y() + delta_y), legal_region, fixed_points, candidate_budget);
+      if (delta_y != 0 && candidates.size() < candidate_budget) {
+        appendCandidate(candidates, PointType(seed.get_x() + dx, seed.get_y() - delta_y), legal_region, fixed_points, candidate_budget);
       }
     }
   }
@@ -274,10 +301,9 @@ std::vector<LocalLegalization::CandidateSite> LocalLegalization::enumerateProjec
   return candidates;
 }
 
-std::vector<LocalLegalization::CandidateSite> LocalLegalization::enumerateBoundaryBreakpoints(const PointType& origin,
-                                                                                              const RegionType& legal_region,
-                                                                                              const std::vector<PointType>& fixed_points,
-                                                                                              std::size_t candidate_budget)
+auto LocalLegalization::enumerateBoundaryBreakpoints(const PointType& origin, const RegionType& legal_region,
+                                                     const std::vector<PointType>& fixed_points,
+                                                     std::size_t candidate_budget) -> std::vector<LocalLegalization::CandidateSite>
 {
   std::vector<CandidateSite> candidates;
   candidates.reserve(candidate_budget);
@@ -303,8 +329,9 @@ std::vector<LocalLegalization::CandidateSite> LocalLegalization::enumerateBounda
   return candidates;
 }
 
-std::vector<LocalLegalization::PointType> LocalLegalization::solveAssignment(const std::vector<PointType>& movable_points,
-                                                                             const std::vector<std::vector<CandidateSite>>& candidate_sets)
+auto LocalLegalization::solveAssignment(const std::vector<PointType>& movable_points,
+                                        const std::vector<std::vector<CandidateSite>>& candidate_sets)
+    -> std::vector<LocalLegalization::PointType>
 {
   if (movable_points.empty()) {
     return {};
@@ -352,8 +379,8 @@ std::vector<LocalLegalization::PointType> LocalLegalization::solveAssignment(con
   return legalized_points;
 }
 
-long long LocalLegalization::computeTotalDisplacement(const std::vector<PointType>& original_points,
-                                                      const std::vector<PointType>& legalized_points)
+auto LocalLegalization::computeTotalDisplacement(const std::vector<PointType>& original_points,
+                                                 const std::vector<PointType>& legalized_points) -> long long
 {
   long long total_displacement = 0;
   const auto count = std::min(original_points.size(), legalized_points.size());

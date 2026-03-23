@@ -30,14 +30,12 @@
 
 #include "RCTree.hh"
 #include "RoutingTypes.hh"
-#include "bound_skew_tree/BSTRouter.hh"
-#include "concurrent_bst_salt/CBSRouter.hh"
-#include "flute/FLUTERouter.hh"
+#include "SteinerTree.hh"
 #include "local_legalization/LocalLegalization.hh"
-#include "salt/SALTRouter.hh"
 
 namespace icts {
 
+struct BSTParameters;
 class Pin;
 
 class Router

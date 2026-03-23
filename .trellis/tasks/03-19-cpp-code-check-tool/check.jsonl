@@ -1,0 +1,14 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Mandatory project constraints for build tools and C++ rule sources"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming and quality rules the checker must reflect"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "iCTS target hierarchy and target naming conventions"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Reporting/error behavior should follow project norms where applicable"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Avoid unnecessary duplication in generic core and profile design"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Path scope to build metadata mapping is a cross-layer contract"}
+{"file": ".trellis/scripts/task.py", "reason": "CLI and argparse structure pattern"}
+{"file": ".trellis/scripts/common/paths.py", "reason": "Repo-root and path helper pattern"}
+{"file": "build.sh", "reason": "Existing build, tool detection, and Ninja preference pattern"}
+{"file": "CMakeLists.txt", "reason": "compile_commands export and top-level build metadata source"}
+{"file": "src/operation/iCTS/CMakeLists.txt", "reason": "Top-level iCTS target graph root"}
+{"file": "src/operation/iCTS/source/CMakeLists.txt", "reason": "iCTS source aggregator target pattern"}

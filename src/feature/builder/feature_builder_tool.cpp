@@ -56,7 +56,7 @@ RTSummary FeatureBuilder::buildRTSummary()
 
 CTSSummary FeatureBuilder::buildCTSSummary()
 {
-  CTSSummary summary = CTSAPIInst.outputSummary();
+  CTSSummary summary = CTS_API_INST.outputSummary();
 
   return summary;
 }

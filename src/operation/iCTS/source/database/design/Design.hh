@@ -22,13 +22,14 @@
  */
 
 #pragma once
+#include <memory>
 #include <vector>
 
 #include "Clock.hh"
 
 namespace icts {
 
-#define DesignInst (icts::Design::getInst())
+#define DESIGN_INST (icts::Design::getInst())
 
 class Design
 {
@@ -46,28 +47,38 @@ class Design
   Design& operator=(Design&& rhs) = delete;
 
   // Reset design data
-  void reset()
-  {
-    for (auto* clock : _clocks) {
-      delete clock;
-    }
-    _clocks.clear();
-  }
+  void reset() { _clocks.clear(); }
 
   // Getter
-  const std::vector<Clock*>& get_clocks() const { return _clocks; }
+  std::vector<Clock*> get_clocks() const
+  {
+    std::vector<Clock*> clocks;
+    clocks.reserve(_clocks.size());
+    for (const auto& clock : _clocks) {
+      clocks.push_back(clock.get());
+    }
+    return clocks;
+  }
 
   // Setter
-  void set_clocks(const std::vector<Clock*>& clocks) { _clocks = clocks; }
+  void set_clocks(std::vector<std::unique_ptr<Clock>> clocks) { _clocks = std::move(clocks); }
 
   // Adder
-  void add_clock(Clock* clock) { _clocks.push_back(clock); }
+  Clock* add_clock(std::unique_ptr<Clock> clock)
+  {
+    if (clock == nullptr) {
+      return nullptr;
+    }
+    auto* raw = clock.get();
+    _clocks.push_back(std::move(clock));
+    return raw;
+  }
 
  private:
   Design() = default;
   ~Design() = default;
 
-  std::vector<Clock*> _clocks;
+  std::vector<std::unique_ptr<Clock>> _clocks;
 };
 
 }  // namespace icts

@@ -26,10 +26,11 @@
 #include <cstddef>
 #include <vector>
 
-#include "Pin.hh"
 #include "Point.hh"
 
 namespace icts {
+
+class Pin;
 
 struct ClusterResult
 {

@@ -25,13 +25,12 @@
 
 #include <fstream>
 #include <mutex>
-#include <ostream>
 #include <sstream>
 #include <string>
 
 namespace icts {
 
-#define LogInst (icts::Logger::getInst())
+#define LOG_INST (icts::Logger::getInst())
 
 class Logger
 {
@@ -96,7 +95,7 @@ class Logger
   ~Logger() = default;
 
   void write(Level level, const std::string& message);
-  void logToConsole(Level level, const char* file, int line, const std::string& message);
+  static void logToConsole(Level level, const char* file, int line, const std::string& message);
 
   std::mutex _mutex;
   std::ofstream _ofs;

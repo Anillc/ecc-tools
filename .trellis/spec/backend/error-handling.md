@@ -42,7 +42,7 @@ CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Cannot find liberty cell: " << cell_ma
 **When**: A required resource is unavailable, but the function can return a safe default.
 
 ```cpp
-auto* idb_design = WrapperInst.get_idb_design();
+auto* idb_design = WRAPPER_INST.get_idb_design();
 if (idb_design == nullptr || idb_design->get_units() == nullptr) {
   CTS_LOG_ERROR << "iDB design units are not ready.";
   return 1;
@@ -129,13 +129,12 @@ try {
 
 ## Forbidden Patterns
 
-| Pattern | Why | Use Instead |
-|---------|-----|-------------|
-| `throw std::runtime_error(...)` | Exceptions not used in iCTS | `CTS_LOG_FATAL` or `CTS_LOG_ERROR` + return |
-| `assert(condition)` | No descriptive message, removed in release | `CTS_LOG_FATAL_IF(!condition) << "message"` |
-| `try { ... } catch (...)` (outside Config.cc) | Silent error swallowing | Explicit logging + return |
-| `exit(1)` or `abort()` | Bypasses cleanup | `CTS_LOG_FATAL << "message"` |
-| Error return codes (int) | Not the project pattern | Log + return default value |
+See [Quality Guidelines](quality-guidelines.md) for the complete forbidden patterns list.
+
+The key error-handling-specific rules:
+- No `throw` / `try` / `catch` (except `Config.cc` JSON parsing)
+- No `assert()` -- use `CTS_LOG_FATAL_IF(!condition) << "message"`
+- No `exit(1)` or `abort()` -- use `CTS_LOG_FATAL << "message"`
 
 ---
 

@@ -23,22 +23,36 @@
 #include "CBSRouter.hh"
 
 #include <algorithm>
+#include <cstddef>
+#include <limits>
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
+#include "BSTRouter.hh"
+#include "BSTTypes.hh"
+#include "Point.hh"
 #include "geometry/Geometry.hh"
 #include "logger/Logger.hh"
+#include "salt/base/net.h"
 #include "salt/base/rsa.h"
+#include "salt/base/tree.h"
 #include "salt/refine/refine.h"
+#include "salt/utils/geo.h"
 
 namespace icts {
+
+CustomSaltBuilder::~CustomSaltBuilder() = default;
+
 namespace {
 
 constexpr double kDefaultCbsEps = 0.0;
 constexpr int kDefaultCbsRefineLevel = 3;
 
-std::shared_ptr<salt::Pin> BuildSaltPin(const CBSRouter::ClockSteinerTreeType::NodeType& node,
-                                        const std::unordered_map<std::string, double>& init_cap_map)
+auto BuildSaltPin(const CBSRouter::ClockSteinerTreeType::NodeType& node,
+                  const std::unordered_map<std::string, double>& init_cap_map) -> std::shared_ptr<salt::Pin>
 {
   if (!node.is_terminal) {
     return nullptr;
@@ -50,8 +64,8 @@ std::shared_ptr<salt::Pin> BuildSaltPin(const CBSRouter::ClockSteinerTreeType::N
   return std::make_shared<salt::Pin>(node.location.get_x(), node.location.get_y(), static_cast<int>(node.id), cap_load);
 }
 
-std::vector<std::shared_ptr<salt::Pin>> BuildSaltPinList(const CBSRouter::ClockSteinerTreeType& clock_tree,
-                                                         const std::unordered_map<std::string, double>& init_cap_map)
+auto BuildSaltPinList(const CBSRouter::ClockSteinerTreeType& clock_tree,
+                      const std::unordered_map<std::string, double>& init_cap_map) -> std::vector<std::shared_ptr<salt::Pin>>
 {
   std::vector<std::shared_ptr<salt::Pin>> salt_pins;
   salt_pins.reserve(clock_tree.node_count());
@@ -65,8 +79,8 @@ std::vector<std::shared_ptr<salt::Pin>> BuildSaltPinList(const CBSRouter::ClockS
   return salt_pins;
 }
 
-salt::Tree BuildSaltTreeFromClockTree(const CBSRouter::ClockSteinerTreeType& clock_tree, const salt::Net& salt_net,
-                                      const std::unordered_map<std::string, double>& init_cap_map)
+auto BuildSaltTreeFromClockTree(const CBSRouter::ClockSteinerTreeType& clock_tree, const salt::Net& salt_net,
+                                const std::unordered_map<std::string, double>& init_cap_map) -> salt::Tree
 {
   std::vector<std::shared_ptr<salt::TreeNode>> salt_nodes(clock_tree.node_count());
   for (const auto& node : clock_tree.get_nodes()) {
@@ -83,10 +97,10 @@ salt::Tree BuildSaltTreeFromClockTree(const CBSRouter::ClockSteinerTreeType& clo
 
   auto root_id = clock_tree.get_root();
   CTS_LOG_FATAL_IF(root_id >= salt_nodes.size()) << "CBS input clock tree root id is invalid.";
-  return salt::Tree(salt_nodes[root_id], &salt_net);
+  return {salt_nodes[root_id], &salt_net};
 }
 
-CBSRouter::ClockSteinerTreeType ExportSaltTree(const salt::Tree& tree, const CBSRouter::ClockSteinerTreeType& initial_tree)
+auto ExportSaltTree(const salt::Tree& tree, const CBSRouter::ClockSteinerTreeType& initial_tree) -> CBSRouter::ClockSteinerTreeType
 {
   CBSRouter::ClockSteinerTreeType clock_tree;
   auto nodes = tree.ObtainNodes();
@@ -134,7 +148,7 @@ CBSRouter::ClockSteinerTreeType ExportSaltTree(const salt::Tree& tree, const CBS
   return clock_tree;
 }
 
-CBSRouter::ClockSteinerTreeType RefineTopology(const CBSRouter::ClockSteinerTreeType& initial_tree, const BSTParameters& parameters)
+auto RefineTopology(const CBSRouter::ClockSteinerTreeType& initial_tree, const BSTParameters& parameters) -> CBSRouter::ClockSteinerTreeType
 {
   auto root_id = initial_tree.get_root();
   const auto* root_node = initial_tree.get_node(root_id);
@@ -208,16 +222,18 @@ void CustomSaltBuilder::run(const salt::Net& net, salt::Tree& input_tree, double
   }
 }
 
-bool CustomSaltBuilder::relax(const std::shared_ptr<salt::TreeNode>& from, const std::shared_ptr<salt::TreeNode>& to)
+auto CustomSaltBuilder::relax(const std::shared_ptr<salt::TreeNode>& source_node,
+                              const std::shared_ptr<salt::TreeNode>& target_node) -> bool
 {
-  auto new_latency = _cur_latency[from->id] + utils::Dist(from->loc, to->loc);
-  if (_cur_latency[to->id] > new_latency) {
-    _cur_latency[to->id] = new_latency;
-    to->parent = from;
+  const auto new_latency = _cur_latency[source_node->id] + utils::Dist(source_node->loc, target_node->loc);
+  if (_cur_latency[target_node->id] > new_latency) {
+    _cur_latency[target_node->id] = new_latency;
+    target_node->parent = source_node;
     return true;
   }
-  if (_cur_latency[to->id] == new_latency && utils::Dist(from->loc, to->loc) < to->WireToParentChecked()) {
-    to->parent = from;
+  if (_cur_latency[target_node->id] == new_latency
+      && utils::Dist(source_node->loc, target_node->loc) < target_node->WireToParentChecked()) {
+    target_node->parent = source_node;
     return true;
   }
   return false;
@@ -225,18 +241,46 @@ bool CustomSaltBuilder::relax(const std::shared_ptr<salt::TreeNode>& from, const
 
 void CustomSaltBuilder::dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps)
 {
-  if (tree_node->pin && _cur_latency[cbs_node->id] > (1 + eps) * _shortest_latency[cbs_node->id]) {
-    cbs_node->parent = _src;
-    _cur_latency[cbs_node->id] = _shortest_latency[cbs_node->id];
-  }
-  for (const auto& child : tree_node->children) {
-    relax(cbs_node, _nodes[child->id]);
-    dfs(child, _nodes[child->id], eps);
-    relax(_nodes[child->id], cbs_node);
+  struct DfsFrame
+  {
+    std::shared_ptr<salt::TreeNode> tree_node;
+    std::shared_ptr<salt::TreeNode> cbs_node;
+    std::size_t next_child_index = 0;
+    bool entered = false;
+  };
+
+  std::vector<DfsFrame> frame_stack;
+  frame_stack.push_back(DfsFrame{tree_node, cbs_node, 0, false});
+
+  while (!frame_stack.empty()) {
+    auto& frame = frame_stack.back();
+    auto current_tree_node = frame.tree_node;
+    auto current_cbs_node = frame.cbs_node;
+
+    if (!frame.entered) {
+      frame.entered = true;
+      if (current_tree_node->pin && _cur_latency[current_cbs_node->id] > (1 + eps) * _shortest_latency[current_cbs_node->id]) {
+        current_cbs_node->parent = _src;
+        _cur_latency[current_cbs_node->id] = _shortest_latency[current_cbs_node->id];
+      }
+    }
+
+    if (frame.next_child_index >= current_tree_node->children.size()) {
+      frame_stack.pop_back();
+      if (!frame_stack.empty()) {
+        relax(current_cbs_node, frame_stack.back().cbs_node);
+      }
+      continue;
+    }
+
+    auto child = current_tree_node->children[frame.next_child_index++];
+    auto child_cbs_node = _nodes[child->id];
+    relax(current_cbs_node, child_cbs_node);
+    frame_stack.push_back(DfsFrame{child, child_cbs_node, 0, false});
   }
 }
 
-CBSRouter::ClockSteinerTreeType CBSRouter::buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters)
+auto CBSRouter::buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters) -> CBSRouter::ClockSteinerTreeType
 {
   auto initial_tree = BSTRouter::buildTree(load_terminals, parameters);
   if (initial_tree.node_count() == 0) {

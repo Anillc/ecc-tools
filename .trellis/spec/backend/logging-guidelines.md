@@ -14,7 +14,7 @@ iCTS uses its own logging system (`CTS_LOG_*` macros) that provides **dual outpu
 
 ## Logger Architecture
 
-- **Singleton**: `Logger` class accessed via `LogInst` macro
+- **Singleton**: `Logger` class accessed via `LOG_INST` macro
 - **Defined in**: `source/utils/logger/Logger.hh` and `Logger.cc`
 - **Thread-safe**: File writes protected by `std::mutex`
 - **Dual output**: Every message goes to both file and console
@@ -23,7 +23,7 @@ iCTS uses its own logging system (`CTS_LOG_*` macros) that provides **dual outpu
 CTS_LOG_INFO << "message"
     │
     ├──> File output:  [INFO] message   (via Logger::write())
-    └──> Console output: LOG_INFO(message)  (via Logger::log_to_console())
+    └──> Console output: LOG_INFO(message)  (via Logger::logToConsole())
 ```
 
 ---
@@ -118,7 +118,7 @@ Use for:
 - Query functions that cannot produce a valid result
 
 ```cpp
-auto* idb_design = WrapperInst.get_idb_design();
+auto* idb_design = WRAPPER_INST.get_idb_design();
 if (idb_design == nullptr || idb_design->get_units() == nullptr) {
   CTS_LOG_ERROR << "iDB design units are not ready.";
   return 1;
@@ -143,12 +143,11 @@ CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name
 
 ## Forbidden Patterns
 
-| Pattern | Why | Use Instead |
-|---------|-----|-------------|
-| `LOG_INFO << "..."` | Bypasses iCTS file logging | `CTS_LOG_INFO << "..."` |
-| `std::cout << "..."` | No log level, no file output | `CTS_LOG_INFO << "..."` |
-| `printf(...)` | Not C++, no log level | `CTS_LOG_INFO << "..."` |
-| `assert(condition)` | No descriptive message | `CTS_LOG_FATAL_IF(!condition) << "..."` |
+See [Quality Guidelines](quality-guidelines.md) for the complete forbidden patterns list.
+
+The key logging-specific rules:
+- Never use global `LOG_*` macros directly in iCTS code
+- Never use `std::cout`, `printf`, or `assert()` -- use `CTS_LOG_*` macros instead
 
 ---
 
@@ -156,11 +155,11 @@ CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name
 
 ```cpp
 // Initialization (in CTSAPI::init or similar entry point)
-LogInst.set_log_file(log_file_path);
+LOG_INST.set_log_file(log_file_path);
 
 // Usage throughout code
 CTS_LOG_INFO << "Processing...";
 
 // Cleanup (in CTSAPI::resetAPI)
-LogInst.close();
+LOG_INST.close();
 ```

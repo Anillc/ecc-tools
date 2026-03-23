@@ -32,7 +32,6 @@
 #include <vector>
 
 #include "BSTTypes.hh"
-#include "logger/Logger.hh"
 namespace icts::bst {
 
 template <typename T>
@@ -133,7 +132,7 @@ class Area
       : _name(name), _cap_load(cap_load), _sub_len(sub_len), _pattern(pattern), _location(location), _is_fixed_terminal(is_fixed_terminal)
   {
     if (is_fixed_terminal) {
-      _mr.push_back(_location);
+      _merge_region.push_back(_location);
       _convex_hull.push_back(_location);
     }
   }
@@ -158,13 +157,13 @@ class Area
   Area* get_right() const { return _right; }
   Line get_line(const size_t& side) const { return _lines[side]; }
   Side<Line> get_lines() const { return _lines; }
-  Region get_mr() const { return _mr; }
-  std::vector<Line> getMrLines() const
+  Region get_merge_region() const { return _merge_region; }
+  std::vector<Line> getMergeRegionLines() const
   {
     std::vector<Line> lines;
-    for (size_t i = 0; i < _mr.size(); ++i) {
-      auto j = (i + 1) % _mr.size();
-      lines.push_back({_mr[i], _mr[j]});
+    for (size_t i = 0; i < _merge_region.size(); ++i) {
+      auto j = (i + 1) % _merge_region.size();
+      lines.push_back({_merge_region[i], _merge_region[j]});
     }
     return lines;
   }
@@ -192,11 +191,11 @@ class Area
   void set_left(Area* left) { _left = left; }
   void set_right(Area* right) { _right = right; }
   void set_line(const size_t& side, const Line& line) { _lines[side] = line; }
-  void set_mr(const Region& mr) { _mr = mr; }
+  void set_merge_region(const Region& merge_region) { _merge_region = merge_region; }
   void set_convex_hull(const Region& convex_hull) { _convex_hull = convex_hull; }
 
   // add
-  void add_mr_point(const Point& point) { _mr.push_back(point); }
+  void add_merge_region_point(const Point& point) { _merge_region.push_back(point); }
   void add_convex_hull_point(const Point& point) { _convex_hull.push_back(point); }
 
   bool is_fixed_terminal() const { return _is_fixed_terminal; }
@@ -215,16 +214,16 @@ class Area
   Area* _left = nullptr;
   Area* _right = nullptr;
   Side<Line> _lines;
-  Region _mr;
+  Region _merge_region;
   Region _convex_hull;
   bool _is_fixed_terminal = false;
 };
 
 struct Match
 {
-  Area* left;
-  Area* right;
-  double merge_cost;
+  Area* left = nullptr;
+  Area* right = nullptr;
+  double merge_cost = 0.0;
 };
 
 class Interval
@@ -334,38 +333,12 @@ class TransformedRect
 
   double diameter() const { return std::max(width(0), width(1)); }
 
-  TransformedRect intersect(const TransformedRect& trr1, const TransformedRect& trr2)
-  {
-    auto x_low = std::max(trr1._x_low, trr2._x_low);
-    auto x_high = std::min(trr1._x_high, trr2._x_high);
-    auto y_low = std::max(trr1._y_low, trr2._y_low);
-    auto y_high = std::min(trr1._y_high, trr2._y_high);
-    auto trr = TransformedRect(x_low, x_high, y_low, y_high);
-    trr.check();
-    return trr;
-  }
+  static auto intersect(const TransformedRect& trr1, const TransformedRect& trr2) -> TransformedRect;
 
  private:
-  void check()
-  {
-    correction();
-    CTS_LOG_FATAL_IF(is_empty()) << "TRR is empty, which x_low: " << _x_low << ", x_high: " << _x_high << ", y_low: " << _y_low
-                                 << ", y_high: " << _y_high;
-  }
+  void check();
 
-  void correction()
-  {
-    auto temp_low = _x_low;
-    auto temp_high = _x_high;
-    if (Equal(temp_low, temp_high)) {
-      _x_low = _x_high = (temp_low + temp_high) / 2;
-    }
-    temp_low = _y_low;
-    temp_high = _y_high;
-    if (Equal(temp_low, temp_high)) {
-      _y_low = _y_high = (temp_low + temp_high) / 2;
-    }
-  }
+  void correction();
   double _x_low = 1;
   double _x_high = 0;
   double _y_low = 1;

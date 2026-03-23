@@ -17,14 +17,14 @@
 
 ## 2. File Naming and Extensions
 
-All C++ source files must use the following extensions:
+**Within iCTS module code** (`src/operation/iCTS/`): Use `.cc` for sources, `.hh` for headers.
+**Forbidden in iCTS**: `.h`, `.hpp`, `.cpp`, `.cxx`, `.c`
+> Note: External interface files (`src/interface/`, `src/platform/`) follow upstream conventions and may use `.cpp`.
 
 | Type | Extension | Example |
 |------|-----------|---------|
 | Header | `.hh` | `TopologyGen.hh` |
 | Source | `.cc` | `TopologyGen.cc` |
-
-**Forbidden**: `.h`, `.hpp`, `.cpp`, `.cxx`, `.c`
 
 File names use **PascalCase**:
 - `Clock.hh`, `CTSAPI.cc`, `BoundSkewTree.hh`
@@ -107,58 +107,15 @@ The project uses clang-tidy for static analysis. Reference config at `src/utilit
 
 ### Naming Convention Rules (enforced by clang-tidy)
 
-| Element | Case | Prefix | Suffix | Example |
-|---------|------|--------|--------|---------|
-| Class | CamelCase | — | — | `Clock`, `CTSAPI`, `TopologyGen` |
-| Abstract class | CamelCase | — | `Interface` | `RouterInterface` |
-| Class method | camelBack | — | — | `runCTS()`, `readData()`, `summaryClockDistribution()` |
-| Getter (simple) | snake_case | `get_` | — | `get_name()`, `get_type()`, `get_clock_source()` |
-| Setter (simple) | snake_case | `set_` | — | `set_name()`, `set_type()`, `set_location()` |
-| Getter (complex) | camelBack | — | — | `calcDelay()`, `estimateCapacitance()`, `fetchNetlist()` |
-| Setter (complex) | camelBack | — | — | `updateTiming()`, `applyTransform()` |
-| Boolean query (simple) | snake_case | `is_` | — | `is_buffer()`, `is_flipflop()`, `is_clock_gate()` |
-| Boolean query (complex) | camelBack | — | — | `hasViolation()`, `canInsertBuffer()` |
-| Member variable | lower_case | `_` | — | `_clock_name`, `_max_fanout`, `_loads` |
-| Local variable | lower_case | — | — | `clock_name`, `inst_type`, `num_sinks` |
-| Enum (scoped) | CamelCase | — | — | `enum class InstType`, `enum class PinType` |
-| Enum value | CamelCase | `k` | — | `kBuffer`, `kFlipFlop`, `kUnknown` |
-| Global/Free function | CamelCase | — | — | `Manhattan()`, `CalcCenter()` |
-| Global constant | CamelCase | `k` | — | `kFileName` |
-| Global variable | CamelCase | `g` | — | `gFileName` |
-| Macro | UPPER_CASE | — | — | `CTS_LOG_INFO`, `CTSAPIInst`, `ConfigInst`, `STAAdapterInst` |
-| Namespace | lower_case | — | — | `icts`, `idb`, `ieda` |
-
-### Getter/Setter Exception
-
-Getters and setters are explicitly allowed in snake_case by the clang-tidy regex:
-```
-ClassMethodIgnoredRegexp: '[gs]et_[a-zA-Z_]+'
-```
+Naming conventions are enforced by `readability-identifier-naming` checks in the project's `.clang-tidy` configuration file (`src/utility/.clang-tidy`). Run `python3 ./.trellis/ecc_dev_tools/check.py check --path <path>` to verify compliance.
 
 ### Getter/Setter Naming Boundary
 
-**snake_case** (`get_`/`set_`/`is_`) is reserved for **trivial accessors** — methods that directly read/write a private member (or perform minimal logic like a single comparison).
+**snake_case** (`get_`/`set_`/`is_`) is reserved for **trivial accessors** -- methods that directly read/write a private member (or perform minimal logic like a single comparison).
 
-**camelBack** should be used when the method involves:
-- Computation or transformation (e.g., `calcDelay()`, `estimateCapacitance()`)
-- External system queries (e.g., `fetchTimingData()`, `queryLiberty()`)
-- Multi-step logic or aggregation (e.g., `buildNetlist()`, `hasViolation()`)
-- Side effects beyond simple assignment
+**camelBack** should be used when the method involves computation, external queries, multi-step logic, or side effects beyond simple assignment.
 
 **Rule of thumb**: If the method body is more than a direct `return _member;` / `_member = value;` / `return _member == kSomething;`, use camelBack.
-
-Examples:
-```cpp
-// Simple accessor → snake_case
-const std::string& get_name() const { return _name; }
-void set_type(InstType type) { _type = type; }
-bool is_buffer() const { return _type == InstType::kBuffer; }
-
-// Complex logic → camelBack
-double calcDelay() const { /* multi-step computation */ }
-bool hasViolation() const { /* checks multiple conditions */ }
-std::vector<Pin*> collectSinkPins() const { /* traversal logic */ }
-```
 
 ---
 
@@ -188,7 +145,7 @@ When writing code for iCTS (Clock Tree Synthesis), use the established domain te
 | inserted_insts | Buffers/inverters added by CTS | `Clock::_inserted_insts` |
 | inserted_nets | New nets created by CTS | `Clock::_inserted_nets` |
 | cell_master | Liberty cell type name | `Inst::_cell_master` |
-| dbu | Design Base Unit (integer coordinates) | `Wrapper::get_db_unit()` |
+| dbu | Design Base Unit (integer coordinates) | `Wrapper::queryDbUnit()` |
 
 ### Electrical Terms
 
@@ -222,36 +179,7 @@ When writing code for iCTS (Clock Tree Synthesis), use the established domain te
 3. **Compile to verify** CMake configuration is correct
 4. **Then implement** the actual logic
 
-### CMake Target Naming Convention
-
-Targets follow a hierarchical dot-less underscore pattern:
-```
-icts_{tier}_{category}_{module}
-```
-
-Examples:
-- `icts_api` — API tier
-- `icts_source_database_config` — source tier, database category, config module
-- `icts_source_module_topology` — source tier, module category, topology sub-module
-- `icts_source_utils_logger` — source tier, utils category, logger sub-module
-
-### Adding a New Module
-
-For a real library (has `.cc` files):
-```cmake
-add_library(icts_source_module_newmod ${PATH}/NewMod.cc)
-target_include_directories(icts_source_module_newmod PUBLIC ${PATH})
-target_link_libraries(icts_source_module_newmod PRIVATE <dependencies>)
-```
-
-For header-only (INTERFACE library):
-```cmake
-add_library(icts_source_database_newdata INTERFACE)
-target_include_directories(icts_source_database_newdata INTERFACE ${PATH})
-target_link_libraries(icts_source_database_newdata INTERFACE <dependencies>)
-```
-
-Then link the new target in the parent CMakeLists.txt aggregator.
+See [Directory Structure](backend/directory-structure.md) for CMake target naming conventions and module setup patterns.
 
 ---
 

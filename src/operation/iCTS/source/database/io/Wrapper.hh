@@ -23,26 +23,29 @@
 
 #pragma once
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
+#include <vector>
 
+#include "IdbInstance.h"
+#include "IdbNet.h"
+#include "IdbPins.h"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "spatial/Point.hh"
 
 namespace idb {
 class IdbBuilder;
 class IdbDesign;
 class IdbLayout;
-class IdbPin;
-class IdbInstance;
-class IdbNet;
 template <typename T>
 class IdbCoordinate;
 }  // namespace idb
 
 namespace icts {
 
-#define WrapperInst (icts::Wrapper::getInst())
+#define WRAPPER_INST (icts::Wrapper::getInst())
 
 class Wrapper
 {
@@ -68,6 +71,9 @@ class Wrapper
     _idb = nullptr;
     _idb_design = nullptr;
     _idb_layout = nullptr;
+    _owned_pins.clear();
+    _owned_insts.clear();
+    _owned_nets.clear();
     _cts2idb_inst_map.clear();
     _idb2cts_inst_map.clear();
     _cts2idb_net_map.clear();
@@ -81,7 +87,7 @@ class Wrapper
   idb::IdbDesign* get_idb_design() const { return _idb_design; }
   idb::IdbLayout* get_idb_layout() const { return _idb_layout; }
 
-  int32_t queryDbUnit() const;
+  auto queryDbUnit() const -> int32_t;
 
   // Setter
   void set_idb_design(idb::IdbDesign* design) { _idb_design = design; }
@@ -89,23 +95,23 @@ class Wrapper
 
   // Interface
   void read();
-  bool withinCore(int32_t x, int32_t y) const;
+  auto withinCore(int32_t point_x, int32_t point_y) const -> bool;
 
  private:
   Wrapper() = default;
   ~Wrapper() = default;
 
   // DB to CTS
-  Point<int> idbToCts(idb::IdbCoordinate<int32_t>& coord) const;
-  Pin* idbToCts(idb::IdbPin* idb_pin);
-  Inst* idbToCts(idb::IdbInstance* idb_inst);
-  Net* idbToCts(idb::IdbNet* idb_net);
+  static auto idbToCts(idb::IdbCoordinate<int32_t>& coord) -> Point<int>;
+  auto idbToCts(idb::IdbPin* idb_pin) -> Pin*;
+  auto idbToCts(idb::IdbInstance* idb_inst) -> Inst*;
+  auto idbToCts(idb::IdbNet* idb_net) -> Net*;
 
   // CTS to DB
-  idb::IdbCoordinate<int32_t> ctsToIdb(const Point<int>& loc) const;
-  idb::IdbPin* ctsToIdb(Pin* pin);
-  idb::IdbInstance* ctsToIdb(Inst* inst);
-  idb::IdbNet* ctsToIdb(Net* net);
+  static auto ctsToIdb(const Point<int>& loc) -> idb::IdbCoordinate<int32_t>;
+  auto ctsToIdb(Pin* pin) -> idb::IdbPin*;
+  auto ctsToIdb(Inst* inst) -> idb::IdbInstance*;
+  auto ctsToIdb(Net* net) -> idb::IdbNet*;
 
   // cross reference
   void crossRef(idb::IdbPin* idb_pin, Pin* cts_pin)
@@ -127,6 +133,10 @@ class Wrapper
   idb::IdbBuilder* _idb = nullptr;
   idb::IdbDesign* _idb_design = nullptr;
   idb::IdbLayout* _idb_layout = nullptr;
+
+  std::vector<std::unique_ptr<Pin>> _owned_pins;
+  std::vector<std::unique_ptr<Inst>> _owned_insts;
+  std::vector<std::unique_ptr<Net>> _owned_nets;
 
   std::unordered_map<Inst*, idb::IdbInstance*> _cts2idb_inst_map;
   std::unordered_map<idb::IdbInstance*, Inst*> _idb2cts_inst_map;

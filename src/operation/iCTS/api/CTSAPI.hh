@@ -22,7 +22,6 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <string>
 
 namespace ieda_feature {
@@ -31,11 +30,20 @@ struct CTSSummary;
 
 namespace icts {
 
-#define CTSAPIInst (icts::CTSAPI::getInst())
+#define CTS_API_INST (icts::CTSAPI::getInst())
 
 class CTSAPI
 {
  public:
+  struct WorkDir
+  {
+    std::string path;
+  };
+
+  struct InitOptions
+  {
+    WorkDir work_dir;
+  };
   static CTSAPI& getInst()
   {
     static CTSAPI inst;
@@ -43,17 +51,17 @@ class CTSAPI
   }
 
   // CTS CLI
-  void runCTS();
-  void report(const std::string& save_dir);
+  static void runCTS();
+  static void report(const std::string& save_dir);
 
   // Flow API
-  void resetAPI();
-  void init(const std::string& config_file, const std::string& work_dir = "");
-  void readData();
-  void summaryClockDistribution();
+  static void resetAPI();
+  static void init(const std::string& config_file, const InitOptions& options = {});
+  static void readData();
+  static void summaryClockDistribution();
 
   // Feature API
-  ieda_feature::CTSSummary outputSummary();
+  static auto outputSummary() -> ieda_feature::CTSSummary;
 
  private:
   CTSAPI() = default;

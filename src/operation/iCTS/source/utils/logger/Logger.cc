@@ -22,6 +22,11 @@
  */
 #include "Logger.hh"
 
+#include <glog/logging.h>
+
+#include <mutex>
+#include <ostream>
+#include <string>
 #include <utility>
 
 #include "log/Log.hh"
@@ -29,7 +34,7 @@
 namespace icts {
 namespace {
 
-const char* level_to_string(Logger::Level level)
+auto level_to_string(Logger::Level level) -> const char*
 {
   switch (level) {
     case Logger::Level::kInfo:
@@ -62,7 +67,7 @@ Logger::Stream::Stream(Stream&& other) noexcept
   other._active = false;
 }
 
-Logger::Stream& Logger::Stream::operator=(Stream&& other) noexcept
+auto Logger::Stream::operator=(Stream&& other) noexcept -> Logger::Stream&
 {
   if (this != &other) {
     _logger = other._logger;
@@ -83,12 +88,12 @@ Logger::Stream::~Stream()
   }
   const auto message = _stream.str();
   _logger->write(_level, message);
-  _logger->logToConsole(_level, _file, _line, message);
+  Logger::logToConsole(_level, _file, _line, message);
 }
 
 void Logger::set_log_file(const std::string& log_file)
 {
-  std::lock_guard<std::mutex> lock(_mutex);
+  const std::lock_guard<std::mutex> lock(_mutex);
   if (_log_file == log_file && _ofs.is_open()) {
     return;
   }
@@ -107,7 +112,7 @@ void Logger::set_log_file(const std::string& log_file)
 
 void Logger::close()
 {
-  std::lock_guard<std::mutex> lock(_mutex);
+  const std::lock_guard<std::mutex> lock(_mutex);
   if (_ofs.is_open()) {
     _ofs.close();
   }
@@ -115,7 +120,7 @@ void Logger::close()
 
 void Logger::write(Level level, const std::string& message)
 {
-  std::lock_guard<std::mutex> lock(_mutex);
+  const std::lock_guard<std::mutex> lock(_mutex);
   if (!_ofs.is_open()) {
     return;
   }
@@ -126,7 +131,7 @@ void Logger::write(Level level, const std::string& message)
   _ofs.flush();
 }
 
-void Logger::logToConsole(Level level, const char* file, int line, const std::string& message)
+auto Logger::logToConsole(Level level, const char* file, int line, const std::string& message) -> void
 {
   const bool has_site = file != nullptr;
   const char* prefix = has_site ? "[" : "";

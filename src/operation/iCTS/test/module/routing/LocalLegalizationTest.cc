@@ -24,28 +24,38 @@
 #include <gtest/gtest.h>
 
 #include <set>
+#include <vector>
 
+#include "database/spatial/Point.hh"
+#include "database/spatial/Rect.hh"
+#include "database/spatial/Region.hh"
 #include "module/routing/local_legalization/LocalLegalization.hh"
 
 namespace icts_test {
 namespace {
+
+constexpr int kLargeRegionMax = 10;
+constexpr int kExpandedRegionMax = 5;
+constexpr int kDisjointSourceX = 6;
+constexpr int kDisjointStartX = 10;
+constexpr int kDisjointEndX = 12;
 
 using Point = icts::Point<int>;
 using Rect = icts::Rect<int>;
 using Region = icts::Region<int>;
 using Legalizer = icts::LocalLegalization;
 
-std::set<Point> ToSet(const std::vector<Point>& points)
+auto ToSet(const std::vector<Point>& points) -> std::set<Point>
 {
-  return std::set<Point>(points.begin(), points.end());
+  return {points.begin(), points.end()};
 }
 
 TEST(LocalLegalizationTest, KeepsAlreadyLegalUniquePoints)
 {
   Legalizer::Problem problem;
   problem.movable_points = {Point(1, 1), Point(3, 3)};
-  problem.fixed_points = {Point(5, 5)};
-  problem.feasible_region = Region(Rect(0, 0, 10, 10));
+  problem.fixed_points = {Point(kExpandedRegionMax, kExpandedRegionMax)};
+  problem.feasible_region = Region(Rect(0, 0, kLargeRegionMax, kLargeRegionMax));
 
   auto result = Legalizer::legalize(problem);
   ASSERT_TRUE(result.success);
@@ -70,7 +80,7 @@ TEST(LocalLegalizationTest, ResolvesDuplicateMovablePointsUniquely)
 {
   Legalizer::Problem problem;
   problem.movable_points = {Point(2, 2), Point(2, 2), Point(2, 2)};
-  problem.feasible_region = Region(Rect(0, 0, 5, 5));
+  problem.feasible_region = Region(Rect(0, 0, kExpandedRegionMax, kExpandedRegionMax));
 
   auto result = Legalizer::legalize(problem);
   ASSERT_TRUE(result.success);
@@ -93,8 +103,8 @@ TEST(LocalLegalizationTest, RespectsBlockedRegion)
 TEST(LocalLegalizationTest, UsesDisjointFeasibleIslands)
 {
   Legalizer::Problem problem;
-  problem.movable_points = {Point(6, 1)};
-  problem.feasible_region = Region({Rect(0, 0, 2, 2), Rect(10, 0, 12, 2)});
+  problem.movable_points = {Point(kDisjointSourceX, 1)};
+  problem.feasible_region = Region({Rect(0, 0, 2, 2), Rect(kDisjointStartX, 0, kDisjointEndX, 2)});
 
   auto result = Legalizer::legalize(problem);
   ASSERT_TRUE(result.success);

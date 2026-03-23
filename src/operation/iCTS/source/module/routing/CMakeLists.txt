@@ -13,6 +13,7 @@ target_link_libraries(
   icts_source_module_routing
   PUBLIC
   icts_source_database
+  PRIVATE
   icts_source_module_routing_flute
   icts_source_module_routing_bst
   icts_source_module_routing_cbs

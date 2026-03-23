@@ -100,7 +100,7 @@ unsigned CmdCTSReport::exec()
   TclOption* def_path = getOptionOrArg(TCL_PATH);
   auto str_path = def_path->getStringVal();
   if (str_path != nullptr) {
-    CTSAPIInst.report(str_path);
+    CTS_API_INST.report(str_path);
     return 1;
   }
 

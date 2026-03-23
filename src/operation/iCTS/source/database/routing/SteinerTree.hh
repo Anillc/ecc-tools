@@ -53,6 +53,12 @@ struct SteinerEdge
 {
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
 
+  SteinerEdge() = default;
+  SteinerEdge(std::size_t edge_id, std::size_t source_id, std::size_t target_id, const T& edge_distance)
+      : id(edge_id), source_node_id(source_id), target_node_id(target_id), distance(edge_distance)
+  {
+  }
+
   std::size_t id = kInvalidId;
   std::size_t source_node_id = kInvalidId;
   std::size_t target_node_id = kInvalidId;
@@ -275,6 +281,12 @@ class SteinerTree
 template <typename T>
 struct ClockSteinerEdge : public SteinerEdge<T>
 {
+  ClockSteinerEdge() = default;
+  ClockSteinerEdge(std::size_t edge_id, std::size_t source_id, std::size_t target_id, const T& edge_distance, const T& routed_wire_distance)
+      : SteinerEdge<T>(edge_id, source_id, target_id, edge_distance), routed_distance(routed_wire_distance)
+  {
+  }
+
   T routed_distance{};  // Routed wire distance in coordinate type T.
 };
 

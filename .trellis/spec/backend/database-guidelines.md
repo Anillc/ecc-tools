@@ -6,7 +6,7 @@
 
 ## Overview
 
-iCTS uses a singleton-based data model where core design objects (Clock, Inst, Net, Pin) are managed through the `Design` singleton. Configuration is handled by the `Config` singleton, iDB integration through the `Wrapper` singleton, and external timing-system access through the database-level `STAAdapter` singleton. External callers still enter through `CTSAPIInst`.
+iCTS uses a singleton-based data model where core design objects (Clock, Inst, Net, Pin) are managed through the `Design` singleton. Configuration is handled by the `Config` singleton, iDB integration through the `Wrapper` singleton, and external timing-system access through the database-level `STAAdapter` singleton. External callers still enter through `CTS_API_INST`.
 
 ---
 
@@ -18,7 +18,7 @@ All singletons use the **Meyers Singleton** pattern with a macro alias.
 
 ```cpp
 // In header file
-#define ConfigInst (icts::Config::getInst())
+#define CONFIG_INST (icts::Config::getInst())
 
 class Config
 {
@@ -45,31 +45,31 @@ class Config
 
 | Macro | Class | Defined In | Purpose |
 |-------|-------|------------|---------|
-| `CTSAPIInst` | `CTSAPI` | `api/CTSAPI.hh` | Main external API entry point |
-| `DesignInst` | `Design` | `database/design/Design.hh` | Design database |
-| `ConfigInst` | `Config` | `database/config/Config.hh` | Configuration |
-| `WrapperInst` | `Wrapper` | `database/io/Wrapper.hh` | iDB adapter |
-| `STAAdapterInst` | `STAAdapter` | `database/adapter/sta/STAAdapter.hh` | iSTA adapter for routing / timing / characterization internals |
-| `LogInst` | `Logger` | `utils/logger/Logger.hh` | Logging |
+| `CTS_API_INST` | `CTSAPI` | `api/CTSAPI.hh` | Main external API entry point |
+| `DESIGN_INST` | `Design` | `database/design/Design.hh` | Design database |
+| `CONFIG_INST` | `Config` | `database/config/Config.hh` | Configuration |
+| `WRAPPER_INST` | `Wrapper` | `database/io/Wrapper.hh` | iDB adapter |
+| `STA_ADAPTER_INST` | `STAAdapter` | `database/adapter/sta/STAAdapter.hh` | iSTA adapter for routing / timing / characterization internals |
+| `LOG_INST` | `Logger` | `utils/logger/Logger.hh` | Logging |
 
 ### Usage Example
 
 ```cpp
-// External entry uses CTSAPIInst
-CTSAPIInst.init(config_file, work_dir);
-CTSAPIInst.runCTS();
+// External entry uses CTS_API_INST
+CTS_API_INST.init(config_file, InitOptions{WorkDir{work_dir}});
+CTS_API_INST.runCTS();
 
 // Internal source-layer code uses narrowed singletons
-if (ConfigInst.is_use_netlist()) {
-  auto net_list = ConfigInst.get_net_list();
+if (CONFIG_INST.is_use_netlist()) {
+  auto net_list = CONFIG_INST.get_net_list();
   for (auto& [clock_name, net_name] : net_list) {
-    auto* clock = new icts::Clock(clock_name, net_name);
-    DesignInst.add_clock(clock);
+    auto clock = std::make_unique<icts::Clock>(clock_name, net_name);
+    DESIGN_INST.add_clock(std::move(clock));
   }
 }
 
-WrapperInst.read();
-LogInst.close();
+WRAPPER_INST.read();
+LOG_INST.close();
 ```
 
 ---
@@ -77,8 +77,8 @@ LogInst.close();
 ## Data Model Hierarchy
 
 ```
-Design (singleton, DesignInst)
- └─ vector<Clock*>  _clocks
+Design (singleton, DESIGN_INST)
+ └─ vector<unique_ptr<Clock>>  _clocks
        │
        Clock
         ├─ string     _clock_name        (SDC clock name)
@@ -163,28 +163,26 @@ HTreeTopologyPattern
 
 ## Memory Management
 
-### Design Objects: Raw Pointers
+### Design Objects: Smart Pointers
 
-Design layer objects (`Clock`, `Inst`, `Net`, `Pin`) use raw pointers.
+Design layer objects (`Clock`, `Inst`, `Net`, `Pin`) use `std::unique_ptr` ownership with raw-pointer access for cross-references.
 
 **Object creation** (in `Wrapper.cc`):
 ```cpp
-auto* cts_pin  = new Pin(name, type, location, nullptr, nullptr, is_io);
-auto* cts_inst = new Inst(name, cell_master, type, location);
-auto* cts_net  = new Net(name);
+auto cts_pin  = std::make_unique<Pin>(name, type, location, nullptr, nullptr, is_io);
+auto cts_inst = std::make_unique<Inst>(name, cell_master, type, location);
+auto cts_net  = std::make_unique<Net>(name);
 ```
 
-**Object ownership**: `Design` owns `Clock*` objects and frees them:
+Objects are owned by `Wrapper` via `_owned_pins`, `_owned_insts`, and `_owned_nets` vectors. Raw pointers are obtained via `.get()` for cross-reference maps and downstream use.
+
+**Object ownership**: `Design` owns `unique_ptr<Clock>` objects; RAII handles cleanup:
 ```cpp
-// Design::reset()
-void reset()
-{
-  for (auto* clock : _clocks) {
-    delete clock;
-  }
-  _clocks.clear();
-}
+// Design::reset() -- vector clear destroys unique_ptr's
+void reset() { _clocks.clear(); }
 ```
+
+`Wrapper::reset()` similarly clears `_owned_pins`, `_owned_insts`, and `_owned_nets`, which destroys the owned objects via RAII.
 
 ### Topology Objects: Smart Pointers
 
@@ -208,8 +206,8 @@ std::unordered_map<idb::IdbInstance*, Inst*> _idb2cts_inst_map;
 
 | Object Type | Storage | Owner | Freed By |
 |-------------|---------|-------|----------|
-| `Clock*` | `vector<Clock*>` in `Design` | `Design` | `Design::reset()` |
-| `Pin*`, `Inst*`, `Net*` | Raw pointers | Implicit (singleton lifecycle) | Singleton `reset()` |
+| `Clock` | `unique_ptr<Clock>` in `Design._clocks` | `Design` | RAII (`_clocks.clear()`) |
+| `Pin`, `Inst`, `Net` | `unique_ptr` in `Wrapper._owned_*` vectors | `Wrapper` | RAII (`_owned_*.clear()`) |
 | `TreeNode` | `unique_ptr<TreeNode>` in `Tree` | `Tree` | RAII (destructor) |
 | `Tree` | Value / moved | Caller | RAII (destructor) |
 

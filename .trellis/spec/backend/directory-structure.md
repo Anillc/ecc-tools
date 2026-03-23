@@ -99,7 +99,7 @@ src/operation/iCTS/
 
 | Tier | Directory | CMake Target | Role |
 |------|-----------|--------------|------|
-| **API** | `api/` | `icts_api` | Public interface for external callers; accessed via `CTSAPIInst` |
+| **API** | `api/` | `icts_api` | Public interface for external callers; accessed via `CTS_API_INST` |
 | **Source** | `source/` | `icts_source` | All internal implementation, composed of sub-targets |
 | **Test** | `test/` | `icts_test` (executable) | Links `icts_source` + `icts_api` |
 

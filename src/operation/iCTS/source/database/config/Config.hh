@@ -29,7 +29,7 @@
 
 namespace icts {
 
-#define ConfigInst (icts::Config::getInst())
+#define CONFIG_INST (icts::Config::getInst())
 
 class Config
 {

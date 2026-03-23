@@ -23,16 +23,14 @@
 
 #pragma once
 
-#include <optional>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "BSTTypes.hh"
 #include "RoutingTypes.hh"
 #include "SteinerTree.hh"
 
 namespace icts {
+
+struct BSTParameters;
 
 class BSTRouter
 {

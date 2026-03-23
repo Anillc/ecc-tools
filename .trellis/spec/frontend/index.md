@@ -1,5 +1,14 @@
 # Frontend Development Guidelines
 
-> **Status: N/A** — This is a backend-only project (C++ / iCTS module). No frontend development applies.
+> Status: N/A for this repository.
 
-Frontend guidelines are not applicable to this project. All development follows the [Backend Guidelines](../backend/index.md).
+This repository is a backend-only C++ project focused on `iCTS`.
+
+- No frontend implementation workflow applies here.
+- No frontend-specific quality gates should be inferred from these files.
+- Use the backend docs instead:
+  - `../project-constraints.md`
+  - `../backend/index.md`
+  - `../backend/quality-guidelines.md`
+
+The remaining files in this directory are kept only as explicit Trellis template stubs so path references stay non-confusing.

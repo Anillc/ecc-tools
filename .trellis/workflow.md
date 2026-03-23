@@ -58,35 +58,23 @@ git status && git log --oneline -10              # Git state
 **CRITICAL**: Read guidelines before writing any code:
 
 ```bash
-# Read frontend guidelines index (if applicable)
-cat .trellis/spec/frontend/index.md
-
-# Read backend guidelines index (if applicable)
+# Read backend guidelines index
 cat .trellis/spec/backend/index.md
 ```
 
-**Why read both?**
-- Understand the full project architecture
-- Know coding standards for the entire codebase
-- See how frontend and backend interact
-- Learn the overall code quality requirements
+> Note: Frontend spec stubs exist in `.trellis/spec/frontend/` but this is a backend-only C++ project. Focus on backend guidelines.
 
 ### Step 3: Before Coding - Read Specific Guidelines (Required)
 
 Based on your task, read the **detailed** guidelines:
 
-**Frontend Task**:
-```bash
-cat .trellis/spec/frontend/hook-guidelines.md      # For hooks
-cat .trellis/spec/frontend/component-guidelines.md # For components
-cat .trellis/spec/frontend/type-safety.md          # For types
-```
-
 **Backend Task**:
 ```bash
 cat .trellis/spec/backend/database-guidelines.md   # For DB operations
-cat .trellis/spec/backend/type-safety.md           # For types
 cat .trellis/spec/backend/logging-guidelines.md    # For logging
+cat .trellis/spec/backend/error-handling.md        # For error handling
+cat .trellis/spec/backend/directory-structure.md   # For module structure
+cat .trellis/spec/backend/quality-guidelines.md    # For code quality
 ```
 
 ---
@@ -133,16 +121,18 @@ cat .trellis/spec/backend/logging-guidelines.md    # For logging
 |   +-- {MM}-{DD}-{name}/
 |       +-- task.json
 |-- spec/                # [!] MUST READ before coding
-|   |-- frontend/        # Frontend guidelines (if applicable)
+|   |-- frontend/        # Frontend guidelines (stubs, not active)
 |   |   |-- index.md               # Start here - guidelines index
 |   |   +-- *.md                   # Topic-specific docs
-|   |-- backend/         # Backend guidelines (if applicable)
+|   |-- backend/         # Backend guidelines (primary)
 |   |   |-- index.md               # Start here - guidelines index
 |   |   +-- *.md                   # Topic-specific docs
 |   +-- guides/          # Thinking guides
 |       |-- index.md                      # Guides index
 |       |-- cross-layer-thinking-guide.md # Pre-implementation checklist
 |       +-- *.md                          # Other guides
+|-- ecc_dev_tools/       # C++ quality checker
+|   +-- check.py         # Main entry point
 +-- workflow.md             # This document
 ```
 
@@ -168,13 +158,7 @@ python3 ./.trellis/scripts/get_context.py --json
 
 Based on what you'll develop, read the corresponding guidelines:
 
-**Frontend Development** (if applicable):
-```bash
-# Read index first, then specific docs based on task
-cat .trellis/spec/frontend/index.md
-```
-
-**Backend Development** (if applicable):
+**Backend Development**:
 ```bash
 # Read index first, then specific docs based on task
 cat .trellis/spec/backend/index.md
@@ -228,13 +212,12 @@ python3 ./.trellis/scripts/task.py create "<title>" --slug <task-name>
 ### Code Quality Checklist
 
 **Must pass before commit**:
-- [OK] Lint checks pass (project-specific command)
-- [OK] Type checks pass (if applicable)
+- [OK] Tool environment verified: `python3 ./.trellis/ecc_dev_tools/check.py doctor`
+- [OK] Quality checks pass: `python3 ./.trellis/ecc_dev_tools/check.py check --path <path>`
 - [OK] Manual feature testing passes
 
 **Project-specific checks**:
-- See `.trellis/spec/frontend/quality-guidelines.md` for frontend
-- See `.trellis/spec/backend/quality-guidelines.md` for backend
+- See `.trellis/spec/backend/quality-guidelines.md` for backend quality standards
 
 ---
 
@@ -295,10 +278,10 @@ workspace/
 **Structure** (Multi-doc format):
 ```
 spec/
-|-- frontend/           # Frontend docs (if applicable)
+|-- frontend/           # Frontend docs (stubs, not active)
 |   |-- index.md        # Start here
 |   +-- *.md            # Topic-specific docs
-|-- backend/            # Backend docs (if applicable)
+|-- backend/            # Backend docs (primary)
 |   |-- index.md        # Start here
 |   +-- *.md            # Topic-specific docs
 +-- guides/             # Thinking guides
@@ -372,9 +355,9 @@ python3 ./.trellis/scripts/task.py list-archive    # List archived tasks
 
 | Task Type | Must-read Document |
 |-----------|-------------------|
-| Frontend work | `frontend/index.md` → relevant docs |
-| Backend work | `backend/index.md` → relevant docs |
+| Backend work | `backend/index.md` -> relevant docs |
 | Cross-Layer Feature | `guides/cross-layer-thinking-guide.md` |
+| Quality checks | `backend/quality-guidelines.md` (includes ecc_dev_tools workflow) |
 
 ### Commit Convention
 
@@ -395,6 +378,10 @@ python3 ./.trellis/scripts/add_session.py    # Record session
 # Task management
 python3 ./.trellis/scripts/task.py list      # List tasks
 python3 ./.trellis/scripts/task.py create "<title>" # Create task
+
+# Code quality
+python3 ./.trellis/ecc_dev_tools/check.py doctor         # Verify tool availability
+python3 ./.trellis/ecc_dev_tools/check.py check --path <path>  # Run quality checks
 
 # Slash commands
 /trellis:finish-work          # Pre-commit checklist

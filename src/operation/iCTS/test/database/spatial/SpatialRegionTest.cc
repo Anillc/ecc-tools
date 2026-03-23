@@ -23,11 +23,21 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
+#include <vector>
+
+#include "database/spatial/Point.hh"
 #include "database/spatial/Rect.hh"
 #include "database/spatial/Region.hh"
 
 namespace icts_test {
 namespace {
+
+constexpr int kRectMaxX = 10;
+constexpr int kRectMaxY = 5;
+constexpr int kHoleMax = 7;
+constexpr int kIslandLeftMinX = 10;
+constexpr int kIslandLeftMaxX = 12;
 
 using Point = icts::Point<int>;
 using Rect = icts::Rect<int>;
@@ -35,17 +45,17 @@ using Region = icts::Region<int>;
 
 TEST(SpatialRegionTest, RectContainsAndClamp)
 {
-  Rect rect(0, 0, 10, 5);
+  const Rect rect(0, 0, kRectMaxX, kRectMaxY);
   EXPECT_TRUE(rect.contains(Point(0, 0)));
-  EXPECT_TRUE(rect.contains(Point(10, 5)));
-  EXPECT_FALSE(rect.contains(Point(11, 5)));
-  EXPECT_EQ(rect.clamp(Point(-3, 9)), Point(0, 5));
+  EXPECT_TRUE(rect.contains(Point(kRectMaxX, kRectMaxY)));
+  EXPECT_FALSE(rect.contains(Point(kRectMaxX + 1, kRectMaxY)));
+  EXPECT_EQ(rect.clamp(Point(-3, 9)), Point(0, kRectMaxY));
 }
 
 TEST(SpatialRegionTest, RegionSubtractRectKeepsExpectedPieces)
 {
-  Region region(Rect(0, 0, 10, 10));
-  region.subtract(Rect(3, 3, 7, 7));
+  Region region(Rect(0, 0, kRectMaxX, kRectMaxX));
+  region.subtract(Rect(3, 3, kHoleMax, kHoleMax));
 
   EXPECT_FALSE(region.empty());
   EXPECT_FALSE(region.contains(Point(5, 5)));
@@ -59,25 +69,27 @@ TEST(SpatialRegionTest, RegionNormalizationMergesTouchingSpansOnly)
 {
   Region region;
   region.add_rect(Rect(0, 0, 4, 2));
-  region.add_rect(Rect(0, 3, 4, 5));
+  region.add_rect(Rect(0, 3, 4, kRectMaxY));
   EXPECT_EQ(region.rects().size(), 1U);
   EXPECT_TRUE(region.contains(Point(2, 4)));
 
-  Region l_shape({Rect(0, 0, 4, 1), Rect(3, 0, 5, 4)});
+  const Region l_shape({Rect(0, 0, 4, 1), Rect(3, 0, kRectMaxY, 4)});
   EXPECT_EQ(l_shape.rects().size(), 2U);
   EXPECT_FALSE(l_shape.contains(Point(1, 3)));
 }
 
 TEST(SpatialRegionTest, RegionProjectNearestSelectsClosestLegalPoint)
 {
-  Region region({Rect(0, 0, 2, 2), Rect(10, 0, 12, 2)});
-  auto projected = region.project_nearest(Point(7, 1));
+  const Region region({Rect(0, 0, 2, 2), Rect(kIslandLeftMinX, 0, kIslandLeftMaxX, 2)});
+  const auto projected = region.project_nearest(Point(7, 1));
   ASSERT_TRUE(projected.has_value());
-  EXPECT_EQ(projected.value(), Point(10, 1));
+  const Point projected_point = projected.value_or(Point(0, 0));
+  EXPECT_EQ(projected_point, Point(kIslandLeftMinX, 1));
 
-  auto inside = region.project_nearest(Point(1, 2));
+  const auto inside = region.project_nearest(Point(1, 2));
   ASSERT_TRUE(inside.has_value());
-  EXPECT_EQ(inside.value(), Point(1, 2));
+  const Point inside_point = inside.value_or(Point(0, 0));
+  EXPECT_EQ(inside_point, Point(1, 2));
 }
 
 }  // namespace

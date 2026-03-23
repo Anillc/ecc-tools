@@ -1,5 +1,7 @@
 add_library(icts_source_utils_geometry INTERFACE)
 
+target_link_libraries(icts_source_utils_geometry INTERFACE icts_source_database_spatial)
+
 target_include_directories(icts_source_utils_geometry INTERFACE ${ICTS_GEOMETRY})
 
 if(DEBUG_ICTS_SOURCE_UTILS_GEOMETRY)

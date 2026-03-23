@@ -32,11 +32,17 @@ namespace icts {
 
 enum class InstType;
 
-#define STAAdapterInst (icts::STAAdapter::getInst())
+#define STA_ADAPTER_INST (icts::STAAdapter::getInst())
 
 class STAAdapter
 {
  public:
+  struct CharRcTreeConfig
+  {
+    double wire_res = 0.0;
+    double wire_cap = 0.0;
+    double load_cap = 0.0;
+  };
   static STAAdapter& getInst()
   {
     static STAAdapter inst;
@@ -48,31 +54,31 @@ class STAAdapter
   STAAdapter& operator=(const STAAdapter& rhs) = delete;
   STAAdapter& operator=(STAAdapter&& rhs) = delete;
 
-  void init();
+  static void init();
 
-  icts::InstType queryInstType(const std::string& inst_name) const;
-  bool isFlipFlop(const std::string& inst_name) const;
-  bool isClockNet(const std::string& net_name) const;
-  std::vector<std::pair<std::string, std::string>> collectClockNetPairs() const;
-  double queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) const;
-  double queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) const;
-  double queryCellOutPinCapLimit(const std::string& cell_master) const;
-  double queryCellInPinSlewLimit(const std::string& cell_master) const;
+  static icts::InstType queryInstType(const std::string& inst_name);
+  static bool isFlipFlop(const std::string& inst_name);
+  static bool isClockNet(const std::string& net_name);
+  static auto collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>;
+  static double queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt);
+  static double queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt);
+  static double queryCellOutPinCapLimit(const std::string& cell_master);
+  static double queryCellInPinSlewLimit(const std::string& cell_master);
 
-  std::string createCharInstance(const std::string& cell_master, const std::string& inst_name);
-  std::string createCharNet(const std::string& net_name);
-  void attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name);
-  void buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap);
-  void createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns);
-  void destroyCharClock();
-  void setCharInputSlew(const std::string& pin_full_name, double slew_ns);
-  void updateTiming();
-  double queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) const;
-  double queryCharSlew(const std::string& pin_full_name) const;
-  double queryCharInputPinCap(const std::string& cell_master) const;
-  std::pair<std::string, std::string> queryBufferPorts(const std::string& cell_master) const;
-  void destroyCharInstance(const std::string& inst_name);
-  void destroyCharNet(const std::string& net_name);
+  static std::string createCharInstance(const std::string& cell_master, const std::string& inst_name);
+  static std::string createCharNet(const std::string& net_name);
+  static void attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name);
+  static void buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config);
+  static void createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns);
+  static void destroyCharClock();
+  static void setCharInputSlew(const std::string& pin_full_name, double slew_ns);
+  static void updateTiming();
+  static double queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name);
+  static double queryCharSlew(const std::string& pin_full_name);
+  static double queryCharInputPinCap(const std::string& cell_master);
+  static std::pair<std::string, std::string> queryBufferPorts(const std::string& cell_master);
+  static void destroyCharInstance(const std::string& inst_name);
+  static void destroyCharNet(const std::string& net_name);
 
  private:
   STAAdapter() = default;

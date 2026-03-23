@@ -1,0 +1,54 @@
+{
+  "id": "cpp-code-check-tool",
+  "name": "cpp-code-check-tool",
+  "title": "brainstorm: cpp code check tool",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-03-19",
+  "completedAt": null,
+  "branch": "cts_refactor",
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "current_phase": 3,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/ecc_dev_tools/check.py",
+    ".trellis/ecc_dev_tools/models.py",
+    ".trellis/ecc_dev_tools/profiles.py",
+    ".trellis/ecc_dev_tools/checkers.py",
+    ".trellis/ecc_dev_tools/reporting.py",
+    ".trellis/ecc_dev_tools/environment.py",
+    ".trellis/ecc_dev_tools/build_context.py",
+    ".trellis/ecc_dev_tools/scope.py",
+    ".trellis/ecc_dev_tools/utils.py"
+  ],
+  "notes": "",
+  "meta": {}
+}

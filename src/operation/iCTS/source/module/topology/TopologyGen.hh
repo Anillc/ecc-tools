@@ -26,11 +26,12 @@
 #include <cstddef>
 #include <vector>
 
-#include "Pin.hh"
 #include "Tree.hh"
 #include "clustering/Clustering.hh"
 
 namespace icts {
+
+class Pin;
 
 class TopologyGen
 {
@@ -45,12 +46,18 @@ class TopologyGen
   void updateConfig(const Config& config);
 
  private:
-  void reportLoadDistribution(const std::vector<Pin*>& loads) const;
-  void reportRootToLeafLengths(const Tree& tree) const;
-  std::size_t calcLeafCount(std::size_t load_count) const;
-  void buildFullTree(Tree& tree, std::size_t node, int depth, int height) const;
+  struct BuildCursor
+  {
+    std::size_t node_id = 0;
+    int depth = 0;
+  };
+
+  static void reportLoadDistribution(const std::vector<Pin*>& loads);
+  static void reportRootToLeafLengths(const Tree& tree);
+  static std::size_t calcLeafCount(std::size_t load_count);
+  static void buildFullTree(Tree& tree, const BuildCursor& cursor, int height);
   void embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need);
-  void balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y) const;
+  static void balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y);
 
   Config _config;
   Clustering _clustering;

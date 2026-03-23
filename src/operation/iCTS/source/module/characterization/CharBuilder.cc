@@ -24,16 +24,31 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "BufferingPattern.hh"
+#include "CharCore.hh"
+#include "PatternId.hh"
+#include "SegmentChar.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "logger/Logger.hh"
 
 namespace icts {
+namespace {
+
+constexpr unsigned kDefaultMaxNodes = 4U;
+constexpr unsigned kTopologyPresentMask = 1U;
+constexpr double kPercentFactor = 100.0;
+constexpr double kCharClockPeriodNs = 10.0;
+constexpr double kZeroPowerW = 0.0;
+
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Public interface
@@ -60,7 +75,7 @@ void CharBuilder::build()
     return;
   }
 
-  for (double wire_length_um : _wire_lengths_um) {
+  for (const double wire_length_um : _wire_lengths_um) {
     enumerateWireLength(wire_length_um);
   }
 
@@ -75,7 +90,7 @@ void CharBuilder::build()
 void CharBuilder::initBufferList()
 {
   _sorted_buffers.clear();
-  const auto& buffer_types = ConfigInst.get_buffer_types();
+  const auto& buffer_types = CONFIG_INST.get_buffer_types();
   if (buffer_types.empty()) {
     CTS_LOG_WARNING << "CharBuilder: no buffer types configured in Config";
     return;
@@ -83,17 +98,17 @@ void CharBuilder::initBufferList()
 
   // Collect buffer info from liberty via CTSAPI
   for (const auto& cell_master : buffer_types) {
-    double max_cap = STAAdapterInst.queryCellOutPinCapLimit(cell_master);
+    const double max_cap = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
     if (max_cap <= 0.0) {
       CTS_LOG_WARNING << "CharBuilder: buffer " << cell_master << " has invalid max_cap (" << max_cap << " pF), skipped";
       continue;
     }
 
     // Query input pin capacitance via CTSAPI
-    double input_cap = STAAdapterInst.queryCharInputPinCap(cell_master);
+    const double input_cap = STA_ADAPTER_INST.queryCharInputPinCap(cell_master);
 
     // Resolve buffer port names from liberty
-    auto [in_pin, out_pin] = STAAdapterInst.queryBufferPorts(cell_master);
+    auto [in_pin, out_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
     if (in_pin.empty() || out_pin.empty()) {
       CTS_LOG_WARNING << "CharBuilder: buffer " << cell_master << " has unresolved port names, skipped";
       continue;
@@ -109,22 +124,24 @@ void CharBuilder::initBufferList()
   }
 
   // Sort ascending by max_cap (proxy for drive strength)
-  std::ranges::sort(_sorted_buffers, [](const BufferInfo& a, const BufferInfo& b) { return a.max_cap_pf < b.max_cap_pf; });
+  std::ranges::sort(_sorted_buffers, [](const BufferInfo& lhs_buffer_info, const BufferInfo& rhs_buffer_info) {
+    return lhs_buffer_info.max_cap_pf < rhs_buffer_info.max_cap_pf;
+  });
 
   // Near-neighbor redundancy removal (default disabled: _redundancy_pct == 0)
-  _redundancy_pct = ConfigInst.get_char_buf_redundancy_pct();
+  _redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
   if (_redundancy_pct > 0.0 && _sorted_buffers.size() > 1) {
     std::vector<BufferInfo> filtered;
     filtered.push_back(_sorted_buffers.front());
     for (size_t i = 1; i < _sorted_buffers.size(); ++i) {
-      double prev_cap = filtered.back().max_cap_pf;
-      double curr_cap = _sorted_buffers[i].max_cap_pf;
+      const double prev_cap = filtered.back().max_cap_pf;
+      const double curr_cap = _sorted_buffers[i].max_cap_pf;
       // Keep if the gap exceeds the threshold
       if (prev_cap <= 0.0 || (curr_cap - prev_cap) / prev_cap >= _redundancy_pct) {
         filtered.push_back(_sorted_buffers[i]);
       } else {
         CTS_LOG_INFO << "CharBuilder: removed near-neighbor buffer " << _sorted_buffers[i].cell_master << " (max_cap=" << curr_cap
-                     << " pF, gap=" << ((curr_cap - prev_cap) / prev_cap * 100.0) << "%)";
+                     << " pF, gap=" << ((curr_cap - prev_cap) / prev_cap * kPercentFactor) << "%)";
       }
     }
     _sorted_buffers = std::move(filtered);
@@ -140,14 +157,14 @@ void CharBuilder::initBufferList()
 void CharBuilder::initCharParams()
 {
   // Max pattern nodes
-  _max_nodes = ConfigInst.get_max_pattern_nodes();
+  _max_nodes = CONFIG_INST.get_max_pattern_nodes();
   if (_max_nodes == 0) {
-    _max_nodes = 4;
+    _max_nodes = kDefaultMaxNodes;
   }
   CTS_LOG_INFO << "CharBuilder: max_pattern_nodes = " << _max_nodes;
 
   // Routing layer
-  const auto& routing_layers = ConfigInst.get_routing_layers();
+  const auto& routing_layers = CONFIG_INST.get_routing_layers();
   if (!routing_layers.empty()) {
     _routing_layer = static_cast<int>(routing_layers.front());
   }
@@ -155,24 +172,24 @@ void CharBuilder::initCharParams()
 
   // Wire width
   {
-    double wire_width = ConfigInst.get_wire_width();
+    double wire_width = CONFIG_INST.get_wire_width();
     _wire_width = wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
   }
 
   // Max values for discretization ranges
-  _max_slew = ConfigInst.get_max_buf_tran();
-  _max_cap = ConfigInst.get_max_cap();
-  _max_length = ConfigInst.get_max_length();
+  _max_slew = CONFIG_INST.get_max_buf_tran();
+  _max_cap = CONFIG_INST.get_max_cap();
+  _max_length = CONFIG_INST.get_max_length();
 
   // Discretization steps
-  _slew_steps = ConfigInst.get_slew_steps();
-  _cap_steps = ConfigInst.get_cap_steps();
-  _length_steps = ConfigInst.get_length_steps();
+  _slew_steps = CONFIG_INST.get_slew_steps();
+  _cap_steps = CONFIG_INST.get_cap_steps();
+  _length_steps = CONFIG_INST.get_length_steps();
 
   // Compute wire lengths to test (in um)
   _wire_lengths_um.clear();
   if (_max_length > 0.0 && _length_steps > 0) {
-    double length_step_um = _max_length / _length_steps;
+    const double length_step_um = _max_length / _length_steps;
     for (unsigned i = 1; i <= _length_steps; ++i) {
       _wire_lengths_um.push_back(i * length_step_um);
     }
@@ -183,7 +200,7 @@ void CharBuilder::initCharParams()
   // Compute input slews to test (in ns)
   _slews_to_test.clear();
   if (_max_slew > 0.0 && _slew_steps > 0) {
-    double slew_step_ns = _max_slew / _slew_steps;
+    const double slew_step_ns = _max_slew / _slew_steps;
     for (unsigned i = 1; i <= _slew_steps; ++i) {
       _slews_to_test.push_back(i * slew_step_ns);
     }
@@ -194,7 +211,7 @@ void CharBuilder::initCharParams()
   // Compute output loads to test (in pF)
   _loads_to_test.clear();
   if (_max_cap > 0.0 && _cap_steps > 0) {
-    double cap_step_pf = _max_cap / _cap_steps;
+    const double cap_step_pf = _max_cap / _cap_steps;
     for (unsigned i = 1; i <= _cap_steps; ++i) {
       _loads_to_test.push_back(i * cap_step_pf);
     }
@@ -215,89 +232,91 @@ void CharBuilder::initCharParams()
 void CharBuilder::enumerateWireLength(double wire_length_um)
 {
   for (unsigned num_nodes = 0; num_nodes < _max_nodes; ++num_nodes) {
-    unsigned num_topologies = 1u << num_nodes;
-    for (unsigned topo_bits = 0; topo_bits < num_topologies; ++topo_bits) {
-      enumerateTopology(wire_length_um, num_nodes, topo_bits);
+    const unsigned num_topologies = 1U << num_nodes;
+    for (unsigned topology_bits_value = 0; topology_bits_value < num_topologies; ++topology_bits_value) {
+      enumerateTopology(wire_length_um, num_nodes, TopologyBits{topology_bits_value});
     }
   }
 }
 
-void CharBuilder::enumerateTopology(double wire_length_um, unsigned num_nodes, unsigned topology_bits)
+void CharBuilder::enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits)
 {
-  TopologyDesc topo = buildTopologyDesc(wire_length_um, num_nodes, topology_bits);
-  size_t num_buf_positions = topo.buffer_positions.size();
+  const TopologyDesc topo = buildTopologyDesc(wire_length_um, num_nodes, topology_bits);
+  const std::size_t num_buf_positions = topo.buffer_positions.size();
 
   if (num_buf_positions == 0) {
     // Pure wire topology -- no buffers to assign
-    std::vector<std::string> empty_masters;
+    const std::vector<std::string> empty_masters;
     characterizeTopology(topo, empty_masters);
     return;
   }
 
   // Enumerate all monotonic buffer combinations
-  size_t num_buf_types = _sorted_buffers.size();
+  const std::size_t num_buf_types = _sorted_buffers.size();
   if (num_buf_types == 0) {
     return;
   }
 
-  std::vector<size_t> buf_indices(num_buf_positions, 0);
-
-  do {
+  std::vector<std::size_t> buf_indices(num_buf_positions, 0);
+  while (true) {
     std::vector<std::string> buf_masters;
     buf_masters.reserve(num_buf_positions);
-    for (size_t idx : buf_indices) {
-      buf_masters.push_back(_sorted_buffers[idx].cell_master);
+    for (const std::size_t buffer_index : buf_indices) {
+      buf_masters.push_back(_sorted_buffers[buffer_index].cell_master);
     }
 
     characterizeTopology(topo, buf_masters);
-
-  } while (advanceToNextMonotonic(buf_indices, num_buf_types));
+    if (!advanceToNextMonotonic(buf_indices, num_buf_types)) {
+      break;
+    }
+  }
 }
 
-bool CharBuilder::isMonotonic(const std::vector<size_t>& buf_indices) const
+auto CharBuilder::isMonotonic(const std::vector<std::size_t>& buf_indices) -> bool
 {
-  for (size_t i = 1; i < buf_indices.size(); ++i) {
-    if (buf_indices[i] < buf_indices[i - 1]) {
+  for (std::size_t index = 1; index < buf_indices.size(); ++index) {
+    if (buf_indices[index] < buf_indices[index - 1]) {
       return false;
     }
   }
   return true;
 }
 
-size_t CharBuilder::getMonotonicComboCount(size_t num_buf_types, size_t num_positions) const
+auto CharBuilder::getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t
 {
   if (num_buf_types == 0 || num_positions == 0) {
     return 0;
   }
-  size_t n = num_buf_types + num_positions - 1;
-  size_t k = num_positions;
-  if (k > n - k) {
-    k = n - k;
+  const std::size_t combination_n = num_buf_types + num_positions - 1;
+  std::size_t combination_k = num_positions;
+  if (combination_k > combination_n - combination_k) {
+    combination_k = combination_n - combination_k;
   }
-  size_t result = 1;
-  for (size_t i = 0; i < k; ++i) {
-    result = result * (n - i) / (i + 1);
+  std::size_t result = 1;
+  for (std::size_t index = 0; index < combination_k; ++index) {
+    result = result * (combination_n - index) / (index + 1);
   }
   return result;
 }
 
-bool CharBuilder::advanceToNextMonotonic(std::vector<size_t>& buf_indices, size_t num_buf_types) const
+auto CharBuilder::advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool
 {
   if (buf_indices.empty() || num_buf_types == 0) {
     return false;
   }
 
-  int pos = static_cast<int>(buf_indices.size()) - 1;
+  int position = static_cast<int>(buf_indices.size()) - 1;
 
-  while (pos >= 0) {
-    if (buf_indices[pos] + 1 < num_buf_types) {
-      ++buf_indices[pos];
-      for (size_t j = static_cast<size_t>(pos) + 1; j < buf_indices.size(); ++j) {
-        buf_indices[j] = buf_indices[pos];
+  while (position >= 0) {
+    const auto index = static_cast<std::size_t>(position);
+    if (buf_indices[index] + 1 < num_buf_types) {
+      ++buf_indices[index];
+      for (std::size_t tail_index = index + 1; tail_index < buf_indices.size(); ++tail_index) {
+        buf_indices[tail_index] = buf_indices[index];
       }
       return true;
     }
-    --pos;
+    --position;
   }
 
   return false;
@@ -307,14 +326,14 @@ bool CharBuilder::advanceToNextMonotonic(std::vector<size_t>& buf_indices, size_
 // Topology construction
 // ---------------------------------------------------------------------------
 
-CharBuilder::TopologyDesc CharBuilder::buildTopologyDesc(double wire_length_um, unsigned num_nodes, unsigned topology_bits) const
+auto CharBuilder::buildTopologyDesc(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> TopologyDesc
 {
   TopologyDesc desc;
 
   // Identify buffer positions from topology_bits
-  for (unsigned i = 0; i < num_nodes; ++i) {
-    if ((topology_bits >> i) & 1u) {
-      desc.buffer_positions.push_back(i);
+  for (unsigned node_index = 0; node_index < num_nodes; ++node_index) {
+    if (((topology_bits.value >> node_index) & kTopologyPresentMask) != 0U) {
+      desc.buffer_positions.push_back(node_index);
     }
   }
 
@@ -325,18 +344,18 @@ CharBuilder::TopologyDesc CharBuilder::buildTopologyDesc(double wire_length_um, 
   //
   // Wire segment unit = wire_length_um / (num_nodes + 1)
   // Each segment's length = (positions_in_segment) * unit
-  double unit_um = (num_nodes > 0) ? wire_length_um / (num_nodes + 1) : wire_length_um;
+  const double unit_um = (num_nodes > 0) ? wire_length_um / (num_nodes + 1) : wire_length_um;
 
   unsigned nodes_without_buf = 0;
-  size_t buf_ptr = 0;
+  std::size_t buffer_position_index = 0;
 
-  for (unsigned i = 0; i < num_nodes; ++i) {
+  for (unsigned node_index = 0; node_index < num_nodes; ++node_index) {
     ++nodes_without_buf;
-    if (buf_ptr < desc.buffer_positions.size() && desc.buffer_positions[buf_ptr] == i) {
+    if (buffer_position_index < desc.buffer_positions.size() && desc.buffer_positions[buffer_position_index] == node_index) {
       // Buffer at this position: emit the wire segment before it
       desc.wire_segments_um.push_back(nodes_without_buf * unit_um);
       nodes_without_buf = 0;
-      ++buf_ptr;
+      ++buffer_position_index;
     }
   }
   // Final segment: from last buffer (or input) to output
@@ -354,7 +373,7 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
 {
   // Compute total wire length (um)
   double total_length_um = 0.0;
-  for (double seg_len : topo.wire_segments_um) {
+  for (const double seg_len : topo.wire_segments_um) {
     total_length_um += seg_len;
   }
 
@@ -367,7 +386,7 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
       cumulative_um += topo.wire_segments_um[seg];
       if (seg < topo.wire_segments_um.size() - 1) {
         // A buffer exists at the boundary after this segment
-        double normalized = cumulative_um / total_length_um;
+        const double normalized = cumulative_um / total_length_um;
         buffer_positions_norm.push_back(normalized);
         ++buf_idx;
       }
@@ -375,9 +394,9 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
   }
 
   // Discretize length for BufferingPattern
-  unsigned length_idx = discretize(total_length_um, _max_length, _length_steps);
+  const unsigned length_idx = discretize(total_length_um, _max_length, _length_steps);
 
-  PatternId pid = PatternId::segment(_next_pattern_id);
+  const PatternId pid = PatternId::segment(_next_pattern_id);
   BufferingPattern pattern(length_idx, pid, buffer_positions_norm, buf_masters);
   _buffering_patterns.push_back(std::move(pattern));
 
@@ -385,9 +404,9 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
   createCharCircuit(topo, buf_masters);
 
   // Sweep over (load, slew) combinations
-  for (double load_pf : _loads_to_test) {
+  for (const double load_pf : _loads_to_test) {
     // Skip loads that are smaller than the sink's intrinsic input cap
-    double effective_load = load_pf - _sink_input_cap_pf;
+    const double effective_load = load_pf - _sink_input_cap_pf;
     if (effective_load < 0.0) {
       continue;
     }
@@ -396,52 +415,52 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     setCharParasitics(topo, effective_load);
 
     // Create a propagated clock on the source buffer's output pin
-    STAAdapterInst.createCharClock(_source_out_pin, _char_clock_name, 10.0);
+    STA_ADAPTER_INST.createCharClock(_source_out_pin, _char_clock_name, kCharClockPeriodNs);
 
-    for (double input_slew_ns : _slews_to_test) {
+    for (const double input_slew_ns : _slews_to_test) {
       // Annotate input slew on the source buffer's output vertex
-      STAAdapterInst.setCharInputSlew(_source_out_pin, input_slew_ns);
+      STA_ADAPTER_INST.setCharInputSlew(_source_out_pin, input_slew_ns);
 
       // Full timing update (clock + slew + delay propagation)
-      STAAdapterInst.updateTiming();
+      STA_ADAPTER_INST.updateTiming();
 
       // Query total delay via clock arrival time at sink input pin
-      double delay_ns = STAAdapterInst.queryCharClockAT(_sink_in_pin, _char_clock_name);
+      const double delay_ns = STA_ADAPTER_INST.queryCharClockAT(_sink_in_pin, _char_clock_name);
 
       // Query output slew at sink input pin
-      double output_slew_ns = STAAdapterInst.queryCharSlew(_sink_in_pin);
+      const double output_slew_ns = STA_ADAPTER_INST.queryCharSlew(_sink_in_pin);
 
       // Power: iSTA has no per-instance power API; deferred to iPA integration
-      double power_w = 0.0;
+      const double power_w = kZeroPowerW;
 
       // Compute input capacitance (analytical, matching reference)
       double input_cap_pf = 0.0;
       if (!buf_masters.empty()) {
         // Buffered: first buffer input cap + first wire segment cap
-        input_cap_pf = STAAdapterInst.queryCharInputPinCap(buf_masters.front());
-        input_cap_pf += STAAdapterInst.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
+        input_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(buf_masters.front());
+        input_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
       } else {
         // Pure wire: load + total wire cap
         input_cap_pf = load_pf;
-        for (double seg_len_um : topo.wire_segments_um) {
-          input_cap_pf += STAAdapterInst.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
+        for (const double seg_len_um : topo.wire_segments_um) {
+          input_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
         }
       }
 
       // Discretize values to bin indices in [1, *_steps]
-      unsigned input_slew_idx = discretize(input_slew_ns, _max_slew, _slew_steps);
-      unsigned output_slew_idx = discretize(output_slew_ns, _max_slew, _slew_steps);
-      unsigned driven_cap_idx = discretize(input_cap_pf, _max_cap, _cap_steps);
-      unsigned load_cap_idx = discretize(load_pf, _max_cap, _cap_steps);
+      const unsigned input_slew_idx = discretize(input_slew_ns, _max_slew, _slew_steps);
+      const unsigned output_slew_idx = discretize(output_slew_ns, _max_slew, _slew_steps);
+      const unsigned driven_cap_idx = discretize(input_cap_pf, _max_cap, _cap_steps);
+      const unsigned load_cap_idx = discretize(load_pf, _max_cap, _cap_steps);
 
       // Create CharCore and SegmentChar
-      CharCore core(input_slew_idx, output_slew_idx, driven_cap_idx, load_cap_idx, delay_ns, power_w, pid);
-      SegmentChar seg_char(core, length_idx);
+      const CharCore core(input_slew_idx, output_slew_idx, driven_cap_idx, load_cap_idx, delay_ns, power_w, pid);
+      const SegmentChar seg_char(core, length_idx);
       _segment_chars.push_back(seg_char);
     }
 
     // Remove the clock definition and restore original SDC for next iteration
-    STAAdapterInst.destroyCharClock();
+    STA_ADAPTER_INST.destroyCharClock();
   }
 
   // Cleanup temporary circuit
@@ -458,25 +477,25 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   _temp_inst_names.clear();
   _temp_net_names.clear();
 
-  std::string id_prefix = "cts_char_" + std::to_string(_char_circuit_id) + "_";
+  const std::string id_prefix = "cts_char_" + std::to_string(_char_circuit_id) + "_";
 
   // Use the largest-drive buffer for source and sink
   const auto& endpoint_buf = _sorted_buffers.back();
 
   // Create source buffer instance
   _source_inst_name = id_prefix + "source";
-  STAAdapterInst.createCharInstance(endpoint_buf.cell_master, _source_inst_name);
+  STA_ADAPTER_INST.createCharInstance(endpoint_buf.cell_master, _source_inst_name);
   _source_out_pin = _source_inst_name + "/" + endpoint_buf.output_pin;
 
   // Create sink buffer instance
   _sink_inst_name = id_prefix + "sink";
-  STAAdapterInst.createCharInstance(endpoint_buf.cell_master, _sink_inst_name);
+  STA_ADAPTER_INST.createCharInstance(endpoint_buf.cell_master, _sink_inst_name);
   _sink_in_pin = _sink_inst_name + "/" + endpoint_buf.input_pin;
 
   // Create characterization buffer instances
   for (size_t i = 0; i < buf_masters.size(); ++i) {
-    std::string inst_name = id_prefix + "buf_" + std::to_string(i);
-    STAAdapterInst.createCharInstance(buf_masters[i], inst_name);
+    const std::string inst_name = id_prefix + "buf_" + std::to_string(i);
+    STA_ADAPTER_INST.createCharInstance(buf_masters[i], inst_name);
     _temp_inst_names.push_back(inst_name);
   }
 
@@ -486,14 +505,14 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   //   net_i: buf_{i-1}_out -> buf_i_in
   //   net_N: last_buf_out -> sink_in
   for (size_t i = 0; i < topo.wire_segments_um.size(); ++i) {
-    std::string net_name = id_prefix + "net_" + std::to_string(i);
-    STAAdapterInst.createCharNet(net_name);
+    const std::string net_name = id_prefix + "net_" + std::to_string(i);
+    STA_ADAPTER_INST.createCharNet(net_name);
     _temp_net_names.push_back(net_name);
   }
 
   // Connect the chain: source_out -> net_0 -> [buf_0_in / buf_0_out] -> net_1 -> ... -> sink_in
   // First net: source output drives it
-  STAAdapterInst.attachCharPin(_source_inst_name, endpoint_buf.output_pin, _temp_net_names.front());
+  STA_ADAPTER_INST.attachCharPin(_source_inst_name, endpoint_buf.output_pin, _temp_net_names.front());
 
   // Connect characterization buffers between nets
   for (size_t bi = 0; bi < buf_masters.size(); ++bi) {
@@ -512,13 +531,13 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
     const auto& buffer_info = *buf_info;
 
     // Buffer input connects to net[bi] (the net coming into this buffer)
-    STAAdapterInst.attachCharPin(_temp_inst_names[bi], buffer_info.input_pin, _temp_net_names[bi]);
+    STA_ADAPTER_INST.attachCharPin(_temp_inst_names[bi], buffer_info.input_pin, _temp_net_names[bi]);
     // Buffer output connects to net[bi+1] (the net going out of this buffer)
-    STAAdapterInst.attachCharPin(_temp_inst_names[bi], buffer_info.output_pin, _temp_net_names[bi + 1]);
+    STA_ADAPTER_INST.attachCharPin(_temp_inst_names[bi], buffer_info.output_pin, _temp_net_names[bi + 1]);
   }
 
   // Last net: sink input receives it
-  STAAdapterInst.attachCharPin(_sink_inst_name, endpoint_buf.input_pin, _temp_net_names.back());
+  STA_ADAPTER_INST.attachCharPin(_sink_inst_name, endpoint_buf.input_pin, _temp_net_names.back());
 
   // Set the clock name for this circuit
   _char_clock_name = id_prefix + "clk";
@@ -530,31 +549,35 @@ void CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf)
 {
   // Build Pi-model RC tree for each wire segment
   for (size_t i = 0; i < _temp_net_names.size(); ++i) {
-    double seg_len_um = topo.wire_segments_um[i];
-    double wire_res = STAAdapterInst.queryWireResistance(_routing_layer, seg_len_um, _wire_width);
-    double wire_cap = STAAdapterInst.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
+    const double seg_len_um = topo.wire_segments_um[i];
+    const double wire_res = STA_ADAPTER_INST.queryWireResistance(_routing_layer, seg_len_um, _wire_width);
+    const double wire_cap = STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
 
     // Add external load to the last segment's far-end capacitance
-    double seg_load = (i == _temp_net_names.size() - 1) ? load_pf : 0.0;
-    STAAdapterInst.buildCharRcTree(_temp_net_names[i], wire_res, wire_cap, seg_load);
+    const double seg_load = (i == _temp_net_names.size() - 1) ? load_pf : 0.0;
+    STAAdapter::CharRcTreeConfig rc_tree_config;
+    rc_tree_config.wire_res = wire_res;
+    rc_tree_config.wire_cap = wire_cap;
+    rc_tree_config.load_cap = seg_load;
+    STA_ADAPTER_INST.buildCharRcTree(_temp_net_names[i], rc_tree_config);
   }
 }
 
 void CharBuilder::destroyCharCircuit()
 {
   // Cleanup in reverse order: nets first, then characterization buffers, then source/sink
-  for (auto it = _temp_net_names.rbegin(); it != _temp_net_names.rend(); ++it) {
-    STAAdapterInst.destroyCharNet(*it);
+  for (const auto& net_name : std::ranges::reverse_view(_temp_net_names)) {
+    STA_ADAPTER_INST.destroyCharNet(net_name);
   }
-  for (auto it = _temp_inst_names.rbegin(); it != _temp_inst_names.rend(); ++it) {
-    STAAdapterInst.destroyCharInstance(*it);
+  for (const auto& inst_name : std::ranges::reverse_view(_temp_inst_names)) {
+    STA_ADAPTER_INST.destroyCharInstance(inst_name);
   }
   if (!_sink_inst_name.empty()) {
-    STAAdapterInst.destroyCharInstance(_sink_inst_name);
+    STA_ADAPTER_INST.destroyCharInstance(_sink_inst_name);
     _sink_inst_name.clear();
   }
   if (!_source_inst_name.empty()) {
-    STAAdapterInst.destroyCharInstance(_source_inst_name);
+    STA_ADAPTER_INST.destroyCharInstance(_source_inst_name);
     _source_inst_name.clear();
   }
   _temp_net_names.clear();
@@ -567,12 +590,12 @@ void CharBuilder::destroyCharCircuit()
 // Discretization: physical value -> bin index in [1, steps]
 // ---------------------------------------------------------------------------
 
-unsigned CharBuilder::discretize(double value, double max_value, unsigned steps)
+auto CharBuilder::discretize(double value, double max_value, unsigned steps) -> unsigned
 {
   if (max_value <= 0.0 || steps == 0 || value <= 0.0) {
     return 0;
   }
-  double step_size = max_value / steps;
+  const double step_size = max_value / steps;
   return static_cast<unsigned>(std::ceil(value / step_size));
 }
 

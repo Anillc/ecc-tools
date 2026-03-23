@@ -24,14 +24,14 @@
 #include "STAAdapter.hh"
 
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
-#include <memory>
 #include <optional>
-#include <ranges>
-#include <set>
 #include <string>
-#include <vector>
+#include <utility>
 
+#include "IdbEnum.h"
+#include "IdbInstance.h"
 #include "Type.hh"
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
@@ -44,43 +44,46 @@
 #include "netlist/Net.hh"
 #include "netlist/Netlist.hh"
 #include "netlist/Pin.hh"
-#include "sdc/SdcSetInputTransition.hh"
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaClock.hh"
 #include "sta/StaData.hh"
 #include "sta/StaGraph.hh"
-#include "sta/StaVertex.hh"
 
 namespace icts {
 namespace {
 
-decltype(auto) GetDbConfig()
+constexpr int kStaThreadCount = 80;
+constexpr int kWorstPathPerClock = 10;
+constexpr double kHalfCapFactor = 2.0;
+
+auto GetDbConfig() -> decltype(auto)
 {
   return (dmInst->get_config());
 }
 
-ista::TimingEngine* GetStaEngine()
+auto GetStaEngine() -> ista::TimingEngine*
 {
   return ista::TimingEngine::getOrCreateTimingEngine();
 }
 
 }  // namespace
 
-void STAAdapter::init()
+auto STAAdapter::init() -> void
 {
   auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(GetStaEngine()->get_ista());
   db_adapter->set_idb(dmInst->get_idb_builder());
   GetStaEngine()->set_db_adapter(std::move(db_adapter));
-  auto sta_work_dir = std::filesystem::path(ConfigInst.get_work_dir()).append("sta").string();
+  auto sta_work_dir = std::filesystem::path(CONFIG_INST.get_work_dir()).append("sta").string();
   if (!std::filesystem::exists(sta_work_dir)) {
     std::filesystem::create_directories(sta_work_dir);
   }
   std::vector<const char*> lib_paths;
   std::ranges::transform(GetDbConfig().get_lib_paths(), std::back_inserter(lib_paths),
                          [](const std::string& lib_path) { return lib_path.c_str(); });
-  GetStaEngine()->set_num_threads(80);
+  GetStaEngine()->set_num_threads(kStaThreadCount);
   GetStaEngine()->set_design_work_space(sta_work_dir.c_str());
-  auto cell_set = std::set<std::string>(std::ranges::begin(ConfigInst.get_buffer_types()), std::ranges::end(ConfigInst.get_buffer_types()));
+  auto cell_set
+      = std::set<std::string>(std::ranges::begin(CONFIG_INST.get_buffer_types()), std::ranges::end(CONFIG_INST.get_buffer_types()));
   GetStaEngine()->get_ista()->addLinkCells(cell_set);
   GetStaEngine()->readLiberty(lib_paths);
 
@@ -92,10 +95,10 @@ void STAAdapter::init()
   GetStaEngine()->buildGraph();
 
   GetStaEngine()->initRcTree();
-  GetStaEngine()->get_ista()->set_n_worst_path_per_clock(10);
+  GetStaEngine()->get_ista()->set_n_worst_path_per_clock(kWorstPathPerClock);
 }
 
-icts::InstType STAAdapter::queryInstType(const std::string& inst_name) const
+auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 {
   auto inst_type = icts::InstType::kUnknown;
 
@@ -138,41 +141,41 @@ icts::InstType STAAdapter::queryInstType(const std::string& inst_name) const
   auto* pin_list = idb_inst->get_pin_list();
   CTS_LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
 
-  std::size_t clock_input_pins = 0;
-  for (auto* idb_pin : pin_list->get_pin_list()) {
+  const std::size_t clock_input_pin_limit = 1;
+  const auto clock_input_pins = std::ranges::count_if(pin_list->get_pin_list(), [&](auto* idb_pin) {
     auto* term = idb_pin->get_term();
     auto direction = term->get_direction();
     if (direction != idb::IdbConnectDirection::kInput && direction != idb::IdbConnectDirection::kInOut) {
-      continue;
+      return false;
     }
     auto* idb_net = idb_pin->get_net();
     CTS_LOG_FATAL_IF(idb_net == nullptr) << "Instance " << name << " pin " << idb_pin->get_pin_name()
                                          << " is not connected to any net, error in inst type judgement, which cell is " << cell_master;
 
-    if (!idb_net->is_clock()) {
+    if (idb_net->is_clock() == 0U) {
       CTS_LOG_WARNING << "Instance " << name << " pin " << idb_pin->get_pin_name() << " connected net " << idb_net->get_net_name()
                       << " is not clock net, warning in inst type judgement, which cell is " << cell_master;
-      continue;
+      return false;
     }
-    ++clock_input_pins;
-    if (clock_input_pins > 1) {
-      inst_type = icts::InstType::kMux;
-      return inst_type;
-    }
+    return true;
+  });
+  if (clock_input_pins > clock_input_pin_limit) {
+    inst_type = icts::InstType::kMux;
+    return inst_type;
   }
 
   CTS_LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master;
   return inst_type;
 }
 
-bool STAAdapter::isFlipFlop(const std::string& inst_name) const
+auto STAAdapter::isFlipFlop(const std::string& inst_name) -> bool
 {
   auto name = inst_name;
   name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
-  return GetStaEngine()->isSequentialCell(name.c_str());
+  return GetStaEngine()->isSequentialCell(name.c_str()) != 0U;
 }
 
-bool STAAdapter::isClockNet(const std::string& net_name) const
+auto STAAdapter::isClockNet(const std::string& net_name) -> bool
 {
   auto* sta_netlist = GetStaEngine()->get_netlist();
   if (sta_netlist == nullptr) {
@@ -187,7 +190,9 @@ bool STAAdapter::isClockNet(const std::string& net_name) const
   return sta_net->isClockNet();
 }
 
-std::vector<std::pair<std::string, std::string>> STAAdapter::collectClockNetPairs() const
+// Already declared static in the class interface; suppress false positive on the out-of-class definition.
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+auto STAAdapter::collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>
 {
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
   auto* sta_netlist = GetStaEngine()->get_netlist();
@@ -212,30 +217,30 @@ std::vector<std::pair<std::string, std::string>> STAAdapter::collectClockNetPair
   return clock_net_pairs;
 }
 
-double STAAdapter::queryWireResistance(int routing_layer, double length, std::optional<double> wire_width) const
+auto STAAdapter::queryWireResistance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
   auto* idb_adapter = GetStaEngine()->getIDBAdapter();
-  if (!idb_adapter) {
+  if (idb_adapter == nullptr) {
     CTS_LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
   }
   return idb_adapter->getResistance(routing_layer, length, wire_width);
 }
 
-double STAAdapter::queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width) const
+auto STAAdapter::queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
   auto* idb_adapter = GetStaEngine()->getIDBAdapter();
-  if (!idb_adapter) {
+  if (idb_adapter == nullptr) {
     CTS_LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
   }
   return idb_adapter->getCapacitance(routing_layer, length, wire_width);
 }
 
-double STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) const
+auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
-  if (!lib_cell) {
+  if (lib_cell == nullptr) {
     CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
     return 0.0;
   }
@@ -243,7 +248,7 @@ double STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) const
   ista::LibPort* input = nullptr;
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
-  if (!output) {
+  if (output == nullptr) {
     return 0.0;
   }
 
@@ -257,16 +262,16 @@ double STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) const
 
   auto* lib = lib_cell->get_owner_lib();
   CTS_LOG_WARNING_IF(lib == nullptr) << "Liberty cell " << cell_master << " has no owner liberty.";
-  if (lib) {
+  if (lib != nullptr) {
     cap = ista::ConvertCapUnit(lib->get_cap_unit(), ista::CapacitiveUnit::kPF, cap);
   }
   return cap;
 }
 
-double STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) const
+auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
-  if (!lib_cell) {
+  if (lib_cell == nullptr) {
     CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
     return 0.0;
   }
@@ -274,7 +279,7 @@ double STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) const
   ista::LibPort* input = nullptr;
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
-  if (!input) {
+  if (input == nullptr) {
     CTS_LOG_WARNING << "Liberty cell " << cell_master << " has no input pin defined.";
     return 0.0;
   }
@@ -289,14 +294,14 @@ double STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) const
 
   auto* lib = lib_cell->get_owner_lib();
   CTS_LOG_WARNING_IF(lib == nullptr) << "Liberty cell " << cell_master << " has no owner liberty.";
-  if (lib) {
+  if (lib != nullptr) {
     slew = lib->convert_time_unit_to_ns(slew);
     slew = NS_TO_PS(slew);
   }
   return slew;
 }
 
-std::string STAAdapter::createCharInstance(const std::string& cell_master, const std::string& inst_name)
+auto STAAdapter::createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
   CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Cannot find liberty cell: " << cell_master;
@@ -313,7 +318,7 @@ std::string STAAdapter::createCharInstance(const std::string& cell_master, const
   return inst_name;
 }
 
-std::string STAAdapter::createCharNet(const std::string& net_name)
+auto STAAdapter::createCharNet(const std::string& net_name) -> std::string
 {
   auto* adapter = GetStaEngine()->getIDBAdapter();
   CTS_LOG_FATAL_IF(adapter == nullptr) << "STA IDB adapter is not ready when creating characterization net.";
@@ -322,7 +327,7 @@ std::string STAAdapter::createCharNet(const std::string& net_name)
   return net_name;
 }
 
-void STAAdapter::attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name)
+auto STAAdapter::attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void
 {
   auto* sta_netlist = GetStaEngine()->get_netlist();
   auto* inst = sta_netlist->findInstance(inst_name.c_str());
@@ -334,7 +339,7 @@ void STAAdapter::attachCharPin(const std::string& inst_name, const std::string& 
   adapter->attach(inst, port_name.c_str(), net);
 }
 
-void STAAdapter::buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap)
+auto STAAdapter::buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void
 {
   auto* sta_netlist = GetStaEngine()->get_netlist();
   auto* net = sta_netlist->findNet(net_name.c_str());
@@ -349,15 +354,15 @@ void STAAdapter::buildCharRcTree(const std::string& net_name, double wire_res, d
   auto load_pins = net->getLoads();
   for (auto* load_pin : load_pins) {
     auto* load_node = GetStaEngine()->makeOrFindRCTreeNode(load_pin);
-    GetStaEngine()->makeResistor(net, driver_node, load_node, wire_res);
-    GetStaEngine()->incrCap(driver_node, wire_cap / 2.0, true);
-    GetStaEngine()->incrCap(load_node, wire_cap / 2.0 + load_cap, true);
+    GetStaEngine()->makeResistor(net, driver_node, load_node, rc_tree_config.wire_res);
+    GetStaEngine()->incrCap(driver_node, rc_tree_config.wire_cap / kHalfCapFactor, true);
+    GetStaEngine()->incrCap(load_node, rc_tree_config.wire_cap / kHalfCapFactor + rc_tree_config.load_cap, true);
   }
 
   GetStaEngine()->updateRCTreeInfo(net);
 }
 
-void STAAdapter::createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns)
+auto STAAdapter::createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void
 {
   auto* ista = GetStaEngine()->get_ista();
   auto& the_graph = ista->get_graph();
@@ -369,7 +374,7 @@ void STAAdapter::createCharClock(const std::string& source_pin_full_name, const 
   auto the_vertex = the_graph.findVertex(match_pins.front());
   CTS_LOG_FATAL_IF(!the_vertex) << "Cannot find vertex for clock source: " << source_pin_full_name;
 
-  int period_ps = NS_TO_PS(period_ns);
+  const int period_ps = NS_TO_PS(period_ns);
   auto sta_clock = std::make_unique<ista::StaClock>(clock_name.c_str(), ista::StaClock::ClockType::kPropagated, period_ps);
 
   ista::StaWaveForm wave_form;
@@ -380,7 +385,7 @@ void STAAdapter::createCharClock(const std::string& source_pin_full_name, const 
   ista->addClock(std::move(sta_clock));
 }
 
-void STAAdapter::destroyCharClock()
+auto STAAdapter::destroyCharClock() -> void
 {
   auto* ista = GetStaEngine()->get_ista();
   ista->resetSdcConstrain();
@@ -389,7 +394,7 @@ void STAAdapter::destroyCharClock()
   ista->readSdc(sdc_path);
 }
 
-void STAAdapter::setCharInputSlew(const std::string& pin_full_name, double slew_ns)
+auto STAAdapter::setCharInputSlew(const std::string& pin_full_name, double slew_ns) -> void
 {
   auto* ista = GetStaEngine()->get_ista();
   auto& the_graph = ista->get_graph();
@@ -403,18 +408,18 @@ void STAAdapter::setCharInputSlew(const std::string& pin_full_name, double slew_
 
   auto* vertex = *the_vertex;
   int slew_fs = NS_TO_FS(slew_ns);
-  auto* rise_slew_data = new ista::StaSlewData(ista::AnalysisMode::kMax, ista::TransType::kRise, vertex, slew_fs);
-  vertex->addData(rise_slew_data);
-  auto* fall_slew_data = new ista::StaSlewData(ista::AnalysisMode::kMax, ista::TransType::kFall, vertex, slew_fs);
-  vertex->addData(fall_slew_data);
+  auto rise_slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, ista::TransType::kRise, vertex, slew_fs);
+  vertex->addData(rise_slew_data.release());
+  auto fall_slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, ista::TransType::kFall, vertex, slew_fs);
+  vertex->addData(fall_slew_data.release());
 }
 
-void STAAdapter::updateTiming()
+auto STAAdapter::updateTiming() -> void
 {
   GetStaEngine()->updateTiming();
 }
 
-double STAAdapter::queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) const
+auto STAAdapter::queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) -> double
 {
   auto result = GetStaEngine()->getClockAT(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall, clock_name);
   if (!result.has_value()) {
@@ -424,61 +429,61 @@ double STAAdapter::queryCharClockAT(const std::string& pin_full_name, const std:
   return result.value();
 }
 
-double STAAdapter::queryCharSlew(const std::string& pin_full_name) const
+auto STAAdapter::queryCharSlew(const std::string& pin_full_name) -> double
 {
-  double rise_slew = GetStaEngine()->getSlew(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise);
-  double fall_slew = GetStaEngine()->getSlew(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall);
-  return (rise_slew + fall_slew) / 2.0;
+  const double rise_slew = GetStaEngine()->getSlew(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise);
+  const double fall_slew = GetStaEngine()->getSlew(pin_full_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kFall);
+  return (rise_slew + fall_slew) / kHalfCapFactor;
 }
 
-double STAAdapter::queryCharInputPinCap(const std::string& cell_master) const
+auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
-  if (!lib_cell) {
+  if (lib_cell == nullptr) {
     CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
     return 0.0;
   }
   ista::LibPort* input = nullptr;
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
-  if (!input) {
+  if (input == nullptr) {
     return 0.0;
   }
   double cap = input->get_port_cap();
   auto* lib = lib_cell->get_owner_lib();
-  if (lib) {
+  if (lib != nullptr) {
     cap = ista::ConvertCapUnit(lib->get_cap_unit(), ista::CapacitiveUnit::kPF, cap);
   }
   return cap;
 }
 
-std::pair<std::string, std::string> STAAdapter::queryBufferPorts(const std::string& cell_master) const
+auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
-  if (!lib_cell) {
+  if (lib_cell == nullptr) {
     CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
     return {"", ""};
   }
   ista::LibPort* input = nullptr;
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
-  std::string in_name = input ? input->get_port_name() : "";
-  std::string out_name = output ? output->get_port_name() : "";
+  std::string in_name = input != nullptr ? input->get_port_name() : "";
+  std::string out_name = output != nullptr ? output->get_port_name() : "";
   return {in_name, out_name};
 }
 
-void STAAdapter::destroyCharInstance(const std::string& inst_name)
+auto STAAdapter::destroyCharInstance(const std::string& inst_name) -> void
 {
   auto* adapter = GetStaEngine()->getIDBAdapter();
   CTS_LOG_FATAL_IF(adapter == nullptr) << "STA IDB adapter is not ready when destroying characterization instance.";
   adapter->deleteInstance(inst_name.c_str());
 }
 
-void STAAdapter::destroyCharNet(const std::string& net_name)
+auto STAAdapter::destroyCharNet(const std::string& net_name) -> void
 {
   auto* sta_netlist = GetStaEngine()->get_netlist();
   auto* net = sta_netlist->findNet(net_name.c_str());
-  if (net) {
+  if (net != nullptr) {
     auto* adapter = GetStaEngine()->getIDBAdapter();
     CTS_LOG_FATAL_IF(adapter == nullptr) << "STA IDB adapter is not ready when destroying characterization net.";
     adapter->deleteNet(net);

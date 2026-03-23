@@ -63,7 +63,7 @@ class Region
     std::vector<RectType> remain_rects;
     remain_rects.reserve(_rects.size() * 4);
     for (const auto& rect : _rects) {
-      auto pieces = SubtractRect(rect, blocked_rect);
+      auto pieces = subtractRect(rect, blocked_rect);
       std::ranges::move(pieces, std::back_inserter(remain_rects));
     }
     _rects = std::move(remain_rects);
@@ -98,7 +98,7 @@ class Region
   }
 
  private:
-  static std::vector<RectType> SubtractRect(const RectType& source, const RectType& blocked)
+  static std::vector<RectType> subtractRect(const RectType& source, const RectType& blocked)
   {
     auto overlap = source.intersect(blocked);
     if (!overlap.has_value()) {
@@ -151,8 +151,8 @@ class Region
       for (const auto& rect : _rects) {
         bool merged_into_existing = false;
         for (auto& existing : normalized) {
-          if (CanMerge(existing, rect)) {
-            existing = Merge(existing, rect);
+          if (canMerge(existing, rect)) {
+            existing = merge(existing, rect);
             merged = true;
             merged_into_existing = true;
             break;
@@ -166,7 +166,7 @@ class Region
     }
   }
 
-  static bool CanMerge(const RectType& lhs, const RectType& rhs)
+  static bool canMerge(const RectType& lhs, const RectType& rhs)
   {
     const bool share_x_span = lhs.get_min_x() == rhs.get_min_x() && lhs.get_max_x() == rhs.get_max_x();
     const bool share_y_span = lhs.get_min_y() == rhs.get_min_y() && lhs.get_max_y() == rhs.get_max_y();
@@ -177,7 +177,7 @@ class Region
     return (share_x_span && y_overlap_or_touch) || (share_y_span && x_overlap_or_touch);
   }
 
-  static RectType Merge(const RectType& lhs, const RectType& rhs)
+  static RectType merge(const RectType& lhs, const RectType& rhs)
   {
     return RectType(std::min(lhs.get_min_x(), rhs.get_min_x()), std::min(lhs.get_min_y(), rhs.get_min_y()),
                     std::max(lhs.get_max_x(), rhs.get_max_x()), std::max(lhs.get_max_y(), rhs.get_max_y()));

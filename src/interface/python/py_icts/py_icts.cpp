@@ -28,7 +28,7 @@ bool CtsAutoRun(const std::string& cts_config, const std::string& cts_work_dir)
 
 void CtsReport(const std::string& path)
 {
-  CTSAPIInst.report(path);
+  CTS_API_INST.report(path);
 }
 
 }  // namespace python_interface

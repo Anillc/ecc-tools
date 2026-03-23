@@ -24,6 +24,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -32,7 +33,10 @@
 
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
-#include "database/spatial/Tree.hh"
+
+namespace icts {
+class Tree;
+}  // namespace icts
 
 namespace icts_test {
 
@@ -44,9 +48,15 @@ struct GeneratedPins
   int height = 0;
 };
 
-GeneratedPins MakeNormal(std::size_t count, int width, int height, unsigned seed);
-GeneratedPins MakeGaussianMixture(std::size_t count, int width, int height, unsigned seed);
-GeneratedPins MakeWeightedQuadrants(std::size_t count, int width, int height, unsigned seed, const std::array<double, 4>& weights);
+struct CanvasSize
+{
+  int width = 0;
+  int height = 0;
+};
+
+GeneratedPins MakeNormal(std::size_t count, CanvasSize canvas, unsigned seed);
+GeneratedPins MakeGaussianMixture(std::size_t count, CanvasSize canvas, unsigned seed);
+GeneratedPins MakeWeightedQuadrants(std::size_t count, CanvasSize canvas, unsigned seed, const std::array<double, 4>& weights);
 
 struct TopologyStats
 {

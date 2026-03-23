@@ -21,16 +21,24 @@
  * @brief Unit tests for TopologyGen module.
  */
 
+#include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <unordered_map>
+#include <vector>
 
 #include "common/TestUtils.hh"
+#include "database/design/Pin.hh"
+#include "database/spatial/Point.hh"
+#include "database/spatial/Tree.hh"
 #include "module/topology/TopologyGen.hh"
 #include "utils/geometry/Geometry.hh"
 #include "utils/logger/Logger.hh"
@@ -38,7 +46,17 @@
 namespace icts_test {
 namespace {
 
-enum class DistKind
+constexpr int kCanvasWidth = 10000;
+constexpr int kCanvasHeight = 8000;
+constexpr unsigned kSeedNormalSmall = 12345;
+constexpr unsigned kSeedNormalLarge = 54321;
+constexpr unsigned kSeedMixture = 2026;
+constexpr unsigned kSeedQuadrantOne = 1001;
+constexpr unsigned kSeedQuadrantUneven = 1002;
+constexpr std::array<double, 4> kQuadrantOneWeights = {1.0, 0.0, 0.0, 0.0};
+constexpr std::array<double, 4> kQuadrantUnevenWeights = {0.5, 0.2, 0.3, 0.0};
+
+enum class DistKind : std::uint8_t
 {
   kNormal,
   kMixture,
@@ -56,48 +74,54 @@ struct TopologyCase
   std::array<double, 4> quadrant_weights = {1.0, 1.0, 1.0, 1.0};
 };
 
-GeneratedPins generate_case(const TopologyCase& test_case)
+auto generate_case(const TopologyCase& test_case) -> GeneratedPins
 {
+  const CanvasSize canvas{test_case.width, test_case.height};
   switch (test_case.kind) {
     case DistKind::kNormal:
-      return MakeNormal(test_case.count, test_case.width, test_case.height, test_case.seed);
+      return MakeNormal(test_case.count, canvas, test_case.seed);
     case DistKind::kMixture:
-      return MakeGaussianMixture(test_case.count, test_case.width, test_case.height, test_case.seed);
+      return MakeGaussianMixture(test_case.count, canvas, test_case.seed);
     case DistKind::kQuadrants:
     default:
-      return MakeWeightedQuadrants(test_case.count, test_case.width, test_case.height, test_case.seed, test_case.quadrant_weights);
+      return MakeWeightedQuadrants(test_case.count, canvas, test_case.seed, test_case.quadrant_weights);
   }
 }
 
 class LogGuard
 {
  public:
-  explicit LogGuard(const std::filesystem::path& path) { LogInst.set_log_file(path.string()); }
-  ~LogGuard() { LogInst.close(); }
+  explicit LogGuard(const std::filesystem::path& path) { LOG_INST.set_log_file(path.string()); }
+  ~LogGuard() { LOG_INST.close(); }
+
+  LogGuard(const LogGuard&) = delete;
+  auto operator=(const LogGuard&) -> LogGuard& = delete;
+  LogGuard(LogGuard&&) = delete;
+  auto operator=(LogGuard&&) -> LogGuard& = delete;
 };
 
-bool is_valid_pos(const icts::Point<int>& pos)
+auto is_valid_pos(const icts::Point<int>& position) -> bool
 {
-  return pos.get_x() >= 0 && pos.get_y() >= 0;
+  return position.get_x() >= 0 && position.get_y() >= 0;
 }
 
 }  // namespace
 
-class TopologyGenFixture : public ::testing::TestWithParam<TopologyCase>
+class TopologyGenTestInterface : public ::testing::TestWithParam<TopologyCase>
 {
 };
 
-TEST_P(TopologyGenFixture, BuildAndVisualize)
+TEST_P(TopologyGenTestInterface, BuildAndVisualize)
 {
   const auto& test_case = GetParam();
   const auto output_dir = ResolveOutputDir();
 
-  std::error_code ec;
-  std::filesystem::create_directories(output_dir, ec);
-  ASSERT_FALSE(ec) << "Failed to create output dir: " << output_dir.string() << " (" << ec.message() << ")";
+  std::error_code error_code;
+  std::filesystem::create_directories(output_dir, error_code);
+  ASSERT_FALSE(error_code) << "Failed to create output dir: " << output_dir.string() << " (" << error_code.message() << ")";
 
   const auto log_path = output_dir / ("topology_" + test_case.name + ".log");
-  LogGuard guard(log_path);
+  const LogGuard guard(log_path);
 
   CTS_LOG_INFO << "Topology test start: " << test_case.name << ", count=" << test_case.count << ", seed=" << test_case.seed;
 
@@ -200,11 +224,13 @@ TEST_P(TopologyGenFixture, BuildAndVisualize)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TopologyCases, TopologyGenFixture,
-    ::testing::Values(TopologyCase{"normal_small", DistKind::kNormal, 256, 10000, 8000, 12345},
-                      TopologyCase{"normal_large", DistKind::kNormal, 1024, 10000, 8000, 54321},
-                      TopologyCase{"mixture", DistKind::kMixture, 512, 10000, 8000, 2026},
-                      TopologyCase{"quadrant_one", DistKind::kQuadrants, 256, 10000, 8000, 1001, {1.0, 0.0, 0.0, 0.0}},
-                      TopologyCase{"quadrant_three_uneven", DistKind::kQuadrants, 768, 10000, 8000, 1002, {0.5, 0.2, 0.3, 0.0}}));
+    TopologyCases, TopologyGenTestInterface,
+    ::testing::Values(TopologyCase{"normal_small", DistKind::kNormal, 256, kCanvasWidth, kCanvasHeight, kSeedNormalSmall},
+                      TopologyCase{"normal_large", DistKind::kNormal, 1024, kCanvasWidth, kCanvasHeight, kSeedNormalLarge},
+                      TopologyCase{"mixture", DistKind::kMixture, 512, kCanvasWidth, kCanvasHeight, kSeedMixture},
+                      TopologyCase{"quadrant_one", DistKind::kQuadrants, 256, kCanvasWidth, kCanvasHeight, kSeedQuadrantOne,
+                                   kQuadrantOneWeights},
+                      TopologyCase{"quadrant_three_uneven", DistKind::kQuadrants, 768, kCanvasWidth, kCanvasHeight, kSeedQuadrantUneven,
+                                   kQuadrantUnevenWeights}));
 
 }  // namespace icts_test

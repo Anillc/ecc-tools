@@ -28,6 +28,9 @@
 
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"
+#include "database/spatial/Point.hh"
+#include "database/spatial/Rect.hh"
+#include "database/spatial/Region.hh"
 #include "module/routing/Router.hh"
 
 namespace icts_test {
@@ -49,7 +52,7 @@ TEST(RouterLegalizationTest, LegalizePinsWritesBackPinAndInstLocations)
   auto fixed_pin = std::make_unique<icts::Pin>("sink0/clk", icts::PinType::kClock, Point(1, 0), fixed_inst.get());
 
   std::vector<icts::Pin*> movable_pins{movable_pin_0.get(), movable_pin_1.get()};
-  std::vector<icts::Pin*> fixed_pins{fixed_pin.get()};
+  const std::vector<icts::Pin*> fixed_pins{fixed_pin.get()};
 
   auto result = Router::legalizePins(movable_pins, fixed_pins, Region(Rect(0, 0, 3, 1)), Region{});
   ASSERT_TRUE(result.success);

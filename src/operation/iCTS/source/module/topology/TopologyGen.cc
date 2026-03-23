@@ -25,8 +25,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <utility>
+#include <vector>
 
+#include "Pin.hh"
+#include "Point.hh"
+#include "Tree.hh"
 #include "geometry/Geometry.hh"
 #include "logger/Logger.hh"
 
@@ -41,7 +47,7 @@ struct LoadBounds
   int max_y = std::numeric_limits<int>::min();
 };
 
-LoadBounds CalcLoadBounds(const std::vector<Pin*>& loads)
+auto CalcLoadBounds(const std::vector<Pin*>& loads) -> LoadBounds
 {
   LoadBounds bounds;
   for (const auto* pin : loads) {
@@ -76,7 +82,7 @@ void TopologyGen::updateConfig(const Config& config)
   _clustering = Clustering(config);
 }
 
-Tree TopologyGen::build(const std::vector<Pin*>& loads)
+auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
 {
   Tree tree;
   if (loads.empty()) {
@@ -102,7 +108,7 @@ Tree TopologyGen::build(const std::vector<Pin*>& loads)
     ++height;
   }
   // Topology construction (full binary tree)
-  buildFullTree(tree, root, 0, height);
+  buildFullTree(tree, BuildCursor{root, 0}, height);
   // Position embedding
   embedPositions(tree, root, loads, leaf_count);
   // Balance topology (H-Tree like)
@@ -112,7 +118,7 @@ Tree TopologyGen::build(const std::vector<Pin*>& loads)
   return tree;
 }
 
-void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) const
+void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads)
 {
   if (loads.empty()) {
     CTS_LOG_WARNING << "Load distribution: empty load list.";
@@ -146,7 +152,7 @@ void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) const
                << median.get_y() << ")";
 }
 
-void TopologyGen::reportRootToLeafLengths(const Tree& tree) const
+void TopologyGen::reportRootToLeafLengths(const Tree& tree)
 {
   if (tree.get_size() == 0 || tree.get_root() == std::numeric_limits<std::size_t>::max()) {
     CTS_LOG_WARNING << "Topology length report skipped: invalid tree.";
@@ -203,12 +209,12 @@ void TopologyGen::reportRootToLeafLengths(const Tree& tree) const
     return;
   }
 
-  const double avg_len = static_cast<double>(sum_len) / leaf_count;
+  const double avg_len = static_cast<double>(sum_len) / static_cast<double>(leaf_count);
   CTS_LOG_INFO << "Topology source-to-leaf length: min=" << min_len << ", max=" << max_len << ", avg=" << avg_len
                << ", leafs=" << leaf_count << ", invalid=" << invalid_count;
 }
 
-std::size_t TopologyGen::calcLeafCount(std::size_t load_count) const
+auto TopologyGen::calcLeafCount(std::size_t load_count) -> std::size_t
 {
   if (load_count == 0) {
     return 0;
@@ -220,62 +226,86 @@ std::size_t TopologyGen::calcLeafCount(std::size_t load_count) const
   return leaf_count;
 }
 
-void TopologyGen::buildFullTree(Tree& tree, std::size_t node, int depth, int height) const
+void TopologyGen::buildFullTree(Tree& tree, const BuildCursor& cursor, int height)
 {
-  if (depth >= height) {
-    return;
+  std::vector<BuildCursor> build_stack;
+  build_stack.push_back(cursor);
+
+  while (!build_stack.empty()) {
+    auto current = build_stack.back();
+    build_stack.pop_back();
+
+    if (current.depth >= height) {
+      continue;
+    }
+
+    const auto left = tree.add_child(current.node_id, 0);
+    const auto right = tree.add_child(current.node_id, 1);
+    build_stack.push_back(BuildCursor{right, current.depth + 1});
+    build_stack.push_back(BuildCursor{left, current.depth + 1});
   }
-  const auto left = tree.add_child(node, 0);
-  const auto right = tree.add_child(node, 1);
-  buildFullTree(tree, left, depth + 1, height);
-  buildFullTree(tree, right, depth + 1, height);
 }
 
 void TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need)
 {
-  auto* node_ptr = tree.get_node(node);
-  if (node_ptr == nullptr) {
-    return;
-  }
-  node_ptr->get_loads() = loads;
-  if (loads.empty()) {
-    return;
-  }
+  struct EmbedFrame
+  {
+    std::size_t node_id = 0;
+    std::vector<Pin*> node_loads;
+    std::size_t node_leaf_need = 0;
+  };
 
-  if (node_ptr->isLeaf() || leaf_need <= 1 || loads.size() <= 1) {
-    const auto center = geometry::CalcCenter(loads, [](Pin* pin) { return pin->get_location(); });
-    node_ptr->get_position() = Point<int>(static_cast<int>(std::lround(center.get_x())), static_cast<int>(std::lround(center.get_y())));
-    return;
-  }
+  std::vector<EmbedFrame> embed_stack;
+  embed_stack.push_back(EmbedFrame{node, loads, leaf_need});
 
-  const std::size_t child_leaf_need = leaf_need / 2;
-  auto result = _clustering.biPartition(loads, child_leaf_need);
-  if (result.clusters.size() < 2) {
-    return;
-  }
+  while (!embed_stack.empty()) {
+    auto frame = std::move(embed_stack.back());
+    embed_stack.pop_back();
 
-  const auto& children = node_ptr->get_children();
-  if (children.size() < 2 || children[0] == std::numeric_limits<std::size_t>::max()
-      || children[1] == std::numeric_limits<std::size_t>::max()) {
-    return;
-  }
+    auto* node_ptr = tree.get_node(frame.node_id);
+    if (node_ptr == nullptr) {
+      continue;
+    }
+    node_ptr->get_loads() = frame.node_loads;
+    if (frame.node_loads.empty()) {
+      continue;
+    }
 
-  auto* left = tree.get_node(children[0]);
-  auto* right = tree.get_node(children[1]);
-  if (left == nullptr || right == nullptr) {
-    return;
-  }
+    if (node_ptr->isLeaf() || frame.node_leaf_need <= 1 || frame.node_loads.size() <= 1) {
+      const auto center = geometry::CalcCenter(frame.node_loads, [](Pin* pin) { return pin->get_location(); });
+      node_ptr->get_position() = Point<int>(static_cast<int>(std::lround(center.get_x())), static_cast<int>(std::lround(center.get_y())));
+      continue;
+    }
 
-  if (result.centers.size() >= 2) {
-    left->get_position() = result.centers[0];
-    right->get_position() = result.centers[1];
-  }
+    const std::size_t child_leaf_need = frame.node_leaf_need / 2;
+    auto result = _clustering.biPartition(frame.node_loads, child_leaf_need);
+    if (result.clusters.size() < 2) {
+      continue;
+    }
 
-  embedPositions(tree, children[0], result.clusters[0], child_leaf_need);
-  embedPositions(tree, children[1], result.clusters[1], child_leaf_need);
+    const auto& children = node_ptr->get_children();
+    if (children.size() < 2 || children[0] == std::numeric_limits<std::size_t>::max()
+        || children[1] == std::numeric_limits<std::size_t>::max()) {
+      continue;
+    }
+
+    auto* left = tree.get_node(children[0]);
+    auto* right = tree.get_node(children[1]);
+    if (left == nullptr || right == nullptr) {
+      continue;
+    }
+
+    if (result.centers.size() >= 2) {
+      left->get_position() = result.centers[0];
+      right->get_position() = result.centers[1];
+    }
+
+    embed_stack.push_back(EmbedFrame{children[1], result.clusters[1], child_leaf_need});
+    embed_stack.push_back(EmbedFrame{children[0], result.clusters[0], child_leaf_need});
+  }
 }
 
-void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y) const
+void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y)
 {
   auto levels = tree.levels();
   if (levels.size() <= 1) {
@@ -300,7 +330,7 @@ void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, i
     if (count == 0) {
       continue;
     }
-    const double avg_dist = static_cast<double>(sum_dist) / count;
+    const double avg_dist = static_cast<double>(sum_dist) / static_cast<double>(count);
     for (const auto node_id : levels[level]) {
       auto* node = tree.get_node(node_id);
       if (node == nullptr || node->get_parent() == std::numeric_limits<std::size_t>::max()) {

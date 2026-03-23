@@ -23,11 +23,9 @@
 
 #pragma once
 
-#include <cstddef>
-
-#include "RCTree.hh"
-
 namespace icts {
+
+class RCTree;
 
 class TimingEngine
 {

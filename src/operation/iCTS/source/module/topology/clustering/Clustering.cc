@@ -25,8 +25,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <iterator>
 #include <utility>
+#include <vector>
 
+#include "Pin.hh"
+#include "Point.hh"
 #include "geometry/Geometry.hh"
 #include "kmeans/KMeans.hh"
 #include "mcf/MinCostFlow.hh"
@@ -34,19 +39,22 @@
 namespace icts {
 namespace {
 
-std::vector<std::vector<Pin*>> SplitByPosition(const std::vector<Pin*>& loads, std::size_t min_cluster_size)
+constexpr int kBipartitionClusterCount = 2;
+constexpr int kKMeansIterationCount = 5;
+
+auto SplitByPosition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> std::vector<std::vector<Pin*>>
 {
   std::vector<Pin*> sorted = loads;
   std::sort(sorted.begin(), sorted.end(), [](Pin* lhs, Pin* rhs) {
-    const auto& lp = lhs->get_location();
-    const auto& rp = rhs->get_location();
-    if (lp.get_x() != rp.get_x()) {
-      return lp.get_x() < rp.get_x();
+    const auto& lhs_point = lhs->get_location();
+    const auto& rhs_point = rhs->get_location();
+    if (lhs_point.get_x() != rhs_point.get_x()) {
+      return lhs_point.get_x() < rhs_point.get_x();
     }
-    return lp.get_y() < rp.get_y();
+    return lhs_point.get_y() < rhs_point.get_y();
   });
 
-  std::vector<std::vector<Pin*>> clusters(2);
+  std::vector<std::vector<Pin*>> clusters(kBipartitionClusterCount);
   if (sorted.size() <= 1) {
     clusters[0] = std::move(sorted);
     return clusters;
@@ -58,12 +66,13 @@ std::vector<std::vector<Pin*>> SplitByPosition(const std::vector<Pin*>& loads, s
   }
   left_size = std::max<std::size_t>(1, left_size);
 
-  clusters[0].assign(sorted.begin(), sorted.begin() + left_size);
-  clusters[1].assign(sorted.begin() + left_size, sorted.end());
+  const auto middle_iter = std::next(sorted.begin(), static_cast<std::ptrdiff_t>(left_size));
+  clusters[0].assign(sorted.begin(), middle_iter);
+  clusters[1].assign(middle_iter, sorted.end());
   return clusters;
 }
 
-std::vector<Point<double>> CalcCenters(const std::vector<std::vector<Pin*>>& clusters)
+auto CalcCenters(const std::vector<std::vector<Pin*>>& clusters) -> std::vector<Point<double>>
 {
   std::vector<Point<double>> centers;
   centers.reserve(clusters.size());
@@ -79,7 +88,7 @@ Clustering::Clustering(const Config& config) : _config(config)
 {
 }
 
-ClusterResult Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) const
+auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) const -> ClusterResult
 {
   ClusterResult result;
   if (loads.empty()) {
@@ -93,7 +102,7 @@ ClusterResult Clustering::biPartition(const std::vector<Pin*>& loads, std::size_
 
   const std::size_t safe_min = std::max<std::size_t>(1, std::min(min_cluster_size, loads.size() / 2));
 
-  std::size_t max_cluster_size = static_cast<std::size_t>(std::ceil(_config.max_ratio * loads.size()));
+  auto max_cluster_size = static_cast<std::size_t>(std::ceil(_config.max_ratio * static_cast<double>(loads.size())));
   if (max_cluster_size < safe_min) {
     max_cluster_size = safe_min;
   }
@@ -102,9 +111,8 @@ ClusterResult Clustering::biPartition(const std::vector<Pin*>& loads, std::size_
   }
   max_cluster_size = std::max<std::size_t>(1, max_cluster_size);
 
-  KMeans<Pin*> kmeans;
-  auto kmeans_result = kmeans.run(
-      loads, 2, [](Pin* pin) { return pin->get_location(); }, 5);
+  const KMeans<Pin*> kmeans;
+  auto kmeans_result = kmeans.run(loads, kBipartitionClusterCount, [](Pin* pin) { return pin->get_location(); }, kKMeansIterationCount);
 
   auto centers = kmeans_result.centers;
   if (centers.size() < 2) {

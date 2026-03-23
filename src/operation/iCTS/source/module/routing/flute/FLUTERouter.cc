@@ -23,19 +23,27 @@
 
 #include "FLUTERouter.hh"
 
+#include <cstddef>
+#include <functional>
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
+#include "Point.hh"
+#include "RoutingTypes.hh"
 #include "geometry/Geometry.hh"
 #include "logger/Logger.hh"
 #include "salt/base/flute.h"
-#include "salt/salt.h"
+#include "salt/base/net.h"
+#include "salt/base/tree.h"
 
 namespace icts {
 namespace {
 
-std::vector<std::shared_ptr<salt::Pin>> BuildSaltPins(const RoutingTerminal& driver_terminal,
-                                                      const std::vector<RoutingTerminal>& load_terminals)
+auto BuildSaltPins(const RoutingTerminal& driver_terminal,
+                   const std::vector<RoutingTerminal>& load_terminals) -> std::vector<std::shared_ptr<salt::Pin>>
 {
   std::vector<std::shared_ptr<salt::Pin>> salt_pins;
   salt_pins.reserve(load_terminals.size() + 1);
@@ -49,7 +57,7 @@ std::vector<std::shared_ptr<salt::Pin>> BuildSaltPins(const RoutingTerminal& dri
 
 }  // namespace
 
-FLUTERouter::SteinerTreeType FLUTERouter::buildTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals)
+auto FLUTERouter::buildTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals) -> FLUTERouter::SteinerTreeType
 {
   SteinerTreeType steiner_tree;
   auto root_id = steiner_tree.addNode(driver_terminal.name, driver_terminal.location, true);

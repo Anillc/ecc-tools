@@ -34,7 +34,7 @@
 namespace icts {
 namespace {
 
-bool parse_bool(const nlohmann::json& value, bool default_value)
+auto parse_bool(const nlohmann::json& value, bool default_value) -> bool
 {
   if (value.is_boolean()) {
     return value.get<bool>();
@@ -44,15 +44,15 @@ bool parse_bool(const nlohmann::json& value, bool default_value)
   }
   if (value.is_string()) {
     auto str = value.get<std::string>();
-    for (auto& ch : str) {
-      ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    for (auto& character : str) {
+      character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
     }
     return str == "true" || str == "on" || str == "yes" || str == "1";
   }
   return default_value;
 }
 
-double parse_double(const nlohmann::json& value, double default_value)
+auto parse_double(const nlohmann::json& value, double default_value) -> double
 {
   if (value.is_number_float() || value.is_number_integer()) {
     return value.get<double>();
@@ -67,7 +67,7 @@ double parse_double(const nlohmann::json& value, double default_value)
   return default_value;
 }
 
-unsigned parse_unsigned(const nlohmann::json& value, unsigned default_value)
+auto parse_unsigned(const nlohmann::json& value, unsigned default_value) -> unsigned
 {
   if (value.is_number_integer()) {
     return value.get<unsigned>();
@@ -85,7 +85,7 @@ unsigned parse_unsigned(const nlohmann::json& value, unsigned default_value)
   return default_value;
 }
 
-std::string parse_string(const nlohmann::json& value, const std::string& default_value)
+auto parse_string(const nlohmann::json& value, const std::string& default_value) -> std::string
 {
   if (value.is_string()) {
     return value.get<std::string>();
@@ -102,7 +102,7 @@ std::string parse_string(const nlohmann::json& value, const std::string& default
   return default_value;
 }
 
-std::vector<unsigned> parse_unsigned_list(const nlohmann::json& value)
+auto parse_unsigned_list(const nlohmann::json& value) -> std::vector<unsigned>
 {
   std::vector<unsigned> result;
   if (!value.is_array()) {
@@ -114,7 +114,7 @@ std::vector<unsigned> parse_unsigned_list(const nlohmann::json& value)
   return result;
 }
 
-std::vector<std::string> parse_string_list(const nlohmann::json& value)
+auto parse_string_list(const nlohmann::json& value) -> std::vector<std::string>
 {
   std::vector<std::string> result;
   if (!value.is_array()) {
@@ -124,6 +124,78 @@ std::vector<std::string> parse_string_list(const nlohmann::json& value)
     result.push_back(parse_string(item, ""));
   }
   return result;
+}
+
+void ApplyDoubleIfPresent(const nlohmann::json& json, const char* key, Config& config, double (Config::*getter)() const,
+                          void (Config::*setter)(double))
+{
+  if (json.contains(key)) {
+    (config.*setter)(parse_double(json.at(key), (config.*getter)()));
+  }
+}
+
+void ApplyUnsignedIfPresent(const nlohmann::json& json, const char* key, Config& config, unsigned (Config::*getter)() const,
+                            void (Config::*setter)(unsigned))
+{
+  if (json.contains(key)) {
+    (config.*setter)(parse_unsigned(json.at(key), (config.*getter)()));
+  }
+}
+
+void ApplyBoolIfPresent(const nlohmann::json& json, const char* key, bool default_value, Config& config, void (Config::*setter)(bool))
+{
+  if (json.contains(key)) {
+    (config.*setter)(parse_bool(json.at(key), default_value));
+  }
+}
+
+void ApplyRoutingLayersIfPresent(const nlohmann::json& json, Config& config)
+{
+  if (json.contains("routing_layer")) {
+    auto routing_layers = parse_unsigned_list(json.at("routing_layer"));
+    if (!routing_layers.empty()) {
+      config.set_routing_layers(routing_layers);
+    }
+  }
+}
+
+void ApplyBufferTypesIfPresent(const nlohmann::json& json, Config& config)
+{
+  if (json.contains("buffer_type")) {
+    config.set_buffer_types(parse_string_list(json.at("buffer_type")));
+  }
+}
+
+auto ParseNetList(const nlohmann::json& value) -> std::vector<std::pair<std::string, std::string>>
+{
+  std::vector<std::pair<std::string, std::string>> clock_net_list;
+  if (!value.is_array()) {
+    return clock_net_list;
+  }
+
+  for (const auto& item : value) {
+    if (!item.is_object()) {
+      continue;
+    }
+    if (!item.contains("clock_name") || !item.contains("net_name")) {
+      continue;
+    }
+
+    auto clock_name = parse_string(item["clock_name"], "");
+    auto net_name = parse_string(item["net_name"], "");
+    if (!clock_name.empty() && !net_name.empty()) {
+      clock_net_list.emplace_back(clock_name, net_name);
+    }
+  }
+
+  return clock_net_list;
+}
+
+void ApplyNetListIfPresent(const nlohmann::json& json, Config& config)
+{
+  if (json.contains("net_list") && json.at("net_list").is_array()) {
+    config.set_net_list(ParseNetList(json.at("net_list")));
+  }
 }
 
 }  // namespace
@@ -139,73 +211,22 @@ void Config::parse(const std::string& json_file)
   nlohmann::json json;
   ifs >> json;
 
-  if (json.contains("skew_bound")) {
-    set_skew_bound(parse_double(json["skew_bound"], get_skew_bound()));
-  }
-  if (json.contains("max_buf_tran")) {
-    set_max_buf_tran(parse_double(json["max_buf_tran"], get_max_buf_tran()));
-  }
-  if (json.contains("max_sink_tran")) {
-    set_max_sink_tran(parse_double(json["max_sink_tran"], get_max_sink_tran()));
-  }
-  if (json.contains("max_cap")) {
-    set_max_cap(parse_double(json["max_cap"], get_max_cap()));
-  }
-  if (json.contains("max_length")) {
-    set_max_length(parse_double(json["max_length"], get_max_length()));
-  }
-  if (json.contains("slew_steps")) {
-    set_slew_steps(parse_unsigned(json["slew_steps"], get_slew_steps()));
-  }
-  if (json.contains("cap_steps")) {
-    set_cap_steps(parse_unsigned(json["cap_steps"], get_cap_steps()));
-  }
-  if (json.contains("length_steps")) {
-    set_length_steps(parse_unsigned(json["length_steps"], get_length_steps()));
-  }
-  if (json.contains("max_pattern_nodes")) {
-    set_max_pattern_nodes(parse_unsigned(json["max_pattern_nodes"], get_max_pattern_nodes()));
-  }
-  if (json.contains("wire_width")) {
-    set_wire_width(parse_double(json["wire_width"], get_wire_width()));
-  }
-  if (json.contains("max_fanout")) {
-    set_max_fanout(parse_unsigned(json["max_fanout"], get_max_fanout()));
-  }
-  if (json.contains("routing_layer")) {
-    auto routing_layers = parse_unsigned_list(json["routing_layer"]);
-    if (!routing_layers.empty()) {
-      set_routing_layers(routing_layers);
-    }
-  }
-  if (json.contains("buffer_type")) {
-    set_buffer_types(parse_string_list(json["buffer_type"]));
-  }
-  if (json.contains("char_buf_redundancy_pct")) {
-    set_char_buf_redundancy_pct(parse_double(json["char_buf_redundancy_pct"], get_char_buf_redundancy_pct()));
-  }
-
-  if (json.contains("use_netlist")) {
-    set_use_netlist(parse_bool(json["use_netlist"], false));
-  }
-
-  if (json.contains("net_list") && json["net_list"].is_array()) {
-    std::vector<std::pair<std::string, std::string>> clock_net_list;
-    for (const auto& item : json["net_list"]) {
-      if (!item.is_object()) {
-        continue;
-      }
-      if (!item.contains("clock_name") || !item.contains("net_name")) {
-        continue;
-      }
-      auto clock_name = parse_string(item["clock_name"], "");
-      auto net_name = parse_string(item["net_name"], "");
-      if (!clock_name.empty() && !net_name.empty()) {
-        clock_net_list.emplace_back(clock_name, net_name);
-      }
-    }
-    set_net_list(clock_net_list);
-  }
+  ApplyDoubleIfPresent(json, "skew_bound", *this, &Config::get_skew_bound, &Config::set_skew_bound);
+  ApplyDoubleIfPresent(json, "max_buf_tran", *this, &Config::get_max_buf_tran, &Config::set_max_buf_tran);
+  ApplyDoubleIfPresent(json, "max_sink_tran", *this, &Config::get_max_sink_tran, &Config::set_max_sink_tran);
+  ApplyDoubleIfPresent(json, "max_cap", *this, &Config::get_max_cap, &Config::set_max_cap);
+  ApplyDoubleIfPresent(json, "max_length", *this, &Config::get_max_length, &Config::set_max_length);
+  ApplyUnsignedIfPresent(json, "slew_steps", *this, &Config::get_slew_steps, &Config::set_slew_steps);
+  ApplyUnsignedIfPresent(json, "cap_steps", *this, &Config::get_cap_steps, &Config::set_cap_steps);
+  ApplyUnsignedIfPresent(json, "length_steps", *this, &Config::get_length_steps, &Config::set_length_steps);
+  ApplyUnsignedIfPresent(json, "max_pattern_nodes", *this, &Config::get_max_pattern_nodes, &Config::set_max_pattern_nodes);
+  ApplyDoubleIfPresent(json, "wire_width", *this, &Config::get_wire_width, &Config::set_wire_width);
+  ApplyUnsignedIfPresent(json, "max_fanout", *this, &Config::get_max_fanout, &Config::set_max_fanout);
+  ApplyRoutingLayersIfPresent(json, *this);
+  ApplyBufferTypesIfPresent(json, *this);
+  ApplyDoubleIfPresent(json, "char_buf_redundancy_pct", *this, &Config::get_char_buf_redundancy_pct, &Config::set_char_buf_redundancy_pct);
+  ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist);
+  ApplyNetListIfPresent(json, *this);
 }
 
 }  // namespace icts

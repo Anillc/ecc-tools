@@ -23,25 +23,40 @@
 #include "Wrapper.hh"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
-#include <ranges>
+#include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
-#include "Design.hh"
+#include "IdbCellMaster.h"
+#include "IdbCore.h"
 #include "IdbDesign.h"
+#include "IdbEnum.h"
+#include "IdbGeometry.h"
 #include "IdbInstance.h"
 #include "IdbLayout.h"
 #include "IdbNet.h"
 #include "IdbPins.h"
+#include "IdbTerm.h"
+#include "IdbUnits.h"
 #include "adapter/sta/STAAdapter.hh"
 #include "builder.h"
+#include "def_service.h"
+#include "design/Clock.hh"
+#include "design/Design.hh"
+#include "design/Inst.hh"
+#include "design/Net.hh"
+#include "design/Pin.hh"
+#include "lef_service.h"
 #include "logger/Logger.hh"
+#include "spatial/Point.hh"
 
 namespace icts {
 namespace {
 
-PinType ConvertIdbPinType(idb::IdbConnectType idb_pin_type, idb::IdbConnectDirection idb_pin_direction)
+auto ConvertIdbPinType(idb::IdbConnectType idb_pin_type, idb::IdbConnectDirection idb_pin_direction) -> PinType
 {
   if (idb_pin_type == idb::IdbConnectType::kClock) {
     return PinType::kClock;
@@ -67,7 +82,7 @@ void Wrapper::init(idb::IdbBuilder* idb)
   _idb_layout = _idb->get_lef_service()->get_layout();
 }
 
-int32_t Wrapper::queryDbUnit() const
+auto Wrapper::queryDbUnit() const -> int32_t
 {
   if (_idb_design == nullptr || _idb_design->get_units() == nullptr) {
     CTS_LOG_ERROR << "iDB design units are not ready in Wrapper.";
@@ -76,7 +91,7 @@ int32_t Wrapper::queryDbUnit() const
   return _idb_design->get_units()->get_micron_dbu();
 }
 
-bool Wrapper::withinCore(int32_t x, int32_t y) const
+auto Wrapper::withinCore(int32_t point_x, int32_t point_y) const -> bool
 {
   if (_idb_layout == nullptr) {
     CTS_LOG_WARNING << "iDB layout is null when checking core boundary; treating point as inside core.";
@@ -88,7 +103,8 @@ bool Wrapper::withinCore(int32_t x, int32_t y) const
     return true;
   }
   auto* core_box = core->get_bounding_box();
-  return x >= core_box->get_low_x() && x <= core_box->get_high_x() && y >= core_box->get_low_y() && y <= core_box->get_high_y();
+  return point_x >= core_box->get_low_x() && point_x <= core_box->get_high_x() && point_y >= core_box->get_low_y()
+         && point_y <= core_box->get_high_y();
 }
 
 void Wrapper::read()
@@ -114,7 +130,7 @@ void Wrapper::read()
     return;
   }
 
-  std::ranges::for_each(DesignInst.get_clocks(), [&](Clock* clock) {
+  std::ranges::for_each(DESIGN_INST.get_clocks(), [&](Clock* clock) {
     if (clock == nullptr) {
       CTS_LOG_WARNING << "Skip null clock in CTS design.";
       return;
@@ -138,12 +154,12 @@ void Wrapper::read()
   });
 }
 
-Point<int> Wrapper::idbToCts(idb::IdbCoordinate<int32_t>& coord) const
+auto Wrapper::idbToCts(idb::IdbCoordinate<int32_t>& coord) -> Point<int>
 {
-  return Point<int>(coord.get_x(), coord.get_y());
+  return {coord.get_x(), coord.get_y()};
 }
 
-Pin* Wrapper::idbToCts(idb::IdbPin* idb_pin)
+auto Wrapper::idbToCts(idb::IdbPin* idb_pin) -> Pin*
 {
   if (idb_pin == nullptr) {
     return nullptr;
@@ -168,12 +184,14 @@ Pin* Wrapper::idbToCts(idb::IdbPin* idb_pin)
   auto location = idbToCts(*avg_coord);
   auto is_io = idb_pin->is_io_pin();
 
-  auto* cts_pin = new Pin(name, type, location, nullptr, nullptr, is_io);
-  crossRef(idb_pin, cts_pin);
-  return cts_pin;
+  auto cts_pin = std::make_unique<Pin>(name, type, location, nullptr, nullptr, is_io);
+  auto* cts_pin_ptr = cts_pin.get();
+  _owned_pins.push_back(std::move(cts_pin));
+  crossRef(idb_pin, cts_pin_ptr);
+  return cts_pin_ptr;
 }
 
-Inst* Wrapper::idbToCts(idb::IdbInstance* idb_inst)
+auto Wrapper::idbToCts(idb::IdbInstance* idb_inst) -> Inst*
 {
   if (idb_inst == nullptr) {
     return nullptr;
@@ -196,14 +214,16 @@ Inst* Wrapper::idbToCts(idb::IdbInstance* idb_inst)
   auto name = idb_inst->get_name();
   auto cell_master_name = cell_master->get_name();
   auto location = idbToCts(*coord);
-  auto type = STAAdapterInst.queryInstType(name);
+  auto type = STA_ADAPTER_INST.queryInstType(name);
 
-  auto* cts_inst = new Inst(name, cell_master_name, type, location);
-  crossRef(idb_inst, cts_inst);
-  return cts_inst;
+  auto cts_inst = std::make_unique<Inst>(name, cell_master_name, type, location);
+  auto* cts_inst_ptr = cts_inst.get();
+  _owned_insts.push_back(std::move(cts_inst));
+  crossRef(idb_inst, cts_inst_ptr);
+  return cts_inst_ptr;
 }
 
-Net* Wrapper::idbToCts(idb::IdbNet* idb_net)
+auto Wrapper::idbToCts(idb::IdbNet* idb_net) -> Net*
 {
   if (idb_net == nullptr) {
     return nullptr;
@@ -213,8 +233,10 @@ Net* Wrapper::idbToCts(idb::IdbNet* idb_net)
   }
 
   auto name = idb_net->get_net_name();
-  auto* cts_net = new Net(name);
-  crossRef(idb_net, cts_net);
+  auto cts_net = std::make_unique<Net>(name);
+  auto* cts_net_ptr = cts_net.get();
+  _owned_nets.push_back(std::move(cts_net));
+  crossRef(idb_net, cts_net_ptr);
 
   auto* idb_driver_pin = idb_net->get_driving_pin();
   if (idb_driver_pin == nullptr) {
@@ -234,11 +256,11 @@ Net* Wrapper::idbToCts(idb::IdbNet* idb_net)
       continue;
     }
 
-    cts_pin->set_net(cts_net);
+    cts_pin->set_net(cts_net_ptr);
     if (idb_pin == idb_driver_pin) {
-      cts_net->set_driver(cts_pin);
+      cts_net_ptr->set_driver(cts_pin);
     } else {
-      cts_net->add_load(cts_pin);
+      cts_net_ptr->add_load(cts_pin);
     }
 
     auto* idb_inst = idb_pin->get_instance();
@@ -256,15 +278,15 @@ Net* Wrapper::idbToCts(idb::IdbNet* idb_net)
       cts_inst->add_pin(cts_pin);
     }
   }
-  return cts_net;
+  return cts_net_ptr;
 }
 
-idb::IdbCoordinate<int32_t> Wrapper::ctsToIdb(const Point<int>& loc) const
+auto Wrapper::ctsToIdb(const Point<int>& loc) -> idb::IdbCoordinate<int32_t>
 {
-  return idb::IdbCoordinate<int32_t>(loc.get_x(), loc.get_y());
+  return {loc.get_x(), loc.get_y()};
 }
 
-idb::IdbPin* Wrapper::ctsToIdb(Pin* pin)
+auto Wrapper::ctsToIdb(Pin* pin) -> idb::IdbPin*
 {
   if (_cts2idb_pin_map.contains(pin)) {
     return _cts2idb_pin_map.at(pin);
@@ -272,7 +294,7 @@ idb::IdbPin* Wrapper::ctsToIdb(Pin* pin)
   return nullptr;
 }
 
-idb::IdbInstance* Wrapper::ctsToIdb(Inst* inst)
+auto Wrapper::ctsToIdb(Inst* inst) -> idb::IdbInstance*
 {
   if (_cts2idb_inst_map.contains(inst)) {
     return _cts2idb_inst_map.at(inst);
@@ -280,7 +302,7 @@ idb::IdbInstance* Wrapper::ctsToIdb(Inst* inst)
   return nullptr;
 }
 
-idb::IdbNet* Wrapper::ctsToIdb(Net* net)
+auto Wrapper::ctsToIdb(Net* net) -> idb::IdbNet*
 {
   if (_cts2idb_net_map.contains(net)) {
     return _cts2idb_net_map.at(net);

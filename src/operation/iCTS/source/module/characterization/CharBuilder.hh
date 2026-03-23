@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
@@ -59,20 +60,25 @@ class CharBuilder
   void initCharParams();
 
   // Pattern enumeration
+  struct TopologyBits
+  {
+    unsigned value = 0U;
+  };
+
   void enumerateWireLength(double wire_length_um);
-  void enumerateTopology(double wire_length_um, unsigned num_nodes, unsigned topology_bits);
-  bool isMonotonic(const std::vector<size_t>& buf_indices) const;
-  size_t getMonotonicComboCount(size_t num_buf_types, size_t num_positions) const;
-  bool advanceToNextMonotonic(std::vector<size_t>& buf_indices, size_t num_buf_types) const;
+  void enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits);
+  static auto isMonotonic(const std::vector<std::size_t>& buf_indices) -> bool;
+  static auto getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t;
+  static auto advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool;
 
   // Characterization circuit construction & measurement
   struct TopologyDesc
   {
-    std::vector<double> wire_segments_um;  // wire length per segment (um)
-    std::vector<size_t> buffer_positions;  // node indices that have buffers
+    std::vector<double> wire_segments_um;       // wire length per segment (um)
+    std::vector<std::size_t> buffer_positions;  // node indices that have buffers
   };
 
-  TopologyDesc buildTopologyDesc(double wire_length_um, unsigned num_nodes, unsigned topology_bits) const;
+  static auto buildTopologyDesc(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> TopologyDesc;
   void characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters);
   void createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters);
   void setCharParasitics(const TopologyDesc& topo, double load_pf);

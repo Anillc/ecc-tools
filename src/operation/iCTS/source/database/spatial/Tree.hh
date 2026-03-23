@@ -28,10 +28,11 @@
 #include <queue>
 #include <vector>
 
-#include "Pin.hh"
 #include "Point.hh"
 
 namespace icts {
+
+class Pin;
 
 class TreeNode
 {

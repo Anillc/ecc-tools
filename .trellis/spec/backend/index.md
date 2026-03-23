@@ -23,7 +23,8 @@ This directory contains guidelines for C++ backend development in `src/operation
 | [Database Guidelines](./database-guidelines.md) | Data model, singleton pattern, memory management, getter/setter conventions | Filled |
 | [Error Handling](./error-handling.md) | Logging-based error handling, no exceptions, severity patterns | Filled |
 | [Logging Guidelines](./logging-guidelines.md) | CTS_LOG_* macros, log levels, usage patterns | Filled |
-| [Quality Guidelines](./quality-guidelines.md) | clang-format, clang-tidy, naming conventions, forbidden patterns | Filled |
+| [Quality Guidelines](./quality-guidelines.md) | clang-format, clang-tidy, naming conventions, forbidden patterns, IWYU | Filled |
+| [Quality Workflow](../../ecc_dev_tools/) | Repository-local C++ code quality checker (`doctor`, `check` commands) | Filled |
 
 ---
 
@@ -33,25 +34,22 @@ This directory contains guidelines for C++ backend development in `src/operation
 - Headers: `.hh` (PascalCase)
 - Sources: `.cc` (PascalCase)
 
-### Naming Summary
-- Classes: `PascalCase` (e.g., `Clock`, `TopologyGen`)
-- Methods: `camelBack` (e.g., `runCTS()`)
-- Getters/Setters (simple): `get_name()`, `set_name()` — direct member access only
-- Getters/Setters (complex): `camelBack` (e.g., `calcDelay()`) — computation/logic involved
-- Boolean (simple): `is_buffer()` — direct member comparison
-- Boolean (complex): `camelBack` (e.g., `hasViolation()`) — multi-step check
+### Naming Conventions
+Naming conventions are enforced by `readability-identifier-naming` checks in the project's `.clang-tidy` configuration file (`src/utility/.clang-tidy`). Run `python3 ./.trellis/ecc_dev_tools/check.py check --path <path>` to verify compliance.
+
+Key rules:
+- Trivial getters/setters: `get_name()`, `set_name()`, `is_buffer()` (snake_case)
+- Complex accessors: `camelBack` (e.g., `calcDelay()`, `hasViolation()`)
 - Members: `_lower_case` (e.g., `_clock_name`)
-- Locals: `lower_case` (e.g., `clock_name`)
-- Enums: `enum class` with `kPrefix` values
-- Namespace: `icts`
+- Classes: `PascalCase`, Enums: `enum class` with `kPrefix` values
 
 ### Singleton Macros
-- `CTSAPIInst` — Main external API entry point
-- `DesignInst` — Design database
-- `ConfigInst` — Configuration
-- `WrapperInst` — iDB adapter
-- `STAAdapterInst` — iSTA adapter for internal source-layer use
-- `LogInst` — Logger
+- `CTS_API_INST` — Main external API entry point
+- `DESIGN_INST` — Design database
+- `CONFIG_INST` — Configuration
+- `WRAPPER_INST` — iDB adapter
+- `STA_ADAPTER_INST` — iSTA adapter for internal source-layer use
+- `LOG_INST` — Logger
 
 ### Logging
 ```cpp
