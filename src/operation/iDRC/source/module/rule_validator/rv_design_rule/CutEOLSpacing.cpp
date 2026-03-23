@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include <cstdint>
 
+#include "Orientation.hpp"
 #include "RuleValidator.hpp"
 #include "Utility.hpp"
 
@@ -308,7 +309,8 @@ void RuleValidator::verifyCutEOLSpacing(RVCluster& rv_cluster)
                   continue;
                 }
               }
-              bool use_project_distance = DRCUTIL.isOpenOverlap(rect, env_cut_rect);
+              // why closed
+              bool use_project_distance = DRCUTIL.isClosedOverlap(rect, env_cut_rect);
               int32_t required_size = use_project_distance ? eol_prl_spacing : eol_spacing;
 
               if (use_project_distance) {

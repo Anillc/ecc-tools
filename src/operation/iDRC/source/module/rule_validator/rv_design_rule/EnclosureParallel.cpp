@@ -181,10 +181,10 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
                 if (DRCUTIL.isClosedOverlap(*routing_rect_ptr, env_routing_rect) && net_idx == env_net_idx) {
                   continue;
                 }
-                if (DRCUTIL.isOpenOverlap(env_routing_rect, pre_rect)) {
+                if (DRCUTIL.isClosedOverlap(env_routing_rect, pre_rect)) {
                   has_left_neighbor = true;
                 }
-                if (DRCUTIL.isOpenOverlap(env_routing_rect, post_rect)) {
+                if (DRCUTIL.isClosedOverlap(env_routing_rect, post_rect)) {
                   has_right_neighbor = true;
                 }
                 if (has_left_neighbor || has_right_neighbor) {
