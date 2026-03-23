@@ -20,6 +20,8 @@
  */
 #include "CtsDBWrapper.hh"
 
+#include <cassert>
+
 #include "CTSAPI.hh"
 
 namespace icts {
@@ -249,8 +251,7 @@ CtsNet* CtsDBWrapper::idbToCts(IdbNet* idb_net)
       auto* pin = idbToCts(io_pin);
       net->addPin(pin);
 
-      /// make a virtual instance
-
+      // /// make a virtual instance
       IdbInstance* idb_inst_new = new IdbInstance();
       IdbCellMasterList* cell_master_list = _idb_layout->get_cell_master_list();
       IdbCellMaster* cell_master_new = cell_master_list->set_cell_master(pin->get_pin_name());
@@ -262,6 +263,9 @@ CtsNet* CtsDBWrapper::idbToCts(IdbNet* idb_net)
       idb_inst_new->set_name(pin->get_pin_name());
       auto* inst = idbToCts(idb_inst_new, true);
       inst->addPin(pin);
+      if (io_pin->get_average_coordinate()->get_x() == -1 && io_pin->get_average_coordinate()->get_y() == -1) {
+        LOG_WARNING << "io pin don't be placed, ignore pin :" << io_pin->get_pin_name() << " in net " << idb_net->get_net_name();
+      }
     }
 
     crossRef(net, idb_net);
@@ -352,9 +356,9 @@ void CtsDBWrapper::linkInstanceCood(CtsInstance* inst, IdbInstance* idb_inst)
 
 bool CtsDBWrapper::ctsConnect(CtsInstance* inst, CtsPin* pin, CtsNet* net)
 {
-  if (inst->is_virtual()) {
-    return true;
-  }
+  // if (inst->is_virtual()) {
+  //   return true;
+  // }
   net->addPin(pin);
   pin->set_net(net);
   return true;
@@ -363,22 +367,31 @@ bool CtsDBWrapper::idbConnect(CtsPin* pin, CtsNet* net)
 {
   auto* inst = pin->get_instance();
   ctsConnect(inst, pin, net);
-  if (inst->is_virtual()) {
+  // if (inst->is_virtual()) {
+  //   return true;
+  // }
+  if (pin->is_io()) {
+    IdbNet* idb_net = ctsToIdb(net);
+    auto* idb_pin = ctsToIdb(pin);
+    assert(idb_pin);
+    idb_net->add_io_pin(idb_pin);
+    idb_pin->set_net(idb_net);
     return true;
-  }
-  IdbNet* idb_net = ctsToIdb(net);
-  IdbInstance* idb_inst = ctsToIdb(inst);
+  } else {
+    IdbNet* idb_net = ctsToIdb(net);
+    IdbInstance* idb_inst = ctsToIdb(inst);
 
-  auto* idb_pin_list = idb_inst->get_pin_list();
-  if (idb_pin_list == nullptr) {
-    return false;
-  }
+    auto* idb_pin_list = idb_inst->get_pin_list();
+    if (idb_pin_list == nullptr) {
+      return false;
+    }
 
-  for (auto* idb_pin : idb_pin_list->get_pin_list()) {
-    if (idb_pin->get_pin_name() == pin->get_pin_name()) {
-      idb_net->add_instance_pin(idb_pin);
-      idb_pin->set_net(idb_net);
-      return true;
+    for (auto* idb_pin : idb_pin_list->get_pin_list()) {
+      if (idb_pin->get_pin_name() == pin->get_pin_name()) {
+        idb_net->add_instance_pin(idb_pin);
+        idb_pin->set_net(idb_net);
+        return true;
+      }
     }
   }
   return false;

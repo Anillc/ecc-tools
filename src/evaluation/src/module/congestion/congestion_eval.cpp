@@ -16,6 +16,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 
 #include "general_ops.h"
 #include "idm.h"
@@ -854,8 +855,10 @@ float CongestionEval::evalAvgUtilization(string stage, string rudy_dir_path, str
   return avg_util;
 }
 
-void CongestionEval::initEGR()
+void CongestionEval::initEGR(std::string stage, std::string resolve_congestion)
 {
+  EVAL_INIT_EGR_INST->setStage(stage);
+  EVAL_INIT_EGR_INST->setResolveCongestion(resolve_congestion);
   EVAL_INIT_EGR_INST->runEGR();
 }
 
@@ -1687,6 +1690,128 @@ std::map<std::string, std::vector<std::vector<int>>> CongestionEval::getDemandSu
   return diff_map;
 }
 
+std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> CongestionEval::getOverflowSupplyMap(bool is_run_egr, std::string stage, std::string resolve_congestion)
+{
+  // 如果未指定目录，使用默认路径
+  std::string congestion_dir = dmInst->get_config().get_output_path() + "/rt/rt_temp_directory";
+
+  if (is_run_egr == true) {
+    setEGRDirPath(congestion_dir);
+    initEGR(stage, resolve_congestion);
+    destroyEGR();
+  }
+
+  // 构造early_router和supply_analyzer的完整路径
+  std::string demand_dir = congestion_dir + "/early_router";
+  std::string supply_dir = congestion_dir + "/early_router";
+
+  printf("demand_dir: %s\nsupply_dir: %s\n", demand_dir.c_str(), supply_dir.c_str());
+
+  // 用于存储最终的差值矩阵
+  std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>> result_map;
+  // 临时存储demand和supply矩阵
+  std::map<std::string, std::vector<std::vector<int>>> demand_matrices;
+  std::map<std::string, std::vector<std::vector<int>>> supply_matrices;
+
+  // 读取overflow矩阵
+  std::filesystem::path demand_path(demand_dir);
+  for (const auto& entry : std::filesystem::directory_iterator(demand_path)) {
+    std::string filename = entry.path().filename().string();
+    if (filename.find("overflow_map_") == 0) {
+      // extract layer name (overflow_map_ = 13 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(13, filename.length() - 13 - 4);
+
+      // 读取文件内容
+      std::ifstream file(entry.path());
+      std::string line;
+      std::vector<std::vector<int>> matrix;
+      while (std::getline(file, line)) {
+        std::vector<int> row;
+        std::istringstream iss(line);
+        std::string value;
+        while (std::getline(iss, value, ',')) {
+          row.push_back(std::stod(value));
+        }
+        matrix.push_back(row);
+      }
+      // 反转行顺序（转换为左下角原点）
+      std::reverse(matrix.begin(), matrix.end());
+      demand_matrices[layer_name] = matrix;
+    }
+  }
+
+  // 读取supply矩阵
+  std::filesystem::path supply_path(supply_dir);
+  for (const auto& entry : std::filesystem::directory_iterator(supply_path)) {
+    std::string filename = entry.path().filename().string();
+    if (filename.find("supply_map_") == 0) {
+      // 提取层名 (AP, M1, M2等)
+      // extract layer name (supply_map_ = 11 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(11, filename.length() - 11 - 4);
+
+      // 读取文件内容
+      std::ifstream file(entry.path());
+      std::string line;
+      std::vector<std::vector<int>> matrix;
+      while (std::getline(file, line)) {
+        std::vector<int> row;
+        std::istringstream iss(line);
+        std::string value;
+        while (std::getline(iss, value, ',')) {
+          row.push_back(std::stod(value));
+        }
+        matrix.push_back(row);
+      }
+      // 反转行顺序（转换为左下角原点）
+      std::reverse(matrix.begin(), matrix.end());
+      supply_matrices[layer_name] = matrix;
+    }
+  }
+
+  // 计算results矩阵
+  for (const auto& [layer_name, demand_matrix] : demand_matrices) {
+    // 检查该层是否同时存在supply数据
+    if (supply_matrices.find(layer_name) != supply_matrices.end()) {
+      const auto& supply_matrix = supply_matrices[layer_name];
+
+      // 确保矩阵尺寸相同
+      if (demand_matrix.size() == supply_matrix.size() && demand_matrix[0].size() == supply_matrix[0].size()) {
+        CongestionMatrix demand_congestion(demand_matrix);
+        CongestionMatrix supply_congestion(supply_matrix);
+        result_map[layer_name] = std::make_pair(demand_congestion, supply_congestion);
+      } else {
+        printf("Warning: Matrix size mismatch for layer %s\n", layer_name.c_str());
+      }
+    }
+  }
+
+  // read gcell info
+  std::vector<GCellInfo> gcell_info_list;
+  string gcell_file_path  =  demand_dir + "/gcell.info";
+  
+  std::ifstream file(gcell_file_path);
+  std::string line;  
+  while (std::getline(file, line)) {
+    std::vector<int> row;
+    std::istringstream iss(line);
+    std::string value;
+    while (std::getline(iss, value, ',')) {
+      row.push_back(std::stod(value));
+    }
+    GCellInfo gcell_info;
+    gcell_info.grid_x = row[0];
+    gcell_info.grid_y = row[1];
+    
+    gcell_info.lx = row[2];
+    gcell_info.ly = row[3];
+    gcell_info.ux = row[4];
+    gcell_info.uy = row[5];
+
+    gcell_info_list.push_back(gcell_info);
+  }
+
+  return std::make_tuple(result_map, gcell_info_list);
+}
 
 std::map<int, double> CongestionEval::patchRUDYCongestion(CongestionNets nets,
                                                           std::map<int, std::pair<std::pair<int, int>, std::pair<int, int>>> patch_coords)

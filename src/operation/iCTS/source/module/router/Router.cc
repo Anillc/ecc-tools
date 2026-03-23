@@ -81,6 +81,9 @@ void Router::update()
   // update to cts design, idb and sta
   std::ranges::for_each(_solver_set.get_nets(), [&](Net* net) {
     std::ranges::for_each(net->get_pins(), [&](Pin* pin) { synthesisPin(pin); });
+    // if (net->get_name() == "iCLK_50_109") {
+    //   LOG_WARNING << "net: " << net->get_name() << " ";
+    // }
     synthesisNet(net);
   });
   LOG_INFO << "Convert data to timing engine...";
@@ -103,13 +106,28 @@ void Router::printLog()
 void Router::routing(CtsNet* clk_net)
 {
   auto pins = clk_net->get_load_pins();
+  auto driver_pin = clk_net->get_driver_pin();
   if (pins.empty()) {
-    LOG_WARNING << "Net: " << clk_net->get_net_name() << " is empty!";
+    LOG_WARNING << "Net: " << clk_net->get_net_name() << " load pin is empty!";
+    return;
+  }
+  if (driver_pin == nullptr) {
+    LOG_WARNING << "Net: " << clk_net->get_net_name() << " driver pin is empty!";
+    return;
+  }
+  if (driver_pin->get_instance() == nullptr) {
+    return;
+  }
+  if (pins.size() == 1 && pins.front()->get_instance() == nullptr) {
+    LOG_WARNING << "Net: " << clk_net->get_net_name() << " load pin is empty!";
     return;
   }
   auto net_name = clk_net->get_net_name();
+  // if (net_name == "iCLK_50") {
+  //   LOG_WARNING << "Net: " << clk_net->get_net_name();
+  // }
   // total topology
-  auto solver = Solver(net_name, clk_net->get_driver_pin(), pins);
+  auto solver = Solver(net_name, driver_pin, pins);
   solver.run();
   auto clk_nets = solver.get_solver_nets();
   if (clk_nets.empty()) {
@@ -192,8 +210,11 @@ void Router::synthesisNet(Net* net)
   std::ranges::for_each(net->get_pins(), [&](Pin* pin) {
     auto* cts_pin = design->findPin(pin->get_name());
     LOG_FATAL_IF(!cts_pin) << "Can't found pin " << pin->get_name() << " in net " << net->get_name();
+    // if (cts_pin->is_io() && cts_pin->get_pin_type() == CtsPinType::kIn) {
+    //   return;
+    // }
     if (cts_pin->is_io()) {
-      return;
+      std::cout << "SynthesisNet: IO pin: " << cts_pin->get_pin_name() << " in net: " << net->get_name() << std::endl;
     }
     db_wrapper->idbDisconnect(cts_pin);
     db_wrapper->idbConnect(cts_pin, cts_net);

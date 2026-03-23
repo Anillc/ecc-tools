@@ -215,6 +215,14 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          lib_port->set_port_type(port_type);
          rust_free_string_value(rust_attri_value);
        }},
+      {"clock",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         const char* attri_str = rust_attri_value->value;
+         bool is_clock_pin = convert_string_to_bool(attri_str);
+         lib_port->set_is_clock_pin(is_clock_pin);
+         rust_free_string_value(rust_attri_value);
+       }},
       {"clock_gate_clock_pin",
        [=]() {
          auto* rust_attri_value = rust_convert_string_value(attri_value);

@@ -16,6 +16,16 @@
 // ***************************************************************************************
 #pragma once
 
+#include <pybind11/numpy.h>
+#include <pybind11/stl_bind.h>
+#include <vector>
+#include "netlist/DesignObject.hh"
+#include "netlist/Pin.hh"
+#include "netlist/Netlist.hh"
+#include "timing_api.hh"
+#include "sta/StaDelayPropagation.hh"
+#include "sta/StaSlewPropagation.hh"
+#include "Lib.hh"
 #include <set>
 #include <string>
 #include <vector>
@@ -70,6 +80,33 @@ bool reportSta();
 
 std::vector<PathWireTimingData> getWireTimingData(unsigned n_worst_path_per_clock);
 
+void build_timing_graph();
+void update_clock_timing();
+void buildRcTreeFromFlatData(
+    const std::string& netName,
+    const std::vector<std::string>& node_sta_names,
+    const std::vector<bool>& node_is_pin, 
+    const std::vector<int>& steiner_indices,
+    const std::vector<int>& parent_indices,
+    const std::vector<double>& node_total_caps,
+    const std::vector<double>& edge_resistances,
+    const std::vector<int>& node_global_indices);
+void collectRctDataAndFillList(
+    ista::RctNode* node,
+    ista::Net* net,
+    pybind11::list& results_list,
+    std::unordered_set<ista::RctNode*>& visited);
+void updateAndGetAllPinTimings(
+  const std::vector<std::string>& pin_names,
+  pybind11::list& arrival_late_times,
+  pybind11::list& arrival_early_times,
+  pybind11::list& required_late_times,
+  pybind11::list& required_early_times,
+  pybind11::list& pin_net_delay,
+  pybind11::list& cell_arc_delays,
+  pybind11::list& net_timing_details // 结果将直接填充到这里
+);
+void convertDBToTimingNetlist();
 bool reportTiming(int digits, 
   const std::string& delay_type, 
   std::vector<std::string> exclude_cell_names, 

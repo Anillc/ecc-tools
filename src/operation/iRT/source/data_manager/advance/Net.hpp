@@ -36,7 +36,6 @@ class Net
   ConnectType get_connect_type() const { return _connect_type; }
   std::vector<Pin>& get_pin_list() { return _pin_list; }
   BoundingBox& get_bounding_box() { return _bounding_box; }
-  GridMap<double>& get_resource_cost_map() { return _resource_cost_map; }
 
   // setter
   void set_net_idx(const int32_t net_idx) { _net_idx = net_idx; }
@@ -44,7 +43,6 @@ class Net
   void set_connect_type(const ConnectType& connect_type) { _connect_type = connect_type; }
   void set_pin_list(const std::vector<Pin>& pin_list) { _pin_list = pin_list; }
   void set_bounding_box(const BoundingBox& bounding_box) { _bounding_box = bounding_box; }
-  void set_resource_cost_map(const GridMap<double>& resource_cost_map) { _resource_cost_map = resource_cost_map; }
 
  private:
   int32_t _net_idx = -1;
@@ -52,7 +50,6 @@ class Net
   ConnectType _connect_type = ConnectType::kNone;
   std::vector<Pin> _pin_list;
   BoundingBox _bounding_box;
-  GridMap<double> _resource_cost_map;
 };
 
 }  // namespace irt

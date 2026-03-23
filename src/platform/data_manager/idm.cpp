@@ -29,6 +29,8 @@
 
 #include "idm.h"
 
+#include <cassert>
+
 namespace idm {
 
 DataManager* DataManager::_instance = nullptr;
@@ -94,6 +96,45 @@ bool DataManager::readLef(vector<string> lef_paths, bool b_techlef)
   return true;
 }
 
+void DataManager::write_placement_back(float* x, float* y, int len)
+{
+  bool flag = false;
+  // std::vector<ContestParser::Instance*> inst_list;
+  int i = 0;
+  printf("write_placement_back start!!! Db address is %p\n", this);
+  printf("write_placement_back start!!! idb_design address is %p\n", this->get_idb_design());
+  std::set<std::pair<int, IdbRow*>> row_set;
+  for (auto row : this->get_idb_layout()->get_rows()->get_row_list()) {
+    int32_t row_y = row->get_original_coordinate()->get_y();
+    row_set.insert(std::make_pair(row_y, row));
+  }
+  for (auto name : this->get_idb_design()->m_instID2Name) {
+    // std::string name;
+    if (i >= len) {
+      break;
+    }
+
+    auto inst = this->get_idb_design()->get_instance_list()->find_instance(name);
+    // int node_id = m_mNodeName2Index.find(name)->second;
+    float xx = x[i];
+    float yy = y[i];
+    inst->set_coodinate(xx, yy);
+    if (!inst->get_cell_master()->is_block()) {
+      auto iter = row_set.lower_bound(std::make_pair(yy, nullptr));
+      assert(iter != row_set.end());
+      inst->set_orient(iter->second->get_orient());
+    }
+    inst->set_status_placed();
+    i++;
+    // flag = true;
+  }
+  // output hpwl
+  std::cout << "WriteBack placement finished!!" << std::endl;
+  // std::cout << "WriteBack double finished, Current Contest DB Total HPWL : " << contest_db->obtainTotalHPWL() <<
+  // std::endl;
+
+  return;
+}
 bool DataManager::readDef(string path)
 {
   if (_idb_builder == nullptr || _idb_lef_service == nullptr || _layout == nullptr) {

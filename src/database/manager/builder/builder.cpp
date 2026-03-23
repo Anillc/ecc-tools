@@ -68,7 +68,7 @@ void IdbBuilder::log()
   logModule("Cell Masters : ", layout->get_cell_master_list()->get_cell_master_num());
   logModule("Vias : ", layout->get_via_list()->get_num_via());
   logModule("Via Rules : ", layout->get_via_rule_list()->get_num_via_rule_generate());
-
+  logModule("Dbu :", layout->get_units()->get_micron_dbu());
   ////def
   logModule("*************************Design*******************************");
   IdbDesign* design = _def_service->get_design();
