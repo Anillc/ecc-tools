@@ -391,3 +391,62 @@ Completed full code standards audit for iCTS module.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Deliver ecc_dev_tools and clean iCTS checks
+
+**Date**: 2026-03-23
+**Task**: Deliver ecc_dev_tools and clean iCTS checks
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| ecc_dev_tools | Delivered a repository-local C++ checker with format, deep clang-tidy, analyzer, clang frontend diagnostics, header self-containedness, CMake graph analysis, IWYU integration, doctor command, JSON/compiler output, and whitelist-based suppression |
+| iCTS cleanup | Refactored iCTS headers/includes to satisfy checker requirements, removed `BoundSkewTreeDebug`, split `Components.hh`/`Components.cc`, tightened CMake PUBLIC/PRIVATE visibility, and drove iCTS to 0 in-scope findings |
+| Spec | Updated backend spec, workflow, guides, and task PRD to match the current checker architecture, usage, include/CMake conventions, output modes, and suppression mechanism |
+
+**Verification**:
+- Full `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS --no-fail-on-findings --quiet` => 0 in-scope findings
+- `cmake --build build --target icts_api -j16` passed
+- `cmake --build build --target icts_test -j16` passed
+- `python3 -m unittest discover -s .trellis/ecc_dev_tools/tests -v` => 150 tests passed
+
+**Notable Files**:
+- `.trellis/ecc_dev_tools/check.py`
+- `.trellis/ecc_dev_tools/checkers.py`
+- `.trellis/ecc_dev_tools/environment.py`
+- `.trellis/ecc_dev_tools/models.py`
+- `.trellis/ecc_dev_tools/profiles.py`
+- `.trellis/ecc_dev_tools/reporting.py`
+- `.trellis/ecc_dev_tools/suppressions.jsonl`
+- `.trellis/spec/backend/quality-guidelines.md`
+- `.trellis/workflow.md`
+- `src/operation/iCTS/source/module/routing/Router.hh`
+- `src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.hh`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/Components.hh`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/Components.cc`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8705713c1` | (see git log) |
+| `0dba87bb9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
