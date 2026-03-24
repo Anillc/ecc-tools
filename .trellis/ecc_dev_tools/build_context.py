@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 try:
@@ -16,8 +17,9 @@ def ensure_build_context(repo_root: Path, build_dir: Path, profile: Profile, sco
     build_dir.mkdir(parents=True, exist_ok=True)
     compile_commands_path = build_dir / "compile_commands.json"
     reply_dir = build_dir / ".cmake" / "api" / "v1" / "reply"
+    trace_path = build_dir / ".ecc_dev_tools" / "cmake_trace.json"
 
-    refresh_reason = _needs_refresh(repo_root, build_dir, compile_commands_path, reply_dir, profile)
+    refresh_reason = _needs_refresh(repo_root, build_dir, compile_commands_path, reply_dir, trace_path, profile)
     refreshed = False
     if refresh_reason is not None:
         _refresh_build_metadata(repo_root, build_dir, profile, jobs)
@@ -26,7 +28,9 @@ def ensure_build_context(repo_root: Path, build_dir: Path, profile: Profile, sco
     targets = _load_targets(repo_root, reply_dir)
     compile_commands = _load_compile_commands(compile_commands_path)
 
-    declared_graph, cmake_text_graph, cmake_public_graph = _load_declared_graph(repo_root, reply_dir, profile)
+    trace_links, skipped_trace_generator_expressions = _load_trace_link_metadata(trace_path, repo_root)
+    _apply_trace_link_metadata(targets, trace_links)
+    declared_graph, cmake_text_graph, cmake_public_graph = _load_declared_graph(targets)
 
     return BuildContext(
         build_dir=build_dir,
@@ -38,16 +42,26 @@ def ensure_build_context(repo_root: Path, build_dir: Path, profile: Profile, sco
         cmake_text_graph=cmake_text_graph,
         cmake_public_graph=cmake_public_graph,
         profile_name=profile.name,
+        skipped_trace_generator_expressions=skipped_trace_generator_expressions,
         refreshed=refreshed,
         refresh_reason=refresh_reason,
     )
 
 
-def _needs_refresh(repo_root: Path, build_dir: Path, compile_commands_path: Path, reply_dir: Path, profile: Profile) -> str | None:
+def _needs_refresh(
+    repo_root: Path,
+    build_dir: Path,
+    compile_commands_path: Path,
+    reply_dir: Path,
+    trace_path: Path,
+    profile: Profile,
+) -> str | None:
     if not compile_commands_path.is_file():
         return "compile_commands.json is missing"
     if not reply_dir.is_dir() or not any(reply_dir.glob("index-*.json")):
         return "CMake File API reply is missing"
+    if not trace_path.is_file():
+        return "CMake trace metadata is missing"
     cmake_cache = build_dir / "CMakeCache.txt"
     if not cmake_cache.is_file():
         return "CMakeCache.txt is missing"
@@ -57,6 +71,8 @@ def _needs_refresh(repo_root: Path, build_dir: Path, compile_commands_path: Path
         return "CMake File API reply directory contains no JSON files"
     newest_reply_mtime = max(path.stat().st_mtime for path in json_files)
     newest_reference_mtime = max(root_cmake.stat().st_mtime, cmake_cache.stat().st_mtime)
+    if trace_path.stat().st_mtime < newest_reply_mtime:
+        return "CMake trace metadata is older than CMake File API reply"
     if newest_reference_mtime > newest_reply_mtime:
         return "build metadata is older than top-level CMake inputs"
     profile_cmake_paths: list[Path] = []
@@ -81,6 +97,10 @@ def _refresh_build_metadata(repo_root: Path, build_dir: Path, profile: Profile, 
         encoding="utf-8",
     )
 
+    trace_dir = build_dir / ".ecc_dev_tools"
+    trace_dir.mkdir(parents=True, exist_ok=True)
+    trace_path = trace_dir / "cmake_trace.json"
+
     configure_command = [
         "cmake",
         "-S",
@@ -90,6 +110,9 @@ def _refresh_build_metadata(repo_root: Path, build_dir: Path, profile: Profile, 
         "-G",
         "Ninja",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "--trace-expand",
+        "--trace-format=json-v1",
+        f"--trace-redirect={trace_path}",
     ]
     run_command(configure_command, cwd=repo_root, check=True)
 
@@ -108,6 +131,8 @@ def _refresh_build_metadata(repo_root: Path, build_dir: Path, profile: Profile, 
     if not file_api_check.is_dir() or not any(file_api_check.glob("index-*.json")):
         file_api_reason = "CMake File API reply is still missing after configure"
         raise RuntimeError(file_api_reason)
+    if not trace_path.is_file():
+        raise RuntimeError("CMake trace metadata is still missing after configure")
 
 
 def _latest_reply_index(reply_dir: Path) -> Path:
@@ -172,182 +197,101 @@ def _load_targets(repo_root: Path, reply_dir: Path) -> dict[str, CMakeTarget]:
                 if include_path:
                     include_dirs.append(Path(include_path).resolve())
         target.include_dirs = include_dirs
-        for dependency in target_json.get("dependencies", []):
-            dep_id = dependency.get("id", "")
-            dep_name = dep_id.split("::@", 1)[0] if dep_id else dep_id
-            if dep_name:
-                target.declared_links.append(dep_name)
-        if target.json_file.exists():
-            scopes = _parse_declared_link_scopes(target.json_file, repo_root)
-            target.declared_link_scopes.update(scopes)
     return targets
 
 
-def _parse_declared_link_scopes(path: Path, repo_root: Path) -> dict[str, str]:
-    target_json = read_json(path)
-    if not isinstance(target_json, dict):
-        return {}
-
-    backtrace_graph = target_json.get("backtraceGraph", {})
-    files = backtrace_graph.get("files", []) if isinstance(backtrace_graph, dict) else []
-    cmake_path = None
-    for candidate in files:
-        if isinstance(candidate, str) and candidate.endswith("CMakeLists.txt"):
-            candidate_path = Path(candidate)
-            cmake_path = candidate_path if candidate_path.is_absolute() else (repo_root / candidate_path)
-            break
-    if cmake_path is None or not cmake_path.is_file():
-        return {}
-
-    content = cmake_path.read_text(encoding="utf-8", errors="replace")
-    mapping: dict[str, str] = {}
-    current_target = None
-    current_scope = None
-    active = False
-    for raw_line in content.splitlines():
-        line = raw_line.split("#", 1)[0].strip()
-        if not line:
-            continue
-        if not active and line.startswith("target_link_libraries("):
-            active = True
-            current_target = None
-            current_scope = None
-            continue
-        if active:
-            if line == ")":
-                active = False
-                current_target = None
-                current_scope = None
+def _load_trace_link_metadata(trace_path: Path, repo_root: Path) -> tuple[dict[str, list[dict[str, str]]], int]:
+    parsed: dict[str, list[dict[str, str]]] = {}
+    skipped_generator_expressions = 0
+    valid_roots = [repo_root / "src" / "operation" / "iCTS", repo_root / "src" / "operation" / "iSTA"]
+    with trace_path.open(encoding="utf-8", errors="replace") as trace_file:
+        for raw_line in trace_file:
+            raw_line = raw_line.strip()
+            if not raw_line:
                 continue
-            if current_target is None:
-                current_target = line
+            try:
+                item = json.loads(raw_line)
+            except json.JSONDecodeError:
                 continue
-            if line in {"PRIVATE", "PUBLIC", "INTERFACE"}:
-                current_scope = line.lower()
+            if not isinstance(item, dict):
                 continue
-            if current_scope is None:
+            if item.get("cmd") != "target_link_libraries":
                 continue
-            for token in line.replace(")", " ").split():
+            file_text = item.get("file")
+            args = item.get("args")
+            if not isinstance(file_text, str) or not isinstance(args, list) or not args:
+                continue
+            file_path = Path(file_text)
+            if not file_path.is_absolute():
+                file_path = (repo_root / file_path).resolve()
+            else:
+                file_path = file_path.resolve()
+            if not any(root == file_path or root in file_path.parents for root in valid_roots):
+                continue
+            target_name = args[0]
+            if not isinstance(target_name, str):
+                continue
+            current_scope = ""
+            for token in args[1:]:
+                if not isinstance(token, str):
+                    continue
                 if token in {"PRIVATE", "PUBLIC", "INTERFACE"}:
                     current_scope = token.lower()
                     continue
                 if token.startswith("$"):
+                    skipped_generator_expressions += 1
                     continue
-                mapping[token] = current_scope
-    return mapping
+                if token.startswith("-"):
+                    continue
+                effective_scope = current_scope or "public"
+                parsed.setdefault(target_name, []).append({"name": token, "scope": effective_scope})
+    return parsed, skipped_generator_expressions
 
 
-def _load_declared_graph(repo_root: Path, reply_dir: Path, profile: Profile) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, list[str]]]:
-    """Return (merged_graph, cmake_text_graph, cmake_public_graph).
+def _apply_trace_link_metadata(targets: dict[str, CMakeTarget], trace_links: dict[str, list[dict[str, str]]]) -> None:
+    for target in targets.values():
+        target.declared_links = []
+        target.declared_link_scopes = {}
+    for target_name, links in trace_links.items():
+        target = targets.get(target_name)
+        if target is None:
+            continue
+        for link in links:
+            dep_name = link["name"]
+            scope = link["scope"]
+            if dep_name not in target.declared_links:
+                target.declared_links.append(dep_name)
+            existing_scope = target.declared_link_scopes.get(dep_name)
+            target.declared_link_scopes[dep_name] = _merge_link_scope(existing_scope, scope)
 
-    merged_graph: union of File API transitive deps + CMakeLists.txt text parsing.
-    cmake_text_graph: all edges parsed from CMakeLists.txt target_link_libraries() calls.
-    cmake_public_graph: only PUBLIC/INTERFACE edges (propagatable dependencies).
-    """
+
+def _load_declared_graph(targets: dict[str, CMakeTarget]) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, list[str]]]:
     merged_graph: dict[str, list[str]] = {}
-    for target_json_path in reply_dir.glob("target-*.json"):
-        data = read_json(target_json_path)
-        if not isinstance(data, dict):
-            continue
-        name = data.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        merged_graph.setdefault(name, [])
-        for dependency in data.get("dependencies", []) or []:
-            dep_id = dependency.get("id", "")
-            dep_name = dep_id.split("::@", 1)[0] if dep_id else dep_id
-            if dep_name:
-                merged_graph[name].append(dep_name)
-
     cmake_text_graph: dict[str, list[str]] = {}
     cmake_public_graph: dict[str, list[str]] = {}
-    if profile.graph_root:
-        cmake_root = repo_root / profile.graph_root
-    else:
-        cmake_root = repo_root
-    for path in sorted(cmake_root.rglob("*")):
-        if not path.is_file() or (path.name != "CMakeLists.txt" and path.suffix != ".cmake"):
-            continue
-        file_all: dict[str, list[str]] = {}
-        file_public: dict[str, list[str]] = {}
-        _parse_declared_graph_entries(path, file_all, file_public)
-        for target_name, deps in file_all.items():
-            cmake_text_graph.setdefault(target_name, []).extend(deps)
-            merged_graph.setdefault(target_name, []).extend(deps)
-        for target_name, deps in file_public.items():
-            cmake_public_graph.setdefault(target_name, []).extend(deps)
 
-    def _dedupe(graph: dict[str, list[str]]) -> None:
-        for target_name, deps in graph.items():
-            deduped: list[str] = []
-            seen: set[str] = set()
-            for dep in deps:
-                if dep in seen:
-                    continue
-                seen.add(dep)
-                deduped.append(dep)
-            graph[target_name] = deduped
+    for target_name, target in targets.items():
+        merged_graph[target_name] = list(target.declared_links)
+        cmake_text_graph[target_name] = list(target.declared_links)
+        cmake_public_graph[target_name] = [
+            dep_name
+            for dep_name, scope in target.declared_link_scopes.items()
+            if scope in {"public", "interface"}
+        ]
 
-    _dedupe(merged_graph)
-    _dedupe(cmake_text_graph)
-    _dedupe(cmake_public_graph)
     return merged_graph, cmake_text_graph, cmake_public_graph
 
 
-def _parse_declared_graph_entries(cmake_path: Path, all_entries: dict[str, list[str]], public_entries: dict[str, list[str]]) -> dict[str, list[str]]:
-    lines = cmake_path.read_text(encoding="utf-8", errors="replace").splitlines()
-    active = False
-    depth = 0
-    buffer = ""
-
-    for raw_line in lines:
-        line = raw_line.split("#", 1)[0]
-        if not active:
-            marker = "target_link_libraries("
-            if marker not in line:
-                continue
-            active = True
-            start = line.index(marker) + len(marker)
-            buffer = line[start:] + " "
-            depth = 1 + line[start:].count("(") - line[start:].count(")")
-            if depth <= 0:
-                _consume_declared_graph_block(buffer, all_entries, public_entries)
-                active = False
-                buffer = ""
-            continue
-
-        buffer += line + " "
-        depth += line.count("(") - line.count(")")
-        if depth <= 0:
-            _consume_declared_graph_block(buffer, all_entries, public_entries)
-            active = False
-            buffer = ""
-            depth = 0
-
-    return all_entries
-
-
-def _consume_declared_graph_block(buffer: str, all_entries: dict[str, list[str]], public_entries: dict[str, list[str]]) -> None:
-    tokens = buffer.replace("(", " ").replace(")", " ").split()
-    if not tokens:
-        return
-    target_name = tokens[0]
-    all_deps: list[str] = []
-    public_deps: list[str] = []
-    scope = "PUBLIC"  # CMake default when no scope keyword is given
-    for token in tokens[1:]:
-        if token in {"PRIVATE", "PUBLIC", "INTERFACE"}:
-            scope = token
-            continue
-        if token.startswith("$"):
-            continue
-        all_deps.append(token)
-        if scope in {"PUBLIC", "INTERFACE"}:
-            public_deps.append(token)
-    if all_deps:
-        all_entries.setdefault(target_name, []).extend(all_deps)
-    if public_deps:
-        public_entries.setdefault(target_name, []).extend(public_deps)
+def _merge_link_scope(existing_scope: str | None, new_scope: str) -> str:
+    if existing_scope is None:
+        return new_scope
+    if existing_scope == new_scope:
+        return existing_scope
+    if {existing_scope, new_scope} == {"private", "interface"}:
+        return "public"
+    if new_scope == "public" or existing_scope == "public":
+        return "public"
+    return new_scope
 
 
 def _load_compile_commands(compile_commands_path: Path) -> list[CompileCommand]:

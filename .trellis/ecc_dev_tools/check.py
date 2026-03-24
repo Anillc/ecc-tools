@@ -11,7 +11,7 @@ try:
     from .build_context import ensure_build_context
     from .checkers import run_selected_checks
     from .environment import TOOL_REQUIREMENTS, inspect_environment, required_tool_names_for_run, validate_required_tools
-    from .models import CheckKind, Suppression, ToolStatus, load_suppressions
+    from .models import CheckKind, ToolStatus, load_suppressions
     from .profiles import (
         DEFAULT_PASS_PLAN,
         DEFAULT_PROFILE,
@@ -37,7 +37,7 @@ except ImportError:
     from build_context import ensure_build_context
     from checkers import run_selected_checks
     from environment import TOOL_REQUIREMENTS, inspect_environment, required_tool_names_for_run, validate_required_tools
-    from models import CheckKind, Suppression, ToolStatus, load_suppressions
+    from models import CheckKind, ToolStatus, load_suppressions
     from profiles import (
         DEFAULT_PASS_PLAN,
         DEFAULT_PROFILE,
@@ -221,7 +221,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
     py_status = "OK" if py_ok else "WARN: requires 3.10+"
     lines.append("Python")
     lines.append(f"  Version:  Python {py_version} ({py_executable})")
-    lines.append(f"  Minimum:  3.10+ (for match/case, type unions)")
+    lines.append("  Minimum:  3.10+ (for match/case, type unions)")
     lines.append(f"  Status:   {py_status}")
     lines.append("")
 
@@ -336,9 +336,9 @@ def main() -> int:
     if args.command != "check":
         script_path = Path(__file__).resolve()
         print(f"Usage: {python_executable()} {script_path} <command>")
-        print(f"Commands:")
-        print(f"  check   Run selected checks")
-        print(f"  doctor  Check environment and tool availability")
+        print("Commands:")
+        print("  check   Run selected checks")
+        print("  doctor  Check environment and tool availability")
         return 1
 
     try:

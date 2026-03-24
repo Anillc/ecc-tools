@@ -165,6 +165,7 @@ class BuildContext:
     cmake_text_graph: dict[str, list[str]]
     cmake_public_graph: dict[str, list[str]]
     profile_name: str
+    skipped_trace_generator_expressions: int = 0
     refreshed: bool = False
     refresh_reason: str | None = None
 

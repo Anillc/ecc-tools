@@ -24,17 +24,15 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 if str(_PACKAGE_ROOT.parent) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_ROOT.parent))
 
+# ruff: noqa: E402
 from ecc_dev_tools.models import (
     CMakeTarget,
-    CheckKind,
     CheckResult,
     CompileCommand,
     ExecutionPlan,
     Finding,
-    Profile,
     Scope,
     TidyPass,
-    ValidationPreset,
 )
 from ecc_dev_tools.profiles import (
     PROFILES,
@@ -44,6 +42,7 @@ from ecc_dev_tools.profiles import (
     resolve_execution_plan,
 )
 from ecc_dev_tools.checkers import (
+    _build_header_include_first_command,
     _build_source_syntax_command,
     _classify_compiler_diagnostic,
     _classify_tidy_diagnostic,
@@ -60,6 +59,12 @@ from ecc_dev_tools.reporting import (
     format_exit_summary,
     format_results_compiler_style,
     format_results_json,
+)
+from ecc_dev_tools.build_context import (
+    _apply_trace_link_metadata,
+    _load_declared_graph,
+    _load_trace_link_metadata,
+    _merge_link_scope,
 )
 from ecc_dev_tools.scope import build_scope
 from ecc_dev_tools.utils import (
@@ -599,7 +604,7 @@ class TestParallelMap(unittest.TestCase):
         self.assertEqual(results, [15])
 
     def test_error_is_returned_as_exception(self):
-        def failing(x):
+        def failing(_x):
             raise ValueError("boom")
 
         results = _parallel_map(failing, [1, 2], jobs=2)
@@ -608,7 +613,7 @@ class TestParallelMap(unittest.TestCase):
 
     def test_sequential_error_propagates(self):
         """In sequential mode errors are not caught -- they propagate."""
-        def failing(x):
+        def failing(_x):
             raise ValueError("boom")
 
         with self.assertRaises(ValueError):
@@ -860,7 +865,7 @@ class TestClassifyTidyDiagnostic(unittest.TestCase):
     """_classify_tidy_diagnostic() -- category classification."""
 
     def test_bugprone_check(self):
-        category, subtype, family = _classify_tidy_diagnostic(["bugprone-use-after-move"])
+        category, subtype, _family = _classify_tidy_diagnostic(["bugprone-use-after-move"])
         self.assertEqual(category, "bugprone")
         self.assertEqual(subtype, "bugprone-use-after-move")
 
@@ -873,17 +878,17 @@ class TestClassifyTidyDiagnostic(unittest.TestCase):
     def test_readability_identifier_naming(self):
         # "readability-identifier-naming" starts with "readability-" prefix,
         # so it matches the "readability" group first in iteration order.
-        category, subtype, family = _classify_tidy_diagnostic(["readability-identifier-naming"])
+        category, subtype, _family = _classify_tidy_diagnostic(["readability-identifier-naming"])
         self.assertEqual(category, "readability")
         self.assertEqual(subtype, "readability-identifier-naming")
 
     def test_empty_checks(self):
-        category, subtype, family = _classify_tidy_diagnostic([])
+        category, subtype, _family = _classify_tidy_diagnostic([])
         self.assertEqual(category, "clang-tidy")
         self.assertEqual(subtype, "unclassified")
 
     def test_unknown_check_uses_primary(self):
-        category, subtype, family = _classify_tidy_diagnostic(["some-unknown-check"])
+        category, subtype, _family = _classify_tidy_diagnostic(["some-unknown-check"])
         self.assertEqual(category, "clang-tidy")
         self.assertEqual(subtype, "some-unknown-check")
 
@@ -905,6 +910,7 @@ class TestClassifyCompilerDiagnostic(unittest.TestCase):
         category, subtype = _classify_compiler_diagnostic("msg", [])
         self.assertEqual(category, "clang-diagnostic")
         self.assertEqual(subtype, "compiler-syntax-only")
+
 
 
 class TestBuildSourceSyntaxCommand(unittest.TestCase):
@@ -973,6 +979,18 @@ class TestBuildSourceSyntaxCommand(unittest.TestCase):
         last_two = result[-2:]
         self.assertEqual(last_two, ["-fsyntax-only", str(command.file)])
 
+    def test_adds_extra_flags_once(self):
+        command = CompileCommand(
+            file=Path("/src/File.cc"),
+            directory=Path("/build"),
+            command="g++ -c -Wconversion -std=c++20 /src/File.cc",
+        )
+        result = _build_source_syntax_command(command, extra_flags=("-Wall", "-Wextra", "-Wconversion", "-Wsign-conversion"))
+        self.assertEqual(result.count("-Wconversion"), 1)
+        self.assertIn("-Wall", result)
+        self.assertIn("-Wextra", result)
+        self.assertIn("-Wsign-conversion", result)
+
 
 class TestParseIwyuOutput(unittest.TestCase):
     """_parse_iwyu_output() -- parsing of IWYU stderr output."""
@@ -993,12 +1011,24 @@ class TestParseIwyuOutput(unittest.TestCase):
         header.touch()
         source = tmp / "src" / "Foo.cc"
         source.touch()
+        output = f"{header.resolve()} should add these lines:\n#include \"Bar.hh\"\n\n---\n"
+        findings = _parse_iwyu_output(output, source.resolve(), scope)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].subtype, "missing-include")
+        self.assertIn("#include \"Bar.hh\"", findings[0].message)
+        self.assertEqual(findings[0].location_scope_class, "in_scope")
+
+    def test_parses_angle_include_as_missing_include(self):
+        tmp = Path(tempfile.mkdtemp())
+        scope = self._make_scope(tmp)
+        header = tmp / "src" / "Foo.hh"
+        header.touch()
+        source = tmp / "src" / "Foo.cc"
+        source.touch()
         output = f"{header.resolve()} should add these lines:\n#include <string>\n\n---\n"
         findings = _parse_iwyu_output(output, source.resolve(), scope)
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].subtype, "missing-include")
-        self.assertIn("#include <string>", findings[0].message)
-        self.assertEqual(findings[0].location_scope_class, "in_scope")
 
     def test_parses_unnecessary_include(self):
         tmp = Path(tempfile.mkdtemp())
@@ -1164,6 +1194,164 @@ class TestFormatResultsJson(unittest.TestCase):
         data = json.loads(json_str)
         self.assertEqual(data["findings"][0]["scope"], "out_of_scope")
         self.assertEqual(data["summary"]["out_of_scope"], 1)
+
+    def test_notes_are_included_by_check_kind(self):
+        profile = get_profile("icts")
+        plan = resolve_execution_plan(
+            profile=profile,
+            validation_preset=None,
+            tidy_mode=None,
+            pass_plan=None,
+        )
+        results = [
+            CheckResult(kind="cmake", notes=[
+                "Analyzed 15 targets under profile target prefixes.",
+                "Skipped 2 generator-expression link items while reconstructing direct link scopes from CMake trace.",
+            ]),
+            CheckResult(kind="iwyu", notes=["Analyzing 25 translation units with IWYU."]),
+        ]
+        json_str = format_results_json(results, plan, profile)
+        data = json.loads(json_str)
+        self.assertEqual(
+            data["notes"]["cmake"],
+            [
+                "Analyzed 15 targets under profile target prefixes.",
+                "Skipped 2 generator-expression link items while reconstructing direct link scopes from CMake trace.",
+            ],
+        )
+        self.assertEqual(data["notes"]["iwyu"], ["Analyzing 25 translation units with IWYU."])
+
+
+class TestHeaderIncludeFirstHelpers(unittest.TestCase):
+    """Header include-first and direct-include helper behavior."""
+
+    def test_build_header_include_first_command_creates_wrapper(self):
+        tmp = Path(tempfile.mkdtemp())
+        header = tmp / "Foo.hh"
+        header.write_text("#pragma once\n", encoding="utf-8")
+        command, cwd, wrapper = _build_header_include_first_command(
+            header=header,
+            include_dirs=[str(tmp)],
+            trigger_command=None,
+            compiler="g++",
+            repo_root=tmp,
+        )
+        try:
+            self.assertEqual(command[0], "g++")
+            self.assertEqual(cwd, tmp)
+            self.assertTrue(wrapper.exists())
+            self.assertEqual(command[-1], str(wrapper))
+        finally:
+            wrapper.unlink(missing_ok=True)
+
+
+class TestTraceLinkMetadata(unittest.TestCase):
+    """Trace-based link metadata loading and graph derivation."""
+
+    def test_load_trace_link_metadata(self):
+        tmp = Path(tempfile.mkdtemp())
+        repo_root = tmp / "repo"
+        cmake_dir = repo_root / "src" / "operation" / "iCTS"
+        cmake_dir.mkdir(parents=True)
+        trace = tmp / "cmake_trace.json"
+        trace.write_text(
+            "\n".join(
+                [
+                    json.dumps({"version": {"major": 1, "minor": 2}}),
+                    json.dumps(
+                        {
+                            "cmd": "target_link_libraries",
+                            "file": str(cmake_dir / "CMakeLists.txt"),
+                            "args": ["foo", "PUBLIC", "bar", "PRIVATE", "baz"],
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        loaded, skipped = _load_trace_link_metadata(trace, repo_root)
+        self.assertEqual(skipped, 0)
+        self.assertEqual(loaded["foo"][0]["scope"], "public")
+        self.assertEqual(loaded["foo"][1]["scope"], "private")
+
+    def test_apply_trace_link_metadata_and_graphs(self):
+        foo = CMakeTarget(name="foo")
+        bar = CMakeTarget(name="bar")
+        baz = CMakeTarget(name="baz")
+        targets = {"foo": foo, "bar": bar, "baz": baz}
+        _apply_trace_link_metadata(
+            targets,
+            {
+                "foo": [
+                    {"name": "bar", "scope": "public"},
+                    {"name": "baz", "scope": "private"},
+                ]
+            },
+        )
+        self.assertEqual(foo.declared_links, ["bar", "baz"])
+        self.assertEqual(foo.declared_link_scopes["bar"], "public")
+        merged_graph, cmake_text_graph, cmake_public_graph = _load_declared_graph(targets)
+        self.assertEqual(merged_graph["foo"], ["bar", "baz"])
+        self.assertEqual(cmake_text_graph["foo"], ["bar", "baz"])
+        self.assertEqual(cmake_public_graph["foo"], ["bar"])
+
+    def test_merge_link_scope_promotes_private_and_interface_to_public(self):
+        self.assertEqual(_merge_link_scope(None, "private"), "private")
+        self.assertEqual(_merge_link_scope("private", "interface"), "public")
+        self.assertEqual(_merge_link_scope("public", "private"), "public")
+
+    def test_load_trace_link_metadata_uses_public_as_default_scope(self):
+        tmp = Path(tempfile.mkdtemp())
+        repo_root = tmp / "repo"
+        cmake_dir = repo_root / "src" / "operation" / "iCTS"
+        cmake_dir.mkdir(parents=True)
+        trace = tmp / "cmake_trace.json"
+        trace.write_text(
+            "\n".join(
+                [
+                    json.dumps({"version": {"major": 1, "minor": 2}}),
+                    json.dumps(
+                        {
+                            "cmd": "target_link_libraries",
+                            "file": str(cmake_dir / "CMakeLists.txt"),
+                            "args": ["foo", "bar"],
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        loaded, skipped = _load_trace_link_metadata(trace, repo_root)
+        self.assertEqual(skipped, 0)
+        self.assertEqual(loaded["foo"][0]["scope"], "public")
+
+    def test_load_trace_link_metadata_counts_generator_expressions(self):
+        tmp = Path(tempfile.mkdtemp())
+        repo_root = tmp / "repo"
+        cmake_dir = repo_root / "src" / "operation" / "iCTS"
+        cmake_dir.mkdir(parents=True)
+        trace = tmp / "cmake_trace.json"
+        trace.write_text(
+            "\n".join(
+                [
+                    json.dumps({"version": {"major": 1, "minor": 2}}),
+                    json.dumps(
+                        {
+                            "cmd": "target_link_libraries",
+                            "file": str(cmake_dir / "CMakeLists.txt"),
+                            "args": ["foo", "PRIVATE", "$<IF:1,bar,baz>", "bar"],
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        loaded, skipped = _load_trace_link_metadata(trace, repo_root)
+        self.assertEqual(skipped, 1)
+        self.assertEqual(loaded["foo"][0]["name"], "bar")
 
 
 class TestFormatResultsCompilerStyle(unittest.TestCase):

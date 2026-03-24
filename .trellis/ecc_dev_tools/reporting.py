@@ -233,7 +233,9 @@ def format_exit_summary(results: list[CheckResult], fail_on_findings: bool = Tru
 def format_results_json(results: list[CheckResult], plan: ExecutionPlan, profile: Profile) -> str:
     """Format all check results as a JSON string for machine consumption."""
     findings_list = []
+    notes_map = {}
     for result in results:
+        notes_map[result.kind] = list(result.notes)
         for finding in result.findings:
             findings_list.append({
                 "check": finding.check,
@@ -263,6 +265,7 @@ def format_results_json(results: list[CheckResult], plan: ExecutionPlan, profile
             "out_of_scope": sum(1 for f in findings_list if f["scope"] != "in_scope"),
             "total": len(findings_list),
         },
+        "notes": notes_map,
         "findings": findings_list,
     }
     return json.dumps(output, indent=2, ensure_ascii=False)

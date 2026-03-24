@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,6 +29,14 @@ TIDY_CATEGORY_GROUPS: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 DEEP_TIDY_FAMILIES: list[str] = [group[0] for group in TIDY_CATEGORY_GROUPS]
+
+DIRECT_STDLIB_INCLUDE_RE = re.compile(r"#include\s+(<[^>]+>)")
+GENERIC_WARNING_FLAG_TOKENS = (
+    "-Wall",
+    "-Wextra",
+    "-Wconversion",
+    "-Wsign-conversion",
+)
 
 DIAGNOSTIC_LINE_RE = re.compile(r"^(.*?):(\d+):(\d+):\s+(warning|error|note):\s+(.*)$")
 CHECK_BRACKET_RE = re.compile(r"\[([^\[\]]+)\]\s*$")
@@ -240,7 +249,7 @@ def run_tidy_check(
             result.notes.append("Native compiler fallback pass was planned on-demand but was not needed.")
 
     if plan.tidy_mode == "deep":
-        result.notes.append(f"Deep tidy categories (8 configured families): {', '.join(DEEP_TIDY_FAMILIES)}")
+        result.notes.append(f"Deep tidy categories ({len(DEEP_TIDY_FAMILIES)} configured families): {', '.join(DEEP_TIDY_FAMILIES)}")
     elif headers:
         result.notes.append("Header naming pass behavior is preserved for naming-only tidy mode.")
 
@@ -283,7 +292,8 @@ def run_header_dependency_check(
         for target in context.targets.values()
     }
 
-    for header in headers:
+    def _check_one_header(header: Path) -> list[Finding]:
+        findings: list[Finding] = []
         owners = [target for target in targets if target.owns_path(header)]
         owner = owners[0] if owners else None
         include_dirs = set()
@@ -317,7 +327,7 @@ def run_header_dependency_check(
             check = run_command(compile_cmd, cwd=repo_root)
         if check.returncode != 0:
             diagnostic = _clean_header_diagnostic(check.stderr or check.stdout or "header self-check failed")
-            result.findings.append(
+            findings.append(
                 Finding(
                     check="headers",
                     severity="error",
@@ -334,6 +344,45 @@ def run_header_dependency_check(
                     trigger_target=owner.name if owner else None,
                 )
             )
+
+        include_first_cmd, include_first_cwd, wrapper = _build_header_include_first_command(
+            header=header,
+            include_dirs=sorted(include_dirs),
+            trigger_command=trigger_command,
+            compiler=compiler,
+            repo_root=repo_root,
+        )
+        try:
+            include_first_check = run_command(include_first_cmd, cwd=include_first_cwd)
+            if include_first_check.returncode != 0:
+                diagnostic = _clean_header_diagnostic(include_first_check.stderr or include_first_check.stdout or "include-first header self-check failed")
+                findings.append(
+                    Finding(
+                        check="headers",
+                        severity="error",
+                        path=header,
+                        target=owner.name if owner else None,
+                        message=diagnostic,
+                        category="self-contained",
+                        subtype="include-first-failure",
+                        origin="header-include-first-check",
+                        confidence="high",
+                        location_scope_class="in_scope",
+                        trigger_scope_class="in_scope" if trigger_command and scope.contains(trigger_command.file) else None,
+                        trigger_path=trigger_command.file if trigger_command else None,
+                        trigger_target=owner.name if owner else None,
+                    )
+                )
+        finally:
+            wrapper.unlink(missing_ok=True)
+        return findings
+
+    header_results = _parallel_map(_check_one_header, headers, snapshot.jobs)
+    for item in header_results:
+        if isinstance(item, Exception):
+            result.notes.append(f"Header self-check error: {item}")
+            continue
+        result.findings.extend(item)
 
     # Phase 2: include dependency analysis
     # Collect all scoped compile commands for potential clang-scan-deps batch scanning
@@ -429,6 +478,10 @@ def run_cmake_graph_check(scope: Scope, context: BuildContext, profile: Profile)
     targets = [target for target in context.targets.values() if target.name.startswith(profile.target_prefixes)]
     scoped_target_names = {target.name for target in targets_for_scope(context, scope)}
     result.notes.append(f"Analyzed {len(targets)} targets under profile target prefixes.")
+    if context.skipped_trace_generator_expressions:
+        result.notes.append(
+            f"Skipped {context.skipped_trace_generator_expressions} generator-expression link items while reconstructing direct link scopes from CMake trace."
+        )
 
     # Use cmake_text_graph (all edges) for cycle detection — PRIVATE cycles are still cycles
     cycle_adjacency: dict[str, list[str]] = {}
@@ -587,6 +640,7 @@ def run_iwyu_check(
     snapshot: EnvironmentSnapshot,
     jobs: int,
 ) -> CheckResult:
+    _ = profile
     result = CheckResult(kind="iwyu", detail_limit=30)
 
     iwyu_binary = _optional_tool_executable(snapshot, "include-what-you-use")
@@ -1034,7 +1088,7 @@ def _run_clang_frontend_pass(
     source_commands = [command for command in commands if command.file.suffix in source_exts]
 
     def _run_one_frontend(command: CompileCommand) -> list[Finding]:
-        frontend_cmd = _build_source_syntax_command(command, compiler_override=clangxx)
+        frontend_cmd = _build_source_syntax_command(command, compiler_override=clangxx, extra_flags=GENERIC_WARNING_FLAG_TOKENS)
         output = run_command(frontend_cmd, cwd=command.directory)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
         return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name)
@@ -1069,7 +1123,7 @@ def _run_native_compiler_pass(
     source_commands = [command for command in commands if command.file.suffix in source_exts]
 
     def _run_one_native(command: CompileCommand) -> list[Finding]:
-        syntax_cmd = _build_source_syntax_command(command, compiler_override=compiler)
+        syntax_cmd = _build_source_syntax_command(command, compiler_override=compiler, extra_flags=GENERIC_WARNING_FLAG_TOKENS)
         output = run_command(syntax_cmd, cwd=command.directory)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
         return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name)
@@ -1363,11 +1417,12 @@ def _clang_tidy_config_args(config_path: Path, executable: str, version_text: st
     return [f"--config={config_text}"]
 
 
-def _build_source_syntax_command(command: CompileCommand, compiler_override: str | None = None) -> list[str]:
+def _build_source_syntax_command(command: CompileCommand, compiler_override: str | None = None, *, extra_flags: tuple[str, ...] = ()) -> list[str]:
     tokens = shlex.split(command.command)
     syntax_cmd: list[str] = []
     skip_next = False
     skip_compile_input = False
+    seen_flags: set[str] = set()
     for index, token in enumerate(tokens):
         if index == 0:
             syntax_cmd.append(compiler_override or token)
@@ -1390,7 +1445,11 @@ def _build_source_syntax_command(command: CompileCommand, compiler_override: str
         if token.endswith((".cc", ".cpp", ".cxx", ".c++", ".C")) and Path(token).name == command.file.name:
             continue
         syntax_cmd.append(token)
+        seen_flags.add(token)
 
+    for flag in extra_flags:
+        if flag not in seen_flags:
+            syntax_cmd.append(flag)
     syntax_cmd.extend(["-fsyntax-only", str(command.file)])
     return syntax_cmd
 
@@ -1452,6 +1511,7 @@ def _parse_compiler_output(
 
 
 def _classify_compiler_diagnostic(message: str, checks: list[str]) -> tuple[str, str]:
+    _ = message
     if checks:
         primary = checks[0]
         if primary.startswith("clang-diagnostic-"):
@@ -1512,6 +1572,54 @@ def _clean_header_diagnostic(text: str) -> str:
             continue
         lines.append(line)
     return "\n".join(lines).strip()
+
+
+def _build_header_include_first_command(
+    *,
+    header: Path,
+    include_dirs: list[str],
+    trigger_command: CompileCommand | None,
+    compiler: str,
+    repo_root: Path,
+) -> tuple[list[str], Path, Path]:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".cc", delete=False, dir=repo_root, encoding="utf-8") as tmp_file:
+        tmp_file.write(f'#include "{header.name}"\n\nint main() {{ return 0; }}\n')
+        wrapper = Path(tmp_file.name)
+    if trigger_command is not None:
+        command = _build_header_include_first_syntax_command(trigger_command, header, wrapper)
+        return command, trigger_command.directory, wrapper
+    command = [compiler, "-std=c++20", "-fsyntax-only"]
+    for include_dir in include_dirs:
+        command.extend(["-I", include_dir])
+    command.append(str(wrapper))
+    return command, repo_root, wrapper
+
+
+def _build_header_include_first_syntax_command(trigger_command: CompileCommand, header: Path, wrapper: Path) -> list[str]:
+    tokens = shlex.split(trigger_command.command)
+    command: list[str] = []
+    skip_next = False
+    for index, token in enumerate(tokens):
+        if index == 0:
+            command.append(token)
+            continue
+        if skip_next:
+            skip_next = False
+            continue
+        if token in {"-o", "-MF", "-MT", "-MQ", "-x"}:
+            skip_next = True
+            continue
+        if token in {"-c", "-S", "-E", "-M", "-MM", "-MD", "-MMD", "-MP", "-MG", "-Winvalid-pch"}:
+            continue
+        if token.startswith("-o"):
+            continue
+        if token.startswith("-MF") or token.startswith("-MT") or token.startswith("-MQ"):
+            continue
+        if token.endswith((".cc", ".cpp", ".cxx", ".c++", ".C")) and Path(token).name == trigger_command.file.name:
+            continue
+        command.append(token)
+    command.extend(["-I", str(header.parent), "-fsyntax-only", str(wrapper)])
+    return command
 
 
 def _extract_include_roots(target: CMakeTarget) -> set[str]:
