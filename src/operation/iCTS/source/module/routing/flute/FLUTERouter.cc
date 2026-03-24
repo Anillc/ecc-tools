@@ -32,7 +32,7 @@
 #include <vector>
 
 #include "Point.hh"
-#include "RoutingTypes.hh"
+#include "RoutingTerminal.hh"
 #include "geometry/Geometry.hh"
 #include "logger/Logger.hh"
 #include "salt/base/flute.h"

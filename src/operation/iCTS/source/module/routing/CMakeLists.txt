@@ -1,3 +1,4 @@
+add_subdirectory(${ICTS_MODULE_ROUTING}/database)
 add_subdirectory(${ICTS_MODULE_ROUTING}/flute)
 add_subdirectory(${ICTS_MODULE_ROUTING}/salt)
 add_subdirectory(${ICTS_MODULE_ROUTING}/bound_skew_tree)
@@ -13,6 +14,7 @@ target_link_libraries(
   icts_source_module_routing
   PUBLIC
   icts_source_database
+  icts_source_module_routing_database
   PRIVATE
   icts_source_module_routing_flute
   icts_source_module_routing_bst

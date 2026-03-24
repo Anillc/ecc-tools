@@ -15,10 +15,10 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file RoutingTypes.hh
+ * @file RoutingTerminal.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-03-16
- * @brief Shared routing value types.
+ * @date 2026-03-24
+ * @brief Shared routing terminal value type.
  */
 
 #pragma once

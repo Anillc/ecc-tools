@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "RCTree.hh"
-#include "RoutingTypes.hh"
+#include "RoutingTerminal.hh"
 #include "SteinerTree.hh"
 #include "local_legalization/LocalLegalization.hh"
 

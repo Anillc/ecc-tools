@@ -5,6 +5,7 @@ target_link_libraries(
   PUBLIC
   icts_source_database
   PRIVATE
+  icts_source_module_routing_database
   icts_source_module_routing_bst
   icts_source_utils
   salt

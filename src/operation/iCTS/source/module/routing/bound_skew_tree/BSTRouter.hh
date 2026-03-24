@@ -25,7 +25,7 @@
 
 #include <vector>
 
-#include "RoutingTypes.hh"
+#include "RoutingTerminal.hh"
 #include "SteinerTree.hh"
 
 namespace icts {
