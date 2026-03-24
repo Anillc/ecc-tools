@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
-- **Last Active**: 2026-03-23
+- **Total Sessions**: 8
+- **Last Active**: 2026-03-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~452 | Active |
+| `journal-1.md` | ~510 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits |
 |---|------|-------|---------|
+| 8 | 2026-03-25 | Refactor topology and simplify spec | `c8e58a3eb`, `086fa39a8` |
 | 7 | 2026-03-23 | Deliver ecc_dev_tools and clean iCTS checks | `8705713c1`, `0dba87bb9` |
 | 6 | 2026-03-18 | iCTS routing and timing refactor cleanup | `06a6480b6` |
 | 5 | 2026-03-06 | Code Standards Audit: Complete | `6c88474ab`, `1ab0650d5` |

@@ -450,3 +450,61 @@ Completed full code standards audit for iCTS module.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Refactor topology and simplify spec
+
+**Date**: 2026-03-25
+**Task**: Refactor topology and simplify spec
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| ecc_dev_tools | Reworked CMake graph metadata loading, JSON notes output, and checker coverage/tests |
+| Spec docs | Simplified backend/guides docs into shorter authority-based specs and added ecc_dev_tools README |
+| Topology | Refactored topology APIs toward static build-style usage, split topology subtargets, and introduced shared topology config |
+| iCTS cleanup | Cleared the 27 in-scope ecc_dev_tools findings and revalidated full iCTS with zero in-scope findings |
+
+**Key validation**:
+- Full `src/operation/iCTS` ecc_dev_tools check converged to `in_scope = 0`
+- Focused topology/routing/config checks passed during cleanup
+
+**Updated files**:
+- `.trellis/ecc_dev_tools/README.md`
+- `.trellis/ecc_dev_tools/build_context.py`
+- `.trellis/ecc_dev_tools/checkers.py`
+- `.trellis/ecc_dev_tools/reporting.py`
+- `.trellis/ecc_dev_tools/tests/test_core.py`
+- `.trellis/spec/backend/*.md`
+- `.trellis/spec/guides/*.md`
+- `src/operation/iCTS/source/module/topology/**`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.cc`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BoundSkewTree.cc`
+- `src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.cc`
+- `src/operation/iCTS/source/database/config/Config.cc`
+- `src/operation/iCTS/api/CTSAPI.cc`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c8e58a3eb` | (see git log) |
+| `086fa39a8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
