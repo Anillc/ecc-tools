@@ -71,4 +71,11 @@ bool saveGDSII(const std::string& gds_name)
   return dmInst->saveGDSII(gds_name);
 }
 
+bool saveJson(const std::string& path)
+{
+  std::string options = "";
+
+  return dmInst->saveJSON(path, options);
+}
+
 }  // namespace python_interface

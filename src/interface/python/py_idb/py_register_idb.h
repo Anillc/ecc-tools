@@ -41,6 +41,7 @@ void register_idb(py::module& m)
   m.def("netlist_save", saveNetList, py::arg("netlist_path"), py::arg("exclude_cell_names") = std::set<std::string>{},
         py::arg("is_add_space_for_escape_name") = false);
   m.def("gds_save", saveGDSII, py::arg("gds_name"));
+  m.def("json_save", saveJson, py::arg("path"));
 }
 
 void register_idb_op(pybind11::module& m)

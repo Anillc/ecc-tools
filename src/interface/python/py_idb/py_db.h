@@ -31,5 +31,6 @@ bool saveDef(const std::string& def_name);
 bool saveMacroTCL(const std::string& tcl_name);
 bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_cell_names = {}, bool is_add_space_for_escape_name = false);
 bool saveGDSII(const std::string& gds_name);
+bool saveJson(const std::string& path);
 
 }  // namespace python_interface

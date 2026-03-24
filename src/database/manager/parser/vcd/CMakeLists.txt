@@ -11,13 +11,7 @@ set(RUST_PROJECT_NAME vcd_parser)
 set(RUST_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vcd_parser)
 set(RUST_LIB_TYPE a)
 
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-    set(RUST_LIB_PATH ${RUST_PROJECT_DIR}/target/debug/lib${RUST_PROJECT_NAME}.${RUST_LIB_TYPE})
-    set(RUST_BUILD_CMD_OPTION "")
-else()
-    set(RUST_LIB_PATH ${RUST_PROJECT_DIR}/target/release/lib${RUST_PROJECT_NAME}.${RUST_LIB_TYPE})
-    set(RUST_BUILD_CMD_OPTION "--release")
-endif()
+SETUP_RUST_PROJECT()
 
 message(STATUS "vcd parser rust lib path ${RUST_LIB_PATH}")
 
