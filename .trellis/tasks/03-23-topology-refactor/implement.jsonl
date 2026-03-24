@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/quality-guidelines.md", "reason": "Topology refactor must follow include, CMake visibility, and quality workflow rules"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/directory-structure.md", "reason": "Topology target split must follow iCTS module/submodule CMake patterns"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/project-constraints.md", "reason": "Static API refactor and new CMake files must satisfy mandatory iCTS constraints"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/error-handling.md", "reason": "Topology helpers must keep logging-based error handling semantics"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/logging-guidelines.md", "reason": "Touched topology code uses CTS_LOG macros and should follow existing logging guidance"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Refactor should reuse existing static-builder and CMake patterns instead of inventing new ones"}

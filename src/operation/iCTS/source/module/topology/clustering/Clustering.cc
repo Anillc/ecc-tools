@@ -30,17 +30,21 @@
 #include <utility>
 #include <vector>
 
+#include "Geometry.hh"
+#include "KMeans.hh"
+#include "MinCostFlow.hh"
 #include "Pin.hh"
 #include "Point.hh"
-#include "geometry/Geometry.hh"
-#include "kmeans/KMeans.hh"
-#include "mcf/MinCostFlow.hh"
+#include "TopologyConfig.hh"
 
 namespace icts {
 namespace {
 
+constexpr double kDefaultMaxRatio = 0.6;
+constexpr int kDefaultMaxIter = 10;
+constexpr int kDefaultConvergeThreshold = 1000;
+constexpr std::size_t kDefaultKMeansIterCount = 5;
 constexpr int kBipartitionClusterCount = 2;
-constexpr int kKMeansIterationCount = 5;
 
 auto SplitByPosition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> std::vector<std::vector<Pin*>>
 {
@@ -84,11 +88,17 @@ auto CalcCenters(const std::vector<std::vector<Pin*>>& clusters) -> std::vector<
 
 }  // namespace
 
-Clustering::Clustering(const Config& config) : _config(config)
+auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> ClusterResult
 {
+  BiPartitionConfig config;
+  config.max_ratio = kDefaultMaxRatio;
+  config.max_iter = kDefaultMaxIter;
+  config.converge_threshold = kDefaultConvergeThreshold;
+  config.kmeans_iter_count = kDefaultKMeansIterCount;
+  return biPartition(loads, min_cluster_size, config);
 }
 
-auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) const -> ClusterResult
+auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterResult
 {
   ClusterResult result;
   if (loads.empty()) {
@@ -102,7 +112,7 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
 
   const std::size_t safe_min = std::max<std::size_t>(1, std::min(min_cluster_size, loads.size() / 2));
 
-  auto max_cluster_size = static_cast<std::size_t>(std::ceil(_config.max_ratio * static_cast<double>(loads.size())));
+  auto max_cluster_size = static_cast<std::size_t>(std::ceil(config.max_ratio * static_cast<double>(loads.size())));
   if (max_cluster_size < safe_min) {
     max_cluster_size = safe_min;
   }
@@ -112,7 +122,7 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   max_cluster_size = std::max<std::size_t>(1, max_cluster_size);
 
   const KMeans<Pin*> kmeans;
-  auto kmeans_result = kmeans.run(loads, kBipartitionClusterCount, [](Pin* pin) { return pin->get_location(); }, kKMeansIterationCount);
+  auto kmeans_result = kmeans.run(loads, kBipartitionClusterCount, [](Pin* pin) { return pin->get_location(); }, config.kmeans_iter_count);
 
   auto centers = kmeans_result.centers;
   if (centers.size() < 2) {
@@ -121,7 +131,7 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   }
 
   std::vector<std::vector<Pin*>> clusters;
-  for (int iter = 0; iter < _config.max_iter; ++iter) {
+  for (int iter = 0; iter < config.max_iter; ++iter) {
     MinCostFlow<Pin*> mcf;
     for (auto* pin : loads) {
       const auto& loc = pin->get_location();
@@ -147,7 +157,7 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
       max_shift = std::max(max_shift, geometry::Manhattan(centers[i], new_centers[i]));
     }
     centers = std::move(new_centers);
-    if (max_shift < _config.converge_threshold) {
+    if (max_shift < config.converge_threshold) {
       break;
     }
   }

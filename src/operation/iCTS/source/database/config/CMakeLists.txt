@@ -8,9 +8,11 @@ target_link_libraries(
 
 target_include_directories(
   icts_source_database_config
+  BEFORE
   PUBLIC
   ${ICTS_DATABASE_CONFIG}
   PRIVATE
+  ${ICTS_SOURCE}
   ${HOME_THIRDPARTY}/json
   ${ICTS_UTILS}
 )

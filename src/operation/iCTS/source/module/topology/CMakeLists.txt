@@ -1,24 +1,29 @@
+add_subdirectory(${ICTS_MODULE_TOPOLOGY}/config)
+add_subdirectory(${ICTS_MODULE_TOPOLOGY}/kmeans)
+add_subdirectory(${ICTS_MODULE_TOPOLOGY}/mcf)
+add_subdirectory(${ICTS_MODULE_TOPOLOGY}/clustering)
+
 add_library(
   icts_source_module_topology
   ${ICTS_MODULE_TOPOLOGY}/TopologyGen.cc
-  ${ICTS_MODULE_TOPOLOGY}/clustering/Clustering.cc
 )
 
 target_link_libraries(
   icts_source_module_topology
   PUBLIC
-  icts_source_database
+  icts_source_database_spatial
+  icts_source_module_topology_config
   PRIVATE
-  icts_source_utils
-  lemon
+  icts_source_database_design
+  icts_source_module_topology_clustering
+  icts_source_utils_geometry
+  icts_source_utils_logger
 )
 
 target_include_directories(
   icts_source_module_topology
   PUBLIC
   ${ICTS_MODULE_TOPOLOGY}
-  PRIVATE
-  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY)

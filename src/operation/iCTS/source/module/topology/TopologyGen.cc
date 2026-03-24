@@ -30,11 +30,13 @@
 #include <utility>
 #include <vector>
 
+#include "Geometry.hh"
+#include "Logger.hh"
 #include "Pin.hh"
 #include "Point.hh"
 #include "Tree.hh"
-#include "geometry/Geometry.hh"
-#include "logger/Logger.hh"
+#include "clustering/Clustering.hh"
+#include "config/TopologyConfig.hh"
 
 namespace icts {
 namespace {
@@ -68,21 +70,12 @@ auto CalcLoadBounds(const std::vector<Pin*>& loads) -> LoadBounds
 
 }  // namespace
 
-TopologyGen::TopologyGen() : _config(), _clustering(_config)
-{
-}
-
-TopologyGen::TopologyGen(const Config& config) : _config(config), _clustering(config)
-{
-}
-
-void TopologyGen::updateConfig(const Config& config)
-{
-  _config = config;
-  _clustering = Clustering(config);
-}
-
 auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
+{
+  return build(loads, BiPartitionConfig{});
+}
+
+auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree
 {
   Tree tree;
   if (loads.empty()) {
@@ -107,11 +100,9 @@ auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
   for (std::size_t count = leaf_count; count > 1; count >>= 1) {
     ++height;
   }
-  // Topology construction (full binary tree)
+
   buildFullTree(tree, BuildCursor{root, 0}, height);
-  // Position embedding
-  embedPositions(tree, root, loads, leaf_count);
-  // Balance topology (H-Tree like)
+  embedPositions(tree, root, loads, leaf_count, config);
   balanceTopology(tree, bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y);
   reportRootToLeafLengths(tree);
 
@@ -246,7 +237,8 @@ void TopologyGen::buildFullTree(Tree& tree, const BuildCursor& cursor, int heigh
   }
 }
 
-void TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need)
+void TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
+                                 const BiPartitionConfig& config)
 {
   struct EmbedFrame
   {
@@ -278,7 +270,7 @@ void TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector
     }
 
     const std::size_t child_leaf_need = frame.node_leaf_need / 2;
-    auto result = _clustering.biPartition(frame.node_loads, child_leaf_need);
+    auto result = Clustering::biPartition(frame.node_loads, child_leaf_need, config);
     if (result.clusters.size() < 2) {
       continue;
     }

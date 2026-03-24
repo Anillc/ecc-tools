@@ -44,6 +44,16 @@
 
 namespace icts {
 
+namespace {
+
+inline auto ToSaltIndex(int node_id) -> std::size_t
+{
+  CTS_LOG_FATAL_IF(node_id < 0) << "SALT node id is negative.";
+  return static_cast<std::size_t>(node_id);
+}
+
+}  // namespace
+
 CustomSaltBuilder::~CustomSaltBuilder() = default;
 
 namespace {
@@ -110,7 +120,7 @@ auto ExportSaltTree(const salt::Tree& tree, const CBSRouter::ClockSteinerTreeTyp
   for (const auto& node : nodes) {
     std::string node_name = std::string("steiner_") + std::to_string(node->id);
     if (node->pin != nullptr) {
-      const auto* initial_node = initial_tree.get_node(static_cast<std::size_t>(node->id));
+      const auto* initial_node = initial_tree.get_node(ToSaltIndex(node->id));
       CTS_LOG_FATAL_IF(initial_node == nullptr || initial_node->name.empty())
           << "Missing terminal name when exporting CBS refined topology.";
       node_name = initial_node->name;
@@ -175,19 +185,23 @@ void CustomSaltBuilder::init(const salt::Tree& min_tree, const std::shared_ptr<s
   _shortest_latency.resize(min_tree_nodes.size());
   _cur_latency.resize(min_tree_nodes.size());
   for (const auto& min_tree_node : min_tree_nodes) {
-    _nodes[min_tree_node->id] = std::make_shared<salt::TreeNode>(min_tree_node->loc, min_tree_node->pin, min_tree_node->id);
-    _shortest_latency[min_tree_node->id] = utils::Dist(src_pin->loc, min_tree_node->loc);
-    _cur_latency[min_tree_node->id] = std::numeric_limits<double>::max();
+    const auto node_index = ToSaltIndex(min_tree_node->id);
+    const auto latency_index = ToSaltIndex(min_tree_node->id);
+    _nodes[node_index] = std::make_shared<salt::TreeNode>(min_tree_node->loc, min_tree_node->pin, min_tree_node->id);
+    _shortest_latency[latency_index] = utils::Dist(src_pin->loc, min_tree_node->loc);
+    _cur_latency[latency_index] = std::numeric_limits<double>::max();
   }
-  _cur_latency[src_pin->id] = 0.0;
-  _src = _nodes[src_pin->id];
+  const auto src_latency_index = ToSaltIndex(src_pin->id);
+  const auto src_node_index = ToSaltIndex(src_pin->id);
+  _cur_latency[src_latency_index] = 0.0;
+  _src = _nodes[src_node_index];
 }
 
 void CustomSaltBuilder::finalize(const salt::Net& net, salt::Tree& tree) const
 {
   for (const auto& node : _nodes) {
     if (node->parent) {
-      _nodes[node->parent->id]->children.push_back(node);
+      _nodes[ToSaltIndex(node->parent->id)]->children.push_back(node);
     }
   }
   tree.source = _src;
@@ -225,14 +239,16 @@ void CustomSaltBuilder::run(const salt::Net& net, salt::Tree& input_tree, double
 auto CustomSaltBuilder::relax(const std::shared_ptr<salt::TreeNode>& source_node,
                               const std::shared_ptr<salt::TreeNode>& target_node) -> bool
 {
-  const auto new_latency = _cur_latency[source_node->id] + utils::Dist(source_node->loc, target_node->loc);
-  if (_cur_latency[target_node->id] > new_latency) {
-    _cur_latency[target_node->id] = new_latency;
+  const auto source_index = ToSaltIndex(source_node->id);
+  const auto target_index = ToSaltIndex(target_node->id);
+  const auto edge_distance = utils::Dist(source_node->loc, target_node->loc);
+  const auto new_latency = _cur_latency[source_index] + edge_distance;
+  if (_cur_latency[target_index] > new_latency) {
+    _cur_latency[target_index] = new_latency;
     target_node->parent = source_node;
     return true;
   }
-  if (_cur_latency[target_node->id] == new_latency
-      && utils::Dist(source_node->loc, target_node->loc) < target_node->WireToParentChecked()) {
+  if (_cur_latency[target_index] == new_latency && edge_distance < target_node->WireToParentChecked()) {
     target_node->parent = source_node;
     return true;
   }
@@ -259,9 +275,10 @@ void CustomSaltBuilder::dfs(const std::shared_ptr<salt::TreeNode>& tree_node, co
 
     if (!frame.entered) {
       frame.entered = true;
-      if (current_tree_node->pin && _cur_latency[current_cbs_node->id] > (1 + eps) * _shortest_latency[current_cbs_node->id]) {
+      const auto current_latency_index = ToSaltIndex(current_cbs_node->id);
+      if (current_tree_node->pin && _cur_latency[current_latency_index] > (1 + eps) * _shortest_latency[current_latency_index]) {
         current_cbs_node->parent = _src;
-        _cur_latency[current_cbs_node->id] = _shortest_latency[current_cbs_node->id];
+        _cur_latency[current_latency_index] = _shortest_latency[current_latency_index];
       }
     }
 
@@ -274,7 +291,7 @@ void CustomSaltBuilder::dfs(const std::shared_ptr<salt::TreeNode>& tree_node, co
     }
 
     auto child = current_tree_node->children[frame.next_child_index++];
-    auto child_cbs_node = _nodes[child->id];
+    auto child_cbs_node = _nodes[ToSaltIndex(child->id)];
     relax(current_cbs_node, child_cbs_node);
     frame_stack.push_back(DfsFrame{child, child_cbs_node, 0, false});
   }

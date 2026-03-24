@@ -126,7 +126,7 @@ void CTSAPI::summaryClockDistribution()
   CTS_LOG_INFO << "============================================";
 }
 
-void CTSAPI::report(const std::string& save_dir)
+void CTSAPI::report(const std::string& /*save_dir*/)
 {
   // TBD(clw): Reporting flow is not implemented yet.
 }

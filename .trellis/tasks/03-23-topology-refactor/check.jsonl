@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/quality-guidelines.md", "reason": "Validate topology refactor against include/CMake/quality rules"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/directory-structure.md", "reason": "Validate target split against iCTS module/submodule patterns"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/project-constraints.md", "reason": "Validate mandatory iCTS constraints after refactor"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/error-handling.md", "reason": "Validate topology behavior still follows logging-based error handling"}
+{"file": "/home/liweiguo/project/ecc-tools-dev/.trellis/spec/backend/logging-guidelines.md", "reason": "Validate CTS_LOG usage in touched topology code"}

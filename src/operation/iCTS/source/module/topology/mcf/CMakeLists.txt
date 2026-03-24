@@ -1,11 +1,17 @@
 add_library(icts_source_module_topology_mcf INTERFACE)
 
-target_link_libraries(icts_source_module_topology_mcf INTERFACE lemon)
+target_link_libraries(
+  icts_source_module_topology_mcf
+  INTERFACE
+  lemon
+)
+
+set_target_properties(icts_source_module_topology_mcf PROPERTIES LINKER_LANGUAGE CXX)
 
 target_include_directories(
   icts_source_module_topology_mcf
   INTERFACE
-  ${ICTS_SOLVER}/tools/balance_clustering/min_cost_flow
+  ${ICTS_MODULE_TOPOLOGY}/mcf
 )
 
 if(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_MCF)

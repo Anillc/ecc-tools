@@ -28,8 +28,8 @@
 #include <limits>
 #include <vector>
 
+#include "Geometry.hh"
 #include "Point.hh"
-#include "geometry/Geometry.hh"
 
 namespace icts {
 
@@ -40,7 +40,7 @@ class KMeans
   struct Result
   {
     std::vector<Point<double>> centers;
-    std::vector<int> labels;
+    std::vector<std::size_t> labels;
   };
 
   KMeans() = default;
@@ -67,13 +67,13 @@ class KMeans
 
       for (std::size_t i = 0; i < values.size(); ++i) {
         const auto point = toPoint(getter(values[i]));
-        int best_index = 0;
+        std::size_t best_index = 0;
         double best_dist = std::numeric_limits<double>::max();
         for (std::size_t c = 0; c < result.centers.size(); ++c) {
           const double dist = geometry::Manhattan(point, result.centers[c]);
           if (dist < best_dist) {
             best_dist = dist;
-            best_index = static_cast<int>(c);
+            best_index = c;
           }
         }
         if (result.labels[i] != best_index) {
@@ -84,14 +84,14 @@ class KMeans
 
       std::vector<double> sum_x(result.centers.size(), 0.0);
       std::vector<double> sum_y(result.centers.size(), 0.0);
-      std::vector<int> counts(result.centers.size(), 0);
+      std::vector<std::size_t> counts(result.centers.size(), 0);
 
       for (std::size_t i = 0; i < values.size(); ++i) {
-        const int label = result.labels[i];
+        const auto label_index = result.labels[i];
         const auto point = toPoint(getter(values[i]));
-        sum_x[label] += point.get_x();
-        sum_y[label] += point.get_y();
-        ++counts[label];
+        sum_x[label_index] += point.get_x();
+        sum_y[label_index] += point.get_y();
+        ++counts[label_index];
       }
 
       double max_shift = 0.0;
@@ -99,7 +99,7 @@ class KMeans
         if (counts[c] == 0) {
           continue;
         }
-        Point<double> new_center(sum_x[c] / counts[c], sum_y[c] / counts[c]);
+        Point<double> new_center(sum_x[c] / static_cast<double>(counts[c]), sum_y[c] / static_cast<double>(counts[c]));
         max_shift = std::max(max_shift, geometry::Manhattan(result.centers[c], new_center));
         result.centers[c] = new_center;
       }

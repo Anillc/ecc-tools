@@ -128,8 +128,7 @@ TEST_P(TopologyGenTestInterface, BuildAndVisualize)
   auto data = generate_case(test_case);
   ASSERT_EQ(data.loads.size(), test_case.count);
 
-  icts::TopologyGen topology;
-  auto tree = topology.build(data.loads);
+  auto tree = icts::TopologyGen::build(data.loads);
 
   TopologyStats stats;
   std::unordered_map<const icts::Pin*, std::size_t> cluster_map;

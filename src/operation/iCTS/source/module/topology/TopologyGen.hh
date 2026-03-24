@@ -27,23 +27,20 @@
 #include <vector>
 
 #include "Tree.hh"
-#include "clustering/Clustering.hh"
 
 namespace icts {
 
+struct BiPartitionConfig;
 class Pin;
 
 class TopologyGen
 {
  public:
-  using Config = Clustering::Config;
-
-  TopologyGen();
-  explicit TopologyGen(const Config& config);
+  TopologyGen() = delete;
   ~TopologyGen() = default;
 
-  Tree build(const std::vector<Pin*>& loads);
-  void updateConfig(const Config& config);
+  static Tree build(const std::vector<Pin*>& loads);
+  static Tree build(const std::vector<Pin*>& loads, const BiPartitionConfig& config);
 
  private:
   struct BuildCursor
@@ -56,11 +53,9 @@ class TopologyGen
   static void reportRootToLeafLengths(const Tree& tree);
   static std::size_t calcLeafCount(std::size_t load_count);
   static void buildFullTree(Tree& tree, const BuildCursor& cursor, int height);
-  void embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need);
+  static void embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
+                             const BiPartitionConfig& config);
   static void balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y);
-
-  Config _config;
-  Clustering _clustering;
 };
 
 }  // namespace icts

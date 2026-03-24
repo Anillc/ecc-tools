@@ -17,7 +17,9 @@ option(DEBUG_ICTS_SOURCE_UTILS "source utils" OFF)
 option(DEBUG_ICTS_SOURCE_FLOW "source flow" OFF)
 
 # source/module
+option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_KMEANS "source module topology kmeans" OFF)
 option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_MCF "source module topology mcf" OFF)
+option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_CLUSTERING "source module topology clustering" OFF)
 option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY "source module topology" OFF)
 option(DEBUG_ICTS_SOURCE_MODULE "source module" OFF)
 

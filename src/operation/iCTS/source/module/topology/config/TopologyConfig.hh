@@ -15,38 +15,24 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Clustering.hh
+ * @file TopologyConfig.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-01-16
- * @brief Clustering for topology embedding.
+ * @date 2026-03-24
+ * @brief Shared configuration types for topology module algorithms.
  */
 
 #pragma once
 
 #include <cstddef>
-#include <vector>
-
-#include "Point.hh"
 
 namespace icts {
 
-class Pin;
-struct BiPartitionConfig;
-
-struct ClusterResult
+struct BiPartitionConfig
 {
-  std::vector<std::vector<Pin*>> clusters;
-  std::vector<Point<int>> centers;
-};
-
-class Clustering
-{
- public:
-  Clustering() = delete;
-  ~Clustering() = default;
-
-  static ClusterResult biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size);
-  static ClusterResult biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config);
+  double max_ratio = 0.6;
+  int max_iter = 10;
+  int converge_threshold = 1000;
+  std::size_t kmeans_iter_count = 5;
 };
 
 }  // namespace icts

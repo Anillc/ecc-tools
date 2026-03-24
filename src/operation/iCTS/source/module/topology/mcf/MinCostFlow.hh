@@ -20,9 +20,16 @@
  * @brief Min-cost flow helper for topology clustering.
  */
 #pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <iterator>
 #include <ranges>
+#include <utility>
 #include <vector>
 
+#include "Geometry.hh"
 #include "lemon/list_graph.h"
 #include "lemon/maps.h"
 #include "lemon/network_simplex.h"
@@ -40,6 +47,9 @@ template <typename Value>
 class MinCostFlow
 {
  public:
+  using CapacityType = int;
+  using CostType = int;
+
   MinCostFlow() = default;
   ~MinCostFlow() = default;
 
@@ -57,9 +67,12 @@ class MinCostFlow
     using Node = lemon::ListDigraph::Node;
     using NodeMap = lemon::ListDigraph::NodeMap<std::pair<int, int>>;
     using Arc = lemon::ListDigraph::Arc;
-    using ArcMap = lemon::ListDigraph::ArcMap<int>;
+    using ArcMap = lemon::ListDigraph::ArcMap<CostType>;
     using ArcIt = lemon::ListDigraph::ArcIt;
-    using MinCostFlowSolver = lemon::NetworkSimplex<lemon::ListDigraph, int, int>;
+    using MinCostFlowSolver = lemon::NetworkSimplex<lemon::ListDigraph, CapacityType, CostType>;
+
+    const auto cluster_capacity = static_cast<CapacityType>(max_cluster_size);
+    const auto total_supply = static_cast<CapacityType>(_nodes.size());
 
     // Define the network
     lemon::ListDigraph network;
@@ -86,8 +99,8 @@ class MinCostFlow
       source_sink_arcs.emplace_back(network.addArc(source, sink));
     }
 
-    // sink -> buffer arcs (with dist costs)
-    std::vector<float> dist_costs;
+    // sink -> buffer arcs (with distance costs)
+    std::vector<CostType> dist_costs;
     dist_costs.reserve(sinks.size() * buffers.size());
 
     for (size_t i = 0; i < sinks.size(); ++i) {
@@ -95,7 +108,7 @@ class MinCostFlow
       const auto& sink_pt = _nodes[i].point;
 
       for (size_t j = 0; j < buffers.size(); ++j) {
-        auto dist = calcManhDist(sink_pt, _centers[j]);
+        auto dist = calcCost(sink_pt, _centers[j]);
         sink_buffer_arcs.emplace_back(network.addArc(sink, buffers[j]));
         dist_costs.emplace_back(dist);
       }
@@ -116,14 +129,14 @@ class MinCostFlow
       arc_cost[sink_buffer_arcs[i]] = dist_costs[i];
     }
     for (size_t i = 0; i < buffer_target_arcs.size(); ++i) {
-      arc_capacity[buffer_target_arcs[i]] = max_cluster_size;
+      arc_capacity[buffer_target_arcs[i]] = cluster_capacity;
     }
 
     // mcf solver by lemon
     MinCostFlowSolver mcf(network);
     mcf.costMap(arc_cost);
     mcf.upperMap(arc_capacity);
-    mcf.stSupply(source, target, _nodes.size());
+    mcf.stSupply(source, target, total_supply);
     mcf.run();
     ArcMap solution(network);
     mcf.flowMap(solution);
@@ -149,8 +162,9 @@ class MinCostFlow
         continue;
       }
       if (node_map[network.source(it)].second == -1 && node_map[network.target(it)].first == -1) {
-        auto cluster_id = node_map[network.target(it)].second;
-        clusters[cluster_id].emplace_back(_nodes[node_map[network.source(it)].first].value);
+        const auto cluster_id = static_cast<std::size_t>(node_map[network.target(it)].second);
+        const auto node_index = static_cast<std::size_t>(node_map[network.source(it)].first);
+        clusters[cluster_id].emplace_back(_nodes[node_index].value);
       }
     }
     // remove empty cluster
@@ -169,7 +183,11 @@ class MinCostFlow
     FlowPoint point;
     Value value;
   };
-  static double calcManhDist(const FlowPoint& p1, const FlowPoint& p2) { return std::fabs(p1.x - p2.x) + std::fabs(p1.y - p2.y); }
+  static CostType calcCost(const FlowPoint& p1, const FlowPoint& p2)
+  {
+    const auto dist = geometry::Manhattan(Point<double>(p1.x, p1.y), Point<double>(p2.x, p2.y));
+    return static_cast<CostType>(dist);
+  }
   std::vector<FlowPoint> _centers;
   std::vector<FlowNode> _nodes;
 };

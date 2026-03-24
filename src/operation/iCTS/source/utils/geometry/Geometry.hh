@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -117,10 +118,12 @@ inline auto CalcMedian(const std::vector<Value>& values, PointGetter getter)
     ys.push_back(p.get_y());
   }
 
-  const auto mid = xs.size() / 2;
-  std::nth_element(xs.begin(), xs.begin() + mid, xs.end());
-  std::nth_element(ys.begin(), ys.begin() + mid, ys.end());
-  return PointT(xs[mid], ys[mid]);
+  const auto mid_offset = static_cast<std::ptrdiff_t>(xs.size() / 2);
+  auto x_mid_iter = xs.begin() + mid_offset;
+  auto y_mid_iter = ys.begin() + mid_offset;
+  std::nth_element(xs.begin(), x_mid_iter, xs.end());
+  std::nth_element(ys.begin(), y_mid_iter, ys.end());
+  return PointT(*x_mid_iter, *y_mid_iter);
 }
 
 /**

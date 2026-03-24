@@ -204,9 +204,16 @@ struct BuildFrame
 
 constexpr std::size_t kTraversalOrderReserve = 64;
 
+auto MakeBuildFrame(std::size_t child_id) -> BuildFrame
+{
+  BuildFrame frame;
+  frame.node_id = child_id;
+  return frame;
+}
+
 void PushBuildFrame(std::vector<BuildFrame>& frame_stack, std::size_t child_id)
 {
-  frame_stack.push_back(BuildFrame{child_id});
+  frame_stack.push_back(MakeBuildFrame(child_id));
 }
 
 auto CreateSteinerNode(const Point<int>& location, const BSTParameters& parameters, std::size_t& next_steiner_id,

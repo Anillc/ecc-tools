@@ -20,10 +20,11 @@
  * @date 2026-01-11
  * @brief Configuration parser for iCTS.
  */
-#include "Config.hh"
+#include "database/config/Config.hh"
 
 #include <cctype>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -69,15 +70,33 @@ auto parse_double(const nlohmann::json& value, double default_value) -> double
 
 auto parse_unsigned(const nlohmann::json& value, unsigned default_value) -> unsigned
 {
+  constexpr auto unsigned_max = static_cast<unsigned long>(std::numeric_limits<unsigned>::max());
+
   if (value.is_number_integer()) {
-    return value.get<unsigned>();
+    const auto parsed = value.get<long long>();
+    if (parsed < 0) {
+      return default_value;
+    }
+    const auto parsed_unsigned = static_cast<unsigned long long>(parsed);
+    if (parsed_unsigned > unsigned_max) {
+      return default_value;
+    }
+    return static_cast<unsigned>(parsed_unsigned);
   }
   if (value.is_number_float()) {
-    return static_cast<unsigned>(value.get<double>());
+    const auto parsed = value.get<double>();
+    if (parsed < 0.0 || parsed > static_cast<double>(std::numeric_limits<unsigned>::max())) {
+      return default_value;
+    }
+    return static_cast<unsigned>(parsed);
   }
   if (value.is_string()) {
     try {
-      return std::stoul(value.get<std::string>());
+      const auto parsed = std::stoul(value.get<std::string>());
+      if (parsed > unsigned_max) {
+        return default_value;
+      }
+      return static_cast<unsigned>(parsed);
     } catch (...) {
       return default_value;
     }

@@ -101,7 +101,7 @@ auto buildBinaryTreeIteratively(const std::vector<Area*>& areas, const SplitFunc
   CTS_LOG_FATAL_IF(areas.empty()) << tree_name << " areas are empty.";
 
   std::vector<TreeBuildFrame> frames;
-  frames.push_back(TreeBuildFrame{.areas = areas});
+  frames.push_back(TreeBuildFrame{.areas = areas, .parent_index = std::nullopt});
   Area* root = nullptr;
 
   while (!frames.empty()) {
@@ -164,7 +164,8 @@ auto expandCentersByKMeansPlus(const std::vector<Area*>& areas, const size_t clu
   while (center_points.size() < cluster_count) {
     auto squared_distances = calcSquaredDistancesToCenters(areas, center_points);
     std::discrete_distribution<> distribution(squared_distances.begin(), squared_distances.end());
-    center_points.push_back(areas[distribution(generator)]->get_location());
+    const auto selected_index = static_cast<std::size_t>(distribution(generator));
+    center_points.push_back(areas[selected_index]->get_location());
   }
 }
 
