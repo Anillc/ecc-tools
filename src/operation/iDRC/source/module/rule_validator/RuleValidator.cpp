@@ -127,8 +127,7 @@ void collectBoundaryEdges(GTLHolePolyInt& check_hole_poly, bool is_hole, int32_t
   }
 }
 
-bool isBoundaryCoveredByEnv(const BoundaryData& boundary_data,
-                            const bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>>& env_boundary_rtree,
+bool isBoundaryCoveredByEnv(const BoundaryData& boundary_data, const bgi::rtree<std::pair<GTLRectInt, int32_t>, bgi::quadratic<16>>& env_boundary_rtree,
                             const std::vector<BoundaryData>& env_boundary_pool)
 {
   std::vector<std::pair<GTLRectInt, int32_t>> env_boundary_pairs;
@@ -527,8 +526,8 @@ void RuleValidator::prepareRVCluster(RVCluster& rv_cluster)
 
       for (GTLHolePolyInt& gtl_hole_poly : gtl_hole_poly_list) {
         int32_t polygon_id = static_cast<int32_t>(rv_layer_data.polygon_pool.size());
-        rv_layer_data.polygon_pool.push_back({net_idx, static_cast<int32_t>(rv_layer_data.max_rect_pool.size()), 0,
-                                              static_cast<int32_t>(rv_layer_data.boundary_pool.size()), 0});
+        rv_layer_data.polygon_pool.push_back(
+            {net_idx, static_cast<int32_t>(rv_layer_data.max_rect_pool.size()), 0, static_cast<int32_t>(rv_layer_data.boundary_pool.size()), 0});
         PolygonData& polygon_data = rv_layer_data.polygon_pool.back();
         polygon_data.hole_poly = gtl_hole_poly;
 
