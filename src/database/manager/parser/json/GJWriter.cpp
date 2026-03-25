@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string.h>
-// #include "/home/shuyuz/iEDA/src/platform/data_manager/idm.h"
+
 #include <fstream>
 #define sref_expension 0
 namespace idb {
