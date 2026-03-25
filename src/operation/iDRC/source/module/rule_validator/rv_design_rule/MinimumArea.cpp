@@ -19,7 +19,6 @@
 
 namespace idrc {
 
-
 void RuleValidator::verifyMinimumArea(RVCluster& rv_cluster)
 {
   using ViolationBBoxRTree = bgi::rtree<GTLRectInt, bgi::quadratic<16>>;

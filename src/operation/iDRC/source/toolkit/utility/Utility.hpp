@@ -687,7 +687,10 @@ class Utility
 
   static PlanarCoord convertToPlanarCoord(GTLPointInt gtl_point) { return PlanarCoord(gtl_point.x(), gtl_point.y()); }
 
-  static PlanarRect convertToPlanarRect(const GTLRectInt& gtl_rect) { return PlanarRect(gtl::xl(gtl_rect), gtl::yl(gtl_rect), gtl::xh(gtl_rect), gtl::yh(gtl_rect)); }
+  static PlanarRect convertToPlanarRect(const GTLRectInt& gtl_rect)
+  {
+    return PlanarRect(gtl::xl(gtl_rect), gtl::yl(gtl_rect), gtl::xh(gtl_rect), gtl::yh(gtl_rect));
+  }
 
   static PlanarRect convertToPlanarRect(const BGRectInt& boost_box)
   {
