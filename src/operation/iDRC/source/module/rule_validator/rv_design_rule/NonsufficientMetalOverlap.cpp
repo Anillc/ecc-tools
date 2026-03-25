@@ -28,9 +28,13 @@ void RuleValidator::verifyNonsufficientMetalOverlap(RVCluster& rv_cluster)
     int32_t min_width = routing_layer.get_minimum_width_rule().min_width;
     int32_t half_width = min_width / 2;
     for (auto& [net_idx, routing_net] : rv_layer_data.nets) {
-      if (net_idx == -1) { continue; }
+      if (net_idx == -1) {
+        continue;
+      }
       for (const MaxRectData& max_rect_data : rv_layer_data.getMaxRects(routing_net)) {
-        if (max_rect_data.isEnv) { continue; }
+        if (max_rect_data.isEnv) {
+          continue;
+        }
         const GTLRectInt& gtl_rect = max_rect_data.rect;
         PlanarRect rect = DRCUTIL.convertToPlanarRect(gtl_rect);
         std::vector<std::pair<GTLRectInt, int32_t>> env_rect_id_list;

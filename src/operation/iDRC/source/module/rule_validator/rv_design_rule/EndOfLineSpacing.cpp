@@ -14,9 +14,6 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include <cstdint>
-#include <iterator>
-#include <vector>
 #include "DataManager.hpp"
 #include "Orientation.hpp"
 #include "PlanarRect.hpp"
@@ -40,7 +37,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
   const auto& layer_data = rv_cluster.get_layer_data();
 
   // query original net, return -1 if not exist
-  auto queryNetIdxByRect = [] (const RVLayerData& rv_layer_data, const PlanarRect& query_rect) -> int32_t {
+  auto queryNetIdxByRect = [](const RVLayerData& rv_layer_data, const PlanarRect& query_rect) -> int32_t {
     std::vector<std::pair<GTLRectInt, int32_t>> rect_max_rect_pair_list;
     rv_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(query_rect), std::back_inserter(rect_max_rect_pair_list));
     return rect_max_rect_pair_list.empty() ? -1 : rv_layer_data.getNetIdxByMaxRectId(rect_max_rect_pair_list.front().second);
@@ -50,32 +47,31 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
     const BoundaryData& boundary = rv_layer_data.getBoundary(boundary_id);
     Segment<PlanarCoord> boundary_seg(boundary.begin_coord, boundary.end_coord);
     Direction boundary_dir = DRCUTIL.getDirection(boundary.begin_coord, boundary.end_coord);
-  
+
     std::vector<std::pair<GTLRectInt, int32_t>> rect_hits;
     rv_layer_data.queryMaxRects(boundary.edge, std::back_inserter(rect_hits));
-  
+
     int32_t min_thickness = INT32_MAX;
     for (const auto& [gtl_rect, max_rect_id] : rect_hits) {
       const MaxRectData& max_rect_data = rv_layer_data.getMaxRect(max_rect_id);
       if (max_rect_data.polygon_id != boundary.polygon_id) {
         continue;
       }
-  
+
       PlanarRect rect = DRCUTIL.convertToPlanarRect(gtl_rect);
       if (DRCUTIL.getTouchedEdgeOrient(rect, boundary_seg) != boundary.orient) {
         continue;
       }
-  
+
       int32_t thickness = (boundary_dir == Direction::kHorizontal) ? rect.getYSpan() : rect.getXSpan();
       min_thickness = std::min(min_thickness, thickness);
     }
-  
+
     return min_thickness == INT32_MAX ? 0 : min_thickness;
   };
 
-  auto getBoundaryMinThickness = [&calcBoundaryMinThickness](const RVLayerData& rv_layer_data,
-                                                             std::vector<int32_t>& boundary_min_thickness_cache,
-                                                             int32_t boundary_id) -> int32_t {
+  auto getBoundaryMinThickness
+      = [&calcBoundaryMinThickness](const RVLayerData& rv_layer_data, std::vector<int32_t>& boundary_min_thickness_cache, int32_t boundary_id) -> int32_t {
     if (boundary_id < 0 || boundary_id >= static_cast<int32_t>(boundary_min_thickness_cache.size())) {
       return 0;
     }
@@ -86,7 +82,6 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
     }
     return cached_thickness;
   };
-
 
   // total polyset of all net
   std::map<int32_t, GTLPolySetInt> layer_merged_polyset_map;
@@ -229,8 +224,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
 
       int32_t polygon_id = static_cast<int32_t>(merged_layer_data.polygon_pool.size());
       merged_layer_data.polygon_pool.push_back(
-          {net_idx, static_cast<int32_t>(merged_layer_data.max_rect_pool.size()), 0,
-           static_cast<int32_t>(merged_layer_data.boundary_pool.size()), 0});
+          {net_idx, static_cast<int32_t>(merged_layer_data.max_rect_pool.size()), 0, static_cast<int32_t>(merged_layer_data.boundary_pool.size()), 0});
       PolygonData& polygon_data = merged_layer_data.polygon_pool.back();
 
       std::vector<GTLRectInt> gtl_rect_list;
@@ -351,7 +345,6 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
     layer_boundary_min_thickness_cache_map[routing_layer_idx].assign(merged_layer_data.boundary_pool.size(), -1);
   }
 
-
   // env
   std::map<int32_t, bgi::rtree<GTLRectInt, bgi::quadratic<16>>> obs_bg_rtree_map;
   std::map<int32_t, GTLPolySetInt> layer_obs;
@@ -402,7 +395,6 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
     const LayerEolRuleProfile& layer_rule_profile = layer_rule_profile_map.at(routing_layer_idx);
     const int32_t layer_max_width = layer_rule_max_width.at(routing_layer_idx);
     for (int32_t eol_idx : eol_edge_idx) {
-
       const auto& eol_boundary = merged_layer_data.getBoundary(eol_idx);
       const auto& pre_boundary = merged_layer_data.getPrevBoundary(eol_idx);
       const auto& post_boundary = merged_layer_data.getNextBoundary(eol_idx);
@@ -412,8 +404,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
       PlanarRect eol_edge_rect = DRCUTIL.convertToPlanarRect(eol_boundary.edge);
 
       Direction direction = DRCUTIL.getDirection(eol_boundary.begin_coord, eol_boundary.end_coord);
-      PlanarRect eol_rect = DRCUTIL.getBoundingBox(
-          {pre_boundary.begin_coord, pre_boundary.end_coord, post_boundary.begin_coord, post_boundary.end_coord});
+      PlanarRect eol_rect = DRCUTIL.getBoundingBox({pre_boundary.begin_coord, pre_boundary.end_coord, post_boundary.begin_coord, post_boundary.end_coord});
       int32_t checking_net = -2;
       auto getCheckingNet = [&]() -> int32_t {
         if (checking_net == -2) {
@@ -421,7 +412,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
         }
         return checking_net;
       };
-      
+
       // to be checked spacing rects
       std::vector<std::pair<GTLRectInt, int32_t>> env_checking_poly_list;
 
@@ -675,7 +666,7 @@ void RuleValidator::verifyEndOfLineSpacing(RVCluster& rv_cluster)
             continue;
           }
           PlanarRect spacing_rect = DRCUTIL.getSpacingRect(eol_rect, env_rect);
-          std::set<int32_t> net_list {getCheckingNet(), queryNetIdxByRect(rv_layer_data, env_rect)};
+          std::set<int32_t> net_list{getCheckingNet(), queryNetIdxByRect(rv_layer_data, env_rect)};
           int32_t req_size = violation_type == 1 ? eol_rule.ete_spacing : eol_rule.eol_spacing;
           if (DRCUTIL.getEuclideanDistance(eol_edge_rect, env_rect) >= req_size) {
             continue;

@@ -16,13 +16,6 @@
 // ***************************************************************************************
 #include "RuleValidator.hpp"
 
-#include <algorithm>
-#include <limits>
-#include <map>
-#include <set>
-#include <utility>
-#include <vector>
-
 namespace idrc {
 
 namespace {
@@ -166,8 +159,7 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
 
         auto& polygon_convex_candidates = layer_polygon_convex_candidates[routing_layer_idx][polygon_id];
         for (int32_t i = 0; i < coord_size; i++) {
-          if (!(convex_corner_list[getIdx(i - 1, coord_size)] && convex_corner_list[getIdx(i, coord_size)]
-                && convex_corner_list[getIdx(i + 1, coord_size)])) {
+          if (!(convex_corner_list[getIdx(i - 1, coord_size)] && convex_corner_list[getIdx(i, coord_size)] && convex_corner_list[getIdx(i + 1, coord_size)])) {
             continue;
           }
 
@@ -180,11 +172,9 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
           }
 
           polygon_convex_candidates[enc_rect].push_back(
-              {outer_boundary_ids[getIdx(i, coord_size)], outer_boundary_ids[getIdx(i - 1, coord_size)],
-               DRCUTIL.getManhattanDistance(curr_coord, post_coord)});
-          polygon_convex_candidates[enc_rect].push_back(
-              {outer_boundary_ids[getIdx(i + 1, coord_size)], outer_boundary_ids[getIdx(i + 2, coord_size)],
-               DRCUTIL.getManhattanDistance(curr_coord, pre_coord)});
+              {outer_boundary_ids[getIdx(i, coord_size)], outer_boundary_ids[getIdx(i - 1, coord_size)], DRCUTIL.getManhattanDistance(curr_coord, post_coord)});
+          polygon_convex_candidates[enc_rect].push_back({outer_boundary_ids[getIdx(i + 1, coord_size)], outer_boundary_ids[getIdx(i + 2, coord_size)],
+                                                         DRCUTIL.getManhattanDistance(curr_coord, pre_coord)});
         }
       }
     }
@@ -466,8 +456,7 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
               int32_t curr_length = curr_boundary.edge_length;
               int32_t adj_length = adj_boundary.edge_length;
               Orientation checking_orient = curr_boundary.orient;
-              if (curr_length > convex_rule.convex_length || convex_candidate.other_length > convex_rule.adjacent_length
-                  || adj_length < convex_rule.length) {
+              if (curr_length > convex_rule.convex_length || convex_candidate.other_length > convex_rule.adjacent_length || adj_length < convex_rule.length) {
                 continue;
               }
               if (orient_overhang_map[checking_orient] >= convex_rule.overhang) {
@@ -484,8 +473,7 @@ void RuleValidator::verifyEnclosureEdge(RVCluster& rv_cluster)
               if (env_rtree_it != routing_env_rtree_map.end()) {
                 std::vector<std::pair<GTLRectInt, int32_t>> env_only_rect_net_pair_list;
                 PlanarRect check_rect = DRCUTIL.getEnlargedRect(routing_rect, convex_rule.convex_par_within);
-                env_rtree_it->second.query(bgi::intersects(DRCUTIL.convertToGTLRectInt(check_rect)),
-                                           std::back_inserter(env_only_rect_net_pair_list));
+                env_rtree_it->second.query(bgi::intersects(DRCUTIL.convertToGTLRectInt(check_rect)), std::back_inserter(env_only_rect_net_pair_list));
                 for (const auto& [env_only_gtl_rect, env_only_net_idx] : env_only_rect_net_pair_list) {
                   PlanarRect env_only_rect = DRCUTIL.convertToPlanarRect(env_only_gtl_rect);
                   if (!isValidRect(env_only_rect) || DRCUTIL.isClosedOverlap(routing_rect, env_only_rect)) {
