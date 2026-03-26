@@ -508,3 +508,49 @@ Completed full code standards audit for iCTS module.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Fix ecc_dev_tools binary version detection
+
+**Date**: 2026-03-26
+**Task**: Fix ecc_dev_tools binary version detection
+
+### Summary
+
+Fixed dynamic clang tool selection so ecc_dev_tools prefers the newest installed binaries and correctly parses multiline version output.
+
+### Main Changes
+
+| Feature | Description |
+|---------|-------------|
+| Binary selection | Improved tool discovery to combine binary suffix versions and reported `--version` output when choosing the newest available clang-related executable |
+| Version parsing | Fixed multiline `--version` parsing so tools like `clang-tidy` and `clang-scan-deps` correctly report `LLVM version 22.1.2` from later lines |
+| Dependency scanning | Updated `clang-scan-deps` flow to use the resolved `clang++` binary instead of hard-coded `clang++` |
+| UX | Removed fixed `-18` install hints from doctor output |
+| Regression coverage | Added tests for multiline version output, version suffix parsing, binary sort behavior, and `clang-scan-deps` compiler selection |
+
+**Updated Files**:
+- `.trellis/ecc_dev_tools/check.py`
+- `.trellis/ecc_dev_tools/checkers.py`
+- `.trellis/ecc_dev_tools/environment.py`
+- `.trellis/ecc_dev_tools/tests/test_core.py`
+- `.trellis/ecc_dev_tools/utils.py`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7f945bae2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
