@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/ecc_dev_tools/check.py", "reason": "Verify doctor output and install hints stay coherent"}
+{"file": ".trellis/ecc_dev_tools/environment.py", "reason": "Verify environment inspection and version selection behavior"}

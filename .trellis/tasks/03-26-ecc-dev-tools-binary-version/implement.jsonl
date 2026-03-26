@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/ecc_dev_tools/check.py", "reason": "CLI doctor output and install hints for tool resolution"}
+{"file": ".trellis/ecc_dev_tools/environment.py", "reason": "Environment inspection and tool binary selection logic"}

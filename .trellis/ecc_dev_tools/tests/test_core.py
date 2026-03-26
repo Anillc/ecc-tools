@@ -16,6 +16,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
 # Make the parent package importable without installing it.
@@ -33,6 +34,7 @@ from ecc_dev_tools.models import (
     Finding,
     Scope,
     TidyPass,
+    ToolStatus,
 )
 from ecc_dev_tools.profiles import (
     PROFILES,
@@ -53,6 +55,7 @@ from ecc_dev_tools.checkers import (
     _parallel_map,
     _parse_clang_tidy_output,
     _parse_iwyu_output,
+    _scan_deps_for_file,
     _strip_diagnostic_suffix,
 )
 from ecc_dev_tools.reporting import (
@@ -67,10 +70,13 @@ from ecc_dev_tools.build_context import (
     _merge_link_scope,
 )
 from ecc_dev_tools.scope import build_scope
+from ecc_dev_tools.environment import _binary_sort_key, _probe_tool
 from ecc_dev_tools.utils import (
     dedupe_keep_order,
     default_jobs,
+    parse_version_suffix,
     parse_version_text,
+    run_command,
     version_meets_minimum,
 )
 
@@ -992,6 +998,96 @@ class TestBuildSourceSyntaxCommand(unittest.TestCase):
         self.assertIn("-Wsign-conversion", result)
 
 
+class TestProbeTool(unittest.TestCase):
+    """_probe_tool() -- preserves multiline version output so version parsing can see later lines."""
+
+    @patch("ecc_dev_tools.environment.shutil.which", return_value="/usr/bin/clang-tidy")
+    @patch("ecc_dev_tools.environment.run_command")
+    def test_keeps_multiline_version_output(self, run_command_mock, _which_mock):
+        run_command_mock.return_value = type(
+            "Result",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "LLVM (http://llvm.org/):\n  LLVM version 22.1.2\n  Optimized build with assertions.\n",
+                "stderr": "",
+            },
+        )()
+        requirement = type("Requirement", (), {"name": "clang-tidy", "required": True, "min_version": None})()
+
+        status = _probe_tool(Path("/tmp"), requirement)
+
+        self.assertEqual(parse_version_text(status.version_text or ""), (22, 1, 2))
+        self.assertIn("LLVM version 22.1.2", status.version_text or "")
+
+
+class TestBinarySortKey(unittest.TestCase):
+    """_binary_sort_key() -- prefer explicit versioned binary suffix over reported output."""
+
+    def test_prefers_higher_suffix_even_if_reported_version_is_major_only(self):
+        older = ToolStatus(
+            name="clang-tidy",
+            required=True,
+            found=True,
+            executable="/usr/bin/clang-tidy-18",
+            version_text="Debian LLVM version 18",
+            ok=True,
+            selected_candidate="clang-tidy-18",
+        )
+        newer = ToolStatus(
+            name="clang-tidy",
+            required=True,
+            found=True,
+            executable="/usr/bin/clang-tidy-22",
+            version_text="Debian LLVM version 22",
+            ok=True,
+            selected_candidate="clang-tidy-22",
+        )
+        self.assertGreater(_binary_sort_key(newer, "clang-tidy"), _binary_sort_key(older, "clang-tidy"))
+
+
+    def test_prefers_higher_reported_version_when_unversioned_binary_is_newer(self):
+        direct = ToolStatus(
+            name="clang-format",
+            required=True,
+            found=True,
+            executable="/usr/bin/clang-format",
+            version_text="clang-format version 22.1.2",
+            ok=True,
+            selected_candidate="clang-format",
+        )
+        versioned = ToolStatus(
+            name="clang-format",
+            required=True,
+            found=True,
+            executable="/usr/bin/clang-format-18",
+            version_text="Debian clang-format version 18.1.8",
+            ok=True,
+            selected_candidate="clang-format-18",
+        )
+        self.assertGreater(_binary_sort_key(direct, "clang-format"), _binary_sort_key(versioned, "clang-format"))
+
+
+class TestScanDepsForFile(unittest.TestCase):
+    """_scan_deps_for_file() -- uses resolved clang++ binary rather than hard-coded clang++."""
+
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_uses_selected_compiler_binary(self, run_command_mock):
+        run_command_mock.return_value = type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        command = CompileCommand(
+            file=Path("/src/File.cc"),
+            directory=Path("/build"),
+            command="g++ -c -std=c++20 /src/File.cc",
+        )
+
+        _scan_deps_for_file(command, "/usr/bin/clang-scan-deps", "/opt/llvm/bin/clang++")
+
+        args = run_command_mock.call_args.args[0]
+        self.assertEqual(args[0], "/usr/bin/clang-scan-deps")
+        self.assertIn("--", args)
+        self.assertEqual(args[2], "/opt/llvm/bin/clang++")
+
+
 class TestParseIwyuOutput(unittest.TestCase):
     """_parse_iwyu_output() -- parsing of IWYU stderr output."""
 
@@ -1493,6 +1589,11 @@ class TestParseVersionText(unittest.TestCase):
         result = parse_version_text(text)
         self.assertEqual(result, ())
 
+    def test_major_only_version(self):
+        text = "Debian LLVM version 18"
+        result = parse_version_text(text)
+        self.assertEqual(result, (18,))
+
     def test_gcc_version(self):
         text = "g++ (Ubuntu 10.5.0-1ubuntu1~22.04) 10.5.0"
         result = parse_version_text(text)
@@ -1502,6 +1603,19 @@ class TestParseVersionText(unittest.TestCase):
         text = "version 3.11"
         result = parse_version_text(text)
         self.assertEqual(result, (3, 11))
+
+
+class TestParseVersionSuffix(unittest.TestCase):
+    """parse_version_suffix() -- version extraction from versioned binary names."""
+
+    def test_extracts_major_suffix(self):
+        self.assertEqual(parse_version_suffix("clang-tidy-18", "clang-tidy"), (18,))
+
+    def test_extracts_multi_part_suffix(self):
+        self.assertEqual(parse_version_suffix("clang-tidy-18.1", "clang-tidy"), (18, 1))
+
+    def test_non_matching_name_returns_empty(self):
+        self.assertEqual(parse_version_suffix("clang-tidy", "clang-tidy"), ())
 
 
 class TestVersionMeetsMinimum(unittest.TestCase):

@@ -391,8 +391,9 @@ def run_header_dependency_check(
     ]
 
     if scanner_binary and scoped_commands:
+        clangxx_binary = _tool_executable(snapshot, "clang++")
         # Use clang-scan-deps for accurate transitive include scanning
-        dep_map = _scan_deps_batch(scoped_commands, scanner_binary, jobs=snapshot.jobs)
+        dep_map = _scan_deps_batch(scoped_commands, scanner_binary, clangxx_binary, jobs=snapshot.jobs)
         result.notes.append(f"clang-scan-deps scanned {len(dep_map)} source files for include dependencies.")
         for target in targets:
             reachable = _transitive_deps(target.name, context.declared_graph)
@@ -807,15 +808,15 @@ def _optional_tool_executable(snapshot: EnvironmentSnapshot, name: str) -> str |
     return status.executable
 
 
-def _scan_deps_for_file(compile_command: CompileCommand, scanner_binary: str, timeout: int = 60) -> list[Path]:
+def _scan_deps_for_file(compile_command: CompileCommand, scanner_binary: str, compiler_binary: str, timeout: int = 60) -> list[Path]:
     """Use clang-scan-deps to get the complete include dependency list for a source file.
 
     Returns a list of absolute paths to all transitively included headers.
     """
     cmd_tokens = shlex.split(compile_command.command)
     if cmd_tokens:
-        # Replace compiler with clang++ (clang-scan-deps needs clang-compatible driver)
-        cmd_tokens[0] = "clang++"
+        # Replace compiler with the selected clang++ driver (clang-scan-deps needs a clang-compatible driver)
+        cmd_tokens[0] = compiler_binary
 
     scan_cmd = [scanner_binary, "--", *cmd_tokens]
     try:
@@ -839,14 +840,14 @@ def _scan_deps_for_file(compile_command: CompileCommand, scanner_binary: str, ti
 
 
 def _scan_deps_batch(
-    compile_commands: list[CompileCommand], scanner_binary: str, jobs: int = 1
+    compile_commands: list[CompileCommand], scanner_binary: str, compiler_binary: str, jobs: int = 1
 ) -> dict[Path, list[Path]]:
     """Scan include dependencies for multiple source files.
 
     Returns a dict mapping source file -> list of included header paths.
     """
     def scan_one(cmd: CompileCommand) -> tuple[Path, list[Path]]:
-        deps = _scan_deps_for_file(cmd, scanner_binary)
+        deps = _scan_deps_for_file(cmd, scanner_binary, compiler_binary)
         return (cmd.file, deps)
 
     results = _parallel_map(scan_one, compile_commands, jobs)

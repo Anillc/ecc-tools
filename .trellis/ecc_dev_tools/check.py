@@ -171,11 +171,11 @@ def _parse_kinds(raw_value: str | None) -> tuple[CheckKind, ...] | None:
 _INSTALL_HINTS: dict[str, str] = {
     "cmake": "apt install cmake  (or: pip install cmake)",
     "ninja": "apt install ninja-build",
-    "clang-format": "apt install clang-format-18  (or: apt install clang-tools-18)",
-    "clang-tidy": "apt install clang-tidy-18  (or: apt install clang-tools-18)",
-    "clang++": "apt install clang-18",
+    "clang-format": "apt install clang-format  (or: apt install clang-tools)",
+    "clang-tidy": "apt install clang-tidy  (or: apt install clang-tools)",
+    "clang++": "apt install clang",
     "g++": "apt install g++-10",
-    "clang-scan-deps": "apt install clang-tools-18",
+    "clang-scan-deps": "apt install clang-tools",
     "include-what-you-use": "Build from source matching your clang version. See: https://github.com/include-what-you-use/include-what-you-use",
 }
 

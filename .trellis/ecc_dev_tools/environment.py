@@ -7,10 +7,24 @@ from typing import Iterable
 
 try:
     from .models import CheckKind, EnvironmentSnapshot, ExecutionPlan, ToolRequirement, ToolStatus
-    from .utils import default_jobs, detect_idle_threads, parse_version_text, run_command, version_meets_minimum
+    from .utils import (
+        default_jobs,
+        detect_idle_threads,
+        parse_version_suffix,
+        parse_version_text,
+        run_command,
+        version_meets_minimum,
+    )
 except ImportError:
     from models import CheckKind, EnvironmentSnapshot, ExecutionPlan, ToolRequirement, ToolStatus
-    from utils import default_jobs, detect_idle_threads, parse_version_text, run_command, version_meets_minimum
+    from utils import (
+        default_jobs,
+        detect_idle_threads,
+        parse_version_suffix,
+        parse_version_text,
+        run_command,
+        version_meets_minimum,
+    )
 
 
 TOOL_REQUIREMENTS: tuple[ToolRequirement, ...] = (
@@ -110,7 +124,7 @@ def _discover_latest_binary(repo_root: Path, requirement: ToolRequirement, overr
         status = _probe_tool(repo_root, requirement, executable_name=override)
         status.selection_policy = "explicit-override"
         status.requested_executable = override
-        status.selected_candidate = override
+        status.selected_candidate = Path(override).name
         if not status.found:
             status.message = f"override not found: {override}"
         else:
@@ -118,16 +132,20 @@ def _discover_latest_binary(repo_root: Path, requirement: ToolRequirement, overr
         return status
 
     best_status: ToolStatus | None = None
+    best_candidate: str | None = None
     for candidate in _versioned_candidates(requirement.name):
         status = _probe_tool(repo_root, requirement, executable_name=candidate)
         if not status.found:
             continue
-        if best_status is None or _binary_sort_key(status) > _binary_sort_key(best_status):
+        if best_status is None or _binary_sort_key(status, requirement.name) > _binary_sort_key(best_status, requirement.name):
             best_status = status
+            best_candidate = candidate
 
     if best_status is not None:
         best_status.name = requirement.name
         best_status.selection_policy = "newest-available"
+        best_status.requested_executable = requirement.name
+        best_status.selected_candidate = Path(best_status.executable).name if best_status.executable else best_candidate
         best_status.message = f"auto-selected newest available {requirement.name}"
         return best_status
 
@@ -139,6 +157,7 @@ def _discover_latest_binary(repo_root: Path, requirement: ToolRequirement, overr
         ok=not requirement.required,
         message="not found in PATH",
         selection_policy="newest-available",
+        requested_executable=requirement.name,
     )
 
 
@@ -149,11 +168,14 @@ def _versioned_candidates(base_name: str) -> list[str]:
     return candidates
 
 
-def _binary_sort_key(status: ToolStatus) -> tuple[tuple[int, ...], int, str]:
-    version = parse_version_text(status.version_text or "")
+def _binary_sort_key(status: ToolStatus, base_name: str) -> tuple[tuple[int, ...], int, str]:
+    candidate_name = Path(status.executable).name if status.executable else status.selected_candidate or status.requested_executable or ""
+    suffix_version = parse_version_suffix(candidate_name, base_name)
+    reported_version = parse_version_text(status.version_text or "")
+    effective_version = max(reported_version, suffix_version)
     direct_match = 1 if status.executable and Path(status.executable).name == status.name else 0
     executable = status.executable or ""
-    return (version, direct_match, executable)
+    return (effective_version, direct_match, executable)
 
 
 def _probe_tool(repo_root: Path, requirement: ToolRequirement, executable_name: str | None = None) -> ToolStatus:
@@ -173,8 +195,8 @@ def _probe_tool(repo_root: Path, requirement: ToolRequirement, executable_name: 
         )
 
     result = run_command([executable, "--version"], cwd=repo_root)
-    version_output = (result.stdout or result.stderr or "").splitlines()
-    version_text = version_output[0].strip() if version_output else "unknown version"
+    version_output = "\n".join(part for part in (result.stdout, result.stderr) if part).strip()
+    version_text = version_output if version_output else "unknown version"
 
     ok = result.returncode == 0
     message = "available"

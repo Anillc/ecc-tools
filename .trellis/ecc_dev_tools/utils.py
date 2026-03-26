@@ -11,6 +11,18 @@ from typing import Iterable, Sequence
 
 def parse_version_text(version_text: str) -> tuple[int, ...]:
     match = re.search(r"(\d+(?:\.\d+)+)", version_text)
+    if match:
+        return tuple(int(part) for part in match.group(1).split("."))
+
+    major_only_match = re.search(r"\bversion\s+(\d+)\b", version_text, flags=re.IGNORECASE)
+    if major_only_match:
+        return (int(major_only_match.group(1)),)
+
+    return tuple()
+
+
+def parse_version_suffix(candidate_name: str, base_name: str) -> tuple[int, ...]:
+    match = re.fullmatch(rf"{re.escape(base_name)}-(\d+(?:\.\d+)*)", candidate_name)
     if not match:
         return tuple()
     return tuple(int(part) for part in match.group(1).split("."))
