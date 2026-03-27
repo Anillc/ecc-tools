@@ -15,3 +15,5 @@
 {"path": "Components.hh", "category": "iwyu", "subtype": "unnecessary-include", "pattern": "<concepts>", "reason": "Required for Numeric concept definition using C++20 concepts syntax", "added": "2026-03-23"}
 {"path": "Components.hh", "category": "iwyu", "subtype": "unnecessary-include", "pattern": "<type_traits>", "reason": "Required for std::is_arithmetic_v used in Numeric concept", "added": "2026-03-23"}
 {"path": "Components.cc", "category": "misc", "subtype": "misc-include-cleaner", "pattern": "std::max", "reason": "std::max/std::min available via <algorithm> included in Components.cc", "added": "2026-03-23"}
+{"path": "GeomCalc.cc", "category": "misc", "subtype": "misc-include-cleaner", "pattern": "ranges is not used directly", "reason": "IWYU/misc-include-cleaner conflict; <ranges> required by IWYU for std::ranges::unique", "added": "2026-03-27"}
+{"path": "BoundSkewTree.cc", "category": "misc", "subtype": "misc-include-cleaner", "pattern": "ranges is not used directly", "reason": "IWYU/misc-include-cleaner conflict; <ranges> required by IWYU for std::ranges::remove_if", "added": "2026-03-27"}

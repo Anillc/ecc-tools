@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <ranges>
 #include <vector>
 
 #include "Components.hh"
@@ -105,10 +106,10 @@ void RemoveDuplicatedEndpointIntersections(size_t& intersection_count, const std
 [[nodiscard]] auto CountEndpointIntersections(Point& intersection_point, const Line& first_line, const Line& second_line) -> size_t
 {
   size_t intersection_count = 0;
-  const EndpointIntersectionContext context{&intersection_point, &intersection_count};
+  const EndpointIntersectionContext context{.intersection_point = &intersection_point, .intersection_count = &intersection_count};
   const std::array<LinePairView, kLinePointCount> line_pairs = {
-      LinePairView{&first_line, &second_line},
-      LinePairView{&second_line, &first_line},
+      LinePairView{.source_line = &first_line, .target_line = &second_line},
+      LinePairView{.source_line = &second_line, .target_line = &first_line},
   };
 
   for (const LinePairView& line_pair : line_pairs) {
@@ -125,7 +126,7 @@ void RemoveDuplicatedEndpointIntersections(size_t& intersection_count, const std
 
 [[nodiscard]] auto CalcLineYAtX(const Line& line, const double target_x) -> double
 {
-  return (HeadPoint(line).y - TailPoint(line).y) * (target_x - HeadPoint(line).x) / (HeadPoint(line).x - TailPoint(line).x)
+  return ((HeadPoint(line).y - TailPoint(line).y) * (target_x - HeadPoint(line).x) / (HeadPoint(line).x - TailPoint(line).x))
          + HeadPoint(line).y;
 }
 
@@ -156,12 +157,12 @@ void RemoveDuplicatedEndpointIntersections(size_t& intersection_count, const std
     return false;
   }
 
-  intersection_point.x = (HeadPoint(second_line).y - HeadPoint(first_line).y + HeadPoint(first_line).x * first_line_slope
-                          - HeadPoint(second_line).x * second_line_slope)
+  intersection_point.x = (HeadPoint(second_line).y - HeadPoint(first_line).y + (HeadPoint(first_line).x * first_line_slope)
+                          - (HeadPoint(second_line).x * second_line_slope))
                          / (first_line_slope - second_line_slope);
   intersection_point.y
-      = (HeadPoint(first_line).y + HeadPoint(second_line).y + first_line_slope * (intersection_point.x - HeadPoint(first_line).x)
-         + second_line_slope * (intersection_point.x - HeadPoint(second_line).x))
+      = (HeadPoint(first_line).y + HeadPoint(second_line).y + (first_line_slope * (intersection_point.x - HeadPoint(first_line).x))
+         + (second_line_slope * (intersection_point.x - HeadPoint(second_line).x)))
         / kAverageFactor;
   return true;
 }
@@ -200,14 +201,14 @@ auto GeomCalc::pointToLineDistanceNonManhattan(const Point& point, const Line& l
   if (!Equal(HeadPoint(line).x, TailPoint(line).x) && (point.x - HeadPoint(line).x) * (point.x - TailPoint(line).x) <= 0) {
     Point candidate_point;
     candidate_point.x = point.x;
-    candidate_point.y = (TailPoint(line).x - point.x) * (HeadPoint(line).y - TailPoint(line).y) / (TailPoint(line).x - HeadPoint(line).x)
+    candidate_point.y = ((TailPoint(line).x - point.x) * (HeadPoint(line).y - TailPoint(line).y) / (TailPoint(line).x - HeadPoint(line).x))
                         + TailPoint(line).y;
     candidate_points.push_back(candidate_point);
   }
 
   if (!Equal(HeadPoint(line).y, TailPoint(line).y) && (point.y - HeadPoint(line).y) * (point.y - TailPoint(line).y) <= 0) {
     Point candidate_point;
-    candidate_point.x = (TailPoint(line).y - point.y) * (HeadPoint(line).x - TailPoint(line).x) / (TailPoint(line).y - HeadPoint(line).y)
+    candidate_point.x = ((TailPoint(line).y - point.y) * (HeadPoint(line).x - TailPoint(line).x) / (TailPoint(line).y - HeadPoint(line).y))
                         + TailPoint(line).x;
     candidate_point.y = point.y;
     candidate_points.push_back(candidate_point);
@@ -219,7 +220,7 @@ auto GeomCalc::pointToLineDistanceNonManhattan(const Point& point, const Line& l
   }
 
   double min_distance = std::numeric_limits<double>::max();
-  std::ranges::for_each(candidate_points, [&](const Point& candidate_point) {
+  std::ranges::for_each(candidate_points, [&](const Point& candidate_point) -> void {
     const auto dist = distance(point, candidate_point);
     if (dist < min_distance) {
       min_distance = dist;
@@ -233,11 +234,11 @@ auto GeomCalc::pointToLineDistanceNonManhattan(const Point& point, const Line& l
 auto GeomCalc::pointToLineDistance(const Point& point, const Line& line, Point& closest_point) -> double
 {
   auto min_distance = std::numeric_limits<double>::max();
-  const auto delta_x = std::abs(line[kHead].x - line[kTail].x);
-  const auto delta_y = std::abs(line[kHead].y - line[kTail].y);
+  const auto delta_x = std::abs(line.at(kHead).x - line.at(kTail).x);
+  const auto delta_y = std::abs(line.at(kHead).y - line.at(kTail).y);
 
-  if (isSame(line[kHead], line[kTail])) {
-    closest_point = line[kHead];
+  if (isSame(line.at(kHead), line.at(kTail))) {
+    closest_point = line.at(kHead);
     min_distance = distance(point, closest_point);
   } else {
     Point snapped_point = point;
@@ -264,13 +265,13 @@ auto GeomCalc::pointToTransformedRectDistance(const Point& point, TransformedRec
   }
 
   std::vector<TransformedRect> candidate_transformed_rects(4, transformed_rect);
-  candidate_transformed_rects[kLeft + kHead].y_low(transformed_rect.y_high());
-  candidate_transformed_rects[kLeft + kTail].y_high(transformed_rect.y_low());
-  candidate_transformed_rects[kRight + kHead].x_low(transformed_rect.x_high());
-  candidate_transformed_rects[kRight + kTail].x_high(transformed_rect.x_low());
+  candidate_transformed_rects.at(kLeft + kHead).y_low(transformed_rect.y_high());
+  candidate_transformed_rects.at(kLeft + kTail).y_high(transformed_rect.y_low());
+  candidate_transformed_rects.at(kRight + kHead).x_low(transformed_rect.x_high());
+  candidate_transformed_rects.at(kRight + kTail).x_high(transformed_rect.x_low());
 
   double min_distance = std::numeric_limits<double>::max();
-  std::ranges::for_each(candidate_transformed_rects, [&](TransformedRect& candidate_transformed_rect) {
+  std::ranges::for_each(candidate_transformed_rects, [&](TransformedRect& candidate_transformed_rect) -> void {
     const auto dist = transformedRectDistance(point_transformed_rect, candidate_transformed_rect);
     min_distance = std::min(min_distance, dist);
   });
@@ -283,15 +284,15 @@ void GeomCalc::calcCoord(Point& point, const Line& line, const double& shift)
   double head_distance = 0.0;
   double tail_distance = 0.0;
   if (current_line_type == LineType::kHorizontal || current_line_type == LineType::kFlat) {
-    head_distance = std::abs(line[kHead].x - shift);
-    tail_distance = std::abs(line[kTail].x - shift);
+    head_distance = std::abs(line.at(kHead).x - shift);
+    tail_distance = std::abs(line.at(kTail).x - shift);
   } else {
-    head_distance = std::abs(line[kHead].y - shift);
-    tail_distance = std::abs(line[kTail].y - shift);
+    head_distance = std::abs(line.at(kHead).y - shift);
+    tail_distance = std::abs(line.at(kTail).y - shift);
   }
 
-  point.x = (line[kHead].x * tail_distance + line[kTail].x * head_distance) / (head_distance + tail_distance);
-  point.y = (line[kHead].y * tail_distance + line[kTail].y * head_distance) / (head_distance + tail_distance);
+  point.x = ((line.at(kHead).x * tail_distance) + (line.at(kTail).x * head_distance)) / (head_distance + tail_distance);
+  point.y = ((line.at(kHead).y * tail_distance) + (line.at(kTail).y * head_distance)) / (head_distance + tail_distance);
 }
 
 void GeomCalc::calcRelativeCoord(Point& point, const RelativeType& type, const double& shift)
@@ -316,12 +317,13 @@ void GeomCalc::calcRelativeCoord(Point& point, const RelativeType& type, const d
 
 auto GeomCalc::crossProduct(const Point& origin_point, const Point& lhs_point, const Point& rhs_point) -> double
 {
-  return (lhs_point.x - origin_point.x) * (rhs_point.y - origin_point.y) - (rhs_point.x - origin_point.x) * (lhs_point.y - origin_point.y);
+  return ((lhs_point.x - origin_point.x) * (rhs_point.y - origin_point.y))
+         - ((rhs_point.x - origin_point.x) * (lhs_point.y - origin_point.y));
 }
 
 auto GeomCalc::lineType(const Line& line) -> LineType
 {
-  return lineType(line[kHead], line[kTail]);
+  return lineType(line.at(kHead), line.at(kTail));
 }
 
 auto GeomCalc::lineType(const Point& first_point, const Point& second_point) -> LineType
@@ -350,7 +352,7 @@ auto GeomCalc::lineIntersect(Point& intersection_point, const Line& first_line, 
     return IntersectType::kNone;
   }
   if (IsSameDirectedLine(first_line, second_line)) {
-    intersection_point = first_line[kHead];
+    intersection_point = first_line.at(kHead);
     return IntersectType::kSame;
   }
 
@@ -380,8 +382,8 @@ auto GeomCalc::lineRelative(const Line& lhs_line, const Line& rhs_line, const si
   CTS_LOG_FATAL_IF(lhs_line_type != rhs_line_type) << "line type is not same";
 
   if (lhs_line_type == LineType::kVertical || lhs_line_type == LineType::kTilt) {
-    const auto lhs_max_x = std::max(lhs_line[kHead].x, lhs_line[kTail].x);
-    const auto rhs_max_x = std::max(rhs_line[kHead].x, rhs_line[kTail].x);
+    const auto lhs_max_x = std::max(lhs_line.at(kHead).x, lhs_line.at(kTail).x);
+    const auto rhs_max_x = std::max(rhs_line.at(kHead).x, rhs_line.at(kTail).x);
     if ((lhs_max_x <= rhs_max_x && reference_side == kLeft) || (lhs_max_x >= rhs_max_x && reference_side == kRight)) {
       return RelativeType::kLeft;
     }
@@ -389,8 +391,8 @@ auto GeomCalc::lineRelative(const Line& lhs_line, const Line& rhs_line, const si
   }
 
   if (lhs_line_type == LineType::kHorizontal || lhs_line_type == LineType::kFlat) {
-    const auto lhs_max_y = std::max(lhs_line[kHead].y, lhs_line[kTail].y);
-    const auto rhs_max_y = std::max(rhs_line[kHead].y, rhs_line[kTail].y);
+    const auto lhs_max_y = std::max(lhs_line.at(kHead).y, lhs_line.at(kTail).y);
+    const auto rhs_max_y = std::max(rhs_line.at(kHead).y, rhs_line.at(kTail).y);
     if ((lhs_max_y <= rhs_max_y && reference_side == kLeft) || (lhs_max_y >= rhs_max_y && reference_side == kRight)) {
       return RelativeType::kBottom;
     }
@@ -414,8 +416,8 @@ auto GeomCalc::lineDist(const Line& lhs_line, const Line& rhs_line) -> LineDista
   const bool lhs_is_point = isSame(HeadPoint(lhs_line), TailPoint(lhs_line));
   const bool rhs_is_point = isSame(HeadPoint(rhs_line), TailPoint(rhs_line));
   const std::array<LinePairView, kLinePointCount> line_pairs = {
-      LinePairView{&lhs_line, &rhs_line},
-      LinePairView{&rhs_line, &lhs_line},
+      LinePairView{.source_line = &lhs_line, .target_line = &rhs_line},
+      LinePairView{.source_line = &rhs_line, .target_line = &lhs_line},
   };
   const std::array<size_t, kLinePointCount> point_counts = {
       lhs_is_point ? 1U : kLinePointCount,
@@ -451,29 +453,31 @@ auto GeomCalc::lineDist(const Line& lhs_line, const Line& rhs_line) -> LineDista
 
 auto GeomCalc::onLine(Point& point, const Line& line) -> bool
 {
-  const auto line_length = distance(line[kHead], line[kTail]);
-  const auto distance_to_head = distance(point, line[kHead]);
-  const auto distance_to_tail = distance(point, line[kTail]);
+  const auto line_length = distance(line.at(kHead), line.at(kTail));
+  const auto distance_to_head = distance(point, line.at(kHead));
+  const auto distance_to_tail = distance(point, line.at(kTail));
   if (std::abs(distance_to_head + distance_to_tail - line_length) < 2 * kEpsilon) {
     if (Equal(distance_to_head, 0)) {
-      point = line[kHead];
+      point = line.at(kHead);
       return true;
     }
     if (Equal(distance_to_tail, 0)) {
-      point = line[kTail];
+      point = line.at(kTail);
       return true;
     }
 
-    const auto delta_x = std::abs(line[kTail].x - line[kHead].x);
-    const auto delta_y = std::abs(line[kTail].y - line[kHead].y);
+    const auto delta_x = std::abs(line.at(kTail).x - line.at(kHead).x);
+    const auto delta_y = std::abs(line.at(kTail).y - line.at(kHead).y);
     if (delta_y > delta_x) {
-      const auto snapped_x = (line[kTail].x - line[kHead].x) * (point.y - line[kHead].y) / (line[kTail].y - line[kHead].y) + line[kHead].x;
+      const auto snapped_x = ((line.at(kTail).x - line.at(kHead).x) * (point.y - line.at(kHead).y) / (line.at(kTail).y - line.at(kHead).y))
+                             + line.at(kHead).x;
       if (Equal(snapped_x, point.x)) {
         point.x = snapped_x;
         return true;
       }
     } else {
-      const auto snapped_y = (line[kTail].y - line[kHead].y) * (point.x - line[kHead].x) / (line[kTail].x - line[kHead].x) + line[kHead].y;
+      const auto snapped_y = ((line.at(kTail).y - line.at(kHead).y) * (point.x - line.at(kHead).x) / (line.at(kTail).x - line.at(kHead).x))
+                             + line.at(kHead).y;
       if (Equal(snapped_y, point.y)) {
         point.y = snapped_y;
         return true;
@@ -485,14 +489,14 @@ auto GeomCalc::onLine(Point& point, const Line& line) -> bool
 
 auto GeomCalc::isParallel(const Line& lhs_line, const Line& rhs_line) -> bool
 {
-  if (isSame(lhs_line[kHead], lhs_line[kTail]) || isSame(rhs_line[kHead], rhs_line[kTail])) {
+  if (isSame(lhs_line.at(kHead), lhs_line.at(kTail)) || isSame(rhs_line.at(kHead), rhs_line.at(kTail))) {
     return false;
   }
 
-  const auto lhs_delta_x = std::abs(lhs_line[kHead].x - lhs_line[kTail].x);
-  const auto lhs_delta_y = std::abs(lhs_line[kHead].y - lhs_line[kTail].y);
-  const auto rhs_delta_x = std::abs(rhs_line[kHead].x - rhs_line[kTail].x);
-  const auto rhs_delta_y = std::abs(rhs_line[kHead].y - rhs_line[kTail].y);
+  const auto lhs_delta_x = std::abs(lhs_line.at(kHead).x - lhs_line.at(kTail).x);
+  const auto lhs_delta_y = std::abs(lhs_line.at(kHead).y - lhs_line.at(kTail).y);
+  const auto rhs_delta_x = std::abs(rhs_line.at(kHead).x - rhs_line.at(kTail).x);
+  const auto rhs_delta_y = std::abs(rhs_line.at(kHead).y - rhs_line.at(kTail).y);
   if (Equal(lhs_delta_x, 0) && Equal(rhs_delta_x, 0)) {
     return true;
   }
@@ -504,16 +508,22 @@ auto GeomCalc::isParallel(const Line& lhs_line, const Line& rhs_line) -> bool
 
 auto GeomCalc::inBoundBox(const Point& point, const Line& line) -> bool
 {
-  return point.x <= std::max(line[kHead].x, line[kTail].x) + kEpsilon && point.x >= std::min(line[kHead].x, line[kTail].x) - kEpsilon
-         && point.y <= std::max(line[kHead].y, line[kTail].y) + kEpsilon && point.y >= std::min(line[kHead].y, line[kTail].y) - kEpsilon;
+  return point.x <= std::max(line.at(kHead).x, line.at(kTail).x) + kEpsilon
+         && point.x >= std::min(line.at(kHead).x, line.at(kTail).x) - kEpsilon
+         && point.y <= std::max(line.at(kHead).y, line.at(kTail).y) + kEpsilon
+         && point.y >= std::min(line.at(kHead).y, line.at(kTail).y) - kEpsilon;
 }
 
 auto GeomCalc::boundBoxOverlap(const Line& lhs_line, const Line& rhs_line, const double& epsilon) -> bool
 {
-  const BoundingBox lhs_box{std::min(lhs_line[kHead].x, lhs_line[kTail].x), std::min(lhs_line[kHead].y, lhs_line[kTail].y),
-                            std::max(lhs_line[kHead].x, lhs_line[kTail].x), std::max(lhs_line[kHead].y, lhs_line[kTail].y)};
-  const BoundingBox rhs_box{std::min(rhs_line[kHead].x, rhs_line[kTail].x), std::min(rhs_line[kHead].y, rhs_line[kTail].y),
-                            std::max(rhs_line[kHead].x, rhs_line[kTail].x), std::max(rhs_line[kHead].y, rhs_line[kTail].y)};
+  const BoundingBox lhs_box{.min_x = std::min(lhs_line.at(kHead).x, lhs_line.at(kTail).x),
+                            .min_y = std::min(lhs_line.at(kHead).y, lhs_line.at(kTail).y),
+                            .max_x = std::max(lhs_line.at(kHead).x, lhs_line.at(kTail).x),
+                            .max_y = std::max(lhs_line.at(kHead).y, lhs_line.at(kTail).y)};
+  const BoundingBox rhs_box{.min_x = std::min(rhs_line.at(kHead).x, rhs_line.at(kTail).x),
+                            .min_y = std::min(rhs_line.at(kHead).y, rhs_line.at(kTail).y),
+                            .max_x = std::max(rhs_line.at(kHead).x, rhs_line.at(kTail).x),
+                            .max_y = std::max(rhs_line.at(kHead).y, rhs_line.at(kTail).y)};
   return boundBoxOverlap(lhs_box, rhs_box, epsilon);
 }
 
@@ -552,7 +562,7 @@ auto GeomCalc::transformedRectDistance(TransformedRect& lhs_transformed_rect, Tr
     const auto low_to_high = std::max(std::abs(lhs_x_low - rhs_x_high), std::abs(lhs_y_low - rhs_y_high));
     const auto high_to_low = std::max(std::abs(lhs_x_high - rhs_x_low), std::abs(lhs_y_high - rhs_y_low));
     const auto high_to_high = std::max(std::abs(lhs_x_high - rhs_x_high), std::abs(lhs_y_high - rhs_y_high));
-    return std::min(std::min(low_to_low, low_to_high), std::min(high_to_low, high_to_high));
+    return std::min({low_to_low, low_to_high, high_to_low, high_to_high});
   }
   if (!x_is_intersect) {
     const auto lhs_low_to_rhs_high = lhs_x_low - rhs_x_high;
@@ -669,7 +679,7 @@ auto GeomCalc::isSegmentTransformedRect(const TransformedRect& transformed_rect)
 
 void GeomCalc::sortPointsByFront(Points& points)
 {
-  std::ranges::for_each(points, [&](Point& point) { point.val = distance(point, points.front()); });
+  std::ranges::for_each(points, [&](Point& point) -> void { point.val = distance(point, points.front()); });
   sortPointsByValue(points);
 }
 
@@ -678,7 +688,7 @@ void GeomCalc::sortPointsByValue(Points& points)
   if (points.empty()) {
     return;
   }
-  std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) { return lhs_point.val < rhs_point.val; });
+  std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) -> bool { return lhs_point.val < rhs_point.val; });
 }
 
 void GeomCalc::sortPointsByValueDesc(Points& points)
@@ -686,7 +696,7 @@ void GeomCalc::sortPointsByValueDesc(Points& points)
   if (points.empty()) {
     return;
   }
-  std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) { return lhs_point.val > rhs_point.val; });
+  std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) -> bool { return lhs_point.val > rhs_point.val; });
 }
 
 void GeomCalc::uniquePointLocations(std::vector<Point>& points)
@@ -696,7 +706,7 @@ void GeomCalc::uniquePointLocations(std::vector<Point>& points)
   }
 
   std::vector<Point> unique_points = {points.front()};
-  std::ranges::for_each(points, [&](const Point& point) {
+  std::ranges::for_each(points, [&](const Point& point) -> void {
     if (!isSame(point, unique_points.back())) {
       unique_points.push_back(point);
     }
@@ -709,9 +719,9 @@ void GeomCalc::uniquePointLocations(std::vector<Point>& points)
 
 void GeomCalc::uniquePointValues(std::vector<Point>& points)
 {
-  points.erase(std::unique(points.begin(), points.end(),
-                           [](const Point& lhs_point, const Point& rhs_point) { return Equal(lhs_point.val, rhs_point.val); }),
-               points.end());
+  auto [first, last] = std::ranges::unique(
+      points, [](const Point& lhs_point, const Point& rhs_point) -> bool { return Equal(lhs_point.val, rhs_point.val); });
+  points.erase(first, last);
 }
 
 void GeomCalc::convexHull(std::vector<Point>& points)
@@ -727,24 +737,24 @@ void GeomCalc::convexHull(std::vector<Point>& points)
     return;
   }
 
-  std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) {
+  std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) -> bool {
     return lhs_point.x + kEpsilon < rhs_point.x || (Equal(lhs_point.x, rhs_point.x) && lhs_point.y < rhs_point.y);
   });
 
   std::vector<Point> hull_points(2 * points.size());
   size_t hull_size = 0;
   for (const auto& point : points) {
-    while (hull_size > 1 && crossProduct(hull_points[hull_size - 2], hull_points[hull_size - 1], point) <= kEpsilon) {
+    while (hull_size > 1 && crossProduct(hull_points.at(hull_size - 2), hull_points.at(hull_size - 1), point) <= kEpsilon) {
       --hull_size;
     }
-    hull_points[hull_size++] = point;
+    hull_points.at(hull_size++) = point;
   }
   for (size_t point_index = points.size() - 1, lower_hull_size = hull_size + 1; point_index > 0; --point_index) {
     while (hull_size >= lower_hull_size
-           && crossProduct(hull_points[hull_size - 2], hull_points[hull_size - 1], points[point_index - 1]) <= kEpsilon) {
+           && crossProduct(hull_points.at(hull_size - 2), hull_points.at(hull_size - 1), points.at(point_index - 1)) <= kEpsilon) {
       --hull_size;
     }
-    hull_points[hull_size++] = points[point_index - 1];
+    hull_points.at(hull_size++) = points.at(point_index - 1);
   }
   points = {hull_points.begin(), hull_points.begin() + static_cast<std::ptrdiff_t>(hull_size - 1)};
 }
@@ -757,7 +767,7 @@ auto GeomCalc::centerPoint(const std::vector<Point>& points) -> Point
 
   double x_sum = 0.0;
   double y_sum = 0.0;
-  std::ranges::for_each(points, [&](const Point& point) {
+  std::ranges::for_each(points, [&](const Point& point) -> void {
     x_sum += point.x;
     y_sum += point.y;
   });
@@ -774,12 +784,12 @@ auto GeomCalc::isRegionContain(const Point& point, const std::vector<Point>& reg
   auto previous_point_index = region_point_count - 1;
 
   for (size_t point_index = 0; point_index < region_point_count; previous_point_index = point_index, ++point_index) {
-    const auto source_x = region[point_index].x;
-    const auto source_y = region[point_index].y;
-    const auto target_x = region[previous_point_index].x;
-    const auto target_y = region[previous_point_index].y;
+    const auto source_x = region.at(point_index).x;
+    const auto source_y = region.at(point_index).y;
+    const auto target_x = region.at(previous_point_index).x;
+    const auto target_y = region.at(previous_point_index).y;
     if ((source_y < point_y && target_y >= point_y) || (target_y < point_y && source_y >= point_y)) {
-      if (source_x + (point_y - source_y) / (target_y - source_y) * (target_x - source_x) < point_x) {
+      if (source_x + ((point_y - source_y) / (target_y - source_y) * (target_x - source_x)) < point_x) {
         is_in_region = !is_in_region;
       }
     }
@@ -791,7 +801,7 @@ auto GeomCalc::isRegionContain(const Point& point, const std::vector<Point>& reg
   Point point_on_boundary = point;
   for (size_t point_index = 0; point_index < region.size(); ++point_index) {
     const auto next_point_index = (point_index + 1) % region.size();
-    if (onLine(point_on_boundary, {region[point_index], region[next_point_index]})) {
+    if (onLine(point_on_boundary, {region.at(point_index), region.at(next_point_index)})) {
       return true;
     }
   }
@@ -809,7 +819,7 @@ auto GeomCalc::closestPointOnRegion(const Point& point, const std::vector<Point>
   auto min_distance = std::numeric_limits<double>::max();
   for (size_t point_index = 0; point_index < region.size(); ++point_index) {
     const auto next_point_index = (point_index + 1) % region.size();
-    const auto dist = pointToLineDistance(point, {region[point_index], region[next_point_index]}, closest_point_on_line);
+    const auto dist = pointToLineDistance(point, {region.at(point_index), region.at(next_point_index)}, closest_point_on_line);
     if (dist < min_distance) {
       min_distance = dist;
       best_point = closest_point_on_line;
@@ -820,7 +830,7 @@ auto GeomCalc::closestPointOnRegion(const Point& point, const std::vector<Point>
 
 void GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Line& line)
 {
-  lineToTransformedRect(transformed_rect, line[kHead], line[kTail]);
+  lineToTransformedRect(transformed_rect, line.at(kHead), line.at(kTail));
 }
 
 void GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Point& first_point, const Point& second_point)
@@ -841,7 +851,7 @@ void GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Po
 
 void GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Line& line)
 {
-  transformedRectToLine(transformed_rect, line[kHead], line[kTail]);
+  transformedRectToLine(transformed_rect, line.at(kHead), line.at(kTail));
 }
 
 void GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Point& first_point, Point& second_point)

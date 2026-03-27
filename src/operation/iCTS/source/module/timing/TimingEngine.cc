@@ -161,7 +161,7 @@ void TimingEngine::updateSlew(RCTree& rc_tree)
       auto* child = rc_tree.get_vertex(arc->sink_vertex_id);
       CTS_LOG_FATAL_IF(child == nullptr) << "RCTree child vertex is null during slew update.";
       auto ideal_slew = calcIdealSlew(arc->increase_delay);
-      child->slew = std::sqrt(vertex->slew * vertex->slew + ideal_slew * ideal_slew);
+      child->slew = std::sqrt((vertex->slew * vertex->slew) + (ideal_slew * ideal_slew));
     }
   }
 }
@@ -210,8 +210,11 @@ auto TimingEngine::evaluate(const RCTree& rc_tree) -> TimingEngine::Metrics
     max_slew = std::max(max_slew, tree_vertex.slew);
   }
 
-  return Metrics{root->max_downstream_delay - root->min_downstream_delay, root->arrival + root->min_downstream_delay,
-                 root->arrival + root->max_downstream_delay, max_slew, root->downstream_cap};
+  return Metrics{.skew = root->max_downstream_delay - root->min_downstream_delay,
+                 .min_delay = root->arrival + root->min_downstream_delay,
+                 .max_delay = root->arrival + root->max_downstream_delay,
+                 .max_slew = max_slew,
+                 .total_cap = root->downstream_cap};
 }
 
 auto TimingEngine::calcSkew(const RCTree& rc_tree) -> double
@@ -227,7 +230,7 @@ auto TimingEngine::calcSkew(const RCTree& rc_tree) -> double
 
 auto TimingEngine::calcArcDelay(double downstream_cap, double resistance, double capacitance) -> double
 {
-  return resistance * (capacitance / kPiRcElmoreFactor + downstream_cap);
+  return resistance * ((capacitance / kPiRcElmoreFactor) + downstream_cap);
 }
 
 auto TimingEngine::calcIdealSlew(double arc_delay) -> double

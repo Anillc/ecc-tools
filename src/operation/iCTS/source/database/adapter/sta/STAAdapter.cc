@@ -26,28 +26,40 @@
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>
+#include <iterator>
+#include <memory>
 #include <optional>
+#include <ranges>
+#include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "IdbDesign.h"
 #include "IdbEnum.h"
 #include "IdbInstance.h"
+#include "IdbPins.h"
+#include "TimingDBAdapter.hh"
 #include "Type.hh"
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
+#include "builder.h"
 #include "config/Config.hh"
+#include "def_service.h"
 #include "design/Inst.hh"
+#include "dm_config.h"
 #include "idm.h"
 #include "liberty/Lib.hh"
 #include "logger/Logger.hh"
 #include "netlist/Instance.hh"
 #include "netlist/Net.hh"
 #include "netlist/Netlist.hh"
-#include "netlist/Pin.hh"
+#include "sta/Sta.hh"
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaClock.hh"
 #include "sta/StaData.hh"
 #include "sta/StaGraph.hh"
+#include "sta/StaVertex.hh"
 
 namespace icts {
 namespace {
@@ -79,7 +91,7 @@ auto STAAdapter::init() -> void
   }
   std::vector<const char*> lib_paths;
   std::ranges::transform(GetDbConfig().get_lib_paths(), std::back_inserter(lib_paths),
-                         [](const std::string& lib_path) { return lib_path.c_str(); });
+                         [](const std::string& lib_path) -> auto { return lib_path.c_str(); });
   GetStaEngine()->set_num_threads(kStaThreadCount);
   GetStaEngine()->set_design_work_space(sta_work_dir.c_str());
   auto cell_set
@@ -103,7 +115,7 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
   auto inst_type = icts::InstType::kUnknown;
 
   auto name = inst_name;
-  name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
+  std::erase(name, '\\');
   auto* sta_netlist = GetStaEngine()->get_netlist();
   CTS_LOG_FATAL_IF(sta_netlist == nullptr) << "STA netlist is null.";
   auto* sta_inst = sta_netlist->findInstance(name.c_str());
@@ -141,8 +153,8 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
   auto* pin_list = idb_inst->get_pin_list();
   CTS_LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
 
-  const std::size_t clock_input_pin_limit = 1;
-  const auto clock_input_pins = std::ranges::count_if(pin_list->get_pin_list(), [&](auto* idb_pin) {
+  constexpr std::ptrdiff_t clock_input_pin_limit = 1;
+  const auto clock_input_pins = std::ranges::count_if(pin_list->get_pin_list(), [&](auto* idb_pin) -> bool {
     auto* term = idb_pin->get_term();
     auto direction = term->get_direction();
     if (direction != idb::IdbConnectDirection::kInput && direction != idb::IdbConnectDirection::kInOut) {
@@ -171,7 +183,7 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 auto STAAdapter::isFlipFlop(const std::string& inst_name) -> bool
 {
   auto name = inst_name;
-  name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
+  std::erase(name, '\\');
   return GetStaEngine()->isSequentialCell(name.c_str()) != 0U;
 }
 
@@ -356,7 +368,7 @@ auto STAAdapter::buildCharRcTree(const std::string& net_name, const CharRcTreeCo
     auto* load_node = GetStaEngine()->makeOrFindRCTreeNode(load_pin);
     GetStaEngine()->makeResistor(net, driver_node, load_node, rc_tree_config.wire_res);
     GetStaEngine()->incrCap(driver_node, rc_tree_config.wire_cap / kHalfCapFactor, true);
-    GetStaEngine()->incrCap(load_node, rc_tree_config.wire_cap / kHalfCapFactor + rc_tree_config.load_cap, true);
+    GetStaEngine()->incrCap(load_node, (rc_tree_config.wire_cap / kHalfCapFactor) + rc_tree_config.load_cap, true);
   }
 
   GetStaEngine()->updateRCTreeInfo(net);
@@ -374,14 +386,16 @@ auto STAAdapter::createCharClock(const std::string& source_pin_full_name, const 
   auto the_vertex = the_graph.findVertex(match_pins.front());
   CTS_LOG_FATAL_IF(!the_vertex) << "Cannot find vertex for clock source: " << source_pin_full_name;
 
-  const int period_ps = NS_TO_PS(period_ns);
+  const int period_ps = static_cast<int>(NS_TO_PS(period_ns));
   auto sta_clock = std::make_unique<ista::StaClock>(clock_name.c_str(), ista::StaClock::ClockType::kPropagated, period_ps);
 
   ista::StaWaveForm wave_form;
   wave_form.addWaveEdge(0);
   wave_form.addWaveEdge(period_ps / 2);
   sta_clock->set_wave_form(std::move(wave_form));
-  sta_clock->addVertex(*the_vertex);
+  if (the_vertex.has_value()) {
+    sta_clock->addVertex(*the_vertex);
+  }
   ista->addClock(std::move(sta_clock));
 }
 
@@ -406,12 +420,14 @@ auto STAAdapter::setCharInputSlew(const std::string& pin_full_name, double slew_
   auto the_vertex = the_graph.findVertex(match_pins.front());
   CTS_LOG_FATAL_IF(!the_vertex) << "Cannot find vertex for pin: " << pin_full_name;
 
-  auto* vertex = *the_vertex;
-  int slew_fs = NS_TO_FS(slew_ns);
-  auto rise_slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, ista::TransType::kRise, vertex, slew_fs);
-  vertex->addData(rise_slew_data.release());
-  auto fall_slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, ista::TransType::kFall, vertex, slew_fs);
-  vertex->addData(fall_slew_data.release());
+  if (the_vertex.has_value()) {
+    auto* vertex = *the_vertex;
+    const int slew_fs = static_cast<int>(NS_TO_FS(slew_ns));
+    auto rise_slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, ista::TransType::kRise, vertex, slew_fs);
+    vertex->addData(rise_slew_data.release());
+    auto fall_slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, ista::TransType::kFall, vertex, slew_fs);
+    vertex->addData(fall_slew_data.release());
+  }
 }
 
 auto STAAdapter::updateTiming() -> void
@@ -467,8 +483,8 @@ auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<s
   ista::LibPort* input = nullptr;
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
-  std::string in_name = input != nullptr ? input->get_port_name() : "";
-  std::string out_name = output != nullptr ? output->get_port_name() : "";
+  const std::string in_name = input != nullptr ? input->get_port_name() : "";
+  const std::string out_name = output != nullptr ? output->get_port_name() : "";
   return {in_name, out_name};
 }
 

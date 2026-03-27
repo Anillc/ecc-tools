@@ -27,9 +27,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "IdbInstance.h"
-#include "IdbNet.h"
-#include "IdbPins.h"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
@@ -38,7 +35,10 @@
 namespace idb {
 class IdbBuilder;
 class IdbDesign;
+class IdbInstance;
 class IdbLayout;
+class IdbNet;
+class IdbPin;
 template <typename T>
 class IdbCoordinate;
 }  // namespace idb

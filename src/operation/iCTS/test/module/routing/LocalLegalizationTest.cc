@@ -24,6 +24,7 @@
 #include <gtest/gtest.h>
 
 #include <set>
+#include <string>
 #include <vector>
 
 #include "database/spatial/Point.hh"

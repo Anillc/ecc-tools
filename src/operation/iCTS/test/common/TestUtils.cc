@@ -207,7 +207,7 @@ auto build_pins(std::vector<icts::Point<int>> points, CanvasSize canvas) -> Gene
   for (std::size_t index = 0; index < points.size(); ++index) {
     std::ostringstream name;
     name << "load_" << index;
-    auto pin = std::make_unique<icts::Pin>(name.str(), icts::PinType::kClock, points[index]);
+    auto pin = std::make_unique<icts::Pin>(name.str(), icts::PinType::kClock, points.at(index));
     result.loads.push_back(pin.get());
     result.storage.push_back(std::move(pin));
   }
@@ -280,7 +280,7 @@ auto MakeWeightedQuadrants(std::size_t count, CanvasSize canvas, unsigned seed, 
 
   std::mt19937 generator(seed);
   std::array<double, 4> safe_weights = weights;
-  const double sum = safe_weights[0] + safe_weights[1] + safe_weights[2] + safe_weights[3];
+  const double sum = safe_weights.at(0) + safe_weights.at(1) + safe_weights.at(2) + safe_weights.at(3);
   if (sum <= 0.0) {
     safe_weights = {1.0, 1.0, 1.0, 1.0};
   }
@@ -520,8 +520,8 @@ auto AnalyzeFirstLevelClusters(const icts::Tree& tree, const std::vector<icts::P
 }
 
 auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loads,
-                     const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map,
-                     const std::vector<icts::Point<int>>& centers) -> bool
+                     const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers)
+    -> bool
 {
   if (loads.empty()) {
     return false;

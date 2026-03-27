@@ -42,14 +42,14 @@
 namespace icts {
 namespace {
 
-auto BuildSaltPins(const RoutingTerminal& driver_terminal,
-                   const std::vector<RoutingTerminal>& load_terminals) -> std::vector<std::shared_ptr<salt::Pin>>
+auto BuildSaltPins(const RoutingTerminal& driver_terminal, const std::vector<RoutingTerminal>& load_terminals)
+    -> std::vector<std::shared_ptr<salt::Pin>>
 {
   std::vector<std::shared_ptr<salt::Pin>> salt_pins;
   salt_pins.reserve(load_terminals.size() + 1);
   salt_pins.push_back(std::make_shared<salt::Pin>(driver_terminal.location.get_x(), driver_terminal.location.get_y(), 0, 0.0));
   for (std::size_t i = 0; i < load_terminals.size(); ++i) {
-    const auto& terminal = load_terminals[i];
+    const auto& terminal = load_terminals.at(i);
     salt_pins.push_back(std::make_shared<salt::Pin>(terminal.location.get_x(), terminal.location.get_y(), static_cast<int>(i + 1), 0.0));
   }
   return salt_pins;
@@ -66,7 +66,7 @@ auto FLUTERouter::buildTree(const Terminal& driver_terminal, const std::vector<T
   std::unordered_map<int, std::size_t> salt_to_tree_id;
   salt_to_tree_id[0] = root_id;
   for (std::size_t i = 0; i < load_terminals.size(); ++i) {
-    auto node_id = steiner_tree.addNode(load_terminals[i].name, load_terminals[i].location, true);
+    auto node_id = steiner_tree.addNode(load_terminals.at(i).name, load_terminals.at(i).location, true);
     salt_to_tree_id[static_cast<int>(i + 1)] = node_id;
   }
 
@@ -83,7 +83,7 @@ auto FLUTERouter::buildTree(const Terminal& driver_terminal, const std::vector<T
   flute_builder.Run(net, tree);
   tree.UpdateId();
 
-  auto ensure_node = [&](const std::shared_ptr<salt::TreeNode>& salt_node) {
+  auto ensure_node = [&](const std::shared_ptr<salt::TreeNode>& salt_node) -> auto {
     auto iter = salt_to_tree_id.find(salt_node->id);
     if (iter != salt_to_tree_id.end()) {
       return iter->second;
@@ -99,7 +99,7 @@ auto FLUTERouter::buildTree(const Terminal& driver_terminal, const std::vector<T
   auto source_id = ensure_node(source);
   steiner_tree.setRoot(source_id);
 
-  auto connect_node_func = [&](const std::shared_ptr<salt::TreeNode>& salt_node) {
+  auto connect_node_func = [&](const std::shared_ptr<salt::TreeNode>& salt_node) -> void {
     auto current_id = ensure_node(salt_node);
     if (salt_node->id == source->id) {
       return;

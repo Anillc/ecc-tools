@@ -124,7 +124,7 @@ void CharBuilder::initBufferList()
   }
 
   // Sort ascending by max_cap (proxy for drive strength)
-  std::ranges::sort(_sorted_buffers, [](const BufferInfo& lhs_buffer_info, const BufferInfo& rhs_buffer_info) {
+  std::ranges::sort(_sorted_buffers, [](const BufferInfo& lhs_buffer_info, const BufferInfo& rhs_buffer_info) -> bool {
     return lhs_buffer_info.max_cap_pf < rhs_buffer_info.max_cap_pf;
   });
 
@@ -135,12 +135,12 @@ void CharBuilder::initBufferList()
     filtered.push_back(_sorted_buffers.front());
     for (size_t i = 1; i < _sorted_buffers.size(); ++i) {
       const double prev_cap = filtered.back().max_cap_pf;
-      const double curr_cap = _sorted_buffers[i].max_cap_pf;
+      const double curr_cap = _sorted_buffers.at(i).max_cap_pf;
       // Keep if the gap exceeds the threshold
       if (prev_cap <= 0.0 || (curr_cap - prev_cap) / prev_cap >= _redundancy_pct) {
-        filtered.push_back(_sorted_buffers[i]);
+        filtered.push_back(_sorted_buffers.at(i));
       } else {
-        CTS_LOG_INFO << "CharBuilder: removed near-neighbor buffer " << _sorted_buffers[i].cell_master << " (max_cap=" << curr_cap
+        CTS_LOG_INFO << "CharBuilder: removed near-neighbor buffer " << _sorted_buffers.at(i).cell_master << " (max_cap=" << curr_cap
                      << " pF, gap=" << ((curr_cap - prev_cap) / prev_cap * kPercentFactor) << "%)";
       }
     }
@@ -150,7 +150,7 @@ void CharBuilder::initBufferList()
   // Log the final sorted buffer list
   CTS_LOG_INFO << "CharBuilder: sorted buffer list (" << _sorted_buffers.size() << " buffers):";
   for (size_t i = 0; i < _sorted_buffers.size(); ++i) {
-    CTS_LOG_INFO << "  [" << i << "] " << _sorted_buffers[i].cell_master << " max_cap=" << _sorted_buffers[i].max_cap_pf << " pF";
+    CTS_LOG_INFO << "  [" << i << "] " << _sorted_buffers.at(i).cell_master << " max_cap=" << _sorted_buffers.at(i).max_cap_pf << " pF";
   }
 }
 
@@ -262,7 +262,7 @@ void CharBuilder::enumerateTopology(double wire_length_um, unsigned num_nodes, T
     std::vector<std::string> buf_masters;
     buf_masters.reserve(num_buf_positions);
     for (const std::size_t buffer_index : buf_indices) {
-      buf_masters.push_back(_sorted_buffers[buffer_index].cell_master);
+      buf_masters.push_back(_sorted_buffers.at(buffer_index).cell_master);
     }
 
     characterizeTopology(topo, buf_masters);
@@ -275,7 +275,7 @@ void CharBuilder::enumerateTopology(double wire_length_um, unsigned num_nodes, T
 auto CharBuilder::isMonotonic(const std::vector<std::size_t>& buf_indices) -> bool
 {
   for (std::size_t index = 1; index < buf_indices.size(); ++index) {
-    if (buf_indices[index] < buf_indices[index - 1]) {
+    if (buf_indices.at(index) < buf_indices.at(index - 1)) {
       return false;
     }
   }
@@ -289,9 +289,7 @@ auto CharBuilder::getMonotonicComboCount(std::size_t num_buf_types, std::size_t 
   }
   const std::size_t combination_n = num_buf_types + num_positions - 1;
   std::size_t combination_k = num_positions;
-  if (combination_k > combination_n - combination_k) {
-    combination_k = combination_n - combination_k;
-  }
+  combination_k = std::min(combination_k, combination_n - combination_k);
   std::size_t result = 1;
   for (std::size_t index = 0; index < combination_k; ++index) {
     result = result * (combination_n - index) / (index + 1);
@@ -309,10 +307,10 @@ auto CharBuilder::advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, 
 
   while (position >= 0) {
     const auto index = static_cast<std::size_t>(position);
-    if (buf_indices[index] + 1 < num_buf_types) {
-      ++buf_indices[index];
+    if (buf_indices.at(index) + 1 < num_buf_types) {
+      ++buf_indices.at(index);
       for (std::size_t tail_index = index + 1; tail_index < buf_indices.size(); ++tail_index) {
-        buf_indices[tail_index] = buf_indices[index];
+        buf_indices.at(tail_index) = buf_indices.at(index);
       }
       return true;
     }
@@ -351,7 +349,7 @@ auto CharBuilder::buildTopologyDesc(double wire_length_um, unsigned num_nodes, T
 
   for (unsigned node_index = 0; node_index < num_nodes; ++node_index) {
     ++nodes_without_buf;
-    if (buffer_position_index < desc.buffer_positions.size() && desc.buffer_positions[buffer_position_index] == node_index) {
+    if (buffer_position_index < desc.buffer_positions.size() && desc.buffer_positions.at(buffer_position_index) == node_index) {
       // Buffer at this position: emit the wire segment before it
       desc.wire_segments_um.push_back(nodes_without_buf * unit_um);
       nodes_without_buf = 0;
@@ -383,7 +381,7 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     double cumulative_um = 0.0;
     size_t buf_idx = 0;
     for (size_t seg = 0; seg < topo.wire_segments_um.size() && buf_idx < topo.buffer_positions.size(); ++seg) {
-      cumulative_um += topo.wire_segments_um[seg];
+      cumulative_um += topo.wire_segments_um.at(seg);
       if (seg < topo.wire_segments_um.size() - 1) {
         // A buffer exists at the boundary after this segment
         const double normalized = cumulative_um / total_length_um;
@@ -495,7 +493,7 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   // Create characterization buffer instances
   for (size_t i = 0; i < buf_masters.size(); ++i) {
     const std::string inst_name = id_prefix + "buf_" + std::to_string(i);
-    STA_ADAPTER_INST.createCharInstance(buf_masters[i], inst_name);
+    STA_ADAPTER_INST.createCharInstance(buf_masters.at(i), inst_name);
     _temp_inst_names.push_back(inst_name);
   }
 
@@ -519,21 +517,21 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
     // Find the buffer info for port names
     const BufferInfo* buf_info = nullptr;
     for (const auto& info : _sorted_buffers) {
-      if (info.cell_master == buf_masters[bi]) {
+      if (info.cell_master == buf_masters.at(bi)) {
         buf_info = &info;
         break;
       }
     }
     if (buf_info == nullptr) {
-      CTS_LOG_FATAL << "Buffer info not found for: " << buf_masters[bi];
+      CTS_LOG_FATAL << "Buffer info not found for: " << buf_masters.at(bi);
       return;
     }
     const auto& buffer_info = *buf_info;
 
     // Buffer input connects to net[bi] (the net coming into this buffer)
-    STA_ADAPTER_INST.attachCharPin(_temp_inst_names[bi], buffer_info.input_pin, _temp_net_names[bi]);
+    STA_ADAPTER_INST.attachCharPin(_temp_inst_names.at(bi), buffer_info.input_pin, _temp_net_names.at(bi));
     // Buffer output connects to net[bi+1] (the net going out of this buffer)
-    STA_ADAPTER_INST.attachCharPin(_temp_inst_names[bi], buffer_info.output_pin, _temp_net_names[bi + 1]);
+    STA_ADAPTER_INST.attachCharPin(_temp_inst_names.at(bi), buffer_info.output_pin, _temp_net_names.at(bi + 1));
   }
 
   // Last net: sink input receives it
@@ -549,7 +547,7 @@ void CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf)
 {
   // Build Pi-model RC tree for each wire segment
   for (size_t i = 0; i < _temp_net_names.size(); ++i) {
-    const double seg_len_um = topo.wire_segments_um[i];
+    const double seg_len_um = topo.wire_segments_um.at(i);
     const double wire_res = STA_ADAPTER_INST.queryWireResistance(_routing_layer, seg_len_um, _wire_width);
     const double wire_cap = STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
 
@@ -559,7 +557,7 @@ void CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf)
     rc_tree_config.wire_res = wire_res;
     rc_tree_config.wire_cap = wire_cap;
     rc_tree_config.load_cap = seg_load;
-    STA_ADAPTER_INST.buildCharRcTree(_temp_net_names[i], rc_tree_config);
+    STA_ADAPTER_INST.buildCharRcTree(_temp_net_names.at(i), rc_tree_config);
   }
 }
 

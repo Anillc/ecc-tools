@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -130,7 +131,7 @@ void Wrapper::read()
     return;
   }
 
-  std::ranges::for_each(DESIGN_INST.get_clocks(), [&](Clock* clock) {
+  std::ranges::for_each(DESIGN_INST.get_clocks(), [&](Clock* clock) -> void {
     if (clock == nullptr) {
       CTS_LOG_WARNING << "Skip null clock in CTS design.";
       return;

@@ -23,6 +23,7 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
 #include <vector>
 
 #include "database/characterization/CharCore.hh"
@@ -130,13 +131,16 @@ TEST(SegmentJoinTest, BasicEqualJoin)
   icts::SegmentCharTable downstream;
 
   // Upstream: output_slew=100, load_cap=50
-  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000}));
+  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5,
+                                   SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000}));
 
   // Downstream: input_slew=100, driven_cap=50 (should match)
-  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, SegmentShape{kPattern2, kLength2000}));
+  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3,
+                                     SegmentShape{.pattern_id = kPattern2, .length_idx = kLength2000}));
 
   // Downstream: input_slew=100, driven_cap=55 (should NOT match)
-  downstream.addChar(MakeSegmentChar(kSlew100, kSlew130, kCap55, kCap70, kDelay3p0, kPower0p4, SegmentShape{kPattern3, kLength3000}));
+  downstream.addChar(MakeSegmentChar(kSlew100, kSlew130, kCap55, kCap70, kDelay3p0, kPower0p4,
+                                     SegmentShape{.pattern_id = kPattern3, .length_idx = kLength3000}));
 
   const icts::SegmentPatternCombiner combiner(kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
@@ -161,11 +165,14 @@ TEST(SegmentJoinTest, MultipleMatches)
   icts::SegmentCharTable downstream;
 
   // Two upstream entries with same output boundary
-  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000}));
-  upstream.addChar(MakeSegmentChar(kSlew90, kSlew100, kCap45, kCap50, kDelay1p5, kPower0p6, SegmentShape{kPattern2, kLength1500}));
+  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5,
+                                   SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000}));
+  upstream.addChar(MakeSegmentChar(kSlew90, kSlew100, kCap45, kCap50, kDelay1p5, kPower0p6,
+                                   SegmentShape{.pattern_id = kPattern2, .length_idx = kLength1500}));
 
   // One downstream that matches both (input_slew=100, driven_cap=50)
-  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, SegmentShape{kPattern3, kLength2000}));
+  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3,
+                                     SegmentShape{.pattern_id = kPattern3, .length_idx = kLength2000}));
 
   const icts::SegmentPatternCombiner combiner(kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
@@ -178,9 +185,11 @@ TEST(SegmentJoinTest, NoMatches)
   icts::SegmentCharTable upstream;
   icts::SegmentCharTable downstream;
 
-  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000}));
+  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5,
+                                   SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000}));
   // Downstream has different driven_cap (51 != 50)
-  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap51, kCap60, kDelay2p0, kPower0p3, SegmentShape{kPattern2, kLength2000}));
+  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap51, kCap60, kDelay2p0, kPower0p3,
+                                     SegmentShape{.pattern_id = kPattern2, .length_idx = kLength2000}));
 
   const icts::SegmentPatternCombiner combiner(kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
@@ -199,13 +208,16 @@ TEST(HTreeJoinTest, HalfCapJoin)
   icts::HTreeTopologyCharTable downstream;
 
   // Upstream: output_slew=100, load_cap=100 -> probe_key cap = 50
-  upstream.addChar(MakeHTreeChar(kSlew80, kSlew100, kCap40, kCap100, kDelay1p0, kPower0p5, HTreeShape{kPattern1, 1}));
+  upstream.addChar(
+      MakeHTreeChar(kSlew80, kSlew100, kCap40, kCap100, kDelay1p0, kPower0p5, HTreeShape{.pattern_id = kPattern1, .levels = 1}));
 
   // Downstream: input_slew=100, driven_cap=50 (should match: 100/2 == 50)
-  downstream.addChar(MakeHTreeChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, HTreeShape{kPattern2, 1}));
+  downstream.addChar(
+      MakeHTreeChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, HTreeShape{.pattern_id = kPattern2, .levels = 1}));
 
   // Downstream: input_slew=100, driven_cap=51 (should NOT match)
-  downstream.addChar(MakeHTreeChar(kSlew100, kSlew130, kCap51, kCap70, kDelay3p0, kPower0p4, HTreeShape{kPattern3, 1}));
+  downstream.addChar(
+      MakeHTreeChar(kSlew100, kSlew130, kCap51, kCap70, kDelay3p0, kPower0p4, HTreeShape{.pattern_id = kPattern3, .levels = 1}));
 
   const icts::TopologyPatternCombiner combiner(kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
@@ -232,10 +244,12 @@ TEST(HTreeJoinTest, OddCapHalving)
   icts::HTreeTopologyCharTable downstream;
 
   // Upstream: load_cap=101 -> probe_key cap = 50 (floor division)
-  upstream.addChar(MakeHTreeChar(kSlew80, kSlew100, kCap40, kCap101, kDelay1p0, kPower0p5, HTreeShape{kPattern1, 1}));
+  upstream.addChar(
+      MakeHTreeChar(kSlew80, kSlew100, kCap40, kCap101, kDelay1p0, kPower0p5, HTreeShape{.pattern_id = kPattern1, .levels = 1}));
 
   // Downstream: driven_cap=50 (should match: 101/2 = 50)
-  downstream.addChar(MakeHTreeChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, HTreeShape{kPattern2, 1}));
+  downstream.addChar(
+      MakeHTreeChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, HTreeShape{.pattern_id = kPattern2, .levels = 1}));
 
   const icts::TopologyPatternCombiner combiner(kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
@@ -249,8 +263,10 @@ TEST(HTreeJoinTest, PowerDoubling)
   icts::HTreeTopologyCharTable upstream;
   icts::HTreeTopologyCharTable downstream;
 
-  upstream.addChar(MakeHTreeChar(kSlew80, kSlew100, kCap40, kCap100, kDelay1p0, kPower10p0, HTreeShape{kPattern1, 1}));
-  downstream.addChar(MakeHTreeChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower5p0, HTreeShape{kPattern2, 1}));
+  upstream.addChar(
+      MakeHTreeChar(kSlew80, kSlew100, kCap40, kCap100, kDelay1p0, kPower10p0, HTreeShape{.pattern_id = kPattern1, .levels = 1}));
+  downstream.addChar(
+      MakeHTreeChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower5p0, HTreeShape{.pattern_id = kPattern2, .levels = 1}));
 
   const icts::TopologyPatternCombiner combiner(kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
@@ -269,9 +285,11 @@ TEST(PrunerTest, DominationCheck)
   const icts::ParetoPruner<icts::SegmentChar> pruner;
 
   // Entry a: better in all metrics
-  auto better_entry = MakeSegmentChar(kSlew80, kSlew90, kCap40, kCap60, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000});
+  auto better_entry = MakeSegmentChar(kSlew80, kSlew90, kCap40, kCap60, kDelay1p0, kPower0p5,
+                                      SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000});
   // Entry b: worse in all metrics
-  auto worse_entry = MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay2p0, kPower0p6, SegmentShape{kPattern1, kLength1000});
+  auto worse_entry = MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay2p0, kPower0p6,
+                                     SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000});
 
   EXPECT_TRUE(pruner.dominates(better_entry, worse_entry));
   EXPECT_FALSE(pruner.dominates(worse_entry, better_entry));
@@ -282,9 +300,11 @@ TEST(PrunerTest, NonDomination)
   const icts::ParetoPruner<icts::SegmentChar> pruner;
 
   // Entry a: better slew, worse cap
-  auto lower_slew_entry = MakeSegmentChar(kSlew80, kSlew90, kCap40, kCap50, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000});
+  auto lower_slew_entry = MakeSegmentChar(kSlew80, kSlew90, kCap40, kCap50, kDelay1p0, kPower0p5,
+                                          SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000});
   // Entry b: worse slew, better cap
-  auto higher_cap_entry = MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap60, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000});
+  auto higher_cap_entry = MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap60, kDelay1p0, kPower0p5,
+                                          SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000});
 
   // Neither dominates the other (Pareto non-comparable)
   EXPECT_FALSE(pruner.dominates(lower_slew_entry, higher_cap_entry));
@@ -297,13 +317,16 @@ TEST(PrunerTest, WithPruning)
   icts::SegmentCharTable downstream;
 
   // Upstream with same output boundary
-  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5, SegmentShape{kPattern1, kLength1000}));
+  upstream.addChar(MakeSegmentChar(kSlew80, kSlew100, kCap40, kCap50, kDelay1p0, kPower0p5,
+                                   SegmentShape{.pattern_id = kPattern1, .length_idx = kLength1000}));
 
   // Two downstream - one dominates the other
   // Better: lower output_slew, higher load_cap, lower delay, lower power
-  downstream.addChar(MakeSegmentChar(kSlew100, kSlew110, kCap50, kCap70, kDelay1p5, kPower0p2, SegmentShape{kPattern2, kLength2000}));
+  downstream.addChar(MakeSegmentChar(kSlew100, kSlew110, kCap50, kCap70, kDelay1p5, kPower0p2,
+                                     SegmentShape{.pattern_id = kPattern2, .length_idx = kLength2000}));
   // Worse: higher output_slew, lower load_cap, higher delay, higher power
-  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3, SegmentShape{kPattern2, kLength2000}));
+  downstream.addChar(MakeSegmentChar(kSlew100, kSlew120, kCap50, kCap60, kDelay2p0, kPower0p3,
+                                     SegmentShape{.pattern_id = kPattern2, .length_idx = kLength2000}));
 
   const icts::SegmentPatternCombiner combiner(kBoundaryKey);
   // Use InputBoundaryPruner to group by (input_slew, driven_cap)

@@ -98,7 +98,7 @@ auto QueryArcElectrical(int wire_distance_dbu, const Router::RCTreeBuildOptions&
   const auto wire_width = ResolveWireWidth(options);
   const auto resistance = STA_ADAPTER_INST.queryWireResistance(routing_layer, wire_length, wire_width) / kMilliOhmPerOhm;
   const auto capacitance = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, wire_length, wire_width);
-  return {resistance, capacitance};
+  return {.resistance = resistance, .capacitance = capacitance};
 }
 
 auto ResolveVertexName(const Router::SteinerTreeType::NodeType& node, const Router::RCTreeType& rc_tree) -> std::string
@@ -144,14 +144,14 @@ void WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<Loca
 {
   const auto count = std::min(pins.size(), points.size());
   for (std::size_t i = 0; i < count; ++i) {
-    auto* pin = pins[i];
+    auto* pin = pins.at(i);
     if (pin == nullptr) {
       continue;
     }
-    pin->set_location(points[i]);
+    pin->set_location(points.at(i));
     auto* inst = pin->get_inst();
     if (inst != nullptr) {
-      inst->set_location(points[i]);
+      inst->set_location(points.at(i));
     }
   }
 }
@@ -175,14 +175,14 @@ auto BuildRCTreeImpl(const TreeT& tree, const Router::RCTreeBuildOptions& option
     auto lumped_cap = FindLumpedCap(vertex_name, options);
     auto vertex_id = rc_tree.addVertex(vertex_name, node.is_terminal, lumped_cap);
     CTS_LOG_FATAL_IF(vertex_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree vertex for routing node: " << vertex_name;
-    node_to_vertex_id[node.id] = vertex_id;
+    node_to_vertex_id.at(node.id) = vertex_id;
   }
 
-  rc_tree.setRoot(node_to_vertex_id[tree.get_root()]);
+  rc_tree.setRoot(node_to_vertex_id.at(tree.get_root()));
 
   for (const auto& edge : tree.get_edges()) {
-    auto source_vertex_id = node_to_vertex_id[edge.source_node_id];
-    auto sink_vertex_id = node_to_vertex_id[edge.target_node_id];
+    auto source_vertex_id = node_to_vertex_id.at(edge.source_node_id);
+    auto sink_vertex_id = node_to_vertex_id.at(edge.target_node_id);
     CTS_LOG_FATAL_IF(source_vertex_id == Router::RCTreeType::kInvalidId || sink_vertex_id == Router::RCTreeType::kInvalidId)
         << "Routing edge endpoint is missing during RCTree conversion.";
 

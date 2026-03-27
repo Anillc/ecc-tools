@@ -242,18 +242,18 @@ class BoundSkewTree
   static auto calcPointCoordOnLine(const Point& first_point, const Point& second_point, const double& distance_to_first,
                                    const double& distance_to_second, Point& point) -> void;
   auto calcXBalancePosition(const double& delay_1, const double& delay_2, const double& cap_load_1, const double& cap_load_2,
-                            const double& horizontal_distance, const double& vertical_distance,
-                            BalanceRefAxis balance_ref_axis) const -> double;
+                            const double& horizontal_distance, const double& vertical_distance, BalanceRefAxis balance_ref_axis) const
+      -> double;
   auto calcYBalancePosition(const double& delay_1, const double& delay_2, const double& cap_load_1, const double& cap_load_2,
-                            const double& horizontal_distance, const double& vertical_distance,
-                            BalanceRefAxis balance_ref_axis) const -> double;
+                            const double& horizontal_distance, const double& vertical_distance, BalanceRefAxis balance_ref_axis) const
+      -> double;
   static auto calcManhattanDistanceComponents(const Point& first_point, const Point& second_point) -> std::pair<double, double>;
 
   // Feasible Merging Section
   auto calcFeasibleMergeSegmentPoints(const Area& current_area) -> void;
   auto calcFeasibleMergeSegmentOnLine(const Area& current_area, Point& point, const Point& reference_point, const size_t& end_side) -> bool;
-  auto calcFeasibleMergeSegmentBetweenPoints(const Point& high_skew_point, const Point& low_skew_point,
-                                             Point& feasible_merge_point) const -> void;
+  auto calcFeasibleMergeSegmentBetweenPoints(const Point& high_skew_point, const Point& low_skew_point, Point& feasible_merge_point) const
+      -> void;
   auto hasFeasibleMergeSegmentOnJoiningRegion() const -> bool;
 
   // Merging Region

@@ -200,8 +200,8 @@ auto ParseNetList(const nlohmann::json& value) -> std::vector<std::pair<std::str
       continue;
     }
 
-    auto clock_name = parse_string(item["clock_name"], "");
-    auto net_name = parse_string(item["net_name"], "");
+    auto clock_name = parse_string(item.at("clock_name"), "");
+    auto net_name = parse_string(item.at("net_name"), "");
     if (!clock_name.empty() && !net_name.empty()) {
       clock_net_list.emplace_back(clock_name, net_name);
     }

@@ -49,7 +49,7 @@ constexpr int kBipartitionClusterCount = 2;
 auto SplitByPosition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> std::vector<std::vector<Pin*>>
 {
   std::vector<Pin*> sorted = loads;
-  std::sort(sorted.begin(), sorted.end(), [](Pin* lhs, Pin* rhs) {
+  std::ranges::sort(sorted, [](Pin* lhs, Pin* rhs) -> auto {
     const auto& lhs_point = lhs->get_location();
     const auto& rhs_point = rhs->get_location();
     if (lhs_point.get_x() != rhs_point.get_x()) {
@@ -60,7 +60,7 @@ auto SplitByPosition(const std::vector<Pin*>& loads, std::size_t min_cluster_siz
 
   std::vector<std::vector<Pin*>> clusters(kBipartitionClusterCount);
   if (sorted.size() <= 1) {
-    clusters[0] = std::move(sorted);
+    clusters.at(0) = std::move(sorted);
     return clusters;
   }
 
@@ -71,8 +71,8 @@ auto SplitByPosition(const std::vector<Pin*>& loads, std::size_t min_cluster_siz
   left_size = std::max<std::size_t>(1, left_size);
 
   const auto middle_iter = std::next(sorted.begin(), static_cast<std::ptrdiff_t>(left_size));
-  clusters[0].assign(sorted.begin(), middle_iter);
-  clusters[1].assign(middle_iter, sorted.end());
+  clusters.at(0).assign(sorted.begin(), middle_iter);
+  clusters.at(1).assign(middle_iter, sorted.end());
   return clusters;
 }
 
@@ -81,7 +81,7 @@ auto CalcCenters(const std::vector<std::vector<Pin*>>& clusters) -> std::vector<
   std::vector<Point<double>> centers;
   centers.reserve(clusters.size());
   for (const auto& cluster : clusters) {
-    centers.push_back(geometry::CalcCenter(cluster, [](Pin* pin) { return pin->get_location(); }));
+    centers.push_back(geometry::CalcCenter(cluster, [](Pin* pin) -> auto { return pin->get_location(); }));
   }
   return centers;
 }
@@ -113,16 +113,13 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   const std::size_t safe_min = std::max<std::size_t>(1, std::min(min_cluster_size, loads.size() / 2));
 
   auto max_cluster_size = static_cast<std::size_t>(std::ceil(config.max_ratio * static_cast<double>(loads.size())));
-  if (max_cluster_size < safe_min) {
-    max_cluster_size = safe_min;
-  }
-  if (max_cluster_size > loads.size() - safe_min) {
-    max_cluster_size = loads.size() - safe_min;
-  }
+  max_cluster_size = std::max(max_cluster_size, safe_min);
+  max_cluster_size = std::min(max_cluster_size, loads.size() - safe_min);
   max_cluster_size = std::max<std::size_t>(1, max_cluster_size);
 
   const KMeans<Pin*> kmeans;
-  auto kmeans_result = kmeans.run(loads, kBipartitionClusterCount, [](Pin* pin) { return pin->get_location(); }, config.kmeans_iter_count);
+  auto kmeans_result
+      = kmeans.run(loads, kBipartitionClusterCount, [](Pin* pin) -> auto { return pin->get_location(); }, config.kmeans_iter_count);
 
   auto centers = kmeans_result.centers;
   if (centers.size() < 2) {
@@ -154,7 +151,7 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
     double max_shift = 0.0;
     const std::size_t loop_count = std::min(centers.size(), new_centers.size());
     for (std::size_t i = 0; i < loop_count; ++i) {
-      max_shift = std::max(max_shift, geometry::Manhattan(centers[i], new_centers[i]));
+      max_shift = std::max(max_shift, geometry::Manhattan(centers.at(i), new_centers.at(i)));
     }
     centers = std::move(new_centers);
     if (max_shift < config.converge_threshold) {

@@ -247,7 +247,7 @@ void EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
   frame.child_ids = CollectChildNodeIds(input_topology, frame.node_id);
 
   if (frame.child_ids.size() > 2) {
-    std::ranges::sort(frame.child_ids, [&](std::size_t lhs_id, std::size_t rhs_id) {
+    std::ranges::sort(frame.child_ids, [&](std::size_t lhs_id, std::size_t rhs_id) -> bool {
       const auto* lhs = input_topology.get_node(lhs_id);
       const auto* rhs = input_topology.get_node(rhs_id);
       if (lhs == nullptr || rhs == nullptr) {
@@ -270,17 +270,17 @@ void EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
       return;
     case 2:
       frame.state = BuildState::kAfterLeftChild;
-      PushBuildFrame(frame_stack, frame.child_ids[kLeft]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(kLeft));
       return;
     case 3:
       frame.trunk = CreateSteinerNode(frame.node->location, parameters, next_steiner_id, owned_nodes);
       frame.state = BuildState::kAfterTrunkLeftChild;
-      PushBuildFrame(frame_stack, frame.child_ids[0]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(0));
       return;
     case 4:
       frame.left_copy = CreateSteinerNode(frame.node->location, parameters, next_steiner_id, owned_nodes);
       frame.state = BuildState::kAfterLeftCopyLeftChild;
-      PushBuildFrame(frame_stack, frame.child_ids[0]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(0));
       return;
     default:
       CTS_LOG_FATAL << "BST input-topology node child size " << frame.child_ids.size() << " is unsupported.";
@@ -312,7 +312,7 @@ void ExitSingleChildFrame(BuildFrame& frame, std::size_t& next_steiner_id, Binar
   CTS_LOG_FATAL_IF(grandchildren.empty()) << "BST input-topology single-child Steiner node flatten result is empty.";
 
   frame.node->left = grandchildren.front();
-  frame.node->right = grandchildren.size() > 1 ? grandchildren[kRight] : nullptr;
+  frame.node->right = grandchildren.size() > 1 ? grandchildren.at(kRight) : nullptr;
   return_value = frame.node;
   frame_stack.pop_back();
 }
@@ -331,7 +331,7 @@ void ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType&
     case BuildState::kAfterLeftChild:
       frame.first_child = return_value;
       frame.state = BuildState::kAfterRightChild;
-      PushBuildFrame(frame_stack, frame.child_ids[kRight]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(kRight));
       return;
     case BuildState::kAfterRightChild:
       frame.second_child = return_value;
@@ -343,7 +343,7 @@ void ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType&
     case BuildState::kAfterTrunkLeftChild:
       frame.first_child = return_value;
       frame.state = BuildState::kAfterTrunkRightChild;
-      PushBuildFrame(frame_stack, frame.child_ids[1]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(1));
       return;
     case BuildState::kAfterTrunkRightChild:
       frame.second_child = return_value;
@@ -351,7 +351,7 @@ void ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType&
       frame.trunk->right = frame.second_child;
       frame.node->left = frame.trunk;
       frame.state = BuildState::kAfterThirdChild;
-      PushBuildFrame(frame_stack, frame.child_ids[2]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(2));
       return;
     case BuildState::kAfterThirdChild:
       frame.third_child = return_value;
@@ -362,7 +362,7 @@ void ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType&
     case BuildState::kAfterLeftCopyLeftChild:
       frame.first_child = return_value;
       frame.state = BuildState::kAfterLeftCopyRightChild;
-      PushBuildFrame(frame_stack, frame.child_ids[1]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(1));
       return;
     case BuildState::kAfterLeftCopyRightChild:
       frame.second_child = return_value;
@@ -370,12 +370,12 @@ void ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType&
       frame.left_copy->right = frame.second_child;
       frame.right_copy = CreateSteinerNode(frame.node->location, parameters, next_steiner_id, owned_nodes);
       frame.state = BuildState::kAfterRightCopyLeftChild;
-      PushBuildFrame(frame_stack, frame.child_ids[2]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(2));
       return;
     case BuildState::kAfterRightCopyLeftChild:
       frame.third_child = return_value;
       frame.state = BuildState::kAfterRightCopyRightChild;
-      PushBuildFrame(frame_stack, frame.child_ids[3]);
+      PushBuildFrame(frame_stack, frame.child_ids.at(3));
       return;
     case BuildState::kAfterRightCopyRightChild:
       frame.fourth_child = return_value;
@@ -446,8 +446,8 @@ void FinalizeElectricalState(BinaryTopologyNode* node, const BSTParameters& para
     double max_delay = 0.0;
     double min_delay = std::numeric_limits<double>::max();
     for (auto* child : children) {
-      auto delay
-          = parameters.unit_h_res * child->sub_len * (parameters.unit_h_cap * child->sub_len / kPiElmoreQuadraticFactor + child->cap_load);
+      auto delay = parameters.unit_h_res * child->sub_len
+                   * ((parameters.unit_h_cap * child->sub_len / kPiElmoreQuadraticFactor) + child->cap_load);
       max_delay = std::max(max_delay, child->max_delay + delay);
       min_delay = std::min(min_delay, child->min_delay + delay);
     }
@@ -494,7 +494,8 @@ auto BuildAreaTree(BinaryTopologyNode* node, const BSTParameters& parameters, Ar
 
   Area* return_area = nullptr;
   std::vector<BuildAreaFrame> frame_stack;
-  frame_stack.push_back(BuildAreaFrame{node, nullptr, nullptr, nullptr, BuildAreaState::kEnter});
+  frame_stack.push_back(
+      BuildAreaFrame{.node = node, .area = nullptr, .left_area = nullptr, .right_area = nullptr, .state = BuildAreaState::kEnter});
 
   while (!frame_stack.empty()) {
     auto& frame = frame_stack.back();
@@ -511,12 +512,14 @@ auto BuildAreaTree(BinaryTopologyNode* node, const BSTParameters& parameters, Ar
           return frame.area;
         }
         frame.state = BuildAreaState::kAfterLeftChild;
-        frame_stack.push_back(BuildAreaFrame{frame.node->left, nullptr, nullptr, nullptr, BuildAreaState::kEnter});
+        frame_stack.push_back(BuildAreaFrame{
+            .node = frame.node->left, .area = nullptr, .left_area = nullptr, .right_area = nullptr, .state = BuildAreaState::kEnter});
         break;
       case BuildAreaState::kAfterLeftChild:
         frame.left_area = return_area;
         frame.state = BuildAreaState::kAfterRightChild;
-        frame_stack.push_back(BuildAreaFrame{frame.node->right, nullptr, nullptr, nullptr, BuildAreaState::kEnter});
+        frame_stack.push_back(BuildAreaFrame{
+            .node = frame.node->right, .area = nullptr, .left_area = nullptr, .right_area = nullptr, .state = BuildAreaState::kEnter});
         break;
       case BuildAreaState::kAfterRightChild:
         frame.right_area = return_area;
@@ -551,7 +554,7 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
     ExportState state = ExportState::kEnter;
   };
 
-  auto add_edge = [&](std::size_t parent_id, std::size_t child_id, const Area* parent_area, std::size_t side) {
+  auto add_edge = [&](std::size_t parent_id, std::size_t child_id, const Area* parent_area, std::size_t side) -> void {
     const auto* parent_node = tree.get_node(parent_id);
     const auto* child_node = tree.get_node(child_id);
     CTS_LOG_FATAL_IF(parent_node == nullptr || child_node == nullptr) << "BST exported node is null.";
@@ -566,7 +569,7 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
 
   std::size_t return_node_id = BSTRouter::ClockSteinerTreeType::kInvalidId;
   std::vector<ExportFrame> frame_stack;
-  frame_stack.push_back(ExportFrame{area});
+  frame_stack.push_back(ExportFrame{.area = area});
 
   while (!frame_stack.empty()) {
     auto& frame = frame_stack.back();
@@ -593,7 +596,7 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
           break;
         }
         frame.state = ExportState::kAfterLeftChild;
-        frame_stack.push_back(ExportFrame{frame.area->get_left()});
+        frame_stack.push_back(ExportFrame{.area = frame.area->get_left()});
         break;
       }
       case ExportState::kAfterLeftChild:
@@ -607,7 +610,7 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
           break;
         }
         frame.state = ExportState::kAfterRightChild;
-        frame_stack.push_back(ExportFrame{frame.area->get_right()});
+        frame_stack.push_back(ExportFrame{.area = frame.area->get_right()});
         break;
       case ExportState::kAfterRightChild:
         frame.child_id = return_node_id;
@@ -656,8 +659,8 @@ auto BSTRouter::buildTree(const std::vector<Terminal>& load_terminals, const BST
   return ExportClockTree(solver.get_root(), normalized);
 }
 
-auto BSTRouter::buildTreeFromTopology(const ClockSteinerTreeType& input_topology,
-                                      const BSTParameters& parameters) -> BSTRouter::ClockSteinerTreeType
+auto BSTRouter::buildTreeFromTopology(const ClockSteinerTreeType& input_topology, const BSTParameters& parameters)
+    -> BSTRouter::ClockSteinerTreeType
 {
   auto normalized = BuildDefaultParameters(parameters);
   normalized.topo_type = NormalizeTopoTypeForInputTopology(normalized);

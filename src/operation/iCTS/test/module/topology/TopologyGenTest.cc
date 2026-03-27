@@ -36,12 +36,15 @@
 #include <vector>
 
 #include "common/TestUtils.hh"
-#include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
 #include "database/spatial/Tree.hh"
 #include "module/topology/TopologyGen.hh"
 #include "utils/geometry/Geometry.hh"
 #include "utils/logger/Logger.hh"
+
+namespace icts {
+class Pin;
+}  // namespace icts
 
 namespace icts_test {
 namespace {
@@ -76,7 +79,7 @@ struct TopologyCase
 
 auto generate_case(const TopologyCase& test_case) -> GeneratedPins
 {
-  const CanvasSize canvas{test_case.width, test_case.height};
+  const CanvasSize canvas{.width = test_case.width, .height = test_case.height};
   switch (test_case.kind) {
     case DistKind::kNormal:
       return MakeNormal(test_case.count, canvas, test_case.seed);
@@ -106,6 +109,8 @@ auto is_valid_pos(const icts::Point<int>& position) -> bool
 }
 
 }  // namespace
+
+namespace {
 
 class TopologyGenTestInterface : public ::testing::TestWithParam<TopologyCase>
 {
@@ -231,5 +236,7 @@ INSTANTIATE_TEST_SUITE_P(
                                    kQuadrantOneWeights},
                       TopologyCase{"quadrant_three_uneven", DistKind::kQuadrants, 768, kCanvasWidth, kCanvasHeight, kSeedQuadrantUneven,
                                    kQuadrantUnevenWeights}));
+
+}  // namespace
 
 }  // namespace icts_test
