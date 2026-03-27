@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
-- **Last Active**: 2026-03-26
+- **Total Sessions**: 10
+- **Last Active**: 2026-03-27
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~556 | Active |
+| `journal-1.md` | ~627 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits |
 |---|------|-------|---------|
+| 10 | 2026-03-27 | Clean all iCTS in-scope quality findings | `cff7f72a5` |
 | 9 | 2026-03-26 | Fix ecc_dev_tools binary version detection | `7f945bae2` |
 | 8 | 2026-03-25 | Refactor topology and simplify spec | `c8e58a3eb`, `086fa39a8` |
 | 7 | 2026-03-23 | Deliver ecc_dev_tools and clean iCTS checks | `8705713c1`, `0dba87bb9` |

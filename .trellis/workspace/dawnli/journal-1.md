@@ -554,3 +554,74 @@ Fixed dynamic clang tool selection so ecc_dev_tools prefers the newest installed
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: Clean all iCTS in-scope quality findings
+
+**Date**: 2026-03-27
+**Task**: Clean all iCTS in-scope quality findings
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| TU validation | Verified all 25 iCTS translation units pass `clang++ -fsyntax-only` after installing `libomp-dev` |
+| Full cleanup | Fixed all in-scope ecc_dev_tools findings in `src/operation/iCTS` |
+| Checker validation | Re-ran full `ecc_dev_tools` analysis and reached 0 in-scope findings across format/tidy/headers/cmake/iwyu |
+| STAAdapter follow-up | After clang frontend became fully functional, fixed 27 newly surfaced in-scope findings in `source/database/adapter/sta/STAAdapter.cc` |
+| Tooling insight | Confirmed clang frontend no longer fails on `omp.h`; full-project clang build still conflicts with system Boost 1.71 in SALT third-party code, but iCTS frontend analysis is unaffected |
+
+**Updated Files**:
+- `.trellis/ecc_dev_tools/suppressions.jsonl`
+- `src/operation/iCTS/source/database/adapter/sta/STAAdapter.cc`
+- `src/operation/iCTS/source/database/config/Config.cc`
+- `src/operation/iCTS/source/database/io/Wrapper.cc`
+- `src/operation/iCTS/source/database/io/Wrapper.hh`
+- `src/operation/iCTS/source/module/characterization/CharBuilder.cc`
+- `src/operation/iCTS/source/module/routing/Router.cc`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.cc`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BoundSkewTree.cc`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BoundSkewTree.hh`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/GeomCalc.cc`
+- `src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.cc`
+- `src/operation/iCTS/source/module/routing/flute/FLUTERouter.cc`
+- `src/operation/iCTS/source/module/routing/local_legalization/LocalLegalization.cc`
+- `src/operation/iCTS/source/module/routing/salt/SALTRouter.cc`
+- `src/operation/iCTS/source/module/timing/TimingEngine.cc`
+- `src/operation/iCTS/source/module/topology/TopologyGen.cc`
+- `src/operation/iCTS/source/module/topology/clustering/Clustering.cc`
+- `src/operation/iCTS/source/utils/logger/Logger.cc`
+- `src/operation/iCTS/test/common/TestUtils.cc`
+- `src/operation/iCTS/test/database/spatial/SpatialRegionTest.cc`
+- `src/operation/iCTS/test/module/characterization/CharacterizationTest.cc`
+- `src/operation/iCTS/test/module/routing/LocalLegalizationTest.cc`
+- `src/operation/iCTS/test/module/routing/RouterLegalizationTest.cc`
+- `src/operation/iCTS/test/module/topology/TopologyGenTest.cc`
+
+**Final Result**:
+- 25/25 iCTS TUs pass clang syntax check
+- 0 in-scope findings remain in full ecc_dev_tools analysis
+- Work archived and recorded after commit
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cff7f72a5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
