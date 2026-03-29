@@ -24,8 +24,6 @@
 #pragma once
 
 #include <optional>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "RCTree.hh"
@@ -42,6 +40,7 @@ class Router
 {
  public:
   using Terminal = RoutingTerminal;
+  using ClockTerminal = ClockRoutingTerminal;
   using SteinerTreeType = SteinerTree<int>;
   using ClockSteinerTreeType = ClockSteinerTree<int>;
   using RCTreeType = RCTree;
@@ -51,7 +50,6 @@ class Router
 
   struct RCTreeBuildOptions
   {
-    std::unordered_map<std::string, double> lumped_cap_map;
     std::optional<int> routing_layer = std::nullopt;
     std::optional<double> wire_width = std::nullopt;
   };
@@ -61,8 +59,8 @@ class Router
 
   static SteinerTreeType buildFluteTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
   static SteinerTreeType buildSaltTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
-  static ClockSteinerTreeType buildBstTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
-  static ClockSteinerTreeType buildCbsTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
+  static ClockSteinerTreeType buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters);
+  static ClockSteinerTreeType buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters);
 
   static LegalizationResult legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins,
                                          const LegalizationRegion& feasible_region, const LegalizationRegion& block_region);

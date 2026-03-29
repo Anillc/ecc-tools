@@ -35,4 +35,10 @@ struct RoutingTerminal
   Point<int> location = Point<int>(-1, -1);
 };
 
+struct ClockRoutingTerminal : public RoutingTerminal
+{
+  double pin_cap = 0.0;
+  double insertion_delay = 0.0;
+};
+
 }  // namespace icts

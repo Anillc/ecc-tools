@@ -25,7 +25,6 @@
 
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 #include "Point.hh"
 
@@ -58,8 +57,6 @@ struct BSTParameters
   TopoType topo_type = TopoType::kGreedyDist;
   RCPattern pattern = RCPattern::kHV;
   std::optional<Point<int>> root_guide = std::nullopt;
-  std::unordered_map<std::string, double> init_delay_map;
-  std::unordered_map<std::string, double> init_cap_map;
 };
 
 }  // namespace icts

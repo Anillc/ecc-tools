@@ -7,6 +7,7 @@ add_executable(
   ${ICTS_TEST}/database/spatial/SpatialRegionTest.cc
   ${ICTS_TEST}/module/routing/LocalLegalizationTest.cc
   ${ICTS_TEST}/module/routing/RouterLegalizationTest.cc
+  ${ICTS_TEST}/module/routing/RouterClockTreeTest.cc
 )
 
 target_include_directories(icts_test PRIVATE ${ICTS_TEST})

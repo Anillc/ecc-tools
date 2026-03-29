@@ -62,7 +62,7 @@ class CustomSaltBuilder
 class CBSRouter
 {
  public:
-  using Terminal = RoutingTerminal;
+  using Terminal = ClockRoutingTerminal;
   using ClockSteinerTreeType = ClockSteinerTree<int>;
 
   CBSRouter() = delete;

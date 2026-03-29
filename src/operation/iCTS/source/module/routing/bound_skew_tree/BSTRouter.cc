@@ -69,6 +69,12 @@ struct BinaryTopologyNode
   BinaryTopologyNode* right = nullptr;
 };
 
+struct TerminalElectrical
+{
+  double pin_cap = 0.0;
+  double insertion_delay = 0.0;
+};
+
 using BinaryNodeStore = std::vector<std::unique_ptr<BinaryTopologyNode>>;
 using AreaStore = std::vector<std::unique_ptr<Area>>;
 
@@ -102,33 +108,15 @@ auto NormalizeTopoTypeForInputTopology(const BSTParameters& parameters) -> TopoT
   return TopoType::kInputTopo;
 }
 
-auto FindInitDelay(const std::string& terminal_name, const BSTParameters& parameters) -> double
+auto BuildLoadArea(const ClockRoutingTerminal& terminal, const BSTParameters& parameters, AreaStore& owned_areas) -> Area*
 {
-  auto iter = parameters.init_delay_map.find(terminal_name);
-  if (iter != parameters.init_delay_map.end()) {
-    return iter->second;
-  }
-  return 0.0;
-}
-
-auto FindInitCap(const std::string& terminal_name, const BSTParameters& parameters) -> double
-{
-  auto iter = parameters.init_cap_map.find(terminal_name);
-  if (iter != parameters.init_cap_map.end()) {
-    return iter->second;
-  }
-  return 0.0;
-}
-
-auto BuildLoadArea(const RoutingTerminal& terminal, const BSTParameters& parameters, AreaStore& owned_areas) -> Area*
-{
-  auto min_delay = FindInitDelay(terminal.name, parameters);
-  auto max_delay = min_delay;
+  auto min_delay = terminal.insertion_delay;
+  auto max_delay = terminal.insertion_delay;
   if (max_delay - min_delay > parameters.skew_bound) {
     min_delay = max_delay - parameters.skew_bound;
   }
 
-  auto cap_load = FindInitCap(terminal.name, parameters);
+  auto cap_load = terminal.pin_cap;
   auto area = std::make_unique<Area>(terminal.name, static_cast<double>(terminal.location.get_x()) / parameters.db_unit,
                                      static_cast<double>(terminal.location.get_y()) / parameters.db_unit, cap_load, min_delay, max_delay,
                                      0.0, parameters.pattern, true);
@@ -137,8 +125,8 @@ auto BuildLoadArea(const RoutingTerminal& terminal, const BSTParameters& paramet
   return area_ptr;
 }
 
-auto CreateBinaryNode(const std::string& name, const Point<int>& location, bool is_terminal, const BSTParameters& parameters,
-                      BinaryNodeStore& owned_nodes) -> BinaryTopologyNode*
+auto CreateBinaryNode(const std::string& name, const Point<int>& location, bool is_terminal, const TerminalElectrical& electrical,
+                      const BSTParameters& parameters, BinaryNodeStore& owned_nodes) -> BinaryTopologyNode*
 {
   auto node = std::make_unique<BinaryTopologyNode>();
   auto* node_ptr = node.get();
@@ -147,9 +135,9 @@ auto CreateBinaryNode(const std::string& name, const Point<int>& location, bool 
   node_ptr->is_terminal = is_terminal;
   node_ptr->pattern = parameters.pattern;
   if (is_terminal) {
-    node_ptr->cap_load = FindInitCap(name, parameters);
-    node_ptr->min_delay = FindInitDelay(name, parameters);
-    node_ptr->max_delay = node_ptr->min_delay;
+    node_ptr->cap_load = electrical.pin_cap;
+    node_ptr->min_delay = electrical.insertion_delay;
+    node_ptr->max_delay = electrical.insertion_delay;
     if (node_ptr->max_delay - node_ptr->min_delay > parameters.skew_bound) {
       node_ptr->min_delay = node_ptr->max_delay - parameters.skew_bound;
     }
@@ -219,7 +207,8 @@ void PushBuildFrame(std::vector<BuildFrame>& frame_stack, std::size_t child_id)
 auto CreateSteinerNode(const Point<int>& location, const BSTParameters& parameters, std::size_t& next_steiner_id,
                        BinaryNodeStore& owned_nodes) -> BinaryTopologyNode*
 {
-  return CreateBinaryNode(std::string("steiner_") + std::to_string(next_steiner_id++), location, false, parameters, owned_nodes);
+  return CreateBinaryNode(std::string("steiner_") + std::to_string(next_steiner_id++), location, false, TerminalElectrical{}, parameters,
+                          owned_nodes);
 }
 
 auto CollectNonNullChildren(BinaryTopologyNode* node) -> std::vector<BinaryTopologyNode*>
@@ -243,7 +232,8 @@ void EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
   CTS_LOG_FATAL_IF(tree_node == nullptr) << "BST input-topology node is null.";
 
   auto node_name = tree_node->name.empty() ? std::string("steiner_") + std::to_string(frame.node_id) : tree_node->name;
-  frame.node = CreateBinaryNode(node_name, tree_node->location, tree_node->is_terminal, parameters, owned_nodes);
+  auto electrical = TerminalElectrical{.pin_cap = tree_node->pin_cap, .insertion_delay = tree_node->insertion_delay};
+  frame.node = CreateBinaryNode(node_name, tree_node->location, tree_node->is_terminal, electrical, parameters, owned_nodes);
   frame.child_ids = CollectChildNodeIds(input_topology, frame.node_id);
 
   if (frame.child_ids.size() > 2) {
@@ -583,10 +573,12 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
         }
 
         const auto& location = frame.area->get_location();
+        auto insertion_delay = frame.area->is_fixed_terminal() ? location.max : 0.0;
+        auto pin_cap = frame.area->is_fixed_terminal() ? frame.area->get_cap_load() : 0.0;
         frame.node_id = tree.addNode(frame.area->get_name(),
                                      Point<int>(static_cast<int>(std::lround(location.x * parameters.db_unit)),
                                                 static_cast<int>(std::lround(location.y * parameters.db_unit))),
-                                     frame.area->is_fixed_terminal());
+                                     frame.area->is_fixed_terminal(), pin_cap, insertion_delay);
         CTS_LOG_FATAL_IF(frame.node_id == BSTRouter::ClockSteinerTreeType::kInvalidId)
             << "Failed to add node when exporting BST ClockSteinerTree.";
         area_to_node_id[frame.area] = frame.node_id;
@@ -643,7 +635,7 @@ auto BSTRouter::buildTree(const std::vector<Terminal>& load_terminals, const BST
   auto normalized = BuildDefaultParameters(parameters);
   auto topo_type = NormalizeTopoTypeForBuild(normalized);
 
-  ClockSteinerTreeType empty_tree;
+  const ClockSteinerTreeType empty_tree;
   if (load_terminals.empty()) {
     return empty_tree;
   }
@@ -665,7 +657,7 @@ auto BSTRouter::buildTreeFromTopology(const ClockSteinerTreeType& input_topology
   auto normalized = BuildDefaultParameters(parameters);
   normalized.topo_type = NormalizeTopoTypeForInputTopology(normalized);
 
-  ClockSteinerTreeType empty_tree;
+  const ClockSteinerTreeType empty_tree;
   if (input_topology.node_count() == 0) {
     return empty_tree;
   }

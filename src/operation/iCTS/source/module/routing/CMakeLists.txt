@@ -3,11 +3,11 @@ add_subdirectory(${ICTS_MODULE_ROUTING}/flute)
 add_subdirectory(${ICTS_MODULE_ROUTING}/salt)
 add_subdirectory(${ICTS_MODULE_ROUTING}/bound_skew_tree)
 add_subdirectory(${ICTS_MODULE_ROUTING}/concurrent_bst_salt)
+add_subdirectory(${ICTS_MODULE_ROUTING}/local_legalization)
 
 add_library(
   icts_source_module_routing
   ${ICTS_MODULE_ROUTING}/Router.cc
-  ${ICTS_MODULE_ROUTING}/local_legalization/LocalLegalization.cc
 )
 
 target_link_libraries(
@@ -15,6 +15,7 @@ target_link_libraries(
   PUBLIC
   icts_source_database
   icts_source_module_routing_database
+  icts_source_module_routing_local_legalization
   PRIVATE
   icts_source_module_routing_flute
   icts_source_module_routing_bst

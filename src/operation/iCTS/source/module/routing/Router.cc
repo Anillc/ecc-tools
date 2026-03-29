@@ -28,7 +28,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "Inst.hh"
@@ -69,15 +68,6 @@ auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optiona
 
   const auto wire_width = CONFIG_INST.get_wire_width();
   return wire_width > 0.0 ? std::optional<double>{wire_width} : std::nullopt;
-}
-
-auto FindLumpedCap(const std::string& vertex_name, const Router::RCTreeBuildOptions& options) -> double
-{
-  const auto iter = options.lumped_cap_map.find(vertex_name);
-  if (iter == options.lumped_cap_map.end()) {
-    return 0.0;
-  }
-  return iter->second;
 }
 
 struct ArcElectrical
@@ -127,6 +117,17 @@ auto GetWireDistance(const Router::ClockSteinerTreeType::EdgeType& edge) -> int
   return std::max(edge.distance, edge.routed_distance);
 }
 
+auto GetNodeLumpedCap(const Router::SteinerTreeType::NodeType& node) -> double
+{
+  (void) node;
+  return 0.0;
+}
+
+auto GetNodeLumpedCap(const Router::ClockSteinerTreeType::NodeType& node) -> double
+{
+  return node.pin_cap;
+}
+
 auto CollectPinLocations(const std::vector<Pin*>& pins) -> std::vector<LocalLegalization::PointType>
 {
   std::vector<LocalLegalization::PointType> points;
@@ -172,7 +173,7 @@ auto BuildRCTreeImpl(const TreeT& tree, const Router::RCTreeBuildOptions& option
   std::vector<std::size_t> node_to_vertex_id(tree.node_count(), Router::RCTreeType::kInvalidId);
   for (const auto& node : tree.get_nodes()) {
     auto vertex_name = ResolveVertexName(node, rc_tree);
-    auto lumped_cap = FindLumpedCap(vertex_name, options);
+    auto lumped_cap = GetNodeLumpedCap(node);
     auto vertex_id = rc_tree.addVertex(vertex_name, node.is_terminal, lumped_cap);
     CTS_LOG_FATAL_IF(vertex_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree vertex for routing node: " << vertex_name;
     node_to_vertex_id.at(node.id) = vertex_id;
@@ -207,12 +208,12 @@ auto Router::buildSaltTree(const Terminal& driver_terminal, const std::vector<Te
   return SALTRouter::buildTree(driver_terminal, load_terminals);
 }
 
-auto Router::buildBstTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
+auto Router::buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
 {
   return BSTRouter::buildTree(load_terminals, parameters);
 }
 
-auto Router::buildCbsTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
+auto Router::buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
 {
   return CBSRouter::buildTree(load_terminals, parameters);
 }

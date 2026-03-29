@@ -49,6 +49,13 @@ struct SteinerNode
 };
 
 template <typename T>
+struct ClockSteinerNode : public SteinerNode<T>
+{
+  double pin_cap = 0.0;
+  double insertion_delay = 0.0;
+};
+
+template <typename T>
 struct SteinerEdge
 {
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
@@ -65,12 +72,12 @@ struct SteinerEdge
   T distance{};  // Embedded geometric edge distance in coordinate type T.
 };
 
-template <typename T, typename EdgeT = SteinerEdge<T>>
+template <typename T, typename NodeT = SteinerNode<T>, typename EdgeT = SteinerEdge<T>>
 class SteinerTree
 {
  public:
   using CoordType = T;
-  using NodeType = SteinerNode<T>;
+  using NodeType = NodeT;
   using EdgeType = EdgeT;
 
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
@@ -80,21 +87,15 @@ class SteinerTree
   SteinerTree& operator=(const SteinerTree&) = default;
   SteinerTree(SteinerTree&&) = default;
   SteinerTree& operator=(SteinerTree&&) = default;
-  ~SteinerTree() = default;
+  virtual ~SteinerTree() = default;
 
   void reserveNodes(std::size_t n) { _nodes.reserve(n); }
   void reserveEdges(std::size_t n) { _edges.reserve(n); }
 
-  std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal = false)
+  virtual std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal = false)
   {
-    if (name.empty() || _node_name_to_id.contains(name)) {
-      return kInvalidId;
-    }
-
-    std::size_t id = _nodes.size();
-    _nodes.push_back(NodeType{id, name, location, is_terminal, kInvalidId, std::vector<std::size_t>{}});
-    _node_name_to_id[name] = id;
-    return id;
+    auto node = buildNode(name, location, is_terminal);
+    return appendNode(std::move(node));
   }
 
   void setRoot(std::size_t node_id)
@@ -272,6 +273,30 @@ class SteinerTree
   }
 
  protected:
+  virtual auto buildNode(const std::string& name, const Point<T>& location, bool is_terminal) -> NodeType
+  {
+    NodeType node;
+    node.name = name;
+    node.location = location;
+    node.is_terminal = is_terminal;
+    return node;
+  }
+
+  auto appendNode(NodeType node) -> std::size_t
+  {
+    if (node.name.empty() || _node_name_to_id.contains(node.name)) {
+      return kInvalidId;
+    }
+
+    const std::size_t id = _nodes.size();
+    node.id = id;
+    node.parent_edge_id = kInvalidId;
+    node.child_edge_ids.clear();
+    _nodes.push_back(std::move(node));
+    _node_name_to_id[_nodes.back().name] = id;
+    return id;
+  }
+
   std::vector<NodeType> _nodes;
   std::vector<EdgeType> _edges;
   std::size_t _root_node_id = kInvalidId;
@@ -291,6 +316,31 @@ struct ClockSteinerEdge : public SteinerEdge<T>
 };
 
 template <typename T>
-using ClockSteinerTree = SteinerTree<T, ClockSteinerEdge<T>>;
+class ClockSteinerTree : public SteinerTree<T, ClockSteinerNode<T>, ClockSteinerEdge<T>>
+{
+ public:
+  using BaseType = SteinerTree<T, ClockSteinerNode<T>, ClockSteinerEdge<T>>;
+  using NodeType = typename BaseType::NodeType;
+  using BaseType::kInvalidId;
+
+  ClockSteinerTree() = default;
+  ~ClockSteinerTree() override = default;
+
+  std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal = false) override
+  {
+    return addNode(name, location, is_terminal, 0.0, 0.0);
+  }
+
+  std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal, double pin_cap, double insertion_delay)
+  {
+    NodeType node;
+    node.name = name;
+    node.location = location;
+    node.is_terminal = is_terminal;
+    node.pin_cap = pin_cap;
+    node.insertion_delay = insertion_delay;
+    return this->appendNode(std::move(node));
+  }
+};
 
 }  // namespace icts

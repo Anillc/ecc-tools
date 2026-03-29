@@ -35,7 +35,7 @@ struct BSTParameters;
 class BSTRouter
 {
  public:
-  using Terminal = RoutingTerminal;
+  using Terminal = ClockRoutingTerminal;
   using ClockSteinerTreeType = ClockSteinerTree<int>;
 
   BSTRouter() = delete;

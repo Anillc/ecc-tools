@@ -1,0 +1,44 @@
+{
+  "id": "steiner-clock-hierarchy",
+  "name": "steiner-clock-hierarchy",
+  "title": "refactor SteinerTree and ClockSteinerTree hierarchy",
+  "description": "Template SteinerTree over node type, introduce ClockSteinerNode, and change ClockSteinerTree from alias to inheritance-based type.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-03-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "03-29-steiner-tree-clock-tree-inheritance",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
