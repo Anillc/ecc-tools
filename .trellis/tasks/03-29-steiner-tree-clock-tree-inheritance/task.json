@@ -37,8 +37,6 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "03-29-steiner-clock-hierarchy",
-    "03-29-bst-cbs-electrical-state-migration",
     "03-29-router-rctree-callsite-update"
   ],
   "parent": null,
