@@ -625,3 +625,57 @@ Fixed dynamic clang tool selection so ecc_dev_tools prefers the newest installed
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: Clock routing refactor and routing CMake cleanup
+
+**Date**: 2026-03-29
+**Task**: Clock routing refactor and routing CMake cleanup
+
+### Summary
+
+Refactored iCTS clock routing tree contracts, migrated BST/CBS metadata off side maps, added clock-tree tests, and split local_legalization into its own routing CMake target with full validation.
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Routing data model | Made `SteinerTree` node-type aware, introduced `ClockSteinerNode`, and changed `ClockSteinerTree` from alias to inheritance-based type. |
+| Clock terminals | Added `ClockRoutingTerminal` with `pin_cap` and `insertion_delay`, and updated `Router` / `BSTRouter` / `CBSRouter` clock-entry signatures. |
+| Metadata flow | Removed `BSTParameters` init maps and `RCTreeBuildOptions::lumped_cap_map`; moved clock electrical state onto terminals/nodes and used node-owned cap in `buildRCTree`. |
+| Build structure | Split `module/routing/local_legalization` into standalone target `icts_source_module_routing_local_legalization` and updated parent CMake linkage/visibility. |
+| Verification | Rebuilt `icts_test`, ran full `./bin/icts_test`, and ran `ecc_dev_tools` full check on `src/operation/iCTS` with 0 in-scope findings. |
+
+**Updated Files**:
+- `src/operation/iCTS/source/database/routing/SteinerTree.hh`
+- `src/operation/iCTS/source/module/routing/database/RoutingTerminal.hh`
+- `src/operation/iCTS/source/module/routing/Router.hh`
+- `src/operation/iCTS/source/module/routing/Router.cc`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BSTTypes.hh`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.hh`
+- `src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.cc`
+- `src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.hh`
+- `src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.cc`
+- `src/operation/iCTS/source/module/routing/CMakeLists.txt`
+- `src/operation/iCTS/source/module/routing/local_legalization/CMakeLists.txt`
+- `src/operation/iCTS/test/module/routing/RouterClockTreeTest.cc`
+- `src/operation/iCTS/test/CMakeLists.txt`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2201117e2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
