@@ -27,32 +27,32 @@ void RuleValidator::verifyEnclosureParallel(RVCluster& rv_cluster)
   std::vector<CutLayer>& cut_layer_list = DRCDM.getDatabase().get_cut_layer_list();
   std::map<int32_t, std::vector<int32_t>>& cut_to_adjacent_routing_map = DRCDM.getDatabase().get_cut_to_adjacent_routing_map();
   const auto& layer_data = rv_cluster.get_layer_data();
-  auto build_outer_ring_info = [this](const RVLayerData& rv_layer_data, const PolygonData& polygon_data, int32_t& coord_size,
-                                      std::vector<Segment<PlanarCoord>>& edge_list, std::vector<int32_t>& edge_length_list,
-                                      std::set<int32_t>& eol_edge_idx_set) {
-    edge_list.clear();
-    edge_length_list.clear();
-    eol_edge_idx_set.clear();
+  auto build_outer_ring_info
+      = [this](const RVLayerData& rv_layer_data, const PolygonData& polygon_data, int32_t& coord_size, std::vector<Segment<PlanarCoord>>& edge_list,
+               std::vector<int32_t>& edge_length_list, std::set<int32_t>& eol_edge_idx_set) {
+          edge_list.clear();
+          edge_length_list.clear();
+          eol_edge_idx_set.clear();
 
-    std::vector<bool> convex_corner_list;
-    for (const BoundaryData& boundary_data : rv_layer_data.getBoundaries(polygon_data)) {
-      if (boundary_data.isHole) {
-        break;
-      }
-      edge_list.emplace_back(boundary_data.begin_coord, boundary_data.end_coord);
-      edge_length_list.push_back(boundary_data.edge_length);
-      convex_corner_list.push_back(boundary_data.isConvex);
-    }
-    coord_size = static_cast<int32_t>(edge_list.size());
-    if (coord_size < 4) {
-      return;
-    }
-    for (int32_t i = 0; i < coord_size; i++) {
-      if (convex_corner_list[getIdx(i - 1, coord_size)] && convex_corner_list[i]) {
-        eol_edge_idx_set.insert(i);
-      }
-    }
-  };
+          std::vector<bool> convex_corner_list;
+          for (const BoundaryData& boundary_data : rv_layer_data.getBoundaries(polygon_data)) {
+            if (boundary_data.isHole) {
+              break;
+            }
+            edge_list.emplace_back(boundary_data.begin_coord, boundary_data.end_coord);
+            edge_length_list.push_back(boundary_data.edge_length);
+            convex_corner_list.push_back(boundary_data.isConvex);
+          }
+          coord_size = static_cast<int32_t>(edge_list.size());
+          if (coord_size < 4) {
+            return;
+          }
+          for (int32_t i = 0; i < coord_size; i++) {
+            if (convex_corner_list[getIdx(i - 1, coord_size)] && convex_corner_list[i]) {
+              eol_edge_idx_set.insert(i);
+            }
+          }
+        };
   for (const auto& [cut_layer_idx, cut_layer_data] : layer_data) {
     if (cut_layer_data.cut_pool.empty()) {
       continue;

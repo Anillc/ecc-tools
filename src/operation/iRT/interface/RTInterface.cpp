@@ -26,7 +26,6 @@
 #include "NotificationUtility.h"
 #include "PinAccessor.hpp"
 #include "RTInterface.hpp"
-#include "ResourceAllocator.hpp"
 #include "SpaceRouter.hpp"
 #include "SupplyAnalyzer.hpp"
 #include "TopologyGenerator.hpp"
@@ -126,10 +125,6 @@ void RTInterface::runRT()
   SupplyAnalyzer::initInst();
   RTSA.analyze();
   SupplyAnalyzer::destroyInst();
-
-  ResourceAllocator::initInst();
-  RTRA.allocate();
-  ResourceAllocator::destroyInst();
 
   TopologyGenerator::initInst();
   RTTG.generate();

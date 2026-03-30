@@ -3203,13 +3203,13 @@ class Utility
   }
 
   static double retainPlaces(double a, int32_t n = 1)
-{
-  if (n <= 0) {
-    return std::round(a);
+  {
+    if (n <= 0) {
+      return std::round(a);
+    }
+    const double scale = std::pow(10.0, static_cast<double>(n));
+    return std::round(a * scale) / scale;
   }
-  const double scale = std::pow(10.0, static_cast<double>(n));
-  return std::round(a * scale) / scale;
-}
 
   template <typename Key>
   static bool exist(const std::vector<Key>& vector, const Key& key)
