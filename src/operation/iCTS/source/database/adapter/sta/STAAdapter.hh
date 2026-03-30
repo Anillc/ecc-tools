@@ -31,6 +31,7 @@
 namespace icts {
 
 enum class InstType;
+class Pin;
 
 #define STA_ADAPTER_INST (icts::STAAdapter::getInst())
 
@@ -76,6 +77,7 @@ class STAAdapter
   static double queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name);
   static double queryCharSlew(const std::string& pin_full_name);
   static double queryCharInputPinCap(const std::string& cell_master);
+  static double queryPinCapacitance(const Pin* pin);
   static std::pair<std::string, std::string> queryBufferPorts(const std::string& cell_master);
   static void destroyCharInstance(const std::string& inst_name);
   static void destroyCharNet(const std::string& net_name);

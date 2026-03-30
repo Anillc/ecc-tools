@@ -47,6 +47,7 @@
 #include "config/Config.hh"
 #include "def_service.h"
 #include "design/Inst.hh"
+#include "design/Pin.hh"
 #include "dm_config.h"
 #include "idm.h"
 #include "liberty/Lib.hh"
@@ -471,6 +472,20 @@ auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
     cap = ista::ConvertCapUnit(lib->get_cap_unit(), ista::CapacitiveUnit::kPF, cap);
   }
   return cap;
+}
+
+auto STAAdapter::queryPinCapacitance(const Pin* pin) -> double
+{
+  if (pin == nullptr) {
+    CTS_LOG_WARNING << "Null pin provided when querying pin capacitance.";
+    return 0.0;
+  }
+
+  auto* inst = pin->get_inst();
+  const std::string pin_full_name = inst != nullptr ? (inst->get_name() + "/" + pin->get_name()) : pin->get_name();
+  const double pin_cap = GetStaEngine()->getInstPinCapacitance(pin_full_name.c_str());
+
+  return pin_cap;
 }
 
 auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>
