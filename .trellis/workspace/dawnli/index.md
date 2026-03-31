@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-03-29
+- **Total Sessions**: 12
+- **Last Active**: 2026-03-31
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~681 | Active |
+| `journal-1.md` | ~714 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -27,8 +27,9 @@
 ## Session History
 
 <!-- @@@auto:session-history -->
-| # | Date | Title | Commits |
-|---|------|-------|---------|
+| # | Date | Title | Commits | Branch |
+|---|------|-------|---------|--------|
+| 12 | 2026-03-31 | Migrate Trellis To 0.4.0-beta.8 | `5d438dadc` | `cts_refactor` |
 | 11 | 2026-03-29 | Clock routing refactor and routing CMake cleanup | `2201117e2` |
 | 10 | 2026-03-27 | Clean all iCTS in-scope quality findings | `cff7f72a5` |
 | 9 | 2026-03-26 | Fix ecc_dev_tools binary version detection | `7f945bae2` |

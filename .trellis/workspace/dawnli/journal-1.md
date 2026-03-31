@@ -679,3 +679,36 @@ Refactored iCTS clock routing tree contracts, migrated BST/CBS metadata off side
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Migrate Trellis To 0.4.0-beta.8
+
+**Date**: 2026-03-31
+**Task**: Migrate Trellis To 0.4.0-beta.8
+**Branch**: `cts_refactor`
+
+### Summary
+
+Migrated Trellis scripts and workflow commands to 0.4.0-beta.8, unified before-dev/check command usage, refreshed onboarding and bootstrap documentation, and archived the completed migration task after push.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5d438dadc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
