@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/scripts/common/task_context.py", "reason": "Check/debug context should resolve the unified check command"}
+{"file": ".claude/commands/trellis/onboard.md", "reason": "User-facing command names must match the unified migration semantics"}

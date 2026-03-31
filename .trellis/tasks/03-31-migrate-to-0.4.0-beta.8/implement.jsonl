@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository process constraints for migration work"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared thinking guides for cross-file migration changes"}
+{"file": ".trellis/scripts/common/cli_adapter.py", "reason": "Platform command path mapping for renamed Trellis commands"}
