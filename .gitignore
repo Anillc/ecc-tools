@@ -28,3 +28,4 @@ tmp/
 scripts
 *.patch
 CMakePresets.json
+.humanize/
