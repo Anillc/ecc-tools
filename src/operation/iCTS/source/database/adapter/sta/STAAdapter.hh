@@ -60,7 +60,7 @@ class STAAdapter
   static icts::InstType queryInstType(const std::string& inst_name);
   static bool isFlipFlop(const std::string& inst_name);
   static bool isClockNet(const std::string& net_name);
-  static auto collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>;
+  static std::vector<std::pair<std::string, std::string>> collectClockNetPairs();
   static double queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt);
   static double queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt);
   static double queryCellOutPinCapLimit(const std::string& cell_master);

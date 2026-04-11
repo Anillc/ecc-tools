@@ -549,8 +549,10 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
     const auto* child_node = tree.get_node(child_id);
     CTS_LOG_FATAL_IF(parent_node == nullptr || child_node == nullptr) << "BST exported node is null.";
 
-    auto distance = geometry::Manhattan(parent_node->location, child_node->location);
-    auto routed_distance = static_cast<int>(std::lround(parent_area->get_edge_len(side) * parameters.db_unit));
+    const auto distance = geometry::Manhattan(parent_node->location, child_node->location);
+    CTS_LOG_FATAL_IF(distance < 0) << "BST embedded edge distance is negative.";
+
+    const auto routed_distance = static_cast<int>(std::lround(parent_area->get_edge_len(side) * parameters.db_unit));
     CTS_LOG_FATAL_IF(routed_distance < distance) << "BST routed edge length is shorter than embedded Manhattan distance.";
 
     auto edge_id = tree.addEdge(parent_id, child_id, distance, routed_distance);

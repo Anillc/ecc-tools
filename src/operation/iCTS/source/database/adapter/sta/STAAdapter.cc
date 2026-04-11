@@ -203,8 +203,6 @@ auto STAAdapter::isClockNet(const std::string& net_name) -> bool
   return sta_net->isClockNet();
 }
 
-// Already declared static in the class interface; suppress false positive on the out-of-class definition.
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 auto STAAdapter::collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>
 {
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;

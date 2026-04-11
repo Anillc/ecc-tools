@@ -36,7 +36,7 @@ class BSTRouter
 {
  public:
   using Terminal = ClockRoutingTerminal;
-  using ClockSteinerTreeType = ClockSteinerTree<int>;
+  using ClockSteinerTreeType = ClockSteinerTree<>;
 
   BSTRouter() = delete;
   ~BSTRouter() = default;

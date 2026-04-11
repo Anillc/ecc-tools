@@ -1,0 +1,13 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "placement and CMake structure for new topology and test files"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "repository-wide hard constraints for iCTS file naming, headers, validation"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "singleton and adapter boundaries for Wrapper and STAAdapter integration"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "iCTS logging policy for clustering and tests"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "naming, include minimization, dependency visibility, validation flow"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "no-exception and safe fallback policy for cross-layer estimation"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "map Pin->Router->RCTree->TimingEngine and adapter boundaries before coding"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "avoid duplicating geometry, routing, and test helper patterns"}
+{"file": "src/operation/iCTS/source/module/routing/Router.hh", "reason": "existing routing facade and clock/generic tree interfaces"}
+{"file": "src/operation/iCTS/test/common/TestUtils.hh", "reason": "existing test distribution and SVG utility patterns"}
+{"file": "src/operation/iCTS/source/module/topology/clustering/Clustering.hh", "reason": "existing public clustering contract and ClusterResult shape"}

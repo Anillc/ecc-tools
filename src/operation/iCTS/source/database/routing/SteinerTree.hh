@@ -35,7 +35,7 @@
 
 namespace icts {
 
-template <typename T>
+template <typename T = int>
 struct SteinerNode
 {
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
@@ -48,14 +48,14 @@ struct SteinerNode
   std::vector<std::size_t> child_edge_ids;
 };
 
-template <typename T>
+template <typename T = int>
 struct ClockSteinerNode : public SteinerNode<T>
 {
   double pin_cap = 0.0;
   double insertion_delay = 0.0;
 };
 
-template <typename T>
+template <typename T = int>
 struct SteinerEdge
 {
   static constexpr std::size_t kInvalidId = std::numeric_limits<std::size_t>::max();
@@ -72,7 +72,7 @@ struct SteinerEdge
   T distance{};  // Embedded geometric edge distance in coordinate type T.
 };
 
-template <typename T, typename NodeT = SteinerNode<T>, typename EdgeT = SteinerEdge<T>>
+template <typename T = int, typename NodeT = SteinerNode<T>, typename EdgeT = SteinerEdge<T>>
 class SteinerTree
 {
  public:
@@ -118,7 +118,7 @@ class SteinerTree
     }
 
     std::size_t edge_id = _edges.size();
-    _edges.push_back(EdgeType{edge_id, source_node_id, target_node_id, distance, std::forward<EdgeArgs>(edge_args)...});
+    _edges.emplace_back(edge_id, source_node_id, target_node_id, distance, std::forward<EdgeArgs>(edge_args)...);
     _nodes[source_node_id].child_edge_ids.push_back(edge_id);
     target_node.parent_edge_id = edge_id;
     return edge_id;
@@ -303,7 +303,7 @@ class SteinerTree
   std::unordered_map<std::string, std::size_t> _node_name_to_id;
 };
 
-template <typename T>
+template <typename T = int>
 struct ClockSteinerEdge : public SteinerEdge<T>
 {
   ClockSteinerEdge() = default;
@@ -315,12 +315,14 @@ struct ClockSteinerEdge : public SteinerEdge<T>
   T routed_distance{};  // Routed wire distance in coordinate type T.
 };
 
-template <typename T>
+template <typename T = int>
 class ClockSteinerTree : public SteinerTree<T, ClockSteinerNode<T>, ClockSteinerEdge<T>>
 {
  public:
   using BaseType = SteinerTree<T, ClockSteinerNode<T>, ClockSteinerEdge<T>>;
+  using CoordType = typename BaseType::CoordType;
   using NodeType = typename BaseType::NodeType;
+  using EdgeType = typename BaseType::EdgeType;
   using BaseType::kInvalidId;
 
   ClockSteinerTree() = default;

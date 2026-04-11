@@ -3,17 +3,43 @@ from __future__ import annotations
 import re
 import shlex
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 try:
     from .build_context import compile_commands_for_scope, targets_for_scope
-    from .models import BuildContext, CheckResult, CMakeTarget, CompileCommand, EnvironmentSnapshot, ExecutionPlan, Finding, Profile, Scope, TidyPass
+    from .models import (
+        BuildContext,
+        CheckResult,
+        CMakeTarget,
+        CompileCommand,
+        EnvironmentSnapshot,
+        ExecutionPlan,
+        Finding,
+        Profile,
+        RuntimeEntry,
+        Scope,
+        TidyPass,
+    )
     from .utils import dedupe_keep_order, parse_version_text, relative_to_repo, run_command
 except ImportError:
     from build_context import compile_commands_for_scope, targets_for_scope
-    from models import BuildContext, CheckResult, CMakeTarget, CompileCommand, EnvironmentSnapshot, ExecutionPlan, Finding, Profile, Scope, TidyPass
+    from models import (
+        BuildContext,
+        CheckResult,
+        CMakeTarget,
+        CompileCommand,
+        EnvironmentSnapshot,
+        ExecutionPlan,
+        Finding,
+        Profile,
+        RuntimeEntry,
+        Scope,
+        TidyPass,
+    )
     from utils import dedupe_keep_order, parse_version_text, relative_to_repo, run_command
 
 
@@ -37,6 +63,8 @@ GENERIC_WARNING_FLAG_TOKENS = (
     "-Wconversion",
     "-Wsign-conversion",
 )
+RUNTIME_DETAIL_LIMIT = 10
+RuntimeProgressLogger = Callable[[str], None]
 
 DIAGNOSTIC_LINE_RE = re.compile(r"^(.*?):(\d+):(\d+):\s+(warning|error|note):\s+(.*)$")
 CHECK_BRACKET_RE = re.compile(r"\[([^\[\]]+)\]\s*$")
@@ -78,6 +106,7 @@ class TidyPassOutcome:
     commands_run: int = 0
     fallback_candidates: int = 0
     candidate_commands: list[CompileCommand] = field(default_factory=list)
+    runtime_entries: list[RuntimeEntry] = field(default_factory=list)
 
 
 @dataclass
@@ -85,6 +114,10 @@ class ParsedDiagnosticSet:
     findings: list[Finding]
     parsed_count: int
     suppression_note: str | None = None
+
+
+def _top_runtime_entries(entries: list[RuntimeEntry], limit: int = RUNTIME_DETAIL_LIMIT) -> list[RuntimeEntry]:
+    return sorted(entries, key=lambda entry: (-entry.seconds, entry.label))[:limit]
 
 
 def run_selected_checks(
@@ -97,32 +130,84 @@ def run_selected_checks(
     jobs: int,
     fix: bool,
     snapshot: EnvironmentSnapshot,
+    runtime_detail: bool = False,
+    progress_logger: RuntimeProgressLogger | None = None,
 ) -> list[CheckResult]:
     results: list[CheckResult] = []
     cpp_files: list[Path] | None = None
     if any(kind in ("format", "headers") for kind in plan.kinds):
         cpp_files = _collect_cpp_files(scope, profile)
     for kind in plan.kinds:
-        if kind == "format":
-            results.append(run_format_check(repo_root, scope, fix, snapshot, profile, jobs=jobs, cpp_files=cpp_files))
-        elif kind == "tidy":
-            if context is None:
-                raise ValueError("Build context is required for tidy checks.")
-            results.append(run_tidy_check(repo_root, scope, context, profile, snapshot, plan, jobs=jobs))
-        elif kind == "headers":
-            if context is None:
-                raise ValueError("Build context is required for header checks.")
-            results.append(run_header_dependency_check(repo_root, scope, context, profile, snapshot, cpp_files=cpp_files))
-        elif kind == "cmake":
-            if context is None:
-                raise ValueError("Build context is required for cmake checks.")
-            results.append(run_cmake_graph_check(scope, context, profile))
-        elif kind == "iwyu":
-            if context is None:
-                raise ValueError("Build context is required for IWYU checks.")
-            results.append(run_iwyu_check(scope=scope, context=context, profile=profile, snapshot=snapshot, jobs=jobs))
-        else:
-            raise ValueError(f"Unsupported check kind: {kind}")
+        if progress_logger is not None:
+            progress_logger(f"[runtime] [{kind}] processing")
+        started_at = time.perf_counter()
+        try:
+            if kind == "format":
+                result = run_format_check(
+                    repo_root,
+                    scope,
+                    fix,
+                    snapshot,
+                    profile,
+                    jobs=jobs,
+                    cpp_files=cpp_files,
+                    runtime_detail=runtime_detail,
+                )
+            elif kind == "tidy":
+                if context is None:
+                    raise ValueError("Build context is required for tidy checks.")
+                result = run_tidy_check(
+                    repo_root,
+                    scope,
+                    context,
+                    profile,
+                    snapshot,
+                    plan,
+                    jobs=jobs,
+                    runtime_detail=runtime_detail,
+                )
+            elif kind == "headers":
+                if context is None:
+                    raise ValueError("Build context is required for header checks.")
+                result = run_header_dependency_check(
+                    repo_root,
+                    scope,
+                    context,
+                    profile,
+                    snapshot,
+                    cpp_files=cpp_files,
+                    runtime_detail=runtime_detail,
+                )
+            elif kind == "cmake":
+                if context is None:
+                    raise ValueError("Build context is required for cmake checks.")
+                result = run_cmake_graph_check(scope, context, profile)
+            elif kind == "iwyu":
+                if context is None:
+                    raise ValueError("Build context is required for IWYU checks.")
+                result = run_iwyu_check(
+                    scope=scope,
+                    context=context,
+                    profile=profile,
+                    snapshot=snapshot,
+                    jobs=jobs,
+                    runtime_detail=runtime_detail,
+                )
+            else:
+                raise ValueError(f"Unsupported check kind: {kind}")
+        except Exception:
+            elapsed = time.perf_counter() - started_at
+            if progress_logger is not None:
+                progress_logger(f"[runtime] [{kind}] done runtime={elapsed:.3f}s status=failed")
+            raise
+
+        result.runtime_seconds = time.perf_counter() - started_at
+        if progress_logger is not None:
+            progress_logger(
+                f"[runtime] [{kind}] done runtime={result.runtime_seconds:.3f}s "
+                f"in_scope={len(result.in_scope_findings())} out_of_scope={len(result.out_of_scope_findings())}"
+            )
+        results.append(result)
     return results
 
 
@@ -135,6 +220,7 @@ def run_format_check(
     *,
     jobs: int = 1,
     cpp_files: list[Path] | None = None,
+    runtime_detail: bool = False,
 ) -> CheckResult:
     result = CheckResult(kind="format", detail_limit=20)
     if cpp_files is not None:
@@ -147,34 +233,48 @@ def run_format_check(
     result.notes.append(f"Checked {len(files)} C/C++ files with clang-format.")
     result.notes.append(f"Using clang-format binary: {clang_format}")
 
-    def _check_one_file(file_path: Path) -> Finding | None:
+    def _check_one_file(file_path: Path) -> tuple[Finding | None, RuntimeEntry]:
+        started_at = time.perf_counter()
         if fix:
             run_command([clang_format, "-i", str(file_path)], cwd=repo_root, check=True)
-            return None
-        original = file_path.read_text(encoding="utf-8", errors="replace")
-        formatted = run_command([clang_format, str(file_path)], cwd=repo_root, check=True).stdout
-        if original != formatted:
-            return Finding(
-                check="format",
-                severity="warning",
-                path=file_path,
-                message="Formatting differs from repository .clang-format output.",
-                category="format",
-                subtype="needs-reformat",
-                origin="clang-format",
-                confidence="high",
-                location_scope_class="in_scope",
-                trigger_scope_class="in_scope",
-                trigger_path=file_path,
-            )
-        return None
+            finding = None
+        else:
+            original = file_path.read_text(encoding="utf-8", errors="replace")
+            formatted = run_command([clang_format, str(file_path)], cwd=repo_root, check=True).stdout
+            finding = None
+            if original != formatted:
+                finding = Finding(
+                    check="format",
+                    severity="warning",
+                    path=file_path,
+                    message="Formatting differs from repository .clang-format output.",
+                    category="format",
+                    subtype="needs-reformat",
+                    origin="clang-format",
+                    confidence="high",
+                    location_scope_class="in_scope",
+                    trigger_scope_class="in_scope",
+                    trigger_path=file_path,
+                )
+        runtime_entry = RuntimeEntry(
+            label=relative_to_repo(file_path, repo_root),
+            seconds=time.perf_counter() - started_at,
+            category="unit",
+        )
+        return finding, runtime_entry
 
     outcomes = _parallel_map(_check_one_file, files, jobs)
+    runtime_entries: list[RuntimeEntry] = []
     for outcome in outcomes:
         if isinstance(outcome, Exception):
             result.notes.append(f"Format check error: {outcome}")
-        elif outcome is not None:
-            result.findings.append(outcome)
+            continue
+        finding, runtime_entry = outcome
+        runtime_entries.append(runtime_entry)
+        if finding is not None:
+            result.findings.append(finding)
+    if runtime_detail:
+        result.runtime_entries.extend(_top_runtime_entries(runtime_entries))
     if fix:
         result.notes.append("Fix mode enabled: files were reformatted in place.")
     return result
@@ -189,6 +289,7 @@ def run_tidy_check(
     plan: ExecutionPlan,
     *,
     jobs: int = 1,
+    runtime_detail: bool = False,
 ) -> CheckResult:
     result = CheckResult(kind="tidy", detail_limit=25)
     commands = compile_commands_for_scope(context, scope)
@@ -209,6 +310,7 @@ def run_tidy_check(
     for tidy_pass in plan.tidy_passes:
         if tidy_pass.runner == "native-compiler":
             continue
+        pass_started_at = time.perf_counter()
         outcome = _run_tidy_pass(
             tidy_pass,
             repo_root=repo_root,
@@ -220,7 +322,18 @@ def run_tidy_check(
             headers=headers,
             profile=profile,
             jobs=jobs,
+            runtime_detail=runtime_detail,
         )
+        pass_elapsed = time.perf_counter() - pass_started_at
+        result.runtime_entries.append(
+            RuntimeEntry(
+                label=tidy_pass.name,
+                seconds=pass_elapsed,
+                category="phase",
+                count=outcome.commands_run,
+            )
+        )
+        result.runtime_entries.extend(outcome.runtime_entries)
         result.findings.extend(outcome.findings)
         result.notes.extend(outcome.notes)
         fallback_candidates.extend(outcome.candidate_commands)
@@ -234,6 +347,7 @@ def run_tidy_check(
             if not _has_findings_for_trigger_from_other_passes(result.findings, command.file, native_pass.name)
         ]
         if ordered_candidates:
+            pass_started_at = time.perf_counter()
             native_outcome = _run_native_compiler_pass(
                 native_pass,
                 repo_root=repo_root,
@@ -242,7 +356,18 @@ def run_tidy_check(
                 commands=ordered_candidates,
                 profile=profile,
                 jobs=jobs,
+                runtime_detail=runtime_detail,
             )
+            pass_elapsed = time.perf_counter() - pass_started_at
+            result.runtime_entries.append(
+                RuntimeEntry(
+                    label=native_pass.name,
+                    seconds=pass_elapsed,
+                    category="phase",
+                    count=native_outcome.commands_run,
+                )
+            )
+            result.runtime_entries.extend(native_outcome.runtime_entries)
             result.findings.extend(native_outcome.findings)
             result.notes.extend(native_outcome.notes)
         else:
@@ -269,15 +394,23 @@ def run_header_dependency_check(
     snapshot: EnvironmentSnapshot,
     *,
     cpp_files: list[Path] | None = None,
+    runtime_detail: bool = False,
 ) -> CheckResult:
     result = CheckResult(kind="headers", detail_limit=20)
     targets = targets_for_scope(context, scope)
     compiler = _tool_executable(snapshot, "g++")
     scanner_binary = _optional_tool_executable(snapshot, "clang-scan-deps")
+    clangxx_binary = _optional_tool_executable(snapshot, "clang++") if scanner_binary else None
     result.notes.append(f"Resolved {len(targets)} targets for header/dependency analysis.")
     result.notes.append(f"Using compiler binary: {compiler}")
-    if scanner_binary:
+    if scanner_binary and clangxx_binary:
         result.notes.append(f"Using clang-scan-deps binary: {scanner_binary}")
+        result.notes.append(f"Using clang++ driver for clang-scan-deps: {clangxx_binary}")
+    elif scanner_binary:
+        result.notes.append(
+            "clang-scan-deps is available but clang++ is unavailable in the current tool snapshot; "
+            "falling back to regex-based include scanning."
+        )
     else:
         result.notes.append("clang-scan-deps not available; falling back to regex-based include scanning.")
 
@@ -292,7 +425,8 @@ def run_header_dependency_check(
         for target in context.targets.values()
     }
 
-    def _check_one_header(header: Path) -> list[Finding]:
+    def _check_one_header(header: Path) -> tuple[list[Finding], RuntimeEntry]:
+        started_at = time.perf_counter()
         findings: list[Finding] = []
         owners = [target for target in targets if target.owns_path(header)]
         owner = owners[0] if owners else None
@@ -375,14 +509,34 @@ def run_header_dependency_check(
                 )
         finally:
             wrapper.unlink(missing_ok=True)
-        return findings
+        runtime_entry = RuntimeEntry(
+            label=relative_to_repo(header, repo_root),
+            seconds=time.perf_counter() - started_at,
+            category="unit",
+        )
+        return findings, runtime_entry
 
+    self_check_started_at = time.perf_counter()
     header_results = _parallel_map(_check_one_header, headers, snapshot.jobs)
+    self_check_elapsed = time.perf_counter() - self_check_started_at
+    result.runtime_entries.append(
+        RuntimeEntry(
+            label="header-self-check",
+            seconds=self_check_elapsed,
+            category="phase",
+            count=len(headers),
+        )
+    )
+    header_runtime_entries: list[RuntimeEntry] = []
     for item in header_results:
         if isinstance(item, Exception):
             result.notes.append(f"Header self-check error: {item}")
             continue
-        result.findings.extend(item)
+        findings, runtime_entry = item
+        result.findings.extend(findings)
+        header_runtime_entries.append(runtime_entry)
+    if runtime_detail:
+        result.runtime_entries.extend(_top_runtime_entries(header_runtime_entries))
 
     # Phase 2: include dependency analysis
     # Collect all scoped compile commands for potential clang-scan-deps batch scanning
@@ -390,8 +544,8 @@ def run_header_dependency_check(
         command for command in context.compile_commands if scope.contains(command.file)
     ]
 
-    if scanner_binary and scoped_commands:
-        clangxx_binary = _tool_executable(snapshot, "clang++")
+    dependency_scan_started_at = time.perf_counter()
+    if scanner_binary and clangxx_binary and scoped_commands:
         # Use clang-scan-deps for accurate transitive include scanning
         dep_map = _scan_deps_batch(scoped_commands, scanner_binary, clangxx_binary, jobs=snapshot.jobs)
         result.notes.append(f"clang-scan-deps scanned {len(dep_map)} source files for include dependencies.")
@@ -471,6 +625,15 @@ def run_header_dependency_check(
                             trigger_target=target.name,
                         )
                     )
+    dependency_scan_elapsed = time.perf_counter() - dependency_scan_started_at
+    result.runtime_entries.append(
+        RuntimeEntry(
+            label="dependency-scan",
+            seconds=dependency_scan_elapsed,
+            category="phase",
+            count=len(scoped_commands),
+        )
+    )
     return result
 
 
@@ -640,6 +803,7 @@ def run_iwyu_check(
     profile: Profile,
     snapshot: EnvironmentSnapshot,
     jobs: int,
+    runtime_detail: bool = False,
 ) -> CheckResult:
     _ = profile
     result = CheckResult(kind="iwyu", detail_limit=30)
@@ -657,11 +821,12 @@ def run_iwyu_check(
         result.notes.append("No compile commands in scope; nothing to analyze.")
         return result
 
-    def analyze_one(cmd: CompileCommand) -> list[Finding]:
+    def analyze_one(cmd: CompileCommand) -> tuple[list[Finding], RuntimeEntry]:
+        started_at = time.perf_counter()
         findings: list[Finding] = []
         tokens = shlex.split(cmd.command)
         if not tokens:
-            return findings
+            return findings, RuntimeEntry(label=relative_to_repo(cmd.file, scope.repo_root), seconds=0.0, category="unit")
         tokens[0] = iwyu_binary
 
         # Add IWYU-specific flags
@@ -670,23 +835,34 @@ def run_iwyu_check(
         try:
             proc = run_command(iwyu_cmd, cwd=cmd.directory, check=False, timeout=120)
         except RuntimeError:
-            return findings
+            return findings, RuntimeEntry(
+                label=relative_to_repo(cmd.file, scope.repo_root),
+                seconds=time.perf_counter() - started_at,
+                category="unit",
+            )
         # IWYU writes analysis to stderr
         output = proc.stderr or ""
 
         file_findings = _parse_iwyu_output(output, cmd.file, scope)
         findings.extend(file_findings)
-        return findings
+        return findings, RuntimeEntry(
+            label=relative_to_repo(cmd.file, scope.repo_root),
+            seconds=time.perf_counter() - started_at,
+            category="unit",
+        )
 
     all_results = _parallel_map(analyze_one, commands, jobs)
 
     # Collect all findings, then deduplicate across translation units
     raw_findings: list[Finding] = []
+    runtime_entries: list[RuntimeEntry] = []
     for item in all_results:
         if isinstance(item, Exception):
             result.notes.append(f"IWYU analysis error: {item}")
             continue
-        raw_findings.extend(item)
+        findings, runtime_entry = item
+        raw_findings.extend(findings)
+        runtime_entries.append(runtime_entry)
 
     # Deduplicate: the same header finding might be reported from multiple TUs
     seen_keys: set[tuple[str, str, str]] = set()
@@ -698,6 +874,8 @@ def run_iwyu_check(
         result.findings.append(finding)
 
     result.notes.append(f"IWYU analysis produced {len(result.findings)} unique findings ({len(raw_findings)} total before deduplication).")
+    if runtime_detail:
+        result.runtime_entries.extend(_top_runtime_entries(runtime_entries))
     return result
 
 
@@ -908,6 +1086,7 @@ def _run_tidy_pass(
     headers: list[Path],
     profile: Profile | None = None,
     jobs: int = 1,
+    runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     if tidy_pass.on_demand and not _should_run_on_demand_tidy_pass(tidy_pass, commands, headers):
         outcome = TidyPassOutcome(tidy_pass=tidy_pass)
@@ -925,6 +1104,7 @@ def _run_tidy_pass(
             config_path=config_path,
             commands=commands,
             jobs=jobs,
+            runtime_detail=runtime_detail,
         )
     if tidy_pass.runner == "clang-tidy-header":
         return _run_clang_tidy_header_pass(
@@ -935,6 +1115,7 @@ def _run_tidy_pass(
             snapshot=snapshot,
             config_path=config_path,
             headers=headers,
+            runtime_detail=runtime_detail,
         )
     if tidy_pass.runner == "clang-frontend":
         return _run_clang_frontend_pass(
@@ -945,6 +1126,7 @@ def _run_tidy_pass(
             commands=commands,
             profile=profile,
             jobs=jobs,
+            runtime_detail=runtime_detail,
         )
     raise ValueError(f"Unsupported tidy pass runner: {tidy_pass.runner}")
 
@@ -960,6 +1142,7 @@ def _run_clang_tidy_tu_pass(
     config_path: Path,
     commands: list[CompileCommand],
     jobs: int = 1,
+    runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
     clang_tidy_status = snapshot.get_tool_status("clang-tidy")
@@ -977,7 +1160,8 @@ def _run_clang_tidy_tu_pass(
     if checks_arg is not None:
         outcome.notes.append(f"Pass {tidy_pass.name}: checks={checks_arg}")
 
-    def _run_one_tu(command: CompileCommand) -> tuple[list[Finding], list[str], list[CompileCommand]]:
+    def _run_one_tu(command: CompileCommand) -> tuple[list[Finding], list[str], list[CompileCommand], RuntimeEntry]:
+        started_at = time.perf_counter()
         tidy_cmd = [
             clang_tidy_status.executable,
             str(command.file),
@@ -1002,17 +1186,24 @@ def _run_clang_tidy_tu_pass(
             should_run_fallback = command.file.suffix == ".cc"
         if should_run_fallback:
             local_candidates.append(command)
-        return local_findings, local_notes, local_candidates
+        runtime_entry = RuntimeEntry(
+            label=relative_to_repo(command.file, repo_root),
+            seconds=time.perf_counter() - started_at,
+            category="unit",
+        )
+        return local_findings, local_notes, local_candidates, runtime_entry
 
     tu_results = _parallel_map(_run_one_tu, commands, jobs)
+    runtime_entries: list[RuntimeEntry] = []
     for tu_result in tu_results:
         if isinstance(tu_result, Exception):
             outcome.notes.append(f"Tidy TU pass error: {tu_result}")
             continue
-        findings, notes, candidates = tu_result
+        findings, notes, candidates, runtime_entry = tu_result
         outcome.findings.extend(findings)
         outcome.notes.extend(notes)
         outcome.candidate_commands.extend(candidates)
+        runtime_entries.append(runtime_entry)
         outcome.commands_run += 1
 
     if outcome.candidate_commands:
@@ -1020,6 +1211,8 @@ def _run_clang_tidy_tu_pass(
         outcome.notes.append(
             f"Pass {tidy_pass.name}: queued {outcome.fallback_candidates} source translation units for possible native fallback."
         )
+    if runtime_detail:
+        outcome.runtime_entries.extend(_top_runtime_entries(runtime_entries))
     return outcome
 
 
@@ -1033,6 +1226,7 @@ def _run_clang_tidy_header_pass(
     snapshot: EnvironmentSnapshot,
     config_path: Path,
     headers: list[Path],
+    runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
     clang_tidy_status = snapshot.get_tool_status("clang-tidy")
@@ -1046,7 +1240,9 @@ def _run_clang_tidy_header_pass(
     if checks_arg is not None:
         outcome.notes.append(f"Pass {tidy_pass.name}: checks={checks_arg}")
 
+    runtime_entries: list[RuntimeEntry] = []
     for header in headers:
+        started_at = time.perf_counter()
         header_cmd = [
             clang_tidy_status.executable,
             str(header),
@@ -1064,8 +1260,17 @@ def _run_clang_tidy_header_pass(
         for finding in parsed.findings:
             if finding.subtype == "readability-identifier-naming":
                 outcome.findings.append(finding)
+        runtime_entries.append(
+            RuntimeEntry(
+                label=relative_to_repo(header, repo_root),
+                seconds=time.perf_counter() - started_at,
+                category="unit",
+            )
+        )
         outcome.commands_run += 1
     outcome.notes.append(f"Pass {tidy_pass.name}: ran for {outcome.commands_run} scope-local headers.")
+    if runtime_detail:
+        outcome.runtime_entries.extend(_top_runtime_entries(runtime_entries))
     return outcome
 
 
@@ -1079,6 +1284,7 @@ def _run_clang_frontend_pass(
     commands: list[CompileCommand],
     profile: Profile | None = None,
     jobs: int = 1,
+    runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
     clangxx = _tool_executable(snapshot, "clang++")
@@ -1088,20 +1294,30 @@ def _run_clang_frontend_pass(
 
     source_commands = [command for command in commands if command.file.suffix in source_exts]
 
-    def _run_one_frontend(command: CompileCommand) -> list[Finding]:
+    def _run_one_frontend(command: CompileCommand) -> tuple[list[Finding], RuntimeEntry]:
+        started_at = time.perf_counter()
         frontend_cmd = _build_source_syntax_command(command, compiler_override=clangxx, extra_flags=GENERIC_WARNING_FLAG_TOKENS)
         output = run_command(frontend_cmd, cwd=command.directory)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
-        return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name)
+        return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name), RuntimeEntry(
+            label=relative_to_repo(command.file, repo_root),
+            seconds=time.perf_counter() - started_at,
+            category="unit",
+        )
 
     frontend_results = _parallel_map(_run_one_frontend, source_commands, jobs)
+    runtime_entries: list[RuntimeEntry] = []
     for frontend_result in frontend_results:
         if isinstance(frontend_result, Exception):
             outcome.notes.append(f"Clang frontend pass error: {frontend_result}")
             continue
-        outcome.findings.extend(frontend_result)
+        findings, runtime_entry = frontend_result
+        outcome.findings.extend(findings)
+        runtime_entries.append(runtime_entry)
         outcome.commands_run += 1
     outcome.notes.append(f"Pass {tidy_pass.name}: ran for {outcome.commands_run} source translation units.")
+    if runtime_detail:
+        outcome.runtime_entries.extend(_top_runtime_entries(runtime_entries))
     return outcome
 
 
@@ -1115,6 +1331,7 @@ def _run_native_compiler_pass(
     commands: list[CompileCommand],
     profile: Profile | None = None,
     jobs: int = 1,
+    runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
     compiler = _tool_executable(snapshot, "g++")
@@ -1123,24 +1340,34 @@ def _run_native_compiler_pass(
 
     source_commands = [command for command in commands if command.file.suffix in source_exts]
 
-    def _run_one_native(command: CompileCommand) -> list[Finding]:
+    def _run_one_native(command: CompileCommand) -> tuple[list[Finding], RuntimeEntry]:
+        started_at = time.perf_counter()
         syntax_cmd = _build_source_syntax_command(command, compiler_override=compiler, extra_flags=GENERIC_WARNING_FLAG_TOKENS)
         output = run_command(syntax_cmd, cwd=command.directory)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
-        return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name)
+        return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name), RuntimeEntry(
+            label=relative_to_repo(command.file, repo_root),
+            seconds=time.perf_counter() - started_at,
+            category="unit",
+        )
 
     native_results = _parallel_map(_run_one_native, source_commands, jobs)
+    runtime_entries: list[RuntimeEntry] = []
     for native_result in native_results:
         if isinstance(native_result, Exception):
             outcome.notes.append(f"Native compiler pass error: {native_result}")
             continue
-        if native_result:
-            outcome.findings.extend(native_result)
+        findings, runtime_entry = native_result
+        if findings:
+            outcome.findings.extend(findings)
+        runtime_entries.append(runtime_entry)
         outcome.commands_run += 1
     outcome.notes.append(
         f"Pass {tidy_pass.name}: ran for {outcome.commands_run} queued source translation units; "
         f"{len(outcome.findings)} findings were reported."
     )
+    if runtime_detail:
+        outcome.runtime_entries.extend(_top_runtime_entries(runtime_entries))
     return outcome
 
 

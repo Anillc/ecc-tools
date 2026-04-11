@@ -97,6 +97,20 @@ def format_build_context(refreshed: bool, refresh_reason: str | None, compile_co
 
 def format_check_result(result: CheckResult, repo_root: Path) -> str:
     lines = [f"[{result.kind}] Summary"]
+    if result.runtime_seconds > 0.0:
+        lines.append(f"- Runtime: {result.runtime_seconds:.3f}s")
+    runtime_phases = [entry for entry in result.runtime_entries if entry.category == "phase"]
+    runtime_units = [entry for entry in result.runtime_entries if entry.category == "unit"]
+    if runtime_phases:
+        lines.append("- Runtime breakdown:")
+        for entry in sorted(runtime_phases, key=lambda item: (-item.seconds, item.label)):
+            count_text = f", count={entry.count}" if entry.count is not None else ""
+            lines.append(f"  - {entry.label}: {entry.seconds:.3f}s{count_text}")
+    if runtime_units:
+        lines.append("- Runtime details:")
+        for entry in sorted(runtime_units, key=lambda item: (-item.seconds, item.label)):
+            count_text = f", count={entry.count}" if entry.count is not None else ""
+            lines.append(f"  - {entry.label}: {entry.seconds:.3f}s{count_text}")
     if result.notes:
         for note in result.notes:
             lines.append(f"- {note}")
@@ -214,6 +228,7 @@ def format_exit_summary(results: list[CheckResult], fail_on_findings: bool = Tru
     in_scope_count = sum(len(result.in_scope_findings()) for result in results)
     out_of_scope_count = sum(len(result.out_of_scope_findings()) for result in results)
     triggered_in_scope_count = sum(len(result.triggered_in_scope_findings()) for result in results)
+    total_runtime_seconds = sum(result.runtime_seconds for result in results)
     exit_policy = (
         "- Exit code is 1 when in-scope findings exist; environment/config/runtime errors still return non-zero."
         if fail_on_findings
@@ -225,6 +240,7 @@ def format_exit_summary(results: list[CheckResult], fail_on_findings: bool = Tru
             f"- In-scope findings: {in_scope_count}",
             f"- Out-of-scope findings: {out_of_scope_count}",
             f"- Triggered by in-scope translation units: {triggered_in_scope_count}",
+            f"- Total runtime: {total_runtime_seconds:.3f}s",
             exit_policy,
         ]
     )
@@ -234,8 +250,21 @@ def format_results_json(results: list[CheckResult], plan: ExecutionPlan, profile
     """Format all check results as a JSON string for machine consumption."""
     findings_list = []
     notes_map = {}
+    runtime_map = {}
     for result in results:
         notes_map[result.kind] = list(result.notes)
+        runtime_map[result.kind] = {
+            "seconds": result.runtime_seconds,
+            "entries": [
+                {
+                    "label": entry.label,
+                    "seconds": entry.seconds,
+                    "category": entry.category,
+                    "count": entry.count,
+                }
+                for entry in result.runtime_entries
+            ],
+        }
         for finding in result.findings:
             findings_list.append({
                 "check": finding.check,
@@ -264,8 +293,10 @@ def format_results_json(results: list[CheckResult], plan: ExecutionPlan, profile
             "in_scope": sum(1 for f in findings_list if f["scope"] == "in_scope"),
             "out_of_scope": sum(1 for f in findings_list if f["scope"] != "in_scope"),
             "total": len(findings_list),
+            "runtime_seconds_total": sum(result.runtime_seconds for result in results),
         },
         "notes": notes_map,
+        "runtime": runtime_map,
         "findings": findings_list,
     }
     return json.dumps(output, indent=2, ensure_ascii=False)

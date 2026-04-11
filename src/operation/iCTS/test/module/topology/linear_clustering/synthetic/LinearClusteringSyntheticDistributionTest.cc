@@ -1,0 +1,51 @@
+// ***************************************************************************************
+// Copyright (c) 2023-2025 Peng Cheng Laboratory
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+//
+// iEDA is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+// http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+//
+// See the Mulan PSL v2 for more details.
+// ***************************************************************************************
+/**
+ * @file LinearClusteringSyntheticDistributionTest.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-11
+ * @brief Synthetic linear clustering distribution regression tests.
+ */
+
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
+
+#include <string>
+#include <type_traits>
+#include <vector>
+
+#include "module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh"
+
+namespace icts_test::linear_clustering::synthetic {
+namespace {
+
+static_assert(std::is_same_v<std::vector<SyntheticSweepCase>, decltype(BuildSyntheticSweepCases())>);
+static_assert(std::is_same_v<decltype(SyntheticSweepCase::name), std::string>);
+
+class LinearClusteringTestInterface : public ::testing::TestWithParam<SyntheticSweepCase>
+{
+};
+
+TEST_P(LinearClusteringTestInterface, SyntheticSweepAndVisualization)
+{
+  RunSyntheticSweepAndVisualization(GetParam());
+}
+
+INSTANTIATE_TEST_SUITE_P(LinearSyntheticSweeps, LinearClusteringTestInterface, ::testing::ValuesIn(BuildSyntheticSweepCases()));
+
+}  // namespace
+}  // namespace icts_test::linear_clustering::synthetic

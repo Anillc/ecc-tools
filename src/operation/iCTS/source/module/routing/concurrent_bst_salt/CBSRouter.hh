@@ -63,7 +63,7 @@ class CBSRouter
 {
  public:
   using Terminal = ClockRoutingTerminal;
-  using ClockSteinerTreeType = ClockSteinerTree<int>;
+  using ClockSteinerTreeType = ClockSteinerTree<>;
 
   CBSRouter() = delete;
   ~CBSRouter() = default;

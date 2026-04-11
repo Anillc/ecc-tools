@@ -114,6 +114,18 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Suppress environment and plan details; show only results summary",
     )
+    check_parser.add_argument(
+        "--runtime-logging",
+        action="store_true",
+        default=False,
+        help="Emit per-check runtime progress logs to stderr. Only active when --quiet is not set.",
+    )
+    check_parser.add_argument(
+        "--runtime-detail",
+        action="store_true",
+        default=False,
+        help="Include finer-grained runtime details for file/TU-oriented checks in the structured results.",
+    )
 
     doctor_parser = subparsers.add_parser("doctor", help="Check environment and tool availability")
     doctor_parser.add_argument("--profile", default=DEFAULT_PROFILE, help="Profile to check")
@@ -166,6 +178,11 @@ def _parse_kinds(raw_value: str | None) -> tuple[CheckKind, ...] | None:
     if invalid:
         raise ValueError(f"Unsupported check kinds: {', '.join(invalid)}")
     return tuple(items)  # type: ignore[return-value]
+
+
+def _emit_runtime_log(message: str, *, enabled: bool, quiet: bool) -> None:
+    if enabled and not quiet:
+        print(message, file=sys.stderr, flush=True)
 
 
 _INSTALL_HINTS: dict[str, str] = {
@@ -362,7 +379,10 @@ def main() -> int:
         if "iwyu" in plan.kinds:
             optional_tools_for_run.add("include-what-you-use")
         if "headers" in plan.kinds:
-            optional_tools_for_run.add("clang-scan-deps")
+            # Header checks can use clang-scan-deps for precise dependency scanning.
+            # Keep the resolved clang++ driver alongside it so the header checker does
+            # not lose the compiler binary when the snapshot is filtered to run-local tools.
+            optional_tools_for_run.update({"clang-scan-deps", "clang++"})
         keep_tools = required_tools | optional_tools_for_run
         snapshot.tool_statuses = [status for status in snapshot.tool_statuses if status.name in keep_tools]
 
@@ -382,6 +402,10 @@ def main() -> int:
             jobs=snapshot.jobs,
             fix=args.fix,
             snapshot=snapshot,
+            runtime_detail=args.runtime_detail,
+            progress_logger=(
+                lambda message: _emit_runtime_log(message, enabled=args.runtime_logging, quiet=args.quiet)
+            ),
         )
     except (RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}")

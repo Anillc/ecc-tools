@@ -147,7 +147,8 @@ auto ExportSaltTree(const salt::Tree& tree, const CBSRouter::ClockSteinerTreeTyp
     const auto* parent_node = clock_tree.get_node(parent_iter->second);
     const auto* child_node = clock_tree.get_node(child_iter->second);
     CTS_LOG_FATAL_IF(parent_node == nullptr || child_node == nullptr) << "CBS refined topology node is null.";
-    auto distance = geometry::Manhattan(parent_node->location, child_node->location);
+    const auto distance = geometry::Manhattan(parent_node->location, child_node->location);
+    CTS_LOG_FATAL_IF(distance < 0) << "CBS embedded edge distance is negative.";
     auto edge_id = clock_tree.addEdge(parent_iter->second, child_iter->second, distance, distance);
     CTS_LOG_FATAL_IF(edge_id == CBSRouter::ClockSteinerTreeType::kInvalidId) << "Failed to add edge when exporting CBS refined tree.";
   }

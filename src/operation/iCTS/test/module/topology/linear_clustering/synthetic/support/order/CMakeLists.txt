@@ -1,0 +1,14 @@
+add_library(
+  icts_test_module_topology_linear_clustering_synthetic_order_support
+  STATIC
+  ${ICTS_TEST}/module/topology/linear_clustering/synthetic/support/LinearClusteringSyntheticOrder.cc
+)
+
+target_link_libraries(
+  icts_test_module_topology_linear_clustering_synthetic_order_support
+  PUBLIC
+  icts_test_module_topology_linear_clustering_synthetic_config_support
+  icts_test_module_topology_linear_clustering_synthetic_dataset_support
+  icts_test_module_topology_linear_clustering_synthetic_runtime_support
+  icts_test_module_topology_linear_clustering_synthetic_reference_support
+)

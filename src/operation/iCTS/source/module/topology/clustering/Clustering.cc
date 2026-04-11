@@ -32,6 +32,7 @@
 
 #include "Geometry.hh"
 #include "KMeans.hh"
+#include "LinearClustering.hh"
 #include "MinCostFlow.hh"
 #include "Pin.hh"
 #include "Point.hh"
@@ -173,6 +174,16 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   }
 
   return result;
+}
+
+auto Clustering::linearClustering(const std::vector<Pin*>& loads) -> ClusterResult
+{
+  return linearClustering(loads, LinearClusteringConfig{});
+}
+
+auto Clustering::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
+{
+  return LinearClustering::run(loads, config);
 }
 
 }  // namespace icts

@@ -1,0 +1,14 @@
+add_subdirectory(cluster)
+add_subdirectory(runtime)
+add_subdirectory(electrical)
+add_subdirectory(core)
+add_subdirectory(strategy)
+
+add_library(icts_test_module_topology_linear_clustering_realtech_shared_support INTERFACE)
+
+target_link_libraries(
+  icts_test_module_topology_linear_clustering_realtech_shared_support
+  INTERFACE
+  icts_test_module_topology_linear_clustering_realtech_core_support
+  icts_test_module_topology_linear_clustering_realtech_strategy_support
+)

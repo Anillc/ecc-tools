@@ -39,10 +39,8 @@ class Pin;
 class Router
 {
  public:
-  using Terminal = RoutingTerminal;
   using ClockTerminal = ClockRoutingTerminal;
-  using SteinerTreeType = SteinerTree<int>;
-  using ClockSteinerTreeType = ClockSteinerTree<int>;
+  using ClockSteinerTreeType = ClockSteinerTree<>;
   using RCTreeType = RCTree;
   using LegalizationRegion = LocalLegalization::RegionType;
   using LegalizationOptions = LocalLegalization::Options;
@@ -57,8 +55,8 @@ class Router
   Router() = delete;
   ~Router() = default;
 
-  static SteinerTreeType buildFluteTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
-  static SteinerTreeType buildSaltTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
+  static ClockSteinerTreeType buildFluteTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals);
+  static ClockSteinerTreeType buildSaltTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals);
   static ClockSteinerTreeType buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters);
   static ClockSteinerTreeType buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters);
 
@@ -68,8 +66,6 @@ class Router
                                          const LegalizationRegion& feasible_region, const LegalizationRegion& block_region,
                                          const LegalizationOptions& options);
 
-  static RCTreeType buildRCTree(const SteinerTreeType& steiner_tree);
-  static RCTreeType buildRCTree(const SteinerTreeType& steiner_tree, const RCTreeBuildOptions& options);
   static RCTreeType buildRCTree(const ClockSteinerTreeType& clock_tree);
   static RCTreeType buildRCTree(const ClockSteinerTreeType& clock_tree, const RCTreeBuildOptions& options);
 };

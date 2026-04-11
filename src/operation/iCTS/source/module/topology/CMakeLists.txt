@@ -1,6 +1,7 @@
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/config)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/kmeans)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/mcf)
+add_subdirectory(${ICTS_MODULE_TOPOLOGY}/linear_clustering)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/clustering)
 
 add_library(

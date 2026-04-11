@@ -33,13 +33,13 @@ namespace icts {
 class SALTRouter
 {
  public:
-  using Terminal = RoutingTerminal;
-  using SteinerTreeType = SteinerTree<int>;
+  using ClockTerminal = ClockRoutingTerminal;
+  using ClockSteinerTreeType = ClockSteinerTree<>;
 
   SALTRouter() = delete;
   ~SALTRouter() = default;
 
-  static SteinerTreeType buildTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals);
+  static ClockSteinerTreeType buildTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals);
 };
 
 }  // namespace icts

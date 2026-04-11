@@ -32,6 +32,7 @@ namespace icts {
 
 class Pin;
 struct BiPartitionConfig;
+struct LinearClusteringConfig;
 
 struct ClusterResult
 {
@@ -47,6 +48,8 @@ class Clustering
 
   static ClusterResult biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size);
   static ClusterResult biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config);
+  static ClusterResult linearClustering(const std::vector<Pin*>& loads);
+  static ClusterResult linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config);
 };
 
 }  // namespace icts

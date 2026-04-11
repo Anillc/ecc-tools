@@ -11,6 +11,7 @@ CheckKind = Literal["format", "tidy", "headers", "cmake", "iwyu"]
 Confidence = Literal["high", "medium", "low"]
 TidyMode = Literal["deep", "naming"]
 PassPlanName = Literal["complete", "legacy", "tidy-only"]
+RuntimeEntryCategory = Literal["phase", "unit"]
 
 
 @dataclass(frozen=True)
@@ -110,12 +111,22 @@ class Finding:
 
 
 @dataclass
+class RuntimeEntry:
+    label: str
+    seconds: float
+    category: RuntimeEntryCategory = "phase"
+    count: int | None = None
+
+
+@dataclass
 class CheckResult:
     kind: CheckKind
     findings: list[Finding] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     summary_categories: list[str] = field(default_factory=list)
     detail_limit: int = 20
+    runtime_seconds: float = 0.0
+    runtime_entries: list[RuntimeEntry] = field(default_factory=list)
 
     def in_scope_findings(self) -> list[Finding]:
         return [finding for finding in self.findings if finding.location_scope_class == "in_scope"]

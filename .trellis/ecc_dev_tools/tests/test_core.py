@@ -27,11 +27,14 @@ if str(_PACKAGE_ROOT.parent) not in sys.path:
 
 # ruff: noqa: E402
 from ecc_dev_tools.models import (
+    BuildContext,
     CMakeTarget,
     CheckResult,
     CompileCommand,
+    EnvironmentSnapshot,
     ExecutionPlan,
     Finding,
+    RuntimeEntry,
     Scope,
     TidyPass,
     ToolStatus,
@@ -57,8 +60,10 @@ from ecc_dev_tools.checkers import (
     _parse_iwyu_output,
     _scan_deps_for_file,
     _strip_diagnostic_suffix,
+    run_header_dependency_check,
 )
 from ecc_dev_tools.reporting import (
+    format_check_result,
     format_exit_summary,
     format_results_compiler_style,
     format_results_json,
@@ -76,7 +81,6 @@ from ecc_dev_tools.utils import (
     default_jobs,
     parse_version_suffix,
     parse_version_text,
-    run_command,
     version_meets_minimum,
 )
 
@@ -1088,6 +1092,77 @@ class TestScanDepsForFile(unittest.TestCase):
         self.assertEqual(args[2], "/opt/llvm/bin/clang++")
 
 
+class TestHeaderDependencyCheckFallback(unittest.TestCase):
+    """run_header_dependency_check() -- degrades cleanly when clang++ is unavailable."""
+
+    @patch("ecc_dev_tools.checkers._scan_deps_batch")
+    def test_falls_back_to_regex_when_clangxx_missing_from_snapshot(self, scan_deps_mock):
+        tmp = Path(tempfile.mkdtemp())
+        src_dir = tmp / "src"
+        src_dir.mkdir()
+        source = src_dir / "File.cc"
+        source.write_text('#include "File.hh"\n', encoding="utf-8")
+        header = src_dir / "File.hh"
+        header.write_text("#pragma once\n", encoding="utf-8")
+
+        scope = Scope(
+            repo_root=tmp,
+            raw_paths=["src"],
+            resolved_paths=[src_dir.resolve()],
+        )
+        source_path = source.resolve()
+        src_dir_path = src_dir.resolve()
+        context = BuildContext(
+            build_dir=tmp / "build",
+            compile_commands_path=tmp / "build" / "compile_commands.json",
+            file_api_reply_dir=tmp / "build" / ".cmake" / "api" / "v1" / "reply",
+            compile_commands=[
+                CompileCommand(
+                    file=source_path,
+                    directory=tmp,
+                    command=f"g++ -I{src_dir_path} -c {source_path}",
+                )
+            ],
+            targets={
+                "icts_source_module_topology_linear_clustering": CMakeTarget(
+                    name="icts_source_module_topology_linear_clustering",
+                    source_dir=src_dir_path,
+                    sources=[source_path],
+                    include_dirs=[src_dir_path],
+                )
+            },
+            declared_graph={"icts_source_module_topology_linear_clustering": []},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=tmp,
+            build_dir=tmp / "build",
+            jobs=1,
+            total_cpus=1,
+            idle_threads_estimate=1,
+            tool_statuses=[
+                ToolStatus(name="g++", required=True, found=True, executable="/usr/bin/g++", ok=True),
+                ToolStatus(
+                    name="clang-scan-deps",
+                    required=False,
+                    found=True,
+                    executable="/usr/bin/clang-scan-deps",
+                    ok=True,
+                ),
+            ],
+        )
+
+        result = run_header_dependency_check(tmp, scope, context, get_profile("icts"), snapshot, cpp_files=[source_path])
+
+        scan_deps_mock.assert_not_called()
+        self.assertTrue(
+            any("falling back to regex-based include scanning" in note for note in result.notes),
+            result.notes,
+        )
+
+
 class TestParseIwyuOutput(unittest.TestCase):
     """_parse_iwyu_output() -- parsing of IWYU stderr output."""
 
@@ -1317,6 +1392,96 @@ class TestFormatResultsJson(unittest.TestCase):
         )
         self.assertEqual(data["notes"]["iwyu"], ["Analyzing 25 translation units with IWYU."])
 
+    def test_runtime_section_is_included(self):
+        profile = get_profile("icts")
+        plan = resolve_execution_plan(
+            profile=profile,
+            validation_preset=None,
+            tidy_mode=None,
+            pass_plan=None,
+        )
+        results = [
+            CheckResult(
+                kind="tidy",
+                runtime_seconds=12.5,
+                runtime_entries=[
+                    RuntimeEntry(label="tidy-tu", seconds=7.25, category="phase", count=10),
+                    RuntimeEntry(label="foo.cc", seconds=1.5, category="unit"),
+                ],
+            ),
+        ]
+        json_str = format_results_json(results, plan, profile)
+        data = json.loads(json_str)
+        self.assertEqual(data["summary"]["runtime_seconds_total"], 12.5)
+        self.assertEqual(data["runtime"]["tidy"]["seconds"], 12.5)
+        self.assertEqual(len(data["runtime"]["tidy"]["entries"]), 2)
+        self.assertEqual(data["runtime"]["tidy"]["entries"][0]["label"], "tidy-tu")
+
+
+class TestFormatCheckResult(unittest.TestCase):
+    """format_check_result() -- text output structure."""
+
+    def test_runtime_is_rendered_in_text_output(self):
+        result = CheckResult(
+            kind="tidy",
+            runtime_seconds=8.25,
+            runtime_entries=[
+                RuntimeEntry(label="analyzer-tu", seconds=6.0, category="phase", count=4),
+                RuntimeEntry(label="src/foo.cc", seconds=2.2, category="unit"),
+            ],
+        )
+        rendered = format_check_result(result, Path("/repo"))
+        self.assertIn("- Runtime: 8.250s", rendered)
+        self.assertIn("- Runtime breakdown:", rendered)
+        self.assertIn("analyzer-tu: 6.000s, count=4", rendered)
+        self.assertIn("- Runtime details:", rendered)
+        self.assertIn("src/foo.cc: 2.200s", rendered)
+
+    def test_runtime_fields_are_serialized(self):
+        profile = get_profile("icts")
+        plan = resolve_execution_plan(
+            profile=profile,
+            validation_preset=None,
+            tidy_mode=None,
+            pass_plan=None,
+        )
+        results = [
+            CheckResult(
+                kind="tidy",
+                runtime_seconds=12.5,
+                runtime_entries=[
+                    RuntimeEntry(label="tidy-tu", seconds=7.0, category="phase", count=12),
+                    RuntimeEntry(label="src/foo.cc", seconds=1.2, category="unit"),
+                ],
+            ),
+        ]
+        json_str = format_results_json(results, plan, profile)
+        data = json.loads(json_str)
+        self.assertEqual(data["summary"]["runtime_seconds_total"], 12.5)
+        self.assertEqual(data["runtime"]["tidy"]["seconds"], 12.5)
+        self.assertEqual(data["runtime"]["tidy"]["entries"][0]["label"], "tidy-tu")
+        self.assertEqual(data["runtime"]["tidy"]["entries"][1]["category"], "unit")
+
+
+class TestFormatCheckResultRuntime(unittest.TestCase):
+    """format_check_result() -- runtime information formatting."""
+
+    def test_runtime_sections_are_rendered(self):
+        result = CheckResult(
+            kind="tidy",
+            runtime_seconds=5.25,
+            runtime_entries=[
+                RuntimeEntry(label="analyzer-tu", seconds=3.5, category="phase", count=8),
+                RuntimeEntry(label="src/a.cc", seconds=1.1, category="unit"),
+            ],
+        )
+        rendered = format_check_result(result, Path("/repo"))
+        self.assertIn("Runtime: 5.250s", rendered)
+        self.assertIn("Runtime breakdown:", rendered)
+        self.assertIn("analyzer-tu: 3.500s, count=8", rendered)
+        self.assertIn("Runtime details:", rendered)
+        self.assertIn("src/a.cc: 1.100s", rendered)
+
 
 class TestHeaderIncludeFirstHelpers(unittest.TestCase):
     """Header include-first and direct-include helper behavior."""
@@ -1493,7 +1658,7 @@ class TestFormatExitSummary(unittest.TestCase):
 
     def test_counts_are_correct(self):
         results = [
-            CheckResult(kind="tidy", findings=[
+            CheckResult(kind="tidy", runtime_seconds=4.5, findings=[
                 Finding(check="tidy", severity="warning", path=Path("/a.cc"), message="m1", location_scope_class="in_scope", trigger_scope_class="in_scope"),
                 Finding(check="tidy", severity="warning", path=Path("/b.cc"), message="m2", location_scope_class="out_of_scope", trigger_scope_class="out_of_scope"),
                 Finding(check="tidy", severity="warning", path=Path("/c.cc"), message="m3", location_scope_class="in_scope", trigger_scope_class=None),
@@ -1503,6 +1668,7 @@ class TestFormatExitSummary(unittest.TestCase):
         self.assertIn("In-scope findings: 2", summary)
         self.assertIn("Out-of-scope findings: 1", summary)
         self.assertIn("Triggered by in-scope translation units: 1", summary)
+        self.assertIn("Total runtime: 4.500s", summary)
 
     def test_fail_on_findings_true(self):
         summary = format_exit_summary([], fail_on_findings=True)

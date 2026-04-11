@@ -32,6 +32,8 @@
 
 #include "Inst.hh"
 #include "Pin.hh"
+#include "PinLocationHelper.hh"
+#include "Point.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "bound_skew_tree/BSTRouter.hh"
 #include "concurrent_bst_salt/CBSRouter.hh"
@@ -91,7 +93,7 @@ auto QueryArcElectrical(int wire_distance_dbu, const Router::RCTreeBuildOptions&
   return {.resistance = resistance, .capacitance = capacitance};
 }
 
-auto ResolveVertexName(const Router::SteinerTreeType::NodeType& node, const Router::RCTreeType& rc_tree) -> std::string
+auto ResolveVertexName(const Router::ClockSteinerTreeType::NodeType& node, const Router::RCTreeType& rc_tree) -> std::string
 {
   if (!node.name.empty() && !rc_tree.hasVertex(node.name)) {
     return node.name;
@@ -107,41 +109,12 @@ auto ResolveVertexName(const Router::SteinerTreeType::NodeType& node, const Rout
   return name;
 }
 
-auto GetWireDistance(const Router::SteinerTreeType::EdgeType& edge) -> int
-{
-  return edge.distance;
-}
-
 auto GetWireDistance(const Router::ClockSteinerTreeType::EdgeType& edge) -> int
 {
   return std::max(edge.distance, edge.routed_distance);
 }
 
-auto GetNodeLumpedCap(const Router::SteinerTreeType::NodeType& node) -> double
-{
-  (void) node;
-  return 0.0;
-}
-
-auto GetNodeLumpedCap(const Router::ClockSteinerTreeType::NodeType& node) -> double
-{
-  return node.pin_cap;
-}
-
-auto CollectPinLocations(const std::vector<Pin*>& pins) -> std::vector<LocalLegalization::PointType>
-{
-  std::vector<LocalLegalization::PointType> points;
-  points.reserve(pins.size());
-  for (const auto* pin : pins) {
-    if (pin == nullptr) {
-      continue;
-    }
-    points.push_back(pin->get_location());
-  }
-  return points;
-}
-
-void WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<LocalLegalization::PointType>& points)
+void WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<Point<int>>& points)
 {
   const auto count = std::min(pins.size(), points.size());
   for (std::size_t i = 0; i < count; ++i) {
@@ -157,8 +130,7 @@ void WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<Loca
   }
 }
 
-template <typename TreeT>
-auto BuildRCTreeImpl(const TreeT& tree, const Router::RCTreeBuildOptions& options) -> Router::RCTreeType
+auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RCTreeBuildOptions& options) -> Router::RCTreeType
 {
   Router::RCTreeType rc_tree;
   if (tree.node_count() == 0) {
@@ -173,8 +145,7 @@ auto BuildRCTreeImpl(const TreeT& tree, const Router::RCTreeBuildOptions& option
   std::vector<std::size_t> node_to_vertex_id(tree.node_count(), Router::RCTreeType::kInvalidId);
   for (const auto& node : tree.get_nodes()) {
     auto vertex_name = ResolveVertexName(node, rc_tree);
-    auto lumped_cap = GetNodeLumpedCap(node);
-    auto vertex_id = rc_tree.addVertex(vertex_name, node.is_terminal, lumped_cap);
+    auto vertex_id = rc_tree.addVertex(vertex_name, node.is_terminal, node.pin_cap);
     CTS_LOG_FATAL_IF(vertex_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree vertex for routing node: " << vertex_name;
     node_to_vertex_id.at(node.id) = vertex_id;
   }
@@ -198,12 +169,14 @@ auto BuildRCTreeImpl(const TreeT& tree, const Router::RCTreeBuildOptions& option
 
 }  // namespace
 
-auto Router::buildFluteTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals) -> Router::SteinerTreeType
+auto Router::buildFluteTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals)
+    -> Router::ClockSteinerTreeType
 {
   return FLUTERouter::buildTree(driver_terminal, load_terminals);
 }
 
-auto Router::buildSaltTree(const Terminal& driver_terminal, const std::vector<Terminal>& load_terminals) -> Router::SteinerTreeType
+auto Router::buildSaltTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals)
+    -> Router::ClockSteinerTreeType
 {
   return SALTRouter::buildTree(driver_terminal, load_terminals);
 }
@@ -227,8 +200,8 @@ auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin
 auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
                           const LegalizationRegion& block_region, const LegalizationOptions& options) -> Router::LegalizationResult
 {
-  auto movable_points = CollectPinLocations(movable_pins);
-  const auto fixed_points = CollectPinLocations(fixed_pins);
+  auto movable_points = collectPinLocations(movable_pins);
+  const auto fixed_points = collectPinLocations(fixed_pins);
   auto result = LocalLegalization::legalize(movable_points, fixed_points, feasible_region, block_region, options);
   if (!result.success) {
     CTS_LOG_WARNING << "Router::legalizePins did not produce a successful legalization result.";
@@ -239,16 +212,6 @@ auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin
   return result;
 }
 
-auto Router::buildRCTree(const SteinerTreeType& steiner_tree) -> Router::RCTreeType
-{
-  return buildRCTree(steiner_tree, RCTreeBuildOptions{});
-}
-
-auto Router::buildRCTree(const SteinerTreeType& steiner_tree, const RCTreeBuildOptions& options) -> Router::RCTreeType
-{
-  return BuildRCTreeImpl(steiner_tree, options);
-}
-
 auto Router::buildRCTree(const ClockSteinerTreeType& clock_tree) -> Router::RCTreeType
 {
   return buildRCTree(clock_tree, RCTreeBuildOptions{});
@@ -256,7 +219,7 @@ auto Router::buildRCTree(const ClockSteinerTreeType& clock_tree) -> Router::RCTr
 
 auto Router::buildRCTree(const ClockSteinerTreeType& clock_tree, const RCTreeBuildOptions& options) -> Router::RCTreeType
 {
-  return BuildRCTreeImpl(clock_tree, options);
+  return BuildClockRCTree(clock_tree, options);
 }
 
 }  // namespace icts

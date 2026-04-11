@@ -1,23 +1,55 @@
-add_executable(
-  icts_test
-  ${ICTS_TEST}/main.cc
-  ${ICTS_TEST}/common/TestUtils.cc
-  ${ICTS_TEST}/module/topology/TopologyGenTest.cc
-  ${ICTS_TEST}/module/characterization/CharacterizationTest.cc
-  ${ICTS_TEST}/database/spatial/SpatialRegionTest.cc
-  ${ICTS_TEST}/module/routing/LocalLegalizationTest.cc
-  ${ICTS_TEST}/module/routing/RouterLegalizationTest.cc
-  ${ICTS_TEST}/module/routing/RouterClockTreeTest.cc
+include(CMakeParseArguments)
+
+add_library(icts_test_base INTERFACE)
+
+target_include_directories(
+  icts_test_base
+  INTERFACE
+  ${ICTS_TEST}
 )
 
-target_include_directories(icts_test PRIVATE ${ICTS_TEST})
-
 target_link_libraries(
-  icts_test
-  PRIVATE
+  icts_test_base
+  INTERFACE
   icts_source
   icts_api
   icts_test_external_libs
 )
 
-add_test(NAME icts_test COMMAND icts_test)
+add_library(icts_test_realtech_base INTERFACE)
+
+target_include_directories(
+  icts_test_realtech_base
+  INTERFACE
+  ${PROJECT_SOURCE_DIR}/src/platform/data_manager
+  ${PROJECT_SOURCE_DIR}/src/platform/data_manager/config
+)
+
+target_link_libraries(
+  icts_test_realtech_base
+  INTERFACE
+  icts_test_base
+)
+
+add_library(icts_test_main OBJECT ${ICTS_TEST}/main.cc)
+target_link_libraries(icts_test_main PUBLIC icts_test_base)
+
+function(icts_add_test_executable target_name)
+  set(options REALTECH)
+  set(one_value_args)
+  set(multi_value_args SOURCES LIBS)
+  cmake_parse_arguments(ICTS_ADD_TEST "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+  add_executable(${target_name} ${ICTS_ADD_TEST_SOURCES} $<TARGET_OBJECTS:icts_test_main>)
+  target_link_libraries(${target_name} PRIVATE icts_test_base ${ICTS_ADD_TEST_LIBS})
+
+  if(ICTS_ADD_TEST_REALTECH)
+    target_link_libraries(${target_name} PRIVATE icts_test_realtech_base)
+  endif()
+
+  add_test(NAME ${target_name} COMMAND ${target_name})
+endfunction()
+
+add_subdirectory(common)
+add_subdirectory(database)
+add_subdirectory(module)
