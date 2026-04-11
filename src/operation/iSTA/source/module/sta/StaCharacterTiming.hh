@@ -89,6 +89,7 @@ class StaCharacterTiming : public StaFunc {
   unsigned propagateSlew(StaGraph* the_graph);
   unsigned propagateDelay(StaGraph* the_graph);
   unsigned propagateATFromPort(StaGraph* the_graph);
+  unsigned analyzeLocalSeqChecks(StaGraph* the_graph);
   unsigned backPropagateRTToPort(StaGraph* the_graph);
   unsigned genTimingModel(StaGraph* the_graph, const char* model_path);
   static uint64_t nextCharacterizationEpoch();

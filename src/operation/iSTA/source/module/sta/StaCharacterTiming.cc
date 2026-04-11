@@ -26,6 +26,7 @@
 
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
+#include "StaAnalyze.hh"
 #include "StaCheck.hh"
 #include "StaDataPropagation.hh"
 #include "StaDelayPropagation.hh"
@@ -166,6 +167,13 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
     // bwd
     FOREACH_SNK_ARC(the_vertex, snk_arc) {
       if (!snk_arc->isDelayArc()) {
+        if (_state == kPropagateDelay && snk_arc->isCheckArc()) {
+          // ETM setup/hold export reuses local check-arc delay values. Those
+          // arc buckets must be rebuilt in the characterization epoch instead
+          // of staying empty after resetCharacterizationPayload().
+          (*this)(snk_arc->get_src());
+          (*this)(snk_arc);
+        }
         continue;
       }
 
@@ -244,6 +252,10 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 
   // then propagate the AT from port to the first sequential cell.
   propagateATFromPort(the_graph);
+
+  // Reuse the existing seq-check analyzer on the ETM epoch so exporter lookup
+  // can query exact local setup/hold pairs instead of inferring from snapshots.
+  analyzeLocalSeqChecks(the_graph);
 
   // then back propagate the RT from endpoint to port. not need propagated RT
   // now, temporary mask code below. backPropagateRTToPort(the_graph);
@@ -471,6 +483,80 @@ unsigned StaCharacterTiming::init(StaGraph* the_graph) {
     }
   };
 
+  auto init_input_port_delay_data = [this](StaVertex* the_vertex) -> bool {
+    auto* ista = Sta::getOrCreateSta();
+    if (!ista || !the_vertex) {
+      return false;
+    }
+
+    auto io_delays = ista->getIODelayConstrain(the_vertex);
+    bool created = false;
+
+    for (auto* io_delay : io_delays) {
+      if (!io_delay) {
+        continue;
+      }
+
+      auto construct_delay_data = [&](AnalysisMode analysis_mode) {
+        auto clock_datas =
+            !io_delay->isClockFall()
+                ? the_vertex->getClockData(analysis_mode, TransType::kRise)
+                : the_vertex->getClockData(analysis_mode, TransType::kFall);
+        if (clock_datas.empty()) {
+          return;
+        }
+
+        StaClockData* launch_clock_data = nullptr;
+        for (auto* clock_data : clock_datas) {
+          auto* candidate_clock_data = dynamic_cast<StaClockData*>(clock_data);
+          if (!candidate_clock_data || !candidate_clock_data->get_prop_clock()) {
+            continue;
+          }
+
+          if (candidate_clock_data->get_prop_clock()->get_clock_name() ==
+                  io_delay->get_clock_name() ||
+              !launch_clock_data) {
+            launch_clock_data = candidate_clock_data;
+          }
+
+          if (candidate_clock_data->get_prop_clock()->get_clock_name() ==
+              io_delay->get_clock_name()) {
+            break;
+          }
+        }
+
+        if (!launch_clock_data) {
+          return;
+        }
+
+        auto add_delay_data = [&](TransType data_trans_type) {
+          auto* path_delay_data = new StaPathDelayData(
+              analysis_mode, data_trans_type, 0, launch_clock_data, the_vertex);
+          path_delay_data->set_data_epoch(_characterization_epoch);
+          path_delay_data->set_launch_delay_data(path_delay_data);
+          the_vertex->addData(path_delay_data);
+          created = true;
+        };
+
+        if (io_delay->isRise()) {
+          add_delay_data(TransType::kRise);
+        }
+        if (io_delay->isFall()) {
+          add_delay_data(TransType::kFall);
+        }
+      };
+
+      if (io_delay->isMax()) {
+        construct_delay_data(AnalysisMode::kMax);
+      }
+      if (io_delay->isMin()) {
+        construct_delay_data(AnalysisMode::kMin);
+      }
+    }
+
+    return created;
+  };
+
   snapshotFullStaClockPinSlew(the_graph);
   snapshotFullStaSeqCheckData(the_graph);
   resetCharacterizationPayload(the_graph);
@@ -487,7 +573,9 @@ unsigned StaCharacterTiming::init(StaGraph* the_graph) {
             0, true, true,
             _characterization_epoch);  // TODO(to taosimin) need decide the
         // discrete init slew data point.
-        the_vertex->initPathDelayData(0, true, _characterization_epoch);
+        if (!init_input_port_delay_data(the_vertex)) {
+          the_vertex->initPathDelayData(0, true, _characterization_epoch);
+        }
       }
     } else if (the_vertex->is_clock()) {
       // Clock-to-output characterization needs fresh epoch-local launch data,
@@ -648,6 +736,43 @@ unsigned StaCharacterTiming::backPropagateRTToPort(StaGraph* the_graph) {
 
   LOG_INFO << "character timing propagate RT end.";
   return 1;
+}
+
+unsigned StaCharacterTiming::analyzeLocalSeqChecks(StaGraph* the_graph) {
+  auto* ista = Sta::getOrCreateSta();
+  if (!ista) {
+    return 0;
+  }
+
+  StaGraph logic_graph(the_graph->get_nl());
+  size_t endpoint_count = 0;
+  for (auto* endpoint_vertex : _interface_logic_endpoints) {
+    if (!endpoint_vertex ||
+        (!endpoint_vertex->is_port() && !endpoint_vertex->is_end())) {
+      continue;
+    }
+
+    logic_graph.addEndVertex(endpoint_vertex);
+    ++endpoint_count;
+  }
+
+  if (endpoint_count == 0) {
+    return 1;
+  }
+
+  LOG_INFO << "character timing local seq analyze start.";
+  const auto saved_analysis_mode = ista->get_analysis_mode();
+  ista->set_analysis_mode(AnalysisMode::kMaxMin);
+
+  StaAnalyze analyze;
+  const unsigned is_ok = analyze(&logic_graph);
+
+  ista->set_analysis_mode(saved_analysis_mode);
+
+  LOG_INFO << "character timing local seq analyze end. endpoints="
+           << endpoint_count << " status=" << is_ok;
+
+  return is_ok;
 }
 
 /**

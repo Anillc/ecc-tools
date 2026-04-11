@@ -1145,12 +1145,23 @@ double LibArc::getDelayOrConstrainCheckNs(TransType trans_type, double slew, dou
     liberty_to_output_convert = 1e-6;
   }
 
+  double converted_slew = slew * input_to_liberty_convert;
+  double converted_index2 = load_or_constrain_slew;
+  if (!isDelayArc()) {
+    converted_index2 *= input_to_liberty_convert;
+  }
+
   // pass converted slew into `gateDelay()` and return conveted Delay
   std::optional<double> found_delay;
   if (isDelayArc()) {
-    found_delay = _table_model->gateDelay(trans_type, slew * input_to_liberty_convert, load_or_constrain_slew);
+    found_delay =
+        _table_model->gateDelay(trans_type, converted_slew, converted_index2);
   } else {
-    found_delay = _table_model->gateCheckConstrain(trans_type, slew * input_to_liberty_convert, load_or_constrain_slew);
+    // Liberty check templates use constrained_pin_transition as axis-1 and
+    // related_pin_transition as axis-2.
+    found_delay = _table_model->gateCheckConstrain(trans_type,
+                                                   converted_index2,
+                                                   converted_slew);
   }
 
   if (found_delay) {

@@ -371,6 +371,49 @@ struct ExactSeqCheckSnapshotMatch {
   size_t match_count = 0;
 };
 
+using PathVertexSignature = std::vector<std::pair<StaVertex*, TransType>>;
+
+template <typename T>
+std::optional<PathVertexSignature> extractPathVertexSignature(
+    std::stack<T*> path_stack) {
+  PathVertexSignature signature;
+  while (!path_stack.empty()) {
+    auto* path_node = path_stack.top();
+    path_stack.pop();
+    if (!path_node || !path_node->get_own_vertex()) {
+      return std::nullopt;
+    }
+    signature.emplace_back(path_node->get_own_vertex(),
+                           path_node->get_trans_type());
+  }
+
+  if (signature.empty()) {
+    return std::nullopt;
+  }
+
+  return signature;
+}
+
+bool pathVertexSignatureMatches(const PathVertexSignature& lhs,
+                                const PathVertexSignature& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < lhs.size(); ++i) {
+    if (lhs[i].first != rhs[i].first || lhs[i].second != rhs[i].second) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool isCharacterizationSeqData(StaSeqPathData* seq_data, uint64_t epoch) {
+  auto* delay_data = seq_data ? seq_data->get_delay_data() : nullptr;
+  return delay_data && delay_data->get_data_epoch() == epoch;
+}
+
 ExactSeqCheckSnapshotMatch findExactSeqCheckSnapshotForExport(
     const std::vector<PreservedSeqCheckSnapshot>& seq_check_snapshots,
     const BoundaryDelayCandidate& data_candidate,
@@ -426,6 +469,106 @@ ExactSeqCheckSnapshotMatch findExactSeqCheckSnapshotForExport(
 
   if (result.match_count != 1) {
     result.snapshot = nullptr;
+  }
+
+  return result;
+}
+
+struct ExactLocalSeqDataMatch {
+  StaSeqPathData* seq_data = nullptr;
+  size_t match_count = 0;
+};
+
+struct ExactSlewDataMatch {
+  StaSlewData* slew_data = nullptr;
+  size_t match_count = 0;
+};
+
+ExactSlewDataMatch findExactSlewDataForPath(StaVertex* vertex,
+                                            AnalysisMode analysis_mode,
+                                            TransType trans_type,
+                                            uint64_t epoch,
+                                            const PathVertexSignature& path_sig) {
+  ExactSlewDataMatch result;
+  if (!vertex) {
+    return result;
+  }
+
+  StaData* data = nullptr;
+  FOREACH_SLEW_DATA(vertex, data) {
+    if ((data->get_delay_type() != analysis_mode) ||
+        (data->get_trans_type() != trans_type) ||
+        !isCharacterizationData(data, epoch)) {
+      continue;
+    }
+
+    auto* slew_data = dynamic_cast<StaSlewData*>(data);
+    if (!slew_data) {
+      continue;
+    }
+
+    auto slew_path_sig = extractPathVertexSignature(slew_data->getPathData());
+    if (!slew_path_sig ||
+        !pathVertexSignatureMatches(*slew_path_sig, path_sig)) {
+      continue;
+    }
+
+    ++result.match_count;
+    result.slew_data = slew_data;
+  }
+
+  if (result.match_count != 1) {
+    result.slew_data = nullptr;
+  }
+
+  return result;
+}
+
+ExactLocalSeqDataMatch findExactLocalSeqDataForExport(
+    const std::vector<StaSeqPathData*>& seq_data_vec,
+    const BoundaryDelayCandidate& data_candidate, StaVertex* clk_point,
+    StaArc* check_arc, AnalysisMode capture_analysis_mode,
+    TransType clock_trans_type, uint64_t epoch) {
+  ExactLocalSeqDataMatch result;
+  if (!clk_point || !data_candidate.delay_data) {
+    return result;
+  }
+
+  for (auto* seq_data : seq_data_vec) {
+    if (!isCharacterizationSeqData(seq_data, epoch)) {
+      continue;
+    }
+
+    auto* delay_data = seq_data->get_delay_data();
+    auto* capture_clock_data = seq_data->get_capture_clock_data();
+    if (!delay_data || delay_data != data_candidate.delay_data ||
+        !capture_clock_data || capture_clock_data->get_own_vertex() != clk_point ||
+        capture_clock_data->get_delay_type() != capture_analysis_mode ||
+        capture_clock_data->get_trans_type() != clock_trans_type) {
+      continue;
+    }
+
+    if (check_arc &&
+        !checkArcMatchesForTimingModel(seq_data->get_check_arc(), check_arc)) {
+      continue;
+    }
+
+    auto data_terms = extractBoundaryDelayTerms(seq_data->getPathDelayData());
+    if (!data_terms ||
+        data_terms->start_vertex != data_candidate.terms.start_vertex ||
+        data_terms->start_trans_type != data_candidate.terms.start_trans_type ||
+        data_terms->end_trans_type != data_candidate.terms.end_trans_type ||
+        data_terms->start_arrive_fs != data_candidate.terms.start_arrive_fs ||
+        data_terms->end_arrive_fs != data_candidate.terms.end_arrive_fs) {
+      continue;
+    }
+
+    ++result.match_count;
+    result.seq_data = seq_data;
+  }
+
+  if (result.match_count != 1) {
+    result.seq_data = nullptr;
   }
 
   return result;
