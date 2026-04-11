@@ -645,11 +645,19 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                     ? std::optional<double>(
                           FS_TO_NS(local_seq_data->get_constrain_value()))
                     : std::nullopt;
+            const bool local_seq_clock_proven =
+                local_seq_data &&
+                ((local_seq_target_clock_delay_ns &&
+                  *local_seq_target_clock_delay_ns != 0.0) ||
+                 (local_seq_raw_capture_clock_arrive_ns &&
+                  *local_seq_raw_capture_clock_arrive_ns != 0.0));
             const char* local_seq_match_status =
-                local_seq_match.match_count == 1
-                    ? "exact"
-                    : (local_seq_match.match_count == 0 ? "missing"
-                                                        : "ambiguous");
+                local_seq_match.match_count == 0
+                    ? "missing"
+                    : (local_seq_match.match_count == 1
+                           ? (local_seq_clock_proven ? "exact"
+                                                     : "clock_unproven")
+                           : "ambiguous");
 
             if (local_seq_data) {
               const auto local_seq_data_path_sig =
@@ -778,16 +786,12 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                                  : -1.0)
                          << " selected_check_clock_slew_ns="
                          << selected_check_clock_slew_ns
+                         << " local_seq_export_status="
+                         << "diagnostic_only"
                          << " local_seq_margin_source="
                          << local_seq_margin_source
                          << " check_margin_ns=" << check_margin_ns;
               }
-
-              accumulate_constraint(data_arrival_delta_ns,
-                                    target_clock_delay_ns, check_margin_ns,
-                                    FS_TO_NS(local_seq_data->getCaptureEdge()),
-                                    local_seq_margin_source);
-              continue;
             }
 
             if (local_clock_candidates.empty()) {
