@@ -712,3 +712,36 @@ Migrated Trellis scripts and workflow commands to 0.4.0-beta.8, unified before-d
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Linear clustering architecture and implementation
+
+**Date**: 2026-04-12
+**Task**: Linear clustering architecture and implementation
+**Branch**: `cts_refactor`
+
+### Summary
+
+Completed and archived linear-clustering: added the topology linear_clustering module, exact max_cap evaluation through STA/router/RCTree/TimingEngine, and synthetic plus real-tech regression targets with artifact output.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4a7168313` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
