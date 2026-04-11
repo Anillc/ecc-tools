@@ -24,6 +24,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <map>
 #include <vector>
 
@@ -33,6 +34,19 @@
 #include "liberty/Lib.hh"
 
 namespace ista {
+
+struct PreservedSeqCheckSnapshot {
+  StaArc* check_arc = nullptr;
+  StaVertex* capture_clock_vertex = nullptr;
+  StaVertex* launch_start_vertex = nullptr;
+  AnalysisMode capture_analysis_mode = AnalysisMode::kMax;
+  TransType launch_input_trans_type = TransType::kRise;
+  TransType clock_trans_type = TransType::kRise;
+  int64_t data_arrive_time_fs = 0;
+  int64_t capture_clock_arrive_time_fs = 0;
+  int64_t constrain_value_fs = 0;
+  bool has_launch_metadata = false;
+};
 
 /**
  * @brief extract the timing model of the design.
@@ -60,6 +74,8 @@ class StaCharacterTiming : public StaFunc {
 
  private:
   unsigned init(StaGraph* the_graph);
+  void snapshotFullStaClockPinSlew(StaGraph* the_graph);
+  void snapshotFullStaSeqCheckData(StaGraph* the_graph);
   unsigned collectInterfaceLogicEndPoint(StaGraph* the_graph);
   unsigned checkAndBreakLoop(StaGraph* the_graph);
   unsigned propagateSlew(StaGraph* the_graph);
@@ -67,6 +83,7 @@ class StaCharacterTiming : public StaFunc {
   unsigned propagateATFromPort(StaGraph* the_graph);
   unsigned backPropagateRTToPort(StaGraph* the_graph);
   unsigned genTimingModel(StaGraph* the_graph, const char* model_path);
+  static uint64_t nextCharacterizationEpoch();
 
   std::unique_ptr<LibLibrary>
       _design_timing_model;     //!< The design timing model as lib format.
@@ -89,6 +106,15 @@ class StaCharacterTiming : public StaFunc {
       kCollectEndpoints;  // as the timing model compose of many points, we need
                           // to track the state.
   StaVertex* _current_port_vertex = nullptr;  // track the current port vertex.
+  StaVertex* _current_logic_endpoint =
+      nullptr;  // track the boundary endpoint currently being characterized.
+  std::map<std::pair<StaVertex*, TransType>, double>
+      _preserved_clock_pin_slew_ns;  //!< Snapshot of full-STA clock-pin slew
+                                     //!< used only for ETM table sampling.
+  std::map<StaVertex*, std::vector<PreservedSeqCheckSnapshot>>
+      _preserved_seq_check_data;  //!< Snapshot of full-STA setup/hold data used
+                                  //!< after ETM clears vertex delay buckets.
+  uint64_t _characterization_epoch = nextCharacterizationEpoch();
 };
 
 }  // namespace ista

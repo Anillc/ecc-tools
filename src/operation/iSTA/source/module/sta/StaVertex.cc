@@ -330,17 +330,19 @@ void StaVertex::setPathBasedPropagated() {
 /**
  * @brief Init slew data, if not create zero slew default.
  */
-void StaVertex::initSlewData(int init_slew, bool is_set_launch_data) {
+void StaVertex::initSlewData(int init_slew, bool is_set_launch_data,
+                             bool force_create, uint64_t data_epoch) {
   auto& slew_bucket = getSlewBucket();
-  if (!slew_bucket.empty()) {
+  if (!force_create && !slew_bucket.empty()) {
     return;
   }
 
-  auto construct_slew_data = [is_set_launch_data](
+  auto construct_slew_data = [is_set_launch_data, data_epoch](
                                  AnalysisMode delay_type, TransType trans_type,
                                  StaVertex* own_vertex, int slew) {
     StaSlewData* slew_data =
         new StaSlewData(delay_type, trans_type, own_vertex, slew);
+    slew_data->set_data_epoch(data_epoch);
     if (is_set_launch_data) {
       slew_data->set_launch_slew_data(
           slew_data);  // set origin launch slew data for propagate compare.
@@ -361,11 +363,19 @@ void StaVertex::initSlewData(int init_slew, bool is_set_launch_data) {
  *
  * @param init_at
  */
-void StaVertex::initPathDelayData(int init_at) {
-  auto construct_path_delay_data =
-      [this](AnalysisMode delay_type, TransType trans_type, double init_at) {
+void StaVertex::initPathDelayData(int init_at, bool force_create,
+                                  uint64_t data_epoch) {
+  auto& path_delay_bucket = getDataBucket();
+  if (!force_create && !path_delay_bucket.empty()) {
+    return;
+  }
+
+  auto construct_path_delay_data = [this, data_epoch](
+                                       AnalysisMode delay_type,
+                                       TransType trans_type, double init_at) {
         StaPathDelayData* path_delay_data = new StaPathDelayData(
             delay_type, trans_type, NS_TO_FS(init_at), nullptr, this);
+        path_delay_data->set_data_epoch(data_epoch);
         // path_delay_data->set_is_need_keep();
         path_delay_data->set_launch_delay_data(
             path_delay_data);  // set origin launch delay data for propagate
@@ -835,7 +845,7 @@ StaSlewData* StaVertex::getSlewData(AnalysisMode analysis_mode,
  * @return StaSlewData*
  */
 StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
-                                         TransType trans_type) {
+                                        TransType trans_type) {
   std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
       data_queue(sta_data_cmp);
 
@@ -845,6 +855,10 @@ StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
         (data->get_trans_type() == trans_type)) {
       data_queue.push(data);
     }
+  }
+
+  if (data_queue.empty()) {
+    return nullptr;
   }
 
   return dynamic_cast<StaSlewData*>(data_queue.top());
@@ -873,6 +887,10 @@ StaSlewData* StaVertex::getWorstSlewDataFromStart(AnalysisMode analysis_mode,
         data_queue.push(data);
       }
     }
+  }
+
+  if (data_queue.empty()) {
+    return nullptr;
   }
 
   return dynamic_cast<StaSlewData*>(data_queue.top());

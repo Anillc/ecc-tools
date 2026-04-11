@@ -24,11 +24,98 @@
 
 #include "StaClockSlewDelayPropagation.hh"
 
+#include <algorithm>
+#include <cstdlib>
+#include <sstream>
+
 #include "StaDelayPropagation.hh"
 #include "StaSlewPropagation.hh"
 #include "ThreadPool/ThreadPool.h"
 
 namespace ista {
+
+namespace {
+
+bool shouldTraceClockSlewBfsName(const std::string& vertex_name) {
+  const char* trace_env = std::getenv("IEDA_TRACE_CLOCK_SLEW_BFS");
+  if (!trace_env || !*trace_env) {
+    return false;
+  }
+
+  std::stringstream ss(trace_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (!item.empty() && vertex_name.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool shouldTraceClockSlewBfsVertex(StaVertex* vertex) {
+  return vertex && shouldTraceClockSlewBfsName(vertex->getName());
+}
+
+bool shouldTraceClockSlewBfsArc(StaArc* arc) {
+  return arc &&
+         (shouldTraceClockSlewBfsVertex(arc->get_src()) ||
+          shouldTraceClockSlewBfsVertex(arc->get_snk()));
+}
+
+const char* arcKindName(StaArc* arc) {
+  if (!arc) {
+    return "null";
+  }
+  if (arc->isNetArc()) {
+    return "net";
+  }
+  if (arc->isInstArc()) {
+    return "inst";
+  }
+  return "unknown";
+}
+
+bool propagateIdealClockSlewData(StaArc* arc) {
+  if (!arc) {
+    return false;
+  }
+
+  auto* src_vertex = arc->get_src();
+  auto* snk_vertex = arc->get_snk();
+  if (!src_vertex || !snk_vertex) {
+    return false;
+  }
+
+  bool has_propagated_slew = false;
+  StaData* slew_data = nullptr;
+  FOREACH_SLEW_DATA(src_vertex, slew_data) {
+    auto* src_slew_data = dynamic_cast<StaSlewData*>(slew_data);
+    if (!src_slew_data) {
+      continue;
+    }
+
+    auto* new_slew_data = src_slew_data->copy();
+    if (arc->isNegativeArc()) {
+      new_slew_data->flipTransType();
+    }
+
+    new_slew_data->set_bwd(src_slew_data);
+    src_slew_data->add_fwd(new_slew_data);
+    snk_vertex->addData(new_slew_data);
+    has_propagated_slew = true;
+  }
+
+  if (!has_propagated_slew) {
+    snk_vertex->initSlewData();
+  }
+
+  return has_propagated_slew;
+}
+
+}  // namespace
 
 /**
  * @brief propagate the arc to calc slew and delay of the snk vertex.
@@ -37,12 +124,26 @@ namespace ista {
  * @return unsigned
  */
 unsigned StaClockSlewDelayPropagation::operator()(StaArc* the_arc) {
+  if (shouldTraceClockSlewBfsArc(the_arc)) {
+    LOG_INFO << "[clock_slew_delay][arc-exec] kind=" << arcKindName(the_arc)
+             << " src=" << the_arc->get_src()->getName()
+             << " snk=" << the_arc->get_snk()->getName()
+             << " disable=" << the_arc->is_disable_arc()
+             << " loop_disable=" << the_arc->is_loop_disable();
+  }
+
   std::lock_guard<std::mutex> lk(the_arc->get_snk()->get_fwd_mutex());
   StaSlewPropagation slew_propagation;
   StaDelayPropagation delay_propagation;
 
   slew_propagation(the_arc);
   delay_propagation(the_arc);
+
+  if (shouldTraceClockSlewBfsArc(the_arc)) {
+    LOG_INFO << "[clock_slew_delay][arc-done] kind=" << arcKindName(the_arc)
+             << " src=" << the_arc->get_src()->getName()
+             << " snk=" << the_arc->get_snk()->getName();
+  }
   return 1;
 }
 
@@ -53,6 +154,14 @@ unsigned StaClockSlewDelayPropagation::operator()(StaArc* the_arc) {
  * @return unsigned
  */
 unsigned StaClockSlewDelayPropagation::operator()(StaVertex* the_vertex) {
+  if (shouldTraceClockSlewBfsVertex(the_vertex)) {
+    LOG_INFO << "[clock_slew_delay][vertex-visit] vertex="
+             << the_vertex->getName() << " is_clock=" << the_vertex->is_clock()
+             << " is_sdc_clock_pin=" << the_vertex->is_sdc_clock_pin()
+             << " is_start=" << the_vertex->is_start()
+             << " src_arc_count=" << the_vertex->get_src_arcs().size();
+  }
+
   if (the_vertex->is_const()) {
     return 1;
   }
@@ -61,6 +170,10 @@ unsigned StaClockSlewDelayPropagation::operator()(StaVertex* the_vertex) {
 
   // clock propagation end at the clock vertex.
   if (the_vertex->is_clock() && vertex_own_cell && !vertex_own_cell->isICG()) {
+    if (shouldTraceClockSlewBfsVertex(the_vertex)) {
+      LOG_INFO << "[clock_slew_delay][vertex-stop-clock-end] vertex="
+               << the_vertex->getName();
+    }
     the_vertex->set_is_slew_prop();
     the_vertex->set_is_delay_prop();
     return 1;
@@ -68,6 +181,16 @@ unsigned StaClockSlewDelayPropagation::operator()(StaVertex* the_vertex) {
 
   unsigned is_ok = 1;
   FOREACH_SRC_ARC(the_vertex, src_arc) {
+    if (shouldTraceClockSlewBfsArc(src_arc)) {
+      LOG_INFO << "[clock_slew_delay][vertex-arc] src_vertex="
+               << the_vertex->getName() << " kind=" << arcKindName(src_arc)
+               << " src=" << src_arc->get_src()->getName()
+               << " snk=" << src_arc->get_snk()->getName()
+               << " disable=" << src_arc->is_disable_arc()
+               << " loop_disable=" << src_arc->is_loop_disable()
+               << " is_delay_arc=" << src_arc->isDelayArc();
+    }
+
     if (!src_arc->isDelayArc()) {
       continue;
     }
@@ -85,10 +208,20 @@ unsigned StaClockSlewDelayPropagation::operator()(StaVertex* the_vertex) {
         break;
       }
     } else {
-      snk_vertex->initSlewData();
+      const bool copied_source_slew = propagateIdealClockSlewData(src_arc);
+      if (shouldTraceClockSlewBfsArc(src_arc)) {
+        LOG_INFO << "[clock_slew_delay][ideal-clock-slew] src="
+                 << src_arc->get_src()->getName()
+                 << " snk=" << src_arc->get_snk()->getName()
+                 << " copied=" << copied_source_slew;
+      }
     }
 
     addNextBFSQueue(snk_vertex);
+    if (shouldTraceClockSlewBfsArc(src_arc)) {
+      LOG_INFO << "[clock_slew_delay][enqueue] vertex="
+               << snk_vertex->getName();
+    }
   }
 
   the_vertex->set_is_slew_prop();
@@ -115,6 +248,11 @@ unsigned StaClockSlewDelayPropagation::operator()(StaGraph*) {
 
     auto& vertexes = clock->get_clock_vertexes();
     for (auto* vertex : vertexes) {
+      if (shouldTraceClockSlewBfsVertex(vertex)) {
+        LOG_INFO << "[clock_slew_delay][seed] vertex=" << vertex->getName()
+                 << " clock=" << clock->get_clock_name()
+                 << " src_arc_count=" << vertex->get_src_arcs().size();
+      }
       vertex->initSlewData();
       _bfs_queue.emplace_back(vertex);
     }

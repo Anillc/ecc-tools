@@ -26,6 +26,7 @@
 
 #include <iostream>
 #include <optional>
+#include <vector>
 
 #include "FlatSet.hh"
 #include "TimingIDBAdapter.hh"

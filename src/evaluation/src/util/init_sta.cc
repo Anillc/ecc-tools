@@ -248,6 +248,72 @@ void InitSTA::buildRCTree(const std::string& routing_type)
       << "The routing type: " << routing_type << " is not supported.";
 
   auto* idb_adapter = dynamic_cast<ista::TimingIDBAdapter*>(STA_INST->get_db_adapter());
+  auto make_coord = [](idb::IdbCoordinate<int32_t>* coord) -> std::optional<std::pair<int32_t, int32_t>> {
+    if (!coord || coord->is_negative()) {
+      return std::nullopt;
+    }
+
+    return std::make_pair(coord->get_x(), coord->get_y());
+  };
+  auto make_bbox_center = [](idb::IdbPin* db_pin) -> std::optional<std::pair<int32_t, int32_t>> {
+    if (!db_pin) {
+      return std::nullopt;
+    }
+
+    if (auto* bounding_box = db_pin->get_bounding_box(); bounding_box && bounding_box->is_init()) {
+      return std::make_pair(bounding_box->get_middle_point_x(), bounding_box->get_middle_point_y());
+    }
+
+    auto* bottom_layer_shape = db_pin->get_bottom_routing_layer_shape();
+    if (!bottom_layer_shape) {
+      return std::nullopt;
+    }
+    auto bounding_box = bottom_layer_shape->get_bounding_box();
+    if (!bounding_box.is_init()) {
+      return std::nullopt;
+    }
+
+    return std::make_pair(bounding_box.get_middle_point_x(), bounding_box.get_middle_point_y());
+  };
+  auto resolve_pin_location = [&](ista::DesignObject* pin_port) -> std::optional<std::pair<int32_t, int32_t>> {
+    if (!pin_port) {
+      return std::nullopt;
+    }
+
+    auto resolve_db_pin_location = [&](idb::IdbPin* db_pin) -> std::optional<std::pair<int32_t, int32_t>> {
+      if (!db_pin) {
+        return std::nullopt;
+      }
+
+      if (auto coord = make_coord(db_pin->get_location())) {
+        return coord;
+      }
+      if (auto coord = make_coord(db_pin->get_average_coordinate())) {
+        return coord;
+      }
+      return make_bbox_center(db_pin);
+    };
+
+    idb::IdbPin* db_pin = pin_port->isPin() ? idb_adapter->staToDb(dynamic_cast<ista::Pin*>(pin_port))
+                                            : idb_adapter->staToDb(dynamic_cast<ista::Port*>(pin_port));
+    if (auto coord = resolve_db_pin_location(db_pin)) {
+      return coord;
+    }
+
+    if (pin_port->isPort()) {
+      auto* io_pin_list = dmInst->get_idb_design()->get_io_pin_list();
+      if (io_pin_list) {
+        if (auto* fallback_db_pin = io_pin_list->find_pin_by_term(pin_port->getFullName());
+            fallback_db_pin && fallback_db_pin != db_pin) {
+          if (auto coord = resolve_db_pin_location(fallback_db_pin)) {
+            return coord;
+          }
+        }
+      }
+    }
+
+    return std::nullopt;
+  };
 
   // init
   // 1. wirelength calculation
@@ -318,12 +384,23 @@ void InitSTA::buildRCTree(const std::string& routing_type)
       }
 
       auto* driver = sta_net->getDriver();
-      auto driver_loc = idb_adapter->idbLocation(driver);
+      auto driver_loc = resolve_pin_location(driver);
+      if (!driver_loc) {
+        LOG_WARNING << "Skip HPWL RC build for net " << sta_net->get_name()
+                    << " because driver location is unavailable.";
+        continue;
+      }
       auto front_node = STA_INST->makeOrFindRCTreeNode(driver);
 
       for (auto load : loads) {
-        auto load_loc = idb_adapter->idbLocation(load);
-        auto wirelength = calc_length(driver_loc->get_x(), driver_loc->get_y(), load_loc->get_x(), load_loc->get_y());
+        auto load_loc = resolve_pin_location(load);
+        if (!load_loc) {
+          LOG_WARNING << "Skip load " << load->getFullName() << " of net "
+                      << sta_net->get_name()
+                      << " because location is unavailable.";
+          continue;
+        }
+        auto wirelength = calc_length(driver_loc->first, driver_loc->second, load_loc->first, load_loc->second);
         double res = calc_res(sta_net->isClockNet(), wirelength);
         double cap = calc_cap(sta_net->isClockNet(), wirelength);
         auto back_node = STA_INST->makeOrFindRCTreeNode(load);
@@ -334,8 +411,24 @@ void InitSTA::buildRCTree(const std::string& routing_type)
     }
 
     if (routing_type == "FLUTE" || routing_type == "SALT") {
-      std::vector<ista::DesignObject*> pin_ports = {sta_net->getDriver()};
-      std::ranges::copy(sta_net->getLoads(), std::back_inserter(pin_ports));
+      std::vector<ista::DesignObject*> pin_ports;
+      std::vector<std::pair<int32_t, int32_t>> pin_locations;
+      auto push_pin_port = [&](ista::DesignObject* pin_port) {
+        auto pin_loc = resolve_pin_location(pin_port);
+        if (!pin_loc) {
+          LOG_WARNING << "Skip pin " << (pin_port ? pin_port->getFullName() : "<null>")
+                      << " during " << routing_type << " RC build of net "
+                      << sta_net->get_name() << " because location is unavailable.";
+          return;
+        }
+        pin_ports.push_back(pin_port);
+        pin_locations.push_back(*pin_loc);
+      };
+
+      push_pin_port(sta_net->getDriver());
+      for (auto* load : sta_net->getLoads()) {
+        push_pin_port(load);
+      }
       if (pin_ports.size() < 2) {
         continue;
       }
@@ -351,11 +444,8 @@ void InitSTA::buildRCTree(const std::string& routing_type)
       std::vector<std::shared_ptr<salt::Pin>> salt_pins;
       salt_pins.reserve(pin_ports.size());
       for (size_t i = 0; i < pin_ports.size(); ++i) {
-        auto pin_port = pin_ports[i];
-        auto* idb_loc = idb_adapter->idbLocation(pin_port);
-        LOG_ERROR_IF(idb_loc == nullptr) << "The location of pin port: " << pin_port->getFullName() << " is not found.";
-        LOG_ERROR_IF(idb_loc->is_negative()) << "The location of pin port: " << pin_port->getFullName() << " is negative.";
-        auto pin = std::make_shared<salt::Pin>(idb_loc->get_x(), idb_loc->get_y(), i);
+        const auto& [pin_x, pin_y] = pin_locations[i];
+        auto pin = std::make_shared<salt::Pin>(pin_x, pin_y, i);
         salt_pins.push_back(pin);
       }
       leaglization(salt_pins);

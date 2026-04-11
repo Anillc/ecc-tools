@@ -71,10 +71,13 @@ class StaArc {
   void addData(StaArcDelayData* arc_delay_data);
   void resetArcDelayBucket() { _arc_delay_bucket.freeData(); }
   unsigned isResetArcDelayBucket() { return (_arc_delay_bucket.isFreeData()); }
-  int get_arc_delay(AnalysisMode analysis_mode, TransType trans_type);
+  int get_arc_delay(AnalysisMode analysis_mode, TransType trans_type,
+                    std::optional<uint64_t> data_epoch = std::nullopt);
   void initArcDelayData();
   StaArcDelayData* getArcDelayData(AnalysisMode analysis_mode,
-                                   TransType trans_type);
+                                   TransType trans_type,
+                                   std::optional<uint64_t> data_epoch =
+                                       std::nullopt);
   StaDataBucket& getDataBucket() { return _arc_delay_bucket; }
 
   [[nodiscard]] unsigned is_loop_disable() const { return _is_loop_disable; }

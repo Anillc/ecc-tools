@@ -161,7 +161,7 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double slew_derate_from_library = rust_attri_value->value;
-         current_lib->set_output_threshold_pct_fall(slew_derate_from_library);
+         current_lib->set_slew_derate_from_library(slew_derate_from_library);
          rust_free_float_value(rust_attri_value);
        }},
       {"pulling_resistance_unit",
@@ -171,6 +171,19 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          if (Str::equal(pulling_resistance_unit, "1kohm")) {
            current_lib->set_resistance_unit(ResistanceUnit::kkOHM);
          }
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"comment",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_comment(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"simulation",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_simulation(
+             convert_string_to_bool(rust_attri_value->value));
          rust_free_string_value(rust_attri_value);
        }},
       {"time_unit",
@@ -184,12 +197,42 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          }
          rust_free_string_value(rust_attri_value);
        }},
+      {"current_unit",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_current_unit_name(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"voltage_unit",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_voltage_unit_name(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"leakage_power_unit",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_leakage_power_unit(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
 
       {"nom_voltage",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double nom_voltage = rust_attri_value->value;
          current_lib->set_nom_voltage(nom_voltage);
+         rust_free_float_value(rust_attri_value);
+       }},
+      {"nom_process",
+       [=]() {
+         auto* rust_attri_value = rust_convert_float_value(attri_value);
+         current_lib->set_nom_process(rust_attri_value->value);
+         rust_free_float_value(rust_attri_value);
+       }},
+      {"nom_temperature",
+       [=]() {
+         auto* rust_attri_value = rust_convert_float_value(attri_value);
+         current_lib->set_nom_temperature(rust_attri_value->value);
          rust_free_float_value(rust_attri_value);
        }},
 
@@ -654,6 +697,22 @@ unsigned RustLibertyReader::visitComplexAttri(
          double length = rust_convert_float_value(attri_1)->value;
          dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
              static_cast<int>(fanout), length);
+       }},
+      {"library_features",
+       [&]() {
+         void* attri_value = nullptr;
+         FOREACH_VEC_ELEM(&attri_values, void, attri_value) {
+           if (rust_is_string_value(attri_value)) {
+             auto* feature_value = rust_convert_string_value(attri_value);
+             the_lib->add_library_feature(feature_value->value);
+             rust_free_string_value(feature_value);
+           } else if (rust_is_float_value(attri_value)) {
+             auto* feature_value = rust_convert_float_value(attri_value);
+             the_lib->add_library_feature(
+                 std::to_string(feature_value->value));
+             rust_free_float_value(feature_value);
+           }
+         }
        }}};
 
   if (process_attri.contains(attri_name)) {

@@ -48,7 +48,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
   auto construct_delay_data = [this](AnalysisMode delay_type,
                                      TransType trans_type, StaArc* own_arc,
-                                     int delay) {
+                                     int delay, uint64_t data_epoch) {
     StaArcDelayData* arc_delay = nullptr;
     if (isIncremental()) {
       arc_delay = own_arc->getArcDelayData(delay_type, trans_type);
@@ -56,6 +56,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
     if (!arc_delay) {
       arc_delay = new StaArcDelayData(delay_type, trans_type, own_arc, delay);
+      arc_delay->set_data_epoch(data_epoch);
       own_arc->addData(arc_delay);
     }
 
@@ -73,6 +74,11 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
   StaData* slew_data;
   FOREACH_SLEW_DATA(src_vertex, slew_data) {
+    if (auto data_epoch = get_data_epoch_filter();
+        data_epoch && slew_data->get_data_epoch() != *data_epoch) {
+      continue;
+    }
+
     auto analysis_mode = slew_data->get_delay_type();
     auto trans_type = slew_data->get_trans_type();
     if (analysis_mode == get_analysis_mode() ||
@@ -105,7 +111,8 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             auto delay_ns = lib_arc->getDelayOrConstrainCheckNs(
                 snk_trans_type, in_slew, snk_slew);
             auto delay = NS_TO_FS(delay_ns);
-            construct_delay_data(analysis_mode, snk_trans_type, the_arc, delay);
+            construct_delay_data(analysis_mode, snk_trans_type, the_arc, delay,
+                                 src_slew_data->get_data_epoch());
           }
 
         } else if (the_arc->isDelayArc()) {
@@ -135,7 +142,8 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
                                                               in_slew, load);
           auto delay = NS_TO_FS(delay_ns);
 
-          construct_delay_data(analysis_mode, out_trans_type, the_arc, delay);
+          construct_delay_data(analysis_mode, out_trans_type, the_arc, delay,
+                               src_slew_data->get_data_epoch());
           /*The unate arc should split two.*/
           if (!lib_arc->isUnateArc() || src_vertex->is_clock()) {
             auto out_trans_type1 = flip_trans_type(trans_type);
@@ -150,7 +158,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             auto delay1 = NS_TO_FS(delay1_ns);
 
             construct_delay_data(analysis_mode, out_trans_type1, the_arc,
-                                 delay1);
+                                 delay1, src_slew_data->get_data_epoch());
           }
         } else if (the_arc->isMpwArc()) {
           // TODO(to taosimin) fix mpw arc
@@ -164,7 +172,8 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
                                 : std::nullopt;
         auto delay_ps = net_delay ? net_delay->first : 0.0;
         auto delay = PS_TO_FS(delay_ps);
-        construct_delay_data(analysis_mode, trans_type, the_arc, delay);
+        construct_delay_data(analysis_mode, trans_type, the_arc, delay,
+                             src_slew_data->get_data_epoch());
 
         if (rc_net) {
           auto* arnoldi_rc_net = dynamic_cast<ArnoldiNet*>(rc_net);

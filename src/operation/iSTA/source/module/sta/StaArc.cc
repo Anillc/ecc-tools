@@ -50,11 +50,13 @@ void StaArc::addData(StaArcDelayData* arc_delay_data) {
  * @param trans_type
  * @return int
  */
-int StaArc::get_arc_delay(AnalysisMode analysis_mode, TransType trans_type) {
+int StaArc::get_arc_delay(AnalysisMode analysis_mode, TransType trans_type,
+                          std::optional<uint64_t> data_epoch) {
   StaData* data;
   FOREACH_ARC_DELAY_DATA(this, data) {
     if (data->get_delay_type() == analysis_mode &&
-        data->get_trans_type() == trans_type) {
+        data->get_trans_type() == trans_type &&
+        (!data_epoch || data->get_data_epoch() == *data_epoch)) {
       auto* arc_delay = dynamic_cast<StaArcDelayData*>(data);
       return arc_delay->get_arc_delay();
     }
@@ -99,11 +101,13 @@ void StaArc::initArcDelayData() {
  * @return StaArcDelayData*
  */
 StaArcDelayData* StaArc::getArcDelayData(AnalysisMode analysis_mode,
-                                         TransType trans_type) {
+                                         TransType trans_type,
+                                         std::optional<uint64_t> data_epoch) {
   StaData* data;
   FOREACH_ARC_DELAY_DATA(this, data) {
     if (data->get_delay_type() == analysis_mode &&
-        data->get_trans_type() == trans_type) {
+        data->get_trans_type() == trans_type &&
+        (!data_epoch || data->get_data_epoch() == *data_epoch)) {
       auto* arc_delay = dynamic_cast<StaArcDelayData*>(data);
       return arc_delay;
     }

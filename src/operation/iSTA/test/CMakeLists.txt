@@ -14,6 +14,8 @@ add_executable(iSTATest ${SourceFiles})
 target_link_libraries(
   iSTATest
   ista-engine
+  idm
+  eval_timing_api
   inference
   sdc-cmd
   shell-cmd

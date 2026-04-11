@@ -23,7 +23,10 @@
  */
 #include "StaSlewPropagation.hh"
 
+#include <algorithm>
+#include <cstdlib>
 #include <optional>
+#include <sstream>
 
 #include "ThreadPool/ThreadPool.h"
 #include "delay/ReduceDelayCal.hh"
@@ -31,6 +34,37 @@
 #include "netlist/Port.hh"
 
 namespace ista {
+
+namespace {
+
+bool shouldTraceSlewArc(StaVertex* src_vertex, StaVertex* snk_vertex) {
+  const char* trace_env = std::getenv("IEDA_TRACE_SLEW_ARCS");
+  if (!trace_env || !*trace_env) {
+    return false;
+  }
+
+  const std::string src_name = src_vertex ? src_vertex->getName() : "";
+  const std::string snk_name = snk_vertex ? snk_vertex->getName() : "";
+
+  std::stringstream ss(trace_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (item.empty()) {
+      continue;
+    }
+
+    if (src_name.find(item) != std::string::npos ||
+        snk_name.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+}  // namespace
 
 /**
  * @brief The slew propagation from the arc.
@@ -59,6 +93,7 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
     if (!slew_data) {
       slew_data = new StaSlewData(delay_type, trans_type, own_vertex, slew);
+      slew_data->set_data_epoch(src_slew_data->get_data_epoch());
 
       slew_data->set_bwd(src_slew_data);
       src_slew_data->add_fwd(slew_data);
@@ -81,6 +116,7 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
   auto* src_vertex = the_arc->get_src();
   auto* snk_vertex = the_arc->get_snk();
+  const bool trace_arc = shouldTraceSlewArc(src_vertex, snk_vertex);
 
   auto* obj = snk_vertex->get_design_obj();
 
@@ -94,6 +130,11 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
   StaData* slew_data;
   FOREACH_SLEW_DATA(src_vertex, slew_data) {
+    if (auto data_epoch = get_data_epoch_filter();
+        data_epoch && slew_data->get_data_epoch() != *data_epoch) {
+      continue;
+    }
+
     auto trans_type = slew_data->get_trans_type();
 
     // for the clock vertex, only need the trigger transition type data.
@@ -144,6 +185,16 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
         auto output_current =
             lib_arc->getOutputCurrent(out_trans_type, in_slew, load);
 
+        if (trace_arc) {
+          LOG_INFO << "[sta][slew-arc-trace] kind=inst src="
+                   << src_vertex->getName() << " snk=" << snk_vertex->getName()
+                   << " analysis=" << static_cast<int>(analysis_mode)
+                   << " in_trans=" << static_cast<int>(trans_type)
+                   << " out_trans=" << static_cast<int>(out_trans_type)
+                   << " in_slew_ns=" << in_slew
+                   << " out_slew_ns=" << out_slew_ns;
+        }
+
         construct_slew_data(analysis_mode, out_trans_type, snk_vertex,
                             NS_TO_FS(out_slew_ns), std::move(output_current),
                             slew_data);
@@ -178,6 +229,15 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
         double out_slew_ps = net_out_slew ? *net_out_slew : NS_TO_PS(in_slew);
         auto out_slew = PS_TO_FS(out_slew_ps);
+        if (trace_arc) {
+          LOG_INFO << "[sta][slew-arc-trace] kind=net src="
+                   << src_vertex->getName() << " snk=" << snk_vertex->getName()
+                   << " analysis=" << static_cast<int>(analysis_mode)
+                   << " trans=" << static_cast<int>(trans_type)
+                   << " in_slew_ns=" << in_slew
+                   << " out_slew_ns=" << PS_TO_NS(out_slew_ps)
+                   << " rc_net=" << static_cast<int>(rc_net != nullptr);
+        }
         construct_slew_data(analysis_mode, trans_type, snk_vertex, out_slew,
                             nullptr, slew_data);
       }

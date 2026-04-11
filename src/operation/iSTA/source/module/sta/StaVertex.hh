@@ -157,8 +157,10 @@ class StaVertex {
   void resetVertexArcData();
 
   void setPathBasedPropagated();
-  void initSlewData(int init_slew = 0, bool is_set_launch_data = false);
-  void initPathDelayData(int init_at = 0);
+  void initSlewData(int init_slew = 0, bool is_set_launch_data = false,
+                    bool force_create = false, uint64_t data_epoch = 0);
+  void initPathDelayData(int init_at = 0, bool force_create = false,
+                         uint64_t data_epoch = 0);
   void setConstainTime(AnalysisMode analysis_mode, TransType trans_type,
                        int constrain_rt);
 

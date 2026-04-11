@@ -487,6 +487,11 @@ unsigned StaFwdPropagation::operator()(StaArc* the_arc) {
   StaData* next_data1;
   StaData* next_data2;
   FOREACH_DELAY_DATA(src_vertex, delay_data) {
+    if (auto data_epoch = get_data_epoch_filter();
+        data_epoch && delay_data->get_data_epoch() != *data_epoch) {
+      continue;
+    }
+
     next_data1 = nullptr;
     next_data2 = nullptr;
 
@@ -510,16 +515,18 @@ unsigned StaFwdPropagation::operator()(StaArc* the_arc) {
         next_data1->flipTransType();
       }
 
-      auto arc_delay1 = the_arc->get_arc_delay(next_data1->get_delay_type(),
-                                               next_data1->get_trans_type());
+      auto arc_delay1 = the_arc->get_arc_delay(
+          next_data1->get_delay_type(), next_data1->get_trans_type(),
+          get_data_epoch_filter());
       arc_delay1 = apply_derate_to_delay(arc_delay1, next_data1);
 
       next_data1->set_arrive_time(delay_data->get_arrive_time() + arc_delay1);
 
       snk_vertex->addData(dynamic_cast<StaPathDelayData*>(next_data1));
     } else {
-      auto arc_delay1 = the_arc->get_arc_delay(next_data1->get_delay_type(),
-                                               next_data1->get_trans_type());
+      auto arc_delay1 = the_arc->get_arc_delay(
+          next_data1->get_delay_type(), next_data1->get_trans_type(),
+          get_data_epoch_filter());
       arc_delay1 = apply_derate_to_delay(arc_delay1, next_data1);
       next_data1->set_arrive_time(delay_data->get_arrive_time() + arc_delay1);
     }
@@ -539,16 +546,18 @@ unsigned StaFwdPropagation::operator()(StaArc* the_arc) {
         next_data2->set_bwd(delay_data);
 
         next_data2->flipTransType();
-        auto arc_delay2 = the_arc->get_arc_delay(next_data2->get_delay_type(),
-                                                 next_data2->get_trans_type());
+        auto arc_delay2 = the_arc->get_arc_delay(
+            next_data2->get_delay_type(), next_data2->get_trans_type(),
+            get_data_epoch_filter());
         arc_delay2 = apply_derate_to_delay(arc_delay2, next_data2);
 
         next_data2->set_arrive_time(delay_data->get_arrive_time() + arc_delay2);
 
         snk_vertex->addData(dynamic_cast<StaPathDelayData*>(next_data2));
       } else {
-        auto arc_delay2 = the_arc->get_arc_delay(next_data2->get_delay_type(),
-                                                 next_data2->get_trans_type());
+        auto arc_delay2 = the_arc->get_arc_delay(
+            next_data2->get_delay_type(), next_data2->get_trans_type(),
+            get_data_epoch_filter());
         arc_delay2 = apply_derate_to_delay(arc_delay2, next_data2);
         next_data2->set_arrive_time(delay_data->get_arrive_time() + arc_delay2);
       }

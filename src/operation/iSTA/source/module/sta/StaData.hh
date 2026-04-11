@@ -25,6 +25,7 @@
 #pragma once
 
 #include <forward_list>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -122,6 +123,8 @@ class StaData {
 
   void set_derate(std::optional<float> derate) { _derate = derate; }
   std::optional<float> get_derate() const { return _derate; }
+  void set_data_epoch(uint64_t data_epoch) { _data_epoch = data_epoch; }
+  uint64_t get_data_epoch() const { return _data_epoch; }
 
   virtual unsigned compareSignature(const StaSlewData* data) const;
   virtual unsigned compareSignature(const StaClockData* data) const;
@@ -140,6 +143,7 @@ class StaData {
       _delay_type;  //!< The delay type, max is for setup, min is for hold etc.
   TransType _trans_type;         //!< The transition type, rise/fall.
   std::optional<float> _derate;  //!< The vertex derate
+  uint64_t _data_epoch = 0;      //!< The propagation generation/epoch.
   StaVertex* _own_vertex;        //!< The vertex which the data belong to.
   ieda::BTreeSet<StaData*>
       _fwd_set;  //!< The propagation fwd datas, maybe more than once.
@@ -233,6 +237,7 @@ class StaArcDelayData : public StaData {
   int get_arc_delay() const { return (_arc_delay + _crosstalk_delay); }
   void set_arc_delay(int arc_delay) { _arc_delay = arc_delay; }
   int64_t getCompareValue() const override { return _arc_delay; }
+  StaArc* get_own_arc() const { return _own_arc; }
 
   int get_crosstalk_delay() const { return _crosstalk_delay; }
   void set_crosstalk_delay(int crosstalk_delay) {

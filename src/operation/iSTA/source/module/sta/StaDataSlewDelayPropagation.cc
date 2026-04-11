@@ -23,6 +23,10 @@
  */
 #include "StaDataSlewDelayPropagation.hh"
 
+#include <algorithm>
+#include <cstdlib>
+#include <sstream>
+
 #include "StaDelayPropagation.hh"
 #include "StaSlewPropagation.hh"
 #include "ThreadPool/ThreadPool.h"
@@ -30,6 +34,37 @@
 #include "delay/ReduceDelayCal.hh"
 
 namespace ista {
+
+namespace {
+
+bool shouldTraceLibertyArc(StaVertex* src_vertex, StaVertex* snk_vertex) {
+  const char* trace_env = std::getenv("IEDA_TRACE_LIB_ARCS");
+  if (!trace_env || !*trace_env) {
+    return false;
+  }
+
+  const std::string src_name = src_vertex ? src_vertex->getName() : "";
+  const std::string snk_name = snk_vertex ? snk_vertex->getName() : "";
+
+  std::stringstream ss(trace_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (item.empty()) {
+      continue;
+    }
+
+    if (src_name.find(item) != std::string::npos ||
+        snk_name.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+}  // namespace
 
 /**
  * @brief propagate the arc to calc slew and delay of the snk vertex.
@@ -103,6 +138,11 @@ unsigned StaDataSlewDelayPropagation::operator()(StaArc* the_arc) {
 
   StaData* slew_data;
   FOREACH_SLEW_DATA(src_vertex, slew_data) {
+    if (auto data_epoch = get_data_epoch_filter();
+        data_epoch && slew_data->get_data_epoch() != *data_epoch) {
+      continue;
+    }
+
     auto trans_type = slew_data->get_trans_type();
 
     // for the clock vertex, only need the trigger transition type data.
@@ -162,6 +202,7 @@ unsigned StaDataSlewDelayPropagation::operator()(StaArc* the_arc) {
           auto out_trans_type = lib_arc->isNegativeArc()
                                     ? flip_trans_type(trans_type)
                                     : trans_type;
+          const bool trace_arc = shouldTraceLibertyArc(src_vertex, snk_vertex);
 
           auto* rc_net = getSta()->getRcNet(the_net);
           auto load_pf = rc_net
@@ -192,6 +233,23 @@ unsigned StaDataSlewDelayPropagation::operator()(StaArc* the_arc) {
 
           auto delay_ns = lib_arc->getDelayOrConstrainCheckNs(out_trans_type,
                                                               in_slew, load);
+          if (trace_arc) {
+            LOG_INFO << "[sta][lib-arc-trace] src=" << src_vertex->getName()
+                     << " snk=" << snk_vertex->getName()
+                     << " analysis=" << static_cast<int>(analysis_mode)
+                     << " in_trans=" << static_cast<int>(trans_type)
+                     << " out_trans=" << static_cast<int>(out_trans_type)
+                     << " in_slew_ns=" << in_slew
+                     << " load_pf=" << load_pf
+                     << " load_lib_unit=" << load
+                     << " lib_time_unit="
+                     << static_cast<int>(the_lib->get_time_unit())
+                     << " lib_cap_unit="
+                     << static_cast<int>(the_lib->get_cap_unit())
+                     << " delay_ns=" << delay_ns
+                     << " out_slew_ns=" << out_slew_ns
+                     << " timing_type=" << static_cast<int>(lib_arc->get_timing_type());
+          }
           auto delay = NS_TO_FS(delay_ns);
 
           construct_slew_delay_data(analysis_mode, out_trans_type, snk_vertex,
@@ -216,6 +274,24 @@ unsigned StaDataSlewDelayPropagation::operator()(StaArc* the_arc) {
 
             auto delay1_ns = lib_arc->getDelayOrConstrainCheckNs(
                 out_trans_type1, in_slew, load);
+            if (trace_arc) {
+              LOG_INFO << "[sta][lib-arc-trace] src=" << src_vertex->getName()
+                       << " snk=" << snk_vertex->getName()
+                       << " analysis=" << static_cast<int>(analysis_mode)
+                       << " in_trans=" << static_cast<int>(trans_type)
+                       << " out_trans=" << static_cast<int>(out_trans_type1)
+                       << " in_slew_ns=" << in_slew
+                       << " load_pf=" << load_pf
+                       << " load_lib_unit=" << load
+                       << " lib_time_unit="
+                       << static_cast<int>(the_lib->get_time_unit())
+                       << " lib_cap_unit="
+                       << static_cast<int>(the_lib->get_cap_unit())
+                       << " delay_ns=" << delay1_ns
+                       << " out_slew_ns=" << out_slew1_ns
+                       << " timing_type="
+                       << static_cast<int>(lib_arc->get_timing_type());
+            }
             auto delay1 = NS_TO_FS(delay1_ns);
 
             construct_slew_delay_data(analysis_mode, out_trans_type1,

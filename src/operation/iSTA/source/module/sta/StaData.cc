@@ -34,17 +34,20 @@ StaData::StaData(AnalysisMode delay_type, TransType trans_type,
                  StaVertex* own_vertex)
     : _delay_type(delay_type),
       _trans_type(trans_type),
+      _data_epoch(0),
       _own_vertex(own_vertex) {}
 
 StaData::StaData(const StaData& orig)
     : _delay_type(orig._delay_type),
       _trans_type(orig._trans_type),
+      _data_epoch(orig._data_epoch),
       _own_vertex(orig._own_vertex) {}
 
 StaData& StaData::operator=(const StaData& rhs) {
   if (this != &rhs) {
     _delay_type = rhs._delay_type;
     _trans_type = rhs._trans_type;
+    _data_epoch = rhs._data_epoch;
     _own_vertex = rhs._own_vertex;
   }
   return *this;
@@ -53,6 +56,7 @@ StaData& StaData::operator=(const StaData& rhs) {
 StaData::StaData(StaData&& other) noexcept
     : _delay_type(other._delay_type),
       _trans_type(other._trans_type),
+      _data_epoch(other._data_epoch),
       _own_vertex(other._own_vertex),
       _fwd_set(std::move(other._fwd_set)),
       _bwd(other._bwd) {}
@@ -61,6 +65,7 @@ StaData& StaData::operator=(StaData&& rhs) noexcept {
   if (this != &rhs) {
     _delay_type = rhs._delay_type;
     _trans_type = rhs._trans_type;
+    _data_epoch = rhs._data_epoch;
     _own_vertex = rhs._own_vertex;
     _fwd_set = std::move(rhs._fwd_set);
     _bwd = rhs._bwd;
