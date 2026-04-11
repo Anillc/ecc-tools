@@ -300,8 +300,11 @@ inline fs::path generateGoldenCaseTimingModel(AnalysisMode analysis_mode,
   const auto output_dir_string = output_lib.parent_path().string();
   timing_engine->set_design_work_space(output_dir_string.c_str());
   timing_engine->get_ista()->set_top_module_name("NV_NVDLA_partition_m");
-  timing_engine->get_ista()->set_analysis_mode(analysis_mode);
   timing_engine->get_ista()->set_n_worst_path_per_clock(1);
+  timing_engine->get_ista()->set_n_worst_path_per_endpoint(512);
+  timing_engine->get_ista()->set_analysis_mode(AnalysisMode::kMaxMin);
+  timing_engine->updateTiming();
+  timing_engine->get_ista()->set_analysis_mode(analysis_mode);
   timing_engine->extractTimingModel(analysis_mode, output_lib.c_str());
 
   EXPECT_TRUE(fs::exists(output_lib)) << "timing model was not generated at "

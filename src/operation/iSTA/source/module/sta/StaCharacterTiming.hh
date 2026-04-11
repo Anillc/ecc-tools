@@ -38,14 +38,21 @@ namespace ista {
 struct PreservedSeqCheckSnapshot {
   StaArc* check_arc = nullptr;
   StaVertex* capture_clock_vertex = nullptr;
-  StaVertex* launch_start_vertex = nullptr;
+  StaVertex* capture_clock_start_vertex = nullptr;
+  StaVertex* data_start_vertex = nullptr;
   AnalysisMode capture_analysis_mode = AnalysisMode::kMax;
-  TransType launch_input_trans_type = TransType::kRise;
+  TransType data_start_trans_type = TransType::kRise;
   TransType clock_trans_type = TransType::kRise;
-  int64_t data_arrive_time_fs = 0;
-  int64_t capture_clock_arrive_time_fs = 0;
+  int64_t data_start_arrive_fs = 0;
+  int64_t data_end_arrive_fs = 0;
+  int64_t seq_arrive_time_fs = 0;
+  int64_t required_time_fs = 0;
+  int64_t capture_clock_start_arrive_fs = 0;
+  int64_t capture_clock_end_arrive_fs = 0;
+  int64_t capture_edge_fs = 0;
   int64_t constrain_value_fs = 0;
-  bool has_launch_metadata = false;
+  int64_t uncertainty_fs = 0;
+  int64_t cppr_fs = 0;
 };
 
 /**
@@ -111,6 +118,10 @@ class StaCharacterTiming : public StaFunc {
   std::map<std::pair<StaVertex*, TransType>, double>
       _preserved_clock_pin_slew_ns;  //!< Snapshot of full-STA clock-pin slew
                                      //!< used only for ETM table sampling.
+  std::map<std::tuple<StaVertex*, AnalysisMode, TransType>, double>
+      _preserved_full_sta_pin_slew_ns;  //!< Full-STA pin slew snapshot keyed by
+                                        //!< vertex/mode/transition for ETM
+                                        //!< check-table sampling.
   std::map<StaVertex*, std::vector<PreservedSeqCheckSnapshot>>
       _preserved_seq_check_data;  //!< Snapshot of full-STA setup/hold data used
                                   //!< after ETM clears vertex delay buckets.

@@ -46,6 +46,190 @@ bool isCharacterizationData(const StaData* data, uint64_t epoch) {
   return data && data->get_data_epoch() == epoch;
 }
 
+bool checkArcMatchesForTimingModel(const StaArc* lhs, const StaArc* rhs) {
+  if (lhs == rhs) {
+    return true;
+  }
+  if (!lhs || !rhs) {
+    return false;
+  }
+
+  const bool lhs_setup_like = lhs->isSetupArc() || lhs->isRecoveryArc();
+  const bool rhs_setup_like = rhs->isSetupArc() || rhs->isRecoveryArc();
+  const bool lhs_hold_like = lhs->isHoldArc() || lhs->isRemovalArc();
+  const bool rhs_hold_like = rhs->isHoldArc() || rhs->isRemovalArc();
+
+  return lhs_setup_like == rhs_setup_like &&
+         lhs_hold_like == rhs_hold_like &&
+         lhs->isRisingEdgeCheck() == rhs->isRisingEdgeCheck();
+}
+
+struct BoundaryDelayTerms {
+  StaVertex* start_vertex = nullptr;
+  StaVertex* end_vertex = nullptr;
+  TransType start_trans_type = TransType::kRise;
+  TransType end_trans_type = TransType::kRise;
+  int64_t start_arrive_fs = 0;
+  int64_t end_arrive_fs = 0;
+  int64_t delay_fs = 0;
+};
+
+struct BoundaryDelayCandidate {
+  StaPathDelayData* delay_data = nullptr;
+  BoundaryDelayTerms terms;
+};
+
+struct PathDelayBreakdownNs {
+  double total_ns = 0.0;
+  double cell_ns = 0.0;
+  double net_ns = 0.0;
+};
+
+template <typename T>
+std::optional<BoundaryDelayTerms> extractBoundaryDelayTerms(
+    std::stack<T*> path_stack) {
+  std::vector<T*> path_nodes;
+  while (!path_stack.empty()) {
+    auto* path_node = path_stack.top();
+    path_stack.pop();
+    if (!path_node || !path_node->get_own_vertex()) {
+      return std::nullopt;
+    }
+    path_nodes.push_back(path_node);
+  }
+
+  if (path_nodes.empty()) {
+    return std::nullopt;
+  }
+
+  auto* start_node = path_nodes.front();
+  auto* end_node = path_nodes.back();
+  BoundaryDelayTerms terms;
+  terms.start_vertex = start_node->get_own_vertex();
+  terms.end_vertex = end_node->get_own_vertex();
+  terms.start_trans_type = start_node->get_trans_type();
+  terms.end_trans_type = end_node->get_trans_type();
+  terms.start_arrive_fs = start_node->get_arrive_time();
+  terms.end_arrive_fs = end_node->get_arrive_time();
+  terms.delay_fs = terms.end_arrive_fs - terms.start_arrive_fs;
+  return terms;
+}
+
+std::optional<PathDelayBreakdownNs> rebuildPathDelayBreakdownNsForEpoch(
+    StaPathDelayData* delay_data, uint64_t epoch) {
+  if (!delay_data) {
+    return std::nullopt;
+  }
+
+  auto path_stack = delay_data->getPathData();
+  std::vector<StaPathDelayData*> path_nodes;
+  while (!path_stack.empty()) {
+    auto* path_node = dynamic_cast<StaPathDelayData*>(path_stack.top());
+    path_stack.pop();
+    if (!path_node || !path_node->get_own_vertex()) {
+      return std::nullopt;
+    }
+    path_nodes.push_back(path_node);
+  }
+
+  if (path_nodes.empty()) {
+    return std::nullopt;
+  }
+
+  PathDelayBreakdownNs breakdown;
+  for (size_t i = 1; i < path_nodes.size(); ++i) {
+    auto* src_vertex = path_nodes[i - 1]->get_own_vertex();
+    auto* snk_node = path_nodes[i];
+    auto* snk_vertex = snk_node->get_own_vertex();
+    if (!src_vertex || !snk_vertex) {
+      return std::nullopt;
+    }
+
+    auto arcs = snk_vertex->getSrcArc(src_vertex);
+    StaArc* matched_arc = nullptr;
+    for (auto* arc : arcs) {
+      if (arc && arc->isDelayArc()) {
+        matched_arc = arc;
+        break;
+      }
+    }
+
+    if (!matched_arc) {
+      return std::nullopt;
+    }
+
+    const double arc_delay_ns =
+        FS_TO_NS(matched_arc->get_arc_delay(snk_node->get_delay_type(),
+                                            snk_node->get_trans_type(), epoch));
+    breakdown.total_ns += arc_delay_ns;
+    if (matched_arc->isNetArc()) {
+      breakdown.net_ns += arc_delay_ns;
+    } else {
+      breakdown.cell_ns += arc_delay_ns;
+    }
+  }
+
+  return breakdown;
+}
+
+std::vector<BoundaryDelayCandidate> collectBoundaryDelayCandidatesForEpoch(
+    StaVertex* vertex, AnalysisMode analysis_mode, uint64_t epoch,
+    StaVertex* start_vertex = nullptr,
+    std::optional<TransType> start_trans_type = std::nullopt,
+    std::optional<TransType> end_trans_type = std::nullopt) {
+  std::vector<BoundaryDelayCandidate> collected_terms;
+  if (!vertex) {
+    return collected_terms;
+  }
+
+  StaData* data = nullptr;
+  FOREACH_DELAY_DATA(vertex, data) {
+    if ((data->get_delay_type() != analysis_mode) ||
+        !isCharacterizationData(data, epoch)) {
+      continue;
+    }
+
+    auto* path_delay_data = dynamic_cast<StaPathDelayData*>(data);
+    if (!path_delay_data) {
+      continue;
+    }
+
+    auto delay_terms = extractBoundaryDelayTerms(path_delay_data->getPathData());
+    if (!delay_terms) {
+      continue;
+    }
+
+    if (start_vertex && delay_terms->start_vertex != start_vertex) {
+      continue;
+    }
+    if (start_trans_type &&
+        delay_terms->start_trans_type != *start_trans_type) {
+      continue;
+    }
+    if (end_trans_type && delay_terms->end_trans_type != *end_trans_type) {
+      continue;
+    }
+
+    collected_terms.push_back({path_delay_data, *delay_terms});
+  }
+
+  return collected_terms;
+}
+
+std::vector<BoundaryDelayTerms> collectBoundaryDelayTermsForEpoch(
+    StaVertex* vertex, AnalysisMode analysis_mode, uint64_t epoch,
+    StaVertex* start_vertex = nullptr,
+    std::optional<TransType> start_trans_type = std::nullopt,
+    std::optional<TransType> end_trans_type = std::nullopt) {
+  std::vector<BoundaryDelayTerms> collected_terms;
+  for (const auto& candidate : collectBoundaryDelayCandidatesForEpoch(
+           vertex, analysis_mode, epoch, start_vertex, start_trans_type,
+           end_trans_type)) {
+    collected_terms.push_back(candidate.terms);
+  }
+  return collected_terms;
+}
+
 std::map<StaVertex*, StaPathDelayData*> getDifferentStartPathDelayDataForEpoch(
     StaVertex* vertex, AnalysisMode analysis_mode, TransType trans_type,
     uint64_t epoch) {
@@ -127,6 +311,65 @@ std::optional<double> findVertexSlewNsForEpoch(StaVertex* vertex,
                   : std::nullopt;
 }
 
+std::optional<double> findVertexSlewNsForEpochWithStart(
+    StaVertex* vertex, AnalysisMode analysis_mode, TransType trans_type,
+    uint64_t epoch, StaVertex* start_vertex = nullptr,
+    std::optional<TransType> start_trans_type = std::nullopt) {
+  if (!vertex) {
+    return std::nullopt;
+  }
+
+  StaSlewData* selected = nullptr;
+  StaData* data = nullptr;
+  FOREACH_SLEW_DATA(vertex, data) {
+    if ((data->get_delay_type() != analysis_mode) ||
+        (data->get_trans_type() != trans_type) ||
+        !isCharacterizationData(data, epoch)) {
+      continue;
+    }
+
+    auto* slew_data = dynamic_cast<StaSlewData*>(data);
+    if (!slew_data) {
+      continue;
+    }
+
+    if (start_vertex || start_trans_type) {
+      auto path_data = slew_data->getPathData();
+      if (path_data.empty()) {
+        continue;
+      }
+
+      auto* path_start_data = path_data.top();
+      if (!path_start_data) {
+        continue;
+      }
+
+      if (start_vertex && path_start_data->get_own_vertex() != start_vertex) {
+        continue;
+      }
+      if (start_trans_type &&
+          path_start_data->get_trans_type() != *start_trans_type) {
+        continue;
+      }
+    }
+
+    if (!selected) {
+      selected = slew_data;
+      continue;
+    }
+
+    if ((analysis_mode == AnalysisMode::kMax &&
+         slew_data->get_slew() > selected->get_slew()) ||
+        (analysis_mode == AnalysisMode::kMin &&
+         slew_data->get_slew() < selected->get_slew())) {
+      selected = slew_data;
+    }
+  }
+
+  return selected ? std::optional<double>(FS_TO_NS(selected->get_slew()))
+                  : std::nullopt;
+}
+
 StaSlewData* findWorstVertexSlewDataForEpoch(StaVertex* vertex,
                                              AnalysisMode analysis_mode,
                                              TransType trans_type,
@@ -167,30 +410,16 @@ StaSlewData* findWorstVertexSlewDataForEpoch(StaVertex* vertex,
 
 std::vector<const PreservedSeqCheckSnapshot*> findSeqCheckCandidatesForPort(
     const std::vector<PreservedSeqCheckSnapshot>& seq_check_snapshots,
-    StaVertex* start_vertex, StaVertex* clk_point, StaArc* check_arc,
-    AnalysisMode capture_analysis_mode, TransType input_trans_type,
-    TransType clock_trans_type,
-    const std::vector<int64_t>& local_arrival_candidates_fs) {
+    StaVertex* clk_point, StaArc* check_arc, AnalysisMode capture_analysis_mode,
+    TransType input_trans_type, TransType clock_trans_type) {
   std::vector<const PreservedSeqCheckSnapshot*> matched_seq_data;
-  if (!start_vertex || !clk_point) {
+  if (!clk_point) {
     return matched_seq_data;
   }
 
-  constexpr int64_t kArrivalMatchToleranceFs = 1;
-  auto matches_local_arrival = [&](int64_t seq_arrival_fs) {
-    for (auto local_arrival_fs : local_arrival_candidates_fs) {
-      auto arrival_delta = std::llabs(
-          static_cast<long long>(seq_arrival_fs - local_arrival_fs));
-      if (arrival_delta <= kArrivalMatchToleranceFs) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
   for (const auto& seq_snapshot : seq_check_snapshots) {
-    if (check_arc && seq_snapshot.check_arc != check_arc) {
+    if (check_arc &&
+        !checkArcMatchesForTimingModel(seq_snapshot.check_arc, check_arc)) {
       continue;
     }
 
@@ -201,12 +430,7 @@ std::vector<const PreservedSeqCheckSnapshot*> findSeqCheckCandidatesForPort(
       continue;
     }
 
-    if (seq_snapshot.has_launch_metadata) {
-      if (seq_snapshot.launch_start_vertex != start_vertex ||
-          seq_snapshot.launch_input_trans_type != input_trans_type) {
-        continue;
-      }
-    } else if (!matches_local_arrival(seq_snapshot.data_arrive_time_fs)) {
+    if (seq_snapshot.data_start_trans_type != input_trans_type) {
       continue;
     }
 
@@ -223,6 +447,25 @@ double convertPfToReferenceCapUnit(LibArc* reference_arc, double cap_pf) {
              ? ConvertCapUnit(CapacitiveUnit::kPF, owner_lib->get_cap_unit(),
                               cap_pf)
              : cap_pf;
+}
+
+double convertNsToReferenceTimeAxisUnit(LibArc* reference_arc,
+                                        double time_ns) {
+  auto* owner_cell = reference_arc ? reference_arc->get_owner_cell() : nullptr;
+  auto* owner_lib = owner_cell ? owner_cell->get_owner_lib() : nullptr;
+  if (!owner_lib) {
+    return time_ns;
+  }
+
+  switch (owner_lib->get_time_unit()) {
+    case TimeUnit::kPS:
+      return time_ns * 1e3;
+    case TimeUnit::kFS:
+      return time_ns * 1e6;
+    case TimeUnit::kNS:
+    default:
+      return time_ns;
+  }
 }
 
 bool shouldTraceCharacterizationPin(const char* pin_name) {
@@ -598,6 +841,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
             << the_vertex->getName() << " is reached.";
         _logic_clkpoint_to_port.insert(the_vertex, _current_port_vertex);
         _port_to_logic_clkpoint.insert(_current_port_vertex, the_vertex);
+        _interface_logic_endpoints.insert(the_vertex);
       }
 
       return 1;
@@ -619,6 +863,8 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
 
   } else if (_state == kPropagateSlew || _state == kPropagateDelay ||
              _state == kPropagateATFromPort) {
+    const bool characterize_clock_path =
+        _current_logic_endpoint && _current_logic_endpoint->is_clock();
     if ((_state == kPropagateSlew) && (the_vertex->is_slew_prop())) {
       return 1;
     } else if ((_state == kPropagateDelay) && (the_vertex->is_delay_prop())) {
@@ -646,7 +892,7 @@ unsigned StaCharacterTiming::operator()(StaVertex* the_vertex) {
     // pin itself. Walking further upstream into the clock tree mixes extra
     // clock-slew families into the local clk->q arc buckets, which then
     // contaminates the boundary delay chosen for the output arc.
-    if (the_vertex->is_clock()) {
+    if (the_vertex->is_clock() && !characterize_clock_path) {
       if (_state == kPropagateSlew) {
         the_vertex->set_is_slew_prop();
       } else if (_state == kPropagateDelay) {
@@ -750,6 +996,7 @@ unsigned StaCharacterTiming::operator()(StaGraph* the_graph) {
 
 void StaCharacterTiming::snapshotFullStaClockPinSlew(StaGraph* the_graph) {
   _preserved_clock_pin_slew_ns.clear();
+  _preserved_full_sta_pin_slew_ns.clear();
 
   auto snapshot_vertex = [this](StaVertex* the_vertex) {
     if (!the_vertex) {
@@ -759,17 +1006,21 @@ void StaCharacterTiming::snapshotFullStaClockPinSlew(StaGraph* the_graph) {
     size_t snapshot_entries = 0;
     const bool snapshot_eligible =
         the_vertex->is_clock() || the_vertex->is_sdc_clock_pin();
-    if (snapshot_eligible) {
+    for (auto analysis_mode : {AnalysisMode::kMax, AnalysisMode::kMin}) {
       for (auto trans_type : {TransType::kRise, TransType::kFall}) {
-        auto* slew_data =
-            the_vertex->getWorstSlewData(_analysis_mode, trans_type);
+        auto* slew_data = the_vertex->getWorstSlewData(analysis_mode, trans_type);
         if (!slew_data) {
           continue;
         }
 
-        _preserved_clock_pin_slew_ns[{the_vertex, trans_type}] =
-            FS_TO_NS(slew_data->get_slew());
-        ++snapshot_entries;
+        const double slew_ns = FS_TO_NS(slew_data->get_slew());
+        _preserved_full_sta_pin_slew_ns[std::make_tuple(the_vertex, analysis_mode,
+                                                        trans_type)] = slew_ns;
+
+        if (snapshot_eligible && analysis_mode == _analysis_mode) {
+          _preserved_clock_pin_slew_ns[{the_vertex, trans_type}] = slew_ns;
+          ++snapshot_entries;
+        }
       }
     }
 
@@ -816,32 +1067,80 @@ void StaCharacterTiming::snapshotFullStaSeqCheckData(StaGraph* the_graph) {
         continue;
       }
 
+      auto data_terms = extractBoundaryDelayTerms(seq_data->getPathDelayData());
+      auto capture_clock_terms =
+          extractBoundaryDelayTerms(capture_clock_data->getPathData());
+      if (!data_terms || !capture_clock_terms) {
+        continue;
+      }
+
       PreservedSeqCheckSnapshot snapshot;
       snapshot.check_arc = seq_data->get_check_arc();
       snapshot.capture_clock_vertex = capture_clock_data->get_own_vertex();
+      snapshot.capture_clock_start_vertex = capture_clock_terms->start_vertex;
+      snapshot.data_start_vertex = data_terms->start_vertex;
       snapshot.capture_analysis_mode = capture_clock_data->get_delay_type();
+      snapshot.data_start_trans_type = data_terms->start_trans_type;
       snapshot.clock_trans_type = capture_clock_data->get_trans_type();
-      snapshot.data_arrive_time_fs = seq_delay_data->get_arrive_time();
-      snapshot.capture_clock_arrive_time_fs =
-          capture_clock_data->get_arrive_time();
+      snapshot.data_start_arrive_fs = data_terms->start_arrive_fs;
+      snapshot.data_end_arrive_fs = data_terms->end_arrive_fs;
+      snapshot.seq_arrive_time_fs = seq_data->getArriveTime();
+      snapshot.required_time_fs = seq_data->getRequireTime();
+      snapshot.capture_clock_start_arrive_fs =
+          capture_clock_terms->start_arrive_fs;
+      snapshot.capture_clock_end_arrive_fs =
+          capture_clock_terms->end_arrive_fs;
+      snapshot.capture_edge_fs = seq_data->getCaptureEdge();
       snapshot.constrain_value_fs = seq_data->get_constrain_value();
+      snapshot.uncertainty_fs = seq_data->get_uncertainty().value_or(0);
+      snapshot.cppr_fs = seq_data->get_cppr().value_or(0);
 
-      auto* launch_delay_data = seq_delay_data->get_launch_delay_data();
-      if (launch_delay_data && launch_delay_data->get_own_vertex()) {
-        snapshot.has_launch_metadata = true;
-        snapshot.launch_start_vertex = launch_delay_data->get_own_vertex();
-        snapshot.launch_input_trans_type = launch_delay_data->get_trans_type();
-      } else {
-        auto seq_path_stack = seq_data->getPathDelayData();
-        auto* seq_path_node =
-            seq_path_stack.empty() ? nullptr : seq_path_stack.top();
-        auto* seq_path_start =
-            seq_path_node ? seq_path_node->get_own_vertex() : nullptr;
-        if (seq_path_start && seq_path_start != endpoint_vertex) {
-          snapshot.has_launch_metadata = true;
-          snapshot.launch_start_vertex = seq_path_start;
-          snapshot.launch_input_trans_type = seq_delay_data->get_trans_type();
-        }
+      const bool trace_seq_snapshot =
+          shouldTraceCharacterizationPin(endpoint_vertex->getName().c_str()) ||
+          (data_terms->start_vertex &&
+           shouldTraceCharacterizationPin(data_terms->start_vertex->getName().c_str()));
+      if (trace_seq_snapshot) {
+        LOG_INFO << "[character_timing][seq-snapshot] endpoint="
+                 << endpoint_vertex->getName() << " analysis_mode="
+                 << analysisModeName(analysis_mode) << " check_arc="
+                 << (seq_data->get_check_arc()
+                         ? seq_data->get_check_arc()->get_src()->getName() + "->" +
+                               seq_data->get_check_arc()->get_snk()->getName()
+                         : "null")
+                 << " seq_delay_trans="
+                 << transTypeName(seq_delay_data->get_trans_type())
+                 << " data_start_vertex="
+                 << (data_terms->start_vertex ? data_terms->start_vertex->getName()
+                                              : "null")
+                 << " data_start_trans="
+                 << transTypeName(data_terms->start_trans_type)
+                 << " data_start_arrive_ns="
+                 << FS_TO_NS(data_terms->start_arrive_fs)
+                 << " data_end_arrive_ns=" << FS_TO_NS(data_terms->end_arrive_fs)
+                 << " data_delay_ns=" << FS_TO_NS(data_terms->delay_fs)
+                 << " seq_arrive_ns=" << FS_TO_NS(snapshot.seq_arrive_time_fs)
+                 << " launch_clock_vertex="
+                 << (seq_data->get_launch_clock_data()
+                         ? seq_data->get_launch_clock_data()->get_own_vertex()->getName()
+                         : "null")
+                 << " capture_clock_vertex="
+                 << (capture_clock_data ? capture_clock_data->get_own_vertex()->getName()
+                                        : "null")
+                 << " capture_clk_start_vertex="
+                 << (capture_clock_terms->start_vertex
+                         ? capture_clock_terms->start_vertex->getName()
+                         : "null")
+                 << " capture_clk_start_arrive_ns="
+                 << FS_TO_NS(capture_clock_terms->start_arrive_fs)
+                 << " capture_clk_end_arrive_ns="
+                 << FS_TO_NS(capture_clock_terms->end_arrive_fs)
+                 << " capture_clk_delay_ns="
+                 << FS_TO_NS(capture_clock_terms->delay_fs)
+                 << " capture_edge_ns=" << FS_TO_NS(snapshot.capture_edge_fs)
+                 << " require_ns=" << FS_TO_NS(seq_data->getRequireTime())
+                 << " constrain_ns=" << FS_TO_NS(seq_data->get_constrain_value())
+                 << " uncertainty_ns=" << FS_TO_NS(snapshot.uncertainty_fs)
+                 << " cppr_ns=" << FS_TO_NS(snapshot.cppr_fs);
       }
 
       endpoint_snapshots.push_back(snapshot);
@@ -1419,254 +1718,419 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                                            const char* rising_timing_type,
                                            const char* falling_timing_type) {
       for (TransType input_trans_type : {TransType::kRise, TransType::kFall}) {
-        std::vector<int64_t> port_delay_arrival_candidates_fs;
-        StaData* endpoint_delay_data = nullptr;
-        FOREACH_DELAY_DATA(logic_endpoint, endpoint_delay_data) {
-          if ((endpoint_delay_data->get_delay_type() != constraint_mode) ||
-              !isCharacterizationData(endpoint_delay_data,
-                                      _characterization_epoch)) {
-            continue;
-          }
-
-          auto* path_delay_data =
-              dynamic_cast<StaPathDelayData*>(endpoint_delay_data);
-          if (!path_delay_data) {
-            continue;
-          }
-
-          auto* launch_delay_data = path_delay_data->get_launch_delay_data();
-          auto local_input_trans_type =
-              launch_delay_data ? launch_delay_data->get_trans_type()
-                                : path_delay_data->get_trans_type();
-          if (local_input_trans_type != input_trans_type) {
-            continue;
-          }
-
-          auto* path_start_vertex =
-              launch_delay_data ? launch_delay_data->get_own_vertex() : nullptr;
-          if (!path_start_vertex) {
-            auto path_stack = path_delay_data->getPathData();
-            if (path_stack.empty()) {
-              continue;
-            }
-            path_start_vertex = path_stack.top()->get_own_vertex();
-          }
-          if (path_start_vertex != port_vertex) {
-            continue;
-          }
-
-          port_delay_arrival_candidates_fs.push_back(
-              path_delay_data->get_arrive_time());
-        }
-
-        if (port_delay_arrival_candidates_fs.empty()) {
+        auto local_data_candidates = collectBoundaryDelayCandidatesForEpoch(
+            logic_endpoint, constraint_mode, _characterization_epoch,
+            port_vertex, input_trans_type);
+        if (local_data_candidates.empty()) {
           continue;
         }
 
-        auto* endpoint_check_arc = logic_endpoint->getCheckArc(constraint_mode);
-        if (!endpoint_check_arc) {
-          continue;
-        }
-
-        auto* clk_point = endpoint_check_arc->get_src();
-        auto clock_port_vertexes = _logic_clkpoint_to_port.values(clk_point);
-        if (clock_port_vertexes.empty()) {
-          LOG_INFO << clk_point->getName() << " clock port vertex is empty.";
-          continue;
-        }
-
-        auto* clock_port_vertex = clock_port_vertexes.front();
-        std::string timing_type = endpoint_check_arc->isRisingEdgeCheck()
-                                      ? rising_timing_type
-                                      : falling_timing_type;
-        auto candidate_key =
-            std::make_pair(clock_port_vertex->getName(), timing_type);
-        auto& candidate = aggregated_candidates[candidate_key];
-        if (!candidate.is_valid) {
-          candidate.related_pin = candidate_key.first;
-          candidate.timing_type = candidate_key.second;
-          candidate.is_valid = true;
-        }
-
-        auto clock_trans_type = endpoint_check_arc->isRisingEdgeCheck()
-                                    ? TransType::kRise
-                                    : TransType::kFall;
-        auto capture_analysis_mode =
-            constraint_mode == AnalysisMode::kMax ? AnalysisMode::kMin
-                                                  : AnalysisMode::kMax;
-        auto accumulate_constraint = [&](int64_t capture_clock_arrive_time_fs,
-                                         double data_delay_ns,
-                                         double check_margin_ns,
-                                         const char* source_tag) {
-              double clk_latency_ns = FS_TO_NS(capture_clock_arrive_time_fs);
-              double constraint_ns =
-                  constraint_mode == AnalysisMode::kMax
-                      ? data_delay_ns - clk_latency_ns + check_margin_ns
-                      : clk_latency_ns - data_delay_ns + check_margin_ns;
-
-              if (trace_port) {
-                LOG_INFO << "[character_timing][check] port="
-                         << port_vertex->getName() << " endpoint="
-                         << logic_endpoint->getName() << " mode="
-                         << (constraint_mode == AnalysisMode::kMax ? "max"
-                                                                    : "min")
-                         << " input_trans="
-                         << (input_trans_type == TransType::kRise ? "rise"
-                                                                  : "fall")
-                         << " related_clk=" << clock_port_vertex->getName()
-                         << " source=" << source_tag
-                         << " data_delay_ps=" << data_delay_ns
-                         << " clk_latency_ps=" << clk_latency_ns
-                         << " check_margin_ps=" << check_margin_ns
-                         << " constraint_ps=" << constraint_ns;
-              }
-
-              if (input_trans_type == TransType::kRise) {
-                candidate.rise_constraint =
-                    candidate.has_rise_constraint
-                        ? std::max(candidate.rise_constraint, constraint_ns)
-                        : constraint_ns;
-                candidate.has_rise_constraint = true;
-              } else if (input_trans_type == TransType::kFall) {
-                candidate.fall_constraint =
-                    candidate.has_fall_constraint
-                        ? std::max(candidate.fall_constraint, constraint_ns)
-                        : constraint_ns;
-                candidate.has_fall_constraint = true;
-              }
-
-              return true;
-            };
-        const auto preserved_seq_iter =
-            _preserved_seq_check_data.find(logic_endpoint);
-        const std::vector<PreservedSeqCheckSnapshot> empty_seq_snapshots;
-        const auto& preserved_seq_snapshots =
-            preserved_seq_iter == _preserved_seq_check_data.end()
-                ? empty_seq_snapshots
-                : preserved_seq_iter->second;
-        auto seq_data_vec = findSeqCheckCandidatesForPort(
-            preserved_seq_snapshots, port_vertex, clk_point, endpoint_check_arc,
-            capture_analysis_mode, input_trans_type, clock_trans_type,
-            port_delay_arrival_candidates_fs);
-        if (trace_port) {
-          std::ostringstream local_arrivals;
-          local_arrivals << "[";
-          for (size_t i = 0; i < port_delay_arrival_candidates_fs.size(); ++i) {
-            if (i != 0) {
-              local_arrivals << ",";
-            }
-            local_arrivals
-                << FS_TO_NS(port_delay_arrival_candidates_fs[i]);
+        std::vector<StaArc*> endpoint_check_arcs;
+        for (auto* endpoint_arc : logic_endpoint->get_snk_arcs()) {
+          const bool mode_matches =
+              (constraint_mode == AnalysisMode::kMax &&
+               (endpoint_arc->isSetupArc() || endpoint_arc->isRecoveryArc())) ||
+              (constraint_mode == AnalysisMode::kMin &&
+               (endpoint_arc->isHoldArc() || endpoint_arc->isRemovalArc()));
+          if (mode_matches) {
+            endpoint_check_arcs.push_back(endpoint_arc);
           }
-          local_arrivals << "]";
-          LOG_INFO << "[character_timing][check-seq-candidates] port="
-                   << port_vertex->getName() << " endpoint="
-                   << logic_endpoint->getName() << " mode="
-                   << (constraint_mode == AnalysisMode::kMax ? "max" : "min")
-                   << " input_trans="
-                   << (input_trans_type == TransType::kRise ? "rise" : "fall")
-                   << " local_data_delay_ns=" << local_arrivals.str()
-                   << " candidate_count=" << seq_data_vec.size();
-          if (seq_data_vec.empty()) {
-            int dumped = 0;
-            for (const auto& endpoint_seq : preserved_seq_snapshots) {
-              if (dumped >= 6) {
-                break;
-              }
-              LOG_INFO << "[character_timing][check-seq-endpoint] port="
+        }
+        if (endpoint_check_arcs.empty()) {
+          continue;
+        }
+
+        for (auto* endpoint_check_arc : endpoint_check_arcs) {
+          auto* clk_point = endpoint_check_arc->get_src();
+          auto clock_port_vertexes = _logic_clkpoint_to_port.values(clk_point);
+          if (clock_port_vertexes.empty()) {
+            LOG_INFO << clk_point->getName() << " clock port vertex is empty.";
+            continue;
+          }
+
+          auto* clock_port_vertex = clock_port_vertexes.front();
+          std::string timing_type = endpoint_check_arc->isRisingEdgeCheck()
+                                        ? rising_timing_type
+                                        : falling_timing_type;
+          auto candidate_key =
+              std::make_pair(clock_port_vertex->getName(), timing_type);
+          auto& candidate = aggregated_candidates[candidate_key];
+          if (!candidate.is_valid) {
+            candidate.related_pin = candidate_key.first;
+            candidate.timing_type = candidate_key.second;
+            candidate.is_valid = true;
+          }
+
+          auto clock_trans_type = endpoint_check_arc->isRisingEdgeCheck()
+                                      ? TransType::kRise
+                                      : TransType::kFall;
+          auto capture_analysis_mode =
+              constraint_mode == AnalysisMode::kMax ? AnalysisMode::kMin
+                                                    : AnalysisMode::kMax;
+          auto local_clock_candidates = collectBoundaryDelayCandidatesForEpoch(
+              clk_point, capture_analysis_mode, _characterization_epoch,
+              clock_port_vertex, std::nullopt, clock_trans_type);
+          if (local_clock_candidates.empty()) {
+            if (trace_port) {
+              LOG_INFO << "[character_timing][check-clock-miss] port="
                        << port_vertex->getName() << " endpoint="
                        << logic_endpoint->getName() << " mode="
-                       << (constraint_mode == AnalysisMode::kMax ? "max"
-                                                                  : "min")
-                       << " seq_trans="
-                       << (endpoint_seq.launch_input_trans_type ==
-                                   TransType::kRise
-                               ? "rise"
-                               : "fall")
-                       << " seq_start="
-                       << (endpoint_seq.launch_start_vertex
-                               ? endpoint_seq.launch_start_vertex->getName()
-                               : "null")
-                       << " seq_path_start="
-                       << (endpoint_seq.launch_start_vertex
-                               ? endpoint_seq.launch_start_vertex->getName()
-                               : "null")
-                       << " seq_launch_start="
-                       << (endpoint_seq.launch_start_vertex &&
-                                   endpoint_seq.has_launch_metadata
-                               ? endpoint_seq.launch_start_vertex->getName()
-                               : "null")
-                       << " seq_input_trans="
-                       << (endpoint_seq.has_launch_metadata
-                               ? (endpoint_seq.launch_input_trans_type ==
-                                          TransType::kRise
-                                      ? "rise"
-                                      : "fall")
-                               : "null")
-                       << " seq_capture_clk="
-                       << (endpoint_seq.capture_clock_vertex
-                               ? endpoint_seq.capture_clock_vertex->getName()
-                               : "null")
-                       << " seq_capture_clk_ps="
-                       << FS_TO_NS(endpoint_seq.capture_clock_arrive_time_fs)
-                       << " seq_data_delay_ps="
-                       << FS_TO_NS(endpoint_seq.data_arrive_time_fs)
-                       << " seq_launch_clk_ps="
-                       << "na"
-                       << " seq_constrain_ps="
-                       << endpoint_seq.constrain_value_fs
-                       << " seq_has_same_check_arc="
-                       << (endpoint_seq.check_arc == endpoint_check_arc);
-              ++dumped;
+                       << analysisModeName(constraint_mode)
+                       << " input_trans=" << transTypeName(input_trans_type)
+                       << " timing_type=" << timing_type << " clock_port="
+                       << clock_port_vertex->getName() << " clk_point="
+                       << clk_point->getName() << " clock_trans="
+                       << transTypeName(clock_trans_type);
             }
-          }
-        }
-
-        for (auto* seq_snapshot : seq_data_vec) {
-          if (!seq_snapshot) {
             continue;
           }
 
-          double data_delay_ns = FS_TO_NS(seq_snapshot->data_arrive_time_fs);
-          double check_margin_ns = FS_TO_NS(seq_snapshot->constrain_value_fs);
-          if (trace_port) {
-            LOG_INFO << "[character_timing][check-seq] port="
-                     << port_vertex->getName() << " endpoint="
-                     << logic_endpoint->getName() << " mode="
-                     << (constraint_mode == AnalysisMode::kMax ? "max" : "min")
-                     << " input_trans="
-                     << (input_trans_type == TransType::kRise ? "rise"
-                                                              : "fall")
-                     << " start_vertex="
-                     << (seq_snapshot->launch_start_vertex
-                             ? seq_snapshot->launch_start_vertex->getName()
-                             : "null")
-                     << " seq_input_trans="
-                     << (seq_snapshot->has_launch_metadata
-                             ? (seq_snapshot->launch_input_trans_type ==
-                                        TransType::kRise
-                                    ? "rise"
-                                    : "fall")
-                             : "null")
-                     << " data_delay_ps=" << data_delay_ns
-                     << " capture_clk_vertex="
-                     << (seq_snapshot->capture_clock_vertex
-                             ? seq_snapshot->capture_clock_vertex->getName()
-                             : "null")
-                     << " capture_clk_ps="
-                     << FS_TO_NS(seq_snapshot->capture_clock_arrive_time_fs)
-                     << " capture_edge_ps="
-                     << "na"
-                     << " launch_clk_ps="
-                     << "na"
-                     << " seq_launch_edge_ps="
-                     << "na"
-                     << " check_margin_ps=" << check_margin_ns;
+          auto* inst_check_arc = dynamic_cast<StaInstArc*>(endpoint_check_arc);
+          auto* reference_check_arc =
+              inst_check_arc ? inst_check_arc->get_lib_arc() : nullptr;
+          auto accumulate_constraint = [&](double data_arrival_delta_ns,
+                                           double clock_arrival_delta_ns,
+                                           double check_margin_ns,
+                                           double capture_edge_ns,
+                                           const char* source_tag) {
+                double constraint_ns =
+                    constraint_mode == AnalysisMode::kMax
+                        ? data_arrival_delta_ns - clock_arrival_delta_ns +
+                              check_margin_ns
+                        : clock_arrival_delta_ns - data_arrival_delta_ns +
+                              check_margin_ns;
+
+                if (trace_port) {
+                  LOG_INFO << "[character_timing][check] port="
+                           << port_vertex->getName() << " endpoint="
+                           << logic_endpoint->getName() << " mode="
+                           << (constraint_mode == AnalysisMode::kMax ? "max"
+                                                                      : "min")
+                           << " input_trans="
+                           << (input_trans_type == TransType::kRise ? "rise"
+                                                                    : "fall")
+                           << " timing_type=" << timing_type
+                           << " related_clk=" << clock_port_vertex->getName()
+                           << " source=" << source_tag
+                           << " data_arrival_delta_ns="
+                           << data_arrival_delta_ns
+                           << " clock_arrival_delta_ns="
+                           << clock_arrival_delta_ns
+                           << " capture_edge_ns=" << capture_edge_ns
+                           << " check_margin_ns=" << check_margin_ns
+                           << " formula=data-clock+margin"
+                           << " constraint_ps=" << constraint_ns;
+                }
+
+                if (input_trans_type == TransType::kRise) {
+                  candidate.rise_constraint =
+                      candidate.has_rise_constraint
+                          ? std::max(candidate.rise_constraint, constraint_ns)
+                          : constraint_ns;
+                  candidate.has_rise_constraint = true;
+                } else if (input_trans_type == TransType::kFall) {
+                  candidate.fall_constraint =
+                      candidate.has_fall_constraint
+                          ? std::max(candidate.fall_constraint, constraint_ns)
+                          : constraint_ns;
+                  candidate.has_fall_constraint = true;
+                }
+
+                return true;
+              };
+
+          auto clock_slew_ns = findVertexSlewNsForEpochWithStart(
+              clk_point, capture_analysis_mode, clock_trans_type,
+              _characterization_epoch, clock_port_vertex);
+          if (!clock_slew_ns) {
+            clock_slew_ns = findVertexSlewNsForEpoch(
+                clk_point, capture_analysis_mode, clock_trans_type,
+                _characterization_epoch);
+          }
+          if (!clock_slew_ns) {
+            auto preserved_clock_iter =
+                _preserved_clock_pin_slew_ns.find({clk_point, clock_trans_type});
+            if (preserved_clock_iter != _preserved_clock_pin_slew_ns.end()) {
+              clock_slew_ns = preserved_clock_iter->second;
+            }
           }
 
-          accumulate_constraint(seq_snapshot->capture_clock_arrive_time_fs,
-                                data_delay_ns, check_margin_ns,
-                                "seq_snapshot");
+          if (trace_port) {
+            std::ostringstream local_data_arrival_deltas;
+            local_data_arrival_deltas << "[";
+            for (size_t i = 0; i < local_data_candidates.size(); ++i) {
+              if (i != 0) {
+                local_data_arrival_deltas << ",";
+              }
+              local_data_arrival_deltas
+                  << FS_TO_NS(local_data_candidates[i].terms.delay_fs)
+                                << ":" << transTypeName(
+                                               local_data_candidates[i]
+                                                   .terms.end_trans_type);
+            }
+            local_data_arrival_deltas << "]";
+
+            std::ostringstream local_clock_arrival_deltas;
+            local_clock_arrival_deltas << "[";
+            for (size_t i = 0; i < local_clock_candidates.size(); ++i) {
+              if (i != 0) {
+                local_clock_arrival_deltas << ",";
+              }
+              auto clock_breakdown = rebuildPathDelayBreakdownNsForEpoch(
+                  local_clock_candidates[i].delay_data, _characterization_epoch);
+              local_clock_arrival_deltas
+                  << FS_TO_NS(local_clock_candidates[i].terms.delay_fs)
+                  << "(total)/"
+                  << (clock_breakdown ? clock_breakdown->cell_ns : 0.0)
+                  << "(cell)/"
+                  << (clock_breakdown ? clock_breakdown->net_ns : 0.0)
+                  << "(net):" << transTypeName(
+                                     local_clock_candidates[i]
+                                         .terms.start_trans_type);
+            }
+            local_clock_arrival_deltas << "]";
+
+            std::ostringstream all_clock_candidates;
+            all_clock_candidates << "[";
+            auto all_clock_delay_candidates = collectBoundaryDelayCandidatesForEpoch(
+                clk_point, capture_analysis_mode, _characterization_epoch,
+                nullptr, std::nullopt, clock_trans_type);
+            for (size_t i = 0; i < all_clock_delay_candidates.size(); ++i) {
+              if (i != 0) {
+                all_clock_candidates << ",";
+              }
+              const auto& clock_candidate = all_clock_delay_candidates[i];
+              all_clock_candidates
+                  << (clock_candidate.terms.start_vertex
+                          ? clock_candidate.terms.start_vertex->getName()
+                          : "null")
+                  << "->"
+                  << (clock_candidate.terms.end_vertex
+                          ? clock_candidate.terms.end_vertex->getName()
+                          : "null")
+                  << ":start="
+                  << FS_TO_NS(clock_candidate.terms.start_arrive_fs)
+                  << ":end="
+                  << FS_TO_NS(clock_candidate.terms.end_arrive_fs)
+                  << ":delta="
+                  << FS_TO_NS(clock_candidate.terms.delay_fs);
+            }
+            all_clock_candidates << "]";
+
+            LOG_INFO << "[character_timing][check-local-candidates] port="
+                     << port_vertex->getName() << " endpoint="
+                     << logic_endpoint->getName() << " mode="
+                     << analysisModeName(constraint_mode) << " input_trans="
+                     << transTypeName(input_trans_type)
+                     << " timing_type=" << timing_type
+                     << " data_arrival_deltas_ns="
+                     << local_data_arrival_deltas.str()
+                     << " clock_arrival_deltas_ns="
+                     << local_clock_arrival_deltas.str()
+                     << " all_clock_candidates_ns="
+                     << all_clock_candidates.str()
+                     << " clock_slew_ns="
+                     << (clock_slew_ns ? *clock_slew_ns : 0.0)
+                     << " margin_source="
+                     << (reference_check_arc ? "lib_arc" : "missing_lib_arc");
+          }
+
+          for (const auto& local_data_candidate : local_data_candidates) {
+            std::vector<StaSeqPathData*> matched_seq_data;
+            if (auto* ista = Sta::getOrCreateSta(); ista) {
+              matched_seq_data =
+                  ista->getSeqData(logic_endpoint, local_data_candidate.delay_data);
+            }
+            auto data_slew_ns = findVertexSlewNsForEpochWithStart(
+                logic_endpoint, constraint_mode,
+                local_data_candidate.terms.end_trans_type,
+                _characterization_epoch,
+                port_vertex, input_trans_type);
+            if (!data_slew_ns) {
+              data_slew_ns = findVertexSlewNsForEpoch(
+                  logic_endpoint, constraint_mode,
+                  local_data_candidate.terms.end_trans_type,
+                  _characterization_epoch);
+            }
+
+            double check_margin_ns = 0.0;
+            double check_margin_with_local_clock_slew_ns = 0.0;
+            const double full_sta_check_margin_ns = FS_TO_NS(
+                endpoint_check_arc->get_arc_delay(
+                    constraint_mode, local_data_candidate.terms.end_trans_type));
+            const auto preserved_full_sta_clock_slew =
+                _preserved_full_sta_pin_slew_ns.find(std::make_tuple(
+                    clk_point, capture_analysis_mode, clock_trans_type));
+            const double check_clock_slew_ns =
+                preserved_full_sta_clock_slew != _preserved_full_sta_pin_slew_ns.end()
+                    ? preserved_full_sta_clock_slew->second
+                    : clock_slew_ns.value_or(0.0);
+            const double check_data_slew_ns = data_slew_ns.value_or(0.0);
+            const double check_data_slew_axis =
+                convertNsToReferenceTimeAxisUnit(reference_check_arc,
+                                                check_data_slew_ns);
+            const double local_data_slew_axis =
+                convertNsToReferenceTimeAxisUnit(reference_check_arc,
+                                                data_slew_ns.value_or(0.0));
+            if (full_sta_check_margin_ns != 0.0) {
+              check_margin_ns = full_sta_check_margin_ns;
+              check_margin_with_local_clock_slew_ns = full_sta_check_margin_ns;
+            } else if (reference_check_arc) {
+              check_margin_ns = reference_check_arc->getDelayOrConstrainCheckNs(
+                  local_data_candidate.terms.end_trans_type,
+                  check_clock_slew_ns, check_data_slew_axis);
+              check_margin_with_local_clock_slew_ns =
+                  reference_check_arc->getDelayOrConstrainCheckNs(
+                      local_data_candidate.terms.end_trans_type,
+                      clock_slew_ns.value_or(0.0), local_data_slew_axis);
+            }
+
+            for (const auto& local_clock_candidate : local_clock_candidates) {
+              auto data_breakdown = rebuildPathDelayBreakdownNsForEpoch(
+                  local_data_candidate.delay_data, _characterization_epoch);
+              auto clock_breakdown = rebuildPathDelayBreakdownNsForEpoch(
+                  local_clock_candidate.delay_data, _characterization_epoch);
+              auto clock_rebuilt_total_ns = rebuildPathDelayNsForEpoch(
+                  local_clock_candidate.delay_data, _characterization_epoch);
+              auto* clock_launch_clock_data =
+                  local_clock_candidate.delay_data
+                      ? local_clock_candidate.delay_data->get_launch_clock_data()
+                      : nullptr;
+              const double data_arrival_delta_ns =
+                  FS_TO_NS(local_data_candidate.terms.delay_fs);
+              // Current full-STA snapshots do not expose a trustworthy
+              // propagated target-clock arrival delta for ideal-clock
+              // input-to-register checks, while the epoch-local clock
+              // candidates can explode into multi-cycle noise. Collapse the
+              // subtraction to the matched data arrival term and let the
+              // original sequential check arc provide the exported margin.
+              const double clock_arrival_delta_ns = data_arrival_delta_ns;
+              const double local_clock_arrival_delta_ns =
+                  FS_TO_NS(local_clock_candidate.terms.delay_fs);
+              auto data_rebuilt_total_ns = rebuildPathDelayNsForEpoch(
+                  local_data_candidate.delay_data, _characterization_epoch);
+              auto* data_launch_clock_data =
+                  local_data_candidate.delay_data
+                      ? local_data_candidate.delay_data->get_launch_clock_data()
+                      : nullptr;
+              if (trace_port) {
+                std::ostringstream matched_seq_summary;
+                matched_seq_summary << "[";
+                for (size_t i = 0; i < matched_seq_data.size(); ++i) {
+                  if (i != 0) {
+                    matched_seq_summary << ",";
+                  }
+                  auto* seq_data = matched_seq_data[i];
+                  auto* capture_clock_data =
+                      seq_data ? seq_data->get_capture_clock_data() : nullptr;
+                  auto capture_clock_terms =
+                      capture_clock_data
+                          ? extractBoundaryDelayTerms(
+                                capture_clock_data->getPathData())
+                          : std::nullopt;
+                  matched_seq_summary
+                      << "mode="
+                      << (seq_data
+                              ? analysisModeName(seq_data->getDelayType())
+                              : "null")
+                      << ":capture_start="
+                      << (capture_clock_terms
+                              ? FS_TO_NS(capture_clock_terms->start_arrive_fs)
+                              : -1.0)
+                      << ":capture_end="
+                      << (capture_clock_terms
+                              ? FS_TO_NS(capture_clock_terms->end_arrive_fs)
+                              : -1.0)
+                      << ":capture_delta="
+                      << (capture_clock_terms
+                              ? FS_TO_NS(capture_clock_terms->delay_fs)
+                              : -1.0)
+                      << ":require="
+                      << (seq_data ? FS_TO_NS(seq_data->getRequireTime()) : -1.0)
+                      << ":constrain="
+                      << (seq_data ? FS_TO_NS(seq_data->get_constrain_value())
+                                   : -1.0);
+                }
+                matched_seq_summary << "]";
+                LOG_INFO << "[character_timing][check-local] port="
+                         << port_vertex->getName() << " endpoint="
+                         << logic_endpoint->getName() << " mode="
+                         << analysisModeName(constraint_mode)
+                         << " input_trans=" << transTypeName(input_trans_type)
+                         << " timing_type=" << timing_type
+                         << " data_end_trans="
+                         << transTypeName(
+                                local_data_candidate.terms.end_trans_type)
+                         << " data_arrival_delta_ns="
+                         << data_arrival_delta_ns
+                         << " data_cell_delay_ns="
+                         << (data_breakdown ? data_breakdown->cell_ns : -1.0)
+                         << " data_net_delay_ns="
+                         << (data_breakdown ? data_breakdown->net_ns : -1.0)
+                         << " data_stored_arrival_ns="
+                         << (local_data_candidate.delay_data
+                                 ? FS_TO_NS(local_data_candidate.delay_data
+                                                ->get_arrive_time())
+                                 : -1.0)
+                         << " data_rebuilt_total_ns="
+                         << (data_rebuilt_total_ns ? *data_rebuilt_total_ns
+                                                   : -1.0)
+                         << " data_launch_clk_arrive_ns="
+                         << (data_launch_clock_data
+                                 ? FS_TO_NS(
+                                       data_launch_clock_data->get_arrive_time())
+                                 : -1.0)
+                         << " local_clock_arrival_delta_ns="
+                         << local_clock_arrival_delta_ns
+                         << " clock_arrival_delta_ns="
+                         << clock_arrival_delta_ns
+                         << " clock_stored_arrival_ns="
+                         << (local_clock_candidate.delay_data
+                                 ? FS_TO_NS(local_clock_candidate.delay_data
+                                                ->get_arrive_time())
+                                 : -1.0)
+                         << " clock_rebuilt_total_ns="
+                         << (clock_rebuilt_total_ns ? *clock_rebuilt_total_ns
+                                                    : -1.0)
+                         << " clock_launch_clk_arrive_ns="
+                         << (clock_launch_clock_data
+                                 ? FS_TO_NS(clock_launch_clock_data
+                                                ->get_arrive_time())
+                                 : -1.0)
+                         << " clock_net_delay_ns="
+                         << (clock_breakdown ? clock_breakdown->net_ns : 0.0)
+                         << " full_sta_clock_arrive_ns="
+                         << ([&]() -> double {
+                              auto full_clock_arrive_fs =
+                                  clk_point->getClockArriveTime(
+                                      capture_analysis_mode, clock_trans_type);
+                              return full_clock_arrive_fs
+                                         ? FS_TO_NS(*full_clock_arrive_fs)
+                                         : -1.0;
+                            })()
+                         << " clock_start_trans="
+                         << transTypeName(
+                                local_clock_candidate.terms.start_trans_type)
+                         << " check_clock_slew_ns="
+                         << check_clock_slew_ns
+                         << " local_clock_slew_ns="
+                         << clock_slew_ns.value_or(0.0)
+                         << " check_data_slew_ns="
+                         << check_data_slew_ns
+                         << " local_data_slew_ns="
+                         << (data_slew_ns ? *data_slew_ns : 0.0)
+                         << " check_margin_ns=" << check_margin_ns
+                         << " check_margin_with_local_clock_slew_ns="
+                         << check_margin_with_local_clock_slew_ns
+                         << " matched_seq_data=" << matched_seq_summary.str();
+              }
+
+              accumulate_constraint(
+                  data_arrival_delta_ns,
+                  clock_arrival_delta_ns,
+                  check_margin_ns, 0.0, "local_arrival_subtraction");
+            }
+          }
         }
       }
     };
