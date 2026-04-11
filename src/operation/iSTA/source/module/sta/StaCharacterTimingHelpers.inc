@@ -366,18 +366,21 @@ StaSlewData* findWorstVertexSlewDataForEpoch(StaVertex* vertex,
   return dynamic_cast<StaSlewData*>(data_queue.top());
 }
 
-const PreservedSeqCheckSnapshot* findBestSeqCheckCandidateForPort(
-    const std::vector<PreservedSeqCheckSnapshot>& seq_check_snapshots,
-    StaVertex* clk_point, StaVertex* clock_start_vertex,
-    StaVertex* data_start_vertex, StaArc* check_arc,
-    AnalysisMode capture_analysis_mode, TransType input_trans_type,
-    TransType data_end_trans_type, TransType clock_trans_type) {
-  if (!clk_point) {
-    return nullptr;
-  }
+struct ExactSeqCheckSnapshotMatch {
+  const PreservedSeqCheckSnapshot* snapshot = nullptr;
+  size_t match_count = 0;
+};
 
-  const PreservedSeqCheckSnapshot* best_match = nullptr;
-  int best_score = -1;
+ExactSeqCheckSnapshotMatch findExactSeqCheckSnapshotForExport(
+    const std::vector<PreservedSeqCheckSnapshot>& seq_check_snapshots,
+    const BoundaryDelayCandidate& data_candidate,
+    const BoundaryDelayCandidate& clock_candidate, StaVertex* clk_point,
+    StaVertex* clock_start_vertex, StaArc* check_arc,
+    AnalysisMode capture_analysis_mode, TransType clock_trans_type) {
+  ExactSeqCheckSnapshotMatch result;
+  if (!clk_point) {
+    return result;
+  }
 
   for (const auto& seq_snapshot : seq_check_snapshots) {
     if (check_arc &&
@@ -388,9 +391,7 @@ const PreservedSeqCheckSnapshot* findBestSeqCheckCandidateForPort(
     if (!seq_snapshot.capture_clock_vertex ||
         seq_snapshot.capture_clock_vertex != clk_point ||
         seq_snapshot.capture_analysis_mode != capture_analysis_mode ||
-        seq_snapshot.clock_trans_type != clock_trans_type ||
-        seq_snapshot.data_start_trans_type != input_trans_type ||
-        seq_snapshot.data_end_trans_type != data_end_trans_type) {
+        seq_snapshot.clock_trans_type != clock_trans_type) {
       continue;
     }
 
@@ -399,21 +400,35 @@ const PreservedSeqCheckSnapshot* findBestSeqCheckCandidateForPort(
       continue;
     }
 
-    if (data_start_vertex && seq_snapshot.data_start_vertex != data_start_vertex) {
+    if (!seq_snapshot.data_start_vertex ||
+        seq_snapshot.data_start_vertex != data_candidate.terms.start_vertex ||
+        seq_snapshot.data_start_trans_type !=
+            data_candidate.terms.start_trans_type ||
+        seq_snapshot.data_end_trans_type !=
+            data_candidate.terms.end_trans_type) {
       continue;
     }
 
-    int match_score = 0;
-    match_score += 1;
-    match_score += 2;
-
-    if (match_score > best_score) {
-      best_match = &seq_snapshot;
-      best_score = match_score;
+    if (seq_snapshot.data_start_arrive_fs !=
+            data_candidate.terms.start_arrive_fs ||
+        seq_snapshot.data_end_arrive_fs !=
+            data_candidate.terms.end_arrive_fs ||
+        seq_snapshot.capture_clock_start_arrive_fs !=
+            clock_candidate.terms.start_arrive_fs ||
+        seq_snapshot.capture_clock_end_arrive_fs !=
+            clock_candidate.terms.end_arrive_fs) {
+      continue;
     }
+
+    ++result.match_count;
+    result.snapshot = &seq_snapshot;
   }
 
-  return best_match;
+  if (result.match_count != 1) {
+    result.snapshot = nullptr;
+  }
+
+  return result;
 }
 
 double convertPfToReferenceCapUnit(LibArc* reference_arc, double cap_pf) {
