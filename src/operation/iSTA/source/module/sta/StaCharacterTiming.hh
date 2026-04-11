@@ -42,6 +42,7 @@ struct PreservedSeqCheckSnapshot {
   StaVertex* data_start_vertex = nullptr;
   AnalysisMode capture_analysis_mode = AnalysisMode::kMax;
   TransType data_start_trans_type = TransType::kRise;
+  TransType data_end_trans_type = TransType::kRise;
   TransType clock_trans_type = TransType::kRise;
   int64_t data_start_arrive_fs = 0;
   int64_t data_end_arrive_fs = 0;
