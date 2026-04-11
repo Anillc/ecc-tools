@@ -654,11 +654,21 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                   FS_TO_NS(local_data_candidate.terms.delay_fs);
               const double local_clock_arrival_delta_ns =
                   FS_TO_NS(local_clock_candidate.terms.delay_fs);
-              // The current epoch-local clock candidate is still a much larger
-              // ETM-local term than the final scalar formula can consume
-              // directly. Keep the subtraction collapsed while the real
-              // target-clock减法项 is being isolated.
+              const auto full_sta_clock_arrive_fs =
+                  clk_point->getClockArriveTime(capture_analysis_mode,
+                                                clock_trans_type);
+              const auto full_sta_clock_port_arrive_fs =
+                  clock_port_vertex->getClockArriveTime(capture_analysis_mode,
+                                                        clock_trans_type);
+              const auto preserved_clock_arrival_delta_ns =
+                  preserved_seq_snapshot
+                      ? std::optional<double>(FS_TO_NS(
+                            preserved_seq_snapshot->capture_clock_end_arrive_fs -
+                            preserved_seq_snapshot
+                                ->capture_clock_start_arrive_fs))
+                      : std::nullopt;
               const double clock_arrival_delta_ns = data_arrival_delta_ns;
+              const char* clock_arrival_source = "collapsed_to_data_arrival";
               auto data_rebuilt_total_ns = rebuildPathDelayNsForEpoch(
                   local_data_candidate.delay_data, _characterization_epoch);
               auto* data_launch_clock_data =
@@ -795,6 +805,13 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                          << " clock_rebuilt_total_ns="
                          << (clock_rebuilt_total_ns ? *clock_rebuilt_total_ns
                                                     : -1.0)
+                         << " full_sta_clock_port_arrive_ns="
+                         << ([&]() -> double {
+                              return full_sta_clock_port_arrive_fs
+                                         ? FS_TO_NS(
+                                               *full_sta_clock_port_arrive_fs)
+                                         : -1.0;
+                            })()
                          << " clock_launch_clk_arrive_ns="
                          << (clock_launch_clock_data
                                  ? FS_TO_NS(clock_launch_clock_data
@@ -803,19 +820,20 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                          << " clock_net_delay_ns="
                          << (clock_breakdown ? clock_breakdown->net_ns : 0.0)
                          << " full_sta_clock_arrive_ns="
-                         << ([&]() -> double {
-                              auto full_clock_arrive_fs =
-                                  clk_point->getClockArriveTime(
-                                      capture_analysis_mode, clock_trans_type);
-                              return full_clock_arrive_fs
-                                         ? FS_TO_NS(*full_clock_arrive_fs)
-                                         : -1.0;
-                            })()
+                         << (full_sta_clock_arrive_fs
+                                 ? FS_TO_NS(*full_sta_clock_arrive_fs)
+                                 : -1.0)
+                         << " preserved_clock_arrival_delta_ns="
+                         << (preserved_clock_arrival_delta_ns
+                                 ? *preserved_clock_arrival_delta_ns
+                                 : -1.0)
                          << " clk_point_arrive_ns=" << clk_point_arrive_ns
                          << " clk_point_req_ns=" << clk_point_req_ns
                          << " clock_start_trans="
                          << transTypeName(
                                 local_clock_candidate.terms.start_trans_type)
+                         << " clock_arrival_source="
+                         << clock_arrival_source
                          << " check_clock_slew_ns="
                          << check_clock_slew_ns
                          << " local_clock_slew_ns="
