@@ -42,19 +42,19 @@ struct SegmentTraits
    *
    * Key = pack(input_slew, driven_cap)
    */
-  static unsigned buildKey(const SegmentChar& c) { return detail::Pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
+  static auto buildKey(const SegmentChar& c) -> unsigned { return detail::Pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
 
   /**
    * @brief Probe key from upstream entry.
    *
    * Key = pack(output_slew_idx, load_cap_idx)
    */
-  static unsigned probeKey(const SegmentChar& c) { return detail::Pack(c.get_output_slew_idx(), c.get_load_cap_idx()); }
+  static auto probeKey(const SegmentChar& c) -> unsigned { return detail::Pack(c.get_output_slew_idx(), c.get_load_cap_idx()); }
 
   /**
    * @brief Compose upstream and downstream into merged result.
    */
-  static SegmentChar compose(const SegmentChar& up, const SegmentChar& down, PatternId merged_pid)
+  static auto compose(const SegmentChar& up, const SegmentChar& down, PatternId merged_pid) -> SegmentChar
   {
     return SegmentChar::compose(up, down, merged_pid);
   }

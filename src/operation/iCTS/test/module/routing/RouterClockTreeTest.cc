@@ -66,7 +66,7 @@ constexpr int kSaltLoad1Y = 125;
 constexpr int kSaltLoad2X = 170;
 constexpr int kSaltLoad2Y = 90;
 
-void ExpectTerminalNodeMetadata(const Router::ClockSteinerTreeType& clock_tree, const Router::ClockTerminal& terminal)
+auto ExpectTerminalNodeMetadata(const Router::ClockSteinerTreeType& clock_tree, const Router::ClockTerminal& terminal) -> void
 {
   const auto* node = clock_tree.findNode(terminal.name);
   ASSERT_NE(node, nullptr);
@@ -75,7 +75,7 @@ void ExpectTerminalNodeMetadata(const Router::ClockSteinerTreeType& clock_tree, 
   EXPECT_DOUBLE_EQ(node->insertion_delay, terminal.insertion_delay);
 }
 
-void ExpectSteinerNodeDefaults(const Router::ClockSteinerTreeType& clock_tree)
+auto ExpectSteinerNodeDefaults(const Router::ClockSteinerTreeType& clock_tree) -> void
 {
   for (const auto& node : clock_tree.get_nodes()) {
     if (node.is_terminal) {
@@ -86,7 +86,7 @@ void ExpectSteinerNodeDefaults(const Router::ClockSteinerTreeType& clock_tree)
   }
 }
 
-void ExpectRCTreeLumpedCapMatchesClockTree(const Router::ClockSteinerTreeType& clock_tree)
+auto ExpectRCTreeLumpedCapMatchesClockTree(const Router::ClockSteinerTreeType& clock_tree) -> void
 {
   const auto rc_tree = Router::buildRCTree(clock_tree);
   for (const auto& node : clock_tree.get_nodes()) {

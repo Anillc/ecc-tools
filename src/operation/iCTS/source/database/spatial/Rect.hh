@@ -49,25 +49,25 @@ class Rect
   {
   }
 
-  T get_min_x() const { return _min_x; }
-  T get_min_y() const { return _min_y; }
-  T get_max_x() const { return _max_x; }
-  T get_max_y() const { return _max_y; }
+  auto get_min_x() const -> T { return _min_x; }
+  auto get_min_y() const -> T { return _min_y; }
+  auto get_max_x() const -> T { return _max_x; }
+  auto get_max_y() const -> T { return _max_y; }
 
-  Point<T> get_lower_left() const { return Point<T>(_min_x, _min_y); }
-  Point<T> get_upper_right() const { return Point<T>(_max_x, _max_y); }
+  auto get_lower_left() const -> Point<T> { return Point<T>(_min_x, _min_y); }
+  auto get_upper_right() const -> Point<T> { return Point<T>(_max_x, _max_y); }
 
-  bool contains(const Point<T>& point) const
+  auto contains(const Point<T>& point) const -> bool
   {
     return point.get_x() >= _min_x && point.get_x() <= _max_x && point.get_y() >= _min_y && point.get_y() <= _max_y;
   }
 
-  bool overlaps(const Rect& other) const
+  auto overlaps(const Rect& other) const -> bool
   {
     return !(_max_x < other._min_x || other._max_x < _min_x || _max_y < other._min_y || other._max_y < _min_y);
   }
 
-  std::optional<Rect> intersect(const Rect& other) const
+  auto intersect(const Rect& other) const -> std::optional<Rect>
   {
     if (!overlaps(other)) {
       return std::nullopt;
@@ -76,17 +76,17 @@ class Rect
                 std::min(_max_y, other._max_y));
   }
 
-  Point<T> clamp(const Point<T>& point) const
+  auto clamp(const Point<T>& point) const -> Point<T>
   {
     return Point<T>(std::clamp(point.get_x(), _min_x, _max_x), std::clamp(point.get_y(), _min_y, _max_y));
   }
 
-  bool operator==(const Rect& rhs) const
+  auto operator==(const Rect& rhs) const -> bool
   {
     return _min_x == rhs._min_x && _min_y == rhs._min_y && _max_x == rhs._max_x && _max_y == rhs._max_y;
   }
 
-  bool operator!=(const Rect& rhs) const { return !(*this == rhs); }
+  auto operator!=(const Rect& rhs) const -> bool { return !(*this == rhs); }
 
  private:
   T _min_x{};

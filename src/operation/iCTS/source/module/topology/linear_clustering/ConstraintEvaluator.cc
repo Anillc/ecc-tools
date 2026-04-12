@@ -334,7 +334,7 @@ auto ConstraintEvaluator::estimateExactCap(const std::vector<Pin*>& loads, const
     return estimate;
   }
 
-  const auto load_locations = collectPinLocations(active_loads);
+  const auto load_locations = CollectPinLocations(active_loads);
   if (!LegalizeRoutingRoot(estimate.synthetic_root, load_locations, estimate.legalized_root)) {
     estimate.route_success = false;
     estimate.routed_root = estimate.legalized_root;

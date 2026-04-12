@@ -39,9 +39,9 @@ class SegmentPatternCombiner
  public:
   explicit SegmentPatternCombiner(unsigned start_id = 0) : _next_id(start_id) {}
 
-  PatternId combine([[maybe_unused]] PatternId up, [[maybe_unused]] PatternId down) const { return PatternId::segment(_next_id++); }
+  auto combine([[maybe_unused]] PatternId up, [[maybe_unused]] PatternId down) const -> PatternId { return PatternId::segment(_next_id++); }
 
-  unsigned get_next_id() const { return _next_id; }
+  auto get_next_id() const -> unsigned { return _next_id; }
 
  private:
   mutable unsigned _next_id;
@@ -57,9 +57,12 @@ class TopologyPatternCombiner
  public:
   explicit TopologyPatternCombiner(unsigned start_id = 0) : _next_id(start_id) {}
 
-  PatternId combine([[maybe_unused]] PatternId up, [[maybe_unused]] PatternId down) const { return PatternId::topology(_next_id++); }
+  auto combine([[maybe_unused]] PatternId up, [[maybe_unused]] PatternId down) const -> PatternId
+  {
+    return PatternId::topology(_next_id++);
+  }
 
-  unsigned get_next_id() const { return _next_id; }
+  auto get_next_id() const -> unsigned { return _next_id; }
 
  private:
   mutable unsigned _next_id;

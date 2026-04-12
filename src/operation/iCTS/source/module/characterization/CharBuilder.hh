@@ -47,17 +47,17 @@ class CharBuilder
   ~CharBuilder() = default;
 
   // Main flow
-  void init();
-  void build();
+  auto init() -> void;
+  auto build() -> void;
 
   // Results
-  const std::vector<SegmentChar>& get_segment_chars() const { return _segment_chars; }
-  const std::vector<BufferingPattern>& get_buffering_patterns() const { return _buffering_patterns; }
+  auto get_segment_chars() const -> const std::vector<SegmentChar>& { return _segment_chars; }
+  auto get_buffering_patterns() const -> const std::vector<BufferingPattern>& { return _buffering_patterns; }
 
  private:
   // Initialization helpers
-  void initBufferList();
-  void initCharParams();
+  auto initBufferList() -> void;
+  auto initCharParams() -> void;
 
   // Pattern enumeration
   struct TopologyBits
@@ -65,8 +65,8 @@ class CharBuilder
     unsigned value = 0U;
   };
 
-  void enumerateWireLength(double wire_length_um);
-  void enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits);
+  auto enumerateWireLength(double wire_length_um) -> void;
+  auto enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> void;
   static auto isMonotonic(const std::vector<std::size_t>& buf_indices) -> bool;
   static auto getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t;
   static auto advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool;
@@ -79,13 +79,13 @@ class CharBuilder
   };
 
   static auto buildTopologyDesc(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> TopologyDesc;
-  void characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters);
-  void createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters);
-  void setCharParasitics(const TopologyDesc& topo, double load_pf);
-  void destroyCharCircuit();
+  auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
+  auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
+  auto setCharParasitics(const TopologyDesc& topo, double load_pf) -> void;
+  auto destroyCharCircuit() -> void;
 
   // Discretization: physical value → bin index in [1, steps]
-  static unsigned discretize(double value, double max_value, unsigned steps);
+  static auto discretize(double value, double max_value, unsigned steps) -> unsigned;
 
   // Sorted buffer list (ascending max_cap)
   struct BufferInfo

@@ -24,6 +24,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -44,20 +45,20 @@ namespace icts::geometry {
  * Returns the same coordinate type T to preserve the caller's distance semantics.
  */
 template <typename T>
-inline T Manhattan(const Point<T>& a, const Point<T>& b)
+inline auto Manhattan(const Point<T>& a, const Point<T>& b) -> T
 {
   using std::abs;
   return abs(a.get_x() - b.get_x()) + abs(a.get_y() - b.get_y());
 }
 
 template <typename T>
-inline T Manhattan(const Point<T>& point, const Rect<T>& rect)
+inline auto Manhattan(const Point<T>& point, const Rect<T>& rect) -> T
 {
   return Manhattan(point, rect.clamp(point));
 }
 
 template <typename T>
-inline std::optional<Point<T>> ProjectNearest(const Region<T>& region, const Point<T>& point)
+inline auto ProjectNearest(const Region<T>& region, const Point<T>& point) -> std::optional<Point<T>>
 {
   return region.project_nearest(point);
 }
@@ -137,8 +138,8 @@ inline auto CalcMedian(const std::vector<Value>& values, PointGetter getter)
  * @param r       Radius of the L1 circle
  * @param min_x, min_y, max_x, max_y  Bounding box constraints
  */
-inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& point, double r, int min_x = 0, int min_y = 0,
-                                    int max_x = std::numeric_limits<int>::max(), int max_y = std::numeric_limits<int>::max())
+inline auto ProjectToL1Circle(const Point<int>& center, const Point<int>& point, double r, int min_x = 0, int min_y = 0,
+                              int max_x = std::numeric_limits<int>::max(), int max_y = std::numeric_limits<int>::max()) -> Point<int>
 {
   if (min_x > max_x) {
     std::swap(min_x, max_x);
@@ -147,21 +148,21 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
     std::swap(min_y, max_y);
   }
 
-  auto clampi = [](int v, int lo, int hi) { return std::max(lo, std::min(v, hi)); };
-  auto clampd = [](double v, double lo, double hi) { return std::max(lo, std::min(v, hi)); };
+  auto clampi = [](int v, int lo, int hi) -> int { return std::max(lo, std::min(v, hi)); };
+  auto clampd = [](double v, double lo, double hi) -> double { return std::max(lo, std::min(v, hi)); };
 
   if (r <= 0.0) {
     return Point<int>(clampi(center.get_x(), min_x, max_x), clampi(center.get_y(), min_y, max_y));
   }
 
-  auto inside = [&](double x, double y) { return x >= min_x && x <= max_x && y >= min_y && y <= max_y; };
+  auto inside = [&](double x, double y) -> bool { return x >= min_x && x <= max_x && y >= min_y && y <= max_y; };
 
   const double cx = center.get_x();
   const double cy = center.get_y();
   const double tx = point.get_x();
   const double ty = point.get_y();
 
-  auto to_int_best = [&](double x, double y) {
+  auto to_int_best = [&](double x, double y) -> Point<int> {
     const int fx = static_cast<int>(std::floor(x));
     const int cx2 = static_cast<int>(std::ceil(x));
     const int fy = static_cast<int>(std::floor(y));
@@ -169,7 +170,7 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
     const int rx = static_cast<int>(std::lround(x));
     const int ry = static_cast<int>(std::lround(y));
 
-    const std::pair<int, int> cand[5] = {{fx, fy}, {fx, cy2}, {cx2, fy}, {cx2, cy2}, {rx, ry}};
+    const std::array<std::pair<int, int>, 5> candidates = {{{fx, fy}, {fx, cy2}, {cx2, fy}, {cx2, cy2}, {rx, ry}}};
 
     bool has = false;
     int best_ix = clampi(rx, min_x, max_x);
@@ -177,7 +178,7 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
     double best_l1err = std::numeric_limits<double>::infinity();
     double best_d2 = std::numeric_limits<double>::infinity();
 
-    for (const auto& c : cand) {
+    for (const auto& c : candidates) {
       int ix = c.first;
       int iy = c.second;
       if (ix < min_x || ix > max_x || iy < min_y || iy > max_y)
@@ -206,7 +207,7 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
   double best_x = cx, best_y = cy;
   double best_d2 = std::numeric_limits<double>::infinity();
 
-  auto relax = [&](double x, double y) {
+  auto relax = [&](double x, double y) -> void {
     if (!inside(x, y))
       return;
     const double dx = x - tx;
@@ -222,18 +223,19 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
 
   for (int su : {+1, -1})
     for (int sv : {+1, -1}) {
-      double tL = 0.0, tR = r;
+      double t_left = 0.0;
+      double t_right = r;
 
-      auto intersect_t = [&](double a, double b, double lo, double hi) {
+      auto intersect_t = [&](double a, double b, double lo, double hi) -> bool {
         if (std::fabs(a) < 1e-12)
           return (b >= lo && b <= hi);
         double t1 = (lo - b) / a;
         double t2 = (hi - b) / a;
         if (t1 > t2)
           std::swap(t1, t2);
-        tL = std::max(tL, t1);
-        tR = std::min(tR, t2);
-        return tL <= tR;
+        t_left = std::max(t_left, t1);
+        t_right = std::min(t_right, t2);
+        return t_left <= t_right;
       };
 
       if (!intersect_t(su, cx, min_x, max_x))
@@ -248,7 +250,7 @@ inline Point<int> ProjectToL1Circle(const Point<int>& center, const Point<int>& 
       const double num = (tx - ax) * dx + (ty - ay) * dy;
       const double den = dx * dx + dy * dy;
       double t = num / den;
-      t = clampd(t, tL, tR);
+      t = clampd(t, t_left, t_right);
 
       relax(cx + su * t, cy + sv * (r - t));
     }

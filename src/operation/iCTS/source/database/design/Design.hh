@@ -34,7 +34,7 @@ namespace icts {
 class Design
 {
  public:
-  static Design& getInst()
+  static auto getInst() -> Design&
   {
     static Design inst;
     return inst;
@@ -43,14 +43,14 @@ class Design
   // Delete copy and move constructors
   Design(const Design& rhs) = delete;
   Design(Design&& rhs) = delete;
-  Design& operator=(const Design& rhs) = delete;
-  Design& operator=(Design&& rhs) = delete;
+  auto operator=(const Design& rhs) -> Design& = delete;
+  auto operator=(Design&& rhs) -> Design& = delete;
 
   // Reset design data
-  void reset() { _clocks.clear(); }
+  auto reset() -> void { _clocks.clear(); }
 
   // Getter
-  std::vector<Clock*> get_clocks() const
+  auto get_clocks() const -> std::vector<Clock*>
   {
     std::vector<Clock*> clocks;
     clocks.reserve(_clocks.size());
@@ -61,10 +61,10 @@ class Design
   }
 
   // Setter
-  void set_clocks(std::vector<std::unique_ptr<Clock>> clocks) { _clocks = std::move(clocks); }
+  auto set_clocks(std::vector<std::unique_ptr<Clock>> clocks) -> void { _clocks = std::move(clocks); }
 
   // Adder
-  Clock* add_clock(std::unique_ptr<Clock> clock)
+  auto add_clock(std::unique_ptr<Clock> clock) -> Clock*
   {
     if (clock == nullptr) {
       return nullptr;

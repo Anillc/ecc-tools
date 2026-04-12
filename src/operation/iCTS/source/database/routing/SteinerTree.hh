@@ -84,21 +84,21 @@ class SteinerTree
 
   SteinerTree() = default;
   SteinerTree(const SteinerTree&) = default;
-  SteinerTree& operator=(const SteinerTree&) = default;
+  auto operator=(const SteinerTree&) -> SteinerTree& = default;
   SteinerTree(SteinerTree&&) = default;
-  SteinerTree& operator=(SteinerTree&&) = default;
+  auto operator=(SteinerTree&&) -> SteinerTree& = default;
   virtual ~SteinerTree() = default;
 
-  void reserveNodes(std::size_t n) { _nodes.reserve(n); }
-  void reserveEdges(std::size_t n) { _edges.reserve(n); }
+  auto reserveNodes(std::size_t n) -> void { _nodes.reserve(n); }
+  auto reserveEdges(std::size_t n) -> void { _edges.reserve(n); }
 
-  virtual std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal = false)
+  virtual auto addNode(const std::string& name, const Point<T>& location, bool is_terminal = false) -> std::size_t
   {
     auto node = buildNode(name, location, is_terminal);
     return appendNode(std::move(node));
   }
 
-  void setRoot(std::size_t node_id)
+  auto setRoot(std::size_t node_id) -> void
   {
     if (node_id < _nodes.size()) {
       _root_node_id = node_id;
@@ -106,7 +106,7 @@ class SteinerTree
   }
 
   template <typename... EdgeArgs>
-  std::size_t addEdge(std::size_t source_node_id, std::size_t target_node_id, const T& distance, EdgeArgs&&... edge_args)
+  auto addEdge(std::size_t source_node_id, std::size_t target_node_id, const T& distance, EdgeArgs&&... edge_args) -> std::size_t
   {
     if (source_node_id >= _nodes.size() || target_node_id >= _nodes.size() || source_node_id == target_node_id) {
       return kInvalidId;
@@ -124,14 +124,14 @@ class SteinerTree
     return edge_id;
   }
 
-  NodeType* get_node(std::size_t id)
+  auto get_node(std::size_t id) -> NodeType*
   {
     if (id >= _nodes.size()) {
       return nullptr;
     }
     return &_nodes[id];
   }
-  const NodeType* get_node(std::size_t id) const
+  auto get_node(std::size_t id) const -> const NodeType*
   {
     if (id >= _nodes.size()) {
       return nullptr;
@@ -139,14 +139,14 @@ class SteinerTree
     return &_nodes[id];
   }
 
-  EdgeType* get_edge(std::size_t id)
+  auto get_edge(std::size_t id) -> EdgeType*
   {
     if (id >= _edges.size()) {
       return nullptr;
     }
     return &_edges[id];
   }
-  const EdgeType* get_edge(std::size_t id) const
+  auto get_edge(std::size_t id) const -> const EdgeType*
   {
     if (id >= _edges.size()) {
       return nullptr;
@@ -154,20 +154,21 @@ class SteinerTree
     return &_edges[id];
   }
 
-  NodeType* findNode(const std::string& name)
+  auto findNode(const std::string& name) -> NodeType*
   {
     auto iter = _node_name_to_id.find(name);
     return iter == _node_name_to_id.end() ? nullptr : get_node(iter->second);
   }
-  const NodeType* findNode(const std::string& name) const
+  auto findNode(const std::string& name) const -> const NodeType*
   {
     auto iter = _node_name_to_id.find(name);
     return iter == _node_name_to_id.end() ? nullptr : get_node(iter->second);
   }
-  const std::unordered_map<std::string, std::size_t>& get_node_name_map() const { return _node_name_to_id; }
+  auto get_node_name_map() const -> const std::unordered_map<std::string, std::size_t>& { return _node_name_to_id; }
 
   template <typename... EdgeArgs>
-  std::size_t addEdge(const std::string& source_node_name, const std::string& target_node_name, const T& distance, EdgeArgs&&... edge_args)
+  auto addEdge(const std::string& source_node_name, const std::string& target_node_name, const T& distance, EdgeArgs&&... edge_args)
+      -> std::size_t
   {
     auto source_iter = _node_name_to_id.find(source_node_name);
     auto target_iter = _node_name_to_id.find(target_node_name);
@@ -177,23 +178,23 @@ class SteinerTree
     return addEdge(source_iter->second, target_iter->second, distance, std::forward<EdgeArgs>(edge_args)...);
   }
 
-  const std::vector<NodeType>& get_nodes() const { return _nodes; }
-  const std::vector<EdgeType>& get_edges() const { return _edges; }
-  std::vector<EdgeType>& get_edges() { return _edges; }
+  auto get_nodes() const -> const std::vector<NodeType>& { return _nodes; }
+  auto get_edges() const -> const std::vector<EdgeType>& { return _edges; }
+  auto get_edges() -> std::vector<EdgeType>& { return _edges; }
 
-  std::size_t get_root() const { return _root_node_id; }
-  std::size_t node_count() const { return _nodes.size(); }
-  std::size_t edge_count() const { return _edges.size(); }
+  auto get_root() const -> std::size_t { return _root_node_id; }
+  auto node_count() const -> std::size_t { return _nodes.size(); }
+  auto edge_count() const -> std::size_t { return _edges.size(); }
 
-  bool is_root(std::size_t node_id) const { return node_id == _root_node_id; }
+  auto is_root(std::size_t node_id) const -> bool { return node_id == _root_node_id; }
 
-  bool is_leaf(std::size_t node_id) const
+  auto is_leaf(std::size_t node_id) const -> bool
   {
     const auto* node = get_node(node_id);
     return node != nullptr && node->child_edge_ids.empty();
   }
 
-  bool validate() const
+  auto validate() const -> bool
   {
     if (_nodes.empty()) {
       return _root_node_id == kInvalidId && _edges.empty();
@@ -328,12 +329,12 @@ class ClockSteinerTree : public SteinerTree<T, ClockSteinerNode<T>, ClockSteiner
   ClockSteinerTree() = default;
   ~ClockSteinerTree() override = default;
 
-  std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal = false) override
+  auto addNode(const std::string& name, const Point<T>& location, bool is_terminal = false) -> std::size_t override
   {
     return addNode(name, location, is_terminal, 0.0, 0.0);
   }
 
-  std::size_t addNode(const std::string& name, const Point<T>& location, bool is_terminal, double pin_cap, double insertion_delay)
+  auto addNode(const std::string& name, const Point<T>& location, bool is_terminal, double pin_cap, double insertion_delay) -> std::size_t
   {
     NodeType node;
     node.name = name;

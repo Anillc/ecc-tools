@@ -34,7 +34,7 @@ namespace icts {
 
 struct ClockRoutingTerminal;
 
-auto buildSaltPins(const ClockRoutingTerminal& driver_terminal, const std::vector<ClockRoutingTerminal>& load_terminals)
+auto BuildSaltPins(const ClockRoutingTerminal& driver_terminal, const std::vector<ClockRoutingTerminal>& load_terminals)
     -> std::vector<std::shared_ptr<salt::Pin>>;
 
 }  // namespace icts

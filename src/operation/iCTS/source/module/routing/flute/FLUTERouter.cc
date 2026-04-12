@@ -61,7 +61,7 @@ auto FLUTERouter::buildTree(const ClockTerminal& driver_terminal, const std::vec
     return clock_tree;
   }
 
-  auto salt_pins = buildSaltPins(driver_terminal, load_terminals);
+  auto salt_pins = BuildSaltPins(driver_terminal, load_terminals);
   salt::Net net;
   net.init(0, "FLUTE", salt_pins);
 

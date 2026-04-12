@@ -41,9 +41,9 @@ class BSTRouter
   BSTRouter() = delete;
   ~BSTRouter() = default;
 
-  static ClockSteinerTreeType buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
+  static auto buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters) -> ClockSteinerTreeType;
 
-  static ClockSteinerTreeType buildTreeFromTopology(const ClockSteinerTreeType& input_topology, const BSTParameters& parameters);
+  static auto buildTreeFromTopology(const ClockSteinerTreeType& input_topology, const BSTParameters& parameters) -> ClockSteinerTreeType;
 };
 
 }  // namespace icts

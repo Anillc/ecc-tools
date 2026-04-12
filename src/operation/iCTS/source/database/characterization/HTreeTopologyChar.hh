@@ -46,16 +46,16 @@ class HTreeTopologyChar
   HTreeTopologyChar(CharCore core, unsigned levels) : _core(std::move(core)), _levels(levels) {}
 
   // Forwarded getters from CharCore
-  unsigned get_input_slew_idx() const { return _core.get_input_slew_idx(); }
-  unsigned get_output_slew_idx() const { return _core.get_output_slew_idx(); }
-  unsigned get_driven_cap_idx() const { return _core.get_driven_cap_idx(); }
-  unsigned get_load_cap_idx() const { return _core.get_load_cap_idx(); }
-  double get_delay() const { return _core.get_delay(); }
-  double get_power() const { return _core.get_power(); }
-  PatternId get_pattern_id() const { return _core.get_pattern_id(); }
+  auto get_input_slew_idx() const -> unsigned { return _core.get_input_slew_idx(); }
+  auto get_output_slew_idx() const -> unsigned { return _core.get_output_slew_idx(); }
+  auto get_driven_cap_idx() const -> unsigned { return _core.get_driven_cap_idx(); }
+  auto get_load_cap_idx() const -> unsigned { return _core.get_load_cap_idx(); }
+  auto get_delay() const -> double { return _core.get_delay(); }
+  auto get_power() const -> double { return _core.get_power(); }
+  auto get_pattern_id() const -> PatternId { return _core.get_pattern_id(); }
 
   // H-tree specific getter
-  unsigned get_levels() const { return _levels; }
+  auto get_levels() const -> unsigned { return _levels; }
 
   /**
    * @brief Compose two H-tree topology characterizations.
@@ -76,7 +76,8 @@ class HTreeTopologyChar
    * @param downstream Downstream H-tree (closer to leaves)
    * @param merged_topo_pid Pattern ID for the composed topology
    */
-  static HTreeTopologyChar compose(const HTreeTopologyChar& upstream, const HTreeTopologyChar& downstream, PatternId merged_topo_pid)
+  static auto compose(const HTreeTopologyChar& upstream, const HTreeTopologyChar& downstream, PatternId merged_topo_pid)
+      -> HTreeTopologyChar
   {
     CharCore merged_core(upstream.get_input_slew_idx(),                  // input from upstream
                          downstream.get_output_slew_idx(),               // output from downstream

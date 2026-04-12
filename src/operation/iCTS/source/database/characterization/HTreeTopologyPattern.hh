@@ -48,9 +48,9 @@ class HTreeTopologyPattern
   }
 
   // Getters
-  PatternId get_pattern_id() const { return _pattern_id; }
-  unsigned get_levels() const { return _levels; }
-  const std::vector<PatternId>& get_level_segment_pattern_ids() const { return _level_segment_pattern_ids; }
+  auto get_pattern_id() const -> PatternId { return _pattern_id; }
+  auto get_levels() const -> unsigned { return _levels; }
+  auto get_level_segment_pattern_ids() const -> const std::vector<PatternId>& { return _level_segment_pattern_ids; }
 
   /**
    * @brief Concatenate two H-tree topology patterns.
@@ -62,8 +62,8 @@ class HTreeTopologyPattern
    * @param downstream Downstream topology (closer to leaves)
    * @param merged_topo_pid New pattern ID for the merged topology
    */
-  static HTreeTopologyPattern concat(const HTreeTopologyPattern& upstream, const HTreeTopologyPattern& downstream,
-                                     PatternId merged_topo_pid)
+  static auto concat(const HTreeTopologyPattern& upstream, const HTreeTopologyPattern& downstream, PatternId merged_topo_pid)
+      -> HTreeTopologyPattern
   {
     std::vector<PatternId> merged_ids;
     merged_ids.reserve(upstream._level_segment_pattern_ids.size() + downstream._level_segment_pattern_ids.size());

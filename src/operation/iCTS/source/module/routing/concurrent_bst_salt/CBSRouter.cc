@@ -175,7 +175,7 @@ auto RefineTopology(const CBSRouter::ClockSteinerTreeType& initial_tree) -> CBSR
 
 }  // namespace
 
-void CustomSaltBuilder::init(const salt::Tree& min_tree, const std::shared_ptr<salt::Pin>& src_pin)
+auto CustomSaltBuilder::init(const salt::Tree& min_tree, const std::shared_ptr<salt::Pin>& src_pin) -> void
 {
   auto min_tree_copy = min_tree;
   min_tree_copy.UpdateId();
@@ -196,7 +196,7 @@ void CustomSaltBuilder::init(const salt::Tree& min_tree, const std::shared_ptr<s
   _src = _nodes.at(src_node_index);
 }
 
-void CustomSaltBuilder::finalize(const salt::Net& net, salt::Tree& tree) const
+auto CustomSaltBuilder::finalize(const salt::Net& net, salt::Tree& tree) const -> void
 {
   for (const auto& node : _nodes) {
     if (node->parent) {
@@ -207,7 +207,7 @@ void CustomSaltBuilder::finalize(const salt::Net& net, salt::Tree& tree) const
   tree.net = &net;
 }
 
-void CustomSaltBuilder::run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level)
+auto CustomSaltBuilder::run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level) -> void
 {
   auto tree = input_tree;
   if (refine_level >= 1) {
@@ -254,7 +254,8 @@ auto CustomSaltBuilder::relax(const std::shared_ptr<salt::TreeNode>& source_node
   return false;
 }
 
-void CustomSaltBuilder::dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps)
+auto CustomSaltBuilder::dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps)
+    -> void
 {
   struct DfsFrame
   {

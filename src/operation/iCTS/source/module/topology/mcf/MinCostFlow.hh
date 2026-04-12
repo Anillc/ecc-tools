@@ -53,11 +53,11 @@ class MinCostFlow
   MinCostFlow() = default;
   ~MinCostFlow() = default;
 
-  void addNode(double x, double y, Value& value) { _nodes.push_back({FlowPoint{x, y}, value}); }
+  auto addNode(double x, double y, Value& value) -> void { _nodes.push_back({FlowPoint{x, y}, value}); }
 
-  void addCenter(double x, double y) { _centers.push_back({x, y}); }
+  auto addCenter(double x, double y) -> void { _centers.push_back({x, y}); }
 
-  std::vector<std::vector<Value>> run(const size_t& max_cluster_size)
+  auto run(const size_t& max_cluster_size) -> std::vector<std::vector<Value>>
   {
     // Flow problem:
     // virtual source -> [sinks] -> [buffers] -> virtual target
@@ -84,9 +84,9 @@ class MinCostFlow
     sinks.reserve(_nodes.size());
     buffers.reserve(_centers.size());
 
-    std::ranges::transform(_nodes, std::back_inserter(sinks), [&](auto&) { return network.addNode(); });
+    std::ranges::transform(_nodes, std::back_inserter(sinks), [&](auto&) -> auto { return network.addNode(); });
 
-    std::ranges::transform(_centers, std::back_inserter(buffers), [&](auto&) { return network.addNode(); });
+    std::ranges::transform(_centers, std::back_inserter(buffers), [&](auto&) -> auto { return network.addNode(); });
 
     // Add arcs to the network
     std::vector<Arc> source_sink_arcs, sink_buffer_arcs, buffer_target_arcs;
@@ -121,15 +121,16 @@ class MinCostFlow
 
     // cost
     ArcMap arc_cost(network), arc_capacity(network);
-    for (size_t i = 0; i < source_sink_arcs.size(); ++i) {
-      arc_capacity[source_sink_arcs[i]] = 1;
+    for (const auto& arc : source_sink_arcs) {
+      arc_capacity[arc] = 1;
     }
     for (size_t i = 0; i < sink_buffer_arcs.size(); ++i) {
-      arc_capacity[sink_buffer_arcs[i]] = 1;
-      arc_cost[sink_buffer_arcs[i]] = dist_costs[i];
+      const auto& arc = sink_buffer_arcs[i];
+      arc_capacity[arc] = 1;
+      arc_cost[arc] = dist_costs[i];
     }
-    for (size_t i = 0; i < buffer_target_arcs.size(); ++i) {
-      arc_capacity[buffer_target_arcs[i]] = cluster_capacity;
+    for (const auto& arc : buffer_target_arcs) {
+      arc_capacity[arc] = cluster_capacity;
     }
 
     // mcf solver by lemon
@@ -168,7 +169,7 @@ class MinCostFlow
       }
     }
     // remove empty cluster
-    clusters.erase(std::remove_if(clusters.begin(), clusters.end(), [](auto& cluster) { return cluster.empty(); }), clusters.end());
+    clusters.erase(std::remove_if(clusters.begin(), clusters.end(), [](auto& cluster) -> auto { return cluster.empty(); }), clusters.end());
     return clusters;
   }
 
@@ -183,13 +184,13 @@ class MinCostFlow
     FlowPoint point;
     Value value;
   };
-  static CostType calcCost(const FlowPoint& p1, const FlowPoint& p2)
+  static auto calcCost(const FlowPoint& p1, const FlowPoint& p2) -> CostType
   {
     const auto dist = geometry::Manhattan(Point<double>(p1.x, p1.y), Point<double>(p2.x, p2.y));
     return static_cast<CostType>(dist);
   }
-  std::vector<FlowPoint> _centers;
-  std::vector<FlowNode> _nodes;
+  std::vector<FlowPoint> _centers{};
+  std::vector<FlowNode> _nodes{};
 };
 
 }  // namespace icts

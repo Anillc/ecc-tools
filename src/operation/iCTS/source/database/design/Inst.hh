@@ -51,23 +51,23 @@ class Inst
   ~Inst() = default;
 
   // Getter
-  const std::string& get_name() const { return _name; }
-  const std::string& get_cell_master() const { return _cell_master; }
-  InstType get_type() const { return _type; }
-  const Point<int>& get_location() const { return _location; }
+  auto get_name() const -> const std::string& { return _name; }
+  auto get_cell_master() const -> const std::string& { return _cell_master; }
+  auto get_type() const -> InstType { return _type; }
+  auto get_location() const -> const Point<int>& { return _location; }
 
   // Setter
-  void set_name(const std::string& name) { _name = name; }
-  void set_cell_master(const std::string& cell_master) { _cell_master = cell_master; }
-  void set_type(InstType type) { _type = type; }
-  void set_location(const Point<int>& location) { _location = location; }
+  auto set_name(const std::string& name) -> void { _name = name; }
+  auto set_cell_master(const std::string& cell_master) -> void { _cell_master = cell_master; }
+  auto set_type(InstType type) -> void { _type = type; }
+  auto set_location(const Point<int>& location) -> void { _location = location; }
 
-  const std::vector<Pin*>& get_pins() const { return _pins; }
-  std::vector<Pin*>& get_pins() { return _pins; }
-  Pin* findDriverPin() const { return _pins.empty() ? nullptr : _pins.front(); }
-  void set_pins(const std::vector<Pin*>& pins) { _pins = pins; }
-  void add_pin(Pin* pin) { _pins.push_back(pin); }
-  void insertDriverPin(Pin* pin)
+  auto get_pins() const -> const std::vector<Pin*>& { return _pins; }
+  auto get_pins() -> std::vector<Pin*>& { return _pins; }
+  auto findDriverPin() const -> Pin* { return _pins.empty() ? nullptr : _pins.front(); }
+  auto set_pins(const std::vector<Pin*>& pins) -> void { _pins = pins; }
+  auto add_pin(Pin* pin) -> void { _pins.push_back(pin); }
+  auto insertDriverPin(Pin* pin) -> void
   {
     if (pin == nullptr) {
       return;
@@ -83,11 +83,11 @@ class Inst
   }
 
   // Boolean functions
-  bool is_buffer() const { return _type == InstType::kBuffer; }
-  bool is_flipflop() const { return _type == InstType::kFlipFlop; }
-  bool is_inverter() const { return _type == InstType::kInverter; }
-  bool is_clock_gate() const { return _type == InstType::kClockGate; }
-  bool is_mux() const { return _type == InstType::kMux; }
+  auto is_buffer() const -> bool { return _type == InstType::kBuffer; }
+  auto is_flipflop() const -> bool { return _type == InstType::kFlipFlop; }
+  auto is_inverter() const -> bool { return _type == InstType::kInverter; }
+  auto is_clock_gate() const -> bool { return _type == InstType::kClockGate; }
+  auto is_mux() const -> bool { return _type == InstType::kMux; }
 
  private:
   std::string _name = "";

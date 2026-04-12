@@ -38,17 +38,17 @@ class Net
   ~Net() = default;
 
   // Getter
-  const std::string& get_name() const { return _name; }
-  Pin* get_driver() const { return _driver; }
-  const std::vector<Pin*>& get_loads() const { return _loads; }
+  auto get_name() const -> const std::string& { return _name; }
+  auto get_driver() const -> Pin* { return _driver; }
+  auto get_loads() const -> const std::vector<Pin*>& { return _loads; }
 
   // Setter
-  void set_name(const std::string& net_name) { _name = net_name; }
-  void set_driver(Pin* driver) { _driver = driver; }
-  void set_loads(const std::vector<Pin*>& loads) { _loads = loads; }
+  auto set_name(const std::string& net_name) -> void { _name = net_name; }
+  auto set_driver(Pin* driver) -> void { _driver = driver; }
+  auto set_loads(const std::vector<Pin*>& loads) -> void { _loads = loads; }
 
   // Adder
-  void add_load(Pin* load) { _loads.push_back(load); }
+  auto add_load(Pin* load) -> void { _loads.push_back(load); }
 
  private:
   std::string _name = "";

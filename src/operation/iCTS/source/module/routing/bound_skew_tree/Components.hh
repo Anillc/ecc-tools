@@ -60,7 +60,7 @@ constexpr static double kEpsilon = 1e-7;
 #define FOR_EACH_BST_SIDE(side) for (size_t side = 0; side < 2; ++side)
 
 template <Numeric T1, Numeric T2>
-constexpr static bool Equal(const T1& a, const T2& b, const double& epsilon = kEpsilon)
+constexpr static auto Equal(const T1& a, const T2& b, const double& epsilon = kEpsilon) -> bool
 {
   return std::abs(a - b) < epsilon;
 }
@@ -73,31 +73,31 @@ class Point
       : x(t_x), y(t_y), max(t_max), min(t_min), val(t_val)
   {
   }
-  Point(const double& t_x, const double& t_y) : x(t_x), y(t_y), max(0), min(0), val(0) {}
+  Point(const double& t_x, const double& t_y) : x(t_x), y(t_y) {}
 
-  Point operator+(const Point& other) const { return Point(x + other.x, y + other.y); }
-  Point operator-(const Point& other) const { return Point(x - other.x, y - other.y); }
-  Point operator*(const double& scale) const { return Point(x * scale, y * scale); }
-  Point operator/(const double& scale) const { return Point(x / scale, y / scale); }
-  Point operator+=(const Point& other)
+  auto operator+(const Point& other) const -> Point { return Point(x + other.x, y + other.y); }
+  auto operator-(const Point& other) const -> Point { return Point(x - other.x, y - other.y); }
+  auto operator*(const double& scale) const -> Point { return Point(x * scale, y * scale); }
+  auto operator/(const double& scale) const -> Point { return Point(x / scale, y / scale); }
+  auto operator+=(const Point& other) -> Point
   {
     x += other.x;
     y += other.y;
     return *this;
   }
-  Point operator-=(const Point& other)
+  auto operator-=(const Point& other) -> Point
   {
     x -= other.x;
     y -= other.y;
     return *this;
   }
-  Point operator*=(const double& scale)
+  auto operator*=(const double& scale) -> Point
   {
     x *= scale;
     y *= scale;
     return *this;
   }
-  Point operator/=(const double& scale)
+  auto operator/=(const double& scale) -> Point
   {
     x /= scale;
     y /= scale;
@@ -144,21 +144,21 @@ class Area
   {
   }
   // get
-  const std::string& get_name() const { return _name; }
-  const double& get_cap_load() const { return _cap_load; }
-  const double& get_sub_len() const { return _sub_len; }
-  const double& get_edge_len(const size_t& side) const { return _edge_len[side]; }
-  const double& get_radius() const { return _radius; }
-  const RCPattern& get_pattern() const { return _pattern; }
+  auto get_name() const -> const std::string& { return _name; }
+  auto get_cap_load() const -> const double& { return _cap_load; }
+  auto get_sub_len() const -> const double& { return _sub_len; }
+  auto get_edge_len(const size_t& side) const -> const double& { return _edge_len[side]; }
+  auto get_radius() const -> const double& { return _radius; }
+  auto get_pattern() const -> const RCPattern& { return _pattern; }
 
-  const Point& get_location() const { return _location; }
-  Area* get_parent() const { return _parent; }
-  Area* get_left() const { return _left; }
-  Area* get_right() const { return _right; }
-  Line get_line(const size_t& side) const { return _lines[side]; }
-  Side<Line> get_lines() const { return _lines; }
-  Region get_merge_region() const { return _merge_region; }
-  std::vector<Line> getMergeRegionLines() const
+  auto get_location() const -> const Point& { return _location; }
+  auto get_parent() const -> Area* { return _parent; }
+  auto get_left() const -> Area* { return _left; }
+  auto get_right() const -> Area* { return _right; }
+  auto get_line(const size_t& side) const -> Line { return _lines[side]; }
+  auto get_lines() const -> Side<Line> { return _lines; }
+  auto get_merge_region() const -> Region { return _merge_region; }
+  auto getMergeRegionLines() const -> std::vector<Line>
   {
     std::vector<Line> lines;
     for (size_t i = 0; i < _merge_region.size(); ++i) {
@@ -168,8 +168,8 @@ class Area
     return lines;
   }
 
-  Region get_convex_hull() const { return _convex_hull; }
-  std::vector<Line> getConvexHullLines() const
+  auto get_convex_hull() const -> Region { return _convex_hull; }
+  auto getConvexHullLines() const -> std::vector<Line>
   {
     std::vector<Line> lines;
     for (size_t i = 0; i < _convex_hull.size(); ++i) {
@@ -179,27 +179,27 @@ class Area
     return lines;
   }
   // set
-  void set_name(const std::string& name) { _name = name; }
-  void set_cap_load(const double& cap_load) { _cap_load = cap_load; }
-  void set_sub_len(const double& sub_len) { _sub_len = sub_len; }
-  void set_edge_len(const size_t& side, const double& edge_len) { _edge_len[side] = edge_len; }
-  void set_radius(const double& radius) { _radius = radius; }
-  void set_pattern(const RCPattern& pattern) { _pattern = pattern; }
+  auto set_name(const std::string& name) -> void { _name = name; }
+  auto set_cap_load(const double& cap_load) -> void { _cap_load = cap_load; }
+  auto set_sub_len(const double& sub_len) -> void { _sub_len = sub_len; }
+  auto set_edge_len(const size_t& side, const double& edge_len) -> void { _edge_len[side] = edge_len; }
+  auto set_radius(const double& radius) -> void { _radius = radius; }
+  auto set_pattern(const RCPattern& pattern) -> void { _pattern = pattern; }
 
-  void set_location(const Point& location) { _location = location; }
-  void set_parent(Area* parent) { _parent = parent; }
-  void set_left(Area* left) { _left = left; }
-  void set_right(Area* right) { _right = right; }
-  void set_line(const size_t& side, const Line& line) { _lines[side] = line; }
-  void set_merge_region(const Region& merge_region) { _merge_region = merge_region; }
-  void set_convex_hull(const Region& convex_hull) { _convex_hull = convex_hull; }
+  auto set_location(const Point& location) -> void { _location = location; }
+  auto set_parent(Area* parent) -> void { _parent = parent; }
+  auto set_left(Area* left) -> void { _left = left; }
+  auto set_right(Area* right) -> void { _right = right; }
+  auto set_line(const size_t& side, const Line& line) -> void { _lines[side] = line; }
+  auto set_merge_region(const Region& merge_region) -> void { _merge_region = merge_region; }
+  auto set_convex_hull(const Region& convex_hull) -> void { _convex_hull = convex_hull; }
 
   // add
-  void add_merge_region_point(const Point& point) { _merge_region.push_back(point); }
-  void add_convex_hull_point(const Point& point) { _convex_hull.push_back(point); }
+  auto add_merge_region_point(const Point& point) -> void { _merge_region.push_back(point); }
+  auto add_convex_hull_point(const Point& point) -> void { _convex_hull.push_back(point); }
 
-  bool is_fixed_terminal() const { return _is_fixed_terminal; }
-  void set_is_fixed_terminal(bool is_fixed_terminal) { _is_fixed_terminal = is_fixed_terminal; }
+  auto is_fixed_terminal() const -> bool { return _is_fixed_terminal; }
+  auto set_is_fixed_terminal(bool is_fixed_terminal) -> void { _is_fixed_terminal = is_fixed_terminal; }
 
  private:
   std::string _name;
@@ -234,13 +234,13 @@ class Interval
   Interval(const double& low, const double& high) : _low(low), _high(high) {}
   Interval(const Interval& other) : _low(other._low), _high(other._high) {}
 
-  const double& low() const { return _low; }
-  const double& high() const { return _high; }
+  auto low() const -> const double& { return _low; }
+  auto high() const -> const double& { return _high; }
 
-  bool is_empty() const { return _low > _high; }
-  bool is_point() const { return _low == _high; }
+  auto is_empty() const -> bool { return _low > _high; }
+  auto is_point() const -> bool { return _low == _high; }
 
-  void enclose(const double& val)
+  auto enclose(const double& val) -> void
   {
     if (is_empty()) {
       _low = val;
@@ -250,7 +250,7 @@ class Interval
       _high = std::max(_high, val);
     }
   }
-  void enclose(const Interval& other)
+  auto enclose(const Interval& other) -> void
   {
     if (!other.is_empty()) {
       enclose(other.low());
@@ -258,10 +258,10 @@ class Interval
     }
   }
 
-  bool isEnclosed(const double& val) const { return _low <= val && val <= _high; }
-  bool isEnclosed(const Interval& other) const { return _low <= other.low() && other.high() <= _high; }
+  auto isEnclosed(const double& val) const -> bool { return _low <= val && val <= _high; }
+  auto isEnclosed(const Interval& other) const -> bool { return _low <= other.low() && other.high() <= _high; }
 
-  double width() const { return is_empty() ? 0 : _high - _low; }
+  auto width() const -> double { return is_empty() ? 0 : _high - _low; }
 
  private:
   double _low = 1;
@@ -278,27 +278,27 @@ class TransformedRect
   }
   TransformedRect(const Point& point, const double& radius) { makeDiamond(point, radius); }
 
-  void init()
+  auto init() -> void
   {
     _x_low = _y_low = 1;
     _x_high = _y_high = 0;
   }
-  const double& x_low() const { return _x_low; }
-  const double& x_high() const { return _x_high; }
-  const double& y_low() const { return _y_low; }
-  const double& y_high() const { return _y_high; }
-  void x_low(const double& val) { _x_low = val; }
-  void x_high(const double& val) { _x_high = val; }
-  void y_low(const double& val) { _y_low = val; }
-  void y_high(const double& val) { _y_high = val; }
+  auto x_low() const -> const double& { return _x_low; }
+  auto x_high() const -> const double& { return _x_high; }
+  auto y_low() const -> const double& { return _y_low; }
+  auto y_high() const -> const double& { return _y_high; }
+  auto x_low(const double& val) -> void { _x_low = val; }
+  auto x_high(const double& val) -> void { _x_high = val; }
+  auto y_low(const double& val) -> void { _y_low = val; }
+  auto y_high(const double& val) -> void { _y_high = val; }
 
-  bool is_empty() const
+  auto is_empty() const -> bool
   {
     auto x_interval = Interval(_x_low, _x_high);
     auto y_interval = Interval(_y_low, _y_high);
     return x_interval.is_empty() || y_interval.is_empty();
   }
-  void makeDiamond(const Point& point, const double& radius)
+  auto makeDiamond(const Point& point, const double& radius) -> void
   {
     auto val = point.x - point.y;
     _x_low = val - radius;
@@ -307,7 +307,7 @@ class TransformedRect
     _y_low = val - radius;
     _y_high = val + radius;
   }
-  void enclose(const TransformedRect& other)
+  auto enclose(const TransformedRect& other) -> void
   {
     if (is_empty()) {
       _x_low = other._x_low;
@@ -322,7 +322,7 @@ class TransformedRect
     }
   }
 
-  double width(const size_t& side) const
+  auto width(const size_t& side) const -> double
   {
     if (side == 0) {
       return _x_high - _x_low;
@@ -331,14 +331,14 @@ class TransformedRect
     }
   }
 
-  double diameter() const { return std::max(width(0), width(1)); }
+  auto diameter() const -> double { return std::max(width(0), width(1)); }
 
   static auto intersect(const TransformedRect& trr1, const TransformedRect& trr2) -> TransformedRect;
 
  private:
-  void check();
+  auto check() -> void;
 
-  void correction();
+  auto correction() -> void;
   double _x_low = 1;
   double _x_high = 0;
   double _y_low = 1;

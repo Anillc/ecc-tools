@@ -65,7 +65,7 @@ auto CsvBool(bool value) -> const char*
   return value ? "true" : "false";
 }
 
-void AppendCsvCell(std::ostringstream& output_stream, const std::string& value, bool* first_cell)
+auto AppendCsvCell(std::ostringstream& output_stream, const std::string& value, bool* first_cell) -> void
 {
   if (!*first_cell) {
     output_stream << ",";
@@ -74,12 +74,12 @@ void AppendCsvCell(std::ostringstream& output_stream, const std::string& value, 
   *first_cell = false;
 }
 
-void AppendCsvCell(std::ostringstream& output_stream, const char* value, bool* first_cell)
+auto AppendCsvCell(std::ostringstream& output_stream, const char* value, bool* first_cell) -> void
 {
   AppendCsvCell(output_stream, std::string(value), first_cell);
 }
 
-void AppendCsvCell(std::ostringstream& output_stream, std::size_t value, bool* first_cell)
+auto AppendCsvCell(std::ostringstream& output_stream, std::size_t value, bool* first_cell) -> void
 {
   if (!*first_cell) {
     output_stream << ",";
@@ -88,7 +88,7 @@ void AppendCsvCell(std::ostringstream& output_stream, std::size_t value, bool* f
   *first_cell = false;
 }
 
-void AppendCsvCell(std::ostringstream& output_stream, int value, bool* first_cell)
+auto AppendCsvCell(std::ostringstream& output_stream, int value, bool* first_cell) -> void
 {
   if (!*first_cell) {
     output_stream << ",";
@@ -97,7 +97,7 @@ void AppendCsvCell(std::ostringstream& output_stream, int value, bool* first_cel
   *first_cell = false;
 }
 
-void AppendCsvCell(std::ostringstream& output_stream, double value, bool* first_cell)
+auto AppendCsvCell(std::ostringstream& output_stream, double value, bool* first_cell) -> void
 {
   if (!*first_cell) {
     output_stream << ",";

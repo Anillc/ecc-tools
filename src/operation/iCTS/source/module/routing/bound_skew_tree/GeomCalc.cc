@@ -73,7 +73,7 @@ struct LinePairView
          < kEpsilon;
 }
 
-void AccumulateEndpointIntersections(const EndpointIntersectionContext& context, const LinePairView& line_pair)
+auto AccumulateEndpointIntersections(const EndpointIntersectionContext& context, const LinePairView& line_pair) -> void
 {
   CTS_LOG_FATAL_IF(context.intersection_point == nullptr || context.intersection_count == nullptr)
       << "endpoint intersection context is null";
@@ -88,7 +88,7 @@ void AccumulateEndpointIntersections(const EndpointIntersectionContext& context,
   }
 }
 
-void RemoveDuplicatedEndpointIntersections(size_t& intersection_count, const std::array<LinePairView, kLinePointCount>& line_pairs)
+auto RemoveDuplicatedEndpointIntersections(size_t& intersection_count, const std::array<LinePairView, kLinePointCount>& line_pairs) -> void
 {
   const LinePairView& left_to_right = line_pairs.at(kLeft);
   const LinePairView& right_to_left = line_pairs.at(kRight);
@@ -278,7 +278,7 @@ auto GeomCalc::pointToTransformedRectDistance(const Point& point, TransformedRec
   return min_distance;
 }
 
-void GeomCalc::calcCoord(Point& point, const Line& line, const double& shift)
+auto GeomCalc::calcCoord(Point& point, const Line& line, const double& shift) -> void
 {
   const auto current_line_type = lineType(line);
   double head_distance = 0.0;
@@ -295,7 +295,7 @@ void GeomCalc::calcCoord(Point& point, const Line& line, const double& shift)
   point.y = ((line.at(kHead).y * tail_distance) + (line.at(kTail).y * head_distance)) / (head_distance + tail_distance);
 }
 
-void GeomCalc::calcRelativeCoord(Point& point, const RelativeType& type, const double& shift)
+auto GeomCalc::calcRelativeCoord(Point& point, const RelativeType& type, const double& shift) -> void
 {
   switch (type) {
     case RelativeType::kLeft:
@@ -577,8 +577,8 @@ auto GeomCalc::transformedRectDistance(TransformedRect& lhs_transformed_rect, Tr
   return 0;
 }
 
-void GeomCalc::makeIntersection(const TransformedRect& first_transformed_rect, const TransformedRect& second_transformed_rect,
-                                TransformedRect& intersection)
+auto GeomCalc::makeIntersection(const TransformedRect& first_transformed_rect, const TransformedRect& second_transformed_rect,
+                                TransformedRect& intersection) -> void
 {
   intersection.x_low(std::max(first_transformed_rect.x_low(), second_transformed_rect.x_low()));
   intersection.x_high(std::min(first_transformed_rect.x_high(), second_transformed_rect.x_high()));
@@ -587,7 +587,7 @@ void GeomCalc::makeIntersection(const TransformedRect& first_transformed_rect, c
   normalizeTransformedRect(intersection);
 }
 
-void GeomCalc::coreMidPoint(TransformedRect& transformed_rect, Point& midpoint)
+auto GeomCalc::coreMidPoint(TransformedRect& transformed_rect, Point& midpoint) -> void
 {
   const auto transformed_x = (transformed_rect.x_low() + transformed_rect.x_high()) / 2;
   const auto transformed_y = (transformed_rect.y_low() + transformed_rect.y_high()) / 2;
@@ -603,8 +603,8 @@ auto GeomCalc::containsTransformedRect(const TransformedRect& inner_transformed_
          && inner_transformed_rect.y_low() >= outer_transformed_rect.y_low() - kEpsilon;
 }
 
-void GeomCalc::buildTransformedRect(const TransformedRect& transformed_rect, const double& radius,
-                                    TransformedRect& expanded_transformed_rect)
+auto GeomCalc::buildTransformedRect(const TransformedRect& transformed_rect, const double& radius,
+                                    TransformedRect& expanded_transformed_rect) -> void
 {
   expanded_transformed_rect.x_low(transformed_rect.x_low() - radius);
   expanded_transformed_rect.x_high(transformed_rect.x_high() + radius);
@@ -612,7 +612,7 @@ void GeomCalc::buildTransformedRect(const TransformedRect& transformed_rect, con
   expanded_transformed_rect.y_high(transformed_rect.y_high() + radius);
 }
 
-void GeomCalc::transformedRectCore(const TransformedRect& transformed_rect, TransformedRect& core_transformed_rect)
+auto GeomCalc::transformedRectCore(const TransformedRect& transformed_rect, TransformedRect& core_transformed_rect) -> void
 {
   if (transformed_rect.x_high() - transformed_rect.x_low() < transformed_rect.y_high() - transformed_rect.y_low()) {
     core_transformed_rect.y_low(transformed_rect.y_low());
@@ -630,13 +630,13 @@ void GeomCalc::transformedRectCore(const TransformedRect& transformed_rect, Tran
   core_transformed_rect.y_high(center_y);
 }
 
-void GeomCalc::transformedRectToPoint(const TransformedRect& transformed_rect, Point& point)
+auto GeomCalc::transformedRectToPoint(const TransformedRect& transformed_rect, Point& point) -> void
 {
   point.x = (transformed_rect.y_low() + transformed_rect.x_high()) / 2;
   point.y = (transformed_rect.y_low() - transformed_rect.x_high()) / 2;
 }
 
-void GeomCalc::transformedRectToRegion(TransformedRect& transformed_rect, Region& region)
+auto GeomCalc::transformedRectToRegion(TransformedRect& transformed_rect, Region& region) -> void
 {
   const auto transformed_width = transformed_rect.x_high() - transformed_rect.x_low();
   const auto transformed_height = transformed_rect.y_high() - transformed_rect.y_low();
@@ -677,13 +677,13 @@ auto GeomCalc::isSegmentTransformedRect(const TransformedRect& transformed_rect)
   return Equal(transformed_rect.x_low(), transformed_rect.x_high()) || Equal(transformed_rect.y_low(), transformed_rect.y_high());
 }
 
-void GeomCalc::sortPointsByFront(Points& points)
+auto GeomCalc::sortPointsByFront(Points& points) -> void
 {
   std::ranges::for_each(points, [&](Point& point) -> void { point.val = distance(point, points.front()); });
   sortPointsByValue(points);
 }
 
-void GeomCalc::sortPointsByValue(Points& points)
+auto GeomCalc::sortPointsByValue(Points& points) -> void
 {
   if (points.empty()) {
     return;
@@ -691,7 +691,7 @@ void GeomCalc::sortPointsByValue(Points& points)
   std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) -> bool { return lhs_point.val < rhs_point.val; });
 }
 
-void GeomCalc::sortPointsByValueDesc(Points& points)
+auto GeomCalc::sortPointsByValueDesc(Points& points) -> void
 {
   if (points.empty()) {
     return;
@@ -699,7 +699,7 @@ void GeomCalc::sortPointsByValueDesc(Points& points)
   std::ranges::sort(points, [](const Point& lhs_point, const Point& rhs_point) -> bool { return lhs_point.val > rhs_point.val; });
 }
 
-void GeomCalc::uniquePointLocations(std::vector<Point>& points)
+auto GeomCalc::uniquePointLocations(std::vector<Point>& points) -> void
 {
   if (points.size() < kLinePointCount) {
     return;
@@ -717,14 +717,14 @@ void GeomCalc::uniquePointLocations(std::vector<Point>& points)
   points = unique_points;
 }
 
-void GeomCalc::uniquePointValues(std::vector<Point>& points)
+auto GeomCalc::uniquePointValues(std::vector<Point>& points) -> void
 {
   auto [first, last] = std::ranges::unique(
       points, [](const Point& lhs_point, const Point& rhs_point) -> bool { return Equal(lhs_point.val, rhs_point.val); });
   points.erase(first, last);
 }
 
-void GeomCalc::convexHull(std::vector<Point>& points)
+auto GeomCalc::convexHull(std::vector<Point>& points) -> void
 {
   if (points.size() < kLinePointCount) {
     return;
@@ -828,12 +828,12 @@ auto GeomCalc::closestPointOnRegion(const Point& point, const std::vector<Point>
   return best_point;
 }
 
-void GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Line& line)
+auto GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Line& line) -> void
 {
   lineToTransformedRect(transformed_rect, line.at(kHead), line.at(kTail));
 }
 
-void GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Point& first_point, const Point& second_point)
+auto GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Point& first_point, const Point& second_point) -> void
 {
   if (first_point.y <= second_point.y) {
     transformed_rect.x_low(second_point.x - second_point.y);
@@ -849,12 +849,12 @@ void GeomCalc::lineToTransformedRect(TransformedRect& transformed_rect, const Po
   normalizeTransformedRect(transformed_rect);
 }
 
-void GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Line& line)
+auto GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Line& line) -> void
 {
   transformedRectToLine(transformed_rect, line.at(kHead), line.at(kTail));
 }
 
-void GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Point& first_point, Point& second_point)
+auto GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Point& first_point, Point& second_point) -> void
 {
   normalizeTransformedRect(transformed_rect);
   first_point.x = (transformed_rect.y_low() + transformed_rect.x_high()) / 2;
@@ -864,7 +864,7 @@ void GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Point& f
   CTS_LOG_FATAL_IF(first_point.y > second_point.y) << "second point y should be larger than first point y";
 }
 
-void GeomCalc::normalizeTransformedRect(TransformedRect& transformed_rect)
+auto GeomCalc::normalizeTransformedRect(TransformedRect& transformed_rect) -> void
 {
   const auto x_low = transformed_rect.x_low();
   const auto x_high = transformed_rect.x_high();

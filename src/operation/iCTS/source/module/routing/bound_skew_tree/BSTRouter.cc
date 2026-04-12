@@ -199,7 +199,7 @@ auto MakeBuildFrame(std::size_t child_id) -> BuildFrame
   return frame;
 }
 
-void PushBuildFrame(std::vector<BuildFrame>& frame_stack, std::size_t child_id)
+auto PushBuildFrame(std::vector<BuildFrame>& frame_stack, std::size_t child_id) -> void
 {
   frame_stack.push_back(MakeBuildFrame(child_id));
 }
@@ -224,9 +224,9 @@ auto CollectNonNullChildren(BinaryTopologyNode* node) -> std::vector<BinaryTopol
   return children;
 }
 
-void EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& input_topology, const BSTParameters& parameters,
+auto EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& input_topology, const BSTParameters& parameters,
                      std::size_t& next_steiner_id, BinaryNodeStore& owned_nodes, BinaryTopologyNode*& return_value,
-                     std::vector<BuildFrame>& frame_stack)
+                     std::vector<BuildFrame>& frame_stack) -> void
 {
   const auto* tree_node = input_topology.get_node(frame.node_id);
   CTS_LOG_FATAL_IF(tree_node == nullptr) << "BST input-topology node is null.";
@@ -277,8 +277,8 @@ void EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
   }
 }
 
-void ExitSingleChildFrame(BuildFrame& frame, std::size_t& next_steiner_id, BinaryNodeStore& owned_nodes, BinaryTopologyNode*& return_value,
-                          std::vector<BuildFrame>& frame_stack)
+auto ExitSingleChildFrame(BuildFrame& frame, std::size_t& next_steiner_id, BinaryNodeStore& owned_nodes, BinaryTopologyNode*& return_value,
+                          std::vector<BuildFrame>& frame_stack) -> void
 {
   auto* child = return_value;
   CTS_LOG_FATAL_IF(child == nullptr) << "BST input-topology child build returned null.";
@@ -307,9 +307,9 @@ void ExitSingleChildFrame(BuildFrame& frame, std::size_t& next_steiner_id, Binar
   frame_stack.pop_back();
 }
 
-void ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& input_topology, const BSTParameters& parameters,
+auto ProcessBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& input_topology, const BSTParameters& parameters,
                        std::size_t& next_steiner_id, BinaryNodeStore& owned_nodes, BinaryTopologyNode*& return_value,
-                       std::vector<BuildFrame>& frame_stack)
+                       std::vector<BuildFrame>& frame_stack) -> void
 {
   switch (frame.state) {
     case BuildState::kEnter:
@@ -393,7 +393,7 @@ auto BuildBinaryTopologyNode(const BSTRouter::ClockSteinerTreeType& input_topolo
   return return_value;
 }
 
-void FinalizeElectricalState(BinaryTopologyNode* node, const BSTParameters& parameters)
+auto FinalizeElectricalState(BinaryTopologyNode* node, const BSTParameters& parameters) -> void
 {
   if (node == nullptr) {
     return;

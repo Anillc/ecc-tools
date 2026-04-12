@@ -45,13 +45,13 @@ class CustomSaltBuilder
   CustomSaltBuilder() = default;
   ~CustomSaltBuilder();
 
-  void run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level = 3);
+  auto run(const salt::Net& net, salt::Tree& input_tree, double eps, int refine_level = 3) -> void;
 
  private:
-  bool relax(const std::shared_ptr<salt::TreeNode>& source_node, const std::shared_ptr<salt::TreeNode>& target_node);
-  void dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps);
-  void init(const salt::Tree& min_tree, const std::shared_ptr<salt::Pin>& src_pin);
-  void finalize(const salt::Net& net, salt::Tree& tree) const;
+  auto relax(const std::shared_ptr<salt::TreeNode>& source_node, const std::shared_ptr<salt::TreeNode>& target_node) -> bool;
+  auto dfs(const std::shared_ptr<salt::TreeNode>& tree_node, const std::shared_ptr<salt::TreeNode>& cbs_node, double eps) -> void;
+  auto init(const salt::Tree& min_tree, const std::shared_ptr<salt::Pin>& src_pin) -> void;
+  auto finalize(const salt::Net& net, salt::Tree& tree) const -> void;
 
   std::vector<std::shared_ptr<salt::TreeNode>> _nodes;
   std::vector<double> _shortest_latency;
@@ -68,7 +68,7 @@ class CBSRouter
   CBSRouter() = delete;
   ~CBSRouter() = default;
 
-  static ClockSteinerTreeType buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters);
+  static auto buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters) -> ClockSteinerTreeType;
 };
 
 }  // namespace icts

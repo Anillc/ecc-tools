@@ -45,7 +45,7 @@ struct HTreeTraits
    *
    * Key = pack(input_slew, driven_cap)
    */
-  static unsigned buildKey(const HTreeTopologyChar& c) { return detail::Pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
+  static auto buildKey(const HTreeTopologyChar& c) -> unsigned { return detail::Pack(c.get_input_slew_idx(), c.get_driven_cap_idx()); }
 
   /**
    * @brief Probe key from upstream entry.
@@ -54,12 +54,12 @@ struct HTreeTraits
    *
    * NOTE: Integer division (floor) for cap halving.
    */
-  static unsigned probeKey(const HTreeTopologyChar& c) { return detail::Pack(c.get_output_slew_idx(), c.get_load_cap_idx() / 2); }
+  static auto probeKey(const HTreeTopologyChar& c) -> unsigned { return detail::Pack(c.get_output_slew_idx(), c.get_load_cap_idx() / 2); }
 
   /**
    * @brief Compose upstream and downstream into merged result.
    */
-  static HTreeTopologyChar compose(const HTreeTopologyChar& up, const HTreeTopologyChar& down, PatternId merged_pid)
+  static auto compose(const HTreeTopologyChar& up, const HTreeTopologyChar& down, PatternId merged_pid) -> HTreeTopologyChar
   {
     return HTreeTopologyChar::compose(up, down, merged_pid);
   }

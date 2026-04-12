@@ -34,7 +34,7 @@ auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loa
     -> bool;
 auto WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads) -> bool;
 auto WriteTextLog(const std::filesystem::path& path, const std::string& content) -> bool;
-void EmitInfoReport(const InfoReport& report);
+auto EmitInfoReport(const InfoReport& report) -> void;
 auto SanitizeOutputName(const std::string& raw_name) -> std::string;
 auto PrepareCleanOutputDir(const std::filesystem::path& path) -> std::filesystem::path;
 auto ResolveOutputDir() -> std::filesystem::path;

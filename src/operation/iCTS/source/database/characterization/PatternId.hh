@@ -51,21 +51,21 @@ struct PatternId
   /**
    * @brief Create a segment pattern ID.
    */
-  static PatternId segment(unsigned id) { return PatternId{PatternDomain::kSegmentPattern, id}; }
+  static auto segment(unsigned id) -> PatternId { return PatternId{PatternDomain::kSegmentPattern, id}; }
 
   /**
    * @brief Create a topology pattern ID.
    */
-  static PatternId topology(unsigned id) { return PatternId{PatternDomain::kTopologyPattern, id}; }
+  static auto topology(unsigned id) -> PatternId { return PatternId{PatternDomain::kTopologyPattern, id}; }
 
-  bool operator==(const PatternId& other) const { return domain == other.domain && local_id == other.local_id; }
+  auto operator==(const PatternId& other) const -> bool { return domain == other.domain && local_id == other.local_id; }
 
-  bool operator!=(const PatternId& other) const { return !(*this == other); }
+  auto operator!=(const PatternId& other) const -> bool { return !(*this == other); }
 
   /**
    * @brief Pack into a single unsigned for use as hash key.
    */
-  unsigned pack() const { return (static_cast<unsigned>(domain) << 30) | local_id; }
+  auto pack() const -> unsigned { return (static_cast<unsigned>(domain) << 30) | local_id; }
 };
 
 }  // namespace icts
@@ -75,7 +75,7 @@ namespace std {
 template <>
 struct hash<icts::PatternId>
 {
-  std::size_t operator()(const icts::PatternId& pid) const noexcept { return std::hash<unsigned>{}(pid.pack()); }
+  auto operator()(const icts::PatternId& pid) const noexcept -> std::size_t { return std::hash<unsigned>{}(pid.pack()); }
 };
 
 }  // namespace std

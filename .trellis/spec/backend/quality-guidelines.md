@@ -28,6 +28,11 @@ Repository-wide constraints such as file extensions, copyright headers, and `#pr
 Rule of thumb:
 - if the body is more than a direct read, write, or simple comparison, use `camelBack`
 
+### Modern C++
+
+- Prefer consistent modern C++ style in touched iCTS code.
+- Keep declarations and definitions aligned when you clean up an existing interface.
+
 ### Includes
 
 - Prefer forward declarations when a header only needs a pointer or reference.
@@ -77,6 +82,7 @@ Detailed checker usage, presets, outputs, suppressions, and tool behavior live i
 Before handoff, verify:
 
 - [ ] Naming follows the backend rules
+- [ ] Touched code keeps a consistent modern C++ style
 - [ ] Headers are minimal and self-contained
 - [ ] Include order is correct
 - [ ] CMake dependencies use the correct visibility

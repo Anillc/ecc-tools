@@ -44,7 +44,7 @@ class STAAdapter
     double wire_cap = 0.0;
     double load_cap = 0.0;
   };
-  static STAAdapter& getInst()
+  static auto getInst() -> STAAdapter&
   {
     static STAAdapter inst;
     return inst;
@@ -52,35 +52,34 @@ class STAAdapter
 
   STAAdapter(const STAAdapter& rhs) = delete;
   STAAdapter(STAAdapter&& rhs) = delete;
-  STAAdapter& operator=(const STAAdapter& rhs) = delete;
-  STAAdapter& operator=(STAAdapter&& rhs) = delete;
+  auto operator=(const STAAdapter& rhs) -> STAAdapter& = delete;
+  auto operator=(STAAdapter&& rhs) -> STAAdapter& = delete;
 
-  static void init();
+  static auto init() -> void;
+  static auto queryInstType(const std::string& inst_name) -> icts::InstType;
+  static auto isFlipFlop(const std::string& inst_name) -> bool;
+  static auto isClockNet(const std::string& net_name) -> bool;
+  static auto collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>;
+  static auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  static auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  static auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
+  static auto queryCellInPinSlewLimit(const std::string& cell_master) -> double;
 
-  static icts::InstType queryInstType(const std::string& inst_name);
-  static bool isFlipFlop(const std::string& inst_name);
-  static bool isClockNet(const std::string& net_name);
-  static std::vector<std::pair<std::string, std::string>> collectClockNetPairs();
-  static double queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt);
-  static double queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt);
-  static double queryCellOutPinCapLimit(const std::string& cell_master);
-  static double queryCellInPinSlewLimit(const std::string& cell_master);
-
-  static std::string createCharInstance(const std::string& cell_master, const std::string& inst_name);
-  static std::string createCharNet(const std::string& net_name);
-  static void attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name);
-  static void buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config);
-  static void createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns);
-  static void destroyCharClock();
-  static void setCharInputSlew(const std::string& pin_full_name, double slew_ns);
-  static void updateTiming();
-  static double queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name);
-  static double queryCharSlew(const std::string& pin_full_name);
-  static double queryCharInputPinCap(const std::string& cell_master);
-  static double queryPinCapacitance(const Pin* pin);
-  static std::pair<std::string, std::string> queryBufferPorts(const std::string& cell_master);
-  static void destroyCharInstance(const std::string& inst_name);
-  static void destroyCharNet(const std::string& net_name);
+  static auto createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string;
+  static auto createCharNet(const std::string& net_name) -> std::string;
+  static auto attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void;
+  static auto buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void;
+  static auto createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void;
+  static auto destroyCharClock() -> void;
+  static auto setCharInputSlew(const std::string& pin_full_name, double slew_ns) -> void;
+  static auto updateTiming() -> void;
+  static auto queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) -> double;
+  static auto queryCharSlew(const std::string& pin_full_name) -> double;
+  static auto queryCharInputPinCap(const std::string& cell_master) -> double;
+  static auto queryPinCapacitance(const Pin* pin) -> double;
+  static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
+  static auto destroyCharInstance(const std::string& inst_name) -> void;
+  static auto destroyCharNet(const std::string& net_name) -> void;
 
  private:
   STAAdapter() = default;

@@ -70,12 +70,12 @@ class LocalLegalization
   LocalLegalization() = delete;
   ~LocalLegalization() = default;
 
-  static Result legalize(const Problem& problem);
-  static Result legalize(const Problem& problem, const Options& options);
-  static Result legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points = {},
-                         const RegionType& feasible_region = RegionType{}, const RegionType& block_region = RegionType{});
-  static Result legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
-                         const RegionType& feasible_region, const RegionType& block_region, const Options& options);
+  static auto legalize(const Problem& problem) -> Result;
+  static auto legalize(const Problem& problem, const Options& options) -> Result;
+  static auto legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points = {},
+                       const RegionType& feasible_region = RegionType{}, const RegionType& block_region = RegionType{}) -> Result;
+  static auto legalize(std::vector<PointType>& movable_points, const std::vector<PointType>& fixed_points,
+                       const RegionType& feasible_region, const RegionType& block_region, const Options& options) -> Result;
 
  private:
   struct CandidateSite
@@ -83,21 +83,21 @@ class LocalLegalization
     PointType point = PointType(-1, -1);
   };
 
-  static RegionType buildLegalRegion(const Problem& problem);
+  static auto buildLegalRegion(const Problem& problem) -> RegionType;
 
-  static std::vector<CandidateSite> generateCandidates(const PointType& origin, const RegionType& legal_region,
-                                                       const std::vector<PointType>& fixed_points, std::size_t candidate_budget,
-                                                       int local_search_radius);
-  static std::vector<CandidateSite> enumerateProjectedNeighbors(const PointType& seed, const RegionType& legal_region,
-                                                                const std::vector<PointType>& fixed_points, int max_radius,
-                                                                std::size_t candidate_budget);
-  static std::vector<CandidateSite> enumerateBoundaryBreakpoints(const PointType& origin, const RegionType& legal_region,
-                                                                 const std::vector<PointType>& fixed_points, std::size_t candidate_budget);
-  static std::vector<PointType> solveAssignment(const std::vector<PointType>& movable_points,
-                                                const std::vector<std::vector<CandidateSite>>& candidate_sets);
-  static long long computeTotalDisplacement(const std::vector<PointType>& original_points, const std::vector<PointType>& legalized_points);
-  static void appendCandidate(std::vector<CandidateSite>& candidates, const PointType& point, const RegionType& legal_region,
-                              const std::vector<PointType>& fixed_points, std::size_t candidate_budget);
+  static auto generateCandidates(const PointType& origin, const RegionType& legal_region, const std::vector<PointType>& fixed_points,
+                                 std::size_t candidate_budget, int local_search_radius) -> std::vector<CandidateSite>;
+  static auto enumerateProjectedNeighbors(const PointType& seed, const RegionType& legal_region, const std::vector<PointType>& fixed_points,
+                                          int max_radius, std::size_t candidate_budget) -> std::vector<CandidateSite>;
+  static auto enumerateBoundaryBreakpoints(const PointType& origin, const RegionType& legal_region,
+                                           const std::vector<PointType>& fixed_points, std::size_t candidate_budget)
+      -> std::vector<CandidateSite>;
+  static auto solveAssignment(const std::vector<PointType>& movable_points, const std::vector<std::vector<CandidateSite>>& candidate_sets)
+      -> std::vector<PointType>;
+  static auto computeTotalDisplacement(const std::vector<PointType>& original_points, const std::vector<PointType>& legalized_points)
+      -> long long;
+  static auto appendCandidate(std::vector<CandidateSite>& candidates, const PointType& point, const RegionType& legal_region,
+                              const std::vector<PointType>& fixed_points, std::size_t candidate_budget) -> void;
 };
 
 }  // namespace icts

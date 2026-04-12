@@ -49,7 +49,7 @@ struct ParetoPruner
    * Entries are only compared within the same group.
    * Default: group by pattern ID.
    */
-  unsigned groupKey(const CharT& c) const { return c.get_pattern_id().pack(); }
+  auto groupKey(const CharT& c) const -> unsigned { return c.get_pattern_id().pack(); }
 
   /**
    * @brief Check if entry 'a' dominates entry 'b'.
@@ -57,7 +57,7 @@ struct ParetoPruner
    * @return true if a is better or equal in all metrics and strictly better in
    * at least one
    */
-  bool dominates(const CharT& a, const CharT& b) const
+  auto dominates(const CharT& a, const CharT& b) const -> bool
   {
     // All metrics: a must be >= b in desirability
     bool all_ge = (a.get_output_slew_idx() <= b.get_output_slew_idx()) && (a.get_load_cap_idx() >= b.get_load_cap_idx())
@@ -77,7 +77,7 @@ struct ParetoPruner
    *
    * @return 0 means no limit (keep all non-dominated)
    */
-  std::size_t maxPerGroup() const { return 0; }
+  auto maxPerGroup() const -> std::size_t { return 0; }
 };
 
 /**
@@ -89,9 +89,9 @@ struct ParetoPruner
 template <class CharT>
 struct InputBoundaryPruner
 {
-  unsigned groupKey(const CharT& c) const { return (c.get_input_slew_idx() << 16) | c.get_driven_cap_idx(); }
+  auto groupKey(const CharT& c) const -> unsigned { return (c.get_input_slew_idx() << 16) | c.get_driven_cap_idx(); }
 
-  bool dominates(const CharT& a, const CharT& b) const
+  auto dominates(const CharT& a, const CharT& b) const -> bool
   {
     bool all_ge = (a.get_output_slew_idx() <= b.get_output_slew_idx()) && (a.get_load_cap_idx() >= b.get_load_cap_idx())
                   && (a.get_delay() <= b.get_delay()) && (a.get_power() <= b.get_power());
@@ -102,7 +102,7 @@ struct InputBoundaryPruner
            || (a.get_delay() < b.get_delay()) || (a.get_power() < b.get_power());
   }
 
-  std::size_t maxPerGroup() const { return 0; }
+  auto maxPerGroup() const -> std::size_t { return 0; }
 };
 
 }  // namespace icts

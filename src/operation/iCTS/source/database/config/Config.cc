@@ -145,30 +145,31 @@ auto parse_string_list(const nlohmann::json& value) -> std::vector<std::string>
   return result;
 }
 
-void ApplyDoubleIfPresent(const nlohmann::json& json, const char* key, Config& config, double (Config::*getter)() const,
-                          void (Config::*setter)(double))
+auto ApplyDoubleIfPresent(const nlohmann::json& json, const char* key, Config& config, double (Config::*getter)() const,
+                          void (Config::*setter)(double)) -> void
 {
   if (json.contains(key)) {
     (config.*setter)(parse_double(json.at(key), (config.*getter)()));
   }
 }
 
-void ApplyUnsignedIfPresent(const nlohmann::json& json, const char* key, Config& config, unsigned (Config::*getter)() const,
-                            void (Config::*setter)(unsigned))
+auto ApplyUnsignedIfPresent(const nlohmann::json& json, const char* key, Config& config, unsigned (Config::*getter)() const,
+                            void (Config::*setter)(unsigned)) -> void
 {
   if (json.contains(key)) {
     (config.*setter)(parse_unsigned(json.at(key), (config.*getter)()));
   }
 }
 
-void ApplyBoolIfPresent(const nlohmann::json& json, const char* key, bool default_value, Config& config, void (Config::*setter)(bool))
+auto ApplyBoolIfPresent(const nlohmann::json& json, const char* key, bool default_value, Config& config, void (Config::*setter)(bool))
+    -> void
 {
   if (json.contains(key)) {
     (config.*setter)(parse_bool(json.at(key), default_value));
   }
 }
 
-void ApplyRoutingLayersIfPresent(const nlohmann::json& json, Config& config)
+auto ApplyRoutingLayersIfPresent(const nlohmann::json& json, Config& config) -> void
 {
   if (json.contains("routing_layer")) {
     auto routing_layers = parse_unsigned_list(json.at("routing_layer"));
@@ -178,7 +179,7 @@ void ApplyRoutingLayersIfPresent(const nlohmann::json& json, Config& config)
   }
 }
 
-void ApplyBufferTypesIfPresent(const nlohmann::json& json, Config& config)
+auto ApplyBufferTypesIfPresent(const nlohmann::json& json, Config& config) -> void
 {
   if (json.contains("buffer_type")) {
     config.set_buffer_types(parse_string_list(json.at("buffer_type")));
@@ -210,7 +211,7 @@ auto ParseNetList(const nlohmann::json& value) -> std::vector<std::pair<std::str
   return clock_net_list;
 }
 
-void ApplyNetListIfPresent(const nlohmann::json& json, Config& config)
+auto ApplyNetListIfPresent(const nlohmann::json& json, Config& config) -> void
 {
   if (json.contains("net_list") && json.at("net_list").is_array()) {
     config.set_net_list(ParseNetList(json.at("net_list")));
@@ -219,7 +220,7 @@ void ApplyNetListIfPresent(const nlohmann::json& json, Config& config)
 
 }  // namespace
 
-void Config::parse(const std::string& json_file)
+auto Config::parse(const std::string& json_file) -> void
 {
   std::ifstream ifs(json_file);
   if (!ifs) {

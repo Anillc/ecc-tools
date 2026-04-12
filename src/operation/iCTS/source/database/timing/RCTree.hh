@@ -71,15 +71,15 @@ class RCTree
 
   RCTree() = default;
   RCTree(const RCTree&) = default;
-  RCTree& operator=(const RCTree&) = default;
+  auto operator=(const RCTree&) -> RCTree& = default;
   RCTree(RCTree&&) = default;
-  RCTree& operator=(RCTree&&) = default;
+  auto operator=(RCTree&&) -> RCTree& = default;
   ~RCTree() = default;
 
-  void reserveVertices(std::size_t n) { _vertices.reserve(n); }
-  void reserveArcs(std::size_t n) { _arcs.reserve(n); }
+  auto reserveVertices(std::size_t n) -> void { _vertices.reserve(n); }
+  auto reserveArcs(std::size_t n) -> void { _arcs.reserve(n); }
 
-  std::size_t addVertex(const std::string& name, bool is_terminal = false, double lumped_cap = 0.0)
+  auto addVertex(const std::string& name, bool is_terminal = false, double lumped_cap = 0.0) -> std::size_t
   {
     if (name.empty() || _vertex_name_to_id.contains(name)) {
       return kInvalidId;
@@ -91,7 +91,7 @@ class RCTree
     return id;
   }
 
-  std::size_t findVertexId(const std::string& name) const
+  auto findVertexId(const std::string& name) const -> std::size_t
   {
     auto iter = _vertex_name_to_id.find(name);
     if (iter == _vertex_name_to_id.end()) {
@@ -100,18 +100,18 @@ class RCTree
     return iter->second;
   }
 
-  VertexType* findVertex(const std::string& name) { return get_vertex(findVertexId(name)); }
-  const VertexType* findVertex(const std::string& name) const { return get_vertex(findVertexId(name)); }
-  bool hasVertex(const std::string& name) const { return _vertex_name_to_id.contains(name); }
+  auto findVertex(const std::string& name) -> VertexType* { return get_vertex(findVertexId(name)); }
+  auto findVertex(const std::string& name) const -> const VertexType* { return get_vertex(findVertexId(name)); }
+  auto hasVertex(const std::string& name) const -> bool { return _vertex_name_to_id.contains(name); }
 
-  void setRoot(std::size_t vertex_id)
+  auto setRoot(std::size_t vertex_id) -> void
   {
     if (vertex_id < _vertices.size()) {
       _root_vertex_id = vertex_id;
     }
   }
 
-  std::size_t addArc(std::size_t source_vertex_id, std::size_t sink_vertex_id, double resistance = 0.0, double capacitance = 0.0)
+  auto addArc(std::size_t source_vertex_id, std::size_t sink_vertex_id, double resistance = 0.0, double capacitance = 0.0) -> std::size_t
   {
     if (source_vertex_id >= _vertices.size() || sink_vertex_id >= _vertices.size() || source_vertex_id == sink_vertex_id) {
       return kInvalidId;
@@ -129,8 +129,8 @@ class RCTree
     return arc_id;
   }
 
-  std::size_t addArc(const std::string& source_vertex_name, const std::string& sink_vertex_name, double resistance = 0.0,
-                     double capacitance = 0.0)
+  auto addArc(const std::string& source_vertex_name, const std::string& sink_vertex_name, double resistance = 0.0, double capacitance = 0.0)
+      -> std::size_t
   {
     auto source_vertex_id = findVertexId(source_vertex_name);
     auto sink_vertex_id = findVertexId(sink_vertex_name);
@@ -140,14 +140,14 @@ class RCTree
     return addArc(source_vertex_id, sink_vertex_id, resistance, capacitance);
   }
 
-  VertexType* get_vertex(std::size_t id)
+  auto get_vertex(std::size_t id) -> VertexType*
   {
     if (id >= _vertices.size()) {
       return nullptr;
     }
     return &_vertices[id];
   }
-  const VertexType* get_vertex(std::size_t id) const
+  auto get_vertex(std::size_t id) const -> const VertexType*
   {
     if (id >= _vertices.size()) {
       return nullptr;
@@ -155,14 +155,14 @@ class RCTree
     return &_vertices[id];
   }
 
-  ArcType* get_arc(std::size_t id)
+  auto get_arc(std::size_t id) -> ArcType*
   {
     if (id >= _arcs.size()) {
       return nullptr;
     }
     return &_arcs[id];
   }
-  const ArcType* get_arc(std::size_t id) const
+  auto get_arc(std::size_t id) const -> const ArcType*
   {
     if (id >= _arcs.size()) {
       return nullptr;
@@ -170,25 +170,25 @@ class RCTree
     return &_arcs[id];
   }
 
-  const std::vector<VertexType>& get_vertices() const { return _vertices; }
-  std::vector<VertexType>& get_vertices() { return _vertices; }
-  const std::vector<ArcType>& get_arcs() const { return _arcs; }
-  std::vector<ArcType>& get_arcs() { return _arcs; }
-  const std::unordered_map<std::string, std::size_t>& get_vertex_name_map() const { return _vertex_name_to_id; }
+  auto get_vertices() const -> const std::vector<VertexType>& { return _vertices; }
+  auto get_vertices() -> std::vector<VertexType>& { return _vertices; }
+  auto get_arcs() const -> const std::vector<ArcType>& { return _arcs; }
+  auto get_arcs() -> std::vector<ArcType>& { return _arcs; }
+  auto get_vertex_name_map() const -> const std::unordered_map<std::string, std::size_t>& { return _vertex_name_to_id; }
 
-  std::size_t get_root() const { return _root_vertex_id; }
-  std::size_t vertex_count() const { return _vertices.size(); }
-  std::size_t arc_count() const { return _arcs.size(); }
+  auto get_root() const -> std::size_t { return _root_vertex_id; }
+  auto vertex_count() const -> std::size_t { return _vertices.size(); }
+  auto arc_count() const -> std::size_t { return _arcs.size(); }
 
-  bool is_root(std::size_t vertex_id) const { return vertex_id == _root_vertex_id; }
+  auto is_root(std::size_t vertex_id) const -> bool { return vertex_id == _root_vertex_id; }
 
-  bool is_leaf(std::size_t vertex_id) const
+  auto is_leaf(std::size_t vertex_id) const -> bool
   {
     const auto* vertex = get_vertex(vertex_id);
     return vertex != nullptr && vertex->child_arc_ids.empty();
   }
 
-  void clearTimingCache()
+  auto clearTimingCache() -> void
   {
     for (auto& vertex : _vertices) {
       vertex.downstream_cap = 0.0;
@@ -202,7 +202,7 @@ class RCTree
     }
   }
 
-  bool validate() const
+  auto validate() const -> bool
   {
     if (_vertices.empty()) {
       return _root_vertex_id == kInvalidId && _arcs.empty();

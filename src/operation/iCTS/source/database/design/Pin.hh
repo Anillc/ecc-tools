@@ -52,22 +52,22 @@ class Pin
   ~Pin() = default;
 
   // Getter
-  const std::string& get_name() const { return _name; }
-  PinType get_type() const { return _type; }
-  Point<int> get_location() const { return _location; }
-  Inst* get_inst() const { return _inst; }
-  Net* get_net() const { return _net; }
+  auto get_name() const -> const std::string& { return _name; }
+  auto get_type() const -> PinType { return _type; }
+  auto get_location() const -> Point<int> { return _location; }
+  auto get_inst() const -> Inst* { return _inst; }
+  auto get_net() const -> Net* { return _net; }
 
   // Setter
-  void set_name(const std::string& name) { _name = name; }
-  void set_type(PinType type) { _type = type; }
-  void set_location(const Point<int>& location) { _location = location; }
-  void set_inst(Inst* inst) { _inst = inst; }
-  void set_net(Net* net) { _net = net; }
-  void set_io(bool b_io) { _b_io = b_io; }
+  auto set_name(const std::string& name) -> void { _name = name; }
+  auto set_type(PinType type) -> void { _type = type; }
+  auto set_location(const Point<int>& location) -> void { _location = location; }
+  auto set_inst(Inst* inst) -> void { _inst = inst; }
+  auto set_net(Net* net) -> void { _net = net; }
+  auto set_io(bool b_io) -> void { _b_io = b_io; }
 
   // Boolean functions
-  bool is_io() const { return _b_io; }
+  auto is_io() const -> bool { return _b_io; }
 
  private:
   std::string _name = "";

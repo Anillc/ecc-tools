@@ -48,13 +48,13 @@ class Logger
    public:
     Stream(Logger* logger, Level level, const char* file, int line, bool active = true);
     Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
+    auto operator=(const Stream&) -> Stream& = delete;
     Stream(Stream&& other) noexcept;
-    Stream& operator=(Stream&& other) noexcept;
+    auto operator=(Stream&& other) noexcept -> Stream&;
     ~Stream();
 
     template <typename T>
-    Stream& operator<<(const T& value)
+    auto operator<<(const T& value) -> Stream&
     {
       if (!_active) {
         return *this;
@@ -63,7 +63,7 @@ class Logger
       return *this;
     }
 
-    Stream& operator<<(std::ostream& (*manip)(std::ostream&) )
+    auto operator<<(std::ostream& (*manip)(std::ostream&) ) -> Stream&
     {
       if (!_active) {
         return *this;
@@ -81,21 +81,21 @@ class Logger
     bool _active = true;
   };
 
-  static Logger& getInst()
+  static auto getInst() -> Logger&
   {
     static Logger inst;
     return inst;
   }
 
-  void set_log_file(const std::string& log_file);
-  void close();
+  auto set_log_file(const std::string& log_file) -> void;
+  auto close() -> void;
 
  private:
   Logger() = default;
   ~Logger() = default;
 
-  void write(Level level, const std::string& message);
-  static void logToConsole(Level level, const char* file, int line, const std::string& message);
+  auto write(Level level, const std::string& message) -> void;
+  static auto logToConsole(Level level, const char* file, int line, const std::string& message) -> void;
 
   std::mutex _mutex;
   std::ofstream _ofs;

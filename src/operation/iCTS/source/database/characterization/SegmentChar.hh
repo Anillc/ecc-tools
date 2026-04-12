@@ -45,16 +45,16 @@ class SegmentChar
   SegmentChar(CharCore core, unsigned length_idx) : _core(std::move(core)), _length_idx(length_idx) {}
 
   // Forwarded getters from CharCore
-  unsigned get_input_slew_idx() const { return _core.get_input_slew_idx(); }
-  unsigned get_output_slew_idx() const { return _core.get_output_slew_idx(); }
-  unsigned get_driven_cap_idx() const { return _core.get_driven_cap_idx(); }
-  unsigned get_load_cap_idx() const { return _core.get_load_cap_idx(); }
-  double get_delay() const { return _core.get_delay(); }
-  double get_power() const { return _core.get_power(); }
-  PatternId get_pattern_id() const { return _core.get_pattern_id(); }
+  auto get_input_slew_idx() const -> unsigned { return _core.get_input_slew_idx(); }
+  auto get_output_slew_idx() const -> unsigned { return _core.get_output_slew_idx(); }
+  auto get_driven_cap_idx() const -> unsigned { return _core.get_driven_cap_idx(); }
+  auto get_load_cap_idx() const -> unsigned { return _core.get_load_cap_idx(); }
+  auto get_delay() const -> double { return _core.get_delay(); }
+  auto get_power() const -> double { return _core.get_power(); }
+  auto get_pattern_id() const -> PatternId { return _core.get_pattern_id(); }
 
   // Segment-specific getter
-  unsigned get_length_idx() const { return _length_idx; }
+  auto get_length_idx() const -> unsigned { return _length_idx; }
 
   /**
    * @brief Compose two segment characterizations.
@@ -72,7 +72,7 @@ class SegmentChar
    * @param downstream Downstream segment (closer to sink)
    * @param merged_pid Pattern ID for the composed segment
    */
-  static SegmentChar compose(const SegmentChar& upstream, const SegmentChar& downstream, PatternId merged_pid)
+  static auto compose(const SegmentChar& upstream, const SegmentChar& downstream, PatternId merged_pid) -> SegmentChar
   {
     CharCore merged_core(upstream.get_input_slew_idx(),                  // input from upstream
                          downstream.get_output_slew_idx(),               // output from downstream

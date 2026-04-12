@@ -76,80 +76,80 @@ class GeomCalc
 
   /* Calculate */
   // point
-  static bool isSame(const Point& first_point, const Point& second_point);
+  static auto isSame(const Point& first_point, const Point& second_point) -> bool;
 
-  static double distance(const Point& first_point, const Point& second_point);
+  static auto distance(const Point& first_point, const Point& second_point) -> double;
 
-  static double pointToLineDistanceManhattan(const Point& point, const Line& line, Point& closest_point);
+  static auto pointToLineDistanceManhattan(const Point& point, const Line& line, Point& closest_point) -> double;
 
-  static double pointToLineDistanceNonManhattan(const Point& point, const Line& line, Point& closest_point);
+  static auto pointToLineDistanceNonManhattan(const Point& point, const Line& line, Point& closest_point) -> double;
 
-  static double pointToLineDistance(const Point& point, const Line& line, Point& closest_point);
+  static auto pointToLineDistance(const Point& point, const Line& line, Point& closest_point) -> double;
 
-  static double pointToTransformedRectDistance(const Point& point, TransformedRect& transformed_rect);
+  static auto pointToTransformedRectDistance(const Point& point, TransformedRect& transformed_rect) -> double;
 
-  static void calcCoord(Point& point, const Line& line, const double& shift);
+  static auto calcCoord(Point& point, const Line& line, const double& shift) -> void;
 
-  static void calcRelativeCoord(Point& point, const RelativeType& type, const double& shift);
+  static auto calcRelativeCoord(Point& point, const RelativeType& type, const double& shift) -> void;
 
-  static double crossProduct(const Point& origin_point, const Point& lhs_point, const Point& rhs_point);
+  static auto crossProduct(const Point& origin_point, const Point& lhs_point, const Point& rhs_point) -> double;
 
   // line
-  static LineType lineType(const Line& line);
+  static auto lineType(const Line& line) -> LineType;
 
-  static LineType lineType(const Point& first_point, const Point& second_point);
+  static auto lineType(const Point& first_point, const Point& second_point) -> LineType;
 
-  static IntersectType lineIntersect(Point& intersection_point, const Line& first_line, const Line& second_line);
+  static auto lineIntersect(Point& intersection_point, const Line& first_line, const Line& second_line) -> IntersectType;
 
-  static RelativeType lineRelative(const Line& lhs_line, const Line& rhs_line, const size_t& reference_side);
+  static auto lineRelative(const Line& lhs_line, const Line& rhs_line, const size_t& reference_side) -> RelativeType;
 
-  static LineDistanceResult lineDist(const Line& lhs_line, const Line& rhs_line);
+  static auto lineDist(const Line& lhs_line, const Line& rhs_line) -> LineDistanceResult;
 
-  static bool onLine(Point& point, const Line& line);
+  static auto onLine(Point& point, const Line& line) -> bool;
 
-  static bool isParallel(const Line& lhs_line, const Line& rhs_line);
+  static auto isParallel(const Line& lhs_line, const Line& rhs_line) -> bool;
 
   // box
-  static bool inBoundBox(const Point& point, const Line& line);
+  static auto inBoundBox(const Point& point, const Line& line) -> bool;
 
-  static bool boundBoxOverlap(const Line& lhs_line, const Line& rhs_line, const double& epsilon = kEpsilon);
+  static auto boundBoxOverlap(const Line& lhs_line, const Line& rhs_line, const double& epsilon = kEpsilon) -> bool;
 
-  static bool boundBoxOverlap(const BoundingBox& lhs_box, const BoundingBox& rhs_box, const double& overlap_epsilon = kEpsilon);
+  static auto boundBoxOverlap(const BoundingBox& lhs_box, const BoundingBox& rhs_box, const double& overlap_epsilon = kEpsilon) -> bool;
 
   // transformed rect
-  static double transformedRectDistance(TransformedRect& lhs_transformed_rect, TransformedRect& rhs_transformed_rect);
-  static void makeIntersection(const TransformedRect& first_transformed_rect, const TransformedRect& second_transformed_rect,
-                               TransformedRect& intersection);
-  static void coreMidPoint(TransformedRect& transformed_rect, Point& midpoint);
-  static bool containsTransformedRect(const TransformedRect& inner_transformed_rect, const TransformedRect& outer_transformed_rect);
-  static void buildTransformedRect(const TransformedRect& transformed_rect, const double& radius,
-                                   TransformedRect& expanded_transformed_rect);
-  static void transformedRectCore(const TransformedRect& transformed_rect, TransformedRect& core_transformed_rect);
-  static void transformedRectToPoint(const TransformedRect& transformed_rect, Point& point);
-  static void transformedRectToRegion(TransformedRect& transformed_rect, Region& region);
-  static bool isSegmentTransformedRect(const TransformedRect& transformed_rect);
+  static auto transformedRectDistance(TransformedRect& lhs_transformed_rect, TransformedRect& rhs_transformed_rect) -> double;
+  static auto makeIntersection(const TransformedRect& first_transformed_rect, const TransformedRect& second_transformed_rect,
+                               TransformedRect& intersection) -> void;
+  static auto coreMidPoint(TransformedRect& transformed_rect, Point& midpoint) -> void;
+  static auto containsTransformedRect(const TransformedRect& inner_transformed_rect, const TransformedRect& outer_transformed_rect) -> bool;
+  static auto buildTransformedRect(const TransformedRect& transformed_rect, const double& radius,
+                                   TransformedRect& expanded_transformed_rect) -> void;
+  static auto transformedRectCore(const TransformedRect& transformed_rect, TransformedRect& core_transformed_rect) -> void;
+  static auto transformedRectToPoint(const TransformedRect& transformed_rect, Point& point) -> void;
+  static auto transformedRectToRegion(TransformedRect& transformed_rect, Region& region) -> void;
+  static auto isSegmentTransformedRect(const TransformedRect& transformed_rect) -> bool;
 
   // points
-  static void sortPointsByFront(Points& points);
-  static void sortPointsByValue(Points& points);
-  static void sortPointsByValueDesc(Points& points);
-  static void uniquePointLocations(std::vector<Point>& points);
-  static void uniquePointValues(std::vector<Point>& points);
+  static auto sortPointsByFront(Points& points) -> void;
+  static auto sortPointsByValue(Points& points) -> void;
+  static auto sortPointsByValueDesc(Points& points) -> void;
+  static auto uniquePointLocations(std::vector<Point>& points) -> void;
+  static auto uniquePointValues(std::vector<Point>& points) -> void;
 
   // region
-  static void convexHull(std::vector<Point>& points);
-  static Point centerPoint(const std::vector<Point>& points);
-  static bool isRegionContain(const Point& point, const std::vector<Point>& region);
-  static Point closestPointOnRegion(const Point& point, const std::vector<Point>& region);
+  static auto convexHull(std::vector<Point>& points) -> void;
+  static auto centerPoint(const std::vector<Point>& points) -> Point;
+  static auto isRegionContain(const Point& point, const std::vector<Point>& region) -> bool;
+  static auto closestPointOnRegion(const Point& point, const std::vector<Point>& region) -> Point;
 
   /* Convert */
-  static void lineToTransformedRect(TransformedRect& transformed_rect, const Line& line);
-  static void lineToTransformedRect(TransformedRect& transformed_rect, const Point& first_point, const Point& second_point);
-  static void transformedRectToLine(TransformedRect& transformed_rect, Line& line);
-  static void transformedRectToLine(TransformedRect& transformed_rect, Point& first_point, Point& second_point);
+  static auto lineToTransformedRect(TransformedRect& transformed_rect, const Line& line) -> void;
+  static auto lineToTransformedRect(TransformedRect& transformed_rect, const Point& first_point, const Point& second_point) -> void;
+  static auto transformedRectToLine(TransformedRect& transformed_rect, Line& line) -> void;
+  static auto transformedRectToLine(TransformedRect& transformed_rect, Point& first_point, Point& second_point) -> void;
 
   /* Check */
-  static void normalizeTransformedRect(TransformedRect& transformed_rect);
+  static auto normalizeTransformedRect(TransformedRect& transformed_rect) -> void;
 };
 
 }  // namespace icts::bst

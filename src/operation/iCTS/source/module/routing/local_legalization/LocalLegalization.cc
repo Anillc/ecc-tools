@@ -50,9 +50,9 @@ struct HungarianColumnState
   std::vector<std::size_t>* predecessor_col_by_col = nullptr;
 };
 
-void AdvanceAugmentingColumn(const std::vector<std::vector<long long>>& cost_matrix, std::vector<long long>& row_potential,
+auto AdvanceAugmentingColumn(const std::vector<std::vector<long long>>& cost_matrix, std::vector<long long>& row_potential,
                              std::vector<long long>& col_potential, const HungarianColumnState& column_state, std::size_t col_count,
-                             std::size_t& col0)
+                             std::size_t& col0) -> void
 {
   std::vector<long long> min_v(col_count + 1, std::numeric_limits<long long>::max());
   std::vector<bool> used(col_count + 1, false);
@@ -94,8 +94,8 @@ void AdvanceAugmentingColumn(const std::vector<std::vector<long long>>& cost_mat
   }
 }
 
-void ApplyAugmentingPath(std::vector<std::size_t>& matched_row_by_col, const std::vector<std::size_t>& predecessor_col_by_col,
-                         std::size_t col0)
+auto ApplyAugmentingPath(std::vector<std::size_t>& matched_row_by_col, const std::vector<std::size_t>& predecessor_col_by_col,
+                         std::size_t col0) -> void
 {
   while (true) {
     const std::size_t prev_col = predecessor_col_by_col.at(col0);
@@ -390,8 +390,8 @@ auto LocalLegalization::computeTotalDisplacement(const std::vector<PointType>& o
   return total_displacement;
 }
 
-void LocalLegalization::appendCandidate(std::vector<CandidateSite>& candidates, const PointType& point, const RegionType& legal_region,
-                                        const std::vector<PointType>& fixed_points, std::size_t candidate_budget)
+auto LocalLegalization::appendCandidate(std::vector<CandidateSite>& candidates, const PointType& point, const RegionType& legal_region,
+                                        const std::vector<PointType>& fixed_points, std::size_t candidate_budget) -> void
 {
   if (!legal_region.empty() && !legal_region.contains(point)) {
     return;

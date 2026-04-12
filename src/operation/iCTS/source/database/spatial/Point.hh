@@ -36,45 +36,45 @@ class Point
   Point(const CoordType& x, const CoordType& y) : _x(x), _y(y) {}
 
   Point(const Point&) = default;
-  Point& operator=(const Point&) = default;
+  auto operator=(const Point&) -> Point& = default;
 
-  CoordType get_x() const { return _x; }
-  CoordType get_y() const { return _y; }
+  auto get_x() const -> CoordType { return _x; }
+  auto get_y() const -> CoordType { return _y; }
 
-  Point& set_x(const CoordType& x)
+  auto set_x(const CoordType& x) -> Point&
   {
     _x = x;
     return *this;
   }
 
-  Point& set_y(const CoordType& y)
+  auto set_y(const CoordType& y) -> Point&
   {
     _y = y;
     return *this;
   }
 
-  bool operator==(const Point& rhs) const { return _x == rhs._x && _y == rhs._y; }
+  auto operator==(const Point& rhs) const -> bool { return _x == rhs._x && _y == rhs._y; }
 
-  bool operator!=(const Point& rhs) const { return !(*this == rhs); }
+  auto operator!=(const Point& rhs) const -> bool { return !(*this == rhs); }
 
-  bool operator<(const Point& rhs) const { return _x < rhs._x || (_x == rhs._x && _y < rhs._y); }
+  auto operator<(const Point& rhs) const -> bool { return _x < rhs._x || (_x == rhs._x && _y < rhs._y); }
 
-  bool operator<=(const Point& rhs) const { return !(rhs < *this); }
-  bool operator>(const Point& rhs) const { return rhs < *this; }
-  bool operator>=(const Point& rhs) const { return !(*this < rhs); }
+  auto operator<=(const Point& rhs) const -> bool { return !(rhs < *this); }
+  auto operator>(const Point& rhs) const -> bool { return rhs < *this; }
+  auto operator>=(const Point& rhs) const -> bool { return !(*this < rhs); }
 
-  Point operator+(const Point& rhs) const { return Point(_x + rhs._x, _y + rhs._y); }
+  auto operator+(const Point& rhs) const -> Point { return Point(_x + rhs._x, _y + rhs._y); }
 
-  Point operator-(const Point& rhs) const { return Point(_x - rhs._x, _y - rhs._y); }
+  auto operator-(const Point& rhs) const -> Point { return Point(_x - rhs._x, _y - rhs._y); }
 
-  Point& operator+=(const Point& rhs)
+  auto operator+=(const Point& rhs) -> Point&
   {
     _x += rhs._x;
     _y += rhs._y;
     return *this;
   }
 
-  Point& operator-=(const Point& rhs)
+  auto operator-=(const Point& rhs) -> Point&
   {
     _x -= rhs._x;
     _y -= rhs._y;
@@ -82,19 +82,19 @@ class Point
   }
 
   template <typename Scalar>
-  Point operator*(const Scalar& s) const
+  auto operator*(const Scalar& s) const -> Point
   {
     return Point(static_cast<CoordType>(_x * s), static_cast<CoordType>(_y * s));
   }
 
   template <typename Scalar>
-  Point operator/(const Scalar& s) const
+  auto operator/(const Scalar& s) const -> Point
   {
     return Point(static_cast<CoordType>(_x / s), static_cast<CoordType>(_y / s));
   }
 
   template <typename Scalar>
-  Point& operator*=(const Scalar& s)
+  auto operator*=(const Scalar& s) -> Point&
   {
     _x = static_cast<CoordType>(_x * s);
     _y = static_cast<CoordType>(_y * s);
@@ -102,7 +102,7 @@ class Point
   }
 
   template <typename Scalar>
-  Point& operator/=(const Scalar& s)
+  auto operator/=(const Scalar& s) -> Point&
   {
     _x = static_cast<CoordType>(_x / s);
     _y = static_cast<CoordType>(_y / s);
@@ -115,7 +115,7 @@ class Point
 };
 
 template <typename T>
-inline std::ostream& operator<<(std::ostream& os, const Point<T>& p)
+inline auto operator<<(std::ostream& os, const Point<T>& p) -> std::ostream&
 {
   os << p.get_x() << " : " << p.get_y();
   return os;

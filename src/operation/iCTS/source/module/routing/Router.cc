@@ -114,7 +114,7 @@ auto GetWireDistance(const Router::ClockSteinerTreeType::EdgeType& edge) -> int
   return std::max(edge.distance, edge.routed_distance);
 }
 
-void WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<Point<int>>& points)
+auto WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<Point<int>>& points) -> void
 {
   const auto count = std::min(pins.size(), points.size());
   for (std::size_t i = 0; i < count; ++i) {
@@ -200,8 +200,8 @@ auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin
 auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
                           const LegalizationRegion& block_region, const LegalizationOptions& options) -> Router::LegalizationResult
 {
-  auto movable_points = collectPinLocations(movable_pins);
-  const auto fixed_points = collectPinLocations(fixed_pins);
+  auto movable_points = CollectPinLocations(movable_pins);
+  const auto fixed_points = CollectPinLocations(fixed_pins);
   auto result = LocalLegalization::legalize(movable_points, fixed_points, feasible_region, block_region, options);
   if (!result.success) {
     CTS_LOG_WARNING << "Router::legalizePins did not produce a successful legalization result.";

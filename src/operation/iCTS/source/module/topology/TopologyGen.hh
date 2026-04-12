@@ -39,8 +39,8 @@ class TopologyGen
   TopologyGen() = delete;
   ~TopologyGen() = default;
 
-  static Tree build(const std::vector<Pin*>& loads);
-  static Tree build(const std::vector<Pin*>& loads, const BiPartitionConfig& config);
+  static auto build(const std::vector<Pin*>& loads) -> Tree;
+  static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree;
 
  private:
   struct BuildCursor
@@ -49,13 +49,13 @@ class TopologyGen
     int depth = 0;
   };
 
-  static void reportLoadDistribution(const std::vector<Pin*>& loads);
-  static void reportRootToLeafLengths(const Tree& tree);
-  static std::size_t calcLeafCount(std::size_t load_count);
-  static void buildFullTree(Tree& tree, const BuildCursor& cursor, int height);
-  static void embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
-                             const BiPartitionConfig& config);
-  static void balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y);
+  static auto reportLoadDistribution(const std::vector<Pin*>& loads) -> void;
+  static auto reportRootToLeafLengths(const Tree& tree) -> void;
+  static auto calcLeafCount(std::size_t load_count) -> std::size_t;
+  static auto buildFullTree(Tree& tree, const BuildCursor& cursor, int height) -> void;
+  static auto embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
+                             const BiPartitionConfig& config) -> void;
+  static auto balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y) -> void;
 };
 
 }  // namespace icts

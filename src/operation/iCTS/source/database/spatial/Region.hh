@@ -44,21 +44,21 @@ class Region
   explicit Region(const RectType& rect) { add_rect(rect); }
   explicit Region(std::vector<RectType> rects) : _rects(std::move(rects)) { normalize(); }
 
-  bool empty() const { return _rects.empty(); }
-  const std::vector<RectType>& rects() const { return _rects; }
+  auto empty() const -> bool { return _rects.empty(); }
+  auto rects() const -> const std::vector<RectType>& { return _rects; }
 
-  void add_rect(const RectType& rect)
+  auto add_rect(const RectType& rect) -> void
   {
     _rects.push_back(rect);
     normalize();
   }
 
-  bool contains(const PointType& point) const
+  auto contains(const PointType& point) const -> bool
   {
-    return std::ranges::any_of(_rects, [&](const auto& rect) { return rect.contains(point); });
+    return std::ranges::any_of(_rects, [&](const auto& rect) -> auto { return rect.contains(point); });
   }
 
-  void subtract(const RectType& blocked_rect)
+  auto subtract(const RectType& blocked_rect) -> void
   {
     std::vector<RectType> remain_rects;
     remain_rects.reserve(_rects.size() * 4);
@@ -70,14 +70,14 @@ class Region
     normalize();
   }
 
-  void subtract(const Region& blocked_region)
+  auto subtract(const Region& blocked_region) -> void
   {
     for (const auto& rect : blocked_region.rects()) {
       subtract(rect);
     }
   }
 
-  std::optional<PointType> project_nearest(const PointType& point) const
+  auto project_nearest(const PointType& point) const -> std::optional<PointType>
   {
     if (_rects.empty()) {
       return std::nullopt;
@@ -98,7 +98,7 @@ class Region
   }
 
  private:
-  static std::vector<RectType> subtractRect(const RectType& source, const RectType& blocked)
+  static auto subtractRect(const RectType& source, const RectType& blocked) -> std::vector<RectType>
   {
     auto overlap = source.intersect(blocked);
     if (!overlap.has_value()) {
@@ -125,13 +125,13 @@ class Region
     return pieces;
   }
 
-  void normalize()
+  auto normalize() -> void
   {
     if (_rects.empty()) {
       return;
     }
 
-    std::sort(_rects.begin(), _rects.end(), [](const RectType& lhs, const RectType& rhs) {
+    std::sort(_rects.begin(), _rects.end(), [](const RectType& lhs, const RectType& rhs) -> auto {
       if (lhs.get_min_x() != rhs.get_min_x()) {
         return lhs.get_min_x() < rhs.get_min_x();
       }
@@ -166,7 +166,7 @@ class Region
     }
   }
 
-  static bool canMerge(const RectType& lhs, const RectType& rhs)
+  static auto canMerge(const RectType& lhs, const RectType& rhs) -> bool
   {
     const bool share_x_span = lhs.get_min_x() == rhs.get_min_x() && lhs.get_max_x() == rhs.get_max_x();
     const bool share_y_span = lhs.get_min_y() == rhs.get_min_y() && lhs.get_max_y() == rhs.get_max_y();
@@ -177,7 +177,7 @@ class Region
     return (share_x_span && y_overlap_or_touch) || (share_y_span && x_overlap_or_touch);
   }
 
-  static RectType merge(const RectType& lhs, const RectType& rhs)
+  static auto merge(const RectType& lhs, const RectType& rhs) -> RectType
   {
     return RectType(std::min(lhs.get_min_x(), rhs.get_min_x()), std::min(lhs.get_min_y(), rhs.get_min_y()),
                     std::max(lhs.get_max_x(), rhs.get_max_x()), std::max(lhs.get_max_y(), rhs.get_max_y()));

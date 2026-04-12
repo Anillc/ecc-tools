@@ -39,7 +39,7 @@ class SALTRouter
   SALTRouter() = delete;
   ~SALTRouter() = default;
 
-  static ClockSteinerTreeType buildTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals);
+  static auto buildTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals) -> ClockSteinerTreeType;
 };
 
 }  // namespace icts

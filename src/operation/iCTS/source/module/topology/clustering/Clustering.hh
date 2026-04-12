@@ -46,10 +46,10 @@ class Clustering
   Clustering() = delete;
   ~Clustering() = default;
 
-  static ClusterResult biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size);
-  static ClusterResult biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config);
-  static ClusterResult linearClustering(const std::vector<Pin*>& loads);
-  static ClusterResult linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config);
+  static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> ClusterResult;
+  static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterResult;
+  static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
+  static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
 };
 
 }  // namespace icts

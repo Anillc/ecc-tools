@@ -78,6 +78,8 @@ Deep mode currently includes:
 - `cppcoreguidelines-*`
 - `readability-identifier-naming`
 
+Deep mode also runs a scope-local header pass with the same tidy checks as the translation-unit pass, so declaration-only drift in headers is reported with the same check coverage.
+
 `complete` pass plan also enables:
 - `clang-analyzer-*`
 - Clang frontend with `-Wall -Wextra -Wconversion -Wsign-conversion`

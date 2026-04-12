@@ -29,14 +29,14 @@
 
 namespace icts::bst {
 
-void TransformedRect::check()
+auto TransformedRect::check() -> void
 {
   correction();
   CTS_LOG_FATAL_IF(is_empty()) << "TRR is empty, which x_low: " << _x_low << ", x_high: " << _x_high << ", y_low: " << _y_low
                                << ", y_high: " << _y_high;
 }
 
-void TransformedRect::correction()
+auto TransformedRect::correction() -> void
 {
   auto temp_low = _x_low;
   auto temp_high = _x_high;

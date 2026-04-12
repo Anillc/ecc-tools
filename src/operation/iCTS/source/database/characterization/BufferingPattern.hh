@@ -53,20 +53,20 @@ class BufferingPattern
   }
 
   // Getters
-  unsigned get_length_idx() const { return _length_idx; }
-  PatternId get_pattern_id() const { return _pattern_id; }
-  const std::vector<double>& get_buffer_positions() const { return _buffer_positions; }
-  const std::vector<std::string>& get_cell_masters() const { return _cell_masters; }
+  auto get_length_idx() const -> unsigned { return _length_idx; }
+  auto get_pattern_id() const -> PatternId { return _pattern_id; }
+  auto get_buffer_positions() const -> const std::vector<double>& { return _buffer_positions; }
+  auto get_cell_masters() const -> const std::vector<std::string>& { return _cell_masters; }
 
   /**
    * @brief Check if this is a pure wire pattern (no buffers).
    */
-  bool isWirePattern() const { return _buffer_positions.empty(); }
+  auto isWirePattern() const -> bool { return _buffer_positions.empty(); }
 
   /**
    * @brief Check if this is a buffer pattern (has buffers).
    */
-  bool isBufferPattern() const { return !_buffer_positions.empty(); }
+  auto isBufferPattern() const -> bool { return !_buffer_positions.empty(); }
 
   /**
    * @brief Concatenate two buffering patterns.
@@ -74,7 +74,7 @@ class BufferingPattern
    * Upstream pattern comes first, downstream pattern comes after.
    * Buffer positions are renormalized to the combined length.
    */
-  static BufferingPattern concat(const BufferingPattern& upstream, const BufferingPattern& downstream)
+  static auto concat(const BufferingPattern& upstream, const BufferingPattern& downstream) -> BufferingPattern
   {
     unsigned total_length = upstream._length_idx + downstream._length_idx;
     if (total_length == 0) {

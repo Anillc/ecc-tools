@@ -83,7 +83,7 @@ auto TimingEngine::update(RCTree& rc_tree) -> TimingEngine::Metrics
   return evaluate(rc_tree);
 }
 
-void TimingEngine::updateDownstreamCap(RCTree& rc_tree)
+auto TimingEngine::updateDownstreamCap(RCTree& rc_tree) -> void
 {
   const auto preorder = BuildPreOrder(rc_tree);
   for (const auto vertex_id : std::ranges::reverse_view(preorder)) {
@@ -104,7 +104,7 @@ void TimingEngine::updateDownstreamCap(RCTree& rc_tree)
   }
 }
 
-void TimingEngine::updateIncreaseDelay(RCTree& rc_tree)
+auto TimingEngine::updateIncreaseDelay(RCTree& rc_tree) -> void
 {
   for (auto& arc : rc_tree.get_arcs()) {
     const auto* child = rc_tree.get_vertex(arc.sink_vertex_id);
@@ -113,7 +113,7 @@ void TimingEngine::updateIncreaseDelay(RCTree& rc_tree)
   }
 }
 
-void TimingEngine::updateArrival(RCTree& rc_tree)
+auto TimingEngine::updateArrival(RCTree& rc_tree) -> void
 {
   auto preorder = BuildPreOrder(rc_tree);
   if (preorder.empty()) {
@@ -139,7 +139,7 @@ void TimingEngine::updateArrival(RCTree& rc_tree)
   }
 }
 
-void TimingEngine::updateSlew(RCTree& rc_tree)
+auto TimingEngine::updateSlew(RCTree& rc_tree) -> void
 {
   auto preorder = BuildPreOrder(rc_tree);
   if (preorder.empty()) {
@@ -166,7 +166,7 @@ void TimingEngine::updateSlew(RCTree& rc_tree)
   }
 }
 
-void TimingEngine::updateDownstreamDelay(RCTree& rc_tree)
+auto TimingEngine::updateDownstreamDelay(RCTree& rc_tree) -> void
 {
   const auto preorder = BuildPreOrder(rc_tree);
   for (const auto vertex_id : std::ranges::reverse_view(preorder)) {

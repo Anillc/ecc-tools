@@ -31,6 +31,6 @@ namespace icts {
 
 class Pin;
 
-auto collectPinLocations(const std::vector<Pin*>& pins) -> std::vector<Point<int>>;
+auto CollectPinLocations(const std::vector<Pin*>& pins) -> std::vector<Point<int>>;
 
 }  // namespace icts

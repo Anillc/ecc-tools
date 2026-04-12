@@ -47,8 +47,8 @@ class KMeans
   ~KMeans() = default;
 
   template <typename PointGetter>
-  Result run(const std::vector<Value>& values, std::size_t k, PointGetter getter, std::size_t max_iter = 10,
-             double converge_threshold = 1.0) const
+  auto run(const std::vector<Value>& values, std::size_t k, PointGetter getter, std::size_t max_iter = 10,
+           double converge_threshold = 1.0) const -> Result
   {
     Result result;
     if (values.empty() || k == 0) {
@@ -114,7 +114,7 @@ class KMeans
 
  private:
   template <typename PointGetter>
-  std::vector<Point<double>> initCenters(const std::vector<Value>& values, std::size_t k, PointGetter getter) const
+  auto initCenters(const std::vector<Value>& values, std::size_t k, PointGetter getter) const -> std::vector<Point<double>>
   {
     std::vector<Point<double>> centers;
     centers.reserve(k);
@@ -141,7 +141,7 @@ class KMeans
   }
 
   template <typename PointType>
-  Point<double> toPoint(const PointType& point) const
+  auto toPoint(const PointType& point) const -> Point<double>
   {
     return Point<double>(point.get_x(), point.get_y());
   }

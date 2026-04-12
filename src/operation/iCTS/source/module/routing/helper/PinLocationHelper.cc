@@ -30,7 +30,7 @@
 
 namespace icts {
 
-auto collectPinLocations(const std::vector<Pin*>& pins) -> std::vector<Point<int>>
+auto CollectPinLocations(const std::vector<Pin*>& pins) -> std::vector<Point<int>>
 {
   std::vector<Point<int>> points;
   points.reserve(pins.size());

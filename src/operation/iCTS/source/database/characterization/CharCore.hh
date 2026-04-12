@@ -51,13 +51,13 @@ class CharCore
   }
 
   // Getters - following iCTS naming convention
-  unsigned get_input_slew_idx() const { return _input_slew_idx; }
-  unsigned get_output_slew_idx() const { return _output_slew_idx; }
-  unsigned get_driven_cap_idx() const { return _driven_cap_idx; }
-  unsigned get_load_cap_idx() const { return _load_cap_idx; }
-  double get_delay() const { return _delay; }
-  double get_power() const { return _power; }
-  PatternId get_pattern_id() const { return _pattern_id; }
+  auto get_input_slew_idx() const -> unsigned { return _input_slew_idx; }
+  auto get_output_slew_idx() const -> unsigned { return _output_slew_idx; }
+  auto get_driven_cap_idx() const -> unsigned { return _driven_cap_idx; }
+  auto get_load_cap_idx() const -> unsigned { return _load_cap_idx; }
+  auto get_delay() const -> double { return _delay; }
+  auto get_power() const -> double { return _power; }
+  auto get_pattern_id() const -> PatternId { return _pattern_id; }
 
  private:
   unsigned _input_slew_idx = 0;

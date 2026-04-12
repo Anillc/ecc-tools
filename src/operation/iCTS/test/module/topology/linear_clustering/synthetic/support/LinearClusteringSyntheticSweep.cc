@@ -72,7 +72,7 @@ auto ToDetailClusterMetrics(const common::linear_clustering::ClusterMetrics& met
   };
 }
 
-void CapturePartitionCostSummary(const icts::PartitionScore& partition, detail::StrategySweepObservation& observation)
+auto CapturePartitionCostSummary(const icts::PartitionScore& partition, detail::StrategySweepObservation& observation) -> void
 {
   observation.partition_score = partition.total_score;
   observation.selected_rotation_offset = partition.rotation_offset;

@@ -41,25 +41,25 @@ class TreeNode
   explicit TreeNode(std::size_t id) : _id(id) {}
   ~TreeNode() = default;
 
-  std::size_t get_id() const { return _id; }
-  std::size_t get_parent() const { return _parent; }
-  const std::vector<std::size_t>& get_children() const { return _children; }
-  std::vector<std::size_t>& get_children() { return _children; }
-  const Point<int>& get_position() const { return _position; }
-  Point<int>& get_position() { return _position; }
-  const std::vector<Pin*>& get_loads() const { return _loads; }
-  std::vector<Pin*>& get_loads() { return _loads; }
+  auto get_id() const -> std::size_t { return _id; }
+  auto get_parent() const -> std::size_t { return _parent; }
+  auto get_children() const -> const std::vector<std::size_t>& { return _children; }
+  auto get_children() -> std::vector<std::size_t>& { return _children; }
+  auto get_position() const -> const Point<int>& { return _position; }
+  auto get_position() -> Point<int>& { return _position; }
+  auto get_loads() const -> const std::vector<Pin*>& { return _loads; }
+  auto get_loads() -> std::vector<Pin*>& { return _loads; }
 
-  void set_parent(std::size_t parent) { _parent = parent; }
-  void set_child(std::size_t index, std::size_t child)
+  auto set_parent(std::size_t parent) -> void { _parent = parent; }
+  auto set_child(std::size_t index, std::size_t child) -> void
   {
     if (index >= _children.size()) {
       _children.resize(index + 1, std::numeric_limits<std::size_t>::max());
     }
     _children[index] = child;
   }
-  void add_child(std::size_t child) { _children.push_back(child); }
-  bool isLeaf() const
+  auto add_child(std::size_t child) -> void { _children.push_back(child); }
+  auto isLeaf() const -> bool
   {
     for (auto child : _children) {
       if (child != std::numeric_limits<std::size_t>::max()) {
@@ -82,19 +82,19 @@ class Tree
  public:
   Tree() = default;
   Tree(const Tree&) = delete;
-  Tree& operator=(const Tree&) = delete;
+  auto operator=(const Tree&) -> Tree& = delete;
   Tree(Tree&&) = default;
-  Tree& operator=(Tree&&) = default;
+  auto operator=(Tree&&) -> Tree& = default;
   ~Tree() = default;
 
-  std::size_t create_node()
+  auto create_node() -> std::size_t
   {
     std::size_t id = _nodes.size();
     _nodes.push_back(std::make_unique<TreeNode>(id));
     return id;
   }
 
-  std::size_t add_child(std::size_t parent, std::size_t index)
+  auto add_child(std::size_t parent, std::size_t index) -> std::size_t
   {
     auto* parent_node = get_node(parent);
     if (parent_node == nullptr) {
@@ -107,7 +107,7 @@ class Tree
     return child;
   }
 
-  std::size_t add_child(std::size_t parent)
+  auto add_child(std::size_t parent) -> std::size_t
   {
     auto* parent_node = get_node(parent);
     if (parent_node == nullptr) {
@@ -120,14 +120,14 @@ class Tree
     return child;
   }
 
-  TreeNode* get_node(std::size_t id)
+  auto get_node(std::size_t id) -> TreeNode*
   {
     if (id >= _nodes.size()) {
       return nullptr;
     }
     return _nodes[id].get();
   }
-  const TreeNode* get_node(std::size_t id) const
+  auto get_node(std::size_t id) const -> const TreeNode*
   {
     if (id >= _nodes.size()) {
       return nullptr;
@@ -135,11 +135,11 @@ class Tree
     return _nodes[id].get();
   }
 
-  void set_root(std::size_t root) { _root = root; }
-  std::size_t get_root() const { return _root; }
-  std::size_t get_size() const { return _nodes.size(); }
+  auto set_root(std::size_t root) -> void { _root = root; }
+  auto get_root() const -> std::size_t { return _root; }
+  auto get_size() const -> std::size_t { return _nodes.size(); }
 
-  std::vector<std::vector<std::size_t>> levels() const
+  auto levels() const -> std::vector<std::vector<std::size_t>>
   {
     std::vector<std::vector<std::size_t>> result;
     if (_root == std::numeric_limits<std::size_t>::max()) {

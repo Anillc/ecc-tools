@@ -109,7 +109,7 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   return tree;
 }
 
-void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads)
+auto TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) -> void
 {
   if (loads.empty()) {
     CTS_LOG_WARNING << "Load distribution: empty load list.";
@@ -143,7 +143,7 @@ void TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads)
                << median.get_y() << ")";
 }
 
-void TopologyGen::reportRootToLeafLengths(const Tree& tree)
+auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
 {
   if (tree.get_size() == 0 || tree.get_root() == std::numeric_limits<std::size_t>::max()) {
     CTS_LOG_WARNING << "Topology length report skipped: invalid tree.";
@@ -217,7 +217,7 @@ auto TopologyGen::calcLeafCount(std::size_t load_count) -> std::size_t
   return leaf_count;
 }
 
-void TopologyGen::buildFullTree(Tree& tree, const BuildCursor& cursor, int height)
+auto TopologyGen::buildFullTree(Tree& tree, const BuildCursor& cursor, int height) -> void
 {
   std::vector<BuildCursor> build_stack;
   build_stack.push_back(cursor);
@@ -237,8 +237,8 @@ void TopologyGen::buildFullTree(Tree& tree, const BuildCursor& cursor, int heigh
   }
 }
 
-void TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
-                                 const BiPartitionConfig& config)
+auto TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
+                                 const BiPartitionConfig& config) -> void
 {
   struct EmbedFrame
   {
@@ -297,7 +297,7 @@ void TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector
   }
 }
 
-void TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y)
+auto TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y) -> void
 {
   auto levels = tree.levels();
   if (levels.size() <= 1) {

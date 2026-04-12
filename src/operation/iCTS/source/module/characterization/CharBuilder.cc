@@ -54,7 +54,7 @@ constexpr double kZeroPowerW = 0.0;
 // Public interface
 // ---------------------------------------------------------------------------
 
-void CharBuilder::init()
+auto CharBuilder::init() -> void
 {
   CTS_LOG_INFO << "CharBuilder: initialization started";
   initBufferList();
@@ -63,7 +63,7 @@ void CharBuilder::init()
                << " wire lengths, " << _slews_to_test.size() << " slews, " << _loads_to_test.size() << " loads";
 }
 
-void CharBuilder::build()
+auto CharBuilder::build() -> void
 {
   CTS_LOG_INFO << "CharBuilder: build started";
 
@@ -87,7 +87,7 @@ void CharBuilder::build()
 // Initialization helpers
 // ---------------------------------------------------------------------------
 
-void CharBuilder::initBufferList()
+auto CharBuilder::initBufferList() -> void
 {
   _sorted_buffers.clear();
   const auto& buffer_types = CONFIG_INST.get_buffer_types();
@@ -154,7 +154,7 @@ void CharBuilder::initBufferList()
   }
 }
 
-void CharBuilder::initCharParams()
+auto CharBuilder::initCharParams() -> void
 {
   // Max pattern nodes
   _max_nodes = CONFIG_INST.get_max_pattern_nodes();
@@ -229,7 +229,7 @@ void CharBuilder::initCharParams()
 // Pattern enumeration
 // ---------------------------------------------------------------------------
 
-void CharBuilder::enumerateWireLength(double wire_length_um)
+auto CharBuilder::enumerateWireLength(double wire_length_um) -> void
 {
   for (unsigned num_nodes = 0; num_nodes < _max_nodes; ++num_nodes) {
     const unsigned num_topologies = 1U << num_nodes;
@@ -239,7 +239,7 @@ void CharBuilder::enumerateWireLength(double wire_length_um)
   }
 }
 
-void CharBuilder::enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits)
+auto CharBuilder::enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> void
 {
   const TopologyDesc topo = buildTopologyDesc(wire_length_um, num_nodes, topology_bits);
   const std::size_t num_buf_positions = topo.buffer_positions.size();
@@ -367,7 +367,7 @@ auto CharBuilder::buildTopologyDesc(double wire_length_um, unsigned num_nodes, T
 // Characterization measurement
 // ---------------------------------------------------------------------------
 
-void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters)
+auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void
 {
   // Compute total wire length (um)
   double total_length_um = 0.0;
@@ -470,7 +470,7 @@ void CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
 // Temporary circuit management
 // ---------------------------------------------------------------------------
 
-void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters)
+auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void
 {
   _temp_inst_names.clear();
   _temp_net_names.clear();
@@ -543,7 +543,7 @@ void CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   ++_char_circuit_id;
 }
 
-void CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf)
+auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) -> void
 {
   // Build Pi-model RC tree for each wire segment
   for (size_t i = 0; i < _temp_net_names.size(); ++i) {
@@ -561,7 +561,7 @@ void CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf)
   }
 }
 
-void CharBuilder::destroyCharCircuit()
+auto CharBuilder::destroyCharCircuit() -> void
 {
   // Cleanup in reverse order: nets first, then characterization buffers, then source/sink
   for (const auto& net_name : std::ranges::reverse_view(_temp_net_names)) {

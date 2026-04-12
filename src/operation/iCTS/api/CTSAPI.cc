@@ -46,7 +46,7 @@
 #include "utils/logger/Logger.hh"
 
 namespace icts {
-void CTSAPI::runCTS()
+auto CTSAPI::runCTS() -> void
 {
   const ieda::Stats stats;
   readData();
@@ -57,7 +57,7 @@ void CTSAPI::runCTS()
   CTS_LOG_INFO << "**Flow elapsed time " << stats.elapsedRunTime() << "s";
 }
 
-void CTSAPI::readData()
+auto CTSAPI::readData() -> void
 {
   const ieda::Stats stats;
 
@@ -85,7 +85,7 @@ void CTSAPI::readData()
   CTS_LOG_INFO << "**Read Data elapsed time " << stats.elapsedRunTime() << "s";
 }
 
-void CTSAPI::summaryClockDistribution()
+auto CTSAPI::summaryClockDistribution() -> void
 {
   CTS_LOG_INFO << "======== Clock Distribution Summary ========";
   std::unordered_map<std::string, std::vector<Clock*>> clock_map;
@@ -126,12 +126,12 @@ void CTSAPI::summaryClockDistribution()
   CTS_LOG_INFO << "============================================";
 }
 
-void CTSAPI::report(const std::string& /*save_dir*/)
+auto CTSAPI::report(const std::string& /*save_dir*/) -> void
 {
   // TBD(clw): Reporting flow is not implemented yet.
 }
 
-void CTSAPI::resetAPI()
+auto CTSAPI::resetAPI() -> void
 {
   CONFIG_INST.reset();
   DESIGN_INST.reset();
@@ -139,7 +139,7 @@ void CTSAPI::resetAPI()
   LOG_INST.close();
 }
 
-void CTSAPI::init(const std::string& config_file, const InitOptions& options)
+auto CTSAPI::init(const std::string& config_file, const InitOptions& options) -> void
 {
   resetAPI();
   // Config

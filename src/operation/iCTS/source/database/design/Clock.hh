@@ -42,21 +42,21 @@ class Clock
   ~Clock() = default;
 
   // Getter
-  const std::string& get_clock_name() const { return _clock_name; }
-  const std::string& get_clock_net_name() const { return _clock_net_name; }
-  Pin* get_clock_source() const { return _clock_source; }
-  const std::vector<Pin*>& get_loads() const { return _loads; }
+  auto get_clock_name() const -> const std::string& { return _clock_name; }
+  auto get_clock_net_name() const -> const std::string& { return _clock_net_name; }
+  auto get_clock_source() const -> Pin* { return _clock_source; }
+  auto get_loads() const -> const std::vector<Pin*>& { return _loads; }
 
   // Setter
-  void set_clock_name(const std::string& clock_name) { _clock_name = clock_name; }
-  void set_clock_net_name(const std::string& clock_net_name) { _clock_net_name = clock_net_name; }
-  void set_clock_source(Pin* clock_source) { _clock_source = clock_source; }
-  void set_loads(const std::vector<Pin*>& loads) { _loads = loads; }
+  auto set_clock_name(const std::string& clock_name) -> void { _clock_name = clock_name; }
+  auto set_clock_net_name(const std::string& clock_net_name) -> void { _clock_net_name = clock_net_name; }
+  auto set_clock_source(Pin* clock_source) -> void { _clock_source = clock_source; }
+  auto set_loads(const std::vector<Pin*>& loads) -> void { _loads = loads; }
 
   // Adder
-  void add_load(Pin* load) { _loads.push_back(load); }
-  void add_inserted_inst(Inst* inst) { _inserted_insts.push_back(inst); }
-  void add_inserted_net(Net* net) { _inserted_nets.push_back(net); }
+  auto add_load(Pin* load) -> void { _loads.push_back(load); }
+  auto add_inserted_inst(Inst* inst) -> void { _inserted_insts.push_back(inst); }
+  auto add_inserted_net(Net* net) -> void { _inserted_nets.push_back(net); }
 
  private:
   std::string _clock_name = "";

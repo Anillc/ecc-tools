@@ -68,7 +68,7 @@ auto WriteTextLog(const std::filesystem::path& path, const std::string& content)
   return true;
 }
 
-void EmitInfoReport(const InfoReport& report)
+auto EmitInfoReport(const InfoReport& report) -> void
 {
   CTS_LOG_INFO << "[" << report.title << "] report_begin";
 

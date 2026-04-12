@@ -288,9 +288,9 @@ inline auto BuildClusterColors(std::size_t cluster_count, const std::vector<icts
     }
   }
 
-  constexpr std::size_t kColorStride = 5;
+  constexpr std::size_t color_stride = 5;
   for (std::size_t cluster_id = center_count; cluster_id < cluster_count; ++cluster_id) {
-    color_table.at(cluster_id) = kPalette.at((cluster_id * kColorStride) % kPalette.size());
+    color_table.at(cluster_id) = kPalette.at((cluster_id * color_stride) % kPalette.size());
   }
   return color_table;
 }

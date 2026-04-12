@@ -58,6 +58,7 @@ from ecc_dev_tools.checkers import (
     _parallel_map,
     _parse_clang_tidy_output,
     _parse_iwyu_output,
+    _run_clang_tidy_header_pass,
     _scan_deps_for_file,
     _strip_diagnostic_suffix,
     run_header_dependency_check,
@@ -461,6 +462,23 @@ class TestResolveExecutionPlanTidyModeOverride(unittest.TestCase):
         pass_names = [p.name for p in plan.tidy_passes]
         self.assertIn("analyzer-tu", pass_names)
 
+    def test_deep_mode_has_header_pass_with_same_checks_as_tu(self):
+        plan = resolve_execution_plan(
+            profile=self.profile,
+            validation_preset=None,
+            tidy_mode="deep",
+            pass_plan="complete",
+        )
+        tu_pass = next((p for p in plan.tidy_passes if p.name == "tidy-tu"), None)
+        header_pass = next((p for p in plan.tidy_passes if p.name == "tidy-headers"), None)
+        self.assertIsNotNone(tu_pass)
+        self.assertIsNotNone(header_pass)
+        assert tu_pass is not None
+        assert header_pass is not None
+        self.assertEqual(header_pass.runner, "clang-tidy-header")
+        self.assertEqual(header_pass.checks_arg, tu_pass.checks_arg)
+        self.assertFalse(header_pass.on_demand)
+
     def test_naming_mode_no_analyzer_pass(self):
         plan = resolve_execution_plan(
             profile=self.profile,
@@ -832,6 +850,91 @@ class TestParseClangTidyOutput(unittest.TestCase):
         text = "42 warnings generated.\nSuppressed 40 warnings (38 in non-user code, 2 NOLINT)."
         result = _parse_clang_tidy_output(text, scope, command, origin="tidy-tu")
         self.assertIsNotNone(result.suppression_note)
+
+
+class TestRunClangTidyHeaderPass(unittest.TestCase):
+    """_run_clang_tidy_header_pass() -- reports parsed findings for scope-local headers."""
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_reports_all_parsed_findings(self, run_command_mock, _config_args_mock):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "src"
+        build = tmp / "build"
+        src.mkdir()
+        build.mkdir()
+        header = (src / "File.hh").resolve()
+        header.write_text("#pragma once\n", encoding="utf-8")
+
+        scope = Scope(
+            repo_root=tmp,
+            raw_paths=["src"],
+            resolved_paths=[src.resolve()],
+        )
+        context = BuildContext(
+            build_dir=build,
+            compile_commands_path=build / "compile_commands.json",
+            file_api_reply_dir=build / ".cmake" / "api" / "v1" / "reply",
+            compile_commands=[],
+            targets={},
+            declared_graph={},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=tmp,
+            build_dir=build,
+            jobs=1,
+            total_cpus=1,
+            idle_threads_estimate=1,
+            tool_statuses=[
+                ToolStatus(
+                    name="clang-tidy",
+                    required=True,
+                    found=True,
+                    executable="/usr/bin/clang-tidy",
+                    version_text="LLVM version 22.1.2",
+                    ok=True,
+                )
+            ],
+        )
+        tidy_pass = TidyPass(
+            name="tidy-headers",
+            description="",
+            tool_name="clang-tidy",
+            runner="clang-tidy-header",
+            checks_arg="-*,modernize-*,readability-*",
+        )
+        run_command_mock.return_value = type(
+            "Result",
+            (),
+            {
+                "returncode": 0,
+                "stdout": (
+                    f"{header}:10:5: warning: use trailing return type [modernize-use-trailing-return-type]\n"
+                    f"{header}:12:5: warning: bad name [readability-identifier-naming]\n"
+                ),
+                "stderr": "",
+            },
+        )()
+
+        result = _run_clang_tidy_header_pass(
+            tidy_pass,
+            repo_root=tmp,
+            scope=scope,
+            context=context,
+            snapshot=snapshot,
+            config_path=tmp / ".clang-tidy",
+            headers=[header],
+        )
+
+        self.assertEqual(result.commands_run, 1)
+        self.assertEqual(len(result.findings), 2)
+        self.assertEqual(
+            {finding.subtype for finding in result.findings},
+            {"modernize-use-trailing-return-type", "readability-identifier-naming"},
+        )
 
 
 class TestExtractDiagnosticChecks(unittest.TestCase):

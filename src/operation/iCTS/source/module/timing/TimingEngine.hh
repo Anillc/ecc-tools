@@ -42,19 +42,19 @@ class TimingEngine
   TimingEngine() = delete;
   ~TimingEngine() = default;
 
-  static Metrics update(RCTree& rc_tree);
+  static auto update(RCTree& rc_tree) -> Metrics;
 
-  static void updateDownstreamCap(RCTree& rc_tree);
-  static void updateIncreaseDelay(RCTree& rc_tree);
-  static void updateArrival(RCTree& rc_tree);
-  static void updateSlew(RCTree& rc_tree);
-  static void updateDownstreamDelay(RCTree& rc_tree);
+  static auto updateDownstreamCap(RCTree& rc_tree) -> void;
+  static auto updateIncreaseDelay(RCTree& rc_tree) -> void;
+  static auto updateArrival(RCTree& rc_tree) -> void;
+  static auto updateSlew(RCTree& rc_tree) -> void;
+  static auto updateDownstreamDelay(RCTree& rc_tree) -> void;
 
-  static Metrics evaluate(const RCTree& rc_tree);
-  static double calcSkew(const RCTree& rc_tree);
+  static auto evaluate(const RCTree& rc_tree) -> Metrics;
+  static auto calcSkew(const RCTree& rc_tree) -> double;
 
-  static double calcArcDelay(double downstream_cap, double resistance, double capacitance);
-  static double calcIdealSlew(double arc_delay);
+  static auto calcArcDelay(double downstream_cap, double resistance, double capacitance) -> double;
+  static auto calcIdealSlew(double arc_delay) -> double;
 };
 
 }  // namespace icts

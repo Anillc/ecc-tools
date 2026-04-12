@@ -44,27 +44,27 @@ class HTreeTopologyCharTable
   /**
    * @brief Add a characterization entry.
    */
-  void addChar(HTreeTopologyChar c) { _chars.push_back(std::move(c)); }
+  auto addChar(HTreeTopologyChar c) -> void { _chars.push_back(std::move(c)); }
 
   /**
    * @brief Clear all entries.
    */
-  void clear() { _chars.clear(); }
+  auto clear() -> void { _chars.clear(); }
 
   /**
    * @brief Get read-only access to characterization entries.
    */
-  const std::vector<HTreeTopologyChar>& get_chars() const { return _chars; }
+  auto get_chars() const -> const std::vector<HTreeTopologyChar>& { return _chars; }
 
   /**
    * @brief Get the number of entries.
    */
-  std::size_t size() const { return _chars.size(); }
+  auto size() const -> std::size_t { return _chars.size(); }
 
   /**
    * @brief Reserve capacity.
    */
-  void reserve(std::size_t n) { _chars.reserve(n); }
+  auto reserve(std::size_t n) -> void { _chars.reserve(n); }
 
   /**
    * @brief Concatenate with downstream table using Hash-Join.
@@ -81,8 +81,8 @@ class HTreeTopologyCharTable
    * @return New table with composed entries
    */
   template <class CombinerT, class PrunerT = detail::NullPruner>
-  HTreeTopologyCharTable concatWith(const HTreeTopologyCharTable& downstream, const CombinerT& combiner,
-                                    const PrunerT* pruner = nullptr) const
+  auto concatWith(const HTreeTopologyCharTable& downstream, const CombinerT& combiner, const PrunerT* pruner = nullptr) const
+      -> HTreeTopologyCharTable
   {
     HTreeTopologyCharTable result;
     detail::HashJoinConcat<HTreeTopologyChar, HTreeTraits>(_chars, downstream._chars, combiner, result._chars, pruner);

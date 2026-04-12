@@ -76,7 +76,7 @@ auto ConvertIdbPinType(idb::IdbConnectType idb_pin_type, idb::IdbConnectDirectio
 
 }  // namespace
 
-void Wrapper::init(idb::IdbBuilder* idb)
+auto Wrapper::init(idb::IdbBuilder* idb) -> void
 {
   _idb = idb;
   _idb_design = _idb->get_def_service()->get_design();
@@ -108,7 +108,7 @@ auto Wrapper::withinCore(int32_t point_x, int32_t point_y) const -> bool
          && point_y <= core_box->get_high_y();
 }
 
-void Wrapper::read()
+auto Wrapper::read() -> void
 {
   if (_idb == nullptr) {
     CTS_LOG_WARNING << "Skip wrapper read: iDB builder is null.";

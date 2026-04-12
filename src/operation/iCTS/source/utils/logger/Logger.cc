@@ -91,7 +91,7 @@ Logger::Stream::~Stream()
   Logger::logToConsole(_level, _file, _line, message);
 }
 
-void Logger::set_log_file(const std::string& log_file)
+auto Logger::set_log_file(const std::string& log_file) -> void
 {
   const std::scoped_lock lock(_mutex);
   if (_log_file == log_file && _ofs.is_open()) {
@@ -110,7 +110,7 @@ void Logger::set_log_file(const std::string& log_file)
   }
 }
 
-void Logger::close()
+auto Logger::close() -> void
 {
   const std::scoped_lock lock(_mutex);
   if (_ofs.is_open()) {
@@ -118,7 +118,7 @@ void Logger::close()
   }
 }
 
-void Logger::write(Level level, const std::string& message)
+auto Logger::write(Level level, const std::string& message) -> void
 {
   const std::scoped_lock lock(_mutex);
   if (!_ofs.is_open()) {

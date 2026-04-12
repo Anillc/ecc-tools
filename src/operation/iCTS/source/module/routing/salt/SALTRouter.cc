@@ -61,7 +61,7 @@ auto SALTRouter::buildTree(const ClockTerminal& driver_terminal, const std::vect
     return clock_tree;
   }
 
-  auto salt_pins = buildSaltPins(driver_terminal, load_terminals);
+  auto salt_pins = BuildSaltPins(driver_terminal, load_terminals);
   salt::Net net;
   net.init(0, "SALT", salt_pins);
 

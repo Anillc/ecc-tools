@@ -1115,6 +1115,7 @@ def _run_tidy_pass(
             snapshot=snapshot,
             config_path=config_path,
             headers=headers,
+            profile=profile,
             runtime_detail=runtime_detail,
         )
     if tidy_pass.runner == "clang-frontend":
@@ -1226,6 +1227,7 @@ def _run_clang_tidy_header_pass(
     snapshot: EnvironmentSnapshot,
     config_path: Path,
     headers: list[Path],
+    profile: Profile | None = None,
     runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
@@ -1235,14 +1237,41 @@ def _run_clang_tidy_header_pass(
 
     config_args = _clang_tidy_config_args(config_path, clang_tidy_status.executable, clang_tidy_status.version_text)
     checks_arg = tidy_pass.checks_arg
+    targets = targets_for_scope(context, scope)
+    target_include_sets = {
+        target.name: _extract_include_roots(target)
+        for target in context.targets.values()
+    }
 
-    outcome.notes.append(f"Pass {tidy_pass.name}: header naming pass enabled for {len(headers)} headers.")
+    outcome.notes.append(f"Pass {tidy_pass.name}: header pass enabled for {len(headers)} headers.")
     if checks_arg is not None:
         outcome.notes.append(f"Pass {tidy_pass.name}: checks={checks_arg}")
 
     runtime_entries: list[RuntimeEntry] = []
     for header in headers:
         started_at = time.perf_counter()
+        owners = [target for target in targets if target.owns_path(header)]
+        owner = owners[0] if owners else None
+        include_dirs: set[str] = set()
+        if owner is not None:
+            include_dirs |= target_include_sets.get(owner.name, set())
+            include_dirs |= {str(path) for path in owner.include_dirs}
+            for dep in owner.declared_links:
+                include_dirs |= target_include_sets.get(dep, set())
+                dep_target = context.targets.get(dep)
+                if dep_target is not None:
+                    include_dirs |= {str(path) for path in dep_target.include_dirs}
+        elif profile is not None:
+            include_dirs |= _infer_interface_include_dirs(header, repo_root, profile)
+        include_dirs.add(str(header.parent))
+        include_dirs.add(str(repo_root / "src"))
+
+        trigger_command: CompileCommand | None = None
+        if owner is not None:
+            trigger_command = next((command for command in context.compile_commands if any(command.file == source for source in owner.sources)), None)
+            if trigger_command is not None:
+                include_dirs |= {str(path) for path in _extract_include_flags(trigger_command.command, trigger_command.directory)}
+
         header_cmd = [
             clang_tidy_status.executable,
             str(header),
@@ -1253,13 +1282,15 @@ def _run_clang_tidy_header_pass(
         if checks_arg is not None:
             header_cmd.append(f"--checks={checks_arg}")
         header_cmd.append(f"--header-filter={_build_exact_header_filter(header)}")
+        if trigger_command is None:
+            header_cmd.append("--extra-arg=-std=c++20")
+        for include_dir in sorted(include_dirs):
+            header_cmd.append(f"--extra-arg=-I{include_dir}")
         output = run_command(header_cmd, cwd=repo_root)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
         pseudo_command = CompileCommand(file=header, directory=repo_root, command="header-pass")
         parsed = _parse_clang_tidy_output(text, scope, pseudo_command, origin=tidy_pass.name)
-        for finding in parsed.findings:
-            if finding.subtype == "readability-identifier-naming":
-                outcome.findings.append(finding)
+        outcome.findings.extend(parsed.findings)
         runtime_entries.append(
             RuntimeEntry(
                 label=relative_to_repo(header, repo_root),

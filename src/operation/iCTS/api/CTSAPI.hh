@@ -44,32 +44,32 @@ class CTSAPI
   {
     WorkDir work_dir;
   };
-  static CTSAPI& getInst()
+  static auto getInst() -> CTSAPI&
   {
     static CTSAPI inst;
     return inst;
   }
 
   // CTS CLI
-  static void runCTS();
-  static void report(const std::string& save_dir);
+  static auto runCTS() -> void;
+  static auto report(const std::string& save_dir) -> void;
 
   // Flow API
-  static void resetAPI();
-  static void init(const std::string& config_file, const InitOptions& options = {});
-  static void readData();
-  static void summaryClockDistribution();
+  static auto resetAPI() -> void;
+  static auto init(const std::string& config_file, const InitOptions& options = {}) -> void;
+  static auto readData() -> void;
+  static auto summaryClockDistribution() -> void;
 
   // Feature API
   static auto outputSummary() -> ieda_feature::CTSSummary;
+  CTSAPI(const CTSAPI& other) = delete;
+  CTSAPI(CTSAPI&& other) = delete;
+  auto operator=(const CTSAPI& other) -> CTSAPI& = delete;
+  auto operator=(CTSAPI&& other) -> CTSAPI& = delete;
 
  private:
   CTSAPI() = default;
-  CTSAPI(const CTSAPI& other) = delete;
-  CTSAPI(CTSAPI&& other) = delete;
   ~CTSAPI() = default;
-  CTSAPI& operator=(const CTSAPI& other) = delete;
-  CTSAPI& operator=(CTSAPI&& other) = delete;
 };
 
 }  // namespace icts

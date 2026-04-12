@@ -41,7 +41,7 @@ namespace detail {
  *
  * Key format: [slew:16][cap:16]
  */
-inline unsigned Pack(unsigned slew, unsigned cap)
+inline auto Pack(unsigned slew, unsigned cap) -> unsigned
 {
   return (slew << 16) | cap;
 }
@@ -76,8 +76,8 @@ struct NullPruner
  * @param pruner Optional pruner (nullptr to disable)
  */
 template <class CharT, class Traits, class CombinerT, class PrunerT>
-inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream, const CombinerT& combiner,
-                           std::vector<CharT>& out, [[maybe_unused]] const PrunerT* pruner = nullptr)
+inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream, const CombinerT& combiner,
+                           std::vector<CharT>& out, [[maybe_unused]] const PrunerT* pruner = nullptr) -> void
 {
   if (upstream.empty() || downstream.empty()) {
     return;
@@ -123,7 +123,7 @@ inline void HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
             continue;
           }
           // Remove entries dominated by new result
-          auto new_end = std::remove_if(out.begin(), out.end(), [&](const CharT& existing) {
+          auto new_end = std::remove_if(out.begin(), out.end(), [&](const CharT& existing) -> auto {
             return pruner->groupKey(existing) == group && pruner->dominates(result, existing);
           });
           out.erase(new_end, out.end());
