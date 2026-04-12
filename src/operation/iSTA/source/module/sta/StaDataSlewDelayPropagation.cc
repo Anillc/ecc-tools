@@ -182,8 +182,29 @@ unsigned StaDataSlewDelayPropagation::operator()(StaArc* the_arc) {
             auto snk_slew_fs =
                 dynamic_cast<StaSlewData*>(snk_slew_data)->get_slew();
             auto snk_slew = FS_TO_NS(snk_slew_fs);
+            auto convert_check_slew_for_lookup =
+                [lib_arc](double constrained_slew_ns) -> double {
+              auto* owner_lib =
+                  lib_arc && lib_arc->get_owner_cell()
+                      ? lib_arc->get_owner_cell()->get_owner_lib()
+                      : nullptr;
+              if (!owner_lib) {
+                return constrained_slew_ns;
+              }
+
+              switch (owner_lib->get_time_unit()) {
+                case TimeUnit::kPS:
+                  return constrained_slew_ns * 1e3;
+                case TimeUnit::kFS:
+                  return constrained_slew_ns * 1e6;
+                case TimeUnit::kNS:
+                default:
+                  return constrained_slew_ns;
+              }
+            };
             auto delay_ns = lib_arc->getDelayOrConstrainCheckNs(
-                snk_trans_type, in_slew, snk_slew);
+                snk_trans_type, in_slew,
+                convert_check_slew_for_lookup(snk_slew));
             auto delay = NS_TO_FS(delay_ns);
 
             StaArcDelayData* arc_delay = nullptr;

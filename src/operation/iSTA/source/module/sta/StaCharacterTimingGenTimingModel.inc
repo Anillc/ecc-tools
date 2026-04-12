@@ -1075,6 +1075,9 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                   bindingSlewNs(exported_check_pair_binding, true);
               const auto exported_binding_data_slew_ns =
                   bindingSlewNs(exported_check_pair_binding, false);
+              const bool preserved_seq_is_local_binding =
+                  std::string_view(preserved_seq_match_status) ==
+                  "local_binding";
               double clock_arrival_delta_ns = 0.0;
               const char* clock_arrival_source = "missing";
               if (preserved_clock_arrival_delta_ns) {
@@ -1093,20 +1096,20 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               check_margin_ns = 0.0;
               check_margin_with_local_clock_slew_ns = 0.0;
               const char* check_margin_source = "missing";
-              if (preserved_seq_snapshot) {
+              if (preserved_seq_snapshot && !preserved_seq_is_local_binding) {
                 check_margin_ns = preserved_check_margin_ns;
                 check_margin_with_local_clock_slew_ns = preserved_check_margin_ns;
                 check_margin_source = "preserved_seq_snapshot";
               } else if (reference_check_arc) {
                 check_margin_ns = lookup_check_margin_ns(
-                    reference_check_arc,
-                    local_data_candidate.terms.end_trans_type,
-                    check_clock_slew_ns, check_data_slew_ns);
+                    reference_check_arc, input_trans_type, check_clock_slew_ns,
+                    check_data_slew_ns);
                 check_margin_with_local_clock_slew_ns = lookup_check_margin_ns(
-                    reference_check_arc,
-                    local_data_candidate.terms.end_trans_type,
+                    reference_check_arc, input_trans_type,
                     clock_slew_ns.value_or(0.0), check_data_slew_ns);
-                check_margin_source = "reference_check_arc";
+                check_margin_source = preserved_seq_is_local_binding
+                                          ? "reference_check_arc_after_local_binding"
+                                          : "reference_check_arc";
               } else if (exported_binding_exact && exported_binding_check_margin_ns) {
                 check_margin_ns = *exported_binding_check_margin_ns;
                 check_margin_with_local_clock_slew_ns = check_margin_ns;

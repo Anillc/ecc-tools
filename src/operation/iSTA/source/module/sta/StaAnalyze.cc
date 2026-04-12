@@ -141,9 +141,31 @@ std::optional<StaCheckPairBinding> buildExactSeqCheckPairBinding(
       inst_arc && inst_arc->get_lib_arc()) {
     const double clock_slew_ns = FS_TO_NS(clock_slew_data->get_slew());
     const double data_slew_ns = FS_TO_NS(data_slew_data->get_slew());
+    auto convert_check_slew_for_lookup =
+        [inst_arc](double constrained_slew_ns) -> double {
+      auto* owner_lib =
+          inst_arc && inst_arc->get_lib_arc() &&
+                  inst_arc->get_lib_arc()->get_owner_cell()
+              ? inst_arc->get_lib_arc()->get_owner_cell()->get_owner_lib()
+              : nullptr;
+      if (!owner_lib) {
+        return constrained_slew_ns;
+      }
+
+      switch (owner_lib->get_time_unit()) {
+        case TimeUnit::kPS:
+          return constrained_slew_ns * 1e3;
+        case TimeUnit::kFS:
+          return constrained_slew_ns * 1e6;
+        case TimeUnit::kNS:
+        default:
+          return constrained_slew_ns;
+      }
+    };
     sampled_check_margin_fs =
         NS_TO_FS(inst_arc->get_lib_arc()->getDelayOrConstrainCheckNs(
-            delay_data->get_trans_type(), clock_slew_ns, data_slew_ns));
+            delay_data->get_trans_type(), clock_slew_ns,
+            convert_check_slew_for_lookup(data_slew_ns)));
   } else {
     sampled_check_margin_fs =
         check_arc->get_arc_delay(analysis_mode, delay_data->get_trans_type(),
