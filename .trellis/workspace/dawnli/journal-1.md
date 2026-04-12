@@ -791,3 +791,47 @@ Sanitized archived Trellis docs, rewrote cts_refactor history to remove targeted
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: iCTS C++20 style audit and ecc_dev_tools cleanup
+
+**Date**: 2026-04-12
+**Task**: iCTS C++20 style audit and ecc_dev_tools cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| iCTS style cleanup | Audited and cleaned in-scope modern C++ style findings under `src/operation/iCTS`. |
+| ecc_dev_tools | Aligned header tidy coverage with TU coverage and fixed header-pass include inference for interface headers. |
+| Validation | Re-ran `ecc_dev_tools` checks to confirm `src/operation/iCTS` has 0 in-scope findings for `tidy-only`, `structure`, and full check flows. |
+
+**Key outcomes**:
+- Unified header/TU `clang-tidy` scope in deep mode.
+- Added regression coverage in `.trellis/ecc_dev_tools/tests/test_core.py`.
+- Simplified `quality-guidelines.md` to a concise modern C++ reminder.
+- Cleaned remaining iCTS in-scope issues in geometry and topology helpers.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `37e5868fd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
