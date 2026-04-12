@@ -1008,6 +1008,7 @@ void Sta::initSdcCmd() {
   registerTclCmd(CmdCreateClock, "create_clock");
   registerTclCmd(CmdCreateGeneratedClock, "create_generated_clock");
   registerTclCmd(CmdSetInputTransition, "set_input_transition");
+  registerTclCmd(CmdSetInputTransition, "set_clock_transition");
   registerTclCmd(CmdSetDrivingCell, "set_driving_cell");
   registerTclCmd(CmdSetLoad, "set_load");
   registerTclCmd(CmdSetInputDelay, "set_input_delay");

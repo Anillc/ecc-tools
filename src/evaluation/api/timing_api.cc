@@ -37,6 +37,8 @@ void TimingAPI::evalTiming(const std::string& routing_type, const bool& rt_done)
 void TimingAPI::destroyInst()
 {
   ieval::TimingEval::destroyInst();
+  delete _timing_api;
+  _timing_api = nullptr;
 }
 
 std::map<std::string, TimingSummary> TimingAPI::evalDesign()

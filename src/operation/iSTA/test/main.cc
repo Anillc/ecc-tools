@@ -20,6 +20,9 @@
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
 
-  testing::GTEST_FLAG(filter) = "LibDataGPUTest.test*";
+  if (testing::GTEST_FLAG(filter).empty() ||
+      testing::GTEST_FLAG(filter) == "*") {
+    testing::GTEST_FLAG(filter) = "LibDataGPUTest.test*";
+  }
   return RUN_ALL_TESTS();
 }

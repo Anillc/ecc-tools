@@ -24,6 +24,7 @@
  */
 #include "iIR.hh"
 
+#include <mutex>
 #include <string_view>
 
 #include "ir-solver/IRSolver.hh"
@@ -38,7 +39,8 @@ namespace iir {
  * @return unsigned
  */
 unsigned iIR::init() {
-  init_iir();
+  static std::once_flag init_once;
+  std::call_once(init_once, [] { init_iir(); });
   return 1;
 }
 

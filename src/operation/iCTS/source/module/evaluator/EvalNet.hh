@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <limits>
 #include <unordered_map>
 #include <utility>
 

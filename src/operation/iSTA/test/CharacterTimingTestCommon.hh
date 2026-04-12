@@ -281,7 +281,7 @@ inline fs::path generateGoldenCaseTimingModel(AnalysisMode analysis_mode,
     return output_lib;
   }
 
-  TimingEngine::destroyTimingEngine();
+  ieval::TimingAPI::destroyInst();
   auto* timing_api = ieval::TimingAPI::getInst();
 
   EXPECT_TRUE(dmInst->init(db_config_path.string()))

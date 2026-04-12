@@ -32,6 +32,32 @@
 #include "sdc/SdcSetIODelay.hh"
 #include "sta/Sta.hh"
 namespace ista {
+
+namespace {
+
+std::string ResolveIODelayClockName(TclCmd* cmd, Netlist* design_nl,
+                                    SdcConstrain* the_constrain) {
+  auto* clock_option = cmd->getOptionOrArg("-clock");
+  if (clock_option->is_set_val()) {
+    auto* clock_str = clock_option->getStringVal();
+    auto clock_names = GetClockName(clock_str, design_nl, the_constrain);
+    LOG_FATAL_IF(clock_names.empty()) << "clock " << clock_str << " is empty.";
+    return clock_names.front();
+  }
+
+  auto& sdc_clocks = the_constrain->get_sdc_clocks();
+  LOG_FATAL_IF(sdc_clocks.empty())
+      << cmd->get_cmd_name()
+      << " requires -clock when no clock has been created.";
+  LOG_FATAL_IF(sdc_clocks.size() != 1)
+      << cmd->get_cmd_name()
+      << " requires -clock when multiple clocks exist.";
+
+  return sdc_clocks.begin()->first;
+}
+
+}  // namespace
+
 /**
  * @brief The common add option of io delay.
  *
@@ -176,11 +202,9 @@ unsigned CmdSetInputDelay::exec() {
   Sta* ista = Sta::getOrCreateSta();
   Netlist* design_nl = ista->get_netlist();
 
-  auto* clock_option = getOptionOrArg("-clock");
-  auto* clock_str = clock_option->getStringVal();
   SdcConstrain* the_constrain = ista->getConstrain();
   std::string clock_name =
-      GetClockName(clock_str, design_nl, the_constrain).front();
+      ResolveIODelayClockName(this, design_nl, the_constrain);
 
   auto* delay_value = getOptionOrArg("delay_value");
 
@@ -208,11 +232,9 @@ unsigned CmdSetOutputDelay::exec() {
   Sta* ista = Sta::getOrCreateSta();
   Netlist* design_nl = ista->get_netlist();
 
-  auto* clock_option = getOptionOrArg("-clock");
-  auto* clock_str = clock_option->getStringVal();
   SdcConstrain* the_constrain = ista->getConstrain();
   std::string clock_name =
-      GetClockName(clock_str, design_nl, the_constrain).front();
+      ResolveIODelayClockName(this, design_nl, the_constrain);
   auto* delay_value = getOptionOrArg("delay_value");
 
   auto* set_output_delay =

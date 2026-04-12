@@ -33,6 +33,7 @@ void TimingEval::evalTiming(const std::string& routing_type, const bool& rt_done
 
 void TimingEval::destroyInst()
 {
+  ieval::InitSTA::destroyInst();
   delete _timing_eval;
   _timing_eval = nullptr;
 }

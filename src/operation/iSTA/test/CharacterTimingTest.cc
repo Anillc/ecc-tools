@@ -36,7 +36,7 @@ class CharacterTimingTest : public testing::Test {
     Log::init(argv);
   }
   void TearDown() final {
-    TimingEngine::destroyTimingEngine();
+    ieval::TimingAPI::destroyInst();
     Log::end();
   }
 };
@@ -55,7 +55,7 @@ TimingEngine* buildGoldenCaseTimingWithSdc(const std::filesystem::path& sdc_path
     return nullptr;
   }
 
-  TimingEngine::destroyTimingEngine();
+  ieval::TimingAPI::destroyInst();
   auto* timing_api = ieval::TimingAPI::getInst();
 
   EXPECT_TRUE(dmInst->init(db_config_path.string()))
