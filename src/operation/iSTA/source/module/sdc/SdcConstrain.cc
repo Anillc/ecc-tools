@@ -24,6 +24,7 @@
 
 #include "SdcConstrain.hh"
 
+#include "SdcAllPorts.hh"
 #include "SdcException.hh"
 #include "SdcSetClockLatency.hh"
 #include "SdcSetClockUncertainty.hh"
@@ -158,7 +159,47 @@ void SdcConstrain::addSdcException(SdcException* sdc_exception) {
 }
 
 /**
- * @brief Find the matched sdc object or design object.
+ * @brief Helper: recursively expand SDC collection objects into individual
+ * design objects when possible.
+ */
+static std::vector<SdcCollectionObj> _expand_collection_objs(
+    const std::vector<SdcCollectionObj>& objs, Netlist* design_nl) {
+  std::vector<SdcCollectionObj> result;
+  for (const auto& obj : objs) {
+    std::visit(
+        overloaded{
+            [&result](DesignObject* design_obj) {
+              result.emplace_back(design_obj);
+            },
+            [&result, design_nl](SdcCommandObj* sdc_obj) {
+              if (auto* collection = dynamic_cast<SdcCollection*>(const_cast<SdcCommandObj*>(sdc_obj))) {
+                auto inner =
+                    _expand_collection_objs(collection->get_collection_objs(), design_nl);
+                result.insert(result.end(), inner.begin(), inner.end());
+              } else if (sdc_obj->isAllInputPorts()) {
+                auto* all_input_ports =
+                    dynamic_cast<SdcAllInputPorts*>(const_cast<SdcCommandObj*>(sdc_obj));
+                for (auto* input_port : all_input_ports->get_input_ports()) {
+                  result.emplace_back(input_port);
+                }
+              } else if (sdc_obj->isAllOutputPorts()) {
+                auto* all_output_ports =
+                    dynamic_cast<SdcAllOutputPorts*>(const_cast<SdcCommandObj*>(sdc_obj));
+                for (auto* output_port : all_output_ports->get_output_ports()) {
+                  result.emplace_back(output_port);
+                }
+              } else {
+                result.emplace_back(sdc_obj);
+              }
+            },
+        },
+        obj);
+  }
+  return result;
+}
+
+/**
+ * @brief Find design objects by SDC collection expression.
  *
  * @param pin_port_name
  * @param design_nl
@@ -171,8 +212,7 @@ std::vector<SdcCollectionObj> FindObjOfSdc(const std::string& pin_port_name,
                      ieda::TclEncodeResult::get_encode_preamble())) {
     auto* obj_collection = static_cast<SdcCollection*>(
         ieda::TclEncodeResult::decode(pin_port_name.c_str()));
-    auto& obj_list = obj_collection->get_collection_objs();
-    objs = obj_list;
+    objs = obj_collection->get_collection_objs();
   } else {
     auto pin_ports = design_nl->findObj(pin_port_name.c_str(), false, false);
 
@@ -181,7 +221,7 @@ std::vector<SdcCollectionObj> FindObjOfSdc(const std::string& pin_port_name,
     }
   }
 
-  return objs;
+  return _expand_collection_objs(objs, design_nl);
 }
 
 /**

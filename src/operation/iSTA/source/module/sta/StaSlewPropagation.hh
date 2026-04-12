@@ -88,6 +88,12 @@ class StaSlewPropagation : public StaFunc {
   unsigned operator()(StaGraph* the_graph) override;
 
   AnalysisMode get_analysis_mode() override { return AnalysisMode::kMaxMin; }
+
+  void set_propagate_output_port() { _propagate_output_port = true; }
+  bool isPropagateOutputPort() { return _propagate_output_port; }
+  
+ private:
+  bool _propagate_output_port = false;
 };
 
 }  // namespace ista

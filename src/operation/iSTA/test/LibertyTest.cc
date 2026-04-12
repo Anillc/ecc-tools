@@ -109,4 +109,45 @@ TEST_F(LibertyTest, print_liberty_library_json) {
   // lib_library->printLibertyLibraryJson(json_file_names_n45);
 }
 
+TEST_F(LibertyTest, rust_reader_converts_ff_pin_cap_ranges_to_internal_pf) {
+  const char* lib_path =
+      "/home/zhaoxueyan/code/write-lib_back/benchmark/iccad24-benchmark/ASAP7/"
+      "lib/asap7sc7p5t_SEQ_RVT_FF_nldm_201020.lib";
+
+  Lib lib;
+  auto lib_rust_reader = lib.loadLibertyWithRustParser(lib_path);
+  lib_rust_reader.linkLib();
+  auto lib_library = lib_rust_reader.get_library_builder()->takeLib();
+
+  ASSERT_NE(lib_library, nullptr);
+  EXPECT_EQ(lib_library->get_cap_unit(), CapacitiveUnit::kFF);
+
+  auto* lib_cell = lib_library->findCell("ASYNC_DFFHx1_ASAP7_75t_R");
+  ASSERT_NE(lib_cell, nullptr);
+
+  auto* data_port = lib_cell->get_cell_port_or_port_bus("D");
+  ASSERT_NE(data_port, nullptr);
+
+  EXPECT_NEAR(data_port->get_port_cap(), 0.000621396, 1e-9);
+
+  const auto max_rise_cap =
+      data_port->get_port_cap(AnalysisMode::kMax, TransType::kRise);
+  const auto min_rise_cap =
+      data_port->get_port_cap(AnalysisMode::kMin, TransType::kRise);
+  const auto max_fall_cap =
+      data_port->get_port_cap(AnalysisMode::kMax, TransType::kFall);
+  const auto min_fall_cap =
+      data_port->get_port_cap(AnalysisMode::kMin, TransType::kFall);
+
+  ASSERT_TRUE(max_rise_cap.has_value());
+  ASSERT_TRUE(min_rise_cap.has_value());
+  ASSERT_TRUE(max_fall_cap.has_value());
+  ASSERT_TRUE(min_fall_cap.has_value());
+
+  EXPECT_NEAR(*max_rise_cap, 0.000619712, 1e-9);
+  EXPECT_NEAR(*min_rise_cap, 0.000553479, 1e-9);
+  EXPECT_NEAR(*max_fall_cap, 0.000621396, 1e-9);
+  EXPECT_NEAR(*min_fall_cap, 0.000554061, 1e-9);
+}
+
 }  // namespace

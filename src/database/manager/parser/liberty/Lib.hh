@@ -168,6 +168,7 @@ class LibTable : public LibObject
   Vector<std::unique_ptr<LibAxis>>& get_axes();
   auto getAxesSize() { return _axes.size(); }
 
+  void addTableValue(std::unique_ptr<LibAttrValue> table_value) { _table_values.emplace_back(std::move(table_value)); }
   void set_table_values(std::vector<std::unique_ptr<LibAttrValue>>&& table_values) { _table_values = std::move(table_values); }
   auto& get_table_values() { return _table_values; }
 
@@ -347,7 +348,6 @@ class LibTableModel : public LibObject
  private:
   FORBIDDEN_COPY(LibTableModel);
 };
-
 #define CAST_TYPE_TO_INDEX(type) ((static_cast<int>(type) > 3) ? (static_cast<int>(type) - 4) : static_cast<int>(type))
 #define CAST_CURRENT_TYPE_TO_INDEX(type) (static_cast<int>(type) - 6)
 #define CAST_POWER_TYPE_TO_INDEX(type) (static_cast<int>(type) - 8)
@@ -561,6 +561,9 @@ class LibPort : public LibObject
   void set_clock_gate_enable_pin(bool clock_gate_enable_pin) { _clock_gate_enable_pin = clock_gate_enable_pin; }
   bool get_clock_gate_enable_pin() { return _clock_gate_enable_pin; }
 
+  void set_is_clock(bool is_clock) { _is_clock = is_clock; }
+  bool get_is_clock() const { return _is_clock; }
+
   void set_port_cap(double cap) { _port_cap = cap; }
   double get_port_cap() const { return _port_cap; }
 
@@ -615,6 +618,7 @@ class LibPort : public LibObject
   bool _is_clock_pin = false;           //!< The flag of clock pin.
   bool _clock_gate_clock_pin = false;   //!< The flag of gate clock pin.
   bool _clock_gate_enable_pin = false;  //!< The flag of gate enable pin.
+  bool _is_clock = false;               //!< The explicit clock flag for emitted pins.
   RustLibertyExpr* _func_expr = nullptr;
   std::string _func_expr_str;                                        //!< store func expr string for debug.
   double _port_cap = 0.0;                                            //!< The input pin corresponding to the port has capacitance.
@@ -867,14 +871,27 @@ class LibArc : public LibObject
            || (_timing_type == TimingType::kRecoveryFalling) || (_timing_type == TimingType::kRemovalFalling);
   }
 
-  unsigned isRisingTriggerArc() { return (_timing_type == TimingType::kRisingEdge); }
+  unsigned isRisingTriggerArc()
+  {
+    return (_timing_type == TimingType::kRisingEdge) || (_timing_type == TimingType::kSetupRising)
+           || (_timing_type == TimingType::kHoldRising);
+  }
 
-  unsigned isFallingTriggerArc() { return (_timing_type == TimingType::kFallingEdge); }
+  unsigned isFallingTriggerArc()
+  {
+    return (_timing_type == TimingType::kFallingEdge) || (_timing_type == TimingType::kSetupFalling)
+           || (_timing_type == TimingType::kHoldFalling);
+  }
 
   void set_table_model(std::unique_ptr<LibTableModel>&& table_model) { _table_model = std::move(table_model); }
   LibTableModel* get_table_model() { return _table_model.get(); }
 
-  double getDelayOrConstrainCheckNs(TransType trans_type, double slew, double load_or_constrain_slew);
+  // Historical API contract:
+  // - delay arc: first arg is slew in ns, second arg is load in library cap unit
+  // - check arc: first arg is related-pin slew in ns, second arg is
+  //   constrained-pin slew in liberty table time unit
+  double getDelayOrConstrainCheckNs(TransType trans_type, double slew,
+                                    double load_or_constrain_slew);
   double getDelaySigma(AnalysisMode mode, TransType trans_type, double slew, double load_or_constrain_slew);
   double getSlewNs(TransType trans_type, double slew, double load);
   double getSlewSigma(AnalysisMode mode, TransType trans_type, double slew, double load);
@@ -1264,9 +1281,9 @@ class LibLutTableTemplate : public LibObject
 
   const char* get_template_name() { return _template_name.c_str(); }
 
-  void set_template_variable1(const char* template_variable1) override
-  {
-    DLOG_FATAL_IF(_str2var.find(template_variable1) == _str2var.end()) << "not contain the template variable " << template_variable1;
+  void set_template_variable1(const char* template_variable1) override {
+    DLOG_FATAL_IF(!_str2var.contains(template_variable1))
+        << "not contain the template variable " << template_variable1;
     _template_variable1 = _str2var.at(template_variable1);
   }
 
@@ -1335,12 +1352,32 @@ class LibLibrary : public LibObject
   explicit LibLibrary(const char* lib_name) : _lib_name(lib_name) {}
   ~LibLibrary() = default;
 
-  LibLibrary(LibLibrary&& other) noexcept : _lib_name(std::move(other._lib_name)), _cells(std::move(other._cells)) {}
+  LibLibrary(LibLibrary&& other) noexcept
+      : _lib_name(std::move(other._lib_name)),
+        _cells(std::move(other._cells)),
+        _comment(std::move(other._comment)),
+        _simulation(other._simulation),
+        _library_features(std::move(other._library_features)),
+        _leakage_power_unit(std::move(other._leakage_power_unit)),
+        _current_unit_name(std::move(other._current_unit_name)),
+        _voltage_unit_name(std::move(other._voltage_unit_name)),
+        _nom_process(other._nom_process),
+        _nom_temperature(other._nom_temperature)
+  {
+  }
 
   LibLibrary& operator=(LibLibrary&& rhs) noexcept
   {
     _lib_name = std::move(rhs._lib_name);
     _cells = std::move(rhs._cells);
+    _comment = std::move(rhs._comment);
+    _simulation = rhs._simulation;
+    _library_features = std::move(rhs._library_features);
+    _leakage_power_unit = std::move(rhs._leakage_power_unit);
+    _current_unit_name = std::move(rhs._current_unit_name);
+    _voltage_unit_name = std::move(rhs._voltage_unit_name);
+    _nom_process = rhs._nom_process;
+    _nom_temperature = rhs._nom_temperature;
 
     return *this;
   }
@@ -1411,6 +1448,47 @@ class LibLibrary : public LibObject
 
   auto get_default_wire_load() { return _default_wire_load; }
 
+  void set_comment(std::string comment) { _comment = std::move(comment); }
+  const std::optional<std::string>& get_comment() const { return _comment; }
+
+  void set_simulation(bool simulation) { _simulation = simulation; }
+  const std::optional<bool>& get_simulation() const { return _simulation; }
+
+  void add_library_feature(std::string feature)
+  {
+    if (!feature.empty()) {
+      _library_features.emplace_back(std::move(feature));
+    }
+  }
+  const std::vector<std::string>& get_library_features() const { return _library_features; }
+
+  void set_leakage_power_unit(std::string leakage_power_unit)
+  {
+    _leakage_power_unit = std::move(leakage_power_unit);
+  }
+  const std::optional<std::string>& get_leakage_power_unit() const
+  {
+    return _leakage_power_unit;
+  }
+
+  void set_current_unit_name(std::string current_unit_name)
+  {
+    _current_unit_name = std::move(current_unit_name);
+  }
+  const std::optional<std::string>& get_current_unit_name() const
+  {
+    return _current_unit_name;
+  }
+
+  void set_voltage_unit_name(std::string voltage_unit_name)
+  {
+    _voltage_unit_name = std::move(voltage_unit_name);
+  }
+  const std::optional<std::string>& get_voltage_unit_name() const
+  {
+    return _voltage_unit_name;
+  }
+
   void set_cap_unit(CapacitiveUnit cap_unit) { _cap_unit = cap_unit; }
   CapacitiveUnit get_cap_unit() { return _cap_unit; }
 
@@ -1432,6 +1510,8 @@ class LibLibrary : public LibObject
   }
 
   std::vector<std::unique_ptr<LibCell>>& get_cells() { return _cells; }
+  auto& get_lut_templates() { return _lut_templates; }
+  auto& get_types() { return _types; }
 
   void set_default_max_transition(double default_max_transition) { _default_max_transition = default_max_transition; }
   auto& get_default_max_transition() { return _default_max_transition; }
@@ -1444,6 +1524,18 @@ class LibLibrary : public LibObject
 
   void set_nom_voltage(double nom_voltage) { _nom_voltage = nom_voltage; }
   double get_nom_voltage() { return _nom_voltage; }
+
+  void set_nom_process(double nom_process) { _nom_process = nom_process; }
+  const std::optional<double>& get_nom_process() const { return _nom_process; }
+
+  void set_nom_temperature(double nom_temperature)
+  {
+    _nom_temperature = nom_temperature;
+  }
+  const std::optional<double>& get_nom_temperature() const
+  {
+    return _nom_temperature;
+  }
 
   void set_slew_lower_threshold_pct_rise(double slew_lower_threshold_pct_rise)
   {
@@ -1500,6 +1592,7 @@ class LibLibrary : public LibObject
   void set_slew_derate_from_library(double slew_derate_from_library) { _slew_derate_from_library = slew_derate_from_library; }
   double get_slew_derate_from_library() { return _slew_derate_from_library; }
 
+  void printLibertyLibrary(const char* lib_file_name);
   void printLibertyLibraryJson(const char* json_file_name);
 
  private:
@@ -1519,6 +1612,13 @@ class LibLibrary : public LibObject
 
   StrMap<LibType*> _str2type;
 
+  std::optional<std::string> _comment;
+  std::optional<bool> _simulation;
+  std::vector<std::string> _library_features;
+  std::optional<std::string> _leakage_power_unit;
+  std::optional<std::string> _current_unit_name;
+  std::optional<std::string> _voltage_unit_name;
+
   CapacitiveUnit _cap_unit = CapacitiveUnit::kFF;
   ResistanceUnit _resistance_unit = ResistanceUnit::kkOHM;
   TimeUnit _time_unit = TimeUnit::kNS;
@@ -1529,7 +1629,9 @@ class LibLibrary : public LibObject
 
   std::string _default_wire_load;
 
+  std::optional<double> _nom_process;
   double _nom_voltage = 0.0;  //!< The library nominal voltage
+  std::optional<double> _nom_temperature;
 
   /// @brief slew threshold
   double _slew_lower_threshold_pct_rise = 0.3;

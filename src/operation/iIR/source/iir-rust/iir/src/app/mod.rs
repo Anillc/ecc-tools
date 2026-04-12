@@ -1,7 +1,7 @@
 use std::io::Write;
 
 pub fn init_ir() {
-    env_logger::Builder::new()
+    let _ = env_logger::Builder::new()
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
             writeln!(
@@ -15,7 +15,7 @@ pub fn init_ir() {
                 args = record.args(),
             )
         })
-        .init();
+        .try_init();
 }
 
 #[no_mangle]

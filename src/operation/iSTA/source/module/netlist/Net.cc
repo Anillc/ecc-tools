@@ -33,6 +33,15 @@ namespace ista {
 
 Net::Net(const char* name) : DesignObject(name) {}
 
+Net::Net(const Net& other)
+    : DesignObject(other),
+      _pin_ports(other._pin_ports),
+      _is_clock_net(other._is_clock_net) {
+  for (auto* pin_port : _pin_ports) {
+    pin_port->set_net(this);
+  }
+}
+
 Net::Net(Net&& other) noexcept
     : DesignObject(std::move(other)),
       _pin_ports(std::move(other._pin_ports)),

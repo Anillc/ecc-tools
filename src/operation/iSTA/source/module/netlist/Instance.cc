@@ -34,6 +34,71 @@ Instance::Instance(const char* name, LibCell* inst_cell)
   }
 }
 
+Instance::Instance(const Instance& other)
+    : DesignObject(other),
+      _inst_cell(other._inst_cell),
+      _pins(other.clonePins()),
+      _pin_buses(other.clonePinBuses()),
+      _coordinate(other._coordinate) {
+  for (auto& pin : _pins) {
+    _str2pin[pin->get_name()] = pin.get();
+    auto [pin_base_name, index] = Str::matchBusName(pin->get_name());
+    auto* found_pin_bus = findPinBus(pin_base_name);
+    if (found_pin_bus) {
+      found_pin_bus->addPin(index.value(), pin.get());
+    }
+  }
+}
+
+// for debugging purposes.
+//(comparing inst in top netlist with inst in subnetlist when cluster timing.)
+bool Instance::isEqual(Instance& other) {
+  bool is_equal = true;
+  if (!Str::equal(get_name(), other.get_name())) {
+    is_equal = false;
+  }
+
+  if (_pins.size() != other._pins.size()) {
+    is_equal = false;
+  }
+
+  for (size_t i = 0; i < _pins.size(); ++i) {
+    auto pin_name = _pins[i]->getFullName();
+    auto other_pin_name = other._pins[i]->getFullName();
+
+    if (!Str::equal(pin_name.c_str(), other_pin_name.c_str())) {
+      is_equal = false;
+      std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+                << std::endl;
+      std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+                << std::endl;
+    }
+
+    // if (!_pins[i]->get_net() && !other._pins[i]->get_net()) {
+    //   if (!Str::equal(pin_name.c_str(), other_pin_name.c_str())) {
+    //     is_equal = false;
+    //     std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+    //               << std::endl;
+    //     std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+    //               << std::endl;
+    //   }
+    // } else {
+    //   auto net_name = _pins[i]->get_net()->get_name();
+    //   auto other_net_name = other._pins[i]->get_net()->get_name();
+    //   if (!Str::equal(pin_name.c_str(), other_pin_name.c_str()) ||
+    //       !Str::equal(net_name, other_net_name)) {
+    //     is_equal = false;
+    //     std::cout << "top inst pin " << i << ":pin_name " << other_pin_name
+    //               << ";net_name " << other_net_name << std::endl;
+    //     std::cout << "hier inst pin " << i << ":pin_name " << pin_name
+    //               << ";net_name " << net_name << std::endl;
+    //   }
+    // }
+  }
+
+  return is_equal;
+}
+
 Instance::Instance(Instance&& other)
     : DesignObject(std::move(other)),
       _inst_cell(other._inst_cell),

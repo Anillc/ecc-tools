@@ -15,29 +15,32 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file DesignObject.cc
+ * @file StaCharacterTiming.cc
  * @author simin tao (taosm@pcl.ac.cn)
- * @brief The implemention of base class.
+ * @brief extract the timing model of design.
  * @version 0.1
- * @date 2021-02-03
+ * @date 2024-03-12
+ *
  */
+#include "StaCharacterTiming.hh"
 
-#include "DesignObject.hh"
+#include "api/TimingEngine.hh"
+#include "api/TimingIDBAdapter.hh"
+#include "StaCheck.hh"
+#include "StaDataPropagation.hh"
+#include "StaDelayPropagation.hh"
+#include "StaSlewPropagation.hh"
+#include "ThreadPool/ThreadPool.h"
 
-#include "string/Str.hh"
+#include <algorithm>
+#include <atomic>
+#include <cstdlib>
+#include <sstream>
+#include <tuple>
 
 namespace ista {
 
-DesignObject::DesignObject(const char* name) : _name(name) {}
-DesignObject::DesignObject(const DesignObject& other) : _name(other._name) {}
-
-DesignObject::DesignObject(DesignObject&& other) noexcept
-    : _name(std::move(other._name)) {}
-
-DesignObject& DesignObject::operator=(DesignObject&& rhs) noexcept {
-  _name = std::move(rhs._name);
-
-  return *this;
-}
+#include "StaCharacterTimingHelpers.inc"
+#include "StaCharacterTimingGenTimingModel.inc"
 
 }  // namespace ista

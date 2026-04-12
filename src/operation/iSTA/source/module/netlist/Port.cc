@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
-// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
+// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan PSL v2.
-// You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan
+// PSL v2. You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -30,16 +30,30 @@ Port::Port(const char* name, PortDir port_dir)
       set_cap(0.0);
 }
 
+Port::Port(const Port& other)
+    : DesignObject(other),
+      _port_dir(other._port_dir),
+      _net(other._net),
+      _port_bus(other._port_bus),
+      _coordinate(other._coordinate),
+      _is_virtual_port(other._is_virtual_port) {}
+
 Port::Port(Port&& other) noexcept
     : DesignObject(std::move(other)),
       _port_dir(other._port_dir),
-      _net(other._net) {}
+      _net(other._net),
+      _port_bus(other._port_bus),
+      _coordinate(std::move(other._coordinate)),
+      _is_virtual_port(other._is_virtual_port) {}
 
 Port& Port::operator=(Port&& other) noexcept {
   if (this != &other) {
     DesignObject::operator=(std::move(other));
     _port_dir = other._port_dir;
     _net = other._net;
+    _port_bus = other._port_bus;
+    _coordinate = std::move(other._coordinate);
+    _is_virtual_port = other._is_virtual_port;
   }
 
   return *this;

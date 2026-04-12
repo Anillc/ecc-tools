@@ -68,10 +68,6 @@
 #include "time/Time.hh"
 #include "usage/usage.hh"
 
-#if CUDA_PROPAGATION
-#include "propagation-cuda/lib_arc.cuh"
-#endif
-
 namespace ista {
 
 static bool IsFileExists(const char *name) {
@@ -92,12 +88,6 @@ Sta::Sta()
       _analysis_mode(AnalysisMode::kMaxMin),
       _graph(&_netlist),
       _clock_groups(sta_clock_cmp) {
-  char config[] = "iSTA";
-  char *argv[] = {config, nullptr};
-  // We need to initialize the log system here, because Sta() may be called in
-  // pybind, which does not have a main function to initialize the log system.
-  Log::init(argv);
-
   _report_tbl_summary = StaReportPathSummary::createReportTable("sta");
   _report_tbl_TNS = StaReportClockTNS::createReportTable("TNS");
 }
@@ -331,6 +321,21 @@ unsigned Sta::readLiberty(std::vector<std::string> &lib_files) {
 }
 
 /**
+ * @brief read liberty files.
+ *
+ * @param lib_files
+ * @return unsigned
+ */
+unsigned Sta::readLiberty(std::vector<const char *> &lib_files) {
+  std::vector<std::string> tmp;
+  for (const auto *lib_file : lib_files) {
+    tmp.emplace_back(lib_file);
+  }
+  unsigned ret = readLiberty(tmp);
+  return ret;
+}
+
+/**
  * @brief Link liberty according the builded cells to construct the lib data, if
  * build cell is empty, link all.
  *
@@ -343,8 +348,8 @@ unsigned Sta::linkLibertys() {
   }
 
   auto link_lib = [this](auto &lib_rust_reader) {
-    // master should load all lib cell.
-    lib_rust_reader.set_build_cells(get_link_cells());
+    // master should load all lib.
+    // lib_rust_reader.set_build_cells(get_link_cells());
     lib_rust_reader.linkLib();
     auto lib = lib_rust_reader.get_library_builder()->takeLib();
 
@@ -762,130 +767,6 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
   // build assign stmt
   // record the merge nets.
   std::map<std::string, Net *> remove_to_merge_nets;
-  auto process_assign_one_to_one_net = [&design_netlist, &remove_to_merge_nets](
-                                           std::string left_net_name,
-                                           std::string right_net_name) {
-    left_net_name = Str::trimmed(left_net_name.c_str());
-    right_net_name = Str::trimmed(right_net_name.c_str());
-
-    left_net_name = Str::replace(left_net_name, R"(\\)", "");
-    right_net_name = Str::replace(right_net_name, R"(\\)", "");
-
-    // for debug
-    // if (Str::contain(left_net_name.c_str(), "io_master_araddr[0]")) {
-    //   LOG_INFO << "debug";
-    // }
-
-    Net *the_left_net = design_netlist.findNet(left_net_name.c_str());
-    if (!the_left_net && remove_to_merge_nets.contains(left_net_name)) {
-      the_left_net = remove_to_merge_nets[left_net_name];
-    }
-
-    Net *the_right_net = design_netlist.findNet(right_net_name.c_str());
-    if (!the_right_net && remove_to_merge_nets.contains(right_net_name)) {
-      the_right_net = remove_to_merge_nets[right_net_name];
-    }
-
-    auto *the_left_port = design_netlist.findPort(left_net_name.c_str());
-    auto *the_right_port = design_netlist.findPort(right_net_name.c_str());
-
-    if ((the_left_net && the_right_net && !the_left_port && !the_right_port) ||
-        (the_left_net && the_right_net && the_left_port && the_right_port)) {
-      // assign net = net; need merge two net.
-      LOG_INFO << "merge " << left_net_name << " = " << right_net_name << "\n";
-
-      auto left_pin_ports = the_left_net->get_pin_ports();
-
-      // merge left to right net.
-      for (auto *left_pin_port : left_pin_ports) {
-        the_left_net->removePinPort(left_pin_port);
-        the_right_net->addPinPort(left_pin_port);
-      }
-
-      remove_to_merge_nets[left_net_name] = the_right_net;
-
-    } else if (the_left_net && !the_left_port) {
-      // assign net = input_port;
-      if (the_right_port) {
-        the_left_net->addPinPort(the_right_port);
-      } else {
-        LOG_ERROR << "the right port is not exist.";
-      }
-
-    } else if (the_right_net) {
-      // assign output_port = net;
-      if (the_left_port) {
-        the_right_net->addPinPort(the_left_port);
-      } else {
-        LOG_ERROR << "the left port is not exist.";
-      }
-
-    } else if (!the_right_net && !the_left_net && the_right_port) {
-      // assign output_port = input_port;
-
-      auto &created_net = design_netlist.addNet(Net(right_net_name.c_str()));
-      LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
-      created_net.addPinPort(the_left_port);
-      LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
-      created_net.addPinPort(the_right_port);
-
-    } else if (!the_right_net && !the_left_net && !the_right_port) {
-      // assign output_port = 1'b0(1'b1);
-
-      auto &created_net = design_netlist.addNet(Net(left_net_name.c_str()));
-      LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
-      created_net.addPinPort(the_left_port);
-
-    } else {
-      LOG_FATAL << "assign " << left_net_name << " = " << right_net_name
-                << " is not processed.";
-    }
-
-    // remove ununsed nets.
-    if (the_left_net && the_left_net->get_pin_ports().size() == 0) {
-      // update the remove to merge nets before remove net.
-      for (auto it = remove_to_merge_nets.begin();
-           it != remove_to_merge_nets.end();) {
-        auto &merge_net = it->second;
-        if (merge_net == the_left_net) {
-          if (the_right_net && the_right_net->get_pin_ports().size() > 0) {
-            it->second = the_right_net;
-            ++it;
-          } else {
-            it = remove_to_merge_nets.erase(it);
-          }
-        } else {
-          ++it;
-        }
-      }
-
-      design_netlist.removeNet(the_left_net);
-      the_left_net = nullptr;
-    }
-
-    if (the_right_net && the_right_net->get_pin_ports().size() == 0) {
-      // update the remove to merge nets before remove net.
-      for (auto it = remove_to_merge_nets.begin();
-           it != remove_to_merge_nets.end();) {
-        auto &merge_net = it->second;
-        if (merge_net == the_right_net) {
-          if (the_left_net) {
-            merge_net = the_left_net;
-            ++it;
-          } else {
-            it = remove_to_merge_nets.erase(it);
-          }
-        } else {
-          ++it;
-        }
-      }
-
-      design_netlist.removeNet(the_right_net);
-    }
-
-    LOG_INFO << "assign " << left_net_name << " = " << right_net_name << "\n";
-  };
-
   FOREACH_VEC_ELEM(&top_module_stmts, void, stmt) {
     if (rust_is_module_assign_stmt(stmt)) {
       RustVerilogAssign *verilog_assign = rust_convert_verilog_assign(stmt);
@@ -914,187 +795,96 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
         } else {
           right_net_name = rust_convert_verilog_slice_id(right_net_id)->id;
         }
-
-        process_assign_one_to_one_net(left_net_name, right_net_name);
-
-      } else if ((rust_is_id_expr(left_net_expr) &&
-                  rust_is_concat_expr(right_net_expr)) ||
-                 (rust_is_concat_expr(left_net_expr) &&
-                  rust_is_id_expr(right_net_expr))) {
-        auto process_id_concat_assign = [&process_assign_one_to_one_net](
-                                            auto *id_net_expr,
-                                            auto *concat_net_expr,
-                                            bool is_first_left) {
-          std::string id_net_name;
-          std::string concat_net_name;
-
-          // assume left the not concatenation, right is concatenation. such as
-          // "assign io_out_arsize = { _41_, _41_, io_in_size };"
-          auto *id_net_expr_id = const_cast<void *>(
-              rust_convert_verilog_net_id_expr(id_net_expr)->verilog_id);
-          unsigned base_id_index = 0;
-          if (rust_is_id(id_net_expr_id)) {
-            id_net_name = rust_convert_verilog_id(id_net_expr_id)->id;
-          } else if (rust_is_bus_slice_id(id_net_expr_id)) {
-            auto slice_net_id = rust_convert_verilog_slice_id(id_net_expr_id);
-            id_net_name = slice_net_id->base_id;
-            base_id_index = slice_net_id->range_base;
-          } else {
-            std::cout << "left net id should be id or bus slice id";
-            assert(false);
-          }
-
-          auto verilog_id_concat =
-              rust_convert_verilog_net_concat_expr(concat_net_expr)
-                  ->verilog_id_concat;
-
-          void *one_net_expr;
-          FOREACH_VEC_ELEM(&verilog_id_concat, void, one_net_expr) {
-            assert(rust_is_id_expr(one_net_expr));
-            auto *one_net_id =
-                (void *)(rust_convert_verilog_net_id_expr(one_net_expr)
-                             ->verilog_id);
-            if (rust_is_id(one_net_id)) {
-              std::string one_id_net_name =
-                  id_net_name + "[" + std::to_string(base_id_index) + "]";
-              std::string one_concat_net_name =
-                  rust_convert_verilog_id(one_net_id)->id;
-              if (is_first_left) {
-                process_assign_one_to_one_net(one_id_net_name,
-                                              one_concat_net_name);
-              } else {
-                process_assign_one_to_one_net(one_concat_net_name,
-                                              one_id_net_name);
-              }
-
-            } else if (rust_is_bus_index_id(one_net_id)) {
-              std::string one_id_net_name =
-                  id_net_name + "[" + std::to_string(base_id_index) + "]";
-              std::string one_concat_net_name =
-                  rust_convert_verilog_index_id(one_net_id)->id;
-              if (is_first_left) {
-                process_assign_one_to_one_net(one_id_net_name,
-                                              one_concat_net_name);
-              } else {
-                process_assign_one_to_one_net(one_concat_net_name,
-                                              one_id_net_name);
-              }
-            } else {
-              auto right_slice_id = rust_convert_verilog_slice_id(one_net_id);
-              std::string right_net_base_name = right_slice_id->base_id;
-              auto right_base_index = right_slice_id->range_base;
-              while (right_base_index <= right_slice_id->range_max) {
-                std::string one_id_net_name =
-                    id_net_name + "[" + std::to_string(base_id_index) + "]";
-                std::string one_concat_net_name =
-                    right_net_base_name + "[" +
-                    std::to_string(right_base_index) + "]";
-
-                if (is_first_left) {
-                  process_assign_one_to_one_net(one_id_net_name,
-                                                one_concat_net_name);
-                } else {
-                  process_assign_one_to_one_net(one_concat_net_name,
-                                                one_id_net_name);
-                }
-
-                ++base_id_index;
-                ++right_base_index;
-              }
-            }
-
-            ++base_id_index;
-          }
-        };
-
-        if (rust_is_id_expr(left_net_expr) &&
-            rust_is_concat_expr(right_net_expr)) {
-          process_id_concat_assign(left_net_expr, right_net_expr, true);
-        } else {
-          process_id_concat_assign(right_net_expr, left_net_expr, false);
-        }
-
-      } else if (rust_is_concat_expr(left_net_expr) &&
-                 rust_is_concat_expr(right_net_expr)) {
-        std::function<std::vector<std::string>(RustVec &)>
-            get_concat_net_names =
-                [&get_concat_net_names](
-                    RustVec &verilog_id_concat) -> std::vector<std::string> {
-          std::vector<std::string> concat_net_names;
-          void *one_net_expr;
-          FOREACH_VEC_ELEM(&verilog_id_concat, void, one_net_expr) {
-            if (rust_is_id_expr(one_net_expr)) {
-              auto *one_net_id =
-                  (void *)(rust_convert_verilog_net_id_expr(one_net_expr)
-                               ->verilog_id);
-              if (rust_is_id(one_net_id)) {
-                std::string one_concat_net_name =
-                    rust_convert_verilog_id(one_net_id)->id;
-                concat_net_names.emplace_back(std::move(one_concat_net_name));
-              } else if (rust_is_bus_index_id(one_net_id)) {
-                std::string one_concat_net_name =
-                    rust_convert_verilog_index_id(one_net_id)->id;
-                concat_net_names.emplace_back(std::move(one_concat_net_name));
-              } else {
-                auto right_slice_id = rust_convert_verilog_slice_id(one_net_id);
-                std::string right_net_base_name = right_slice_id->base_id;
-                auto right_base_index = right_slice_id->range_base;
-                while (right_base_index <= right_slice_id->range_max) {
-                  std::string one_concat_net_name =
-                      right_net_base_name + "[" +
-                      std::to_string(right_base_index) + "]";
-                  concat_net_names.emplace_back(std::move(one_concat_net_name));
-                  ++right_base_index;
-                }
-              }
-            } else if (rust_is_concat_expr(one_net_expr)) {
-              auto one_net_concat_expr =
-                  rust_convert_verilog_net_concat_expr(one_net_expr);
-              auto one_net_verilog_id_concat =
-                  one_net_concat_expr->verilog_id_concat;
-              auto one_concat_net_names =
-                  get_concat_net_names(one_net_verilog_id_concat);
-              concat_net_names.insert(concat_net_names.end(),
-                                      one_concat_net_names.begin(),
-                                      one_concat_net_names.end());
-
-            } else {
-              assert(false);
-            }
-          }
-
-          return concat_net_names;
-        };
-
-        auto left_concat_net_expr =
-            rust_convert_verilog_net_concat_expr(left_net_expr);
-        auto left_concat_net_names =
-            get_concat_net_names(left_concat_net_expr->verilog_id_concat);
-
-        auto right_concat_net_expr =
-            rust_convert_verilog_net_concat_expr(right_net_expr);
-        auto right_concat_net_names =
-            get_concat_net_names(right_concat_net_expr->verilog_id_concat);
-
-        assert(left_concat_net_names.size() == right_concat_net_names.size());
-
-        for (size_t i = 0; i < left_concat_net_names.size(); i++) {
-          // process assign net = net, which is concat net.
-          std::string left_concat_net_name = left_concat_net_names[i];
-          std::string right_concat_net_name = right_concat_net_names[i];
-
-          if (left_concat_net_name == right_concat_net_name) {
-            // skip same net name.
-            continue;
-          }
-
-          process_assign_one_to_one_net(left_concat_net_name,
-                                        right_concat_net_name);
-        }
-
       } else {
-        LOG_FATAL
+        LOG_INFO
             << "assign declaration's lhs/rhs is not VerilogNetIDExpr class.";
+      }
+
+      LOG_INFO << "assign " << left_net_name << " = " << right_net_name << "\n";
+
+      left_net_name = Str::trimmed(left_net_name.c_str());
+      right_net_name = Str::trimmed(right_net_name.c_str());
+
+      left_net_name = Str::replace(left_net_name, R"(\\)", "");
+      right_net_name = Str::replace(right_net_name, R"(\\)", "");
+
+      // for debug
+      // if (Str::contain(left_net_name.c_str(), "io_master_araddr[0]")) {
+      //   LOG_INFO << "debug";
+      // }
+
+      Net *the_left_net = design_netlist.findNet(left_net_name.c_str());
+      if (!the_left_net && remove_to_merge_nets.contains(left_net_name)) {
+        the_left_net = remove_to_merge_nets[left_net_name];
+      }
+
+      Net *the_right_net = design_netlist.findNet(right_net_name.c_str());
+      if (!the_right_net && remove_to_merge_nets.contains(right_net_name)) {
+        the_right_net = remove_to_merge_nets[right_net_name];
+      }
+
+      auto *the_left_port = design_netlist.findPort(left_net_name.c_str());
+      auto *the_right_port = design_netlist.findPort(right_net_name.c_str());
+
+      if (the_left_net && the_right_net && !the_left_port && !the_right_port) {
+        LOG_INFO << "merge " << left_net_name << " = " << right_net_name
+                 << "\n";
+
+        auto left_pin_ports = the_left_net->get_pin_ports();
+
+        // merge left to right net.
+        for (auto *left_pin_port : left_pin_ports) {
+          the_left_net->removePinPort(left_pin_port);
+          the_right_net->addPinPort(left_pin_port);
+        }
+
+        remove_to_merge_nets[left_net_name] = the_right_net;
+
+      } else if (the_left_net && !the_left_port) {
+        // assign net = input_port;
+
+        LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
+        the_left_net->addPinPort(the_right_port);
+
+      } else if (the_right_net && !the_right_port) {
+        // assign output_port = net;
+
+        LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
+        the_right_net->addPinPort(the_left_port);
+
+      } else if (!the_right_net && !the_left_net && the_right_port) {
+        // assign output_port = input_port;
+
+        auto &created_net = design_netlist.addNet(Net(right_net_name.c_str()));
+        LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
+        created_net.addPinPort(the_left_port);
+        LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
+        created_net.addPinPort(the_right_port);
+
+      } else if (!the_right_net && !the_left_net && !the_right_port) {
+        // assign output_port = 1'b0(1'b1);
+
+        auto &created_net = design_netlist.addNet(Net(left_net_name.c_str()));
+        LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
+        created_net.addPinPort(the_left_port);
+
+      } else if (the_left_net && the_right_net && the_left_port &&
+                 the_right_port) {
+        // assign output_port = output_port
+        LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
+        the_left_net->addPinPort(the_right_port);
+      } else {
+        LOG_FATAL << "assign " << left_net_name << " = " << right_net_name
+                  << " is not processed.";
+      }
+
+      // remove ununsed nets.
+      if (the_left_net->get_pin_ports().size() == 0) {
+        design_netlist.removeNet(the_left_net);
+      }
+
+      if (the_right_net->get_pin_ports().size() == 0) {
+        design_netlist.removeNet(the_right_net);
       }
     }
   }
@@ -1218,7 +1008,6 @@ void Sta::initSdcCmd() {
   registerTclCmd(CmdCreateClock, "create_clock");
   registerTclCmd(CmdCreateGeneratedClock, "create_generated_clock");
   registerTclCmd(CmdSetInputTransition, "set_input_transition");
-  // set_clock_transition share the set_input_transition process.
   registerTclCmd(CmdSetInputTransition, "set_clock_transition");
   registerTclCmd(CmdSetDrivingCell, "set_driving_cell");
   registerTclCmd(CmdSetLoad, "set_load");
@@ -1641,12 +1430,10 @@ unsigned Sta::buildLibArcsGPU() {
     lib_gpu_arc._cap_unit =
         ((lib_cap_unit == CapacitiveUnit::kFF) ? Lib_Cap_unit::kFF
                                                : Lib_Cap_unit::kPF);
-    auto lib_time_unit =
-        the_lib_arc->get_owner_cell()->get_owner_lib()->get_time_unit();
+    auto lib_time_unit = the_lib_arc->get_owner_cell()->get_owner_lib()->get_time_unit();
     lib_gpu_arc._time_unit =
-        ((lib_time_unit == TimeUnit::kNS)   ? Lib_Time_unit::kNS
-         : (lib_time_unit == TimeUnit::kPS) ? Lib_Time_unit::kPS
-                                            : Lib_Time_unit::kFS);
+        ((lib_time_unit == TimeUnit::kNS) ? Lib_Time_unit::kNS :
+                                          (lib_time_unit == TimeUnit::kPS) ? Lib_Time_unit::kPS : Lib_Time_unit::kFS);
 
     lib_gpu_arc._table = new Lib_Table_GPU[lib_gpu_arc._num_table];
 
@@ -1656,12 +1443,6 @@ unsigned Sta::buildLibArcsGPU() {
       Lib_Table_GPU gpu_table;
 
       if (!table) {
-        lib_gpu_arc._table[index] = gpu_table;
-        continue;
-      }
-
-      if (table->getAxesSize() == 0) {
-        // (TODO totaosimin), need to process no axes table.
         lib_gpu_arc._table[index] = gpu_table;
         continue;
       }
@@ -1804,8 +1585,10 @@ void Sta::setReportSpec(std::vector<std::string> &&prop_froms,
  * @param rpt_file_name The report text file name.
  * @return unsigned 1 if success, 0 else fail.
  */
-unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
-                         bool only_wire_path) {
+unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
+                         bool only_wire_path /*=false*/) {
+  (void) only_wire_path;
+
   auto report_path =
       [this](StaReportPathSummary &report_path_func) -> unsigned {
     unsigned is_ok = 1;
@@ -1829,7 +1612,7 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
     return is_ok;
   };
 
-  auto report_path_of_mode = [&report_path, this, rpt_file_name, only_wire_path,
+  auto report_path_of_mode = [&report_path, this, rpt_file_name,
                               is_derate](AnalysisMode mode) -> unsigned {
     unsigned is_ok = 1;
     if ((get_analysis_mode() == mode) ||
@@ -1838,7 +1621,6 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
 
       StaReportPathSummary report_path_summary(rpt_file_name, mode, n_worst);
       report_path_summary.set_significant_digits(get_significant_digits());
-      report_path_summary.enableJsonReport(isJsonReportEnabled());
 
       StaReportPathDetail report_path_detail(rpt_file_name, mode, n_worst,
                                              is_derate);
@@ -1846,7 +1628,6 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
 
       StaReportClockTNS report_path_TNS(rpt_file_name, mode, 1);
       report_path_TNS.set_significant_digits(get_significant_digits());
-      report_path_TNS.enableJsonReport(isJsonReportEnabled());
 
       std::vector<StaReportPathSummary *> report_funcs{
           &report_path_summary, &report_path_detail, &report_path_TNS};
@@ -1858,34 +1639,8 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
         report_funcs.emplace_back(&report_path_dump);
       }
 
-      StaReportWirePathYaml report_wire_dump(rpt_file_name, mode, n_worst);
-      if (c_print_wire_yaml) {
-        report_funcs.emplace_back(&report_wire_dump);
-      }
-
-      StaReportWirePathJson report_wire_dump_json(rpt_file_name, mode, n_worst);
-      if (c_print_wire_json) {
-        report_funcs.emplace_back(&report_wire_dump_json);
-      }
-
-      StaReportPathDetailJson report_path_detail_json(rpt_file_name, mode,
-                                                      n_worst, is_derate);
-
-      if (isJsonReportEnabled()) {
-        report_funcs.emplace_back(&report_path_detail_json);
-      }
-
       for (auto *report_fun : report_funcs) {
-        if (only_wire_path) {
-          if (dynamic_cast<StaReportWirePathJson *>(report_fun) ||
-              dynamic_cast<StaReportPathSummary *>(report_fun) ||
-              dynamic_cast<StaReportClockTNS *>(report_fun)) {
-            is_ok = report_path(*report_fun);
-          }
-
-        } else {
-          is_ok = report_path(*report_fun);
-        }
+        is_ok = report_path(*report_fun);
       }
     }
 
@@ -1902,10 +1657,6 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
   LOG_INFO << "\n" << _report_tbl_summary->c_str();
   LOG_INFO << "\n" << _report_tbl_TNS->c_str();
 
-  Time::stop();
-  double elapsed_time = Time::elapsedTime();
-  LOG_INFO << "iSTA total elapsed time: " << elapsed_time << " seconds";
-
   auto close_file = [](std::FILE *fp) { std::fclose(fp); };
 
   std::unique_ptr<std::FILE, decltype(close_file)> f(
@@ -1913,7 +1664,6 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
 
   std::fprintf(f.get(), "Generate the report at %s, GitVersion: %s.\n",
                Time::getNowWallTime(), GIT_VERSION);
-  std::fprintf(f.get(), "iSTA elapsed time: %.2f seconds.\n", elapsed_time);
   std::fprintf(f.get(), "%s", _report_tbl_summary->c_str());  // WNS
   // report_TNS;
   std::fprintf(f.get(), "%s", _report_tbl_TNS->c_str());
@@ -1922,25 +1672,21 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
     std::fprintf(f.get(), "%s", report_tbl_detail->c_str());
   }
 
-  if (isJsonReportEnabled()) {
-    json dump_json;
-    dump_json["summary"] = _summary_json_report;
-    dump_json["slack"] = _slack_json_report;
-    dump_json["detail"] = _detail_json_report;
+  return 1;
+}
 
-    auto *report_path = Str::printf("%s.json", rpt_file_name);
-
-    std::ofstream out_file(report_path);
-    if (out_file.is_open()) {
-      out_file << dump_json.dump(4);  // 4 spaces indent
-      LOG_INFO << "JSON report written to: " << report_path;
-      out_file.close();
-    } else {
-      LOG_ERROR << "Failed to open JSON report file: " << report_path;
-    }
+unsigned Sta::reportWirePaths() {
+  const char* design_work_space = get_design_work_space();
+  if (design_work_space == nullptr || design_work_space[0] == '\0') {
+    LOG_ERROR << "The design work space is not set.";
+    return 0;
   }
 
-  return 1;
+  std::filesystem::create_directories(design_work_space);
+  std::string rpt_file_name =
+      Str::printf("%s/%s_wire_path.rpt", design_work_space,
+                  get_design_name().c_str());
+  return reportPath(rpt_file_name.c_str(), false, true);
 }
 
 /**
@@ -2157,6 +1903,27 @@ std::vector<StaSeqPathData *> Sta::getSeqData(StaVertex *vertex,
           path_end->findPathData(dynamic_cast<StaPathDelayData *>(delay_data));
       if (path_data) {
         auto *seq_data = dynamic_cast<StaSeqPathData *>(path_data);
+        seq_data_vec.emplace_back(seq_data);
+      }
+    }
+  }
+
+  return seq_data_vec;
+}
+
+std::vector<StaSeqPathData *> Sta::getSeqData(StaVertex *vertex,
+                                              AnalysisMode analysis_mode) {
+  std::vector<StaSeqPathData *> seq_data_vec;
+  for (const auto &[clk, seq_path_group] : _clock_groups) {
+    StaPathEnd *path_end = seq_path_group->findPathEndData(vertex);
+    if (!path_end) {
+      continue;
+    }
+
+    StaPathEndIterator path_iter(path_end, analysis_mode);
+    while (path_iter.hasNext()) {
+      auto *seq_data = dynamic_cast<StaSeqPathData *>(path_iter.next());
+      if (seq_data) {
         seq_data_vec.emplace_back(seq_data);
       }
     }
@@ -2454,9 +2221,10 @@ std::multimap<std::string, std::string> Sta::getSkewRelatedSink(
  * @param trans_type
  * @return StaSeqPathData*
  */
-std::vector<StaSeqPathData *> Sta::getWorstSeqData(
-    std::optional<StaVertex *> vertex, AnalysisMode mode, TransType trans_type,
-    unsigned top_n_path) {
+std::vector<StaSeqPathData*> Sta::getWorstSeqData(std::optional<StaVertex*> vertex,
+                                                  AnalysisMode mode,
+                                                  TransType trans_type,
+                                                  unsigned top_n_path) {
   auto cmp = [](StaPathData *left, StaPathData *right) -> bool {
     int left_slack = left->getSlack();
     int right_slack = right->getSlack();
@@ -2478,21 +2246,19 @@ std::vector<StaSeqPathData *> Sta::getWorstSeqData(
     }
   }
 
-  std::vector<StaSeqPathData *> seq_path_datas;
-  unsigned i = 0;
+  std::vector<StaSeqPathData*> seq_path_datas;
   while (!seq_data_queue.empty()) {
-    auto *seq_path_data = dynamic_cast<StaSeqPathData *>(seq_data_queue.top());
+    auto* seq_path_data =
+        dynamic_cast<StaSeqPathData*>(seq_data_queue.top());
+    seq_data_queue.pop();
 
     if ((seq_path_data->get_delay_data()->get_trans_type() == trans_type) ||
         (trans_type == TransType::kRiseFall)) {
       seq_path_datas.push_back(seq_path_data);
-      ++i;
-
-      if (i >= top_n_path) {
+      if (seq_path_datas.size() >= top_n_path) {
         break;
       }
     }
-    seq_data_queue.pop();
   }
 
   return seq_path_datas;
@@ -2505,22 +2271,14 @@ std::vector<StaSeqPathData *> Sta::getWorstSeqData(
  * @param trans_type
  * @return StaSeqPathData*
  */
-StaSeqPathData *Sta::getWorstSeqData(AnalysisMode mode, TransType trans_type) {
-  auto worst_seq_datas = getWorstSeqData(std::nullopt, mode, trans_type);
-  return worst_seq_datas.empty() ? nullptr : worst_seq_datas[0];
+StaSeqPathData* Sta::getWorstSeqData(AnalysisMode mode, TransType trans_type) {
+  auto seq_path_datas = getWorstSeqData(std::nullopt, mode, trans_type, 1);
+  return seq_path_datas.empty() ? nullptr : seq_path_datas.front();
 }
 
-/**
- * @brief Get the top n worst slack path.
- *
- * @param mode
- * @return StaSeqPathData*
- */
-std::vector<StaSeqPathData *> Sta::getTopNWorstSeqPaths(AnalysisMode mode,
-                                                        unsigned top_n_path) {
-  auto worst_seq_datas =
-      getWorstSeqData(std::nullopt, mode, TransType::kRiseFall, top_n_path);
-  return worst_seq_datas;
+std::vector<StaSeqPathData*> Sta::getTopNWorstSeqPaths(AnalysisMode mode,
+                                                       unsigned top_n_path) {
+  return getWorstSeqData(std::nullopt, mode, TransType::kRiseFall, top_n_path);
 }
 
 /**
@@ -2791,9 +2549,11 @@ Sta::getWorstSlackBetweenTwoSinks(AnalysisMode mode) {
  */
 int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
                        TransType trans_type) {
-  auto the_worst_seq_path_data = getWorstSeqData(end_vertex, mode, trans_type);
-  LOG_FATAL_IF(the_worst_seq_path_data.empty()) << "no seq data found.";
-  return the_worst_seq_path_data.front()->getSlack();
+  auto seq_path_datas = getWorstSeqData(end_vertex, mode, trans_type, 1);
+  auto* the_worst_seq_path_data =
+      seq_path_datas.empty() ? nullptr : seq_path_datas.front();
+  LOG_FATAL_IF(!the_worst_seq_path_data);
+  return the_worst_seq_path_data->getSlack();
 }
 
 /**
@@ -2806,9 +2566,17 @@ int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
  * @param netlist
  */
 void Sta::writeVerilog(const char *verilog_file_name,
-                       std::set<std::string> &exclude_cell_names) {
-  NetlistWriter writer(verilog_file_name, exclude_cell_names, _netlist);
+                       std::set<std::string> &exclude_cell_names,
+                       bool is_hier_module) {
+  NetlistWriter writer(verilog_file_name, exclude_cell_names, &_netlist);
   writer.writeModule();
+  // Only suitable for two hierarichal-modules situation.
+  if (is_hier_module) {
+    for (auto &hier_netlist : _netlist.get_hier_sub_netlists()) {
+      writer.set_netlist(hier_netlist);
+      writer.writeModule();
+    }
+  }
 }
 
 /**
@@ -2835,36 +2603,6 @@ unsigned Sta::resetPathData() {
   return 1;
 }
 
-#if CUDA_PROPAGATION
-unsigned Sta::resetGPUData() {
-  _gpu_vertices.clear();
-  _gpu_arcs.clear();
-
-  GPU_Flatten_Data flatten_data;
-  _flatten_data = std::move(flatten_data);
-
-  GPU_Graph gpu_graph;
-  _gpu_graph = std::move(gpu_graph);
-
-  _lib_gpu_arcs.clear();
-
-  free_lib_data_gpu(_gpu_lib_data, _lib_gpu_tables, _lib_gpu_table_ptrs);
-
-  Lib_Data_GPU gpu_lib_data;
-  _gpu_lib_data = std::move(gpu_lib_data);
-
-  _lib_gpu_tables.clear();
-  _lib_gpu_table_ptrs.clear();
-
-  _arc_to_index.clear();
-  _at_to_index.clear();
-  _index_to_at.clear();
-
-  return 1;
-
-}
-#endif
-
 /**
  * @brief update the timing data.
  *
@@ -2878,10 +2616,6 @@ unsigned Sta::updateTiming() {
   resetSdcConstrain();
   resetGraphData();
   resetPathData();
-
-#if CUDA_PROPAGATION
-  resetGPUData();
-#endif
 
   StaGraph &the_graph = get_graph();
   if (_propagation_method == PropagationMethod::kDFS) {
@@ -3031,7 +2765,7 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
                            bool is_derate /*=false*/,
                            bool is_clock_cap /*=false*/,
                            bool is_copy /*=true*/) {
-  const char *design_work_space = get_design_work_space();
+   const char *design_work_space = get_design_work_space();
   std::string now_time = Time::getNowWallTime();
   std::string tmp = Str::replace(now_time, ":", "_");
   std::string copy_design_work_space =
@@ -3125,79 +2859,19 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
     reportNet();
   }
 
-  writeVerilog(verilog_file_name.c_str(), exclude_cell_names);
+  writeVerilog(verilog_file_name.c_str(), exclude_cell_names, false);
 
   reportUsedLibs();
 
-  // for test dump timing data in memory.
-  // reportTimingData(10);
-
-  // for test dump json data.
-  // reportWirePaths();
-
-  // for test dump graph json data.
-  if (0) {
-    json graph_json;
-    StaDumpGraphJson dump_graph_json(graph_json);
-    auto &the_graph = get_graph();
-    dump_graph_json(&the_graph);
-
-    std::string graph_json_file_name = Str::printf(
-        "%s/%s_graph.json", design_work_space, get_design_name().c_str());
-
-    std::ofstream out_file(graph_json_file_name);
-    if (out_file.is_open()) {
-      out_file << graph_json.dump(4);  // 4 spaces indent
-      LOG_INFO << "JSON report written to: " << graph_json_file_name;
-      out_file.close();
-    } else {
-      LOG_ERROR << "Failed to open JSON report file: " << graph_json_file_name;
-    }
-  }
-
 #if CUDA_PROPAGATION
-  // printFlattenData();
+  printFlattenData();
 #endif
 
   // dumpGraphData("/home/taosimin/ysyx_test25/2025-04-05/graph.yaml");
 
   LOG_INFO << "The timing engine run success.";
 
-  // restart the timer.
-  Time::start();
-
   return 1;
-}
-
-/**
- * @brief report timing data in memory for online analysis.
- *
- * @param n_worst_path_per_clock
- * @return unsigned
- */
-std::vector<StaPathWireTimingData> Sta::reportTimingData(
-    unsigned n_worst_path_per_clock) {
-  LOG_INFO << "get wire timing start";
-  std::vector<StaPathWireTimingData> path_timing_data;
-
-  set_n_worst_path_per_clock(n_worst_path_per_clock);
-
-  for (auto analysi_mode : {AnalysisMode::kMax, AnalysisMode::kMin}) {
-    StaReportPathTimingData report_path_timing_data_func(
-        nullptr, analysi_mode, n_worst_path_per_clock);
-    for (auto &[capture_clock, seq_path_group] : _clock_groups) {
-      auto group_timing_data =
-          report_path_timing_data_func.getPathGroupTimingData(
-              seq_path_group.get());
-      path_timing_data.insert(path_timing_data.end(), group_timing_data.begin(),
-                              group_timing_data.end());
-    }
-  }
-
-  LOG_INFO << "the wire timing data size: " << path_timing_data.size();
-  LOG_INFO << "get wire timing end";
-
-  return path_timing_data;
 }
 
 /**
@@ -3208,37 +2882,11 @@ std::vector<StaPathWireTimingData> Sta::reportTimingData(
 unsigned Sta::reportUsedLibs() {
   auto used_libs = getUsedLibs();
   for (auto *used_lib : used_libs) {
-    std::string lib_name = used_lib->get_file_name();
-    LOG_INFO << "used lib: " << lib_name;
-  }
-  return 1;
-}
-
-/**
- * @brief report wire paths.
- *
- * @return unsigned
- */
-unsigned Sta::reportWirePaths() {
-  LOG_INFO << "report wire paths start";
-  const char *design_work_space = get_design_work_space();
-
-  std::string path_dir = std::string(design_work_space) + "/wire_paths";
-
-  if (std::filesystem::exists(path_dir)) {
-    for (const auto &entry : std::filesystem::directory_iterator(path_dir)) {
-      if (entry.is_regular_file()) {
-        std::filesystem::remove(entry.path());
-      }
+    const char *lib_name = used_lib->get_file_name();
+    if (lib_name) {
+      LOG_INFO << "used lib: " << lib_name;
     }
   }
-
-  std::string rpt_file_name =
-      Str::printf("%s/%s.rpt", design_work_space, get_design_name().c_str());
-  reportPath(rpt_file_name.c_str(), false, true);
-
-  LOG_INFO << "report wire paths end";
-
   return 1;
 }
 
@@ -3623,7 +3271,7 @@ void Sta::printFlattenData() {
 
     output_file << "GPU_AT_DATA_" << at_data_index++ << ": " << std::endl;
     output_file << "  own_vertex: " << own_vertex->getName() << std::endl;
-    output_file << "  vertex level: " << own_vertex->get_level() << std::endl;
+    output_file << "  vertex level" << own_vertex->get_level() << std::endl;
     output_file << "  launch_clock_name: " << launch_clock_name << std::endl;
     output_file << "  launch_clock_index: " << at_data._own_clock_index
                 << std::endl;
@@ -3641,8 +3289,7 @@ void Sta::printFlattenData() {
       auto *src_vertex = getVertex(at_data._src_vertex_id);
       output_file << "  src_vertex: " << src_vertex->getName() << std::endl;
     } else {
-      output_file << "  src_vertex: "
-                  << "NA" << std::endl;
+      output_file << "  src_vertex: " << "NA" << std::endl;
     }
 
     output_file << "  src_data_index: " << at_data._src_data_index << std::endl;
