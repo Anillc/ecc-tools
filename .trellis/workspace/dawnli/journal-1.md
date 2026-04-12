@@ -745,3 +745,49 @@ Completed and archived linear-clustering: added the topology linear_clustering m
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Trellis archive sanitization and rewrite rollout
+
+**Date**: 2026-04-12
+**Task**: Trellis archive sanitization and rewrite rollout
+**Branch**: `cts_refactor`
+
+### Summary
+
+Sanitized archived Trellis docs, rewrote cts_refactor history to remove targeted external references, remapped workspace commit records, and verified the sanitized branch with a fresh clone.
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Current-tree docs | Sanitized archived characterization task docs to remove explicit third-party project names, absolute paths, and external implementation-specific identifiers |
+| History rewrite | Ran a local `git filter-repo` dry run that replaced the targeted historical file contents while preserving commit dates |
+| Workspace records | Updated `workspace/dawnli/index.md` and `journal-1.md` to remap recorded commit hashes onto the rewritten history |
+| Rollout | Pushed sanitized `cts_refactor` with `--force-with-lease` from a dedicated rollout clone |
+| Verification | Re-cloned the pushed branch and verified current-tree and branch-history scans no longer hit the targeted markers |
+
+**Updated Paths**:
+- `.trellis/tasks/archive/2026-02/02-27-cts-characterization/02-27-cts-characterization/`
+- `.trellis/workspace/dawnli/index.md`
+- `.trellis/workspace/dawnli/journal-1.md`
+- `.trellis/tasks/archive/2026-04/04-12-sanitize-trellis-archive-docs/`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ac7d7c2b0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
