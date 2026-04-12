@@ -663,6 +663,11 @@ unsigned RustLibertyReader::visitComplexAttri(
   void* attri_0 = GetRustVecElem<void>(&attri_values, 0);
   void* attri_1 = GetRustVecElem<void>(&attri_values, 1);
 
+  double cap_unit_convert = 1.0;  // sta use pf internal
+  if (CapacitiveUnit::kFF == the_lib->get_cap_unit()) {
+    cap_unit_convert = 0.001;
+  }
+
   std::map<std::string, std::function<void()>> process_attri = {
       {"capacitive_load_unit",
        [&]() {
@@ -676,6 +681,8 @@ unsigned RustLibertyReader::visitComplexAttri(
        [&]() {
          double min_rise_cap = rust_convert_float_value(attri_0)->value;
          double max_rise_cap = rust_convert_float_value(attri_1)->value;
+         min_rise_cap *= cap_unit_convert;
+         max_rise_cap *= cap_unit_convert;
 
          lib_port->set_port_cap(AnalysisMode::kMin, TransType::kRise,
                                 min_rise_cap);
@@ -686,6 +693,8 @@ unsigned RustLibertyReader::visitComplexAttri(
        [&]() {
          double min_fall_cap = rust_convert_float_value(attri_0)->value;
          double max_fall_cap = rust_convert_float_value(attri_1)->value;
+         min_fall_cap *= cap_unit_convert;
+         max_fall_cap *= cap_unit_convert;
 
          lib_port->set_port_cap(AnalysisMode::kMin, TransType::kFall,
                                 min_fall_cap);
