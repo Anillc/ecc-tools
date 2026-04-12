@@ -438,18 +438,41 @@ TEST_F(LibertyAlignmentTest, emits_port_checks_for_csb2cmac_a_req_pvld) {
       << "expected hold_rising on csb2cmac_a_req_pvld";
 }
 
-TEST_F(LibertyAlignmentTest, emits_only_rising_setup_hold_for_compat_control_inputs) {
+TEST_F(LibertyAlignmentTest,
+       compat_control_inputs_match_openroad_setup_hold_presence) {
   for (const char* pin_name : {"direct_reset_", "dla_reset_rstn", "test_mode"}) {
-    const auto pin_block = extractPinBlock(_generated_text, pin_name);
-    ASSERT_FALSE(pin_block.empty()) << "expected " << pin_name << " pin block";
-    EXPECT_NE(pin_block.find("setup_rising"), std::string::npos)
-        << "expected setup_rising on compat control pin " << pin_name;
-    EXPECT_NE(pin_block.find("hold_rising"), std::string::npos)
-        << "expected hold_rising on compat control pin " << pin_name;
-    EXPECT_EQ(pin_block.find("setup_falling"), std::string::npos)
-        << "expected no setup_falling on compat control pin " << pin_name;
-    EXPECT_EQ(pin_block.find("hold_falling"), std::string::npos)
-        << "expected no hold_falling on compat control pin " << pin_name;
+    const auto openroad_pin_block = extractPinBlock(_openroad_text, pin_name);
+    ASSERT_FALSE(openroad_pin_block.empty())
+        << "expected OpenROAD pin block for " << pin_name;
+    const auto generated_pin_block = extractPinBlock(_generated_text, pin_name);
+    ASSERT_FALSE(generated_pin_block.empty())
+        << "expected generated pin block for " << pin_name;
+
+    const bool openroad_has_setup_rising =
+        openroad_pin_block.find("setup_rising") != std::string::npos;
+    const bool openroad_has_hold_rising =
+        openroad_pin_block.find("hold_rising") != std::string::npos;
+    const bool openroad_has_setup_falling =
+        openroad_pin_block.find("setup_falling") != std::string::npos;
+    const bool openroad_has_hold_falling =
+        openroad_pin_block.find("hold_falling") != std::string::npos;
+
+    EXPECT_EQ(generated_pin_block.find("setup_rising") != std::string::npos,
+              openroad_has_setup_rising)
+        << "generated setup_rising presence should match OpenROAD for "
+        << pin_name;
+    EXPECT_EQ(generated_pin_block.find("hold_rising") != std::string::npos,
+              openroad_has_hold_rising)
+        << "generated hold_rising presence should match OpenROAD for "
+        << pin_name;
+    EXPECT_EQ(generated_pin_block.find("setup_falling") != std::string::npos,
+              openroad_has_setup_falling)
+        << "generated setup_falling presence should match OpenROAD for "
+        << pin_name;
+    EXPECT_EQ(generated_pin_block.find("hold_falling") != std::string::npos,
+              openroad_has_hold_falling)
+        << "generated hold_falling presence should match OpenROAD for "
+        << pin_name;
   }
 }
 

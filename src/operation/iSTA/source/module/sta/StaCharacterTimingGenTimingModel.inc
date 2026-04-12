@@ -2111,10 +2111,20 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     bool is_clock_port =
         port_vertex->is_clock() || _port_to_logic_clkpoint.contains(port_vertex);
     lib_port->set_is_clock(is_clock_port);
-    double rise_cap = port_vertex->getLoad(_analysis_mode, TransType::kRise);
-    double fall_cap = port_vertex->getLoad(_analysis_mode, TransType::kFall);
-    lib_port->set_port_cap(convert_lib_cap_to_internal_pf(
-        std::max(rise_cap, fall_cap)));
+    double exported_port_cap_pf = 0.0;
+    auto* design_port = dynamic_cast<Port*>(port_vertex->get_design_obj());
+    auto* driven_net = design_port ? design_port->get_net() : nullptr;
+    const bool use_connected_sink_cap_only =
+        design_port && design_port->isInput() && driven_net;
+    for (auto mode : {AnalysisMode::kMax, AnalysisMode::kMin}) {
+      for (auto trans : {TransType::kRise, TransType::kFall}) {
+        const double port_cap_pf =
+            use_connected_sink_cap_only ? driven_net->getLoad(mode, trans)
+                                        : port_vertex->getLoad(mode, trans);
+        exported_port_cap_pf = std::max(exported_port_cap_pf, port_cap_pf);
+      }
+    }
+    lib_port->set_port_cap(exported_port_cap_pf);
     design_timing_cell->addLibertyPort(std::move(lib_port));
 
     if (is_clock_port) {
