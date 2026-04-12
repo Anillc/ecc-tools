@@ -646,11 +646,7 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                           FS_TO_NS(local_seq_data->get_constrain_value()))
                     : std::nullopt;
             const bool local_seq_clock_proven =
-                local_seq_data &&
-                ((local_seq_target_clock_delay_ns &&
-                  *local_seq_target_clock_delay_ns != 0.0) ||
-                 (local_seq_raw_capture_clock_arrive_ns &&
-                  *local_seq_raw_capture_clock_arrive_ns != 0.0));
+                local_seq_data && local_seq_capture_clock_terms.has_value();
             const char* local_seq_match_status =
                 local_seq_match.match_count == 0
                     ? "missing"
@@ -857,8 +853,21 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                   preserved_seq_snapshot
                       ? FS_TO_NS(preserved_seq_snapshot->constrain_value_fs)
                       : 0.0;
-              double clock_arrival_delta_ns = data_arrival_delta_ns;
-              const char* clock_arrival_source = "collapsed_to_data_arrival";
+              double clock_arrival_delta_ns = 0.0;
+              const char* clock_arrival_source = "missing";
+              if (preserved_clock_arrival_delta_ns) {
+                clock_arrival_delta_ns = *preserved_clock_arrival_delta_ns;
+                clock_arrival_source = "preserved_seq_clock_path";
+              } else if (local_seq_target_clock_delay_ns) {
+                clock_arrival_delta_ns = *local_seq_target_clock_delay_ns;
+                clock_arrival_source = "local_seq_capture_clock_path";
+              } else if (full_sta_clock_arrive_fs &&
+                         full_sta_clock_port_arrive_fs) {
+                clock_arrival_delta_ns =
+                    FS_TO_NS(*full_sta_clock_arrive_fs -
+                             *full_sta_clock_port_arrive_fs);
+                clock_arrival_source = "full_sta_clock_arrival_subtraction";
+              }
               check_margin_ns = 0.0;
               check_margin_with_local_clock_slew_ns = 0.0;
               const char* check_margin_source = "missing";
