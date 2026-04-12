@@ -552,6 +552,9 @@ class LibPort : public LibObject
   void set_port_type(LibertyPortType port_type) { _port_type = port_type; }
   LibertyPortType get_port_type() { return _port_type; }
 
+  void set_is_clock_pin(bool is_clock_pin) { _is_clock_pin = is_clock_pin; }
+  bool get_is_clock_pin() { return _is_clock_pin; }
+
   void set_clock_gate_clock_pin(bool clock_gate_clock_pin) { _clock_gate_clock_pin = clock_gate_clock_pin; }
   bool get_clock_gate_clock_pin() { return _clock_gate_clock_pin; }
 
@@ -609,6 +612,7 @@ class LibPort : public LibObject
   std::string _port_name;
   LibCell* _ower_cell;  //!< The cell owner the port.
   LibertyPortType _port_type = LibertyPortType::kDefault;
+  bool _is_clock_pin = false;           //!< The flag of clock pin.
   bool _clock_gate_clock_pin = false;   //!< The flag of gate clock pin.
   bool _clock_gate_enable_pin = false;  //!< The flag of gate enable pin.
   RustLibertyExpr* _func_expr = nullptr;
@@ -736,7 +740,7 @@ class LibLeakagePower : public LibObject
  private:
   std::string _related_pg_port;  //!< The related pg pin of the leakage power.
   std::string _when;             //!< The when of the leakage power.
-  double _value;                 //!< The value of the leakage power.
+  double _value = 0.0;           //!< The value of the leakage power.
   LibCell* _owner_cell;          //!< The cell owner the port.
 
   FORBIDDEN_COPY(LibLeakagePower);
@@ -800,7 +804,7 @@ class LibArc : public LibObject
     kNoChangeLowLow,
     kDefault
   };
-
+  static std::string timingTypeToString(TimingType timing_type);
   LibArc();
   ~LibArc() override = default;
 
@@ -822,7 +826,7 @@ class LibArc : public LibObject
   void set_owner_cell(LibCell* ower_cell) { _owner_cell = ower_cell; }
   LibCell* get_owner_cell() { return _owner_cell; }
 
-  void set_is_disable_arc() { _is_disable_arc = 1;}
+  void set_is_disable_arc() { _is_disable_arc = 1; }
   unsigned isDisableArc() { return _is_disable_arc; }
 
   unsigned isCheckArc();
@@ -892,7 +896,7 @@ class LibArc : public LibObject
 
   static BTreeMap<std::string, TimingType> _str_to_type;
 
-  unsigned _is_disable_arc = 0; //!< Forbidden arc.
+  unsigned _is_disable_arc = 0;  //!< Forbidden arc.
 
   FORBIDDEN_COPY(LibArc);
 };
@@ -1079,7 +1083,7 @@ class LibCell : public LibObject
 
   auto& get_str2ports() { return _str2ports; }
   auto& get_cell_ports() { return _cell_ports; }
-
+  auto& get_cell_buses() { return _cell_port_buses; }
   LibLibrary* get_owner_lib() { return _owner_lib; }
   void set_owner_lib(LibLibrary* owner_lib) { _owner_lib = owner_lib; }
 
@@ -1109,7 +1113,7 @@ class LibCell : public LibObject
  private:
   std::string _cell_name;                                             //!< The liberty cell name.
   double _cell_area;                                                  //!< The liberty cell area.
-  double _cell_leakage_power;                                         //!< The cell leakage power of the cell.
+  double _cell_leakage_power = 0.0;                                   //!< The cell leakage power of the cell.
   std::string _clock_gating_integrated_cell;                          //!< The clock gate cell.
   bool _is_clock_gating_integrated_cell = false;                      //!< The flag of the clock gate cell.
   std::vector<std::unique_ptr<LibLeakagePower>> _leakage_power_list;  //!< All leakage powers of the cell.
@@ -1427,6 +1431,16 @@ class LibLibrary : public LibObject
     return 0.0;
   }
 
+  void set_power_unit_mw_scale(double power_unit_mw_scale)
+  {
+    _power_unit_mw_scale = power_unit_mw_scale;
+  }
+  double get_power_unit_mw_scale() const { return _power_unit_mw_scale; }
+  double convert_power_unit_to_mw(double src_value) const
+  {
+    return src_value * _power_unit_mw_scale;
+  }
+
   std::vector<std::unique_ptr<LibCell>>& get_cells() { return _cells; }
 
   void set_default_max_transition(double default_max_transition) { _default_max_transition = default_max_transition; }
@@ -1518,6 +1532,7 @@ class LibLibrary : public LibObject
   CapacitiveUnit _cap_unit = CapacitiveUnit::kFF;
   ResistanceUnit _resistance_unit = ResistanceUnit::kkOHM;
   TimeUnit _time_unit = TimeUnit::kNS;
+  double _power_unit_mw_scale = 1.0;
 
   std::optional<double> _default_max_transition;
   std::optional<double> _default_max_fanout;

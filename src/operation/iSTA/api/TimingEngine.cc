@@ -1770,6 +1770,11 @@ unsigned TimingEngine::isSequentialCell(const char* instance_name) {
   auto* design_instance = design_netlist->findInstance(instance_name);
 
   auto* lib_cell = design_instance->get_inst_cell();
+  if (lib_cell == nullptr) {
+    LOG_WARNING << "Can not find cell name = " << instance_name;
+    return 0;
+  }
+  
   bool is_sequential = lib_cell->isSequentialCell();
 
   return is_sequential;

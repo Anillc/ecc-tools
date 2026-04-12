@@ -434,9 +434,59 @@ void TimingIDBAdapter::deleteInstance(const char* instance_name) {
  * @param cell
  */
 void TimingIDBAdapter::substituteCell(Instance* inst, LibCell* cell) {
+  if (inst == nullptr || cell == nullptr) {
+    return;
+  }
+
   IdbCellMaster* idb_master = staToDb(cell);
   IdbInstance* idb_inst = staToDb(inst);
-  idb_inst->set_cell_master(idb_master);  // TODO: dinst->swapMaster(master)
+  if (idb_inst != nullptr && idb_master != nullptr) {
+    idb_inst->swap_cell_master(idb_master);
+  }
+
+  Pin* pin = nullptr;
+  FOREACH_INSTANCE_PIN(inst, pin) {
+    auto* liberty_port_or_port_bus =
+        cell->get_cell_port_or_port_bus(pin->get_name());
+    LOG_FATAL_IF(!liberty_port_or_port_bus)
+        << "substituteCell cannot find pin " << pin->get_name()
+        << " in lib cell " << cell->get_cell_name();
+    LOG_FATAL_IF(liberty_port_or_port_bus->isLibertyPortBus())
+        << "substituteCell does not support port bus pin "
+        << pin->get_name();
+
+    auto* liberty_port = dynamic_cast<LibPort*>(liberty_port_or_port_bus);
+    pin->set_cell_port(liberty_port);
+
+    if (!_ista->isBuildGraph() || !pin->isInput()) {
+      continue;
+    }
+
+    auto* the_vertex = _ista->findVertex(pin);
+    if (the_vertex == nullptr) {
+      continue;
+    }
+
+    FOREACH_SRC_ARC(the_vertex, the_arc) {
+      auto* the_inst_arc = dynamic_cast<StaInstArc*>(the_arc);
+      if (the_inst_arc == nullptr) {
+        continue;
+      }
+
+      auto* origin_lib_arc = the_inst_arc->get_lib_arc();
+      auto lib_arc_set = cell->findLibertyArcSet(origin_lib_arc->get_src_port(),
+                                                 origin_lib_arc->get_snk_port(),
+                                                 the_inst_arc->getTimingType());
+      LOG_FATAL_IF(!lib_arc_set)
+          << "substituteCell cannot find matching liberty arc for inst "
+          << inst->get_name() << " pin " << pin->get_name()
+          << " target cell " << cell->get_cell_name();
+      auto* new_lib_arc = (*lib_arc_set)->front();
+      the_inst_arc->set_lib_arc(new_lib_arc);
+    }
+  }
+
+  inst->set_inst_cell(cell);
 }
 
 /**

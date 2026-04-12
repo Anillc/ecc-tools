@@ -203,6 +203,9 @@ class Sta {
   auto& get_link_cells() { return _link_cells; }
 
   auto get_propagation_method() { return _propagation_method; }
+  void set_propagation_method(PropagationMethod propagation_method) {
+    _propagation_method = propagation_method;
+  }
 
   SdcConstrain* getConstrain();
 
@@ -668,7 +671,7 @@ class Sta {
 
   AnalysisMode _analysis_mode;  //!< The analysis max/min mode.
   PropagationMethod _propagation_method =
-      PropagationMethod::kBFS;  //!< The propagation method used by DFS or BFS.
+      PropagationMethod::kDFS;  //!< The propagation method used by DFS or BFS.
 
   StaDreateTable _derate_table;  //!< The derate table for ocv.
   Vector<std::unique_ptr<AocvLibrary>>

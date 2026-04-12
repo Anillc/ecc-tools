@@ -111,6 +111,7 @@ class IdbInstance : public IdbObject
   void set_name(string name) { _name = name; }
   // void set_cell_master_name(string name){_master_name = name;}
   void set_cell_master(IdbCellMaster* cell_master);
+  void swap_cell_master(IdbCellMaster* cell_master);
   void set_pin_list();
   IdbPin* addPin(string name);
   void set_type(string type);
@@ -179,6 +180,7 @@ class IdbInstanceList
 
   // getter
   vector<IdbInstance*>& get_instance_list() { return _instance_list; }
+  vector<IdbInstance*> get_macro_list();
   vector<IdbInstance*> get_iopad_list(std::vector<std::string> master_list = std::vector<std::string>{});
   vector<IdbInstance*> get_corner_list(std::vector<std::string> master_list = std::vector<std::string>{});
   int32_t get_num(IdbInstanceType type = IdbInstanceType::kMax);

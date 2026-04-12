@@ -24,7 +24,57 @@
 #pragma once
 
 #include "StaFunc.hh"
+// DEBUG
+#include <mutex>
 
+struct SlewKey {
+    std::string pin_full_name;
+    ista::AnalysisMode mode;
+    ista::TransType trans;
+
+    bool operator==(const SlewKey& other) const {
+        return pin_full_name == other.pin_full_name && mode == other.mode && trans == other.trans;
+    }
+};
+
+// 为SlewKey提供哈希函数，以便用于unordered_map
+namespace std {
+    template <>
+    struct hash<SlewKey> {
+        size_t operator()(const SlewKey& k) const {
+            return hash<string>()(k.pin_full_name) ^ (hash<int>()(static_cast<int>(k.mode)) << 1) ^ (hash<int>()(static_cast<int>(k.trans)) << 2);
+        }
+    };
+}
+
+// 线程安全的“Slew银行”
+class SlewDebugDataManager {
+public:
+    static SlewDebugDataManager& getInstance() {
+        static SlewDebugDataManager instance;
+        return instance;
+    }
+
+    void addSlew(const SlewKey& key, double slew_ns) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        slew_data_[key] = slew_ns;
+    }
+
+    // 这个函数将用于在C++中直接获取整个map
+    const std::unordered_map<SlewKey, double>& getData() const {
+        return slew_data_;
+    }
+
+    void clear() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        slew_data_.clear();
+    }
+private:
+    SlewDebugDataManager() {}
+    std::unordered_map<SlewKey, double> slew_data_;
+    std::mutex mtx_;
+};
+// DEBUG
 namespace ista {
 
 /**

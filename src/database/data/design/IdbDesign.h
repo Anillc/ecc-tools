@@ -102,7 +102,7 @@ class IdbDesign
   //   void createDefaultVias(IdbLayers* layers);
   bool connectIOPinToPowerStripe(std::vector<IdbCoordinate<int32_t>*>& point_list, IdbLayer* layer);
   bool connectPowerStripe(std::vector<IdbCoordinate<int32_t>*>& point_list, std::string net_name, std::string layer_name);
-
+  std::vector<std::string> m_instID2Name;
  private:
   std::string _version = "5.8";
   std::string _design_name;

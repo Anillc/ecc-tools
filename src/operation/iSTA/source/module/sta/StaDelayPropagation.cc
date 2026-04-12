@@ -34,7 +34,15 @@
 #include "netlist/Port.hh"
 
 namespace ista {
-
+inline int timingSenseToInt(ista::LibArc::TimingSense sense) {
+    switch (sense) {
+        case ista::LibArc::TimingSense::kPositiveUnate: return 1;
+        case ista::LibArc::TimingSense::kNegativeUnate: return -1;
+        case ista::LibArc::TimingSense::kNonUnate:      return 0;
+        case ista::LibArc::TimingSense::kDefault:       return 1;
+        default:                                      return 1;
+    }
+}
 /**
  * @brief The delay propagation from  the arc.
  *
@@ -122,6 +130,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
           auto trans_to_index = [](TransType trans_type) -> int {
             return static_cast<int>(trans_type) - 1;
           };
+          auto* owner_lib = lib_arc->get_owner_cell()->get_owner_lib();
 
           std::array<double, 2> load_array;  // rise, fall load.
 
@@ -129,12 +138,11 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             auto load_pf =
                 rc_net ? rc_net->load(analysis_mode, out_trans_type)
                        : the_net->getLoad(analysis_mode, out_trans_type);
-            auto* the_lib = lib_arc->get_owner_cell()->get_owner_lib();
 
             double load{0};
-            if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
+            if (owner_lib->get_cap_unit() == CapacitiveUnit::kFF) {
               load = PF_TO_FF(load_pf);
-            } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
+            } else if (owner_lib->get_cap_unit() == CapacitiveUnit::kPF) {
               load = load_pf;
             }
 
@@ -155,7 +163,91 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
                                 ? delay_values.front()
                                 : delay_values.back();
           auto delay = NS_TO_FS(delay_ns);
+          auto* src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
+          auto* snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
 
+          if (src_pin && snk_pin) {
+              auto should_log_arc_net_choice =
+                  [](const std::string& from_pin_name,
+                     const std::string& to_pin_name) -> bool {
+                return (from_pin_name.find("FE_DBTC149_n_2224:A") !=
+                            std::string::npos &&
+                        to_pin_name.find("FE_DBTC149_n_2224:Y") !=
+                            std::string::npos) ||
+                       (from_pin_name.find("g63378:A2") != std::string::npos &&
+                        to_pin_name.find("g63378:Y") != std::string::npos);
+              };
+
+              if (should_log_arc_net_choice(src_pin->getFullName(),
+                                            snk_pin->getFullName())) {
+                auto* src_net = src_pin->get_net();
+                auto* snk_net = snk_pin->get_net();
+                auto dump_net_load_pf =
+                    [&](Net* net, const char* net_role) {
+                      if (!net) {
+                        LOG_INFO << "[ArcNetDebug] " << src_pin->getFullName()
+                                 << " -> " << snk_pin->getFullName() << " "
+                                 << net_role << "=<null>";
+                        return;
+                      }
+
+                      auto* role_rc_net = getSta()->getRcNet(net);
+                      auto role_load_pf =
+                          role_rc_net ? role_rc_net->load(analysis_mode,
+                                                          out_trans_type)
+                                      : net->getLoad(analysis_mode,
+                                                     out_trans_type);
+                      LOG_INFO << "[ArcNetDebug] " << src_pin->getFullName()
+                               << " -> " << snk_pin->getFullName() << " "
+                               << net_role << "=" << net->get_name()
+                               << " load_pf=" << role_load_pf
+                               << " has_rc_net=" << (role_rc_net != nullptr);
+                    };
+
+                LOG_INFO << "[ArcNetDebug] inspect arc "
+                         << src_pin->getFullName() << " -> "
+                         << snk_pin->getFullName()
+                         << " analysis_mode="
+                         << (analysis_mode == AnalysisMode::kMax ? "Max"
+                                                                : "Min")
+                         << " in_trans="
+                         << (trans_type == TransType::kRise ? "Rise" : "Fall")
+                         << " out_trans="
+                         << (out_trans_type == TransType::kRise ? "Rise"
+                                                                : "Fall");
+                dump_net_load_pf(src_net, "src_net");
+                dump_net_load_pf(snk_net, "snk_net");
+                dump_net_load_pf(the_net, "chosen_net");
+              }
+
+              // 填充调试信息结构体
+              ArcDebugInfo info;
+              info.inst_name = src_pin->get_own_instance()->get_name();
+              info.from_pin = src_pin->getFullName();
+              info.to_pin = snk_pin->getFullName();
+            if (info.from_pin.find("_23155_:A") != std::string::npos
+                && info.to_pin.find("_23155_:Y") != std::string::npos) {
+
+                }
+              info.analysis_mode = (analysis_mode == AnalysisMode::kMax ? "Max" : "Min");
+              info.transition = (out_trans_type == TransType::kRise ? "Rise" : "Fall");
+              info.in_slew_ns = in_slew;
+              // Debug export should stay on the internal pF basis so Python-side
+              // reports can compare iEDA and PyPlaceDB loads directly.
+              auto debug_load_cap = load_array[trans_to_index(out_trans_type)];
+              if (owner_lib->get_cap_unit() == CapacitiveUnit::kFF) {
+                debug_load_cap = FF_TO_PF(debug_load_cap);
+              } else if (owner_lib->get_cap_unit() == CapacitiveUnit::kF) {
+                debug_load_cap = F_TO_PF(debug_load_cap);
+              }
+              info.load_cap = debug_load_cap;
+              info.delay_ns = delay_ns;
+              info.timing_sense = timingSenseToInt(lib_arc->get_timing_sense());
+
+              // 将信息存入线程安全的管理器
+              ArcDebugDataManager::getInstance().addArcInfo(info);
+          }
+          // DEBUG
           construct_delay_data(analysis_mode, out_trans_type, the_arc, delay);
           /*The unate arc should split two.*/
           if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() || src_vertex->is_clock()) {

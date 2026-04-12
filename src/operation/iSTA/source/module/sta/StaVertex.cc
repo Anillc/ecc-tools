@@ -440,7 +440,7 @@ std::vector<StaArc*> StaVertex::getSnkArc(StaVertex* snk_vertex) {
  * @param src_level
  * @param snk_level
  */
-void StaVertex::set_level(unsigned level) {
+void StaVertex::set_level(int level) {
   if (_level == 0) {
     _level = level;
   } else {

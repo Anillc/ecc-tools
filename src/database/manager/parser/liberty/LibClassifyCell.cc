@@ -230,7 +230,8 @@ bool LibClassifyCell::compareTimingArc(LibArcSet* set1, LibArcSet* set2)
 {
   return Str::equal(set1->front()->get_src_port(), set2->front()->get_src_port())
          && Str::equal(set1->front()->get_snk_port(), set2->front()->get_snk_port())
-         && set1->front()->get_timing_type() == set2->front()->get_timing_type();
+         && set1->front()->get_timing_type() == set2->front()->get_timing_type()
+         && set1->front()->get_timing_sense() == set2->front()->get_timing_sense();
 }
 
 /**

@@ -15,8 +15,12 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #include "gtest/gtest.h"
+#include <set>
+#include <variant>
+
 #include "liberty/Lib.hh"
 #include "log/Log.hh"
+#include "sdc/SdcConstrain.hh"
 #include "sdc-cmd/Cmd.hh"
 #include "sta/Sta.hh"
 #include "sta/StaApplySdc.hh"
@@ -229,6 +233,136 @@ TEST_F(SdcTest, zx_test) {
 
   result &= ScriptEngine::getOrCreateInstance()->evalString(
       R"(set_min_delay 1.0 -from [get_ports clk1] -to [get_ports out])");
+}
+
+class SetIdealNetworkCmdTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    char config[] = "test";
+    char* argv[] = {config};
+    Log::init(argv);
+
+    auto* ista = Sta::getOrCreateSta();
+    ista->initSdcCmd();
+    ista->get_netlist()->addPort(Port("clk1", PortDir::kIn));
+  }
+
+  void TearDown() override {
+    Sta::destroySta();
+    Log::end();
+  }
+};
+
+TEST_F(SetIdealNetworkCmdTest, marks_port_as_ideal_network) {
+  auto* ista = Sta::getOrCreateSta();
+
+  int result = ScriptEngine::getOrCreateInstance()->evalString(
+      R"(set_ideal_network clk1)");
+
+  auto* clk1 = ista->get_netlist()->findPort("clk1");
+  ASSERT_NE(clk1, nullptr);
+  EXPECT_EQ(result, 0);
+  EXPECT_TRUE(clk1->is_ideal_network());
+}
+
+class SdcCollectionExpansionTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    char config[] = "test";
+    char* argv[] = {config};
+    Log::init(argv);
+
+    auto* ista = Sta::getOrCreateSta();
+    ista->initSdcCmd();
+    ista->getConstrain();
+    auto* netlist = ista->get_netlist();
+    netlist->addPort(Port("in1", PortDir::kIn));
+    netlist->addPort(Port("clk1", PortDir::kIn));
+    netlist->addPort(Port("out1", PortDir::kOut));
+  }
+
+  void TearDown() override {
+    Sta::destroySta();
+    Log::end();
+  }
+};
+
+TEST_F(SdcCollectionExpansionTest, expands_all_inputs_to_design_objects) {
+  auto* ista = Sta::getOrCreateSta();
+  auto* script_engine = ScriptEngine::getOrCreateInstance();
+
+  ASSERT_EQ(script_engine->evalString(R"(all_inputs)"), 0);
+
+  auto object_list = FindObjOfSdc(script_engine->getResult(), ista->get_netlist());
+  std::set<std::string> input_names;
+  for (auto& object : object_list) {
+    ASSERT_TRUE(std::holds_alternative<DesignObject*>(object));
+    input_names.emplace(std::get<DesignObject*>(object)->get_name());
+  }
+
+  EXPECT_EQ(input_names, (std::set<std::string>{"clk1", "in1"}));
+}
+
+TEST_F(SdcCollectionExpansionTest, expands_all_outputs_to_design_objects) {
+  auto* ista = Sta::getOrCreateSta();
+  auto* script_engine = ScriptEngine::getOrCreateInstance();
+
+  ASSERT_EQ(script_engine->evalString(R"(all_outputs)"), 0);
+
+  auto object_list = FindObjOfSdc(script_engine->getResult(), ista->get_netlist());
+  ASSERT_EQ(object_list.size(), 1U);
+  ASSERT_TRUE(std::holds_alternative<DesignObject*>(object_list.front()));
+  EXPECT_STREQ(std::get<DesignObject*>(object_list.front())->get_name(), "out1");
+}
+
+TEST_F(SdcCollectionExpansionTest, set_input_transition_accepts_all_inputs) {
+  auto* script_engine = ScriptEngine::getOrCreateInstance();
+
+  EXPECT_EQ(script_engine->evalString(R"(set_input_transition 0.1 [all_inputs])"),
+            0);
+}
+
+TEST_F(SdcCollectionExpansionTest,
+       set_input_transition_accepts_all_inputs_after_other_collections) {
+  auto* script_engine = ScriptEngine::getOrCreateInstance();
+
+  ASSERT_EQ(
+      script_engine->evalString(R"(create_clock -name clk -period 2.2 clk1)"),
+      0);
+
+  EXPECT_EQ(
+      script_engine->evalString(
+          R"(set_clock_transition -rise -min 0.1 [get_clocks clk])"),
+      0);
+}
+
+TEST_F(SdcCollectionExpansionTest,
+       set_input_transition_accepts_all_inputs_after_clock_transition) {
+  auto* script_engine = ScriptEngine::getOrCreateInstance();
+
+  ASSERT_EQ(
+      script_engine->evalString(R"(create_clock -name clk -period 2.2 clk1)"),
+      0);
+  ASSERT_EQ(
+      script_engine->evalString(
+          R"(set_clock_transition -rise -min 0.1 [get_clocks clk])"),
+      0);
+
+  EXPECT_EQ(script_engine->evalString(R"(set_input_transition 0.1 [all_inputs])"),
+            0);
+}
+
+TEST_F(SdcCollectionExpansionTest,
+       set_io_delay_without_clock_uses_single_defined_clock) {
+  auto* script_engine = ScriptEngine::getOrCreateInstance();
+
+  ASSERT_EQ(
+      script_engine->evalString(R"(create_clock -name clk -period 2.2 clk1)"),
+      0);
+
+  EXPECT_EQ(script_engine->evalString(R"(set_input_delay 0 [all_inputs])"), 0);
+  EXPECT_EQ(script_engine->evalString(R"(set_output_delay 0 [all_outputs])"),
+            0);
 }
 
 }  // namespace

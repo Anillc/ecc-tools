@@ -1222,6 +1222,7 @@ void Sta::initSdcCmd() {
   registerTclCmd(CmdSetInputTransition, "set_clock_transition");
   registerTclCmd(CmdSetDrivingCell, "set_driving_cell");
   registerTclCmd(CmdSetLoad, "set_load");
+  registerTclCmd(CmdSetIdealNetwork, "set_ideal_network");
   registerTclCmd(CmdSetInputDelay, "set_input_delay");
   registerTclCmd(CmdSetOutputDelay, "set_output_delay");
   registerTclCmd(CmdSetMaxFanout, "set_max_fanout");
