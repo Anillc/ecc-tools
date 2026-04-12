@@ -2,8 +2,8 @@
   "id": "sanitize-trellis-archive-docs",
   "name": "sanitize-trellis-archive-docs",
   "title": "Sanitize trellis archive docs",
-  "description": "",
-  "status": "planning",
+  "description": "Sanitize Trellis archive documents, validate rewritten cts_refactor history, remap workspace commit references, and verify the sanitized branch via fresh clone.",
+  "status": "completed",
   "dev_type": "backend",
   "scope": null,
   "package": null,
@@ -11,8 +11,8 @@
   "creator": "dawnli",
   "assignee": "dawnli",
   "createdAt": "2026-04-12",
-  "completedAt": null,
-  "branch": null,
+  "completedAt": "2026-04-12",
+  "branch": "cts_refactor",
   "base_branch": "cts_refactor",
   "worktree_path": null,
   "current_phase": 0,
@@ -42,12 +42,12 @@
       "action": "record-session"
     }
   ],
-  "commit": null,
+  "commit": "ac7d7c2b0",
   "pr_url": null,
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Current-tree docs were sanitized first, then cts_refactor history was rewritten and rolled out with fresh-clone verification.",
   "meta": {}
 }
