@@ -52,6 +52,20 @@ class StaPathDelayData;
 class StaDataBucketIterator;
 class LibCurrentData;
 
+struct StaCheckPairBinding {
+  AnalysisMode analysis_mode = AnalysisMode::kMax;
+  TransType check_trans_type = TransType::kRise;
+  TransType clock_trans_type = TransType::kRise;
+  TransType data_trans_type = TransType::kRise;
+  int64_t clock_slew_fs = 0;
+  int64_t data_slew_fs = 0;
+  int64_t sampled_check_margin_fs = 0;
+  StaArc* check_arc = nullptr;
+  StaSlewData* clock_slew_data = nullptr;
+  StaSlewData* data_slew_data = nullptr;
+  uint64_t data_epoch = 0;
+};
+
 /**
  * @brief The base class of sta data.
  *
@@ -239,6 +253,22 @@ class StaArcDelayData : public StaData {
   int64_t getCompareValue() const override { return _arc_delay; }
   StaArc* get_own_arc() const { return _own_arc; }
 
+  void set_check_pair_binding(const StaCheckPairBinding& check_pair_binding) {
+    _check_pair_binding = check_pair_binding;
+  }
+  void add_check_pair_binding(const StaCheckPairBinding& check_pair_binding) {
+    _check_pair_binding = check_pair_binding;
+    _check_pair_bindings.push_back(check_pair_binding);
+  }
+  const StaCheckPairBinding* get_check_pair_binding() const {
+    return _check_pair_binding ? &*_check_pair_binding : nullptr;
+  }
+  bool has_check_pair_binding() const { return _check_pair_binding.has_value(); }
+  const std::vector<StaCheckPairBinding>& get_check_pair_bindings() const {
+    return _check_pair_bindings;
+  }
+  bool has_check_pair_bindings() const { return !_check_pair_bindings.empty(); }
+
   int get_crosstalk_delay() const { return _crosstalk_delay; }
   void set_crosstalk_delay(int crosstalk_delay) {
     _crosstalk_delay = crosstalk_delay;
@@ -248,6 +278,8 @@ class StaArcDelayData : public StaData {
   int _arc_delay;            //!< The delay value, unit is fs.
   int _crosstalk_delay = 0;  //!< The crosstalk delay, unit is fs.
   StaArc* _own_arc;          //!< The arc delay belong to.
+  std::optional<StaCheckPairBinding> _check_pair_binding;
+  std::vector<StaCheckPairBinding> _check_pair_bindings;
 };
 
 /**

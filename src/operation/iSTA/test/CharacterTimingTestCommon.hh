@@ -86,6 +86,10 @@ inline fs::path goldenCaseMaxLibPath() {
   return goldenCaseOutputDir() / "NV_NVDLA_partition_m.characterized.max.lib";
 }
 
+inline fs::path goldenCaseMaxCheckSourcePath() {
+  return goldenCaseMaxLibPath().string() + ".check_sources.tsv";
+}
+
 inline fs::path goldenCaseMinLibPath() {
   return goldenCaseOutputDir() / "NV_NVDLA_partition_m.characterized.min.lib";
 }

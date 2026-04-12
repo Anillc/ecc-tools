@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
+#include <fstream>
 #include <sstream>
 #include <tuple>
 
@@ -324,12 +325,120 @@ void StaCharacterTiming::snapshotFullStaSeqCheckData(StaGraph* the_graph) {
       return;
     }
 
+    using SnapshotKey =
+        std::tuple<StaArc*, StaVertex*, StaVertex*, StaVertex*, AnalysisMode,
+                   TransType, TransType, TransType, int64_t, int64_t, int64_t,
+                   int64_t, int64_t>;
+
+    auto build_snapshot_key = [](const PreservedSeqCheckSnapshot& snapshot) {
+      return SnapshotKey(snapshot.check_arc, snapshot.capture_clock_vertex,
+                         snapshot.capture_clock_start_vertex,
+                         snapshot.data_start_vertex,
+                         snapshot.capture_analysis_mode,
+                         snapshot.data_start_trans_type,
+                         snapshot.data_end_trans_type,
+                         snapshot.clock_trans_type,
+                         snapshot.data_start_arrive_fs,
+                         snapshot.data_end_arrive_fs,
+                         snapshot.capture_clock_start_arrive_fs,
+                         snapshot.capture_clock_end_arrive_fs,
+                         snapshot.constrain_value_fs);
+    };
+
+    auto build_capture_edge_fs = [](StaClockData* capture_clock_data) -> int64_t {
+      if (!capture_clock_data) {
+        return 0;
+      }
+
+      auto* capture_clock = capture_clock_data->get_prop_clock();
+      if (!capture_clock) {
+        return 0;
+      }
+
+      auto& wave_form = capture_clock->get_wave_form();
+      return capture_clock_data->get_clock_wave_type() == TransType::kRise
+                 ? wave_form.getRisingEdge()
+                 : wave_form.getFallingEdge();
+    };
+
     auto seq_data_vec = ista->getSeqData(endpoint_vertex, analysis_mode);
+    std::set<SnapshotKey> seen_snapshots;
+    auto& endpoint_snapshots = _preserved_seq_check_data[endpoint_vertex];
+
+    auto append_snapshot =
+        [&](const PreservedSeqCheckSnapshot& snapshot,
+            StaPathDelayData* seq_delay_data, StaClockData* capture_clock_data,
+            const char* snapshot_source) {
+          auto [it, inserted] =
+              seen_snapshots.insert(build_snapshot_key(snapshot));
+          if (!inserted) {
+            return;
+          }
+
+          const bool trace_seq_snapshot =
+              shouldTraceCharacterizationPin(endpoint_vertex->getName().c_str()) ||
+              (snapshot.data_start_vertex && shouldTraceCharacterizationPin(
+                                               snapshot.data_start_vertex->getName().c_str()));
+          if (trace_seq_snapshot) {
+            LOG_INFO << "[character_timing][" << snapshot_source
+                     << "] endpoint=" << endpoint_vertex->getName()
+                     << " analysis_mode=" << analysisModeName(analysis_mode)
+                     << " check_arc="
+                     << (snapshot.check_arc
+                             ? snapshot.check_arc->get_src()->getName() + "->" +
+                                   snapshot.check_arc->get_snk()->getName()
+                             : "null")
+                     << " seq_delay_trans="
+                     << (seq_delay_data
+                             ? transTypeName(seq_delay_data->get_trans_type())
+                             : "null")
+                     << " data_start_vertex="
+                     << (snapshot.data_start_vertex
+                             ? snapshot.data_start_vertex->getName()
+                             : "null")
+                     << " data_start_trans="
+                     << transTypeName(snapshot.data_start_trans_type)
+                     << " data_end_trans="
+                     << transTypeName(snapshot.data_end_trans_type)
+                     << " data_start_arrive_ns="
+                     << FS_TO_NS(snapshot.data_start_arrive_fs)
+                     << " data_end_arrive_ns="
+                     << FS_TO_NS(snapshot.data_end_arrive_fs)
+                     << " data_delay_ns="
+                     << FS_TO_NS(snapshot.data_end_arrive_fs -
+                                 snapshot.data_start_arrive_fs)
+                     << " seq_arrive_ns="
+                     << FS_TO_NS(snapshot.seq_arrive_time_fs)
+                     << " capture_clock_vertex="
+                     << (snapshot.capture_clock_vertex
+                             ? snapshot.capture_clock_vertex->getName()
+                             : "null")
+                     << " capture_clk_start_vertex="
+                     << (snapshot.capture_clock_start_vertex
+                             ? snapshot.capture_clock_start_vertex->getName()
+                             : "null")
+                     << " capture_clk_start_arrive_ns="
+                     << FS_TO_NS(snapshot.capture_clock_start_arrive_fs)
+                     << " capture_clk_end_arrive_ns="
+                     << FS_TO_NS(snapshot.capture_clock_end_arrive_fs)
+                     << " capture_clk_delay_ns="
+                     << FS_TO_NS(snapshot.capture_clock_end_arrive_fs -
+                                 snapshot.capture_clock_start_arrive_fs)
+                     << " capture_edge_ns=" << FS_TO_NS(snapshot.capture_edge_fs)
+                     << " constrain_ns=" << FS_TO_NS(snapshot.constrain_value_fs)
+                     << " capture_clock_path_vertex="
+                     << (capture_clock_data && capture_clock_data->get_own_vertex()
+                             ? capture_clock_data->get_own_vertex()->getName()
+                             : "null");
+          }
+
+          endpoint_snapshots.push_back(snapshot);
+        };
+
     if (seq_data_vec.empty()) {
-      return;
+      _preserved_seq_check_data.erase(endpoint_vertex);
     }
 
-    auto& endpoint_snapshots = _preserved_seq_check_data[endpoint_vertex];
     for (auto* seq_data : seq_data_vec) {
       auto* seq_delay_data = seq_data ? seq_data->get_delay_data() : nullptr;
       auto* capture_clock_data =
@@ -367,58 +476,148 @@ void StaCharacterTiming::snapshotFullStaSeqCheckData(StaGraph* the_graph) {
       snapshot.constrain_value_fs = seq_data->get_constrain_value();
       snapshot.uncertainty_fs = seq_data->get_uncertainty().value_or(0);
       snapshot.cppr_fs = seq_data->get_cppr().value_or(0);
+      if (auto* check_pair_binding = seq_data->get_check_pair_binding();
+          check_pair_binding) {
+        snapshot.check_pair_binding = *check_pair_binding;
+      }
+      append_snapshot(snapshot, seq_delay_data, capture_clock_data,
+                      "seq-snapshot");
+    }
 
-      const bool trace_seq_snapshot =
-          shouldTraceCharacterizationPin(endpoint_vertex->getName().c_str()) ||
-          (data_terms->start_vertex &&
-           shouldTraceCharacterizationPin(data_terms->start_vertex->getName().c_str()));
-      if (trace_seq_snapshot) {
-        LOG_INFO << "[character_timing][seq-snapshot] endpoint="
-                 << endpoint_vertex->getName() << " analysis_mode="
-                 << analysisModeName(analysis_mode) << " check_arc="
-                 << (seq_data->get_check_arc()
-                         ? seq_data->get_check_arc()->get_src()->getName() + "->" +
-                               seq_data->get_check_arc()->get_snk()->getName()
-                         : "null")
-                 << " seq_delay_trans="
-                 << transTypeName(seq_delay_data->get_trans_type())
-                 << " data_start_vertex="
-                 << (data_terms->start_vertex ? data_terms->start_vertex->getName()
-                                              : "null")
-                 << " data_start_trans="
-                 << transTypeName(data_terms->start_trans_type)
-                 << " data_end_trans="
-                 << transTypeName(data_terms->end_trans_type)
-                 << " data_start_arrive_ns="
-                 << FS_TO_NS(data_terms->start_arrive_fs)
-                 << " data_end_arrive_ns=" << FS_TO_NS(data_terms->end_arrive_fs)
-                 << " data_delay_ns=" << FS_TO_NS(data_terms->delay_fs)
-                 << " seq_arrive_ns=" << FS_TO_NS(snapshot.seq_arrive_time_fs)
-                 << " launch_clock_vertex="
-                 << (seq_data->get_launch_clock_data()
-                         ? seq_data->get_launch_clock_data()->get_own_vertex()->getName()
-                         : "null")
-                 << " capture_clock_vertex="
-                 << (capture_clock_data ? capture_clock_data->get_own_vertex()->getName()
-                                        : "null")
-                 << " capture_clk_start_vertex="
-                 << (capture_clock_terms->start_vertex
-                         ? capture_clock_terms->start_vertex->getName()
-                         : "null")
-                 << " capture_clk_start_arrive_ns="
-                 << FS_TO_NS(capture_clock_terms->start_arrive_fs)
-                 << " capture_clk_end_arrive_ns="
-                 << FS_TO_NS(capture_clock_terms->end_arrive_fs)
-                 << " capture_clk_delay_ns="
-                 << FS_TO_NS(capture_clock_terms->delay_fs)
-                 << " capture_edge_ns=" << FS_TO_NS(snapshot.capture_edge_fs)
-                 << " require_ns=" << FS_TO_NS(seq_data->getRequireTime())
-                 << " constrain_ns=" << FS_TO_NS(seq_data->get_constrain_value())
-                 << " uncertainty_ns=" << FS_TO_NS(snapshot.uncertainty_fs)
-                 << " cppr_ns=" << FS_TO_NS(snapshot.cppr_fs);
+    auto* check_arc = endpoint_vertex->getCheckArc(analysis_mode);
+    if (!check_arc) {
+      if (endpoint_snapshots.empty()) {
+        _preserved_seq_check_data.erase(endpoint_vertex);
+      }
+      return;
+    }
+
+    auto* clock_vertex = check_arc->get_src();
+    const auto clock_trans_type =
+        check_arc->isRisingEdgeCheck() ? TransType::kRise : TransType::kFall;
+    const auto capture_analysis_mode =
+        analysis_mode == AnalysisMode::kMax ? AnalysisMode::kMin
+                                            : AnalysisMode::kMax;
+
+    StaData* arc_delay_data_obj = nullptr;
+    FOREACH_ARC_DELAY_DATA(check_arc, arc_delay_data_obj) {
+      auto* arc_delay_data = dynamic_cast<StaArcDelayData*>(arc_delay_data_obj);
+      if (!arc_delay_data ||
+          arc_delay_data->get_delay_type() != analysis_mode ||
+          !arc_delay_data->has_check_pair_bindings()) {
+        continue;
       }
 
-      endpoint_snapshots.push_back(snapshot);
+      for (const auto& check_pair_binding : arc_delay_data->get_check_pair_bindings()) {
+        auto* data_slew_data = check_pair_binding.data_slew_data;
+        auto* clock_slew_data = check_pair_binding.clock_slew_data;
+        if (!data_slew_data || !clock_slew_data ||
+            check_pair_binding.analysis_mode != analysis_mode ||
+            check_pair_binding.check_arc != check_arc ||
+            clock_slew_data->get_trans_type() != clock_trans_type) {
+          continue;
+        }
+
+        auto data_path_sig = extractPathVertexSignature(data_slew_data->getPathData());
+        auto clock_path_sig =
+            extractPathVertexSignature(clock_slew_data->getPathData());
+        if (!data_path_sig || data_path_sig->empty() || !clock_path_sig ||
+            clock_path_sig->empty()) {
+          continue;
+        }
+
+        PreservedSeqCheckSnapshot snapshot;
+        snapshot.check_arc = check_arc;
+        snapshot.capture_clock_vertex = clock_slew_data->get_own_vertex();
+        snapshot.capture_clock_start_vertex = clock_path_sig->front().first;
+        snapshot.data_start_vertex = data_path_sig->front().first;
+        snapshot.capture_analysis_mode = capture_analysis_mode;
+        snapshot.data_start_trans_type = data_path_sig->front().second;
+        snapshot.data_end_trans_type = data_path_sig->back().second;
+        snapshot.clock_trans_type = clock_slew_data->get_trans_type();
+        snapshot.capture_edge_fs = 0;
+        snapshot.constrain_value_fs = check_pair_binding.sampled_check_margin_fs;
+        snapshot.check_pair_binding = check_pair_binding;
+
+        append_snapshot(snapshot, nullptr, nullptr,
+                        "seq-snapshot-binding");
+      }
+    }
+
+    StaData* clock_data = nullptr;
+    FOREACH_CLOCK_DATA(clock_vertex, clock_data) {
+      auto* capture_clock_data = dynamic_cast<StaClockData*>(clock_data);
+      if (!capture_clock_data ||
+          capture_clock_data->get_delay_type() != capture_analysis_mode ||
+          capture_clock_data->get_trans_type() != clock_trans_type) {
+        continue;
+      }
+
+      auto capture_clock_terms =
+          extractBoundaryDelayTerms(capture_clock_data->getPathData());
+      if (!capture_clock_terms) {
+        continue;
+      }
+
+      StaData* delay_data = nullptr;
+      FOREACH_DELAY_DATA(endpoint_vertex, delay_data) {
+        auto* path_delay_data = dynamic_cast<StaPathDelayData*>(delay_data);
+        if (!path_delay_data ||
+            path_delay_data->get_delay_type() != analysis_mode) {
+          continue;
+        }
+
+        auto data_terms = extractBoundaryDelayTerms(path_delay_data->getPathData());
+        if (!data_terms || !data_terms->start_vertex ||
+            !data_terms->start_vertex->is_port() ||
+            !data_terms->start_vertex->get_design_obj() ||
+            !data_terms->start_vertex->get_design_obj()->isInput()) {
+          continue;
+        }
+
+        auto* arc_delay_data = check_arc->getArcDelayData(
+            analysis_mode, path_delay_data->get_trans_type(),
+            path_delay_data->get_data_epoch());
+        if (!arc_delay_data) {
+          arc_delay_data =
+              check_arc->getArcDelayData(analysis_mode,
+                                         path_delay_data->get_trans_type());
+        }
+
+        PreservedSeqCheckSnapshot snapshot;
+        snapshot.check_arc = check_arc;
+        snapshot.capture_clock_vertex = capture_clock_data->get_own_vertex();
+        snapshot.capture_clock_start_vertex = capture_clock_terms->start_vertex;
+        snapshot.data_start_vertex = data_terms->start_vertex;
+        snapshot.capture_analysis_mode = capture_clock_data->get_delay_type();
+        snapshot.data_start_trans_type = data_terms->start_trans_type;
+        snapshot.data_end_trans_type = data_terms->end_trans_type;
+        snapshot.clock_trans_type = capture_clock_data->get_trans_type();
+        snapshot.data_start_arrive_fs = data_terms->start_arrive_fs;
+        snapshot.data_end_arrive_fs = data_terms->end_arrive_fs;
+        snapshot.seq_arrive_time_fs = path_delay_data->get_arrive_time();
+        snapshot.capture_clock_start_arrive_fs =
+            capture_clock_terms->start_arrive_fs;
+        snapshot.capture_clock_end_arrive_fs =
+            capture_clock_terms->end_arrive_fs;
+        snapshot.capture_edge_fs = build_capture_edge_fs(capture_clock_data);
+        snapshot.constrain_value_fs =
+            arc_delay_data
+                ? arc_delay_data->get_arc_delay()
+                : check_arc->get_arc_delay(analysis_mode,
+                                           path_delay_data->get_trans_type(),
+                                           path_delay_data->get_data_epoch());
+        if (arc_delay_data && arc_delay_data->has_check_pair_binding()) {
+          snapshot.check_pair_binding = *arc_delay_data->get_check_pair_binding();
+        }
+
+        append_snapshot(snapshot, path_delay_data, capture_clock_data,
+                        "seq-snapshot-direct");
+      }
+    }
+
+    if (endpoint_snapshots.empty()) {
+      _preserved_seq_check_data.erase(endpoint_vertex);
     }
   };
 

@@ -26,8 +26,10 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
+#include "StaData.hh"
 #include "BTreeMap.hh"
 #include "StaClock.hh"
 
@@ -121,6 +123,15 @@ class StaSeqPathData : public StaPathData {
   [[nodiscard]] int get_constrain_value() const { return _constrain_value; }
   void set_check_arc(StaArc* check_arc) { _check_arc = check_arc; }
   [[nodiscard]] auto* get_check_arc() const { return _check_arc; }
+  void set_check_pair_binding(const StaCheckPairBinding& check_pair_binding) {
+    _check_pair_binding = check_pair_binding;
+  }
+  const StaCheckPairBinding* get_check_pair_binding() const {
+    return _check_pair_binding ? &*_check_pair_binding : nullptr;
+  }
+  bool has_check_pair_binding() const {
+    return _check_pair_binding.has_value();
+  }
 
   void set_uncertainty(int uncertainty) { _uncertainty = uncertainty; }
   [[nodiscard]] auto get_uncertainty() const { return _uncertainty; }
@@ -146,6 +157,7 @@ class StaSeqPathData : public StaPathData {
   StaArc* _check_arc = nullptr;  //!< The constraint arc.
   std::optional<int>
       _uncertainty;  //!< The clock uncertainty for analyze margin, unit is fs.
+  std::optional<StaCheckPairBinding> _check_pair_binding;
 
   FORBIDDEN_COPY(StaSeqPathData);
 };

@@ -25,9 +25,12 @@
 #include "Lib.hh"
 
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <map>
+#include <sstream>
 #include <set>
 #include <utility>
 
@@ -36,6 +39,51 @@
 #include "string/StrMap.hh"
 
 namespace ista {
+
+namespace {
+
+bool shouldTraceLibCheckLookup()
+{
+  static const bool kEnabled = []() {
+    if (const char* env = std::getenv("IEDA_LIB_CHECK_TRACE"); env && *env) {
+      return std::strcmp(env, "0") != 0;
+    }
+    return false;
+  }();
+  return kEnabled;
+}
+
+bool libCheckTraceMatchesFilter(const char* cell_name, const char* src_port,
+                                const char* snk_port)
+{
+  const char* filter_env = std::getenv("IEDA_LIB_CHECK_TRACE_FILTER");
+  if (!filter_env || !*filter_env) {
+    return true;
+  }
+
+  const std::string cell = cell_name ? cell_name : "";
+  const std::string src = src_port ? src_port : "";
+  const std::string snk = snk_port ? snk_port : "";
+
+  std::stringstream ss(filter_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (item.empty()) {
+      continue;
+    }
+    if (cell.find(item) != std::string::npos ||
+        src.find(item) != std::string::npos ||
+        snk.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+}  // namespace
 
 LibAxis::LibAxis(const char* axis_name) : _axis_name(axis_name)
 {
@@ -1124,8 +1172,11 @@ unsigned LibArc::isClockGateCheckArc()
  * @brief Get the arc delay or constrain value.
  *
  * @param trans_type The transtion type, rise/fall.
- * @param slew The first axis value.
- * @param index2 The second axis value.
+ * @param slew Delay arc时传入ns单位slew；check arc时保留历史约定，
+ * 第一个参数表示related-pin slew，使用ns单位。
+ * @param index2 Delay arc时传入load；check arc时保留历史约定，
+ * 第二个参数表示constrained-pin slew，调用方需按liberty table axis
+ * 的时间单位传入，而不是统一传ns。
  * @return double The delay or constrain value in ns.
  */
 double LibArc::getDelayOrConstrainCheckNs(TransType trans_type, double slew, double load_or_constrain_slew)
@@ -1151,8 +1202,26 @@ double LibArc::getDelayOrConstrainCheckNs(TransType trans_type, double slew, dou
     found_delay = _table_model->gateDelay(trans_type, slew * input_to_liberty_convert,
                                           load_or_constrain_slew);
   } else {
-    found_delay = _table_model->gateCheckConstrain(trans_type, slew * input_to_liberty_convert,
-                                                   load_or_constrain_slew);
+    const double arg1 = slew * input_to_liberty_convert;
+    const double arg2 = load_or_constrain_slew;
+    if (shouldTraceLibCheckLookup()) {
+      const char* cell_name = get_owner_cell()->get_cell_name();
+      const char* src_port = get_src_port();
+      const char* snk_port = get_snk_port();
+      if (libCheckTraceMatchesFilter(cell_name, src_port, snk_port)) {
+        LOG_INFO_FIRST_N(40)
+            << "[lib_check_lookup] cell=" << cell_name << " arc=" << src_port
+            << "->" << snk_port << " trans="
+            << (trans_type == TransType::kRise ? "rise" : "fall")
+            << " raw_arg1=" << slew << " raw_arg2="
+            << load_or_constrain_slew << " converted_arg1=" << arg1
+            << " converted_arg2=" << arg2 << " liberty_time_unit="
+            << (liberty_time_unit == TimeUnit::kPS
+                    ? "ps"
+                    : (liberty_time_unit == TimeUnit::kFS ? "fs" : "ns"));
+      }
+    }
+    found_delay = _table_model->gateCheckConstrain(trans_type, arg1, arg2);
   }
 
   if (found_delay) {

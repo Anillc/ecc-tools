@@ -223,13 +223,21 @@ StaArcDelayData::StaArcDelayData(AnalysisMode delay_type, TransType trans_type,
       _own_arc(own_arc) {}
 
 StaArcDelayData::StaArcDelayData(const StaArcDelayData& orig)
-    : StaData(orig), _arc_delay(orig._arc_delay), _own_arc(orig._own_arc) {}
+    : StaData(orig),
+      _arc_delay(orig._arc_delay),
+      _crosstalk_delay(orig._crosstalk_delay),
+      _own_arc(orig._own_arc),
+      _check_pair_binding(orig._check_pair_binding),
+      _check_pair_bindings(orig._check_pair_bindings) {}
 
 StaArcDelayData& StaArcDelayData::operator=(const StaArcDelayData& rhs) {
   if (this != &rhs) {
     StaData::operator=(rhs);
     _arc_delay = rhs._arc_delay;
+    _crosstalk_delay = rhs._crosstalk_delay;
     _own_arc = rhs._own_arc;
+    _check_pair_binding = rhs._check_pair_binding;
+    _check_pair_bindings = rhs._check_pair_bindings;
   }
   return *this;
 }
@@ -237,13 +245,19 @@ StaArcDelayData& StaArcDelayData::operator=(const StaArcDelayData& rhs) {
 StaArcDelayData::StaArcDelayData(StaArcDelayData&& other) noexcept
     : StaData(std::move(other)),
       _arc_delay(other._arc_delay),
-      _own_arc(other._own_arc) {}
+      _crosstalk_delay(other._crosstalk_delay),
+      _own_arc(other._own_arc),
+      _check_pair_binding(std::move(other._check_pair_binding)),
+      _check_pair_bindings(std::move(other._check_pair_bindings)) {}
 
 StaArcDelayData& StaArcDelayData::operator=(StaArcDelayData&& rhs) noexcept {
   if (this != &rhs) {
     StaData::operator=(std::move(rhs));
     _arc_delay = rhs._arc_delay;
+    _crosstalk_delay = rhs._crosstalk_delay;
     _own_arc = rhs._own_arc;
+    _check_pair_binding = std::move(rhs._check_pair_binding);
+    _check_pair_bindings = std::move(rhs._check_pair_bindings);
   }
   return *this;
 }

@@ -188,13 +188,31 @@ unsigned StaDataSlewDelayPropagation::operator()(StaArc* the_arc) {
 
             StaArcDelayData* arc_delay = nullptr;
             if (isIncremental()) {
-              arc_delay = the_arc->getArcDelayData(analysis_mode, snk_trans_type);
+              arc_delay =
+                  the_arc->getArcDelayData(analysis_mode, snk_trans_type);
             }
 
             if (!arc_delay) {
               arc_delay = new StaArcDelayData(analysis_mode, snk_trans_type,
                                               the_arc, delay);
             }
+            arc_delay->set_data_epoch(from_slew_data->get_data_epoch());
+            StaCheckPairBinding check_pair_binding;
+            check_pair_binding.analysis_mode = analysis_mode;
+            check_pair_binding.check_trans_type = snk_trans_type;
+            check_pair_binding.clock_trans_type = trans_type;
+            check_pair_binding.data_trans_type = snk_trans_type;
+            check_pair_binding.clock_slew_fs = in_slew_fs;
+            check_pair_binding.data_slew_fs = snk_slew_fs;
+            check_pair_binding.sampled_check_margin_fs = delay;
+            check_pair_binding.check_arc = the_arc;
+            check_pair_binding.clock_slew_data = from_slew_data;
+            check_pair_binding.data_slew_data =
+                dynamic_cast<StaSlewData*>(snk_slew_data);
+            check_pair_binding.data_epoch = from_slew_data
+                                                ? from_slew_data->get_data_epoch()
+                                                : 0;
+            arc_delay->add_check_pair_binding(check_pair_binding);
             the_arc->addData(arc_delay);
           }
 

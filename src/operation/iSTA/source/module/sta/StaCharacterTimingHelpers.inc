@@ -414,6 +414,69 @@ bool isCharacterizationSeqData(StaSeqPathData* seq_data, uint64_t epoch) {
   return delay_data && delay_data->get_data_epoch() == epoch;
 }
 
+std::optional<double> bindingCheckMarginNs(
+    const StaCheckPairBinding* check_pair_binding) {
+  return check_pair_binding
+             ? std::optional<double>(
+                   FS_TO_NS(check_pair_binding->sampled_check_margin_fs))
+             : std::nullopt;
+}
+
+std::optional<double> bindingSlewNs(const StaCheckPairBinding* check_pair_binding,
+                                    bool is_clock_slew) {
+  if (!check_pair_binding) {
+    return std::nullopt;
+  }
+  return std::optional<double>(FS_TO_NS(is_clock_slew
+                                            ? check_pair_binding->clock_slew_fs
+                                            : check_pair_binding->data_slew_fs));
+}
+
+const char* checkPairBindingStatus(const StaCheckPairBinding* check_pair_binding,
+                                   uint64_t epoch, StaArc* check_arc,
+                                   AnalysisMode analysis_mode,
+                                   TransType clock_trans_type,
+                                   TransType data_trans_type) {
+  if (!check_pair_binding) {
+    return "missing";
+  }
+  if (!check_pair_binding->clock_slew_data ||
+      !check_pair_binding->data_slew_data) {
+    return "missing_provenance";
+  }
+  if (check_pair_binding->data_epoch != epoch ||
+      check_pair_binding->clock_slew_data->get_data_epoch() != epoch ||
+      check_pair_binding->data_slew_data->get_data_epoch() != epoch) {
+    return "epoch_mismatch";
+  }
+  if (check_pair_binding->check_arc != check_arc) {
+    return "arc_mismatch";
+  }
+  if (check_pair_binding->analysis_mode != analysis_mode) {
+    return "mode_mismatch";
+  }
+  if (check_pair_binding->clock_trans_type != clock_trans_type) {
+    return "clock_trans_mismatch";
+  }
+  if (check_pair_binding->check_trans_type != data_trans_type) {
+    return "check_trans_mismatch";
+  }
+  if (check_pair_binding->data_trans_type != data_trans_type) {
+    return "data_trans_mismatch";
+  }
+  return "exact";
+}
+
+bool checkPairBindingIsExact(const StaCheckPairBinding* check_pair_binding,
+                             uint64_t epoch, StaArc* check_arc,
+                             AnalysisMode analysis_mode,
+                             TransType clock_trans_type,
+                             TransType data_trans_type) {
+  return checkPairBindingStatus(check_pair_binding, epoch, check_arc,
+                                analysis_mode, clock_trans_type,
+                                data_trans_type) == std::string("exact");
+}
+
 ExactSeqCheckSnapshotMatch findExactSeqCheckSnapshotForExport(
     const std::vector<PreservedSeqCheckSnapshot>& seq_check_snapshots,
     const BoundaryDelayCandidate& data_candidate,
@@ -460,6 +523,54 @@ ExactSeqCheckSnapshotMatch findExactSeqCheckSnapshotForExport(
             clock_candidate.terms.start_arrive_fs ||
         seq_snapshot.capture_clock_end_arrive_fs !=
             clock_candidate.terms.end_arrive_fs) {
+      continue;
+    }
+
+    ++result.match_count;
+    result.snapshot = &seq_snapshot;
+  }
+
+  if (result.match_count != 1) {
+    result.snapshot = nullptr;
+  }
+
+  return result;
+}
+
+ExactSeqCheckSnapshotMatch findRelaxedSeqCheckSnapshotForExport(
+    const std::vector<PreservedSeqCheckSnapshot>& seq_check_snapshots,
+    const BoundaryDelayCandidate& data_candidate, StaVertex* clk_point,
+    StaVertex* clock_start_vertex, StaArc* check_arc,
+    AnalysisMode capture_analysis_mode, TransType clock_trans_type) {
+  ExactSeqCheckSnapshotMatch result;
+  if (!clk_point) {
+    return result;
+  }
+
+  for (const auto& seq_snapshot : seq_check_snapshots) {
+    if (check_arc &&
+        !checkArcMatchesForTimingModel(seq_snapshot.check_arc, check_arc)) {
+      continue;
+    }
+
+    if (!seq_snapshot.capture_clock_vertex ||
+        seq_snapshot.capture_clock_vertex != clk_point ||
+        seq_snapshot.capture_analysis_mode != capture_analysis_mode ||
+        seq_snapshot.clock_trans_type != clock_trans_type) {
+      continue;
+    }
+
+    if (clock_start_vertex &&
+        seq_snapshot.capture_clock_start_vertex != clock_start_vertex) {
+      continue;
+    }
+
+    if (!seq_snapshot.data_start_vertex ||
+        seq_snapshot.data_start_vertex != data_candidate.terms.start_vertex ||
+        seq_snapshot.data_start_trans_type !=
+            data_candidate.terms.start_trans_type ||
+        seq_snapshot.data_end_trans_type !=
+            data_candidate.terms.end_trans_type) {
       continue;
     }
 

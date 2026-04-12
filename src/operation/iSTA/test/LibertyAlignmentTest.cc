@@ -547,6 +547,41 @@ TEST_F(LibertyAlignmentTest,
 }
 
 TEST_F(LibertyAlignmentTest,
+       setup_hold_constraint_sources_are_dumped_for_all_scalar_entries) {
+  const auto source_path = ista::test::goldenCaseMaxCheckSourcePath();
+  ASSERT_TRUE(std::filesystem::exists(source_path))
+      << "expected check-source sidecar at " << source_path;
+
+  const auto source_text = ista::test::readFile(source_path);
+  EXPECT_TRUE(ista::test::containsLiteral(
+      source_text,
+      "port\trelated_pin\ttiming_type\tinput_trans\tconstraint_ns\t"
+      "source_tag\tcheck_margin_source\tlocal_seq_match_status\t"
+      "local_seq_binding_status\tpreserved_seq_match_status\t"
+      "exported_check_pair_binding_status"));
+
+  const std::regex kSc2macSourceLine(
+      R"(sc2mac_dat_pd\[7\]\s+nvdla_core_clk\s+(setup_rising|hold_rising)\s+(rise|fall)\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+[^\s]+)");
+  EXPECT_EQ(ista::test::countRegexMatches(source_text, kSc2macSourceLine), 4U)
+      << "expected setup/hold rise/fall source rows for sc2mac_dat_pd[7]";
+}
+
+TEST_F(LibertyAlignmentTest,
+       full_sta_preserved_seq_data_covers_all_sc2mac_port_clock_pairs) {
+  const auto source_path = ista::test::goldenCaseMaxCheckSourcePath();
+  ASSERT_TRUE(std::filesystem::exists(source_path))
+      << "expected check-source sidecar at " << source_path;
+
+  const auto source_text = ista::test::readFile(source_path);
+  const std::regex kMissingPreservedSeqRow(
+      R"(sc2mac_dat_pd\[7\]\s+nvdla_core_clk\s+(setup_rising|hold_rising)\s+(rise|fall)\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+[^\s]+\s+missing\s+[^\s]+)");
+  EXPECT_EQ(ista::test::countRegexMatches(source_text, kMissingPreservedSeqRow),
+            0U)
+      << "expected full-STA preserved seq data to cover all exported "
+         "sc2mac_dat_pd[7] port-clock scalar entries";
+}
+
+TEST_F(LibertyAlignmentTest,
        rising_edge_output_delay_values_track_openroad_reference_scale) {
   const auto openroad_pin_block =
       extractPinBlock(_openroad_text, "cmac_a2csb_resp_valid");

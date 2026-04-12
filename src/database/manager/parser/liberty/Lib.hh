@@ -877,7 +877,12 @@ class LibArc : public LibObject
   void set_table_model(std::unique_ptr<LibTableModel>&& table_model) { _table_model = std::move(table_model); }
   LibTableModel* get_table_model() { return _table_model.get(); }
 
-  double getDelayOrConstrainCheckNs(TransType trans_type, double slew, double load_or_constrain_slew);
+  // Historical API contract:
+  // - delay arc: first arg is slew in ns, second arg is load in library cap unit
+  // - check arc: first arg is related-pin slew in ns, second arg is
+  //   constrained-pin slew in liberty table time unit
+  double getDelayOrConstrainCheckNs(TransType trans_type, double slew,
+                                    double load_or_constrain_slew);
   double getDelaySigma(AnalysisMode mode, TransType trans_type, double slew, double load_or_constrain_slew);
   double getSlewNs(TransType trans_type, double slew, double load);
   double getSlewSigma(AnalysisMode mode, TransType trans_type, double slew, double load);

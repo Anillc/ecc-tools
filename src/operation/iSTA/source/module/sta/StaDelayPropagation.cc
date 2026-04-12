@@ -23,7 +23,10 @@
  */
 #include "StaDelayPropagation.hh"
 
+#include <algorithm>
+#include <cstdlib>
 #include <optional>
+#include <sstream>
 
 #include "StaArc.hh"
 #include "ThreadPool/ThreadPool.h"
@@ -34,6 +37,37 @@
 #include "netlist/Port.hh"
 
 namespace ista {
+
+namespace {
+
+bool shouldTraceLibertyArc(StaVertex* src_vertex, StaVertex* snk_vertex) {
+  const char* trace_env = std::getenv("IEDA_TRACE_LIB_ARCS");
+  if (!trace_env || !*trace_env) {
+    return false;
+  }
+
+  const std::string src_name = src_vertex ? src_vertex->getName() : "";
+  const std::string snk_name = snk_vertex ? snk_vertex->getName() : "";
+
+  std::stringstream ss(trace_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (item.empty()) {
+      continue;
+    }
+
+    if (src_name.find(item) != std::string::npos ||
+        snk_name.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+}  // namespace
 
 /**
  * @brief The delay propagation from  the arc.
@@ -89,6 +123,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
       if (the_arc->isInstArc()) {
         auto* lib_arc = dynamic_cast<StaInstArc*>(the_arc)->get_lib_arc();
+        const bool trace_arc = shouldTraceLibertyArc(src_vertex, snk_vertex);
         /*The check arc is the end of the recursion .*/
         if (the_arc->isCheckArc()) {
           // Since slew is fitter accord trigger type, May be do not need below
@@ -111,8 +146,42 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             auto delay_ns = lib_arc->getDelayOrConstrainCheckNs(
                 snk_trans_type, in_slew, snk_slew);
             auto delay = NS_TO_FS(delay_ns);
+            if (trace_arc) {
+              LOG_INFO << "[sta_check_binding_source] src_vertex="
+                       << src_vertex->getName() << " snk_vertex="
+                       << snk_vertex->getName() << " lib_cell="
+                       << lib_arc->get_owner_cell()->get_cell_name()
+                       << " lib_arc=" << lib_arc->get_src_port() << "->"
+                       << lib_arc->get_snk_port() << " analysis_mode="
+                       << static_cast<int>(analysis_mode) << " src_trans="
+                       << static_cast<int>(trans_type) << " snk_trans="
+                       << static_cast<int>(snk_trans_type)
+                       << " in_slew_fs=" << in_slew_fs
+                       << " in_slew_ns=" << in_slew << " snk_slew_fs="
+                       << snk_slew_fs << " snk_slew_ns=" << snk_slew
+                       << " delay_ns=" << delay_ns;
+            }
             construct_delay_data(analysis_mode, snk_trans_type, the_arc, delay,
                                  src_slew_data->get_data_epoch());
+            if (auto* arc_delay =
+                    the_arc->getArcDelayData(analysis_mode, snk_trans_type,
+                                             src_slew_data->get_data_epoch());
+                arc_delay) {
+              StaCheckPairBinding check_pair_binding;
+              check_pair_binding.analysis_mode = analysis_mode;
+              check_pair_binding.check_trans_type = snk_trans_type;
+              check_pair_binding.clock_trans_type = trans_type;
+              check_pair_binding.data_trans_type = snk_trans_type;
+              check_pair_binding.clock_slew_fs = in_slew_fs;
+              check_pair_binding.data_slew_fs = snk_slew_fs;
+              check_pair_binding.sampled_check_margin_fs = delay;
+              check_pair_binding.check_arc = the_arc;
+              check_pair_binding.clock_slew_data = src_slew_data;
+              check_pair_binding.data_slew_data =
+                  dynamic_cast<StaSlewData*>(snk_slew_data);
+              check_pair_binding.data_epoch = src_slew_data->get_data_epoch();
+              arc_delay->add_check_pair_binding(check_pair_binding);
+            }
           }
 
         } else if (the_arc->isDelayArc()) {

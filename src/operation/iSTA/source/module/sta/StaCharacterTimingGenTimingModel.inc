@@ -118,6 +118,12 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   }
   auto design_timing_cell = std::make_unique<LibCell>(
       the_graph->get_nl()->get_name(), _design_timing_model.get());
+  std::vector<std::string> check_source_rows;
+  check_source_rows.emplace_back(
+      "port\trelated_pin\ttiming_type\tinput_trans\tconstraint_ns\t"
+      "source_tag\tcheck_margin_source\tlocal_seq_match_status\t"
+      "local_seq_binding_status\tpreserved_seq_match_status\t"
+      "exported_check_pair_binding_status");
   design_timing_cell->set_is_macro();
 
   double design_cell_area = 0.0;
@@ -257,6 +263,37 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
     return std::nullopt;
   };
 
+  auto convert_check_constrained_slew_arg =
+      [](LibArc* check_arc, double constrained_slew_ns) -> double {
+    if (!check_arc || !check_arc->get_owner_cell() ||
+        !check_arc->get_owner_cell()->get_owner_lib()) {
+      return constrained_slew_ns;
+    }
+
+    switch (check_arc->get_owner_cell()->get_owner_lib()->get_time_unit()) {
+      case TimeUnit::kPS:
+        return constrained_slew_ns * 1e3;
+      case TimeUnit::kFS:
+        return constrained_slew_ns * 1e6;
+      case TimeUnit::kNS:
+      default:
+        return constrained_slew_ns;
+    }
+  };
+
+  auto lookup_check_margin_ns =
+      [&convert_check_constrained_slew_arg](
+          LibArc* check_arc, TransType trans_type, double related_slew_ns,
+          double constrained_slew_ns) -> double {
+    if (!check_arc) {
+      return 0.0;
+    }
+
+    return check_arc->getDelayOrConstrainCheckNs(
+        trans_type, related_slew_ns,
+        convert_check_constrained_slew_arg(check_arc, constrained_slew_ns));
+  };
+
   auto build_scalar_table = [](LibTable::TableType table_type, double table_value) {
     auto table = std::make_unique<LibTable>(table_type, nullptr);
     table->addTableValue(std::make_unique<LibFloatValue>(table_value));
@@ -295,7 +332,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   };
 
   // construct the data port to clock port check arc.
-  auto construct_port_check_arc = [&design_timing_cell, this](
+  auto construct_port_check_arc =
+      [&design_timing_cell, &check_source_rows, &lookup_check_margin_ns, this](
                                       auto* port_vertex,
                                       AnalysisMode analysis_mode) {
     if (!_port_to_logic_endpoint.contains(port_vertex)) {
@@ -397,11 +435,16 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                                            double clock_arrival_delta_ns,
                                            double check_margin_ns,
                                            double capture_edge_ns,
-                                           const char* source_tag) {
+                                           const char* source_tag,
+                                           const char* check_margin_source,
+                                           const char* local_seq_match_status,
+                                           const char* local_seq_binding_status,
+                                           const char* preserved_seq_match_status,
+                                           const char* exported_check_pair_binding_status) {
                 double constraint_ns =
                     constraint_mode == AnalysisMode::kMax
                         ? data_arrival_delta_ns - clock_arrival_delta_ns +
-                              check_margin_ns
+                             check_margin_ns
                         : clock_arrival_delta_ns - data_arrival_delta_ns +
                               check_margin_ns;
 
@@ -440,6 +483,17 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                           : constraint_ns;
                   candidate.has_fall_constraint = true;
                 }
+
+                std::ostringstream row;
+                row << port_vertex->getName() << '\t'
+                    << clock_port_vertex->getName() << '\t' << timing_type
+                    << '\t' << transTypeName(input_trans_type) << '\t'
+                    << constraint_ns << '\t' << source_tag << '\t'
+                    << check_margin_source << '\t' << local_seq_match_status
+                    << '\t' << local_seq_binding_status << '\t'
+                    << preserved_seq_match_status << '\t'
+                    << exported_check_pair_binding_status;
+                check_source_rows.push_back(row.str());
 
                 return true;
               };
@@ -645,15 +699,26 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                     ? std::optional<double>(
                           FS_TO_NS(local_seq_data->get_constrain_value()))
                     : std::nullopt;
+            const auto local_seq_check_pair_binding =
+                local_seq_data ? local_seq_data->get_check_pair_binding()
+                               : nullptr;
+            const auto local_seq_binding_check_margin_ns =
+                bindingCheckMarginNs(local_seq_check_pair_binding);
+            const auto local_seq_binding_clock_slew_ns =
+                bindingSlewNs(local_seq_check_pair_binding, true);
+            const auto local_seq_binding_data_slew_ns =
+                bindingSlewNs(local_seq_check_pair_binding, false);
+            const char* local_seq_binding_status = checkPairBindingStatus(
+                local_seq_check_pair_binding, _characterization_epoch,
+                endpoint_check_arc, constraint_mode, clock_trans_type,
+                local_data_candidate.terms.end_trans_type);
             const bool local_seq_clock_proven =
                 local_seq_data && local_seq_capture_clock_terms.has_value();
-            const char* local_seq_match_status =
-                local_seq_match.match_count == 0
-                    ? "missing"
-                    : (local_seq_match.match_count == 1
-                           ? (local_seq_clock_proven ? "exact"
-                                                     : "clock_unproven")
-                           : "ambiguous");
+            bool local_seq_binding_exact = checkPairBindingIsExact(
+                local_seq_check_pair_binding, _characterization_epoch,
+                endpoint_check_arc, constraint_mode, clock_trans_type,
+                local_data_candidate.terms.end_trans_type);
+            const char* local_seq_match_status = "missing";
 
             if (local_seq_data) {
               const auto local_seq_data_path_sig =
@@ -680,26 +745,74 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                             _characterization_epoch,
                             *local_seq_clock_path_sig)
                       : ExactSlewDataMatch{};
+              if (local_seq_binding_exact && local_seq_check_pair_binding) {
+                if (exact_data_slew_match.slew_data &&
+                    local_seq_check_pair_binding->data_slew_data !=
+                        exact_data_slew_match.slew_data) {
+                  local_seq_binding_exact = false;
+                  local_seq_binding_status = "binding_data_path_mismatch";
+                }
+                if (local_seq_binding_exact && exact_clock_slew_match.slew_data &&
+                    local_seq_check_pair_binding->clock_slew_data !=
+                        exact_clock_slew_match.slew_data) {
+                  local_seq_binding_exact = false;
+                  local_seq_binding_status = "binding_clock_path_mismatch";
+                }
+              }
               const auto exact_data_slew_ns =
-                  exact_data_slew_match.slew_data
+                  local_seq_binding_data_slew_ns
+                      ? (local_seq_binding_exact ? local_seq_binding_data_slew_ns
+                                                 : (exact_data_slew_match.slew_data
+                                                        ? std::optional<double>(FS_TO_NS(
+                                                              exact_data_slew_match.slew_data->get_slew()))
+                                                        : local_seq_binding_data_slew_ns))
+                      : (exact_data_slew_match.slew_data
                       ? std::optional<double>(FS_TO_NS(
                             exact_data_slew_match.slew_data->get_slew()))
-                      : std::nullopt;
+                      : std::nullopt);
               const auto exact_clock_path_slew_ns =
-                  exact_clock_slew_match.slew_data
+                  local_seq_binding_clock_slew_ns
+                      ? (local_seq_binding_exact ? local_seq_binding_clock_slew_ns
+                                                 : (exact_clock_slew_match.slew_data
+                                                        ? std::optional<double>(FS_TO_NS(
+                                                              exact_clock_slew_match.slew_data->get_slew()))
+                                                        : local_seq_binding_clock_slew_ns))
+                      : (exact_clock_slew_match.slew_data
                       ? std::optional<double>(FS_TO_NS(
                             exact_clock_slew_match.slew_data->get_slew()))
-                      : std::nullopt;
+                      : std::nullopt);
               const char* exact_data_slew_status =
-                  exact_data_slew_match.match_count == 1
+                  local_seq_binding_exact
                       ? "exact"
-                      : (exact_data_slew_match.match_count == 0 ? "missing"
-                                                               : "ambiguous");
+                      : (local_seq_check_pair_binding
+                             ? local_seq_binding_status
+                             : (exact_data_slew_match.match_count == 1
+                                    ? "exact"
+                                    : (exact_data_slew_match.match_count == 0
+                                           ? "missing"
+                                           : "ambiguous")));
               const char* exact_clock_slew_status =
-                  exact_clock_slew_match.match_count == 1
+                  local_seq_binding_exact
                       ? "exact"
-                      : (exact_clock_slew_match.match_count == 0 ? "missing"
-                                                                : "ambiguous");
+                      : (local_seq_check_pair_binding
+                             ? local_seq_binding_status
+                             : (exact_clock_slew_match.match_count == 1
+                                    ? "exact"
+                                    : (exact_clock_slew_match.match_count == 0
+                                           ? "missing"
+                                           : "ambiguous")));
+              local_seq_match_status =
+                  local_seq_match.match_count == 0
+                      ? "missing"
+                      : (local_seq_match.match_count == 1
+                             ? (local_seq_binding_exact
+                                    ? "exact"
+                                    : (local_seq_binding_status == std::string("missing")
+                                           ? (local_seq_clock_proven
+                                                  ? "clock_unproven"
+                                                  : "missing")
+                                           : local_seq_binding_status))
+                             : "ambiguous");
               const double selected_check_clock_slew_ns = check_clock_slew_ns;
               const double data_arrival_delta_ns =
                   FS_TO_NS(local_data_candidate.terms.delay_fs);
@@ -708,19 +821,21 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               double check_margin_ns = 0.0;
               const char* local_seq_margin_source = "missing";
               if (reference_check_arc && exact_data_slew_ns) {
-                check_margin_ns = reference_check_arc
-                                      ->getDelayOrConstrainCheckNs(
-                                          local_data_candidate.terms.end_trans_type,
-                                          selected_check_clock_slew_ns,
-                                          *exact_data_slew_ns);
+                check_margin_ns = lookup_check_margin_ns(
+                    reference_check_arc,
+                    local_data_candidate.terms.end_trans_type,
+                    selected_check_clock_slew_ns, *exact_data_slew_ns);
                 local_seq_margin_source = "exact_data_plus_check_clock_slew";
               } else if (reference_check_arc) {
-                check_margin_ns = reference_check_arc
-                                      ->getDelayOrConstrainCheckNs(
-                                          local_data_candidate.terms.end_trans_type,
-                                          selected_check_clock_slew_ns,
-                                          check_data_slew_ns);
+                check_margin_ns = lookup_check_margin_ns(
+                    reference_check_arc,
+                    local_data_candidate.terms.end_trans_type,
+                    selected_check_clock_slew_ns, check_data_slew_ns);
                 local_seq_margin_source = "fallback_lib_arc";
+              } else if (local_seq_binding_exact &&
+                         local_seq_binding_check_margin_ns) {
+                check_margin_ns = *local_seq_binding_check_margin_ns;
+                local_seq_margin_source = "binding_sampled_margin";
               } else if (local_seq_check_margin_ns) {
                 check_margin_ns = *local_seq_check_margin_ns;
                 local_seq_margin_source = "bucketed_seq_margin";
@@ -738,6 +853,20 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                          << local_seq_match_status
                          << " local_seq_match_count="
                          << local_seq_match.match_count
+                         << " local_seq_binding_status="
+                         << local_seq_binding_status
+                         << " local_seq_binding_clock_slew_ns="
+                         << (local_seq_binding_clock_slew_ns
+                                 ? *local_seq_binding_clock_slew_ns
+                                 : -1.0)
+                         << " local_seq_binding_data_slew_ns="
+                         << (local_seq_binding_data_slew_ns
+                                 ? *local_seq_binding_data_slew_ns
+                                 : -1.0)
+                         << " local_seq_binding_check_margin_ns="
+                         << (local_seq_binding_check_margin_ns
+                                 ? *local_seq_binding_check_margin_ns
+                                 : -1.0)
                          << " launch_clk_arrive_ns="
                          << FS_TO_NS(
                                 local_seq_data->get_launch_clock_data()
@@ -826,12 +955,70 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                       local_clock_candidate, clk_point, clock_port_vertex,
                       endpoint_check_arc, capture_analysis_mode,
                       clock_trans_type);
-              const auto* preserved_seq_snapshot = preserved_seq_match.snapshot;
+              const auto relaxed_preserved_seq_match =
+                  preserved_seq_match.snapshot
+                      ? ExactSeqCheckSnapshotMatch{}
+                      : findRelaxedSeqCheckSnapshotForExport(
+                            preserved_seq_snapshots, local_data_candidate,
+                            clk_point, clock_port_vertex, endpoint_check_arc,
+                            capture_analysis_mode, clock_trans_type);
+              const auto* preserved_seq_snapshot =
+                  preserved_seq_match.snapshot
+                      ? preserved_seq_match.snapshot
+                      : relaxed_preserved_seq_match.snapshot;
+              const auto* local_seq_check_pair_binding_for_export =
+                  local_seq_data ? local_seq_data->get_check_pair_binding()
+                                 : nullptr;
               const char* preserved_seq_match_status =
                   preserved_seq_match.match_count == 1
                       ? "exact"
-                      : (preserved_seq_match.match_count == 0 ? "missing"
-                                                              : "ambiguous");
+                      : (relaxed_preserved_seq_match.match_count == 1
+                             ? "relaxed"
+                             : ((preserved_seq_match.match_count == 0 &&
+                                 relaxed_preserved_seq_match.match_count == 0)
+                                    ? "missing"
+                                    : "ambiguous"));
+              std::optional<PreservedSeqCheckSnapshot>
+                  local_seq_snapshot_fallback;
+              if (!preserved_seq_snapshot && local_seq_data &&
+                  local_seq_check_pair_binding_for_export &&
+                  local_seq_capture_clock_terms) {
+                PreservedSeqCheckSnapshot fallback_snapshot;
+                fallback_snapshot.check_arc = endpoint_check_arc;
+                fallback_snapshot.capture_clock_vertex = clk_point;
+                fallback_snapshot.capture_clock_start_vertex =
+                    local_seq_capture_clock_terms->start_vertex;
+                fallback_snapshot.data_start_vertex =
+                    local_data_candidate.terms.start_vertex;
+                fallback_snapshot.capture_analysis_mode =
+                    capture_analysis_mode;
+                fallback_snapshot.data_start_trans_type =
+                    local_data_candidate.terms.start_trans_type;
+                fallback_snapshot.data_end_trans_type =
+                    local_data_candidate.terms.end_trans_type;
+                fallback_snapshot.clock_trans_type = clock_trans_type;
+                fallback_snapshot.data_start_arrive_fs =
+                    local_data_candidate.terms.start_arrive_fs;
+                fallback_snapshot.data_end_arrive_fs =
+                    local_data_candidate.terms.end_arrive_fs;
+                fallback_snapshot.seq_arrive_time_fs =
+                    local_data_candidate.delay_data
+                        ? local_data_candidate.delay_data->get_arrive_time()
+                        : 0;
+                fallback_snapshot.capture_clock_start_arrive_fs =
+                    local_seq_capture_clock_terms->start_arrive_fs;
+                fallback_snapshot.capture_clock_end_arrive_fs =
+                    local_seq_capture_clock_terms->end_arrive_fs;
+                fallback_snapshot.capture_edge_fs =
+                    local_seq_data->getCaptureEdge();
+                fallback_snapshot.constrain_value_fs =
+                    local_seq_data->get_constrain_value();
+                fallback_snapshot.check_pair_binding =
+                    *local_seq_check_pair_binding_for_export;
+                local_seq_snapshot_fallback = fallback_snapshot;
+                preserved_seq_snapshot = &*local_seq_snapshot_fallback;
+                preserved_seq_match_status = "local_binding";
+              }
               const double data_arrival_delta_ns =
                   FS_TO_NS(local_data_candidate.terms.delay_fs);
               const double local_clock_arrival_delta_ns =
@@ -853,6 +1040,41 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                   preserved_seq_snapshot
                       ? FS_TO_NS(preserved_seq_snapshot->constrain_value_fs)
                       : 0.0;
+              const auto* preserved_seq_check_pair_binding =
+                  preserved_seq_snapshot &&
+                          preserved_seq_snapshot->check_pair_binding
+                      ? &*preserved_seq_snapshot->check_pair_binding
+                      : nullptr;
+              const auto* exported_check_pair_binding =
+                  preserved_seq_check_pair_binding
+                      ? preserved_seq_check_pair_binding
+                      : local_seq_check_pair_binding_for_export;
+              const auto preserved_exported_check_pair_binding_status =
+                  checkPairBindingStatus(
+                      exported_check_pair_binding, _characterization_epoch,
+                      endpoint_check_arc, constraint_mode,
+                      clock_trans_type,
+                      local_data_candidate.terms.end_trans_type);
+              const char* exported_check_pair_binding_status =
+                  exported_check_pair_binding ==
+                          preserved_seq_check_pair_binding
+                      ? preserved_exported_check_pair_binding_status
+                      : local_seq_binding_status;
+              const bool exported_binding_exact =
+                  exported_check_pair_binding ==
+                          preserved_seq_check_pair_binding
+                      ? checkPairBindingIsExact(
+                            exported_check_pair_binding, _characterization_epoch,
+                            endpoint_check_arc, constraint_mode,
+                            clock_trans_type,
+                            local_data_candidate.terms.end_trans_type)
+                      : local_seq_binding_exact;
+              const auto exported_binding_check_margin_ns =
+                  bindingCheckMarginNs(exported_check_pair_binding);
+              const auto exported_binding_clock_slew_ns =
+                  bindingSlewNs(exported_check_pair_binding, true);
+              const auto exported_binding_data_slew_ns =
+                  bindingSlewNs(exported_check_pair_binding, false);
               double clock_arrival_delta_ns = 0.0;
               const char* clock_arrival_source = "missing";
               if (preserved_clock_arrival_delta_ns) {
@@ -871,15 +1093,24 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               check_margin_ns = 0.0;
               check_margin_with_local_clock_slew_ns = 0.0;
               const char* check_margin_source = "missing";
-              if (reference_check_arc) {
-                check_margin_ns = reference_check_arc->getDelayOrConstrainCheckNs(
+              if (preserved_seq_snapshot) {
+                check_margin_ns = preserved_check_margin_ns;
+                check_margin_with_local_clock_slew_ns = preserved_check_margin_ns;
+                check_margin_source = "preserved_seq_snapshot";
+              } else if (reference_check_arc) {
+                check_margin_ns = lookup_check_margin_ns(
+                    reference_check_arc,
                     local_data_candidate.terms.end_trans_type,
                     check_clock_slew_ns, check_data_slew_ns);
-                check_margin_with_local_clock_slew_ns =
-                    reference_check_arc->getDelayOrConstrainCheckNs(
-                        local_data_candidate.terms.end_trans_type,
-                        clock_slew_ns.value_or(0.0), check_data_slew_ns);
+                check_margin_with_local_clock_slew_ns = lookup_check_margin_ns(
+                    reference_check_arc,
+                    local_data_candidate.terms.end_trans_type,
+                    clock_slew_ns.value_or(0.0), check_data_slew_ns);
                 check_margin_source = "reference_check_arc";
+              } else if (exported_binding_exact && exported_binding_check_margin_ns) {
+                check_margin_ns = *exported_binding_check_margin_ns;
+                check_margin_with_local_clock_slew_ns = check_margin_ns;
+                check_margin_source = "binding_sampled_margin";
               } else if (full_sta_check_margin_ns != 0.0) {
                 check_margin_ns = full_sta_check_margin_ns;
                 check_margin_with_local_clock_slew_ns = full_sta_check_margin_ns;
@@ -1048,6 +1279,20 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                          << preserved_seq_match_status
                          << " preserved_seq_match_count="
                          << preserved_seq_match.match_count
+                         << " exported_check_pair_binding_status="
+                         << exported_check_pair_binding_status
+                         << " exported_binding_clock_slew_ns="
+                         << (exported_binding_clock_slew_ns
+                                 ? *exported_binding_clock_slew_ns
+                                 : -1.0)
+                         << " exported_binding_data_slew_ns="
+                         << (exported_binding_data_slew_ns
+                                 ? *exported_binding_data_slew_ns
+                                 : -1.0)
+                         << " exported_binding_check_margin_ns="
+                         << (exported_binding_check_margin_ns
+                                 ? *exported_binding_check_margin_ns
+                                 : -1.0)
                          << " preserved_check_margin_ns="
                          << preserved_check_margin_ns
                          << " check_margin_ns=" << check_margin_ns
@@ -1072,7 +1317,10 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               accumulate_constraint(
                   data_arrival_delta_ns,
                   clock_arrival_delta_ns,
-                  check_margin_ns, 0.0, "local_arrival_subtraction");
+                  check_margin_ns, 0.0, "local_arrival_subtraction",
+                  check_margin_source, local_seq_match_status,
+                  local_seq_binding_status, preserved_seq_match_status,
+                  exported_check_pair_binding_status);
             }
           }
         }
@@ -1882,6 +2130,16 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
   }
 
   _design_timing_model->addLibertyCell(std::move(design_timing_cell));
+
+  if (model_path && *model_path) {
+    std::ofstream check_source_file(std::string(model_path) + ".check_sources.tsv",
+                                    std::ios::trunc);
+    if (check_source_file.is_open()) {
+      for (const auto& row : check_source_rows) {
+        check_source_file << row << '\n';
+      }
+    }
+  }
 
   LOG_INFO << "gen timing model end.";
   return 1;

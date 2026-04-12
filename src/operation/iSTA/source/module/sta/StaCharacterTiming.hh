@@ -26,9 +26,11 @@
 
 #include <atomic>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include "BTreeMap.hh"
+#include "StaData.hh"
 #include "StaFunc.hh"
 #include "StaGraph.hh"
 #include "liberty/Lib.hh"
@@ -54,6 +56,7 @@ struct PreservedSeqCheckSnapshot {
   int64_t constrain_value_fs = 0;
   int64_t uncertainty_fs = 0;
   int64_t cppr_fs = 0;
+  std::optional<StaCheckPairBinding> check_pair_binding;
 };
 
 /**
