@@ -52,7 +52,7 @@
   ".claude/commands/trellis/start.md": "34ecead84912a4338575f8648a9d449f89dfb4d4725416c889dac03586f98800",
   ".claude/commands/trellis/update-spec.md": "ff4d5a0405a763e61936f5b9df175fd25ea20ec5c20fa999855020ab78a919b6",
   ".claude/hooks/inject-subagent-context.py": "581f61369c29534513e5505e61f507beac339cb1720dc656b58f0584503b2452",
-  ".claude/hooks/ralph-loop.py": "e627124495ade6811ef6f28082cd22f24936bb7a35f12ff8705e484e12b2fc94",
+  ".claude/hooks/ralph-loop.py": "df864b971ea5faf5801a88f013f230c92d458f52f64731a91f02cd78d7b932c3",
   ".claude/hooks/session-start.py": "abafa30139e1d43e9cb7684dc3a4d29c74b2c1380cad86d3e177045abcb07fac",
   ".claude/settings.json": "f468342f1ebfef18dbbde0a2528366b32ec154befca880e0c8b29fefdcccb1bf",
   ".cursor/commands/trellis-before-backend-dev.md": "7e35444de2a5779ef39944f17f566ea21d2ed7f4994246f4cfe6ebf9a11dd3e3",
