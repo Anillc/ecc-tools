@@ -147,7 +147,7 @@ Refactored CTS characterization module to use iSTA clock propagation and unified
 
 | Hash | Message |
 |------|---------|
-| `53241a8e5` | (see git log) |
+| `13fead8cf` | (see git log) |
 
 ### Testing
 
@@ -205,7 +205,7 @@ Restored backend spec files from empty templates and updated against current iCT
 
 | Hash | Message |
 |------|---------|
-| `4f4a3732e` | (see git log) |
+| `dea7184ae` | (see git log) |
 
 ### Testing
 
@@ -282,7 +282,7 @@ Completed GlobalFunctionCase: CamelCase enforcement across the entire iCTS modul
 
 | Hash | Message |
 |------|---------|
-| `6c88474ab` | (see git log) |
+| `931777176` | (see git log) |
 
 ### Testing
 
@@ -311,14 +311,14 @@ Completed GlobalFunctionCase: CamelCase enforcement across the entire iCTS modul
 ## Summary
 Completed full code standards audit for iCTS module.
 
-**Key changes (56 files in commit 6c88474ab):**
+**Key changes (56 files in commit 931777176):**
 - Fixed copyright headers across all iCTS source files
 - Fixed code typos (e.g., 'Pinitute' in Clock.hh)
 - Fixed naming violations in Geometry.hh (105 lines changed)
 - Refactored getter/setter and boolean method naming
 - Updated clang-tidy and quality guidelines in spec
 
-**Spec updates (commit 1ab0650d5):**
+**Spec updates (commit 34322543a):**
 - Added getter/setter naming convention (simple vs complex)
 - Added boolean method naming convention (simple vs complex)
 - Updated project-constraints.md with detailed rules
@@ -330,8 +330,8 @@ Completed full code standards audit for iCTS module.
 
 | Hash | Message |
 |------|---------|
-| `6c88474ab` | (see git log) |
-| `1ab0650d5` | (see git log) |
+| `931777176` | (see git log) |
+| `34322543a` | (see git log) |
 
 ### Testing
 
@@ -378,7 +378,7 @@ Completed full code standards audit for iCTS module.
 
 | Hash | Message |
 |------|---------|
-| `06a6480b6` | (see git log) |
+| `34a35b6ca` | (see git log) |
 
 ### Testing
 
@@ -436,8 +436,8 @@ Completed full code standards audit for iCTS module.
 
 | Hash | Message |
 |------|---------|
-| `8705713c1` | (see git log) |
-| `0dba87bb9` | (see git log) |
+| `f4f911b56` | (see git log) |
+| `7ca64ea52` | (see git log) |
 
 ### Testing
 
@@ -494,8 +494,8 @@ Completed full code standards audit for iCTS module.
 
 | Hash | Message |
 |------|---------|
-| `c8e58a3eb` | (see git log) |
-| `086fa39a8` | (see git log) |
+| `9f1cd5cfa` | (see git log) |
+| `ab3ffc136` | (see git log) |
 
 ### Testing
 
@@ -541,7 +541,7 @@ Fixed dynamic clang tool selection so ecc_dev_tools prefers the newest installed
 
 | Hash | Message |
 |------|---------|
-| `7f945bae2` | (see git log) |
+| `a95527e61` | (see git log) |
 
 ### Testing
 
@@ -612,7 +612,7 @@ Fixed dynamic clang tool selection so ecc_dev_tools prefers the newest installed
 
 | Hash | Message |
 |------|---------|
-| `cff7f72a5` | (see git log) |
+| `f886683b7` | (see git log) |
 
 ### Testing
 
@@ -666,7 +666,7 @@ Refactored iCTS clock routing tree contracts, migrated BST/CBS metadata off side
 
 | Hash | Message |
 |------|---------|
-| `2201117e2` | (see git log) |
+| `aa521826b` | (see git log) |
 
 ### Testing
 
@@ -699,7 +699,7 @@ Migrated Trellis scripts and workflow commands to 0.4.0-beta.8, unified before-d
 
 | Hash | Message |
 |------|---------|
-| `5d438dadc` | (see git log) |
+| `f6b926673` | (see git log) |
 
 ### Testing
 
@@ -732,7 +732,7 @@ Completed and archived linear-clustering: added the topology linear_clustering m
 
 | Hash | Message |
 |------|---------|
-| `4a7168313` | (see git log) |
+| `2c4790c0b` | (see git log) |
 
 ### Testing
 

@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide process constraints; no commit/push and safe repo handling"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "General editing hygiene and validation expectations"}
