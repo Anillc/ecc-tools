@@ -41,6 +41,16 @@ inline const fs::path& repoRoot() {
   return kRepoRoot;
 }
 
+inline const fs::path& currentWorktreeRoot() {
+  static const fs::path kWorktreeRoot =
+      fs::path(__FILE__).parent_path()
+          .parent_path()
+          .parent_path()
+          .parent_path()
+          .parent_path();
+  return kWorktreeRoot;
+}
+
 inline const fs::path& goldenCaseDir() {
   static const fs::path kCaseDir =
       repoRoot() / "benchmark/iccad24-benchmark/design/NV_NVDLA_partition_m";
@@ -58,7 +68,7 @@ inline fs::path defaultOutputRoot() {
     return output_root;
   }
 
-  return repoRoot() / "artifacts/ieda/character_timing";
+  return currentWorktreeRoot() / "artifacts/ieda/character_timing";
 }
 
 inline bool reuseExistingGeneratedLib() {
@@ -80,6 +90,10 @@ inline fs::path goldenCaseOutputDir() {
 
 inline fs::path goldenCaseIntegrationOutputDir() {
   return goldenCaseOutputDir() / "integration";
+}
+
+inline fs::path goldenCaseRuntimeOutputDir() {
+  return goldenCaseOutputDir() / "runtime";
 }
 
 inline fs::path goldenCaseMaxLibPath() {
@@ -317,6 +331,60 @@ inline fs::path generateGoldenCaseTimingModel(AnalysisMode analysis_mode,
       << "generated timing model is empty: " << output_lib;
 
   return output_lib;
+}
+
+inline TimingEngine* prepareGoldenCaseTimingRuntime(
+    const fs::path& design_workspace,
+    const fs::path& integration_output_dir = goldenCaseRuntimeOutputDir() /
+                                             "integration") {
+  static std::mutex runtime_mutex;
+  std::lock_guard<std::mutex> lock(runtime_mutex);
+
+  std::error_code ec;
+  fs::create_directories(design_workspace, ec);
+  EXPECT_FALSE(ec) << "failed to create runtime output directory: "
+                   << design_workspace << ", error=" << ec.message();
+
+  fs::create_directories(integration_output_dir, ec);
+  EXPECT_FALSE(ec) << "failed to create runtime integration directory: "
+                   << integration_output_dir << ", error=" << ec.message();
+
+  const auto db_config_path = writeGoldenCaseDbConfig(integration_output_dir);
+  EXPECT_TRUE(fs::exists(db_config_path))
+      << "generated runtime db config missing: " << db_config_path;
+  if (!fs::exists(db_config_path)) {
+    return nullptr;
+  }
+
+  ieval::TimingAPI::destroyInst();
+  auto* timing_api = ieval::TimingAPI::getInst();
+
+  EXPECT_TRUE(dmInst->init(db_config_path.string()))
+      << "failed to initialize dmInst with " << db_config_path;
+  auto& data_config = dmInst->get_config();
+  data_config.set_output_path(integration_output_dir.string());
+  data_config.set_sdc_path(goldenCaseSdcPath().string());
+  const auto liberty_files_raw = asap7GoldenLibertyFiles();
+  std::vector<std::string> liberty_files;
+  liberty_files.reserve(liberty_files_raw.size());
+  for (const auto* liberty_file : liberty_files_raw) {
+    liberty_files.emplace_back(liberty_file);
+  }
+  data_config.set_lib_paths(liberty_files);
+
+  timing_api->evalTiming(goldenCaseRoutingType());
+
+  auto* timing_engine = TimingEngine::getOrCreateTimingEngine();
+  timing_engine->set_num_threads(8);
+  const auto output_dir_string = design_workspace.string();
+  timing_engine->set_design_work_space(output_dir_string.c_str());
+  timing_engine->get_ista()->set_top_module_name("NV_NVDLA_partition_m");
+  timing_engine->get_ista()->set_n_worst_path_per_clock(1);
+  timing_engine->get_ista()->set_n_worst_path_per_endpoint(512);
+  timing_engine->get_ista()->set_analysis_mode(AnalysisMode::kMaxMin);
+  timing_engine->updateTiming();
+
+  return timing_engine;
 }
 
 inline std::string readFile(const fs::path& file_path) {

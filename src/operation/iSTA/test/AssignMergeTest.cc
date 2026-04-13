@@ -68,12 +68,112 @@ class AssignMergeTest : public testing::Test {
     return _verilog_path;
   }
 
+  Netlist* linkTop(const std::string& contents) {
+    const auto verilog_path = writeTempVerilog(contents);
+
+    auto* ista = Sta::getOrCreateSta();
+    EXPECT_NE(ista, nullptr);
+    if (!ista) {
+      return nullptr;
+    }
+
+    EXPECT_TRUE(ista->readVerilogWithRustParser(verilog_path.c_str()));
+    ista->set_top_module_name("top");
+    ista->linkDesignWithRustParser("top");
+
+    auto* design_netlist = ista->get_netlist();
+    EXPECT_NE(design_netlist, nullptr);
+    return design_netlist;
+  }
+
+  void expectNetPins(Netlist* design_netlist, const char* net_name,
+                     const std::set<std::string>& expected_pin_names) {
+    ASSERT_NE(design_netlist, nullptr);
+    auto* net = design_netlist->findNet(net_name);
+    ASSERT_NE(net, nullptr) << "expected net missing: " << net_name;
+    EXPECT_EQ(collectPinPortNames(net), expected_pin_names);
+  }
+
  private:
   std::string _verilog_path;
 };
 
+TEST_F(AssignMergeTest, assign_net_equals_input_port_attaches_input_port) {
+  auto* design_netlist = linkTop(R"(module top(a);
+input a;
+wire n1;
+assign n1 = a;
+endmodule
+)");
+
+  expectNetPins(design_netlist, "n1", {"a"});
+}
+
+TEST_F(AssignMergeTest, assign_output_port_equals_net_attaches_output_port) {
+  auto* design_netlist = linkTop(R"(module top(y);
+output y;
+wire n1;
+assign y = n1;
+endmodule
+)");
+
+  expectNetPins(design_netlist, "n1", {"y"});
+}
+
+TEST_F(AssignMergeTest, assign_output_port_equals_input_port_creates_shared_net) {
+  auto* design_netlist = linkTop(R"(module top(a, y);
+input a;
+output y;
+assign y = a;
+endmodule
+)");
+
+  expectNetPins(design_netlist, "a", {"a", "y"});
+  EXPECT_EQ(design_netlist->findNet("y"), nullptr);
+}
+
+TEST_F(AssignMergeTest, id_to_concat_assign_expands_bus_indices) {
+  auto* design_netlist = linkTop(R"(module top(a);
+input [1:0] a;
+wire [1:0] n;
+assign n = {a[1], a[0]};
+endmodule
+)");
+
+  expectNetPins(design_netlist, "n[0]", {"a[1]"});
+  expectNetPins(design_netlist, "n[1]", {"a[0]"});
+}
+
+TEST_F(AssignMergeTest, id_to_concat_assign_expands_bus_slices) {
+  auto* design_netlist = linkTop(R"(module top(a);
+input [1:0] a;
+wire [1:0] n;
+assign n = {a[1:0]};
+endmodule
+)");
+
+  expectNetPins(design_netlist, "n[0]", {"a[0]"});
+  expectNetPins(design_netlist, "n[1]", {"a[1]"});
+}
+
+TEST_F(AssignMergeTest, direct_net_merge_moves_existing_connections_to_target_net) {
+  auto* design_netlist = linkTop(R"(module top(a, y);
+input a;
+output y;
+wire n1;
+wire n2;
+assign n1 = a;
+assign y = n2;
+assign n1 = n2;
+endmodule
+)");
+
+  expectNetPins(design_netlist, "n2", {"a", "y"});
+  EXPECT_EQ(design_netlist->findNet("n1"), nullptr);
+}
+
 TEST_F(AssignMergeTest, alias_chain_reuses_merged_net_for_later_assigns) {
-  const auto verilog_path = writeTempVerilog(R"(module top(a, y);
+  auto* design_netlist = linkTop(R"(module top(a, y);
 input a;
 output y;
 wire n1;
@@ -84,21 +184,24 @@ assign y = n2;
 endmodule
 )");
 
-  auto* ista = Sta::getOrCreateSta();
-  ASSERT_NE(ista, nullptr);
-
-  ASSERT_TRUE(ista->readVerilogWithRustParser(verilog_path.c_str()));
-  ista->set_top_module_name("top");
-  ista->linkDesignWithRustParser("top");
-
-  auto* design_netlist = ista->get_netlist();
-  ASSERT_NE(design_netlist, nullptr);
-
   auto* n1_net = design_netlist->findNet("n1");
   ASSERT_NE(n1_net, nullptr);
   EXPECT_EQ(design_netlist->findNet("n2"), nullptr);
-
   EXPECT_EQ(collectPinPortNames(n1_net), (std::set<std::string>{"a", "y"}));
+}
+
+TEST_F(AssignMergeTest, merged_alias_net_is_removed_after_merge) {
+  auto* design_netlist = linkTop(R"(module top(a);
+input a;
+wire n1;
+wire n2;
+assign n1 = a;
+assign n2 = n1;
+endmodule
+)");
+
+  expectNetPins(design_netlist, "n1", {"a"});
+  EXPECT_EQ(design_netlist->findNet("n2"), nullptr);
 }
 
 }  // namespace
