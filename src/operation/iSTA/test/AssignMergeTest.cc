@@ -204,4 +204,46 @@ endmodule
   EXPECT_EQ(design_netlist->findNet("n2"), nullptr);
 }
 
+TEST_F(AssignMergeTest,
+       concat_seeded_slice_alias_chain_reuses_merged_nets_and_cleans_up_aliases) {
+  auto* design_netlist = linkTop(R"(module top(a, y);
+input [1:0] a;
+output [1:0] y;
+wire [1:0] alias;
+wire [1:0] mid;
+assign mid = {a[1], a[0]};
+assign alias[1:0] = mid[1:0];
+assign y[1:0] = alias[1:0];
+endmodule
+)");
+
+  expectNetPins(design_netlist, "mid[0]", {"a[1]", "y[0]"});
+  expectNetPins(design_netlist, "mid[1]", {"a[0]", "y[1]"});
+  EXPECT_EQ(design_netlist->findNet("alias[0]"), nullptr);
+  EXPECT_EQ(design_netlist->findNet("alias[1]"), nullptr);
+}
+
+TEST_F(AssignMergeTest,
+       bus_slice_assign_expands_both_sides_after_concat_seed_without_stale_aliases) {
+  auto* design_netlist = linkTop(R"(module top(a, y);
+input [3:0] a;
+output [3:0] y;
+wire [3:0] stage;
+wire [3:0] alias;
+assign stage = {a[3], a[2], a[1], a[0]};
+assign alias[3:0] = stage[3:0];
+assign y[3:0] = alias[3:0];
+endmodule
+)");
+
+  expectNetPins(design_netlist, "stage[0]", {"a[3]", "y[0]"});
+  expectNetPins(design_netlist, "stage[1]", {"a[2]", "y[1]"});
+  expectNetPins(design_netlist, "stage[2]", {"a[1]", "y[2]"});
+  expectNetPins(design_netlist, "stage[3]", {"a[0]", "y[3]"});
+  EXPECT_EQ(design_netlist->findNet("alias[0]"), nullptr);
+  EXPECT_EQ(design_netlist->findNet("alias[1]"), nullptr);
+  EXPECT_EQ(design_netlist->findNet("alias[2]"), nullptr);
+  EXPECT_EQ(design_netlist->findNet("alias[3]"), nullptr);
+}
+
 }  // namespace

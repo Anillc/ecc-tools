@@ -43,6 +43,15 @@ std::string readText(const fs::path& file_path) {
                      std::istreambuf_iterator<char>());
 }
 
+std::string normalizeGeneratedVerilogText(std::string text) {
+  const auto newline_pos = text.find('\n');
+  if (newline_pos != std::string::npos &&
+      text.rfind("//Generate the verilog at ", 0) == 0) {
+    text.erase(0, newline_pos + 1);
+  }
+  return text;
+}
+
 class RestoredStaBehaviorTest : public testing::Test {
  protected:
   static void SetUpTestSuite() {
@@ -102,6 +111,30 @@ TEST(RestoredBehaviorTest, netlist_writer_escapes_assign_net_names) {
   const auto verilog_text = readText(output_path);
   EXPECT_NE(verilog_text.find("assign \\foo/bar = a ;"), std::string::npos);
   EXPECT_NE(verilog_text.find("assign y = \\foo/bar ;"), std::string::npos);
+
+  std::error_code ec;
+  fs::remove(output_path, ec);
+  Log::end();
+}
+
+TEST(RestoredBehaviorTest, netlist_writer_writes_single_module_header) {
+  char config[] = "test";
+  char* argv[] = {config};
+  Log::init(argv);
+
+  Netlist netlist;
+  netlist.set_name("top");
+  netlist.addPort(Port("a", PortDir::kIn));
+  netlist.addPort(Port("y", PortDir::kOut));
+
+  const fs::path output_path =
+      fs::temp_directory_path() / "ista_restored_behavior_single_header.v";
+  std::set<std::string> exclude_cell_names;
+  netlist.writeVerilog(output_path.c_str(), exclude_cell_names, false);
+
+  const auto verilog_text = normalizeGeneratedVerilogText(readText(output_path));
+  EXPECT_EQ(verilog_text.find("module top (module top ("), std::string::npos);
+  EXPECT_EQ(verilog_text.find("module top ("), 0U);
 
   std::error_code ec;
   fs::remove(output_path, ec);

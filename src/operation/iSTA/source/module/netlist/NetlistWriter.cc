@@ -36,31 +36,23 @@ NetlistWriter::NetlistWriter(const char *file_name,
       _exclude_cell_names(exclude_cell_names),
       _netlist(netlist) {
   _stream = std::fopen(file_name, "w");
-  std::fprintf(_stream, "//Generate the verilog at %s\n",
-               Time::getNowWallTime());
-  if (!_stream) {
-    LOG_ERROR << "File " << _file_name << " NotWritable";
-  }
-  LOG_INFO << "start write verilog file " << _file_name;
 }
 
-NetlistWriter::~NetlistWriter() {
-  LOG_INFO << "finish write verilog file " << _file_name;
-  std::fclose(_stream);
-}
+NetlistWriter::~NetlistWriter() { std::fclose(_stream); }
 
 /**
  * @brief write the verilog design.
  *
  */
 void NetlistWriter::writeModule() {
-  fprintf(_stream, "module %s (", _netlist->get_name());
   if (!_stream) {
     LOG_ERROR << "File " << _file_name << " NotWritable";
   }
 
   LOG_INFO << "start write verilog file " << _file_name;
 
+  std::fprintf(_stream, "//Generate the verilog at %s by iSTA.\n",
+               Time::getNowWallTime());
   fprintf(_stream, "module %s (", _netlist->get_name());
   fprintf(_stream, "\n");
   writePorts();
@@ -73,7 +65,9 @@ void NetlistWriter::writeModule() {
   fprintf(_stream, "\n");
   writeInstances();
   fprintf(_stream, "\n");
-  fprintf(_stream, "endmodule\n\n");
+  fprintf(_stream, "endmodule\n");
+
+  LOG_INFO << "finish write verilog file " << _file_name;
 }
 
 /**
