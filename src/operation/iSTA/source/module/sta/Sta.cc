@@ -898,33 +898,6 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
       RustVerilogAssign *verilog_assign = rust_convert_verilog_assign(stmt);
       auto *left_net_expr = const_cast<void *>(verilog_assign->left_net_expr);
       auto *right_net_expr = const_cast<void *>(verilog_assign->right_net_expr);
-      auto expand_assign_id_names = [](void *net_id,
-                                       std::optional<size_t> width_hint =
-                                           std::nullopt) {
-        std::vector<std::string> net_names;
-        if (rust_is_id(net_id)) {
-          std::string base_name = rust_convert_verilog_id(net_id)->id;
-          if (width_hint.has_value() && *width_hint > 1) {
-            for (size_t index = 0; index < *width_hint; ++index) {
-              net_names.emplace_back(
-                  Str::printf("%s[%zu]", base_name.c_str(), index));
-            }
-          } else {
-            net_names.emplace_back(std::move(base_name));
-          }
-        } else if (rust_is_bus_index_id(net_id)) {
-          net_names.emplace_back(rust_convert_verilog_index_id(net_id)->id);
-        } else {
-          auto *slice_id = rust_convert_verilog_slice_id(net_id);
-          std::string base_name = slice_id->base_id;
-          for (int index = slice_id->range_base; index <= slice_id->range_max;
-               ++index) {
-            net_names.emplace_back(
-                Str::printf("%s[%d]", base_name.c_str(), index));
-          }
-        }
-        return net_names;
-      };
       std::string left_net_name;
       std::string right_net_name;
       if (rust_is_id_expr(left_net_expr) && rust_is_id_expr(right_net_expr)) {
@@ -948,35 +921,8 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
         } else {
           right_net_name = rust_convert_verilog_slice_id(right_net_id)->id;
         }
-        if (rust_is_bus_slice_id(left_net_id) ||
-            rust_is_bus_slice_id(right_net_id)) {
-          auto left_net_names = expand_assign_id_names(left_net_id);
-          auto right_net_names = expand_assign_id_names(right_net_id);
 
-          if (left_net_names.size() == 1 && right_net_names.size() > 1 &&
-              rust_is_id(left_net_id)) {
-            left_net_names =
-                expand_assign_id_names(left_net_id, right_net_names.size());
-          }
-
-          if (right_net_names.size() == 1 && left_net_names.size() > 1 &&
-              rust_is_id(right_net_id)) {
-            right_net_names =
-                expand_assign_id_names(right_net_id, left_net_names.size());
-          }
-
-          if (left_net_names.size() == right_net_names.size() &&
-              !left_net_names.empty()) {
-            for (size_t index = 0; index < left_net_names.size(); ++index) {
-              process_assign_one_to_one_net(left_net_names[index],
-                                            right_net_names[index]);
-            }
-          } else {
-            process_assign_one_to_one_net(left_net_name, right_net_name);
-          }
-        } else {
-          process_assign_one_to_one_net(left_net_name, right_net_name);
-        }
+        process_assign_one_to_one_net(left_net_name, right_net_name);
 
       } else if ((rust_is_id_expr(left_net_expr) &&
                   rust_is_concat_expr(right_net_expr)) ||
@@ -1015,7 +961,6 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
             auto *one_net_id =
                 (void *)(rust_convert_verilog_net_id_expr(one_net_expr)
                              ->verilog_id);
-            bool advance_base_index_after_expr = true;
             if (rust_is_id(one_net_id)) {
               std::string one_id_net_name =
                   id_net_name + "[" + std::to_string(base_id_index) + "]";
@@ -1063,12 +1008,9 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
                 ++base_id_index;
                 ++right_base_index;
               }
-              advance_base_index_after_expr = false;
             }
 
-            if (advance_base_index_after_expr) {
-              ++base_id_index;
-            }
+            ++base_id_index;
           }
         };
 
@@ -1862,8 +1804,6 @@ void Sta::setReportSpec(std::vector<std::string> &&prop_froms,
  */
 unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
                          bool only_wire_path /*=false*/) {
-  (void) only_wire_path;
-
   auto report_path =
       [this](StaReportPathSummary &report_path_func) -> unsigned {
     unsigned is_ok = 1;
@@ -1887,7 +1827,7 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
     return is_ok;
   };
 
-  auto report_path_of_mode = [&report_path, this, rpt_file_name,
+  auto report_path_of_mode = [&report_path, this, rpt_file_name, only_wire_path,
                               is_derate](AnalysisMode mode) -> unsigned {
     unsigned is_ok = 1;
     if ((get_analysis_mode() == mode) ||
@@ -1896,6 +1836,7 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
 
       StaReportPathSummary report_path_summary(rpt_file_name, mode, n_worst);
       report_path_summary.set_significant_digits(get_significant_digits());
+      report_path_summary.enableJsonReport(isJsonReportEnabled());
 
       StaReportPathDetail report_path_detail(rpt_file_name, mode, n_worst,
                                              is_derate);
@@ -1903,6 +1844,7 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
 
       StaReportClockTNS report_path_TNS(rpt_file_name, mode, 1);
       report_path_TNS.set_significant_digits(get_significant_digits());
+      report_path_TNS.enableJsonReport(isJsonReportEnabled());
 
       std::vector<StaReportPathSummary *> report_funcs{
           &report_path_summary, &report_path_detail, &report_path_TNS};
@@ -1914,8 +1856,34 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
         report_funcs.emplace_back(&report_path_dump);
       }
 
+      StaReportWirePathYaml report_wire_dump(rpt_file_name, mode, n_worst);
+      if (c_print_wire_yaml) {
+        report_funcs.emplace_back(&report_wire_dump);
+      }
+
+      StaReportWirePathJson report_wire_dump_json(rpt_file_name, mode, n_worst);
+      if (c_print_wire_json) {
+        report_funcs.emplace_back(&report_wire_dump_json);
+      }
+
+      StaReportPathDetailJson report_path_detail_json(rpt_file_name, mode,
+                                                      n_worst, is_derate);
+
+      if (isJsonReportEnabled()) {
+        report_funcs.emplace_back(&report_path_detail_json);
+      }
+
       for (auto *report_fun : report_funcs) {
-        is_ok = report_path(*report_fun);
+        if (only_wire_path) {
+          if (dynamic_cast<StaReportWirePathJson *>(report_fun) ||
+              dynamic_cast<StaReportPathSummary *>(report_fun) ||
+              dynamic_cast<StaReportClockTNS *>(report_fun)) {
+            is_ok = report_path(*report_fun);
+          }
+
+        } else {
+          is_ok = report_path(*report_fun);
+        }
       }
     }
 
@@ -1932,6 +1900,10 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
   LOG_INFO << "\n" << _report_tbl_summary->c_str();
   LOG_INFO << "\n" << _report_tbl_TNS->c_str();
 
+  Time::stop();
+  double elapsed_time = Time::elapsedTime();
+  LOG_INFO << "iSTA total elapsed time: " << elapsed_time << " seconds";
+
   auto close_file = [](std::FILE *fp) { std::fclose(fp); };
 
   std::unique_ptr<std::FILE, decltype(close_file)> f(
@@ -1939,6 +1911,7 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
 
   std::fprintf(f.get(), "Generate the report at %s, GitVersion: %s.\n",
                Time::getNowWallTime(), GIT_VERSION);
+  std::fprintf(f.get(), "iSTA elapsed time: %.2f seconds.\n", elapsed_time);
   std::fprintf(f.get(), "%s", _report_tbl_summary->c_str());  // WNS
   // report_TNS;
   std::fprintf(f.get(), "%s", _report_tbl_TNS->c_str());

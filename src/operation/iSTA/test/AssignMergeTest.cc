@@ -86,6 +86,23 @@ class AssignMergeTest : public testing::Test {
     return design_netlist;
   }
 
+  void expectLinkFatal(const std::string& contents, const char* error_pattern) {
+    const auto verilog_path = writeTempVerilog(contents);
+
+    EXPECT_DEATH(
+        {
+          auto* ista = Sta::getOrCreateSta();
+          if (!ista) {
+            std::abort();
+          }
+          ista->readVerilogWithRustParser(verilog_path.c_str());
+          ista->set_top_module_name("top");
+          ista->linkDesignWithRustParser("top");
+        },
+        error_pattern);
+    Sta::destroySta();
+  }
+
   void expectNetPins(Netlist* design_netlist, const char* net_name,
                      const std::set<std::string>& expected_pin_names) {
     ASSERT_NE(design_netlist, nullptr);
@@ -144,16 +161,14 @@ endmodule
   expectNetPins(design_netlist, "n[1]", {"a[0]"});
 }
 
-TEST_F(AssignMergeTest, id_to_concat_assign_expands_bus_slices) {
-  auto* design_netlist = linkTop(R"(module top(a);
+TEST_F(AssignMergeTest, id_to_concat_assign_with_slice_range_matches_donor_fatal_boundary) {
+  expectLinkFatal(R"(module top(a);
 input [1:0] a;
 wire [1:0] n;
 assign n = {a[1:0]};
 endmodule
-)");
-
-  expectNetPins(design_netlist, "n[0]", {"a[0]"});
-  expectNetPins(design_netlist, "n[1]", {"a[1]"});
+)",
+                  "the left port is not exist");
 }
 
 TEST_F(AssignMergeTest, direct_net_merge_moves_existing_connections_to_target_net) {
@@ -204,9 +219,8 @@ endmodule
   EXPECT_EQ(design_netlist->findNet("n2"), nullptr);
 }
 
-TEST_F(AssignMergeTest,
-       concat_seeded_slice_alias_chain_reuses_merged_nets_and_cleans_up_aliases) {
-  auto* design_netlist = linkTop(R"(module top(a, y);
+TEST_F(AssignMergeTest, concat_seeded_slice_alias_chain_matches_donor_fatal_boundary) {
+  expectLinkFatal(R"(module top(a, y);
 input [1:0] a;
 output [1:0] y;
 wire [1:0] alias;
@@ -215,17 +229,12 @@ assign mid = {a[1], a[0]};
 assign alias[1:0] = mid[1:0];
 assign y[1:0] = alias[1:0];
 endmodule
-)");
-
-  expectNetPins(design_netlist, "mid[0]", {"a[1]", "y[0]"});
-  expectNetPins(design_netlist, "mid[1]", {"a[0]", "y[1]"});
-  EXPECT_EQ(design_netlist->findNet("alias[0]"), nullptr);
-  EXPECT_EQ(design_netlist->findNet("alias[1]"), nullptr);
+)",
+                  "the left port is not exist");
 }
 
-TEST_F(AssignMergeTest,
-       bus_slice_assign_expands_both_sides_after_concat_seed_without_stale_aliases) {
-  auto* design_netlist = linkTop(R"(module top(a, y);
+TEST_F(AssignMergeTest, bus_slice_assign_matches_donor_fatal_boundary) {
+  expectLinkFatal(R"(module top(a, y);
 input [3:0] a;
 output [3:0] y;
 wire [3:0] stage;
@@ -234,16 +243,8 @@ assign stage = {a[3], a[2], a[1], a[0]};
 assign alias[3:0] = stage[3:0];
 assign y[3:0] = alias[3:0];
 endmodule
-)");
-
-  expectNetPins(design_netlist, "stage[0]", {"a[3]", "y[0]"});
-  expectNetPins(design_netlist, "stage[1]", {"a[2]", "y[1]"});
-  expectNetPins(design_netlist, "stage[2]", {"a[1]", "y[2]"});
-  expectNetPins(design_netlist, "stage[3]", {"a[0]", "y[3]"});
-  EXPECT_EQ(design_netlist->findNet("alias[0]"), nullptr);
-  EXPECT_EQ(design_netlist->findNet("alias[1]"), nullptr);
-  EXPECT_EQ(design_netlist->findNet("alias[2]"), nullptr);
-  EXPECT_EQ(design_netlist->findNet("alias[3]"), nullptr);
+)",
+                  "the left port is not exist");
 }
 
 }  // namespace
