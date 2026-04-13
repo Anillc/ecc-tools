@@ -1045,10 +1045,21 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
                           preserved_seq_snapshot->check_pair_binding
                       ? &*preserved_seq_snapshot->check_pair_binding
                       : nullptr;
+              const bool preserved_seq_binding_exact =
+                  checkPairBindingIsExact(
+                      preserved_seq_check_pair_binding,
+                      _characterization_epoch, endpoint_check_arc,
+                      constraint_mode, clock_trans_type,
+                      local_data_candidate.terms.end_trans_type);
               const auto* exported_check_pair_binding =
-                  preserved_seq_check_pair_binding
+                  preserved_seq_binding_exact
                       ? preserved_seq_check_pair_binding
-                      : local_seq_check_pair_binding_for_export;
+                      : (local_seq_binding_exact &&
+                                 local_seq_check_pair_binding_for_export
+                             ? local_seq_check_pair_binding_for_export
+                             : (preserved_seq_check_pair_binding
+                                    ? preserved_seq_check_pair_binding
+                                    : local_seq_check_pair_binding_for_export));
               const auto preserved_exported_check_pair_binding_status =
                   checkPairBindingStatus(
                       exported_check_pair_binding, _characterization_epoch,
@@ -1078,6 +1089,8 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               const bool preserved_seq_is_local_binding =
                   std::string_view(preserved_seq_match_status) ==
                   "local_binding";
+              const bool preserved_seq_is_relaxed =
+                  std::string_view(preserved_seq_match_status) == "relaxed";
               double clock_arrival_delta_ns = 0.0;
               const char* clock_arrival_source = "missing";
               if (preserved_clock_arrival_delta_ns) {
@@ -1096,7 +1109,15 @@ unsigned StaCharacterTiming::genTimingModel(StaGraph* the_graph,
               check_margin_ns = 0.0;
               check_margin_with_local_clock_slew_ns = 0.0;
               const char* check_margin_source = "missing";
-              if (preserved_seq_snapshot && !preserved_seq_is_local_binding) {
+              if (constraint_mode == AnalysisMode::kMin &&
+                  preserved_seq_is_relaxed && !exported_binding_exact &&
+                  local_seq_check_margin_ns) {
+                check_margin_ns = *local_seq_check_margin_ns;
+                check_margin_with_local_clock_slew_ns = check_margin_ns;
+                check_margin_source =
+                    "local_seq_margin_after_relaxed_preserved";
+              } else if (preserved_seq_snapshot &&
+                         !preserved_seq_is_local_binding) {
                 check_margin_ns = preserved_check_margin_ns;
                 check_margin_with_local_clock_slew_ns = preserved_check_margin_ns;
                 check_margin_source = "preserved_seq_snapshot";

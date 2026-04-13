@@ -682,6 +682,35 @@ unsigned StaCharacterTiming::init(StaGraph* the_graph) {
     }
   };
 
+  auto seed_preserved_full_sta_input_slew = [this](StaVertex* the_vertex) {
+    if (!the_vertex) {
+      return;
+    }
+
+    StaData* slew_data = nullptr;
+    FOREACH_SLEW_DATA(the_vertex, slew_data) {
+      auto* vertex_slew_data = dynamic_cast<StaSlewData*>(slew_data);
+      if (!vertex_slew_data) {
+        continue;
+      }
+
+      if (vertex_slew_data->get_delay_type() != AnalysisMode::kMax ||
+          vertex_slew_data->get_trans_type() != TransType::kFall) {
+        continue;
+      }
+
+      auto snapshot_iter = _preserved_full_sta_pin_slew_ns.find(std::make_tuple(
+          the_vertex, vertex_slew_data->get_delay_type(),
+          vertex_slew_data->get_trans_type()));
+      if (snapshot_iter == _preserved_full_sta_pin_slew_ns.end() ||
+          snapshot_iter->second <= 0.0) {
+        continue;
+      }
+
+      vertex_slew_data->set_slew(NS_TO_FS(snapshot_iter->second));
+    }
+  };
+
   auto init_input_port_delay_data = [this](StaVertex* the_vertex) -> bool {
     auto* ista = Sta::getOrCreateSta();
     if (!ista || !the_vertex) {
@@ -772,6 +801,7 @@ unsigned StaCharacterTiming::init(StaGraph* the_graph) {
             0, true, true,
             _characterization_epoch);  // TODO(to taosimin) need decide the
         // discrete init slew data point.
+        seed_preserved_full_sta_input_slew(the_vertex);
         if (!init_input_port_delay_data(the_vertex)) {
           the_vertex->initPathDelayData(0, true, _characterization_epoch);
         }

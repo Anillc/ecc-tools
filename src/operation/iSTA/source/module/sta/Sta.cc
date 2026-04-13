@@ -88,6 +88,13 @@ Sta::Sta()
       _analysis_mode(AnalysisMode::kMaxMin),
       _graph(&_netlist),
       _clock_groups(sta_clock_cmp) {
+  if (!Log::isInit()) {
+    char config[] = "iSTA";
+    char* argv[] = {config, nullptr};
+    // Sta may be created from pybind without a traditional main() path.
+    Log::init(argv);
+  }
+
   _report_tbl_summary = StaReportPathSummary::createReportTable("sta");
   _report_tbl_TNS = StaReportClockTNS::createReportTable("TNS");
 }
@@ -767,6 +774,125 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
   // build assign stmt
   // record the merge nets.
   std::map<std::string, Net *> remove_to_merge_nets;
+  auto process_assign_one_to_one_net = [&design_netlist, &remove_to_merge_nets](
+                                           std::string left_net_name,
+                                           std::string right_net_name) {
+    left_net_name = Str::trimmed(left_net_name.c_str());
+    right_net_name = Str::trimmed(right_net_name.c_str());
+
+    left_net_name = Str::replace(left_net_name, R"(\\)", "");
+    right_net_name = Str::replace(right_net_name, R"(\\)", "");
+
+    Net *the_left_net = design_netlist.findNet(left_net_name.c_str());
+    if (!the_left_net && remove_to_merge_nets.contains(left_net_name)) {
+      the_left_net = remove_to_merge_nets[left_net_name];
+    }
+
+    Net *the_right_net = design_netlist.findNet(right_net_name.c_str());
+    if (!the_right_net && remove_to_merge_nets.contains(right_net_name)) {
+      the_right_net = remove_to_merge_nets[right_net_name];
+    }
+
+    auto *the_left_port = design_netlist.findPort(left_net_name.c_str());
+    auto *the_right_port = design_netlist.findPort(right_net_name.c_str());
+
+    if ((the_left_net && the_right_net && !the_left_port && !the_right_port) ||
+        (the_left_net && the_right_net && the_left_port && the_right_port)) {
+      // assign net = net; need merge two net.
+      LOG_INFO << "merge " << left_net_name << " = " << right_net_name << "\n";
+
+      auto left_pin_ports = the_left_net->get_pin_ports();
+
+      // merge left to right net.
+      for (auto *left_pin_port : left_pin_ports) {
+        the_left_net->removePinPort(left_pin_port);
+        the_right_net->addPinPort(left_pin_port);
+      }
+
+      remove_to_merge_nets[left_net_name] = the_right_net;
+
+    } else if (the_left_net && !the_left_port) {
+      // assign net = input_port;
+      if (the_right_port) {
+        the_left_net->addPinPort(the_right_port);
+      } else {
+        LOG_ERROR << "the right port is not exist.";
+      }
+
+    } else if (the_right_net) {
+      // assign output_port = net;
+      if (the_left_port) {
+        the_right_net->addPinPort(the_left_port);
+      } else {
+        LOG_ERROR << "the left port is not exist.";
+      }
+
+    } else if (!the_right_net && !the_left_net && the_right_port) {
+      // assign output_port = input_port;
+
+      auto &created_net = design_netlist.addNet(Net(right_net_name.c_str()));
+      LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
+      created_net.addPinPort(the_left_port);
+      LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
+      created_net.addPinPort(the_right_port);
+
+    } else if (!the_right_net && !the_left_net && !the_right_port) {
+      // assign output_port = 1'b0(1'b1);
+
+      auto &created_net = design_netlist.addNet(Net(left_net_name.c_str()));
+      LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
+      created_net.addPinPort(the_left_port);
+
+    } else {
+      LOG_FATAL << "assign " << left_net_name << " = " << right_net_name
+                << " is not processed.";
+    }
+
+    // remove ununsed nets.
+    if (the_left_net && the_left_net->get_pin_ports().size() == 0) {
+      // update the remove to merge nets before remove net.
+      for (auto it = remove_to_merge_nets.begin();
+           it != remove_to_merge_nets.end();) {
+        auto &merge_net = it->second;
+        if (merge_net == the_left_net) {
+          if (the_right_net && the_right_net->get_pin_ports().size() > 0) {
+            it->second = the_right_net;
+            ++it;
+          } else {
+            it = remove_to_merge_nets.erase(it);
+          }
+        } else {
+          ++it;
+        }
+      }
+
+      design_netlist.removeNet(the_left_net);
+      the_left_net = nullptr;
+    }
+
+    if (the_right_net && the_right_net->get_pin_ports().size() == 0) {
+      // update the remove to merge nets before remove net.
+      for (auto it = remove_to_merge_nets.begin();
+           it != remove_to_merge_nets.end();) {
+        auto &merge_net = it->second;
+        if (merge_net == the_right_net) {
+          if (the_left_net) {
+            merge_net = the_left_net;
+            ++it;
+          } else {
+            it = remove_to_merge_nets.erase(it);
+          }
+        } else {
+          ++it;
+        }
+      }
+
+      design_netlist.removeNet(the_right_net);
+    }
+
+    LOG_INFO << "assign " << left_net_name << " = " << right_net_name << "\n";
+  };
+
   FOREACH_VEC_ELEM(&top_module_stmts, void, stmt) {
     if (rust_is_module_assign_stmt(stmt)) {
       RustVerilogAssign *verilog_assign = rust_convert_verilog_assign(stmt);
@@ -795,96 +921,186 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
         } else {
           right_net_name = rust_convert_verilog_slice_id(right_net_id)->id;
         }
-      } else {
-        LOG_INFO
-            << "assign declaration's lhs/rhs is not VerilogNetIDExpr class.";
-      }
+        process_assign_one_to_one_net(left_net_name, right_net_name);
 
-      LOG_INFO << "assign " << left_net_name << " = " << right_net_name << "\n";
+      } else if ((rust_is_id_expr(left_net_expr) &&
+                  rust_is_concat_expr(right_net_expr)) ||
+                 (rust_is_concat_expr(left_net_expr) &&
+                  rust_is_id_expr(right_net_expr))) {
+        auto process_id_concat_assign = [&process_assign_one_to_one_net](
+                                            auto *id_net_expr,
+                                            auto *concat_net_expr,
+                                            bool is_first_left) {
+          std::string id_net_name;
+          std::string concat_net_name;
 
-      left_net_name = Str::trimmed(left_net_name.c_str());
-      right_net_name = Str::trimmed(right_net_name.c_str());
+          // assume left the not concatenation, right is concatenation. such as
+          // "assign io_out_arsize = { _41_, _41_, io_in_size };"
+          auto *id_net_expr_id = const_cast<void *>(
+              rust_convert_verilog_net_id_expr(id_net_expr)->verilog_id);
+          unsigned base_id_index = 0;
+          if (rust_is_id(id_net_expr_id)) {
+            id_net_name = rust_convert_verilog_id(id_net_expr_id)->id;
+          } else if (rust_is_bus_slice_id(id_net_expr_id)) {
+            auto slice_net_id = rust_convert_verilog_slice_id(id_net_expr_id);
+            id_net_name = slice_net_id->base_id;
+            base_id_index = slice_net_id->range_base;
+          } else {
+            std::cout << "left net id should be id or bus slice id";
+            assert(false);
+          }
 
-      left_net_name = Str::replace(left_net_name, R"(\\)", "");
-      right_net_name = Str::replace(right_net_name, R"(\\)", "");
+          auto verilog_id_concat =
+              rust_convert_verilog_net_concat_expr(concat_net_expr)
+                  ->verilog_id_concat;
 
-      // for debug
-      // if (Str::contain(left_net_name.c_str(), "io_master_araddr[0]")) {
-      //   LOG_INFO << "debug";
-      // }
+          void *one_net_expr;
+          FOREACH_VEC_ELEM(&verilog_id_concat, void, one_net_expr) {
+            assert(rust_is_id_expr(one_net_expr));
+            auto *one_net_id =
+                (void *)(rust_convert_verilog_net_id_expr(one_net_expr)
+                             ->verilog_id);
+            if (rust_is_id(one_net_id)) {
+              std::string one_id_net_name =
+                  id_net_name + "[" + std::to_string(base_id_index) + "]";
+              std::string one_concat_net_name =
+                  rust_convert_verilog_id(one_net_id)->id;
+              if (is_first_left) {
+                process_assign_one_to_one_net(one_id_net_name,
+                                              one_concat_net_name);
+              } else {
+                process_assign_one_to_one_net(one_concat_net_name,
+                                              one_id_net_name);
+              }
 
-      Net *the_left_net = design_netlist.findNet(left_net_name.c_str());
-      if (!the_left_net && remove_to_merge_nets.contains(left_net_name)) {
-        the_left_net = remove_to_merge_nets[left_net_name];
-      }
+            } else if (rust_is_bus_index_id(one_net_id)) {
+              std::string one_id_net_name =
+                  id_net_name + "[" + std::to_string(base_id_index) + "]";
+              std::string one_concat_net_name =
+                  rust_convert_verilog_index_id(one_net_id)->id;
+              if (is_first_left) {
+                process_assign_one_to_one_net(one_id_net_name,
+                                              one_concat_net_name);
+              } else {
+                process_assign_one_to_one_net(one_concat_net_name,
+                                              one_id_net_name);
+              }
+            } else {
+              auto right_slice_id = rust_convert_verilog_slice_id(one_net_id);
+              std::string right_net_base_name = right_slice_id->base_id;
+              auto right_base_index = right_slice_id->range_base;
+              while (right_base_index <= right_slice_id->range_max) {
+                std::string one_id_net_name =
+                    id_net_name + "[" + std::to_string(base_id_index) + "]";
+                std::string one_concat_net_name =
+                    right_net_base_name + "[" +
+                    std::to_string(right_base_index) + "]";
 
-      Net *the_right_net = design_netlist.findNet(right_net_name.c_str());
-      if (!the_right_net && remove_to_merge_nets.contains(right_net_name)) {
-        the_right_net = remove_to_merge_nets[right_net_name];
-      }
+                if (is_first_left) {
+                  process_assign_one_to_one_net(one_id_net_name,
+                                                one_concat_net_name);
+                } else {
+                  process_assign_one_to_one_net(one_concat_net_name,
+                                                one_id_net_name);
+                }
 
-      auto *the_left_port = design_netlist.findPort(left_net_name.c_str());
-      auto *the_right_port = design_netlist.findPort(right_net_name.c_str());
+                ++base_id_index;
+                ++right_base_index;
+              }
+            }
 
-      if (the_left_net && the_right_net && !the_left_port && !the_right_port) {
-        LOG_INFO << "merge " << left_net_name << " = " << right_net_name
-                 << "\n";
+            ++base_id_index;
+          }
+        };
 
-        auto left_pin_ports = the_left_net->get_pin_ports();
-
-        // merge left to right net.
-        for (auto *left_pin_port : left_pin_ports) {
-          the_left_net->removePinPort(left_pin_port);
-          the_right_net->addPinPort(left_pin_port);
+        if (rust_is_id_expr(left_net_expr) &&
+            rust_is_concat_expr(right_net_expr)) {
+          process_id_concat_assign(left_net_expr, right_net_expr, true);
+        } else {
+          process_id_concat_assign(right_net_expr, left_net_expr, false);
         }
 
-        remove_to_merge_nets[left_net_name] = the_right_net;
+      } else if (rust_is_concat_expr(left_net_expr) &&
+                 rust_is_concat_expr(right_net_expr)) {
+        std::function<std::vector<std::string>(RustVec &)>
+            get_concat_net_names =
+                [&get_concat_net_names](
+                    RustVec &verilog_id_concat) -> std::vector<std::string> {
+          std::vector<std::string> concat_net_names;
+          void *one_net_expr;
+          FOREACH_VEC_ELEM(&verilog_id_concat, void, one_net_expr) {
+            if (rust_is_id_expr(one_net_expr)) {
+              auto *one_net_id =
+                  (void *)(rust_convert_verilog_net_id_expr(one_net_expr)
+                               ->verilog_id);
+              if (rust_is_id(one_net_id)) {
+                std::string one_concat_net_name =
+                    rust_convert_verilog_id(one_net_id)->id;
+                concat_net_names.emplace_back(std::move(one_concat_net_name));
+              } else if (rust_is_bus_index_id(one_net_id)) {
+                std::string one_concat_net_name =
+                    rust_convert_verilog_index_id(one_net_id)->id;
+                concat_net_names.emplace_back(std::move(one_concat_net_name));
+              } else {
+                auto right_slice_id = rust_convert_verilog_slice_id(one_net_id);
+                std::string right_net_base_name = right_slice_id->base_id;
+                auto right_base_index = right_slice_id->range_base;
+                while (right_base_index <= right_slice_id->range_max) {
+                  std::string one_concat_net_name =
+                      right_net_base_name + "[" +
+                      std::to_string(right_base_index) + "]";
+                  concat_net_names.emplace_back(std::move(one_concat_net_name));
+                  ++right_base_index;
+                }
+              }
+            } else if (rust_is_concat_expr(one_net_expr)) {
+              auto one_net_concat_expr =
+                  rust_convert_verilog_net_concat_expr(one_net_expr);
+              auto one_net_verilog_id_concat =
+                  one_net_concat_expr->verilog_id_concat;
+              auto one_concat_net_names =
+                  get_concat_net_names(one_net_verilog_id_concat);
+              concat_net_names.insert(concat_net_names.end(),
+                                      one_concat_net_names.begin(),
+                                      one_concat_net_names.end());
 
-      } else if (the_left_net && !the_left_port) {
-        // assign net = input_port;
+            } else {
+              assert(false);
+            }
+          }
 
-        LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
-        the_left_net->addPinPort(the_right_port);
+          return concat_net_names;
+        };
 
-      } else if (the_right_net && !the_right_port) {
-        // assign output_port = net;
+        auto left_concat_net_expr =
+            rust_convert_verilog_net_concat_expr(left_net_expr);
+        auto left_concat_net_names =
+            get_concat_net_names(left_concat_net_expr->verilog_id_concat);
 
-        LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
-        the_right_net->addPinPort(the_left_port);
+        auto right_concat_net_expr =
+            rust_convert_verilog_net_concat_expr(right_net_expr);
+        auto right_concat_net_names =
+            get_concat_net_names(right_concat_net_expr->verilog_id_concat);
 
-      } else if (!the_right_net && !the_left_net && the_right_port) {
-        // assign output_port = input_port;
+        assert(left_concat_net_names.size() == right_concat_net_names.size());
 
-        auto &created_net = design_netlist.addNet(Net(right_net_name.c_str()));
-        LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
-        created_net.addPinPort(the_left_port);
-        LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
-        created_net.addPinPort(the_right_port);
+        for (size_t i = 0; i < left_concat_net_names.size(); i++) {
+          // process assign net = net, which is concat net.
+          std::string left_concat_net_name = left_concat_net_names[i];
+          std::string right_concat_net_name = right_concat_net_names[i];
 
-      } else if (!the_right_net && !the_left_net && !the_right_port) {
-        // assign output_port = 1'b0(1'b1);
+          if (left_concat_net_name == right_concat_net_name) {
+            // skip same net name.
+            continue;
+          }
 
-        auto &created_net = design_netlist.addNet(Net(left_net_name.c_str()));
-        LOG_FATAL_IF(!the_left_port) << "the left port is not exist.";
-        created_net.addPinPort(the_left_port);
+          process_assign_one_to_one_net(left_concat_net_name,
+                                        right_concat_net_name);
+        }
 
-      } else if (the_left_net && the_right_net && the_left_port &&
-                 the_right_port) {
-        // assign output_port = output_port
-        LOG_FATAL_IF(!the_right_port) << "the right port is not exist.";
-        the_left_net->addPinPort(the_right_port);
       } else {
-        LOG_FATAL << "assign " << left_net_name << " = " << right_net_name
-                  << " is not processed.";
-      }
-
-      // remove ununsed nets.
-      if (the_left_net->get_pin_ports().size() == 0) {
-        design_netlist.removeNet(the_left_net);
-      }
-
-      if (the_right_net->get_pin_ports().size() == 0) {
-        design_netlist.removeNet(the_right_net);
+        LOG_FATAL
+            << "assign declaration's lhs/rhs is not VerilogNetIDExpr class.";
       }
     }
   }
@@ -1673,20 +1889,6 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
   }
 
   return 1;
-}
-
-unsigned Sta::reportWirePaths() {
-  const char* design_work_space = get_design_work_space();
-  if (design_work_space == nullptr || design_work_space[0] == '\0') {
-    LOG_ERROR << "The design work space is not set.";
-    return 0;
-  }
-
-  std::filesystem::create_directories(design_work_space);
-  std::string rpt_file_name =
-      Str::printf("%s/%s_wire_path.rpt", design_work_space,
-                  get_design_name().c_str());
-  return reportPath(rpt_file_name.c_str(), false, true);
 }
 
 /**
@@ -2603,6 +2805,35 @@ unsigned Sta::resetPathData() {
   return 1;
 }
 
+#if CUDA_PROPAGATION
+unsigned Sta::resetGPUData() {
+  _gpu_vertices.clear();
+  _gpu_arcs.clear();
+
+  GPU_Flatten_Data flatten_data;
+  _flatten_data = std::move(flatten_data);
+
+  GPU_Graph gpu_graph;
+  _gpu_graph = std::move(gpu_graph);
+
+  _lib_gpu_arcs.clear();
+
+  free_lib_data_gpu(_gpu_lib_data, _lib_gpu_tables, _lib_gpu_table_ptrs);
+
+  Lib_Data_GPU gpu_lib_data;
+  _gpu_lib_data = std::move(gpu_lib_data);
+
+  _lib_gpu_tables.clear();
+  _lib_gpu_table_ptrs.clear();
+
+  _arc_to_index.clear();
+  _at_to_index.clear();
+  _index_to_at.clear();
+
+  return 1;
+}
+#endif
+
 /**
  * @brief update the timing data.
  *
@@ -2616,6 +2847,10 @@ unsigned Sta::updateTiming() {
   resetSdcConstrain();
   resetGraphData();
   resetPathData();
+
+#if CUDA_PROPAGATION
+  resetGPUData();
+#endif
 
   StaGraph &the_graph = get_graph();
   if (_propagation_method == PropagationMethod::kDFS) {
@@ -2875,6 +3110,37 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
 }
 
 /**
+ * @brief report timing data in memory for online analysis.
+ *
+ * @param n_worst_path_per_clock
+ * @return unsigned
+ */
+std::vector<StaPathWireTimingData> Sta::reportTimingData(
+    unsigned n_worst_path_per_clock) {
+  LOG_INFO << "get wire timing start";
+  std::vector<StaPathWireTimingData> path_timing_data;
+
+  set_n_worst_path_per_clock(n_worst_path_per_clock);
+
+  for (auto analysi_mode : {AnalysisMode::kMax, AnalysisMode::kMin}) {
+    StaReportPathTimingData report_path_timing_data_func(
+        nullptr, analysi_mode, n_worst_path_per_clock);
+    for (auto &[capture_clock, seq_path_group] : _clock_groups) {
+      auto group_timing_data =
+          report_path_timing_data_func.getPathGroupTimingData(
+              seq_path_group.get());
+      path_timing_data.insert(path_timing_data.end(), group_timing_data.begin(),
+                              group_timing_data.end());
+    }
+  }
+
+  LOG_INFO << "the wire timing data size: " << path_timing_data.size();
+  LOG_INFO << "get wire timing end";
+
+  return path_timing_data;
+}
+
+/**
  * @brief report used libs.
  *
  * @return unsigned
@@ -2887,6 +3153,34 @@ unsigned Sta::reportUsedLibs() {
       LOG_INFO << "used lib: " << lib_name;
     }
   }
+  return 1;
+}
+
+/**
+ * @brief report wire paths.
+ *
+ * @return unsigned
+ */
+unsigned Sta::reportWirePaths() {
+  LOG_INFO << "report wire paths start";
+  const char *design_work_space = get_design_work_space();
+
+  std::string path_dir = std::string(design_work_space) + "/wire_paths";
+
+  if (std::filesystem::exists(path_dir)) {
+    for (const auto &entry : std::filesystem::directory_iterator(path_dir)) {
+      if (entry.is_regular_file()) {
+        std::filesystem::remove(entry.path());
+      }
+    }
+  }
+
+  std::string rpt_file_name =
+      Str::printf("%s/%s.rpt", design_work_space, get_design_name().c_str());
+  reportPath(rpt_file_name.c_str(), false, true);
+
+  LOG_INFO << "report wire paths end";
+
   return 1;
 }
 
