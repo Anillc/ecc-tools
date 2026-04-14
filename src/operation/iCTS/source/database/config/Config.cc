@@ -249,6 +249,8 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyUnsignedIfPresent(json, "slew_steps", *this, &Config::get_slew_steps, &Config::set_slew_steps);
   ApplyUnsignedIfPresent(json, "cap_steps", *this, &Config::get_cap_steps, &Config::set_cap_steps);
   ApplyUnsignedIfPresent(json, "max_pattern_nodes", *this, &Config::get_max_pattern_nodes, &Config::set_max_pattern_nodes);
+  ApplyUnsignedIfPresent(json, "relaxed_candidates_per_boundary_group", *this, &Config::get_relaxed_candidates_per_boundary_group,
+                         &Config::set_relaxed_candidates_per_boundary_group);
   ApplyDoubleIfPresent(json, "wire_width", *this, &Config::get_wire_width, &Config::set_wire_width);
   ApplyUnsignedIfPresent(json, "max_fanout", *this, &Config::get_max_fanout, &Config::set_max_fanout);
   ApplyRoutingLayersIfPresent(json, *this);

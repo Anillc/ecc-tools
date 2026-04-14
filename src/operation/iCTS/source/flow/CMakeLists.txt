@@ -1,6 +1,15 @@
+set(ICTS_FLOW_HTREE ${ICTS_FLOW}/htree)
+
+add_subdirectory(${ICTS_FLOW_HTREE})
+
 add_library(icts_source_flow ${ICTS_FLOW}/FlowManager.cc)
 
-target_link_libraries(icts_source_flow PRIVATE icts_source_module)
+target_link_libraries(
+  icts_source_flow
+  PRIVATE
+  icts_source_module
+  icts_source_flow_htree
+)
 
 target_include_directories(icts_source_flow PUBLIC ${ICTS_FLOW})
 

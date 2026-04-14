@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <iomanip>
 #include <optional>
 #include <ratio>
@@ -40,6 +41,8 @@ namespace icts_test {
 namespace {
 
 namespace realtech_support = characterization::realtech;
+
+constexpr std::size_t kManualCappedCandidatesPerBoundaryGroup = 2U;
 
 TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectableReport)
 {
@@ -153,12 +156,12 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   ASSERT_FALSE(mid_candidates_uncapped.empty());
   ASSERT_FALSE(root_candidates_uncapped.empty());
 
-  const auto leaf_candidates_capped = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_50_idx),
-                                                                                    realtech_support::kRelaxedCandidatesPerBoundaryGroup);
-  const auto mid_candidates_capped = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_100_idx),
-                                                                                   realtech_support::kRelaxedCandidatesPerBoundaryGroup);
-  const auto root_candidates_capped = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_200_idx),
-                                                                                    realtech_support::kRelaxedCandidatesPerBoundaryGroup);
+  const auto leaf_candidates_capped
+      = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_50_idx), kManualCappedCandidatesPerBoundaryGroup);
+  const auto mid_candidates_capped
+      = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_100_idx), kManualCappedCandidatesPerBoundaryGroup);
+  const auto root_candidates_capped
+      = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_200_idx), kManualCappedCandidatesPerBoundaryGroup);
   ASSERT_FALSE(leaf_candidates_capped.empty());
   ASSERT_FALSE(mid_candidates_capped.empty());
   ASSERT_FALSE(root_candidates_capped.empty());
@@ -191,6 +194,8 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   report_stream << "resolved_max_cap_pf=" << builder.get_max_cap() << "\n";
   report_stream << "wire_length_unit_um=" << builder.get_wire_length_unit_um() << "\n";
   report_stream << "wire_length_iterations=" << builder.get_wire_length_iterations() << "\n";
+  report_stream << "configured_relaxed_candidates_per_boundary_group=" << CONFIG_INST.get_relaxed_candidates_per_boundary_group() << "\n";
+  report_stream << "manual_capped_candidates_per_boundary_group=" << kManualCappedCandidatesPerBoundaryGroup << "\n";
   report_stream << "segment_200_source=" << synthesized_200_mode << "\n";
   report_stream << "positive_power_segment_chars=" << realtech_support::CountPositivePower(builder.get_segment_chars()) << "/"
                 << builder.get_segment_chars().size() << "\n";

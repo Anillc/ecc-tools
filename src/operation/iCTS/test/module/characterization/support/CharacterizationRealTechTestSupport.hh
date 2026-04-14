@@ -55,7 +55,6 @@
 namespace icts_test::characterization::realtech {
 
 inline constexpr std::size_t kReportExampleLimit = 3U;
-inline constexpr std::size_t kRelaxedCandidatesPerBoundaryGroup = 2U;
 inline constexpr double kLeafLevelLengthUm = 50.0;
 inline constexpr double kMidLevelLengthUm = 100.0;
 inline constexpr double kRootLevelLengthUm = 200.0;
@@ -84,6 +83,7 @@ struct ConfigState
   unsigned slew_steps = 0U;
   unsigned cap_steps = 0U;
   unsigned max_pattern_nodes = 0U;
+  unsigned relaxed_candidates_per_boundary_group = 0U;
   double wire_width = 0.0;
   unsigned max_fanout = 0U;
   std::vector<unsigned> routing_layers;
@@ -112,6 +112,7 @@ inline auto CaptureConfigState() -> ConfigState
   state.slew_steps = CONFIG_INST.get_slew_steps();
   state.cap_steps = CONFIG_INST.get_cap_steps();
   state.max_pattern_nodes = CONFIG_INST.get_max_pattern_nodes();
+  state.relaxed_candidates_per_boundary_group = CONFIG_INST.get_relaxed_candidates_per_boundary_group();
   state.wire_width = CONFIG_INST.get_wire_width();
   state.max_fanout = CONFIG_INST.get_max_fanout();
   state.routing_layers = CONFIG_INST.get_routing_layers();
@@ -143,6 +144,7 @@ inline auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_slew_steps(state.slew_steps);
   CONFIG_INST.set_cap_steps(state.cap_steps);
   CONFIG_INST.set_max_pattern_nodes(state.max_pattern_nodes);
+  CONFIG_INST.set_relaxed_candidates_per_boundary_group(state.relaxed_candidates_per_boundary_group);
   CONFIG_INST.set_wire_width(state.wire_width);
   CONFIG_INST.set_max_fanout(state.max_fanout);
   CONFIG_INST.set_routing_layers(state.routing_layers);
@@ -461,6 +463,10 @@ inline auto BuildInputBoundaryFrontier(const std::vector<CharT>& chars) -> std::
 template <class CharT>
 inline auto SelectCompositionCandidates(const std::vector<CharT>& entries, std::size_t max_per_boundary_group) -> std::vector<CharT>
 {
+  if (max_per_boundary_group == 0U) {
+    return entries;
+  }
+
   const icts::InputBoundaryPruner<CharT> pruner;
   std::unordered_map<unsigned, std::size_t> group_counts;
   group_counts.reserve(entries.size());
@@ -649,8 +655,8 @@ inline auto SynthesizeSegmentFrontierIfMissing(std::unordered_map<unsigned, std:
         continue;
       }
 
-      const auto left_candidates = SelectCompositionCandidates(left_it->second, kRelaxedCandidatesPerBoundaryGroup);
-      const auto right_candidates = SelectCompositionCandidates(right_it->second, kRelaxedCandidatesPerBoundaryGroup);
+      const auto left_candidates = SelectCompositionCandidates(left_it->second, CONFIG_INST.get_relaxed_candidates_per_boundary_group());
+      const auto right_candidates = SelectCompositionCandidates(right_it->second, CONFIG_INST.get_relaxed_candidates_per_boundary_group());
       auto partial = ComposeSegmentEntriesRelaxed(left_candidates, right_candidates, next_segment_pattern_id);
       relaxed_composed_entries.insert(relaxed_composed_entries.end(), partial.begin(), partial.end());
     }

@@ -1,0 +1,10 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "verify flow placement and build wiring"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "validate new iCTS files and CMake edits"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "verify includes/naming/validation"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "verify ownership of synthesized CTS objects and borrowed loads"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "verify safe-return/fatal decisions"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "verify logging style and severity"}
+{"file": "src/operation/iCTS/source/module/characterization/CharBuilder.hh", "reason": "reference segment characterization contract and config-derived grids"}
+{"file": "src/operation/iCTS/source/module/topology/TopologyGen.hh", "reason": "reference topology generation contract used by flow builder"}

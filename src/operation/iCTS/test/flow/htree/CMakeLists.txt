@@ -1,0 +1,20 @@
+icts_add_test_executable(
+  icts_test_flow_htree
+  SOURCES
+    ${ICTS_TEST}/flow/htree/HTreeBuilderTest.cc
+  LIBS
+    icts_test_common_data_pin_factory
+)
+
+icts_add_test_executable(
+  icts_test_flow_htree_realtech
+  REALTECH
+  SOURCES
+    ${ICTS_TEST}/flow/htree/HTreeVisualizationSupport.cc
+    ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechSmokeTest.cc
+  LIBS
+    icts_test_common_data_pin_factory
+    icts_test_common_io
+    icts_test_common_realtech_support
+    icts_test_common_visualization
+)
