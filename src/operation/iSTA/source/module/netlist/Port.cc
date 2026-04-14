@@ -35,7 +35,7 @@ Port::Port(const Port& other)
       _caps(other._caps),
       _port_dir(other._port_dir),
       _net(other._net),
-      _port_bus(other._port_bus),
+      _port_bus(nullptr),
       _coordinate(other._coordinate),
       _is_virtual_port(other._is_virtual_port) {}
 

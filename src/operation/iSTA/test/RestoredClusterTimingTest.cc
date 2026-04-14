@@ -17,6 +17,8 @@
 
 #include <cstdlib>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -35,6 +37,8 @@
 using namespace ista;
 
 namespace {
+
+namespace fs = std::filesystem;
 
 LibCell* addCell(
     LibLibrary& lib, const char* cell_name,
@@ -60,6 +64,12 @@ std::size_t countPortsByName(Netlist& netlist, const char* port_name) {
                        [port_name](const Port& port) {
                          return std::string(port.get_name()) == port_name;
                        });
+}
+
+std::string readText(const fs::path& file_path) {
+  std::ifstream input(file_path);
+  return std::string((std::istreambuf_iterator<char>(input)),
+                     std::istreambuf_iterator<char>());
 }
 
 class RestoredClusterTimingTest : public testing::Test {
@@ -165,6 +175,42 @@ TEST_F(RestoredClusterTimingTest,
 }
 
 TEST_F(RestoredClusterTimingTest,
+       build_subnetlist_to_inst_reuses_shared_top_ports_across_clusters) {
+  auto lib = std::make_unique<LibLibrary>("cluster_rebuild_shared_port_test");
+  addCell(*lib, "cluster1",
+          {{"SHARED_CLK", LibPort::LibertyPortType::kInput},
+           {"OUT_A", LibPort::LibertyPortType::kOutput}});
+  addCell(*lib, "cluster2",
+          {{"SHARED_CLK", LibPort::LibertyPortType::kInput},
+           {"OUT_B", LibPort::LibertyPortType::kOutput}});
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+  ista->addLib(std::move(lib));
+  auto* netlist = ista->get_netlist();
+  ASSERT_NE(netlist, nullptr);
+  netlist->set_name("top");
+
+  auto* subnetlist1 = new Netlist();
+  subnetlist1->set_name("cluster1");
+  subnetlist1->addPort(Port("SHARED_CLK", PortDir::kIn));
+  subnetlist1->addPort(Port("OUT_A", PortDir::kOut));
+
+  auto* subnetlist2 = new Netlist();
+  subnetlist2->set_name("cluster2");
+  subnetlist2->addPort(Port("SHARED_CLK", PortDir::kIn));
+  subnetlist2->addPort(Port("OUT_B", PortDir::kOut));
+
+  netlist->set_hier_sub_netlists({subnetlist1, subnetlist2});
+
+  StaClusterTiming sta_cluster_timing({});
+  sta_cluster_timing.buildSubnetlistToInst();
+
+  EXPECT_EQ(countPortsByName(*netlist, "SHARED_CLK"), 1U)
+      << "expected rebuilt top netlist to reuse the shared top-level port once";
+}
+
+TEST_F(RestoredClusterTimingTest,
        hier_subnetlist_cluster_ports_do_not_dereference_null_instances) {
   auto run_cluster_port_case = []() {
     LibLibrary lib("cluster_port_guard_test");
@@ -203,6 +249,70 @@ TEST_F(RestoredClusterTimingTest,
   };
 
   ASSERT_EXIT(run_cluster_port_case(), ::testing::ExitedWithCode(0), "");
+}
+
+TEST_F(RestoredClusterTimingTest,
+       copied_bus_ports_without_rebuilt_bus_still_serialize_as_scalar_ports) {
+  LibLibrary lib("cluster_bus_port_writer_test");
+  auto* chain_cell = addCell(
+      lib, "chain_cell",
+      {{"A", LibPort::LibertyPortType::kInput},
+       {"Y", LibPort::LibertyPortType::kOutput}});
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+  auto* netlist = ista->get_netlist();
+  ASSERT_NE(netlist, nullptr);
+  netlist->set_name("top");
+
+  auto& bus_port = netlist->addPort(Port("BUS_IN[0]", PortDir::kIn));
+  PortBus bus("BUS_IN", 0, 0, 1, PortDir::kIn);
+  bus.addPort(0, &bus_port);
+  netlist->addPortBus(std::move(bus));
+
+  auto& bus_in_net = netlist->addNet(Net("bus_in_net"));
+  auto& cluster_mid_net = netlist->addNet(Net("cluster_mid_net"));
+  bus_in_net.addPinPort(&bus_port);
+
+  auto& u1 = netlist->addInstance(Instance("u1", chain_cell));
+  auto* u1_a = u1.addPin("A", chain_cell->get_cell_port_or_port_bus("A"));
+  auto* u1_y = u1.addPin("Y", chain_cell->get_cell_port_or_port_bus("Y"));
+  bus_in_net.addPinPort(u1_a);
+  cluster_mid_net.addPinPort(u1_y);
+
+  auto& u2 = netlist->addInstance(Instance("u2", chain_cell));
+  auto* u2_a = u2.addPin("A", chain_cell->get_cell_port_or_port_bus("A"));
+  cluster_mid_net.addPinPort(u2_a);
+
+  std::vector<std::set<std::string>> clusters = {{"u1", "u2"}};
+  StaClusterTiming sta_cluster_timing(std::move(clusters));
+  sta_cluster_timing.addHierSubNetlist();
+
+  auto hier_sub_netlists = netlist->get_hier_sub_netlists();
+  ASSERT_EQ(hier_sub_netlists.size(), 1U);
+  auto* subnetlist = hier_sub_netlists.front();
+  ASSERT_NE(subnetlist, nullptr);
+
+  auto* copied_bus_port = subnetlist->findPort("BUS_IN[0]");
+  ASSERT_NE(copied_bus_port, nullptr);
+  EXPECT_EQ(copied_bus_port->get_port_bus(), nullptr)
+      << "expected copied bus-member ports to drop stale PortBus ownership when "
+         "the subnetlist does not rebuild the corresponding bus object";
+
+  const fs::path output_path =
+      fs::temp_directory_path() / "ista_restored_cluster_bus_port.v";
+  std::set<std::string> exclude_cell_names;
+  subnetlist->writeVerilog(output_path.c_str(), exclude_cell_names, false);
+
+  const auto verilog_text = readText(output_path);
+  EXPECT_NE(verilog_text.find("module cluster1 (\nBUS_IN[0]"), std::string::npos)
+      << "expected copied bus-member ports to stay in the module header";
+  EXPECT_NE(verilog_text.find("input BUS_IN[0] ;"), std::string::npos)
+      << "expected copied bus-member ports to remain visible when no PortBus "
+         "object is rebuilt in the subnetlist";
+
+  std::error_code ec;
+  fs::remove(output_path, ec);
 }
 
 TEST_F(RestoredClusterTimingTest,
