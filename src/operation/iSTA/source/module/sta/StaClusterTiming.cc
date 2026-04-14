@@ -102,6 +102,8 @@ void StaClusterTiming::addHierSubNetlist() {
         } else {
           continue;
         }
+
+        continue;
       }
 
       Instance new_inst(*instance);
@@ -163,6 +165,8 @@ void StaClusterTiming::addHierSubNetlist() {
             } else {
               continue;
             }
+
+            continue;
           }
           Instance new_inst(*instance);
 

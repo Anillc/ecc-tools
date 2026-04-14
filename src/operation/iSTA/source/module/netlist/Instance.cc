@@ -41,6 +41,7 @@ Instance::Instance(const Instance& other)
       _pin_buses(other.clonePinBuses()),
       _coordinate(other._coordinate) {
   for (auto& pin : _pins) {
+    pin->set_own_instance(this);
     _str2pin[pin->get_name()] = pin.get();
     auto [pin_base_name, index] = Str::matchBusName(pin->get_name());
     auto* found_pin_bus = findPinBus(pin_base_name);

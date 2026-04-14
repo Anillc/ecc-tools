@@ -15,6 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 
+#include <cstdlib>
 #include <algorithm>
 #include <initializer_list>
 #include <memory>
@@ -24,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "liberty/Lib.hh"
 #include "log/Log.hh"
+#include "netlist/Instance.hh"
 #include "netlist/Net.hh"
 #include "netlist/Netlist.hh"
 #include "netlist/Port.hh"
@@ -160,6 +162,82 @@ TEST_F(RestoredClusterTimingTest,
   EXPECT_TRUE(copied_shared_net->isNetPinPort(copied_shared_port));
   EXPECT_EQ(countPortsByName(*subnetlist, "SHARED_IN"), 1U)
       << "expected shared top-level ports to be emitted once per subnetlist";
+}
+
+TEST_F(RestoredClusterTimingTest,
+       hier_subnetlist_cluster_ports_do_not_dereference_null_instances) {
+  auto run_cluster_port_case = []() {
+    LibLibrary lib("cluster_port_guard_test");
+    auto* cluster_cell = addCell(
+        lib, "cluster_cell",
+        {{"A", LibPort::LibertyPortType::kInput},
+         {"Y", LibPort::LibertyPortType::kOutput}});
+
+    auto* ista = Sta::getOrCreateSta();
+    auto* netlist = ista->get_netlist();
+    netlist->set_name("top");
+
+    auto& shared_a = netlist->addPort(Port("SHARED_A", PortDir::kIn));
+    auto& shared_b = netlist->addPort(Port("SHARED_B", PortDir::kOut));
+    auto& shared_net = netlist->addNet(Net("shared_net"));
+    shared_net.addPinPort(&shared_a);
+    shared_net.addPinPort(&shared_b);
+
+    auto& inst_input_net = netlist->addNet(Net("inst_input_net"));
+    auto& cluster_inst =
+        netlist->addInstance(Instance("u_cluster", cluster_cell));
+    auto* cluster_pin =
+        cluster_inst.addPin("A", cluster_cell->get_cell_port_or_port_bus("A"));
+    inst_input_net.addPinPort(cluster_pin);
+
+    std::vector<std::set<std::string>> clusters = {{"SHARED_A", "u_cluster"}};
+    StaClusterTiming sta_cluster_timing(std::move(clusters));
+    sta_cluster_timing.addHierSubNetlist();
+
+    auto hier_sub_netlists = netlist->get_hier_sub_netlists();
+    if (hier_sub_netlists.size() != 1U) {
+      std::_Exit(1);
+    }
+
+    std::_Exit(0);
+  };
+
+  ASSERT_EXIT(run_cluster_port_case(), ::testing::ExitedWithCode(0), "");
+}
+
+TEST_F(RestoredClusterTimingTest,
+       instance_copy_rebinds_cloned_pin_owners_to_the_new_instance) {
+  LibLibrary lib("instance_copy_owner_test");
+  auto* lib_cell = addCell(
+      lib, "copy_cell", {{"A", LibPort::LibertyPortType::kInput}});
+
+  Instance original("u_original", lib_cell);
+  auto* original_pin =
+      original.addPin("A", lib_cell->get_cell_port_or_port_bus("A"));
+  ASSERT_NE(original_pin, nullptr);
+  ASSERT_EQ(original_pin->get_own_instance(), &original);
+
+  Instance copied(original);
+  auto copied_pin = copied.getPin("A");
+  ASSERT_TRUE(copied_pin.has_value());
+  ASSERT_NE(*copied_pin, nullptr);
+  EXPECT_EQ((*copied_pin)->get_own_instance(), &copied);
+  EXPECT_NE((*copied_pin)->get_own_instance(), &original);
+}
+
+TEST_F(RestoredClusterTimingTest, moved_ports_preserve_capacitance_data) {
+  Port original("LOAD_IN", PortDir::kIn);
+  original.set_cap(AnalysisMode::kMax, TransType::kRise, 3.5);
+  original.set_cap(AnalysisMode::kMin, TransType::kFall, 1.25);
+
+  Port moved(std::move(original));
+  EXPECT_DOUBLE_EQ(moved.cap(AnalysisMode::kMax, TransType::kRise), 3.5);
+  EXPECT_DOUBLE_EQ(moved.cap(AnalysisMode::kMin, TransType::kFall), 1.25);
+
+  Port assigned("ASSIGNED_LOAD", PortDir::kOut);
+  assigned = std::move(moved);
+  EXPECT_DOUBLE_EQ(assigned.cap(AnalysisMode::kMax, TransType::kRise), 3.5);
+  EXPECT_DOUBLE_EQ(assigned.cap(AnalysisMode::kMin, TransType::kFall), 1.25);
 }
 
 }  // namespace

@@ -32,6 +32,7 @@ Port::Port(const char* name, PortDir port_dir)
 
 Port::Port(const Port& other)
     : DesignObject(other),
+      _caps(other._caps),
       _port_dir(other._port_dir),
       _net(other._net),
       _port_bus(other._port_bus),
@@ -40,6 +41,7 @@ Port::Port(const Port& other)
 
 Port::Port(Port&& other) noexcept
     : DesignObject(std::move(other)),
+      _caps(std::move(other._caps)),
       _port_dir(other._port_dir),
       _net(other._net),
       _port_bus(other._port_bus),
@@ -49,6 +51,7 @@ Port::Port(Port&& other) noexcept
 Port& Port::operator=(Port&& other) noexcept {
   if (this != &other) {
     DesignObject::operator=(std::move(other));
+    _caps = std::move(other._caps);
     _port_dir = other._port_dir;
     _net = other._net;
     _port_bus = other._port_bus;
