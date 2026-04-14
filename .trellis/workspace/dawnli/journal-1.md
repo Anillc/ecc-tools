@@ -835,3 +835,74 @@ Sanitized archived Trellis docs, rewrote cts_refactor history to remove targeted
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Characterization repair and real-tech validation
+
+**Date**: 2026-04-14
+**Task**: Characterization repair and real-tech validation
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+### Summary
+
+Delivered the real-tech characterization repair work for iCTS: max slew/cap resolution now follows the intended priority, wire-length semantics are aligned to unit-length iteration semantics, the char flow runs through a char-only `STAAdapter` path on shared iSTA/iPA infrastructure, and real-tech tests now cover segment char, exact/manual H-tree composition, fallback behavior, and regression safety.
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Characterization core | Reworked `CharBuilder` to resolve limits from config/liberty/table axes in the required order, use `wire_length_unit_um` + `wire_length_iterations`, enforce early-return on no-usable-buffer / unresolved-limit cases, and record runtime / frontier reporting for real-tech validation. |
+| H-tree composition | Fixed half-cap join semantics, updated hash-join pruning to group before prune, and refreshed H-tree join tests and reporting so exact/manual H-tree composition is inspectable on real-tech assets. |
+| STA / power adapter | Extended `STAAdapter` with char-only initialization, lightweight timing update, source-buffer slew annotation, scoped iPA power collection, and safe restore back to normal STA mode after characterization. |
+| External-module minimization | Kept external changes narrow to `TimingEngine`, `TimingIDBAdapter`, and `iIR` support needed for char-only timing / cleanup robustness, while preserving the normal design-flow entrypoints. |
+| Real-tech test cleanup | Removed old compatibility wrapper scaffolding, moved real-tech setup onto explicit asset/config plumbing, added real-tech smoke / exact / fallback characterization tests, and updated README + common support wiring. |
+| Regression closure | Rebuilt and validated the previously failing real-tech linear clustering exact-cap regressions, confirmed the crash was a stale-object build artifact, and re-ran both synthetic and real-tech clustering suites after the characterization changes. |
+
+**Key outcomes**:
+- Real-tech characterization reports now show non-zero power on active samples.
+- Manual `50 -> 100 -> 200` 3-level H-tree composition produces inspectable frontier and best-char reports.
+- Current `ecc_dev_tools` path-scoped and full-iCTS checks report `0` in-scope findings.
+- Linear clustering synthetic + real-tech regressions pass after the characterization refactor.
+
+**Validation**:
+- [OK] `python3 ./.trellis/ecc_dev_tools/check.py doctor`
+- [OK] `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS/source/database/adapter/sta --path src/operation/iCTS/source/module/characterization --path src/operation/iCTS/source/module/topology/linear_clustering --path src/operation/iCTS/test --no-fail-on-findings`
+- [OK] `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS --no-fail-on-findings --quiet`
+- [OK] `bin/icts_test_module_characterization`
+- [OK] `bin/icts_test_module_characterization_realtech` (`3 passed`, `1 skipped` because current assets do not expose table-axis-only fallback buffers)
+- [OK] `bin/icts_test_module_topology_linear_clustering`
+- [OK] `bin/icts_test_module_topology_linear_clustering_realtech`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2aa4e806e` | (see git log) |
+| `235085052` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
