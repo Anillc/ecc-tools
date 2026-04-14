@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": "scripts/design/ics55_gcd/script/iCTS_script/run_iCTS.tcl", "reason": "Use the existing ICS55 CTS script as the reference init sequence."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check that the public Tcl flow remains small and that initialization steps are explicit."}
