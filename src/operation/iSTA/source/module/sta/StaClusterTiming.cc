@@ -35,85 +35,66 @@ void StaClusterTiming::addHierSubNetlist() {
   std::vector<Netlist*> hier_sub_netlists;
   int cluster_index = 1;
   for (auto& cluster_instance : _cluster_instances) {
-    if (cluster_index >= 1 && cluster_index <= 1) {
-      if (cluster_instance.size() == 1) {
-        continue;
-      }
-      // _netlist.set_name(design_name);
-      auto* sub_netlist = new Netlist();
-      std::string design_name = "cluster" + std::to_string(cluster_index);
-      sub_netlist->set_name(design_name.c_str());
-
-      for (auto& instance_name : cluster_instance) {
-        auto* instance = design_netlist->findInstance(instance_name.c_str());
-        // the cluster_instance contains the port.
-        if (!instance) {
-          auto* port = design_netlist->findPort(instance_name.c_str());
-          if (!port) {
-            LOG_INFO << "Physical-use port, don't connect net";
-            continue;
-          }
-          // LOG_FATAL_IF(!port) << "Can not find inst/port according to
-          // cluster.";
-          auto* port_connect_net = port->get_net();
-          if (port_connect_net->isConnectedToAllPorts()) {
-            const char* port_connect_net_name = port_connect_net->get_name();
-            auto* the_net =
-                findRemainingNetConnectedPort(port_connect_net_name);
-            if (the_net) {
-              auto& new_port = addRemainingPortsConnectedPort(Port(
-                  port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
-              the_net->addPinPort(&new_port);
-            } else {
-              auto& new_net =
-                  addRemainingNetsConnectedPort(Net(port_connect_net_name));
-              auto& new_port = addRemainingPortsConnectedPort(Port(
-                  port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
-              new_net.addPinPort(&new_port);
-              // the_net = &new_net;
-            }
-          } else {
-            continue;
-          }
-        }
-
-        Instance new_inst(*instance);
-        // for debugging purposes.
-        // std::string inst_name = new_inst.get_name();
-        // if (inst_name.find("u0_soc_top/u_nutshell/mem_l2cacheOut_cache/"
-        //                    "dataArray/ram/placeFE_OFC146632_n23555") !=
-        //     std::string::npos) {
-        //   LOG_INFO << "Debug";
-        // }
-
-        bool is_boundary_instance =
-            isBoundaryInstance(new_inst, cluster_instance);
-        if (is_boundary_instance) {
-          addPortForBoundaryInstance(new_inst, cluster_instance, *sub_netlist);
-          sub_netlist->addInstance(std::move(new_inst));
-        } else {
-          addPortForSubnetlist(new_inst, *sub_netlist);
-          sub_netlist->addInstance(std::move(new_inst));
-        }
-      }
-      hier_sub_netlists.emplace_back(sub_netlist);
-
-      // for debugging purposes.
-      // std::cout << "cluster " << cluster_index << ": " << std::endl;
-      // std::cout << "_boundary_net_set: " << _boundary_net_set.size()
-      //           << std::endl;
-      // std::cout << "_boundary_pin_set: " << _boundary_pin_set.size()
-      //           << std::endl;
-      // std::cout << "_boundary_net_vector: " << _boundary_net_vector.size()
-      //           << std::endl;
-      // std::cout << "_boundary_pin_vector: " << _boundary_pin_vector.size()
-      //           << std::endl;
-      _cluster_boundary_net_set.push_back(_boundary_net_set.size());
-      _boundary_net_set.clear();
-      _boundary_pin_set.clear();
-      _boundary_net_vector.clear();
-      _boundary_pin_vector.clear();
+    if (cluster_instance.size() == 1) {
+      ++cluster_index;
+      continue;
     }
+    // _netlist.set_name(design_name);
+    auto* sub_netlist = new Netlist();
+    std::string design_name = "cluster" + std::to_string(cluster_index);
+    sub_netlist->set_name(design_name.c_str());
+
+    for (auto& instance_name : cluster_instance) {
+      auto* instance = design_netlist->findInstance(instance_name.c_str());
+      // the cluster_instance contains the port.
+      if (!instance) {
+        auto* port = design_netlist->findPort(instance_name.c_str());
+        if (!port) {
+          LOG_INFO << "Physical-use port, don't connect net";
+          continue;
+        }
+        // LOG_FATAL_IF(!port) << "Can not find inst/port according to
+        // cluster.";
+        auto* port_connect_net = port->get_net();
+        if (port_connect_net->isConnectedToAllPorts()) {
+          const char* port_connect_net_name = port_connect_net->get_name();
+          auto* the_net = findRemainingNetConnectedPort(port_connect_net_name);
+          if (the_net) {
+            auto& new_port = addRemainingPortsConnectedPort(
+                Port(port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
+            the_net->addPinPort(&new_port);
+          } else {
+            auto& new_net =
+                addRemainingNetsConnectedPort(Net(port_connect_net_name));
+            auto& new_port = addRemainingPortsConnectedPort(
+                Port(port->get_name(), dynamic_cast<Port*>(port)->get_port_dir()));
+            new_net.addPinPort(&new_port);
+            // the_net = &new_net;
+          }
+        } else {
+          continue;
+        }
+      }
+
+      Instance new_inst(*instance);
+
+      bool is_boundary_instance = isBoundaryInstance(new_inst, cluster_instance);
+      if (is_boundary_instance) {
+        addPortForBoundaryInstance(new_inst, cluster_instance, *sub_netlist);
+        sub_netlist->addInstance(std::move(new_inst));
+      } else {
+        addPortForSubnetlist(new_inst, *sub_netlist);
+        sub_netlist->addInstance(std::move(new_inst));
+      }
+    }
+    hier_sub_netlists.emplace_back(sub_netlist);
+
+    _cluster_boundary_net_set.push_back(_boundary_net_set.size());
+    _boundary_net_set.clear();
+    _boundary_pin_set.clear();
+    _boundary_net_vector.clear();
+    _boundary_pin_vector.clear();
+
     cluster_index++;
     // if (cluster_index == 2) {
     //   break;

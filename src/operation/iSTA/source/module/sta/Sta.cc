@@ -1665,6 +1665,12 @@ unsigned Sta::buildLibArcsGPU() {
         continue;
       }
 
+      if (table->getAxesSize() == 0) {
+        // Scalar tables do not have GPU LUT axes to export.
+        lib_gpu_arc._table[index] = gpu_table;
+        continue;
+      }
+
       // set the x axis.
       auto &x_axis = table->getAxis(0);
       auto &x_axis_values = x_axis.get_axis_values();

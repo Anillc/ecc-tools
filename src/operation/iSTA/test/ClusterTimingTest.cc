@@ -72,6 +72,8 @@ TEST_F(ClusterTimingTest, example1) {
 
   std::vector<Netlist*> hier_sub_netlists =
       ista->get_netlist()->get_hier_sub_netlists();
+  ASSERT_EQ(hier_sub_netlists.size(), 2U)
+      << "expected both multi-instance clusters to be emitted as subnetlists";
   ista->get_netlist()->writeVerilog(
       "/home/longshuaiying/cluster_timing_model/example1/verilog/"
       "example1_write2.v",
