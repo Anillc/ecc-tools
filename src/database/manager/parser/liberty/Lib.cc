@@ -1406,8 +1406,13 @@ std::vector<double> LibArcSet::getDelayOrConstrainCheckNs(TransType input_trans_
 {
   std::vector<double> values;
   bool is_flip = (input_trans_type == output_trans_type) ? false : true;
+  std::vector<LibArc*> candidate_arcs;
 
   for (auto& lib_arc : _arcs) {
+    if (lib_arc->isDisableArc()) {
+      continue;
+    }
+
     if (!lib_arc->isCheckArc()) {
       // skip timing sense not consistent
       if (is_flip && lib_arc->isPositiveArc()) {
@@ -1419,7 +1424,32 @@ std::vector<double> LibArcSet::getDelayOrConstrainCheckNs(TransType input_trans_
       }
     }
 
-    double find_value = lib_arc->getDelayOrConstrainCheckNs(output_trans_type, slew, load_or_constrain_slew);
+    candidate_arcs.push_back(lib_arc.get());
+  }
+
+  // Same-sense bundles are typically condition-specific variants plus a
+  // declared fallback arc. Preserve that declared default instead of blindly
+  // taking the numeric min/max across unsupported conditional arcs.
+  const bool use_declared_default_arc =
+      candidate_arcs.size() > 1 &&
+      std::ranges::all_of(candidate_arcs, [&](LibArc* lib_arc) {
+        auto* first_arc = candidate_arcs.front();
+        return lib_arc && first_arc &&
+               lib_arc->get_timing_type() == first_arc->get_timing_type() &&
+               lib_arc->isPositiveArc() == first_arc->isPositiveArc() &&
+               lib_arc->isNegativeArc() == first_arc->isNegativeArc() &&
+               lib_arc->isNonUnateArc() == first_arc->isNonUnateArc();
+      });
+
+  if (use_declared_default_arc) {
+    candidate_arcs = {candidate_arcs.back()};
+  }
+
+  for (auto* lib_arc : candidate_arcs) {
+
+    double find_value =
+        lib_arc->getDelayOrConstrainCheckNs(output_trans_type, slew,
+                                            load_or_constrain_slew);
     values.push_back(find_value);
   }
 
@@ -1443,8 +1473,13 @@ std::vector<double> LibArcSet::getSlewNs(TransType input_trans_type, TransType o
 {
   std::vector<double> values;
   bool is_flip = (input_trans_type == output_trans_type) ? false : true;
+  std::vector<LibArc*> candidate_arcs;
 
   for (auto& lib_arc : _arcs) {
+    if (lib_arc->isDisableArc()) {
+      continue;
+    }
+
     if (is_flip && lib_arc->isPositiveArc()) {
       continue;
     }
@@ -1452,6 +1487,29 @@ std::vector<double> LibArcSet::getSlewNs(TransType input_trans_type, TransType o
     if (!is_flip && lib_arc->isNegativeArc()) {
       continue;
     }
+
+    candidate_arcs.push_back(lib_arc.get());
+  }
+
+  // Same-sense bundles are typically condition-specific variants plus a
+  // declared fallback arc. Preserve that declared default instead of blindly
+  // taking the numeric min/max across unsupported conditional arcs.
+  const bool use_declared_default_arc =
+      candidate_arcs.size() > 1 &&
+      std::ranges::all_of(candidate_arcs, [&](LibArc* lib_arc) {
+        auto* first_arc = candidate_arcs.front();
+        return lib_arc && first_arc &&
+               lib_arc->get_timing_type() == first_arc->get_timing_type() &&
+               lib_arc->isPositiveArc() == first_arc->isPositiveArc() &&
+               lib_arc->isNegativeArc() == first_arc->isNegativeArc() &&
+               lib_arc->isNonUnateArc() == first_arc->isNonUnateArc();
+      });
+
+  if (use_declared_default_arc) {
+    candidate_arcs = {candidate_arcs.back()};
+  }
+
+  for (auto* lib_arc : candidate_arcs) {
 
     double find_value = lib_arc->getSlewNs(output_trans_type, slew, load);
     values.push_back(find_value);

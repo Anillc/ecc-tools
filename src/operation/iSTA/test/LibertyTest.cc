@@ -17,6 +17,9 @@
 
 // #include <gperftools/heap-profiler.h>
 
+#include <limits>
+#include <string_view>
+
 #include "api/TimingEngine.hh"
 #include "gtest/gtest.h"
 #include "liberty/Lib.hh"
@@ -148,6 +151,78 @@ TEST_F(LibertyTest, rust_reader_converts_ff_pin_cap_ranges_to_internal_pf) {
   EXPECT_NEAR(*min_rise_cap, 0.000553479, 1e-9);
   EXPECT_NEAR(*max_fall_cap, 0.000621396, 1e-9);
   EXPECT_NEAR(*min_fall_cap, 0.000554061, 1e-9);
+}
+
+TEST_F(LibertyTest,
+       rust_reader_same_sense_arc_sets_prefer_declared_default_arc) {
+  const char* lib_path =
+      "/home/zhaoxueyan/code/write-lib_back/benchmark/iccad24-benchmark/ASAP7/"
+      "lib/asap7sc7p5t_AO_RVT_FF_nldm_201020.lib";
+
+  Lib lib;
+  auto lib_rust_reader = lib.loadLibertyWithRustParser(lib_path);
+  lib_rust_reader.linkLib();
+  auto lib_library = lib_rust_reader.get_library_builder()->takeLib();
+
+  ASSERT_NE(lib_library, nullptr);
+  auto* lib_cell = lib_library->findCell("AOI22xp33_ASAP7_75t_R");
+  ASSERT_NE(lib_cell, nullptr);
+
+  LibArcSet* b2_to_y_arc_set = nullptr;
+  for (auto& cell_arc_set : lib_cell->get_cell_arcs()) {
+    auto* front_arc = cell_arc_set->front();
+    if (!front_arc) {
+      continue;
+    }
+    if (std::string_view(front_arc->get_src_port()) == "B2" &&
+        std::string_view(front_arc->get_snk_port()) == "Y") {
+      b2_to_y_arc_set = cell_arc_set.get();
+      break;
+    }
+  }
+
+  ASSERT_NE(b2_to_y_arc_set, nullptr);
+  ASSERT_GT(b2_to_y_arc_set->get_arcs().size(), 1U);
+
+  constexpr double kInputSlew = 0.015;
+  constexpr double kLoad = 0.36;
+
+  auto* default_arc = b2_to_y_arc_set->get_arcs().back().get();
+  ASSERT_NE(default_arc, nullptr);
+
+  const auto default_delay =
+      default_arc->getDelayOrConstrainCheckNs(TransType::kRise, kInputSlew,
+                                              kLoad);
+  const auto default_slew =
+      default_arc->getSlewNs(TransType::kRise, kInputSlew, kLoad);
+
+  double aggregated_min_delay = std::numeric_limits<double>::max();
+  double aggregated_min_slew = std::numeric_limits<double>::max();
+  for (auto& lib_arc_holder : b2_to_y_arc_set->get_arcs()) {
+    auto* lib_arc = lib_arc_holder.get();
+    ASSERT_NE(lib_arc, nullptr);
+    aggregated_min_delay = std::min(
+        aggregated_min_delay,
+        lib_arc->getDelayOrConstrainCheckNs(TransType::kRise, kInputSlew,
+                                            kLoad));
+    aggregated_min_slew = std::min(
+        aggregated_min_slew,
+        lib_arc->getSlewNs(TransType::kRise, kInputSlew, kLoad));
+  }
+
+  const auto arc_set_delay = b2_to_y_arc_set->getDelayOrConstrainCheckNs(
+      TransType::kFall, TransType::kRise, kInputSlew, kLoad);
+  const auto arc_set_slew =
+      b2_to_y_arc_set->getSlewNs(TransType::kFall, TransType::kRise,
+                                 kInputSlew, kLoad);
+
+  ASSERT_FALSE(arc_set_delay.empty());
+  ASSERT_FALSE(arc_set_slew.empty());
+
+  EXPECT_DOUBLE_EQ(arc_set_delay.back(), default_delay);
+  EXPECT_DOUBLE_EQ(arc_set_slew.back(), default_slew);
+  EXPECT_LT(aggregated_min_delay, default_delay);
+  EXPECT_LT(aggregated_min_slew, default_slew);
 }
 
 }  // namespace

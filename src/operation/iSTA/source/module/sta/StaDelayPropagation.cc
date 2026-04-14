@@ -122,7 +122,9 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
       auto in_slew = FS_TO_NS(in_slew_fs);
 
       if (the_arc->isInstArc()) {
-        auto* lib_arc = dynamic_cast<StaInstArc*>(the_arc)->get_lib_arc();
+        auto* inst_arc = dynamic_cast<StaInstArc*>(the_arc);
+        auto* lib_arc = inst_arc->get_lib_arc();
+        auto* lib_arc_set = inst_arc->get_lib_arc_set();
         const bool trace_arc = shouldTraceLibertyArc(src_vertex, snk_vertex);
         /*The check arc is the end of the recursion .*/
         if (the_arc->isCheckArc()) {
@@ -224,12 +226,15 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
           // fix the timing type not match the trans type, which would lead to
           // crash.
-          if (!lib_arc->isMatchTimingType(out_trans_type)) {
+          if (!lib_arc_set->isMatchTimingType(out_trans_type)) {
             continue;
           }
 
-          auto delay_ns = lib_arc->getDelayOrConstrainCheckNs(out_trans_type,
-                                                              in_slew, load);
+          auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(
+              trans_type, out_trans_type, in_slew, load);
+          auto delay_ns = analysis_mode == AnalysisMode::kMax
+                              ? delay_values.front()
+                              : delay_values.back();
           auto delay = NS_TO_FS(delay_ns);
 
           construct_delay_data(analysis_mode, out_trans_type, the_arc, delay,
@@ -240,11 +245,14 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
             // fix the timing type not match the trans type, which would lead to
             // crash.
-            if (!lib_arc->isMatchTimingType(out_trans_type1)) {
+            if (!lib_arc_set->isMatchTimingType(out_trans_type1)) {
               continue;
             }
-            auto delay1_ns = lib_arc->getDelayOrConstrainCheckNs(
-                out_trans_type1, in_slew, load);
+            auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(
+                trans_type, out_trans_type1, in_slew, load);
+            auto delay1_ns = analysis_mode == AnalysisMode::kMax
+                                 ? delay_values.front()
+                                 : delay_values.back();
             auto delay1 = NS_TO_FS(delay1_ns);
 
             construct_delay_data(analysis_mode, out_trans_type1, the_arc,

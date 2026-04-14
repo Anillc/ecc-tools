@@ -87,8 +87,6 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       // find the exist data.
       slew_data =
           own_vertex->getSlewData(delay_type, trans_type, src_slew_data);
-      slew_data->set_slew(slew);
-      slew_data->set_output_current_data(std::move(output_current_data));
     }
 
     if (!slew_data) {
@@ -154,6 +152,7 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       if (the_arc->isInstArc()) {
         auto* inst_arc = dynamic_cast<StaInstArc*>(the_arc);
         auto* lib_arc = inst_arc->get_lib_arc();
+        auto* lib_arc_set = inst_arc->get_lib_arc_set();
         auto* the_lib = lib_arc->get_owner_cell()->get_owner_lib();
 
         auto out_trans_type =
@@ -176,11 +175,15 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
         // fix the timing type not match the trans type, which would lead to
         // crash.
-        if (!lib_arc->isMatchTimingType(out_trans_type)) {
+        if (!lib_arc_set->isMatchTimingType(out_trans_type)) {
           continue;
         }
 
-        auto out_slew_ns = lib_arc->getSlewNs(out_trans_type, in_slew, load);
+        auto slew_values =
+            lib_arc_set->getSlewNs(trans_type, out_trans_type, in_slew, load);
+        auto out_slew_ns = analysis_mode == AnalysisMode::kMax
+                               ? slew_values.front()
+                               : slew_values.back();
 
         auto output_current =
             lib_arc->getOutputCurrent(out_trans_type, in_slew, load);
@@ -205,12 +208,15 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
           // fix the timing type not match the trans type, which would lead to
           // crash.
-          if (!lib_arc->isMatchTimingType(out_trans_type1)) {
+          if (!lib_arc_set->isMatchTimingType(out_trans_type1)) {
             continue;
           }
 
-          auto out_slew1_ns =
-              lib_arc->getSlewNs(out_trans_type1, in_slew, load);
+          auto slew_values = lib_arc_set->getSlewNs(trans_type, out_trans_type1,
+                                                    in_slew, load);
+          auto out_slew1_ns = analysis_mode == AnalysisMode::kMax
+                                  ? slew_values.front()
+                                  : slew_values.back();
 
           auto output_current1 =
               lib_arc->getOutputCurrent(out_trans_type1, in_slew, load);
