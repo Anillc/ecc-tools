@@ -906,3 +906,61 @@ Delivered the real-tech characterization repair work for iCTS: max slew/cap reso
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Implement CTS H-Tree flow
+
+**Date**: 2026-04-14
+**Task**: Implement CTS H-Tree flow
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Summary |
+|------|---------|
+| H-Tree flow | Added `flow/htree/HTreeBuilder` to synthesize H-tree topology, segment composition, buffering materialization, and result selection from `std::vector<Pin*>` sinks |
+| Characterization coupling | Reused `TopologyGen`, `CharBuilder`, `SegmentChar`, `BufferingPattern`, and topology composition to build H-tree chars level by level |
+| Config | Moved relaxed candidate cap into CTS config as `relaxed_candidates_per_boundary_group`, with default `0` meaning unlimited |
+| Visualization | Added H-tree real-tech smoke outputs for topology SVG, materialized H-tree SVG, Pareto plot, and report log |
+| Validation | Passed targeted build, unit tests, real-tech smoke tests, path-scoped `ecc_dev_tools`, and full `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS` |
+
+**Key Files**:
+- `src/operation/iCTS/source/flow/htree/HTreeBuilder.hh`
+- `src/operation/iCTS/source/flow/htree/HTreeBuilder.cc`
+- `src/operation/iCTS/test/flow/htree/HTreeBuilderRealTechSmokeTest.cc`
+- `src/operation/iCTS/test/flow/htree/HTreeVisualizationSupport.hh`
+- `src/operation/iCTS/test/flow/htree/HTreeVisualizationSupport.cc`
+- `src/operation/iCTS/source/database/config/Config.hh`
+- `src/operation/iCTS/source/database/config/Config.cc`
+- `src/operation/iCTS/test/module/characterization/support/CharacterizationRealTechTestSupport.hh`
+
+**Verification**:
+- `cmake --build build --target icts_test_flow_htree_realtech icts_test_module_characterization_realtech -j 4`
+- `./bin/icts_test_flow_htree`
+- `./bin/icts_test_module_characterization`
+- `timeout 300s ./bin/icts_test_module_characterization_realtech --gtest_filter=CharacterizationRealTechSmokeTest.ManualHTreeCompositionProducesInspectableReport`
+- `timeout 360s ./bin/icts_test_flow_htree_realtech --gtest_filter=HTreeBuilderRealTechSmokeTest.SynthesizesMaterializedHTreeFromRealClockLoads`
+- `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f082f7653` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
