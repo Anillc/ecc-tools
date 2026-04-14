@@ -19,10 +19,5 @@
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-
-  if (testing::GTEST_FLAG(filter).empty() ||
-      testing::GTEST_FLAG(filter) == "*") {
-    testing::GTEST_FLAG(filter) = "LibDataGPUTest.test*";
-  }
   return RUN_ALL_TESTS();
 }

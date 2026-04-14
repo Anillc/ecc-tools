@@ -44,7 +44,7 @@ Port::Port(Port&& other) noexcept
       _caps(std::move(other._caps)),
       _port_dir(other._port_dir),
       _net(other._net),
-      _port_bus(other._port_bus),
+      _port_bus(nullptr),
       _coordinate(std::move(other._coordinate)),
       _is_virtual_port(other._is_virtual_port) {}
 
@@ -54,7 +54,7 @@ Port& Port::operator=(Port&& other) noexcept {
     _caps = std::move(other._caps);
     _port_dir = other._port_dir;
     _net = other._net;
-    _port_bus = other._port_bus;
+    _port_bus = nullptr;
     _coordinate = std::move(other._coordinate);
     _is_virtual_port = other._is_virtual_port;
   }

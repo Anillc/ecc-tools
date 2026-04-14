@@ -316,6 +316,97 @@ TEST_F(RestoredClusterTimingTest,
 }
 
 TEST_F(RestoredClusterTimingTest,
+       boundary_outputs_keep_top_level_output_ports_connected_in_subnetlists) {
+  LibLibrary lib("cluster_top_output_restore_test");
+  auto* driver_cell = addCell(
+      lib, "driver_cell",
+      {{"A", LibPort::LibertyPortType::kInput},
+       {"Y", LibPort::LibertyPortType::kOutput}});
+  auto* helper_cell = addCell(
+      lib, "helper_cell", {{"I", LibPort::LibertyPortType::kInput}});
+  auto* sink_cell = addCell(
+      lib, "sink_cell", {{"I", LibPort::LibertyPortType::kInput}});
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+  auto* netlist = ista->get_netlist();
+  ASSERT_NE(netlist, nullptr);
+  netlist->set_name("top");
+
+  auto& top_in = netlist->addPort(Port("TOP_IN", PortDir::kIn));
+  auto& top_out = netlist->addPort(Port("TOP_OUT", PortDir::kOut));
+
+  auto& input_net = netlist->addNet(Net("input_net"));
+  auto& boundary_net = netlist->addNet(Net("boundary_net"));
+  auto& helper_net = netlist->addNet(Net("helper_net"));
+  input_net.addPinPort(&top_in);
+  boundary_net.addPinPort(&top_out);
+
+  auto& driver_inst = netlist->addInstance(Instance("u_driver", driver_cell));
+  auto* driver_in =
+      driver_inst.addPin("A", driver_cell->get_cell_port_or_port_bus("A"));
+  auto* driver_out =
+      driver_inst.addPin("Y", driver_cell->get_cell_port_or_port_bus("Y"));
+  input_net.addPinPort(driver_in);
+  boundary_net.addPinPort(driver_out);
+
+  auto& helper_inst = netlist->addInstance(Instance("u_helper", helper_cell));
+  auto* helper_pin =
+      helper_inst.addPin("I", helper_cell->get_cell_port_or_port_bus("I"));
+  helper_net.addPinPort(helper_pin);
+
+  auto& outside_sink = netlist->addInstance(Instance("u_sink", sink_cell));
+  auto* outside_sink_pin =
+      outside_sink.addPin("I", sink_cell->get_cell_port_or_port_bus("I"));
+  boundary_net.addPinPort(outside_sink_pin);
+
+  std::vector<std::set<std::string>> clusters = {{"u_driver", "u_helper"}};
+  StaClusterTiming sta_cluster_timing(std::move(clusters));
+  sta_cluster_timing.addHierSubNetlist();
+
+  auto hier_sub_netlists = netlist->get_hier_sub_netlists();
+  ASSERT_EQ(hier_sub_netlists.size(), 1U);
+  auto* subnetlist = hier_sub_netlists.front();
+  ASSERT_NE(subnetlist, nullptr);
+
+  auto* copied_top_out = subnetlist->findPort("TOP_OUT");
+  auto* copied_boundary_net = subnetlist->findNet("boundary_net");
+  ASSERT_NE(copied_top_out, nullptr);
+  ASSERT_NE(copied_boundary_net, nullptr);
+  EXPECT_TRUE(copied_boundary_net->isNetPinPort(copied_top_out))
+      << "expected copied top-level outputs to remain connected to the "
+         "boundary net inside the subnetlist";
+}
+
+TEST_F(RestoredClusterTimingTest,
+       moved_bus_ports_without_rebuilt_bus_drop_stale_bus_ownership) {
+  Netlist netlist;
+  netlist.set_name("moved_bus_port_top");
+
+  Port source_port("BUS_OUT[0]", PortDir::kOut);
+  PortBus source_bus("BUS_OUT", 0, 0, 1, PortDir::kOut);
+  source_bus.addPort(0, &source_port);
+
+  auto& moved_port = netlist.addPort(std::move(source_port));
+  EXPECT_EQ(moved_port.get_port_bus(), nullptr)
+      << "expected moved standalone bus-member ports to drop stale PortBus "
+         "ownership when the destination netlist does not rebuild the bus";
+
+  const fs::path output_path =
+      fs::temp_directory_path() / "ista_restored_moved_bus_port.v";
+  std::set<std::string> exclude_cell_names;
+  netlist.writeVerilog(output_path.c_str(), exclude_cell_names, false);
+
+  const auto verilog_text = readText(output_path);
+  EXPECT_NE(verilog_text.find("module moved_bus_port_top (\nBUS_OUT[0]"),
+            std::string::npos);
+  EXPECT_NE(verilog_text.find("output BUS_OUT[0] ;"), std::string::npos);
+
+  std::error_code ec;
+  fs::remove(output_path, ec);
+}
+
+TEST_F(RestoredClusterTimingTest,
        instance_copy_rebinds_cloned_pin_owners_to_the_new_instance) {
   LibLibrary lib("instance_copy_owner_test");
   auto* lib_cell = addCell(

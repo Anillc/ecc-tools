@@ -538,6 +538,7 @@ void StaClusterTiming::addPortForBoundaryInstance(
         isBoundaryNet(*connect_net, boundary_inst_own_cluster);
 
     std::list<DesignObject*> boundary_inst_remaining_pins;
+    std::list<Port*> copied_output_ports;
     Port virtual_port;
     Net virtual_net;
     Port* virtual_port_ptr = nullptr;
@@ -641,8 +642,8 @@ void StaClusterTiming::addPortForBoundaryInstance(
       for (auto& pin_port : pin_ports) {
         if (pin_port->isPort()) {
           Port* pin_port1 = dynamic_cast<Port*>(pin_port);
-          Port new_port = Port(*pin_port1);
-          subnetlist.addPort(std::move(new_port));
+          auto* copied_port = findOrCopySubnetPort(subnetlist, *pin_port1);
+          copied_output_ports.push_back(copied_port);
           continue;
         }
 
@@ -692,6 +693,10 @@ void StaClusterTiming::addPortForBoundaryInstance(
     }
 
     if (virtual_net_ptr) {
+      for (auto* copied_output_port : copied_output_ports) {
+        connectObjectToSubnetNet(*virtual_net_ptr, *copied_output_port);
+      }
+
       connectObjectToSubnetNet(*virtual_net_ptr, *pin);
 
       if (!boundary_inst_remaining_pins.empty()) {
@@ -718,6 +723,11 @@ void StaClusterTiming::addPortForBoundaryInstance(
         auto& created_net = subnetlist.addNet(std::move(new_net));
         the_net = &created_net;
       }
+
+      for (auto* copied_output_port : copied_output_ports) {
+        connectObjectToSubnetNet(*the_net, *copied_output_port);
+      }
+
       connectObjectToSubnetNet(*the_net, *pin);
 
       /**pin does not update the connecte net, connect the design netlist's
