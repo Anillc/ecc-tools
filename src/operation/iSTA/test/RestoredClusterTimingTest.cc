@@ -260,6 +260,48 @@ TEST_F(RestoredClusterTimingTest,
 }
 
 TEST_F(RestoredClusterTimingTest,
+       build_subnetlist_to_inst_preserves_copied_top_port_metadata) {
+  auto lib = std::make_unique<LibLibrary>("cluster_rebuild_port_metadata_test");
+  addCell(*lib, "cluster1",
+          {{"BUS_IN[0]", LibPort::LibertyPortType::kInput}});
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+  ista->addLib(std::move(lib));
+
+  auto* netlist = ista->get_netlist();
+  ASSERT_NE(netlist, nullptr);
+  netlist->set_name("top");
+
+  auto* subnetlist = new Netlist();
+  subnetlist->set_name("cluster1");
+  auto& bus_port = subnetlist->addPort(Port("BUS_IN[0]", PortDir::kIn));
+  bus_port.set_cap(AnalysisMode::kMax, TransType::kRise, 3.5);
+  bus_port.set_cap(AnalysisMode::kMin, TransType::kFall, 1.25);
+  PortBus bus("BUS_IN", 0, 0, 1, PortDir::kIn);
+  bus.addPort(0, &bus_port);
+  subnetlist->addPortBus(std::move(bus));
+  auto& bus_net = subnetlist->addNet(Net("bus_in_net"));
+  bus_net.addPinPort(&bus_port);
+
+  netlist->set_hier_sub_netlists({subnetlist});
+
+  StaClusterTiming sta_cluster_timing({});
+  sta_cluster_timing.buildSubnetlistToInst();
+
+  auto* rebuilt_port = netlist->findPort("BUS_IN[0]");
+  ASSERT_NE(rebuilt_port, nullptr);
+  EXPECT_DOUBLE_EQ(rebuilt_port->cap(AnalysisMode::kMax, TransType::kRise),
+                   3.5);
+  EXPECT_DOUBLE_EQ(rebuilt_port->cap(AnalysisMode::kMin, TransType::kFall),
+                   1.25);
+  ASSERT_NE(rebuilt_port->get_port_bus(), nullptr)
+      << "expected rebuild to preserve copied PortBus ownership";
+  EXPECT_EQ(std::string(rebuilt_port->get_port_bus()->get_name()), "BUS_IN");
+  ASSERT_NE(netlist->findPortBus("BUS_IN"), nullptr);
+}
+
+TEST_F(RestoredClusterTimingTest,
        build_subnetlist_to_inst_clears_stale_rc_net_cache_before_reset) {
   auto lib = std::make_unique<LibLibrary>("cluster_rebuild_rc_reset_test");
   addCell(*lib, "cluster1",

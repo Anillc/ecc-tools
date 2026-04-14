@@ -17,19 +17,30 @@
 
 #include "CharacterTimingTestCommon.hh"
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
+#include <memory>
 #include <set>
 #include <string>
 #include <system_error>
 
 #include "api/TimingEngine.hh"
 #include "gtest/gtest.h"
+#include "liberty/Lib.hh"
 #include "log/Log.hh"
+#include "netlist/Instance.hh"
 #include "netlist/Net.hh"
 #include "netlist/Netlist.hh"
+#include "netlist/Pin.hh"
 #include "netlist/Port.hh"
+#include "sta/StaArc.hh"
 #include "sta/Sta.hh"
+#include "sta/StaDelayPropagation.hh"
+#include "sta/StaSlewPropagation.hh"
+#include "sta/StaVertex.hh"
 
 using namespace ista;
 
@@ -50,6 +61,55 @@ std::string normalizeGeneratedVerilogText(std::string text) {
     text.erase(0, newline_pos + 1);
   }
   return text;
+}
+
+LibCell* addCell(
+    LibLibrary& lib, const char* cell_name,
+    std::initializer_list<std::pair<const char*, LibPort::LibertyPortType>>
+        ports) {
+  auto lib_cell = std::make_unique<LibCell>(cell_name, &lib);
+  auto* lib_cell_ptr = lib_cell.get();
+
+  for (const auto& [port_name, port_type] : ports) {
+    auto lib_port = std::make_unique<LibPort>(port_name);
+    lib_port->set_port_type(port_type);
+    lib_port->set_ower_cell(lib_cell_ptr);
+    lib_cell_ptr->addLibertyPort(std::move(lib_port));
+  }
+
+  lib.addLibertyCell(std::move(lib_cell));
+  return lib.findCell(cell_name);
+}
+
+std::unique_ptr<LibTable> makeScalarTable(LibTable::TableType type,
+                                          double value) {
+  auto table = std::make_unique<LibTable>(type, nullptr);
+  table->addTableValue(std::make_unique<LibFloatValue>(value));
+  return table;
+}
+
+std::unique_ptr<LibArc> makeScalarDelayArc(
+    LibCell* lib_cell, const char* src_port, const char* snk_port,
+    const char* timing_sense, double rise_delay, double fall_delay,
+    double rise_transition, double fall_transition) {
+  auto lib_arc = std::make_unique<LibArc>();
+  lib_arc->set_src_port(src_port);
+  lib_arc->set_snk_port(snk_port);
+  lib_arc->set_timing_type("combinational");
+  lib_arc->set_timing_sense(timing_sense);
+  lib_arc->set_owner_cell(lib_cell);
+
+  auto delay_model = std::make_unique<LibDelayTableModel>();
+  delay_model->addTable(
+      makeScalarTable(LibTable::TableType::kCellRise, rise_delay));
+  delay_model->addTable(
+      makeScalarTable(LibTable::TableType::kCellFall, fall_delay));
+  delay_model->addTable(
+      makeScalarTable(LibTable::TableType::kRiseTransition, rise_transition));
+  delay_model->addTable(
+      makeScalarTable(LibTable::TableType::kFallTransition, fall_transition));
+  lib_arc->set_table_model(std::move(delay_model));
+  return lib_arc;
 }
 
 class RestoredStaBehaviorTest : public testing::Test {
@@ -169,6 +229,117 @@ TEST(RestoredBehaviorTest, netlist_writer_writes_single_module_header) {
 
   std::error_code ec;
   fs::remove(output_path, ec);
+  Log::end();
+}
+
+TEST(RestoredBehaviorTest,
+     mixed_sense_arc_sets_propagate_both_output_transitions_on_data_paths) {
+  if (!Log::isInit()) {
+    char config[] = "test";
+    char* argv[] = {config};
+    Log::init(argv);
+  }
+  Sta::destroySta();
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+
+  LibLibrary lib("mixed_sense_arc_propagation_test");
+  auto* logic_cell = addCell(
+      lib, "logic_cell",
+      {{"A", LibPort::LibertyPortType::kInput},
+       {"Y", LibPort::LibertyPortType::kOutput}});
+  auto* load_cell =
+      addCell(lib, "load_cell", {{"I", LibPort::LibertyPortType::kInput}});
+  ASSERT_NE(logic_cell, nullptr);
+  ASSERT_NE(load_cell, nullptr);
+
+  auto* load_port =
+      dynamic_cast<LibPort*>(load_cell->get_cell_port_or_port_bus("I"));
+  ASSERT_NE(load_port, nullptr);
+  load_port->set_port_cap(0.25);
+
+  LibArcSet arc_set;
+  auto positive_arc = makeScalarDelayArc(logic_cell, "A", "Y", "positive_unate",
+                                         0.11, 0.12, 0.31, 0.32);
+  auto* positive_arc_ptr = positive_arc.get();
+  auto negative_arc = makeScalarDelayArc(logic_cell, "A", "Y", "negative_unate",
+                                         0.21, 0.22, 0.41, 0.42);
+  arc_set.addLibertyArc(std::move(positive_arc));
+  arc_set.addLibertyArc(std::move(negative_arc));
+
+  Instance logic_inst("u_logic", logic_cell);
+  auto* src_pin =
+      logic_inst.addPin("A", logic_cell->get_cell_port_or_port_bus("A"));
+  auto* snk_pin =
+      logic_inst.addPin("Y", logic_cell->get_cell_port_or_port_bus("Y"));
+  ASSERT_NE(src_pin, nullptr);
+  ASSERT_NE(snk_pin, nullptr);
+
+  Instance load_inst("u_load", load_cell);
+  auto* load_pin =
+      load_inst.addPin("I", load_cell->get_cell_port_or_port_bus("I"));
+  ASSERT_NE(load_pin, nullptr);
+
+  Net output_net("logic_y");
+  output_net.addPinPort(snk_pin);
+  output_net.addPinPort(load_pin);
+
+  StaVertex src_vertex(src_pin);
+  StaVertex snk_vertex(snk_pin);
+  src_vertex.initSlewData(NS_TO_FS(0.02), true);
+  auto* src_rise_slew =
+      src_vertex.getSlewData(AnalysisMode::kMax, TransType::kRise, nullptr);
+  ASSERT_NE(src_rise_slew, nullptr);
+
+  StaInstArc inst_arc(&src_vertex, &snk_vertex, positive_arc_ptr, &arc_set,
+                      &logic_inst);
+
+  StaSlewPropagation slew_propagation;
+  EXPECT_EQ(slew_propagation(&inst_arc), 1U);
+
+  auto* rise_slew =
+      snk_vertex.getSlewData(AnalysisMode::kMax, TransType::kRise, src_rise_slew);
+  auto* fall_slew =
+      snk_vertex.getSlewData(AnalysisMode::kMax, TransType::kFall, src_rise_slew);
+  ASSERT_NE(rise_slew, nullptr);
+  ASSERT_NE(fall_slew, nullptr);
+  EXPECT_DOUBLE_EQ(FS_TO_NS(rise_slew->get_slew()), 0.31);
+  EXPECT_DOUBLE_EQ(FS_TO_NS(fall_slew->get_slew()), 0.42);
+
+  StaDelayPropagation delay_propagation;
+  EXPECT_EQ(delay_propagation(&inst_arc), 1U);
+
+  std::vector<double> max_rise_delays_ns;
+  std::vector<double> max_fall_delays_ns;
+  auto has_delay = [](const std::vector<double>& values, double expected) {
+    return std::any_of(values.begin(), values.end(), [expected](double value) {
+      return std::abs(value - expected) < 1e-12;
+    });
+  };
+
+  StaArc* inst_arc_ptr = &inst_arc;
+  StaData* arc_delay_data = nullptr;
+  FOREACH_ARC_DELAY_DATA(inst_arc_ptr, arc_delay_data) {
+    if (arc_delay_data->get_delay_type() != AnalysisMode::kMax) {
+      continue;
+    }
+
+    auto delay_ns = FS_TO_NS(
+        dynamic_cast<StaArcDelayData*>(arc_delay_data)->get_arc_delay());
+    if (arc_delay_data->get_trans_type() == TransType::kRise) {
+      max_rise_delays_ns.push_back(delay_ns);
+    } else {
+      max_fall_delays_ns.push_back(delay_ns);
+    }
+  }
+
+  EXPECT_TRUE(has_delay(max_rise_delays_ns, 0.11));
+  EXPECT_TRUE(has_delay(max_rise_delays_ns, 0.21));
+  EXPECT_TRUE(has_delay(max_fall_delays_ns, 0.12));
+  EXPECT_TRUE(has_delay(max_fall_delays_ns, 0.22));
+
+  Sta::destroySta();
   Log::end();
 }
 

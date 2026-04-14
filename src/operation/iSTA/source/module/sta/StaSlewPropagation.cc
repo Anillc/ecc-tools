@@ -202,8 +202,9 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
                             NS_TO_FS(out_slew_ns), std::move(output_current),
                             slew_data);
 
-        /*The non-unate arc or tco should split two.*/
-        if (!lib_arc->isUnateArc() || src_vertex->is_clock()) {
+        /* Mixed-sense arc sets need both output transitions on data paths. */
+        if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() ||
+            src_vertex->is_clock()) {
           auto out_trans_type1 = flip_trans_type(trans_type);
 
           // fix the timing type not match the trans type, which would lead to

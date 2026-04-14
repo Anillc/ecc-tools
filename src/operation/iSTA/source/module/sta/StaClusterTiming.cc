@@ -331,13 +331,7 @@ void StaClusterTiming ::buildSubnetlistToInst() {
             created_net.addPinPort(inst_pin);
             the_net = &created_net;
           }
-          PortDir port_dir = port->get_port_dir();
-          auto* top_port = design_netlist->findPort(port_name);
-          if (!top_port) {
-            auto& created_port =
-                design_netlist->addPort(Port(port_name, port_dir));
-            top_port = &created_port;
-          }
+          auto* top_port = findOrCopySubnetPort(*design_netlist, *port);
           connectObjectToSubnetNet(*the_net, *top_port);
         }
 
