@@ -641,7 +641,7 @@ void writeLibertyCell(FILE* stream, LibCell* lib_cell,
     fprintf(stream, "%spin(\"%s\") {\n", indent, port_name.c_str());
     fprintf(stream, "%s  direction               : %s;\n", indent,
             getPortDirection(cell_port));
-    if (cell_port->get_is_clock()) {
+    if (cell_port->get_is_clock() || cell_port->get_is_clock_pin()) {
       fprintf(stream, "%s  clock                   : true;\n", indent);
     }
     fprintf(stream, "%s  capacitance             : %.8f;\n", indent,

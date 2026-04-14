@@ -592,6 +592,87 @@ TEST_F(LibertyWriterUnitTest,
             0U);
 }
 
+TEST_F(LibertyWriterUnitTest, writer_round_trips_parsed_clock_pin_flags) {
+  const auto input_path = writeTempLibertyFile(
+      "writer_round_trip_clock_pin.lib",
+      R"(library (round_trip_clock_pin_lib) {
+  time_unit : "1ns";
+  capacitive_load_unit (1,pf);
+  delay_model : table_lookup;
+  cell (round_trip_clock_pin_cell) {
+    pin ("CLK") {
+      direction : input;
+      clock : true;
+      capacitance : 0.00100000;
+    }
+    pin ("Y") {
+      direction : output;
+      function : "CLK";
+    }
+  }
+})");
+
+  ista::Lib lib;
+  auto lib_rust_reader = lib.loadLibertyWithRustParser(input_path.c_str());
+  ASSERT_EQ(lib_rust_reader.linkLib(), 1U);
+  auto lib_library = lib_rust_reader.get_library_builder()->takeLib();
+  ASSERT_NE(lib_library, nullptr);
+
+  const auto output_dir =
+      ista::test::defaultOutputRoot() / "writer_round_trip_clock_pin";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer clock-pin round-trip dir: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path =
+      output_dir / "writer_round_trip_clock_pin_export.lib";
+  lib_library->printLibertyLibrary(output_path.c_str());
+  const auto exported_text = ista::test::readFile(output_path);
+  const auto clock_pin_block = extractPinBlock(exported_text, "CLK");
+  ASSERT_FALSE(clock_pin_block.empty()) << "expected CLK pin block";
+
+  EXPECT_NE(clock_pin_block.find("clock                   : true;"),
+            std::string::npos)
+      << "expected round-tripped parsed clock pins to keep clock : true";
+}
+
+TEST_F(LibertyWriterUnitTest,
+       rust_parser_preserves_pin_function_expressions_in_memory) {
+  const auto input_path = writeTempLibertyFile(
+      "writer_round_trip_pin_function.lib",
+      R"(library (round_trip_function_lib) {
+  time_unit : "1ns";
+  capacitive_load_unit (1,pf);
+  delay_model : table_lookup;
+  cell (round_trip_function_cell) {
+    pin ("A") {
+      direction : input;
+      capacitance : 0.00100000;
+    }
+    pin ("Y") {
+      direction : output;
+      function : "A";
+    }
+  }
+})");
+
+  ista::Lib lib;
+  auto lib_rust_reader = lib.loadLibertyWithRustParser(input_path.c_str());
+  ASSERT_EQ(lib_rust_reader.linkLib(), 1U);
+  auto lib_library = lib_rust_reader.get_library_builder()->takeLib();
+  ASSERT_NE(lib_library, nullptr);
+
+  ASSERT_EQ(lib_library->get_cells().size(), 1U);
+  auto* lib_cell = lib_library->get_cells().front().get();
+  ASSERT_NE(lib_cell, nullptr);
+  auto* output_port = lib_cell->get_cell_port_or_port_bus("Y");
+  ASSERT_NE(output_port, nullptr);
+
+  EXPECT_NE(output_port->get_func_expr(), nullptr);
+  EXPECT_EQ(output_port->get_func_expr_str(), "A");
+}
+
 TEST_F(LibertyWriterUnitTest,
        writer_returns_cleanly_when_output_file_cannot_be_opened) {
   const auto output_path = ista::test::defaultOutputRoot() /
@@ -663,6 +744,50 @@ TEST_F(LibertyWriterUnitTest,
   EXPECT_TRUE(ista::test::containsLiteral(liberty_text, "bit_width : 8;"));
   EXPECT_EQ(bus_type_refs.size(), 2U)
       << "expected different-width buses to reference distinct bus types";
+}
+
+TEST_F(LibertyWriterUnitTest,
+       writer_emits_all_axis_indices_for_lut_templates) {
+  ista::LibLibrary lib("writer_high_dim_template_test");
+
+  auto lut_template =
+      std::make_unique<ista::LibLutTableTemplate>("writer_4d_template");
+  lut_template->set_template_variable1("input_net_transition");
+  lut_template->set_template_variable2("total_output_net_capacitance");
+  lut_template->set_template_variable3("time");
+  lut_template->set_template_variable4("output_voltage");
+
+  auto add_axis = [&](const char* axis_name, std::initializer_list<double> values) {
+    auto axis = std::make_unique<ista::LibAxis>(axis_name);
+    std::vector<std::unique_ptr<ista::LibAttrValue>> axis_values;
+    for (double value : values) {
+      axis_values.emplace_back(std::make_unique<ista::LibFloatValue>(value));
+    }
+    axis->set_axis_values(std::move(axis_values));
+    lut_template->addAxis(std::move(axis));
+  };
+
+  add_axis("index_1", {0.1, 0.2});
+  add_axis("index_2", {0.3, 0.4});
+  add_axis("index_3", {0.5, 0.6});
+  add_axis("index_4", {0.7, 0.8});
+  lib.addLutTemplate(std::move(lut_template));
+
+  const auto output_dir =
+      ista::test::defaultOutputRoot() / "writer_high_dim_template";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer high-dim template dir: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path = output_dir / "writer_high_dim_template_test.lib";
+  lib.printLibertyLibrary(output_path.c_str());
+  const auto liberty_text = ista::test::readFile(output_path);
+
+  EXPECT_NE(liberty_text.find("index_3(\"0.50000000, 0.60000000\");"),
+            std::string::npos);
+  EXPECT_NE(liberty_text.find("index_4(\"0.70000000, 0.80000000\");"),
+            std::string::npos);
 }
 
 TEST_F(LibertyWriterUnitTest, writer_emits_recovery_and_removal_checks) {

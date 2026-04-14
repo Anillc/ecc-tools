@@ -16,6 +16,8 @@ target_link_libraries(
   ista-engine
   idm
   eval_timing_api
+  py_ista
+  pybind11::embed
   inference
   sdc-cmd
   shell-cmd
