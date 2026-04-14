@@ -785,6 +785,7 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
   FILE* stream = std::fopen(lib_file_name, "w");
   if (!stream) {
     LOG_ERROR << "File " << lib_file_name << " NotWritable";
+    return;
   }
 
   LOG_INFO << "start write liberty file " << lib_file_name;

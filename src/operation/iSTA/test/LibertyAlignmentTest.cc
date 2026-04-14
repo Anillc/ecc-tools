@@ -593,6 +593,35 @@ TEST_F(LibertyWriterUnitTest,
 }
 
 TEST_F(LibertyWriterUnitTest,
+       writer_returns_cleanly_when_output_file_cannot_be_opened) {
+  const auto output_path = ista::test::defaultOutputRoot() /
+                           "writer_open_failure" / "missing_parent" /
+                           "writer_open_failure_test.lib";
+  std::error_code ec;
+  std::filesystem::remove_all(output_path.parent_path().parent_path(), ec);
+  ASSERT_FALSE(ec) << "failed to clean writer open failure test directory: "
+                   << output_path.parent_path().parent_path()
+                   << ", error=" << ec.message();
+  ASSERT_FALSE(std::filesystem::exists(output_path.parent_path()));
+
+  const auto output_path_str = output_path.string();
+  EXPECT_EXIT(
+      {
+        if (!Log::isInit()) {
+          char config[] = "test";
+          char* argv[] = {config};
+          Log::init(argv);
+        }
+        ista::LibLibrary lib("writer_open_failure_test");
+        lib.printLibertyLibrary(output_path_str.c_str());
+        std::_Exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+
+  EXPECT_FALSE(std::filesystem::exists(output_path));
+}
+
+TEST_F(LibertyWriterUnitTest,
        writer_preserves_distinct_bus_types_for_different_widths) {
   ista::LibLibrary lib("writer_bus_type_width_test");
 

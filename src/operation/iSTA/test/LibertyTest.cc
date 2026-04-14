@@ -60,6 +60,21 @@ std::unique_ptr<ista::LibArc> makeScalarDelayArcWithWhen(
   return lib_arc;
 }
 
+std::unique_ptr<ista::LibArc> makeScalarDelayArcWithWhenAndSlew(
+    ista::LibCell* lib_cell, const char* src_port, const char* snk_port,
+    double cell_rise_value, double rise_transition_value,
+    const char* when = nullptr) {
+  auto lib_arc =
+      makeScalarDelayArcWithWhen(lib_cell, src_port, snk_port, cell_rise_value,
+                                 when);
+  auto* delay_model =
+      dynamic_cast<ista::LibDelayTableModel*>(lib_arc->get_table_model());
+  EXPECT_NE(delay_model, nullptr);
+  delay_model->addTable(makeScalarTable(ista::LibTable::TableType::kRiseTransition,
+                                        rise_transition_value));
+  return lib_arc;
+}
+
 class LibertyTest : public testing::Test {
   void SetUp() {
     char config[] = "test";
@@ -273,6 +288,32 @@ TEST_F(LibertyTest,
   ASSERT_EQ(values.size(), 2U);
   EXPECT_DOUBLE_EQ(values[0], 0.20);
   EXPECT_DOUBLE_EQ(values[1], 0.10);
+}
+
+TEST_F(LibertyTest,
+       same_sense_arc_sets_prefer_declared_default_arc_regardless_of_order) {
+  ista::LibLibrary lib("same_sense_fallback_any_order");
+  auto lib_cell = std::make_unique<ista::LibCell>("same_sense_cell", &lib);
+  auto* lib_cell_ptr = lib_cell.get();
+  lib.addLibertyCell(std::move(lib_cell));
+
+  ista::LibArcSet arc_set;
+  arc_set.addLibertyArc(makeScalarDelayArcWithWhenAndSlew(
+      lib_cell_ptr, "A", "Y", 0.10, 0.30));
+  arc_set.addLibertyArc(makeScalarDelayArcWithWhenAndSlew(
+      lib_cell_ptr, "A", "Y", 0.20, 0.40, "COND1"));
+  arc_set.addLibertyArc(makeScalarDelayArcWithWhenAndSlew(
+      lib_cell_ptr, "A", "Y", 0.25, 0.45, "COND2"));
+
+  const auto delay_values = arc_set.getDelayOrConstrainCheckNs(
+      TransType::kRise, TransType::kRise, 0.01, 0.36);
+  const auto slew_values =
+      arc_set.getSlewNs(TransType::kRise, TransType::kRise, 0.01, 0.36);
+
+  ASSERT_EQ(delay_values.size(), 1U);
+  EXPECT_DOUBLE_EQ(delay_values.front(), 0.10);
+  ASSERT_EQ(slew_values.size(), 1U);
+  EXPECT_DOUBLE_EQ(slew_values.front(), 0.30);
 }
 
 }  // namespace

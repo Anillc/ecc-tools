@@ -100,21 +100,36 @@ bool isSameTimingSenseBundle(const std::vector<LibArc*>& candidate_arcs)
          });
 }
 
-bool hasDeclaredFallbackArc(const std::vector<LibArc*>& candidate_arcs)
+LibArc* findDeclaredFallbackArc(const std::vector<LibArc*>& candidate_arcs)
 {
   if (candidate_arcs.size() <= 1) {
-    return false;
+    return nullptr;
   }
 
-  auto* fallback_arc = candidate_arcs.back();
-  if (!fallback_arc || !fallback_arc->get_when().empty()) {
-    return false;
+  LibArc* fallback_arc = nullptr;
+  for (auto* lib_arc : candidate_arcs) {
+    if (!lib_arc) {
+      return nullptr;
+    }
+
+    if (lib_arc->get_when().empty()) {
+      if (fallback_arc) {
+        return nullptr;
+      }
+      fallback_arc = lib_arc;
+    }
   }
 
-  return std::ranges::all_of(candidate_arcs.begin(), candidate_arcs.end() - 1,
-                             [](LibArc* lib_arc) {
-                               return lib_arc && !lib_arc->get_when().empty();
-                             });
+  if (!fallback_arc) {
+    return nullptr;
+  }
+
+  return std::ranges::all_of(candidate_arcs, [fallback_arc](LibArc* lib_arc) {
+           return lib_arc &&
+                  (lib_arc == fallback_arc || !lib_arc->get_when().empty());
+         })
+             ? fallback_arc
+             : nullptr;
 }
 
 }  // namespace
@@ -1476,14 +1491,14 @@ std::vector<double> LibArcSet::getDelayOrConstrainCheckNs(TransType input_trans_
     candidate_arcs.push_back(lib_arc.get());
   }
 
-  // Same-sense bundles should only collapse when the last arc is a real
-  // unconditional fallback for earlier conditional arcs.
-  const bool use_declared_default_arc =
-      isSameTimingSenseBundle(candidate_arcs) &&
-      hasDeclaredFallbackArc(candidate_arcs);
+  // Same-sense bundles should only collapse when they contain one real
+  // unconditional fallback arc for otherwise-conditional declarations.
+  auto* declared_default_arc = isSameTimingSenseBundle(candidate_arcs)
+                                   ? findDeclaredFallbackArc(candidate_arcs)
+                                   : nullptr;
 
-  if (use_declared_default_arc) {
-    candidate_arcs = {candidate_arcs.back()};
+  if (declared_default_arc) {
+    candidate_arcs = {declared_default_arc};
   }
 
   for (auto* lib_arc : candidate_arcs) {
@@ -1532,14 +1547,14 @@ std::vector<double> LibArcSet::getSlewNs(TransType input_trans_type, TransType o
     candidate_arcs.push_back(lib_arc.get());
   }
 
-  // Same-sense bundles should only collapse when the last arc is a real
-  // unconditional fallback for earlier conditional arcs.
-  const bool use_declared_default_arc =
-      isSameTimingSenseBundle(candidate_arcs) &&
-      hasDeclaredFallbackArc(candidate_arcs);
+  // Same-sense bundles should only collapse when they contain one real
+  // unconditional fallback arc for otherwise-conditional declarations.
+  auto* declared_default_arc = isSameTimingSenseBundle(candidate_arcs)
+                                   ? findDeclaredFallbackArc(candidate_arcs)
+                                   : nullptr;
 
-  if (use_declared_default_arc) {
-    candidate_arcs = {candidate_arcs.back()};
+  if (declared_default_arc) {
+    candidate_arcs = {declared_default_arc};
   }
 
   for (auto* lib_arc : candidate_arcs) {
