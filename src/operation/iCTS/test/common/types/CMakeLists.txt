@@ -1,7 +1,11 @@
-add_library(icts_test_common_types INTERFACE)
+add_library(
+  icts_test_common_types
+  STATIC
+  ${ICTS_TEST}/common/types/TestDataTypes.cc
+)
 
 target_link_libraries(
   icts_test_common_types
-  INTERFACE
+  PUBLIC
   icts_test_base
 )

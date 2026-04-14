@@ -47,7 +47,7 @@ class Config
   auto operator=(Config&& rhs) -> Config& = delete;
 
   // Initialize from config file
-  auto init(const std::string& config_file) -> void { parse(config_file); }
+  auto init(const std::string& config_file) -> void;
 
   // Reset to default values
   auto reset() -> void
@@ -56,13 +56,20 @@ class Config
     _max_buf_tran = 1.5;
     _max_sink_tran = 1.5;
     _max_cap = 1.5;
+    _has_max_buf_tran = false;
+    _has_max_cap = false;
     _max_fanout = 32;
+    // Kept as a config placeholder for compatibility with existing JSONs.
     _max_length = 300;
+    // Active wire-length lattice controls used by characterization.
+    _wire_length_unit_um = 0.0;
+    _wire_length_iterations = 0;
     _routing_layers.clear();
     _buffer_types.clear();
     _slew_steps = 20;
     _cap_steps = 20;
-    _length_steps = 20;
+    _max_pattern_nodes = 8;
+    _wire_width = 0.0;
     _char_buf_redundancy_pct = 0.0;
     _work_dir = "./result/cts";
     _output_def_path = "./result/cts/output";
@@ -77,10 +84,13 @@ class Config
   auto get_max_buf_tran() const -> double { return _max_buf_tran; }
   auto get_max_sink_tran() const -> double { return _max_sink_tran; }
   auto get_max_cap() const -> double { return _max_cap; }
+  auto has_max_buf_tran() const -> bool { return _has_max_buf_tran; }
+  auto has_max_cap() const -> bool { return _has_max_cap; }
   auto get_max_length() const -> double { return _max_length; }
+  auto get_wire_length_unit_um() const -> double { return _wire_length_unit_um; }
+  auto get_wire_length_iterations() const -> unsigned { return _wire_length_iterations; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
-  auto get_length_steps() const -> unsigned { return _length_steps; }
   auto get_max_pattern_nodes() const -> unsigned { return _max_pattern_nodes; }
   auto get_wire_width() const -> double { return _wire_width; }
   auto get_max_fanout() const -> unsigned { return _max_fanout; }
@@ -98,13 +108,22 @@ class Config
 
   // algorithm
   auto set_skew_bound(double skew_bound) -> void { _skew_bound = skew_bound; }
-  auto set_max_buf_tran(double max_buf_tran) -> void { _max_buf_tran = max_buf_tran; }
+  auto set_max_buf_tran(double max_buf_tran) -> void
+  {
+    _max_buf_tran = max_buf_tran;
+    _has_max_buf_tran = true;
+  }
   auto set_max_sink_tran(double max_sink_tran) -> void { _max_sink_tran = max_sink_tran; }
-  auto set_max_cap(double max_cap) -> void { _max_cap = max_cap; }
+  auto set_max_cap(double max_cap) -> void
+  {
+    _max_cap = max_cap;
+    _has_max_cap = true;
+  }
   auto set_max_length(double max_length) -> void { _max_length = max_length; }
+  auto set_wire_length_unit_um(double wire_length_unit_um) -> void { _wire_length_unit_um = wire_length_unit_um; }
+  auto set_wire_length_iterations(unsigned wire_length_iterations) -> void { _wire_length_iterations = wire_length_iterations; }
   auto set_slew_steps(unsigned steps) -> void { _slew_steps = steps; }
   auto set_cap_steps(unsigned steps) -> void { _cap_steps = steps; }
-  auto set_length_steps(unsigned steps) -> void { _length_steps = steps; }
   auto set_max_pattern_nodes(unsigned nodes) -> void { _max_pattern_nodes = nodes; }
   auto set_wire_width(double wire_width) -> void { _wire_width = wire_width; }
   auto set_max_fanout(unsigned max_fanout) -> void { _max_fanout = max_fanout; }
@@ -132,10 +151,13 @@ class Config
   double _max_buf_tran = 0.0;
   double _max_sink_tran = 0.0;
   double _max_cap = 0.0;
-  double _max_length = 0.0;
+  bool _has_max_buf_tran = false;
+  bool _has_max_cap = false;
+  double _max_length = 0.0;              // Placeholder knob (not step-based slicing).
+  double _wire_length_unit_um = 0.0;     // Active base unit for wire-length lattice.
+  unsigned _wire_length_iterations = 0;  // Active iteration count for wire-length lattice.
   unsigned _slew_steps = 20;
   unsigned _cap_steps = 20;
-  unsigned _length_steps = 20;
   unsigned _max_pattern_nodes = 8;
   double _wire_width = 0.0;
   unsigned _max_fanout = 32;

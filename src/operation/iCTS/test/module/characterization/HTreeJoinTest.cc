@@ -66,7 +66,7 @@ TEST(HTreeJoinTest, HalfCapJoin)
   EXPECT_EQ(merged.get_pattern_id().domain, icts::PatternDomain::kTopologyPattern);
 }
 
-TEST(HTreeJoinTest, OddCapHalving)
+TEST(HTreeJoinTest, OddCapHalvingUsesCeilHalfBin)
 {
   icts::HTreeTopologyCharTable upstream;
   icts::HTreeTopologyCharTable downstream;
@@ -75,11 +75,16 @@ TEST(HTreeJoinTest, OddCapHalving)
                                           support::kPower0p5, support::HTreeShape{.pattern_id = support::kPattern1, .levels = 1}));
   downstream.addChar(support::MakeHTreeChar(support::kSlew100, support::kSlew120, support::kCap50, support::kCap60, support::kDelay2p0,
                                             support::kPower0p3, support::HTreeShape{.pattern_id = support::kPattern2, .levels = 1}));
+  downstream.addChar(support::MakeHTreeChar(support::kSlew100, support::kSlew130, support::kCap51, support::kCap70, support::kDelay3p0,
+                                            support::kPower0p4, support::HTreeShape{.pattern_id = support::kPattern3, .levels = 1}));
 
   const icts::TopologyPatternCombiner combiner(support::kBoundaryKey);
   auto result = upstream.concatWith(downstream, combiner);
 
   EXPECT_EQ(result.size(), 1U);
+  EXPECT_EQ(result.get_chars().front().get_output_slew_idx(), support::kSlew130);
+  EXPECT_EQ(result.get_chars().front().get_driven_cap_idx(), support::kCap40);
+  EXPECT_EQ(result.get_chars().front().get_load_cap_idx(), support::kCap70);
 }
 
 TEST(HTreeJoinTest, PowerDoubling)

@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -83,17 +84,88 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
     return;
   }
 
+  if constexpr (!std::is_same_v<PrunerT, NullPruner>) {
+    if (pruner != nullptr) {
+      std::unordered_map<unsigned, std::size_t> group_to_index;
+      std::vector<std::vector<CharT>> grouped_out;
+      grouped_out.reserve(out.size());
+
+      for (auto& existing : out) {
+        unsigned group = pruner->groupKey(existing);
+        auto [it, inserted] = group_to_index.emplace(group, grouped_out.size());
+        if (inserted) {
+          grouped_out.emplace_back();
+        }
+        grouped_out[it->second].push_back(std::move(existing));
+      }
+      out.clear();
+
+      // Build phase: hash downstream entries by buildKey
+      std::unordered_map<unsigned, std::vector<std::size_t>> index;
+      index.reserve(downstream.size());
+      for (std::size_t i = 0; i < downstream.size(); ++i) {
+        index[Traits::buildKey(downstream[i])].push_back(i);
+      }
+
+      for (const auto& up : upstream) {
+        unsigned key = Traits::probeKey(up);
+        auto it = index.find(key);
+        if (it == index.end()) {
+          continue;
+        }
+
+        for (std::size_t di : it->second) {
+          const auto& down = downstream[di];
+          PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
+          CharT result = Traits::compose(up, down, merged_pid);
+          const unsigned group = pruner->groupKey(result);
+
+          auto [group_it, inserted] = group_to_index.emplace(group, grouped_out.size());
+          if (inserted) {
+            grouped_out.emplace_back();
+          }
+          auto& frontier = grouped_out[group_it->second];
+
+          bool dominated = false;
+          for (const auto& existing : frontier) {
+            if (pruner->dominates(existing, result)) {
+              dominated = true;
+              break;
+            }
+          }
+          if (dominated) {
+            continue;
+          }
+
+          auto new_end = std::remove_if(frontier.begin(), frontier.end(),
+                                        [&](const CharT& existing) -> bool { return pruner->dominates(result, existing); });
+          frontier.erase(new_end, frontier.end());
+          frontier.push_back(std::move(result));
+        }
+      }
+
+      std::size_t total_size = 0;
+      for (const auto& group_entries : grouped_out) {
+        total_size += group_entries.size();
+      }
+      out.reserve(total_size);
+      for (auto& group_entries : grouped_out) {
+        for (auto& entry : group_entries) {
+          out.push_back(std::move(entry));
+        }
+      }
+      return;
+    }
+  }
+
   // Build phase: hash downstream entries by buildKey
   std::unordered_map<unsigned, std::vector<std::size_t>> index;
-  index.reserve(downstream.size());  // Reduce rehashing
+  index.reserve(downstream.size());
   for (std::size_t i = 0; i < downstream.size(); ++i) {
     index[Traits::buildKey(downstream[i])].push_back(i);
   }
 
-  // Estimate output size for reserve (assume ~1 match per upstream on average)
   out.reserve(out.size() + upstream.size());
-
-  // Probe phase: probe upstream against index
   for (const auto& up : upstream) {
     unsigned key = Traits::probeKey(up);
     auto it = index.find(key);
@@ -104,33 +176,7 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
     for (std::size_t di : it->second) {
       const auto& down = downstream[di];
       PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
-      CharT result = Traits::compose(up, down, merged_pid);
-
-      // Apply pruning if enabled
-      if constexpr (!std::is_same_v<PrunerT, NullPruner>) {
-        if (pruner != nullptr) {
-          // Simple Pareto check: skip if dominated by existing in same group
-          // Full implementation would maintain frontier per group
-          bool dominated = false;
-          unsigned group = pruner->groupKey(result);
-          for (const auto& existing : out) {
-            if (pruner->groupKey(existing) == group && pruner->dominates(existing, result)) {
-              dominated = true;
-              break;
-            }
-          }
-          if (dominated) {
-            continue;
-          }
-          // Remove entries dominated by new result
-          auto new_end = std::remove_if(out.begin(), out.end(), [&](const CharT& existing) -> auto {
-            return pruner->groupKey(existing) == group && pruner->dominates(result, existing);
-          });
-          out.erase(new_end, out.end());
-        }
-      }
-
-      out.push_back(std::move(result));
+      out.push_back(Traits::compose(up, down, merged_pid));
     }
   }
 }

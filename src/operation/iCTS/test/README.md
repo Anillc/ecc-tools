@@ -14,7 +14,7 @@ so feature-specific tests can link only the pieces they need.
 - `test/common/logging/`: scoped logging redirection helpers
 - `test/common/linear_clustering/metrics/`: cluster geometry and metrics helpers
 - `test/common/linear_clustering/artifact/`: cluster-to-artifact materialization helpers
-- `test/common/realtech/asset/`: hardcoded ICS55 asset probing and environment bootstrap
+- `test/common/realtech/asset/`: repo-local ICS55 workspace probing and environment bootstrap
 - `test/common/realtech/load/`: real-design load extraction and synthetic fallback generation
 - `test/common/realtech/support/`: cached real-tech setup state and shared load-selection helpers
 
@@ -43,8 +43,9 @@ so feature-specific tests can link only the pieces they need.
 - `icts_test_module_topology_linear_clustering_synthetic_*`: synthetic linear-clustering support targets
 - `icts_test_module_topology_linear_clustering_realtech_*`: real-tech linear-clustering shared/scenario support targets
 
-The real-tech linear-clustering flow probes hardcoded ICS55 asset paths derived
-from `scripts/design/ics55_dev/script/iCTS_script/run_iCTS_dev.tcl`. If the
+The real-tech test helpers probe repo-local ICS55 workspaces under
+`scripts/design/` and resolve the ICS55 PDK root from
+`ICTS_REALTECH_PDK_DIR`, `PDK_DIR`, or the checked-in run scripts. If the
 required LEF/DEF/LIB/SDC files are available, the tests load real tech/design
 state once and run on real design loads. Otherwise they fall back to synthetic
 loads while keeping the same report pipeline.

@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -32,6 +33,15 @@
 #include "SegmentChar.hh"
 
 namespace icts {
+
+struct CharBufferInfo
+{
+  std::string cell_master;
+  double max_cap_pf = 0.0;  // Drive-strength proxy used for ordering and fallback selection.
+  double input_cap_pf = 0.0;
+  std::string input_pin;
+  std::string output_pin;
+};
 
 /**
  * @brief Builds segment characterization entries by enumerating buffering
@@ -46,77 +56,91 @@ class CharBuilder
   CharBuilder() = default;
   ~CharBuilder() = default;
 
-  // Main flow
   auto init() -> void;
   auto build() -> void;
 
-  // Results
   auto get_segment_chars() const -> const std::vector<SegmentChar>& { return _segment_chars; }
   auto get_buffering_patterns() const -> const std::vector<BufferingPattern>& { return _buffering_patterns; }
+  auto get_wire_lengths_um() const -> const std::vector<double>& { return _wire_lengths_um; }
+  auto get_wire_length_unit_um() const -> double { return _length_unit_um; }
+  auto get_wire_length_iterations() const -> unsigned { return _wire_length_iterations; }
+  auto get_max_slew() const -> double { return _max_slew; }
+  auto get_max_cap() const -> double { return _max_cap; }
+  auto get_slew_steps() const -> unsigned { return _slew_steps; }
+  auto get_cap_steps() const -> unsigned { return _cap_steps; }
+
+  struct WireLengthBuildStat
+  {
+    double wire_length_um = 0.0;
+    std::size_t estimated_patterns = 0;
+    std::size_t estimated_sta_samples = 0;
+    std::size_t evaluated_patterns = 0;
+    std::size_t feasible_patterns = 0;
+    std::size_t skipped_patterns_infeasible = 0;
+    std::size_t skipped_load_points = 0;
+    std::size_t skipped_sta_samples = 0;
+    std::size_t executed_sta_samples = 0;
+    std::size_t added_segment_chars = 0;
+    std::size_t added_patterns = 0;
+    double elapsed_ms = 0.0;
+  };
+  auto get_wire_length_stats() const -> const std::vector<WireLengthBuildStat>& { return _wire_length_stats; }
 
  private:
-  // Initialization helpers
-  auto initBufferList() -> void;
-  auto initCharParams() -> void;
-
-  // Pattern enumeration
   struct TopologyBits
   {
-    unsigned value = 0U;
+    std::uint64_t value = 0U;
   };
 
-  auto enumerateWireLength(double wire_length_um) -> void;
-  auto enumerateTopology(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> void;
-  static auto isMonotonic(const std::vector<std::size_t>& buf_indices) -> bool;
+  auto calcBufferSlotCount(double wire_length_um) const -> unsigned;
+  static auto countSelectedSlots(TopologyBits topology_bits) -> unsigned;
+  auto estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t;
+  auto enumerateWireLength(double wire_length_um, WireLengthBuildStat& build_stat) -> void;
+  auto enumerateTopology(double wire_length_um, unsigned num_slots, TopologyBits topology_bits, WireLengthBuildStat& build_stat) -> void;
   static auto getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t;
   static auto advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool;
 
-  // Characterization circuit construction & measurement
   struct TopologyDesc
   {
-    std::vector<double> wire_segments_um;       // wire length per segment (um)
-    std::vector<std::size_t> buffer_positions;  // node indices that have buffers
+    std::vector<double> wire_segments_um;
+    std::vector<std::size_t> buffer_positions;
   };
 
-  static auto buildTopologyDesc(double wire_length_um, unsigned num_nodes, TopologyBits topology_bits) -> TopologyDesc;
-  auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
+  struct PatternFeasibility
+  {
+    bool is_pattern_feasible = false;
+    double max_load_pf = 0.0;
+  };
+
+  auto buildTopologyDesc(double wire_length_um, unsigned num_slots, TopologyBits topology_bits) const -> TopologyDesc;
+  auto analyzePatternFeasibility(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) const -> PatternFeasibility;
+  auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, WireLengthBuildStat& build_stat) -> void;
   auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
   auto setCharParasitics(const TopologyDesc& topo, double load_pf) -> void;
   auto destroyCharCircuit() -> void;
 
-  // Discretization: physical value → bin index in [1, steps]
   static auto discretize(double value, double max_value, unsigned steps) -> unsigned;
 
-  // Sorted buffer list (ascending max_cap)
-  struct BufferInfo
-  {
-    std::string cell_master;
-    double max_cap_pf;       // max capacitance limit (pF) -- proxy for drive strength
-    double input_cap_pf;     // input pin capacitance (pF)
-    std::string input_pin;   // input port name
-    std::string output_pin;  // output port name
-  };
-  std::vector<BufferInfo> _sorted_buffers;
+  auto findBufferInfo(const std::string& cell_master) const -> const CharBufferInfo*;
+  std::vector<CharBufferInfo> _sorted_buffers;
 
-  // Characterization parameters (from Config)
-  std::vector<double> _wire_lengths_um;              // wire lengths to enumerate (um)
-  std::vector<double> _slews_to_test;                // input slew values (ns)
-  std::vector<double> _loads_to_test;                // output load values (pF)
-  unsigned _max_nodes = 4;                           // max nodes per wire segment
-  int _routing_layer = 1;                            // routing layer for wire R/C
-  std::optional<double> _wire_width = std::nullopt;  // absent = default width
-  double _redundancy_pct = 0.0;                      // buffer near-neighbor removal threshold
+  // Physical sweep grids kept in user units before discretization.
+  std::vector<double> _wire_lengths_um;
+  std::vector<double> _slews_to_test;
+  std::vector<double> _loads_to_test;
+  unsigned _max_nodes = 8;
+  int _routing_layer = 1;
+  std::optional<double> _wire_width = std::nullopt;
+  double _max_slew = 0.0;
+  double _max_cap = 0.0;
+  double _max_length = 0.0;
+  double _length_unit_um = 0.0;
+  unsigned _slew_steps = 20;
+  unsigned _cap_steps = 20;
+  unsigned _wire_length_iterations = 20;
 
-  // Max values and steps for discretization (from Config)
-  double _max_slew = 0.0;       // max slew (ns)
-  double _max_cap = 0.0;        // max capacitance (pF)
-  double _max_length = 0.0;     // max wire length (um)
-  unsigned _slew_steps = 20;    // number of slew bins
-  unsigned _cap_steps = 20;     // number of cap bins
-  unsigned _length_steps = 20;  // number of length bins
-
-  // Temporary circuit tracking
   std::string _source_inst_name;
+  std::string _source_in_pin;
   std::string _sink_inst_name;
   std::string _source_out_pin;
   std::string _sink_in_pin;
@@ -126,9 +150,9 @@ class CharBuilder
   std::string _char_clock_name;
   unsigned _char_circuit_id = 0;
 
-  // Results
   std::vector<SegmentChar> _segment_chars;
   std::vector<BufferingPattern> _buffering_patterns;
+  std::vector<WireLengthBuildStat> _wire_length_stats;
   unsigned _next_pattern_id = 0;
 };
 

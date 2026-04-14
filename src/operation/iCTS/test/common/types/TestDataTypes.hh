@@ -28,7 +28,9 @@
 #include <string>
 #include <vector>
 
-#include "database/design/Pin.hh"
+namespace icts {
+class Pin;
+}
 
 namespace icts_test {
 
@@ -40,6 +42,13 @@ struct InfoReport
 
 struct GeneratedPins
 {
+  GeneratedPins() = default;
+  ~GeneratedPins();
+  GeneratedPins(GeneratedPins&&) noexcept;
+  auto operator=(GeneratedPins&&) noexcept -> GeneratedPins&;
+  GeneratedPins(const GeneratedPins&) = delete;
+  auto operator=(const GeneratedPins&) -> GeneratedPins& = delete;
+
   std::vector<std::unique_ptr<icts::Pin>> storage;
   std::vector<icts::Pin*> loads;
   int width = 0;

@@ -34,7 +34,7 @@ namespace icts {
 /**
  * @brief Table of H-tree topology characterizations.
  *
- * Supports Hash-Join based concatenation with /2 cap transform.
+ * Supports Hash-Join based concatenation with half-cap key mapping.
  */
 class HTreeTopologyCharTable
 {
@@ -71,7 +71,7 @@ class HTreeTopologyCharTable
    *
    * Join condition (with transform):
    * - this.output_slew == downstream.input_slew
-   * - floor(this.load_cap / 2) == downstream.driven_cap
+   * - halfCapKey(this.load_cap_idx) == downstream.driven_cap_idx
    *
    * @tparam CombinerT Pattern combiner type
    * @tparam PrunerT Pruner type (default: NullPruner for no pruning)

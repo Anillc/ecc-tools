@@ -42,7 +42,9 @@
 #include "sta/StaApplySdc.hh"
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaBuildRCTree.hh"
+#include "sta/StaCheck.hh"
 #include "sta/StaClockPropagation.hh"
+#include "sta/StaClockSlewDelayPropagation.hh"
 #include "sta/StaClockTree.hh"
 #include "sta/StaConstPropagation.hh"
 #include "sta/StaDataPropagation.hh"
@@ -698,6 +700,32 @@ TimingEngine& TimingEngine::incrUpdateTiming() {
   });
 
   _incr_func.applyBwdQueue();
+
+  return *this;
+}
+
+TimingEngine& TimingEngine::prepareCharTiming() {
+  resetGraphData();
+  resetPathData();
+  return *this;
+}
+
+TimingEngine& TimingEngine::updateCharTiming() {
+  StaGraph& the_graph = _ista->get_graph();
+  // Characterization graphs are built incrementally and are not part of the
+  // full-design endpoint set used by the DFS slew/delay propagators. Always
+  // run the clock-root BFS propagation here so char-only subgraphs are
+  // traversed from the injected source clock vertex.
+  Vector<std::function<unsigned(StaGraph*)>> funcs = {
+      StaConstPropagation(),
+      StaClockPropagation(StaClockPropagation::PropType::kIdealClockProp),
+      StaCombLoopCheck(),
+      StaClockSlewDelayPropagation(),
+      StaClockPropagation(StaClockPropagation::PropType::kNormalClockProp)};
+
+  for (auto& func : funcs) {
+    the_graph.exec(func);
+  }
 
   return *this;
 }

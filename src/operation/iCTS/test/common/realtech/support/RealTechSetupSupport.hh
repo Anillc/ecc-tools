@@ -18,7 +18,7 @@
  * @file RealTechSetupSupport.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Public facade for shared real-tech setup helpers used by linear-clustering tests.
+ * @brief Shared real-tech setup helpers used by iCTS real-tech tests.
  */
 
 #pragma once
@@ -44,7 +44,8 @@ struct RealTechSetupState
   bool assets_available = false;
   bool setup_succeeded = false;
   std::filesystem::path output_dir;
-  std::filesystem::path config_path;
+  std::filesystem::path flow_script_path;
+  std::filesystem::path cts_config_path;
   std::string source_label;
   std::string summary;
 };

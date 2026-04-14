@@ -33,13 +33,19 @@ namespace icts {
  *
  * Join condition (with deterministic transform):
  * - upstream.output_slew == downstream.input_slew
- * - floor(upstream.load_cap / 2) == downstream.driven_cap
+ * - halfCapKey(upstream.load_cap_idx) == downstream.driven_cap_idx
  *
- * The /2 transform accounts for H-tree binary fan-out:
- * each upstream segment drives TWO downstream branches.
+ * The half-cap transform accounts for binary fan-out.
  */
 struct HTreeTraits
 {
+  static auto halfCapKey(unsigned load_cap_idx) -> unsigned
+  {
+    // CharBuilder uses a uniform cap lattice, so remapping physical load/2
+    // onto the same lattice reduces to ceil(idx / 2).
+    return (load_cap_idx + 1U) / 2U;
+  }
+
   /**
    * @brief Build key from downstream entry.
    *
@@ -50,11 +56,13 @@ struct HTreeTraits
   /**
    * @brief Probe key from upstream entry.
    *
-   * Key = pack(output_slew_idx, load_cap_idx / 2)
-   *
-   * NOTE: Integer division (floor) for cap halving.
+   * Key = pack(output_slew_idx, half-load cap key)
    */
-  static auto probeKey(const HTreeTopologyChar& c) -> unsigned { return detail::Pack(c.get_output_slew_idx(), c.get_load_cap_idx() / 2); }
+  static auto probeKey(const HTreeTopologyChar& c) -> unsigned
+  {
+    const unsigned half_cap_key = halfCapKey(c.get_load_cap_idx());
+    return detail::Pack(c.get_output_slew_idx(), half_cap_key);
+  }
 
   /**
    * @brief Compose upstream and downstream into merged result.

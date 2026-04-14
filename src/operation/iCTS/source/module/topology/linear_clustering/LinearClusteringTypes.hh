@@ -28,13 +28,7 @@
 #include <limits>
 #include <vector>
 
-#if __has_include("spatial/Point.hh")
 #include "spatial/Point.hh"
-#elif __has_include("operation/iCTS/source/database/spatial/Point.hh")
-#include "operation/iCTS/source/database/spatial/Point.hh"
-#else
-#error "LinearClusteringTypes.hh requires Point.hh from the iCTS spatial database headers."
-#endif
 
 namespace icts {
 

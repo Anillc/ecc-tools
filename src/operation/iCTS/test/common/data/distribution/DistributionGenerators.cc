@@ -27,21 +27,16 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <memory>
 #include <random>
 #include <string>
-#include <type_traits>
 #include <vector>
 
-#include "Pin.hh"
+#include "Pin.hh"  // IWYU pragma: keep
 #include "common/data/pin_factory/PinFactory.hh"
-#include "common/types/TestDataTypes.hh"
 #include "database/spatial/Point.hh"
 
 namespace icts_test::common::data::distribution {
 namespace {
-
-static_assert(std::is_same_v<decltype(GeneratedPins::storage), std::vector<std::unique_ptr<icts::Pin>>>);
 
 constexpr double kNormalMeanRatio = 0.5;
 constexpr double kNormalSigmaRatio = 0.18;

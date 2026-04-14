@@ -24,6 +24,7 @@
  */
 #include "iIR.hh"
 
+#include <mutex>
 #include <optional>
 #include <string_view>
 
@@ -40,7 +41,8 @@ namespace iir {
  * @return unsigned
  */
 unsigned iIR::init() {
-  init_iir();
+  static std::once_flag init_flag;
+  std::call_once(init_flag, []() { init_iir(); });
   return 1;
 }
 

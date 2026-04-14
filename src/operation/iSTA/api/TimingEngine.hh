@@ -252,6 +252,8 @@ class TimingEngine {
       const char* rc_tree_name);
 
   TimingEngine &incrUpdateTiming();
+  TimingEngine &prepareCharTiming();
+  TimingEngine &updateCharTiming();
 
   TimingEngine &updateTiming() {
     updateAllRCTree();

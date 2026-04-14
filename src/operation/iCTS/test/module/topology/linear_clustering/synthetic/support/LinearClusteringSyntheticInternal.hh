@@ -32,29 +32,9 @@
 #include <unordered_map>
 #include <vector>
 
-#if __has_include("module/topology/config/TopologyConfig.hh")
 #include "module/topology/config/TopologyConfig.hh"
-#elif __has_include("operation/iCTS/source/module/topology/config/TopologyConfig.hh")
-#include "operation/iCTS/source/module/topology/config/TopologyConfig.hh"
-#else
-#error "LinearClusteringSyntheticInternal.hh requires TopologyConfig.hh from the iCTS topology config headers."
-#endif
-
-#if __has_include("module/topology/linear_clustering/LinearClusteringTypes.hh")
 #include "module/topology/linear_clustering/LinearClusteringTypes.hh"
-#elif __has_include("operation/iCTS/source/module/topology/linear_clustering/LinearClusteringTypes.hh")
-#include "operation/iCTS/source/module/topology/linear_clustering/LinearClusteringTypes.hh"
-#else
-#error "LinearClusteringSyntheticInternal.hh requires LinearClusteringTypes.hh from the iCTS linear clustering headers."
-#endif
-
-#if __has_include("module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh")
 #include "module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh"
-#elif __has_include("operation/iCTS/test/module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh")
-#include "operation/iCTS/test/module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh"
-#else
-#error "LinearClusteringSyntheticInternal.hh requires LinearClusteringSyntheticShared.hh from the iCTS synthetic test helpers."
-#endif
 
 namespace icts {
 class Pin;

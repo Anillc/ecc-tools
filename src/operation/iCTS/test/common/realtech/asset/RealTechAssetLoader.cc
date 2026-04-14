@@ -23,12 +23,17 @@
 
 #include "common/realtech/asset/RealTechAssetLoader.hh"
 
-#include <cstddef>
+#include <array>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include "common/io/TestArtifactIO.hh"
@@ -45,7 +50,10 @@ namespace {
 
 struct RealTechAssets
 {
-  std::filesystem::path config_path;
+  std::filesystem::path workspace_path;
+  std::filesystem::path pdk_root_path;
+  std::filesystem::path flow_script_path;
+  std::filesystem::path cts_config_path;
   std::filesystem::path tech_lef_path;
   std::vector<std::filesystem::path> lef_paths;
   std::filesystem::path def_path;
@@ -54,32 +62,207 @@ struct RealTechAssets
   std::filesystem::path output_dir;
 };
 
-constexpr std::string_view kIcs55WorkspacePath = "/home/liweiguo/project/ecc-tools-dev/scripts/design/ics55_dev";
-constexpr std::string_view kIcs55PdkPath = "/home/liweiguo/PDK/icsprout55-pdk";
-constexpr std::string_view kIcs55FlowScriptPath
-    = "/home/liweiguo/project/ecc-tools-dev/scripts/design/ics55_dev/script/iCTS_script/run_iCTS_dev.tcl";
+constexpr std::string_view kRealTechWorkspaceEnv = "ICTS_REALTECH_WORKSPACE";
+constexpr std::string_view kRealTechPdkEnv = "ICTS_REALTECH_PDK_DIR";
+constexpr std::string_view kLegacyPdkEnv = "PDK_DIR";
+constexpr std::array<std::string_view, 2> kDefaultWorkspaceRelPaths = {
+    "scripts/design/ics55_dev",
+    "scripts/design/ics55_gcd",
+};
+constexpr std::array<std::string_view, 2> kFlowScriptRelPaths = {
+    "script/iCTS_script/run_iCTS_dev.tcl",
+    "script/iCTS_script/run_iCTS.tcl",
+};
+constexpr std::string_view kRunScriptRelPath = "run_iEDA.sh";
+constexpr std::string_view kCtsConfigRelPath = "iEDA_config/cts_default_config.json";
+
+auto TrimAscii(const std::string& text) -> std::string
+{
+  const auto begin = text.find_first_not_of(" \t\r\n");
+  if (begin == std::string::npos) {
+    return {};
+  }
+  const auto end = text.find_last_not_of(" \t\r\n");
+  return text.substr(begin, end - begin + 1U);
+}
+
+auto StripWrappingQuotes(std::string text) -> std::string
+{
+  text = TrimAscii(text);
+  if (text.size() >= 2U) {
+    const char first = text.front();
+    const char last = text.back();
+    if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+      text = text.substr(1U, text.size() - 2U);
+    }
+  }
+  return TrimAscii(text);
+}
+
+auto ReadEnvPath(std::string_view env_name) -> std::filesystem::path
+{
+  const auto env_key = std::string(env_name);
+  const char* env_value = std::getenv(env_key.c_str());
+  return (env_value != nullptr && *env_value != '\0') ? std::filesystem::path(env_value) : std::filesystem::path{};
+}
+
+auto ResolveRepoRootFromSource() -> std::filesystem::path
+{
+  auto current = std::filesystem::absolute(std::filesystem::path(__FILE__)).parent_path();
+  while (!current.empty()) {
+    if (std::filesystem::exists(current / "scripts") && std::filesystem::exists(current / "src")) {
+      return current;
+    }
+    const auto parent = current.parent_path();
+    if (parent == current) {
+      break;
+    }
+    current = parent;
+  }
+  return {};
+}
+
+auto ResolveExistingPath(const std::filesystem::path& base_path, const std::array<std::string_view, 2>& relative_candidates)
+    -> std::filesystem::path
+{
+  for (const auto& relative_path : relative_candidates) {
+    const auto candidate = base_path / relative_path;
+    if (std::filesystem::exists(candidate)) {
+      return candidate;
+    }
+  }
+  return base_path / relative_candidates.front();
+}
+
+auto TryParseShellExport(const std::filesystem::path& script_path, std::string_view variable_name) -> std::filesystem::path
+{
+  std::ifstream input_stream(script_path);
+  if (!input_stream) {
+    return {};
+  }
+
+  const std::string expected_prefix = "export " + std::string(variable_name) + "=";
+  std::string line;
+  while (std::getline(input_stream, line)) {
+    auto trimmed_line = TrimAscii(line);
+    if (!trimmed_line.starts_with(expected_prefix)) {
+      continue;
+    }
+    return StripWrappingQuotes(trimmed_line.substr(expected_prefix.size()));
+  }
+  return {};
+}
+
+auto TryParseTclSet(const std::filesystem::path& script_path, std::string_view variable_name) -> std::filesystem::path
+{
+  std::ifstream input_stream(script_path);
+  if (!input_stream) {
+    return {};
+  }
+
+  std::string line;
+  while (std::getline(input_stream, line)) {
+    auto trimmed_line = TrimAscii(line);
+    if (!trimmed_line.starts_with("set ")) {
+      continue;
+    }
+
+    std::istringstream line_stream(trimmed_line);
+    std::string set_keyword;
+    std::string parsed_name;
+    line_stream >> set_keyword >> parsed_name;
+    if (parsed_name != variable_name) {
+      continue;
+    }
+
+    std::string value;
+    std::getline(line_stream, value);
+    return StripWrappingQuotes(value);
+  }
+  return {};
+}
+
+auto ResolvePdkRootPath(const std::filesystem::path& workspace_path) -> std::filesystem::path
+{
+  const auto absolutize_to_workspace = [&workspace_path](std::filesystem::path candidate_path) -> std::filesystem::path {
+    if (!candidate_path.empty() && candidate_path.is_relative()) {
+      candidate_path = std::filesystem::absolute(workspace_path / candidate_path);
+    }
+    return candidate_path;
+  };
+
+  if (const auto explicit_pdk_root = ReadEnvPath(kRealTechPdkEnv); !explicit_pdk_root.empty()) {
+    return explicit_pdk_root;
+  }
+  if (const auto legacy_pdk_root = ReadEnvPath(kLegacyPdkEnv); !legacy_pdk_root.empty()) {
+    return legacy_pdk_root;
+  }
+
+  if (const auto run_script_pdk = TryParseShellExport(workspace_path / kRunScriptRelPath, "PDK_DIR"); !run_script_pdk.empty()) {
+    return absolutize_to_workspace(run_script_pdk);
+  }
+
+  if (const auto flow_script = ResolveExistingPath(workspace_path, kFlowScriptRelPaths); std::filesystem::exists(flow_script)) {
+    return absolutize_to_workspace(TryParseTclSet(flow_script, "PDK_DIR"));
+  }
+
+  return {};
+}
+
+auto BuildAssetsFromWorkspace(const std::filesystem::path& workspace_path) -> std::optional<RealTechAssets>
+{
+  if (workspace_path.empty()) {
+    return std::nullopt;
+  }
+
+  RealTechAssets assets;
+  assets.workspace_path = workspace_path;
+  assets.pdk_root_path = ResolvePdkRootPath(workspace_path);
+  assets.flow_script_path = ResolveExistingPath(workspace_path, kFlowScriptRelPaths);
+  assets.cts_config_path = workspace_path / kCtsConfigRelPath;
+  assets.tech_lef_path = assets.pdk_root_path / "prtech/techLEF/N551P6M_ecos.lef";
+  assets.lef_paths = {
+      assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef",
+      assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef",
+  };
+  assets.def_path = workspace_path / "result/iPL_result.def";
+  assets.lib_paths = {
+      assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib",
+      assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib",
+  };
+  assets.sdc_path = workspace_path / "default.sdc";
+  assets.output_dir = workspace_path / "result";
+  return assets;
+}
 
 auto CollectCandidateAssets() -> std::vector<RealTechAssets>
 {
-  const std::filesystem::path workspace(kIcs55WorkspacePath);
-  const std::filesystem::path pdk_dir(kIcs55PdkPath);
+  std::vector<RealTechAssets> candidates;
+  std::set<std::string> seen_workspaces;
 
-  RealTechAssets assets;
-  assets.config_path = std::filesystem::path(kIcs55FlowScriptPath);
-  assets.tech_lef_path = pdk_dir / "prtech/techLEF/N551P6M_ecos.lef";
-  assets.lef_paths = {
-      pdk_dir / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef",
-      pdk_dir / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef",
-  };
-  assets.def_path = workspace / "result/iPL_result.def";
-  assets.lib_paths = {
-      pdk_dir / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib",
-      pdk_dir / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib",
-  };
-  assets.sdc_path = workspace / "default.sdc";
-  assets.output_dir = workspace / "result";
+  auto append_workspace = [&](const std::filesystem::path& workspace_path) -> void {
+    if (workspace_path.empty()) {
+      return;
+    }
+    const auto normalized_workspace = std::filesystem::absolute(workspace_path).lexically_normal();
+    if (!seen_workspaces.insert(normalized_workspace.string()).second) {
+      return;
+    }
 
-  return {assets};
+    if (auto assets = BuildAssetsFromWorkspace(normalized_workspace); assets.has_value()) {
+      candidates.push_back(std::move(*assets));
+    }
+  };
+
+  append_workspace(ReadEnvPath(kRealTechWorkspaceEnv));
+
+  if (const auto repo_root = ResolveRepoRootFromSource(); !repo_root.empty()) {
+    for (const auto& relative_workspace : kDefaultWorkspaceRelPaths) {
+      append_workspace(repo_root / relative_workspace);
+    }
+  }
+
+  return candidates;
 }
 
 auto ValidateAssets(const RealTechAssets& assets, std::string& error) -> bool
@@ -91,7 +274,10 @@ auto ValidateAssets(const RealTechAssets& assets, std::string& error) -> bool
     }
   };
 
-  check_file("flow_script", assets.config_path);
+  check_file("workspace", assets.workspace_path);
+  check_file("pdk_root", assets.pdk_root_path);
+  check_file("flow_script", assets.flow_script_path);
+  check_file("cts_config", assets.cts_config_path);
   check_file("tech_lef", assets.tech_lef_path);
   check_file("def", assets.def_path);
   check_file("sdc", assets.sdc_path);
@@ -128,6 +314,12 @@ auto ValidateAssets(const RealTechAssets& assets, std::string& error) -> bool
 
 auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> bool
 {
+  if (assets.cts_config_path.empty() || !std::filesystem::exists(assets.cts_config_path)) {
+    error = "cts config is missing: " + assets.cts_config_path.string();
+    return false;
+  }
+  CONFIG_INST.init(assets.cts_config_path.string());
+
   const std::vector<std::string> tech_lef_paths = {assets.tech_lef_path.string()};
   if (!dmInst->readLef(tech_lef_paths, true)) {
     error = "readLef(tech) failed";
@@ -206,28 +398,29 @@ auto BuildRealTechSetupState() -> RealTechSetupState
   std::vector<std::string> probe_errors;
   const auto candidates = CollectCandidateAssets();
   for (const auto& assets : candidates) {
-    const auto& flow_script_path = assets.config_path;
+    const auto& workspace_path = assets.workspace_path;
 
     std::string validation_error;
     if (!ValidateAssets(assets, validation_error)) {
-      probe_errors.emplace_back(flow_script_path.string() + " invalid: " + validation_error);
+      probe_errors.emplace_back(workspace_path.string() + " invalid: " + validation_error);
       continue;
     }
 
     state.assets_available = true;
-    state.config_path = flow_script_path;
+    state.flow_script_path = assets.flow_script_path;
+    state.cts_config_path = assets.cts_config_path;
 
     std::string load_error;
     if (LoadRealTechAssets(assets, load_error)) {
       state.mode = RealTechMode::kRealTech;
       state.setup_succeeded = true;
-      state.source_label = "real_tech:" + flow_script_path.string();
-      state.summary = "loaded real tech/design from ICS55 flow paths rooted at " + flow_script_path.string();
+      state.source_label = "real_tech:" + workspace_path.string();
+      state.summary = "loaded real tech/design from workspace " + workspace_path.string();
       CTS_LOG_INFO << "RealTechSetup: " << state.summary;
       return state;
     }
 
-    probe_errors.emplace_back(flow_script_path.string() + " load failed: " + load_error);
+    probe_errors.emplace_back(workspace_path.string() + " load failed: " + load_error);
   }
 
   std::ostringstream summary;
@@ -242,7 +435,7 @@ auto BuildRealTechSetupState() -> RealTechSetupState
     }
     summary << ")";
   } else {
-    summary << " (hardcoded ICS55 flow paths are unavailable)";
+    summary << " (no real-tech workspace candidates were found)";
   }
   state.mode = RealTechMode::kSyntheticFallback;
   state.source_label = "synthetic_fallback";

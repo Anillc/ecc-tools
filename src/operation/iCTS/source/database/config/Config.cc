@@ -220,6 +220,12 @@ auto ApplyNetListIfPresent(const nlohmann::json& json, Config& config) -> void
 
 }  // namespace
 
+auto Config::init(const std::string& config_file) -> void
+{
+  reset();
+  parse(config_file);
+}
+
 auto Config::parse(const std::string& json_file) -> void
 {
   std::ifstream ifs(json_file);
@@ -235,10 +241,13 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyDoubleIfPresent(json, "max_buf_tran", *this, &Config::get_max_buf_tran, &Config::set_max_buf_tran);
   ApplyDoubleIfPresent(json, "max_sink_tran", *this, &Config::get_max_sink_tran, &Config::set_max_sink_tran);
   ApplyDoubleIfPresent(json, "max_cap", *this, &Config::get_max_cap, &Config::set_max_cap);
+  // max_length remains parseable as a placeholder knob; active lattice comes
+  // from wire_length_unit_um + wire_length_iterations.
   ApplyDoubleIfPresent(json, "max_length", *this, &Config::get_max_length, &Config::set_max_length);
+  ApplyDoubleIfPresent(json, "wire_length_unit_um", *this, &Config::get_wire_length_unit_um, &Config::set_wire_length_unit_um);
+  ApplyUnsignedIfPresent(json, "wire_length_iterations", *this, &Config::get_wire_length_iterations, &Config::set_wire_length_iterations);
   ApplyUnsignedIfPresent(json, "slew_steps", *this, &Config::get_slew_steps, &Config::set_slew_steps);
   ApplyUnsignedIfPresent(json, "cap_steps", *this, &Config::get_cap_steps, &Config::set_cap_steps);
-  ApplyUnsignedIfPresent(json, "length_steps", *this, &Config::get_length_steps, &Config::set_length_steps);
   ApplyUnsignedIfPresent(json, "max_pattern_nodes", *this, &Config::get_max_pattern_nodes, &Config::set_max_pattern_nodes);
   ApplyDoubleIfPresent(json, "wire_width", *this, &Config::get_wire_width, &Config::set_wire_width);
   ApplyUnsignedIfPresent(json, "max_fanout", *this, &Config::get_max_fanout, &Config::set_max_fanout);

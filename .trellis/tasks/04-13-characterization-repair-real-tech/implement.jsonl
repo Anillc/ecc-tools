@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide constraints for iCTS files and validation."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Adapter and singleton boundaries for STAAdapter and Config interactions."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, includes, dependency visibility, and validation expectations."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer checklist for Config/liberty/STAAdapter/module/test changes."}

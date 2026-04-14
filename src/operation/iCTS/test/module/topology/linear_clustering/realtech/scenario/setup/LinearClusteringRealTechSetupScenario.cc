@@ -74,6 +74,12 @@ auto BuildSetupStateReport(const common::realtech::RealTechSetupState& state) ->
   report << "Test: " << kSetupStateReportTitle << "\n";
   report << "Mode: " << (state.mode == RealTechMode::kRealTech ? "real-tech" : "synthetic fallback") << "\n";
   report << "Output root: " << state.output_dir << "\n";
+  if (!state.flow_script_path.empty()) {
+    report << "Flow script: " << state.flow_script_path << "\n";
+  }
+  if (!state.cts_config_path.empty()) {
+    report << "CTS config: " << state.cts_config_path << "\n";
+  }
   report << "Assets available: " << (state.assets_available ? "true" : "false") << "\n";
   report << "Setup succeeded: " << (state.setup_succeeded ? "true" : "false") << "\n";
   report << "Summary: " << state.summary << "\n";
@@ -86,6 +92,8 @@ auto CheckSetupStateExpectations(const common::realtech::RealTechSetupState& sta
   if (state.mode == RealTechMode::kRealTech) {
     EXPECT_TRUE(state.assets_available);
     EXPECT_TRUE(state.setup_succeeded);
+    EXPECT_FALSE(state.flow_script_path.empty());
+    EXPECT_FALSE(state.cts_config_path.empty());
     return;
   }
   EXPECT_FALSE(state.setup_succeeded);
