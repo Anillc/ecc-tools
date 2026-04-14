@@ -252,7 +252,7 @@ TEST_F(RestoredClusterTimingTest,
 }
 
 TEST_F(RestoredClusterTimingTest,
-       copied_bus_ports_without_rebuilt_bus_still_serialize_as_scalar_ports) {
+       copied_bus_ports_rebuild_bus_membership_in_subnetlists) {
   LibLibrary lib("cluster_bus_port_writer_test");
   auto* chain_cell = addCell(
       lib, "chain_cell",
@@ -295,9 +295,9 @@ TEST_F(RestoredClusterTimingTest,
 
   auto* copied_bus_port = subnetlist->findPort("BUS_IN[0]");
   ASSERT_NE(copied_bus_port, nullptr);
-  EXPECT_EQ(copied_bus_port->get_port_bus(), nullptr)
-      << "expected copied bus-member ports to drop stale PortBus ownership when "
-         "the subnetlist does not rebuild the corresponding bus object";
+  ASSERT_NE(copied_bus_port->get_port_bus(), nullptr)
+      << "expected copied bus-member ports to be rebound to a subnet PortBus";
+  EXPECT_EQ(std::string(copied_bus_port->get_port_bus()->get_name()), "BUS_IN");
 
   const fs::path output_path =
       fs::temp_directory_path() / "ista_restored_cluster_bus_port.v";
@@ -307,9 +307,11 @@ TEST_F(RestoredClusterTimingTest,
   const auto verilog_text = readText(output_path);
   EXPECT_NE(verilog_text.find("module cluster1 (\nBUS_IN[0]"), std::string::npos)
       << "expected copied bus-member ports to stay in the module header";
-  EXPECT_NE(verilog_text.find("input BUS_IN[0] ;"), std::string::npos)
-      << "expected copied bus-member ports to remain visible when no PortBus "
-         "object is rebuilt in the subnetlist";
+  EXPECT_NE(verilog_text.find("input [0:0] BUS_IN ;"), std::string::npos)
+      << "expected subnet writer to rebuild the bus declaration";
+  EXPECT_EQ(verilog_text.find("input BUS_IN[0] ;"), std::string::npos)
+      << "did not expect copied bus-member ports to degrade into scalar "
+         "declarations once the subnet bus is rebuilt";
 
   std::error_code ec;
   fs::remove(output_path, ec);

@@ -103,6 +103,11 @@ class Netlist : public DesignObject {
   PortBus& addPortBus(PortBus&& port_bus) {
     _port_buses.emplace_back(std::move(port_bus));
     auto* the_port_bus = &(_port_buses.back());
+    for (unsigned index = 0; index < the_port_bus->get_size(); ++index) {
+      if (auto* port = the_port_bus->getPort(index); port) {
+        port->set_port_bus(the_port_bus);
+      }
+    }
     _str2portbus[the_port_bus->get_name()] = the_port_bus;
     return *the_port_bus;
   }

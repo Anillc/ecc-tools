@@ -280,10 +280,14 @@ std::optional<LibLutTableTemplate::Variable> getTemplateVariable(
   }
 }
 
-double convertAxisValueForExport(LibLibrary* lib,
+double convertAxisValueForExport(LibLibrary* lib, LibAxis* lib_axis,
                                  LibLutTableTemplate* lut_table_template,
                                  int index_order, double raw_value)
 {
+  if (lib_axis && lib_axis->get_value_scale() == LibValueScale::kLibrary) {
+    return raw_value;
+  }
+
   auto variable = getTemplateVariable(lut_table_template, index_order);
   if (variable && isTimeTemplateVariable(*variable)) {
     return convertInternalTimeValueToExportUnit(lib, raw_value);
@@ -295,6 +299,10 @@ double convertAxisValueForExport(LibLibrary* lib,
 double convertTableValueForExport(LibLibrary* lib, LibTable* table,
                                   double raw_value)
 {
+  if (table && table->get_value_scale() == LibValueScale::kLibrary) {
+    return raw_value;
+  }
+
   if (isTimeTableType(table->get_table_type())) {
     return convertInternalTimeValueToExportUnit(lib, raw_value);
   }
@@ -355,7 +363,8 @@ void writeAxis(FILE* stream, LibLibrary* lib, LibAxis* lib_axis,
     auto axis_float_value
         = dynamic_cast<LibFloatValue*>(axis_values[i].get())->getFloatValue();
     fprintf(stream, "%.8f",
-            convertAxisValueForExport(lib, lut_table_template, index_order,
+            convertAxisValueForExport(lib, lib_axis, lut_table_template,
+                                      index_order,
                                       axis_float_value));
     if (i < axis_values.size() - 1) {
       fprintf(stream, ",");
@@ -467,6 +476,10 @@ void writeDelayTableModel(FILE* stream, LibArc* lib_arc)
     fprintf(stream, "                       related_pin        : \"%s\";\n",
             related_pin);
   }
+  if (const auto& when = lib_arc->get_when(); !when.empty()) {
+    fprintf(stream, "                       when               : \"%s\";\n",
+            when.c_str());
+  }
   fprintf(stream, "                       timing_sense        : %s;\n",
           timing_sense_map.at(lib_arc->get_timing_sense()));
   if (auto timing_type = timing_type_map.find(lib_arc->get_timing_type());
@@ -514,6 +527,10 @@ void writeCheckTableModel(FILE* stream, LibArc* lib_arc)
       related_pin && *related_pin) {
     fprintf(stream, "                       related_pin        : \"%s\";\n",
             related_pin);
+  }
+  if (const auto& when = lib_arc->get_when(); !when.empty()) {
+    fprintf(stream, "                       when               : \"%s\";\n",
+            when.c_str());
   }
   fprintf(stream, "                       timing_type        : %s;\n",
           timing_type_map.at(lib_arc->get_timing_type()));
@@ -590,7 +607,8 @@ void writeLutTemplateDefinitions(FILE* stream, LibLibrary* lib)
         auto axis_float_value
             = dynamic_cast<LibFloatValue*>(axis_values[j].get())->getFloatValue();
         fprintf(stream, "%.8f",
-                convertAxisValueForExport(lib, lut_template.get(), i,
+                convertAxisValueForExport(lib, axes[i].get(),
+                                          lut_template.get(), i,
                                           axis_float_value));
         if (j < axis_values.size() - 1) {
           fprintf(stream, ", ");

@@ -117,6 +117,37 @@ TEST(RestoredBehaviorTest, netlist_writer_escapes_assign_net_names) {
   Log::end();
 }
 
+TEST(RestoredBehaviorTest, netlist_writer_suppresses_self_assigns_for_escaped_names) {
+  char config[] = "test";
+  char* argv[] = {config};
+  Log::init(argv);
+
+  Netlist netlist;
+  netlist.set_name("top");
+
+  auto& escaped_input_port = netlist.addPort(Port("foo[0]", PortDir::kIn));
+  auto& escaped_output_port = netlist.addPort(Port("bar/baz", PortDir::kOut));
+  auto& escaped_input_net = netlist.addNet(Net("foo[0]"));
+  auto& escaped_output_net = netlist.addNet(Net("bar/baz"));
+  escaped_input_net.addPinPort(&escaped_input_port);
+  escaped_output_net.addPinPort(&escaped_output_port);
+
+  const fs::path output_path =
+      fs::temp_directory_path() / "ista_restored_behavior_self_assign.v";
+  std::set<std::string> exclude_cell_names;
+  netlist.writeVerilog(output_path.c_str(), exclude_cell_names, false);
+
+  const auto verilog_text = readText(output_path);
+  EXPECT_EQ(verilog_text.find("assign \\foo[0] = foo[0] ;"), std::string::npos)
+      << "did not expect bogus self-assigns for escaped input net names";
+  EXPECT_EQ(verilog_text.find("assign bar/baz = \\bar/baz ;"), std::string::npos)
+      << "did not expect bogus self-assigns for escaped output net names";
+
+  std::error_code ec;
+  fs::remove(output_path, ec);
+  Log::end();
+}
+
 TEST(RestoredBehaviorTest, netlist_writer_writes_single_module_header) {
   char config[] = "test";
   char* argv[] = {config};

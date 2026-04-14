@@ -127,12 +127,16 @@ std::unique_ptr<ista::LibArc> makeScalarDelayArc(ista::LibCell* lib_cell,
                                                  const char* src_port,
                                                  const char* snk_port,
                                                  const char* timing_sense,
-                                                 double cell_rise_value) {
+                                                 double cell_rise_value,
+                                                 const char* when = nullptr) {
   auto lib_arc = std::make_unique<ista::LibArc>();
   lib_arc->set_src_port(src_port);
   lib_arc->set_snk_port(snk_port);
   lib_arc->set_timing_type("combinational");
   lib_arc->set_timing_sense(timing_sense);
+  if (when) {
+    lib_arc->set_when(when);
+  }
   lib_arc->set_owner_cell(lib_cell);
 
   auto delay_model = std::make_unique<ista::LibDelayTableModel>();
@@ -235,6 +239,21 @@ std::string extractTimingBlock(const std::string& pin_block,
       }
     }
   }
+}
+
+std::filesystem::path writeTempLibertyFile(const std::string& file_name,
+                                           const std::string& contents) {
+  const auto output_dir = ista::test::defaultOutputRoot() / "writer_temp_libs";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  EXPECT_FALSE(ec) << "failed to create temp liberty dir: " << output_dir
+                   << ", error=" << ec.message();
+
+  const auto file_path = output_dir / file_name;
+  std::ofstream output(file_path);
+  output << contents;
+  output.close();
+  return file_path;
 }
 
 class LibertyAlignmentTest : public testing::Test {
@@ -458,6 +477,119 @@ TEST_F(LibertyWriterUnitTest, writer_emits_all_arcs_from_same_lib_arc_set) {
             std::string::npos);
   EXPECT_NE(output_pin_block.find("timing_sense        : negative_unate;"),
             std::string::npos);
+}
+
+TEST_F(LibertyWriterUnitTest,
+       writer_preserves_when_conditions_on_exported_timing_arcs) {
+  ista::LibLibrary lib("writer_when_export_test");
+
+  auto lib_cell = std::make_unique<ista::LibCell>("when_arc_cell", &lib);
+
+  auto input_port = std::make_unique<ista::LibPort>("A");
+  input_port->set_port_type(ista::LibPort::LibertyPortType::kInput);
+  input_port->set_ower_cell(lib_cell.get());
+  lib_cell->addLibertyPort(std::move(input_port));
+
+  auto output_port = std::make_unique<ista::LibPort>("Y");
+  output_port->set_port_type(ista::LibPort::LibertyPortType::kOutput);
+  output_port->set_ower_cell(lib_cell.get());
+  lib_cell->addLibertyPort(std::move(output_port));
+
+  lib_cell->addLibertyArc(makeScalarDelayArc(lib_cell.get(), "A", "Y",
+                                             "positive_unate", 0.10,
+                                             "ENABLE"));
+  lib.addLibertyCell(std::move(lib_cell));
+
+  const auto output_dir = ista::test::defaultOutputRoot() / "writer_when_export";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer when test directory: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path = output_dir / "writer_when_export_test.lib";
+  lib.printLibertyLibrary(output_path.c_str());
+  const auto liberty_text = ista::test::readFile(output_path);
+  const auto output_pin_block = extractPinBlock(liberty_text, "Y");
+  ASSERT_FALSE(output_pin_block.empty()) << "expected output pin block";
+
+  EXPECT_NE(output_pin_block.find("when"), std::string::npos)
+      << "expected exported timing block to preserve Liberty when clauses";
+  EXPECT_NE(output_pin_block.find("\"ENABLE\""), std::string::npos)
+      << "expected exported timing block to keep the original when condition";
+}
+
+TEST_F(LibertyWriterUnitTest,
+       writer_round_trips_parsed_time_axes_and_values_without_rescaling) {
+  const auto input_path = writeTempLibertyFile(
+      "writer_round_trip_source.lib",
+      R"(library (round_trip_ps_lib) {
+  time_unit : "1ps";
+  capacitive_load_unit (1,pf);
+  delay_model : table_lookup;
+  lu_table_template(delay_template_1d) {
+    variable_1 : input_net_transition;
+    index_1("2.00000000,3.50000000");
+  }
+  cell (round_trip_cell) {
+    pin ("A") {
+      direction : input;
+      capacitance : 0.00100000;
+    }
+    pin ("Y") {
+      direction : output;
+      timing () {
+        related_pin : "A";
+        timing_sense : positive_unate;
+        timing_type : combinational;
+        when : "ENABLE";
+        cell_rise(delay_template_1d) {
+          values ("4.00000000,5.50000000");
+        }
+      }
+    }
+  }
+})");
+
+  ista::Lib lib;
+  auto lib_rust_reader = lib.loadLibertyWithRustParser(input_path.c_str());
+  ASSERT_EQ(lib_rust_reader.linkLib(), 1U);
+  auto lib_library = lib_rust_reader.get_library_builder()->takeLib();
+  ASSERT_NE(lib_library, nullptr);
+
+  const auto output_dir =
+      ista::test::defaultOutputRoot() / "writer_round_trip_source";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer round-trip directory: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path = output_dir / "writer_round_trip_source_export.lib";
+  lib_library->printLibertyLibrary(output_path.c_str());
+  const auto exported_text = ista::test::readFile(output_path);
+  const auto output_pin_block = extractPinBlock(exported_text, "Y");
+  ASSERT_FALSE(output_pin_block.empty()) << "expected output pin block";
+
+  EXPECT_NE(output_pin_block.find("\"ENABLE\""), std::string::npos)
+      << "expected round-tripped liberty to preserve timing when clauses";
+  EXPECT_GT(ista::test::countRegexMatches(
+                exported_text,
+                std::regex(R"(index_1\(\"2\.00000000,\s*3\.50000000\"\))")),
+            0U)
+      << "expected parsed time axes to remain in their original liberty units";
+  EXPECT_GT(ista::test::countRegexMatches(
+                exported_text,
+                std::regex(R"(values\s*\(\"4\.00000000,5\.50000000\"\))")),
+            0U)
+      << "expected parsed timing table values to remain in their original "
+         "liberty units";
+  EXPECT_EQ(ista::test::countRegexMatches(
+                exported_text,
+                std::regex(R"(index_1\(\"2000\.00000000,\s*3500\.00000000\"\))")),
+            0U);
+  EXPECT_EQ(ista::test::countRegexMatches(
+                exported_text,
+                std::regex(R"(values\s*\(\"4000\.00000000,5500\.00000000\"\))")),
+            0U);
 }
 
 TEST_F(LibertyWriterUnitTest,

@@ -643,9 +643,11 @@ unsigned RustLibertyReader::visitAxisOrValues(
     if (Str::equal(attri_name, "values")) {
       auto* lib_table = dynamic_cast<LibTable*>(lib_obj);
       LOG_FATAL_IF(!lib_table);
+      lib_table->set_value_scale(LibValueScale::kLibrary);
       lib_table->set_table_values(std::move(result_values));
     } else {
       auto liberty_axis = std::make_unique<LibAxis>(attri_name);
+      liberty_axis->set_value_scale(LibValueScale::kLibrary);
       liberty_axis->set_axis_values(std::move(result_values));
       lib_obj->addAxis(std::move(liberty_axis));
     }

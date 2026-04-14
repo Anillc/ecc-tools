@@ -51,6 +51,12 @@ class LibCell;
 class LibLibrary;
 class LibAttrValue;
 class LibAxis;
+
+enum class LibValueScale
+{
+  kInternal = 0,
+  kLibrary = 1
+};
 class LibLutTableTemplate;
 class LibVectorTable;
 class LibertyExpr;
@@ -103,6 +109,8 @@ class LibAxis : public LibObject
   const char* get_axis_name() { return _axis_name.c_str(); }
 
   void set_axis_values(std::vector<std::unique_ptr<LibAttrValue>>&& table_values) { _axis_values = std::move(table_values); }
+  void set_value_scale(LibValueScale value_scale) { _value_scale = value_scale; }
+  LibValueScale get_value_scale() const { return _value_scale; }
 
   auto& get_axis_values() { return _axis_values; }
   std::size_t get_axis_size() { return _axis_values.size(); }
@@ -113,6 +121,7 @@ class LibAxis : public LibObject
   std::string _axis_name;  //!< The axis name.
 
   std::vector<std::unique_ptr<LibAttrValue>> _axis_values;  //!< The axis sample values.
+  LibValueScale _value_scale = LibValueScale::kInternal;
 
   FORBIDDEN_COPY(LibAxis);
 };
@@ -170,6 +179,8 @@ class LibTable : public LibObject
 
   void addTableValue(std::unique_ptr<LibAttrValue> table_value) { _table_values.emplace_back(std::move(table_value)); }
   void set_table_values(std::vector<std::unique_ptr<LibAttrValue>>&& table_values) { _table_values = std::move(table_values); }
+  void set_value_scale(LibValueScale value_scale) { _value_scale = value_scale; }
+  LibValueScale get_value_scale() const { return _value_scale; }
   auto& get_table_values() { return _table_values; }
 
   void set_corner_type(CornerType corner_type) { _corner_type = corner_type; }
@@ -191,6 +202,7 @@ class LibTable : public LibObject
 
   CornerType _corner_type = CornerType::kDefault;
   LibLutTableTemplate* _table_template;  //!< The lut template.
+  LibValueScale _value_scale = LibValueScale::kInternal;
 
   FORBIDDEN_COPY(LibTable);
 };

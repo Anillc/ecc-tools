@@ -28,13 +28,58 @@ namespace ista {
 
 namespace {
 
+std::optional<unsigned> findSourcePortBusIndex(Port& source_port) {
+  auto* source_bus = source_port.get_port_bus();
+  if (!source_bus) {
+    return std::nullopt;
+  }
+
+  auto [bus_name, index] = Str::matchBusName(source_port.get_name());
+  if (index) {
+    return static_cast<unsigned>(*index);
+  }
+
+  for (unsigned bus_index = 0; bus_index < source_bus->get_size(); ++bus_index) {
+    if (source_bus->getPort(bus_index) == &source_port) {
+      return bus_index;
+    }
+  }
+
+  return std::nullopt;
+}
+
+void rebindSubnetPortBus(Netlist& subnetlist, Port& subnet_port,
+                         Port& source_port) {
+  auto* source_bus = source_port.get_port_bus();
+  if (!source_bus) {
+    return;
+  }
+
+  auto bus_index = findSourcePortBusIndex(source_port);
+  if (!bus_index) {
+    return;
+  }
+
+  auto* subnet_bus = subnetlist.findPortBus(source_bus->get_name());
+  if (!subnet_bus) {
+    PortBus new_bus(source_bus->get_name(), source_bus->get_left(),
+                    source_bus->get_right(), source_bus->get_size(),
+                    source_bus->get_port_dir());
+    subnet_bus = &subnetlist.addPortBus(std::move(new_bus));
+  }
+
+  subnet_bus->addPort(*bus_index, &subnet_port);
+}
+
 Port* findOrCopySubnetPort(Netlist& subnetlist, Port& source_port) {
   if (auto* existing_port = subnetlist.findPort(source_port.get_name())) {
+    rebindSubnetPortBus(subnetlist, *existing_port, source_port);
     return existing_port;
   }
 
   Port new_port(source_port);
   auto& created_port = subnetlist.addPort(std::move(new_port));
+  rebindSubnetPortBus(subnetlist, created_port, source_port);
   return &created_port;
 }
 

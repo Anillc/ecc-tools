@@ -111,7 +111,7 @@ PortBus::PortBus(const char* name, unsigned left, unsigned right, unsigned size,
       _left(left),
       _right(right),
       _port_dir(port_dir),
-      _ports(new Port*[size]),
+      _ports(new Port*[size]()),
       _size(size) {}
 
 };  // namespace ista

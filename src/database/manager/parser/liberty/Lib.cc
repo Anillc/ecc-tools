@@ -123,7 +123,10 @@ LibAxis::LibAxis(const char* axis_name) : _axis_name(axis_name)
 {
 }
 
-LibAxis::LibAxis(LibAxis&& other) noexcept : _axis_name(other._axis_name), _axis_values(std::move(other._axis_values))
+LibAxis::LibAxis(LibAxis&& other) noexcept
+    : _axis_name(other._axis_name),
+      _axis_values(std::move(other._axis_values)),
+      _value_scale(other._value_scale)
 {
   other._axis_name = nullptr;
 }
@@ -135,6 +138,7 @@ LibAxis& LibAxis::operator=(LibAxis&& rhs) noexcept
     rhs._axis_name = nullptr;
 
     _axis_values = std::move(rhs._axis_values);
+    _value_scale = rhs._value_scale;
   }
 
   return *this;
@@ -167,7 +171,12 @@ LibTable::LibTable(TableType table_type, LibLutTableTemplate* table_template) : 
 }
 
 LibTable::LibTable(LibTable&& other) noexcept
-    : _axes(std::move(other._axes)), _table_values(std::move(other._table_values)), _table_type(other._table_type)
+    : _axes(std::move(other._axes)),
+      _table_values(std::move(other._table_values)),
+      _table_type(other._table_type),
+      _corner_type(other._corner_type),
+      _table_template(other._table_template),
+      _value_scale(other._value_scale)
 {
 }
 
@@ -177,6 +186,9 @@ LibTable& LibTable::operator=(LibTable&& rhs) noexcept
     _axes = std::move(rhs._axes);
     _table_values = std::move(rhs._table_values);
     _table_type = rhs._table_type;
+    _corner_type = rhs._corner_type;
+    _table_template = rhs._table_template;
+    _value_scale = rhs._value_scale;
   }
 
   return *this;
