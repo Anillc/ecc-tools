@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -1918,6 +1919,24 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
 
   for (auto &report_tbl_detail : _report_tbl_details) {
     std::fprintf(f.get(), "%s", report_tbl_detail->c_str());
+  }
+
+  if (isJsonReportEnabled()) {
+    json dump_json;
+    dump_json["summary"] = _summary_json_report;
+    dump_json["slack"] = _slack_json_report;
+    dump_json["detail"] = _detail_json_report;
+
+    auto *report_path = Str::printf("%s.json", rpt_file_name);
+
+    std::ofstream out_file(report_path);
+    if (out_file.is_open()) {
+      out_file << dump_json.dump(4);
+      LOG_INFO << "JSON report written to: " << report_path;
+      out_file.close();
+    } else {
+      LOG_ERROR << "Failed to open JSON report file: " << report_path;
+    }
   }
 
   return 1;

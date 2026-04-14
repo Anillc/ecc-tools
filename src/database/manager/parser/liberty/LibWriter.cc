@@ -29,6 +29,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -49,12 +50,107 @@ auto classifyCellArcBySnkPort(LibCell* lib_cell) -> std::map<std::string, std::v
 {
   std::map<std::string, std::vector<LibArc*>> snkport2arcset;
   for (auto& cell_arc_set : lib_cell->get_cell_arcs()) {
-    auto* cell_arc = cell_arc_set->front();
-    const char* snk_port_name = cell_arc->get_snk_port();
-    snkport2arcset[snk_port_name].push_back(cell_arc);
+    for (auto& cell_arc : cell_arc_set->get_arcs()) {
+      const char* snk_port_name = cell_arc->get_snk_port();
+      snkport2arcset[snk_port_name].push_back(cell_arc.get());
+    }
   }
 
   return snkport2arcset;
+}
+
+struct BusRange
+{
+  int min_index = 0;
+  int max_index = 0;
+
+  bool operator<(const BusRange& rhs) const
+  {
+    return std::tie(max_index, min_index) <
+           std::tie(rhs.max_index, rhs.min_index);
+  }
+};
+
+struct BusTypeDefinition
+{
+  std::string type_name;
+  int min_index = 0;
+  int max_index = 0;
+};
+
+using BusTypeDefinitions = std::map<std::string, BusTypeDefinition>;
+
+std::string makeBusRangeKey(const std::string& bus_name, int min_index,
+                            int max_index)
+{
+  return Str::printf("%s[%d:%d]", bus_name.c_str(), max_index, min_index);
+}
+
+BusTypeDefinitions collectBusTypeDefinitions(LibLibrary* lib)
+{
+  std::map<std::string, std::set<BusRange>> bus_ranges_by_name;
+
+  for (const auto& cell : lib->get_cells()) {
+    std::map<std::string, BusRange> cell_bus_ranges;
+    for (const auto& cell_port : cell->get_cell_ports()) {
+      auto [bus_name, index] = Str::matchBusName(cell_port->get_port_name());
+      if (!index) {
+        continue;
+      }
+
+      auto [iter, inserted] =
+          cell_bus_ranges.emplace(bus_name, BusRange{*index, *index});
+      if (!inserted) {
+        iter->second.min_index = std::min(iter->second.min_index, *index);
+        iter->second.max_index = std::max(iter->second.max_index, *index);
+      }
+    }
+
+    for (const auto& [bus_name, range] : cell_bus_ranges) {
+      bus_ranges_by_name[bus_name].insert(range);
+    }
+  }
+
+  BusTypeDefinitions bus_type_definitions;
+  for (const auto& [bus_name, ranges] : bus_ranges_by_name) {
+    const bool has_multiple_ranges = ranges.size() > 1;
+    for (const auto& range : ranges) {
+      auto type_name =
+          has_multiple_ranges
+              ? Str::printf("%s__%d_%d", bus_name.c_str(), range.max_index,
+                            range.min_index)
+              : bus_name;
+      bus_type_definitions.emplace(
+          makeBusRangeKey(bus_name, range.min_index, range.max_index),
+          BusTypeDefinition{std::move(type_name), range.min_index,
+                            range.max_index});
+    }
+  }
+
+  return bus_type_definitions;
+}
+
+std::string findBusTypeName(const BusTypeDefinitions& bus_type_definitions,
+                            const std::string& bus_name,
+                            const std::vector<std::pair<int, LibPort*>>& bit_ports)
+{
+  if (bit_ports.empty()) {
+    return bus_name;
+  }
+
+  auto [min_iter, max_iter] =
+      std::minmax_element(bit_ports.begin(), bit_ports.end(),
+                          [](const auto& lhs, const auto& rhs) {
+                            return lhs.first < rhs.first;
+                          });
+  const auto bus_range_key =
+      makeBusRangeKey(bus_name, min_iter->first, max_iter->first);
+  if (auto bus_type_iter = bus_type_definitions.find(bus_range_key);
+      bus_type_iter != bus_type_definitions.end()) {
+    return bus_type_iter->second.type_name;
+  }
+
+  return bus_name;
 }
 
 const char* getDelayModelCapUnitName(LibLibrary* lib)
@@ -407,7 +503,11 @@ void writeCheckTableModel(FILE* stream, LibArc* lib_arc)
       {LibArc::TimingType::kSetupRising, "setup_rising"},
       {LibArc::TimingType::kHoldRising, "hold_rising"},
       {LibArc::TimingType::kSetupFalling, "setup_falling"},
-      {LibArc::TimingType::kHoldFalling, "hold_falling"}};
+      {LibArc::TimingType::kHoldFalling, "hold_falling"},
+      {LibArc::TimingType::kRecoveryRising, "recovery_rising"},
+      {LibArc::TimingType::kRecoveryFalling, "recovery_falling"},
+      {LibArc::TimingType::kRemovalRising, "removal_rising"},
+      {LibArc::TimingType::kRemovalFalling, "removal_falling"}};
 
   fprintf(stream, "                timing () {\n");
   if (const char* related_pin = lib_arc->get_src_port();
@@ -431,55 +531,39 @@ void writeCheckTableModel(FILE* stream, LibArc* lib_arc)
   fprintf(stream, "                }\n");
 }
 
-void writeBusTypeDefinitions(FILE* stream, LibLibrary* lib)
+bool isExportedCheckTimingType(LibArc::TimingType timing_type)
 {
-  struct BusTypeInfo
-  {
-    int min_index = 0;
-    int max_index = 0;
-    bool initialized = false;
-  };
-
-  std::map<std::string, BusTypeInfo> bus_types;
-  std::vector<std::string> bus_order;
-
-  for (const auto& cell : lib->get_cells()) {
-    for (const auto& cell_port : cell->get_cell_ports()) {
-      auto [bus_name, index] = Str::matchBusName(cell_port->get_port_name());
-      if (!index) {
-        continue;
-      }
-
-      auto [iter, inserted] = bus_types.emplace(bus_name, BusTypeInfo{});
-      if (inserted) {
-        bus_order.emplace_back(bus_name);
-      }
-
-      auto& bus_info = iter->second;
-      if (!bus_info.initialized) {
-        bus_info.min_index = *index;
-        bus_info.max_index = *index;
-        bus_info.initialized = true;
-      } else {
-        bus_info.min_index = std::min(bus_info.min_index, *index);
-        bus_info.max_index = std::max(bus_info.max_index, *index);
-      }
-    }
+  switch (timing_type) {
+    case LibArc::TimingType::kSetupRising:
+    case LibArc::TimingType::kHoldRising:
+    case LibArc::TimingType::kSetupFalling:
+    case LibArc::TimingType::kHoldFalling:
+    case LibArc::TimingType::kRecoveryRising:
+    case LibArc::TimingType::kRecoveryFalling:
+    case LibArc::TimingType::kRemovalRising:
+    case LibArc::TimingType::kRemovalFalling:
+      return true;
+    default:
+      return false;
   }
+}
 
-  for (const auto& bus_name : bus_order) {
-    const auto& bus_info = bus_types.at(bus_name);
-    fprintf(stream, "  type (\"%s\") {\n", bus_name.c_str());
+void writeBusTypeDefinitions(FILE* stream,
+                             const BusTypeDefinitions& bus_type_definitions)
+{
+  for (const auto& [range_key, bus_type] : bus_type_definitions) {
+    (void) range_key;
+    fprintf(stream, "  type (\"%s\") {\n", bus_type.type_name.c_str());
     fprintf(stream, "    base_type : array;\n");
     fprintf(stream, "    data_type : bit;\n");
     fprintf(stream, "    bit_width : %d;\n",
-            bus_info.max_index - bus_info.min_index + 1);
-    fprintf(stream, "    bit_from : %d;\n", bus_info.max_index);
-    fprintf(stream, "    bit_to : %d;\n", bus_info.min_index);
+            bus_type.max_index - bus_type.min_index + 1);
+    fprintf(stream, "    bit_from : %d;\n", bus_type.max_index);
+    fprintf(stream, "    bit_to : %d;\n", bus_type.min_index);
     fprintf(stream, "  }\n");
   }
 
-  if (!bus_order.empty()) {
+  if (!bus_type_definitions.empty()) {
     fprintf(stream, "\n");
   }
 }
@@ -522,7 +606,8 @@ void writeLutTemplateDefinitions(FILE* stream, LibLibrary* lib)
   }
 }
 
-void writeLibertyCell(FILE* stream, LibCell* lib_cell)
+void writeLibertyCell(FILE* stream, LibCell* lib_cell,
+                      const BusTypeDefinitions& bus_type_definitions)
 {
   fprintf(stream, "  cell (%s) {\n", lib_cell->get_cell_name());
   if (lib_cell->get_cell_area() > 0.0) {
@@ -549,10 +634,7 @@ void writeLibertyCell(FILE* stream, LibCell* lib_cell)
         arc_iter != snkport2arcset.end()) {
       for (const auto& arc : arc_iter->second) {
         if (arc->isCheckArc()) {
-          if (arc->get_timing_type() == LibArc::TimingType::kSetupRising
-              || arc->get_timing_type() == LibArc::TimingType::kHoldRising
-              || arc->get_timing_type() == LibArc::TimingType::kSetupFalling
-              || arc->get_timing_type() == LibArc::TimingType::kHoldFalling) {
+          if (isExportedCheckTimingType(arc->get_timing_type())) {
             writeCheckTableModel(stream, arc);
           }
         } else if (arc->isDelayArc() || isClockTreePathArc(arc)) {
@@ -588,7 +670,9 @@ void writeLibertyCell(FILE* stream, LibCell* lib_cell)
                 });
 
       fprintf(stream, "    bus(\"%s\") {\n", bus_name.c_str());
-      fprintf(stream, "      bus_type : %s;\n", bus_name.c_str());
+      const auto bus_type_name =
+          findBusTypeName(bus_type_definitions, bus_name, bit_ports);
+      fprintf(stream, "      bus_type : %s;\n", bus_type_name.c_str());
       fprintf(stream, "      direction : %s;\n",
               getPortDirection(bit_ports.front().second));
       for (const auto& [bit_index, bit_port] : bit_ports) {
@@ -760,10 +844,11 @@ void LibLibrary::printLibertyLibrary(const char* lib_file_name)
   }
   fprintf(stream, "\n");
 
+  auto bus_type_definitions = collectBusTypeDefinitions(this);
   writeLutTemplateDefinitions(stream, this);
-  writeBusTypeDefinitions(stream, this);
+  writeBusTypeDefinitions(stream, bus_type_definitions);
   for (const auto& cell : get_cells()) {
-    writeLibertyCell(stream, cell.get());
+    writeLibertyCell(stream, cell.get(), bus_type_definitions);
   }
   fprintf(stream, "}\n");
 

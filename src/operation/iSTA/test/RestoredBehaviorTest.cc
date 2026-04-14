@@ -180,4 +180,34 @@ TEST_F(RestoredStaBehaviorTest, report_wire_paths_cleans_stale_files_and_writes_
   EXPECT_GT(fs::file_size(report_path), 0U);
 }
 
+TEST_F(RestoredStaBehaviorTest, json_report_mode_writes_sidecar_file) {
+  auto* timing_engine = _timing_engine;
+  ASSERT_NE(timing_engine, nullptr);
+  auto* ista = timing_engine->get_ista();
+  ASSERT_NE(ista, nullptr);
+
+  const fs::path design_workspace = ista->get_design_work_space();
+  const fs::path report_path = design_workspace / "json_report_restore.rpt";
+  const fs::path json_report_path = design_workspace / "json_report_restore.rpt.json";
+
+  std::error_code ec;
+  fs::remove(report_path, ec);
+  ec.clear();
+  fs::remove(json_report_path, ec);
+  ec.clear();
+
+  ista->enableJsonReport();
+  EXPECT_EQ(ista->reportPath(report_path.c_str(), false), 1U);
+
+  ASSERT_TRUE(fs::exists(report_path));
+  ASSERT_TRUE(fs::exists(json_report_path))
+      << "expected reportPath() to keep writing the JSON sidecar when JSON "
+         "mode is enabled";
+
+  const auto json_text = readText(json_report_path);
+  EXPECT_NE(json_text.find("\"summary\""), std::string::npos);
+  EXPECT_NE(json_text.find("\"slack\""), std::string::npos);
+  EXPECT_NE(json_text.find("\"detail\""), std::string::npos);
+}
+
 }  // namespace

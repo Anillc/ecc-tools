@@ -22,6 +22,8 @@
 
 #include <filesystem>
 #include <optional>
+#include <regex>
+#include <set>
 #include <system_error>
 #include <string>
 
@@ -100,6 +102,66 @@ std::optional<std::string> extractPinDirection(const std::string& pin_block) {
   }
 
   return direction_match[1].str();
+}
+
+std::set<std::string> extractBusTypeReferences(const std::string& liberty_text) {
+  std::set<std::string> bus_types;
+  const std::regex bus_type_regex(R"(bus_type\s*:\s*([A-Za-z0-9_]+)\s*;)");
+  for (std::sregex_iterator iter(liberty_text.begin(), liberty_text.end(),
+                                 bus_type_regex),
+       end;
+       iter != end; ++iter) {
+    bus_types.emplace((*iter)[1].str());
+  }
+  return bus_types;
+}
+
+std::unique_ptr<ista::LibTable> makeScalarTable(ista::LibTable::TableType type,
+                                                double value) {
+  auto table = std::make_unique<ista::LibTable>(type, nullptr);
+  table->addTableValue(std::make_unique<ista::LibFloatValue>(value));
+  return table;
+}
+
+std::unique_ptr<ista::LibArc> makeScalarDelayArc(ista::LibCell* lib_cell,
+                                                 const char* src_port,
+                                                 const char* snk_port,
+                                                 const char* timing_sense,
+                                                 double cell_rise_value) {
+  auto lib_arc = std::make_unique<ista::LibArc>();
+  lib_arc->set_src_port(src_port);
+  lib_arc->set_snk_port(snk_port);
+  lib_arc->set_timing_type("combinational");
+  lib_arc->set_timing_sense(timing_sense);
+  lib_arc->set_owner_cell(lib_cell);
+
+  auto delay_model = std::make_unique<ista::LibDelayTableModel>();
+  delay_model->addTable(
+      makeScalarTable(ista::LibTable::TableType::kCellRise, cell_rise_value));
+  lib_arc->set_table_model(std::move(delay_model));
+  return lib_arc;
+}
+
+std::unique_ptr<ista::LibArc> makeScalarCheckArc(ista::LibCell* lib_cell,
+                                                 const char* src_port,
+                                                 const char* snk_port,
+                                                 const char* timing_type,
+                                                 double rise_value,
+                                                 double fall_value) {
+  auto lib_arc = std::make_unique<ista::LibArc>();
+  lib_arc->set_src_port(src_port);
+  lib_arc->set_snk_port(snk_port);
+  lib_arc->set_timing_type(timing_type);
+  lib_arc->set_timing_sense("non_unate");
+  lib_arc->set_owner_cell(lib_cell);
+
+  auto check_model = std::make_unique<ista::LibCheckTableModel>();
+  check_model->addTable(
+      makeScalarTable(ista::LibTable::TableType::kRiseConstrain, rise_value));
+  check_model->addTable(
+      makeScalarTable(ista::LibTable::TableType::kFallConstrain, fall_value));
+  lib_arc->set_table_model(std::move(check_model));
+  return lib_arc;
 }
 
 std::optional<double> extractTimingScalarValue(const std::string& pin_block,
@@ -201,6 +263,29 @@ class LibertyAlignmentTest : public testing::Test {
 std::filesystem::path LibertyAlignmentTest::_generated_lib;
 std::string LibertyAlignmentTest::_generated_text;
 std::string LibertyAlignmentTest::_openroad_text;
+
+class LibertyWriterUnitTest : public testing::Test {
+ protected:
+  static void SetUpTestSuite() {
+    if (!Log::isInit()) {
+      char config[] = "test";
+      char* argv[] = {config};
+      Log::init(argv);
+      _owns_log = true;
+    }
+  }
+
+  static void TearDownTestSuite() {
+    if (_owns_log && Log::isInit()) {
+      Log::end();
+      _owns_log = false;
+    }
+  }
+
+  static bool _owns_log;
+};
+
+bool LibertyWriterUnitTest::_owns_log = false;
 
 TEST_F(LibertyAlignmentTest, no_duplicate_pin_names) {
   EXPECT_EQ(ista::test::countDuplicatePinNames(_generated_text), 0U)
@@ -331,6 +416,135 @@ TEST_F(LibertyAlignmentTest,
             0U)
       << "expected writer to convert internal ns table values to exported ps "
          "values";
+}
+
+TEST_F(LibertyWriterUnitTest, writer_emits_all_arcs_from_same_lib_arc_set) {
+  ista::LibLibrary lib("writer_multi_arc_export_test");
+
+  auto lib_cell = std::make_unique<ista::LibCell>("multi_arc_cell", &lib);
+
+  auto input_port = std::make_unique<ista::LibPort>("A");
+  input_port->set_port_type(ista::LibPort::LibertyPortType::kInput);
+  input_port->set_ower_cell(lib_cell.get());
+  lib_cell->addLibertyPort(std::move(input_port));
+
+  auto output_port = std::make_unique<ista::LibPort>("Y");
+  output_port->set_port_type(ista::LibPort::LibertyPortType::kOutput);
+  output_port->set_ower_cell(lib_cell.get());
+  lib_cell->addLibertyPort(std::move(output_port));
+
+  lib_cell->addLibertyArc(
+      makeScalarDelayArc(lib_cell.get(), "A", "Y", "positive_unate", 0.10));
+  lib_cell->addLibertyArc(
+      makeScalarDelayArc(lib_cell.get(), "A", "Y", "negative_unate", 0.20));
+  lib.addLibertyCell(std::move(lib_cell));
+
+  const auto output_dir =
+      ista::test::defaultOutputRoot() / "writer_multi_arc_export";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer multi arc test directory: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path = output_dir / "writer_multi_arc_export_test.lib";
+  lib.printLibertyLibrary(output_path.c_str());
+  const auto liberty_text = ista::test::readFile(output_path);
+  const auto output_pin_block = extractPinBlock(liberty_text, "Y");
+  ASSERT_FALSE(output_pin_block.empty()) << "expected output pin block";
+
+  EXPECT_EQ(ista::test::countLiteral(output_pin_block, "timing ()"), 2U)
+      << "expected every Liberty arc in the arc set to be serialized";
+  EXPECT_NE(output_pin_block.find("timing_sense        : positive_unate;"),
+            std::string::npos);
+  EXPECT_NE(output_pin_block.find("timing_sense        : negative_unate;"),
+            std::string::npos);
+}
+
+TEST_F(LibertyWriterUnitTest,
+       writer_preserves_distinct_bus_types_for_different_widths) {
+  ista::LibLibrary lib("writer_bus_type_width_test");
+
+  auto add_cell_with_bus = [&lib](const char* cell_name, int high_bit) {
+    auto lib_cell = std::make_unique<ista::LibCell>(cell_name, &lib);
+
+    for (int bit = 0; bit <= high_bit; ++bit) {
+      auto port = std::make_unique<ista::LibPort>(
+          ("A[" + std::to_string(bit) + "]").c_str());
+      port->set_port_type(ista::LibPort::LibertyPortType::kInput);
+      port->set_ower_cell(lib_cell.get());
+      lib_cell->addLibertyPort(std::move(port));
+    }
+
+    auto output_port = std::make_unique<ista::LibPort>("Y");
+    output_port->set_port_type(ista::LibPort::LibertyPortType::kOutput);
+    output_port->set_ower_cell(lib_cell.get());
+    lib_cell->addLibertyPort(std::move(output_port));
+
+    lib.addLibertyCell(std::move(lib_cell));
+  };
+
+  add_cell_with_bus("bus2_cell", 1);
+  add_cell_with_bus("bus8_cell", 7);
+
+  const auto output_dir =
+      ista::test::defaultOutputRoot() / "writer_bus_type_widths";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer bus type test directory: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path = output_dir / "writer_bus_type_width_test.lib";
+  lib.printLibertyLibrary(output_path.c_str());
+  const auto liberty_text = ista::test::readFile(output_path);
+  const auto bus_type_refs = extractBusTypeReferences(liberty_text);
+
+  EXPECT_TRUE(ista::test::containsLiteral(liberty_text, "bit_width : 2;"));
+  EXPECT_TRUE(ista::test::containsLiteral(liberty_text, "bit_width : 8;"));
+  EXPECT_EQ(bus_type_refs.size(), 2U)
+      << "expected different-width buses to reference distinct bus types";
+}
+
+TEST_F(LibertyWriterUnitTest, writer_emits_recovery_and_removal_checks) {
+  ista::LibLibrary lib("writer_async_check_export_test");
+
+  auto lib_cell = std::make_unique<ista::LibCell>("async_check_cell", &lib);
+
+  auto clock_port = std::make_unique<ista::LibPort>("CLK");
+  clock_port->set_port_type(ista::LibPort::LibertyPortType::kInput);
+  clock_port->set_is_clock(true);
+  clock_port->set_ower_cell(lib_cell.get());
+  lib_cell->addLibertyPort(std::move(clock_port));
+
+  auto clear_port = std::make_unique<ista::LibPort>("RN");
+  clear_port->set_port_type(ista::LibPort::LibertyPortType::kInput);
+  clear_port->set_ower_cell(lib_cell.get());
+  lib_cell->addLibertyPort(std::move(clear_port));
+
+  lib_cell->addLibertyArc(
+      makeScalarCheckArc(lib_cell.get(), "CLK", "RN", "recovery_rising", 0.11,
+                         0.12));
+  lib_cell->addLibertyArc(
+      makeScalarCheckArc(lib_cell.get(), "CLK", "RN", "removal_rising", 0.21,
+                         0.22));
+  lib.addLibertyCell(std::move(lib_cell));
+
+  const auto output_dir =
+      ista::test::defaultOutputRoot() / "writer_async_check_export";
+  std::error_code ec;
+  std::filesystem::create_directories(output_dir, ec);
+  ASSERT_FALSE(ec) << "failed to create writer async check test directory: "
+                   << output_dir << ", error=" << ec.message();
+
+  const auto output_path = output_dir / "writer_async_check_export_test.lib";
+  lib.printLibertyLibrary(output_path.c_str());
+  const auto liberty_text = ista::test::readFile(output_path);
+  const auto clear_pin_block = extractPinBlock(liberty_text, "RN");
+  ASSERT_FALSE(clear_pin_block.empty()) << "expected async pin block";
+
+  EXPECT_NE(clear_pin_block.find("timing_type        : recovery_rising;"),
+            std::string::npos);
+  EXPECT_NE(clear_pin_block.find("timing_type        : removal_rising;"),
+            std::string::npos);
 }
 
 TEST_F(LibertyAlignmentTest, preserves_reference_library_header_metadata) {
