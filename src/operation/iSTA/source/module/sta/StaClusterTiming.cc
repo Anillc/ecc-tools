@@ -97,6 +97,14 @@ void connectObjectToSubnetNet(Net& subnet_net, DesignObject& object) {
   }
 }
 
+const char* getSubnetPortNetName(Port& subnet_port) {
+  if (auto* subnet_net = subnet_port.get_net()) {
+    return subnet_net->get_name();
+  }
+
+  return subnet_port.get_name();
+}
+
 }  // namespace
 
 /**
@@ -271,6 +279,7 @@ void StaClusterTiming::addHierSubNetlist() {
  */
 void StaClusterTiming ::buildSubnetlistToInst() {
   auto* design_netlist = getSta()->get_netlist();
+  getSta()->resetAllRcNet();
   design_netlist->reset();
 
   auto hier_sub_netlists = design_netlist->get_hier_sub_netlists();
@@ -310,8 +319,8 @@ void StaClusterTiming ::buildSubnetlistToInst() {
 
         } else {
           // if port is not virtual port,design netlist need add net/port
-          // with same name.
-          const char* net_name = port_name;
+          // with the original boundary-net name captured on the copied port.
+          const char* net_name = getSubnetPortNetName(*port);
           Net* the_net = design_netlist->findNet(net_name);
           if (the_net) {
             the_net->addPinPort(inst_pin);

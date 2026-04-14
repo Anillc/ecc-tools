@@ -211,6 +211,89 @@ TEST_F(RestoredClusterTimingTest,
 }
 
 TEST_F(RestoredClusterTimingTest,
+       build_subnetlist_to_inst_preserves_original_boundary_net_names) {
+  auto lib = std::make_unique<LibLibrary>("cluster_rebuild_boundary_net_test");
+  addCell(*lib, "cluster1",
+          {{"BOUND_IN", LibPort::LibertyPortType::kInput},
+           {"TOP_OUT", LibPort::LibertyPortType::kOutput}});
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+  ista->addLib(std::move(lib));
+
+  auto* netlist = ista->get_netlist();
+  ASSERT_NE(netlist, nullptr);
+  netlist->set_name("top");
+
+  auto* subnetlist = new Netlist();
+  subnetlist->set_name("cluster1");
+  auto& bound_in = subnetlist->addPort(Port("BOUND_IN", PortDir::kIn));
+  auto& top_out = subnetlist->addPort(Port("TOP_OUT", PortDir::kOut));
+  auto& bound_in_net = subnetlist->addNet(Net("bound_in_net"));
+  auto& top_out_net = subnetlist->addNet(Net("top_out_net"));
+  bound_in_net.addPinPort(&bound_in);
+  top_out_net.addPinPort(&top_out);
+
+  netlist->set_hier_sub_netlists({subnetlist});
+
+  StaClusterTiming sta_cluster_timing({});
+  sta_cluster_timing.buildSubnetlistToInst();
+
+  auto* rebuilt_bound_in_net = netlist->findNet("bound_in_net");
+  ASSERT_NE(rebuilt_bound_in_net, nullptr);
+  EXPECT_EQ(netlist->findNet("BOUND_IN"), nullptr)
+      << "expected rebuild to reuse the copied port's original net name "
+         "instead of inventing a new net named after the port";
+
+  auto* rebuilt_bound_in_port = netlist->findPort("BOUND_IN");
+  ASSERT_NE(rebuilt_bound_in_port, nullptr);
+  EXPECT_TRUE(rebuilt_bound_in_net->isNetPinPort(rebuilt_bound_in_port));
+
+  auto* rebuilt_cluster = netlist->findInstance("cluster1");
+  ASSERT_NE(rebuilt_cluster, nullptr);
+  auto rebuilt_inst_pin = rebuilt_cluster->getPin("BOUND_IN");
+  ASSERT_TRUE(rebuilt_inst_pin.has_value());
+  ASSERT_NE(*rebuilt_inst_pin, nullptr);
+  EXPECT_TRUE(rebuilt_bound_in_net->isNetPinPort(*rebuilt_inst_pin))
+      << "expected rebuilt ETM instance pins to reconnect to the original "
+         "boundary net name";
+}
+
+TEST_F(RestoredClusterTimingTest,
+       build_subnetlist_to_inst_clears_stale_rc_net_cache_before_reset) {
+  auto lib = std::make_unique<LibLibrary>("cluster_rebuild_rc_reset_test");
+  addCell(*lib, "cluster1",
+          {{"BOUND_IN", LibPort::LibertyPortType::kInput}});
+
+  auto* ista = Sta::getOrCreateSta();
+  ASSERT_NE(ista, nullptr);
+  ista->addLib(std::move(lib));
+
+  auto* netlist = ista->get_netlist();
+  ASSERT_NE(netlist, nullptr);
+  netlist->set_name("top");
+
+  auto& stale_net = netlist->addNet(Net("stale_rc_net"));
+  auto* stale_net_ptr = &stale_net;
+  ista->addRcNet(stale_net_ptr, std::make_unique<RcNet>(stale_net_ptr));
+  ASSERT_NE(ista->getRcNet(stale_net_ptr), nullptr);
+
+  auto* subnetlist = new Netlist();
+  subnetlist->set_name("cluster1");
+  auto& bound_in = subnetlist->addPort(Port("BOUND_IN", PortDir::kIn));
+  auto& bound_in_net = subnetlist->addNet(Net("bound_in_net"));
+  bound_in_net.addPinPort(&bound_in);
+  netlist->set_hier_sub_netlists({subnetlist});
+
+  StaClusterTiming sta_cluster_timing({});
+  sta_cluster_timing.buildSubnetlistToInst();
+
+  EXPECT_EQ(ista->getRcNet(stale_net_ptr), nullptr)
+      << "expected buildSubnetlistToInst() to clear stale RcNet mappings "
+         "before destroying the old design netlist";
+}
+
+TEST_F(RestoredClusterTimingTest,
        hier_subnetlist_cluster_ports_do_not_dereference_null_instances) {
   auto run_cluster_port_case = []() {
     LibLibrary lib("cluster_port_guard_test");
