@@ -826,6 +826,8 @@ class LibArc : public LibObject
   void set_timing_type(const char* timing_type);
   TimingType get_timing_type() { return _timing_type; }
   bool isMatchTimingType(TransType trans_type);
+  void set_when(const char* when) { _when = when; }
+  auto& get_when() { return _when; }
 
   void set_owner_cell(LibCell* ower_cell) { _owner_cell = ower_cell; }
   LibCell* get_owner_cell() { return _owner_cell; }
@@ -908,6 +910,7 @@ class LibArc : public LibObject
   LibCell* _owner_cell;                            //!< The cell owner the port.
   TimingSense _timing_sense;                       //!< The arc timing sense.
   TimingType _timing_type = TimingType::kDefault;  //!< The arc timing type.
+  std::string _when;                               //!< The timing arc condition.
 
   std::unique_ptr<LibTableModel> _table_model;  //!< The arc timing model.
 

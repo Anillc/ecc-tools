@@ -83,6 +83,40 @@ bool libCheckTraceMatchesFilter(const char* cell_name, const char* src_port,
   return false;
 }
 
+bool isSameTimingSenseBundle(const std::vector<LibArc*>& candidate_arcs)
+{
+  if (candidate_arcs.size() <= 1) {
+    return false;
+  }
+
+  auto* first_arc = candidate_arcs.front();
+  return first_arc &&
+         std::ranges::all_of(candidate_arcs, [&](LibArc* lib_arc) {
+           return lib_arc &&
+                  lib_arc->get_timing_type() == first_arc->get_timing_type() &&
+                  lib_arc->isPositiveArc() == first_arc->isPositiveArc() &&
+                  lib_arc->isNegativeArc() == first_arc->isNegativeArc() &&
+                  lib_arc->isNonUnateArc() == first_arc->isNonUnateArc();
+         });
+}
+
+bool hasDeclaredFallbackArc(const std::vector<LibArc*>& candidate_arcs)
+{
+  if (candidate_arcs.size() <= 1) {
+    return false;
+  }
+
+  auto* fallback_arc = candidate_arcs.back();
+  if (!fallback_arc || !fallback_arc->get_when().empty()) {
+    return false;
+  }
+
+  return std::ranges::all_of(candidate_arcs.begin(), candidate_arcs.end() - 1,
+                             [](LibArc* lib_arc) {
+                               return lib_arc && !lib_arc->get_when().empty();
+                             });
+}
+
 }  // namespace
 
 LibAxis::LibAxis(const char* axis_name) : _axis_name(axis_name)
@@ -1041,6 +1075,7 @@ LibArc::LibArc(LibArc&& other) noexcept
       _owner_cell(other._owner_cell),
       _timing_sense(other._timing_sense),
       _timing_type(other._timing_type),
+      _when(std::move(other._when)),
       _table_model(std::move(other._table_model))
 {
   other._table_model = nullptr;
@@ -1054,10 +1089,12 @@ LibArc& LibArc::operator=(LibArc&& rhs) noexcept
     _owner_cell = rhs._owner_cell;
     _timing_sense = rhs._timing_sense;
     _timing_type = rhs._timing_type;
+    _when = std::move(rhs._when);
     _table_model = std::move(rhs._table_model);
 
     rhs._src_port = nullptr;
     rhs._snk_port = nullptr;
+    rhs._when.clear();
     rhs._table_model = nullptr;
   }
 
@@ -1427,19 +1464,11 @@ std::vector<double> LibArcSet::getDelayOrConstrainCheckNs(TransType input_trans_
     candidate_arcs.push_back(lib_arc.get());
   }
 
-  // Same-sense bundles are typically condition-specific variants plus a
-  // declared fallback arc. Preserve that declared default instead of blindly
-  // taking the numeric min/max across unsupported conditional arcs.
+  // Same-sense bundles should only collapse when the last arc is a real
+  // unconditional fallback for earlier conditional arcs.
   const bool use_declared_default_arc =
-      candidate_arcs.size() > 1 &&
-      std::ranges::all_of(candidate_arcs, [&](LibArc* lib_arc) {
-        auto* first_arc = candidate_arcs.front();
-        return lib_arc && first_arc &&
-               lib_arc->get_timing_type() == first_arc->get_timing_type() &&
-               lib_arc->isPositiveArc() == first_arc->isPositiveArc() &&
-               lib_arc->isNegativeArc() == first_arc->isNegativeArc() &&
-               lib_arc->isNonUnateArc() == first_arc->isNonUnateArc();
-      });
+      isSameTimingSenseBundle(candidate_arcs) &&
+      hasDeclaredFallbackArc(candidate_arcs);
 
   if (use_declared_default_arc) {
     candidate_arcs = {candidate_arcs.back()};
@@ -1491,19 +1520,11 @@ std::vector<double> LibArcSet::getSlewNs(TransType input_trans_type, TransType o
     candidate_arcs.push_back(lib_arc.get());
   }
 
-  // Same-sense bundles are typically condition-specific variants plus a
-  // declared fallback arc. Preserve that declared default instead of blindly
-  // taking the numeric min/max across unsupported conditional arcs.
+  // Same-sense bundles should only collapse when the last arc is a real
+  // unconditional fallback for earlier conditional arcs.
   const bool use_declared_default_arc =
-      candidate_arcs.size() > 1 &&
-      std::ranges::all_of(candidate_arcs, [&](LibArc* lib_arc) {
-        auto* first_arc = candidate_arcs.front();
-        return lib_arc && first_arc &&
-               lib_arc->get_timing_type() == first_arc->get_timing_type() &&
-               lib_arc->isPositiveArc() == first_arc->isPositiveArc() &&
-               lib_arc->isNegativeArc() == first_arc->isNegativeArc() &&
-               lib_arc->isNonUnateArc() == first_arc->isNonUnateArc();
-      });
+      isSameTimingSenseBundle(candidate_arcs) &&
+      hasDeclaredFallbackArc(candidate_arcs);
 
   if (use_declared_default_arc) {
     candidate_arcs = {candidate_arcs.back()};

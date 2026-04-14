@@ -33,6 +33,33 @@ using namespace ista;
 
 namespace {
 
+std::unique_ptr<ista::LibTable> makeScalarTable(ista::LibTable::TableType type,
+                                                double value) {
+  auto table = std::make_unique<ista::LibTable>(type, nullptr);
+  table->addTableValue(std::make_unique<ista::LibFloatValue>(value));
+  return table;
+}
+
+std::unique_ptr<ista::LibArc> makeScalarDelayArcWithWhen(
+    ista::LibCell* lib_cell, const char* src_port, const char* snk_port,
+    double cell_rise_value, const char* when = nullptr) {
+  auto lib_arc = std::make_unique<ista::LibArc>();
+  lib_arc->set_src_port(src_port);
+  lib_arc->set_snk_port(snk_port);
+  lib_arc->set_timing_type("combinational");
+  lib_arc->set_timing_sense("positive_unate");
+  if (when) {
+    lib_arc->set_when(when);
+  }
+  lib_arc->set_owner_cell(lib_cell);
+
+  auto delay_model = std::make_unique<ista::LibDelayTableModel>();
+  delay_model->addTable(
+      makeScalarTable(ista::LibTable::TableType::kCellRise, cell_rise_value));
+  lib_arc->set_table_model(std::move(delay_model));
+  return lib_arc;
+}
+
 class LibertyTest : public testing::Test {
   void SetUp() {
     char config[] = "test";
@@ -183,6 +210,8 @@ TEST_F(LibertyTest,
 
   ASSERT_NE(b2_to_y_arc_set, nullptr);
   ASSERT_GT(b2_to_y_arc_set->get_arcs().size(), 1U);
+  ASSERT_FALSE(b2_to_y_arc_set->get_arcs().front()->get_when().empty());
+  ASSERT_TRUE(b2_to_y_arc_set->get_arcs().back()->get_when().empty());
 
   constexpr double kInputSlew = 0.015;
   constexpr double kLoad = 0.36;
@@ -223,6 +252,27 @@ TEST_F(LibertyTest,
   EXPECT_DOUBLE_EQ(arc_set_slew.back(), default_slew);
   EXPECT_LT(aggregated_min_delay, default_delay);
   EXPECT_LT(aggregated_min_slew, default_slew);
+}
+
+TEST_F(LibertyTest,
+       same_sense_arc_sets_without_fallback_keep_all_matching_arcs) {
+  ista::LibLibrary lib("same_sense_without_fallback");
+  auto lib_cell = std::make_unique<ista::LibCell>("same_sense_cell", &lib);
+  auto* lib_cell_ptr = lib_cell.get();
+  lib.addLibertyCell(std::move(lib_cell));
+
+  ista::LibArcSet arc_set;
+  arc_set.addLibertyArc(
+      makeScalarDelayArcWithWhen(lib_cell_ptr, "A", "Y", 0.10, "COND0"));
+  arc_set.addLibertyArc(
+      makeScalarDelayArcWithWhen(lib_cell_ptr, "A", "Y", 0.20, "COND1"));
+
+  const auto values = arc_set.getDelayOrConstrainCheckNs(
+      TransType::kRise, TransType::kRise, 0.01, 0.36);
+
+  ASSERT_EQ(values.size(), 2U);
+  EXPECT_DOUBLE_EQ(values[0], 0.20);
+  EXPECT_DOUBLE_EQ(values[1], 0.10);
 }
 
 }  // namespace

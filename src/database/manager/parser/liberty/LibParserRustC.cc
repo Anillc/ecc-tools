@@ -454,7 +454,11 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_string_value(attri_value);
          const char* when = rust_attri_value->value;
-         if (own_pg_or_when_type ==
+         if (own_port_type == LibBuilder::LibertyOwnPortType::kTimingArc) {
+           if (lib_arc) {
+             lib_arc->set_when(when);
+           }
+         } else if (own_pg_or_when_type ==
              LibBuilder::LibertyOwnPgOrWhenType::kLibertyLeakagePower) {
            leakage_power->set_when(when);
          } else if (own_pg_or_when_type ==
