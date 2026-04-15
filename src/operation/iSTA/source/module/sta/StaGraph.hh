@@ -25,6 +25,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "BTreeMap.hh"
@@ -154,6 +155,20 @@ class StaGraph {
   void resetArcData();
 
   unsigned exec(std::function<unsigned(StaGraph*)>);
+
+  auto swap(StaGraph& rhs) -> void {
+    std::swap(_nl, rhs._nl);
+    _port_vertexes.swap(rhs._port_vertexes);
+    _start_vertexes.swap(rhs._start_vertexes);
+    _end_vertexes.swap(rhs._end_vertexes);
+    _const_vertexes.swap(rhs._const_vertexes);
+    _vertexes.swap(rhs._vertexes);
+    _arcs.swap(rhs._arcs);
+    _obj2vertex.swap(rhs._obj2vertex);
+    _vertex2obj.swap(rhs._vertex2obj);
+    _main2assistant.swap(rhs._main2assistant);
+    _assistant2main.swap(rhs._assistant2main);
+  }
 
  private:
   Netlist* _nl;

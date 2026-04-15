@@ -1,0 +1,10 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide hard constraints for iCTS backend edits and validation."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Placement and target rules for source/flow and test files touched by runtime instrumentation."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include hygiene, and path-scoped validation requirements for touched C++ files."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Use CTS_LOG_INFO for runtime summaries and avoid ad hoc stdout profiling."}
+{"file": "src/operation/iCTS/source/module/characterization/CharBuilder.cc", "reason": "Reference existing per-wire-length runtime stats and sample accounting."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Keep instrumentation on the existing no-exception/logging-based error path."}
+{"file": "src/operation/iCTS/test/flow/htree/HTreeVisualizationSupport.cc", "reason": "Reference existing H-tree artifact/report path that will carry runtime distribution data."}
+{"file": "src/operation/iCTS/test/module/characterization/CharacterizationRealTechSmokeTest.cc", "reason": "Reference existing real-tech runtime report style for characterization."}

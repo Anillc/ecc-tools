@@ -69,7 +69,8 @@ class CharBuilder
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
 
-  struct WireLengthBuildStat
+ private:
+  struct BuildProgress
   {
     double wire_length_um = 0.0;
     std::size_t estimated_patterns = 0;
@@ -80,13 +81,8 @@ class CharBuilder
     std::size_t skipped_load_points = 0;
     std::size_t skipped_sta_samples = 0;
     std::size_t executed_sta_samples = 0;
-    std::size_t added_segment_chars = 0;
-    std::size_t added_patterns = 0;
-    double elapsed_ms = 0.0;
   };
-  auto get_wire_length_stats() const -> const std::vector<WireLengthBuildStat>& { return _wire_length_stats; }
 
- private:
   struct TopologyBits
   {
     std::uint64_t value = 0U;
@@ -95,8 +91,8 @@ class CharBuilder
   auto calcBufferSlotCount(double wire_length_um) const -> unsigned;
   static auto countSelectedSlots(TopologyBits topology_bits) -> unsigned;
   auto estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t;
-  auto enumerateWireLength(double wire_length_um, WireLengthBuildStat& build_stat) -> void;
-  auto enumerateTopology(double wire_length_um, unsigned num_slots, TopologyBits topology_bits, WireLengthBuildStat& build_stat) -> void;
+  auto enumerateWireLength(double wire_length_um, BuildProgress& build_progress) -> void;
+  auto enumerateTopology(double wire_length_um, unsigned num_slots, TopologyBits topology_bits, BuildProgress& build_progress) -> void;
   static auto getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t;
   static auto advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool;
 
@@ -114,7 +110,7 @@ class CharBuilder
 
   auto buildTopologyDesc(double wire_length_um, unsigned num_slots, TopologyBits topology_bits) const -> TopologyDesc;
   auto analyzePatternFeasibility(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) const -> PatternFeasibility;
-  auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, WireLengthBuildStat& build_stat) -> void;
+  auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, BuildProgress& build_progress) -> void;
   auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
   auto setCharParasitics(const TopologyDesc& topo, double load_pf) -> void;
   auto destroyCharCircuit() -> void;
@@ -152,7 +148,6 @@ class CharBuilder
 
   std::vector<SegmentChar> _segment_chars;
   std::vector<BufferingPattern> _buffering_patterns;
-  std::vector<WireLengthBuildStat> _wire_length_stats;
   unsigned _next_pattern_id = 0;
 };
 

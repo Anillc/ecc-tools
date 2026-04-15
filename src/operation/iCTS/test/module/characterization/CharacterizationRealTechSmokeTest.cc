@@ -21,11 +21,9 @@
 
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <cstddef>
 #include <iomanip>
 #include <optional>
-#include <ratio>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -64,22 +62,17 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   ASSERT_GT(expected_max_cap, 0.0);
 
   icts::CharBuilder builder;
-  const auto init_start = std::chrono::steady_clock::now();
   builder.init();
-  const double init_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - init_start).count();
 
   EXPECT_DOUBLE_EQ(builder.get_max_slew(), expected_max_slew);
   EXPECT_DOUBLE_EQ(builder.get_max_cap(), expected_max_cap);
   EXPECT_DOUBLE_EQ(builder.get_wire_length_unit_um(), realtech_support::kRealTechCharWireLengthUnitUm);
   EXPECT_EQ(builder.get_wire_length_iterations(), realtech_support::kRealTechCharWireLengthIterations);
 
-  const auto build_start = std::chrono::steady_clock::now();
   builder.build();
-  const double build_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - build_start).count();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
   EXPECT_GT(realtech_support::CountPositivePower(builder.get_segment_chars()), 0U);
-  ASSERT_EQ(builder.get_wire_length_stats().size(), builder.get_wire_length_iterations());
 
   const auto grid = realtech_support::CalcCharGrid(builder);
   ASSERT_GT(grid.length_step_um, 0.0);
@@ -199,7 +192,6 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   report_stream << "segment_200_source=" << synthesized_200_mode << "\n";
   report_stream << "positive_power_segment_chars=" << realtech_support::CountPositivePower(builder.get_segment_chars()) << "/"
                 << builder.get_segment_chars().size() << "\n";
-  report_stream << "runtime_ms{init=" << init_ms << ",build=" << build_ms << "}\n";
   report_stream << "segment_frontier_counts{50um=" << frontier_by_length.at(length_50_idx).size()
                 << ",100um=" << frontier_by_length.at(length_100_idx).size() << ",200um=" << frontier_by_length.at(length_200_idx).size()
                 << "}\n";
@@ -219,7 +211,6 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
                 << ",mid_frontier=" << capped_flow.mid_stage.frontier_entries.size()
                 << ",root_raw=" << capped_flow.root_stage.raw_entries.size()
                 << ",root_frontier=" << capped_flow.root_stage.frontier_entries.size() << "}\n";
-  realtech_support::AppendWireLengthStats(report_stream, builder.get_wire_length_stats());
   realtech_support::AppendExamples(
       report_stream, "segment_50_example=", frontier_by_length.at(length_50_idx),
       [&](const icts::SegmentChar& entry) -> std::string { return realtech_support::FormatSegmentChar(entry, grid); });

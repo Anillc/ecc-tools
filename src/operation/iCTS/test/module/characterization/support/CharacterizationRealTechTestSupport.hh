@@ -701,19 +701,6 @@ inline auto CountPositivePower(const std::vector<icts::SegmentChar>& chars) -> s
       std::ranges::count_if(chars, [](const icts::SegmentChar& entry) -> bool { return entry.get_power() > 0.0; }));
 }
 
-inline auto AppendWireLengthStats(std::ostringstream& report_stream, const std::vector<icts::CharBuilder::WireLengthBuildStat>& stats)
-    -> void
-{
-  for (const auto& stat : stats) {
-    report_stream << "wire_length_stat{length_um=" << stat.wire_length_um << ",estimated_patterns=" << stat.estimated_patterns
-                  << ",estimated_sta_samples=" << stat.estimated_sta_samples << ",evaluated_patterns=" << stat.evaluated_patterns
-                  << ",feasible_patterns=" << stat.feasible_patterns << ",skipped_patterns=" << stat.skipped_patterns_infeasible
-                  << ",skipped_load_points=" << stat.skipped_load_points << ",skipped_sta_samples=" << stat.skipped_sta_samples
-                  << ",executed_sta_samples=" << stat.executed_sta_samples << ",added_segment_chars=" << stat.added_segment_chars
-                  << ",added_patterns=" << stat.added_patterns << ",elapsed_ms=" << stat.elapsed_ms << "}\n";
-  }
-}
-
 inline auto FormatSegmentChar(const icts::SegmentChar& entry, const CharGrid& grid) -> std::string
 {
   std::ostringstream output_stream;

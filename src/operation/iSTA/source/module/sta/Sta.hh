@@ -274,6 +274,10 @@ class Sta {
     RcNet* rc_net = _net_to_rc_net.contains(the_net)
                         ? _net_to_rc_net[the_net].get()
                         : nullptr;
+    if (rc_net == nullptr && _icts_char_rc_nets != nullptr) {
+      auto rc_net_iter = _icts_char_rc_nets->find(the_net);
+      rc_net = rc_net_iter != _icts_char_rc_nets->end() ? rc_net_iter->second.get() : nullptr;
+    }
 
     return rc_net;
   }
@@ -637,6 +641,8 @@ class Sta {
   auto& getDetailJsonReport() { return _detail_json_report; }
 
  private:
+  friend class TimingEngine;
+
   Sta();
   ~Sta();
 
@@ -693,6 +699,8 @@ class Sta {
 
   std::map<Net*, std::unique_ptr<RcNet>>
       _net_to_rc_net;                         //!< The net to rc net.
+  const std::map<Net*, std::unique_ptr<RcNet>>*
+      _icts_char_rc_nets = nullptr;           //!< CTS-only sandbox RC nets.
   Vector<std::unique_ptr<StaClock>> _clocks;  //!< The clock domain.
   Multimap<StaVertex*, SdcSetIODelay*>
       _io_delays;  //!< The port vertex io delay constrain.

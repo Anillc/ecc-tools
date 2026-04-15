@@ -23,8 +23,10 @@
 
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -32,6 +34,25 @@ namespace icts {
 
 enum class InstType;
 class Pin;
+
+}  // namespace icts
+
+namespace ista {
+class Instance;
+class LibArc;
+class LibArcSet;
+class LibCell;
+class Pin;
+class StaVertex;
+}  // namespace ista
+
+namespace ipower {
+class Power;
+}  // namespace ipower
+
+namespace icts {
+
+using IctsCharPowerPtr = std::shared_ptr<ipower::Power>;
 
 #define STA_ADAPTER_INST (icts::STAAdapter::getInst())
 
@@ -76,20 +97,26 @@ class STAAdapter
   static auto buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void;
   static auto createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void;
   static auto destroyCharClock() -> void;
-  static auto setCharInputSlew(const std::string& pin_full_name, double slew_ns) -> void;
-  static auto setCharBufferInputSlew(const std::string& input_pin_full_name, const std::string& output_pin_full_name, double slew_ns)
-      -> void;
-  static auto prepareCharTiming() -> void;
-  static auto updateCharTiming() -> void;
+  static auto clearCharSandbox() -> void;
+
+  // Characterization-only runtime facade used by iCTS CharBuilder.
+  static auto prepareCharTimingContext(const std::string& input_pin_full_name, const std::string& output_pin_full_name,
+                                       const std::string& sink_pin_full_name) -> void;
+  static auto prepareCharTimingSample() -> void;
+  static auto setCharBufferInputSlew(double slew_ns) -> void;
+  static auto setCharBufferInputSlewIncremental(double slew_ns) -> void;
+  static auto updateCharTimingSample() -> void;
+  static auto updateCharTimingIncrementalSample() -> void;
   static auto prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
                                std::optional<std::string> source_input_pin_full_name = std::nullopt) -> bool;
+  static auto refreshCharPowerLoad() -> bool;
   static auto updateCharPower() -> bool;
   static auto queryCharPower() -> double;
   static auto destroyCharPower() -> void;
   static auto finishCharOnly() -> void;
   static auto updateTiming() -> void;
-  static auto queryCharClockAT(const std::string& pin_full_name, const std::string& clock_name) -> double;
-  static auto queryCharSlew(const std::string& pin_full_name) -> double;
+  static auto queryCharClockAT(const std::string& clock_name) -> double;
+  static auto queryCharSlew() -> double;
   static auto queryCharInputPinCap(const std::string& cell_master) -> double;
   static auto queryPinCapacitance(const Pin* pin) -> double;
   static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
@@ -98,13 +125,49 @@ class STAAdapter
 
  private:
   STAAdapter() = default;
-  ~STAAdapter() = default;
+  ~STAAdapter();
+  struct IctsCharTimingRuntime
+  {
+    bool is_ready = false;
+    ista::Pin* source_input_pin = nullptr;
+    ista::Pin* source_output_pin = nullptr;
+    ista::StaVertex* source_input_vertex = nullptr;
+    ista::StaVertex* source_output_vertex = nullptr;
+    ista::StaVertex* sink_vertex = nullptr;
+    ista::Instance* source_inst = nullptr;
+    ista::LibCell* source_lib_cell = nullptr;
+    ista::LibArcSet* source_arc_set = nullptr;
+    ista::LibArc* source_lib_arc = nullptr;
+  };
+
+  struct IctsCharPowerRuntime
+  {
+    IctsCharPowerRuntime() = default;
+    ~IctsCharPowerRuntime();
+    IctsCharPowerRuntime(IctsCharPowerRuntime&& rhs) noexcept = default;
+    auto operator=(IctsCharPowerRuntime&& rhs) noexcept -> IctsCharPowerRuntime& = default;
+    IctsCharPowerRuntime(const IctsCharPowerRuntime& rhs) = delete;
+    auto operator=(const IctsCharPowerRuntime& rhs) -> IctsCharPowerRuntime& = delete;
+
+    std::vector<std::string> inst_names;
+    std::vector<std::string> net_names;
+    std::unordered_set<std::string> inst_name_set;
+    std::unordered_set<std::string> net_name_set;
+    std::optional<std::string> source_input_pin_full_name = std::nullopt;
+    bool is_runtime_ready = false;
+    bool is_switch_power_cached = false;
+    double cached_leakage_power_w = 0.0;
+    double cached_switch_power_w = 0.0;
+    double last_total_power_w = 0.0;
+    IctsCharPowerPtr sandbox_power;
+  };
+
+  auto resetIctsCharTimingRuntime() -> void;
+  auto resetIctsCharPowerRuntime() -> void;
 
   bool _is_char_only_active = false;
-  std::vector<std::string> _char_power_inst_names;
-  std::vector<std::string> _char_power_net_names;
-  std::optional<std::string> _char_power_source_input_pin_full_name = std::nullopt;
-  double _last_char_power_w = 0.0;
+  IctsCharTimingRuntime _icts_char_timing_runtime;
+  IctsCharPowerRuntime _icts_char_power_runtime;
 };
 
 }  // namespace icts

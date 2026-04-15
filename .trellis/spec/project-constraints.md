@@ -65,6 +65,13 @@ Immediately after it, add a Doxygen file comment:
 - Follow `backend/quality-guidelines.md` for naming, includes, and dependency visibility.
 - Update CMake before implementing new files or modules.
 
+### External Module Touches
+
+- If an iCTS task must touch external modules such as iSTA or iPA, keep the diff minimally invasive and avoid unrelated formatting or cleanup.
+- Keep iCTS-specific additions visually scoped with an appropriate namespace, struct, facade, or similarly explicit boundary.
+- Do not use `ecc_dev_tools` to repair external-module findings as part of an iCTS task.
+- In `finish-work`, explicitly remind the human to review external-module diffs.
+
 ### Terminology
 
 Use established iCTS terms:
@@ -91,6 +98,7 @@ Before handoff, verify:
 - [ ] Code follows backend quality, logging, and error-handling specs
 - [ ] CMake was updated before implementation when structure changed
 - [ ] Path-scoped validation has been run
+- [ ] External-module diffs, if any, remain minimal and are called out for human review
 
 ## Related Docs
 

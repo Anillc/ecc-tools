@@ -25,8 +25,11 @@
 #include "TimingEngine.hh"
 
 #include <cassert>
+#include <deque>
 #include <iostream>
 #include <optional>
+#include <utility>
+#include <unordered_set>
 
 #include "FlatSet.hh"
 #include "TimingIDBAdapter.hh"
@@ -35,6 +38,7 @@
 #include "log/Log.hh"
 #include "netlist/Instance.hh"
 #include "netlist/Netlist.hh"
+#include "netlist/Pin.hh"
 #include "sdc-cmd/Cmd.hh"
 #include "sdc/SdcSetLoad.hh"
 #include "sta/Sta.hh"
@@ -59,11 +63,123 @@
 
 namespace ista {
 
+namespace {
+
+void runCharTimingPasses(
+    StaGraph& the_graph,
+    const Vector<std::function<unsigned(StaGraph*)>>& funcs) {
+  for (const auto& func : funcs) {
+    the_graph.exec(func);
+  }
+}
+
+void runCharTimingContextPasses(StaGraph& the_graph) {
+  const Vector<std::function<unsigned(StaGraph*)>> funcs = {
+      StaConstPropagation(), StaCombLoopCheck()};
+  runCharTimingPasses(the_graph, funcs);
+}
+
+void runCharTimingPropagatedSamplePasses(StaGraph& the_graph) {
+  const Vector<std::function<unsigned(StaGraph*)>> funcs = {
+      StaClockSlewDelayPropagation(),
+      StaClockPropagation(StaClockPropagation::PropType::kNormalClockProp)};
+  runCharTimingPasses(the_graph, funcs);
+}
+
+void runCharTimingFinalizePropagatedSamplePasses(StaGraph& the_graph) {
+  const Vector<std::function<unsigned(StaGraph*)>> funcs = {
+      StaClockPropagation(StaClockPropagation::PropType::kNormalClockProp)};
+  runCharTimingPasses(the_graph, funcs);
+}
+
+bool shouldStopCharSampleTraversal(StaVertex* vertex) {
+  if (!vertex || vertex->is_const()) {
+    return true;
+  }
+
+  auto* vertex_own_cell = vertex->getOwnCell();
+  return vertex->is_clock() && vertex_own_cell && !vertex_own_cell->isICG();
+}
+
+auto findCharPinInNetlist(Netlist& netlist, const std::string& pin_name)
+    -> Pin* {
+  auto match_pins = netlist.findPin(pin_name.c_str(), false, false);
+  if (match_pins.empty()) {
+    return nullptr;
+  }
+  return dynamic_cast<Pin*>(match_pins.front());
+}
+
+void resetCharTimingTouchedState(
+    const std::vector<StaVertex*>& touched_vertexes,
+    const std::vector<StaVertex*>& touched_assistant_vertexes,
+    const std::vector<StaArc*>& touched_arcs) {
+  for (auto* vertex : touched_vertexes) {
+    if (!vertex) {
+      continue;
+    }
+    vertex->resetColor();
+    vertex->resetLevel();
+    vertex->reset_is_slew_prop();
+    vertex->reset_is_delay_prop();
+    vertex->reset_is_fwd();
+    vertex->reset_is_bwd();
+    vertex->resetSlewBucket();
+    vertex->resetClockBucket();
+    vertex->resetPathDelayBucket();
+  }
+
+  for (auto* assistant_vertex : touched_assistant_vertexes) {
+    if (!assistant_vertex) {
+      continue;
+    }
+    assistant_vertex->resetSlewBucket();
+    assistant_vertex->resetClockBucket();
+    assistant_vertex->resetPathDelayBucket();
+  }
+
+  for (auto* arc : touched_arcs) {
+    if (!arc) {
+      continue;
+    }
+    arc->resetArcDelayBucket();
+  }
+}
+
+}  // namespace
+
 TimingEngine* TimingEngine::_timing_engine = nullptr;
 
-TimingEngine::TimingEngine() { _ista = Sta::getOrCreateSta(); }
+TimingEngine::TimingEngine() {
+  _ista = Sta::getOrCreateSta();
+  bindIctsCharRcNetLookup();
+}
 
 TimingEngine::~TimingEngine() { Sta::destroySta(); }
+
+auto TimingEngine::bindIctsCharRcNetLookup() -> void {
+  _ista->_icts_char_rc_nets = &_icts_char_support.timing_context.sandbox.rc_nets;
+}
+
+auto TimingEngine::enterIctsCharTimingSandbox() -> void {
+  auto& timing_context = _icts_char_support.timing_context;
+  std::swap(_ista->_netlist, timing_context.sandbox.netlist);
+  _ista->_graph.swap(timing_context.sandbox.graph);
+  _ista->_graph.set_nl(&_ista->_netlist);
+  timing_context.sandbox.graph.set_nl(&timing_context.sandbox.netlist);
+  std::swap(_ista->_clocks, timing_context.sandbox.clocks);
+  std::swap(_ista->_net_to_rc_net, timing_context.sandbox.rc_nets);
+}
+
+auto TimingEngine::leaveIctsCharTimingSandbox() -> void {
+  auto& timing_context = _icts_char_support.timing_context;
+  std::swap(_ista->_net_to_rc_net, timing_context.sandbox.rc_nets);
+  std::swap(_ista->_clocks, timing_context.sandbox.clocks);
+  _ista->_graph.swap(timing_context.sandbox.graph);
+  std::swap(_ista->_netlist, timing_context.sandbox.netlist);
+  _ista->_graph.set_nl(&_ista->_netlist);
+  timing_context.sandbox.graph.set_nl(&timing_context.sandbox.netlist);
+}
 
 /**
  * @brief Get the TimingEngine instance, if not, create one.
@@ -564,7 +680,7 @@ void TimingEngine::makeVirtualRCTreeResistor(const char* rc_tree_name,
  */
 void TimingEngine::updateRCTreeInfo(Net* net) {
   auto* rc_net = _timing_engine->get_ista()->getRcNet(net);
-  
+
   if (rc_net) {
     rc_net->updateRcTreeInfo();
     auto* rct = rc_net->rct();
@@ -728,6 +844,334 @@ TimingEngine& TimingEngine::updateCharTiming() {
   }
 
   return *this;
+}
+
+auto icts_char::TimingFacade::prepareCharTimingContext() -> void {
+  auto& timing_engine = _timing_engine;
+  auto& timing_context = timing_engine._icts_char_support.timing_context;
+  timing_context.invalidate();
+  auto& the_graph = timing_context.sandbox.graph;
+  the_graph.initGraph();
+  the_graph.resetVertexData();
+  the_graph.resetArcData();
+  runCharTimingContextPasses(the_graph);
+  std::deque<StaVertex*> bfs_queue;
+  std::unordered_set<StaVertex*> visited_vertexes;
+  std::unordered_set<StaArc*> visited_arcs;
+  std::unordered_set<StaVertex*> visited_assistant_vertexes;
+
+  auto add_vertex = [&visited_vertexes, &bfs_queue](StaVertex* vertex) {
+    if (!vertex) {
+      return;
+    }
+    if (visited_vertexes.emplace(vertex).second) {
+      bfs_queue.emplace_back(vertex);
+    }
+  };
+
+  auto& clocks = timing_context.sandbox.clocks;
+  for (auto& clock : clocks) {
+    for (auto* root_vertex : clock->get_clock_vertexes()) {
+      add_vertex(root_vertex);
+    }
+  }
+
+  while (!bfs_queue.empty()) {
+    auto* vertex = bfs_queue.front();
+    bfs_queue.pop_front();
+    timing_context.touched_vertexes.emplace_back(vertex);
+
+    if (shouldStopCharSampleTraversal(vertex)) {
+      continue;
+    }
+
+    FOREACH_SRC_ARC(vertex, src_arc) {
+      if (!src_arc || !src_arc->isDelayArc()) {
+        continue;
+      }
+
+      if (visited_arcs.emplace(src_arc).second) {
+        timing_context.touched_arcs.emplace_back(src_arc);
+      }
+
+      add_vertex(src_arc->get_snk());
+    }
+  }
+
+  auto& main2assistant = the_graph.get_main2assistant();
+  for (auto* vertex : timing_context.touched_vertexes) {
+    auto assistant_iter = main2assistant.find(vertex);
+    if ((assistant_iter == main2assistant.end()) || !assistant_iter->second) {
+      continue;
+    }
+
+    auto* assistant_vertex = assistant_iter->second.get();
+    if (visited_assistant_vertexes.emplace(assistant_vertex).second) {
+      timing_context.touched_assistant_vertexes.emplace_back(assistant_vertex);
+    }
+  }
+
+  timing_context.graph_vertex_count = the_graph.numVertex();
+  timing_context.graph_arc_count = the_graph.numArc();
+  timing_context.is_ready = !timing_context.touched_vertexes.empty();
+}
+
+auto icts_char::TimingFacade::resetCharTimingContext() -> void {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  timing_context.resetSandbox();
+}
+
+auto icts_char::TimingFacade::createCharInstance(const std::string& cell_name,
+                                                 const std::string& inst_name)
+    -> Instance* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* lib_cell = _timing_engine._ista->findLibertyCell(cell_name.c_str());
+  LOG_FATAL_IF(lib_cell == nullptr)
+      << "characterization liberty cell " << cell_name << " is not found.";
+
+  Instance char_inst(inst_name.c_str(), lib_cell);
+  LibPort* lib_port = nullptr;
+  FOREACH_CELL_PORT(lib_cell, lib_port) {
+    if (lib_port != nullptr) {
+      char_inst.addPin(lib_port->get_port_name(), lib_port);
+    }
+  }
+
+  auto& created_inst = timing_context.sandbox.netlist.addInstance(
+      std::move(char_inst));
+  StaBuildGraph build_graph;
+  build_graph.buildInst(&timing_context.sandbox.graph, &created_inst);
+  return &created_inst;
+}
+
+auto icts_char::TimingFacade::createCharNet(const std::string& net_name)
+    -> Net* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto& created_net =
+      timing_context.sandbox.netlist.addNet(Net(net_name.c_str()));
+  return &created_net;
+}
+
+auto icts_char::TimingFacade::attachCharPin(const std::string& inst_name,
+                                            const std::string& port_name,
+                                            const std::string& net_name)
+    -> Pin* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* inst = timing_context.sandbox.netlist.findInstance(inst_name.c_str());
+  LOG_FATAL_IF(inst == nullptr)
+      << "characterization instance " << inst_name << " is not found.";
+  auto* net = timing_context.sandbox.netlist.findNet(net_name.c_str());
+  LOG_FATAL_IF(net == nullptr)
+      << "characterization net " << net_name << " is not found.";
+
+  auto pin = inst->getPin(port_name.c_str());
+  LOG_FATAL_IF(!pin)
+      << "characterization pin " << port_name << " is not found on instance "
+      << inst_name;
+  net->addPinPort(*pin);
+  return *pin;
+}
+
+auto icts_char::TimingFacade::buildCharNetGraph(const std::string& net_name)
+    -> void {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* net = timing_context.sandbox.netlist.findNet(net_name.c_str());
+  LOG_FATAL_IF(net == nullptr)
+      << "characterization net " << net_name
+      << " is not found when building graph.";
+  StaBuildGraph build_graph;
+  build_graph.buildNet(&timing_context.sandbox.graph, net);
+}
+
+auto icts_char::TimingFacade::buildCharRcTree(const std::string& net_name,
+                                              double wire_res,
+                                              double wire_cap,
+                                              double load_cap) -> void {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* net = timing_context.sandbox.netlist.findNet(net_name.c_str());
+  LOG_FATAL_IF(net == nullptr)
+      << "characterization net " << net_name << " is not found for RC tree.";
+
+  _timing_engine.enterIctsCharTimingSandbox();
+  _timing_engine.resetRcTree(net);
+  _timing_engine.initRcTree(net);
+
+  auto* driver_pin = net->getDriver();
+  LOG_FATAL_IF(driver_pin == nullptr)
+      << "characterization net " << net_name << " has no driver pin.";
+
+  auto* driver_node = _timing_engine.makeOrFindRCTreeNode(driver_pin);
+  auto load_pins = net->getLoads();
+  for (auto* load_pin : load_pins) {
+    auto* load_node = _timing_engine.makeOrFindRCTreeNode(load_pin);
+    _timing_engine.makeResistor(net, driver_node, load_node, wire_res);
+    _timing_engine.incrCap(driver_node, wire_cap / 2.0, true);
+    _timing_engine.incrCap(load_node, (wire_cap / 2.0) + load_cap, true);
+  }
+  _timing_engine.updateRCTreeInfo(net);
+  _timing_engine.leaveIctsCharTimingSandbox();
+}
+
+auto icts_char::TimingFacade::createCharClock(
+    const std::string& source_pin_full_name, const std::string& clock_name,
+    double period_ns) -> StaClock* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* source_pin =
+      findCharPinInNetlist(timing_context.sandbox.netlist,
+                           source_pin_full_name);
+  LOG_FATAL_IF(source_pin == nullptr)
+      << "characterization clock source pin " << source_pin_full_name
+      << " is not found.";
+  auto the_vertex = timing_context.sandbox.graph.findVertex(source_pin);
+  LOG_FATAL_IF(!the_vertex)
+      << "characterization clock source vertex " << source_pin_full_name
+      << " is not found.";
+
+  const int period_ps = static_cast<int>(NS_TO_PS(period_ns));
+  auto sta_clock = std::make_unique<StaClock>(
+      clock_name.c_str(), StaClock::ClockType::kPropagated, period_ps);
+  StaWaveForm wave_form;
+  wave_form.addWaveEdge(0);
+  wave_form.addWaveEdge(period_ps / 2);
+  sta_clock->set_wave_form(std::move(wave_form));
+  sta_clock->addVertex(*the_vertex);
+
+  auto* created_clock = sta_clock.get();
+  timing_context.sandbox.clocks.emplace_back(std::move(sta_clock));
+  return created_clock;
+}
+
+auto icts_char::TimingFacade::clearCharClocks() -> void {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  timing_context.invalidate();
+  timing_context.sandbox.clocks.clear();
+}
+
+auto icts_char::TimingFacade::findCharPin(const std::string& pin_name)
+    -> Pin* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  return ::ista::findCharPinInNetlist(timing_context.sandbox.netlist,
+                                      pin_name);
+}
+
+auto icts_char::TimingFacade::findCharVertex(const std::string& pin_name)
+    -> StaVertex* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* pin = findCharPin(pin_name);
+  if (pin == nullptr) {
+    return nullptr;
+  }
+  auto the_vertex = timing_context.sandbox.graph.findVertex(pin);
+  return the_vertex ? *the_vertex : nullptr;
+}
+
+auto icts_char::TimingFacade::queryCharOutputNetLoadPf(Pin* output_pin,
+                                                       TransType trans_type)
+    -> double {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto* output_net = output_pin != nullptr ? output_pin->get_net() : nullptr;
+  if (output_net == nullptr) {
+    return 0.0;
+  }
+
+  auto rc_net_iter = timing_context.sandbox.rc_nets.find(output_net);
+  if (rc_net_iter != timing_context.sandbox.rc_nets.end() &&
+      rc_net_iter->second != nullptr) {
+    return rc_net_iter->second->load(AnalysisMode::kMax, trans_type);
+  }
+  return output_net->getLoad(AnalysisMode::kMax, trans_type);
+}
+
+auto icts_char::TimingFacade::getCharGraph() -> StaGraph* {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  return &timing_context.sandbox.graph;
+}
+
+auto icts_char::TimingFacade::getCharClocks() -> Vector<StaClock*> {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  Vector<StaClock*> clocks;
+  for (auto& clock : timing_context.sandbox.clocks) {
+    if (clock != nullptr) {
+      clocks.emplace_back(clock.get());
+    }
+  }
+  return clocks;
+}
+
+auto icts_char::TimingFacade::resetCharTimingSample() -> void {
+  auto& timing_engine = _timing_engine;
+  auto& timing_context = timing_engine._icts_char_support.timing_context;
+  auto& the_graph = timing_context.sandbox.graph;
+  if (!timing_context.isValid(the_graph)) {
+    the_graph.initGraph();
+    the_graph.resetVertexData();
+    the_graph.resetArcData();
+    return;
+  }
+
+  resetCharTimingTouchedState(timing_context.touched_vertexes,
+                              timing_context.touched_assistant_vertexes,
+                              timing_context.touched_arcs);
+}
+
+auto icts_char::TimingFacade::propagateCharTimingSample() -> void {
+  auto& timing_context = _timing_engine._icts_char_support.timing_context;
+  auto& the_graph = timing_context.sandbox.graph;
+  _timing_engine.enterIctsCharTimingSandbox();
+  runCharTimingPropagatedSamplePasses(the_graph);
+  _timing_engine.leaveIctsCharTimingSandbox();
+}
+
+auto icts_char::TimingFacade::propagateCharTimingIncrementalSample(
+    StaVertex* root_vertex, StaVertex* stop_vertex) -> void {
+  auto& timing_engine = _timing_engine;
+  auto& timing_context = timing_engine._icts_char_support.timing_context;
+  auto& the_graph = timing_context.sandbox.graph;
+  if (!root_vertex || !timing_context.isValid(the_graph)) {
+    timing_engine.enterIctsCharTimingSandbox();
+    runCharTimingPropagatedSamplePasses(the_graph);
+    timing_engine.leaveIctsCharTimingSandbox();
+    return;
+  }
+
+  std::vector<StaVertex*> incremental_vertexes;
+  incremental_vertexes.reserve(timing_context.touched_vertexes.size());
+  for (auto* vertex : timing_context.touched_vertexes) {
+    if (!vertex || vertex == root_vertex) {
+      continue;
+    }
+
+    auto* pin = dynamic_cast<Pin*>(vertex->get_design_obj());
+    if (pin && pin->isOutput() && (pin->get_net() == nullptr)) {
+      continue;
+    }
+
+    if (stop_vertex != nullptr && vertex == stop_vertex) {
+      incremental_vertexes.emplace_back(vertex);
+      continue;
+    }
+
+    incremental_vertexes.emplace_back(vertex);
+  }
+
+  for (auto* vertex : incremental_vertexes) {
+    vertex->reset_is_slew_prop();
+    vertex->reset_is_delay_prop();
+    vertex->reset_is_fwd();
+  }
+
+  root_vertex->set_is_slew_prop();
+  root_vertex->set_is_delay_prop();
+  root_vertex->set_is_fwd();
+
+  timing_engine.enterIctsCharTimingSandbox();
+  for (auto* vertex : incremental_vertexes) {
+    timing_engine._incr_func.propagateSlew(vertex);
+    timing_engine._incr_func.propagateDelay(vertex);
+    timing_engine._incr_func.propagateAT(vertex);
+  }
+  runCharTimingFinalizePropagatedSamplePasses(the_graph);
+  timing_engine.leaveIctsCharTimingSandbox();
 }
 
 /**
@@ -1802,7 +2246,7 @@ unsigned TimingEngine::isSequentialCell(const char* instance_name) {
     LOG_WARNING << "Can not find cell name = " << instance_name;
     return 0;
   }
-  
+
   bool is_sequential = lib_cell->isSequentialCell();
 
   return is_sequential;

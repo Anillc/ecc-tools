@@ -23,13 +23,11 @@
 #include "CharBuilder.hh"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <limits>
 #include <optional>
 #include <ranges>
-#include <ratio>
 #include <string>
 #include <utility>
 #include <vector>
@@ -301,7 +299,6 @@ auto CharBuilder::init() -> void
 
   _segment_chars.clear();
   _buffering_patterns.clear();
-  _wire_length_stats.clear();
   _temp_inst_names.clear();
   _temp_net_names.clear();
   _source_inst_name.clear();
@@ -353,7 +350,6 @@ auto CharBuilder::init() -> void
 auto CharBuilder::build() -> void
 {
   CTS_LOG_INFO << "CharBuilder: build started";
-  _wire_length_stats.clear();
 
   if (_sorted_buffers.empty()) {
     CTS_LOG_WARNING << "CharBuilder: no usable buffers remain after Config/liberty filtering, skip characterization build";
@@ -375,35 +371,29 @@ auto CharBuilder::build() -> void
   for (const double wire_length_um : _wire_lengths_um) {
     const unsigned lattice_slots = calcLatticeSlotCount(wire_length_um, _length_unit_um);
     const unsigned enumerated_slots = calcBufferSlotCount(wire_length_um);
-    const std::size_t char_count_before = _segment_chars.size();
-    const std::size_t pattern_count_before = _buffering_patterns.size();
-    const auto start_time = std::chrono::steady_clock::now();
     const std::size_t estimated_patterns_per_wire_length = estimatePatternCountPerWireLength(wire_length_um);
     const std::size_t estimated_sta_samples_per_wire_length
         = estimated_patterns_per_wire_length * _loads_to_test.size() * _slews_to_test.size();
-    WireLengthBuildStat build_stat;
-    build_stat.wire_length_um = wire_length_um;
-    build_stat.estimated_patterns = estimated_patterns_per_wire_length;
-    build_stat.estimated_sta_samples = estimated_sta_samples_per_wire_length;
+    const std::size_t char_count_before = _segment_chars.size();
+    const std::size_t pattern_count_before = _buffering_patterns.size();
+    BuildProgress build_progress;
+    build_progress.wire_length_um = wire_length_um;
+    build_progress.estimated_patterns = estimated_patterns_per_wire_length;
+    build_progress.estimated_sta_samples = estimated_sta_samples_per_wire_length;
     CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um estimated upper bound = " << estimated_patterns_per_wire_length
                  << " patterns, " << estimated_sta_samples_per_wire_length << " STA samples"
                  << " (lattice_slots=" << lattice_slots << ", enumerated_slots=" << enumerated_slots << ")";
     if (enumerated_slots < lattice_slots) {
       CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um slot enumeration is capped by max_pattern_nodes=" << _max_nodes;
     }
-    enumerateWireLength(wire_length_um, build_stat);
+    enumerateWireLength(wire_length_um, build_progress);
 
-    build_stat.elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_time).count();
-    build_stat.added_segment_chars = _segment_chars.size() - char_count_before;
-    build_stat.added_patterns = _buffering_patterns.size() - pattern_count_before;
-    _wire_length_stats.push_back(build_stat);
-    CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um generated " << _wire_length_stats.back().added_segment_chars
-                 << " segment chars, " << _wire_length_stats.back().added_patterns << " patterns in "
-                 << _wire_length_stats.back().elapsed_ms << " ms"
-                 << " (feasible_patterns=" << _wire_length_stats.back().feasible_patterns
-                 << ", skipped_patterns=" << _wire_length_stats.back().skipped_patterns_infeasible
-                 << ", executed_sta_samples=" << _wire_length_stats.back().executed_sta_samples
-                 << ", skipped_sta_samples=" << _wire_length_stats.back().skipped_sta_samples << ")";
+    CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um generated " << (_segment_chars.size() - char_count_before)
+                 << " segment chars, " << (_buffering_patterns.size() - pattern_count_before) << " patterns"
+                 << " (feasible_patterns=" << build_progress.feasible_patterns
+                 << ", skipped_patterns=" << build_progress.skipped_patterns_infeasible
+                 << ", executed_sta_samples=" << build_progress.executed_sta_samples
+                 << ", skipped_sta_samples=" << build_progress.skipped_sta_samples << ")";
   }
 
   CTS_LOG_INFO << "CharBuilder: build complete -- " << _segment_chars.size() << " segment chars, " << _buffering_patterns.size()
@@ -459,7 +449,7 @@ auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const
   return total_patterns;
 }
 
-auto CharBuilder::enumerateWireLength(double wire_length_um, WireLengthBuildStat& build_stat) -> void
+auto CharBuilder::enumerateWireLength(double wire_length_um, BuildProgress& build_progress) -> void
 {
   const unsigned num_slots = calcBufferSlotCount(wire_length_um);
   CTS_LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
@@ -467,11 +457,11 @@ auto CharBuilder::enumerateWireLength(double wire_length_um, WireLengthBuildStat
 
   const std::uint64_t num_topologies = std::uint64_t{1} << num_slots;
   for (std::uint64_t topology_bits_value = 0; topology_bits_value < num_topologies; ++topology_bits_value) {
-    enumerateTopology(wire_length_um, num_slots, TopologyBits{topology_bits_value}, build_stat);
+    enumerateTopology(wire_length_um, num_slots, TopologyBits{topology_bits_value}, build_progress);
   }
 }
 
-auto CharBuilder::enumerateTopology(double wire_length_um, unsigned num_slots, TopologyBits topology_bits, WireLengthBuildStat& build_stat)
+auto CharBuilder::enumerateTopology(double wire_length_um, unsigned num_slots, TopologyBits topology_bits, BuildProgress& build_progress)
     -> void
 {
   const TopologyDesc topo = buildTopologyDesc(wire_length_um, num_slots, topology_bits);
@@ -479,7 +469,7 @@ auto CharBuilder::enumerateTopology(double wire_length_um, unsigned num_slots, T
 
   if (num_buf_positions == 0) {
     const std::vector<std::string> empty_masters;
-    characterizeTopology(topo, empty_masters, build_stat);
+    characterizeTopology(topo, empty_masters, build_progress);
     return;
   }
 
@@ -496,7 +486,7 @@ auto CharBuilder::enumerateTopology(double wire_length_um, unsigned num_slots, T
       buf_masters.push_back(_sorted_buffers.at(buffer_index).cell_master);
     }
 
-    characterizeTopology(topo, buf_masters, build_stat);
+    characterizeTopology(topo, buf_masters, build_progress);
     if (!advanceToNextMonotonic(buf_indices, num_buf_types)) {
       break;
     }
@@ -634,10 +624,10 @@ auto CharBuilder::analyzePatternFeasibility(const TopologyDesc& topo, const std:
   return PatternFeasibility{.is_pattern_feasible = true, .max_load_pf = max_external_load_pf};
 }
 
-auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters,
-                                       WireLengthBuildStat& build_stat) -> void
+auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, BuildProgress& build_progress)
+    -> void
 {
-  ++build_stat.evaluated_patterns;
+  ++build_progress.evaluated_patterns;
 
   double total_length_um = 0.0;
   for (const double seg_len : topo.wire_segments_um) {
@@ -666,28 +656,27 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
 
   const PatternFeasibility feasibility = analyzePatternFeasibility(topo, buf_masters);
   if (!feasibility.is_pattern_feasible) {
-    ++build_stat.skipped_patterns_infeasible;
-    if ((build_stat.evaluated_patterns % kCharProgressLogStride) == 0U) {
-      CTS_LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_stat.evaluated_patterns << "/"
-                   << build_stat.estimated_patterns << " patterns"
-                   << " (feasible=" << build_stat.feasible_patterns << ", skipped=" << build_stat.skipped_patterns_infeasible
-                   << ", executed_sta_samples=" << build_stat.executed_sta_samples << ")";
+    ++build_progress.skipped_patterns_infeasible;
+    if ((build_progress.evaluated_patterns % kCharProgressLogStride) == 0U) {
+      CTS_LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
+                   << build_progress.estimated_patterns << " patterns"
+                   << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
+                   << ", executed_sta_samples=" << build_progress.executed_sta_samples << ")";
     }
     ++_next_pattern_id;
     return;
   }
-  ++build_stat.feasible_patterns;
+  ++build_progress.feasible_patterns;
 
   createCharCircuit(topo, buf_masters);
   STA_ADAPTER_INST.createCharClock(_source_out_pin, _char_clock_name, kCharClockPeriodNs);
+  STA_ADAPTER_INST.prepareCharTimingContext(_source_in_pin, _source_out_pin, _sink_in_pin);
 
   std::vector<std::string> power_inst_names = _temp_inst_names;
   power_inst_names.push_back(_source_inst_name);
   power_inst_names.push_back(_sink_inst_name);
-  bool power_context_attempted = false;
   bool power_context_ready = false;
   if (kEnableCharPowerSampling) {
-    power_context_attempted = true;
     power_context_ready = STA_ADAPTER_INST.prepareCharPower(power_inst_names, _temp_net_names, _source_in_pin);
     if (!power_context_ready) {
       CTS_LOG_WARNING << "CharBuilder: iPA characterization power is unavailable for this topology; affected samples use zero power.";
@@ -696,44 +685,62 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
 
   for (const double load_pf : _loads_to_test) {
     if (load_pf > feasibility.max_load_pf + kCapFeasibilityEpsilonPf) {
-      ++build_stat.skipped_load_points;
-      build_stat.skipped_sta_samples += _slews_to_test.size();
+      ++build_progress.skipped_load_points;
+      build_progress.skipped_sta_samples += _slews_to_test.size();
       continue;
     }
 
     const double effective_load = load_pf - _sink_input_cap_pf;
     if (effective_load < 0.0) {
-      ++build_stat.skipped_load_points;
-      build_stat.skipped_sta_samples += _slews_to_test.size();
+      ++build_progress.skipped_load_points;
+      build_progress.skipped_sta_samples += _slews_to_test.size();
       continue;
     }
 
     setCharParasitics(topo, effective_load);
+    if (kEnableCharPowerSampling && power_context_ready) {
+      const bool refreshed_power_load = STA_ADAPTER_INST.refreshCharPowerLoad();
+      if (!refreshed_power_load) {
+        CTS_LOG_WARNING << "CharBuilder: external iPA load refresh failed, remaining samples for this topology use zero power.";
+        power_context_ready = false;
+        STA_ADAPTER_INST.destroyCharPower();
+      }
+    }
 
+    bool is_first_slew_sample_for_load = true;
     for (const double input_slew_ns : _slews_to_test) {
-      // Keep the injected char clock stable and only clear transient timing data.
-      STA_ADAPTER_INST.prepareCharTiming();
+      if (is_first_slew_sample_for_load) {
+        STA_ADAPTER_INST.prepareCharTimingSample();
+      }
 
       // The source clock is rooted at the buffer output to exclude source-cell delay,
       // but the output slew/current must still be derived from the source buffer arc.
-      STA_ADAPTER_INST.setCharBufferInputSlew(_source_in_pin, _source_out_pin, input_slew_ns);
+      if (is_first_slew_sample_for_load) {
+        STA_ADAPTER_INST.setCharBufferInputSlew(input_slew_ns);
+      } else {
+        STA_ADAPTER_INST.setCharBufferInputSlewIncremental(input_slew_ns);
+      }
 
-      STA_ADAPTER_INST.updateCharTiming();
-      ++build_stat.executed_sta_samples;
+      if (is_first_slew_sample_for_load) {
+        STA_ADAPTER_INST.updateCharTimingSample();
+      } else {
+        STA_ADAPTER_INST.updateCharTimingIncrementalSample();
+      }
+      ++build_progress.executed_sta_samples;
 
-      const double delay_ns = STA_ADAPTER_INST.queryCharClockAT(_sink_in_pin, _char_clock_name);
-      const double output_slew_ns = STA_ADAPTER_INST.queryCharSlew(_sink_in_pin);
+      const double delay_ns = STA_ADAPTER_INST.queryCharClockAT(_char_clock_name);
+
+      const double output_slew_ns = STA_ADAPTER_INST.queryCharSlew();
 
       double power_w = 0.0;
-      if (kEnableCharPowerSampling) {
-        if (power_context_ready) {
-          if (STA_ADAPTER_INST.updateCharPower()) {
-            power_w = STA_ADAPTER_INST.queryCharPower();
-          } else {
-            CTS_LOG_WARNING << "CharBuilder: iPA characterization update failed, remaining samples for this topology use zero power.";
-            power_context_ready = false;
-            STA_ADAPTER_INST.destroyCharPower();
-          }
+      if (kEnableCharPowerSampling && power_context_ready) {
+        const bool power_updated = STA_ADAPTER_INST.updateCharPower();
+        if (power_updated) {
+          power_w = STA_ADAPTER_INST.queryCharPower();
+        } else {
+          CTS_LOG_WARNING << "CharBuilder: iPA characterization update failed, remaining samples for this topology use zero power.";
+          power_context_ready = false;
+          STA_ADAPTER_INST.destroyCharPower();
         }
       }
 
@@ -756,21 +763,22 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
       const CharCore core(input_slew_idx, output_slew_idx, driven_cap_idx, load_cap_idx, delay_ns, power_w, pid);
       const SegmentChar seg_char(core, length_idx);
       _segment_chars.push_back(seg_char);
+      is_first_slew_sample_for_load = false;
     }
   }
 
-  if (kEnableCharPowerSampling && power_context_attempted) {
+  if (kEnableCharPowerSampling) {
     STA_ADAPTER_INST.destroyCharPower();
   }
   STA_ADAPTER_INST.destroyCharClock();
 
   destroyCharCircuit();
-  if ((build_stat.evaluated_patterns % kCharProgressLogStride) == 0U) {
-    CTS_LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_stat.evaluated_patterns << "/"
-                 << build_stat.estimated_patterns << " patterns"
-                 << " (feasible=" << build_stat.feasible_patterns << ", skipped=" << build_stat.skipped_patterns_infeasible
-                 << ", executed_sta_samples=" << build_stat.executed_sta_samples
-                 << ", skipped_sta_samples=" << build_stat.skipped_sta_samples << ")";
+  if ((build_progress.evaluated_patterns % kCharProgressLogStride) == 0U) {
+    CTS_LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
+                 << build_progress.estimated_patterns << " patterns"
+                 << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
+                 << ", executed_sta_samples=" << build_progress.executed_sta_samples
+                 << ", skipped_sta_samples=" << build_progress.skipped_sta_samples << ")";
   }
   ++_next_pattern_id;
 }
@@ -854,20 +862,9 @@ auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) ->
 
 auto CharBuilder::destroyCharCircuit() -> void
 {
-  for (const auto& net_name : std::ranges::reverse_view(_temp_net_names)) {
-    STA_ADAPTER_INST.destroyCharNet(net_name);
-  }
-  for (const auto& inst_name : std::ranges::reverse_view(_temp_inst_names)) {
-    STA_ADAPTER_INST.destroyCharInstance(inst_name);
-  }
-  if (!_sink_inst_name.empty()) {
-    STA_ADAPTER_INST.destroyCharInstance(_sink_inst_name);
-    _sink_inst_name.clear();
-  }
-  if (!_source_inst_name.empty()) {
-    STA_ADAPTER_INST.destroyCharInstance(_source_inst_name);
-    _source_inst_name.clear();
-  }
+  STA_ADAPTER_INST.clearCharSandbox();
+  _sink_inst_name.clear();
+  _source_inst_name.clear();
   _temp_net_names.clear();
   _temp_inst_names.clear();
   _source_in_pin.clear();

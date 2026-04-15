@@ -24,7 +24,12 @@
 
 #pragma once
 
+#include <cstddef>
+#include <map>
+#include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "TimingDBAdapter.hh"
 #include "TimingIDBAdapter.hh"
@@ -34,6 +39,95 @@
 namespace ista {
 
 class RctNode;
+class TimingEngine;
+
+namespace icts_char {
+
+struct TimingSandbox {
+  TimingSandbox() : graph(&netlist) {}
+
+  auto reset() -> void {
+    netlist.reset();
+    graph.reset();
+    graph.set_nl(&netlist);
+    rc_nets.clear();
+    clocks.clear();
+  }
+
+  Netlist netlist;
+  StaGraph graph;
+  std::map<Net*, std::unique_ptr<RcNet>> rc_nets;
+  Vector<std::unique_ptr<StaClock>> clocks;
+};
+
+struct TimingContext {
+  TimingContext() = default;
+
+  std::vector<StaVertex*> touched_vertexes;
+  std::vector<StaVertex*> touched_assistant_vertexes;
+  std::vector<StaArc*> touched_arcs;
+  std::size_t graph_vertex_count = 0;
+  std::size_t graph_arc_count = 0;
+  bool is_ready = false;
+  TimingSandbox sandbox;
+
+  auto invalidate() -> void {
+    touched_vertexes.clear();
+    touched_assistant_vertexes.clear();
+    touched_arcs.clear();
+    graph_vertex_count = 0;
+    graph_arc_count = 0;
+    is_ready = false;
+  }
+
+  auto isValid(const StaGraph& the_graph) const -> bool {
+    return is_ready && (graph_vertex_count == the_graph.numVertex()) &&
+           (graph_arc_count == the_graph.numArc()) &&
+           !touched_vertexes.empty();
+  }
+
+  auto resetSandbox() -> void {
+    invalidate();
+    sandbox.reset();
+  }
+};
+
+class TimingFacade {
+ public:
+  explicit TimingFacade(TimingEngine& timing_engine)
+      : _timing_engine(timing_engine) {}
+
+  auto resetCharTimingContext() -> void;
+  auto createCharInstance(const std::string& cell_name,
+                          const std::string& inst_name) -> Instance*;
+  auto createCharNet(const std::string& net_name) -> Net*;
+  auto attachCharPin(const std::string& inst_name, const std::string& port_name,
+                     const std::string& net_name) -> Pin*;
+  auto buildCharNetGraph(const std::string& net_name) -> void;
+  auto buildCharRcTree(const std::string& net_name, double wire_res,
+                       double wire_cap, double load_cap) -> void;
+  auto createCharClock(const std::string& source_pin_full_name,
+                       const std::string& clock_name, double period_ns)
+      -> StaClock*;
+  auto clearCharClocks() -> void;
+  auto findCharPin(const std::string& pin_name) -> Pin*;
+  auto findCharVertex(const std::string& pin_name) -> StaVertex*;
+  auto queryCharOutputNetLoadPf(Pin* output_pin, TransType trans_type)
+      -> double;
+  auto getCharGraph() -> StaGraph*;
+  auto getCharClocks() -> Vector<StaClock*>;
+  auto prepareCharTimingContext() -> void;
+  auto resetCharTimingSample() -> void;
+  auto propagateCharTimingSample() -> void;
+  auto propagateCharTimingIncrementalSample(StaVertex* root_vertex,
+                                            StaVertex* stop_vertex = nullptr)
+      -> void;
+
+ private:
+  TimingEngine& _timing_engine;
+};
+
+}  // namespace icts_char
 
 class TimingEngine {
  public:
@@ -183,16 +277,19 @@ class TimingEngine {
   }
 
   TimingEngine &resetNetlist() {
+    _icts_char_support.timing_context.invalidate();
     _ista->resetNetlist();
     return *this;
   }
 
   TimingEngine &resetGraph() {
+    _icts_char_support.timing_context.invalidate();
     _ista->resetGraph();
     return *this;
   }
 
   unsigned buildGraph() {
+    _icts_char_support.timing_context.invalidate();
     unsigned is_ok = _ista->buildGraph();
     return is_ok;
   }
@@ -419,8 +516,17 @@ class TimingEngine {
                     std::optional<double> &limit, double &slack);
 
  private:
+  friend class icts_char::TimingFacade;
+
+  struct IctsCharSupport {
+    icts_char::TimingContext timing_context;
+  };
+
   TimingEngine();
   ~TimingEngine();
+  auto bindIctsCharRcNetLookup() -> void;
+  auto enterIctsCharTimingSandbox() -> void;
+  auto leaveIctsCharTimingSandbox() -> void;
 
   Sta *_ista;
 
@@ -429,6 +535,7 @@ class TimingEngine {
 
   std::map<std::string, RcTree>
       _virtual_rc_trees;  //!< The virtual rc tree is maybe not complete net.
+  IctsCharSupport _icts_char_support;
 
   // Singleton timing engine.
   static TimingEngine *_timing_engine;
