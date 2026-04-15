@@ -209,16 +209,21 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
         } else if (the_arc->isDelayArc()) {
           auto* rc_net = getSta()->getRcNet(the_net);
-          auto load_pf = rc_net ? rc_net->load(analysis_mode, trans_type)
-                                : the_net->getLoad(analysis_mode, trans_type);
           auto* the_lib = lib_arc->get_owner_cell()->get_owner_lib();
+          auto convert_load = [&](TransType load_trans_type) {
+            auto load_pf = rc_net ? rc_net->load(analysis_mode, load_trans_type)
+                                  : the_net->getLoad(analysis_mode,
+                                                     load_trans_type);
 
-          double load{0};
-          if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
-            load = PF_TO_FF(load_pf);
-          } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
-            load = load_pf;
-          }
+            double load = load_pf;
+            if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
+              load = PF_TO_FF(load_pf);
+            } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
+              load = load_pf;
+            }
+
+            return std::pair<double, double>{load_pf, load};
+          };
 
           auto out_trans_type = lib_arc->isNegativeArc()
                                     ? flip_trans_type(trans_type)
@@ -230,6 +235,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             continue;
           }
 
+          auto [load_pf, load] = convert_load(out_trans_type);
           auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(
               trans_type, out_trans_type, in_slew, load);
           auto delay_ns = analysis_mode == AnalysisMode::kMax
@@ -249,8 +255,9 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             if (!lib_arc_set->isMatchTimingType(out_trans_type1)) {
               continue;
             }
+            auto [load_pf1, load1] = convert_load(out_trans_type1);
             auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(
-                trans_type, out_trans_type1, in_slew, load);
+                trans_type, out_trans_type1, in_slew, load1);
             auto delay1_ns = analysis_mode == AnalysisMode::kMax
                                  ? delay_values.front()
                                  : delay_values.back();

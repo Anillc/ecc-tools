@@ -159,14 +159,19 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
             lib_arc->isNegativeArc() ? flip_trans_type(trans_type) : trans_type;
 
         auto* rc_net = getSta()->getRcNet(the_net);
-        auto load_pf = rc_net ? rc_net->load(analysis_mode, out_trans_type)
-                              : the_net->getLoad(analysis_mode, out_trans_type);
-        double load = load_pf;
-        if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
-          load = PF_TO_FF(load_pf);
-        } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
-          load = load_pf;
-        }
+        auto convert_load = [&](TransType load_trans_type) {
+          auto load_pf = rc_net ? rc_net->load(analysis_mode, load_trans_type)
+                                : the_net->getLoad(analysis_mode,
+                                                   load_trans_type);
+          double load = load_pf;
+          if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
+            load = PF_TO_FF(load_pf);
+          } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
+            load = load_pf;
+          }
+          return load;
+        };
+        auto load = convert_load(out_trans_type);
 
         if (auto* arnoldi_net = dynamic_cast<ArnoldiNet*>(rc_net);
             arnoldi_net) {
@@ -213,14 +218,15 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
             continue;
           }
 
+          auto load1 = convert_load(out_trans_type1);
           auto slew_values = lib_arc_set->getSlewNs(trans_type, out_trans_type1,
-                                                    in_slew, load);
+                                                    in_slew, load1);
           auto out_slew1_ns = analysis_mode == AnalysisMode::kMax
                                   ? slew_values.front()
                                   : slew_values.back();
 
           auto output_current1 =
-              lib_arc->getOutputCurrent(out_trans_type1, in_slew, load);
+              lib_arc->getOutputCurrent(out_trans_type1, in_slew, load1);
 
           construct_slew_data(analysis_mode, out_trans_type1, snk_vertex,
                               NS_TO_FS(out_slew1_ns),
