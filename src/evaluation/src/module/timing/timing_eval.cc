@@ -54,6 +54,7 @@ TimingInstanceGraph* TimingEval::getTimingInstanceGraph()
 
 void TimingEval::destroyInst()
 {
+  ieval::InitSTA::destroyInst();
   delete _timing_eval;
   _timing_eval = nullptr;
 }

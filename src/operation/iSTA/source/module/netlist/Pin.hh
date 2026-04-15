@@ -47,6 +47,7 @@ class Pin : public DesignObject {
   using mode_trans = std::pair<AnalysisMode, TransType>;
 
   explicit Pin(const char* name, LibPort* cell_port);
+  Pin(const Pin& other);
   Pin(Pin&& other) noexcept;
   Pin& operator=(Pin&& rhs) noexcept;
   ~Pin() override = default;
@@ -80,9 +81,18 @@ class Pin : public DesignObject {
   std::optional<Coordinate> get_coordinate() override { return _coordinate; }
 
   std::string getFullName() override;
+  std::unique_ptr<Pin> clone() const { return std::make_unique<Pin>(*this); }
+
+  auto& get_net_name_between_clusters() const {
+    return _net_name_between_clusters;
+  }
+  void set_net_name_between_clusters(const char* net_name) {
+    _net_name_between_clusters = net_name;
+  }
 
  private:
-  Net* _net = nullptr;                //!< The pin connected net.
+  Net* _net = nullptr;  //!< The pin connected net.
+
   LibPort* _cell_port = nullptr;      //!< The pin corresponding to cell port.
   Instance* _own_instance = nullptr;  //!< The pin owned by the instance.
   PinBus* _pin_bus = nullptr;         //!< The pin owned by the pin bus.
@@ -93,7 +103,8 @@ class Pin : public DesignObject {
   unsigned _is_GND : 1;  //!< The pin is at a constant logic value 0.
   unsigned _reserverd : 30;
 
-  FORBIDDEN_COPY(Pin);
+  std::string _net_name_between_clusters;  //!< The name of virtual net between
+                                           //!< clusters.
 };
 
 /**
@@ -103,6 +114,7 @@ class Pin : public DesignObject {
 class PinBus : public DesignObject {
  public:
   PinBus(const char* name, unsigned left, unsigned right, unsigned size);
+  PinBus(const PinBus& other);
   PinBus(PinBus&& other) noexcept = default;
   PinBus& operator=(PinBus&& rhs) noexcept = default;
   ~PinBus() override = default;
@@ -121,13 +133,16 @@ class PinBus : public DesignObject {
   Pin* getPin(unsigned index) { return _pins[index]; }
   auto& getPins() { return _pins; }
 
+  std::unique_ptr<PinBus> clone() const {
+    return std::make_unique<PinBus>(*this);
+  }
+
  private:
   unsigned _left;   //!< The left range.
   unsigned _right;  //!< The right range.
 
   std::unique_ptr<Pin*[]> _pins;  //!< The pins.
   unsigned _size;                 //!< The pin bus size.
-  FORBIDDEN_COPY(PinBus);
 };
 
 }  // namespace ista

@@ -38,6 +38,15 @@ Pin::Pin(const char* name, LibPort* cell_port)
       _is_GND(0),
       _reserverd(0) {}
 
+Pin::Pin(const Pin& other)
+    : DesignObject(other),
+      _net(other._net),
+      _cell_port(other._cell_port),
+      _own_instance(other._own_instance),
+      _is_VDD(other._is_VDD),
+      _is_GND(other._is_GND),
+      _net_name_between_clusters(other._net_name_between_clusters) {}
+
 Pin::Pin(Pin&& other) noexcept
     : DesignObject(std::move(other)),
       _net(other._net),
@@ -101,6 +110,15 @@ PinBus::PinBus(const char* name, unsigned left, unsigned right, unsigned size)
       _pins(new Pin*[size]),
       _size(size) {
   std::memset(_pins.get(), 0, sizeof(Pin*) * size);
+}
+
+PinBus::PinBus(const PinBus& other)
+    : DesignObject(other.get_name()),
+      _left(other._left),
+      _right(other._right),
+      _pins(new Pin*[other._size]),
+      _size(other._size) {
+  std::memset(_pins.get(), 0, sizeof(Pin*) * other._size);
 }
 
 };  // namespace ista

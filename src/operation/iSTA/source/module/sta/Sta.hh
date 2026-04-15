@@ -209,6 +209,7 @@ class Sta {
   unsigned readDesignWithRustParser(const char* verilog_file);
   unsigned readLiberty(const char* lib_file);
   unsigned readLiberty(std::vector<std::string>& lib_files);
+  unsigned readLiberty(std::vector<const char*>& lib_files);
   unsigned readSdc(const char* sdc_file);
   unsigned readSpef(const char* spef_file);
   unsigned readAocv(const char* aocv_file);
@@ -534,6 +535,8 @@ class Sta {
 
   std::vector<StaSeqPathData*> getSeqData(StaVertex* vertex,
                                           StaData* delay_data);
+  std::vector<StaSeqPathData*> getSeqData(StaVertex* vertex,
+                                          AnalysisMode analysis_mode);
   double getWNS(const char* clock_name, AnalysisMode mode);
   double getTNS(const char* clock_name, AnalysisMode mode);
   double getLocalSkew(const char* clock_name, AnalysisMode mode,
@@ -572,7 +575,8 @@ class Sta {
   int getWorstSlack(StaVertex* end_vertex, AnalysisMode mode,
                     TransType trans_type);
   void writeVerilog(const char* verilog_file_name,
-                    std::set<std::string>& exclude_cell_names);
+                    std::set<std::string>& exclude_cell_names,
+                    bool is_hier_module);
 
   unsigned resetGraphData();
   unsigned resetPathData();
