@@ -38,44 +38,12 @@ CmdCTSConfig::CmdCTSConfig(const char* cmd_name) : TclCmd(cmd_name)
     _config_list.push_back(std::make_pair("-max_fanout", ValueType::kInt));
     // max_length
     _config_list.push_back(std::make_pair("-max_length", ValueType::kInt));
-    // min_length
-    _config_list.push_back(std::make_pair("-min_length", ValueType::kInt));
-    // scale_size int
-    _config_list.push_back(std::make_pair("-scale_size", ValueType::kInt));
-    // cluster_size int
-    _config_list.push_back(std::make_pair("-cluster_size", ValueType::kInt));
     // routing_layer intlist
     _config_list.push_back(std::make_pair("-routing_layer", ValueType::kIntList));
     // buffer_type stringlist
     _config_list.push_back(std::make_pair("-buffer_type", ValueType::kStringList));
-    // root_buffer_type string
-    _config_list.push_back(std::make_pair("-root_buffer_type", ValueType::kString));
-    // root_buffer_required string
-    _config_list.push_back(std::make_pair("-root_buffer_required", ValueType::kString));
-    // inherit_root string
-    _config_list.push_back(std::make_pair("-inherit_root", ValueType::kString));
-    // break_long_wire string
-    _config_list.push_back(std::make_pair("-break_long_wire", ValueType::kString));
-    // level_max_length intlist
-    _config_list.push_back(std::make_pair("-level_max_length", ValueType::kIntList));
-    // level_max_fanout intlist
-    _config_list.push_back(std::make_pair("-level_max_fanout", ValueType::kIntList));
-    // level_max_cap doublelist
-    _config_list.push_back(std::make_pair("-level_max_cap", ValueType::kDoubleList));
-    // level_skew_bound doublelist
-    _config_list.push_back(std::make_pair("-level_skew_bound", ValueType::kDoubleList));
-    // level_cluster_ratio doublelist
-    _config_list.push_back(std::make_pair("-level_cluster_ratio", ValueType::kDoubleList));
-    // shift_level int
-    _config_list.push_back(std::make_pair("-shift_level", ValueType::kInt));
-    // latency_opt_level int
-    _config_list.push_back(std::make_pair("-latency_opt_level", ValueType::kInt));
-    // global_latency_opt_ratio double
-    _config_list.push_back(std::make_pair("-global_latency_opt_ratio", ValueType::kDouble));
-    // local_latency_opt_ratio double
-    _config_list.push_back(std::make_pair("-local_latency_opt_ratio", ValueType::kDouble));
-    // external_model string
-    _config_list.push_back(std::make_pair("-external_model", ValueType::kString));
+    // min_buffering_length
+    _config_list.push_back(std::make_pair("-min_buffering_length", ValueType::kDouble));
     // use_netlist string
     _config_list.push_back(std::make_pair("-use_netlist", ValueType::kString));
 

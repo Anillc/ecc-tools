@@ -732,11 +732,8 @@ Inst* TreeBuilder::tempTree(const std::string& net_name, const std::vector<Pin*>
 Inst* TreeBuilder::defaultTree(const std::string& net_name, const std::vector<Pin*>& loads, const std::optional<double>& skew_bound,
                                const std::optional<Point>& guide_loc, const TopoType& topo_type)
 {
-  auto* config = CTSAPIInst.get_config();
-  auto use_skew_tree_alg = config->get_use_skew_tree_alg();
-  if (use_skew_tree_alg) {
-    return cbsTree(net_name, loads, skew_bound, guide_loc, topo_type);
-  }
+  (void) skew_bound;
+  (void) topo_type;
   if (loads.size() == 1) {
     auto loc = guide_loc.value_or(loads.front()->get_location());
     auto* buf = genBufInst(net_name, loc);

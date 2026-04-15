@@ -19,6 +19,7 @@
  * @author Dawn Li (dawnli619215645@gmail.com)
  */
 #pragma once
+#include <optional>
 #include <ranges>
 #include <vector>
 
@@ -48,6 +49,13 @@ class MinCostFlow
   void add_center(const double& x, const double& y) { _centers.push_back({x, y}); }
 
   std::vector<std::vector<Value>> run(const size_t& max_fanout)
+  {
+    std::vector<int> lower_bounds(_centers.size(), 0);
+    std::vector<int> upper_bounds(_centers.size(), static_cast<int>(max_fanout));
+    return run(lower_bounds, upper_bounds);
+  }
+
+  std::vector<std::vector<Value>> run(const std::vector<int>& lower_bounds, const std::vector<int>& upper_bounds)
   {
     // Flow problem:
     // virturl source -> [sinks] -> [buffers] -> virturl target
@@ -86,20 +94,31 @@ class MinCostFlow
     }
     // buffer target arc
     std::ranges::for_each(buffers, [&](auto& buffer) { buffer_target_arcs.emplace_back(network.addArc(buffer, target)); });
-    ArcMap arc_cost(network), arc_capacity(network);
-    std::ranges::for_each(source_sink_arcs, [&](auto& arc) { arc_capacity[arc] = 1; });
+    ArcMap arc_cost(network), arc_capacity(network), arc_lower(network);
+    std::ranges::for_each(source_sink_arcs, [&](auto& arc) {
+      arc_lower[arc] = 0;
+      arc_capacity[arc] = 1;
+    });
     for (size_t i = 0; i < sink_buffer_arcs.size(); ++i) {
+      arc_lower[sink_buffer_arcs[i]] = 0;
       arc_capacity[sink_buffer_arcs[i]] = 1;
       arc_cost[sink_buffer_arcs[i]] = dist_costs[i];
     }
-    std::ranges::for_each(buffer_target_arcs, [&](auto& arc) { arc_capacity[arc] = max_fanout; });
+    for (size_t i = 0; i < buffer_target_arcs.size(); ++i) {
+      arc_lower[buffer_target_arcs[i]] = i < lower_bounds.size() ? lower_bounds[i] : 0;
+      arc_capacity[buffer_target_arcs[i]] = i < upper_bounds.size() ? upper_bounds[i] : 0;
+    }
 
     // mcf solver by lemon
     MinCostFlowSolver mcf(network);
     mcf.costMap(arc_cost);
+    mcf.lowerMap(arc_lower);
     mcf.upperMap(arc_capacity);
     mcf.stSupply(source, target, _nodes.size());
-    mcf.run();
+    auto status = mcf.run();
+    if (status != MinCostFlowSolver::OPTIMAL) {
+      return {};
+    }
     ArcMap solution(network);
     mcf.flowMap(solution);
 

@@ -7,12 +7,20 @@
         "log_file": "<path>",
         "gds_file": "<path>"
     },
-    "router_type": "ZST",
-    "delay_type": "elmore",
     "skew_bound": 2000,
-    "cluster_type": "kmeans",
-    "cluster_size": 8,
-    "buffer_type": "LVT_CLKBUFHDV8",
+    "max_buf_tran": 1.5,
+    "max_sink_tran": 1.5,
+    "max_cap": 1.5,
+    "max_fanout": 32,
+    "max_length": 300,
+    "routing_layer": [
+        1,
+        2
+    ],
+    "buffer_type": [
+        "LVT_CLKBUFHDV8"
+    ],
+    "min_buffering_length": 150,
     "use_netlist": "ON",
     "net_list": [
         {

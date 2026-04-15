@@ -36,8 +36,12 @@ CtsPin* CtsNet::get_driver_pin() const
 {
   std::vector<CtsPin*> driver_pin_candidates;
   for (auto* pin : _pins) {
+    if (pin == nullptr) {
+      continue;
+    }
     if (pin->is_io()) {
-      if (pin->get_pin_type() == CtsPinType::kIn || pin->get_pin_type() == CtsPinType::kInOut) {
+      if (pin->get_pin_type() == CtsPinType::kIn || pin->get_pin_type() == CtsPinType::kInOut
+          || pin->get_pin_type() == CtsPinType::kClock) {
         driver_pin_candidates.push_back(pin);
       }
     } else {
@@ -56,6 +60,19 @@ CtsPin* CtsNet::get_driver_pin() const
     }
     return driver_pin_candidates[0];  // If no InOut pins, return the first candidate
   }
+
+  for (auto* pin : _pins) {
+    if (pin != nullptr && pin->is_io()) {
+      LOG_WARNING << "Fallback to IO pin " << pin->get_full_name() << " as driver for net " << _net_name;
+      return pin;
+    }
+  }
+
+  if (!_pins.empty() && _pins.front() != nullptr) {
+    LOG_WARNING << "Fallback to first pin " << _pins.front()->get_full_name() << " as driver for net " << _net_name;
+    return _pins.front();
+  }
+
   LOG_WARNING << "No driver pin found for net " << _net_name;
   return nullptr;
 }
@@ -93,7 +110,7 @@ std::vector<CtsPin*> CtsNet::get_load_pins() const
   std::vector<CtsPin*> load_pins;
   // std::set<std::string> unique_insts;
   for (auto* pin : _pins) {
-    if (pin != driver_pin) {
+    if (pin != nullptr && pin != driver_pin) {
       // if (unique_insts.count(pin->get_instance()->get_name()) == 0) {
       //   unique_insts.insert(pin->get_instance()->get_name());
       // } else {
@@ -126,15 +143,6 @@ std::vector<CtsSignalWire>& CtsNet::get_signal_wires()
 {
   if (_signal_wires.empty()) {
     const auto* driver_pin = get_driver_pin();
-    // TBD check InOut
-    if (!driver_pin) {
-      for (auto* pin : _pins) {
-        if (pin->get_pin_type() == CtsPinType::kInOut) {
-          driver_pin = pin;
-          break;
-        }
-      }
-    }
     LOG_FATAL_IF(driver_pin == nullptr) << "No driver pin found for net " << _net_name;
     Endpoint first = {driver_pin->get_full_name(), driver_pin->get_location()};
     for (auto* load_pin : get_load_pins()) {

@@ -20,10 +20,60 @@
  */
 #include "JsonParser.hh"
 
+#include <array>
+
 #include "COMUtil.hh"
 #include "CTSAPI.hh"
 #include "json/json.hpp"
 #include "log/Log.hh"
+
+namespace {
+
+void warnDeprecatedConfigKey(const nlohmann::json& json, icts::CtsConfig* config, const char* key, const std::string& message)
+{
+  if (!json.contains(key)) {
+    return;
+  }
+
+  const std::string warning = "Deprecated CTS config key \"" + std::string(key) + "\" is ignored: " + message;
+  LOG_WARNING << warning;
+  config->add_deprecated_config_warning(warning);
+}
+
+void warnDeprecatedConfigKeys(const nlohmann::json& json, icts::CtsConfig* config)
+{
+  static const std::array<std::pair<const char*, const char*>, 20> kDeprecatedKeys = {{
+      {"use_skew_tree_alg", "the skew-tree algorithm switch has been removed from the active CTS flow."},
+      {"min_length", "the min-length driven clustering path has been removed."},
+      {"router_type", "legacy router selection is no longer supported."},
+      {"delay_type", "legacy delay model selection is no longer supported."},
+      {"cluster_type", "legacy clustering mode selection is no longer supported."},
+      {"scale_size", "legacy scaling control is no longer supported."},
+      {"cluster_size", "legacy fixed cluster-size control is no longer supported."},
+      {"root_buffer_type", "root buffer sizing is now derived from the unified level sizing search."},
+      {"root_buffer_required", "the H-tree root buffer is always enabled."},
+      {"inherit_root", "root inheritance control has been removed."},
+      {"break_long_wire", "long-wire buffering is always enabled."},
+      {"latency_opt_level", "legacy latency optimization knobs have been removed."},
+      {"global_latency_opt_ratio", "legacy latency optimization knobs have been removed."},
+      {"local_latency_opt_ratio", "legacy latency optimization knobs have been removed."},
+      {"level_max_length", "per-level max-length constraints have been removed from the active CTS flow."},
+      {"level_max_fanout", "per-level max-fanout constraints have been removed from the active CTS flow."},
+      {"level_max_cap", "per-level max-cap constraints have been removed from the active CTS flow."},
+      {"level_skew_bound", "per-level skew constraints have been removed from the active CTS flow."},
+      {"level_cluster_ratio", "per-level cluster-ratio constraints have been removed from the active CTS flow."},
+      {"shift_level", "shift-based centroid relocation has been removed from the active CTS flow."},
+  }};
+
+  for (const auto& [key, message] : kDeprecatedKeys) {
+    warnDeprecatedConfigKey(json, config, key, message);
+  }
+
+  warnDeprecatedConfigKey(json, config, "external_model", "external-model integration is no longer supported in the active CTS flow.");
+}
+
+}  // namespace
+
 namespace icts {
 
 JsonParser::JsonParser()
@@ -32,9 +82,11 @@ JsonParser::JsonParser()
   char* argv[] = {program_name};
   // We need to initialize the log system here, because JsonParser() may be called in pybind,
   // which does not have a main function to initialize the log system.
-  const std::string log_dir = "/tmp/icts_logs/";
-  Log::makeSureDirectoryExist(log_dir);
-  Log::init(argv, log_dir);
+  if (!Log::isInit()) {
+    const std::string log_dir = "/tmp/ieda_logs/";
+    Log::makeSureDirectoryExist(log_dir);
+    Log::init(argv, log_dir);
+  }
 }
 
 JsonParser& JsonParser::getInstance()
@@ -57,15 +109,7 @@ void JsonParser::parse(const string& json_file, CtsConfig* config) const
   ifs >> json;
 
   {
-    if (COMUtil::getData(json, {"use_skew_tree_alg"}) != nullptr) {
-      std::string use_skew_tree_alg = COMUtil::getData(json, {"use_skew_tree_alg"});
-      if (use_skew_tree_alg == "true" || use_skew_tree_alg == "True" || use_skew_tree_alg == "TRUE" || use_skew_tree_alg == "On"
-          || use_skew_tree_alg == "ON" || use_skew_tree_alg == "on") {
-        config->set_use_skew_tree_alg(true);
-      } else {
-        config->set_use_skew_tree_alg(false);
-      }
-    }
+    warnDeprecatedConfigKeys(json, config);
     if (COMUtil::getData(json, {"skew_bound"}) != nullptr) {
       std::string skew_bound = COMUtil::getData(json, {"skew_bound"});
       config->set_skew_bound(std::stod(skew_bound));
@@ -86,10 +130,6 @@ void JsonParser::parse(const string& json_file, CtsConfig* config) const
       std::string max_fanout = COMUtil::getData(json, {"max_fanout"});
       config->set_max_fanout(std::stoi(max_fanout));
     }
-    if (COMUtil::getData(json, {"min_length"}) != nullptr) {
-      std::string min_length = COMUtil::getData(json, {"min_length"});
-      config->set_min_length(std::stod(min_length));
-    }
     if (COMUtil::getData(json, {"max_length"}) != nullptr) {
       std::string max_length = COMUtil::getData(json, {"max_length"});
       config->set_max_length(std::stod(max_length));
@@ -103,83 +143,9 @@ void JsonParser::parse(const string& json_file, CtsConfig* config) const
     if (COMUtil::getData(json, {"buffer_type"}) != nullptr) {
       config->set_buffer_types(COMUtil::getData(json, {"buffer_type"}));
     }
-    if (COMUtil::getData(json, {"root_buffer_type"}) != nullptr) {
-      config->set_root_buffer_type(COMUtil::getData(json, {"root_buffer_type"}));
-    }
-    if (COMUtil::getData(json, {"root_buffer_required"}) != nullptr) {
-      std::string root_buffer_required = COMUtil::getData(json, {"root_buffer_required"});
-      if (root_buffer_required == "true" || root_buffer_required == "True" || root_buffer_required == "TRUE" || root_buffer_required == "On"
-          || root_buffer_required == "ON" || root_buffer_required == "on") {
-        config->set_root_buffer_required(true);
-      } else {
-        config->set_root_buffer_required(false);
-      }
-    }
-    if (COMUtil::getData(json, {"inherit_root"}) != nullptr) {
-      std::string inherit_root = COMUtil::getData(json, {"inherit_root"});
-      if (inherit_root == "true" || inherit_root == "True" || inherit_root == "TRUE" || inherit_root == "On" || inherit_root == "ON"
-          || inherit_root == "on") {
-        config->set_inherit_root(true);
-      } else {
-        config->set_inherit_root(false);
-      }
-    }
-    if (COMUtil::getData(json, {"break_long_wire"}) != nullptr) {
-      std::string break_long_wire = COMUtil::getData(json, {"break_long_wire"});
-      if (break_long_wire == "true" || break_long_wire == "True" || break_long_wire == "TRUE" || break_long_wire == "On"
-          || break_long_wire == "ON" || break_long_wire == "on") {
-        config->set_break_long_wire(true);
-      } else {
-        config->set_break_long_wire(false);
-      }
-    }
-    if (COMUtil::getData(json, {"level_max_length"}) != nullptr) {
-      std::vector<std::string> level_max_length = COMUtil::getData(json, {"level_max_length"});
-      std::vector<double> level_max_length_double;
-      std::transform(level_max_length.begin(), level_max_length.end(), std::back_inserter(level_max_length_double),
-                     [](const std::string& str) { return std::stod(str); });
-      config->set_level_max_length(level_max_length_double);
-    }
-    if (COMUtil::getData(json, {"level_max_fanout"}) != nullptr) {
-      std::vector<int> level_max_fanout = COMUtil::getData(json, {"level_max_fanout"});
-      config->set_level_max_fanout(level_max_fanout);
-    }
-    if (COMUtil::getData(json, {"level_max_cap"}) != nullptr) {
-      std::vector<std::string> level_max_cap = COMUtil::getData(json, {"level_max_cap"});
-      std::vector<double> level_max_cap_double;
-      std::transform(level_max_cap.begin(), level_max_cap.end(), std::back_inserter(level_max_cap_double),
-                     [](const std::string& str) { return std::stod(str); });
-      config->set_level_max_cap(level_max_cap_double);
-    }
-    if (COMUtil::getData(json, {"level_skew_bound"}) != nullptr) {
-      std::vector<std::string> level_skew_bound = COMUtil::getData(json, {"level_skew_bound"});
-      std::vector<double> level_skew_bound_double;
-      std::transform(level_skew_bound.begin(), level_skew_bound.end(), std::back_inserter(level_skew_bound_double),
-                     [](const std::string& str) { return std::stod(str); });
-      config->set_level_skew_bound(level_skew_bound_double);
-    }
-    if (COMUtil::getData(json, {"level_cluster_ratio"}) != nullptr) {
-      std::vector<std::string> level_cluster_ratio = COMUtil::getData(json, {"level_cluster_ratio"});
-      std::vector<double> level_cluster_ratio_double;
-      std::transform(level_cluster_ratio.begin(), level_cluster_ratio.end(), std::back_inserter(level_cluster_ratio_double),
-                     [](const std::string& str) { return std::stod(str); });
-      config->set_level_cluster_ratio(level_cluster_ratio_double);
-    }
-    if (COMUtil::getData(json, {"shift_level"}) != nullptr) {
-      int shift_level = COMUtil::getData(json, {"shift_level"});
-      config->set_shift_level(shift_level);
-    }
-    if (COMUtil::getData(json, {"latency_opt_level"}) != nullptr) {
-      int latency_opt_level = COMUtil::getData(json, {"latency_opt_level"});
-      config->set_latency_opt_level(latency_opt_level);
-    }
-    if (COMUtil::getData(json, {"global_latency_opt_ratio"}) != nullptr) {
-      std::string global_latency_opt_ratio = COMUtil::getData(json, {"global_latency_opt_ratio"});
-      config->set_global_latency_opt_ratio(std::stod(global_latency_opt_ratio));
-    }
-    if (COMUtil::getData(json, {"local_latency_opt_ratio"}) != nullptr) {
-      std::string local_latency_opt_ratio = COMUtil::getData(json, {"local_latency_opt_ratio"});
-      config->set_local_latency_opt_ratio(std::stod(local_latency_opt_ratio));
+    if (COMUtil::getData(json, {"min_buffering_length"}) != nullptr) {
+      std::string min_buffering_length = COMUtil::getData(json, {"min_buffering_length"});
+      config->set_min_buffering_length(std::stod(min_buffering_length));
     }
 
     if (COMUtil::getData(json, {"use_netlist"}) != nullptr) {

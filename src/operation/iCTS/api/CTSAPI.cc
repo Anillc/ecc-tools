@@ -78,7 +78,7 @@ void CTSAPI::runCTS()
   readData();
   routing();
   evaluate();
-  // writeGDS();
+  writeGDS();
   LOG_INFO << "**Flow memory usage " << stats.memoryDelta() << "MB";
   LOG_INFO << "**Flow elapsed time " << stats.elapsedRunTime() << "s";
 
@@ -96,8 +96,13 @@ void CTSAPI::writeDB()
 
 void CTSAPI::writeGDS()
 {
-  GDSPloter::plotDesign();
-  GDSPloter::plotFlyLine();
+  const auto design_gds_path = _config == nullptr ? std::string() : _config->get_gds_file();
+  std::string flyline_gds_path;
+  if (!design_gds_path.empty()) {
+    flyline_gds_path = std::filesystem::path(design_gds_path).parent_path().append("cts_flyline.gds").string();
+  }
+  GDSPloter::plotDesign(design_gds_path);
+  GDSPloter::plotFlyLine(flyline_gds_path);
   GDSPloter::writePyDesign();
   GDSPloter::writeJsonDesign();
   GDSPloter::writePyFlyLine();
@@ -191,17 +196,26 @@ void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
   if (!work_dir.empty()) {
     _config->set_work_dir(work_dir);
     auto log_file_path = std::filesystem::path(work_dir).append("cts.log");
-    auto gds_file_path = std::filesystem::path(work_dir).append("cts.gds");
     auto def_path = std::filesystem::path(work_dir).append("output");
+    auto gds_file_path = def_path / "cts_design.gds";
     _config->set_log_file(log_file_path.string());
     _config->set_gds_file(gds_file_path.string());
     _config->set_output_def_path(def_path.string());
-    if (!std::filesystem::exists(work_dir)) {
-      std::filesystem::create_directories(work_dir);
-    }
-    if (!std::filesystem::exists(def_path)) {
-      std::filesystem::create_directories(def_path);
-    }
+  }
+  const auto log_parent = std::filesystem::path(_config->get_log_file()).parent_path();
+  const auto gds_parent = std::filesystem::path(_config->get_gds_file()).parent_path();
+  const auto def_parent = std::filesystem::path(_config->get_output_def_path());
+  if (!std::filesystem::exists(_config->get_work_dir())) {
+    std::filesystem::create_directories(_config->get_work_dir());
+  }
+  if (!log_parent.empty() && !std::filesystem::exists(log_parent)) {
+    std::filesystem::create_directories(log_parent);
+  }
+  if (!gds_parent.empty() && !std::filesystem::exists(gds_parent)) {
+    std::filesystem::create_directories(gds_parent);
+  }
+  if (!def_parent.empty() && !std::filesystem::exists(def_parent)) {
+    std::filesystem::create_directories(def_parent);
   }
   _design = new CtsDesign();
   if (dmInst->get_idb_builder()) {
@@ -211,6 +225,12 @@ void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
   }
   _report = new CtsReportTable("iCTS");
   _log_ofs = new std::ofstream(_config->get_log_file(), std::ios::out | std::ios::trunc);
+  if (!_log_ofs->is_open()) {
+    LOG_WARNING << "Failed to open CTS log file: " << _config->get_log_file();
+  }
+  for (const auto& warning : _config->get_deprecated_config_warnings()) {
+    saveToLog("[WARNING] ", warning);
+  }
   _libs = new CtsLibs();
 
   _evaluator = new Evaluator();
@@ -437,12 +457,16 @@ void CTSAPI::refresh()
 
 icts::CtsPin* CTSAPI::findDriverPin(icts::CtsNet* net)
 {
-  auto* sta_net = findStaNet(net->get_net_name());
-  if (sta_net == nullptr) {
+  if (net == nullptr) {
     return nullptr;
   }
+  auto* sta_net = findStaNet(net->get_net_name());
+  if (sta_net == nullptr || sta_net->getDriver() == nullptr) {
+    return net->get_driver_pin();
+  }
   auto driver_pin_name = sta_net->getDriver()->get_name();
-  return net->findPin(driver_pin_name);
+  auto* driver_pin = net->findPin(driver_pin_name);
+  return driver_pin != nullptr ? driver_pin : net->get_driver_pin();
 }
 
 std::map<std::string, double> CTSAPI::elmoreDelay(const icts::EvalNet& eval_net)
@@ -459,7 +483,8 @@ std::map<std::string, double> CTSAPI::elmoreDelay(const icts::EvalNet& eval_net)
     }
     auto pin_name = pin->get_full_name();
     auto delay = rc_tree->delay(pin_name);
-    delay_map[pin->get_instance()->get_name()] = delay;
+    const auto pin_key = pin->get_instance() == nullptr ? pin_name : pin->get_instance()->get_name();
+    delay_map[pin_key] = delay;
   }
   db_adapter->deleteNet(sta_net);
   return delay_map;
@@ -468,6 +493,13 @@ std::map<std::string, double> CTSAPI::elmoreDelay(const icts::EvalNet& eval_net)
 bool CTSAPI::cellLibExist(const std::string& cell_master, const std::string& query_field, const std::string& from_port,
                           const std::string& to_port)
 {
+  if (cell_master.empty()) {
+    return false;
+  }
+  if (_timing_engine->findLibertyCell(cell_master.c_str()) == nullptr) {
+    return false;
+  }
+
   std::vector<std::vector<double>> index_list;
   ista::LibTable::TableType table_type;
   if (query_field == "cell_rise") {
@@ -582,6 +614,8 @@ icts::CtsCellLib* CTSAPI::getCellLib(const std::string& cell_master, const std::
   // set init cap by liberty
   auto init_cap = getCellCap(cell_master);
   lib->set_init_cap(init_cap);
+  lib->set_area(getCellArea(cell_master));
+  lib->set_leakage_power(getCellLeakagePower(cell_master));
   // fit linear coef
   auto slew_in = index_list[0];
   auto cap_out = index_list[1];
@@ -636,16 +670,17 @@ std::vector<icts::CtsCellLib*> CTSAPI::getAllBufferLibs()
     auto* buf_lib = getCellLib(buf_cell);
     all_buf_libs.emplace_back(buf_lib);
   });
-  auto cmp = [](CtsCellLib* lib_1, CtsCellLib* lib_2) { return lib_1->getDelayIntercept() < lib_1->getDelayIntercept(); };
+  auto cmp = [](CtsCellLib* lib_1, CtsCellLib* lib_2) {
+    if (lib_1->get_area() != lib_2->get_area()) {
+      return lib_1->get_area() < lib_2->get_area();
+    }
+    if (lib_1->get_init_cap() != lib_2->get_init_cap()) {
+      return lib_1->get_init_cap() < lib_2->get_init_cap();
+    }
+    return lib_1->getDelayIntercept() < lib_2->getDelayIntercept();
+  };
   std::ranges::sort(all_buf_libs, cmp);
   return all_buf_libs;
-}
-
-icts::CtsCellLib* CTSAPI::getRootBufferLib()
-{
-  auto root_buffer_type = _config->get_root_buffer_type();
-  auto* buf_lib = getCellLib(root_buffer_type);
-  return buf_lib;
 }
 
 std::vector<std::string> CTSAPI::getMasterClocks(icts::CtsNet* net) const
@@ -674,9 +709,27 @@ double CTSAPI::getCellArea(const std::string& cell_master) const
   return _timing_engine->getCellArea(cell_master.c_str());
 }
 
+double CTSAPI::getCellLeakagePower(const std::string& cell_master) const
+{
+  if (cell_master.empty()) {
+    return 0.0;
+  }
+  auto* liberty_cell = _timing_engine->findLibertyCell(cell_master.c_str());
+  if (liberty_cell == nullptr) {
+    return 0.0;
+  }
+  return liberty_cell->get_cell_leakage_power();
+}
+
 double CTSAPI::getCellCap(const std::string& cell_master) const
 {
+  if (cell_master.empty() || _timing_engine->findLibertyCell(cell_master.c_str()) == nullptr) {
+    return 0.0;
+  }
   auto input_pin_names = _timing_engine->getLibertyCellInputpin(cell_master.c_str());
+  if (input_pin_names.empty()) {
+    return 0.0;
+  }
   auto cell_pin_name = CTSAPIInst.toString(cell_master.c_str(), ":", input_pin_names[0].c_str());
   auto init_cap = _timing_engine->getLibertyCellPinCapacitance(cell_pin_name.c_str());
   return init_cap;
@@ -827,6 +880,10 @@ void CTSAPI::buildRCTree(const icts::EvalNet& eval_net)
     return;
   }
   auto* driver_pin = solver_net->get_driver_pin();
+  if (driver_pin == nullptr) {
+    LOG_WARNING << "Can't find solver driver pin: " << net_name;
+    return;
+  }
   driver_pin->preOrder([&](Node* node) {
     auto* parent = node->get_parent();
     if (parent == nullptr) {

@@ -105,11 +105,11 @@ class CTSAPI
   icts::CtsCellLib* getCellLib(const std::string& cell_masterconst, const std::string& from_port = "", const std::string& to_port = "",
                                const bool& use_work_value = true);
   std::vector<icts::CtsCellLib*> getAllBufferLibs();
-  icts::CtsCellLib* getRootBufferLib();
   std::vector<std::string> getMasterClocks(icts::CtsNet* net) const;
   double getClockAT(const std::string& pin_name, const std::string& belong_clock_name) const;
   std::string getCellType(const std::string& cell_master) const;
   double getCellArea(const std::string& cell_master) const;
+  double getCellLeakagePower(const std::string& cell_master) const;
   double getCellCap(const std::string& cell_master) const;
   double getSlewIn(const std::string& pin_name) const;
   double getCapOut(const std::string& pin_name) const;
@@ -164,6 +164,9 @@ class CTSAPI
   template <typename... Args>
   void saveToLog(const Args&... args)
   {
+    if (_log_ofs == nullptr || !_log_ofs->is_open()) {
+      return;
+    }
     (*_log_ofs) << toString(args...) << std::endl;
   }
 

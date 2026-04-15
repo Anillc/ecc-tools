@@ -313,6 +313,79 @@ std::vector<std::vector<Pin*>> BalanceClustering::iterClustering(const std::vect
       best_clusters.end());
   return best_clusters;
 }
+
+std::vector<std::vector<Pin*>> BalanceClustering::balancedBiPartition(const std::vector<Pin*>& load_pins, const double& tolerance,
+                                                                      const size_t& seed_trials, const bool& log)
+{
+  if (load_pins.size() <= 1) {
+    return {load_pins};
+  }
+  if (load_pins.size() == 2) {
+    return {{load_pins.front()}, {load_pins.back()}};
+  }
+
+  const int total = static_cast<int>(load_pins.size());
+  int min_cluster_size = std::max(1, static_cast<int>(std::ceil(total * (0.5 - tolerance))));
+  int max_cluster_size = std::min(total - 1, static_cast<int>(std::floor(total * (0.5 + tolerance))));
+  if (min_cluster_size > max_cluster_size) {
+    const int balanced_left = total / 2;
+    const int balanced_right = total - balanced_left;
+    min_cluster_size = std::min(balanced_left, balanced_right);
+    max_cluster_size = std::max(balanced_left, balanced_right);
+  }
+  const std::vector<int> lower_bounds = {min_cluster_size, min_cluster_size};
+  const std::vector<int> upper_bounds = {max_cluster_size, max_cluster_size};
+
+  std::vector<std::vector<Pin*>> best_clusters;
+  double best_score = std::numeric_limits<double>::max();
+
+  for (size_t seed = 0; seed < std::max<size_t>(1, seed_trials); ++seed) {
+    auto init_clusters = kMeansPlus(load_pins, 2, static_cast<int>(seed), 30, 5);
+    if (init_clusters.size() != 2) {
+      continue;
+    }
+    auto centers = getCentroids(init_clusters);
+    MinCostFlow<Pin*> mcf;
+    std::ranges::for_each(load_pins, [&mcf](Pin* pin) { mcf.add_node(pin->get_location().x(), pin->get_location().y(), pin); });
+    std::ranges::for_each(centers, [&mcf](const Point& center) { mcf.add_center(center.x(), center.y()); });
+    auto clusters = mcf.run(lower_bounds, upper_bounds);
+    if (clusters.size() != 2) {
+      continue;
+    }
+
+    auto cluster_sizes = std::vector<int>{static_cast<int>(clusters[0].size()), static_cast<int>(clusters[1].size())};
+    auto in_range = std::ranges::all_of(cluster_sizes, [&](int size) { return size >= min_cluster_size && size <= max_cluster_size; });
+    if (!in_range) {
+      continue;
+    }
+
+    auto score = calcBalanceVariance(clusters, getCentroids(clusters));
+    if (score < best_score) {
+      best_score = score;
+      best_clusters = clusters;
+    }
+  }
+
+  if (best_clusters.size() == 2) {
+    LOG_INFO_IF(log) << "balanced bipartition success, sizes = " << best_clusters[0].size() << " / " << best_clusters[1].size();
+    return best_clusters;
+  }
+
+  std::vector<Pin*> sorted_pins = load_pins;
+  std::ranges::sort(sorted_pins, [](Pin* lhs, Pin* rhs) {
+    if (lhs->get_location().x() != rhs->get_location().x()) {
+      return lhs->get_location().x() < rhs->get_location().x();
+    }
+    return lhs->get_location().y() < rhs->get_location().y();
+  });
+  const size_t left_size = std::clamp<size_t>(sorted_pins.size() / 2, 1, sorted_pins.size() - 1);
+  best_clusters = {
+      std::vector<Pin*>(sorted_pins.begin(), sorted_pins.begin() + static_cast<long>(left_size)),
+      std::vector<Pin*>(sorted_pins.begin() + static_cast<long>(left_size), sorted_pins.end()),
+  };
+  LOG_WARNING << "balanced bipartition fallback, sizes = " << best_clusters[0].size() << " / " << best_clusters[1].size();
+  return best_clusters;
+}
 /**
  * @brief slack net length clustering
  *
@@ -327,8 +400,7 @@ std::vector<std::vector<Pin*>> BalanceClustering::slackClustering(const std::vec
   std::vector<std::vector<Pin*>> slack_clusters;
   std::ranges::for_each(clusters, [&](const std::vector<Pin*>& cluster) {
     auto est_net_length = estimateNetLength(cluster);
-    auto hpwl = calcHPWL(cluster);
-    if (hpwl < TimingPropagator::getMinLength() || est_net_length < max_net_length) {
+    if (est_net_length < max_net_length) {
       slack_clusters.push_back(cluster);
     } else {
       // reclustering
@@ -377,59 +449,6 @@ std::vector<std::vector<Pin*>> BalanceClustering::clusteringEnhancement(const st
   log = true;
 #endif
   return solver.run(log);
-}
-/**
- * @brief get all cluster guide center
- *
- * @param clusters
- * @param center
- * @param level
- * @return std::vector<Point>
- */
-std::vector<Point> BalanceClustering::guideCenter(const std::vector<std::vector<Pin*>>& clusters, const std::optional<Point>& center,
-                                                  const double& min_length, const size_t& level)
-{
-  std::vector<Pin*> load_pins;
-  std::ranges::for_each(clusters, [&](const std::vector<Pin*>& cluster) {
-    std::transform(cluster.begin(), cluster.end(), std::back_inserter(load_pins), [](Pin* pin) { return pin; });
-  });
-  auto* buf = TreeBuilder::defaultTree("temp", load_pins, std::nullopt, center.value_or(calcCentroid(load_pins)), TopoType::kBiPartition);
-  // auto* buf = TreeBuilder::genBufInst("temp", center.value_or(calcCentroid(load_pins)));
-  auto* driver_pin = buf->get_driver_pin();
-  // TreeBuilder::shallowLightTree("temp", driver_pin, pins);
-
-  // find communis ancestor
-  LCA solver(driver_pin);
-  std::vector<Point> centers;
-  std::ranges::for_each(clusters, [&](const std::vector<Pin*>& cluster) {
-    Point guide_loc = Point(-1, -1);
-    if (cluster.size() == 1) {
-      auto* load = cluster.front();
-      auto* parent = load->get_parent();
-      while (TimingPropagator::calcLen(parent->get_location(), load->get_location()) < min_length && parent->get_parent()) {
-        parent = parent->get_parent();
-      }
-      guide_loc = parent->get_location();
-    } else {
-      auto center = calcCentroid(cluster);
-      std::vector<Node*> nodes;
-      std::ranges::for_each(cluster, [&nodes](Pin* pin) { nodes.push_back(pin); });
-      auto* lca = solver.query(nodes);
-      size_t lca_level = 1;
-      while (lca_level < level && lca->get_parent()) {
-        lca = lca->get_parent();
-        ++lca_level;
-      }
-      while (TimingPropagator::calcLen(lca->get_location(), center) < min_length && lca->get_parent()) {
-        lca = lca->get_parent();
-      }
-      guide_loc = lca->get_location();
-    }
-    centers.push_back(guide_loc);
-  });
-  auto* net = TimingPropagator::genNet("temp", driver_pin, load_pins);
-  TimingPropagator::resetNet(net);
-  return centers;
 }
 /**
  * @brief get the min delay cluster

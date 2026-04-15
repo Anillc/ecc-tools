@@ -21,8 +21,6 @@
 #pragma once
 
 #include <algorithm>
-#include <iostream>
-#include <unordered_map>
 #include <vector>
 
 #include "CtsConfig.hh"
@@ -91,7 +89,6 @@ class Router
   void update();
 
  private:
-  void printLog();
   void routing(CtsNet* clk_net);
   std::vector<CtsPin*> getSinkPins(CtsNet* clk_net);
   std::vector<CtsPin*> getBufferPins(CtsNet* clk_net);
@@ -101,7 +98,6 @@ class Router
 
   SolverSet _solver_set;
   std::vector<CtsClock*> _clocks;
-  std::unordered_map<std::string, CtsInstance*> _name_to_inst;
 };
 
 }  // namespace icts

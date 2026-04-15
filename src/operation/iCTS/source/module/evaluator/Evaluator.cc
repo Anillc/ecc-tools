@@ -31,6 +31,20 @@
 #include "time/Time.hh"
 namespace icts {
 
+namespace {
+
+CtsNet* resolveDrivenNet(CtsInstance* inst)
+{
+  if (inst == nullptr || inst->get_type() == CtsInstanceType::kSink) {
+    return nullptr;
+  }
+
+  auto* driver_pin = inst->get_out_pin();
+  return driver_pin != nullptr ? driver_pin->get_net() : nullptr;
+}
+
+}  // namespace
+
 void Evaluator::init()
 {
   CTSAPIInst.setPropagateClock();
@@ -115,6 +129,9 @@ void Evaluator::calcCellDist()
     if (eval_net.is_newly()) {
       // cell count
       auto cell_master = eval_net.get_driver()->get_cell_master();
+      if (cell_master.empty() || !CTSAPIInst.cellLibExist(cell_master)) {
+        continue;
+      }
       if (_cell_dist_map.count(cell_master) == 0) {
         _cell_dist_map[cell_master] = 1;
       } else {
@@ -159,21 +176,39 @@ void Evaluator::calcPathBufStats()
 {
   _path_infos.clear();
   std::unordered_map<std::string, TreeNode*> name_to_node;
-  auto gen_node = [&](CtsInstance* inst) {
-    if (name_to_node.count(inst->get_name()) == 0) {
-      name_to_node[inst->get_name()] = new TreeNode{inst->get_name(), 0, {}};
+  auto gen_node = [&](const std::string& node_name) {
+    if (name_to_node.count(node_name) == 0) {
+      name_to_node[node_name] = new TreeNode{node_name, -1, {}};
     }
-    return name_to_node[inst->get_name()];
+    return name_to_node[node_name];
   };
 
   auto* design = CTSAPIInst.get_design();
   auto& clk_nets = design->get_nets();
   for (auto clk_net : clk_nets) {
-    auto* driver = clk_net->get_driver_inst();
-    auto* driver_node = gen_node(driver);
-    auto loads = clk_net->get_load_insts();
-    for (auto load : loads) {
-      auto* load_node = gen_node(load);
+    auto& pins = clk_net->get_pins();
+    auto* driver_pin = clk_net->get_driver_pin();
+    if (driver_pin == nullptr) {
+      LOG_WARNING << "Cannot resolve driver pin while collecting path statistics for net " << clk_net->get_net_name();
+      continue;
+    }
+
+    auto driver_name = driver_pin->get_instance() != nullptr ? driver_pin->get_instance()->get_name() : clk_net->get_net_name();
+    auto* driver_node = gen_node(driver_name);
+
+    std::unordered_set<std::string> load_names;
+    for (auto* pin : pins) {
+      if (pin == nullptr || pin == driver_pin) {
+        continue;
+      }
+      auto* load_inst = pin->get_instance();
+      if (load_inst == nullptr) {
+        continue;
+      }
+      if (!load_names.emplace(load_inst->get_name()).second) {
+        continue;
+      }
+      auto* load_node = gen_node(load_inst->get_name());
       driver_node->children.emplace_back(load_node);
       load_node->parent = driver_node;
     }
@@ -266,31 +301,39 @@ void Evaluator::recursiveSetLevel(CtsNet* net) const
     return;
   }
   auto* driver = net->get_driver_inst();
-  if (driver == nullptr) {
-    LOG_WARNING << "Driver instance is null for net: " << net->get_net_name();
-    return;
-  }
-  if (!driver || driver->get_level() > 0) {
+  if (driver != nullptr && driver->get_level() > 0) {
     return;
   }
 
-  auto* design = CTSAPIInst.get_design();
   auto loads = net->get_load_insts();
   int max_level = 0;
-  for (auto load : loads) {
+  for (auto* load : loads) {
+    if (load == nullptr) {
+      continue;
+    }
     if (load->get_type() == CtsInstanceType::kSink) {
       load->set_level(1);
       max_level = std::max(1, max_level);
       continue;
     }
-    auto sub_net_name = load->get_name().substr(0, load->get_name().length() - 4);
-    auto* sub_net = design->findNet(sub_net_name);
+
+    auto* sub_net = resolveDrivenNet(load);
+    if (sub_net == nullptr) {
+      LOG_WARNING << "Driven net is null for load instance " << load->get_name() << " while setting levels for parent net "
+                  << net->get_net_name();
+      max_level = std::max(load->get_level(), max_level);
+      continue;
+    }
     recursiveSetLevel(sub_net);
 
     max_level = std::max(load->get_level(), max_level);
   }
 
-  driver->set_level(max_level + 1);
+  if (driver != nullptr) {
+    driver->set_level(max_level + 1);
+  } else if (!loads.empty()) {
+    LOG_WARNING << "Driver instance is null for net: " << net->get_net_name() << ", propagate child levels only.";
+  }
 }
 
 void Evaluator::pathLevelLog() const
@@ -411,7 +454,7 @@ void Evaluator::plotPath(const string& inst_name, const string& file) const
   auto* config = CTSAPIInst.get_config();
   auto* db_wrapper = CTSAPIInst.get_db_wrapper();
   auto path = config->get_work_dir() + "/" + file;
-  auto ofs = std::fstream(path, std::ios::out | std::ios::trunc);
+  auto ofs = std::fstream(path, std::ios::out | std::ios::trunc | std::ios::binary);
 
   CtsInstance* path_inst = nullptr;
   for (auto& eval_net : _eval_nets) {
@@ -432,11 +475,16 @@ void Evaluator::plotPath(const string& inst_name, const string& file) const
     if (before_load_pin) {
       auto before_net = before_load_pin->get_net();
       auto driver_pin = before_net->get_driver_pin();
+      if (driver_pin == nullptr) {
+        CTSAPIInst.saveToLog("Net: ", before_net->get_net_name());
+        CTSAPIInst.saveToLog("Driver Pin: <null>");
+        break;
+      }
       if (driver_pin->is_io() || !CTSAPIInst.isClockNet(before_net->get_net_name())) {
         break;
       }
       CTSAPIInst.saveToLog("Net: ", before_net->get_net_name());
-      CTSAPIInst.saveToLog("Driver Pin: ", before_net->get_driver_pin()->get_full_name());
+      CTSAPIInst.saveToLog("Driver Pin: ", driver_pin->get_full_name());
       for (auto load_pin : before_net->get_load_pins()) {
         if (db_wrapper->ctsToIdb(load_pin)->is_flip_flop_clk()) {
           CTSAPIInst.saveToLog("Load Clock Pin: ", load_pin->get_full_name());
@@ -480,7 +528,7 @@ void Evaluator::plotNet(const string& net_name, const string& file) const
   auto* config = CTSAPIInst.get_config();
   auto* db_wrapper = CTSAPIInst.get_db_wrapper();
   auto path = config->get_work_dir() + "/" + file;
-  auto ofs = std::fstream(path, std::ios::out | std::ios::trunc);
+  auto ofs = std::fstream(path, std::ios::out | std::ios::trunc | std::ios::binary);
 
   GDSPloter::head(ofs);
   auto insts = net->get_instances();

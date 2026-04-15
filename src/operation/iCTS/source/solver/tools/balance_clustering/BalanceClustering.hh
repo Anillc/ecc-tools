@@ -21,7 +21,6 @@
 #pragma once
 #include <limits>
 #include <vector>
-#include <limits>
 
 #include "Pin.hh"
 
@@ -38,94 +37,6 @@ struct ViolationScore
   double cap_vio_score;
   double net_len_vio_score;
   std::vector<Pin*> cluster;
-};
-class LCA
-{
- public:
-  LCA(Node* root) : _root(root) { init(); }
-
-  ~LCA() = default;
-
-  Node* query(const std::vector<Node*>& nodes)
-  {
-    // find min/max dfs id
-    int min_dfs_id = std::numeric_limits<int>::max();
-    int max_dfs_id = std::numeric_limits<int>::min();
-    for (auto node : nodes) {
-      min_dfs_id = std::min(min_dfs_id, _node_id[node]);
-      max_dfs_id = std::max(max_dfs_id, _node_id[node]);
-    }
-    return query(_nodes[min_dfs_id], _nodes[max_dfs_id]);
-  }
-
-  Node* query(Node* node1, Node* node2)
-  {
-    int l = _node_id[node1];
-    int r = _node_id[node2];
-    if (l > r) {
-      std::swap(l, r);
-    }
-    return _nodes[query(l, r)];
-  }
-
- private:
-  void init()
-  {
-    // dfs
-    dfs(_root, 0);
-    // init rmq
-    int n = _nodes.size();
-    int k = 0;
-    while ((1 << k) < n) {
-      k++;
-    }
-    _rmq.resize(n, std::vector<int>(k + 1));
-    _log2.resize(n + 1);
-    _log2[1] = 0;
-    for (int i = 2; i <= n; i++) {
-      _log2[i] = _log2[i / 2] + 1;
-    }
-    for (int i = 0; i < n; i++) {
-      _rmq[i][0] = i;
-    }
-    for (int j = 1; j <= k; j++) {
-      for (int i = 0; i + (1 << j) - 1 < n; i++) {
-        int lca1 = _rmq[i][j - 1];
-        int lca2 = _rmq[i + (1 << (j - 1))][j - 1];
-        _rmq[i][j] = _depths[lca1] < _depths[lca2] ? lca1 : lca2;
-      }
-    }
-  }
-
-  void dfs(Node* node, int depth)
-  {
-    _nodes.push_back(node);
-    _node_id[node] = _nodes.size() - 1;
-    _depths.push_back(depth);
-    for (auto child : node->get_children()) {
-      dfs(child, depth + 1);
-      _nodes.push_back(node);
-      _node_id[node] = _nodes.size() - 1;
-      _depths.push_back(depth);
-    }
-  }
-
-  // find LCA by Four Russians Algorithm and +1/-1 RMQ technique
-  int query(int l, int r)
-  {
-    int len = r - l + 1;
-    int k = _log2[len];
-    int lca1 = _rmq[l][k];
-    int lca2 = _rmq[r - (1 << k) + 1][k];
-    return _depths[lca1] < _depths[lca2] ? lca1 : lca2;
-  }
-
-  Node* _root;
-  std::vector<Node*> _nodes;
-  std::unordered_map<Node*, int> _node_id;
-  std::vector<int> _depths;
-  std::vector<std::vector<int>> _rmq;
-  std::vector<int> _log2;
 };
 
 /**
@@ -158,9 +69,6 @@ class BalanceClustering
                                                               const size_t& max_iter = 200, const double& cooling_rate = 0.99,
                                                               const double& temperature = 50000);
 
-  static std::vector<Point> guideCenter(const std::vector<std::vector<Pin*>>& clusters, const std::optional<Point>& center = std::nullopt,
-                                        const double& min_length = 50, const size_t& level = 1);
-
   static std::vector<Pin*> getMinDelayCluster(const std::vector<std::vector<Pin*>>& clusters);
 
   static std::vector<Pin*> getMaxDelayCluster(const std::vector<std::vector<Pin*>>& clusters);
@@ -170,6 +78,9 @@ class BalanceClustering
   static std::vector<std::vector<Pin*>> getMostRecentClusters(const std::vector<std::vector<Pin*>>& clusters,
                                                               const std::vector<Pin*>& center_cluster, const size_t& num_limit = 42,
                                                               const size_t& cluster_num_limit = 4);
+
+  static std::vector<std::vector<Pin*>> balancedBiPartition(const std::vector<Pin*>& load_pins, const double& tolerance = 0.1,
+                                                            const size_t& seed_trials = 8, const bool& log = false);
 
   static std::vector<Point> getCentroids(const std::vector<std::vector<Pin*>>& clusters);
 

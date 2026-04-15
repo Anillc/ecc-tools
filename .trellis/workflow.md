@@ -208,9 +208,10 @@ python3 ./.trellis/scripts/task.py create "<title>" --slug <task-name>
    --> Run project's lint/test commands (see spec docs)
    --> Manual feature testing
 
-5. Commit code
-   --> git add <files>
-   --> git commit -m "type(scope): description"
+5. Human commit code
+   --> AI only uses read-only git inspection: `git status`, `git diff`, `git log`, `git show`
+   --> Human runs `git add <files>`
+   --> Human runs `git commit -m "type(scope): description"`
        Format: feat/fix/docs/refactor/test/chore
 
 6. Record session (one command)
@@ -362,7 +363,9 @@ python3 ./.trellis/scripts/task.py list-archive    # List archived tasks
 3. **Don't** develop multiple unrelated tasks simultaneously
 4. **Don't** commit code with lint/test errors
 5. **Don't** forget to update spec docs after learning something
-6. [!] **Don't** execute `git commit` - AI should not commit code
+6. [!] **Don't** execute write-side git commands - AI should not run `git add`, `git commit`, `git push`, `git rebase`, `git reset`, or `git checkout --`
+7. [!] **Don't** modify non-iCTS code unless there is a confirmed bug or a minimal CTS integration requirement
+8. [!] When non-iCTS files are touched under an allowed exception, explain the paths and reason again during `/trellis:finish-work`
 
 ---
 

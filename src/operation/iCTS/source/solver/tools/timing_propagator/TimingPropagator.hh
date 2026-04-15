@@ -205,16 +205,13 @@ class TimingPropagator
   static double getMaxSinkTran() { return _max_sink_tran; }
   static double getMaxCap() { return _max_cap; }
   static int getMaxFanout() { return _max_fanout; }
-  static double getMinLength() { return _min_length; }
   static double getMaxLength() { return _max_length; }
   static double getMinInsertDelay() { return _min_insert_delay; }
   static icts::CtsCellLib* getMinSizeLib() { return _delay_libs.front(); }
   static icts::CtsCellLib* getMaxSizeLib() { return _delay_libs.back(); }
-  static icts::CtsCellLib* getRootSizeLib() { return _root_lib; }
   static std::string getMinSizeCell() { return getMinSizeLib()->get_cell_master(); }
   static std::string getMaxSizeCell() { return getMaxSizeLib()->get_cell_master(); }
-  static std::string getRootSizeCell() { return getRootSizeLib()->get_cell_master(); }
-  static std::vector<icts::CtsCellLib*> getDelayLibs() { return _delay_libs; }
+  static const std::vector<icts::CtsCellLib*>& getDelayLibs() { return _delay_libs; }
   // node based
   /**
    * @brief update net's wirelength
@@ -513,11 +510,9 @@ class TimingPropagator
   static double _max_sink_tran;
   static double _max_cap;
   static int _max_fanout;
-  static double _min_length;
   static double _max_length;
   static double _min_insert_delay;
   static std::vector<icts::CtsCellLib*> _delay_libs;
-  static icts::CtsCellLib* _root_lib;
 };
 
 }  // namespace icts

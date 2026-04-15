@@ -19,19 +19,17 @@
  * @author Dawn Li (dawnli619215645@gmail.com)
  */
 #pragma once
-#include <string>
+
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
-#include "CtsInstance.hh"
-#include "CtsNet.hh"
 #include "CtsPin.hh"
 #include "Inst.hh"
-#include "Node.hh"
+#include "Net.hh"
+
 namespace icts {
-/**
- * @brief Global Optimal Constraint Assignment
- *
- */
+
 class Solver
 {
  public:
@@ -40,55 +38,132 @@ class Solver
       : _net_name(net_name), _cts_driver(cts_driver), _cts_pins(cts_pins)
   {
     auto* config = CTSAPIInst.get_config();
-    _root_buffer_required = config->is_root_buffer_required();
-    _inherit_root = config->is_inherit_root();
-    _break_long_wire = config->is_break_long_wire();
-    _shift_level = config->get_shift_level();
-    _latency_opt_level = config->get_latency_opt_level();
-    _global_latency_opt_ratio = config->get_global_latency_opt_ratio();
-    _local_latency_opt_ratio = config->get_local_latency_opt_ratio();
+    _min_buffering_length = config->get_min_buffering_length();
   }
 
   ~Solver() = default;
-  // run
+
   void run();
-  // get
   std::vector<Net*> get_solver_nets() const { return _nets; }
 
  private:
-  // flow
+  struct NetRecord
+  {
+    Net* net = nullptr;
+    int evaluation_order = -1;
+  };
+
+  struct FeasibilityResult
+  {
+    bool feasible = true;
+    bool skew = false;
+    bool buffer_slew = false;
+    bool sink_slew = false;
+    bool cap = false;
+    bool length = false;
+    bool fanout = false;
+    double skew_over = 0.0;
+    double buffer_slew_over = 0.0;
+    double sink_slew_over = 0.0;
+    double cap_over = 0.0;
+    double length_over = 0.0;
+    double fanout_over = 0.0;
+
+    size_t violationCount() const
+    {
+      return static_cast<size_t>(skew) + static_cast<size_t>(buffer_slew) + static_cast<size_t>(sink_slew) + static_cast<size_t>(cap)
+             + static_cast<size_t>(length) + static_cast<size_t>(fanout);
+    }
+
+    double totalViolation() const
+    {
+      return skew_over + buffer_slew_over + sink_slew_over + cap_over + length_over + fanout_over;
+    }
+  };
+
+  struct SizingCandidate
+  {
+    std::vector<size_t> level_lib_indices;
+    double delay = 0.0;
+    double area = 0.0;
+    double power = 0.0;
+    double skew = 0.0;
+    double delay_norm = 0.0;
+    double area_norm = 0.0;
+    double power_norm = 0.0;
+    double distance_to_ideal = 0.0;
+    bool feasible = true;
+    size_t violated_constraints = 0;
+    double violation_score = 0.0;
+    FeasibilityResult feasibility;
+  };
+
+  struct SizingSearchStats
+  {
+    size_t evaluated = 0;
+    size_t feasible = 0;
+    size_t rejected_skew = 0;
+    size_t rejected_buffer_slew = 0;
+    size_t rejected_sink_slew = 0;
+    size_t rejected_cap = 0;
+    size_t rejected_length = 0;
+    size_t rejected_fanout = 0;
+
+    void accumulate(const FeasibilityResult& result)
+    {
+      rejected_skew += result.skew ? 1 : 0;
+      rejected_buffer_slew += result.buffer_slew ? 1 : 0;
+      rejected_sink_slew += result.sink_slew ? 1 : 0;
+      rejected_cap += result.cap ? 1 : 0;
+      rejected_length += result.length ? 1 : 0;
+      rejected_fanout += result.fanout ? 1 : 0;
+    }
+  };
+
   void init();
-  void resolveSinks();
-  std::vector<Pin*> levelProcess(const std::vector<std::vector<Pin*>>& clusters, const std::vector<Point> guide_locs, const Assign& assign);
+  void buildLeafBuffers();
+  void buildTopology();
+  void buildSubTree(Pin* parent_driver, const std::vector<Pin*>& subtree_loads, int depth);
   void breakLongWire();
-  Assign get_level_assign(const int& level) const;
-  std::vector<Pin*> assignApply(const std::vector<Pin*>& load_pins, const Assign& assign);
-  std::vector<Pin*> topGuide(const std::vector<Pin*>& load_pins, const Assign& assign);
-  Pin* netAssign(const std::vector<Pin*>& load_pins, const Assign& assign, const Point& guide_center, const bool& shift = true);
-  Net* saltOpt(const std::vector<Pin*>& load_pins, const Assign& assign);
-  void higherDelayOpt(std::vector<std::vector<Pin*>>& clusters, std::vector<Point>& guide_centers,
-                      std::vector<Pin*>& next_level_load_pins) const;
-  // report
-  void writeNetPy(Pin* root, const std::string& save_name = "net") const;
-  void levelReport() const;
-  void pinCapDistReport(const std::vector<Pin*>& load_pins) const;
-  // member
+  Net* connectNet(Pin* driver, const std::vector<Pin*>& loads, const std::string& stage_tag);
+  Net* createNetRecord(Pin* driver, const std::vector<Pin*>& loads, const std::string& stage_tag);
+  void registerBuffer(Inst* buffer, int depth);
+  void finalizeLeafDepth(Pin* leaf_load, int depth);
+  int childDepth(Pin* child) const;
+  void refreshNetEvaluationOrder();
+  int computeNetEvaluationOrder(Net* net, std::unordered_map<Net*, int>& cache) const;
+
+  void optimizeLevelSizing();
+  void enumerateLevelSizing(size_t depth, size_t max_lib_index, std::vector<size_t>& current_assignment,
+                            std::vector<SizingCandidate>& feasible_candidates, std::vector<SizingCandidate>& all_candidates,
+                            SizingSearchStats& stats);
+  SizingCandidate evaluateSizing(const std::vector<size_t>& level_lib_indices, SizingSearchStats& stats);
+  FeasibilityResult checkSizingFeasibility() const;
+  void applyLevelSizing(const std::vector<size_t>& level_lib_indices);
+  void reevaluateTree();
+  void normalizeCandidates(std::vector<SizingCandidate>& candidates) const;
+  static bool dominates(const SizingCandidate& lhs, const SizingCandidate& rhs);
+  size_t selectBalancedCandidate(const std::vector<SizingCandidate>& candidates) const;
+  size_t countParetoCandidates(const std::vector<SizingCandidate>& candidates) const;
+  std::string formatFeasibilitySummary(const FeasibilityResult& result) const;
+
+  double totalBufferArea() const;
+  double totalBufferPower() const;
+  void logTopologySummary() const;
+  void logSizingSummary(const SizingCandidate& candidate) const;
+
   std::string _net_name;
-  CtsPin* _cts_driver;
+  CtsPin* _cts_driver = nullptr;
   std::vector<CtsPin*> _cts_pins;
-  std::vector<std::vector<Pin*>> _level_load_pins;
   std::vector<Pin*> _sink_pins;
-  std::vector<Pin*> _top_pins;
+  std::vector<Pin*> _leaf_load_pins;
   Pin* _driver = nullptr;
   std::vector<Net*> _nets;
-  int _level = 1;
-  // config
-  bool _root_buffer_required = true;
-  bool _inherit_root = true;
-  bool _break_long_wire = true;
-  int _shift_level = 1;
-  int _latency_opt_level = 1;
-  double _global_latency_opt_ratio = 0.3;
-  double _local_latency_opt_ratio = 0.4;
+  std::vector<NetRecord> _net_records;
+  std::unordered_map<Inst*, int> _buffer_depths;
+  std::vector<std::vector<Inst*>> _buffers_by_depth;
+  int _max_depth = -1;
+  double _min_buffering_length = 150.0;
 };
+
 }  // namespace icts

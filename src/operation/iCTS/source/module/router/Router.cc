@@ -20,6 +20,9 @@
  */
 #include "Router.hh"
 
+#include <sstream>
+#include <unordered_set>
+
 #include "CTSAPI.hh"
 #include "CtsDBWrapper.hh"
 #include "Solver.hh"
@@ -28,56 +31,94 @@
 namespace icts {
 void Router::init()
 {
-  CTSAPIInst.saveToLog("--RC Info--");
+  auto log_info = [](const std::string& msg) {
+    LOG_INFO << msg;
+    CTSAPIInst.saveToLog(msg);
+  };
+  auto check_negative_rc = [&](const std::string& label, double value) {
+    if (value >= 0.0) {
+      return;
+    }
+    const std::string msg = "Negative RC detected: " + label + " = " + std::to_string(value);
+    CTSAPIInst.saveToLog("[FATAL] ", msg);
+    LOG_FATAL << msg;
+  };
+
+  const double unit_res_h = CTSAPIInst.getClockUnitRes(LayerPattern::kH);
+  const double unit_cap_h = CTSAPIInst.getClockUnitCap(LayerPattern::kH);
+  const double unit_res_v = CTSAPIInst.getClockUnitRes(LayerPattern::kV);
+  const double unit_cap_v = CTSAPIInst.getClockUnitCap(LayerPattern::kV);
+  check_negative_rc("Unit RES (H)", unit_res_h);
+  check_negative_rc("Unit CAP (H)", unit_cap_h);
+  check_negative_rc("Unit RES (V)", unit_res_v);
+  check_negative_rc("Unit CAP (V)", unit_cap_v);
+
+  log_info("--RC Info--");
+  log_info("Unit RES (H): " + std::to_string(unit_res_h) + " ohm");
+  log_info("Unit CAP (H): " + std::to_string(unit_cap_h) + " pF");
+  log_info("Unit RES (V): " + std::to_string(unit_res_v) + " ohm");
+  log_info("Unit CAP (V): " + std::to_string(unit_cap_v) + " pF");
+
   auto* design = CTSAPIInst.get_design();
-  // report unit res & cap
-  CTSAPIInst.saveToLog("Unit RES (H): ", CTSAPIInst.getClockUnitRes(LayerPattern::kH), " ohm");
-  CTSAPIInst.saveToLog("Unit CAP (H): ", CTSAPIInst.getClockUnitCap(LayerPattern::kH), " pF");
-  CTSAPIInst.saveToLog("Unit RES (V): ", CTSAPIInst.getClockUnitRes(LayerPattern::kV), " ohm");
-  CTSAPIInst.saveToLog("Unit CAP (V): ", CTSAPIInst.getClockUnitCap(LayerPattern::kV), " pF");
-  printLog();
+  size_t total_clock_nets = 0;
   auto& clocks = design->get_clocks();
   for (auto& clock : clocks) {
     _clocks.push_back(clock);
-    for (auto* clk_net : clock->get_clock_nets()) {
-      auto& clk_pins = clk_net->get_pins();
-      for (auto* clk_pin : clk_pins) {
-        auto* clk_inst = clk_pin->get_instance();
-        auto& inst_name = clk_inst->get_name();
-        if (_name_to_inst.count(inst_name) == 0) {
-          _name_to_inst[inst_name] = clk_inst;
-        }
-      }
-    }
+    total_clock_nets += clock->get_clock_nets().size();
   }
-  CTSAPIInst.saveToLog("");
+  std::ostringstream router_summary;
+  router_summary << "Router summary => clocks: " << _clocks.size() << ", clock nets: " << total_clock_nets
+                 << ", routing layers(H/V): " << CTSAPIInst.get_config()->get_h_layer() << "/"
+                 << CTSAPIInst.get_config()->get_v_layer();
+  log_info(router_summary.str());
 }
 void Router::build()
 {
-  ieda::Stats stats;
-  CTSAPIInst.saveToLog("--Clock Net Info--");
+  auto log_info = [](const std::string& msg) {
+    LOG_INFO << msg;
+    CTSAPIInst.saveToLog(msg);
+  };
+  auto log_warning = [](const std::string& msg) {
+    LOG_WARNING << msg;
+    CTSAPIInst.saveToLog("[WARNING] ", msg);
+  };
+
+  log_info("--Clock Net Info--");
   for (auto* clock : _clocks) {
     auto* design = CTSAPIInst.get_design();
     auto& clock_nets = clock->get_clock_nets();
     for (auto* clk_net : clock_nets) {
-      CTSAPIInst.saveToLog("Net name: ", clk_net->get_net_name());
-      LOG_INFO << "Net name: " << clk_net->get_net_name();
-      design->resetId();
       auto sink_pins = getSinkPins(clk_net);
       auto buf_pins = getBufferPins(clk_net);
-      CTSAPIInst.saveToLog("\tSink pins num: ", sink_pins.size());
-      LOG_INFO << "\tSink pins num: " << sink_pins.size();
-      CTSAPIInst.saveToLog("\tBuffer pins num: ", buf_pins.size());
-      LOG_INFO << "\tBuffer pins num: " << buf_pins.size();
+      auto net_pins = clk_net->get_pins();
+      std::unordered_set<std::string> inst_names;
+      std::ranges::for_each(net_pins, [&](CtsPin* pin) {
+        if (pin == nullptr) {
+          return;
+        }
+        auto* inst = pin->get_instance();
+        inst_names.insert(inst == nullptr ? pin->get_full_name() : inst->get_name());
+      });
+      log_info("Net name: " + clk_net->get_net_name());
+      log_info("\tTotal pins num: " + std::to_string(net_pins.size()));
+      log_info("\tTotal insts num: " + std::to_string(inst_names.size()));
+      log_info("\tSink pins num: " + std::to_string(sink_pins.size()));
+      log_info("\tBuffer pins num: " + std::to_string(buf_pins.size()));
+      if (net_pins.empty()) {
+        log_warning("Net [" + clk_net->get_net_name() + "] has no pins and will be skipped.");
+        continue;
+      } else if (net_pins.size() == 1) {
+        log_warning("Net [" + clk_net->get_net_name() + "] has only one pin and will be skipped.");
+        continue;
+      }
+      design->resetId();
       routing(clk_net);
       clk_net->setClockRouted();
     }
   }
-  CTSAPIInst.saveToLog("");
 }
 void Router::update()
 {
-  LOG_INFO << "Synthesis data to cts design...";
   // update to cts design, idb and sta
   std::ranges::for_each(_solver_set.get_nets(), [&](Net* net) {
     std::ranges::for_each(net->get_pins(), [&](Pin* pin) { synthesisPin(pin); });
@@ -86,41 +127,28 @@ void Router::update()
     // }
     synthesisNet(net);
   });
-  LOG_INFO << "Convert data to timing engine...";
   CTSAPIInst.convertDBToTimingEngine();
-}
-
-void Router::printLog()
-{
-  LOG_INFO << "\033[1;31m";
-  LOG_INFO << R"(                  _             )";
-  LOG_INFO << R"(                 | |            )";
-  LOG_INFO << R"(  _ __ ___  _   _| |_ ___ _ __  )";
-  LOG_INFO << R"( | '__/ _ \| | | | __/ _ \ '__| )";
-  LOG_INFO << R"( | | | (_) | |_| | ||  __/ |    )";
-  LOG_INFO << R"( |_|  \___/ \__,_|\__\___|_|    )";
-  LOG_INFO << "\033[0m";
-  LOG_INFO << "Enter router!";
 }
 
 void Router::routing(CtsNet* clk_net)
 {
+  auto log_warning = [](const std::string& msg) {
+    LOG_WARNING << msg;
+    CTSAPIInst.saveToLog("[WARNING] ", msg);
+  };
+
   auto pins = clk_net->get_load_pins();
   auto driver_pin = clk_net->get_driver_pin();
   if (pins.empty()) {
-    LOG_WARNING << "Net: " << clk_net->get_net_name() << " load pin is empty!";
+    log_warning("Net [" + clk_net->get_net_name() + "] load pin is empty.");
     return;
   }
   if (driver_pin == nullptr) {
-    LOG_WARNING << "Net: " << clk_net->get_net_name() << " driver pin is empty!";
+    log_warning("Net [" + clk_net->get_net_name() + "] driver pin is empty.");
     return;
   }
-  if (driver_pin->get_instance() == nullptr) {
-    return;
-  }
-  if (pins.size() == 1 && pins.front()->get_instance() == nullptr) {
-    LOG_WARNING << "Net: " << clk_net->get_net_name() << " load pin is empty!";
-    return;
+  if (pins.size() == 1) {
+    log_warning("Net [" + clk_net->get_net_name() + "] has only one load pin.");
   }
   auto net_name = clk_net->get_net_name();
   // if (net_name == "iCLK_50") {
@@ -144,6 +172,9 @@ std::vector<CtsPin*> Router::getSinkPins(CtsNet* clk_net)
   std::vector<CtsPin*> pins;
   for (auto* load_pin : clk_net->get_load_pins()) {
     auto* load_inst = load_pin->get_instance();
+    if (load_inst == nullptr) {
+      continue;
+    }
     auto inst_type = load_inst->get_type();
     if (inst_type != CtsInstanceType::kBuffer && inst_type != CtsInstanceType::kMux) {
       pins.push_back(load_pin);
@@ -157,6 +188,9 @@ std::vector<CtsPin*> Router::getBufferPins(CtsNet* clk_net)
   std::vector<CtsPin*> pins;
   for (auto* load_pin : clk_net->get_load_pins()) {
     auto* load_inst = load_pin->get_instance();
+    if (load_inst == nullptr) {
+      continue;
+    }
     auto inst_type = load_inst->get_type();
     if (inst_type != CtsInstanceType::kSink) {
       pins.push_back(load_pin);
@@ -213,9 +247,6 @@ void Router::synthesisNet(Net* net)
     // if (cts_pin->is_io() && cts_pin->get_pin_type() == CtsPinType::kIn) {
     //   return;
     // }
-    if (cts_pin->is_io()) {
-      std::cout << "SynthesisNet: IO pin: " << cts_pin->get_pin_name() << " in net: " << net->get_name() << std::endl;
-    }
     db_wrapper->idbDisconnect(cts_pin);
     db_wrapper->idbConnect(cts_pin, cts_net);
   });
