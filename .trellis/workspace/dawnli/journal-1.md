@@ -76,3 +76,48 @@ Updated the local ICS55 iCTS debug Tcl script to read LEF and DEF paths from db_
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Stabilize iCTS H-tree CTS flow
+
+**Date**: 2026-04-15
+**Task**: Stabilize iCTS H-tree CTS flow
+**Branch**: `cts_fix`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Summary |
+|------|---------|
+| Topology | Reworked iCTS clock synthesis around sink MCF+kmeans clustering, top-down H-tree buffer topology, and break-long-wire buffering with `min_buffering_length`. |
+| Sizing | Replaced fatal empty-feasible-set behavior with fallback selection on the global delay/area/power Pareto front when the active CTS constraints have no feasible sizing candidate. |
+| Config & Logging | Simplified CTS config surface, added deprecation warnings for removed keys, and kept algorithm-level summaries plus key RC / pin statistics in logs. |
+| Validation | Rebuilt `iEDA` and reran `scripts/design/ics55_dev/run_iCTS_dev.tcl`; the arm9/ics55 flow completed and produced DEF / Verilog / STA / GDS outputs. |
+
+**Run Notes**:
+- The latest verified run completed successfully on `2026-04-15 11:51:48 +0800`.
+- This testcase still has `feasible: 0` under the current skew constraint set; fallback now selects from the global delay/area/power Pareto front instead of collapsing to the least-violation all-`BUFX20H7L` assignment.
+- The selected fallback sizing for `clk` was `d0=BUFX20H7L, d1=BUFX20H7L, d2=BUFX20H7L, d3=BUFX12H7L, d4=BUFX8H7L, d5=BUFX8H7L, d6=BUFX8H7L`.
+- A local-only path tweak in `src/apps/CMakeLists.txt` remains uncommitted in the workspace and was not part of the recorded feature commit.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d2d9d93c6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
