@@ -964,3 +964,46 @@ Delivered the real-tech characterization repair work for iCTS: max slew/cap reso
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Deliver iCTS characterization runtime acceleration
+
+**Date**: 2026-04-16
+**Task**: Deliver iCTS characterization runtime acceleration
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Runtime optimization | Switched iCTS characterization onto incremental iSTA/iPA update interfaces and sandboxed timing/power update paths, cutting external-module runtime while preserving characterization results. |
+| Boundary control | Kept external-module changes minimally invasive, scoped iCTS-specific additions clearly, and removed the temporary logger-side suppression path so iSTA/iPA logging behavior returned to normal. |
+| Validation | Rebuilt and passed `HTreeBuilderRealTechSmokeTest.SynthesizesMaterializedHTreeFromRealClockLoads`, then ran full `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS` with 0 in-scope findings. |
+| Spec | Updated `.trellis/spec/project-constraints.md` so external-module touches stay minimal, scoped, are not cleaned via `ecc_dev_tools`, and must be explicitly called out for human review during finish-work. |
+
+**Task Outcome**:
+- Archived `04-14-analyze-icts-runtime-distribution` after the human-approved implementation commit `2a9076e56`.
+- Final delivered state keeps the runtime acceleration, removes temporary runtime-analysis / logger-control instrumentation, and leaves iCTS checks clean.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2a9076e56` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

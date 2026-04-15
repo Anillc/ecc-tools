@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
-- **Last Active**: 2026-04-14
+- **Total Sessions**: 18
+- **Last Active**: 2026-04-16
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~966 | Active |
+| `journal-1.md` | ~1009 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-04-16 | Deliver iCTS characterization runtime acceleration | `2a9076e56` | `cts_refactor` |
 | 17 | 2026-04-14 | Implement CTS H-Tree flow | `f082f7653` | `cts_refactor` |
 | 16 | 2026-04-14 | Characterization repair and real-tech validation | `2aa4e806e`, `235085052` | `cts_refactor` |
 | 15 | 2026-04-12 | iCTS C++20 style audit and ecc_dev_tools cleanup | `37e5868fd` | `cts_refactor` |
