@@ -443,7 +443,7 @@ std::vector<std::vector<Pin*>> BalanceClustering::clusteringEnhancement(const st
     return clusters;
   }
   VioAnnealOpt solver(clusters);
-  solver.initParameter(max_iter, cooling_rate, temperature, max_fanout, max_cap, max_net_length, skew_bound);
+  solver.initParameter(max_iter, cooling_rate, temperature, max_fanout, max_cap, skew_bound);
   solver.automaticTemperature();
   bool log = false;
 #ifdef DEBUG_ICTS_ANNEAL_OPT
@@ -497,8 +497,7 @@ std::vector<Pin*> BalanceClustering::getWorstViolationCluster(const std::vector<
 {
   // sort violation by skew, then cap, then net length
   auto vio_cmp = [](const ViolationScore& a, const ViolationScore& b) {
-    return a.skew_vio_score > b.skew_vio_score || (a.skew_vio_score == b.skew_vio_score && a.cap_vio_score > b.cap_vio_score)
-           || (a.skew_vio_score == b.skew_vio_score && a.cap_vio_score == b.cap_vio_score && a.net_len_vio_score > b.net_len_vio_score);
+    return a.skew_vio_score > b.skew_vio_score || (a.skew_vio_score == b.skew_vio_score && a.cap_vio_score > b.cap_vio_score);
   };
   std::vector<ViolationScore> vio_scores;
   std::ranges::for_each(clusters, [&vio_scores](const std::vector<Pin*>& cluster) {
@@ -507,8 +506,7 @@ std::vector<Pin*> BalanceClustering::getWorstViolationCluster(const std::vector<
   });
   std::ranges::sort(vio_scores, vio_cmp);
   auto is_violation = [&](const ViolationScore& vio_score) {
-    if (vio_score.skew_vio_score > TimingPropagator::getSkewBound() || vio_score.cap_vio_score > TimingPropagator::getMaxCap()
-        || vio_score.net_len_vio_score > TimingPropagator::getMaxLength()) {
+    if (vio_score.skew_vio_score > TimingPropagator::getSkewBound() || vio_score.cap_vio_score > TimingPropagator::getMaxCap()) {
       return true;
     }
     return false;
@@ -924,8 +922,7 @@ ViolationScore BalanceClustering::calcScore(const std::vector<Pin*>& cluster)
 {
   auto skew_vio_score = estimateSkew(cluster);
   auto cap_vio_score = estimateNetCap(cluster);
-  auto net_len_vio_score = estimateNetLength(cluster);
-  return ViolationScore{skew_vio_score, cap_vio_score, net_len_vio_score, cluster};
+  return ViolationScore{skew_vio_score, cap_vio_score, cluster};
 }
 /**
  * @brief calculate cross product of three points

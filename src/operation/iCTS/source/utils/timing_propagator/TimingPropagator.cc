@@ -38,7 +38,6 @@ double TimingPropagator::_max_buf_tran = 0;
 double TimingPropagator::_max_sink_tran = 0;
 double TimingPropagator::_max_cap = 0;
 int TimingPropagator::_max_fanout = 0;
-double TimingPropagator::_max_length = 0;
 double TimingPropagator::_min_insert_delay = 0;
 std::vector<icts::CtsCellLib*> TimingPropagator::_delay_libs;
 
@@ -65,7 +64,6 @@ void TimingPropagator::init()
   _max_sink_tran = config->get_max_sink_tran();
   _max_cap = config->get_max_cap();
   _max_fanout = config->get_max_fanout();
-  _max_length = config->get_max_length();
   // Use the first available delay-library intercept as the baseline insertion delay.
   _min_insert_delay = _delay_libs.front()->getDelayIntercept();
 }

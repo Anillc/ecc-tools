@@ -63,7 +63,7 @@ struct ClusterStateCompare
 /**
  * @brief AnnealOpt for rebalance clustering
  *       input: clusters
- *       constraint: net_num, max_fanout, max_cap, max_net_len,
+ *       constraint: net_num, max_fanout, max_cap,
  *                   p(coefficient of net length), q(coefficient of net skew)
  *       output: new clusters which satisfy the constraints
  *
@@ -170,7 +170,7 @@ class VioAnnealOpt : public AnnealOptInterface
   // init parameters
   void initParameter(const size_t& max_iter, const double& cooling_rate, const double& temperature);
   void initParameter(const size_t& max_iter, const double& cooling_rate, const double& temperature, const int& max_fanout,
-                     const double& max_cap, const double& max_net_len, const double& skew_bound);
+                     const double& max_cap, const double& skew_bound);
 
   std::vector<std::vector<Pin*>> run(const bool& log = false)
   {
@@ -183,7 +183,6 @@ class VioAnnealOpt : public AnnealOptInterface
   double cost(Net* net) override;
   double designCost(const Net* net);
   double wireLengthCost(const Net* net);
-  double wireLengthVioCost(const Net* net);
   double capCost(const Net* net);
   double capVioCost(const Net* net);
   double fanoutVioCost(const Net* net);
@@ -195,12 +194,10 @@ class VioAnnealOpt : public AnnealOptInterface
 
   int _max_fanout = 0;
   double _max_cap = 0;
-  double _max_net_len = 0;
   double _skew_bound = 0;
 
   const double _cap_coef = 1;
   const double _fanout_coef = 10;
   const double _skew_coef = 1;
-  const double _wirelength_coef = 1;
 };
 }  // namespace icts

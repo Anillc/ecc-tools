@@ -5,6 +5,7 @@ add_library(
   ${ICTS_UTILS}/synthesis_operator/TopologyBuilderOperator.cc
   ${ICTS_UTILS}/synthesis_operator/LongWireBufferingOperator.cc
   ${ICTS_UTILS}/synthesis_operator/LevelSizingOperator.cc
+  ${ICTS_UTILS}/synthesis_operator/SkewPostOptimizationOperator.cc
   ${ICTS_UTILS}/synthesis_operator/NetSynthesisPipeline.cc)
 
 target_link_libraries(icts_synthesis_operator PUBLIC icts_synthesis_ir

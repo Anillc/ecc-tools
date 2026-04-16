@@ -22,6 +22,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <stack>
 #include <unordered_set>
 
@@ -673,11 +674,11 @@ Inst* TreeBuilder::shiftCBSTree(const std::string& net_name, const std::vector<P
     auto* buf = defaultTree(net_name, loads, skew_bound, guide_loc, topo_type);
     auto* driver_pin = buf->get_driver_pin();
     auto driver_loc = driver_pin->get_location();
+    const double length_limit = max_len.value_or(std::numeric_limits<double>::infinity());
     driver_pin->postOrder(TimingPropagator::updateNetLen<Node>);
-    if (shift && guide_loc.has_value() && driver_loc != guide_loc
-        && driver_pin->get_sub_len() < max_len.value_or(TimingPropagator::getMaxLength())) {
+    if (shift && guide_loc.has_value() && driver_loc != guide_loc && driver_pin->get_sub_len() < length_limit) {
       auto id = driver_pin->getMaxId();
-      auto remain_dist = (max_len.value_or(TimingPropagator::getMaxLength()) - driver_pin->get_sub_len()) * TimingPropagator::getDbUnit();
+      auto remain_dist = (length_limit - driver_pin->get_sub_len()) * TimingPropagator::getDbUnit();
       auto guide_dist = TimingPropagator::calcDist(driver_loc, guide_loc.value());
       auto feasible_loc
           = remain_dist > guide_dist ? guide_loc.value() : driver_loc + (guide_loc.value() - driver_loc) * remain_dist / guide_dist;

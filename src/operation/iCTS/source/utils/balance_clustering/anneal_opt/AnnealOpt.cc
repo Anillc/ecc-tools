@@ -449,7 +449,6 @@ void VioAnnealOpt::initParameter(const size_t& max_iter, const double& cooling_r
   AnnealOptInterface::initParameter(max_iter, cooling_rate, temperature);
   _max_fanout = TimingPropagator::getMaxFanout();
   _max_cap = TimingPropagator::getMaxCap();
-  _max_net_len = TimingPropagator::getMaxLength();
   _skew_bound = TimingPropagator::getSkewBound();
 }
 /**
@@ -460,16 +459,14 @@ void VioAnnealOpt::initParameter(const size_t& max_iter, const double& cooling_r
  * @param temperature
  * @param max_fanout
  * @param max_cap
- * @param max_net_len
  * @param skew_bound
  */
 void VioAnnealOpt::initParameter(const size_t& max_iter, const double& cooling_rate, const double& temperature, const int& max_fanout,
-                                 const double& max_cap, const double& max_net_len, const double& skew_bound)
+                                 const double& max_cap, const double& skew_bound)
 {
   initParameter(max_iter, cooling_rate, temperature);
   _max_fanout = max_fanout;
   _max_cap = max_cap;
-  _max_net_len = max_net_len;
   _skew_bound = skew_bound;
 }
 /**
@@ -484,8 +481,8 @@ double VioAnnealOpt::cost(Net* net)
     return 0;
   }
   return _correct_coef
-         * (_cap_coef * capVioCost(net) + _wirelength_coef * wireLengthVioCost(net) + _skew_coef * skewVioCost(net)
-            + _skew_coef * slewCost(net) + _fanout_coef * fanoutVioCost(net));
+         * (_cap_coef * capVioCost(net) + _skew_coef * skewVioCost(net) + _skew_coef * slewCost(net)
+            + _fanout_coef * fanoutVioCost(net));
 }
 /**
  * @brief design cost of the net
@@ -508,22 +505,6 @@ double VioAnnealOpt::wireLengthCost(const Net* net)
   auto* driver_pin = net->get_driver_pin();
   auto wire_length = driver_pin->get_sub_len();
   return wire_length * TimingPropagator::getUnitCap();
-}
-/**
- * @brief wire length violation cost of the net
- *
- * @param net
- * @return double
- */
-double VioAnnealOpt::wireLengthVioCost(const Net* net)
-{
-  double wire_cost = 0.0;
-  auto* driver_pin = net->get_driver_pin();
-  auto wire_length = driver_pin->get_sub_len();
-  if (wire_length > _max_net_len) {
-    wire_cost += (wire_length - _max_net_len) * TimingPropagator::getUnitCap();
-  }
-  return wire_cost;
 }
 /**
  * @brief cap load of the net

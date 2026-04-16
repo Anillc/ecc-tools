@@ -35,7 +35,6 @@ struct ViolationScore
 {
   double skew_vio_score;
   double cap_vio_score;
-  double net_len_vio_score;
   std::vector<Pin*> cluster;
 };
 

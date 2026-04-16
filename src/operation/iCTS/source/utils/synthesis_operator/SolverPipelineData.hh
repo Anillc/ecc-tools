@@ -46,22 +46,20 @@ struct SolverFeasibilityResult
   bool buffer_slew = false;
   bool sink_slew = false;
   bool cap = false;
-  bool length = false;
   bool fanout = false;
   double skew_over = 0.0;
   double buffer_slew_over = 0.0;
   double sink_slew_over = 0.0;
   double cap_over = 0.0;
-  double length_over = 0.0;
   double fanout_over = 0.0;
 
   size_t violationCount() const
   {
     return static_cast<size_t>(skew) + static_cast<size_t>(buffer_slew) + static_cast<size_t>(sink_slew) + static_cast<size_t>(cap)
-           + static_cast<size_t>(length) + static_cast<size_t>(fanout);
+           + static_cast<size_t>(fanout);
   }
 
-  double totalViolation() const { return skew_over + buffer_slew_over + sink_slew_over + cap_over + length_over + fanout_over; }
+  double totalViolation() const { return skew_over + buffer_slew_over + sink_slew_over + cap_over + fanout_over; }
 };
 
 struct SolverSizingCandidate
@@ -89,7 +87,6 @@ struct SolverSizingSearchStats
   size_t rejected_buffer_slew = 0;
   size_t rejected_sink_slew = 0;
   size_t rejected_cap = 0;
-  size_t rejected_length = 0;
   size_t rejected_fanout = 0;
 
   void accumulate(const SolverFeasibilityResult& result)
@@ -98,7 +95,6 @@ struct SolverSizingSearchStats
     rejected_buffer_slew += result.buffer_slew ? 1 : 0;
     rejected_sink_slew += result.sink_slew ? 1 : 0;
     rejected_cap += result.cap ? 1 : 0;
-    rejected_length += result.length ? 1 : 0;
     rejected_fanout += result.fanout ? 1 : 0;
   }
 };

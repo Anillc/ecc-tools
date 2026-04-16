@@ -48,7 +48,12 @@ std::string formatBufferDepthSummary(const std::vector<std::vector<Inst*>>& buff
 }  // namespace
 
 NetSynthesisPipeline::NetSynthesisPipeline(const SolverRuntimeContext& runtime)
-    : _runtime(runtime), _sink_clustering(runtime), _topology_builder(runtime), _long_wire_buffering(runtime), _level_sizing(runtime)
+    : _runtime(runtime),
+      _sink_clustering(runtime),
+      _topology_builder(runtime),
+      _long_wire_buffering(runtime),
+      _level_sizing(runtime),
+      _skew_post_opt(runtime)
 {
 }
 
@@ -63,6 +68,7 @@ void NetSynthesisPipeline::run(SolverPipelineState& state) const
   _long_wire_buffering.run(state);
   logTopologySummary(state);
   _level_sizing.run(state);
+  _skew_post_opt.run(state);
 }
 
 void NetSynthesisPipeline::logTopologySummary(const SolverPipelineState& state) const

@@ -45,7 +45,6 @@ class TestCtsRuntime final : public icts::CtsRuntimeInterface
   {
     _config.set_max_cap(0.5);
     _config.set_max_fanout(8);
-    _config.set_max_length(50.0);
     _config.set_skew_bound(1.0);
     _config.set_work_dir("/tmp");
 

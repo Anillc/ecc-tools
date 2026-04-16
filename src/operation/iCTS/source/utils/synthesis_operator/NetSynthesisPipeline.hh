@@ -23,6 +23,7 @@
 #include "LevelSizingOperator.hh"
 #include "LongWireBufferingOperator.hh"
 #include "SinkClusteringOperator.hh"
+#include "SkewPostOptimizationOperator.hh"
 #include "TopologyBuilderOperator.hh"
 
 namespace icts {
@@ -41,6 +42,7 @@ class NetSynthesisPipeline
   TopologyBuilderOperator _topology_builder;
   LongWireBufferingOperator _long_wire_buffering;
   LevelSizingOperator _level_sizing;
+  SkewPostOptimizationOperator _skew_post_opt;
 };
 
 }  // namespace icts

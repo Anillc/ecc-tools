@@ -36,8 +36,6 @@ CmdCTSConfig::CmdCTSConfig(const char* cmd_name) : TclCmd(cmd_name)
     _config_list.push_back(std::make_pair("-max_cap", ValueType::kDouble));
     // max_fanout
     _config_list.push_back(std::make_pair("-max_fanout", ValueType::kInt));
-    // max_length
-    _config_list.push_back(std::make_pair("-max_length", ValueType::kInt));
     // routing_layer intlist
     _config_list.push_back(std::make_pair("-routing_layer", ValueType::kIntList));
     // buffer_type stringlist

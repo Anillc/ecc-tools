@@ -41,9 +41,10 @@ void warnDeprecatedConfigKey(const nlohmann::json& json, icts::CtsConfig* config
 
 void warnDeprecatedConfigKeys(const nlohmann::json& json, icts::CtsConfig* config)
 {
-  static const std::array<std::pair<const char*, const char*>, 20> k_deprecated_keys = {{
+  static const std::array<std::pair<const char*, const char*>, 21> k_deprecated_keys = {{
       {"use_skew_tree_alg", "the skew-tree algorithm switch has been removed from the active CTS flow."},
       {"min_length", "the min-length driven clustering path has been removed."},
+      {"max_length", "the max-length CTS config knob is deprecated and ignored in the active CTS flow."},
       {"router_type", "legacy router selection is no longer supported."},
       {"delay_type", "legacy delay model selection is no longer supported."},
       {"cluster_type", "legacy clustering mode selection is no longer supported."},
@@ -128,10 +129,6 @@ void JsonParser::parse(const string& json_file, CtsConfig* config) const
     if (COMUtil::getData(json, {"max_fanout"}) != nullptr) {
       std::string max_fanout = COMUtil::getData(json, {"max_fanout"});
       config->set_max_fanout(std::stoi(max_fanout));
-    }
-    if (COMUtil::getData(json, {"max_length"}) != nullptr) {
-      std::string max_length = COMUtil::getData(json, {"max_length"});
-      config->set_max_length(std::stod(max_length));
     }
     if (COMUtil::getData(json, {"routing_layer"}) != nullptr) {
       std::vector<int> routing_layers = COMUtil::getData(json, {"routing_layer"});

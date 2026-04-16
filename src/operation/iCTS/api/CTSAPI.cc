@@ -197,6 +197,7 @@ void CTSAPI::dumpVertexData(const std::vector<std::string>& vertex_names) const
 
 double CTSAPI::getClockUnitCap(const std::optional<icts::LayerPattern>& layer_pattern) const
 {
+  constexpr double kRcSampleLength = 1.0;
   const auto& state = sessionState();
   const auto pattern = layer_pattern.value_or(icts::LayerPattern::kNone);
   auto* db_adapter = getStaDbAdapter();
@@ -207,12 +208,12 @@ double CTSAPI::getClockUnitCap(const std::optional<icts::LayerPattern>& layer_pa
   LOG_ERROR_IF(pattern != icts::LayerPattern::kH && pattern != icts::LayerPattern::kV && pattern != icts::LayerPattern::kNone)
       << "Unknown layer pattern";
   std::optional<double> width = std::nullopt;
-  auto max_len = state.config->get_max_length();
-  return db_adapter->getCapacitance(layer, max_len, width) / max_len;
+  return db_adapter->getCapacitance(layer, kRcSampleLength, width) / kRcSampleLength;
 }
 
 double CTSAPI::getClockUnitRes(const std::optional<icts::LayerPattern>& layer_pattern) const
 {
+  constexpr double kRcSampleLength = 1.0;
   const auto& state = sessionState();
   const auto pattern = layer_pattern.value_or(icts::LayerPattern::kNone);
   auto* db_adapter = getStaDbAdapter();
@@ -223,8 +224,7 @@ double CTSAPI::getClockUnitRes(const std::optional<icts::LayerPattern>& layer_pa
   LOG_ERROR_IF(pattern != icts::LayerPattern::kH && pattern != icts::LayerPattern::kV && pattern != icts::LayerPattern::kNone)
       << "Unknown layer pattern";
   std::optional<double> width = std::nullopt;
-  auto max_len = state.config->get_max_length();
-  return db_adapter->getResistance(layer, max_len, width) / max_len / 2;
+  return db_adapter->getResistance(layer, kRcSampleLength, width) / kRcSampleLength / 2;
 }
 
 double CTSAPI::getSinkCap(icts::CtsInstance* sink) const

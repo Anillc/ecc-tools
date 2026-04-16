@@ -77,9 +77,9 @@ void LevelSizingOperator::run(SolverPipelineState& state) const
     sizing_search_summary << "Net [" << state.net_name << "] level sizing search summary => depth count: " << state.buffers_by_depth.size()
                           << ", library choices: " << libs.size() << ", evaluated: " << stats.evaluated << ", feasible: " << feasible_count
                           << ", pareto front: " << pareto_count
-                          << ", rejected(skew/buf_slew/sink_slew/cap/length/fanout): " << stats.rejected_skew << "/"
+                          << ", rejected(skew/buf_slew/sink_slew/cap/fanout): " << stats.rejected_skew << "/"
                           << stats.rejected_buffer_slew << "/" << stats.rejected_sink_slew << "/" << stats.rejected_cap << "/"
-                          << stats.rejected_length << "/" << stats.rejected_fanout << mode_suffix;
+                          << stats.rejected_fanout << mode_suffix;
     return sizing_search_summary.str();
   };
 
@@ -182,7 +182,6 @@ SolverFeasibilityResult LevelSizingOperator::checkSizingFeasibility(const Solver
   }
 
   const double max_cap = TimingPropagator::getMaxCap();
-  const double max_length = TimingPropagator::getMaxLength();
   const int max_fanout = TimingPropagator::getMaxFanout();
   const double max_buf_tran = TimingPropagator::getMaxBufTran();
   const double max_sink_tran = TimingPropagator::getMaxSinkTran();
@@ -211,11 +210,6 @@ SolverFeasibilityResult LevelSizingOperator::checkSizingFeasibility(const Solver
       result.feasible = false;
       result.cap = true;
       result.cap_over = std::max(result.cap_over, normalized_overflow(driver_pin->get_cap_load(), max_cap));
-    }
-    if (driver_pin->get_sub_len() > max_length + kConstraintEpsilon) {
-      result.feasible = false;
-      result.length = true;
-      result.length_over = std::max(result.length_over, normalized_overflow(driver_pin->get_sub_len(), max_length));
     }
 
     driver_pin->preOrder([&](Node* node) {
@@ -439,7 +433,6 @@ std::string LevelSizingOperator::formatFeasibilitySummary(const SolverFeasibilit
   append("buf_slew", result.buffer_slew, result.buffer_slew_over);
   append("sink_slew", result.sink_slew, result.sink_slew_over);
   append("cap", result.cap, result.cap_over);
-  append("length", result.length, result.length_over);
   append("fanout", result.fanout, result.fanout_over);
   return first ? "none" : oss.str();
 }

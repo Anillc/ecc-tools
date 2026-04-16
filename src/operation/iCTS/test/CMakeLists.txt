@@ -74,3 +74,15 @@ else()
 endif()
 target_include_directories(icts_topology_builder_test PUBLIC ${ICTS_TEST})
 add_test(NAME icts_topology_builder_test COMMAND icts_topology_builder_test)
+
+# SkewPostOptimizationOperatorTest
+add_executable(icts_skew_post_optimization_test ${ICTS_TEST}/SkewPostOptimizationOperatorTest.cc)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  target_link_libraries(icts_skew_post_optimization_test PUBLIC icts_synthesis_operator icts_runtime
+                                                                gtestd gtest_maind)
+else()
+  target_link_libraries(icts_skew_post_optimization_test PUBLIC icts_synthesis_operator icts_runtime
+                                                                gtest gtest_main)
+endif()
+target_include_directories(icts_skew_post_optimization_test PUBLIC ${ICTS_TEST})
+add_test(NAME icts_skew_post_optimization_test COMMAND icts_skew_post_optimization_test)

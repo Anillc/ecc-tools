@@ -205,7 +205,6 @@ class TimingPropagator
   static double getMaxSinkTran() { return _max_sink_tran; }
   static double getMaxCap() { return _max_cap; }
   static int getMaxFanout() { return _max_fanout; }
-  static double getMaxLength() { return _max_length; }
   static double getMinInsertDelay() { return _min_insert_delay; }
   static icts::CtsCellLib* getMinSizeLib() { return _delay_libs.front(); }
   static icts::CtsCellLib* getMaxSizeLib() { return _delay_libs.back(); }
@@ -510,7 +509,6 @@ class TimingPropagator
   static double _max_sink_tran;
   static double _max_cap;
   static int _max_fanout;
-  static double _max_length;
   static double _min_insert_delay;
   static std::vector<icts::CtsCellLib*> _delay_libs;
 };
