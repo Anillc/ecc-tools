@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
+- **Total Sessions**: 20
 - **Last Active**: 2026-04-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1053 | Active |
+| `journal-1.md` | ~1110 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-04-16 | iCTS forced leaf buffering and H-tree boundary controls | `3c82c1ee7` | `cts_refactor` |
 | 19 | 2026-04-16 | Optimize iCTS logging and reporting | `1d0b24471` | `cts_refactor` |
 | 18 | 2026-04-16 | Deliver iCTS characterization runtime acceleration | `2a9076e56` | `cts_refactor` |
 | 17 | 2026-04-14 | Implement CTS H-Tree flow | `f082f7653` | `cts_refactor` |

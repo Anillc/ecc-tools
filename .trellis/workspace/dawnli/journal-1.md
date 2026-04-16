@@ -1051,3 +1051,60 @@ Delivered the real-tech characterization repair work for iCTS: max slew/cap reso
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: iCTS forced leaf buffering and H-tree boundary controls
+
+**Date**: 2026-04-16
+**Task**: iCTS forced leaf buffering and H-tree boundary controls
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Summary |
+|------|---------|
+| Characterization | Removed the separate pattern-node cap and unified coverage on `wire_length_iterations`; kept default lattice controls at `wire_length_iterations=5`, `slew_steps=5`, and `cap_steps=5`. |
+| Representation | Extended segment buffering patterns and H-tree topology chars so terminal branch-buffer semantics and leaf driven-cap metadata survive composition. |
+| H-Tree build | Added caller-facing build options for forced leaf buffering, top input slew floor, and leaf driven cap floor; kept selection single-pass and added closest-solution fallback with warning metadata when strict boundary feasibility fails. |
+| Materialization | Ensured the selected terminal buffer is materialized at the realized branch entry point instead of relying on an unbuffered proxy. |
+| Test framework | Standardized per-gtest artifact output so every executed case writes its own `cts.log` and `test.log`; kept console tables readable by truncating display-only long fields without touching raw artifacts. |
+| Verification | Passed `icts_test_module_characterization`, `icts_test_flow_htree`, targeted and full `icts_test_flow_htree_realtech`, targeted helper checks, and full `src/operation/iCTS` inspection with `0` in-scope findings. |
+
+**Key files**:
+- `src/operation/iCTS/source/database/config/Config.hh`
+- `src/operation/iCTS/source/database/config/Config.cc`
+- `src/operation/iCTS/source/module/characterization/CharBuilder.hh`
+- `src/operation/iCTS/source/module/characterization/CharBuilder.cc`
+- `src/operation/iCTS/source/database/characterization/BufferingPattern.hh`
+- `src/operation/iCTS/source/database/characterization/HTreeTopologyChar.hh`
+- `src/operation/iCTS/source/flow/htree/HTreeBuilder.hh`
+- `src/operation/iCTS/source/flow/htree/HTreeBuilder.cc`
+- `src/operation/iCTS/test/main.cc`
+- `src/operation/iCTS/test/common/io/TestArtifactIO.cc`
+- `src/operation/iCTS/test/common/io/TestArtifactIOTest.cc`
+- `src/operation/iCTS/test/common/logging/ScopedLogFileTest.cc`
+- `src/operation/iCTS/test/flow/htree/HTreeBuilderRealTechSmokeTest.cc`
+- `src/operation/iCTS/test/module/characterization/BufferingPatternTest.cc`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3c82c1ee7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
