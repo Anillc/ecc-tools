@@ -21,11 +21,11 @@
 
 #include <random>
 
-#include "../../platform/data_manager/idm.h"
 #include "CTSAPI.hh"
 #include "LocalLegalization.hh"
 #include "TimingPropagator.hh"
 #include "TreeBuilder.hh"
+#include "idm.h"
 namespace {
 using icts::Inst;
 using icts::LocalLegalization;
@@ -58,7 +58,7 @@ class TestInterface
       return;
     }
     dmInst->init(db_config_path);
-    CTSAPIInst.init(cts_config_path);
+    CTSAPI_INST.init(cts_config_path);
     LocalLegalization::setIgnoreCore(true);
   }
   virtual ~TestInterface() = default;
@@ -78,7 +78,7 @@ class TestInterface
     std::vector<Inst*> load_bufs;
     size_t i = 0;
     for (auto loc : locs) {
-      auto* buf = TreeBuilder::genBufInst(CTSAPIInst.toString("buf_", i++), loc);
+      auto* buf = TreeBuilder::genBufInst(CTSAPI_INST.toString("buf_", i++), loc);
       buf->set_cell_master(TimingPropagator::getMinSizeCell());
       load_bufs.push_back(buf);
       auto* load_pin = buf->get_load_pin();

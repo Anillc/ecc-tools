@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "CtsInstance.hh"
-#include "CtsPin.hh"
 #include "CtsSignalWire.hh"
 #include "DesignObject.hh"
 

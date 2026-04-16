@@ -24,13 +24,15 @@
 #include <cassert>
 #include <fstream>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
-#include <optional>
 
-#include "../../../database/interaction/ids.hpp"
+#include "interaction/ids.hpp"
 
 namespace ieda_feature {
 class CTSSummary;
@@ -39,11 +41,13 @@ class ClockTiming;
 
 namespace icts {
 
-#define CTSAPIInst (icts::CTSAPI::getInst())
+class CTSFlowRunner;
+class CTSSession;
+class Net;
+struct CTSState;
 
-using ieda::Log;
-using ieda::Str;
-using ieda::Time;
+#define CTSAPI_INST (icts::CTSAPI::getInst())
+
 using SkewConstraintsMap = std::map<std::pair<std::string, std::string>, std::pair<double, double>>;
 
 template <typename T>
@@ -56,34 +60,57 @@ class CTSAPI
  public:
   static CTSAPI& getInst();
   static void destroyInst();
-  // open API
+  void init(const std::string& config_file, const std::string& work_dir = "");
   void runCTS();
-  void writeDB();
-  void writeGDS();
   void report(const std::string& save_dir);
+  void resetAPI();
 
-  // Eval Flow API
   void initEvalInfo();
   size_t getInsertCellNum() const;
   double getInsertCellArea() const;
   std::vector<PathInfo> getPathInfos() const;
   double getMaxClockNetWL() const;
   double getTotalClockNetWL() const;
+  ieda_feature::CTSSummary outputSummary();
 
-  // flow API
-  void resetAPI();
-  void init(const std::string& config_file, const std::string& work_dir = "");
-  void readData();
-  void routing();
-  void evaluate();
-  icts::CtsConfig* get_config() { return _config; }
-  icts::CtsDesign* get_design() { return _design; }
-  icts::CtsDBWrapper* get_db_wrapper() { return _db_wrapper; }
-
-  // iSTA
-  void dumpVertexData(const std::vector<std::string>& vertex_names) const;
+  icts::CtsConfig* getConfig() const;
   double getClockUnitCap(const std::optional<icts::LayerPattern>& layer_pattern = std::nullopt) const;
   double getClockUnitRes(const std::optional<icts::LayerPattern>& layer_pattern = std::nullopt) const;
+  std::vector<icts::CtsCellLib*> getAllBufferLibs();
+
+  template <StringAble T>
+  std::string stringify(const T& t)
+  {
+    return std::to_string(t);
+  }
+
+  std::string stringify(const std::string_view sv) { return std::string(sv); }
+
+  template <typename... Args>
+  std::string toString(const Args&... args)
+  {
+    return (stringify(args) + ...);
+  }
+
+ private:
+  friend class CTSFlowRunner;
+  friend class CTSSession;
+  static CTSAPI* _cts_api_instance;
+  CTSAPI() = default;
+  CTSAPI(const CTSAPI& other) = delete;
+  CTSAPI(CTSAPI&& other) = delete;
+  ~CTSAPI() = default;
+  CTSAPI& operator=(const CTSAPI& other) = delete;
+  CTSAPI& operator=(CTSAPI&& other) = delete;
+
+  [[nodiscard]] CTSSession& requireSession() const;
+  [[nodiscard]] CTSState& mutableState();
+  [[nodiscard]] const CTSState& sessionState() const;
+  [[nodiscard]] std::ofstream* logStream() const;
+
+  void writeDB();
+  void writeGDS();
+  void dumpVertexData(const std::vector<std::string>& vertex_names) const;
   double getSinkCap(icts::CtsInstance* sink) const;
   double getSinkCap(const std::string& load_pin_full_name) const;
   bool isFlipFlop(const std::string& inst_name) const;
@@ -104,19 +131,15 @@ class CTSAPI
                                         const std::string& to_port = "");
   icts::CtsCellLib* getCellLib(const std::string& cell_masterconst, const std::string& from_port = "", const std::string& to_port = "",
                                const bool& use_work_value = true);
-  std::vector<icts::CtsCellLib*> getAllBufferLibs();
-  icts::CtsCellLib* getRootBufferLib();
   std::vector<std::string> getMasterClocks(icts::CtsNet* net) const;
   double getClockAT(const std::string& pin_name, const std::string& belong_clock_name) const;
   std::string getCellType(const std::string& cell_master) const;
   double getCellArea(const std::string& cell_master) const;
+  double getCellLeakagePower(const std::string& cell_master) const;
   double getCellCap(const std::string& cell_master) const;
   double getSlewIn(const std::string& pin_name) const;
   double getCapOut(const std::string& pin_name) const;
   std::vector<double> solvePolynomialRealRoots(const std::vector<double>& coeffs);
-  ieda_feature::CTSSummary outputSummary();
-
-  // synthesis
   int32_t getDbUnit() const;
   bool isInDie(const icts::Point& point) const;
   idb::IdbInstance* makeIdbInstance(const std::string& inst_name, const std::string& cell_master);
@@ -127,6 +150,9 @@ class CTSAPI
   void insertBuffer(const std::string& name);
   void resetId();
   int genId();
+  void registerSynthesisNet(Net* net);
+  Net* findSynthesisNet(const std::string& net_name) const;
+  void clearSynthesisNets();
   void genFluteTree(const std::string& net_name, icts::Pin* driver, const std::vector<icts::Pin*>& loads);
   void genShallowLightTree(const std::string& net_name, icts::Pin* driver, const std::vector<icts::Pin*>& loads);
   icts::Inst* genBoundSkewTree(const std::string& net_name, const std::vector<icts::Pin*>& loads, const std::optional<double>& skew_bound,
@@ -135,7 +161,6 @@ class CTSAPI
                              const std::optional<icts::Point>& guide_loc, const TopoType& topo_type);
   icts::Inst* genCBSTree(const std::string& net_name, const std::vector<icts::Pin*>& loads, const std::optional<double>& skew_bound,
                          const std::optional<icts::Point>& guide_loc, const TopoType& topo_type);
-  // evaluate
   bool isTop(const std::string& net_name) const;
   void buildRCTree(const std::vector<icts::EvalNet>& eval_nets);
   void buildRCTree(const icts::EvalNet& eval_net);
@@ -144,53 +169,33 @@ class CTSAPI
   void utilizationLog() const;
   void latencySkewLog() const;
   void slackLog() const;
-  // log
   void checkFile(const std::string& dir, const std::string& file_name, const std::string& suffix = ".rpt") const;
-
-  template <StringAble T>
-  std::string stringify(const T& t)
-  {
-    return std::to_string(t);
-  }
-
-  std::string stringify(const std::string_view sv) { return std::string(sv); }
-
-  template <typename... Args>
-  std::string toString(const Args&... args)
-  {
-    return (stringify(args) + ...);
-  }
 
   template <typename... Args>
   void saveToLog(const Args&... args)
   {
-    (*_log_ofs) << toString(args...) << std::endl;
+    auto* log_ofs = logStream();
+    if (log_ofs == nullptr || !log_ofs->is_open()) {
+      return;
+    }
+    (*log_ofs) << toString(args...) << std::endl;
   }
 
+  template <typename... Args>
+  void mirrorToTerminalAndLog(const Args&... args)
+  {
+    mirrorToTerminalAndLog(toString(args...));
+  }
+
+  void mirrorToTerminalAndLog(const std::string& text);
+
   void logTime() const;
-
   void logLine() const;
-
   void logTitle(const std::string& title) const;
-
   void logEnd() const;
-
-  // function
   std::vector<std::string> splitString(std::string str, const char split);
-
-  // debug
   void writeVerilog() const;
   void toPyArray(const icts::Point& point, const std::string& label);
-
- private:
-  static CTSAPI* _cts_api_instance;
-  CTSAPI() = default;
-  CTSAPI(const CTSAPI& other) = delete;
-  CTSAPI(CTSAPI&& other) = delete;
-  ~CTSAPI() = default;
-  CTSAPI& operator=(const CTSAPI& other) = delete;
-  CTSAPI& operator=(CTSAPI&& other) = delete;
-  // private STA
   void readSTAFile();
   ista::RctNode* makeRCTreeNode(const icts::EvalNet& eval_net, const std::string& name);
   ista::RctNode* makePinRCTreeNode(icts::CtsPin* pin);
@@ -202,16 +207,7 @@ class CTSAPI
   double getResistance(const double& wire_length, const int& level) const;
   ista::TimingIDBAdapter* getStaDbAdapter() const;
 
-  // variable
-  icts::CtsConfig* _config = nullptr;
-  icts::CtsDesign* _design = nullptr;
-  icts::CtsDBWrapper* _db_wrapper = nullptr;
-  icts::CtsReportTable* _report = nullptr;
-  std::ofstream* _log_ofs = nullptr;
-  icts::CtsLibs* _libs = nullptr;
-  icts::Evaluator* _evaluator = nullptr;
-  icts::ModelFactory* _model_factory = nullptr;
-  ista::TimingEngine* _timing_engine = nullptr;
+  std::shared_ptr<CTSSession> _session;
 };
 
 }  // namespace icts

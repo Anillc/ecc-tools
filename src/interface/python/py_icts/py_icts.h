@@ -18,6 +18,6 @@
 #include <string>
 
 namespace python_interface {
-bool ctsAutoRun(const std::string& cts_config, const std::string& cts_work_dir);
-void ctsReport(const std::string& path);
+bool CtsAutoRun(const std::string& cts_config, const std::string& cts_work_dir);
+void CtsReport(const std::string& path);
 }  // namespace python_interface

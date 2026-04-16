@@ -13,7 +13,7 @@ add_library(
   ${ICTS_DATA_MANAGER}/database/CtsNet.cc
   ${ICTS_DATA_MANAGER}/database/CtsPin.cc)
 
-target_link_libraries(icts_database PUBLIC icts_data_manager icts_model)
+target_link_libraries(icts_database PRIVATE icts_runtime)
 
-target_include_directories(icts_database PUBLIC ${ICTS_DATA_MANAGER}/config
-                                                ${ICTS_MODEL})
+target_include_directories(icts_database PUBLIC ${ICTS_DATA_MANAGER}/database
+                                                ${ICTS_DATA_MANAGER}/config)

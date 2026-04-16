@@ -28,7 +28,6 @@
 #include "CtsInstance.hh"
 #include "CtsNet.hh"
 #include "CtsPin.hh"
-#include "Net.hh"
 namespace icts {
 class CtsDesign
 {
@@ -81,18 +80,9 @@ class CtsDesign
     }
   }
 
-  void addSolverNet(Net* net)
-  {
-    if (_solver_map.count(net->get_name()) == 0) {
-      _solver_map.insert(std::make_pair(net->get_name(), net));
-    }
-  }
-
   CtsNet* findNet(const std::string& net_name) const;
   CtsPin* findPin(const std::string& pin_full_name) const;
   CtsInstance* findInstance(const std::string& instance_name) const;
-
-  Net* findSolverNet(const std::string& net_name) const;
 
  private:
   int _id = 0;
@@ -107,6 +97,5 @@ class CtsDesign
   std::unordered_map<std::string, CtsNet*> _net_map;
   std::unordered_map<std::string, CtsInstance*> _inst_map;
   std::unordered_map<std::string, CtsPin*> _pin_map;
-  std::unordered_map<std::string, Net*> _solver_map;
 };
 }  // namespace icts

@@ -12,6 +12,12 @@ target_link_libraries(
 
 target_include_directories(
   icts_source_external_libs
-  INTERFACE ${HOME_DATABASE}/db ${HOME_DATABASE}/builder/builder
+  INTERFACE ${HOME_DATABASE}/db
+            ${HOME_DATABASE}/basic/geometry
+            ${HOME_DATABASE}/data/design
+            ${HOME_DATABASE}/data/design/db_design
+            ${HOME_DATABASE}/data/design/db_layout
+            ${HOME_DATABASE}/data/design/db_property
+            ${HOME_DATABASE}/builder/builder
             ${HOME_DATABASE}/builder/def_builder/def_service
             ${HOME_DATABASE}/builder/lef_builder/lef_service)

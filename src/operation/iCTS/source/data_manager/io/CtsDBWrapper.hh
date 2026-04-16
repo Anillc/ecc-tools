@@ -22,7 +22,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <iostream>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -53,6 +55,8 @@ using std::unordered_map;
 class CtsDBWrapper
 {
  public:
+  using IsFlipFlopFn = std::function<bool(const std::string&)>;
+
   CtsDBWrapper(IdbBuilder* idb);
   CtsDBWrapper(const CtsDBWrapper&) = default;
   ~CtsDBWrapper() {}
@@ -74,11 +78,17 @@ class CtsDBWrapper
 
   // setter
   void set_idb(IdbBuilder* idb) { _idb = idb; }
+  void setRuntimeContext(CtsDesign* design, std::string output_def_path, IsFlipFlopFn is_flip_flop_checker);
+  void setReadContext(CtsDesign* design) { _read_design = design; }
+  void setOutputDefPath(std::string output_def_path) { _output_def_path = std::move(output_def_path); }
+  void setFlipFlopChecker(IsFlipFlopFn is_flip_flop_checker) { _is_flip_flop_checker = std::move(is_flip_flop_checker); }
 
   // read and write file
+  void writeDef(const std::string& output_def_path);
   void writeDef();
 
   // read data from idb
+  void read(CtsDesign* design);
   void read();
 
   // interface to synthesis
@@ -136,6 +146,10 @@ class CtsDBWrapper
 
   unordered_map<CtsNet*, IdbNet*> _cts2idbNet;
   unordered_map<IdbNet*, CtsNet*> _idb2ctsNet;
+
+  CtsDesign* _read_design = nullptr;
+  std::string _output_def_path;
+  IsFlipFlopFn _is_flip_flop_checker;
 };
 
 inline void CtsDBWrapper::crossRef(CtsPin* cts_pin, IdbPin* idb_pin)
