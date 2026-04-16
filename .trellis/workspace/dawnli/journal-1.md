@@ -1007,3 +1007,47 @@ Delivered the real-tech characterization repair work for iCTS: max slew/cap reso
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Optimize iCTS logging and reporting
+
+**Date**: 2026-04-16
+**Task**: Optimize iCTS logging and reporting
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Summary |
+|------|---------|
+| Logging architecture | Replaced legacy `CTS_LOG_*` dual-write behavior with repository `LOG_*` for runtime diagnostics plus schema-driven `cts.log` writing. |
+| Reporting style | Added titled sections, key-value tables, detail blocks, lifecycle markers, and extra `cts.log` output for current test/report flows. |
+| Ownership cleanup | Moved config/design/STA-derived logging data closer to `Config`, `Design`, and `STAAdapter`; kept `CTSAPI` focused on orchestration. |
+| Semantic fixes | Removed redundant file-path echoing, clarified fallback provenance in characterization logging, and added RC/layer/unit summaries with units and sanity checks. |
+| Verification | Ran full `ecc_dev_tools` on `src/operation/iCTS`; final result was `In-scope findings: 0` with existing out-of-scope diagnostics only. |
+
+**Notes**:
+- Updated backend logging-related specs to reflect `LOG_* + schema` and forbid new dual-write wrappers.
+- Removed obsolete `Logger.hh` / `Logger.cc` usage in iCTS.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1d0b24471` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
