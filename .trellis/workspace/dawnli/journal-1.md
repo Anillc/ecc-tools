@@ -121,3 +121,36 @@ Updated the local ICS55 iCTS debug Tcl script to read LEF and DEF paths from db_
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: iCTS architecture refactor closure
+
+**Date**: 2026-04-16
+**Task**: iCTS architecture refactor closure
+**Branch**: `cts_fix`
+
+### Summary
+
+Completed the iCTS architecture refactor, finalized H-tree DRV-driven stop conditions and report logging behavior, reverted external-module intrusion in IdbLayer.h, and updated spec constraints to keep verification/cleanup scoped to iCTS.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7da768828` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

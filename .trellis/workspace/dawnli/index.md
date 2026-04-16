@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
-- **Last Active**: 2026-04-15
+- **Total Sessions**: 4
+- **Last Active**: 2026-04-16
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~123 | Active |
+| `journal-1.md` | ~156 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-04-16 | iCTS architecture refactor closure | `7da768828` | `cts_fix` |
 | 3 | 2026-04-15 | Stabilize iCTS H-tree CTS flow | `d2d9d93c6` | `cts_fix` |
 | 2 | 2026-04-14 | Fix ICS55 Dev CTS Debug Script | `eda0cb7c8` | `cts_fix` |
 | 1 | 2026-04-14 | Bootstrap CTS-oriented Trellis guidelines | `a7189533e` | `cts_fix` |
