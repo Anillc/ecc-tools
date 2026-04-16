@@ -20,12 +20,11 @@
  */
 #pragma once
 
+#include <functional>
 #include <limits>
 #include <unordered_map>
 #include <utility>
-#include <limits>
 
-#include "CTSAPI.hh"
 #include "CtsConfig.hh"
 #include "CtsInstance.hh"
 #include "CtsNet.hh"
@@ -82,9 +81,9 @@ class EvalNet
     }
     return Point(x / static_cast<int>(pins.size()), y / static_cast<int>(pins.size()));
   }
-  NetType netType() const
+  NetType netType(const std::function<bool(const std::string&)>& is_top) const
   {
-    if (CTSAPIInst.isTop(_net->get_net_name())) {
+    if (is_top(_net->get_net_name())) {
       return NetType::kTop;
     }
     int buf_num = 0;
@@ -101,16 +100,16 @@ class EvalNet
     }
     return NetType::kTrunk;
   }
-  double centerAvgDist() const
+  double centerAvgDist(int db_unit) const
   {
     auto center = getCenterPoint();
     double dist = 0;
     for (auto* pin : _net->get_pins()) {
-      dist += 1.0 * Point::manhattanDistance(center, pin->get_location()) / CTSAPIInst.getDbUnit();
+      dist += 1.0 * Point::manhattanDistance(center, pin->get_location()) / db_unit;
     }
     return dist / static_cast<double>(_net->get_pins().size());
   }
-  double getHPWL() const
+  double getHPWL(int db_unit) const
   {
     int l_x = std::numeric_limits<int>::max();
     int l_y = std::numeric_limits<int>::max();
@@ -123,7 +122,7 @@ class EvalNet
       r_x = std::max(r_x, loc.x());
       r_y = std::max(r_y, loc.y());
     }
-    return 1.0 * (r_x - l_x + r_y - l_y) / CTSAPIInst.getDbUnit();
+    return 1.0 * (r_x - l_x + r_y - l_y) / db_unit;
   }
 
  private:

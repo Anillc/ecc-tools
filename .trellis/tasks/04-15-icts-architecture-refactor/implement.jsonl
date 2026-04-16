@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Enforce CTS backend layer ownership during refactor planning and implementation"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Keep IDB/CTS data access isolated while purifying adapters"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve CTS logging-style guards during refactor"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Keep stage-oriented CTS logging consistent after decomposition"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Respect CTS change boundaries and build/test expectations"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Refactor may touch interface/tool_manager/api/config/report boundaries"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Avoid duplicating CTS flow logic while extracting operators and services"}

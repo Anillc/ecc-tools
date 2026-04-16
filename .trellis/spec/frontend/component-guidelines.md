@@ -7,6 +7,7 @@ Treat each user-facing CTS command, binding, or GUI action as a thin component.
 - Put option declaration, validation, and dispatch together in the same wrapper.
 - Prefer `tool_manager` as the first bridge above CTS core for UI-triggered flows.
 - Keep naming aligned across layers when exposing the same feature.
+- CTS report wrappers must delegate through `tool_manager` and must not include `CTSAPI.hh` to bypass the shared path.
 
 ## Examples
 - `CmdCTSAutoRun` in `src/interface/tcl/tcl_icts/tcl_cts.cpp`

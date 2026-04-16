@@ -26,11 +26,12 @@
 #include <cstdint>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <vector>
 
-#include "CTSAPI.hh"
 #include "CtsDBWrapper.hh"
+#include "CtsRuntime.hh"
 #include "json.hpp"
 
 namespace icts {
@@ -63,7 +64,7 @@ std::string resolveDesignGdsPath(const std::string& requested_path)
   if (!requested_path.empty()) {
     return requested_path;
   }
-  auto* config = CTSAPIInst.get_config();
+  auto* config = GetCtsRuntime().getConfig();
   if (config != nullptr) {
     if (!config->get_gds_file().empty()) {
       return config->get_gds_file();
@@ -158,9 +159,8 @@ std::array<int16_t, 6> makeTimestamp(time_t when)
 {
   std::tm tm_value;
   localtime_r(&when, &tm_value);
-  return {static_cast<int16_t>(tm_value.tm_year + 1900), static_cast<int16_t>(tm_value.tm_mon + 1),
-          static_cast<int16_t>(tm_value.tm_mday), static_cast<int16_t>(tm_value.tm_hour), static_cast<int16_t>(tm_value.tm_min),
-          static_cast<int16_t>(tm_value.tm_sec)};
+  return {static_cast<int16_t>(tm_value.tm_year + 1900), static_cast<int16_t>(tm_value.tm_mon + 1), static_cast<int16_t>(tm_value.tm_mday),
+          static_cast<int16_t>(tm_value.tm_hour),        static_cast<int16_t>(tm_value.tm_min),     static_cast<int16_t>(tm_value.tm_sec)};
 }
 
 uint64_t encodeGdsReal8(double value)
@@ -250,8 +250,8 @@ std::vector<uint8_t> packTimestampPayload(time_t begin_time, time_t end_time)
 void writeRecord(std::fstream& gds_ofs, GdsRecordType record_type, GdsDataType data_type, const std::vector<uint8_t>& payload = {})
 {
   const auto record_length = static_cast<uint16_t>(payload.size() + 4);
-  char header[4] = {static_cast<char>((record_length >> 8) & 0xFF), static_cast<char>(record_length & 0xFF),
-                    static_cast<char>(record_type), static_cast<char>(data_type)};
+  char header[4] = {static_cast<char>((record_length >> 8) & 0xFF), static_cast<char>(record_length & 0xFF), static_cast<char>(record_type),
+                    static_cast<char>(data_type)};
   gds_ofs.write(header, sizeof(header));
   if (!payload.empty()) {
     gds_ofs.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
@@ -312,9 +312,9 @@ void writeSRef(std::fstream& gds_ofs, const std::string& name)
 
 void GDSPloter::plotDesign(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
   auto& clk_nets = design->get_nets();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto file_path = resolveDesignGdsPath(path);
   ensureParentDirectory(file_path);
   auto ofs = std::fstream(file_path, std::ios::out | std::ios::trunc | std::ios::binary);
@@ -407,9 +407,9 @@ void GDSPloter::plotDesign(const std::string& path)
 
 void GDSPloter::plotFlyLine(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
   auto& clk_nets = design->get_nets();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto file_path = resolveFlylineGdsPath(path);
   ensureParentDirectory(file_path);
   auto ofs = std::fstream(file_path, std::ios::out | std::ios::trunc | std::ios::binary);
@@ -495,10 +495,10 @@ void GDSPloter::plotFlyLine(const std::string& path)
 
 void GDSPloter::writePyDesign(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
 
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* config = GetCtsRuntime().getConfig();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto file_path = path;
   if (file_path.empty()) {
     auto dir = std::filesystem::path(config->get_work_dir()).append("output").string();
@@ -594,10 +594,10 @@ void GDSPloter::writePyDesign(const std::string& path)
 
 void GDSPloter::writePyFlyLine(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
 
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* config = GetCtsRuntime().getConfig();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto file_path = path;
   if (file_path.empty()) {
     auto dir = std::filesystem::path(config->get_work_dir()).append("output").string();
@@ -690,9 +690,9 @@ void GDSPloter::writePyFlyLine(const std::string& path)
 
 void GDSPloter::writeJsonDesign(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* design = GetCtsRuntime().getDesign();
+  auto* config = GetCtsRuntime().getConfig();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
 
   auto file_path = path;
   if (file_path.empty()) {
@@ -766,9 +766,9 @@ void GDSPloter::writeJsonDesign(const std::string& path)
 
     // Only consider a single clock source for now.
     auto clk_port = design->get_clocks().front()->get_clock_name();
-    
+
     for (auto& p : clk_net->get_load_pins()) {
-      auto delay = CTSAPIInst.getClockAT(p->get_full_name(), clk_port);
+      auto delay = GetCtsRuntime().getClockAt(p->get_full_name(), clk_port);
 
       nlohmann::json delay_obj;
       delay_obj["from"] = driver_pin->get_full_name();
@@ -824,7 +824,7 @@ void GDSPloter::refPolygon(std::fstream& log_ofs, const string& name)
 
 void GDSPloter::insertInstance(std::fstream& log_ofs, CtsInstance* inst)
 {
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto rect = db_wrapper->get_bounding_box(inst);
   string name = inst->get_name();
   int layer = inst->get_level();

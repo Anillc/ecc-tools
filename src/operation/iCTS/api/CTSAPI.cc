@@ -27,6 +27,8 @@
 #include <unordered_map>
 
 #include "CBS.hh"
+#include "CTSFlow.hh"
+#include "CTSSession.hh"
 #include "CtsCellLib.hh"
 #include "CtsConfig.hh"
 #include "CtsDBWrapper.hh"
@@ -34,6 +36,7 @@
 #include "Evaluator.hh"
 #include "GDSPloter.hh"
 #include "JsonParser.hh"
+#include "ModelFactory.hh"
 #include "Node.hh"
 #include "Pin.hh"
 #include "Router.hh"
@@ -46,7 +49,6 @@
 #include "feature_ista.h"
 #include "idm.h"
 #include "log/Log.hh"
-#include "model/ModelFactory.hh"
 #include "report/CtsReport.hh"
 #include "sta/StaBuildClockTree.hh"
 #include "usage/usage.hh"
@@ -69,34 +71,44 @@ void CTSAPI::destroyInst()
     _cts_api_instance = nullptr;
   }
 }
+
+CTSSession& CTSAPI::requireSession() const
+{
+  LOG_FATAL_IF(_session == nullptr) << "CTS session is not initialized.";
+  return *_session;
+}
+
+CTSState& CTSAPI::mutableState()
+{
+  return requireSession().state();
+}
+
+const CTSState& CTSAPI::sessionState() const
+{
+  return requireSession().state();
+}
+
+std::ofstream* CTSAPI::logStream() const
+{
+  return _session == nullptr ? nullptr : sessionState().log_ofs;
+}
 // open API
 
 void CTSAPI::runCTS()
 {
-  ieda::Stats stats;
-  CTSAPIInst.logTime();
-  readData();
-  routing();
-  evaluate();
-  writeGDS();
-  LOG_INFO << "**Flow memory usage " << stats.memoryDelta() << "MB";
-  LOG_INFO << "**Flow elapsed time " << stats.elapsedRunTime() << "s";
-
-  CTSAPIInst.logTitle("Summary of iCTS Flow");
-  CTSAPIInst.saveToLog("**Flow memory usage: ", stats.memoryDelta(), "MB");
-  CTSAPIInst.saveToLog("**Flow elapsed time: ", stats.elapsedRunTime(), "s");
-  CTSAPIInst.logEnd();
-  // writeDB();
+  CTSFlowRunner::run(*this);
 }
 
 void CTSAPI::writeDB()
 {
-  _db_wrapper->writeDef();
+  auto& state = mutableState();
+  state.db_wrapper->writeDef(state.config->get_output_def_path());
 }
 
 void CTSAPI::writeGDS()
 {
-  const auto design_gds_path = _config == nullptr ? std::string() : _config->get_gds_file();
+  const auto* config = _session == nullptr ? nullptr : sessionState().config;
+  const auto design_gds_path = config == nullptr ? std::string() : config->get_gds_file();
   std::string flyline_gds_path;
   if (!design_gds_path.empty()) {
     flyline_gds_path = std::filesystem::path(design_gds_path).parent_path().append("cts_flyline.gds").string();
@@ -110,38 +122,17 @@ void CTSAPI::writeGDS()
 
 void CTSAPI::report(const std::string& save_dir)
 {
-  if (!std::filesystem::exists(save_dir)) {
-    std::filesystem::create_directories(save_dir);
-  }
-  bool b_read_data = false;
-  if (_timing_engine == nullptr) {
-    startDbSta();
-    b_read_data = true;
-  }
-  if (_evaluator == nullptr) {
-    _evaluator = new Evaluator();
-    _evaluator->init();
-    _evaluator->evaluate();
-  }
-  _evaluator->statistics(save_dir);
-  if (b_read_data) {
-    _timing_engine->destroyTimingEngine();
-  }
+  CTSFlowRunner::report(*this, save_dir);
 }
 
 void CTSAPI::initEvalInfo()
 {
-  if (_evaluator == nullptr) {
-    _evaluator = new Evaluator();
-    _evaluator->init();
-    _evaluator->evaluate();
-  }
-  _evaluator->calcInfo();
+  CTSFlowRunner::initEvalInfo(*this);
 }
 
 size_t CTSAPI::getInsertCellNum() const
 {
-  auto cell_dist_map = _evaluator->get_cell_dist();
+  auto cell_dist_map = sessionState().evaluator->get_cell_dist();
   size_t insert_num = 0;
   for (auto& [cell_master, cell_dist] : cell_dist_map) {
     insert_num += cell_dist;
@@ -151,7 +142,7 @@ size_t CTSAPI::getInsertCellNum() const
 
 double CTSAPI::getInsertCellArea() const
 {
-  auto cell_stats = _evaluator->get_cell_stats();
+  auto cell_stats = sessionState().evaluator->get_cell_stats();
   double insert_area = 0.0;
   for (auto& [cell_master, cell_stat] : cell_stats) {
     insert_area += cell_stat.total_area;
@@ -161,189 +152,78 @@ double CTSAPI::getInsertCellArea() const
 
 std::vector<PathInfo> CTSAPI::getPathInfos() const
 {
-  return _evaluator->get_path_infos();
+  return sessionState().evaluator->get_path_infos();
 }
 
 double CTSAPI::getMaxClockNetWL() const
 {
-  return _evaluator->get_max_net_len();
+  return sessionState().evaluator->get_max_net_len();
 }
 
 double CTSAPI::getTotalClockNetWL() const
 {
-  return _evaluator->get_total_wire_len();
+  return sessionState().evaluator->get_total_wire_len();
 }
 
-// flow API
 void CTSAPI::resetAPI()
 {
-  _config = nullptr;
-  _design = nullptr;
-  _db_wrapper = nullptr;
-  _report = nullptr;
-  _log_ofs = nullptr;
-  _libs = nullptr;
-  _evaluator = nullptr;
-  _model_factory = nullptr;
-  _timing_engine = nullptr;
+  if (_session != nullptr) {
+    auto& state = _session->state();
+    if (state.timing_engine != nullptr) {
+      state.timing_engine->destroyTimingEngine();
+      state.timing_engine = nullptr;
+    }
+    _session->clearSourceRuntime();
+    state.clear();
+  }
+  _session.reset();
 }
 
 void CTSAPI::init(const std::string& config_file, const std::string& work_dir)
 {
-  resetAPI();
-  _config = new CtsConfig();
-  JsonParser::getInstance().parse(config_file, _config);
-  if (!work_dir.empty()) {
-    _config->set_work_dir(work_dir);
-    auto log_file_path = std::filesystem::path(work_dir).append("cts.log");
-    auto def_path = std::filesystem::path(work_dir).append("output");
-    auto gds_file_path = def_path / "cts_design.gds";
-    _config->set_log_file(log_file_path.string());
-    _config->set_gds_file(gds_file_path.string());
-    _config->set_output_def_path(def_path.string());
-  }
-  const auto log_parent = std::filesystem::path(_config->get_log_file()).parent_path();
-  const auto gds_parent = std::filesystem::path(_config->get_gds_file()).parent_path();
-  const auto def_parent = std::filesystem::path(_config->get_output_def_path());
-  if (!std::filesystem::exists(_config->get_work_dir())) {
-    std::filesystem::create_directories(_config->get_work_dir());
-  }
-  if (!log_parent.empty() && !std::filesystem::exists(log_parent)) {
-    std::filesystem::create_directories(log_parent);
-  }
-  if (!gds_parent.empty() && !std::filesystem::exists(gds_parent)) {
-    std::filesystem::create_directories(gds_parent);
-  }
-  if (!def_parent.empty() && !std::filesystem::exists(def_parent)) {
-    std::filesystem::create_directories(def_parent);
-  }
-  _design = new CtsDesign();
-  if (dmInst->get_idb_builder()) {
-    _db_wrapper = new CtsDBWrapper(dmInst->get_idb_builder());
-  } else {
-    LOG_FATAL << "idb builder is null";
-  }
-  _report = new CtsReportTable("iCTS");
-  _log_ofs = new std::ofstream(_config->get_log_file(), std::ios::out | std::ios::trunc);
-  if (!_log_ofs->is_open()) {
-    LOG_WARNING << "Failed to open CTS log file: " << _config->get_log_file();
-  }
-  for (const auto& warning : _config->get_deprecated_config_warnings()) {
-    saveToLog("[WARNING] ", warning);
-  }
-  _libs = new CtsLibs();
-
-  _evaluator = new Evaluator();
-  _model_factory = new ModelFactory();
-  startDbSta();
-  TimingPropagator::init();
+  CTSFlowRunner::init(*this, config_file, work_dir);
 }
 
-void CTSAPI::readData()
+icts::CtsConfig* CTSAPI::getConfig() const
 {
-  CTSAPIInst.logTitle("Read Data");
-  ieda::Stats stats;
-  if (_config->is_use_netlist()) {
-    auto& net_list = _config->get_clock_netlist();
-    for (auto& net : net_list) {
-      _design->addClockNetName(net.first, net.second);
-    }
-  } else {
-    readClockNetNames();
-  }
-
-  _db_wrapper->read();
-  CTSAPIInst.saveToLog("**Read Data memory usage ", stats.memoryDelta(), "MB");
-  CTSAPIInst.saveToLog("**Read Data elapsed time ", stats.elapsedRunTime(), "s");
-  CTSAPIInst.logEnd();
-}
-
-void CTSAPI::routing()
-{
-  CTSAPIInst.logTitle("Start CTS Routing");
-  ieda::Stats stats;
-  Router router;
-  router.init();
-  router.build();
-  router.update();
-  LOG_INFO << "**Routing memory usage " << stats.memoryDelta() << "MB";
-  LOG_INFO << "**Routing elapsed time " << stats.elapsedRunTime() << "s";
-  CTSAPIInst.saveToLog("**Routing memory usage ", stats.memoryDelta(), "MB");
-  CTSAPIInst.saveToLog("**Routing elapsed time ", stats.elapsedRunTime(), "s");
-  CTSAPIInst.logEnd();
-}
-
-void CTSAPI::evaluate()
-{
-  CTSAPIInst.logTitle("Start CTS Evaluate");
-  ieda::Stats stats;
-  if (_timing_engine == nullptr) {
-    startDbSta();
-  }
-
-  _evaluator->init();
-  // _evaluator->plotNet("sdram_clk_o", "sdram_clk_o.gds");
-  _evaluator->evaluate();
-  // _evaluator->plotPath("u0_soc_top/u0_sdram_axi/u_core/sample_data0_q_reg_0_");
-
-  LOG_INFO << "**Evaluate memory usage " << stats.memoryDelta() << "MB";
-  LOG_INFO << "**Evaluate elapsed time " << stats.elapsedRunTime() << "s";
-  CTSAPIInst.saveToLog("**Evaluate memory usage ", stats.memoryDelta(), "MB");
-  CTSAPIInst.saveToLog("**Evaluate elapsed time ", stats.elapsedRunTime(), "s");
-  CTSAPIInst.logEnd();
+  return _session == nullptr ? nullptr : sessionState().config;
 }
 
 // iSTA
 void CTSAPI::dumpVertexData(const std::vector<std::string>& vertex_names) const
 {
-  _timing_engine->get_ista()->dumpVertexData(vertex_names);
+  sessionState().timing_engine->get_ista()->dumpVertexData(vertex_names);
 }
 
 double CTSAPI::getClockUnitCap(const std::optional<icts::LayerPattern>& layer_pattern) const
 {
-  auto pattern = layer_pattern.value_or(icts::LayerPattern::kNone);
+  const auto& state = sessionState();
+  const auto pattern = layer_pattern.value_or(icts::LayerPattern::kNone);
   auto* db_adapter = getStaDbAdapter();
-  auto layer = _config->get_routing_layers().back();
-  switch (pattern) {
-    case icts::LayerPattern::kH:
-      layer = _config->get_h_layer();
-      break;
-    case icts::LayerPattern::kV:
-      layer = _config->get_v_layer();
-      break;
-    case icts::LayerPattern::kNone:
-      layer = _config->get_routing_layers().back();
-      break;
-    default:
-      LOG_ERROR << "Unknown layer pattern";
-      break;
-  }
+  const auto default_layer = state.config->get_routing_layers().back();
+  const auto layer = pattern == icts::LayerPattern::kH   ? state.config->get_h_layer()
+                     : pattern == icts::LayerPattern::kV ? state.config->get_v_layer()
+                                                         : default_layer;
+  LOG_ERROR_IF(pattern != icts::LayerPattern::kH && pattern != icts::LayerPattern::kV && pattern != icts::LayerPattern::kNone)
+      << "Unknown layer pattern";
   std::optional<double> width = std::nullopt;
-  auto max_len = _config->get_max_length();
+  auto max_len = state.config->get_max_length();
   return db_adapter->getCapacitance(layer, max_len, width) / max_len;
 }
 
 double CTSAPI::getClockUnitRes(const std::optional<icts::LayerPattern>& layer_pattern) const
 {
-  auto pattern = layer_pattern.value_or(icts::LayerPattern::kNone);
+  const auto& state = sessionState();
+  const auto pattern = layer_pattern.value_or(icts::LayerPattern::kNone);
   auto* db_adapter = getStaDbAdapter();
-  auto layer = _config->get_routing_layers().back();
-  switch (pattern) {
-    case icts::LayerPattern::kH:
-      layer = _config->get_h_layer();
-      break;
-    case icts::LayerPattern::kV:
-      layer = _config->get_v_layer();
-      break;
-    case icts::LayerPattern::kNone:
-      layer = _config->get_routing_layers().back();
-      break;
-    default:
-      LOG_ERROR << "Unknown layer pattern";
-      break;
-  }
+  const auto default_layer = state.config->get_routing_layers().back();
+  const auto layer = pattern == icts::LayerPattern::kH   ? state.config->get_h_layer()
+                     : pattern == icts::LayerPattern::kV ? state.config->get_v_layer()
+                                                         : default_layer;
+  LOG_ERROR_IF(pattern != icts::LayerPattern::kH && pattern != icts::LayerPattern::kV && pattern != icts::LayerPattern::kNone)
+      << "Unknown layer pattern";
   std::optional<double> width = std::nullopt;
-  auto max_len = _config->get_max_length();
+  auto max_len = state.config->get_max_length();
   return db_adapter->getResistance(layer, max_len, width) / max_len / 2;
 }
 
@@ -358,7 +238,7 @@ double CTSAPI::getSinkCap(const std::string& load_pin_full_name) const
   // remove all "\" in inst_name
   auto name = load_pin_full_name;
   name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
-  return _timing_engine->getInstPinCapacitance(name.c_str());
+  return sessionState().timing_engine->getInstPinCapacitance(name.c_str());
 }
 
 bool CTSAPI::isFlipFlop(const std::string& inst_name) const
@@ -366,7 +246,7 @@ bool CTSAPI::isFlipFlop(const std::string& inst_name) const
   // remove all "\" in inst_name
   auto name = inst_name;
   name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
-  return _timing_engine->isSequentialCell(name.c_str());
+  return sessionState().timing_engine->isSequentialCell(name.c_str());
 }
 
 bool CTSAPI::isClockNet(const std::string& net_name) const
@@ -376,35 +256,30 @@ bool CTSAPI::isClockNet(const std::string& net_name) const
 
 void CTSAPI::startDbSta()
 {
-  _timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(_timing_engine->get_ista());
-  db_adapter->set_idb(_db_wrapper->get_idb());
-  _timing_engine->set_db_adapter(std::move(db_adapter));
+  auto& state = mutableState();
+  state.timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(state.timing_engine->get_ista());
+  db_adapter->set_idb(state.db_wrapper->get_idb());
+  state.timing_engine->set_db_adapter(std::move(db_adapter));
   readSTAFile();
-  _timing_engine->get_ista()->set_n_worst_path_per_clock(10);
-  // convertDBToTimingEngine();
-  // setPropagateClock();
+  state.timing_engine->get_ista()->set_n_worst_path_per_clock(10);
 }
 
 void CTSAPI::readClockNetNames() const
 {
-  _timing_engine->updateTiming();
-  auto* netlist = _timing_engine->get_netlist();
-  auto idb = _db_wrapper->get_idb();
+  const auto& state = sessionState();
+  state.timing_engine->updateTiming();
+  auto* netlist = state.timing_engine->get_netlist();
+  auto idb = state.db_wrapper->get_idb();
   auto idb_design = idb->get_def_service()->get_design();
   auto* idb_net_list = idb_design->get_net_list();
   ista::Net* sta_net = nullptr;
   FOREACH_NET(netlist, sta_net)
   {
     if (sta_net->isClockNet()) {
-      auto* sta_clock = _timing_engine->getPropClockOfNet(sta_net);
-      // HARD CODE debug
-      // if (std::string(sta_clock->get_clock_name()) == "CLK_spi_clk") {
-      //   continue;
-      // }
+      auto* sta_clock = state.timing_engine->getPropClockOfNet(sta_net);
       auto idb_net = idb_net_list->find_net(sta_net->get_name());
       if (idb_net->has_io_pins()) {
-        auto io_pin = idb_net->get_io_pins()->get_pin_list().at(0);
         int io_pin_num = idb_net->get_io_pins()->get_pin_num();
         int inst_pin_num = idb_net->get_instance_pin_list()->get_pin_num();
         if (io_pin_num == 1 && inst_pin_num <= 1) {
@@ -414,16 +289,16 @@ void CTSAPI::readClockNetNames() const
           continue;  // skip nets with no valid io pin coordinates
         }
       }
-      _design->addClockNetName(sta_clock->get_clock_name(), sta_net->get_name());
+      state.design->addClockNetName(sta_clock->get_clock_name(), sta_net->get_name());
       LOG_INFO << "Clock [" << sta_clock->get_clock_name() << "] have net \"" << sta_net->get_name() << "\"";
-      CTSAPIInst.saveToLog("Clock [", sta_clock->get_clock_name(), "] have net \"", sta_net->get_name(), "\"");
+      CTSAPI_INST.saveToLog("Clock [", sta_clock->get_clock_name(), "] have net \"", sta_net->get_name(), "\"");
     }
   }
 }
 
 void CTSAPI::setPropagateClock()
 {
-  auto* ista = _timing_engine->get_ista();
+  auto* ista = sessionState().timing_engine->get_ista();
   auto& the_constrain = ista->get_constrains();
   auto& the_sdc_clocks = the_constrain->get_sdc_clocks();
   for (auto& the_sdc_clock : the_sdc_clocks) {
@@ -433,26 +308,27 @@ void CTSAPI::setPropagateClock()
 
 void CTSAPI::convertDBToTimingEngine()
 {
-  _timing_engine->resetNetlist();
-  _timing_engine->resetGraph();
-  _timing_engine->get_db_adapter()->convertDBToTimingNetlist();
+  auto& state = mutableState();
+  state.timing_engine->resetNetlist();
+  state.timing_engine->resetGraph();
+  state.timing_engine->get_db_adapter()->convertDBToTimingNetlist();
   const char* sdc_path = DBCONFIG.get_sdc_path().c_str();
-  _timing_engine->readSdc(sdc_path);
-  _timing_engine->buildGraph();
+  state.timing_engine->readSdc(sdc_path);
+  state.timing_engine->buildGraph();
 }
 
 void CTSAPI::reportTiming() const
 {
   ieda::Stats stats;
-  _timing_engine->updateTiming();
-  CTSAPIInst.saveToLog("iSTA update timing elapsed time: ", stats.elapsedRunTime(), "s");
-  _timing_engine->reportTiming({}, true, true);
+  sessionState().timing_engine->updateTiming();
+  CTSAPI_INST.saveToLog("iSTA update timing elapsed time: ", stats.elapsedRunTime(), "s");
+  sessionState().timing_engine->reportTiming({}, true, true);
 }
 
 void CTSAPI::refresh()
 {
   // _timing_engine->get_db_adapter()->convertDBToTimingNetlist();
-  _timing_engine->updateTiming();
+  sessionState().timing_engine->updateTiming();
 }
 
 icts::CtsPin* CTSAPI::findDriverPin(icts::CtsNet* net)
@@ -474,7 +350,7 @@ std::map<std::string, double> CTSAPI::elmoreDelay(const icts::EvalNet& eval_net)
   auto* db_adapter = getStaDbAdapter();
   auto* sta_net = db_adapter->createNet(eval_net.get_name().c_str(), nullptr);
   buildRCTree(eval_net);
-  auto* rc_net = _timing_engine->get_ista()->getRcNet(sta_net);
+  auto* rc_net = sessionState().timing_engine->get_ista()->getRcNet(sta_net);
   auto* rc_tree = rc_net->rct();
   std::map<std::string, double> delay_map;
   for (auto pin : eval_net.get_pins()) {
@@ -496,7 +372,8 @@ bool CTSAPI::cellLibExist(const std::string& cell_master, const std::string& que
   if (cell_master.empty()) {
     return false;
   }
-  if (_timing_engine->findLibertyCell(cell_master.c_str()) == nullptr) {
+  auto* timing_engine = sessionState().timing_engine;
+  if (timing_engine->findLibertyCell(cell_master.c_str()) == nullptr) {
     return false;
   }
 
@@ -515,9 +392,9 @@ bool CTSAPI::cellLibExist(const std::string& cell_master, const std::string& que
   }
   ista::LibTable* table = nullptr;
   if (from_port.empty() && to_port.empty()) {
-    table = _timing_engine->getCellLibertyTable(cell_master.c_str(), table_type);
+    table = timing_engine->getCellLibertyTable(cell_master.c_str(), table_type);
   } else {
-    table = _timing_engine->getCellLibertyTable(cell_master.c_str(), from_port.c_str(), to_port.c_str(), table_type);
+    table = timing_engine->getCellLibertyTable(cell_master.c_str(), from_port.c_str(), to_port.c_str(), table_type);
   }
   return table != nullptr;
 }
@@ -525,6 +402,7 @@ bool CTSAPI::cellLibExist(const std::string& cell_master, const std::string& que
 std::vector<std::vector<double>> CTSAPI::queryCellLibIndex(const std::string& cell_master, const std::string& query_field,
                                                            const std::string& from_port, const std::string& to_port)
 {
+  auto* timing_engine = sessionState().timing_engine;
   std::vector<std::vector<double>> index_list;
   ista::LibTable::TableType table_type;
   if (query_field == "cell_rise") {
@@ -540,9 +418,9 @@ std::vector<std::vector<double>> CTSAPI::queryCellLibIndex(const std::string& ce
   }
   ista::LibTable* table = nullptr;
   if (from_port.empty() && to_port.empty()) {
-    table = _timing_engine->getCellLibertyTable(cell_master.c_str(), table_type);
+    table = timing_engine->getCellLibertyTable(cell_master.c_str(), table_type);
   } else {
-    table = _timing_engine->getCellLibertyTable(cell_master.c_str(), from_port.c_str(), to_port.c_str(), table_type);
+    table = timing_engine->getCellLibertyTable(cell_master.c_str(), from_port.c_str(), to_port.c_str(), table_type);
   }
   auto& axes = table->get_axes();
   for (auto& axis : axes) {
@@ -559,6 +437,7 @@ std::vector<std::vector<double>> CTSAPI::queryCellLibIndex(const std::string& ce
 std::vector<double> CTSAPI::queryCellLibValue(const std::string& cell_master, const std::string& query_field, const std::string& from_port,
                                               const std::string& to_port)
 {
+  auto* timing_engine = sessionState().timing_engine;
   std::vector<double> values;
   ista::LibTable::TableType table_type;
   if (query_field == "cell_rise") {
@@ -574,9 +453,9 @@ std::vector<double> CTSAPI::queryCellLibValue(const std::string& cell_master, co
   }
   ista::LibTable* table = nullptr;
   if (from_port.empty() && to_port.empty()) {
-    table = _timing_engine->getCellLibertyTable(cell_master.c_str(), table_type);
+    table = timing_engine->getCellLibertyTable(cell_master.c_str(), table_type);
   } else {
-    table = _timing_engine->getCellLibertyTable(cell_master.c_str(), from_port.c_str(), to_port.c_str(), table_type);
+    table = timing_engine->getCellLibertyTable(cell_master.c_str(), from_port.c_str(), to_port.c_str(), table_type);
   }
   auto& table_values = table->get_table_values();
 
@@ -589,7 +468,8 @@ std::vector<double> CTSAPI::queryCellLibValue(const std::string& cell_master, co
 icts::CtsCellLib* CTSAPI::getCellLib(const std::string& cell_master, const std::string& from_port, const std::string& to_port,
                                      const bool& use_work_value)
 {
-  CtsCellLib* lib = _libs->findLib(cell_master);
+  auto& state = mutableState();
+  CtsCellLib* lib = state.libs->findLib(cell_master);
   if (lib) {
     return lib;
   }
@@ -627,12 +507,12 @@ icts::CtsCellLib* CTSAPI::getCellLib(const std::string& cell_master, const std::
 
   for (size_t i = 0; i < slew_in.size(); ++i) {
     auto work_slew = slew_in[i];
-    if (work_slew > _config->get_max_buf_tran() && use_work_value) {
+    if (work_slew > state.config->get_max_buf_tran() && use_work_value) {
       break;
     }
     for (size_t j = 0; j < cap_out.size(); ++j) {
       auto work_cap = cap_out[j];
-      if (work_cap > _config->get_max_cap() && use_work_value) {
+      if (work_cap > state.config->get_max_cap() && use_work_value) {
         break;
       }
       x_slew_in.emplace_back(work_slew);
@@ -653,18 +533,18 @@ icts::CtsCellLib* CTSAPI::getCellLib(const std::string& cell_master, const std::
     y_slew = slew_mid_value;
   }
   std::vector<std::vector<double>> x_delay = {x_slew_in, x_cap_out};
-  lib->set_delay_coef(_model_factory->cppLinearModel(x_delay, y_delay));
+  lib->set_delay_coef(state.model_factory->cppLinearModel(x_delay, y_delay));
 
   std::vector<std::vector<double>> x_slew = {x_cap_out};
-  lib->set_slew_coef(_model_factory->cppLinearModel(x_slew, y_slew));
+  lib->set_slew_coef(state.model_factory->cppLinearModel(x_slew, y_slew));
 
-  _libs->insertLib(cell_master, lib);
+  state.libs->insertLib(cell_master, lib);
   return lib;
 }
 
 std::vector<icts::CtsCellLib*> CTSAPI::getAllBufferLibs()
 {
-  auto buffer_types = _config->get_buffer_types();
+  auto buffer_types = sessionState().config->get_buffer_types();
   std::vector<icts::CtsCellLib*> all_buf_libs;
   std::ranges::for_each(buffer_types, [&](const std::string& buf_cell) {
     auto* buf_lib = getCellLib(buf_cell);
@@ -686,12 +566,13 @@ std::vector<icts::CtsCellLib*> CTSAPI::getAllBufferLibs()
 std::vector<std::string> CTSAPI::getMasterClocks(icts::CtsNet* net) const
 {
   auto* sta_net = findStaNet(net->get_net_name());
-  return _timing_engine->getMasterClocksOfNet(sta_net);
+  return sessionState().timing_engine->getMasterClocksOfNet(sta_net);
 }
 
 double CTSAPI::getClockAT(const std::string& pin_name, const std::string& belong_clock_name) const
 {
-  auto clk_at = _timing_engine->getClockAT(pin_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise, belong_clock_name);
+  auto clk_at
+      = sessionState().timing_engine->getClockAT(pin_name.c_str(), ista::AnalysisMode::kMax, ista::TransType::kRise, belong_clock_name);
   if (clk_at == std::nullopt) {
     LOG_WARNING << "get " << pin_name << " clock arrival time failed, which belong clock " << belong_clock_name;
     return 0.0;
@@ -701,12 +582,12 @@ double CTSAPI::getClockAT(const std::string& pin_name, const std::string& belong
 
 std::string CTSAPI::getCellType(const std::string& cell_master) const
 {
-  return _timing_engine->getCellType(cell_master.c_str());
+  return sessionState().timing_engine->getCellType(cell_master.c_str());
 }
 
 double CTSAPI::getCellArea(const std::string& cell_master) const
 {
-  return _timing_engine->getCellArea(cell_master.c_str());
+  return sessionState().timing_engine->getCellArea(cell_master.c_str());
 }
 
 double CTSAPI::getCellLeakagePower(const std::string& cell_master) const
@@ -714,7 +595,7 @@ double CTSAPI::getCellLeakagePower(const std::string& cell_master) const
   if (cell_master.empty()) {
     return 0.0;
   }
-  auto* liberty_cell = _timing_engine->findLibertyCell(cell_master.c_str());
+  auto* liberty_cell = sessionState().timing_engine->findLibertyCell(cell_master.c_str());
   if (liberty_cell == nullptr) {
     return 0.0;
   }
@@ -723,31 +604,32 @@ double CTSAPI::getCellLeakagePower(const std::string& cell_master) const
 
 double CTSAPI::getCellCap(const std::string& cell_master) const
 {
-  if (cell_master.empty() || _timing_engine->findLibertyCell(cell_master.c_str()) == nullptr) {
+  auto* timing_engine = sessionState().timing_engine;
+  if (cell_master.empty() || timing_engine->findLibertyCell(cell_master.c_str()) == nullptr) {
     return 0.0;
   }
-  auto input_pin_names = _timing_engine->getLibertyCellInputpin(cell_master.c_str());
+  auto input_pin_names = timing_engine->getLibertyCellInputpin(cell_master.c_str());
   if (input_pin_names.empty()) {
     return 0.0;
   }
-  auto cell_pin_name = CTSAPIInst.toString(cell_master.c_str(), ":", input_pin_names[0].c_str());
-  auto init_cap = _timing_engine->getLibertyCellPinCapacitance(cell_pin_name.c_str());
+  auto cell_pin_name = CTSAPI_INST.toString(cell_master.c_str(), ":", input_pin_names[0].c_str());
+  auto init_cap = timing_engine->getLibertyCellPinCapacitance(cell_pin_name.c_str());
   return init_cap;
 }
 
 double CTSAPI::getSlewIn(const std::string& pin_name) const
 {
-  return _timing_engine->getSlew(pin_name.c_str(), ista::AnalysisMode::kMin, ista::TransType::kRise);
+  return sessionState().timing_engine->getSlew(pin_name.c_str(), ista::AnalysisMode::kMin, ista::TransType::kRise);
 }
 
 double CTSAPI::getCapOut(const std::string& pin_name) const
 {
-  return _timing_engine->getInstPinCapacitance(pin_name.c_str(), ista::AnalysisMode::kMin, ista::TransType::kRise);
+  return sessionState().timing_engine->getInstPinCapacitance(pin_name.c_str(), ista::AnalysisMode::kMin, ista::TransType::kRise);
 }
 
 std::vector<double> CTSAPI::solvePolynomialRealRoots(const std::vector<double>& coeffs)
 {
-  return _model_factory->solvePolynomialRealRoots(coeffs);
+  return mutableState().model_factory->solvePolynomialRealRoots(coeffs);
 }
 
 // synthesis
@@ -760,15 +642,15 @@ int32_t CTSAPI::getDbUnit() const
 
 bool CTSAPI::isInDie(const icts::Point& point) const
 {
-  auto* die = _db_wrapper->get_core_bounding_box();
-  auto pt = _db_wrapper->ctsToIdb(point);
+  auto* die = sessionState().db_wrapper->get_core_bounding_box();
+  auto pt = sessionState().db_wrapper->ctsToIdb(point);
   return die->containPoint(pt);
 }
 
 idb::IdbInstance* CTSAPI::makeIdbInstance(const std::string& inst_name, const std::string& cell_master)
 {
   auto* db_adapter = getStaDbAdapter();
-  auto sta_inst = db_adapter->createInstance(_timing_engine->findLibertyCell(cell_master.c_str()), inst_name.c_str());
+  auto sta_inst = db_adapter->createInstance(sessionState().timing_engine->findLibertyCell(cell_master.c_str()), inst_name.c_str());
   auto idb_inst = db_adapter->staToDb(sta_inst);
   return idb_inst;
 }
@@ -798,24 +680,44 @@ void CTSAPI::disconnect(idb::IdbPin* pin)
 void CTSAPI::connect(idb::IdbInstance* idb_inst, const std::string& pin_name, idb::IdbNet* net)
 {
   auto* db_adapter = getStaDbAdapter();
-  auto sta_inst = _timing_engine->get_netlist()->findInstance(idb_inst->get_name().c_str());
+  auto sta_inst = sessionState().timing_engine->get_netlist()->findInstance(idb_inst->get_name().c_str());
   auto sta_net = db_adapter->dbToSta(net);
   db_adapter->attach(sta_inst, pin_name.c_str(), sta_net);
 }
 
 void CTSAPI::insertBuffer(const std::string& name)
 {
-  _timing_engine->insertBuffer(name.c_str());
+  sessionState().timing_engine->insertBuffer(name.c_str());
 }
 
 void CTSAPI::resetId()
 {
-  _design->resetId();
+  mutableState().design->resetId();
 }
 
 int CTSAPI::genId()
 {
-  return _design->nextId();
+  return mutableState().design->nextId();
+}
+
+void CTSAPI::registerSynthesisNet(Net* net)
+{
+  if (net == nullptr) {
+    return;
+  }
+  mutableState().synthesis_net_map[net->get_name()] = net;
+}
+
+Net* CTSAPI::findSynthesisNet(const std::string& net_name) const
+{
+  const auto& synthesis_net_map = sessionState().synthesis_net_map;
+  const auto it = synthesis_net_map.find(net_name);
+  return it == synthesis_net_map.end() ? nullptr : it->second;
+}
+
+void CTSAPI::clearSynthesisNets()
+{
+  mutableState().synthesis_net_map.clear();
 }
 
 void CTSAPI::genFluteTree(const std::string& net_name, icts::Pin* driver, const std::vector<icts::Pin*>& loads)
@@ -851,7 +753,7 @@ icts::Inst* CTSAPI::genCBSTree(const std::string& net_name, const std::vector<ic
 // evaluate
 bool CTSAPI::isTop(const std::string& net_name) const
 {
-  return _design->isClockTopNet(net_name);
+  return sessionState().design->isClockTopNet(net_name);
 }
 
 void CTSAPI::buildRCTree(const std::vector<icts::EvalNet>& eval_nets)
@@ -863,20 +765,17 @@ void CTSAPI::buildRCTree(const std::vector<icts::EvalNet>& eval_nets)
 
 void CTSAPI::buildRCTree(const icts::EvalNet& eval_net)
 {
+  auto& state = mutableState();
   auto net_name = eval_net.get_name();
 #ifdef DEBUG_ICTS_EVALUATOR
   LOG_INFO << "Evaluate: " << net_name;
 #endif
-  // if (net_name == "iCLK_50_109") {
-  //   std::cout << "debug: " << net_name << std::endl;
-  // }
   resetRCTree(net_name);
   auto* sta_net = findStaNet(eval_net);
-  auto layer_id = _config->get_routing_layers().back();
-  auto* solver_net = _design->findSolverNet(net_name);
+  auto layer_id = state.config->get_routing_layers().back();
+  auto* solver_net = findSynthesisNet(net_name);
   if (!solver_net) {
     LOG_WARNING << "Can't find solver net: " << net_name << ", It may be a pin-port(s) net";
-    // buildPinPortsRCTree(eval_net);
     return;
   }
   auto* driver_pin = solver_net->get_driver_pin();
@@ -896,16 +795,17 @@ void CTSAPI::buildRCTree(const icts::EvalNet& eval_net)
     double len = TimingPropagator::calcLen(parent, node);
     auto res = getResistance(len, layer_id);
     auto cap = getCapacitance(len, layer_id);
-    _timing_engine->makeResistor(sta_net, front_node, back_node, res);
-    _timing_engine->incrCap(front_node, cap / 2, true);
-    _timing_engine->incrCap(back_node, cap / 2, true);
+    state.timing_engine->makeResistor(sta_net, front_node, back_node, res);
+    state.timing_engine->incrCap(front_node, cap / 2, true);
+    state.timing_engine->incrCap(back_node, cap / 2, true);
   });
 
-  _timing_engine->updateRCTreeInfo(sta_net);
+  state.timing_engine->updateRCTreeInfo(sta_net);
 }
 
 void CTSAPI::buildPinPortsRCTree(const icts::EvalNet& eval_net)
 {
+  auto& state = mutableState();
   auto* sta_net = findStaNet(eval_net);
   auto net_name = eval_net.get_name();
   LOG_FATAL_IF(!sta_net) << "Can't find sta net: " << net_name;
@@ -918,7 +818,7 @@ void CTSAPI::buildPinPortsRCTree(const icts::EvalNet& eval_net)
     }
   }
   LOG_FATAL_IF(!driver_pin) << "Can't find driver pin of sta net: " << net_name;
-  auto* driver_node = _timing_engine->makeOrFindRCTreeNode(driver_pin);
+  auto* driver_node = state.timing_engine->makeOrFindRCTreeNode(driver_pin);
   auto* db_adapter = getStaDbAdapter();
   auto driver_loc = db_adapter->idbLocation(driver_pin);
   auto pt_dist = [](idb::IdbCoordinate<int32_t>* p1, idb::IdbCoordinate<int32_t>* p2) {
@@ -928,27 +828,27 @@ void CTSAPI::buildPinPortsRCTree(const icts::EvalNet& eval_net)
     if (pin == driver_pin) {
       return;
     }
-    auto* load_node = _timing_engine->makeOrFindRCTreeNode(pin);
+    auto* load_node = state.timing_engine->makeOrFindRCTreeNode(pin);
     auto load_loc = db_adapter->idbLocation(pin);
     auto dist = pt_dist(driver_loc, load_loc);
-    auto res = getResistance(1.0 * dist / TimingPropagator::getDbUnit(), _config->get_routing_layers().back());
-    auto cap = getCapacitance(1.0 * dist / TimingPropagator::getDbUnit(), _config->get_routing_layers().back());
-    _timing_engine->makeResistor(sta_net, driver_node, load_node, res);
-    _timing_engine->incrCap(driver_node, cap / 2, true);
-    _timing_engine->incrCap(load_node, cap / 2, true);
+    auto res = getResistance(1.0 * dist / TimingPropagator::getDbUnit(), state.config->get_routing_layers().back());
+    auto cap = getCapacitance(1.0 * dist / TimingPropagator::getDbUnit(), state.config->get_routing_layers().back());
+    state.timing_engine->makeResistor(sta_net, driver_node, load_node, res);
+    state.timing_engine->incrCap(driver_node, cap / 2, true);
+    state.timing_engine->incrCap(load_node, cap / 2, true);
   });
-  _timing_engine->updateRCTreeInfo(sta_net);
+  state.timing_engine->updateRCTreeInfo(sta_net);
 }
 
 void CTSAPI::resetRCTree(const std::string& net_name)
 {
   auto* sta_net = findStaNet(net_name);
-  _timing_engine->resetRcTree(sta_net);
+  sessionState().timing_engine->resetRcTree(sta_net);
 }
 
 void CTSAPI::utilizationLog() const
 {
-  CTSAPIInst.logTitle("Summary of Utilization");
+  CTSAPI_INST.logTitle("Summary of Utilization");
   auto* idb_design = dmInst->get_idb_design();
   auto* idb_layout = dmInst->get_idb_layout();
   int dbu = idb_design->get_units()->get_micron_dbu() < 0 ? idb_layout->get_units()->get_micron_dbu()
@@ -960,22 +860,24 @@ void CTSAPI::utilizationLog() const
   auto idb_core_box = idb_layout->get_core()->get_bounding_box();
   auto core_width = ((double) idb_core_box->get_width()) / dbu;
   auto core_height = ((double) idb_core_box->get_height()) / dbu;
-  CTSAPIInst.saveToLog("DIE Area ( um^2 ): ", ieda::Str::printf("%f = %03f * %03f", die_width * die_height, die_width, die_height));
-  CTSAPIInst.saveToLog("DIE Usage: ", dmInst->dieUtilization() * 100, "%");
-  CTSAPIInst.saveToLog("CORE Area ( um^2 ): ", ieda::Str::printf("%f = %03f * %03f", core_width * core_height, core_width, core_height));
-  CTSAPIInst.saveToLog("CORE Usage: ", dmInst->coreUtilization() * 100, "%");
-  CTSAPIInst.logEnd();
+  CTSAPI_INST.mirrorToTerminalAndLog("DIE Area ( um^2 ): ",
+                                     ieda::Str::printf("%f = %03f * %03f", die_width * die_height, die_width, die_height));
+  CTSAPI_INST.mirrorToTerminalAndLog("DIE Usage: ", dmInst->dieUtilization() * 100, "%");
+  CTSAPI_INST.mirrorToTerminalAndLog("CORE Area ( um^2 ): ",
+                                     ieda::Str::printf("%f = %03f * %03f", core_width * core_height, core_width, core_height));
+  CTSAPI_INST.mirrorToTerminalAndLog("CORE Usage: ", dmInst->coreUtilization() * 100, "%");
+  CTSAPI_INST.logEnd();
 }
 
 void CTSAPI::latencySkewLog() const
 {
-  CTSAPIInst.logTitle("Summary of Latency & Skew");
+  CTSAPI_INST.logTitle("Summary of Latency & Skew");
 
   auto fix_point_str = [](double data) { return std::string(ieda::Str::printf("%.3f", data)); };
   std::vector<std::pair<std::string, ista::AnalysisMode>> mode_list
       = {{"Setup", ista::AnalysisMode::kMax}, {"Hold", ista::AnalysisMode::kMin}};
-  for (const auto& [clk, seq_path_group] : _timing_engine->get_ista()->get_clock_groups()) {
-    CTSAPIInst.saveToLog("Clock: ", clk->get_clock_name());
+  for (const auto& [clk, seq_path_group] : sessionState().timing_engine->get_ista()->get_clock_groups()) {
+    CTSAPI_INST.mirrorToTerminalAndLog("Clock: ", clk->get_clock_name());
     for (auto& [mode_str, mode] : mode_list) {
       auto cmp_mode = mode;
       auto cmp = [&](ista::StaPathData* left, ista::StaPathData* right) -> bool {
@@ -983,7 +885,7 @@ void CTSAPI::latencySkewLog() const
         int right_skew = right->getSkew();
         return cmp_mode == ista::AnalysisMode::kMax ? (left_skew > right_skew) : (left_skew < right_skew);
       };
-      CTSAPIInst.saveToLog("\t[", mode_str, " Mode]");
+      CTSAPI_INST.mirrorToTerminalAndLog("\t[", mode_str, " Mode]");
       std::priority_queue<ista::StaPathData*, std::vector<ista::StaPathData*>, decltype(cmp)> seq_data_queue(cmp);
 
       ista::StaPathEnd* path_end;
@@ -1000,11 +902,11 @@ void CTSAPI::latencySkewLog() const
       auto* launch_clock_vertex = launch_clock_data->get_own_vertex();
       auto* capture_clock_vertex = capture_clock_data->get_own_vertex();
 
-      CTSAPIInst.saveToLog("\t\tLaunch Latency: ", fix_point_str(FS_TO_NS(launch_clock_data->get_arrive_time())), " From ",
-                           launch_clock_vertex->getNameWithCellName());
-      CTSAPIInst.saveToLog("\t\tCapture Latency: ", fix_point_str(FS_TO_NS(capture_clock_data->get_arrive_time())), " From ",
-                           capture_clock_vertex->getNameWithCellName());
-      CTSAPIInst.saveToLog("\t\tMax Skew: ", fix_point_str(FS_TO_NS(worst_seq_data->getSkew())));
+      CTSAPI_INST.mirrorToTerminalAndLog("\t\tLaunch Latency: ", fix_point_str(FS_TO_NS(launch_clock_data->get_arrive_time())), " From ",
+                                         launch_clock_vertex->getNameWithCellName());
+      CTSAPI_INST.mirrorToTerminalAndLog("\t\tCapture Latency: ", fix_point_str(FS_TO_NS(capture_clock_data->get_arrive_time())), " From ",
+                                         capture_clock_vertex->getNameWithCellName());
+      CTSAPI_INST.mirrorToTerminalAndLog("\t\tMax Skew: ", fix_point_str(FS_TO_NS(worst_seq_data->getSkew())));
       // calc avg skew
       int total_skew = 0;
       unsigned n_worst = 10;
@@ -1017,32 +919,33 @@ void CTSAPI::latencySkewLog() const
       }
       auto total_skew_ns = FS_TO_NS(total_skew);
       auto avg_skew = total_skew_ns / (double) n_worst;
-      CTSAPIInst.saveToLog("\t\tAvg Skew: ", avg_skew, " (worst 10)");
+      CTSAPI_INST.mirrorToTerminalAndLog("\t\tAvg Skew: ", avg_skew, " (worst 10)");
     }
   }
-  CTSAPIInst.logEnd();
+  CTSAPI_INST.logEnd();
 }
 
 void CTSAPI::slackLog() const
 {
   auto fix_point_str = [](double data) { return std::string(ieda::Str::printf("%.3f", data)); };
-  CTSAPIInst.logTitle("Summary of WNS & TNS");
-  auto clk_list = _timing_engine->getClockList();
+  CTSAPI_INST.logTitle("Summary of WNS & TNS");
+  auto* timing_engine = sessionState().timing_engine;
+  auto clk_list = timing_engine->getClockList();
   std::ranges::for_each(clk_list, [&](ista::StaClock* clk) {
     auto clk_name = clk->get_clock_name();
-    auto setup_tns = _timing_engine->getTNS(clk_name, AnalysisMode::kMax);
-    auto setup_wns = _timing_engine->getWNS(clk_name, AnalysisMode::kMax);
-    auto hold_tns = _timing_engine->getTNS(clk_name, AnalysisMode::kMin);
-    auto hold_wns = _timing_engine->getWNS(clk_name, AnalysisMode::kMin);
+    auto setup_tns = timing_engine->getTNS(clk_name, AnalysisMode::kMax);
+    auto setup_wns = timing_engine->getWNS(clk_name, AnalysisMode::kMax);
+    auto hold_tns = timing_engine->getTNS(clk_name, AnalysisMode::kMin);
+    auto hold_wns = timing_engine->getWNS(clk_name, AnalysisMode::kMin);
     auto suggest_freq = 1000.0 / (clk->getPeriodNs() - setup_wns);
-    CTSAPIInst.saveToLog("Clk name: ", clk_name);
-    CTSAPIInst.saveToLog("\tSetup (Max) WNS: ", fix_point_str(setup_wns), " (ns)");
-    CTSAPIInst.saveToLog("\tSetup (Max) TNS: ", fix_point_str(setup_tns), " (ns)");
-    CTSAPIInst.saveToLog("\tHold (Min) WNS: ", fix_point_str(hold_wns), " (ns)");
-    CTSAPIInst.saveToLog("\tHold (Min) TNS: ", fix_point_str(hold_tns), " (ns)");
-    CTSAPIInst.saveToLog("\tSuggest Freq: ", fix_point_str(suggest_freq), " (MHz)");
+    CTSAPI_INST.mirrorToTerminalAndLog("Clk name: ", clk_name);
+    CTSAPI_INST.mirrorToTerminalAndLog("\tSetup (Max) WNS: ", fix_point_str(setup_wns), " (ns)");
+    CTSAPI_INST.mirrorToTerminalAndLog("\tSetup (Max) TNS: ", fix_point_str(setup_tns), " (ns)");
+    CTSAPI_INST.mirrorToTerminalAndLog("\tHold (Min) WNS: ", fix_point_str(hold_wns), " (ns)");
+    CTSAPI_INST.mirrorToTerminalAndLog("\tHold (Min) TNS: ", fix_point_str(hold_tns), " (ns)");
+    CTSAPI_INST.mirrorToTerminalAndLog("\tSuggest Freq: ", fix_point_str(suggest_freq), " (MHz)");
   });
-  CTSAPIInst.logEnd();
+  CTSAPI_INST.logEnd();
 }
 
 // log
@@ -1062,32 +965,42 @@ void CTSAPI::checkFile(const std::string& dir, const std::string& file_name, con
   }
 }
 
+void CTSAPI::mirrorToTerminalAndLog(const std::string& text)
+{
+  LOG_INFO << text;
+  saveToLog(text);
+}
+
 void CTSAPI::logTime() const
 {
   std::string time_str = ieda::Time::getNowWallTime();
-  std::string str = ieda::Str::printf("Generate the report at %s", time_str.c_str());
-  CTSAPIInst.saveToLog(str);
-  CTSAPIInst.saveToLog("");
+  std::string str = ieda::Str::printf("Generate the iCTS log at %s", time_str.c_str());
+  LOG_INFO << str;
+  CTSAPI_INST.saveToLog(str);
+  CTSAPI_INST.saveToLog("");
 }
 
 void CTSAPI::logLine() const
 {
-  CTSAPIInst.saveToLog("-------------------------------------------------------------------");
+  constexpr std::string_view k_line = "-------------------------------------------------------------------";
+  LOG_INFO << k_line;
+  CTSAPI_INST.saveToLog(k_line);
 }
 
 void CTSAPI::logTitle(const std::string& title) const
 {
   std::string time_str = ieda::Time::getNowWallTime();
   std::string str = ieda::Str::printf("[%s] -- Start Time : %s", title.c_str(), time_str.c_str());
-  CTSAPIInst.logLine();
-  CTSAPIInst.saveToLog(str);
-  CTSAPIInst.logLine();
+  CTSAPI_INST.logLine();
+  LOG_INFO << str;
+  CTSAPI_INST.saveToLog(str);
+  CTSAPI_INST.logLine();
 }
 
 void CTSAPI::logEnd() const
 {
-  CTSAPIInst.logLine();
-  CTSAPIInst.saveToLog("\n");
+  CTSAPI_INST.logLine();
+  CTSAPI_INST.saveToLog("\n");
 }
 
 // function
@@ -1103,46 +1016,46 @@ std::vector<std::string> CTSAPI::splitString(std::string str, const char split)
   return string_list;
 }
 
-// debug
-
 void CTSAPI::writeVerilog() const
 {
-  _timing_engine->writeVerilog("cts_debug.v");
+  sessionState().timing_engine->writeVerilog("cts_debug.v");
 }
 
 void CTSAPI::toPyArray(const icts::Point& point, const std::string& label)
 {
-  CTSAPIInst.saveToLog(label, "=[[", point.x(), ",", point.y(), "]]");
+  CTSAPI_INST.saveToLog(label, "=[[", point.x(), ",", point.y(), "]]");
 }
 
 // private STA
 void CTSAPI::readSTAFile()
 {
-  auto sta_work_dir = std::filesystem::path(_config->get_work_dir()).append("sta").string();
+  auto& state = mutableState();
+  auto* timing_engine = state.timing_engine;
+  auto sta_work_dir = std::filesystem::path(state.config->get_work_dir()).append("sta").string();
   if (!std::filesystem::exists(sta_work_dir)) {
     std::filesystem::create_directories(sta_work_dir);
   }
   std::vector<const char*> lib_paths;
   std::ranges::for_each(DBCONFIG.get_lib_paths(), [&](const std::string& lib_path) { lib_paths.push_back(lib_path.c_str()); });
-  _timing_engine->set_num_threads(80);
-  _timing_engine->set_design_work_space(sta_work_dir.c_str());
+  timing_engine->set_num_threads(80);
+  timing_engine->set_design_work_space(sta_work_dir.c_str());
   std::set<std::string> cell_set;
-  std::ranges::for_each(_config->get_buffer_types(), [&](const std::string& buf_cell) { cell_set.insert(buf_cell); });
-  _timing_engine->get_ista()->addLinkCells(cell_set);
-  _timing_engine->readLiberty(lib_paths);
+  std::ranges::for_each(state.config->get_buffer_types(), [&](const std::string& buf_cell) { cell_set.insert(buf_cell); });
+  timing_engine->get_ista()->addLinkCells(cell_set);
+  timing_engine->readLiberty(lib_paths);
   convertDBToTimingEngine();
 
-  _timing_engine->initRcTree();
+  timing_engine->initRcTree();
 }
 
 ista::RctNode* CTSAPI::makeRCTreeNode(const icts::EvalNet& eval_net, const std::string& name)
 {
   auto* sta_net = findStaNet(eval_net);
-  auto* cts_pin = _design->findPin(name);
+  auto* cts_pin = sessionState().design->findPin(name);
   if (cts_pin == nullptr) {
     std::vector<std::string> string_list = splitString(name, '_');
     if (string_list.size() == 2 && (string_list[0] == "steiner")) {
-      return _timing_engine->makeOrFindRCTreeNode(sta_net, std::stoi(string_list[1]));
+      return sessionState().timing_engine->makeOrFindRCTreeNode(sta_net, std::stoi(string_list[1]));
     } else {
       LOG_FATAL << "Unknown pin name: " << name;
     }
@@ -1153,7 +1066,7 @@ ista::RctNode* CTSAPI::makeRCTreeNode(const icts::EvalNet& eval_net, const std::
 ista::RctNode* CTSAPI::makePinRCTreeNode(icts::CtsPin* pin)
 {
   auto* pin_port = findStaPin(pin->is_io() ? pin->get_pin_name() : pin->get_full_name());
-  return _timing_engine->makeOrFindRCTreeNode(pin_port);
+  return sessionState().timing_engine->makeOrFindRCTreeNode(pin_port);
 }
 
 ista::DesignObject* CTSAPI::findStaPin(icts::CtsPin* pin) const
@@ -1166,7 +1079,7 @@ ista::DesignObject* CTSAPI::findStaPin(const std::string& pin_full_name) const
   // remove all "\" in inst_name
   auto name = pin_full_name;
   name.erase(std::remove(name.begin(), name.end(), '\\'), name.end());
-  return _timing_engine->get_netlist()->findObj(name.c_str(), false, false).front();
+  return sessionState().timing_engine->get_netlist()->findObj(name.c_str(), false, false).front();
 }
 
 ista::Net* CTSAPI::findStaNet(const icts::EvalNet& eval_net) const
@@ -1176,7 +1089,7 @@ ista::Net* CTSAPI::findStaNet(const icts::EvalNet& eval_net) const
 
 ista::Net* CTSAPI::findStaNet(const std::string& name) const
 {
-  return _timing_engine->get_netlist()->findNet(name.c_str());
+  return sessionState().timing_engine->get_netlist()->findNet(name.c_str());
 }
 
 double CTSAPI::getCapacitance(const double& wire_length, const int& level) const
@@ -1193,61 +1106,12 @@ double CTSAPI::getResistance(const double& wire_length, const int& level) const
 
 ista::TimingIDBAdapter* CTSAPI::getStaDbAdapter() const
 {
-  return dynamic_cast<ista::TimingIDBAdapter*>(_timing_engine->get_db_adapter());
+  return dynamic_cast<ista::TimingIDBAdapter*>(sessionState().timing_engine->get_db_adapter());
 }
 
 ieda_feature::CTSSummary CTSAPI::outputSummary()
 {
-  ieda_feature::CTSSummary summary;
-
-  initEvalInfo();
-
-  summary.buffer_num = getInsertCellNum();
-  summary.buffer_area = getInsertCellArea();
-
-  auto path_info = getPathInfos();
-  int max_path = path_info[0].max_depth;
-  int min_path = path_info[0].min_depth;
-
-  for (auto path : path_info) {
-    max_path = std::max(max_path, path.max_depth);
-    min_path = std::min(min_path, path.min_depth);
-  }
-  auto max_level_of_clock_tree = max_path;
-
-  summary.clock_path_min_buffer = min_path;
-  summary.clock_path_max_buffer = max_path;
-  summary.max_level_of_clock_tree = max_level_of_clock_tree;
-  summary.max_clock_wirelength = getMaxClockNetWL();
-  summary.total_clock_wirelength = getTotalClockNetWL();
-
-  bool b_read_data = false;
-  if (_timing_engine == nullptr) {
-    startDbSta();
-    b_read_data = true;
-  }
-  // 可能有多个clk_name，每一个时钟都需要报告tns、wns、freq
-  auto clk_list = _timing_engine->getClockList();
-  for (auto* clk : clk_list) {
-    ieda_feature::ClockTiming clock_timing;
-
-    auto clk_name = clk->get_clock_name();
-
-    clock_timing.clock_name = clk_name;
-    clock_timing.setup_tns = _timing_engine->getTNS(clk_name, AnalysisMode::kMax);
-    clock_timing.setup_wns = _timing_engine->getWNS(clk_name, AnalysisMode::kMax);
-    clock_timing.hold_tns = _timing_engine->getTNS(clk_name, AnalysisMode::kMin);
-    clock_timing.hold_wns = _timing_engine->getWNS(clk_name, AnalysisMode::kMin);
-    clock_timing.suggest_freq = 1000.0 / (clk->getPeriodNs() - clock_timing.setup_wns);
-
-    summary.clocks_timing.push_back(clock_timing);
-  }
-
-  if (b_read_data) {
-    _timing_engine->destroyTimingEngine();
-  }
-
-  return summary;
+  return CTSFlowRunner::outputSummary(*this);
 }
 
 }  // namespace icts

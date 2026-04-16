@@ -29,8 +29,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ModelFactory.hh"
-
 namespace icts {
 
 class CtsCellLib
@@ -68,10 +66,7 @@ class CtsCellLib
   void set_leakage_power(const double& leakage_power) { _leakage_power = leakage_power; }
 
   // calc
-  double calcSlew(const double& cap_out) const
-  {
-    return calcLinearSlew(cap_out);
-  }
+  double calcSlew(const double& cap_out) const { return calcLinearSlew(cap_out); }
 
   double calcInsertSlew(const double& slew_in, const double& cap_out) const
   {
@@ -99,10 +94,7 @@ class CtsCellLib
 
     return res;
   }
-  double calcDelay(const double& slew_in, const double& cap_out) const
-  {
-    return calcInsertDelay(slew_in, cap_out);
-  }
+  double calcDelay(const double& slew_in, const double& cap_out) const { return calcInsertDelay(slew_in, cap_out); }
   double calcLinearSlew(const double& cap_out) const { return _slew_coef[0] + _slew_coef[1] * cap_out; }
   double calcLinearDelay(const double& slew_in, const double& cap_out) const
   {
@@ -163,6 +155,7 @@ class CtsLibs
     }
     return _lib_maps[cell_master];
   }
+
  private:
   std::unordered_map<std::string, CtsCellLib*> _lib_maps;
 };

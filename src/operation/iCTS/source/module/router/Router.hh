@@ -20,84 +20,27 @@
  */
 #pragma once
 
-#include <algorithm>
-#include <vector>
-
-#include "CtsConfig.hh"
-#include "CtsDesign.hh"
-#include "CtsInstance.hh"
-#include "CtsNet.hh"
-#include "CtsSignalWire.hh"
-#include "Net.hh"
-#include "Pin.hh"
 namespace icts {
-class SolverSet
-{
- public:
-  SolverSet() = default;
-  SolverSet(const SolverSet&) = default;
-  ~SolverSet() = default;
-  // add
-  void add_pin(Pin* pin)
-  {
-    if (_pin_map.count(pin->get_name()) == 0) {
-      _pins.push_back(pin);
-      _pin_map.insert(std::make_pair(pin->get_name(), pin));
-    }
-  }
-  void add_net(Net* net)
-  {
-    if (_net_map.count(net->get_name()) == 0) {
-      _nets.push_back(net);
-      _net_map.insert(std::make_pair(net->get_name(), net));
-    }
-  }
-  // get
-  std::vector<Net*> get_nets() { return _nets; }
-  Net* get_last_net() const { return _nets.back(); }
-
-  // find
-  Pin* find_pin(const std::string& pin_name)
-  {
-    if (_pin_map.count(pin_name) == 0) {
-      return nullptr;
-    }
-    return _pin_map[pin_name];
-  }
-  Net* find_net(const std::string& net_name)
-  {
-    if (_net_map.count(net_name) == 0) {
-      return nullptr;
-    }
-    return _net_map[net_name];
-  }
-
- private:
-  std::vector<Pin*> _pins;
-  std::vector<Net*> _nets;
-  std::unordered_map<std::string, Pin*> _pin_map;
-  std::unordered_map<std::string, Net*> _net_map;
-};
+class CtsClock;
+class CtsNet;
+class CtsPin;
+struct CTSContext;
 class Router
 {
  public:
-  Router() = default;
-  Router(const Router&) = default;
-  ~Router() = default;
-  void init();
-  void build();
-  void update();
+  static Router& getInst();
+
+  Router(const Router&) = delete;
+  Router(Router&&) = delete;
+  Router& operator=(const Router&) = delete;
+  Router& operator=(Router&&) = delete;
+
+  void run(const CTSContext& context);
+  void reset();
 
  private:
-  void routing(CtsNet* clk_net);
-  std::vector<CtsPin*> getSinkPins(CtsNet* clk_net);
-  std::vector<CtsPin*> getBufferPins(CtsNet* clk_net);
-
-  void synthesisPin(Pin* pin);
-  void synthesisNet(Net* net);
-
-  SolverSet _solver_set;
-  std::vector<CtsClock*> _clocks;
+  Router() = default;
+  ~Router() = default;
 };
 
 }  // namespace icts

@@ -20,91 +20,70 @@
  */
 #pragma once
 
-#include <iostream>
+#include <map>
+#include <memory>
+#include <string>
 #include <vector>
 
-#include "CtsConfig.hh"
-#include "CtsDesign.hh"
 #include "EvalNet.hh"
-#include "GDSPloter.hh"
+#include "EvaluatorData.hh"
+#include "context/EvaluatorRuntimeContext.hh"
+#include "service/DebugPlotService.hh"
+#include "service/MetricsCollector.hh"
+#include "service/StatisticsWriter.hh"
+#include "service/TimingAnalysisService.hh"
 
 namespace icts {
-
-struct CellStatsProperty
-{
-  int total_num;
-  double total_area;
-  double total_cap;
-};
-
-struct TreeNode
-{
-  std::string name;
-  int depth = -1;
-  TreeNode* parent;
-  std::vector<TreeNode*> children;
-};
-
-struct PathInfo
-{
-  std::string root_name;
-  int min_depth;
-  int max_depth;
-};
 
 class Evaluator
 {
  public:
-  Evaluator() = default;
-  Evaluator(const Evaluator&) = default;
-  ~Evaluator() = default;
+  static Evaluator& getInst();
+
+  Evaluator(const Evaluator&) = delete;
+  Evaluator(Evaluator&&) = delete;
+  Evaluator& operator=(const Evaluator&) = delete;
+  Evaluator& operator=(Evaluator&&) = delete;
+
+  void reset();
 
   void init();
   void evaluate();
 
   void statistics(const std::string& save_dir);
 
-  void plotPath(const string& inst, const string& file = "debug.gds") const;
-  void plotNet(const string& net_name, const string& file = "debug.gds") const;
+  void plotPath(const std::string& inst, const std::string& file = "debug.gds") const;
+  void plotNet(const std::string& net_name, const std::string& file = "debug.gds") const;
 
   void calcInfo();
-  std::map<std::string, int> get_cell_dist() const { return _cell_dist_map; }
-  std::map<std::string, CellStatsProperty> get_cell_stats() const { return _cell_stats_map; }
-  std::vector<PathInfo> get_path_infos() const { return _path_infos; }
-  double get_max_net_len() const { return _max_net_len; }
-  double get_total_wire_len() const { return _total_wire_len; }
+  [[nodiscard]] bool isInitialized() const { return _is_initialized; }
+  [[nodiscard]] bool isEvaluated() const { return _is_evaluated; }
+  std::map<std::string, int> get_cell_dist() const { return _metrics.cell_dist_map; }
+  std::map<std::string, CellStatsProperty> get_cell_stats() const { return _metrics.cell_stats_map; }
+  std::vector<PathInfo> get_path_infos() const { return _metrics.path_infos; }
+  double get_max_net_len() const { return _metrics.max_net_len; }
+  double get_total_wire_len() const { return _metrics.total_wire_len; }
+  void setRuntimeContext(std::shared_ptr<EvaluatorRuntimeContextInterface> runtime_context);
 
  private:
-  void calcWL();
-  void calcCellDist();
-  void calcCellStats();
-  void calcNetLevel();
-  void calcPathBufStats();
+  Evaluator() = default;
+  ~Evaluator() = default;
 
   void printLog();
-  void transferData();
-  void initLevel() const;
-  void recursiveSetLevel(CtsNet* net) const;
-  void pathLevelLog() const;
+  EvaluatorRuntimeContextInterface& context();
+  const EvaluatorRuntimeContextInterface& context() const;
 
+  bool _is_initialized = false;
+  bool _is_evaluated = false;
   bool _have_calc = false;
-
-  double _top_wire_len = 0.0;
-  double _trunk_wire_len = 0.0;
-  double _leaf_wire_len = 0.0;
-  double _total_wire_len = 0.0;
-  double _max_net_len = 0.0;
-  double _hpwl_top_wire_len = 0.0;
-  double _hpwl_trunk_wire_len = 0.0;
-  double _hpwl_leaf_wire_len = 0.0;
-  double _hpwl_total_wire_len = 0.0;
-  double _hpwl_max_net_len = 0.0;
-  std::map<std::string, int> _cell_dist_map;
-  std::map<std::string, CellStatsProperty> _cell_stats_map;
-  std::map<int, int> _net_level_map;
-  std::vector<PathInfo> _path_infos;
-
+  mutable std::shared_ptr<EvaluatorRuntimeContextInterface> _runtime_context;
+  EvaluatorMetrics _metrics;
   std::vector<EvalNet> _eval_nets;
+
+  TimingAnalysisService _timing_analysis_service;
+  MetricsCollector _metrics_collector;
+  StatisticsWriter _statistics_writer;
+  DebugPlotService _debug_plot_service;
   const int _default_size = 100;
 };
 

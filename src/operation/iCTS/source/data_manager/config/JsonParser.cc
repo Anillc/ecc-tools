@@ -23,7 +23,6 @@
 #include <array>
 
 #include "COMUtil.hh"
-#include "CTSAPI.hh"
 #include "json/json.hpp"
 #include "log/Log.hh"
 
@@ -42,7 +41,7 @@ void warnDeprecatedConfigKey(const nlohmann::json& json, icts::CtsConfig* config
 
 void warnDeprecatedConfigKeys(const nlohmann::json& json, icts::CtsConfig* config)
 {
-  static const std::array<std::pair<const char*, const char*>, 20> kDeprecatedKeys = {{
+  static const std::array<std::pair<const char*, const char*>, 20> k_deprecated_keys = {{
       {"use_skew_tree_alg", "the skew-tree algorithm switch has been removed from the active CTS flow."},
       {"min_length", "the min-length driven clustering path has been removed."},
       {"router_type", "legacy router selection is no longer supported."},
@@ -65,7 +64,7 @@ void warnDeprecatedConfigKeys(const nlohmann::json& json, icts::CtsConfig* confi
       {"shift_level", "shift-based centroid relocation has been removed from the active CTS flow."},
   }};
 
-  for (const auto& [key, message] : kDeprecatedKeys) {
+  for (const auto& [key, message] : k_deprecated_keys) {
     warnDeprecatedConfigKey(json, config, key, message);
   }
 
@@ -82,10 +81,10 @@ JsonParser::JsonParser()
   char* argv[] = {program_name};
   // We need to initialize the log system here, because JsonParser() may be called in pybind,
   // which does not have a main function to initialize the log system.
-  if (!Log::isInit()) {
+  if (!ieda::Log::isInit()) {
     const std::string log_dir = "/tmp/ieda_logs/";
-    Log::makeSureDirectoryExist(log_dir);
-    Log::init(argv, log_dir);
+    ieda::Log::makeSureDirectoryExist(log_dir);
+    ieda::Log::init(argv, log_dir);
   }
 }
 
