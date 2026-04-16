@@ -154,3 +154,45 @@ Completed the iCTS architecture refactor, finalized H-tree DRV-driven stop condi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: CTS skew post-optimizer implementation
+
+**Date**: 2026-04-16
+**Task**: CTS skew post-optimizer implementation
+**Branch**: `cts_fix`
+
+### Summary
+
+Implemented and validated the iCTS skew post-optimization stage, then archived the completed task.
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Optimizer | Added `SkewPostOptimizationOperator` under `src/operation/iCTS/source/utils/synthesis_operator/` and integrated it after `LevelSizingOperator` in the net synthesis pipeline. |
+| Final policy | The accepted implementation is `upsize-only`, evaluates candidates on the `slow_sink -> LCA` path, and accepts a move only when global skew does not worsen and parent-net cap overflow does not worsen. |
+| DRV policy cleanup | Removed incorrect optimizer legality checks on fanout and slew for this post-optimization path, and kept only the parent-net cap non-worsening guard. |
+| Tests | Added dedicated gtests covering accepted upsizing, no-op behavior when no safe move exists, plateau/unlock behavior, net-record validity after accepted moves, ignored fanout/slew limits, and parent-net cap rejection. |
+| Flow validation | Rebuilt `iEDA`, ran `./bin/icts_skew_post_optimization_test`, and smoke-tested the real CTS flow with `scripts/design/ics55_dev/script/iCTS_script/run_iCTS_dev.tcl`. |
+| Measured result | Final real-design run accepted `clk_branch_2_0_65_buf: BUFX12H7L -> BUFX20H7L`. Internal CTS skew improved from `0.094465` to `0.078584`. CTS setup max skew improved from `-0.110 ns` to `-0.096 ns`. STA worst absolute setup skew improved from `0.110 ns` to `0.096 ns`. Hold skew was unchanged in the final valid run. |
+| Config cleanup | Removed deprecated ignored CTS keys from the design `cts_default_config.json` files so shipped script configs match the active parser behavior. |
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3052dbbe5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
