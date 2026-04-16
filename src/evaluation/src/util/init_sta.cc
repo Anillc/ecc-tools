@@ -50,8 +50,8 @@ InitSTA* InitSTA::_init_sta = nullptr;
 
 InitSTA::~InitSTA()
 {
-  PW_INST->destroyPowerEngine();
-  STA_INST->destroyTimingEngine();
+  ipower::PowerEngine::destroyPowerEngine();
+  ista::TimingEngine::destroyTimingEngine();
 }
 
 InitSTA* InitSTA::getInst()

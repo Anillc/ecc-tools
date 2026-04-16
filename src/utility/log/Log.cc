@@ -113,7 +113,12 @@ void Log::init(char* argv[], std::string log_dir)
  */
 void Log::end()
 {
+  if (!isInit()) {
+    return;
+  }
+
   google::ShutdownGoogleLogging();
+  _is_init = false;
 }
 
 /**

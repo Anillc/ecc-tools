@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -68,10 +69,6 @@
 #include "time/Time.hh"
 #include "usage/usage.hh"
 
-#if CUDA_PROPAGATION
-#include "propagation-cuda/lib_arc.cuh"
-#endif
-
 namespace ista {
 
 static bool IsFileExists(const char *name) {
@@ -92,11 +89,12 @@ Sta::Sta()
       _analysis_mode(AnalysisMode::kMaxMin),
       _graph(&_netlist),
       _clock_groups(sta_clock_cmp) {
-  char config[] = "iSTA";
-  char *argv[] = {config, nullptr};
-  // We need to initialize the log system here, because Sta() may be called in
-  // pybind, which does not have a main function to initialize the log system.
-  Log::init(argv);
+  if (!Log::isInit()) {
+    char config[] = "iSTA";
+    char* argv[] = {config, nullptr};
+    // Sta may be created from pybind without a traditional main() path.
+    Log::init(argv);
+  }
 
   _report_tbl_summary = StaReportPathSummary::createReportTable("sta");
   _report_tbl_TNS = StaReportClockTNS::createReportTable("TNS");
@@ -331,6 +329,21 @@ unsigned Sta::readLiberty(std::vector<std::string> &lib_files) {
 }
 
 /**
+ * @brief read liberty files.
+ *
+ * @param lib_files
+ * @return unsigned
+ */
+unsigned Sta::readLiberty(std::vector<const char *> &lib_files) {
+  std::vector<std::string> tmp;
+  for (const auto *lib_file : lib_files) {
+    tmp.emplace_back(lib_file);
+  }
+  unsigned ret = readLiberty(tmp);
+  return ret;
+}
+
+/**
  * @brief Link liberty according the builded cells to construct the lib data, if
  * build cell is empty, link all.
  *
@@ -343,8 +356,8 @@ unsigned Sta::linkLibertys() {
   }
 
   auto link_lib = [this](auto &lib_rust_reader) {
-    // master should load all lib cell.
-    lib_rust_reader.set_build_cells(get_link_cells());
+    // master should load all lib.
+    // lib_rust_reader.set_build_cells(get_link_cells());
     lib_rust_reader.linkLib();
     auto lib = lib_rust_reader.get_library_builder()->takeLib();
 
@@ -770,11 +783,6 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
 
     left_net_name = Str::replace(left_net_name, R"(\\)", "");
     right_net_name = Str::replace(right_net_name, R"(\\)", "");
-
-    // for debug
-    // if (Str::contain(left_net_name.c_str(), "io_master_araddr[0]")) {
-    //   LOG_INFO << "debug";
-    // }
 
     Net *the_left_net = design_netlist.findNet(left_net_name.c_str());
     if (!the_left_net && remove_to_merge_nets.contains(left_net_name)) {
@@ -1218,7 +1226,6 @@ void Sta::initSdcCmd() {
   registerTclCmd(CmdCreateClock, "create_clock");
   registerTclCmd(CmdCreateGeneratedClock, "create_generated_clock");
   registerTclCmd(CmdSetInputTransition, "set_input_transition");
-  // set_clock_transition share the set_input_transition process.
   registerTclCmd(CmdSetInputTransition, "set_clock_transition");
   registerTclCmd(CmdSetDrivingCell, "set_driving_cell");
   registerTclCmd(CmdSetLoad, "set_load");
@@ -1641,12 +1648,10 @@ unsigned Sta::buildLibArcsGPU() {
     lib_gpu_arc._cap_unit =
         ((lib_cap_unit == CapacitiveUnit::kFF) ? Lib_Cap_unit::kFF
                                                : Lib_Cap_unit::kPF);
-    auto lib_time_unit =
-        the_lib_arc->get_owner_cell()->get_owner_lib()->get_time_unit();
+    auto lib_time_unit = the_lib_arc->get_owner_cell()->get_owner_lib()->get_time_unit();
     lib_gpu_arc._time_unit =
-        ((lib_time_unit == TimeUnit::kNS)   ? Lib_Time_unit::kNS
-         : (lib_time_unit == TimeUnit::kPS) ? Lib_Time_unit::kPS
-                                            : Lib_Time_unit::kFS);
+        ((lib_time_unit == TimeUnit::kNS) ? Lib_Time_unit::kNS :
+                                          (lib_time_unit == TimeUnit::kPS) ? Lib_Time_unit::kPS : Lib_Time_unit::kFS);
 
     lib_gpu_arc._table = new Lib_Table_GPU[lib_gpu_arc._num_table];
 
@@ -1661,7 +1666,7 @@ unsigned Sta::buildLibArcsGPU() {
       }
 
       if (table->getAxesSize() == 0) {
-        // (TODO totaosimin), need to process no axes table.
+        // Scalar tables do not have GPU LUT axes to export.
         lib_gpu_arc._table[index] = gpu_table;
         continue;
       }
@@ -1804,8 +1809,8 @@ void Sta::setReportSpec(std::vector<std::string> &&prop_froms,
  * @param rpt_file_name The report text file name.
  * @return unsigned 1 if success, 0 else fail.
  */
-unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
-                         bool only_wire_path) {
+unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
+                         bool only_wire_path /*=false*/) {
   auto report_path =
       [this](StaReportPathSummary &report_path_func) -> unsigned {
     unsigned is_ok = 1;
@@ -1932,7 +1937,7 @@ unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
 
     std::ofstream out_file(report_path);
     if (out_file.is_open()) {
-      out_file << dump_json.dump(4);  // 4 spaces indent
+      out_file << dump_json.dump(4);
       LOG_INFO << "JSON report written to: " << report_path;
       out_file.close();
     } else {
@@ -2157,6 +2162,27 @@ std::vector<StaSeqPathData *> Sta::getSeqData(StaVertex *vertex,
           path_end->findPathData(dynamic_cast<StaPathDelayData *>(delay_data));
       if (path_data) {
         auto *seq_data = dynamic_cast<StaSeqPathData *>(path_data);
+        seq_data_vec.emplace_back(seq_data);
+      }
+    }
+  }
+
+  return seq_data_vec;
+}
+
+std::vector<StaSeqPathData *> Sta::getSeqData(StaVertex *vertex,
+                                              AnalysisMode analysis_mode) {
+  std::vector<StaSeqPathData *> seq_data_vec;
+  for (const auto &[clk, seq_path_group] : _clock_groups) {
+    StaPathEnd *path_end = seq_path_group->findPathEndData(vertex);
+    if (!path_end) {
+      continue;
+    }
+
+    StaPathEndIterator path_iter(path_end, analysis_mode);
+    while (path_iter.hasNext()) {
+      auto *seq_data = dynamic_cast<StaSeqPathData *>(path_iter.next());
+      if (seq_data) {
         seq_data_vec.emplace_back(seq_data);
       }
     }
@@ -2454,9 +2480,10 @@ std::multimap<std::string, std::string> Sta::getSkewRelatedSink(
  * @param trans_type
  * @return StaSeqPathData*
  */
-std::vector<StaSeqPathData *> Sta::getWorstSeqData(
-    std::optional<StaVertex *> vertex, AnalysisMode mode, TransType trans_type,
-    unsigned top_n_path) {
+std::vector<StaSeqPathData*> Sta::getWorstSeqData(std::optional<StaVertex*> vertex,
+                                                  AnalysisMode mode,
+                                                  TransType trans_type,
+                                                  unsigned top_n_path) {
   auto cmp = [](StaPathData *left, StaPathData *right) -> bool {
     int left_slack = left->getSlack();
     int right_slack = right->getSlack();
@@ -2478,21 +2505,19 @@ std::vector<StaSeqPathData *> Sta::getWorstSeqData(
     }
   }
 
-  std::vector<StaSeqPathData *> seq_path_datas;
-  unsigned i = 0;
+  std::vector<StaSeqPathData*> seq_path_datas;
   while (!seq_data_queue.empty()) {
-    auto *seq_path_data = dynamic_cast<StaSeqPathData *>(seq_data_queue.top());
+    auto* seq_path_data =
+        dynamic_cast<StaSeqPathData*>(seq_data_queue.top());
+    seq_data_queue.pop();
 
     if ((seq_path_data->get_delay_data()->get_trans_type() == trans_type) ||
         (trans_type == TransType::kRiseFall)) {
       seq_path_datas.push_back(seq_path_data);
-      ++i;
-
-      if (i >= top_n_path) {
+      if (seq_path_datas.size() >= top_n_path) {
         break;
       }
     }
-    seq_data_queue.pop();
   }
 
   return seq_path_datas;
@@ -2505,22 +2530,14 @@ std::vector<StaSeqPathData *> Sta::getWorstSeqData(
  * @param trans_type
  * @return StaSeqPathData*
  */
-StaSeqPathData *Sta::getWorstSeqData(AnalysisMode mode, TransType trans_type) {
-  auto worst_seq_datas = getWorstSeqData(std::nullopt, mode, trans_type);
-  return worst_seq_datas.empty() ? nullptr : worst_seq_datas[0];
+StaSeqPathData* Sta::getWorstSeqData(AnalysisMode mode, TransType trans_type) {
+  auto seq_path_datas = getWorstSeqData(std::nullopt, mode, trans_type, 1);
+  return seq_path_datas.empty() ? nullptr : seq_path_datas.front();
 }
 
-/**
- * @brief Get the top n worst slack path.
- *
- * @param mode
- * @return StaSeqPathData*
- */
-std::vector<StaSeqPathData *> Sta::getTopNWorstSeqPaths(AnalysisMode mode,
-                                                        unsigned top_n_path) {
-  auto worst_seq_datas =
-      getWorstSeqData(std::nullopt, mode, TransType::kRiseFall, top_n_path);
-  return worst_seq_datas;
+std::vector<StaSeqPathData*> Sta::getTopNWorstSeqPaths(AnalysisMode mode,
+                                                       unsigned top_n_path) {
+  return getWorstSeqData(std::nullopt, mode, TransType::kRiseFall, top_n_path);
 }
 
 /**
@@ -2791,9 +2808,11 @@ Sta::getWorstSlackBetweenTwoSinks(AnalysisMode mode) {
  */
 int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
                        TransType trans_type) {
-  auto the_worst_seq_path_data = getWorstSeqData(end_vertex, mode, trans_type);
-  LOG_FATAL_IF(the_worst_seq_path_data.empty()) << "no seq data found.";
-  return the_worst_seq_path_data.front()->getSlack();
+  auto seq_path_datas = getWorstSeqData(end_vertex, mode, trans_type, 1);
+  auto* the_worst_seq_path_data =
+      seq_path_datas.empty() ? nullptr : seq_path_datas.front();
+  LOG_FATAL_IF(!the_worst_seq_path_data);
+  return the_worst_seq_path_data->getSlack();
 }
 
 /**
@@ -2806,9 +2825,17 @@ int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
  * @param netlist
  */
 void Sta::writeVerilog(const char *verilog_file_name,
-                       std::set<std::string> &exclude_cell_names) {
-  NetlistWriter writer(verilog_file_name, exclude_cell_names, _netlist);
+                       std::set<std::string> &exclude_cell_names,
+                       bool is_hier_module) {
+  NetlistWriter writer(verilog_file_name, exclude_cell_names, &_netlist);
   writer.writeModule();
+  // Only suitable for two hierarichal-modules situation.
+  if (is_hier_module) {
+    for (auto &hier_netlist : _netlist.get_hier_sub_netlists()) {
+      writer.set_netlist(hier_netlist);
+      writer.writeModule();
+    }
+  }
 }
 
 /**
@@ -2861,7 +2888,6 @@ unsigned Sta::resetGPUData() {
   _index_to_at.clear();
 
   return 1;
-
 }
 #endif
 
@@ -3031,7 +3057,7 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
                            bool is_derate /*=false*/,
                            bool is_clock_cap /*=false*/,
                            bool is_copy /*=true*/) {
-  const char *design_work_space = get_design_work_space();
+   const char *design_work_space = get_design_work_space();
   std::string now_time = Time::getNowWallTime();
   std::string tmp = Str::replace(now_time, ":", "_");
   std::string copy_design_work_space =
@@ -3125,46 +3151,13 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
     reportNet();
   }
 
-  writeVerilog(verilog_file_name.c_str(), exclude_cell_names);
+  writeVerilog(verilog_file_name.c_str(), exclude_cell_names, false);
 
   reportUsedLibs();
-
-  // for test dump timing data in memory.
-  // reportTimingData(10);
-
-  // for test dump json data.
-  // reportWirePaths();
-
-  // for test dump graph json data.
-  if (0) {
-    json graph_json;
-    StaDumpGraphJson dump_graph_json(graph_json);
-    auto &the_graph = get_graph();
-    dump_graph_json(&the_graph);
-
-    std::string graph_json_file_name = Str::printf(
-        "%s/%s_graph.json", design_work_space, get_design_name().c_str());
-
-    std::ofstream out_file(graph_json_file_name);
-    if (out_file.is_open()) {
-      out_file << graph_json.dump(4);  // 4 spaces indent
-      LOG_INFO << "JSON report written to: " << graph_json_file_name;
-      out_file.close();
-    } else {
-      LOG_ERROR << "Failed to open JSON report file: " << graph_json_file_name;
-    }
-  }
-
-#if CUDA_PROPAGATION
-  // printFlattenData();
-#endif
 
   // dumpGraphData("/home/taosimin/ysyx_test25/2025-04-05/graph.yaml");
 
   LOG_INFO << "The timing engine run success.";
-
-  // restart the timer.
-  Time::start();
 
   return 1;
 }
@@ -3208,8 +3201,10 @@ std::vector<StaPathWireTimingData> Sta::reportTimingData(
 unsigned Sta::reportUsedLibs() {
   auto used_libs = getUsedLibs();
   for (auto *used_lib : used_libs) {
-    std::string lib_name = used_lib->get_file_name();
-    LOG_INFO << "used lib: " << lib_name;
+    const char *lib_name = used_lib->get_file_name();
+    if (lib_name) {
+      LOG_INFO << "used lib: " << lib_name;
+    }
   }
   return 1;
 }
@@ -3623,7 +3618,7 @@ void Sta::printFlattenData() {
 
     output_file << "GPU_AT_DATA_" << at_data_index++ << ": " << std::endl;
     output_file << "  own_vertex: " << own_vertex->getName() << std::endl;
-    output_file << "  vertex level: " << own_vertex->get_level() << std::endl;
+    output_file << "  vertex level" << own_vertex->get_level() << std::endl;
     output_file << "  launch_clock_name: " << launch_clock_name << std::endl;
     output_file << "  launch_clock_index: " << at_data._own_clock_index
                 << std::endl;
@@ -3641,8 +3636,7 @@ void Sta::printFlattenData() {
       auto *src_vertex = getVertex(at_data._src_vertex_id);
       output_file << "  src_vertex: " << src_vertex->getName() << std::endl;
     } else {
-      output_file << "  src_vertex: "
-                  << "NA" << std::endl;
+      output_file << "  src_vertex: " << "NA" << std::endl;
     }
 
     output_file << "  src_data_index: " << at_data._src_data_index << std::endl;

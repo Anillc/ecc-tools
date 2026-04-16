@@ -27,6 +27,7 @@
 #include <cassert>
 #include <iostream>
 #include <optional>
+#include <vector>
 
 #include "FlatSet.hh"
 #include "TimingIDBAdapter.hh"
@@ -42,6 +43,8 @@
 #include "sta/StaApplySdc.hh"
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaBuildRCTree.hh"
+#include "sta/StaCharacterTiming.hh"
+#include "sta/StaCheck.hh"
 #include "sta/StaClockPropagation.hh"
 #include "sta/StaClockTree.hh"
 #include "sta/StaConstPropagation.hh"
@@ -647,7 +650,9 @@ std::map<std::string, double> TimingEngine::getVirtualRCTreeAllNodeSlew(
   auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
 
   std::map<std::string, double> all_node_slews;
-  all_node_slews = virtual_rc_tree.getAllNodeSlew(driver_slew, AnalysisMode::kMax, trans_type);
+  all_node_slews =
+      virtual_rc_tree.getAllNodeSlew(driver_slew, AnalysisMode::kMax,
+                                     trans_type);
 
   return all_node_slews;
 }
@@ -675,6 +680,17 @@ std::map<std::string, double> TimingEngine::getVirtualRCTreeAllNodeDelay(
 }
 
 /**
+ * @brief check and break the graph datapath loop.
+ *
+ * @return TimingEngine&
+ */
+TimingEngine& TimingEngine::checkAndBreakLoop(StaGraph* the_graph) {
+  StaCombLoopCheck comb_loop_check;
+  comb_loop_check(the_graph);
+  return *this;
+}
+
+/**
  * @brief incremental propagation to update timing data.
  *
  * @return TimingEngine&
@@ -698,6 +714,26 @@ TimingEngine& TimingEngine::incrUpdateTiming() {
   });
 
   _incr_func.applyBwdQueue();
+
+  return *this;
+}
+
+/**
+ * @brief generate the ETM(extracted timing model).
+ *
+ * @param model_path
+ * @return TimingEngine&
+ */
+TimingEngine& TimingEngine::extractTimingModel(AnalysisMode analysis_mode,
+                                               const char* model_path) {
+  StaCharacterTiming character_timing(analysis_mode, model_path);
+  auto& the_graph = _ista->get_graph();
+  character_timing(&the_graph);
+
+// for debug
+#if 1
+  character_timing.get_design_timing_model()->printLibertyLibrary(model_path);
+#endif
 
   return *this;
 }

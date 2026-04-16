@@ -23,22 +23,48 @@
  */
 #include "StaSlewPropagation.hh"
 
+#include <algorithm>
+#include <cstdlib>
 #include <optional>
+#include <sstream>
 
 #include "ThreadPool/ThreadPool.h"
 #include "delay/ReduceDelayCal.hh"
 #include "netlist/Pin.hh"
 #include "netlist/Port.hh"
-// DEBUG
-inline std::string transTypeToString(ista::TransType trans) {
-    switch (trans) {
-        case ista::TransType::kRise: return "Rise";
-        case ista::TransType::kFall: return "Fall";
-        default:                     return "Unknown";
-    }
-}
-// DEBUG
+
 namespace ista {
+
+namespace {
+
+bool shouldTraceSlewArc(StaVertex* src_vertex, StaVertex* snk_vertex) {
+  const char* trace_env = std::getenv("IEDA_TRACE_SLEW_ARCS");
+  if (!trace_env || !*trace_env) {
+    return false;
+  }
+
+  const std::string src_name = src_vertex ? src_vertex->getName() : "";
+  const std::string snk_name = snk_vertex ? snk_vertex->getName() : "";
+
+  std::stringstream ss(trace_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (item.empty()) {
+      continue;
+    }
+
+    if (src_name.find(item) != std::string::npos ||
+        snk_name.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+}  // namespace
 
 /**
  * @brief The slew propagation from the arc.
@@ -65,9 +91,13 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
 
     if (!slew_data) {
       slew_data = new StaSlewData(delay_type, trans_type, own_vertex, slew);
+      slew_data->set_data_epoch(src_slew_data->get_data_epoch());
 
       slew_data->set_bwd(src_slew_data);
       src_slew_data->add_fwd(slew_data);
+
+      slew_data->set_launch_slew_data(
+          dynamic_cast<StaSlewData*>(src_slew_data)->get_launch_slew_data());
 
       slew_data->set_output_current_data(std::move(output_current_data));
       own_vertex->addData(slew_data);
@@ -77,39 +107,32 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       slew_data->set_slew(slew);
       slew_data->set_output_current_data(std::move(output_current_data));
     }
-    // DEBUG
-    if (auto* pin_obj = dynamic_cast<Pin*>(own_vertex->get_design_obj())) {
-        SlewKey key;
-        key.pin_full_name = pin_obj->getFullName(); // 假设getFullName()返回"inst:pin"
-        key.mode = delay_type;
-        key.trans = trans_type;
-        double slew_ns = FS_TO_NS(slew); // 将slew从fs转换为ns
-        
-        SlewDebugDataManager::getInstance().addSlew(key, slew_ns);
-    }
-    // DEBUG
+
   };
 
   unsigned is_ok = 1;
 
   auto* src_vertex = the_arc->get_src();
   auto* snk_vertex = the_arc->get_snk();
+  const bool trace_arc = shouldTraceSlewArc(src_vertex, snk_vertex);
 
   auto* obj = snk_vertex->get_design_obj();
 
   /*The check arc and output port do not generate output slew.*/
-  if (!the_arc->isDelayArc() || obj->isPort()) {
+  if (!the_arc->isDelayArc() || (obj->isPort() && !isPropagateOutputPort())) {
     return is_ok;
   }
 
-  auto* the_pin = dynamic_cast<Pin*>(obj);
-  LOG_FATAL_IF(!the_pin) << "obj " << obj->getFullName() << " is not a pin";
-  auto* the_net = the_pin->get_net();
-  LOG_FATAL_IF(!the_net) << "The pin " << the_pin->getFullName()
-                         << " has not connect net.";
+  auto* the_net = obj->get_net();
+  LOG_FATAL_IF(!the_net);
 
   StaData* slew_data;
   FOREACH_SLEW_DATA(src_vertex, slew_data) {
+    if (auto data_epoch = get_data_epoch_filter();
+        data_epoch && slew_data->get_data_epoch() != *data_epoch) {
+      continue;
+    }
+
     auto trans_type = slew_data->get_trans_type();
 
     // for the clock vertex, only need the trigger transition type data.
@@ -129,34 +152,26 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
       if (the_arc->isInstArc()) {
         auto* inst_arc = dynamic_cast<StaInstArc*>(the_arc);
         auto* lib_arc = inst_arc->get_lib_arc();
-        auto* lib_arc_set =
-            dynamic_cast<StaInstArc*>(the_arc)->get_lib_arc_set();
+        auto* lib_arc_set = inst_arc->get_lib_arc_set();
+        auto* the_lib = lib_arc->get_owner_cell()->get_owner_lib();
 
         auto out_trans_type =
-            the_arc->isNegativeArc() ? flip_trans_type(trans_type) : trans_type;
+            lib_arc->isNegativeArc() ? flip_trans_type(trans_type) : trans_type;
 
         auto* rc_net = getSta()->getRcNet(the_net);
-        auto trans_to_index = [](TransType trans_type) -> int {
-          return static_cast<int>(trans_type) - 1;
-        };
-
-        std::array<double, 2> load_array;  // rise, fall load.
-
-        for (auto load_trans_type : {TransType::kRise, TransType::kFall}) {
-          auto load_pf = rc_net
-                             ? rc_net->load(analysis_mode, out_trans_type)
-                             : the_net->getLoad(analysis_mode, out_trans_type);
-          auto* the_lib = lib_arc->get_owner_cell()->get_owner_lib();
-
-          double load{0};
+        auto convert_load = [&](TransType load_trans_type) {
+          auto load_pf = rc_net ? rc_net->load(analysis_mode, load_trans_type)
+                                : the_net->getLoad(analysis_mode,
+                                                   load_trans_type);
+          double load = load_pf;
           if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
             load = PF_TO_FF(load_pf);
           } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
             load = load_pf;
           }
-
-          load_array[trans_to_index(load_trans_type)] = load;
-        }
+          return load;
+        };
+        auto load = convert_load(out_trans_type);
 
         if (auto* arnoldi_net = dynamic_cast<ArnoldiNet*>(rc_net);
             arnoldi_net) {
@@ -168,68 +183,33 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
         if (!lib_arc_set->isMatchTimingType(out_trans_type)) {
           continue;
         }
-        // // DEBUG
-        // // ==============================================================================
-        // // ★★★ 在这里插入您的特定Arc调试代码 ★★★
-        // // ==============================================================================
-        
-        // // --- 1. 定义您想追踪的目标实例名称列表 ---
-        // //    从您之前的报告中，挑选几个差异大的实例名填入这里
-        // const std::vector<std::string> target_instances = {
-        //     "soc_I.clint_I.mtimecmp_12__reg", 
-        //     "soc_I.kianv_I.datapath_unit_I.A2_29__reg", 
-        //     "soc_I.spi0_I.sio0_si_mosi_reg"
-        // };
-
-        // // --- 2. 获取当前arc的实例名和引脚名 ---
-        // std::string from_pin_name = src_vertex->get_design_obj()->get_own_instance()->get_name();
-        // from_pin_name += ":" + std::string(src_vertex->get_design_obj()->get_name());
-        // std::string to_pin_name = snk_vertex->get_design_obj()->get_own_instance()->get_name();
-        // to_pin_name += ":" + std::string(snk_vertex->get_design_obj()->get_name());
-        // auto src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
-        // auto snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
-        // std::string snk_instance_name = snk_pin->get_own_instance()->get_name();
-        // std::string inst_name = src_pin->get_own_instance()->get_name();
-
-        // // --- 3. 检查是否是我们的目标之一 ---
-        // for (const auto& target_inst : target_instances) {
-        //     if (inst_name == target_inst) {
-                
-        //         // --- 4. 如果是，打印所有送入LUT前的详细信息 ---
-        //         LOG_INFO << "==============[ LUT INPUT DEBUG on " << inst_name << " ]==============";
-        //         LOG_INFO << " Arc                 : " << from_pin_name << " -> " << to_pin_name;
-        //         LOG_INFO << " ------------------ LUT INPUTS ------------------";
-        //         LOG_INFO << "  - Input Slew (ns)       : " << in_slew;
-        //         LOG_INFO << "  - Output Load (lib units) : " << load;
-        //         LOG_INFO << "  - LUT Table Target Trans: " << transTypeToString(out_trans_type);
-        //         LOG_INFO << "===================================================";
-                
-        //         break; // 找到并打印后即可跳出循环
-        //     }
-        // }
-        
-        // // ==============================================================================
-        // // ★★★ 调试代码结束 ★★★
-        // // ==============================================================================
-        // // DEBUG
 
         auto slew_values =
-            lib_arc_set->getSlewNs(trans_type, out_trans_type, in_slew,
-                                   load_array[trans_to_index(out_trans_type)]);
-        double out_slew_ns = analysis_mode == AnalysisMode::kMax
-                                 ? slew_values.front()
-                                 : slew_values.back();
+            lib_arc_set->getSlewNs(trans_type, out_trans_type, in_slew, load);
+        auto out_slew_ns = analysis_mode == AnalysisMode::kMax
+                               ? slew_values.front()
+                               : slew_values.back();
 
-        auto output_current = lib_arc->getOutputCurrent(
-            out_trans_type, in_slew,
-            load_array[trans_to_index(out_trans_type)]);
+        auto output_current =
+            lib_arc->getOutputCurrent(out_trans_type, in_slew, load);
+
+        if (trace_arc) {
+          LOG_INFO << "[sta][slew-arc-trace] kind=inst src="
+                   << src_vertex->getName() << " snk=" << snk_vertex->getName()
+                   << " analysis=" << static_cast<int>(analysis_mode)
+                   << " in_trans=" << static_cast<int>(trans_type)
+                   << " out_trans=" << static_cast<int>(out_trans_type)
+                   << " in_slew_ns=" << in_slew
+                   << " out_slew_ns=" << out_slew_ns;
+        }
 
         construct_slew_data(analysis_mode, out_trans_type, snk_vertex,
                             NS_TO_FS(out_slew_ns), std::move(output_current),
                             slew_data);
 
-        /*The non-unate arc or tco should split two.*/
-        if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc()) { // || src_vertex->is_clock()
+        /* Mixed-sense arc sets need both output transitions on data paths. */
+        if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() ||
+            src_vertex->is_clock()) {
           auto out_trans_type1 = flip_trans_type(trans_type);
 
           // fix the timing type not match the trans type, which would lead to
@@ -238,16 +218,15 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
             continue;
           }
 
-          auto slew_values =
-              lib_arc_set->getSlewNs(trans_type, out_trans_type1, in_slew,
-                                 load_array[trans_to_index(out_trans_type1)]);
-          double out_slew1_ns = analysis_mode == AnalysisMode::kMax
-                                 ? slew_values.front()
-                                 : slew_values.back();
+          auto load1 = convert_load(out_trans_type1);
+          auto slew_values = lib_arc_set->getSlewNs(trans_type, out_trans_type1,
+                                                    in_slew, load1);
+          auto out_slew1_ns = analysis_mode == AnalysisMode::kMax
+                                  ? slew_values.front()
+                                  : slew_values.back();
 
-          auto output_current1 = lib_arc->getOutputCurrent(
-              out_trans_type1, in_slew,
-              load_array[trans_to_index(out_trans_type1)]);
+          auto output_current1 =
+              lib_arc->getOutputCurrent(out_trans_type1, in_slew, load1);
 
           construct_slew_data(analysis_mode, out_trans_type1, snk_vertex,
                               NS_TO_FS(out_slew1_ns),
@@ -255,26 +234,23 @@ unsigned StaSlewPropagation::operator()(StaArc* the_arc) {
         }
       } else {  // net arc
         auto* rc_net = getSta()->getRcNet(the_net);
-        // DEBUG
-        // auto* src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
-        // auto* snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
-        // if (src_pin && snk_pin) {
-        //   std::string src_name = src_pin->getFullName();
-        //   std::string snk_name = snk_pin->getFullName();
-        //   if (src_name.find("soc_I.PC_0__reg") != std::string::npos) {
-        //     std::cout << "Processing net arc from " << src_name << " to " << snk_name << std::endl;
-        //     std::cout << "   rc_net: " << (rc_net ? "exists" : "not exists") << std::endl;
-        //   }
-        // }
-        // DEBUG
         auto net_out_slew =
-            rc_net ? rc_net->slew(*the_pin, NS_TO_PS(in_slew),
+            rc_net ? rc_net->slew(*obj, NS_TO_PS(in_slew),
                                   from_slew_data->get_output_current_data(),
                                   analysis_mode, trans_type)
                    : std::nullopt;
 
         double out_slew_ps = net_out_slew ? *net_out_slew : NS_TO_PS(in_slew);
         auto out_slew = PS_TO_FS(out_slew_ps);
+        if (trace_arc) {
+          LOG_INFO << "[sta][slew-arc-trace] kind=net src="
+                   << src_vertex->getName() << " snk=" << snk_vertex->getName()
+                   << " analysis=" << static_cast<int>(analysis_mode)
+                   << " trans=" << static_cast<int>(trans_type)
+                   << " in_slew_ns=" << in_slew
+                   << " out_slew_ns=" << PS_TO_NS(out_slew_ps)
+                   << " rc_net=" << static_cast<int>(rc_net != nullptr);
+        }
         construct_slew_data(analysis_mode, trans_type, snk_vertex, out_slew,
                             nullptr, slew_data);
       }

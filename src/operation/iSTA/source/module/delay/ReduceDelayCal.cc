@@ -459,13 +459,16 @@ std::vector<VectorXd> ArnoldiNet::solveRCEquation(
     //   DVERBOSE_VLOG(1) << " " << current_mA;
     // }
 
-    std::ofstream file("matrix.txt");
+    std::string file_name = _net->get_name();
+    std::replace(file_name.begin(), file_name.end(), '/', '_');
+    std::ofstream file(file_name + "_in_matrix.txt");
     file << "conductances\n" << _conductances_matrix << "\n";
     file << "cap_matrix\n" << _cap_matrix << "\n";
     file << "input_vec\n" << _input_vec << "\n";
-    file << "currents\n";
+    file << "step time(s) : " << step_time << "\n";
+    file << "currents(mA)\n";
     for (double current_mA : currents) {
-      file << " " << current_mA / 1000.0;
+      file << " " << current_mA;
     }
     file.close();
   }
@@ -561,7 +564,23 @@ MatrixXd ArnoldiNet::calcDelayAndSlew(
           W * V;  // get the origin V, V is W_inv * origin V.
                   // every column is one time voltage of every point.
     }
+
     DVERBOSE_VLOG(1) << "V Matrix \n" << V_matrix;
+
+    if (0 &&
+        Str::equal(
+            _net->get_name(),
+            "u0_soc_top/u0_ysyx_210720/coretop/ysyx_210720_DCache/n5453")) {
+      std::string file_name = _net->get_name();
+      std::replace(file_name.begin(), file_name.end(), '/', '_');
+      std::ofstream file(file_name + "_out_matrix.txt");
+
+      file << "V Matrix \n" << V_matrix;
+
+      file.close();
+
+      LOG_FATAL << "write file end.";
+    }
 
     return V_matrix;
   }
