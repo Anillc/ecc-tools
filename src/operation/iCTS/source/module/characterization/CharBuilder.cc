@@ -48,7 +48,6 @@
 namespace icts {
 namespace {
 
-constexpr unsigned kDefaultMaxPatternNodes = 8U;
 constexpr std::uint64_t kTopologyPresentMask = 1ULL;
 constexpr double kPercentFactor = 100.0;
 constexpr double kCharClockPeriodNs = 10.0;
@@ -139,6 +138,21 @@ auto calcLatticeSlotCount(double wire_length_um, double length_unit_um) -> unsig
     return 0U;
   }
   return static_cast<unsigned>(std::floor((wire_length_um / length_unit_um) + kLengthLatticeEpsilon));
+}
+
+auto hasTerminalLatticeBuffer(double wire_length_um, double length_unit_um, unsigned num_slots, std::uint64_t topology_bits_value) -> bool
+{
+  if (wire_length_um <= 0.0 || length_unit_um <= 0.0 || num_slots == 0U) {
+    return false;
+  }
+
+  const unsigned terminal_slot_index = num_slots - 1U;
+  if (((topology_bits_value >> terminal_slot_index) & kTopologyPresentMask) == 0U) {
+    return false;
+  }
+
+  const double terminal_slot_boundary_um = std::min(static_cast<double>(num_slots) * length_unit_um, wire_length_um);
+  return std::abs(terminal_slot_boundary_um - wire_length_um) <= kLengthLatticeEpsilon;
 }
 
 auto resolveRoutingLayer() -> int
@@ -391,6 +405,11 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
 
 auto CharBuilder::init() -> void
 {
+  init(InitOptions{});
+}
+
+auto CharBuilder::init(const InitOptions& options) -> void
+{
   schema::ScopedStage init_stage("CharBuilder", "initialization");
 
   _segment_chars.clear();
@@ -412,23 +431,23 @@ auto CharBuilder::init() -> void
   const ResolvedValue wire_length_unit_resolution = resolveWireLengthUnitUm(_sorted_buffers);
   _max_slew = max_slew_resolution.value;
   _max_cap = max_cap_resolution.value;
-  _length_unit_um = wire_length_unit_resolution.value;
-  _wire_length_unit_source = toResolutionSourceName(wire_length_unit_resolution.source);
-  _wire_length_unit_detail = wire_length_unit_resolution.detail;
-  _wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
+  _length_unit_um = options.wire_length_unit_um.value_or(wire_length_unit_resolution.value);
+  if (options.wire_length_unit_um.has_value()) {
+    _wire_length_unit_source = "caller_override";
+    _wire_length_unit_detail = "CharBuilder::InitOptions.wire_length_unit_um";
+  } else {
+    _wire_length_unit_source = toResolutionSourceName(wire_length_unit_resolution.source);
+    _wire_length_unit_detail = wire_length_unit_resolution.detail;
+  }
+  _wire_length_iterations = options.wire_length_iterations.value_or(CONFIG_INST.get_wire_length_iterations());
   _slew_steps = CONFIG_INST.get_slew_steps();
   _cap_steps = CONFIG_INST.get_cap_steps();
   _wire_lengths_um = makeWireLengths(_length_unit_um, _wire_length_iterations);
   _max_length = _wire_lengths_um.empty() ? 0.0 : _wire_lengths_um.back();
   _slews_to_test = makeUniformSweepSamples(_max_slew, _slew_steps);
   _loads_to_test = makeUniformSweepSamples(_max_cap, _cap_steps);
-  _max_nodes = CONFIG_INST.get_max_pattern_nodes();
   _routing_layer = resolveRoutingLayer();
   _wire_width = resolveWireWidth();
-  if (_max_nodes == 0U) {
-    _max_nodes = kDefaultMaxPatternNodes;
-    LOG_WARNING << "CharBuilder: max_pattern_nodes is 0, fallback to default = " << _max_nodes;
-  }
   _sink_input_cap_pf = _sorted_buffers.empty() ? 0.0 : _sorted_buffers.front().input_cap_pf;
 
   CONFIG_INST.emitRuntimeConfigReport("CharBuilder Runtime Configuration");
@@ -438,12 +457,14 @@ auto CharBuilder::init() -> void
        max_slew_resolution.detail},
       {"max_cap_pf", logformat::FormatWithUnit(_max_cap, "pF"), toResolutionSourceName(max_cap_resolution.source),
        max_cap_resolution.detail},
-      {"wire_length_unit_um", logformat::FormatWithUnit(_length_unit_um, "um"), toResolutionSourceName(wire_length_unit_resolution.source),
-       wire_length_unit_resolution.detail},
-      {"wire_length_iterations", std::to_string(_wire_length_iterations), "runtime_config", "Config.wire_length_iterations"},
+      {"wire_length_unit_um", logformat::FormatWithUnit(_length_unit_um, "um"),
+       options.wire_length_unit_um.has_value() ? "caller_override" : toResolutionSourceName(wire_length_unit_resolution.source),
+       options.wire_length_unit_um.has_value() ? "CharBuilder::InitOptions.wire_length_unit_um" : wire_length_unit_resolution.detail},
+      {"wire_length_iterations", std::to_string(_wire_length_iterations),
+       options.wire_length_iterations.has_value() ? "caller_override" : "runtime_config",
+       options.wire_length_iterations.has_value() ? "CharBuilder::InitOptions.wire_length_iterations" : "Config.wire_length_iterations"},
       {"routing_layer", std::to_string(_routing_layer), "runtime_config", "first routing layer or fallback=1"},
       {"wire_width_um", formatOptionalWireWidth(_wire_width), "runtime_config", "explicit width override or technology default"},
-      {"max_pattern_nodes", std::to_string(_max_nodes), "runtime_config", "Config.max_pattern_nodes with default fallback"},
   };
   logInfoTable("CharBuilder Initialization Parameters", {"Parameter", "Value", "Source", "Detail"}, parameter_rows);
 
@@ -504,8 +525,7 @@ auto CharBuilder::build() -> void
   }
 
   for (const double wire_length_um : _wire_lengths_um) {
-    const unsigned lattice_slots = calcLatticeSlotCount(wire_length_um, _length_unit_um);
-    const unsigned enumerated_slots = calcBufferSlotCount(wire_length_um);
+    const unsigned topology_slots = calcTopologySlotCount(wire_length_um);
     const std::size_t estimated_patterns_per_wire_length = estimatePatternCountPerWireLength(wire_length_um);
     const std::size_t estimated_sta_samples_per_wire_length
         = estimated_patterns_per_wire_length * _loads_to_test.size() * _slews_to_test.size();
@@ -519,18 +539,13 @@ auto CharBuilder::build() -> void
                             {
                                 {"estimated_patterns", std::to_string(estimated_patterns_per_wire_length)},
                                 {"estimated_sta_samples", std::to_string(estimated_sta_samples_per_wire_length)},
-                                {"lattice_slots", std::to_string(lattice_slots)},
-                                {"enumerated_slots", std::to_string(enumerated_slots)},
+                                {"topology_slots", std::to_string(topology_slots)},
                             });
-    if (enumerated_slots < lattice_slots) {
-      LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um slot enumeration is capped by max_pattern_nodes=" << _max_nodes;
-    }
     enumerateWireLength(wire_length_um, build_progress);
 
     progress_rows.push_back({
         formatFixed(wire_length_um) + " um",
-        std::to_string(lattice_slots),
-        std::to_string(enumerated_slots),
+        std::to_string(topology_slots),
         std::to_string(_segment_chars.size() - char_count_before),
         std::to_string(_buffering_patterns.size() - pattern_count_before),
         std::to_string(build_progress.feasible_patterns),
@@ -550,8 +565,8 @@ auto CharBuilder::build() -> void
 
   if (!progress_rows.empty()) {
     logInfoTable("CharBuilder Sweep Progress",
-                 {"Wire Length", "Lattice Slots", "Enumerated Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns",
-                  "Skipped Patterns", "Executed STA Samples", "Skipped STA Samples"},
+                 {"Wire Length", "Topology Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns", "Skipped Patterns",
+                  "Executed STA Samples", "Skipped STA Samples"},
                  progress_rows);
   }
 
@@ -566,13 +581,9 @@ auto CharBuilder::build() -> void
 // Pattern enumeration
 // ---------------------------------------------------------------------------
 
-auto CharBuilder::calcBufferSlotCount(double wire_length_um) const -> unsigned
+auto CharBuilder::calcTopologySlotCount(double wire_length_um) const -> unsigned
 {
   auto slot_count = calcLatticeSlotCount(wire_length_um, _length_unit_um);
-
-  if (_max_nodes > 0U) {
-    slot_count = std::min(slot_count, _max_nodes);
-  }
   if (slot_count > kMaxTopologySlots) {
     static bool has_logged_slot_clamp = false;
     if (!has_logged_slot_clamp) {
@@ -597,7 +608,7 @@ auto CharBuilder::countSelectedSlots(TopologyBits topology_bits) -> unsigned
 
 auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t
 {
-  const unsigned num_slots = calcBufferSlotCount(wire_length_um);
+  const unsigned num_slots = calcTopologySlotCount(wire_length_um);
   LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
       << "CharBuilder: buffer slot count " << num_slots << " exceeds topology bit capacity.";
 
@@ -612,7 +623,7 @@ auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const
 
 auto CharBuilder::enumerateWireLength(double wire_length_um, BuildProgress& build_progress) -> void
 {
-  const unsigned num_slots = calcBufferSlotCount(wire_length_um);
+  const unsigned num_slots = calcTopologySlotCount(wire_length_um);
   LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
       << "CharBuilder: buffer slot count " << num_slots << " exceeds topology bit capacity.";
 
@@ -699,14 +710,14 @@ auto CharBuilder::advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, 
 auto CharBuilder::buildTopologyDesc(double wire_length_um, unsigned num_slots, TopologyBits topology_bits) const -> TopologyDesc
 {
   TopologyDesc desc;
+  desc.has_terminal_branch_buffer = hasTerminalLatticeBuffer(wire_length_um, _length_unit_um, num_slots, topology_bits.value);
 
   if (num_slots == 0U || _length_unit_um <= 0.0) {
     desc.wire_segments_um.push_back(wire_length_um);
     return desc;
   }
 
-  // Slots are pinned to the global wire-length lattice. If slot enumeration is
-  // capped by max_pattern_nodes, the remaining suffix stays in the terminal segment.
+  // Slots are pinned to the active wire-length lattice.
   double previous_boundary_um = 0.0;
 
   for (unsigned slot_index = 0; slot_index < num_slots; ++slot_index) {
@@ -808,11 +819,15 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
       }
     }
   }
+  if (topo.has_terminal_branch_buffer
+      && (buffer_positions_norm.empty() || std::abs(buffer_positions_norm.back() - 1.0) > kLengthLatticeEpsilon)) {
+    buffer_positions_norm.push_back(1.0);
+  }
 
   const unsigned length_idx = discretize(total_length_um, _max_length, _wire_length_iterations);
 
   const PatternId pid = PatternId::segment(_next_pattern_id);
-  BufferingPattern pattern(length_idx, pid, buffer_positions_norm, buf_masters);
+  BufferingPattern pattern(length_idx, pid, buffer_positions_norm, buf_masters, topo.has_terminal_branch_buffer);
   _buffering_patterns.push_back(std::move(pattern));
 
   const PatternFeasibility feasibility = analyzePatternFeasibility(topo, buf_masters);

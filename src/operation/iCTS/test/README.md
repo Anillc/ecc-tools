@@ -56,6 +56,15 @@ Set `ICTS_TEST_OUTPUT_DIR` to control where SVGs and logs are written. The
 default is `icts_test_output` next to the running test executable. For binaries
 under `bin/`, artifacts are written under `bin/icts_test_output/`.
 
+Each executed gtest case now also gets a dedicated root under:
+
+- `icts_test_output/gtest/<executable>/<test_suite>/<test_name>/`
+
+That per-test root always contains:
+
+- `cts.log`: schema-driven structured test log
+- `test.log`: captured stdout/stderr for the individual test case
+
 - topology generation: `icts_test_output/topology_gen/`
 - linear clustering: `icts_test_output/linear_clustering/`
 - real-tech linear clustering: `icts_test_output/linear_clustering/realtech/`

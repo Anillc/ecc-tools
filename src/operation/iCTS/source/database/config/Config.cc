@@ -252,7 +252,6 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyUnsignedIfPresent(json, "wire_length_iterations", *this, &Config::get_wire_length_iterations, &Config::set_wire_length_iterations);
   ApplyUnsignedIfPresent(json, "slew_steps", *this, &Config::get_slew_steps, &Config::set_slew_steps);
   ApplyUnsignedIfPresent(json, "cap_steps", *this, &Config::get_cap_steps, &Config::set_cap_steps);
-  ApplyUnsignedIfPresent(json, "max_pattern_nodes", *this, &Config::get_max_pattern_nodes, &Config::set_max_pattern_nodes);
   ApplyUnsignedIfPresent(json, "relaxed_candidates_per_boundary_group", *this, &Config::get_relaxed_candidates_per_boundary_group,
                          &Config::set_relaxed_candidates_per_boundary_group);
   ApplyDoubleIfPresent(json, "wire_width", *this, &Config::get_wire_width, &Config::set_wire_width);
@@ -260,6 +259,7 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyRoutingLayersIfPresent(json, *this);
   ApplyBufferTypesIfPresent(json, *this);
   ApplyDoubleIfPresent(json, "char_buf_redundancy_pct", *this, &Config::get_char_buf_redundancy_pct, &Config::set_char_buf_redundancy_pct);
+  ApplyBoolIfPresent(json, "force_leaf_branch_buffer", false, *this, &Config::set_force_leaf_branch_buffer);
   ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist);
   ApplyNetListIfPresent(json, *this);
 }
@@ -285,7 +285,6 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
       {"wire_length_iterations", std::to_string(get_wire_length_iterations()), "characterization length bins"},
       {"slew_steps", std::to_string(get_slew_steps()), "characterization slew bins"},
       {"cap_steps", std::to_string(get_cap_steps()), "characterization load-cap bins"},
-      {"max_pattern_nodes", std::to_string(get_max_pattern_nodes()), "0 falls back to internal default"},
       {"relaxed_candidates_per_boundary_group",
        has_relaxed_limit ? std::to_string(get_relaxed_candidates_per_boundary_group()) : "0 (unlimited)",
        "frontier composition throttling"},
@@ -298,6 +297,8 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
        buffer_types.empty() ? "no configured buffers" : logformat::JoinStrings(buffer_types)},
       {"char_buf_redundancy_pct", logformat::FormatPercent(get_char_buf_redundancy_pct()),
        get_char_buf_redundancy_pct() > 0.0 ? "near-neighbor max-cap pruning threshold" : "disabled"},
+      {"force_leaf_branch_buffer", logformat::FormatBool(is_force_leaf_branch_buffer()),
+       is_force_leaf_branch_buffer() ? "require terminal-buffered segment frontiers on leaf-branch H-tree levels" : "disabled"},
       {"use_netlist", logformat::FormatBool(is_use_netlist()),
        is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs collected from STA"},
   };

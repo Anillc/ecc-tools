@@ -53,10 +53,17 @@ struct CharBufferInfo
 class CharBuilder
 {
  public:
+  struct InitOptions
+  {
+    std::optional<double> wire_length_unit_um = std::nullopt;
+    std::optional<unsigned> wire_length_iterations = std::nullopt;
+  };
+
   CharBuilder() = default;
   ~CharBuilder() = default;
 
   auto init() -> void;
+  auto init(const InitOptions& options) -> void;
   auto build() -> void;
 
   auto get_segment_chars() const -> const std::vector<SegmentChar>& { return _segment_chars; }
@@ -90,7 +97,7 @@ class CharBuilder
     std::uint64_t value = 0U;
   };
 
-  auto calcBufferSlotCount(double wire_length_um) const -> unsigned;
+  auto calcTopologySlotCount(double wire_length_um) const -> unsigned;
   static auto countSelectedSlots(TopologyBits topology_bits) -> unsigned;
   auto estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t;
   auto enumerateWireLength(double wire_length_um, BuildProgress& build_progress) -> void;
@@ -102,6 +109,7 @@ class CharBuilder
   {
     std::vector<double> wire_segments_um;
     std::vector<std::size_t> buffer_positions;
+    bool has_terminal_branch_buffer = false;
   };
 
   struct PatternFeasibility
@@ -126,7 +134,6 @@ class CharBuilder
   std::vector<double> _wire_lengths_um;
   std::vector<double> _slews_to_test;
   std::vector<double> _loads_to_test;
-  unsigned _max_nodes = 8;
   int _routing_layer = 1;
   std::optional<double> _wire_width = std::nullopt;
   double _max_slew = 0.0;
@@ -135,9 +142,9 @@ class CharBuilder
   double _length_unit_um = 0.0;
   std::string _wire_length_unit_source;
   std::string _wire_length_unit_detail;
-  unsigned _slew_steps = 20;
-  unsigned _cap_steps = 20;
-  unsigned _wire_length_iterations = 20;
+  unsigned _slew_steps = 5;
+  unsigned _cap_steps = 5;
+  unsigned _wire_length_iterations = 5;
 
   std::string _source_inst_name;
   std::string _source_in_pin;

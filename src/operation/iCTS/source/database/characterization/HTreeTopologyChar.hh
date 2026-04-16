@@ -43,7 +43,15 @@ class HTreeTopologyChar
  public:
   HTreeTopologyChar() = default;
 
-  HTreeTopologyChar(CharCore core, unsigned levels) : _core(std::move(core)), _levels(levels) {}
+  HTreeTopologyChar(CharCore core, unsigned levels)
+      : _core(std::move(core)), _levels(levels), _leaf_driven_cap_idx(_core.get_driven_cap_idx())
+  {
+  }
+
+  HTreeTopologyChar(CharCore core, unsigned levels, unsigned leaf_driven_cap_idx)
+      : _core(std::move(core)), _levels(levels), _leaf_driven_cap_idx(leaf_driven_cap_idx)
+  {
+  }
 
   // Forwarded getters from CharCore
   auto get_input_slew_idx() const -> unsigned { return _core.get_input_slew_idx(); }
@@ -53,6 +61,7 @@ class HTreeTopologyChar
   auto get_delay() const -> double { return _core.get_delay(); }
   auto get_power() const -> double { return _core.get_power(); }
   auto get_pattern_id() const -> PatternId { return _core.get_pattern_id(); }
+  auto get_leaf_driven_cap_idx() const -> unsigned { return _leaf_driven_cap_idx; }
 
   // H-tree specific getter
   auto get_levels() const -> unsigned { return _levels; }
@@ -86,12 +95,13 @@ class HTreeTopologyChar
                          upstream.get_delay() + downstream.get_delay(),  // additive delay
                          // Binary fan-out: downstream power is doubled
                          upstream.get_power() + 2.0 * downstream.get_power(), merged_topo_pid);
-    return HTreeTopologyChar(std::move(merged_core), upstream._levels + downstream._levels);
+    return HTreeTopologyChar(std::move(merged_core), upstream._levels + downstream._levels, downstream.get_leaf_driven_cap_idx());
   }
 
  private:
   CharCore _core;
   unsigned _levels = 0;
+  unsigned _leaf_driven_cap_idx = 0U;
 };
 
 }  // namespace icts

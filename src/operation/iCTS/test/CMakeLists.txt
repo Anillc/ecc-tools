@@ -42,7 +42,7 @@ function(icts_add_test_executable target_name)
   cmake_parse_arguments(ICTS_ADD_TEST "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
   add_executable(${target_name} ${ICTS_ADD_TEST_SOURCES} $<TARGET_OBJECTS:icts_test_main>)
-  target_link_libraries(${target_name} PRIVATE icts_test_base ${ICTS_ADD_TEST_LIBS})
+  target_link_libraries(${target_name} PRIVATE icts_test_base icts_test_common_io ${ICTS_ADD_TEST_LIBS})
 
   if(ICTS_ADD_TEST_REALTECH)
     target_link_libraries(${target_name} PRIVATE icts_test_realtech_base)

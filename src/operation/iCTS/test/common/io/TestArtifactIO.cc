@@ -31,6 +31,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -49,6 +50,12 @@ struct ParsedInfoReport
   std::vector<std::pair<std::string, std::string>> key_value_lines;
   std::vector<std::string> detail_lines;
 };
+
+constexpr std::size_t kConsoleTitleDisplayLimit = 96U;
+constexpr std::size_t kConsoleKeyDisplayLimit = 48U;
+constexpr std::size_t kConsoleValueDisplayLimit = 160U;
+constexpr std::size_t kConsoleDetailDisplayLimit = 200U;
+constexpr std::string_view kConsoleTruncationMarker = "...";
 
 auto ResolveExecutableDir() -> std::filesystem::path
 {
@@ -145,6 +152,38 @@ auto BuildInfoReportBlock(const ParsedInfoReport& report) -> std::string
   return output_stream.str();
 }
 
+auto TruncateConsoleDisplayText(const std::string& text, std::size_t max_length) -> std::string
+{
+  if (max_length == 0U || text.size() <= max_length) {
+    return text;
+  }
+  if (max_length <= kConsoleTruncationMarker.size()) {
+    return std::string(kConsoleTruncationMarker.substr(0U, max_length));
+  }
+
+  const auto remaining_length = max_length - kConsoleTruncationMarker.size();
+  const auto head_length = remaining_length / 2U;
+  const auto tail_length = remaining_length - head_length;
+  return text.substr(0U, head_length) + std::string(kConsoleTruncationMarker) + text.substr(text.size() - tail_length);
+}
+
+auto BuildConsoleDisplayReport(const ParsedInfoReport& report) -> ParsedInfoReport
+{
+  ParsedInfoReport console_report;
+  console_report.title = TruncateConsoleDisplayText(report.title, kConsoleTitleDisplayLimit);
+  console_report.key_value_lines.reserve(report.key_value_lines.size());
+  for (const auto& [key, value] : report.key_value_lines) {
+    console_report.key_value_lines.emplace_back(TruncateConsoleDisplayText(key, kConsoleKeyDisplayLimit),
+                                                TruncateConsoleDisplayText(value, kConsoleValueDisplayLimit));
+  }
+
+  console_report.detail_lines.reserve(report.detail_lines.size());
+  for (const auto& detail : report.detail_lines) {
+    console_report.detail_lines.push_back(TruncateConsoleDisplayText(detail, kConsoleDetailDisplayLimit));
+  }
+  return console_report;
+}
+
 auto EmitParsedInfoReport(const ParsedInfoReport& report) -> void
 {
   if (!report.key_value_lines.empty()) {
@@ -185,7 +224,7 @@ auto MirrorStandaloneTextLog(const std::filesystem::path& path, const std::strin
 
 }  // namespace
 
-auto WriteTextLog(const std::filesystem::path& path, const std::string& content) -> bool
+auto WriteRawTextLog(const std::filesystem::path& path, const std::string& content) -> bool
 {
   std::error_code error_code;
   const auto parent_dir = path.parent_path();
@@ -201,6 +240,14 @@ auto WriteTextLog(const std::filesystem::path& path, const std::string& content)
     return false;
   }
   output_stream << content;
+  return true;
+}
+
+auto WriteTextLog(const std::filesystem::path& path, const std::string& content) -> bool
+{
+  if (!WriteRawTextLog(path, content)) {
+    return false;
+  }
   MirrorStandaloneTextLog(path, content);
   return true;
 }
@@ -208,7 +255,7 @@ auto WriteTextLog(const std::filesystem::path& path, const std::string& content)
 auto EmitInfoReport(const InfoReport& report) -> void
 {
   const auto parsed_report = ParseInfoReport(report);
-  LOG_INFO << BuildInfoReportBlock(parsed_report);
+  LOG_INFO << BuildInfoReportBlock(BuildConsoleDisplayReport(parsed_report));
   EmitParsedInfoReport(parsed_report);
 }
 

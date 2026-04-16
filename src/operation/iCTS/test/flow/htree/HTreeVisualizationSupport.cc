@@ -308,25 +308,25 @@ auto DelayPowerDominates(const icts::HTreeTopologyChar& lhs, const icts::HTreeTo
 
 auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std::vector<DelayPowerPoint>
 {
-  const auto& feasible_chars = result.feasible_chars;
-  if (feasible_chars.empty()) {
+  const auto& display_chars = result.feasible_chars.empty() ? result.candidate_chars : result.feasible_chars;
+  if (display_chars.empty()) {
     return {};
   }
 
-  const auto [min_delay_it, max_delay_it] = std::ranges::minmax_element(feasible_chars, {}, &icts::HTreeTopologyChar::get_delay);
-  const auto [min_power_it, max_power_it] = std::ranges::minmax_element(feasible_chars, {}, &icts::HTreeTopologyChar::get_power);
+  const auto [min_delay_it, max_delay_it] = std::ranges::minmax_element(display_chars, {}, &icts::HTreeTopologyChar::get_delay);
+  const auto [min_power_it, max_power_it] = std::ranges::minmax_element(display_chars, {}, &icts::HTreeTopologyChar::get_power);
   const double min_delay = min_delay_it->get_delay();
   const double max_delay = max_delay_it->get_delay();
   const double min_power = min_power_it->get_power();
   const double max_power = max_power_it->get_power();
 
-  std::vector<bool> pareto_flags(feasible_chars.size(), true);
-  for (std::size_t index = 0; index < feasible_chars.size(); ++index) {
-    for (std::size_t other_index = 0; other_index < feasible_chars.size(); ++other_index) {
+  std::vector<bool> pareto_flags(display_chars.size(), true);
+  for (std::size_t index = 0; index < display_chars.size(); ++index) {
+    for (std::size_t other_index = 0; other_index < display_chars.size(); ++other_index) {
       if (index == other_index) {
         continue;
       }
-      if (DelayPowerDominates(feasible_chars[other_index], feasible_chars[index])) {
+      if (DelayPowerDominates(display_chars[other_index], display_chars[index])) {
         pareto_flags[index] = false;
         break;
       }
@@ -337,9 +337,9 @@ auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std
       = result.best_char.has_value() ? std::optional<icts::PatternId>(result.best_char->get_pattern_id()) : std::nullopt;
 
   std::vector<DelayPowerPoint> points;
-  points.reserve(feasible_chars.size());
-  for (std::size_t index = 0; index < feasible_chars.size(); ++index) {
-    const auto& entry = feasible_chars[index];
+  points.reserve(display_chars.size());
+  for (std::size_t index = 0; index < display_chars.size(); ++index) {
+    const auto& entry = display_chars[index];
     points.push_back(DelayPowerPoint{
         .entry = &entry,
         .normalized_delay = NormalizeMetric(entry.get_delay(), min_delay, max_delay),
@@ -796,7 +796,7 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
          << ", distinct_level_bins=" << result.char_unique_level_bins << ", adapted=" << (result.char_grid_adapted ? "true" : "false")
          << "\n";
   report << "char_limits max_slew_ns=" << result.char_max_slew_ns << ", max_cap_pf=" << result.char_max_cap_pf << "\n";
-  report << "feasible_solution_count=" << delay_power_points.size() << ", pareto_solution_count="
+  report << "frontier_solution_count=" << delay_power_points.size() << ", pareto_solution_count="
          << std::ranges::count_if(delay_power_points, [](const DelayPowerPoint& point) -> bool { return point.is_pareto; }) << "\n";
   for (const auto& summary : CollectBufferMasterSummaries(result.inserted_insts)) {
     report << "buffer_master=" << summary.cell_master << ", count=" << summary.count;

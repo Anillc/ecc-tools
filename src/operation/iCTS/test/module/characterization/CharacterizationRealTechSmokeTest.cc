@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "database/characterization/BufferingPattern.hh"
 #include "database/characterization/HTreeTopologyChar.hh"
 #include "database/characterization/SegmentChar.hh"
 #include "database/config/Config.hh"
@@ -242,6 +243,50 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   report_stream << "best_capped_htree_char=" << realtech_support::FormatHTreeChar(capped_flow.best_char.value(), grid) << "\n";
 
   ASSERT_TRUE(realtech_support::WriteScenarioLog("smoke_manual_htree", "smoke_manual_htree_report.txt", report_stream.str()));
+}
+
+TEST(CharacterizationRealTechSmokeTest, TerminalLeafBranchPatternsRemainAvailableIndependentOfBuildPolicy)
+{
+  auto collect_terminal_pattern_count = [](bool force_leaf_branch_buffer) -> std::optional<std::size_t> {
+    realtech_support::RealTechCharSession char_session;
+    if (const auto prepare_error = char_session.prepare(force_leaf_branch_buffer ? "leaf_branch_buffer_on" : "leaf_branch_buffer_off",
+                                                        std::nullopt, 0.0, 0.0, false, force_leaf_branch_buffer);
+        prepare_error.has_value()) {
+      return std::nullopt;
+    }
+
+    icts::CharBuilder builder;
+    builder.init();
+    builder.build();
+    if (builder.get_segment_chars().empty()) {
+      return std::nullopt;
+    }
+
+    const unsigned target_length_idx = builder.get_wire_length_iterations();
+    std::size_t terminal_pattern_count = 0U;
+    for (const auto& pattern : builder.get_buffering_patterns()) {
+      if (pattern.get_length_idx() != target_length_idx || !pattern.hasTerminalBranchBuffer()) {
+        continue;
+      }
+      if (pattern.get_buffer_positions().empty() || pattern.get_buffer_positions().back() != 1.0) {
+        return std::nullopt;
+      }
+      ++terminal_pattern_count;
+    }
+
+    return terminal_pattern_count;
+  };
+
+  const auto disabled_count = collect_terminal_pattern_count(false);
+  const auto enabled_count = collect_terminal_pattern_count(true);
+  if (!disabled_count.has_value() || !enabled_count.has_value()) {
+    GTEST_SKIP() << "Real-tech assets cannot exercise terminal leaf-branch buffer characterization.";
+    return;
+  }
+
+  EXPECT_GT(*disabled_count, 0U);
+  EXPECT_EQ(*disabled_count, *enabled_count);
+  EXPECT_GT(*enabled_count, 0U);
 }
 
 }  // namespace

@@ -59,6 +59,7 @@ TEST(HTreeJoinTest, HalfCapJoin)
   EXPECT_EQ(merged.get_input_slew_idx(), support::kSlew80);
   EXPECT_EQ(merged.get_output_slew_idx(), support::kSlew120);
   EXPECT_EQ(merged.get_driven_cap_idx(), support::kCap40);
+  EXPECT_EQ(merged.get_leaf_driven_cap_idx(), support::kCap50);
   EXPECT_EQ(merged.get_load_cap_idx(), support::kCap60);
   EXPECT_DOUBLE_EQ(merged.get_delay(), support::kDelay3p0);
   EXPECT_DOUBLE_EQ(merged.get_power(), support::kMergedPower1p1);
@@ -84,6 +85,7 @@ TEST(HTreeJoinTest, OddCapHalvingUsesCeilHalfBin)
   EXPECT_EQ(result.size(), 1U);
   EXPECT_EQ(result.get_chars().front().get_output_slew_idx(), support::kSlew130);
   EXPECT_EQ(result.get_chars().front().get_driven_cap_idx(), support::kCap40);
+  EXPECT_EQ(result.get_chars().front().get_leaf_driven_cap_idx(), support::kCap51);
   EXPECT_EQ(result.get_chars().front().get_load_cap_idx(), support::kCap70);
 }
 

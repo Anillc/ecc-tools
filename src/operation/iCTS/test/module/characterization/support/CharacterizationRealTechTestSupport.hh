@@ -68,7 +68,6 @@ inline constexpr double kRealTechCharWireLengthUnitUm = 25.0;
 inline constexpr unsigned kRealTechCharWireLengthIterations = 5U;
 inline constexpr unsigned kRealTechCharSlewSteps = 5U;
 inline constexpr unsigned kRealTechCharCapSteps = 5U;
-inline constexpr unsigned kRealTechCharMaxPatternNodes = 5U;
 
 using common::realtech::RealTechMode;
 
@@ -85,13 +84,13 @@ struct ConfigState
   unsigned wire_length_iterations = 0U;
   unsigned slew_steps = 0U;
   unsigned cap_steps = 0U;
-  unsigned max_pattern_nodes = 0U;
   unsigned relaxed_candidates_per_boundary_group = 0U;
   double wire_width = 0.0;
   unsigned max_fanout = 0U;
   std::vector<unsigned> routing_layers;
   std::vector<std::string> buffer_types;
   double char_buf_redundancy_pct = 0.0;
+  bool force_leaf_branch_buffer = false;
   std::string work_dir;
   std::string output_def_path;
   std::string log_file;
@@ -114,13 +113,13 @@ inline auto CaptureConfigState() -> ConfigState
   state.wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
   state.slew_steps = CONFIG_INST.get_slew_steps();
   state.cap_steps = CONFIG_INST.get_cap_steps();
-  state.max_pattern_nodes = CONFIG_INST.get_max_pattern_nodes();
   state.relaxed_candidates_per_boundary_group = CONFIG_INST.get_relaxed_candidates_per_boundary_group();
   state.wire_width = CONFIG_INST.get_wire_width();
   state.max_fanout = CONFIG_INST.get_max_fanout();
   state.routing_layers = CONFIG_INST.get_routing_layers();
   state.buffer_types = CONFIG_INST.get_buffer_types();
   state.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
+  state.force_leaf_branch_buffer = CONFIG_INST.is_force_leaf_branch_buffer();
   state.work_dir = CONFIG_INST.get_work_dir();
   state.output_def_path = CONFIG_INST.get_output_def_path();
   state.log_file = CONFIG_INST.get_log_file();
@@ -146,13 +145,13 @@ inline auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_wire_length_iterations(state.wire_length_iterations);
   CONFIG_INST.set_slew_steps(state.slew_steps);
   CONFIG_INST.set_cap_steps(state.cap_steps);
-  CONFIG_INST.set_max_pattern_nodes(state.max_pattern_nodes);
   CONFIG_INST.set_relaxed_candidates_per_boundary_group(state.relaxed_candidates_per_boundary_group);
   CONFIG_INST.set_wire_width(state.wire_width);
   CONFIG_INST.set_max_fanout(state.max_fanout);
   CONFIG_INST.set_routing_layers(state.routing_layers);
   CONFIG_INST.set_buffer_types(state.buffer_types);
   CONFIG_INST.set_char_buf_redundancy_pct(state.char_buf_redundancy_pct);
+  CONFIG_INST.set_force_leaf_branch_buffer(state.force_leaf_branch_buffer);
   CONFIG_INST.set_work_dir(state.work_dir);
   CONFIG_INST.set_output_def_path(state.output_def_path);
   CONFIG_INST.set_log_file(state.log_file);
@@ -162,7 +161,8 @@ inline auto ApplyConfigState(const ConfigState& state) -> void
 }
 
 inline auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::optional<std::vector<std::string>> buffer_types,
-                                        double max_buf_tran_ns, double max_cap_pf, bool omit_wire_length_unit) -> ConfigState
+                                        double max_buf_tran_ns, double max_cap_pf, bool omit_wire_length_unit,
+                                        bool force_leaf_branch_buffer = false) -> ConfigState
 {
   auto configured_state = baseline_state;
   configured_state.has_max_buf_tran = max_buf_tran_ns > 0.0;
@@ -173,8 +173,8 @@ inline auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::
   configured_state.wire_length_iterations = kRealTechCharWireLengthIterations;
   configured_state.slew_steps = kRealTechCharSlewSteps;
   configured_state.cap_steps = kRealTechCharCapSteps;
-  configured_state.max_pattern_nodes = kRealTechCharMaxPatternNodes;
   configured_state.char_buf_redundancy_pct = 0.0;
+  configured_state.force_leaf_branch_buffer = force_leaf_branch_buffer;
   if (buffer_types.has_value()) {
     configured_state.buffer_types = *buffer_types;
   }
@@ -186,7 +186,7 @@ struct RealTechCharSession
   ~RealTechCharSession() { restore(); }
 
   auto prepare(const std::string& scenario_name, std::optional<std::vector<std::string>> buffer_types, double max_buf_tran_ns,
-               double max_cap_pf, bool omit_wire_length_unit = false) -> std::optional<std::string>
+               double max_cap_pf, bool omit_wire_length_unit = false, bool force_leaf_branch_buffer = false) -> std::optional<std::string>
   {
     if (_is_prepared) {
       restore();
@@ -203,8 +203,8 @@ struct RealTechCharSession
     }
 
     const auto original_config_state = CaptureConfigState();
-    auto configured_state
-        = MakeRealTechCharConfigState(original_config_state, std::move(buffer_types), max_buf_tran_ns, max_cap_pf, omit_wire_length_unit);
+    auto configured_state = MakeRealTechCharConfigState(original_config_state, std::move(buffer_types), max_buf_tran_ns, max_cap_pf,
+                                                        omit_wire_length_unit, force_leaf_branch_buffer);
     _original_config_state = original_config_state;
     ApplyConfigState(configured_state);
     const auto output_dir = icts_test::common::io::ResolveOutputDir() / "characterization" / "realtech" / scenario_name;
@@ -218,6 +218,7 @@ struct RealTechCharSession
                                          {
                                              {"scenario", scenario_name},
                                              {"omit_wire_length_unit", omit_wire_length_unit ? "true" : "false"},
+                                             {"force_leaf_branch_buffer", force_leaf_branch_buffer ? "true" : "false"},
                                          });
     STA_ADAPTER_INST.initCharOnly();
     _is_prepared = true;

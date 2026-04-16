@@ -9,3 +9,12 @@ target_link_libraries(
   PUBLIC
   icts_test_base
 )
+
+icts_add_test_executable(
+  icts_test_common_logging
+  SOURCES
+    ${ICTS_TEST}/common/logging/ScopedLogFileTest.cc
+  LIBS
+    icts_test_common_io
+    icts_test_common_logging_support
+)

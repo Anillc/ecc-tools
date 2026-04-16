@@ -47,6 +47,27 @@ TEST(HTreeBuilderTest, EmptyLoadsReturnsEmptyResult)
   EXPECT_TRUE(result.levels.empty());
   EXPECT_FALSE(result.best_char.has_value());
   EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_TRUE(result.candidate_chars.empty());
+  EXPECT_TRUE(result.feasible_chars.empty());
+  EXPECT_TRUE(result.inserted_insts.empty());
+  EXPECT_TRUE(result.inserted_nets.empty());
+}
+
+TEST(HTreeBuilderTest, EmptyLoadsAcceptExplicitBuildOptions)
+{
+  const auto result = icts::HTreeBuilder::build({}, icts::HTreeBuilder::BuildOptions{
+                                                        .force_leaf_branch_buffer = true,
+                                                        .min_top_input_slew_ns = 0.05,
+                                                        .min_leaf_driven_cap_pf = 0.10,
+                                                    });
+
+  EXPECT_FALSE(result.success);
+  EXPECT_EQ(result.topology.get_size(), 0U);
+  EXPECT_TRUE(result.levels.empty());
+  EXPECT_FALSE(result.best_char.has_value());
+  EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_TRUE(result.candidate_chars.empty());
+  EXPECT_TRUE(result.feasible_chars.empty());
   EXPECT_TRUE(result.inserted_insts.empty());
   EXPECT_TRUE(result.inserted_nets.empty());
 }
@@ -63,6 +84,8 @@ TEST(HTreeBuilderTest, SingleLoadStopsBeforeCharacterization)
   EXPECT_TRUE(result.levels.empty());
   EXPECT_FALSE(result.best_char.has_value());
   EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_TRUE(result.candidate_chars.empty());
+  EXPECT_TRUE(result.feasible_chars.empty());
   EXPECT_TRUE(result.inserted_insts.empty());
   EXPECT_TRUE(result.inserted_nets.empty());
   EXPECT_EQ(load->get_net(), nullptr);

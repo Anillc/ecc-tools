@@ -1,0 +1,53 @@
+{
+  "id": "branch-node-forced-buffering",
+  "name": "branch-node-forced-buffering",
+  "title": "framework-level branch-node forced buffering for iCTS",
+  "description": "",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-04-16",
+  "completedAt": "2026-04-16",
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "current_phase": 6,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Implementation, validation, and PRD convergence completed. Session recording remains a post-commit human step if needed.",
+  "meta": {}
+}

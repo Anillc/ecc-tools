@@ -1,0 +1,86 @@
+// ***************************************************************************************
+// Copyright (c) 2023-2025 Peng Cheng Laboratory
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+//
+// iEDA is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+// http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+//
+// See the Mulan PSL v2 for more details.
+// ***************************************************************************************
+/**
+ * @file ScopedLogFileTest.cc
+ * @author OpenAI Codex
+ * @date 2026-04-16
+ * @brief Regression coverage for scoped schema log redirection in tests.
+ */
+
+#include <gtest/gtest.h>
+
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <utility>
+
+#include "common/io/TestArtifactIO.hh"
+#include "common/logging/ScopedLogFile.hh"
+#include "utils/logger/Schema.hh"
+
+namespace icts_test {
+namespace {
+
+auto ReadTextFile(const std::filesystem::path& path) -> std::string
+{
+  std::ifstream input_stream(path);
+  if (!input_stream.is_open()) {
+    return {};
+  }
+
+  std::ostringstream content_stream;
+  content_stream << input_stream.rdbuf();
+  return content_stream.str();
+}
+
+TEST(ScopedLogFileTest, NestedScopedLogFilesRestoreOuterDestination)
+{
+  const auto output_dir = common::io::PrepareCleanOutputDir(common::io::ResolveOutputDir() / "common" / "logging" / "scoped_log_file");
+  ASSERT_FALSE(output_dir.empty());
+
+  const auto outer_log = output_dir / "outer_cts.log";
+  const auto inner_log = output_dir / "inner_cts.log";
+  {
+    const common::logging::ScopedLogFile outer_guard(outer_log, "Outer CTS Report");
+    icts::schema::EmitKeyValueTable("Outer Before", {
+                                                        {"phase", "before"},
+                                                    });
+    {
+      const common::logging::ScopedLogFile inner_guard(inner_log, "Inner CTS Report");
+      icts::schema::EmitKeyValueTable("Inner Body", {
+                                                        {"phase", "inside"},
+                                                    });
+    }
+    icts::schema::EmitKeyValueTable("Outer After", {
+                                                       {"phase", "after"},
+                                                   });
+  }
+
+  const auto outer_content = ReadTextFile(outer_log);
+  const auto inner_content = ReadTextFile(inner_log);
+  ASSERT_FALSE(outer_content.empty());
+  ASSERT_FALSE(inner_content.empty());
+  EXPECT_NE(outer_content.find("Outer Before"), std::string::npos);
+  EXPECT_NE(outer_content.find("Outer After"), std::string::npos);
+  EXPECT_EQ(outer_content.find("Inner Body"), std::string::npos);
+  EXPECT_NE(inner_content.find("Inner Body"), std::string::npos);
+  EXPECT_EQ(inner_content.find("Outer After"), std::string::npos);
+}
+
+}  // namespace
+}  // namespace icts_test

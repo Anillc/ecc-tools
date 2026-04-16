@@ -10,3 +10,11 @@ target_link_libraries(
   log
   icts_test_common_types
 )
+
+icts_add_test_executable(
+  icts_test_common_io_artifact
+  SOURCES
+    ${ICTS_TEST}/common/io/TestArtifactIOTest.cc
+  LIBS
+    icts_test_common_io
+)

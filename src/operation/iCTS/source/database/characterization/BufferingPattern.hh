@@ -44,11 +44,13 @@ class BufferingPattern
  public:
   BufferingPattern() = default;
 
-  BufferingPattern(unsigned length_idx, PatternId pattern_id, std::vector<double> buffer_positions, std::vector<std::string> cell_masters)
+  BufferingPattern(unsigned length_idx, PatternId pattern_id, std::vector<double> buffer_positions, std::vector<std::string> cell_masters,
+                   bool has_terminal_branch_buffer = false)
       : _length_idx(length_idx),
         _pattern_id(pattern_id),
         _buffer_positions(std::move(buffer_positions)),
-        _cell_masters(std::move(cell_masters))
+        _cell_masters(std::move(cell_masters)),
+        _has_terminal_branch_buffer(has_terminal_branch_buffer)
   {
   }
 
@@ -57,6 +59,7 @@ class BufferingPattern
   auto get_pattern_id() const -> PatternId { return _pattern_id; }
   auto get_buffer_positions() const -> const std::vector<double>& { return _buffer_positions; }
   auto get_cell_masters() const -> const std::vector<std::string>& { return _cell_masters; }
+  auto hasTerminalBranchBuffer() const -> bool { return _has_terminal_branch_buffer; }
 
   /**
    * @brief Check if this is a pure wire pattern (no buffers).
@@ -78,7 +81,7 @@ class BufferingPattern
   {
     unsigned total_length = upstream._length_idx + downstream._length_idx;
     if (total_length == 0) {
-      return BufferingPattern{0, PatternId::segment(0), {}, {}};
+      return BufferingPattern{0, PatternId::segment(0), {}, {}, false};
     }
 
     double up_ratio = static_cast<double>(upstream._length_idx) / total_length;
@@ -101,7 +104,9 @@ class BufferingPattern
     merged_masters.insert(merged_masters.end(), downstream._cell_masters.begin(), downstream._cell_masters.end());
 
     // Note: pattern_id for merged pattern should be assigned by the caller
-    return BufferingPattern{total_length, PatternId::segment(0), std::move(merged_positions), std::move(merged_masters)};
+    return BufferingPattern{
+        total_length, PatternId::segment(0), std::move(merged_positions), std::move(merged_masters), downstream._has_terminal_branch_buffer,
+    };
   }
 
  private:
@@ -109,6 +114,7 @@ class BufferingPattern
   PatternId _pattern_id{PatternDomain::kSegmentPattern, 0};
   std::vector<double> _buffer_positions;   ///< Normalized positions in (0, 1]
   std::vector<std::string> _cell_masters;  ///< Cell master names for each buffer
+  bool _has_terminal_branch_buffer = false;
 };
 
 }  // namespace icts

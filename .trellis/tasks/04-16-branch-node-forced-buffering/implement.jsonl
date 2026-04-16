@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "repository-wide hard constraints for iCTS changes"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "layer placement and CMake structure for backend changes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "naming, include, and validation rules"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "logging and report expectations"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "config and data-model placement rules"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "no-exception and severity rules"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "avoid ad-hoc feature logic and preserve reusable pattern semantics"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "change crosses config, characterization, and H-tree layers"}

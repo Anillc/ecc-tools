@@ -32,6 +32,7 @@ struct InfoReport;
 
 namespace icts_test::common::io {
 
+auto WriteRawTextLog(const std::filesystem::path& path, const std::string& content) -> bool;
 auto WriteTextLog(const std::filesystem::path& path, const std::string& content) -> bool;
 auto EmitInfoReport(const InfoReport& report) -> void;
 auto SanitizeOutputName(const std::string& raw_name) -> std::string;
