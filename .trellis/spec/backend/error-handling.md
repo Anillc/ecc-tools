@@ -10,7 +10,7 @@ This document covers the no-exception policy, severity decisions, and return-vs-
 
 ### Core Rules
 
-- iCTS uses logging-based error handling.
+- iCTS uses logging-based error handling plus schema-based structured reports.
 - Do not use exceptions in normal iCTS code.
 - Choose log level based on whether the flow can continue.
 - Return a safe default only when the caller can continue safely.
@@ -19,19 +19,19 @@ This document covers the no-exception policy, severity decisions, and return-vs-
 
 | Situation | Action |
 |-----------|--------|
-| Required pointer/resource is missing and execution cannot continue | `CTS_LOG_FATAL` / `CTS_LOG_FATAL_IF` |
-| Required resource is missing but the function can return safely | `CTS_LOG_ERROR` + safe default |
-| Input is empty, zero, or intentionally skippable | `CTS_LOG_WARNING` + early return |
-| Non-critical inconsistency with a fallback path | `CTS_LOG_WARNING` / `CTS_LOG_WARNING_IF` |
+| Required pointer/resource is missing and execution cannot continue | `LOG_FATAL` / `LOG_FATAL_IF` |
+| Required resource is missing but the function can return safely | `LOG_ERROR` + safe default |
+| Input is empty, zero, or intentionally skippable | `LOG_WARNING` + early return |
+| Non-critical inconsistency with a fallback path | `LOG_WARNING` / `LOG_WARNING_IF` |
 
 ### Return vs Terminate
 
-Use `CTS_LOG_ERROR` plus a safe return for cases such as:
+Use `LOG_ERROR` plus a safe return for cases such as:
 - unavailable infrastructure in a query path
 - lookup failures with a defined default result
 - feature paths where the caller already handles failure
 
-Use `CTS_LOG_FATAL` for cases such as:
+Use `LOG_FATAL` for cases such as:
 - null builders or required singletons
 - missing required database objects that indicate a bug
 - invalid state where any continuation would be misleading or unsafe
@@ -45,7 +45,7 @@ A narrow existing exception may remain in config parsing code when converting JS
 ### Forbidden Patterns
 
 - `throw`, `try`, or `catch` in normal iCTS implementation code
-- `exit()` or `abort()` instead of `CTS_LOG_FATAL`
+- `exit()` or `abort()` instead of `LOG_FATAL`
 - `assert()` as runtime error handling
 - silent failure without logging when the caller needs diagnostic context
 

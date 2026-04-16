@@ -38,6 +38,7 @@ namespace icts_test::htree {
 struct HTreeArtifactPaths
 {
   std::filesystem::path output_dir;
+  std::filesystem::path cts_log;
   std::filesystem::path topology_svg;
   std::filesystem::path materialized_svg;
   std::filesystem::path pareto_svg;

@@ -14,6 +14,7 @@ icts_add_test_executable(
     ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechSmokeTest.cc
   LIBS
     icts_test_common_data_pin_factory
+    icts_test_common_logging_support
     icts_test_common_io
     icts_test_common_realtech_support
     icts_test_common_visualization

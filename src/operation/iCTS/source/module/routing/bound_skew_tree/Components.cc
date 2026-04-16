@@ -23,17 +23,20 @@
 
 #include "Components.hh"
 
-#include <algorithm>
+#include <glog/logging.h>
 
-#include "logger/Logger.hh"
+#include <algorithm>
+#include <ostream>
+
+#include "Log.hh"
 
 namespace icts::bst {
 
 auto TransformedRect::check() -> void
 {
   correction();
-  CTS_LOG_FATAL_IF(is_empty()) << "TRR is empty, which x_low: " << _x_low << ", x_high: " << _x_high << ", y_low: " << _y_low
-                               << ", y_high: " << _y_high;
+  LOG_FATAL_IF(is_empty()) << "TRR is empty, which x_low: " << _x_low << ", x_high: " << _x_high << ", y_low: " << _y_low
+                           << ", y_high: " << _y_high;
 }
 
 auto TransformedRect::correction() -> void

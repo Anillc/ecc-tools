@@ -23,10 +23,12 @@
 
 #include "STAAdapter.hh"
 
+#include <glog/logging.h>
 #include <stdint.h>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <initializer_list>
@@ -34,6 +36,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <ranges>
 #include <set>
 #include <string>
@@ -48,6 +51,7 @@
 #include "IdbLayout.h"
 #include "IdbPins.h"
 #include "IdbUnits.h"
+#include "Log.hh"
 #include "PwrConfig.hh"
 #include "PwrType.hh"
 #include "TimingDBAdapter.hh"
@@ -68,7 +72,8 @@
 #include "dm_config.h"
 #include "idm.h"
 #include "liberty/Lib.hh"
-#include "logger/Logger.hh"
+#include "logger/LogFormat.hh"
+#include "logger/Schema.hh"
 #include "netlist/DesignObject.hh"
 #include "netlist/Instance.hh"
 #include "netlist/Net.hh"
@@ -86,11 +91,28 @@ namespace {
 constexpr int kStaThreadCount = 80;
 constexpr int kCharStaThreadCount = 1;
 constexpr int kWorstPathPerClock = 10;
+constexpr double kMilliOhmPerOhm = 1000.0;
+constexpr const char* kStaAdapterOwner = "STAAdapter";
 constexpr std::array<ista::LibTable::TableType, 4> kCharArcTableTypes = {
     ista::LibTable::TableType::kCellRise,
     ista::LibTable::TableType::kCellFall,
     ista::LibTable::TableType::kRiseTransition,
     ista::LibTable::TableType::kFallTransition,
+};
+
+struct WireRcProbe
+{
+  int routing_layer = 0;
+  std::optional<double> wire_width_um = std::nullopt;
+  double query_length_um = 1.0;
+  double resistance_per_um_ohm = 0.0;
+  double capacitance_per_um_pf = 0.0;
+  bool queried = false;
+  bool has_diagnostic = false;
+  schema::DiagnosticLevel diagnostic_level = schema::DiagnosticLevel::kInfo;
+  std::string diagnostic_summary;
+  std::string status = "not_queried";
+  std::string detail;
 };
 
 auto GetDbConfig() -> decltype(auto)
@@ -113,13 +135,13 @@ auto BuildSandboxCharPower() -> IctsCharPowerPtr
   auto timing_facade = GetCharTimingFacade();
   auto* char_graph = timing_facade.getCharGraph();
   if (char_graph == nullptr) {
-    CTS_LOG_WARNING << "Characterization power setup skipped: sandbox STA graph is not ready.";
+    LOG_WARNING << "Characterization power setup skipped: sandbox STA graph is not ready.";
     return nullptr;
   }
 
   auto clocks = timing_facade.getCharClocks();
   if (clocks.empty()) {
-    CTS_LOG_WARNING << "Characterization power setup skipped: sandbox STA has no clock objects.";
+    LOG_WARNING << "Characterization power setup skipped: sandbox STA has no clock objects.";
     return nullptr;
   }
 
@@ -133,7 +155,7 @@ auto BuildSandboxCharPower() -> IctsCharPowerPtr
     }
   }
   if (fastest_clock == nullptr) {
-    CTS_LOG_WARNING << "Characterization power setup skipped: sandbox propagated clock is null.";
+    LOG_WARNING << "Characterization power setup skipped: sandbox propagated clock is null.";
     return nullptr;
   }
 
@@ -188,7 +210,7 @@ auto LoadConfiguredSdc(ista::TimingEngine* timing_engine) -> void
 {
   const auto& sdc_path = GetDbConfig().get_sdc_path();
   if (sdc_path.empty()) {
-    CTS_LOG_WARNING << "STA SDC path is empty; skip readSdc during initialization.";
+    LOG_WARNING << "STA SDC path is empty; skip readSdc during initialization.";
     return;
   }
   timing_engine->readSdc(sdc_path.c_str());
@@ -308,19 +330,19 @@ auto AnnotateCharSourceInputPower(ipower::Power* power, const std::optional<std:
 
   auto* source_vertex = FindCharVertex(*source_input_pin_full_name);
   if (source_vertex == nullptr) {
-    CTS_LOG_WARNING << "Characterization power source pin is not found: " << *source_input_pin_full_name;
+    LOG_WARNING << "Characterization power source pin is not found: " << *source_input_pin_full_name;
     return;
   }
 
   auto* pwr_vertex = power->get_power_graph().staToPwrVertex(source_vertex);
   if (pwr_vertex == nullptr) {
-    CTS_LOG_WARNING << "Characterization power source vertex is not found in iPA graph: " << *source_input_pin_full_name;
+    LOG_WARNING << "Characterization power source vertex is not found in iPA graph: " << *source_input_pin_full_name;
     return;
   }
 
   const double clock_period_ns = power->get_power_graph().get_fastest_clock().get_clock_period_ns();
   if (clock_period_ns <= 0.0) {
-    CTS_LOG_WARNING << "Characterization power source pin cannot be annotated because clock period is invalid.";
+    LOG_WARNING << "Characterization power source pin cannot be annotated because clock period is invalid.";
     return;
   }
 
@@ -369,6 +391,131 @@ auto ConvertAxisValue(ista::LibLibrary* owner_lib, ista::LibLutTableTemplate::Va
   }
 }
 
+auto ResolveConfiguredRoutingLayer() -> int
+{
+  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  if (routing_layers.empty()) {
+    return 1;
+  }
+  return static_cast<int>(routing_layers.front());
+}
+
+auto ResolveConfiguredWireWidth() -> std::optional<double>
+{
+  const double wire_width = CONFIG_INST.get_wire_width();
+  return wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
+}
+
+auto FormatOptionalWireWidth(std::optional<double> wire_width_um) -> std::string
+{
+  return wire_width_um.has_value() ? logformat::FormatWithUnit(*wire_width_um, "um") : "library_default";
+}
+
+auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) -> WireRcProbe
+{
+  WireRcProbe probe;
+  probe.routing_layer = routing_layer;
+  probe.wire_width_um = wire_width_um;
+
+  if (routing_layer <= 0) {
+    probe.has_diagnostic = true;
+    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_summary = "effective routing layer is invalid for unit RC probing.";
+    probe.status = "invalid_layer";
+    probe.detail = "routing layer must be positive";
+    return probe;
+  }
+
+  if (GetStaEngine()->getIDBAdapter() == nullptr) {
+    probe.has_diagnostic = true;
+    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_summary = "STA IDB adapter is not ready for unit RC probing.";
+    probe.status = "adapter_unavailable";
+    probe.detail = "STA IDB adapter must be initialized before RC probing";
+    return probe;
+  }
+
+  probe.queried = true;
+  probe.resistance_per_um_ohm = STA_ADAPTER_INST.queryWireResistance(routing_layer, probe.query_length_um, wire_width_um) / kMilliOhmPerOhm;
+  probe.capacitance_per_um_pf = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, probe.query_length_um, wire_width_um);
+
+  if (!std::isfinite(probe.resistance_per_um_ohm) || !std::isfinite(probe.capacitance_per_um_pf)) {
+    probe.has_diagnostic = true;
+    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_summary = "unit wire RC query returned non-finite values.";
+    probe.status = "invalid_nonfinite";
+    probe.detail = "queried unit RC must be finite";
+    return probe;
+  }
+
+  if (probe.resistance_per_um_ohm < 0.0 || probe.capacitance_per_um_pf < 0.0) {
+    probe.has_diagnostic = true;
+    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_summary = "unit wire RC query returned negative values.";
+    probe.status = "invalid_negative";
+    probe.detail = "negative resistance/capacitance is physically invalid";
+    return probe;
+  }
+
+  if (probe.resistance_per_um_ohm == 0.0 || probe.capacitance_per_um_pf == 0.0) {
+    probe.has_diagnostic = true;
+    probe.diagnostic_level = schema::DiagnosticLevel::kWarning;
+    probe.diagnostic_summary = "unit wire RC query returned zero on at least one metric.";
+    probe.status = "warning_zero";
+    probe.detail = "zero unit RC is suspicious; flow continues";
+    return probe;
+  }
+
+  probe.status = "ok";
+  probe.detail = "positive finite unit RC";
+  return probe;
+}
+
+auto EmitWireRcProbeDiagnostic(const WireRcProbe& probe) -> void
+{
+  if (!probe.has_diagnostic) {
+    return;
+  }
+
+  if (probe.diagnostic_level == schema::DiagnosticLevel::kError) {
+    LOG_ERROR << kStaAdapterOwner << ": " << probe.diagnostic_summary << " layer=" << probe.routing_layer
+              << ", wire_width=" << FormatOptionalWireWidth(probe.wire_width_um) << ", resistance="
+              << (probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"})
+              << ", capacitance=" << (probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"});
+  } else {
+    LOG_WARNING << kStaAdapterOwner << ": " << probe.diagnostic_summary << " layer=" << probe.routing_layer
+                << ", wire_width=" << FormatOptionalWireWidth(probe.wire_width_um) << ", resistance="
+                << (probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"})
+                << ", capacitance="
+                << (probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"});
+  }
+
+  schema::EmitDiagnostic(
+      probe.diagnostic_level, kStaAdapterOwner, probe.diagnostic_summary,
+      {
+          {"routing_layer", std::to_string(probe.routing_layer)},
+          {"wire_width_um", FormatOptionalWireWidth(probe.wire_width_um)},
+          {"query_length_um", logformat::FormatWithUnit(probe.query_length_um, "um")},
+          {"unit_resistance", probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"}},
+          {"unit_capacitance", probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"}},
+          {"status", probe.status},
+      });
+}
+
+auto BuildWireRcRows(const WireRcProbe& probe) -> logformat::TableRows
+{
+  return {
+      {"routing_layer", std::to_string(probe.routing_layer), "effective routing layer for unit RC probe"},
+      {"wire_width_um", FormatOptionalWireWidth(probe.wire_width_um), "explicit width override or technology default"},
+      {"query_length_um", logformat::FormatWithUnit(probe.query_length_um, "um"), "single-unit probe length"},
+      {"unit_resistance", probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"},
+       "derived from STAAdapter::queryWireResistance"},
+      {"unit_capacitance", probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"},
+       "derived from STAAdapter::queryWireCapacitance"},
+      {"status", probe.status, probe.detail},
+  };
+}
+
 auto ConvertLibCapToPf(ista::LibCell* lib_cell, double cap_value) -> double
 {
   auto* owner_lib = lib_cell != nullptr ? lib_cell->get_owner_lib() : nullptr;
@@ -414,7 +561,7 @@ auto QueryOutputNetLoadPf(ista::Pin* output_pin, ista::TransType trans_type) -> 
 auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
                      std::unique_ptr<ista::LibCurrentData> output_current_data = nullptr) -> void
 {
-  CTS_LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when installing characterization slew data.";
+  LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when installing characterization slew data.";
   const int slew_fs = static_cast<int>(NS_TO_FS(slew_ns));
   auto slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, trans_type, vertex, slew_fs);
   slew_data->set_output_current_data(std::move(output_current_data));
@@ -424,7 +571,7 @@ auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double
 auto UpsertCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
                         std::unique_ptr<ista::LibCurrentData> output_current_data = nullptr) -> void
 {
-  CTS_LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when updating characterization slew data.";
+  LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when updating characterization slew data.";
   auto* slew_data = vertex->getSlewData(ista::AnalysisMode::kMax, trans_type, nullptr);
   if (slew_data == nullptr) {
     AddCharSlewData(vertex, trans_type, slew_ns, std::move(output_current_data));
@@ -439,14 +586,14 @@ auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_p
                               ista::Instance* source_inst, ista::LibCell* lib_cell, ista::LibArcSet* source_arc_set, ista::LibArc* lib_arc,
                               double slew_ns) -> void
 {
-  CTS_LOG_FATAL_IF(input_vertex == nullptr) << "Null source input STA vertex in characterization slew update.";
-  CTS_LOG_FATAL_IF(output_pin == nullptr) << "Null source output STA pin in characterization slew update.";
-  CTS_LOG_FATAL_IF(output_vertex == nullptr) << "Null source output STA vertex in characterization slew update.";
-  CTS_LOG_FATAL_IF(source_inst == nullptr) << "Null source STA instance in characterization slew update.";
-  CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Null source liberty cell in characterization slew update.";
-  CTS_LOG_FATAL_IF(source_arc_set == nullptr || source_arc_set->get_arcs().empty())
+  LOG_FATAL_IF(input_vertex == nullptr) << "Null source input STA vertex in characterization slew update.";
+  LOG_FATAL_IF(output_pin == nullptr) << "Null source output STA pin in characterization slew update.";
+  LOG_FATAL_IF(output_vertex == nullptr) << "Null source output STA vertex in characterization slew update.";
+  LOG_FATAL_IF(source_inst == nullptr) << "Null source STA instance in characterization slew update.";
+  LOG_FATAL_IF(lib_cell == nullptr) << "Null source liberty cell in characterization slew update.";
+  LOG_FATAL_IF(source_arc_set == nullptr || source_arc_set->get_arcs().empty())
       << "Missing source buffer timing arc set for characterization slew update.";
-  CTS_LOG_FATAL_IF(lib_arc == nullptr) << "Missing source liberty arc in characterization slew update.";
+  LOG_FATAL_IF(lib_arc == nullptr) << "Missing source liberty arc in characterization slew update.";
 
   AddCharSlewData(input_vertex, ista::TransType::kRise, slew_ns);
   AddCharSlewData(input_vertex, ista::TransType::kFall, slew_ns);
@@ -465,7 +612,7 @@ auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_p
     const double output_load = ConvertPfLoadToLibUnit(lib_cell, output_load_pf);
     const auto slew_values = source_arc_set->getSlewNs(input_trans_type, output_trans_type, slew_ns, output_load);
     if (slew_values.empty()) {
-      CTS_LOG_WARNING << "Characterization source output slew lookup is empty for " << output_pin->getFullName();
+      LOG_WARNING << "Characterization source output slew lookup is empty for " << output_pin->getFullName();
       return;
     }
 
@@ -481,12 +628,12 @@ auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_p
 auto UpdateCharBufferOutputSlew(ista::Pin* output_pin, ista::StaVertex* output_vertex, ista::LibCell* lib_cell,
                                 ista::LibArcSet* source_arc_set, ista::LibArc* lib_arc, double slew_ns) -> void
 {
-  CTS_LOG_FATAL_IF(output_pin == nullptr) << "Null source output STA pin in characterization slew update.";
-  CTS_LOG_FATAL_IF(output_vertex == nullptr) << "Null source output STA vertex in characterization slew update.";
-  CTS_LOG_FATAL_IF(lib_cell == nullptr) << "Null source liberty cell in characterization slew update.";
-  CTS_LOG_FATAL_IF(source_arc_set == nullptr || source_arc_set->get_arcs().empty())
+  LOG_FATAL_IF(output_pin == nullptr) << "Null source output STA pin in characterization slew update.";
+  LOG_FATAL_IF(output_vertex == nullptr) << "Null source output STA vertex in characterization slew update.";
+  LOG_FATAL_IF(lib_cell == nullptr) << "Null source liberty cell in characterization slew update.";
+  LOG_FATAL_IF(source_arc_set == nullptr || source_arc_set->get_arcs().empty())
       << "Missing source buffer timing arc set for characterization slew update.";
-  CTS_LOG_FATAL_IF(lib_arc == nullptr) << "Missing source liberty arc in characterization slew update.";
+  LOG_FATAL_IF(lib_arc == nullptr) << "Missing source liberty arc in characterization slew update.";
 
   const bool is_negative_arc = source_arc_set->isNegativeArc() != 0U;
   const auto apply_output_model = [&](ista::TransType input_trans_type) -> void {
@@ -502,7 +649,7 @@ auto UpdateCharBufferOutputSlew(ista::Pin* output_pin, ista::StaVertex* output_v
     const double output_load = ConvertPfLoadToLibUnit(lib_cell, output_load_pf);
     const auto slew_values = source_arc_set->getSlewNs(input_trans_type, output_trans_type, slew_ns, output_load);
     if (slew_values.empty()) {
-      CTS_LOG_WARNING << "Characterization source output slew lookup is empty for " << output_pin->getFullName();
+      LOG_WARNING << "Characterization source output slew lookup is empty for " << output_pin->getFullName();
       return;
     }
 
@@ -517,7 +664,7 @@ auto UpdateCharBufferOutputSlew(ista::Pin* output_pin, ista::StaVertex* output_v
 
 auto QueryCharClockATFromVertex(ista::StaVertex* vertex, const std::string& clock_name) -> double
 {
-  CTS_LOG_FATAL_IF(vertex == nullptr) << "Null sink STA vertex in characterization clock-arrival query.";
+  LOG_FATAL_IF(vertex == nullptr) << "Null sink STA vertex in characterization clock-arrival query.";
 
   const auto pick_max_value = [](const std::optional<int64_t>& lhs, const std::optional<int64_t>& rhs) -> double {
     const auto to_ns = [](const std::optional<int64_t>& value) -> double {
@@ -540,13 +687,13 @@ auto QueryCharClockATFromVertex(ista::StaVertex* vertex, const std::string& cloc
     return delay_ns;
   }
 
-  CTS_LOG_WARNING << "No characterization arrival time at pin: " << vertex->getName() << " for clock: " << clock_name;
+  LOG_WARNING << "No characterization arrival time at pin: " << vertex->getName() << " for clock: " << clock_name;
   return 0.0;
 }
 
 auto QueryCharSlewFromVertex(ista::StaVertex* vertex) -> double
 {
-  CTS_LOG_FATAL_IF(vertex == nullptr) << "Null sink STA vertex in characterization slew query.";
+  LOG_FATAL_IF(vertex == nullptr) << "Null sink STA vertex in characterization slew query.";
 
   const double rise_slew = vertex->getSlewNs(ista::AnalysisMode::kMax, ista::TransType::kRise).value_or(0.0);
   const double fall_slew = vertex->getSlewNs(ista::AnalysisMode::kMax, ista::TransType::kFall).value_or(0.0);
@@ -556,28 +703,33 @@ auto QueryCharSlewFromVertex(ista::StaVertex* vertex) -> double
 
   const double slew_ns = rise_slew > 0.0 ? rise_slew : fall_slew;
   if (slew_ns == 0.0) {
-    CTS_LOG_WARNING << "No characterization slew is available at pin: " << vertex->getName();
+    LOG_WARNING << "No characterization slew is available at pin: " << vertex->getName();
   }
   return slew_ns;
 }
 
-auto QueryBufferTableAxisMax(const std::string& cell_master, std::initializer_list<ista::LibLutTableTemplate::Variable> target_variables)
-    -> double
+auto MakeCharQueryContext(const char* query_name, const std::string& cell_master) -> std::string
+{
+  return "Characterization query [" + std::string(query_name) + "] for liberty cell \"" + cell_master + "\"";
+}
+
+auto QueryBufferTableAxisMax(const std::string& cell_master, const char* query_name,
+                             std::initializer_list<ista::LibLutTableTemplate::Variable> target_variables) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    LOG_WARNING << MakeCharQueryContext(query_name, cell_master) << " failed: liberty cell not found; return 0.0.";
     return 0.0;
   }
 
   auto timing_arc_set = FindBufferArcSet(lib_cell);
   if (!timing_arc_set.has_value() || timing_arc_set.value() == nullptr || timing_arc_set.value()->get_arcs().empty()) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " has no buffer timing arc set.";
+    LOG_WARNING << MakeCharQueryContext(query_name, cell_master) << " failed: no buffer timing arcs are available; return 0.0.";
     return 0.0;
   }
 
   auto* owner_lib = lib_cell->get_owner_lib();
-  CTS_LOG_WARNING_IF(owner_lib == nullptr) << "Liberty cell " << cell_master << " has no owner liberty.";
+  LOG_WARNING_IF(owner_lib == nullptr) << MakeCharQueryContext(query_name, cell_master) << " failed: owner liberty is null; return 0.0.";
   if (owner_lib == nullptr) {
     return 0.0;
   }
@@ -630,6 +782,7 @@ auto QueryBufferTableAxisMax(const std::string& cell_master, std::initializer_li
   }
 
   if (!found_axis) {
+    LOG_WARNING << MakeCharQueryContext(query_name, cell_master) << " found no matching non-empty table axis values; return 0.0.";
     return 0.0;
   }
 
@@ -672,8 +825,8 @@ auto STAAdapter::initCharOnly() -> void
 {
   auto& adapter = getInst();
   if (adapter._is_char_only_active) {
-    CTS_LOG_WARNING << "initCharOnly called while char-only mode is already active; "
-                    << "resetting the previous characterization state first.";
+    LOG_WARNING << "initCharOnly called while char-only mode is already active; "
+                << "resetting the previous characterization state first.";
     finishCharOnly();
   }
   adapter.resetIctsCharTimingRuntime();
@@ -698,13 +851,13 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
   auto name = inst_name;
   std::erase(name, '\\');
   auto* sta_netlist = GetStaEngine()->get_netlist();
-  CTS_LOG_FATAL_IF(sta_netlist == nullptr) << "STA netlist is null.";
+  LOG_FATAL_IF(sta_netlist == nullptr) << "STA netlist is null.";
   auto* sta_inst = sta_netlist->findInstance(name.c_str());
   auto* lib_cell = sta_inst != nullptr ? sta_inst->get_inst_cell() : nullptr;
   if (sta_inst == nullptr) {
-    CTS_LOG_ERROR << "Instance " << name << " is not found in the STA netlist.";
+    LOG_ERROR << "Instance " << name << " is not found in the STA netlist.";
   } else if (lib_cell == nullptr) {
-    CTS_LOG_ERROR << "Instance " << name << " has no liberty cell in the STA netlist.";
+    LOG_ERROR << "Instance " << name << " has no liberty cell in the STA netlist.";
   } else if (lib_cell->isSequentialCell()) {
     inst_type = icts::InstType::kFlipFlop;
   } else if (lib_cell->isBuffer()) {
@@ -720,19 +873,18 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 
   const std::string cell_master = lib_cell != nullptr ? lib_cell->get_cell_name() : "unknown";
   auto* idb_builder = dmInst->get_idb_builder();
-  CTS_LOG_FATAL_IF(idb_builder == nullptr) << "iDB builder is null when querying instance type for " << name;
+  LOG_FATAL_IF(idb_builder == nullptr) << "iDB builder is null when querying instance type for " << name;
   auto* def_service = idb_builder->get_def_service();
-  CTS_LOG_FATAL_IF(def_service == nullptr) << "DEF service is null when querying instance type for " << name;
+  LOG_FATAL_IF(def_service == nullptr) << "DEF service is null when querying instance type for " << name;
   auto* idb_design = def_service->get_design();
-  CTS_LOG_FATAL_IF(idb_design == nullptr) << "iDB design is null when querying instance type for " << name;
+  LOG_FATAL_IF(idb_design == nullptr) << "iDB design is null when querying instance type for " << name;
   auto* inst_list = idb_design->get_instance_list();
-  CTS_LOG_FATAL_IF(inst_list == nullptr) << "iDB instance list is null when querying instance type for " << name;
+  LOG_FATAL_IF(inst_list == nullptr) << "iDB instance list is null when querying instance type for " << name;
   idb::IdbInstance* idb_inst = inst_list->find_instance(inst_name);
-  CTS_LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " type is unknown (not found instance in iDB) which cell is "
-                                        << cell_master;
+  LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " type is unknown (not found instance in iDB) which cell is " << cell_master;
 
   auto* pin_list = idb_inst->get_pin_list();
-  CTS_LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
+  LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
 
   constexpr std::ptrdiff_t clock_input_pin_limit = 1;
   const auto clock_input_pins = std::ranges::count_if(pin_list->get_pin_list(), [&](auto* idb_pin) -> bool {
@@ -742,12 +894,12 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
       return false;
     }
     auto* idb_net = idb_pin->get_net();
-    CTS_LOG_FATAL_IF(idb_net == nullptr) << "Instance " << name << " pin " << idb_pin->get_pin_name()
-                                         << " is not connected to any net, error in inst type judgement, which cell is " << cell_master;
+    LOG_FATAL_IF(idb_net == nullptr) << "Instance " << name << " pin " << idb_pin->get_pin_name()
+                                     << " is not connected to any net, error in inst type judgement, which cell is " << cell_master;
 
     if (idb_net->is_clock() == 0U) {
-      CTS_LOG_WARNING << "Instance " << name << " pin " << idb_pin->get_pin_name() << " connected net " << idb_net->get_net_name()
-                      << " is not clock net, warning in inst type judgement, which cell is " << cell_master;
+      LOG_WARNING << "Instance " << name << " pin " << idb_pin->get_pin_name() << " connected net " << idb_net->get_net_name()
+                  << " is not clock net, warning in inst type judgement, which cell is " << cell_master;
       return false;
     }
     return true;
@@ -757,7 +909,7 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
     return inst_type;
   }
 
-  CTS_LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master;
+  LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master;
   return inst_type;
 }
 
@@ -772,12 +924,12 @@ auto STAAdapter::isClockNet(const std::string& net_name) -> bool
 {
   auto* sta_netlist = GetStaEngine()->get_netlist();
   if (sta_netlist == nullptr) {
-    CTS_LOG_ERROR << "STA netlist is not ready.";
+    LOG_ERROR << "STA netlist is not ready.";
     return false;
   }
   auto* sta_net = sta_netlist->findNet(net_name.c_str());
   if (sta_net == nullptr) {
-    CTS_LOG_ERROR << "Net " << net_name << " is not found in the STA netlist.";
+    LOG_ERROR << "Net " << net_name << " is not found in the STA netlist.";
     return false;
   }
   return sta_net->isClockNet();
@@ -788,7 +940,7 @@ auto STAAdapter::collectClockNetPairs() -> std::vector<std::pair<std::string, st
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
   auto* sta_netlist = GetStaEngine()->get_netlist();
   if (sta_netlist == nullptr) {
-    CTS_LOG_ERROR << "STA netlist is null when collecting clock nets.";
+    LOG_ERROR << "STA netlist is null when collecting clock nets.";
     return clock_net_pairs;
   }
 
@@ -800,7 +952,7 @@ auto STAAdapter::collectClockNetPairs() -> std::vector<std::pair<std::string, st
     }
     auto* sta_clock = GetStaEngine()->getPropClockOfNet(sta_net);
     if (sta_clock == nullptr) {
-      CTS_LOG_WARNING << "Clock net \"" << sta_net->get_name() << "\" has no propagated clock in STA.";
+      LOG_WARNING << "Clock net \"" << sta_net->get_name() << "\" has no propagated clock in STA.";
       continue;
     }
     clock_net_pairs.emplace_back(sta_clock->get_clock_name(), sta_net->get_name());
@@ -812,7 +964,7 @@ auto STAAdapter::queryWireResistance(int routing_layer, double length, std::opti
 {
   auto* idb_adapter = GetStaEngine()->getIDBAdapter();
   if (idb_adapter == nullptr) {
-    CTS_LOG_ERROR << "STA IDB adapter is not ready.";
+    LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
   }
   return idb_adapter->getResistance(routing_layer, length, wire_width);
@@ -822,17 +974,30 @@ auto STAAdapter::queryWireCapacitance(int routing_layer, double length, std::opt
 {
   auto* idb_adapter = GetStaEngine()->getIDBAdapter();
   if (idb_adapter == nullptr) {
-    CTS_LOG_ERROR << "STA IDB adapter is not ready.";
+    LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
   }
   return idb_adapter->getCapacitance(routing_layer, length, wire_width);
+}
+
+auto STAAdapter::emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width) -> void
+{
+  const WireRcProbe probe = QueryWireRcProbe(routing_layer, wire_width);
+  EmitWireRcProbeDiagnostic(probe);
+  schema::EmitTable(title, {"Item", "Value", "Detail"}, BuildWireRcRows(probe));
+}
+
+auto STAAdapter::emitConfiguredUnitWireRcReport(const std::string& title) -> void
+{
+  emitUnitWireRcReport(title, ResolveConfiguredRoutingLayer(), ResolveConfiguredWireWidth());
 }
 
 auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    LOG_WARNING << MakeCharQueryContext("output pin cap limit", cell_master)
+                << " failed: liberty cell not found; caller may fallback to table-axis max.";
     return 0.0;
   }
 
@@ -840,12 +1005,15 @@ auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> doub
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
   if (output == nullptr) {
+    LOG_WARNING << MakeCharQueryContext("output pin cap limit", cell_master)
+                << " failed: output pin is unavailable; caller may fallback to table-axis max.";
     return 0.0;
   }
 
   auto cap_limit = output->get_port_cap_limit(ista::AnalysisMode::kMax);
   if (!cap_limit.has_value()) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " output pin has no cap limit defined.";
+    LOG_WARNING << MakeCharQueryContext("output pin cap limit", cell_master)
+                << " failed: max cap limit is not defined on output pin; caller may fallback to table-axis max.";
     return 0.0;
   }
   return ConvertLibCapToPf(lib_cell, *cap_limit);
@@ -853,15 +1021,17 @@ auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> doub
 
 auto STAAdapter::queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double
 {
-  return QueryBufferTableAxisMax(cell_master, {ista::LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE,
-                                               ista::LibLutTableTemplate::Variable::EQUAL_OR_OPPOSITE_OUTPUT_NET_CAPACITANCE});
+  return QueryBufferTableAxisMax(cell_master, "output pin cap table-axis max",
+                                 {ista::LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE,
+                                  ista::LibLutTableTemplate::Variable::EQUAL_OR_OPPOSITE_OUTPUT_NET_CAPACITANCE});
 }
 
 auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    LOG_WARNING << MakeCharQueryContext("input pin slew limit", cell_master)
+                << " failed: liberty cell not found; caller may fallback to table-axis max.";
     return 0.0;
   }
 
@@ -869,13 +1039,15 @@ auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> doub
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
   if (input == nullptr) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " has no input pin defined.";
+    LOG_WARNING << MakeCharQueryContext("input pin slew limit", cell_master)
+                << " failed: input pin is unavailable; caller may fallback to table-axis max.";
     return 0.0;
   }
 
   auto slew_limit = input->get_port_slew_limit(ista::AnalysisMode::kMax);
   if (!slew_limit.has_value()) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " input pin has no slew limit defined.";
+    LOG_WARNING << MakeCharQueryContext("input pin slew limit", cell_master)
+                << " failed: max slew limit is not defined on input pin; caller may fallback to table-axis max.";
     return 0.0;
   }
   return ConvertLibTimeToNs(lib_cell, *slew_limit);
@@ -884,7 +1056,7 @@ auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> doub
 auto STAAdapter::queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double
 {
   return QueryBufferTableAxisMax(
-      cell_master,
+      cell_master, "input pin slew table-axis max",
       {ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION, ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION,
        ista::LibLutTableTemplate::Variable::INPUT_TRANSITION_TIME, ista::LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION});
 }
@@ -893,19 +1065,22 @@ auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
 {
   auto* idb_layout = dmInst->get_idb_layout();
   if (idb_layout == nullptr || idb_layout->get_cell_master_list() == nullptr || idb_layout->get_units() == nullptr) {
-    CTS_LOG_WARNING << "iDB layout is not ready when querying cell height for " << cell_master;
+    LOG_WARNING << MakeCharQueryContext("cell height", cell_master)
+                << " failed: iDB layout metadata is not ready; auto-derived characterization unit may be unavailable.";
     return 0.0;
   }
 
   auto* idb_master = idb_layout->get_cell_master_list()->find_cell_master(cell_master);
   if (idb_master == nullptr) {
-    CTS_LOG_WARNING << "iDB cell master " << cell_master << " not found when querying cell height.";
+    LOG_WARNING << MakeCharQueryContext("cell height", cell_master)
+                << " failed: iDB cell master is not found; auto-derived characterization unit may be unavailable.";
     return 0.0;
   }
 
   const int dbu_per_micron = idb_layout->get_units()->get_micron_dbu();
   if (dbu_per_micron <= 0) {
-    CTS_LOG_WARNING << "Invalid DBU-per-micron value when querying cell height for " << cell_master;
+    LOG_WARNING << MakeCharQueryContext("cell height", cell_master)
+                << " failed: invalid DBU-per-micron in iDB units; auto-derived characterization unit may be unavailable.";
     return 0.0;
   }
 
@@ -915,21 +1090,21 @@ auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
 auto STAAdapter::createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string
 {
   auto* inst = GetCharTimingFacade().createCharInstance(cell_master, inst_name);
-  CTS_LOG_FATAL_IF(inst == nullptr) << "Failed to create instance: " << inst_name;
+  LOG_FATAL_IF(inst == nullptr) << "Failed to create instance: " << inst_name;
   return inst_name;
 }
 
 auto STAAdapter::createCharNet(const std::string& net_name) -> std::string
 {
   auto* net = GetCharTimingFacade().createCharNet(net_name);
-  CTS_LOG_FATAL_IF(net == nullptr) << "Failed to create net: " << net_name;
+  LOG_FATAL_IF(net == nullptr) << "Failed to create net: " << net_name;
   return net_name;
 }
 
 auto STAAdapter::attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void
 {
   auto* pin = GetCharTimingFacade().attachCharPin(inst_name, port_name, net_name);
-  CTS_LOG_FATAL_IF(pin == nullptr) << "Cannot attach characterization pin " << inst_name << "/" << port_name;
+  LOG_FATAL_IF(pin == nullptr) << "Cannot attach characterization pin " << inst_name << "/" << port_name;
 }
 
 auto STAAdapter::buildCharNetGraph(const std::string& net_name) -> void
@@ -945,7 +1120,7 @@ auto STAAdapter::buildCharRcTree(const std::string& net_name, const CharRcTreeCo
 auto STAAdapter::createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void
 {
   auto* clock = GetCharTimingFacade().createCharClock(source_pin_full_name, clock_name, period_ns);
-  CTS_LOG_FATAL_IF(clock == nullptr) << "Cannot create characterization clock: " << clock_name;
+  LOG_FATAL_IF(clock == nullptr) << "Cannot create characterization clock: " << clock_name;
 }
 
 auto STAAdapter::destroyCharClock() -> void
@@ -976,28 +1151,27 @@ auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name
   runtime.source_output_vertex = timing_facade.findCharVertex(output_pin_full_name);
   runtime.sink_vertex = timing_facade.findCharVertex(sink_pin_full_name);
 
-  CTS_LOG_FATAL_IF(runtime.source_input_pin == nullptr) << "Cannot find source input pin: " << input_pin_full_name;
-  CTS_LOG_FATAL_IF(runtime.source_output_pin == nullptr) << "Cannot find source output pin: " << output_pin_full_name;
-  CTS_LOG_FATAL_IF(runtime.source_input_vertex == nullptr) << "Cannot find source input vertex: " << input_pin_full_name;
-  CTS_LOG_FATAL_IF(runtime.source_output_vertex == nullptr) << "Cannot find source output vertex: " << output_pin_full_name;
-  CTS_LOG_FATAL_IF(runtime.sink_vertex == nullptr) << "Cannot find sink input vertex: " << sink_pin_full_name;
+  LOG_FATAL_IF(runtime.source_input_pin == nullptr) << "Cannot find source input pin: " << input_pin_full_name;
+  LOG_FATAL_IF(runtime.source_output_pin == nullptr) << "Cannot find source output pin: " << output_pin_full_name;
+  LOG_FATAL_IF(runtime.source_input_vertex == nullptr) << "Cannot find source input vertex: " << input_pin_full_name;
+  LOG_FATAL_IF(runtime.source_output_vertex == nullptr) << "Cannot find source output vertex: " << output_pin_full_name;
+  LOG_FATAL_IF(runtime.sink_vertex == nullptr) << "Cannot find sink input vertex: " << sink_pin_full_name;
 
   runtime.source_inst = runtime.source_output_pin->get_own_instance();
-  CTS_LOG_FATAL_IF(runtime.source_inst == nullptr) << "Source output pin has no owning instance: " << output_pin_full_name;
-  CTS_LOG_FATAL_IF(runtime.source_input_pin->get_own_instance() != runtime.source_inst)
+  LOG_FATAL_IF(runtime.source_inst == nullptr) << "Source output pin has no owning instance: " << output_pin_full_name;
+  LOG_FATAL_IF(runtime.source_input_pin->get_own_instance() != runtime.source_inst)
       << "Source input/output pins do not belong to the same instance: " << input_pin_full_name << " / " << output_pin_full_name;
 
   runtime.source_lib_cell = runtime.source_inst->get_inst_cell();
-  CTS_LOG_FATAL_IF(runtime.source_lib_cell == nullptr) << "Source instance has no liberty cell: " << runtime.source_inst->get_name();
+  LOG_FATAL_IF(runtime.source_lib_cell == nullptr) << "Source instance has no liberty cell: " << runtime.source_inst->get_name();
 
   auto timing_arc_set = FindBufferArcSet(runtime.source_lib_cell);
   runtime.source_arc_set = timing_arc_set.value_or(nullptr);
-  CTS_LOG_FATAL_IF(runtime.source_arc_set == nullptr || runtime.source_arc_set->get_arcs().empty())
+  LOG_FATAL_IF(runtime.source_arc_set == nullptr || runtime.source_arc_set->get_arcs().empty())
       << "Cannot resolve buffer timing arc for source instance " << runtime.source_inst->get_name();
 
   runtime.source_lib_arc = runtime.source_arc_set->front();
-  CTS_LOG_FATAL_IF(runtime.source_lib_arc == nullptr)
-      << "Source buffer liberty arc is null for instance " << runtime.source_inst->get_name();
+  LOG_FATAL_IF(runtime.source_lib_arc == nullptr) << "Source buffer liberty arc is null for instance " << runtime.source_inst->get_name();
 
   runtime.is_ready = true;
   timing_facade.prepareCharTimingContext();
@@ -1012,7 +1186,7 @@ auto STAAdapter::setCharBufferInputSlew(double slew_ns) -> void
 {
   auto& adapter = getInst();
   auto& runtime = adapter._icts_char_timing_runtime;
-  CTS_LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew injection.";
+  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew injection.";
   runtime.source_input_vertex->resetColor();
   runtime.source_input_vertex->resetLevel();
   runtime.source_input_vertex->reset_is_slew_prop();
@@ -1031,7 +1205,7 @@ auto STAAdapter::setCharBufferInputSlewIncremental(double slew_ns) -> void
 {
   auto& adapter = getInst();
   auto& runtime = adapter._icts_char_timing_runtime;
-  CTS_LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental slew injection.";
+  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental slew injection.";
 
   runtime.source_input_vertex->resetSlewBucket();
   AddCharSlewData(runtime.source_input_vertex, ista::TransType::kRise, slew_ns);
@@ -1048,7 +1222,7 @@ auto STAAdapter::updateCharTimingSample() -> void
 auto STAAdapter::updateCharTimingIncrementalSample() -> void
 {
   auto& runtime = getInst()._icts_char_timing_runtime;
-  CTS_LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental propagation.";
+  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental propagation.";
   ista::icts_char::TimingFacade(*GetStaEngine()).propagateCharTimingIncrementalSample(runtime.source_output_vertex, runtime.sink_vertex);
 }
 
@@ -1065,13 +1239,13 @@ auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, co
   runtime.source_input_pin_full_name = std::move(source_input_pin_full_name);
 
   if (runtime.inst_names.empty()) {
-    CTS_LOG_WARNING << "Characterization power setup skipped: no selected instances are provided.";
+    LOG_WARNING << "Characterization power setup skipped: no selected instances are provided.";
     return false;
   }
 
   auto clocks = GetCharTimingFacade().getCharClocks();
   if (clocks.empty()) {
-    CTS_LOG_WARNING << "Characterization power setup skipped: sandbox STA has no clock objects.";
+    LOG_WARNING << "Characterization power setup skipped: sandbox STA has no clock objects.";
     return false;
   }
 
@@ -1089,7 +1263,7 @@ auto STAAdapter::refreshCharPowerLoad() -> bool
 
   auto* power = runtime.sandbox_power.get();
   if (!PrimeCharPower(power)) {
-    CTS_LOG_WARNING << "Characterization power load refresh skipped: iPA graph is not ready.";
+    LOG_WARNING << "Characterization power load refresh skipped: iPA graph is not ready.";
     return false;
   }
 
@@ -1108,7 +1282,7 @@ auto STAAdapter::updateCharPower() -> bool
     runtime.sandbox_power = BuildSandboxCharPower();
     power = runtime.sandbox_power.get();
     if (!PrimeCharPower(power)) {
-      CTS_LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
+      LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
       return false;
     }
 
@@ -1116,7 +1290,7 @@ auto STAAdapter::updateCharPower() -> bool
     FilterPowerCells(power, runtime.inst_name_set);
     ipower::icts_char::PowerFacade(*power).resetCharLeakagePowerData();
     if (power->calcLeakagePower() == 0U) {
-      CTS_LOG_WARNING << "Characterization power update skipped: leakage calculation failed.";
+      LOG_WARNING << "Characterization power update skipped: leakage calculation failed.";
       ipower::icts_char::PowerFacade(*power).resetCharLeakagePowerData();
       return false;
     }
@@ -1125,18 +1299,18 @@ auto STAAdapter::updateCharPower() -> bool
     auto power_facade = ipower::icts_char::PowerFacade(*power);
     power_facade.resetCharLeakagePowerData();
     if (power_facade.prepareCharInternalPowerContext() == 0U || power_facade.prepareCharInternalPowerSampleContext() == 0U) {
-      CTS_LOG_WARNING << "Characterization power update skipped: internal-power prepared sample context failed.";
+      LOG_WARNING << "Characterization power update skipped: internal-power prepared sample context failed.";
       return false;
     }
     if (power_facade.freezeCharInternalPowerContext() == 0U) {
-      CTS_LOG_WARNING << "Characterization power update skipped: internal-power frozen context failed.";
+      LOG_WARNING << "Characterization power update skipped: internal-power frozen context failed.";
       return false;
     }
     power_facade.refreshCharInternalPowerLoadContext();
     runtime.is_runtime_ready = true;
     runtime.is_switch_power_cached = false;
   } else if (!PrimeCharPower(power)) {
-    CTS_LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
+    LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
     return false;
   }
 
@@ -1147,7 +1321,7 @@ auto STAAdapter::updateCharPower() -> bool
 
   double internal_power_w = 0.0;
   if (ipower::icts_char::PowerFacade(*power).calcFrozenCharInternalPowerTotal(internal_power_w) == 0U) {
-    CTS_LOG_WARNING << "Characterization power update skipped: selected-instance internal-power total-only calculation failed.";
+    LOG_WARNING << "Characterization power update skipped: selected-instance internal-power total-only calculation failed.";
     return false;
   }
 
@@ -1190,14 +1364,14 @@ auto STAAdapter::updateTiming() -> void
 auto STAAdapter::queryCharClockAT(const std::string& clock_name) -> double
 {
   auto& runtime = getInst()._icts_char_timing_runtime;
-  CTS_LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before clock-arrival query.";
+  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before clock-arrival query.";
   return QueryCharClockATFromVertex(runtime.sink_vertex, clock_name);
 }
 
 auto STAAdapter::queryCharSlew() -> double
 {
   auto& runtime = getInst()._icts_char_timing_runtime;
-  CTS_LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew query.";
+  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew query.";
   return QueryCharSlewFromVertex(runtime.sink_vertex);
 }
 
@@ -1205,7 +1379,7 @@ auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    LOG_WARNING << MakeCharQueryContext("input pin cap", cell_master) << " failed: liberty cell not found; return 0.0.";
     return 0.0;
   }
   ista::LibPort* input = nullptr;
@@ -1220,7 +1394,7 @@ auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
 auto STAAdapter::queryPinCapacitance(const Pin* pin) -> double
 {
   if (pin == nullptr) {
-    CTS_LOG_WARNING << "Null pin provided when querying pin capacitance.";
+    LOG_WARNING << "Null pin provided when querying pin capacitance.";
     return 0.0;
   }
 
@@ -1235,7 +1409,7 @@ auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<s
 {
   auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    CTS_LOG_WARNING << "Liberty cell " << cell_master << " not found.";
+    LOG_WARNING << MakeCharQueryContext("buffer ports", cell_master) << " failed: liberty cell not found; return empty port names.";
     return {"", ""};
   }
   ista::LibPort* input = nullptr;

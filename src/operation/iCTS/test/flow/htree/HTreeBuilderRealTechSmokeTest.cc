@@ -26,8 +26,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <optional>
+#include <regex>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -40,6 +43,8 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Tree.hh"
+#include "common/io/TestArtifactIO.hh"
+#include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
@@ -48,6 +53,7 @@
 #include "flow/htree/HTreeBuilder.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts_test {
 namespace {
@@ -145,6 +151,52 @@ auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pi
   return leaf_loads;
 }
 
+auto ReadTextFile(const std::filesystem::path& path) -> std::string
+{
+  std::ifstream input_stream(path);
+  if (!input_stream.is_open()) {
+    return {};
+  }
+
+  std::ostringstream content_stream;
+  content_stream << input_stream.rdbuf();
+  return content_stream.str();
+}
+
+TEST(HTreeSchemaWriterTest, NestedScopedLogFilesRestoreOuterDestination)
+{
+  const auto output_dir = common::io::PrepareCleanOutputDir(common::io::ResolveOutputDir() / "flow" / "htree" / "schema_writer_nested");
+  ASSERT_FALSE(output_dir.empty());
+
+  const auto outer_log = output_dir / "outer_cts.log";
+  const auto inner_log = output_dir / "inner_cts.log";
+  {
+    const common::logging::ScopedLogFile outer_guard(outer_log, "Outer CTS Report");
+    icts::schema::EmitKeyValueTable("Outer Before", {
+                                                        {"phase", "before"},
+                                                    });
+    {
+      const common::logging::ScopedLogFile inner_guard(inner_log, "Inner CTS Report");
+      icts::schema::EmitKeyValueTable("Inner Body", {
+                                                        {"phase", "inside"},
+                                                    });
+    }
+    icts::schema::EmitKeyValueTable("Outer After", {
+                                                       {"phase", "after"},
+                                                   });
+  }
+
+  const auto outer_content = ReadTextFile(outer_log);
+  const auto inner_content = ReadTextFile(inner_log);
+  ASSERT_FALSE(outer_content.empty());
+  ASSERT_FALSE(inner_content.empty());
+  EXPECT_NE(outer_content.find("Outer Before"), std::string::npos);
+  EXPECT_NE(outer_content.find("Outer After"), std::string::npos);
+  EXPECT_EQ(outer_content.find("Inner Body"), std::string::npos);
+  EXPECT_NE(inner_content.find("Inner Body"), std::string::npos);
+  EXPECT_EQ(inner_content.find("Outer After"), std::string::npos);
+}
+
 TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
@@ -181,6 +233,14 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
       << "Selected clock loads do not carry complete DEF/CTS instance context: " << selected_clock->clock_name;
 
   std::unordered_set<icts::Pin*> original_loads(real_loads.begin(), real_loads.end());
+  const auto artifact_paths = htree::PrepareHTreeArtifactPaths("realtech_smoke");
+  ASSERT_FALSE(artifact_paths.output_dir.empty());
+  const common::logging::ScopedLogFile cts_log_guard(artifact_paths.cts_log, "HTree Flow Test Report");
+  SCHEMA_WRITER_INST.emitKeyValueTable("HTree Smoke Scenario", {
+                                                                   {"scenario", "realtech_smoke"},
+                                                                   {"clock_name", selected_clock->clock_name},
+                                                                   {"load_count", std::to_string(real_loads.size())},
+                                                               });
 
   auto result = icts::HTreeBuilder::build(real_loads);
 
@@ -209,9 +269,24 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
     EXPECT_NE(load->get_net(), nullptr);
   }
 
-  const auto artifact_paths = htree::PrepareHTreeArtifactPaths("realtech_smoke");
-  ASSERT_FALSE(artifact_paths.output_dir.empty());
   EXPECT_TRUE(htree::WriteHTreeArtifacts(artifact_paths, "htree_builder_realtech_smoke", selected_clock->clock_name, real_loads, result));
+
+  const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
+  ASSERT_FALSE(cts_log_content.empty());
+  const auto first_line_break = cts_log_content.find('\n');
+  ASSERT_NE(first_line_break, std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Generate the report at "), first_line_break + 1U);
+  EXPECT_NE(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("HTreeBuilder Build Summary"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
+  EXPECT_TRUE(std::regex_search(cts_log_content, std::regex(R"(\|\s*power\s*\|\s*[^|\n]*W\s*\|)")));
+  EXPECT_NE(cts_log_content.find("CharBuilder Sweep Progress"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("report.log Details"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("details omitted from cts.log"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("CharBuilder build Running"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("pareto_solution pattern_id="), std::string::npos);
 }
 
 }  // namespace

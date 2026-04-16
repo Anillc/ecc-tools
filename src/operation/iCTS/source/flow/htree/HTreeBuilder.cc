@@ -23,6 +23,8 @@
 
 #include "htree/HTreeBuilder.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -32,6 +34,7 @@
 #include <limits>
 #include <optional>
 #include <ranges>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -39,6 +42,7 @@
 
 #include "BufferingPattern.hh"
 #include "CharCore.hh"
+#include "Log.hh"
 #include "Point.hh"
 #include "SegmentChar.hh"
 #include "adapter/sta/STAAdapter.hh"
@@ -49,19 +53,51 @@
 #include "config/Config.hh"
 #include "geometry/Geometry.hh"
 #include "io/Wrapper.hh"
-#include "logger/Logger.hh"
+#include "logger/LogFormat.hh"
+#include "logger/Schema.hh"
 #include "topology/TopologyGen.hh"
 
 namespace icts {
 namespace {
+
+enum class CharGridSource
+{
+  kNone,
+  kRuntimeConfig,
+  kAutoDerived
+};
 
 struct CharacterizationGridPlan
 {
   double wire_length_unit_um = 0.0;
   unsigned wire_length_iterations = 0U;
   unsigned unique_level_bins = 0U;
+  double configured_wire_length_unit_um = 0.0;
+  double auto_derived_wire_length_unit_um = 0.0;
+  unsigned requested_level_lengths = 0U;
+  bool configured_wire_length_missing = false;
+  bool configured_grid_collapsed = false;
   bool adapted = false;
+  CharGridSource source = CharGridSource::kNone;
 };
+
+auto toCharGridSourceName(CharGridSource source) -> const char*
+{
+  switch (source) {
+    case CharGridSource::kNone:
+      return "none";
+    case CharGridSource::kRuntimeConfig:
+      return "runtime_config";
+    case CharGridSource::kAutoDerived:
+      return "auto_derived";
+  }
+  return "none";
+}
+
+auto logInfoTable(const std::string& title, const std::vector<std::string>& headers, const logformat::TableRows& rows) -> void
+{
+  schema::EmitTable(title, headers, rows);
+}
 
 struct BufferPortInfo
 {
@@ -111,7 +147,7 @@ class SegmentPatternRegistryCombiner
   {
     const auto* upstream_pattern = _registry->find(upstream);
     const auto* downstream_pattern = _registry->find(downstream);
-    CTS_LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
+    LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
         << "HTreeBuilder: missing segment pattern during composition.";
 
     const PatternId merged_pattern_id = PatternId::segment(_next_id++);
@@ -137,7 +173,7 @@ class TopologyPatternRegistryCombiner
   {
     const auto* upstream_pattern = _registry->find(upstream);
     const auto* downstream_pattern = _registry->find(downstream);
-    CTS_LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
+    LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
         << "HTreeBuilder: missing topology pattern during composition.";
 
     const PatternId merged_pattern_id = PatternId::topology(_next_id++);
@@ -405,19 +441,45 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   if (requested_lengths_um.empty()) {
     return plan;
   }
+  plan.requested_level_lengths = static_cast<unsigned>(requested_lengths_um.size());
 
   const double configured_unit_um = CONFIG_INST.get_wire_length_unit_um();
+  plan.configured_wire_length_unit_um = configured_unit_um;
+  plan.configured_wire_length_missing = configured_unit_um <= 0.0;
+
   double effective_unit_um = configured_unit_um;
   if (effective_unit_um > 0.0) {
     plan.unique_level_bins = CountUniqueAlignedLengthBins(requested_lengths_um, effective_unit_um);
+    plan.source = CharGridSource::kRuntimeConfig;
   }
 
   const double max_requested_length_um = *std::ranges::max_element(requested_lengths_um);
   const double fallback_unit_um = max_requested_length_um / static_cast<double>(requested_lengths_um.size());
-  const bool grid_collapsed = requested_lengths_um.size() > 1U && plan.unique_level_bins <= 1U;
-  if (configured_unit_um <= 0.0 || grid_collapsed) {
+  const bool grid_collapsed = configured_unit_um > 0.0 && requested_lengths_um.size() > 1U && plan.unique_level_bins <= 1U;
+  plan.configured_grid_collapsed = grid_collapsed;
+  if (plan.configured_wire_length_missing || grid_collapsed) {
+    if (plan.configured_wire_length_missing) {
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "HTreeBuilder",
+                             "wire_length_unit_um is absent in runtime config; fallback to auto-derived topology grid unit.",
+                             {
+                                 {"effective_wire_length_unit_um", logformat::FormatWithUnit(fallback_unit_um, "um")},
+                                 {"reason", "missing_runtime_config"},
+                             });
+    }
+    if (grid_collapsed) {
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "HTreeBuilder",
+                             "configured wire_length_unit_um collapses level bins to <=1; fallback to auto-derived topology grid unit.",
+                             {
+                                 {"configured_wire_length_unit_um", logformat::FormatWithUnit(configured_unit_um, "um")},
+                                 {"effective_wire_length_unit_um", logformat::FormatWithUnit(fallback_unit_um, "um")},
+                                 {"reason", "collapsed_bins"},
+                             });
+    }
+
     effective_unit_um = fallback_unit_um;
     plan.adapted = effective_unit_um > 0.0;
+    plan.source = plan.adapted ? CharGridSource::kAutoDerived : CharGridSource::kNone;
+    plan.auto_derived_wire_length_unit_um = effective_unit_um;
     plan.unique_level_bins = CountUniqueAlignedLengthBins(requested_lengths_um, effective_unit_um);
   }
 
@@ -832,7 +894,7 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
   segment_buffers.reserve(buffer_count);
   for (std::size_t buffer_index = 0; buffer_index < buffer_count; ++buffer_index) {
     const auto* ports = context.port_cache->get(cell_masters.at(buffer_index));
-    CTS_LOG_FATAL_IF(ports == nullptr) << "HTreeBuilder: unresolved ports for edge buffer master " << cell_masters.at(buffer_index);
+    LOG_FATAL_IF(ports == nullptr) << "HTreeBuilder: unresolved ports for edge buffer master " << cell_masters.at(buffer_index);
 
     const auto buffer_location
         = InterpolateManhattanPoint(parent_node.get_position(), child_node.get_position(), positions.at(buffer_index));
@@ -849,7 +911,7 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
   if (terminal_loads.empty()) {
     terminal_loads = child_node.get_loads();
   }
-  CTS_LOG_FATAL_IF(terminal_loads.empty()) << "HTreeBuilder: segment terminal loads are empty for child node " << child_node.get_id();
+  LOG_FATAL_IF(terminal_loads.empty()) << "HTreeBuilder: segment terminal loads are empty for child node " << child_node.get_id();
 
   CreateNet(*context.result, context.nextNetName(), segment_buffers.back().output_pin, terminal_loads);
   return std::vector<Pin*>{segment_buffers.front().input_pin};
@@ -869,19 +931,19 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
 
   BufferPortCache port_cache;
   std::vector<PatternId> level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
-  CTS_LOG_FATAL_IF(level_segment_pattern_ids.size() != result.levels.size())
+  LOG_FATAL_IF(level_segment_pattern_ids.size() != result.levels.size())
       << "HTreeBuilder: best topology pattern levels do not match planned H-tree levels.";
 
   std::vector<const BufferingPattern*> level_patterns;
   level_patterns.reserve(level_segment_pattern_ids.size());
   for (const auto pattern_id : level_segment_pattern_ids) {
     const auto* level_pattern = segment_pattern_registry.find(pattern_id);
-    CTS_LOG_FATAL_IF(level_pattern == nullptr) << "HTreeBuilder: selected segment pattern metadata is missing.";
+    LOG_FATAL_IF(level_pattern == nullptr) << "HTreeBuilder: selected segment pattern metadata is missing.";
     level_patterns.push_back(level_pattern);
   }
 
   const auto* root_node = result.topology.get_node(result.topology.get_root());
-  CTS_LOG_FATAL_IF(root_node == nullptr) << "HTreeBuilder: topology root is missing during materialization.";
+  LOG_FATAL_IF(root_node == nullptr) << "HTreeBuilder: topology root is missing during materialization.";
 
   result.root_inst = nullptr;
   result.root_input_pin = CreateStandalonePin(result, "cts_htree_root_in", PinType::kIn, root_node->get_position(), true);
@@ -906,7 +968,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   for (std::size_t reverse_depth = levels.size() - 1U; reverse_depth > 0U; --reverse_depth) {
     const std::size_t depth = reverse_depth - 1U;
     const auto* segment_pattern = level_patterns.at(depth);
-    CTS_LOG_FATAL_IF(segment_pattern == nullptr) << "HTreeBuilder: missing selected segment pattern metadata during materialization.";
+    LOG_FATAL_IF(segment_pattern == nullptr) << "HTreeBuilder: missing selected segment pattern metadata during materialization.";
 
     for (const auto node_id : levels.at(depth)) {
       const auto* node = result.topology.get_node(node_id);
@@ -940,7 +1002,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
 
   const auto root_it = entry_loads_by_node.find(result.topology.get_root());
   auto root_entry_loads = (root_it != entry_loads_by_node.end()) ? root_it->second : root_node->get_loads();
-  CTS_LOG_FATAL_IF(root_entry_loads.empty()) << "HTreeBuilder: root entry loads are empty during materialization.";
+  LOG_FATAL_IF(root_entry_loads.empty()) << "HTreeBuilder: root entry loads are empty during materialization.";
   CreateNet(result, context.nextNetName(), result.root_output_pin, root_entry_loads);
 }
 
@@ -950,33 +1012,70 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
 {
   BuildResult result;
   if (loads.empty()) {
-    CTS_LOG_WARNING << "HTreeBuilder: build skipped because no loads were provided.";
+    LOG_WARNING << "HTreeBuilder: build skipped because no loads were provided.";
     return result;
   }
+  schema::ScopedStage build_stage("HTreeBuilder", "build");
 
   result.topology = TopologyGen::build(loads);
   const auto levels = result.topology.levels();
   if (levels.size() <= 1U) {
-    CTS_LOG_WARNING << "HTreeBuilder: topology has no H-tree levels after generation.";
+    LOG_WARNING << "HTreeBuilder: topology has no H-tree levels after generation.";
+    build_stage.skip({{"reason", "no_h_tree_levels"}});
     return result;
   }
 
   const int32_t dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
   const auto char_grid_plan = ResolveCharacterizationGridPlan(result.topology, dbu_per_um);
+  std::string grid_source = toCharGridSourceName(CharGridSource::kNone);
   if (char_grid_plan.adapted) {
-    CTS_LOG_INFO << "HTreeBuilder: adapting characterization grid for compact topology, wire_length_unit="
-                 << char_grid_plan.wire_length_unit_um << " um, iterations=" << char_grid_plan.wire_length_iterations
-                 << ", distinct_level_bins=" << char_grid_plan.unique_level_bins;
+    grid_source = toCharGridSourceName(char_grid_plan.source);
+  } else if (char_grid_plan.configured_wire_length_unit_um > 0.0) {
+    grid_source = toCharGridSourceName(CharGridSource::kRuntimeConfig);
   }
+
+  std::string grid_effective_unit = "unresolved";
+  if (char_grid_plan.adapted) {
+    grid_effective_unit = logformat::FormatWithUnit(char_grid_plan.wire_length_unit_um, "um");
+  } else if (char_grid_plan.configured_wire_length_unit_um > 0.0) {
+    grid_effective_unit = logformat::FormatWithUnit(char_grid_plan.configured_wire_length_unit_um, "um");
+  }
+  std::string decision_flags = "none";
+  if (char_grid_plan.configured_wire_length_missing && char_grid_plan.configured_grid_collapsed) {
+    decision_flags = "missing_config+collapsed_bins";
+  } else if (char_grid_plan.configured_wire_length_missing) {
+    decision_flags = "missing_config";
+  } else if (char_grid_plan.configured_grid_collapsed) {
+    decision_flags = "collapsed_bins";
+  }
+  const logformat::TableRows grid_plan_rows = {
+      {"source", grid_source, char_grid_plan.adapted ? "fallback derived from topology level lengths" : "use runtime-configured grid"},
+      {"requested_level_lengths", std::to_string(char_grid_plan.requested_level_lengths),
+       "average parent-child segment length per topology level"},
+      {"configured_wire_length_unit_um",
+       char_grid_plan.configured_wire_length_unit_um > 0.0 ? logformat::FormatWithUnit(char_grid_plan.configured_wire_length_unit_um, "um")
+                                                           : std::string{"auto"},
+       char_grid_plan.configured_wire_length_missing ? "missing" : "present"},
+      {"effective_wire_length_unit_um", grid_effective_unit,
+       char_grid_plan.adapted ? "temporary override for characterization" : "no override"},
+      {"wire_length_iterations_override", std::to_string(char_grid_plan.wire_length_iterations),
+       char_grid_plan.adapted ? "temporary override for characterization" : "0 (disabled)"},
+      {"distinct_level_bins", std::to_string(char_grid_plan.unique_level_bins), "aligned-length bins under effective unit"},
+      {"decision_flags", decision_flags, "fallback trigger diagnostics"},
+  };
+  logInfoTable("HTreeBuilder Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
+
   const ScopedCharGridOverride char_grid_override(char_grid_plan.wire_length_unit_um, char_grid_plan.wire_length_iterations);
 
+  build_stage.markRunning("characterization");
   CharBuilder char_builder;
   char_builder.init();
   char_builder.build();
 
   const double length_step_um = char_builder.get_wire_length_unit_um();
   if (length_step_um <= 0.0 || char_builder.get_segment_chars().empty()) {
-    CTS_LOG_WARNING << "HTreeBuilder: characterization did not produce usable segment chars.";
+    LOG_WARNING << "HTreeBuilder: characterization did not produce usable segment chars.";
+    build_stage.skip({{"reason", "no_usable_segment_chars"}});
     return result;
   }
 
@@ -988,9 +1087,28 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
   result.char_grid_adapted = char_grid_plan.adapted;
   result.char_max_slew_ns = char_builder.get_max_slew();
   result.char_max_cap_pf = char_builder.get_max_cap();
+  const std::string char_wire_length_source
+      = char_builder.get_wire_length_unit_source().empty() ? std::string{"unresolved"} : char_builder.get_wire_length_unit_source();
+  const std::string char_wire_length_detail = char_builder.get_wire_length_unit_detail().empty()
+                                                  ? std::string{"no resolution detail"}
+                                                  : char_builder.get_wire_length_unit_detail();
+  const logformat::TableRows char_summary_rows = {
+      {"wire_length_unit_um", logformat::FormatWithUnit(result.char_wire_length_unit_um, "um"), char_wire_length_source},
+      {"wire_length_unit_detail", char_wire_length_detail,
+       char_grid_plan.adapted ? "effective value under HTree grid override" : "direct CharBuilder resolution"},
+      {"grid_plan_source", grid_source, char_grid_plan.adapted ? "HTreeBuilder adapted characterization grid" : "no HTree override"},
+      {"wire_length_iterations", std::to_string(result.char_wire_length_iterations), "characterization sweep length bins"},
+      {"max_slew_ns", logformat::FormatWithUnit(result.char_max_slew_ns, "ns"), "characterization upper bound"},
+      {"max_cap_pf", logformat::FormatWithUnit(result.char_max_cap_pf, "pF"), "characterization upper bound"},
+      {"segment_chars", std::to_string(char_builder.get_segment_chars().size()), "raw segment characterization entries"},
+      {"buffer_patterns", std::to_string(char_builder.get_buffering_patterns().size()), "raw segment pattern count"},
+  };
+  logInfoTable("HTreeBuilder Characterization Summary", {"Item", "Value", "Detail"}, char_summary_rows);
+
   result.levels = BuildLevelPlans(result.topology, length_step_um, dbu_per_um);
   if (result.levels.empty()) {
-    CTS_LOG_WARNING << "HTreeBuilder: failed to derive H-tree level plans from topology.";
+    LOG_WARNING << "HTreeBuilder: failed to derive H-tree level plans from topology.";
+    build_stage.skip({{"reason", "empty_level_plans"}});
     return result;
   }
 
@@ -1013,7 +1131,8 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
     auto& level = result.levels.at(reverse_level - 1U);
     const auto frontier_it = frontier_by_length.find(level.aligned_length_idx);
     if (frontier_it == frontier_by_length.end() || frontier_it->second.empty()) {
-      CTS_LOG_WARNING << "HTreeBuilder: missing synthesized segment frontier for aligned length index " << level.aligned_length_idx;
+      LOG_WARNING << "HTreeBuilder: missing synthesized segment frontier for aligned length index " << level.aligned_length_idx;
+      build_stage.skip({{"reason", "missing_segment_frontier"}, {"aligned_length_idx", std::to_string(level.aligned_length_idx)}});
       return result;
     }
 
@@ -1028,7 +1147,8 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
     next_topology_pattern_id = combiner.get_next_id();
     current_frontier = BuildInputBoundaryFrontier(composed_entries);
     if (current_frontier.empty()) {
-      CTS_LOG_WARNING << "HTreeBuilder: H-tree frontier became empty at level " << (reverse_level - 1U);
+      LOG_WARNING << "HTreeBuilder: H-tree frontier became empty at level " << (reverse_level - 1U);
+      build_stage.skip({{"reason", "empty_frontier"}, {"level", std::to_string(reverse_level - 1U)}});
       return result;
     }
   }
@@ -1036,15 +1156,16 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
   result.feasible_chars = current_frontier;
   result.best_char = SelectBestHTreeChar(result.feasible_chars);
   if (!result.best_char.has_value()) {
-    CTS_LOG_WARNING << "HTreeBuilder: failed to select a best H-tree characterization entry.";
+    LOG_WARNING << "HTreeBuilder: failed to select a best H-tree characterization entry.";
+    build_stage.skip({{"reason", "missing_best_char"}});
     return result;
   }
 
   const auto* best_pattern = topology_pattern_registry.find(result.best_char->get_pattern_id());
-  CTS_LOG_FATAL_IF(best_pattern == nullptr) << "HTreeBuilder: best H-tree pattern metadata is missing.";
+  LOG_FATAL_IF(best_pattern == nullptr) << "HTreeBuilder: best H-tree pattern metadata is missing.";
   result.best_pattern = *best_pattern;
 
-  CTS_LOG_FATAL_IF(best_pattern->get_level_segment_pattern_ids().size() != result.levels.size())
+  LOG_FATAL_IF(best_pattern->get_level_segment_pattern_ids().size() != result.levels.size())
       << "HTreeBuilder: best H-tree pattern level count does not match topology depth.";
   for (std::size_t level = 0; level < result.levels.size(); ++level) {
     result.levels.at(level).segment_pattern_id = best_pattern->get_level_segment_pattern_ids().at(level);
@@ -1054,13 +1175,24 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
   result.success = result.best_char.has_value() && result.best_pattern.has_value() && result.root_input_pin != nullptr
                    && result.root_output_pin != nullptr && !result.inserted_nets.empty();
 
-  CTS_LOG_INFO << "HTreeBuilder: synthesized " << result.levels.size() << " levels, selected topology pattern "
-               << result.best_char->get_pattern_id().local_id << ", inserted insts=" << result.inserted_insts.size()
-               << ", nets=" << result.inserted_nets.size() << ", feasible_solutions=" << result.feasible_chars.size()
-               << ", power=" << result.best_char->get_power() << ", delay=" << result.best_char->get_delay()
-               << ", root_driven_cap_idx=" << result.best_char->get_driven_cap_idx()
-               << ", leaf_output_slew_idx=" << result.best_char->get_output_slew_idx()
-               << ", root_load_cap_idx=" << result.best_char->get_load_cap_idx();
+  const logformat::TableRows build_summary_rows = {
+      {"levels", std::to_string(result.levels.size()), "synthesized H-tree levels"},
+      {"selected_topology_pattern_id", std::to_string(result.best_char->get_pattern_id().local_id), "best feasible topology pattern"},
+      {"feasible_solutions", std::to_string(result.feasible_chars.size()), "frontier entries after full composition"},
+      {"inserted_insts", std::to_string(result.inserted_insts.size()), "materialized CTS buffer instances"},
+      {"inserted_nets", std::to_string(result.inserted_nets.size()), "materialized CTS nets"},
+      {"power", logformat::FormatPowerW(result.best_char->get_power()), "selected pattern metric (total power)"},
+      {"delay", logformat::FormatWithUnit(result.best_char->get_delay(), "ns"), "selected pattern metric"},
+      {"root_driven_cap_idx", std::to_string(result.best_char->get_driven_cap_idx()), "selected pattern metric"},
+      {"leaf_output_slew_idx", std::to_string(result.best_char->get_output_slew_idx()), "selected pattern metric"},
+      {"root_load_cap_idx", std::to_string(result.best_char->get_load_cap_idx()), "selected pattern metric"},
+  };
+  logInfoTable("HTreeBuilder Build Summary", {"Item", "Value", "Detail"}, build_summary_rows);
+  build_stage.finish({{"success", result.success ? "true" : "false"},
+                      {"levels", std::to_string(result.levels.size())},
+                      {"inserted_insts", std::to_string(result.inserted_insts.size())},
+                      {"inserted_nets", std::to_string(result.inserted_nets.size())}},
+                     result.success ? "success" : "incomplete");
   return result;
 }
 

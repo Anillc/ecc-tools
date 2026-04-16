@@ -23,10 +23,13 @@
 
 #include "ConstraintEvaluator.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +37,7 @@
 #include "Geometry.hh"
 #include "Inst.hh"
 #include "LinearClusteringTypes.hh"
-#include "Logger.hh"
+#include "Log.hh"
 #include "Pin.hh"
 #include "PinLocationHelper.hh"
 #include "Point.hh"
@@ -130,15 +133,15 @@ auto LegalizeRoutingRoot(const Point<int>& raw_synthetic_root, const std::vector
                                                   LocalLegalization::RegionType{}, options);
 
   if (result.legalized_points.empty()) {
-    CTS_LOG_WARNING << "Linear clustering exact-cap root legalization failed: legalization returned empty points, synthetic root "
-                    << raw_synthetic_root << ".";
+    LOG_WARNING << "Linear clustering exact-cap root legalization failed: legalization returned empty points, synthetic root "
+                << raw_synthetic_root << ".";
     return false;
   }
 
   legalized_root = result.legalized_points.front();
   if (IsPointOverlappingAnyLoad(legalized_root, load_locations)) {
-    CTS_LOG_WARNING << "Linear clustering exact-cap root legalization failed: legalized root still overlaps load location, synthetic root "
-                    << raw_synthetic_root << ", legalized root " << legalized_root << ".";
+    LOG_WARNING << "Linear clustering exact-cap root legalization failed: legalized root still overlaps load location, synthetic root "
+                << raw_synthetic_root << ", legalized root " << legalized_root << ".";
     return false;
   }
 
@@ -157,7 +160,7 @@ auto CalcTreeWirelength(const Router::ClockSteinerTreeType& tree) -> double
 auto UpdateEstimateFromRcTree(ElectricalEstimate& estimate, RCTree& rc_tree) -> bool
 {
   if (!rc_tree.validate()) {
-    CTS_LOG_WARNING << "Linear clustering electrical estimate got invalid RCTree.";
+    LOG_WARNING << "Linear clustering electrical estimate got invalid RCTree.";
     return false;
   }
   const auto metrics = TimingEngine::update(rc_tree);
@@ -378,7 +381,7 @@ auto ConstraintEvaluator::estimateExactCap(const std::vector<Pin*>& loads, const
   }
 
   if (!clock_terminals.empty() && (clock_tree.node_count() == 0 || !clock_tree.validate())) {
-    CTS_LOG_WARNING << "Linear clustering clock-aware routing returned an empty or invalid tree.";
+    LOG_WARNING << "Linear clustering clock-aware routing returned an empty or invalid tree.";
     return estimate;
   }
 
@@ -413,8 +416,7 @@ auto ConstraintEvaluator::queryPinCap(const Pin* pin) -> double
   }
 
   if (WRAPPER_INST.get_idb() == nullptr || WRAPPER_INST.get_idb_design() == nullptr) {
-    CTS_LOG_WARNING << "Linear clustering pin-cap query degraded: iDB/STA context is not ready, use 0.0 cap for pin " << pin->get_name()
-                    << ".";
+    LOG_WARNING << "Linear clustering pin-cap query degraded: iDB/STA context is not ready, use 0.0 cap for pin " << pin->get_name() << ".";
     _pin_cap_cache[pin] = 0.0;
     return 0.0;
   }

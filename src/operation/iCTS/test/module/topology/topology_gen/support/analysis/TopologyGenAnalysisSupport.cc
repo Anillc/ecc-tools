@@ -21,6 +21,7 @@
  * @brief Topology validation and summary helpers for topology generation tests.
  */
 
+#include <glog/logging.h>
 #include <gtest/gtest.h>
 
 #include <cstddef>
@@ -30,13 +31,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Log.hh"
 #include "Point.hh"
 #include "Tree.hh"
 #include "common/topology/TopologyAnalysis.hh"
 #include "common/types/TestDataTypes.hh"
 #include "module/topology/topology_gen/support/TopologyGenInternal.hh"
 #include "utils/geometry/Geometry.hh"
-#include "utils/logger/Logger.hh"
 
 namespace icts {
 class Pin;
@@ -69,37 +70,37 @@ auto ValidateNodeEdge(const icts::Tree& tree, std::size_t node_id, EdgeValidatio
   const auto parent_id = node->get_parent();
   if (parent_id == kInvalidNodeId || parent_id >= tree.get_size()) {
     ++stats.invalid_parent_count;
-    CTS_LOG_WARNING << "Edge issue: node=" << node_id << " invalid parent id=" << parent_id;
+    LOG_WARNING << "Edge issue: node=" << node_id << " invalid parent id=" << parent_id;
     return;
   }
 
   const auto* parent = tree.get_node(parent_id);
   if (parent == nullptr) {
     ++stats.invalid_parent_count;
-    CTS_LOG_WARNING << "Edge issue: node=" << node_id << " parent missing id=" << parent_id;
+    LOG_WARNING << "Edge issue: node=" << node_id << " parent missing id=" << parent_id;
     return;
   }
 
   const auto& child_pos = node->get_position();
   if (!IsValidPos(child_pos)) {
     ++stats.invalid_pos_count;
-    CTS_LOG_WARNING << "Edge issue: node=" << node_id << " invalid child pos=(" << child_pos.get_x() << "," << child_pos.get_y() << ")";
+    LOG_WARNING << "Edge issue: node=" << node_id << " invalid child pos=(" << child_pos.get_x() << "," << child_pos.get_y() << ")";
     return;
   }
 
   const auto& parent_pos = parent->get_position();
   if (!IsValidPos(parent_pos)) {
     ++stats.missing_edge_count;
-    CTS_LOG_WARNING << "Edge issue: node=" << node_id << " parent=" << parent_id << " invalid parent pos=(" << parent_pos.get_x() << ","
-                    << parent_pos.get_y() << ")";
+    LOG_WARNING << "Edge issue: node=" << node_id << " parent=" << parent_id << " invalid parent pos=(" << parent_pos.get_x() << ","
+                << parent_pos.get_y() << ")";
     return;
   }
 
   const auto dist = icts::geometry::Manhattan(child_pos, parent_pos);
   if (dist == 0) {
     ++stats.zero_edge_count;
-    CTS_LOG_WARNING << "Edge issue: node=" << node_id << " parent=" << parent_id << " zero-length edge child=(" << child_pos.get_x() << ","
-                    << child_pos.get_y() << ") parent=(" << parent_pos.get_x() << "," << parent_pos.get_y() << ")";
+    LOG_WARNING << "Edge issue: node=" << node_id << " parent=" << parent_id << " zero-length edge child=(" << child_pos.get_x() << ","
+                << child_pos.get_y() << ") parent=(" << parent_pos.get_x() << "," << parent_pos.get_y() << ")";
   }
 }
 
@@ -122,7 +123,7 @@ auto LogTopologySummary(const TopologyStats& stats) -> void
   std::ostringstream summary;
   summary << "Tree size=" << stats.tree_size << ", leafs=" << stats.leaf_count << ", leaf_load[min/max/avg]=" << stats.min_leaf_load << "/"
           << stats.max_leaf_load << "/" << stats.avg_leaf_load << ", empty_leafs=" << stats.empty_leaf_count;
-  CTS_LOG_INFO << summary.str();
+  LOG_INFO << summary.str();
 }
 
 auto ValidateTreeEdges(const icts::Tree& tree) -> void

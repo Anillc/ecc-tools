@@ -1,0 +1,9 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Validate iCTS logging changes against repo-wide constraints and required ecc_dev_tools flow"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Check helper placement and CMake wiring"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review level selection and structured milestone logging"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Ensure warning/error/fatal semantics remain correct"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Run required path/full validation and review includes/naming"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review whether helper extraction is justified and non-duplicative"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify consistent logging ownership across API/flow/module/test boundaries"}

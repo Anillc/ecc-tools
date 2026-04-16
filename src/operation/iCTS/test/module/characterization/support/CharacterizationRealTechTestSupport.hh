@@ -28,6 +28,7 @@
 #include <functional>
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <set>
@@ -39,6 +40,7 @@
 #include <vector>
 
 #include "common/io/TestArtifactIO.hh"
+#include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/characterization/CharCore.hh"
@@ -51,6 +53,7 @@
 #include "module/characterization/PatternCombiner.hh"
 #include "module/characterization/Pruner.hh"
 #include "module/characterization/SegmentCharTable.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts_test::characterization::realtech {
 
@@ -185,7 +188,6 @@ struct RealTechCharSession
   auto prepare(const std::string& scenario_name, std::optional<std::vector<std::string>> buffer_types, double max_buf_tran_ns,
                double max_cap_pf, bool omit_wire_length_unit = false) -> std::optional<std::string>
   {
-    (void) scenario_name;
     if (_is_prepared) {
       restore();
     }
@@ -205,6 +207,18 @@ struct RealTechCharSession
         = MakeRealTechCharConfigState(original_config_state, std::move(buffer_types), max_buf_tran_ns, max_cap_pf, omit_wire_length_unit);
     _original_config_state = original_config_state;
     ApplyConfigState(configured_state);
+    const auto output_dir = icts_test::common::io::ResolveOutputDir() / "characterization" / "realtech" / scenario_name;
+    std::error_code error_code;
+    std::filesystem::create_directories(output_dir, error_code);
+    if (error_code) {
+      return "Cannot create real-tech characterization output directory.";
+    }
+    _cts_log_guard = std::make_unique<common::logging::ScopedLogFile>(output_dir / "cts.log", "Characterization Test Report");
+    SCHEMA_WRITER_INST.emitKeyValueTable("Characterization Scenario",
+                                         {
+                                             {"scenario", scenario_name},
+                                             {"omit_wire_length_unit", omit_wire_length_unit ? "true" : "false"},
+                                         });
     STA_ADAPTER_INST.initCharOnly();
     _is_prepared = true;
     return std::nullopt;
@@ -221,10 +235,12 @@ struct RealTechCharSession
     STA_ADAPTER_INST.init();
     _is_prepared = false;
     _original_config_state.reset();
+    _cts_log_guard.reset();
   }
 
   bool _is_prepared = false;
   std::optional<ConfigState> _original_config_state;
+  std::unique_ptr<common::logging::ScopedLogFile> _cts_log_guard;
 };
 
 struct BufferLimitInfo

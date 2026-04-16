@@ -23,8 +23,11 @@
 
 #include "LinearClustering.hh"
 
+#include <glog/logging.h>
+
 #include <cmath>
 #include <cstddef>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,7 +36,7 @@
 #include "Geometry.hh"
 #include "LinearClusteringTypes.hh"
 #include "LinearOrderGenerator.hh"
-#include "Logger.hh"
+#include "Log.hh"
 #include "Pin.hh"
 #include "Point.hh"
 #include "SequenceSplitter.hh"
@@ -159,30 +162,30 @@ auto LinearClustering::run(const std::vector<Pin*>& loads, const LinearClusterin
 
   auto ordered_loads = LinearOrderGenerator::generateOrder(loads, config);
   if (ordered_loads.empty()) {
-    CTS_LOG_WARNING << "Linear clustering skipped: no valid load pins after order generation.";
+    LOG_WARNING << "Linear clustering skipped: no valid load pins after order generation.";
     return result;
   }
 
   SequenceSplitter splitter;
   auto partition = splitter.split(ordered_loads, config);
   if (!partition.legal) {
-    CTS_LOG_WARNING << "Linear clustering failed: no legal greedy partition found for loads=" << ordered_loads.size()
-                    << ". Returning empty result.";
+    LOG_WARNING << "Linear clustering failed: no legal greedy partition found for loads=" << ordered_loads.size()
+                << ". Returning empty result.";
     return result;
   }
 
   const auto sweep_resolution = SequenceSplitter::resolveSweepOffsets(ordered_loads.size(), config);
   const auto materialized_loads = RotateOrderedLoads(ordered_loads, partition.rotation_offset);
   result = MaterializeClusterResult(materialized_loads, partition.segments);
-  CTS_LOG_INFO << "Linear clustering done: loads=" << ordered_loads.size() << ", clusters=" << result.clusters.size()
-               << ", order_strategy=" << OrderStrategyName(config.order_strategy)
-               << ", split_strategy=" << SplitStrategyName(config.split_strategy)
-               << ", sweep_mode=" << SweepModeName(sweep_resolution.requested_mode)
-               << ", effective_sweep_mode=" << SweepModeName(sweep_resolution.effective_mode)
-               << ", prefix_count=" << sweep_resolution.prefix_count << ", strided_sweep_count=" << sweep_resolution.strided_count
-               << ", degraded_to_prefix=" << (sweep_resolution.degraded_to_prefix ? "true" : "false")
-               << ", resolved_offsets=" << FormatOffsets(sweep_resolution.offsets)
-               << ", selected_rotation_offset=" << partition.rotation_offset << ", partition_score=" << partition.total_score;
+  LOG_INFO << "Linear clustering done: loads=" << ordered_loads.size() << ", clusters=" << result.clusters.size()
+           << ", order_strategy=" << OrderStrategyName(config.order_strategy)
+           << ", split_strategy=" << SplitStrategyName(config.split_strategy)
+           << ", sweep_mode=" << SweepModeName(sweep_resolution.requested_mode)
+           << ", effective_sweep_mode=" << SweepModeName(sweep_resolution.effective_mode)
+           << ", prefix_count=" << sweep_resolution.prefix_count << ", strided_sweep_count=" << sweep_resolution.strided_count
+           << ", degraded_to_prefix=" << (sweep_resolution.degraded_to_prefix ? "true" : "false")
+           << ", resolved_offsets=" << FormatOffsets(sweep_resolution.offsets) << ", selected_rotation_offset=" << partition.rotation_offset
+           << ", partition_score=" << partition.total_score;
   return result;
 }
 

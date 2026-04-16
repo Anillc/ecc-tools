@@ -51,7 +51,7 @@
 #include "common/visualization/TestVisualization.hh"
 #include "common/visualization/core/SvgCommon.hh"
 #include "htree/HTreeBuilder.hh"
-#include "utils/logger/Logger.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts_test::htree {
 namespace {
@@ -822,7 +822,7 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
            << ", aligned_idx=" << level.aligned_length_idx << ", aligned_um=" << level.aligned_length_um
            << ", segment_pattern_id=" << level.segment_pattern_id.local_id << "\n";
   }
-  report << "artifacts=topology.svg, materialized_htree.svg, pareto_delay_power.svg\n";
+  report << "artifacts=cts.log, topology.svg, materialized_htree.svg, pareto_delay_power.svg\n";
   report << "output_dir=" << paths.output_dir.string() << "\n";
   return report.str();
 }
@@ -838,6 +838,7 @@ auto PrepareHTreeArtifactPaths(const std::string& case_name) -> HTreeArtifactPat
     return paths;
   }
 
+  paths.cts_log = paths.output_dir / "cts.log";
   paths.topology_svg = paths.output_dir / "topology.svg";
   paths.materialized_svg = paths.output_dir / "materialized_htree.svg";
   paths.pareto_svg = paths.output_dir / "pareto_delay_power.svg";
@@ -858,16 +859,16 @@ auto WriteHTreeArtifacts(const HTreeArtifactPaths& paths, const std::string& sce
   const bool wrote_report = common::io::WriteTextLog(paths.report_log, BuildReport(scenario_name, input_summary, paths, loads, result));
 
   if (wrote_topology) {
-    CTS_LOG_INFO << "HTree topology svg saved: " << paths.topology_svg.string();
+    icts::schema::EmitArtifact("HTree topology svg", paths.topology_svg);
   }
   if (wrote_materialized) {
-    CTS_LOG_INFO << "HTree materialized svg saved: " << paths.materialized_svg.string();
+    icts::schema::EmitArtifact("HTree materialized svg", paths.materialized_svg);
   }
   if (wrote_pareto) {
-    CTS_LOG_INFO << "HTree delay-power pareto svg saved: " << paths.pareto_svg.string();
+    icts::schema::EmitArtifact("HTree delay-power pareto svg", paths.pareto_svg);
   }
   if (wrote_report) {
-    CTS_LOG_INFO << "HTree report saved: " << paths.report_log.string();
+    icts::schema::EmitArtifact("HTree report", paths.report_log);
   }
 
   return wrote_topology && wrote_materialized && wrote_pareto && wrote_report;

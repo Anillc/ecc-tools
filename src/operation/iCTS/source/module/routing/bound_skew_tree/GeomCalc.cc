@@ -22,16 +22,19 @@
  */
 #include "GeomCalc.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <ostream>
 #include <ranges>
 #include <vector>
 
 #include "Components.hh"
-#include "logger/Logger.hh"
+#include "Log.hh"
 
 namespace icts::bst {
 namespace {
@@ -75,9 +78,8 @@ struct LinePairView
 
 auto AccumulateEndpointIntersections(const EndpointIntersectionContext& context, const LinePairView& line_pair) -> void
 {
-  CTS_LOG_FATAL_IF(context.intersection_point == nullptr || context.intersection_count == nullptr)
-      << "endpoint intersection context is null";
-  CTS_LOG_FATAL_IF(line_pair.source_line == nullptr || line_pair.target_line == nullptr) << "line pair is null";
+  LOG_FATAL_IF(context.intersection_point == nullptr || context.intersection_count == nullptr) << "endpoint intersection context is null";
+  LOG_FATAL_IF(line_pair.source_line == nullptr || line_pair.target_line == nullptr) << "line pair is null";
 
   for (const Point& point_source : *line_pair.source_line) {
     Point candidate_point = point_source;
@@ -92,7 +94,7 @@ auto RemoveDuplicatedEndpointIntersections(size_t& intersection_count, const std
 {
   const LinePairView& left_to_right = line_pairs.at(kLeft);
   const LinePairView& right_to_left = line_pairs.at(kRight);
-  CTS_LOG_FATAL_IF(left_to_right.source_line == nullptr || right_to_left.source_line == nullptr) << "line pair is null";
+  LOG_FATAL_IF(left_to_right.source_line == nullptr || right_to_left.source_line == nullptr) << "line pair is null";
 
   for (const Point& first_point : *left_to_right.source_line) {
     for (const Point& second_point : *right_to_left.source_line) {
@@ -253,7 +255,7 @@ auto GeomCalc::pointToLineDistance(const Point& point, const Line& line, Point& 
   }
 
   Point validated_point = closest_point;
-  CTS_LOG_FATAL_IF(!onLine(validated_point, line)) << "closest point is not on line";
+  LOG_FATAL_IF(!onLine(validated_point, line)) << "closest point is not on line";
   return min_distance;
 }
 
@@ -347,7 +349,7 @@ auto GeomCalc::lineType(const Point& first_point, const Point& second_point) -> 
 
 auto GeomCalc::lineIntersect(Point& intersection_point, const Line& first_line, const Line& second_line) -> IntersectType
 {
-  CTS_LOG_FATAL_IF(HasZeroLength(first_line) || HasZeroLength(second_line)) << "line length is zero";
+  LOG_FATAL_IF(HasZeroLength(first_line) || HasZeroLength(second_line)) << "line length is zero";
   if (!boundBoxOverlap(first_line, second_line)) {
     return IntersectType::kNone;
   }
@@ -379,7 +381,7 @@ auto GeomCalc::lineRelative(const Line& lhs_line, const Line& rhs_line, const si
 {
   const auto lhs_line_type = lineType(lhs_line);
   const auto rhs_line_type = lineType(rhs_line);
-  CTS_LOG_FATAL_IF(lhs_line_type != rhs_line_type) << "line type is not same";
+  LOG_FATAL_IF(lhs_line_type != rhs_line_type) << "line type is not same";
 
   if (lhs_line_type == LineType::kVertical || lhs_line_type == LineType::kTilt) {
     const auto lhs_max_x = std::max(lhs_line.at(kHead).x, lhs_line.at(kTail).x);
@@ -403,7 +405,7 @@ auto GeomCalc::lineRelative(const Line& lhs_line, const Line& rhs_line, const si
     return RelativeType::kManhattanParallel;
   }
 
-  CTS_LOG_FATAL << "line type error";
+  LOG_FATAL << "line type error";
   return RelativeType::kManhattanParallel;
 }
 
@@ -434,7 +436,7 @@ auto GeomCalc::lineDist(const Line& lhs_line, const Line& rhs_line) -> LineDista
   for (size_t side = 0; side < line_pairs.size(); ++side) {
     const size_t opposite_side = (side + 1) % kLinePointCount;
     const LinePairView& line_pair = line_pairs.at(side);
-    CTS_LOG_FATAL_IF(line_pair.source_line == nullptr || line_pair.target_line == nullptr) << "line pair is null";
+    LOG_FATAL_IF(line_pair.source_line == nullptr || line_pair.target_line == nullptr) << "line pair is null";
 
     for (size_t point_index = 0; point_index < point_counts.at(side); ++point_index) {
       Point closest_point_on_target_line;
@@ -861,7 +863,7 @@ auto GeomCalc::transformedRectToLine(TransformedRect& transformed_rect, Point& f
   first_point.y = (transformed_rect.y_low() - transformed_rect.x_high()) / 2;
   second_point.x = (transformed_rect.y_high() + transformed_rect.x_low()) / 2;
   second_point.y = (transformed_rect.y_high() - transformed_rect.x_low()) / 2;
-  CTS_LOG_FATAL_IF(first_point.y > second_point.y) << "second point y should be larger than first point y";
+  LOG_FATAL_IF(first_point.y > second_point.y) << "second point y should be larger than first point y";
 }
 
 auto GeomCalc::normalizeTransformedRect(TransformedRect& transformed_rect) -> void
@@ -881,7 +883,7 @@ auto GeomCalc::normalizeTransformedRect(TransformedRect& transformed_rect) -> vo
     transformed_rect.y_low(average_y);
     transformed_rect.y_high(average_y);
   }
-  CTS_LOG_FATAL_IF(transformed_rect.x_low() > transformed_rect.x_high() || transformed_rect.y_low() > transformed_rect.y_high())
+  LOG_FATAL_IF(transformed_rect.x_low() > transformed_rect.x_high() || transformed_rect.y_low() > transformed_rect.y_high())
       << "transformed rect is not valid";
 }
 

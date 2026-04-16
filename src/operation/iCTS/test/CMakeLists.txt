@@ -11,6 +11,7 @@ target_include_directories(
 target_link_libraries(
   icts_test_base
   INTERFACE
+  log
   icts_source
   icts_api
   icts_test_external_libs

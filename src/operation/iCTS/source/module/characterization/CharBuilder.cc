@@ -22,23 +22,28 @@
 
 #include "CharBuilder.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
 #include <optional>
 #include <ranges>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "BufferingPattern.hh"
 #include "CharCore.hh"
+#include "Log.hh"
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
-#include "logger/Logger.hh"
+#include "logger/LogFormat.hh"
+#include "logger/Schema.hh"
 
 namespace icts {
 namespace {
@@ -52,6 +57,54 @@ constexpr double kLengthLatticeEpsilon = 1e-9;
 constexpr unsigned kMaxTopologySlots = std::numeric_limits<std::uint64_t>::digits - 1U;
 constexpr std::size_t kCharProgressLogStride = 32U;
 constexpr bool kEnableCharPowerSampling = true;
+
+enum class ResolutionSource
+{
+  kRuntimeConfig,
+  kLibertyPinLimit,
+  kLibertyTableAxis,
+  kAutoDerived,
+  kUnresolved
+};
+
+struct ResolvedValue
+{
+  double value = 0.0;
+  ResolutionSource source = ResolutionSource::kUnresolved;
+  std::string detail;
+};
+
+auto toResolutionSourceName(ResolutionSource source) -> const char*
+{
+  switch (source) {
+    case ResolutionSource::kRuntimeConfig:
+      return "runtime_config";
+    case ResolutionSource::kLibertyPinLimit:
+      return "liberty_pin_limit";
+    case ResolutionSource::kLibertyTableAxis:
+      return "liberty_table_axis";
+    case ResolutionSource::kAutoDerived:
+      return "auto_derived";
+    case ResolutionSource::kUnresolved:
+      return "unresolved";
+  }
+  return "unresolved";
+}
+
+auto formatFixed(double value, int precision = 4) -> std::string
+{
+  return logformat::FormatFixed(value, precision);
+}
+
+auto logInfoTable(const std::string& title, const std::vector<std::string>& headers, const logformat::TableRows& rows) -> void
+{
+  schema::EmitTable(title, headers, rows);
+}
+
+auto formatOptionalWireWidth(std::optional<double> wire_width_um) -> std::string
+{
+  return wire_width_um.has_value() ? logformat::FormatWithUnit(*wire_width_um, "um") : "library_default";
+}
 
 auto makeUniformSweepSamples(double max_value, unsigned steps) -> std::vector<double>
 {
@@ -113,12 +166,15 @@ auto resolveBufferDriveCap(const std::string& cell_master) -> double
   return max_cap;
 }
 
-auto resolveMaxSlew() -> double
+auto resolveMaxSlew() -> ResolvedValue
 {
   const double configured_max_slew_ns = CONFIG_INST.get_max_buf_tran();
   if (CONFIG_INST.has_max_buf_tran() && configured_max_slew_ns > 0.0) {
-    CTS_LOG_INFO << "CharBuilder: max_slew resolved from Config = " << configured_max_slew_ns << " ns";
-    return configured_max_slew_ns;
+    return ResolvedValue{
+        .value = configured_max_slew_ns,
+        .source = ResolutionSource::kRuntimeConfig,
+        .detail = "Config.max_buf_tran",
+    };
   }
 
   double liberty_port_min_slew = std::numeric_limits<double>::infinity();
@@ -131,8 +187,11 @@ auto resolveMaxSlew() -> double
     }
   }
   if (found_port_limit) {
-    CTS_LOG_INFO << "CharBuilder: max_slew resolved from liberty input pin limits = " << liberty_port_min_slew << " ns";
-    return liberty_port_min_slew;
+    return ResolvedValue{
+        .value = liberty_port_min_slew,
+        .source = ResolutionSource::kLibertyPinLimit,
+        .detail = "minimum liberty input pin slew limit",
+    };
   }
 
   double liberty_table_min_slew = std::numeric_limits<double>::infinity();
@@ -145,20 +204,30 @@ auto resolveMaxSlew() -> double
     }
   }
   if (found_table_limit) {
-    CTS_LOG_INFO << "CharBuilder: max_slew resolved from liberty table axes = " << liberty_table_min_slew << " ns";
-    return liberty_table_min_slew;
+    return ResolvedValue{
+        .value = liberty_table_min_slew,
+        .source = ResolutionSource::kLibertyTableAxis,
+        .detail = "minimum liberty input slew table-axis max",
+    };
   }
 
-  CTS_LOG_WARNING << "CharBuilder: failed to resolve max_slew from Config/liberty limits/liberty tables";
-  return 0.0;
+  LOG_WARNING << "CharBuilder: failed to resolve max_slew from Config/liberty limits/liberty tables";
+  return ResolvedValue{
+      .value = 0.0,
+      .source = ResolutionSource::kUnresolved,
+      .detail = "missing Config/liberty slew limits",
+  };
 }
 
-auto resolveMaxCap() -> double
+auto resolveMaxCap() -> ResolvedValue
 {
   const double configured_max_cap_pf = CONFIG_INST.get_max_cap();
   if (CONFIG_INST.has_max_cap() && configured_max_cap_pf > 0.0) {
-    CTS_LOG_INFO << "CharBuilder: max_cap resolved from Config = " << configured_max_cap_pf << " pF";
-    return configured_max_cap_pf;
+    return ResolvedValue{
+        .value = configured_max_cap_pf,
+        .source = ResolutionSource::kRuntimeConfig,
+        .detail = "Config.max_cap",
+    };
   }
 
   double liberty_port_min_cap = std::numeric_limits<double>::infinity();
@@ -171,8 +240,11 @@ auto resolveMaxCap() -> double
     }
   }
   if (found_port_limit) {
-    CTS_LOG_INFO << "CharBuilder: max_cap resolved from liberty output pin limits = " << liberty_port_min_cap << " pF";
-    return liberty_port_min_cap;
+    return ResolvedValue{
+        .value = liberty_port_min_cap,
+        .source = ResolutionSource::kLibertyPinLimit,
+        .detail = "minimum liberty output pin cap limit",
+    };
   }
 
   double liberty_table_min_cap = std::numeric_limits<double>::infinity();
@@ -185,12 +257,19 @@ auto resolveMaxCap() -> double
     }
   }
   if (found_table_limit) {
-    CTS_LOG_INFO << "CharBuilder: max_cap resolved from liberty table axes = " << liberty_table_min_cap << " pF";
-    return liberty_table_min_cap;
+    return ResolvedValue{
+        .value = liberty_table_min_cap,
+        .source = ResolutionSource::kLibertyTableAxis,
+        .detail = "minimum liberty output cap table-axis max",
+    };
   }
 
-  CTS_LOG_WARNING << "CharBuilder: failed to resolve max_cap from Config/liberty limits/liberty tables";
-  return 0.0;
+  LOG_WARNING << "CharBuilder: failed to resolve max_cap from Config/liberty limits/liberty tables";
+  return ResolvedValue{
+      .value = 0.0,
+      .source = ResolutionSource::kUnresolved,
+      .detail = "missing Config/liberty cap limits",
+  };
 }
 
 auto collectSortedBuffers() -> std::vector<CharBufferInfo>
@@ -198,21 +277,21 @@ auto collectSortedBuffers() -> std::vector<CharBufferInfo>
   std::vector<CharBufferInfo> sorted_buffers;
   const auto& buffer_types = CONFIG_INST.get_buffer_types();
   if (buffer_types.empty()) {
-    CTS_LOG_WARNING << "CharBuilder: no buffer types configured in Config";
+    LOG_WARNING << "CharBuilder: no buffer types configured in Config";
     return sorted_buffers;
   }
 
   for (const auto& cell_master : buffer_types) {
     const double max_cap = resolveBufferDriveCap(cell_master);
     if (max_cap <= 0.0) {
-      CTS_LOG_WARNING << "CharBuilder: buffer " << cell_master << " has invalid max_cap (" << max_cap << " pF), skipped";
+      LOG_WARNING << "CharBuilder: buffer " << cell_master << " has invalid max_cap (" << max_cap << " pF), skipped";
       continue;
     }
 
     const double input_cap = STA_ADAPTER_INST.queryCharInputPinCap(cell_master);
     auto [in_pin, out_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
     if (in_pin.empty() || out_pin.empty()) {
-      CTS_LOG_WARNING << "CharBuilder: buffer " << cell_master << " has unresolved port names, skipped";
+      LOG_WARNING << "CharBuilder: buffer " << cell_master << " has unresolved port names, skipped";
       continue;
     }
 
@@ -239,8 +318,8 @@ auto collectSortedBuffers() -> std::vector<CharBufferInfo>
       if (prev_cap <= 0.0 || (curr_cap - prev_cap) / prev_cap >= buffer_redundancy_pct) {
         filtered_buffers.push_back(sorted_buffers.at(buffer_index));
       } else {
-        CTS_LOG_INFO << "CharBuilder: removed near-neighbor buffer " << sorted_buffers.at(buffer_index).cell_master
-                     << " (max_cap=" << curr_cap << " pF, gap=" << ((curr_cap - prev_cap) / prev_cap * kPercentFactor) << "%)";
+        LOG_INFO << "CharBuilder: removed near-neighbor buffer " << sorted_buffers.at(buffer_index).cell_master << " (max_cap=" << curr_cap
+                 << " pF, gap=" << ((curr_cap - prev_cap) / prev_cap * kPercentFactor) << "%)";
       }
     }
     sorted_buffers = std::move(filtered_buffers);
@@ -249,12 +328,15 @@ auto collectSortedBuffers() -> std::vector<CharBufferInfo>
   return sorted_buffers;
 }
 
-auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) -> double
+auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) -> ResolvedValue
 {
   const double configured_unit_um = CONFIG_INST.get_wire_length_unit_um();
   if (configured_unit_um > 0.0) {
-    CTS_LOG_INFO << "CharBuilder: wire_length_unit resolved from Config = " << configured_unit_um << " um";
-    return configured_unit_um;
+    return ResolvedValue{
+        .value = configured_unit_um,
+        .source = ResolutionSource::kRuntimeConfig,
+        .detail = "active runtime wire_length_unit_um",
+    };
   }
 
   // choose the strongest usable buffer and use 10x cell height.
@@ -264,8 +346,8 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
   for (const auto& buffer_info : sorted_buffers) {
     const double cell_height_um = STA_ADAPTER_INST.queryCellHeightUm(buffer_info.cell_master);
     if (cell_height_um <= 0.0) {
-      CTS_LOG_WARNING << "CharBuilder: cannot derive wire_length_unit from " << buffer_info.cell_master
-                      << " because its physical height is unavailable";
+      LOG_WARNING << "CharBuilder: cannot derive wire_length_unit from " << buffer_info.cell_master
+                  << " because its physical height is unavailable";
       continue;
     }
 
@@ -277,14 +359,28 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
   }
 
   if (strongest_height_um <= 0.0) {
-    CTS_LOG_WARNING << "CharBuilder: failed to resolve wire_length_unit from Config or strongest buffer height";
-    return 0.0;
+    LOG_WARNING << "CharBuilder: failed to resolve wire_length_unit from Config or strongest buffer height";
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
+                           "wire_length_unit_um is absent in active runtime config and auto-derivation failed.",
+                           {{"reason", "no_valid_strongest_buffer_height"}});
+    return ResolvedValue{
+        .value = 0.0,
+        .source = ResolutionSource::kUnresolved,
+        .detail = "no valid strongest buffer height",
+    };
   }
 
   const double fallback_unit_um = strongest_height_um * 10.0;
-  CTS_LOG_INFO << "CharBuilder: wire_length_unit resolved from strongest buffer " << strongest_master << " height = " << strongest_height_um
-               << " um -> " << fallback_unit_um << " um";
-  return fallback_unit_um;
+  schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "CharBuilder",
+                         "wire_length_unit_um is absent in active runtime config, fallback to auto-derived strongest-buffer height.",
+                         {{"strongest_buffer", strongest_master},
+                          {"buffer_height_um", logformat::FormatWithUnit(strongest_height_um, "um")},
+                          {"derived_wire_length_unit_um", logformat::FormatWithUnit(fallback_unit_um, "um")}});
+  return ResolvedValue{
+      .value = fallback_unit_um,
+      .source = ResolutionSource::kAutoDerived,
+      .detail = "strongest buffer " + strongest_master + " height=" + logformat::FormatWithUnit(strongest_height_um, "um") + " x10",
+  };
 }
 
 }  // namespace
@@ -295,7 +391,7 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
 
 auto CharBuilder::init() -> void
 {
-  CTS_LOG_INFO << "CharBuilder: initialization started";
+  schema::ScopedStage init_stage("CharBuilder", "initialization");
 
   _segment_chars.clear();
   _buffering_patterns.clear();
@@ -311,9 +407,14 @@ auto CharBuilder::init() -> void
   _char_circuit_id = 0U;
 
   _sorted_buffers = collectSortedBuffers();
-  _max_slew = resolveMaxSlew();
-  _max_cap = resolveMaxCap();
-  _length_unit_um = resolveWireLengthUnitUm(_sorted_buffers);
+  const ResolvedValue max_slew_resolution = resolveMaxSlew();
+  const ResolvedValue max_cap_resolution = resolveMaxCap();
+  const ResolvedValue wire_length_unit_resolution = resolveWireLengthUnitUm(_sorted_buffers);
+  _max_slew = max_slew_resolution.value;
+  _max_cap = max_cap_resolution.value;
+  _length_unit_um = wire_length_unit_resolution.value;
+  _wire_length_unit_source = toResolutionSourceName(wire_length_unit_resolution.source);
+  _wire_length_unit_detail = wire_length_unit_resolution.detail;
   _wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
   _slew_steps = CONFIG_INST.get_slew_steps();
   _cap_steps = CONFIG_INST.get_cap_steps();
@@ -326,45 +427,79 @@ auto CharBuilder::init() -> void
   _wire_width = resolveWireWidth();
   if (_max_nodes == 0U) {
     _max_nodes = kDefaultMaxPatternNodes;
-    CTS_LOG_WARNING << "CharBuilder: max_pattern_nodes is 0, fallback to default = " << _max_nodes;
+    LOG_WARNING << "CharBuilder: max_pattern_nodes is 0, fallback to default = " << _max_nodes;
   }
   _sink_input_cap_pf = _sorted_buffers.empty() ? 0.0 : _sorted_buffers.front().input_cap_pf;
 
-  CTS_LOG_INFO << "CharBuilder: max_pattern_nodes = " << _max_nodes;
-  CTS_LOG_INFO << "CharBuilder: routing_layer = " << _routing_layer;
-  CTS_LOG_INFO << "CharBuilder: wire_length_unit = " << _length_unit_um << " um, iterations = " << _wire_length_iterations
-               << ", max = " << _max_length << " um";
-  CTS_LOG_INFO << "CharBuilder: " << _slews_to_test.size() << " slew values to test"
-               << " (steps=" << _slew_steps << ", max=" << _max_slew << " ns)";
-  CTS_LOG_INFO << "CharBuilder: " << _loads_to_test.size() << " load values to test"
-               << " (steps=" << _cap_steps << ", max=" << _max_cap << " pF)";
-  CTS_LOG_INFO << "CharBuilder: sorted buffer list (" << _sorted_buffers.size() << " buffers):";
+  CONFIG_INST.emitRuntimeConfigReport("CharBuilder Runtime Configuration");
+
+  const logformat::TableRows parameter_rows = {
+      {"max_slew_ns", logformat::FormatWithUnit(_max_slew, "ns"), toResolutionSourceName(max_slew_resolution.source),
+       max_slew_resolution.detail},
+      {"max_cap_pf", logformat::FormatWithUnit(_max_cap, "pF"), toResolutionSourceName(max_cap_resolution.source),
+       max_cap_resolution.detail},
+      {"wire_length_unit_um", logformat::FormatWithUnit(_length_unit_um, "um"), toResolutionSourceName(wire_length_unit_resolution.source),
+       wire_length_unit_resolution.detail},
+      {"wire_length_iterations", std::to_string(_wire_length_iterations), "runtime_config", "Config.wire_length_iterations"},
+      {"routing_layer", std::to_string(_routing_layer), "runtime_config", "first routing layer or fallback=1"},
+      {"wire_width_um", formatOptionalWireWidth(_wire_width), "runtime_config", "explicit width override or technology default"},
+      {"max_pattern_nodes", std::to_string(_max_nodes), "runtime_config", "Config.max_pattern_nodes with default fallback"},
+  };
+  logInfoTable("CharBuilder Initialization Parameters", {"Parameter", "Value", "Source", "Detail"}, parameter_rows);
+
+  STA_ADAPTER_INST.emitUnitWireRcReport("CharBuilder Routing / Wire RC", _routing_layer, _wire_width);
+
+  const logformat::TableRows sweep_rows = {
+      {"wire_lengths", std::to_string(_wire_lengths_um.size()), std::to_string(_wire_length_iterations),
+       logformat::FormatWithUnit(_max_length, "um")},
+      {"input_slews", std::to_string(_slews_to_test.size()), std::to_string(_slew_steps), logformat::FormatWithUnit(_max_slew, "ns")},
+      {"load_caps", std::to_string(_loads_to_test.size()), std::to_string(_cap_steps), logformat::FormatWithUnit(_max_cap, "pF")},
+  };
+  logInfoTable("CharBuilder Sweep Grids", {"Grid", "Points", "Steps", "Upper Bound"}, sweep_rows);
+
+  logformat::TableRows buffer_rows;
+  buffer_rows.reserve(_sorted_buffers.size());
   for (std::size_t buffer_index = 0; buffer_index < _sorted_buffers.size(); ++buffer_index) {
-    CTS_LOG_INFO << "  [" << buffer_index << "] " << _sorted_buffers.at(buffer_index).cell_master
-                 << " max_cap=" << _sorted_buffers.at(buffer_index).max_cap_pf << " pF";
+    buffer_rows.push_back({
+        std::to_string(buffer_index),
+        _sorted_buffers.at(buffer_index).cell_master,
+        logformat::FormatWithUnit(_sorted_buffers.at(buffer_index).max_cap_pf, "pF"),
+        logformat::FormatWithUnit(_sorted_buffers.at(buffer_index).input_cap_pf, "pF"),
+    });
   }
-  CTS_LOG_INFO << "CharBuilder: initialization complete -- " << _sorted_buffers.size() << " buffers, " << _wire_lengths_um.size()
-               << " wire lengths, " << _slews_to_test.size() << " slews, " << _loads_to_test.size() << " loads";
+  if (!buffer_rows.empty()) {
+    logInfoTable("CharBuilder Sorted Buffers", {"Index", "Cell Master", "Max Cap", "Input Cap"}, buffer_rows);
+  }
+  init_stage.finish({
+      {"buffers", std::to_string(_sorted_buffers.size())},
+      {"wire_lengths", std::to_string(_wire_lengths_um.size())},
+      {"slews", std::to_string(_slews_to_test.size())},
+      {"loads", std::to_string(_loads_to_test.size())},
+  });
 }
 
 auto CharBuilder::build() -> void
 {
-  CTS_LOG_INFO << "CharBuilder: build started";
+  schema::ScopedStage build_stage("CharBuilder", "build");
+  logformat::TableRows progress_rows;
 
   if (_sorted_buffers.empty()) {
-    CTS_LOG_WARNING << "CharBuilder: no usable buffers remain after Config/liberty filtering, skip characterization build";
+    LOG_WARNING << "CharBuilder: no usable buffers remain after Config/liberty filtering, skip characterization build";
     STA_ADAPTER_INST.finishCharOnly();
+    build_stage.skip({{"reason", "no_usable_buffers"}});
     return;
   }
   if (_wire_lengths_um.empty()) {
-    CTS_LOG_ERROR << "CharBuilder: no wire lengths to enumerate, aborting build";
+    LOG_ERROR << "CharBuilder: no wire lengths to enumerate, aborting build";
     STA_ADAPTER_INST.finishCharOnly();
+    build_stage.skip({{"reason", "no_wire_lengths"}}, "failed");
     return;
   }
   if (_slews_to_test.empty() || _loads_to_test.empty()) {
-    CTS_LOG_WARNING << "CharBuilder: characterization limits are unresolved"
-                    << " (max_slew_ns=" << _max_slew << ", max_cap_pf=" << _max_cap << "), skip characterization build";
+    LOG_WARNING << "CharBuilder: characterization limits are unresolved"
+                << " (max_slew_ns=" << _max_slew << ", max_cap_pf=" << _max_cap << "), skip characterization build";
     STA_ADAPTER_INST.finishCharOnly();
+    build_stage.skip({{"reason", "unresolved_characterization_limits"}});
     return;
   }
 
@@ -380,24 +515,50 @@ auto CharBuilder::build() -> void
     build_progress.wire_length_um = wire_length_um;
     build_progress.estimated_patterns = estimated_patterns_per_wire_length;
     build_progress.estimated_sta_samples = estimated_sta_samples_per_wire_length;
-    CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um estimated upper bound = " << estimated_patterns_per_wire_length
-                 << " patterns, " << estimated_sta_samples_per_wire_length << " STA samples"
-                 << " (lattice_slots=" << lattice_slots << ", enumerated_slots=" << enumerated_slots << ")";
+    build_stage.markRunning("wire_length=" + formatFixed(wire_length_um) + " um",
+                            {
+                                {"estimated_patterns", std::to_string(estimated_patterns_per_wire_length)},
+                                {"estimated_sta_samples", std::to_string(estimated_sta_samples_per_wire_length)},
+                                {"lattice_slots", std::to_string(lattice_slots)},
+                                {"enumerated_slots", std::to_string(enumerated_slots)},
+                            });
     if (enumerated_slots < lattice_slots) {
-      CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um slot enumeration is capped by max_pattern_nodes=" << _max_nodes;
+      LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um slot enumeration is capped by max_pattern_nodes=" << _max_nodes;
     }
     enumerateWireLength(wire_length_um, build_progress);
 
-    CTS_LOG_INFO << "CharBuilder: wire_length=" << wire_length_um << " um generated " << (_segment_chars.size() - char_count_before)
-                 << " segment chars, " << (_buffering_patterns.size() - pattern_count_before) << " patterns"
-                 << " (feasible_patterns=" << build_progress.feasible_patterns
-                 << ", skipped_patterns=" << build_progress.skipped_patterns_infeasible
-                 << ", executed_sta_samples=" << build_progress.executed_sta_samples
-                 << ", skipped_sta_samples=" << build_progress.skipped_sta_samples << ")";
+    progress_rows.push_back({
+        formatFixed(wire_length_um) + " um",
+        std::to_string(lattice_slots),
+        std::to_string(enumerated_slots),
+        std::to_string(_segment_chars.size() - char_count_before),
+        std::to_string(_buffering_patterns.size() - pattern_count_before),
+        std::to_string(build_progress.feasible_patterns),
+        std::to_string(build_progress.skipped_patterns_infeasible),
+        std::to_string(build_progress.executed_sta_samples),
+        std::to_string(build_progress.skipped_sta_samples),
+    });
+
+    LOG_INFO << "CharBuilder: [RUNNING] wire_length=" << formatFixed(wire_length_um)
+             << " um, generated_chars=" << (_segment_chars.size() - char_count_before)
+             << ", generated_patterns=" << (_buffering_patterns.size() - pattern_count_before)
+             << ", feasible_patterns=" << build_progress.feasible_patterns
+             << ", skipped_patterns=" << build_progress.skipped_patterns_infeasible
+             << ", executed_sta_samples=" << build_progress.executed_sta_samples
+             << ", skipped_sta_samples=" << build_progress.skipped_sta_samples;
   }
 
-  CTS_LOG_INFO << "CharBuilder: build complete -- " << _segment_chars.size() << " segment chars, " << _buffering_patterns.size()
-               << " patterns";
+  if (!progress_rows.empty()) {
+    logInfoTable("CharBuilder Sweep Progress",
+                 {"Wire Length", "Lattice Slots", "Enumerated Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns",
+                  "Skipped Patterns", "Executed STA Samples", "Skipped STA Samples"},
+                 progress_rows);
+  }
+
+  build_stage.finish({
+      {"segment_chars", std::to_string(_segment_chars.size())},
+      {"patterns", std::to_string(_buffering_patterns.size())},
+  });
   STA_ADAPTER_INST.finishCharOnly();
 }
 
@@ -415,7 +576,7 @@ auto CharBuilder::calcBufferSlotCount(double wire_length_um) const -> unsigned
   if (slot_count > kMaxTopologySlots) {
     static bool has_logged_slot_clamp = false;
     if (!has_logged_slot_clamp) {
-      CTS_LOG_WARNING << "CharBuilder: slot count exceeds topology bit capacity, clamp to " << kMaxTopologySlots;
+      LOG_WARNING << "CharBuilder: slot count exceeds topology bit capacity, clamp to " << kMaxTopologySlots;
       has_logged_slot_clamp = true;
     }
     slot_count = kMaxTopologySlots;
@@ -437,7 +598,7 @@ auto CharBuilder::countSelectedSlots(TopologyBits topology_bits) -> unsigned
 auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t
 {
   const unsigned num_slots = calcBufferSlotCount(wire_length_um);
-  CTS_LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
+  LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
       << "CharBuilder: buffer slot count " << num_slots << " exceeds topology bit capacity.";
 
   std::size_t total_patterns = 0;
@@ -452,7 +613,7 @@ auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const
 auto CharBuilder::enumerateWireLength(double wire_length_um, BuildProgress& build_progress) -> void
 {
   const unsigned num_slots = calcBufferSlotCount(wire_length_um);
-  CTS_LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
+  LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
       << "CharBuilder: buffer slot count " << num_slots << " exceeds topology bit capacity.";
 
   const std::uint64_t num_topologies = std::uint64_t{1} << num_slots;
@@ -658,10 +819,10 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
   if (!feasibility.is_pattern_feasible) {
     ++build_progress.skipped_patterns_infeasible;
     if ((build_progress.evaluated_patterns % kCharProgressLogStride) == 0U) {
-      CTS_LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
-                   << build_progress.estimated_patterns << " patterns"
-                   << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
-                   << ", executed_sta_samples=" << build_progress.executed_sta_samples << ")";
+      LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
+               << build_progress.estimated_patterns << " patterns"
+               << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
+               << ", executed_sta_samples=" << build_progress.executed_sta_samples << ")";
     }
     ++_next_pattern_id;
     return;
@@ -679,7 +840,7 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
   if (kEnableCharPowerSampling) {
     power_context_ready = STA_ADAPTER_INST.prepareCharPower(power_inst_names, _temp_net_names, _source_in_pin);
     if (!power_context_ready) {
-      CTS_LOG_WARNING << "CharBuilder: iPA characterization power is unavailable for this topology; affected samples use zero power.";
+      LOG_WARNING << "CharBuilder: iPA characterization power is unavailable for this topology; affected samples use zero power.";
     }
   }
 
@@ -701,7 +862,7 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     if (kEnableCharPowerSampling && power_context_ready) {
       const bool refreshed_power_load = STA_ADAPTER_INST.refreshCharPowerLoad();
       if (!refreshed_power_load) {
-        CTS_LOG_WARNING << "CharBuilder: external iPA load refresh failed, remaining samples for this topology use zero power.";
+        LOG_WARNING << "CharBuilder: external iPA load refresh failed, remaining samples for this topology use zero power.";
         power_context_ready = false;
         STA_ADAPTER_INST.destroyCharPower();
       }
@@ -738,7 +899,7 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
         if (power_updated) {
           power_w = STA_ADAPTER_INST.queryCharPower();
         } else {
-          CTS_LOG_WARNING << "CharBuilder: iPA characterization update failed, remaining samples for this topology use zero power.";
+          LOG_WARNING << "CharBuilder: iPA characterization update failed, remaining samples for this topology use zero power.";
           power_context_ready = false;
           STA_ADAPTER_INST.destroyCharPower();
         }
@@ -774,11 +935,11 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
 
   destroyCharCircuit();
   if ((build_progress.evaluated_patterns % kCharProgressLogStride) == 0U) {
-    CTS_LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
-                 << build_progress.estimated_patterns << " patterns"
-                 << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
-                 << ", executed_sta_samples=" << build_progress.executed_sta_samples
-                 << ", skipped_sta_samples=" << build_progress.skipped_sta_samples << ")";
+    LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
+             << build_progress.estimated_patterns << " patterns"
+             << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
+             << ", executed_sta_samples=" << build_progress.executed_sta_samples
+             << ", skipped_sta_samples=" << build_progress.skipped_sta_samples << ")";
   }
   ++_next_pattern_id;
 }
@@ -824,7 +985,7 @@ auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   for (size_t bi = 0; bi < buf_masters.size(); ++bi) {
     const CharBufferInfo* buf_info = findBufferInfo(buf_masters.at(bi));
     if (buf_info == nullptr) {
-      CTS_LOG_FATAL << "Buffer info not found for: " << buf_masters.at(bi);
+      LOG_FATAL << "Buffer info not found for: " << buf_masters.at(bi);
       return;
     }
     const auto& buffer_info = *buf_info;

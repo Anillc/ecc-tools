@@ -11,6 +11,7 @@ target_link_libraries(
   PRIVATE
   icts_source_database_adapter_sta
   icts_source_database_config
+  icts_source_utils
   icts_source_utils_logger
 )
 

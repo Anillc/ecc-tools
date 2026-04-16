@@ -2,8 +2,10 @@ add_library(icts_source_database_config ${ICTS_DATABASE_CONFIG}/Config.cc)
 
 target_link_libraries(
   icts_source_database_config
-  PRIVATE
+  PUBLIC
   icts_source_utils_logger
+  PRIVATE
+  icts_source_utils
 )
 
 target_include_directories(

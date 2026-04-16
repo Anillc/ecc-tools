@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints for file types, validation, and logging macro usage"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Placement and CMake rules for new/reused iCTS logging helpers"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Log level and milestone logging rules for iCTS"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve warning/error/fatal semantics while revising logs"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming/include/validation rules for touched iCTS files"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Decide between reusing report_table and introducing an iCTS-scoped helper"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Shared logging helper used across API/flow/module/test boundaries"}

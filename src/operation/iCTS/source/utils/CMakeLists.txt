@@ -9,6 +9,7 @@ add_library(icts_source_utils INTERFACE)
 target_link_libraries(
   icts_source_utils
   INTERFACE
+  log
   icts_source_utils_logger
   icts_source_utils_geometry
 )

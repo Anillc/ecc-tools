@@ -23,14 +23,18 @@
 
 #include "Router.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <vector>
 
 #include "Inst.hh"
+#include "Log.hh"
 #include "Pin.hh"
 #include "PinLocationHelper.hh"
 #include "Point.hh"
@@ -41,7 +45,6 @@
 #include "flute/FLUTERouter.hh"
 #include "io/Wrapper.hh"
 #include "local_legalization/LocalLegalization.hh"
-#include "logger/Logger.hh"
 #include "salt/SALTRouter.hh"
 
 namespace icts {
@@ -137,7 +140,7 @@ auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RC
     return rc_tree;
   }
 
-  CTS_LOG_FATAL_IF(!tree.validate()) << "Routing tree is invalid before RCTree conversion.";
+  LOG_FATAL_IF(!tree.validate()) << "Routing tree is invalid before RCTree conversion.";
 
   rc_tree.reserveVertices(tree.node_count());
   rc_tree.reserveArcs(tree.edge_count());
@@ -146,7 +149,7 @@ auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RC
   for (const auto& node : tree.get_nodes()) {
     auto vertex_name = ResolveVertexName(node, rc_tree);
     auto vertex_id = rc_tree.addVertex(vertex_name, node.is_terminal, node.pin_cap);
-    CTS_LOG_FATAL_IF(vertex_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree vertex for routing node: " << vertex_name;
+    LOG_FATAL_IF(vertex_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree vertex for routing node: " << vertex_name;
     node_to_vertex_id.at(node.id) = vertex_id;
   }
 
@@ -155,15 +158,15 @@ auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RC
   for (const auto& edge : tree.get_edges()) {
     auto source_vertex_id = node_to_vertex_id.at(edge.source_node_id);
     auto sink_vertex_id = node_to_vertex_id.at(edge.target_node_id);
-    CTS_LOG_FATAL_IF(source_vertex_id == Router::RCTreeType::kInvalidId || sink_vertex_id == Router::RCTreeType::kInvalidId)
+    LOG_FATAL_IF(source_vertex_id == Router::RCTreeType::kInvalidId || sink_vertex_id == Router::RCTreeType::kInvalidId)
         << "Routing edge endpoint is missing during RCTree conversion.";
 
     auto arc_electrical = QueryArcElectrical(GetWireDistance(edge), options);
     auto arc_id = rc_tree.addArc(source_vertex_id, sink_vertex_id, arc_electrical.resistance, arc_electrical.capacitance);
-    CTS_LOG_FATAL_IF(arc_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree arc when converting routing tree edge " << edge.id;
+    LOG_FATAL_IF(arc_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree arc when converting routing tree edge " << edge.id;
   }
 
-  CTS_LOG_FATAL_IF(!rc_tree.validate()) << "Constructed RCTree is invalid after routing conversion.";
+  LOG_FATAL_IF(!rc_tree.validate()) << "Constructed RCTree is invalid after routing conversion.";
   return rc_tree;
 }
 
@@ -204,7 +207,7 @@ auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin
   const auto fixed_points = CollectPinLocations(fixed_pins);
   auto result = LocalLegalization::legalize(movable_points, fixed_points, feasible_region, block_region, options);
   if (!result.success) {
-    CTS_LOG_WARNING << "Router::legalizePins did not produce a successful legalization result.";
+    LOG_WARNING << "Router::legalizePins did not produce a successful legalization result.";
   }
   if (result.success || options.failure_policy == LocalLegalization::FailurePolicy::kKeepOriginal) {
     WriteBackPinLocations(movable_pins, result.legalized_points);

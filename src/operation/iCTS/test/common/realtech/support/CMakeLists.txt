@@ -9,6 +9,7 @@ target_link_libraries(
   PUBLIC
   icts_test_common_types
   PRIVATE
+  log
   icts_test_common_realtech_asset_loader
   icts_test_common_realtech_load_factory
 )

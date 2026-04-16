@@ -25,20 +25,23 @@
 
 #include <filesystem>
 #include <string>
+#include <utility>
 
-#include "utils/logger/Logger.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts_test::common::logging {
 
-ScopedLogFile::ScopedLogFile(const std::filesystem::path& path)
+ScopedLogFile::ScopedLogFile(const std::filesystem::path& path, const std::string& run_title)
 {
-  const std::string log_path = path.string();
-  LOG_INST.set_log_file(log_path);
+  SCHEMA_WRITER_INST.open(path, run_title,
+                          {
+                              {"cts_log", path.string()},
+                          });
 }
 
 ScopedLogFile::~ScopedLogFile()
 {
-  LOG_INST.close();
+  SCHEMA_WRITER_INST.close();
 }
 
 }  // namespace icts_test::common::logging

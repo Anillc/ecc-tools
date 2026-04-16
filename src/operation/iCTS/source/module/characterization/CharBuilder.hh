@@ -63,6 +63,8 @@ class CharBuilder
   auto get_buffering_patterns() const -> const std::vector<BufferingPattern>& { return _buffering_patterns; }
   auto get_wire_lengths_um() const -> const std::vector<double>& { return _wire_lengths_um; }
   auto get_wire_length_unit_um() const -> double { return _length_unit_um; }
+  auto get_wire_length_unit_source() const -> const std::string& { return _wire_length_unit_source; }
+  auto get_wire_length_unit_detail() const -> const std::string& { return _wire_length_unit_detail; }
   auto get_wire_length_iterations() const -> unsigned { return _wire_length_iterations; }
   auto get_max_slew() const -> double { return _max_slew; }
   auto get_max_cap() const -> double { return _max_cap; }
@@ -131,6 +133,8 @@ class CharBuilder
   double _max_cap = 0.0;
   double _max_length = 0.0;
   double _length_unit_um = 0.0;
+  std::string _wire_length_unit_source;
+  std::string _wire_length_unit_detail;
   unsigned _slew_steps = 20;
   unsigned _cap_steps = 20;
   unsigned _wire_length_iterations = 20;

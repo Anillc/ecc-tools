@@ -23,12 +23,15 @@
 
 #include "BSTRouter.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <ostream>
 #include <ranges>
 #include <string>
 #include <unordered_map>
@@ -38,10 +41,10 @@
 #include "BSTTypes.hh"
 #include "BoundSkewTree.hh"
 #include "Components.hh"
+#include "Log.hh"
 #include "Point.hh"
 #include "RoutingTerminal.hh"
 #include "geometry/Geometry.hh"
-#include "logger/Logger.hh"
 
 namespace icts {
 namespace {
@@ -93,8 +96,7 @@ auto BuildDefaultParameters(const BSTParameters& parameters) -> BSTParameters
 auto NormalizeTopoTypeForBuild(const BSTParameters& parameters) -> TopoType
 {
   if (parameters.topo_type == TopoType::kInputTopo) {
-    CTS_LOG_WARNING
-        << "BSTRouter::buildTree received TopoType::kInputTopo. Falling back to TopoType::kGreedyDist for normal BST construction.";
+    LOG_WARNING << "BSTRouter::buildTree received TopoType::kInputTopo. Falling back to TopoType::kGreedyDist for normal BST construction.";
     return TopoType::kGreedyDist;
   }
   return parameters.topo_type;
@@ -103,7 +105,7 @@ auto NormalizeTopoTypeForBuild(const BSTParameters& parameters) -> TopoType
 auto NormalizeTopoTypeForInputTopology(const BSTParameters& parameters) -> TopoType
 {
   if (parameters.topo_type != TopoType::kInputTopo) {
-    CTS_LOG_WARNING << "BSTRouter::buildTreeFromTopology received non-input topology type. Overriding topo_type to TopoType::kInputTopo.";
+    LOG_WARNING << "BSTRouter::buildTreeFromTopology received non-input topology type. Overriding topo_type to TopoType::kInputTopo.";
   }
   return TopoType::kInputTopo;
 }
@@ -150,11 +152,11 @@ auto CollectChildNodeIds(const BSTRouter::ClockSteinerTreeType& input_topology, 
 {
   std::vector<std::size_t> child_node_ids;
   const auto* node = input_topology.get_node(node_id);
-  CTS_LOG_FATAL_IF(node == nullptr) << "BST input-topology node is null.";
+  LOG_FATAL_IF(node == nullptr) << "BST input-topology node is null.";
   child_node_ids.reserve(node->child_edge_ids.size());
   for (auto edge_id : node->child_edge_ids) {
     const auto* edge = input_topology.get_edge(edge_id);
-    CTS_LOG_FATAL_IF(edge == nullptr) << "BST input-topology edge is null.";
+    LOG_FATAL_IF(edge == nullptr) << "BST input-topology edge is null.";
     child_node_ids.push_back(edge->target_node_id);
   }
   return child_node_ids;
@@ -229,7 +231,7 @@ auto EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
                      std::vector<BuildFrame>& frame_stack) -> void
 {
   const auto* tree_node = input_topology.get_node(frame.node_id);
-  CTS_LOG_FATAL_IF(tree_node == nullptr) << "BST input-topology node is null.";
+  LOG_FATAL_IF(tree_node == nullptr) << "BST input-topology node is null.";
 
   auto node_name = tree_node->name.empty() ? std::string("steiner_") + std::to_string(frame.node_id) : tree_node->name;
   auto electrical = TerminalElectrical{.pin_cap = tree_node->pin_cap, .insertion_delay = tree_node->insertion_delay};
@@ -241,7 +243,7 @@ auto EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
       const auto* lhs = input_topology.get_node(lhs_id);
       const auto* rhs = input_topology.get_node(rhs_id);
       if (lhs == nullptr || rhs == nullptr) {
-        CTS_LOG_FATAL << "BST input-topology child node is null.";
+        LOG_FATAL << "BST input-topology child node is null.";
         return false;
       }
       return geometry::Manhattan(tree_node->location, lhs->location) < geometry::Manhattan(tree_node->location, rhs->location);
@@ -250,7 +252,7 @@ auto EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
 
   switch (frame.child_ids.size()) {
     case 0:
-      CTS_LOG_FATAL_IF(!frame.node->is_terminal) << "BST input-topology Steiner node has no children.";
+      LOG_FATAL_IF(!frame.node->is_terminal) << "BST input-topology Steiner node has no children.";
       return_value = frame.node;
       frame_stack.pop_back();
       return;
@@ -273,7 +275,7 @@ auto EnterBuildFrame(BuildFrame& frame, const BSTRouter::ClockSteinerTreeType& i
       PushBuildFrame(frame_stack, frame.child_ids.at(0));
       return;
     default:
-      CTS_LOG_FATAL << "BST input-topology node child size " << frame.child_ids.size() << " is unsupported.";
+      LOG_FATAL << "BST input-topology node child size " << frame.child_ids.size() << " is unsupported.";
   }
 }
 
@@ -281,7 +283,7 @@ auto ExitSingleChildFrame(BuildFrame& frame, std::size_t& next_steiner_id, Binar
                           std::vector<BuildFrame>& frame_stack) -> void
 {
   auto* child = return_value;
-  CTS_LOG_FATAL_IF(child == nullptr) << "BST input-topology child build returned null.";
+  LOG_FATAL_IF(child == nullptr) << "BST input-topology child build returned null.";
 
   if (frame.node->is_terminal) {
     auto copy = std::make_unique<BinaryTopologyNode>(*frame.node);
@@ -299,7 +301,7 @@ auto ExitSingleChildFrame(BuildFrame& frame, std::size_t& next_steiner_id, Binar
   }
 
   auto grandchildren = CollectNonNullChildren(child);
-  CTS_LOG_FATAL_IF(grandchildren.empty()) << "BST input-topology single-child Steiner node flatten result is empty.";
+  LOG_FATAL_IF(grandchildren.empty()) << "BST input-topology single-child Steiner node flatten result is empty.";
 
   frame.node->left = grandchildren.front();
   frame.node->right = grandchildren.size() > 1 ? grandchildren.at(kRight) : nullptr;
@@ -452,7 +454,7 @@ auto FinalizeElectricalState(BinaryTopologyNode* node, const BSTParameters& para
 auto BuildAreaTree(BinaryTopologyNode* node, const BSTParameters& parameters, AreaStore& owned_areas) -> Area*
 {
   if (node == nullptr) {
-    CTS_LOG_FATAL << "BST binary topology node is null.";
+    LOG_FATAL << "BST binary topology node is null.";
     return nullptr;
   }
 
@@ -498,7 +500,7 @@ auto BuildAreaTree(BinaryTopologyNode* node, const BSTParameters& parameters, Ar
           break;
         }
         if (frame.node->left == nullptr || frame.node->right == nullptr) {
-          CTS_LOG_FATAL << "BST area adaptation expects binary topology.";
+          LOG_FATAL << "BST area adaptation expects binary topology.";
           return frame.area;
         }
         frame.state = BuildAreaState::kAfterLeftChild;
@@ -513,6 +515,8 @@ auto BuildAreaTree(BinaryTopologyNode* node, const BSTParameters& parameters, Ar
         break;
       case BuildAreaState::kAfterRightChild:
         frame.right_area = return_area;
+        LOG_FATAL_IF(frame.area == nullptr || frame.left_area == nullptr || frame.right_area == nullptr)
+            << "BST area adaptation produced null child linkage.";
         frame.area->set_left(frame.left_area);
         frame.area->set_right(frame.right_area);
         frame.left_area->set_parent(frame.area);
@@ -547,16 +551,16 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
   auto add_edge = [&](std::size_t parent_id, std::size_t child_id, const Area* parent_area, std::size_t side) -> void {
     const auto* parent_node = tree.get_node(parent_id);
     const auto* child_node = tree.get_node(child_id);
-    CTS_LOG_FATAL_IF(parent_node == nullptr || child_node == nullptr) << "BST exported node is null.";
+    LOG_FATAL_IF(parent_node == nullptr || child_node == nullptr) << "BST exported node is null.";
 
     const auto distance = geometry::Manhattan(parent_node->location, child_node->location);
-    CTS_LOG_FATAL_IF(distance < 0) << "BST embedded edge distance is negative.";
+    LOG_FATAL_IF(distance < 0) << "BST embedded edge distance is negative.";
 
     const auto routed_distance = static_cast<int>(std::lround(parent_area->get_edge_len(side) * parameters.db_unit));
-    CTS_LOG_FATAL_IF(routed_distance < distance) << "BST routed edge length is shorter than embedded Manhattan distance.";
+    LOG_FATAL_IF(routed_distance < distance) << "BST routed edge length is shorter than embedded Manhattan distance.";
 
     auto edge_id = tree.addEdge(parent_id, child_id, distance, routed_distance);
-    CTS_LOG_FATAL_IF(edge_id == BSTRouter::ClockSteinerTreeType::kInvalidId) << "Failed to add edge when exporting BST ClockSteinerTree.";
+    LOG_FATAL_IF(edge_id == BSTRouter::ClockSteinerTreeType::kInvalidId) << "Failed to add edge when exporting BST ClockSteinerTree.";
   };
 
   std::size_t return_node_id = BSTRouter::ClockSteinerTreeType::kInvalidId;
@@ -581,7 +585,7 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
                                      Point<int>(static_cast<int>(std::lround(location.x * parameters.db_unit)),
                                                 static_cast<int>(std::lround(location.y * parameters.db_unit))),
                                      frame.area->is_fixed_terminal(), pin_cap, insertion_delay);
-        CTS_LOG_FATAL_IF(frame.node_id == BSTRouter::ClockSteinerTreeType::kInvalidId)
+        LOG_FATAL_IF(frame.node_id == BSTRouter::ClockSteinerTreeType::kInvalidId)
             << "Failed to add node when exporting BST ClockSteinerTree.";
         area_to_node_id[frame.area] = frame.node_id;
 
@@ -621,12 +625,12 @@ auto ExportAreaNode(const Area* area, const BSTParameters& parameters, BSTRouter
 auto ExportClockTree(const Area* root, const BSTParameters& parameters) -> BSTRouter::ClockSteinerTreeType
 {
   BSTRouter::ClockSteinerTreeType tree;
-  CTS_LOG_FATAL_IF(root == nullptr) << "BST root area is null when exporting ClockSteinerTree.";
+  LOG_FATAL_IF(root == nullptr) << "BST root area is null when exporting ClockSteinerTree.";
 
   std::unordered_map<const Area*, std::size_t> area_to_node_id;
   auto root_id = ExportAreaNode(root, parameters, tree, area_to_node_id);
   tree.setRoot(root_id);
-  CTS_LOG_FATAL_IF(!tree.validate()) << "Constructed BST ClockSteinerTree is invalid.";
+  LOG_FATAL_IF(!tree.validate()) << "Constructed BST ClockSteinerTree is invalid.";
   return tree;
 }
 
@@ -664,7 +668,7 @@ auto BSTRouter::buildTreeFromTopology(const ClockSteinerTreeType& input_topology
     return empty_tree;
   }
 
-  CTS_LOG_FATAL_IF(!input_topology.validate()) << "Input BST topology tree is invalid.";
+  LOG_FATAL_IF(!input_topology.validate()) << "Input BST topology tree is invalid.";
 
   std::size_t next_steiner_id = input_topology.node_count();
   BinaryNodeStore owned_nodes;

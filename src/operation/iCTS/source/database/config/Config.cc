@@ -22,6 +22,8 @@
  */
 #include "database/config/Config.hh"
 
+#include <glog/logging.h>
+
 #include <cctype>
 #include <fstream>
 #include <limits>
@@ -29,8 +31,10 @@
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
+#include "LogFormat.hh"
 #include "json.hpp"
-#include "logger/Logger.hh"
+#include "logger/Schema.hh"
 
 namespace icts {
 namespace {
@@ -230,7 +234,7 @@ auto Config::parse(const std::string& json_file) -> void
 {
   std::ifstream ifs(json_file);
   if (!ifs) {
-    CTS_LOG_ERROR << "Failed to open iCTS config file: " << json_file;
+    LOG_ERROR << "Failed to open iCTS config file: " << json_file;
     return;
   }
 
@@ -258,6 +262,50 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyDoubleIfPresent(json, "char_buf_redundancy_pct", *this, &Config::get_char_buf_redundancy_pct, &Config::set_char_buf_redundancy_pct);
   ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist);
   ApplyNetListIfPresent(json, *this);
+}
+
+auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
+{
+  const auto& routing_layers = get_routing_layers();
+  const auto& buffer_types = get_buffer_types();
+  const bool has_wire_length_unit = get_wire_length_unit_um() > 0.0;
+  const bool has_wire_width = get_wire_width() > 0.0;
+  const bool has_relaxed_limit = get_relaxed_candidates_per_boundary_group() > 0U;
+
+  return {
+      {"skew_bound_ns", logformat::FormatWithUnit(get_skew_bound(), "ns"), "clock skew target"},
+      {"max_buf_tran_ns", has_max_buf_tran() ? logformat::FormatWithUnit(get_max_buf_tran(), "ns") : "auto",
+       has_max_buf_tran() ? "explicit runtime config" : "resolve from liberty slew limit/table-axis during characterization"},
+      {"max_sink_tran_ns", logformat::FormatWithUnit(get_max_sink_tran(), "ns"), "sink transition target"},
+      {"max_cap_pf", has_max_cap() ? logformat::FormatWithUnit(get_max_cap(), "pF") : "auto",
+       has_max_cap() ? "explicit runtime config" : "resolve from liberty cap limit/table-axis during characterization"},
+      {"max_length_um", logformat::FormatWithUnit(get_max_length(), "um"), "legacy compatibility knob; not the active step lattice"},
+      {"wire_length_unit_um", has_wire_length_unit ? logformat::FormatWithUnit(get_wire_length_unit_um(), "um") : "auto",
+       has_wire_length_unit ? "active characterization lattice unit" : "fallback/override resolves later in flow"},
+      {"wire_length_iterations", std::to_string(get_wire_length_iterations()), "characterization length bins"},
+      {"slew_steps", std::to_string(get_slew_steps()), "characterization slew bins"},
+      {"cap_steps", std::to_string(get_cap_steps()), "characterization load-cap bins"},
+      {"max_pattern_nodes", std::to_string(get_max_pattern_nodes()), "0 falls back to internal default"},
+      {"relaxed_candidates_per_boundary_group",
+       has_relaxed_limit ? std::to_string(get_relaxed_candidates_per_boundary_group()) : "0 (unlimited)",
+       "frontier composition throttling"},
+      {"wire_width_um", has_wire_width ? logformat::FormatWithUnit(get_wire_width(), "um") : "library_default",
+       has_wire_width ? "explicit RC width override" : "use technology default width in RC query"},
+      {"max_fanout", std::to_string(get_max_fanout()), "fanout constraint"},
+      {"routing_layers", routing_layers.empty() ? "default(1)" : std::to_string(routing_layers.front()),
+       routing_layers.empty() ? "effective routing layer falls back to 1" : "configured order: " + logformat::JoinUnsigned(routing_layers)},
+      {"buffer_types", std::to_string(buffer_types.size()),
+       buffer_types.empty() ? "no configured buffers" : logformat::JoinStrings(buffer_types)},
+      {"char_buf_redundancy_pct", logformat::FormatPercent(get_char_buf_redundancy_pct()),
+       get_char_buf_redundancy_pct() > 0.0 ? "near-neighbor max-cap pruning threshold" : "disabled"},
+      {"use_netlist", logformat::FormatBool(is_use_netlist()),
+       is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs collected from STA"},
+  };
+}
+
+auto Config::emitRuntimeConfigReport(const std::string& title) const -> void
+{
+  schema::EmitTable(title, {"Item", "Value", "Detail"}, buildRuntimeConfigRows());
 }
 
 }  // namespace icts

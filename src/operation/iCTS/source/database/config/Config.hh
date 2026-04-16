@@ -27,6 +27,8 @@
 #include <utility>
 #include <vector>
 
+#include "LogFormat.hh"
+
 namespace icts {
 
 #define CONFIG_INST (icts::Config::getInst())
@@ -144,10 +146,12 @@ class Config
 
   // parse from json file
   auto parse(const std::string& json_file) -> void;
+  auto emitRuntimeConfigReport(const std::string& title) const -> void;
 
  private:
   Config() = default;
   ~Config() = default;
+  auto buildRuntimeConfigRows() const -> logformat::TableRows;
 
   // algorithm
   double _skew_bound = 0.0;

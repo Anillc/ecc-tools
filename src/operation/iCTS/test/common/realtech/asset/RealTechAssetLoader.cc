@@ -23,6 +23,8 @@
 
 #include "common/realtech/asset/RealTechAssetLoader.hh"
 
+#include <glog/logging.h>
+
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -36,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
@@ -43,7 +46,6 @@
 #include "database/io/Wrapper.hh"
 #include "dm_config.h"
 #include "idm.h"
-#include "utils/logger/Logger.hh"
 
 namespace icts_test::common::realtech::asset {
 namespace {
@@ -416,7 +418,7 @@ auto BuildRealTechSetupState() -> RealTechSetupState
       state.setup_succeeded = true;
       state.source_label = "real_tech:" + workspace_path.string();
       state.summary = "loaded real tech/design from workspace " + workspace_path.string();
-      CTS_LOG_INFO << "RealTechSetup: " << state.summary;
+      LOG_INFO << "RealTechSetup: " << state.summary;
       return state;
     }
 
@@ -440,7 +442,7 @@ auto BuildRealTechSetupState() -> RealTechSetupState
   state.mode = RealTechMode::kSyntheticFallback;
   state.source_label = "synthetic_fallback";
   state.summary = summary.str();
-  CTS_LOG_WARNING << "RealTechSetup: " << state.summary;
+  LOG_WARNING << "RealTechSetup: " << state.summary;
   return state;
 }
 

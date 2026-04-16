@@ -16,7 +16,7 @@ Backend rules for `src/operation/iCTS/`.
 | [Project Constraints](../project-constraints.md) | Repository-wide hard constraints |
 | [Directory Structure](./directory-structure.md) | Code placement, layers, CMake target structure |
 | [Database Guidelines](./database-guidelines.md) | Singleton boundaries, ownership, data-model rules |
-| [Logging Guidelines](./logging-guidelines.md) | `CTS_LOG_*` usage and log levels |
+| [Logging Guidelines](./logging-guidelines.md) | Runtime `LOG_*`, schema/report output, and log levels |
 | [Error Handling](./error-handling.md) | No-exception policy and severity decisions |
 | [Quality Guidelines](./quality-guidelines.md) | Naming, includes, dependency visibility, review checks |
 | [Quality Workflow](../../ecc_dev_tools/README.md) | `ecc_dev_tools` commands, outputs, suppressions, tool behavior |

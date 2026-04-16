@@ -23,6 +23,8 @@
 
 #include "common/io/TestArtifactIO.hh"
 
+#include <glog/logging.h>
+
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
@@ -30,12 +32,23 @@
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <utility>
+#include <vector>
 
+#include "Log.hh"
 #include "common/types/TestDataTypes.hh"
-#include "utils/logger/Logger.hh"
+#include "utils/logger/LogFormat.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts_test::common::io {
 namespace {
+
+struct ParsedInfoReport
+{
+  std::string title;
+  std::vector<std::pair<std::string, std::string>> key_value_lines;
+  std::vector<std::string> detail_lines;
+};
 
 auto ResolveExecutableDir() -> std::filesystem::path
 {
@@ -45,6 +58,129 @@ auto ResolveExecutableDir() -> std::filesystem::path
     return {};
   }
   return executable_path.parent_path();
+}
+
+auto TrimWhitespace(const std::string& line) -> std::string
+{
+  const auto begin = line.find_first_not_of(" \t\r");
+  if (begin == std::string::npos) {
+    return {};
+  }
+  const auto end = line.find_last_not_of(" \t\r");
+  return line.substr(begin, end - begin + 1U);
+}
+
+auto TryParseKeyValueLine(const std::string& line, std::string& key, std::string& value) -> bool
+{
+  const auto colon_position = line.find(": ");
+  if (colon_position != std::string::npos && colon_position > 0U) {
+    key = TrimWhitespace(line.substr(0, colon_position));
+    value = TrimWhitespace(line.substr(colon_position + 2U));
+    return !key.empty();
+  }
+
+  const auto equal_position = line.find('=');
+  if (equal_position == std::string::npos || equal_position == 0U) {
+    return false;
+  }
+  if (line.find('=', equal_position + 1U) != std::string::npos) {
+    return false;
+  }
+
+  key = TrimWhitespace(line.substr(0, equal_position));
+  value = TrimWhitespace(line.substr(equal_position + 1U));
+  if (key.empty()) {
+    return false;
+  }
+  if (key.front() == '-' || key.front() == '*') {
+    return false;
+  }
+  return true;
+}
+
+auto ParseInfoReport(const InfoReport& report) -> ParsedInfoReport
+{
+  ParsedInfoReport parsed_report;
+  parsed_report.title = report.title.empty() ? "artifact_report" : report.title;
+
+  std::istringstream input_stream(report.content);
+  for (std::string line; std::getline(input_stream, line);) {
+    const auto trimmed = TrimWhitespace(line);
+    if (trimmed.empty()) {
+      continue;
+    }
+
+    std::string key;
+    std::string value;
+    if (TryParseKeyValueLine(trimmed, key, value)) {
+      parsed_report.key_value_lines.emplace_back(std::move(key), std::move(value));
+      continue;
+    }
+    parsed_report.detail_lines.push_back(trimmed);
+  }
+  return parsed_report;
+}
+
+auto BuildInfoReportBlock(const ParsedInfoReport& report) -> std::string
+{
+  std::ostringstream output_stream;
+  output_stream << '\n';
+
+  if (!report.key_value_lines.empty()) {
+    output_stream << icts::logformat::MakeKeyValueTable(report.title, report.key_value_lines);
+  } else {
+    output_stream << icts::logformat::MakeTitle(report.title);
+  }
+
+  if (!report.detail_lines.empty()) {
+    output_stream << "\n-- details --\n";
+    for (const auto& detail : report.detail_lines) {
+      output_stream << detail << "\n";
+    }
+  }
+
+  if (report.key_value_lines.empty() && report.detail_lines.empty()) {
+    output_stream << "\n(empty report)\n";
+  }
+  return output_stream.str();
+}
+
+auto EmitParsedInfoReport(const ParsedInfoReport& report) -> void
+{
+  if (!report.key_value_lines.empty()) {
+    SCHEMA_WRITER_INST.emitKeyValueTable(report.title, report.key_value_lines);
+  } else {
+    SCHEMA_WRITER_INST.emitSection(report.title);
+  }
+
+  if (!report.detail_lines.empty()) {
+    SCHEMA_WRITER_INST.emitDetailBlock(report.title + " Details", report.detail_lines);
+  }
+}
+
+auto MirrorStandaloneTextLog(const std::filesystem::path& path, const std::string& content) -> void
+{
+  if (path.filename() == "cts.log") {
+    return;
+  }
+
+  const InfoReport report{.title = path.filename().string(), .content = content};
+  const auto parsed_report = ParseInfoReport(report);
+  const auto cts_log_path = path.parent_path() / "cts.log";
+  if (!parsed_report.key_value_lines.empty()) {
+    icts::schema::SchemaWriter::emitOrAppendKeyValueTable(cts_log_path, "iCTS Test Report", parsed_report.title,
+                                                          parsed_report.key_value_lines);
+  }
+  if (!parsed_report.detail_lines.empty()) {
+    const std::vector<std::string> detail_summary = {
+        "detail_lines=" + std::to_string(parsed_report.detail_lines.size()),
+        "details omitted from cts.log; see artifact file: " + path.string(),
+    };
+    icts::schema::SchemaWriter::emitOrAppendDetailBlock(cts_log_path, "iCTS Test Report", parsed_report.title + " Details", detail_summary);
+  }
+  if (parsed_report.key_value_lines.empty() && parsed_report.detail_lines.empty()) {
+    icts::schema::SchemaWriter::emitOrAppendDetailBlock(cts_log_path, "iCTS Test Report", parsed_report.title, {"(empty report)"});
+  }
 }
 
 }  // namespace
@@ -65,22 +201,15 @@ auto WriteTextLog(const std::filesystem::path& path, const std::string& content)
     return false;
   }
   output_stream << content;
+  MirrorStandaloneTextLog(path, content);
   return true;
 }
 
 auto EmitInfoReport(const InfoReport& report) -> void
 {
-  CTS_LOG_INFO << "[" << report.title << "] report_begin";
-
-  std::istringstream input_stream(report.content);
-  for (std::string line; std::getline(input_stream, line);) {
-    if (line.empty()) {
-      continue;
-    }
-    CTS_LOG_INFO << "[" << report.title << "] " << line;
-  }
-
-  CTS_LOG_INFO << "[" << report.title << "] report_end";
+  const auto parsed_report = ParseInfoReport(report);
+  LOG_INFO << BuildInfoReportBlock(parsed_report);
+  EmitParsedInfoReport(parsed_report);
 }
 
 auto SanitizeOutputName(const std::string& raw_name) -> std::string

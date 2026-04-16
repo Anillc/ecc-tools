@@ -22,17 +22,20 @@
  */
 #include "LocalLegalization.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <limits>
 #include <map>
 #include <optional>
+#include <ostream>
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "geometry/Geometry.hh"
-#include "logger/Logger.hh"
 
 namespace icts {
 namespace {
@@ -159,7 +162,7 @@ auto LocalLegalization::legalize(const Problem& problem, const Options& options)
   Result result;
   result.legalized_points = problem.movable_points;
   if (problem.movable_points.empty()) {
-    CTS_LOG_WARNING << "LocalLegalization skipped: movable point set is empty.";
+    LOG_WARNING << "LocalLegalization skipped: movable point set is empty.";
     result.success = true;
     return result;
   }
@@ -183,8 +186,7 @@ auto LocalLegalization::legalize(const Problem& problem, const Options& options)
     }
 
     if (!complete) {
-      CTS_LOG_WARNING << "LocalLegalization expansion round " << round
-                      << " generated incomplete candidate sets; retrying with wider search.";
+      LOG_WARNING << "LocalLegalization expansion round " << round << " generated incomplete candidate sets; retrying with wider search.";
       continue;
     }
 
@@ -198,12 +200,12 @@ auto LocalLegalization::legalize(const Problem& problem, const Options& options)
   }
 
   if (options.failure_policy == FailurePolicy::kKeepOriginal) {
-    CTS_LOG_WARNING << "LocalLegalization failed to find a legal assignment; keeping original point locations.";
+    LOG_WARNING << "LocalLegalization failed to find a legal assignment; keeping original point locations.";
     result.legalized_points = problem.movable_points;
     return result;
   }
 
-  CTS_LOG_ERROR << "LocalLegalization failed to find a legal assignment.";
+  LOG_ERROR << "LocalLegalization failed to find a legal assignment.";
   return result;
 }
 

@@ -12,7 +12,15 @@ target_include_directories(
   ${HOME_DATABASE}/manager/builder
 )
 
-target_link_libraries(icts_source_database_io PRIVATE idm icts_source_database_adapter_sta icts_source_database_design)
+target_link_libraries(
+  icts_source_database_io
+  PRIVATE
+  idm
+  icts_source_database_adapter_sta
+  icts_source_utils
+  PUBLIC
+  icts_source_database_design
+)
 
 if(DEBUG_ICTS_SOURCE_DATABASE_IO)
   if(MSVC)

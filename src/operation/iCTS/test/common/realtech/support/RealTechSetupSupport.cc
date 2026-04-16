@@ -23,14 +23,17 @@
 
 #include "common/realtech/support/RealTechSetupSupport.hh"
 
+#include <glog/logging.h>
+
 #include <cstddef>
+#include <ostream>
 #include <string>
 #include <vector>
 
+#include "Log.hh"
 #include "common/realtech/asset/RealTechAssetLoader.hh"
 #include "common/realtech/load/RealTechLoadFactory.hh"
 #include "common/types/TestDataTypes.hh"
-#include "utils/logger/Logger.hh"
 
 namespace icts_test::common::realtech {
 
@@ -48,7 +51,7 @@ auto MakeRealTechOrSyntheticLoads(std::size_t target_count, unsigned seed, std::
     if (!real_loads.loads.empty()) {
       return real_loads;
     }
-    CTS_LOG_WARNING << "RealTechSetup: real design load extraction failed, use synthetic fallback.";
+    LOG_WARNING << "RealTechSetup: real design load extraction failed, use synthetic fallback.";
   }
 
   return load::MakeSyntheticFallbackLoads(target_count, source_label, seed);

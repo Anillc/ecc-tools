@@ -24,13 +24,14 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 
 namespace icts_test::common::logging {
 
 class ScopedLogFile
 {
  public:
-  explicit ScopedLogFile(const std::filesystem::path& path);
+  explicit ScopedLogFile(const std::filesystem::path& path, const std::string& run_title = "iCTS Test Report");
   ~ScopedLogFile();
 
   ScopedLogFile(const ScopedLogFile&) = delete;

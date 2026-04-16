@@ -23,17 +23,22 @@
 
 #include "TopologyGen.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "Geometry.hh"
-#include "Logger.hh"
+#include "Log.hh"
 #include "Pin.hh"
 #include "Point.hh"
+#include "Schema.hh"
 #include "Tree.hh"
 #include "clustering/Clustering.hh"
 #include "config/TopologyConfig.hh"
@@ -68,6 +73,25 @@ auto CalcLoadBounds(const std::vector<Pin*>& loads) -> LoadBounds
   return bounds;
 }
 
+auto FormatFixed(double value, int precision = 2) -> std::string
+{
+  std::ostringstream output_stream;
+  output_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
+  output_stream.precision(precision);
+  output_stream << value;
+  return output_stream.str();
+}
+
+auto FormatPoint(int x, int y) -> std::string
+{
+  return "(" + std::to_string(x) + ", " + std::to_string(y) + ")";
+}
+
+auto FormatPoint(double x, double y) -> std::string
+{
+  return "(" + FormatFixed(x, 2) + ", " + FormatFixed(y, 2) + ")";
+}
+
 }  // namespace
 
 auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
@@ -78,8 +102,10 @@ auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree
 {
   Tree tree;
+  schema::ScopedStage build_stage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads");
   if (loads.empty()) {
-    CTS_LOG_WARNING << "Topology generation skipped: no loads.";
+    LOG_WARNING << "Topology generation skipped: no loads.";
+    build_stage.skip({{"load_count", "0"}});
     return tree;
   }
 
@@ -88,7 +114,8 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
 
   const std::size_t leaf_count = calcLeafCount(loads.size());
   if (leaf_count == 0) {
-    CTS_LOG_WARNING << "Topology generation skipped: leaf count is zero.";
+    LOG_WARNING << "Topology generation skipped: leaf count is zero.";
+    build_stage.skip({{"leaf_count", "0"}});
     return tree;
   }
 
@@ -101,10 +128,16 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
     ++height;
   }
 
+  build_stage.markRunning("Embed coordinates and balance topology");
   buildFullTree(tree, BuildCursor{.node_id = root, .depth = 0}, height);
   embedPositions(tree, root, loads, leaf_count, config);
   balanceTopology(tree, bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y);
   reportRootToLeafLengths(tree);
+  build_stage.finish({
+      {"nodes", std::to_string(tree.get_size())},
+      {"depth", std::to_string(height)},
+      {"leaf_count", std::to_string(leaf_count)},
+  });
 
   return tree;
 }
@@ -112,7 +145,7 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
 auto TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) -> void
 {
   if (loads.empty()) {
-    CTS_LOG_WARNING << "Load distribution: empty load list.";
+    LOG_WARNING << "Load distribution: empty load list.";
     return;
   }
 
@@ -133,20 +166,29 @@ auto TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) -> void
   const int height = max_y - min_y;
   const double core_area = static_cast<double>(width) * height;
   const double core_length = std::sqrt(std::max(0.0, core_area));
+  const int half_perimeter = (width + height) / 2;
 
   const auto center = geometry::CalcCenter(loads, [](Pin* pin) -> auto { return pin->get_location(); });
   const auto median = geometry::CalcMedian(loads, [](Pin* pin) -> auto { return pin->get_location(); });
 
-  CTS_LOG_INFO << "Load distribution: bbox=(" << min_x << "," << min_y << ") - (" << max_x << "," << max_y << "), area=" << core_area
-               << "DBU^2, sqrt_area=" << core_length << "DBU, (|X|+|Y|)/2=" << (max_x + max_y - min_x - min_y) / 2 << "DBU";
-  CTS_LOG_INFO << "Load distribution: center=(" << center.get_x() << "," << center.get_y() << "), median=(" << median.get_x() << ","
-               << median.get_y() << ")";
+  schema::EmitKeyValueTable("TopologyGen Load Distribution Summary",
+                            {
+                                {"load_count", std::to_string(loads.size())},
+                                {"bbox_min", FormatPoint(min_x, min_y)},
+                                {"bbox_max", FormatPoint(max_x, max_y)},
+                                {"span_width_height", std::to_string(width) + " x " + std::to_string(height) + " DBU"},
+                                {"area", FormatFixed(core_area, 2) + " DBU^2"},
+                                {"sqrt_area", FormatFixed(core_length, 2) + " DBU"},
+                                {"half_perimeter", std::to_string(half_perimeter) + " DBU"},
+                                {"center", FormatPoint(center.get_x(), center.get_y())},
+                                {"median", FormatPoint(median.get_x(), median.get_y())},
+                            });
 }
 
 auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
 {
   if (tree.get_size() == 0 || tree.get_root() == std::numeric_limits<std::size_t>::max()) {
-    CTS_LOG_WARNING << "Topology length report skipped: invalid tree.";
+    LOG_WARNING << "Topology length report skipped: invalid tree.";
     return;
   }
 
@@ -196,13 +238,18 @@ auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
   }
 
   if (leaf_count == 0) {
-    CTS_LOG_WARNING << "Topology length report skipped: no valid leaf paths.";
+    LOG_WARNING << "Topology length report skipped: no valid leaf paths.";
     return;
   }
 
   const double avg_len = static_cast<double>(sum_len) / static_cast<double>(leaf_count);
-  CTS_LOG_INFO << "Topology source-to-leaf length: min=" << min_len << ", max=" << max_len << ", avg=" << avg_len
-               << ", leafs=" << leaf_count << ", invalid=" << invalid_count;
+  schema::EmitKeyValueTable("TopologyGen Root-To-Leaf Path Summary", {
+                                                                         {"min_path_length", std::to_string(min_len) + " DBU"},
+                                                                         {"max_path_length", std::to_string(max_len) + " DBU"},
+                                                                         {"avg_path_length", FormatFixed(avg_len, 2) + " DBU"},
+                                                                         {"valid_leaf_paths", std::to_string(leaf_count)},
+                                                                         {"invalid_leaf_paths", std::to_string(invalid_count)},
+                                                                     });
 }
 
 auto TopologyGen::calcLeafCount(std::size_t load_count) -> std::size_t

@@ -34,6 +34,7 @@ namespace icts {
 
 enum class InstType;
 class Pin;
+class STAAdapter;
 
 }  // namespace icts
 
@@ -120,6 +121,8 @@ class STAAdapter
   static auto queryCharInputPinCap(const std::string& cell_master) -> double;
   static auto queryPinCapacitance(const Pin* pin) -> double;
   static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
+  static auto emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width = std::nullopt) -> void;
+  static auto emitConfiguredUnitWireRcReport(const std::string& title) -> void;
   static auto destroyCharInstance(const std::string& inst_name) -> void;
   static auto destroyCharNet(const std::string& net_name) -> void;
 

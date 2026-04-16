@@ -58,7 +58,6 @@ Use this include order, with blank lines between groups:
 ### Forbidden Patterns
 
 - `using namespace std;`
-- global `LOG_*` macros in iCTS code
 - `throw`, `try`, or `catch` outside the narrow exception documented in `error-handling.md`
 - duplicated include-path wiring when a CMake target already exists
 - adding heavy includes to headers when a forward declaration is enough

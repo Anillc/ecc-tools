@@ -22,10 +22,13 @@
  */
 #include "Wrapper.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -42,6 +45,7 @@
 #include "IdbPins.h"
 #include "IdbTerm.h"
 #include "IdbUnits.h"
+#include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "builder.h"
 #include "def_service.h"
@@ -51,7 +55,6 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "lef_service.h"
-#include "logger/Logger.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -86,7 +89,7 @@ auto Wrapper::init(idb::IdbBuilder* idb) -> void
 auto Wrapper::queryDbUnit() const -> int32_t
 {
   if (_idb_design == nullptr || _idb_design->get_units() == nullptr) {
-    CTS_LOG_ERROR << "iDB design units are not ready in Wrapper.";
+    LOG_ERROR << "iDB design units are not ready in Wrapper.";
     return 1;
   }
   return _idb_design->get_units()->get_micron_dbu();
@@ -95,12 +98,12 @@ auto Wrapper::queryDbUnit() const -> int32_t
 auto Wrapper::withinCore(int32_t point_x, int32_t point_y) const -> bool
 {
   if (_idb_layout == nullptr) {
-    CTS_LOG_WARNING << "iDB layout is null when checking core boundary; treating point as inside core.";
+    LOG_WARNING << "iDB layout is null when checking core boundary; treating point as inside core.";
     return true;
   }
   auto* core = _idb_layout->get_core();
   if (core == nullptr || core->get_bounding_box() == nullptr) {
-    CTS_LOG_WARNING << "iDB core boundary is unavailable; treating point as inside core.";
+    LOG_WARNING << "iDB core boundary is unavailable; treating point as inside core.";
     return true;
   }
   auto* core_box = core->get_bounding_box();
@@ -111,42 +114,42 @@ auto Wrapper::withinCore(int32_t point_x, int32_t point_y) const -> bool
 auto Wrapper::read() -> void
 {
   if (_idb == nullptr) {
-    CTS_LOG_WARNING << "Skip wrapper read: iDB builder is null.";
+    LOG_WARNING << "Skip wrapper read: iDB builder is null.";
     return;
   }
   auto* def_service = _idb->get_def_service();
   if (def_service == nullptr) {
-    CTS_LOG_WARNING << "Skip wrapper read: DEF service is null.";
+    LOG_WARNING << "Skip wrapper read: DEF service is null.";
     return;
   }
   auto* idb_design = def_service->get_design();
   if (idb_design == nullptr) {
-    CTS_LOG_WARNING << "Skip wrapper read: iDB design is null.";
+    LOG_WARNING << "Skip wrapper read: iDB design is null.";
     return;
   }
 
   auto* idb_net_list = idb_design->get_net_list();
   if (idb_net_list == nullptr) {
-    CTS_LOG_WARNING << "Skip wrapper read: iDB net list is null.";
+    LOG_WARNING << "Skip wrapper read: iDB net list is null.";
     return;
   }
 
   std::ranges::for_each(DESIGN_INST.get_clocks(), [&](Clock* clock) -> void {
     if (clock == nullptr) {
-      CTS_LOG_WARNING << "Skip null clock in CTS design.";
+      LOG_WARNING << "Skip null clock in CTS design.";
       return;
     }
 
     const auto& clock_net_name = clock->get_clock_net_name();
     auto* idb_net = idb_net_list->find_net(clock_net_name);
     if (idb_net == nullptr) {
-      CTS_LOG_WARNING << "Clock net \"" << clock_net_name << "\" is not found in iDB.";
+      LOG_WARNING << "Clock net \"" << clock_net_name << "\" is not found in iDB.";
       return;
     }
 
     auto* cts_net = idbToCts(idb_net);
     if (cts_net == nullptr) {
-      CTS_LOG_WARNING << "Failed to convert clock net \"" << clock_net_name << "\" from iDB to CTS.";
+      LOG_WARNING << "Failed to convert clock net \"" << clock_net_name << "\" from iDB to CTS.";
       return;
     }
 
@@ -171,12 +174,12 @@ auto Wrapper::idbToCts(idb::IdbPin* idb_pin) -> Pin*
 
   auto* idb_term = idb_pin->get_term();
   if (idb_term == nullptr) {
-    CTS_LOG_WARNING << "Skip converting pin \"" << idb_pin->get_pin_name() << "\": term is null.";
+    LOG_WARNING << "Skip converting pin \"" << idb_pin->get_pin_name() << "\": term is null.";
     return nullptr;
   }
   auto* avg_coord = idb_pin->get_average_coordinate();
   if (avg_coord == nullptr) {
-    CTS_LOG_WARNING << "Skip converting pin \"" << idb_pin->get_pin_name() << "\": average coordinate is null.";
+    LOG_WARNING << "Skip converting pin \"" << idb_pin->get_pin_name() << "\": average coordinate is null.";
     return nullptr;
   }
 
@@ -204,11 +207,11 @@ auto Wrapper::idbToCts(idb::IdbInstance* idb_inst) -> Inst*
   auto* cell_master = idb_inst->get_cell_master();
   auto* coord = idb_inst->get_coordinate();
   if (cell_master == nullptr) {
-    CTS_LOG_WARNING << "Skip converting instance \"" << idb_inst->get_name() << "\": cell master is null.";
+    LOG_WARNING << "Skip converting instance \"" << idb_inst->get_name() << "\": cell master is null.";
     return nullptr;
   }
   if (coord == nullptr) {
-    CTS_LOG_WARNING << "Skip converting instance \"" << idb_inst->get_name() << "\": coordinate is null.";
+    LOG_WARNING << "Skip converting instance \"" << idb_inst->get_name() << "\": coordinate is null.";
     return nullptr;
   }
 
@@ -241,7 +244,7 @@ auto Wrapper::idbToCts(idb::IdbNet* idb_net) -> Net*
 
   auto* idb_driver_pin = idb_net->get_driving_pin();
   if (idb_driver_pin == nullptr) {
-    CTS_LOG_WARNING << "Clock net \"" << name << "\" has no driving pin in iDB.";
+    LOG_WARNING << "Clock net \"" << name << "\" has no driving pin in iDB.";
   }
 
   auto idb_load_pins = idb_net->get_load_pins();

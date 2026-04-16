@@ -22,6 +22,8 @@
  */
 #include "BoundSkewTree.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -33,8 +35,10 @@
 #include <numbers>
 #include <numeric>
 #include <optional>
+#include <ostream>
 #include <random>
 #include <ranges>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -42,7 +46,7 @@
 #include "BSTTypes.hh"
 #include "Components.hh"
 #include "GeomCalc.hh"
-#include "logger/Logger.hh"
+#include "Log.hh"
 
 namespace icts::bst {
 namespace {
@@ -71,7 +75,7 @@ struct TreeBuildFrame
 
 auto copyAreaRange(const std::vector<Area*>& areas, const size_t begin_index, const size_t end_index) -> std::vector<Area*>
 {
-  CTS_LOG_FATAL_IF(begin_index > end_index || end_index > areas.size()) << "Area range is invalid.";
+  LOG_FATAL_IF(begin_index > end_index || end_index > areas.size()) << "Area range is invalid.";
 
   std::vector<Area*> area_range;
   area_range.reserve(end_index - begin_index);
@@ -99,7 +103,7 @@ template <typename SplitFunc, typename MergeFunc, typename CenterFunc>
 auto buildBinaryTreeIteratively(const std::vector<Area*>& areas, const SplitFunc& split_func, const MergeFunc& merge_func,
                                 const CenterFunc& center_func, std::string_view tree_name) -> Area*
 {
-  CTS_LOG_FATAL_IF(areas.empty()) << tree_name << " areas are empty.";
+  LOG_FATAL_IF(areas.empty()) << tree_name << " areas are empty.";
 
   std::vector<TreeBuildFrame> frames;
   frames.push_back(TreeBuildFrame{.areas = areas, .parent_index = std::nullopt});
@@ -128,7 +132,7 @@ auto buildBinaryTreeIteratively(const std::vector<Area*>& areas, const SplitFunc
     if (area_count == 2) {
       result = merge_func(frame.areas.front(), frame.areas.back());
     } else {
-      CTS_LOG_FATAL_IF(frame.left_result == nullptr || frame.right_result == nullptr) << tree_name << " child result is null.";
+      LOG_FATAL_IF(frame.left_result == nullptr || frame.right_result == nullptr) << tree_name << " child result is null.";
       result = merge_func(frame.left_result, frame.right_result);
     }
     result->set_location(center_func(frame.areas));
@@ -136,7 +140,7 @@ auto buildBinaryTreeIteratively(const std::vector<Area*>& areas, const SplitFunc
     frames.pop_back();
   }
 
-  CTS_LOG_FATAL_IF(root == nullptr) << tree_name << " root is null.";
+  LOG_FATAL_IF(root == nullptr) << tree_name << " root is null.";
   return root;
 }
 
@@ -231,7 +235,7 @@ auto collectClusters(const std::vector<Area*>& areas, const std::vector<size_t>&
 auto checkMatchingEndpoint(const Point& joining_segment_point, const Point& line_point, const std::string_view side_name,
                            const std::string_view endpoint_name) -> void
 {
-  CTS_LOG_FATAL_IF(!Geom::isSame(joining_segment_point, line_point))
+  LOG_FATAL_IF(!Geom::isSame(joining_segment_point, line_point))
       << side_name << " joining segment is not same as " << side_name << " line at " << endpoint_name;
 }
 
@@ -252,7 +256,7 @@ BoundSkewTree::BoundSkewTree(std::vector<std::unique_ptr<Area>> load_areas, cons
       _delay_quadratic_factor{.horizontal = kHalfFactor * _unit_horizontal_resistance * _unit_horizontal_capacitance,
                               .vertical = kHalfFactor * _unit_vertical_resistance * _unit_vertical_capacitance}
 {
-  CTS_LOG_FATAL_IF(topo_type == TopoType::kInputTopo) << "Normal BST construction cannot use input-topology mode.";
+  LOG_FATAL_IF(topo_type == TopoType::kInputTopo) << "Normal BST construction cannot use input-topology mode.";
   _unmerged_nodes.reserve(_owned_areas.size());
   for (const auto& area : _owned_areas) {
     _unmerged_nodes.push_back(area.get());
@@ -274,7 +278,7 @@ BoundSkewTree::BoundSkewTree(std::vector<std::unique_ptr<Area>> owned_areas, Are
       _delay_quadratic_factor{.horizontal = kHalfFactor * _unit_horizontal_resistance * _unit_horizontal_capacitance,
                               .vertical = kHalfFactor * _unit_vertical_resistance * _unit_vertical_capacitance}
 {
-  CTS_LOG_FATAL_IF(root == nullptr) << "BST input-topology root area is null.";
+  LOG_FATAL_IF(root == nullptr) << "BST input-topology root area is null.";
   if (parameters.root_guide.has_value()) {
     set_root_guide(parameters.root_guide->get_x(), parameters.root_guide->get_y());
   }
@@ -406,7 +410,7 @@ auto BoundSkewTree::resetPointValues(Area* root) -> void
  */
 auto BoundSkewTree::biPartition() -> void
 {
-  CTS_LOG_FATAL_IF(_unmerged_nodes.size() < 2) << "unmerged nodes size is less than 2";
+  LOG_FATAL_IF(_unmerged_nodes.size() < 2) << "unmerged nodes size is less than 2";
   _root = buildBiPartitionTree(_unmerged_nodes);
   areaReset();
 }
@@ -553,7 +557,7 @@ auto BoundSkewTree::areaOnOctagonBound(const std::vector<Area*>& areas, const st
  */
 auto BoundSkewTree::biCluster() -> void
 {
-  CTS_LOG_FATAL_IF(_unmerged_nodes.size() < 2) << "unmerged nodes size is less than 2";
+  LOG_FATAL_IF(_unmerged_nodes.size() < 2) << "unmerged nodes size is less than 2";
   _root = buildBiClusterTree(_unmerged_nodes);
   areaReset();
 }
@@ -563,7 +567,7 @@ auto BoundSkewTree::buildBiClusterTree(const std::vector<Area*>& areas) -> Area*
       areas,
       [&](const std::vector<Area*>& split_areas) -> std::pair<std::vector<Area*>, std::vector<Area*>> {
         auto clusters = kMeansPlus(split_areas, KMeansConfig{.cluster_count = 2});
-        CTS_LOG_FATAL_IF(clusters.size() != 2) << "Bi-cluster requires exactly two non-empty clusters.";
+        LOG_FATAL_IF(clusters.size() != 2) << "Bi-cluster requires exactly two non-empty clusters.";
         return std::pair<std::vector<Area*>, std::vector<Area*>>{clusters.front(), clusters.back()};
       },
       [&](Area* left_area, Area* right_area) -> Area* { return merge(left_area, right_area); },
@@ -614,7 +618,7 @@ auto BoundSkewTree::bottomUp() -> void
       bottomUpAllPairBased();
       break;
     default:
-      CTS_LOG_FATAL << "topo type is not supported";
+      LOG_FATAL << "topo type is not supported";
       break;
   }
 }
@@ -632,7 +636,7 @@ auto BoundSkewTree::bottomUpAllPairBased() -> void
         cost_func = [&](Area* left, Area* right) -> double { return mergeCost(left, right); };
         break;
       default:
-        CTS_LOG_FATAL << "topo type is not supported";
+        LOG_FATAL << "topo type is not supported";
         break;
     }
     auto best_match = getBestMatch(cost_func);
@@ -662,7 +666,7 @@ auto BoundSkewTree::bottomUpTopoBased() -> void
     case TopoType::kInputTopo:
       break;
     default:
-      CTS_LOG_FATAL << "topo type is not supported";
+      LOG_FATAL << "topo type is not supported";
       break;
   }
   processBottomUpTopology();
@@ -746,7 +750,7 @@ auto BoundSkewTree::updateEmbeddedNodeTiming(Area* current) const -> void
 {
   auto* left = current->get_left();
   auto* right = current->get_right();
-  CTS_LOG_FATAL_IF(left == nullptr || right == nullptr) << "Embedded node children are null";
+  LOG_FATAL_IF(left == nullptr || right == nullptr) << "Embedded node children are null";
 
   auto parent_point = current->get_location();
   const auto left_point = left->get_location();
@@ -757,11 +761,11 @@ auto BoundSkewTree::updateEmbeddedNodeTiming(Area* current) const -> void
   const auto delay_to_right = pointDelayIncrease(parent_point, right_point, current->get_edge_len(kRight), right->get_cap_load(), _pattern);
   parent_point.min = std::min(left_point.min + delay_to_left, right_point.min + delay_to_right);
   parent_point.max = std::max(left_point.max + delay_to_left, right_point.max + delay_to_right);
-  CTS_LOG_FATAL_IF(pointSkew(parent_point) > _skew_bound + (100 * kEpsilon))
+  LOG_FATAL_IF(pointSkew(parent_point) > _skew_bound + (100 * kEpsilon))
       << "skew is so larger than skew bound, skew: " << pointSkew(parent_point);
   if (pointSkew(parent_point) > _skew_bound + kEpsilon) {
-    CTS_LOG_WARNING << current->get_name() << " max delay: " << parent_point.max << " min delay: " << parent_point.min;
-    CTS_LOG_WARNING << "skew is larger than skew bound with error: " << pointSkew(parent_point) - _skew_bound;
+    LOG_WARNING << current->get_name() << " max delay: " << parent_point.max << " min delay: " << parent_point.min;
+    LOG_WARNING << "skew is larger than skew bound with error: " << pointSkew(parent_point) - _skew_bound;
     parent_point.min = parent_point.max - _skew_bound + kEpsilon;
   }
   current->set_location(parent_point);
@@ -781,7 +785,7 @@ auto BoundSkewTree::merge(Area* parent, Area* left, Area* right) -> void
   auto right_line = parent->get_line(kRight);
   constructMergeRegion(MergeAreas{.parent = parent, .left = left, .right = right});
   if (Geom::lineType(getJoiningSegmentLine(kLeft)) == LineType::kManhattan) {
-    CTS_LOG_FATAL_IF(Geom::lineType(getJoiningSegmentLine(kRight)) != LineType::kManhattan) << "right joining_segment is not manhattan";
+    LOG_FATAL_IF(Geom::lineType(getJoiningSegmentLine(kRight)) != LineType::kManhattan) << "right joining_segment is not manhattan";
     if (Geom::isSegmentTransformedRect(mergeSegment(kLeft))) {
       auto& left_merge_segment = mergeSegment(kLeft);
       Geom::transformedRectToLine(left_merge_segment, left_line);
@@ -854,7 +858,7 @@ auto BoundSkewTree::constructMergeRegion(const MergeAreas& merge_areas) -> void
     constructInfeasibleMergeRegion(parent);
   }
   if (Geom::lineType(parent->get_line(kLeft)) == LineType::kManhattan && parent->get_edge_len(kLeft) >= 0) {
-    CTS_LOG_FATAL_IF(parent->get_edge_len(kRight) < 0.0) << "right edge length is negative";
+    LOG_FATAL_IF(parent->get_edge_len(kRight) < 0.0) << "right edge length is negative";
     constructTransformedRectMergeRegion(parent);
   }
   auto merge_region = parent->get_merge_region();
@@ -943,7 +947,7 @@ auto BoundSkewTree::updateJoiningSegment(Area* current_area, Line& left_line, Li
   setJoiningSegmentLine(kRight, {right_closest_point, right_closest_point});
   if (left_is_manhattan || right_is_manhattan) {
     auto dist = Geom::transformedRectDistance(left_merge_segment, right_merge_segment);
-    CTS_LOG_FATAL_IF(std::abs(dist - current_area->get_radius()) > kEpsilon) << "merge_segment distance is not equal to radius";
+    LOG_FATAL_IF(std::abs(dist - current_area->get_radius()) > kEpsilon) << "merge_segment distance is not equal to radius";
     current_area->set_radius(dist);
     mergeSegment(kLeft) = left_merge_segment;
     mergeSegment(kRight) = right_merge_segment;
@@ -997,7 +1001,7 @@ auto BoundSkewTree::addJoiningSegmentPoints(const MergeAreas& merge_areas) -> vo
   FOR_EACH_BST_SIDE(side)
   {
     auto& segment_points = joiningSegmentPoints(side);
-    CTS_LOG_FATAL_IF(Geom::isSame(pointAt(segment_points, kHead), pointAt(segment_points, kTail))) << "join segment is a point";
+    LOG_FATAL_IF(Geom::isSame(pointAt(segment_points, kHead), pointAt(segment_points, kTail))) << "join segment is a point";
     auto merge_region = side == kLeft ? left->get_merge_region() : right->get_merge_region();
     for (auto point : merge_region) {
       if (Geom::onLine(point, getJoiningSegmentLine(side)) && !Geom::isSame(point, pointAt(segment_points, kHead))
@@ -1126,14 +1130,14 @@ auto BoundSkewTree::calcNonManhattanJoiningRegionEndpoints(const MergeAreas& mer
       const auto first_point = pointAt(joining_region_points, point_index);
       const auto second_point = pointAt(joining_region_points, point_index + 1);
       const auto distance = Geom::distance(first_point, second_point);
-      CTS_LOG_FATAL_IF(Equal(distance, 0)) << "distance is zero";
+      LOG_FATAL_IF(Equal(distance, 0)) << "distance is zero";
       pointAt(joining_region_points, point_index).val = (pointSkew(second_point) - pointSkew(first_point)) / distance;
     }
     Points increasing_points = {joining_region_points.front()};
     for (size_t point_index = 1; point_index + 1 < joining_region_points.size(); ++point_index) {
       const auto current_value = increasing_points.back().val;
       const auto next_value = pointAt(joining_region_points, point_index).val;
-      CTS_LOG_FATAL_IF(current_value > next_value + (100 * kEpsilon))
+      LOG_FATAL_IF(current_value > next_value + (100 * kEpsilon))
           << "current_value: " << current_value << "> next_value: " << next_value << ", skew slope is not strictly monotone increasing";
       if (next_value > current_value) {
         increasing_points.push_back(pointAt(joining_region_points, point_index));
@@ -1150,7 +1154,7 @@ auto BoundSkewTree::addTurnPoint(const size_t& side, const size_t& point_index, 
   const auto second_point = joiningRegionPoint(side, point_index + 1);
   const double alpha = Equal(first_point.x, second_point.x) ? _delay_quadratic_factor.vertical : _delay_quadratic_factor.horizontal;
   const auto distance = Geom::distance(first_point, second_point);
-  CTS_LOG_FATAL_IF(Equal(distance, 0)) << "distance is zero";
+  LOG_FATAL_IF(Equal(distance, 0)) << "distance is zero";
 
   SideState<TimingState<double>> beta;
   FOR_EACH_BST_SIDE(segment_side)
@@ -1178,7 +1182,7 @@ auto BoundSkewTree::addTurnPoint(const size_t& side, const size_t& point_index, 
       delay_from);
   const auto beta_delta = beta.right.forTiming(timing_type) - beta.left.forTiming(timing_type);
   const auto turn_distance = (left_delay - right_delay) / beta_delta;
-  CTS_LOG_FATAL_IF(turn_distance <= 0 || turn_distance >= distance) << "turn dist is not in range";
+  LOG_FATAL_IF(turn_distance <= 0 || turn_distance >= distance) << "turn dist is not in range";
 
   const auto reference_distance = distance - turn_distance;
   Point turn_point(((first_point.x * reference_distance) + (second_point.x * turn_distance)) / distance,
@@ -1231,7 +1235,7 @@ auto BoundSkewTree::calcJoiningRegionCorner(const Area& current_area) -> void
   FOR_EACH_BST_SIDE(side)
   {
     const auto& segment_points = joiningSegmentPoints(side);
-    CTS_LOG_FATAL_IF(segment_points.front().y + kEpsilon < segment_points.back().y) << "join segment direction is not correct";
+    LOG_FATAL_IF(segment_points.front().y + kEpsilon < segment_points.back().y) << "join segment direction is not correct";
   }
   if (calcAreaLineType(current_area) == LineType::kManhattan && !Equal(current_area.get_radius(), 0)) {
     FOR_EACH_BST_SIDE(end_side)
@@ -1269,7 +1273,7 @@ auto BoundSkewTree::calcBalancePoint(const Area& current_area) -> void
   auto* left_child = current_area.get_left();
   auto* right_child = current_area.get_right();
   if (left_child == nullptr || right_child == nullptr) {
-    CTS_LOG_FATAL << "calcBalancePoint requires both child areas";
+    LOG_FATAL << "calcBalancePoint requires both child areas";
     return;
   }
 
@@ -1328,7 +1332,7 @@ auto BoundSkewTree::calcBalancePointOnLine(const BalancePointQuery& query, Balan
 {
   auto horizontal_distance = std::abs(query.first_point.x - query.second_point.x);
   auto vertical_distance = std::abs(query.first_point.y - query.second_point.y);
-  CTS_LOG_FATAL_IF(!Equal(horizontal_distance, 0) && !Equal(vertical_distance, 0))
+  LOG_FATAL_IF(!Equal(horizontal_distance, 0) && !Equal(vertical_distance, 0))
       << "h and v are not zero, which balance point is not on line";
 
   auto first_delay = query.timing_type == kMin ? query.first_point.min : query.first_point.max;
@@ -1358,8 +1362,8 @@ auto BoundSkewTree::calcBalancePointOffLine(const BalancePointQuery& query, Bala
   auto second_point = query.second_point;
   auto horizontal_distance = std::abs(first_point.x - second_point.x);
   auto vertical_distance = std::abs(first_point.y - second_point.y);
-  CTS_LOG_FATAL_IF(Equal(horizontal_distance, 0) || Equal(vertical_distance, 0)) << "h or v is zero, which balance point is on line";
-  CTS_LOG_FATAL_IF(first_point.x > second_point.x) << "first_point is not left of second_point";
+  LOG_FATAL_IF(Equal(horizontal_distance, 0) || Equal(vertical_distance, 0)) << "h or v is zero, which balance point is on line";
+  LOG_FATAL_IF(first_point.x > second_point.x) << "first_point is not left of second_point";
 
   auto first_delay = query.timing_type == kMin ? first_point.min : first_point.max;
   auto second_delay = query.timing_type == kMin ? second_point.min : second_point.max;
@@ -1383,7 +1387,7 @@ auto BoundSkewTree::calcBalancePointOffLine(const BalancePointQuery& query, Bala
   }
 
   if (x_position < 0) {
-    CTS_LOG_FATAL_IF(y_position >= 0) << "y is illegal";
+    LOG_FATAL_IF(y_position >= 0) << "y is illegal";
     auto adjusted_point = first_point;
     auto delay_increase = calcDelayIncrease(horizontal_distance, vertical_distance, second_point.val, query.pattern);
     adjusted_point.min = second_point.min + delay_increase;
@@ -1396,12 +1400,12 @@ auto BoundSkewTree::calcBalancePointOffLine(const BalancePointQuery& query, Bala
                                              .balance_ref_axis = query.balance_ref_axis,
                                              .pattern = query.pattern},
                            result);
-    CTS_LOG_FATAL_IF(result.distance_to_first > kEpsilon) << "dist to first_point should be zero";
+    LOG_FATAL_IF(result.distance_to_first > kEpsilon) << "dist to first_point should be zero";
     auto new_delay_increase = calcDelayIncrease(0, result.distance_to_second, adjusted_point.val, query.pattern);
-    CTS_LOG_FATAL_IF(!Equal(first_delay, delay_increase + new_delay_increase + second_delay)) << "delay is not equal";
+    LOG_FATAL_IF(!Equal(first_delay, delay_increase + new_delay_increase + second_delay)) << "delay is not equal";
     result.distance_to_second += horizontal_distance + vertical_distance;
   } else if (x_position > horizontal_distance) {
-    CTS_LOG_FATAL_IF(y_position <= vertical_distance) << "y: " << y_position << " is not greater than v: " << vertical_distance;
+    LOG_FATAL_IF(y_position <= vertical_distance) << "y: " << y_position << " is not greater than v: " << vertical_distance;
     auto adjusted_point = second_point;
     auto delay_increase = calcDelayIncrease(horizontal_distance, vertical_distance, first_point.val, query.pattern);
     adjusted_point.min = first_point.min + delay_increase;
@@ -1414,12 +1418,12 @@ auto BoundSkewTree::calcBalancePointOffLine(const BalancePointQuery& query, Bala
                                              .balance_ref_axis = query.balance_ref_axis,
                                              .pattern = query.pattern},
                            result);
-    CTS_LOG_FATAL_IF(result.distance_to_second > kEpsilon) << "dist to second_point should be zero";
+    LOG_FATAL_IF(result.distance_to_second > kEpsilon) << "dist to second_point should be zero";
     auto new_delay_increase = calcDelayIncrease(0, result.distance_to_first, adjusted_point.val, query.pattern);
-    CTS_LOG_FATAL_IF(!Equal(second_delay, delay_increase + new_delay_increase + first_delay)) << "delay is not equal";
+    LOG_FATAL_IF(!Equal(second_delay, delay_increase + new_delay_increase + first_delay)) << "delay is not equal";
     result.distance_to_first += horizontal_distance + vertical_distance;
   } else {
-    CTS_LOG_FATAL_IF(y_position < -kEpsilon || y_position > vertical_distance + kEpsilon)
+    LOG_FATAL_IF(y_position < -kEpsilon || y_position > vertical_distance + kEpsilon)
         << "y: " << y_position << " is not in range [0, " << vertical_distance << "]";
     result.balance_point.x = first_point.x + x_position;
     result.balance_point.y = first_point.y < second_point.y ? first_point.y + y_position : first_point.y - y_position;
@@ -1430,9 +1434,9 @@ auto BoundSkewTree::calcBalancePointOffLine(const BalancePointQuery& query, Bala
     result.balance_point.max = std::max(first_point.max + first_delay_increase, second_point.max + second_delay_increase);
     result.distance_to_first = x_position + y_position;
     result.distance_to_second = horizontal_distance + vertical_distance - result.distance_to_first;
-    CTS_LOG_FATAL_IF(!Equal(first_delay_increase + first_delay, second_delay_increase + second_delay)) << "delay is not equal";
+    LOG_FATAL_IF(!Equal(first_delay_increase + first_delay, second_delay_increase + second_delay)) << "delay is not equal";
   }
-  CTS_LOG_FATAL_IF(result.distance_to_first + result.distance_to_second < horizontal_distance + vertical_distance - kEpsilon)
+  LOG_FATAL_IF(result.distance_to_first + result.distance_to_second < horizontal_distance + vertical_distance - kEpsilon)
       << "dist out of range";
 }
 auto BoundSkewTree::calcMergeDist(const double& unit_resistance, const double& unit_capacitance, const double& cap_load_1,
@@ -1467,7 +1471,7 @@ auto BoundSkewTree::calcPointCoordOnLine(const Point& first_point, const Point& 
 {
   auto total_distance = distance_to_first + distance_to_second;
   auto point_distance = Geom::distance(first_point, second_point);
-  CTS_LOG_FATAL_IF(!Equal(total_distance, point_distance) && total_distance < point_distance) << "distance is less than points distance";
+  LOG_FATAL_IF(!Equal(total_distance, point_distance) && total_distance < point_distance) << "distance is less than points distance";
   if (Equal(distance_to_first, 0)) {
     point = first_point;
   } else if (Equal(distance_to_second, 0)) {
@@ -1518,7 +1522,7 @@ auto BoundSkewTree::calcYBalancePosition(const double& delay_1, const double& de
                 + (cap_load_2 * ((_unit_horizontal_resistance * horizontal_distance) + (_unit_vertical_resistance * vertical_distance)))
                 + (resistance_capacitance_cross_term * horizontal_distance * vertical_distance);
     y_position = numerator / denominator;
-    CTS_LOG_FATAL_IF(y_position > vertical_distance + kEpsilon)
+    LOG_FATAL_IF(y_position > vertical_distance + kEpsilon)
         << "y: " << y_position << " is larger than vertical_distance: " << vertical_distance;
   } else {
     // assume (horizontal_distance-x, y) and (x, vertical_distance-y), then set x = 0
@@ -1527,7 +1531,7 @@ auto BoundSkewTree::calcYBalancePosition(const double& delay_1, const double& de
                 + (_unit_vertical_resistance * vertical_distance * cap_load_2)
                 - (_unit_horizontal_resistance * horizontal_distance * cap_load_1);
     y_position = numerator / denominator;
-    CTS_LOG_FATAL_IF(y_position < -kEpsilon) << "y: " << y_position << " is less than 0";
+    LOG_FATAL_IF(y_position < -kEpsilon) << "y: " << y_position << " is less than 0";
   }
   return y_position;
 }
@@ -1552,13 +1556,13 @@ auto BoundSkewTree::calcFeasibleMergeSegmentPoints(const Area& current_area) -> 
         exist = calcFeasibleMergeSegmentOnLine(current_area, candidate.right, joining_corner, end_side);
         if (!exist) {
           exist = calcFeasibleMergeSegmentOnLine(current_area, joiningCornerPoint(end_side), candidate.left, end_side);
-          CTS_LOG_FATAL_IF(!exist) << "can't find feasible merge section on line";
+          LOG_FATAL_IF(!exist) << "can't find feasible merge section on line";
         }
       } else {
         exist = calcFeasibleMergeSegmentOnLine(current_area, joiningCornerPoint(end_side), candidate.right, end_side);
         if (exist) {
           exist = calcFeasibleMergeSegmentOnLine(current_area, candidate.right, joining_corner, end_side);
-          CTS_LOG_FATAL_IF(!exist) << "can't find feasible merge section on line";
+          LOG_FATAL_IF(!exist) << "can't find feasible merge section on line";
         }
       }
     } else {
@@ -1598,7 +1602,7 @@ auto BoundSkewTree::calcFeasibleMergeSegmentOnLine(const Area& current_area, Poi
       auto second_point = nearest_balance_point;
       updatePointDelaysByEndSide(current_area, end_side, first_point);
       updatePointDelaysByEndSide(current_area, end_side, second_point);
-      CTS_LOG_FATAL << "feasible merge section point should in skew bound";
+      LOG_FATAL << "feasible merge section point should in skew bound";
     }
     feasibleMergeSegmentPoints(end_side).push_back(feasible_merge_point);
     return true;
@@ -1610,10 +1614,10 @@ auto BoundSkewTree::calcFeasibleMergeSegmentBetweenPoints(const Point& high_skew
 {
   auto high_skew = pointSkew(high_skew_point);
   auto low_skew = pointSkew(low_skew_point);
-  CTS_LOG_FATAL_IF(low_skew > _skew_bound) << "low skew is larger than skew bound";
-  CTS_LOG_FATAL_IF(high_skew < low_skew + kEpsilon) << "high skew is less than low skew";
+  LOG_FATAL_IF(low_skew > _skew_bound) << "low skew is larger than skew bound";
+  LOG_FATAL_IF(high_skew < low_skew + kEpsilon) << "high skew is less than low skew";
   auto dist = Geom::distance(high_skew_point, low_skew_point);
-  CTS_LOG_FATAL_IF(dist <= kEpsilon) << "distance is less than epsilon";
+  LOG_FATAL_IF(dist <= kEpsilon) << "distance is less than epsilon";
   auto dist_to_low = dist * (_skew_bound - low_skew) / (high_skew - low_skew);
   calcPointCoordOnLine(high_skew_point, low_skew_point, dist - dist_to_low, dist_to_low, feasible_merge_point);
 }
@@ -1691,7 +1695,7 @@ auto BoundSkewTree::addMergeRegionOnJoiningSegment(Area* current_area, const siz
   const auto& side_joining_region = joiningRegionPoints(side);
   const auto other_side = otherSide(side);
   const auto& other_joining_region = joiningRegionPoints(other_side);
-  CTS_LOG_FATAL_IF(side_joining_region.size() < 2) << "join region size is less than 2";
+  LOG_FATAL_IF(side_joining_region.size() < 2) << "join region size is less than 2";
 
   const auto first_point = side_joining_region.front();
   const auto other_first_point = other_joining_region.front();
@@ -1726,12 +1730,12 @@ auto BoundSkewTree::addMergeRegionOnJoiningSegment(Area* current_area, const siz
 }
 auto BoundSkewTree::calcMergeRegionLeftIndex(const size_t& side) const -> size_t
 {
-  CTS_LOG_FATAL_IF(joiningRegionPoints(side).size() < 2) << "join region size is less than 2";
+  LOG_FATAL_IF(joiningRegionPoints(side).size() < 2) << "join region size is less than 2";
   return 1;
 }
 auto BoundSkewTree::calcMergeRegionSpan(const size_t& side, const size_t& left_index) const -> MergeRegionSpan
 {
-  CTS_LOG_FATAL_IF(joiningRegionPoints(side).size() < 2) << "join region size is less than 2";
+  LOG_FATAL_IF(joiningRegionPoints(side).size() < 2) << "join region size is less than 2";
   const auto right_index = joiningRegionPoints(side).size() - 2;
   return MergeRegionSpan{.side = side, .left_index = left_index, .right_index = right_index < left_index ? left_index - 1 : right_index};
 }
@@ -1769,7 +1773,7 @@ auto BoundSkewTree::addMergeRegionPointFromJoiningRegion(Area* current_area, con
     Geom::calcRelativeCoord(point, relative_type, dist);
     const auto horizontal_distance = std::abs(point.x - original_point.x);
     const auto vertical_distance = std::abs(point.y - original_point.y);
-    CTS_LOG_FATAL_IF(!Equal(horizontal_distance, 0) && !Equal(vertical_distance, 0)) << "not horizontal or vertical";
+    LOG_FATAL_IF(!Equal(horizontal_distance, 0) && !Equal(vertical_distance, 0)) << "not horizontal or vertical";
     const auto incr_delay
         = side == kLeft ? calcDelayIncrease(horizontal_distance, vertical_distance, current_area->get_left()->get_cap_load(), _pattern)
                         : calcDelayIncrease(horizontal_distance, vertical_distance, current_area->get_right()->get_cap_load(), _pattern);
@@ -1783,7 +1787,7 @@ auto BoundSkewTree::calcSkewSlope(const Area& current_area) const -> double
   auto* left_child = current_area.get_left();
   auto* right_child = current_area.get_right();
   if (left_child == nullptr || right_child == nullptr) {
-    CTS_LOG_FATAL << "calcSkewSlope requires both child areas";
+    LOG_FATAL << "calcSkewSlope requires both child areas";
     return 0.0;
   }
 
@@ -1801,7 +1805,7 @@ auto BoundSkewTree::calcSkewSlope(const Area& current_area) const -> double
   if (Equal(left_y_coord, right_y_coord)) {
     return _unit_horizontal_resistance * (left_cap_load + right_cap_load + (current_area.get_radius() * _unit_horizontal_capacitance));
   }
-  CTS_LOG_FATAL << "line is not horizontal or vertical";
+  LOG_FATAL << "line is not horizontal or vertical";
   return 0.0;
 }
 auto BoundSkewTree::constructInfeasibleMergeRegion(Area* parent) const -> void
@@ -1839,7 +1843,7 @@ auto BoundSkewTree::calcDetourEdgeLength(Area* current_area) const -> void
   left_point.val = current_area->get_left()->get_cap_load();
   right_point.val = current_area->get_right()->get_cap_load();
   auto delta = pointSkew(current_area->get_merge_region().front()) - _skew_bound;
-  CTS_LOG_FATAL_IF(delta <= 0) << "remain skew less than 0";
+  LOG_FATAL_IF(delta <= 0) << "remain skew less than 0";
   auto [horizontal_distance, vertical_distance] = calcManhattanDistanceComponents(left_point, right_point);
   if (left_point.max > right_point.max) {
     right_point.max = left_point.max - delta - calcDelayIncrease(horizontal_distance, vertical_distance, right_point.val, _pattern);
@@ -1850,7 +1854,7 @@ auto BoundSkewTree::calcDetourEdgeLength(Area* current_area) const -> void
                                                .balance_ref_axis = BalanceRefAxis::kX,
                                                .pattern = _pattern},
                              result);
-    CTS_LOG_FATAL_IF(result.distance_to_first > kEpsilon) << "dist to left_point should be zero";
+    LOG_FATAL_IF(result.distance_to_first > kEpsilon) << "dist to left_point should be zero";
     current_area->set_edge_len(kLeft, 0);
     current_area->set_edge_len(kRight, result.distance_to_second);
   } else {
@@ -1862,7 +1866,7 @@ auto BoundSkewTree::calcDetourEdgeLength(Area* current_area) const -> void
                                                .balance_ref_axis = BalanceRefAxis::kX,
                                                .pattern = _pattern},
                              result);
-    CTS_LOG_FATAL_IF(result.distance_to_second > kEpsilon) << "dist to right_point should be zero";
+    LOG_FATAL_IF(result.distance_to_second > kEpsilon) << "dist to right_point should be zero";
     current_area->set_edge_len(kLeft, result.distance_to_first);
     current_area->set_edge_len(kRight, 0);
   }
@@ -1932,11 +1936,11 @@ auto BoundSkewTree::embedChild(const EmbeddingStep& embedding_target) -> void
       // others
       Geom::pointToLineDistance(parent_loc, joining_segment_line, child_loc);
     }
-    CTS_LOG_FATAL_IF(!Geom::onLine(child_loc, joining_segment_line)) << "child loc is not on joining_segment line";
+    LOG_FATAL_IF(!Geom::onLine(child_loc, joining_segment_line)) << "child loc is not on joining_segment line";
   }
   child->set_location(child_loc);
   if (parent->get_edge_len(side) >= 0) {
-    CTS_LOG_FATAL_IF(parent->get_edge_len(side) < Geom::distance(parent_loc, child_loc) - kEpsilon) << "edge len is less than distance";
+    LOG_FATAL_IF(parent->get_edge_len(side) < Geom::distance(parent_loc, child_loc) - kEpsilon) << "edge len is less than distance";
   } else {
     parent->set_edge_len(side, Geom::distance(parent_loc, child_loc));
   }
@@ -1990,21 +1994,21 @@ auto BoundSkewTree::mergeRegionToTransformedRect(const Region& merge_region, Tra
     if (Geom::lineType(merge_region.at(0), merge_region.at(1)) == LineType::kManhattan) {
       Geom::lineToTransformedRect(left_transformed_rect, merge_region.at(0), merge_region.at(1));
     } else {
-      CTS_LOG_FATAL_IF(Geom::lineType(merge_region.at(2), merge_region.at(1)) != LineType::kManhattan) << "merge_region is not manhattan";
+      LOG_FATAL_IF(Geom::lineType(merge_region.at(2), merge_region.at(1)) != LineType::kManhattan) << "merge_region is not manhattan";
       Geom::lineToTransformedRect(left_transformed_rect, merge_region.at(1), merge_region.at(2));
     }
     TransformedRect right_transformed_rect;
     if (Geom::lineType(merge_region.at(2), merge_region.at(3)) == LineType::kManhattan) {
       Geom::lineToTransformedRect(right_transformed_rect, merge_region.at(2), merge_region.at(3));
     } else {
-      CTS_LOG_FATAL_IF(Geom::lineType(merge_region.at(0), merge_region.at(3)) != LineType::kManhattan) << "merge_region is not manhattan";
+      LOG_FATAL_IF(Geom::lineType(merge_region.at(0), merge_region.at(3)) != LineType::kManhattan) << "merge_region is not manhattan";
       Geom::lineToTransformedRect(right_transformed_rect, merge_region.at(3), merge_region.at(0));
     }
     transformed_rect = left_transformed_rect;
     transformed_rect.enclose(right_transformed_rect);
     return;
   }
-  CTS_LOG_FATAL << "merge_region size is not 1, 2 or 4";
+  LOG_FATAL << "merge_region size is not 1, 2 or 4";
 }
 
 auto BoundSkewTree::calcAreaLineType(const Area& current_area) -> LineType
@@ -2031,7 +2035,7 @@ auto BoundSkewTree::calcJoiningRegionArea(const Line& first_line, const Line& se
   auto tri_area_2 = kHalfFactor * std::abs(second_line.at(kHead).x - second_line.at(kTail).x)
                     * std::abs(second_line.at(kHead).y - second_line.at(kTail).y);
   auto jr_area = bound_area - tri_area_1 - tri_area_2;
-  CTS_LOG_FATAL_IF(jr_area < 0) << "joining_region area is negative";
+  LOG_FATAL_IF(jr_area < 0) << "joining_region area is negative";
   return jr_area;
 }
 
@@ -2043,11 +2047,11 @@ auto BoundSkewTree::locateBoundarySegment(Area* current_area, Point& point, Line
       return;
     }
   }
-  CTS_LOG_FATAL << "point is not located in area";
+  LOG_FATAL << "point is not located in area";
 }
 auto BoundSkewTree::calcSimplePointDelays(Point& point, Line& boundary_segment) const -> bool
 {
-  CTS_LOG_FATAL_IF(!Geom::onLine(point, boundary_segment)) << "point is not located in line";
+  LOG_FATAL_IF(!Geom::onLine(point, boundary_segment)) << "point is not located in line";
   const auto dist = Geom::distance(point, boundary_segment.at(kHead));
   const auto horizontal_distance = std::abs(boundary_segment.at(kHead).x - boundary_segment.at(kTail).x);
   const auto vertical_distance = std::abs(boundary_segment.at(kHead).y - boundary_segment.at(kTail).y);
@@ -2064,8 +2068,8 @@ auto BoundSkewTree::calcSimplePointDelays(Point& point, Line& boundary_segment) 
   }
   if (Equal(horizontal_distance, vertical_distance)) {
     // line is manhattan arc
-    CTS_LOG_FATAL_IF(!Equal(boundary_segment.at(kHead).min, boundary_segment.at(kTail).min)
-                     || !Equal(boundary_segment.at(kHead).max, boundary_segment.at(kTail).max))
+    LOG_FATAL_IF(!Equal(boundary_segment.at(kHead).min, boundary_segment.at(kTail).min)
+                 || !Equal(boundary_segment.at(kHead).max, boundary_segment.at(kTail).max))
         << "manhattan arc endpoint's delay is not same";
     point.min = boundary_segment.at(kHead).min = boundary_segment.at(kTail).min;
     point.max = boundary_segment.at(kHead).max = boundary_segment.at(kTail).max;
@@ -2085,7 +2089,7 @@ auto BoundSkewTree::calcSimplePointDelays(Point& point, Line& boundary_segment) 
 auto BoundSkewTree::calcSegmentPointDelays(Point& point, Line& boundary_segment) const -> void
 {
   if (!calcSimplePointDelays(point, boundary_segment)) {
-    CTS_LOG_FATAL << "segment-only point delay calculation requires area context";
+    LOG_FATAL << "segment-only point delay calculation requires area context";
     return;
   }
   checkPointDelay(point);
@@ -2093,8 +2097,7 @@ auto BoundSkewTree::calcSegmentPointDelays(Point& point, Line& boundary_segment)
 auto BoundSkewTree::calcPointDelays(const Area& current_area, Point& point, Line& boundary_segment) const -> void
 {
   if (!calcSimplePointDelays(point, boundary_segment)) {
-    CTS_LOG_FATAL_IF(!Equal(pointSkew(boundary_segment.at(kHead)), _skew_bound)
-                     || !Equal(pointSkew(boundary_segment.at(kTail)), _skew_bound))
+    LOG_FATAL_IF(!Equal(pointSkew(boundary_segment.at(kHead)), _skew_bound) || !Equal(pointSkew(boundary_segment.at(kTail)), _skew_bound))
         << "thera are skew reservation in line";
     calcIrregularPointDelays(current_area, point, boundary_segment);
   }
@@ -2105,7 +2108,7 @@ auto BoundSkewTree::updatePointDelaysByEndSide(const Area& current_area, const s
   auto* left_child = current_area.get_left();
   auto* right_child = current_area.get_right();
   if (left_child == nullptr || right_child == nullptr) {
-    CTS_LOG_FATAL << "updatePointDelaysByEndSide requires both child areas";
+    LOG_FATAL << "updatePointDelaysByEndSide requires both child areas";
     return;
   }
 
@@ -2123,7 +2126,7 @@ auto BoundSkewTree::calcIrregularPointDelays(const Area& current_area, Point& po
   auto* left_child = current_area.get_left();
   auto* right_child = current_area.get_right();
   if (left_child == nullptr || right_child == nullptr) {
-    CTS_LOG_FATAL << "calcIrregularPointDelays requires both child areas";
+    LOG_FATAL << "calcIrregularPointDelays requires both child areas";
     return;
   }
 
@@ -2133,7 +2136,7 @@ auto BoundSkewTree::calcIrregularPointDelays(const Area& current_area, Point& po
   auto right_line = current_area.get_line(kRight);
   auto joining_segment_type = Geom::lineType(current_area.get_line(kLeft));
   if (joining_segment_type == LineType::kManhattan) {
-    CTS_LOG_FATAL_IF(!Geom::isSame(left_line.at(kHead), left_line.at(kTail)) || !Geom::isSame(right_line.at(kHead), right_line.at(kTail)))
+    LOG_FATAL_IF(!Geom::isSame(left_line.at(kHead), left_line.at(kTail)) || !Geom::isSame(right_line.at(kHead), right_line.at(kTail)))
         << "endpoint should be same, left head: [" << left_line.at(kHead).x << ", " << left_line.at(kHead).y << "], left tail: ["
         << left_line.at(kTail).x << ", " << left_line.at(kTail).y << "], right head: [" << right_line.at(kHead).x << ", "
         << right_line.at(kHead).y << "], right tail: [" << right_line.at(kTail).x << ", " << right_line.at(kTail).y << "]";
@@ -2142,9 +2145,9 @@ auto BoundSkewTree::calcIrregularPointDelays(const Area& current_area, Point& po
     auto delay_right = pointDelayIncrease(right_line.at(kHead), point, right_child->get_cap_load(), _pattern);
     point.min = std::min(left_line.at(kHead).min + delay_left, right_line.at(kHead).min + delay_right);
     point.max = std::max(left_line.at(kHead).max + delay_left, right_line.at(kHead).max + delay_right);
-    CTS_LOG_FATAL_IF(pointSkew(point) >= _skew_bound + kEpsilon) << "skew is larger than skew bound";
+    LOG_FATAL_IF(pointSkew(point) >= _skew_bound + kEpsilon) << "skew is larger than skew bound";
   } else {
-    CTS_LOG_FATAL_IF(joining_segment_type != LineType::kVertical && joining_segment_type != LineType::kHorizontal)
+    LOG_FATAL_IF(joining_segment_type != LineType::kVertical && joining_segment_type != LineType::kHorizontal)
         << "joining_segment type is not vertical or horizontal";
     auto dist = Geom::distance(point, boundary_segment.at(kHead));
     auto length = horizontal_distance + vertical_distance;
@@ -2168,14 +2171,14 @@ auto BoundSkewTree::pointDelayIncrease(const Point& lhs_point, const Point& rhs_
                                        const RCPattern& pattern) const -> double
 {
   auto delay = calcDelayIncrease(std::abs(lhs_point.x - rhs_point.x), std::abs(lhs_point.y - rhs_point.y), cap_load, pattern);
-  CTS_LOG_FATAL_IF(delay < 0) << "point increase delay is negative";
+  LOG_FATAL_IF(delay < 0) << "point increase delay is negative";
   return delay;
 }
 auto BoundSkewTree::pointDelayIncrease(const Point& lhs_point, const Point& rhs_point, const double& length, const double& cap_load,
                                        const RCPattern& pattern) const -> double
 {
   auto [horizontal_distance, vertical_distance] = calcManhattanDistanceComponents(lhs_point, rhs_point);
-  CTS_LOG_FATAL_IF(!Equal(length, horizontal_distance + vertical_distance) && length < horizontal_distance + vertical_distance)
+  LOG_FATAL_IF(!Equal(length, horizontal_distance + vertical_distance) && length < horizontal_distance + vertical_distance)
       << "length is less than horizontal_distance + vertical_distance";
   double delay = 0;
   if (Equal(horizontal_distance, 0)) {
@@ -2190,7 +2193,7 @@ auto BoundSkewTree::pointDelayIncrease(const Point& lhs_point, const Point& rhs_
           cap_load + (_unit_horizontal_capacitance * horizontal_distance) + (_unit_vertical_capacitance * vertical_distance), pattern);
     }
   }
-  CTS_LOG_FATAL_IF(delay < 0) << "point increase delay is negative";
+  LOG_FATAL_IF(delay < 0) << "point increase delay is negative";
   return delay;
 }
 auto BoundSkewTree::calcDelayIncrease(const double& horizontal_length, const double& vertical_length, const double& cap_load,
@@ -2213,7 +2216,7 @@ auto BoundSkewTree::calcDelayIncrease(const double& horizontal_length, const dou
               * ((_unit_horizontal_capacitance * (horizontal_length + vertical_length) / 2) + cap_load);
       break;
     default:
-      CTS_LOG_FATAL << "unknown pattern";
+      LOG_FATAL << "unknown pattern";
       break;
   }
   return delay;
@@ -2243,8 +2246,8 @@ auto BoundSkewTree::setJoiningSegmentLine(const size_t& side, const Line& line) 
 }
 auto BoundSkewTree::checkPointDelay(Point& point) -> void
 {
-  // CTS_LOG_ERROR_IF(point.min <= -kEpsilon) << "point min delay is negative";
-  CTS_LOG_FATAL_IF(point.max - point.min <= -kEpsilon) << "point skew is negative";
+  // LOG_ERROR_IF(point.min <= -kEpsilon) << "point min delay is negative";
+  LOG_FATAL_IF(point.max - point.min <= -kEpsilon) << "point skew is negative";
   if (point.min < -kEpsilon) {
     point.min = 0;
   }
@@ -2260,9 +2263,8 @@ auto BoundSkewTree::checkJoiningSegmentMergeSegment() const -> void
   auto right_joining_segment = getJoiningSegmentLine(kRight);
   Geom::lineToTransformedRect(left, left_joining_segment);
   Geom::lineToTransformedRect(right, right_joining_segment);
-  CTS_LOG_FATAL_IF(!Geom::containsTransformedRect(left, mergeSegment(kLeft)))
-      << "left joining_segment is not contain in left merge_segment";
-  CTS_LOG_FATAL_IF(!Geom::containsTransformedRect(right, mergeSegment(kRight)))
+  LOG_FATAL_IF(!Geom::containsTransformedRect(left, mergeSegment(kLeft))) << "left joining_segment is not contain in left merge_segment";
+  LOG_FATAL_IF(!Geom::containsTransformedRect(right, mergeSegment(kRight)))
       << "right joining_segment is not contain in right merge_segment";
 }
 auto BoundSkewTree::checkUpdatedJoiningSegment(const Area* current_area, Line& left_line, Line& right_line) const -> void
@@ -2270,24 +2272,24 @@ auto BoundSkewTree::checkUpdatedJoiningSegment(const Area* current_area, Line& l
   const auto is_parallel = Geom::isParallel(left_line, right_line);
   const auto line_type = Geom::lineType(left_line);
   if (is_parallel) {
-    CTS_LOG_FATAL_IF(line_type == LineType::kFlat || line_type == LineType::kTilt) << "not consider case";
+    LOG_FATAL_IF(line_type == LineType::kFlat || line_type == LineType::kTilt) << "not consider case";
   }
   const auto left_joining_segment = getJoiningSegmentLine(kLeft);
   const auto right_joining_segment = getJoiningSegmentLine(kRight);
   const auto line_distance = Geom::lineDist(left_joining_segment, right_joining_segment);
   const auto dist = line_distance.distance;
-  CTS_LOG_FATAL_IF(!Geom::isSame(linePoint(left_joining_segment, kHead), linePoint(left_joining_segment, kTail))
-                   && !Geom::isSame(linePoint(right_joining_segment, kHead), linePoint(right_joining_segment, kTail))
-                   && !Geom::isParallel(left_joining_segment, right_joining_segment))
+  LOG_FATAL_IF(!Geom::isSame(linePoint(left_joining_segment, kHead), linePoint(left_joining_segment, kTail))
+               && !Geom::isSame(linePoint(right_joining_segment, kHead), linePoint(right_joining_segment, kTail))
+               && !Geom::isParallel(left_joining_segment, right_joining_segment))
       << "joining_segment line error";
-  CTS_LOG_FATAL_IF(!Equal(dist, current_area->get_radius())) << "distance between joinsegments not equal to radius";
+  LOG_FATAL_IF(!Equal(dist, current_area->get_radius())) << "distance between joinsegments not equal to radius";
   auto left_joining_segment_head = linePoint(left_joining_segment, kHead);
   auto left_joining_segment_tail = linePoint(left_joining_segment, kTail);
-  CTS_LOG_FATAL_IF(!Geom::onLine(left_joining_segment_head, left_line) || !Geom::onLine(left_joining_segment_tail, left_line))
+  LOG_FATAL_IF(!Geom::onLine(left_joining_segment_head, left_line) || !Geom::onLine(left_joining_segment_tail, left_line))
       << "left_joining_segment not in left section";
   auto right_joining_segment_head = linePoint(right_joining_segment, kHead);
   auto right_joining_segment_tail = linePoint(right_joining_segment, kTail);
-  CTS_LOG_FATAL_IF(!Geom::onLine(right_joining_segment_head, right_line) || !Geom::onLine(right_joining_segment_tail, right_line))
+  LOG_FATAL_IF(!Geom::onLine(right_joining_segment_head, right_line) || !Geom::onLine(right_joining_segment_tail, right_line))
       << "left_joining_segment not in left section";
 }
 

@@ -21,12 +21,15 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
 
+#include "common/io/TestArtifactIO.hh"
 #include "module/characterization/CharBuilder.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
 
@@ -34,6 +37,18 @@ namespace icts_test {
 namespace {
 
 namespace realtech_support = characterization::realtech;
+
+auto ReadTextFile(const std::filesystem::path& path) -> std::string
+{
+  std::ifstream input_stream(path);
+  if (!input_stream.is_open()) {
+    return {};
+  }
+
+  std::ostringstream content_stream;
+  content_stream << input_stream.rdbuf();
+  return content_stream.str();
+}
 
 TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBufferHeight)
 {
@@ -57,6 +72,21 @@ TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBuf
   builder.init();
   EXPECT_DOUBLE_EQ(builder.get_wire_length_unit_um(), expected_unit_um);
   EXPECT_EQ(builder.get_wire_length_iterations(), realtech_support::kRealTechCharWireLengthIterations);
+
+  const auto cts_log_path = common::io::ResolveOutputDir() / "characterization" / "realtech" / "fallback_wire_length_unit" / "cts.log";
+  const auto cts_log_content = ReadTextFile(cts_log_path);
+  ASSERT_FALSE(cts_log_content.empty());
+  const auto first_line_break = cts_log_content.find('\n');
+  ASSERT_NE(first_line_break, std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Generate the report at "), first_line_break + 1U);
+  EXPECT_NE(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CharBuilder Initialization Parameters"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("wire_length_unit_um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("auto_derived"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("strongest buffer"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
 }
 
 TEST(CharacterizationRealTechFallbackTest, TableAxisFallbackMatchesAvailableAssetCoverage)
