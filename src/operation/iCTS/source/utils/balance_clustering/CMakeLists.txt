@@ -1,0 +1,8 @@
+add_subdirectory(${ICTS_UTILS}/balance_clustering/min_cost_flow)
+add_subdirectory(${ICTS_UTILS}/balance_clustering/anneal_opt)
+
+add_library(icts_balance_clustering INTERFACE)
+
+target_link_libraries(icts_balance_clustering INTERFACE icts_utils_algorithm_core icts_min_cost_flow icts_anneal_opt)
+
+target_include_directories(icts_balance_clustering INTERFACE ${ICTS_UTILS}/balance_clustering)

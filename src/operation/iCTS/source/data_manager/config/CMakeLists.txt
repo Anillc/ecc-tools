@@ -8,6 +8,6 @@ endif()
 
 add_library(icts_config ${ICTS_DATA_MANAGER}/config/JsonParser.cc)
 
-target_link_libraries(icts_config PUBLIC icts_data_manager)
+target_link_libraries(icts_config PUBLIC icts_runtime)
 
 target_include_directories(icts_config PUBLIC ${ICTS_DATA_MANAGER}/config)

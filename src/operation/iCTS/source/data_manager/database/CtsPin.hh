@@ -23,7 +23,6 @@
 #include <string>
 
 #include "CtsInstance.hh"
-#include "CtsNet.hh"
 #include "CtsPoint.hh"
 #include "DesignObject.hh"
 

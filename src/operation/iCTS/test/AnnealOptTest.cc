@@ -22,8 +22,8 @@
 #include <gtest/gtest.h>
 
 #include "TestInterface.hh"
-#include "anneal_opt/AnnealOpt.hh"
-#include "balance_clustering/BalanceClustering.hh"
+#include "AnnealOpt.hh"
+#include "BalanceClustering.hh"
 #include "log/Log.hh"
 namespace {
 using icts::BalanceClustering;
@@ -50,14 +50,13 @@ class AnnealOptAux : public TestInterface
   }
 
   void runViolationCostTest(const EnvInfo& env_info, const size_t& cluster_num, const size_t& max_iter, const double& cooling_rate,
-                            const double& temperature, const int& max_fanout, const double& max_cap, const double& max_net_len,
-                            const double& skew_bound) const
+                            const double& temperature, const int& max_fanout, const double& max_cap, const double& skew_bound) const
   {
     auto bufs = genRandomBuffers(env_info);
     // auto clusters = BalanceClustering::kMeansPlus(bufs, cluster_num);
     // BalanceClustering::writeClusterPy(clusters, "before");
     // VioAnnealOpt solver(clusters);
-    // solver.initParameter(max_iter, cooling_rate, temperature, max_fanout, max_cap, max_net_len, skew_bound);
+    // solver.initParameter(max_iter, cooling_rate, temperature, max_fanout, max_cap, skew_bound);
     // clusters = solver.run(true);
     // BalanceClustering::writeClusterPy(clusters, "after");
     // std::ranges::for_each(bufs, [](auto& buf) { delete buf; });
@@ -66,7 +65,7 @@ class AnnealOptAux : public TestInterface
  private:
 };
 
-class AnnealOptTest : public testing::Test
+class AnnealOptTestInterface : public testing::Test
 {
   void SetUp()
   {
@@ -77,7 +76,7 @@ class AnnealOptTest : public testing::Test
   void TearDown() { ieda::Log::end(); }
 };
 
-TEST_F(AnnealOptTest, LatencyCostTest)
+TEST_F(AnnealOptTestInterface, LatencyCostTest)
 {
   AnnealOptAux anneal_opt("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                           "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -89,7 +88,7 @@ TEST_F(AnnealOptTest, LatencyCostTest)
   anneal_opt.runLatencyCostTest(env_info, cluster_num, max_iter, cooling_rate, temperature);
 }
 
-TEST_F(AnnealOptTest, ViolationCostSmallTest)
+TEST_F(AnnealOptTestInterface, ViolationCostSmallTest)
 {
   AnnealOptAux anneal_opt("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                           "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -100,12 +99,11 @@ TEST_F(AnnealOptTest, ViolationCostSmallTest)
   double temperature = 50000.0;
   auto max_fanout = TimingPropagator::getMaxFanout();
   auto max_cap = TimingPropagator::getMaxCap();
-  auto max_net_len = TimingPropagator::getMaxLength();
   auto skew_bound = TimingPropagator::getSkewBound();
-  anneal_opt.runViolationCostTest(env_info, cluster_num, max_iter, cooling_rate, temperature, max_fanout, max_cap, max_net_len, skew_bound);
+  anneal_opt.runViolationCostTest(env_info, cluster_num, max_iter, cooling_rate, temperature, max_fanout, max_cap, skew_bound);
 }
 
-TEST_F(AnnealOptTest, ViolationCostTest)
+TEST_F(AnnealOptTestInterface, ViolationCostTest)
 {
   AnnealOptAux anneal_opt("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                           "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -116,8 +114,7 @@ TEST_F(AnnealOptTest, ViolationCostTest)
   double temperature = 60000.0;
   auto max_fanout = TimingPropagator::getMaxFanout();
   auto max_cap = TimingPropagator::getMaxCap();
-  auto max_net_len = TimingPropagator::getMaxLength();
   auto skew_bound = TimingPropagator::getSkewBound();
-  anneal_opt.runViolationCostTest(env_info, cluster_num, max_iter, cooling_rate, temperature, max_fanout, max_cap, max_net_len, skew_bound);
+  anneal_opt.runViolationCostTest(env_info, cluster_num, max_iter, cooling_rate, temperature, max_fanout, max_cap, skew_bound);
 }
 }  // namespace

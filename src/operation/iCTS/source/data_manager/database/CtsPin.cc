@@ -20,6 +20,8 @@
  */
 #include "CtsPin.hh"
 
+#include "CtsNet.hh"
+
 namespace icts {
 CtsPin::CtsPin() : _pin_name(""), _instance(nullptr), _net(nullptr)
 {

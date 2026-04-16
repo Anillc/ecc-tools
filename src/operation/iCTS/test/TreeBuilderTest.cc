@@ -20,11 +20,12 @@
  */
 #include <vector>
 
+#include "ModelFactory.hh"
 #include "TreeBuilderAux.hh"
 #include "gtest/gtest.h"
 
 namespace {
-class TreeBuilderTest : public testing::Test
+class TreeBuilderTestInterface : public testing::Test
 {
   void SetUp()
   {
@@ -35,7 +36,7 @@ class TreeBuilderTest : public testing::Test
   void TearDown() { Log::end(); }
 };
 
-TEST_F(TreeBuilderTest, GeomTest)
+TEST_F(TreeBuilderTestInterface, GeomTest)
 {
   using icts::bst::GeomCalc;
   using icts::bst::Pt;
@@ -73,7 +74,7 @@ TEST_F(TreeBuilderTest, GeomTest)
   EXPECT_EQ(poly_t.size(), 8);
 }
 
-TEST_F(TreeBuilderTest, ParetoFrontTest)
+TEST_F(TreeBuilderTestInterface, ParetoFrontTest)
 {
   using icts::BalanceClustering;
   using Pt = icts::CtsPoint<double>;
@@ -88,7 +89,7 @@ TEST_F(TreeBuilderTest, ParetoFrontTest)
   }
   auto pareto_front = BalanceClustering::paretoFront(points);
   // write to python file
-  auto dir = CTSAPIInst.get_config()->get_work_dir() + "/file/";
+  auto dir = CTSAPI_INST.getConfig()->get_work_dir() + "/file/";
   if (!std::filesystem::exists(dir)) {
     std::filesystem::create_directories(dir);
   }
@@ -112,22 +113,22 @@ TEST_F(TreeBuilderTest, ParetoFrontTest)
   ofs.close();
 }
 
-TEST_F(TreeBuilderTest, PolynomialRealRootsTest)
+TEST_F(TreeBuilderTestInterface, PolynomialRealRootsTest)
 {
-  auto* model_factory = new icts::ModelFactory();
+  icts::ModelFactory model_factory;
   auto coeffs = std::vector<double>{1, 2, 1};
-  auto roots = model_factory->solvePolynomialRealRoots(coeffs);
+  auto roots = model_factory.solvePolynomialRealRoots(coeffs);
   for (auto root : roots) {
     LOG_INFO << "Root: " << root;
   }
 }
 
-TEST_F(TreeBuilderTest, CriticalWireLenTest)
+TEST_F(TreeBuilderTestInterface, CriticalWireLenTest)
 {
   TreeBuilderAux tree_builder("/home/liweiguo/project/iEDA/scripts/design/eval/iEDA_config/db_default_config.json",
                               "/home/liweiguo/project/iEDA/scripts/design/eval/iEDA_config/cts_default_config.json");
-  auto libs = CTSAPIInst.getAllBufferLibs();
-  auto* model_factory = new icts::ModelFactory();
+  auto libs = CTSAPI_INST.getAllBufferLibs();
+  icts::ModelFactory model_factory;
   auto slew_in = 0.025;
   auto cap_load = 0.02;
   auto r = TimingPropagator::getUnitRes();
@@ -136,9 +137,9 @@ TEST_F(TreeBuilderTest, CriticalWireLenTest)
     LOG_INFO << "Lib: " << lib->get_cell_master();
     auto coeffs = lib->get_delay_coef();
     auto cap_pin = lib->get_init_cap();
-    auto crit_buf_wl = model_factory->criticalBufWireLen(coeffs[2], coeffs[1], coeffs[0], r, c, cap_pin);
-    auto crit_est_wl = model_factory->criticalBufWireLen(coeffs[2], coeffs[1], coeffs[0], r, c, cap_load);
-    auto crit_pair = model_factory->criticalSteinerWireLen(coeffs[2], coeffs[1], coeffs[0], r, c, cap_pin, slew_in, cap_load);
+    auto crit_buf_wl = model_factory.criticalBufWireLen(coeffs[2], coeffs[1], coeffs[0], r, c, cap_pin);
+    auto crit_est_wl = model_factory.criticalBufWireLen(coeffs[2], coeffs[1], coeffs[0], r, c, cap_load);
+    auto crit_pair = model_factory.criticalSteinerWireLen(coeffs[2], coeffs[1], coeffs[0], r, c, cap_pin, slew_in, cap_load);
     LOG_INFO << "Critical Buffer Wirelength: " << crit_buf_wl;
     LOG_INFO << "Critical EstSteiner Wirelength: " << crit_est_wl;
     if (crit_pair.first.second > 0) {
@@ -154,7 +155,8 @@ TEST_F(TreeBuilderTest, CriticalWireLenTest)
   std::string output_csv = "./error.csv";
   std::ofstream ofs(output_csv);
   ofs << "x,i,k,j,size_i,size_k,size_j,error\n";
-  for (double x = 0.1; x < 1.0; x += 0.1) {
+  for (int step = 1; step < 10; ++step) {
+    const double x = static_cast<double>(step) / 10.0;
     for (size_t j = 0; j < libs.size(); ++j) {
       for (size_t k = j; k < libs.size(); ++k) {
         for (size_t i = k; i < libs.size(); ++i) {
@@ -165,8 +167,7 @@ TEST_F(TreeBuilderTest, CriticalWireLenTest)
           auto coeffs_k = lib_k->get_delay_coef();
           auto cap_pin_j = lib_j->get_init_cap();
           auto cap_pin_k = lib_k->get_init_cap();
-          auto error
-              = model_factory->criticalError(r, c, x, cap_load, cap_pin_j, cap_pin_k, slew_in, coeffs_k[0], coeffs_i[1], coeffs_k[1]);
+          auto error = model_factory.criticalError(r, c, x, cap_load, cap_pin_j, cap_pin_k, slew_in, coeffs_k[0], coeffs_i[1], coeffs_k[1]);
           ofs << x << "," << i << "," << k << "," << j << "," << lib_i->get_cell_master() << "," << lib_k->get_cell_master() << ","
               << lib_j->get_cell_master() << "," << error << "\n";
         }
@@ -176,12 +177,12 @@ TEST_F(TreeBuilderTest, CriticalWireLenTest)
   ofs.close();
 }
 
-TEST_F(TreeBuilderTest, CellLinearDelayModelTest)
+TEST_F(TreeBuilderTestInterface, CellLinearDelayModelTest)
 {
   TreeBuilderAux tree_builder("/home/liweiguo/project/iEDA/scripts/design/eval/iEDA_config/db_default_config.json",
                               "/home/liweiguo/project/iEDA/scripts/design/eval/iEDA_config/cts_default_config.json");
-  auto libs = CTSAPIInst.getAllBufferLibs();
-  auto dir = CTSAPIInst.get_config()->get_work_dir() + "/file/";
+  auto libs = CTSAPI_INST.getAllBufferLibs();
+  auto dir = CTSAPI_INST.getConfig()->get_work_dir() + "/file/";
   if (!std::filesystem::exists(dir)) {
     std::filesystem::create_directories(dir);
   }
@@ -205,7 +206,7 @@ TEST_F(TreeBuilderTest, CellLinearDelayModelTest)
   LOG_INFO << "cell data write done";
 }
 
-TEST_F(TreeBuilderTest, SALTTest)
+TEST_F(TreeBuilderTestInterface, SALTTest)
 {
   std::vector<double> load_x
       = {193124, 193123, 193123, 193124, 193111, 193113, 193122, 193117, 193124, 193123, 193121, 193125, 204960, 193123, 213639,
@@ -225,7 +226,7 @@ TEST_F(TreeBuilderTest, SALTTest)
   TreeBuilder::shallowLightTree("net", driver->get_driver_pin(), load_pins);
 }
 
-TEST_F(TreeBuilderTest, LocalLegalizationTest)
+TEST_F(TreeBuilderTestInterface, LocalLegalizationTest)
 {
   auto* load1 = TreeBuilder::genBufInst("load1", Point(2606905, 3009850));
   auto* load2 = TreeBuilder::genBufInst("load2", Point(2606905, 3009850));
@@ -235,7 +236,7 @@ TEST_F(TreeBuilderTest, LocalLegalizationTest)
   LOG_INFO << "load2 location: " << load2->get_location();
 }
 
-TEST_F(TreeBuilderTest, FixedTreeBuilderTest)
+TEST_F(TreeBuilderTestInterface, FixedTreeBuilderTest)
 {
   TreeBuilderAux tree_builder("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                               "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -243,7 +244,7 @@ TEST_F(TreeBuilderTest, FixedTreeBuilderTest)
   tree_builder.runFixedTest(skew_bound);
 }
 
-TEST_F(TreeBuilderTest, RegressionTreeBuilderTest)
+TEST_F(TreeBuilderTestInterface, RegressionTreeBuilderTest)
 {
   TreeBuilderAux tree_builder("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                               "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -260,7 +261,7 @@ TEST_F(TreeBuilderTest, RegressionTreeBuilderTest)
       suffix.pop_back();
     }
 
-    auto dir = CTSAPIInst.get_config()->get_work_dir() + "/file/" + suffix;
+    auto dir = CTSAPI_INST.getConfig()->get_work_dir() + "/file/" + suffix;
     auto method_list = {TreeBuilder::funcName(TreeBuilder::fluteTree), TreeBuilder::funcName(TreeBuilder::shallowLightTree),
                         TreeBuilder::funcName(TreeBuilder::boundSkewTree), TreeBuilder::funcName(TreeBuilder::bstSaltTree),
                         TreeBuilder::funcName(TreeBuilder::cbsTree)};
@@ -278,7 +279,7 @@ TEST_F(TreeBuilderTest, RegressionTreeBuilderTest)
   });
 }
 
-TEST_F(TreeBuilderTest, LowBoundEstimationTest)
+TEST_F(TreeBuilderTestInterface, LowBoundEstimationTest)
 {
   TreeBuilderAux tree_builder("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                               "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -293,13 +294,13 @@ TEST_F(TreeBuilderTest, LowBoundEstimationTest)
       suffix.pop_back();
     }
 
-    auto dir = CTSAPIInst.get_config()->get_work_dir() + "/file/" + suffix;
+    auto dir = CTSAPI_INST.getConfig()->get_work_dir() + "/file/" + suffix;
 
     tree_builder.runEstimationTest(env_info, case_num, skew_bound, dir, suffix);
   });
 }
 
-TEST_F(TreeBuilderTest, IterativeFixSkewTest)
+TEST_F(TreeBuilderTestInterface, IterativeFixSkewTest)
 {
   TreeBuilderAux tree_builder("/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/db_default_config.json",
                               "/home/liweiguo/project/iEDA/scripts/salsa20/iEDA_config/cts_default_config.json");
@@ -315,7 +316,7 @@ TEST_F(TreeBuilderTest, IterativeFixSkewTest)
       suffix.pop_back();
     }
 
-    auto dir = CTSAPIInst.get_config()->get_work_dir() + "/file/" + suffix;
+    auto dir = CTSAPI_INST.getConfig()->get_work_dir() + "/file/" + suffix;
 
     tree_builder.runIterativeFixSkewTest(env_info, case_num, skew_bound, dir, suffix);
   });
