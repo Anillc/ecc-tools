@@ -142,8 +142,8 @@ class CharBuilder
   double _length_unit_um = 0.0;
   std::string _wire_length_unit_source;
   std::string _wire_length_unit_detail;
-  unsigned _slew_steps = 5;
-  unsigned _cap_steps = 5;
+  unsigned _slew_steps = 10;
+  unsigned _cap_steps = 10;
   unsigned _wire_length_iterations = 5;
 
   std::string _source_inst_name;

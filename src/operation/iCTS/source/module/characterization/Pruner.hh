@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 
 namespace icts {
 
@@ -43,6 +44,9 @@ namespace icts {
 template <class CharT>
 struct ParetoPruner
 {
+  using GroupKey = unsigned;
+  using GroupKeyHash = std::hash<unsigned>;
+
   /**
    * @brief Compute group key for a characterization entry.
    *
@@ -89,6 +93,9 @@ struct ParetoPruner
 template <class CharT>
 struct InputBoundaryPruner
 {
+  using GroupKey = unsigned;
+  using GroupKeyHash = std::hash<unsigned>;
+
   auto groupKey(const CharT& c) const -> unsigned { return (c.get_input_slew_idx() << 16) | c.get_driven_cap_idx(); }
 
   auto dominates(const CharT& a, const CharT& b) const -> bool

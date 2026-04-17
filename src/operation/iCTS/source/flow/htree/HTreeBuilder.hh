@@ -28,13 +28,13 @@
 #include <string>
 #include <vector>
 
-#include "HTreeTopologyChar.hh"
-#include "HTreeTopologyPattern.hh"
-#include "Inst.hh"
-#include "Net.hh"
-#include "PatternId.hh"
-#include "Pin.hh"
-#include "Tree.hh"
+#include "characterization/HTreeTopologyChar.hh"
+#include "characterization/HTreeTopologyPattern.hh"
+#include "characterization/PatternId.hh"
+#include "design/Inst.hh"
+#include "design/Net.hh"
+#include "design/Pin.hh"
+#include "spatial/Tree.hh"
 
 namespace icts {
 
@@ -43,7 +43,9 @@ class HTreeBuilder
  public:
   struct BuildOptions
   {
+    std::optional<bool> force_branch_buffer = std::nullopt;
     std::optional<bool> force_leaf_branch_buffer = std::nullopt;
+    std::optional<bool> force_leaf_unbuffered = std::nullopt;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
   };
@@ -62,6 +64,9 @@ class HTreeBuilder
   struct BuildResult
   {
     bool success = false;
+    std::string failure_reason;
+    std::optional<unsigned> failure_level = std::nullopt;
+    std::optional<unsigned> failure_length_idx = std::nullopt;
     Tree topology;
     std::vector<LevelPlan> levels;
     std::optional<HTreeTopologyChar> best_char = std::nullopt;
@@ -76,7 +81,10 @@ class HTreeBuilder
     double char_max_cap_pf = 0.0;
     unsigned char_slew_steps = 0U;
     unsigned char_cap_steps = 0U;
+    bool force_branch_buffer = false;
+    // Compatibility alias for older callers that still inspect the leaf-named field.
     bool force_leaf_branch_buffer = false;
+    bool force_leaf_unbuffered = false;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<unsigned> top_input_slew_floor_idx = std::nullopt;
     std::optional<double> min_leaf_driven_cap_pf = std::nullopt;

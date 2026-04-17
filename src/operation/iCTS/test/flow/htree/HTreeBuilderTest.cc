@@ -56,7 +56,7 @@ TEST(HTreeBuilderTest, EmptyLoadsReturnsEmptyResult)
 TEST(HTreeBuilderTest, EmptyLoadsAcceptExplicitBuildOptions)
 {
   const auto result = icts::HTreeBuilder::build({}, icts::HTreeBuilder::BuildOptions{
-                                                        .force_leaf_branch_buffer = true,
+                                                        .force_branch_buffer = true,
                                                         .min_top_input_slew_ns = 0.05,
                                                         .min_leaf_driven_cap_pf = 0.10,
                                                     });

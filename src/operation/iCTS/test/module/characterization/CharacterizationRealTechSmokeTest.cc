@@ -245,12 +245,12 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   ASSERT_TRUE(realtech_support::WriteScenarioLog("smoke_manual_htree", "smoke_manual_htree_report.txt", report_stream.str()));
 }
 
-TEST(CharacterizationRealTechSmokeTest, TerminalLeafBranchPatternsRemainAvailableIndependentOfBuildPolicy)
+TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvailableIndependentOfBuildPolicy)
 {
-  auto collect_terminal_pattern_count = [](bool force_leaf_branch_buffer) -> std::optional<std::size_t> {
+  auto collect_terminal_pattern_count = [](bool force_branch_buffer) -> std::optional<std::size_t> {
     realtech_support::RealTechCharSession char_session;
-    if (const auto prepare_error = char_session.prepare(force_leaf_branch_buffer ? "leaf_branch_buffer_on" : "leaf_branch_buffer_off",
-                                                        std::nullopt, 0.0, 0.0, false, force_leaf_branch_buffer);
+    if (const auto prepare_error = char_session.prepare(force_branch_buffer ? "branch_buffer_on" : "branch_buffer_off", std::nullopt, 0.0,
+                                                        0.0, false, force_branch_buffer);
         prepare_error.has_value()) {
       return std::nullopt;
     }
@@ -280,7 +280,7 @@ TEST(CharacterizationRealTechSmokeTest, TerminalLeafBranchPatternsRemainAvailabl
   const auto disabled_count = collect_terminal_pattern_count(false);
   const auto enabled_count = collect_terminal_pattern_count(true);
   if (!disabled_count.has_value() || !enabled_count.has_value()) {
-    GTEST_SKIP() << "Real-tech assets cannot exercise terminal leaf-branch buffer characterization.";
+    GTEST_SKIP() << "Real-tech assets cannot exercise terminal branch-buffered characterization.";
     return;
   }
 

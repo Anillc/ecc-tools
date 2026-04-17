@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": "src/operation/iCTS/source/flow/htree/HTreeBuilder.cc", "reason": "frontier and H-tree composition semantics live here"}
+{"file": "src/operation/iCTS/source/module/characterization/Pruner.hh", "reason": "frontier dominance semantics reference"}
+{"file": "src/operation/iCTS/test/flow/htree/HTreeBuilderRealTechSmokeTest.cc", "reason": "real-tech H-tree regression coverage"}
+{"file": "src/operation/iCTS/test/module/characterization/support/CharacterizationRealTechTestSupport.hh", "reason": "real-tech frontier support mirrors production semantics"}

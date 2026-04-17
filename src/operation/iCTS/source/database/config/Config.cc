@@ -27,6 +27,7 @@
 #include <cctype>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -259,7 +260,21 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyRoutingLayersIfPresent(json, *this);
   ApplyBufferTypesIfPresent(json, *this);
   ApplyDoubleIfPresent(json, "char_buf_redundancy_pct", *this, &Config::get_char_buf_redundancy_pct, &Config::set_char_buf_redundancy_pct);
-  ApplyBoolIfPresent(json, "force_leaf_branch_buffer", false, *this, &Config::set_force_leaf_branch_buffer);
+  const bool has_force_branch_buffer = json.contains("force_branch_buffer");
+  const bool has_force_leaf_branch_buffer = json.contains("force_leaf_branch_buffer");
+  const std::optional<bool> parsed_force_branch_buffer
+      = has_force_branch_buffer ? std::make_optional(parse_bool(json.at("force_branch_buffer"), false)) : std::nullopt;
+  const std::optional<bool> parsed_force_leaf_branch_buffer
+      = has_force_leaf_branch_buffer ? std::make_optional(parse_bool(json.at("force_leaf_branch_buffer"), false)) : std::nullopt;
+  if (parsed_force_branch_buffer.has_value()) {
+    if (parsed_force_leaf_branch_buffer.has_value() && *parsed_force_branch_buffer != *parsed_force_leaf_branch_buffer) {
+      LOG_WARNING << "Config: both force_branch_buffer and deprecated force_leaf_branch_buffer are present; "
+                     "using force_branch_buffer.";
+    }
+    set_force_branch_buffer(*parsed_force_branch_buffer);
+  } else if (parsed_force_leaf_branch_buffer.has_value()) {
+    set_force_branch_buffer(*parsed_force_leaf_branch_buffer);
+  }
   ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist);
   ApplyNetListIfPresent(json, *this);
 }
@@ -297,8 +312,8 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
        buffer_types.empty() ? "no configured buffers" : logformat::JoinStrings(buffer_types)},
       {"char_buf_redundancy_pct", logformat::FormatPercent(get_char_buf_redundancy_pct()),
        get_char_buf_redundancy_pct() > 0.0 ? "near-neighbor max-cap pruning threshold" : "disabled"},
-      {"force_leaf_branch_buffer", logformat::FormatBool(is_force_leaf_branch_buffer()),
-       is_force_leaf_branch_buffer() ? "require terminal-buffered segment frontiers on leaf-branch H-tree levels" : "disabled"},
+      {"force_branch_buffer", logformat::FormatBool(is_force_branch_buffer()),
+       is_force_branch_buffer() ? "require terminal-buffered segment frontiers on every H-tree level" : "disabled"},
       {"use_netlist", logformat::FormatBool(is_use_netlist()),
        is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs collected from STA"},
   };

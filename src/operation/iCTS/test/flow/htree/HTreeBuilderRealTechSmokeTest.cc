@@ -69,6 +69,7 @@ namespace realtech_support = characterization::realtech;
 constexpr std::size_t kMaxRealClockLoadCount = 64U;
 constexpr double kHTreeSmokeMaxSlewNs = 0.05;
 constexpr double kHTreeSmokeMaxCapPf = 0.15;
+constexpr unsigned kLeafUnbufferedRealTechCharSteps = 10U;
 
 struct RealClockLoadSelection
 {
@@ -168,24 +169,39 @@ auto ReadTextFile(const std::filesystem::path& path) -> std::string
   return content_stream.str();
 }
 
-auto AssertLeafBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult& result) -> void
+auto UseLeafUnbufferedRealTechCharSteps() -> void
+{
+  CONFIG_INST.set_slew_steps(kLeafUnbufferedRealTechCharSteps);
+  CONFIG_INST.set_cap_steps(kLeafUnbufferedRealTechCharSteps);
+}
+
+auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
+                                  const std::string& clock_name, const std::vector<icts::Pin*>& loads,
+                                  const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  ASSERT_FALSE(artifact_paths.output_dir.empty());
+  EXPECT_TRUE(htree::WriteHTreeArtifacts(artifact_paths, scenario_name, clock_name, loads, result));
+  EXPECT_TRUE(std::filesystem::exists(artifact_paths.cts_log));
+  EXPECT_TRUE(std::filesystem::exists(artifact_paths.topology_svg));
+  EXPECT_TRUE(std::filesystem::exists(artifact_paths.materialized_svg));
+  EXPECT_TRUE(std::filesystem::exists(artifact_paths.pareto_svg));
+  EXPECT_TRUE(std::filesystem::exists(artifact_paths.report_log));
+}
+
+auto AssertBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult& result) -> void
 {
   ASSERT_TRUE(result.success);
   ASSERT_FALSE(result.levels.empty());
+  ASSERT_TRUE(result.force_branch_buffer);
   ASSERT_TRUE(result.force_leaf_branch_buffer);
 
   std::vector<icts::Point<int>> required_terminal_positions;
   const auto topology_levels = result.topology.levels();
-  bool exercised_requirement = false;
   for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
     const auto& level = result.levels.at(level_index);
-    if (!level.is_leaf_level) {
-      continue;
-    }
-    exercised_requirement = true;
     EXPECT_TRUE(level.selected_has_terminal_branch_buffer);
 
-    if (level_index + 1U >= topology_levels.size()) {
+    if (!level.is_leaf_level || level_index + 1U >= topology_levels.size()) {
       continue;
     }
     for (const auto node_id : topology_levels.at(level_index + 1U)) {
@@ -197,13 +213,52 @@ auto AssertLeafBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult
     }
   }
 
-  EXPECT_TRUE(exercised_requirement);
-
   for (const auto& expected_position : required_terminal_positions) {
     const bool has_terminal_inst = std::ranges::any_of(result.inserted_insts, [&expected_position](const icts::Inst* inst) -> bool {
       return inst != nullptr && inst->get_location() == expected_position;
     });
     EXPECT_TRUE(has_terminal_inst);
+  }
+}
+
+auto AssertLeafUnbufferedMaterialization(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  ASSERT_TRUE(result.success);
+  ASSERT_FALSE(result.levels.empty());
+  ASSERT_TRUE(result.force_leaf_unbuffered);
+  ASSERT_FALSE(result.force_branch_buffer);
+  ASSERT_FALSE(result.force_leaf_branch_buffer);
+
+  std::vector<icts::Point<int>> terminal_positions;
+  const auto topology_levels = result.topology.levels();
+  bool exercised_requirement = false;
+  for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
+    const auto& level = result.levels.at(level_index);
+    if (!level.is_leaf_level) {
+      continue;
+    }
+    exercised_requirement = true;
+    EXPECT_FALSE(level.selected_has_terminal_branch_buffer);
+
+    if (level_index + 1U >= topology_levels.size()) {
+      continue;
+    }
+    for (const auto node_id : topology_levels.at(level_index + 1U)) {
+      const auto* node = result.topology.get_node(node_id);
+      if (node == nullptr || node->get_loads().empty()) {
+        continue;
+      }
+      terminal_positions.push_back(node->get_position());
+    }
+  }
+
+  EXPECT_TRUE(exercised_requirement);
+
+  for (const auto& terminal_position : terminal_positions) {
+    const bool has_terminal_inst = std::ranges::any_of(result.inserted_insts, [&terminal_position](const icts::Inst* inst) -> bool {
+      return inst != nullptr && inst->get_location() == terminal_position;
+    });
+    EXPECT_FALSE(has_terminal_inst);
   }
 }
 
@@ -366,7 +421,7 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_EQ(cts_log_content.find("pareto_solution pattern_id="), std::string::npos);
 }
 
-TEST(HTreeBuilderRealTechSmokeTest, ForceLeafBranchBufferSelectsTerminalBranchPatterns)
+TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatternsOnEveryLevel)
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
   if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -382,20 +437,38 @@ TEST(HTreeBuilderRealTechSmokeTest, ForceLeafBranchBufferSelectsTerminalBranchPa
 
   realtech_support::RealTechCharSession char_session;
   if (const auto prepare_error
-      = char_session.prepare("htree_builder_leaf_branch_buffer", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, true);
+      = char_session.prepare("htree_builder_branch_buffer", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
 
-  ASSERT_TRUE(CONFIG_INST.is_force_leaf_branch_buffer());
+  ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
+  EXPECT_EQ(CONFIG_INST.get_slew_steps(), realtech_support::kRealTechCharSlewSteps);
+  EXPECT_EQ(CONFIG_INST.get_cap_steps(), realtech_support::kRealTechCharCapSteps);
+
+  const auto artifact_paths = htree::PrepareHTreeArtifactPaths("realtech_branch_buffer");
+  ASSERT_FALSE(artifact_paths.output_dir.empty());
+  const common::logging::ScopedLogFile cts_log_guard(artifact_paths.cts_log, "HTree Flow Test Report");
+  SCHEMA_WRITER_INST.emitKeyValueTable("HTree Smoke Scenario", {
+                                                                   {"scenario", "htree_builder_branch_buffer"},
+                                                                   {"clock_name", selected_clock->clock_name},
+                                                                   {"load_count", std::to_string(selected_clock->loads.size())},
+                                                               });
 
   auto result = icts::HTreeBuilder::build(selected_clock->loads);
 
-  AssertLeafBranchBufferMaterialization(result);
+  ASSERT_TRUE(result.success);
+  EXPECT_EQ(result.char_slew_steps, realtech_support::kRealTechCharSlewSteps);
+  EXPECT_EQ(result.char_cap_steps, realtech_support::kRealTechCharCapSteps);
+  AssertBranchBufferMaterialization(result);
+  WriteAndAssertHTreeArtifacts(artifact_paths, "htree_builder_branch_buffer", selected_clock->clock_name, selected_clock->loads, result);
+  const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
+  EXPECT_NE(cts_log_content.find("force_branch_buffer"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("true"), std::string::npos);
 }
 
-TEST(HTreeBuilderRealTechSmokeTest, CallerFacingLeafBranchBufferOptionOverridesConfigDefault)
+TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfigDefault)
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
   if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -410,18 +483,73 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingLeafBranchBufferOptionOverridesC
   }
 
   realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("htree_builder_leaf_branch_buffer_option_override", std::nullopt,
-                                                      kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, false);
+  if (const auto prepare_error = char_session.prepare("htree_builder_branch_buffer_option_override", std::nullopt, kHTreeSmokeMaxSlewNs,
+                                                      kHTreeSmokeMaxCapPf, false, false);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
 
-  ASSERT_FALSE(CONFIG_INST.is_force_leaf_branch_buffer());
+  ASSERT_FALSE(CONFIG_INST.is_force_branch_buffer());
 
-  const auto result = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.force_leaf_branch_buffer = true});
+  const auto result = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.force_branch_buffer = true});
 
-  AssertLeafBranchBufferMaterialization(result);
+  AssertBranchBufferMaterialization(result);
+}
+
+TEST(HTreeBuilderRealTechSmokeTest, CallerFacingLeafUnbufferedOptionSelectsUnbufferedLeafPatterns)
+{
+  const auto& setup_state = common_realtech::EnsureRealTechSetup();
+  if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
+    GTEST_SKIP() << setup_state.summary;
+    return;
+  }
+
+  const auto selected_clock = SelectLargestRealClockLoads(kMaxRealClockLoadCount);
+  if (!selected_clock.has_value()) {
+    GTEST_SKIP() << "No DEF-derived clock net exposes at least two CTS sink pins.";
+    return;
+  }
+
+  realtech_support::RealTechCharSession char_session;
+  if (const auto prepare_error
+      = char_session.prepare("htree_builder_leaf_unbuffered_option", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, true);
+      prepare_error.has_value()) {
+    GTEST_SKIP() << *prepare_error;
+    return;
+  }
+  UseLeafUnbufferedRealTechCharSteps();
+
+  ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
+  EXPECT_EQ(CONFIG_INST.get_slew_steps(), kLeafUnbufferedRealTechCharSteps);
+  EXPECT_EQ(CONFIG_INST.get_cap_steps(), kLeafUnbufferedRealTechCharSteps);
+
+  const auto artifact_paths = htree::PrepareHTreeArtifactPaths("realtech_leaf_unbuffered_option");
+  ASSERT_FALSE(artifact_paths.output_dir.empty());
+  const common::logging::ScopedLogFile cts_log_guard(artifact_paths.cts_log, "HTree Flow Test Report");
+  SCHEMA_WRITER_INST.emitKeyValueTable("HTree Smoke Scenario", {
+                                                                   {"scenario", "htree_builder_leaf_unbuffered_option"},
+                                                                   {"clock_name", selected_clock->clock_name},
+                                                                   {"load_count", std::to_string(selected_clock->loads.size())},
+                                                               });
+
+  const auto result = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{
+                                                                           .force_branch_buffer = false,
+                                                                           .force_leaf_unbuffered = true,
+                                                                       });
+
+  ASSERT_TRUE(result.force_leaf_unbuffered);
+  ASSERT_FALSE(result.force_branch_buffer);
+  ASSERT_FALSE(result.force_leaf_branch_buffer);
+  ASSERT_TRUE(result.success);
+  EXPECT_EQ(result.char_slew_steps, kLeafUnbufferedRealTechCharSteps);
+  EXPECT_EQ(result.char_cap_steps, kLeafUnbufferedRealTechCharSteps);
+  AssertLeafUnbufferedMaterialization(result);
+  WriteAndAssertHTreeArtifacts(artifact_paths, "htree_builder_leaf_unbuffered_option", selected_clock->clock_name, selected_clock->loads,
+                               result);
+  const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
+  EXPECT_NE(cts_log_content.find("force_leaf_unbuffered"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("true"), std::string::npos);
 }
 
 TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhenFeasible)
