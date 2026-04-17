@@ -38,6 +38,7 @@ Rule of thumb:
 - Prefer forward declarations when a header only needs a pointer or reference.
 - Keep implementation-only includes in `.cc` files.
 - Every header must be self-contained.
+- Do not use `../` or `../../` relative include traversal in iCTS source or test code; if a rooted include does not resolve, fix the target's `PUBLIC` or `INTERFACE` include directories instead.
 
 Use this include order, with blank lines between groups:
 1. corresponding header in `.cc`

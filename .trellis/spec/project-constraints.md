@@ -51,7 +51,7 @@ Immediately after it, add a Doxygen file comment:
 ```cpp
 /**
  * @file FileName.hh
- * @author Your Name (email@example.com)
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date YYYY-MM-DD
  * @brief One-line description of what this file contains
  */
