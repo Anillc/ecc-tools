@@ -34,17 +34,20 @@ StaData::StaData(AnalysisMode delay_type, TransType trans_type,
                  StaVertex* own_vertex)
     : _delay_type(delay_type),
       _trans_type(trans_type),
+      _data_epoch(0),
       _own_vertex(own_vertex) {}
 
 StaData::StaData(const StaData& orig)
     : _delay_type(orig._delay_type),
       _trans_type(orig._trans_type),
+      _data_epoch(orig._data_epoch),
       _own_vertex(orig._own_vertex) {}
 
 StaData& StaData::operator=(const StaData& rhs) {
   if (this != &rhs) {
     _delay_type = rhs._delay_type;
     _trans_type = rhs._trans_type;
+    _data_epoch = rhs._data_epoch;
     _own_vertex = rhs._own_vertex;
   }
   return *this;
@@ -53,6 +56,7 @@ StaData& StaData::operator=(const StaData& rhs) {
 StaData::StaData(StaData&& other) noexcept
     : _delay_type(other._delay_type),
       _trans_type(other._trans_type),
+      _data_epoch(other._data_epoch),
       _own_vertex(other._own_vertex),
       _fwd_set(std::move(other._fwd_set)),
       _bwd(other._bwd) {}
@@ -61,6 +65,7 @@ StaData& StaData::operator=(StaData&& rhs) noexcept {
   if (this != &rhs) {
     _delay_type = rhs._delay_type;
     _trans_type = rhs._trans_type;
+    _data_epoch = rhs._data_epoch;
     _own_vertex = rhs._own_vertex;
     _fwd_set = std::move(rhs._fwd_set);
     _bwd = rhs._bwd;
@@ -147,7 +152,9 @@ StaSlewData::StaSlewData(AnalysisMode delay_type, TransType trans_type,
 StaSlewData::~StaSlewData() = default;
 
 StaSlewData::StaSlewData(const StaSlewData& orig)
-    : StaData(orig), _slew(orig._slew) {
+    : StaData(orig),
+      _slew(orig._slew),
+      _launch_slew_data(orig._launch_slew_data) {
   if (orig._output_current_data) {
     auto* new_current_data = (*(orig._output_current_data))->copy();
     _output_current_data = std::unique_ptr<LibCurrentData>(new_current_data);
@@ -158,6 +165,7 @@ StaSlewData& StaSlewData::operator=(const StaSlewData& rhs) {
   if (this != &rhs) {
     StaData::operator=(rhs);
     _slew = rhs._slew;
+    _launch_slew_data = rhs._launch_slew_data;
 
     if (rhs._output_current_data) {
       auto* new_current_data = (*(rhs._output_current_data))->copy();
@@ -170,12 +178,14 @@ StaSlewData& StaSlewData::operator=(const StaSlewData& rhs) {
 StaSlewData::StaSlewData(StaSlewData&& other) noexcept
     : StaData(std::move(other)),
       _slew(other._slew),
+      _launch_slew_data(other._launch_slew_data),
       _output_current_data(std::move(other._output_current_data)) {}
 
 StaSlewData& StaSlewData::operator=(StaSlewData&& rhs) noexcept {
   if (this != &rhs) {
     StaData::operator=(std::move(rhs));
     _slew = rhs._slew;
+    _launch_slew_data = rhs._launch_slew_data;
     _output_current_data = std::move(rhs._output_current_data);
   }
   return *this;
@@ -194,10 +204,12 @@ unsigned StaSlewData::compareSignature(const StaData* data) const {
 
   unsigned is_same = 1;
 
-  const auto* delay_data = dynamic_cast<const StaSlewData*>(data);
-  if (_delay_type != delay_data->get_delay_type()) {
+  const auto* slew_data = dynamic_cast<const StaSlewData*>(data);
+  if (_delay_type != slew_data->get_delay_type()) {
     is_same = 0;
-  } else if (_trans_type != delay_data->get_trans_type()) {
+  } else if (_trans_type != slew_data->get_trans_type()) {
+    is_same = 0;
+  } else if (_launch_slew_data != slew_data->_launch_slew_data) {
     is_same = 0;
   }
 
@@ -211,13 +223,21 @@ StaArcDelayData::StaArcDelayData(AnalysisMode delay_type, TransType trans_type,
       _own_arc(own_arc) {}
 
 StaArcDelayData::StaArcDelayData(const StaArcDelayData& orig)
-    : StaData(orig), _arc_delay(orig._arc_delay), _own_arc(orig._own_arc) {}
+    : StaData(orig),
+      _arc_delay(orig._arc_delay),
+      _crosstalk_delay(orig._crosstalk_delay),
+      _own_arc(orig._own_arc),
+      _check_pair_binding(orig._check_pair_binding),
+      _check_pair_bindings(orig._check_pair_bindings) {}
 
 StaArcDelayData& StaArcDelayData::operator=(const StaArcDelayData& rhs) {
   if (this != &rhs) {
     StaData::operator=(rhs);
     _arc_delay = rhs._arc_delay;
+    _crosstalk_delay = rhs._crosstalk_delay;
     _own_arc = rhs._own_arc;
+    _check_pair_binding = rhs._check_pair_binding;
+    _check_pair_bindings = rhs._check_pair_bindings;
   }
   return *this;
 }
@@ -225,13 +245,19 @@ StaArcDelayData& StaArcDelayData::operator=(const StaArcDelayData& rhs) {
 StaArcDelayData::StaArcDelayData(StaArcDelayData&& other) noexcept
     : StaData(std::move(other)),
       _arc_delay(other._arc_delay),
-      _own_arc(other._own_arc) {}
+      _crosstalk_delay(other._crosstalk_delay),
+      _own_arc(other._own_arc),
+      _check_pair_binding(std::move(other._check_pair_binding)),
+      _check_pair_bindings(std::move(other._check_pair_bindings)) {}
 
 StaArcDelayData& StaArcDelayData::operator=(StaArcDelayData&& rhs) noexcept {
   if (this != &rhs) {
     StaData::operator=(std::move(rhs));
     _arc_delay = rhs._arc_delay;
+    _crosstalk_delay = rhs._crosstalk_delay;
     _own_arc = rhs._own_arc;
+    _check_pair_binding = std::move(rhs._check_pair_binding);
+    _check_pair_bindings = std::move(rhs._check_pair_bindings);
   }
   return *this;
 }
@@ -250,7 +276,9 @@ StaPathDelayData::StaPathDelayData(const StaPathDelayData& orig)
     : StaData(orig),
       _arrive_time(orig._arrive_time),
       _req_time(orig._req_time),
-      _launch_clock_data(orig._launch_clock_data) {}
+      _launch_clock_data(orig._launch_clock_data),
+      _launch_delay_data(orig._launch_delay_data),
+      _is_need_keep(orig._is_need_keep) {}
 
 StaPathDelayData& StaPathDelayData::operator=(const StaPathDelayData& rhs) {
   if (this != &rhs) {
@@ -258,6 +286,8 @@ StaPathDelayData& StaPathDelayData::operator=(const StaPathDelayData& rhs) {
     _arrive_time = rhs._arrive_time;
     _launch_clock_data = rhs._launch_clock_data;
     _req_time = rhs._req_time;
+    _launch_delay_data = rhs._launch_delay_data;
+    _is_need_keep = rhs._is_need_keep;
   }
   return *this;
 }
@@ -266,7 +296,9 @@ StaPathDelayData::StaPathDelayData(StaPathDelayData&& other) noexcept
     : StaData(std::move(other)),
       _arrive_time(other._arrive_time),
       _req_time(other._req_time),
-      _launch_clock_data(other._launch_clock_data) {}
+      _launch_clock_data(other._launch_clock_data),
+      _launch_delay_data(other._launch_delay_data),
+      _is_need_keep(other._is_need_keep) {}
 
 StaPathDelayData& StaPathDelayData::operator=(StaPathDelayData&& rhs) noexcept {
   if (this != &rhs) {
@@ -274,6 +306,9 @@ StaPathDelayData& StaPathDelayData::operator=(StaPathDelayData&& rhs) noexcept {
     _arrive_time = rhs._arrive_time;
     _launch_clock_data = rhs._launch_clock_data;
     _req_time = rhs._req_time;
+
+    _launch_delay_data = rhs._launch_delay_data;
+    _is_need_keep = rhs._is_need_keep;
   }
   return *this;
 }
@@ -289,20 +324,32 @@ unsigned StaPathDelayData::compareSignature(const StaData* data) const {
     return 0;
   }
 
-  unsigned is_same = 1;
-
   const auto* delay_data = dynamic_cast<const StaPathDelayData*>(data);
+  auto* other_launch_clock_data = delay_data->get_launch_clock_data();
+  if (isNeedKeep() || delay_data->isNeedKeep()) {
+    return 0;
+  }
+
+  unsigned is_same = 1;
   if (_delay_type != delay_data->get_delay_type()) {
     is_same = 0;
   } else if (_trans_type != delay_data->get_trans_type()) {
     is_same = 0;
-  } else if (_launch_clock_data->get_prop_clock() !=
-             delay_data->get_launch_clock_data()->get_prop_clock()) {
+  } else if ((!_launch_clock_data && other_launch_clock_data) ||
+             (_launch_clock_data && !(other_launch_clock_data))) {
     is_same = 0;
-  } else if (_launch_clock_data->get_clock_wave_type() !=
-             delay_data->get_launch_clock_data()->get_clock_wave_type()) {
+  } else if (_launch_clock_data && other_launch_clock_data &&
+             (_launch_clock_data->get_prop_clock() !=
+              other_launch_clock_data->get_prop_clock())) {
     is_same = 0;
-  } /* else if (delay_data->get_bwd()->get_own_vertex() !=
+  } else if (_launch_clock_data && other_launch_clock_data &&
+             _launch_clock_data->get_clock_wave_type() !=
+                 other_launch_clock_data->get_clock_wave_type()) {
+    is_same = 0;
+  } else if (get_launch_delay_data() != delay_data->get_launch_delay_data()) {
+    is_same = 0;
+  }
+  /* else if (delay_data->get_bwd()->get_own_vertex() !=
              get_bwd()->get_own_vertex()) {
     is_same = 0;
   } */
@@ -445,18 +492,23 @@ void StaDataBucket::addData(StaData* data, int track_stack_deep) {
                : (left_compare_value < right_compare_value);
   };
 
-  track_stack_deep++;
+  static const auto cmp_signature = [this](StaData* left,
+                                           StaData* right) -> unsigned {
+    if (isPathBased() && (left->get_bwd() != right->get_bwd())) {
+      return 0;
+    }
 
-  // if (track_stack_deep > 4 && data->isPathDelayData()) {
-  //   LOG_INFO << "Debug";
-  // }
+    return left->compareSignature(right);
+  };
+
+  track_stack_deep++;
 
   if (_data_list.empty()) {
     insertData(data);
   } else {
     auto& top_data = _data_list.front();
 
-    if (top_data->compareSignature(data)) {
+    if (cmp_signature(top_data.get(), data)) {
       auto q = _data_list.begin();
       bool is_insert = false;
       // q is the previous data.

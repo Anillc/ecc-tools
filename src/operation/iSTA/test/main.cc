@@ -19,7 +19,5 @@
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-
-  testing::GTEST_FLAG(filter) = "DelayTest.virtual_rc_tree*";
   return RUN_ALL_TESTS();
 }

@@ -197,10 +197,10 @@ class TreeBuilderAux : public TestInterface
     if (db_config_path.empty() && cts_config_path.empty()) {
       return;
     }
-    LOG_INFO << "Router unit res (H): " << CTSAPIInst.getClockUnitRes(LayerPattern::kH);
-    LOG_INFO << "Router unit cap (H): " << CTSAPIInst.getClockUnitCap(LayerPattern::kH);
-    LOG_INFO << "Router unit res (V): " << CTSAPIInst.getClockUnitRes(LayerPattern::kV);
-    LOG_INFO << "Router unit cap (V): " << CTSAPIInst.getClockUnitCap(LayerPattern::kV);
+    LOG_INFO << "Router unit res (H): " << CTSAPI_INST.getClockUnitRes(LayerPattern::kH);
+    LOG_INFO << "Router unit cap (H): " << CTSAPI_INST.getClockUnitCap(LayerPattern::kH);
+    LOG_INFO << "Router unit res (V): " << CTSAPI_INST.getClockUnitRes(LayerPattern::kV);
+    LOG_INFO << "Router unit cap (V): " << CTSAPI_INST.getClockUnitCap(LayerPattern::kV);
   }
   ~TreeBuilderAux() = default;
 
@@ -454,7 +454,6 @@ class TreeBuilderAux : public TestInterface
     auto* net = TimingPropagator::genNet(method_name, driver_pin, load_pins);
     TimingPropagator::update(net);
 
-    // TreeBuilder::writePy(driver_pin, method_name + "_" + TopoTypeToString(topo_type));
     auto topo_type_str = TopoTypeToString(topo_type);
     TreeInfo info{driver_pin->get_sub_len(), driver_pin->get_cap_load(), driver_pin->get_max_delay() - driver_pin->get_min_delay(),
                   driver_pin->get_max_delay() - load_pins.front()->get_inst()->get_insert_delay(), driver_pin->get_max_delay()};
@@ -468,7 +467,7 @@ class TreeBuilderAux : public TestInterface
       LOG_INFO << "max delay: " << driver_pin->get_max_delay();
     }
     TimingPropagator::resetNet(net);
-    // CTSAPIInst.resetId();
+    // CTSAPI_INST.resetId();
     return info;
   }
 
@@ -490,7 +489,7 @@ class TreeBuilderAux : public TestInterface
     std::vector<Inst*> load_bufs;
     for (size_t i = 0; i < locs.size(); ++i) {
       auto loc = locs[i];
-      auto* buf = TreeBuilder::genBufInst(CTSAPIInst.toString("buf_", i), loc);
+      auto* buf = TreeBuilder::genBufInst(CTSAPI_INST.toString("buf_", i), loc);
       buf->set_cell_master(TimingPropagator::getMinSizeCell());
       load_bufs.push_back(buf);
       auto* load_pin = buf->get_load_pin();

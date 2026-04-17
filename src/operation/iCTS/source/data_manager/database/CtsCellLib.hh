@@ -29,8 +29,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ModelFactory.hh"
-
 namespace icts {
 
 class CtsCellLib
@@ -52,6 +50,8 @@ class CtsCellLib
   std::vector<double> get_delay_coef() const { return _delay_coef; }
   std::vector<double> get_slew_coef() const { return _slew_coef; }
   double get_init_cap() const { return _init_cap; }
+  double get_area() const { return _area; }
+  double get_leakage_power() const { return _leakage_power; }
   double getDelayIntercept() const
   {
     //  return _delay_coef[0];
@@ -62,12 +62,11 @@ class CtsCellLib
   void set_delay_coef(const std::vector<double>& coef) { _delay_coef = coef; }
   void set_slew_coef(const std::vector<double>& coef) { _slew_coef = coef; }
   void set_init_cap(const double& init_cap) { _init_cap = init_cap; }
+  void set_area(const double& area) { _area = area; }
+  void set_leakage_power(const double& leakage_power) { _leakage_power = leakage_power; }
 
   // calc
-  double calcSlew(const double& cap_out) const
-  {
-    return calcLinearSlew(cap_out);
-  }
+  double calcSlew(const double& cap_out) const { return calcLinearSlew(cap_out); }
 
   double calcInsertSlew(const double& slew_in, const double& cap_out) const
   {
@@ -95,10 +94,7 @@ class CtsCellLib
 
     return res;
   }
-  double calcDelay(const double& slew_in, const double& cap_out) const
-  {
-    return calcInsertDelay(slew_in, cap_out);
-  }
+  double calcDelay(const double& slew_in, const double& cap_out) const { return calcInsertDelay(slew_in, cap_out); }
   double calcLinearSlew(const double& cap_out) const { return _slew_coef[0] + _slew_coef[1] * cap_out; }
   double calcLinearDelay(const double& slew_in, const double& cap_out) const
   {
@@ -141,6 +137,8 @@ class CtsCellLib
   std::vector<double> _delay_coef;
   std::vector<double> _slew_coef;
   double _init_cap = 0.0;
+  double _area = 0.0;
+  double _leakage_power = 0.0;
 };
 
 class CtsLibs
@@ -157,6 +155,7 @@ class CtsLibs
     }
     return _lib_maps[cell_master];
   }
+
  private:
   std::unordered_map<std::string, CtsCellLib*> _lib_maps;
 };

@@ -64,7 +64,7 @@ class TimingEngine {
   Netlist *get_netlist() { return _ista->get_netlist(); }
   void writeVerilog(const char *verilog_file_name,
                     std::set<std::string> &&exclude_cell_names = {}) {
-    _ista->writeVerilog(verilog_file_name, exclude_cell_names);
+    _ista->writeVerilog(verilog_file_name, exclude_cell_names, false);
   }
 
   // Builder
@@ -250,6 +250,7 @@ class TimingEngine {
       const char* rc_tree_name, double driver_slew, TransType trans_type);
   std::map<std::string, double> getVirtualRCTreeAllNodeDelay(
       const char* rc_tree_name);
+  TimingEngine &checkAndBreakLoop(StaGraph *the_graph);
 
   TimingEngine &incrUpdateTiming();
 
@@ -278,8 +279,10 @@ class TimingEngine {
 
   unsigned reportWirePaths(unsigned n_worst_path_per_clock) {
     _ista->set_n_worst_path_per_clock(n_worst_path_per_clock);
-    return  _ista->reportWirePaths();
+    return _ista->reportWirePaths();
   }
+  TimingEngine &extractTimingModel(AnalysisMode analysis_mode,
+                                   const char *model_path);
 
   std::vector<StaClock *> getClockList();
   void setPropagatedClock(const char *clock_name);

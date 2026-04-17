@@ -16,7 +16,6 @@
 // ***************************************************************************************
 #include "tcl_cts.h"
 
-#include "CTSAPI.hh"
 #include "tool_manager.h"
 
 namespace tcl {
@@ -91,16 +90,13 @@ unsigned CmdCTSReport::exec()
 
   TclOption* option = getOptionOrArg(TCL_NAME);
   auto name = option->getStringVal();
-  if (name != nullptr) {
-    if (iplf::tmInst->reportCTS(name)) {
-      return 1;
-    }
+  if (name != nullptr && iplf::tmInst->reportCTS(name)) {
+    return 1;
   }
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
   auto str_path = def_path->getStringVal();
-  if (str_path != nullptr) {
-    CTSAPIInst.report(str_path);
+  if (str_path != nullptr && iplf::tmInst->reportCTS(str_path)) {
     return 1;
   }
 

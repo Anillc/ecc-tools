@@ -43,10 +43,12 @@ enum class PortDir { kIn, kOut, kInOut, kOther };
  */
 class Port : public DesignObject {
  public:
+  Port() {}
   explicit Port(const char* name, PortDir port_dir);
+  Port(const Port& other);
   Port(Port&& other) noexcept;
   Port& operator=(Port&& rhs) noexcept;
-  ~Port() override = default;  
+  ~Port() override = default;
 
   unsigned isPort() override { return 1; }
   unsigned isPin() override { return 0; }
@@ -66,6 +68,11 @@ class Port : public DesignObject {
   void set_net(Net* net) override { _net = net; }
   Net* get_net() override { return _net; }
 
+  void set_is_virtual_port(unsigned is_virtual_port) {
+    _is_virtual_port = is_virtual_port;
+  }
+  unsigned get_is_virtual_port() { return _is_virtual_port; }
+
   std::string getFullName() override { return get_name(); }
   PortDir get_port_dir() { return _port_dir; }
 
@@ -80,11 +87,11 @@ class Port : public DesignObject {
   PortDir _port_dir;  //!< The port direction.
   Net* _net;          //!< The port connected net.
 
-  PortBus* _port_bus = nullptr;  //!< The port owned by the port bus.
-
-  std::optional<Coordinate> _coordinate; //!< The pin coordinate.
-
-  FORBIDDEN_COPY(Port);
+  PortBus* _port_bus = nullptr;       //!< The port owned by the port bus.
+  std::optional<Coordinate> _coordinate;  //!< The pin coordinate.
+  unsigned _is_virtual_port : 1 = 0;  //!< The flag of  virtual port constructed
+                                      //!< in cluster timing analysis.
+  unsigned _reserverd : 31 = 0;
 };
 
 /**

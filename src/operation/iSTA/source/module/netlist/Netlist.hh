@@ -50,7 +50,7 @@ class NetIterator;
 class Netlist : public DesignObject {
  public:
   Netlist() : DesignObject("top"){};
-  ~Netlist() override = default;
+  ~Netlist() override;
 
   Netlist(Netlist&& other) = default;
   Netlist& operator=(Netlist&& rhs) = default;
@@ -90,7 +90,7 @@ class Netlist : public DesignObject {
     }
     return nullptr;
   }
-
+  auto& get_ports() { return _ports; }
   std::vector<DesignObject*> findPort(const char* pattern, bool regexp,
                                       bool nocase);
 
@@ -103,6 +103,11 @@ class Netlist : public DesignObject {
   PortBus& addPortBus(PortBus&& port_bus) {
     _port_buses.emplace_back(std::move(port_bus));
     auto* the_port_bus = &(_port_buses.back());
+    for (unsigned index = 0; index < the_port_bus->get_size(); ++index) {
+      if (auto* port = the_port_bus->getPort(index); port) {
+        port->set_port_bus(the_port_bus);
+      }
+    }
     _str2portbus[the_port_bus->get_name()] = the_port_bus;
     return *the_port_bus;
   }
@@ -183,14 +188,22 @@ class Netlist : public DesignObject {
 
   void reset();
 
-  void writeVerilog(const char* verilog_file_name="nl.v",
-                    std::set<std::string> exclude_cell_names={});
+  void writeVerilog(const char* verilog_file_name = "nl.v",
+                    std::set<std::string> exclude_cell_names = {},
+                    bool is_hier_module = false);
+
+  void set_hier_sub_netlists(std::vector<Netlist*> hier_sub_netlists) {
+    _hier_sub_netlists = hier_sub_netlists;
+  }
+  std::vector<Netlist*> get_hier_sub_netlists() { return _hier_sub_netlists; }
 
  private:
   std::list<Port> _ports;
   StrMap<Port*> _str2port;  //!< The port name to port for search.
   std::list<PortBus> _port_buses;
   StrMap<PortBus*> _str2portbus;
+
+  std::vector<Netlist*> _hier_sub_netlists;  //!< The hierarchical netlist.
 
   std::list<Net> _nets;
   StrMap<Net*> _str2net;  //!< The net name to net for search.

@@ -21,8 +21,9 @@
 #include "CtsDBWrapper.hh"
 
 #include <cassert>
+#include <utility>
 
-#include "CTSAPI.hh"
+#include "log/Log.hh"
 
 namespace icts {
 
@@ -35,13 +36,24 @@ CtsDBWrapper::CtsDBWrapper(IdbBuilder* idb)
 
 void CtsDBWrapper::writeDef()
 {
-  auto* config = CTSAPIInst.get_config();
-  _idb->saveDef(config->get_output_def_path());
+  LOG_FATAL_IF(_output_def_path.empty()) << "CtsDBWrapper::writeDef requires output def path to be configured";
+  writeDef(_output_def_path);
+}
+
+void CtsDBWrapper::writeDef(const std::string& output_def_path)
+{
+  _idb->saveDef(output_def_path);
 }
 
 void CtsDBWrapper::read()
 {
-  auto* design = CTSAPIInst.get_design();
+  LOG_FATAL_IF(_read_design == nullptr) << "CtsDBWrapper::read requires design context to be configured";
+  read(_read_design);
+}
+
+void CtsDBWrapper::read(CtsDesign* design)
+{
+  LOG_FATAL_IF(design == nullptr) << "CtsDBWrapper::read got null design";
   auto* idb_net_list = _idb_design->get_net_list();
 
   auto& clock_net_names = design->get_clock_net_names();
@@ -91,6 +103,13 @@ void CtsDBWrapper::read()
       inst->set_type(CtsInstanceType::kMux);
     }
   });
+}
+
+void CtsDBWrapper::setRuntimeContext(CtsDesign* design, std::string output_def_path, IsFlipFlopFn is_flip_flop_checker)
+{
+  setReadContext(design);
+  setOutputDefPath(std::move(output_def_path));
+  setFlipFlopChecker(std::move(is_flip_flop_checker));
 }
 
 void CtsDBWrapper::linkIdb(CtsInstance* inst)
@@ -229,7 +248,9 @@ bool CtsDBWrapper::isClockPin(IdbPin* idb_pin) const
 }
 bool CtsDBWrapper::isFlipFlop(IdbInstance* idb_inst) const
 {
-  return CTSAPIInst.isFlipFlop(idb_inst->get_name());
+  LOG_FATAL_IF(idb_inst == nullptr) << "CtsDBWrapper::isFlipFlop got null idb instance";
+  LOG_FATAL_IF(!_is_flip_flop_checker) << "CtsDBWrapper::isFlipFlop requires injected checker callback";
+  return _is_flip_flop_checker(idb_inst->get_name());
 }
 
 CtsNet* CtsDBWrapper::idbToCts(IdbNet* idb_net)

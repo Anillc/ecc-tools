@@ -18,7 +18,10 @@
 
 #include <tool_manager.h>
 
+#include <algorithm>
+#include <filesystem>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include "api/TimingEngine.hh"
@@ -27,6 +30,29 @@
 #include "log/Log.hh"
 #include "sta/Sta.hh"
 namespace python_interface {
+
+namespace {
+
+ista::AnalysisMode parseTimingModelAnalysisMode(std::string analysis_mode)
+{
+  std::transform(analysis_mode.begin(), analysis_mode.end(),
+                 analysis_mode.begin(), [](unsigned char ch) {
+                   return static_cast<char>(std::tolower(ch));
+                 });
+
+  if (analysis_mode.empty() || analysis_mode == "max") {
+    return ista::AnalysisMode::kMax;
+  }
+  if (analysis_mode == "min") {
+    return ista::AnalysisMode::kMin;
+  }
+
+  throw std::invalid_argument(
+      "write_timing_model only supports analysis_mode 'max' or 'min'");
+}
+
+}  // namespace
+
 bool staRun(const std::string& output)
 {
   bool run_ok = iplf::tmInst->autoRunSTA(output);
@@ -181,6 +207,62 @@ bool updateTiming()
   ista->buildGraph();
   ista->updateTiming();
   return true;
+}
+
+bool writeAbstractLef(const std::string& output_lef_path)
+{
+  namespace fs = std::filesystem;
+
+  const fs::path output_lef(output_lef_path);
+  if (!output_lef.parent_path().empty()) {
+    std::error_code ec;
+    fs::create_directories(output_lef.parent_path(), ec);
+    if (ec) {
+      throw std::runtime_error("failed to create output directory: " +
+                               output_lef.parent_path().string() + ", error=" +
+                               ec.message());
+    }
+  }
+
+  std::error_code ec;
+  fs::remove(output_lef, ec);
+
+  // saveLef currently inherits a legacy closeFile() return convention where a
+  // successful fclose() yields 0/false, so use the emitted file as the
+  // user-visible success criterion here.
+  dmInst->saveLef(output_lef_path);
+
+  if (!fs::exists(output_lef)) {
+    return false;
+  }
+  return fs::file_size(output_lef) > 0;
+}
+
+bool writeTimingModel(const std::string& output_lib_path,
+                      const std::string& analysis_mode)
+{
+  namespace fs = std::filesystem;
+
+  auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  const auto mode = parseTimingModelAnalysisMode(analysis_mode);
+
+  const fs::path output_lib(output_lib_path);
+  if (!output_lib.parent_path().empty()) {
+    std::error_code ec;
+    fs::create_directories(output_lib.parent_path(), ec);
+    if (ec) {
+      throw std::runtime_error("failed to create output directory: " +
+                               output_lib.parent_path().string() + ", error=" +
+                               ec.message());
+    }
+    const auto workspace = output_lib.parent_path().string();
+    timing_engine->set_design_work_space(workspace.c_str());
+  }
+
+  timing_engine->get_ista()->set_analysis_mode(mode);
+  timing_engine->extractTimingModel(mode, output_lib_path.c_str());
+
+  return fs::exists(output_lib) && fs::file_size(output_lib) > 0;
 }
 
 bool reportSta()

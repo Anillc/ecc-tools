@@ -20,41 +20,323 @@
  */
 #include "GDSPloter.hh"
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <ctime>
 #include <filesystem>
+#include <fstream>
+#include <limits>
+#include <vector>
 
-#include "CTSAPI.hh"
 #include "CtsDBWrapper.hh"
+#include "CtsRuntime.hh"
 #include "json.hpp"
 
 namespace icts {
 
+namespace {
+
+CtsPin* resolveDriverPin(CtsNet* clk_net)
+{
+  return clk_net == nullptr ? nullptr : clk_net->get_driver_pin();
+}
+
+CtsInstance* resolveDriverInst(CtsNet* clk_net, CtsPin* driver_pin)
+{
+  if (clk_net == nullptr) {
+    return nullptr;
+  }
+  if (auto* driver = clk_net->get_driver_inst(driver_pin); driver != nullptr) {
+    return driver;
+  }
+  return driver_pin != nullptr ? driver_pin->get_instance() : nullptr;
+}
+
+int resolveDriverLevel(CtsInstance* driver)
+{
+  return driver != nullptr ? driver->get_level() : 0;
+}
+
+std::string resolveDesignGdsPath(const std::string& requested_path)
+{
+  if (!requested_path.empty()) {
+    return requested_path;
+  }
+  auto* config = GetCtsRuntime().getConfig();
+  if (config != nullptr) {
+    if (!config->get_gds_file().empty()) {
+      return config->get_gds_file();
+    }
+    return std::filesystem::path(config->get_work_dir()).append("output").append("cts_design.gds").string();
+  }
+  return "cts_design.gds";
+}
+
+std::string resolveFlylineGdsPath(const std::string& requested_path)
+{
+  if (!requested_path.empty()) {
+    return requested_path;
+  }
+  auto design_path = resolveDesignGdsPath("");
+  return std::filesystem::path(design_path).parent_path().append("cts_flyline.gds").string();
+}
+
+void ensureParentDirectory(const std::string& file_path)
+{
+  auto parent_path = std::filesystem::path(file_path).parent_path();
+  if (!parent_path.empty() && !std::filesystem::exists(parent_path)) {
+    std::filesystem::create_directories(parent_path);
+  }
+}
+
+enum class GdsRecordType : uint8_t
+{
+  kHeader = 0x00,
+  kBgnLib = 0x01,
+  kLibName = 0x02,
+  kUnits = 0x03,
+  kEndLib = 0x04,
+  kBgnStr = 0x05,
+  kStrName = 0x06,
+  kEndStr = 0x07,
+  kBoundary = 0x08,
+  kPath = 0x09,
+  kSRef = 0x0A,
+  kLayer = 0x0D,
+  kDataType = 0x0E,
+  kWidth = 0x0F,
+  kXY = 0x10,
+  kEndEl = 0x11,
+  kSName = 0x12,
+  kPathType = 0x21
+};
+
+enum class GdsDataType : uint8_t
+{
+  kNoData = 0x00,
+  kBitArray = 0x01,
+  kInt16 = 0x02,
+  kInt32 = 0x03,
+  kReal8 = 0x05,
+  kAscii = 0x06
+};
+
+void appendUInt16BE(std::vector<uint8_t>& payload, uint16_t value)
+{
+  payload.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
+  payload.push_back(static_cast<uint8_t>(value & 0xFF));
+}
+
+void appendInt16BE(std::vector<uint8_t>& payload, int16_t value)
+{
+  appendUInt16BE(payload, static_cast<uint16_t>(value));
+}
+
+void appendInt32BE(std::vector<uint8_t>& payload, int32_t value)
+{
+  auto raw = static_cast<uint32_t>(value);
+  payload.push_back(static_cast<uint8_t>((raw >> 24) & 0xFF));
+  payload.push_back(static_cast<uint8_t>((raw >> 16) & 0xFF));
+  payload.push_back(static_cast<uint8_t>((raw >> 8) & 0xFF));
+  payload.push_back(static_cast<uint8_t>(raw & 0xFF));
+}
+
+void appendUInt64BE(std::vector<uint8_t>& payload, uint64_t value)
+{
+  for (int shift = 56; shift >= 0; shift -= 8) {
+    payload.push_back(static_cast<uint8_t>((value >> shift) & 0xFF));
+  }
+}
+
+int16_t clampToInt16(int value)
+{
+  return static_cast<int16_t>(std::clamp(value, 0, static_cast<int>(std::numeric_limits<int16_t>::max())));
+}
+
+std::array<int16_t, 6> makeTimestamp(time_t when)
+{
+  std::tm tm_value;
+  localtime_r(&when, &tm_value);
+  return {static_cast<int16_t>(tm_value.tm_year + 1900), static_cast<int16_t>(tm_value.tm_mon + 1), static_cast<int16_t>(tm_value.tm_mday),
+          static_cast<int16_t>(tm_value.tm_hour),        static_cast<int16_t>(tm_value.tm_min),     static_cast<int16_t>(tm_value.tm_sec)};
+}
+
+uint64_t encodeGdsReal8(double value)
+{
+  if (value == 0.0) {
+    return 0;
+  }
+
+  const bool negative = value < 0.0;
+  double magnitude = std::fabs(value);
+  int exponent = 64;
+
+  while (magnitude >= 1.0) {
+    magnitude /= 16.0;
+    ++exponent;
+  }
+  while (magnitude < 0.0625) {
+    magnitude *= 16.0;
+    --exponent;
+  }
+
+  if (exponent <= 0 || exponent >= 128) {
+    LOG_FATAL << "GDS real8 exponent out of range for value " << value;
+  }
+
+  auto mantissa = static_cast<uint64_t>(std::llround(magnitude * static_cast<double>(1ULL << 56)));
+  if (mantissa >= (1ULL << 56)) {
+    mantissa >>= 4;
+    ++exponent;
+  }
+
+  auto sign_and_exp = static_cast<uint8_t>((negative ? 0x80 : 0x00) | (exponent & 0x7F));
+  return (static_cast<uint64_t>(sign_and_exp) << 56) | (mantissa & 0x00FFFFFFFFFFFFFFULL);
+}
+
+std::vector<uint8_t> packInt16Payload(std::initializer_list<int16_t> values)
+{
+  std::vector<uint8_t> payload;
+  payload.reserve(values.size() * 2);
+  for (auto value : values) {
+    appendInt16BE(payload, value);
+  }
+  return payload;
+}
+
+std::vector<uint8_t> packInt32Payload(const std::vector<int32_t>& values)
+{
+  std::vector<uint8_t> payload;
+  payload.reserve(values.size() * 4);
+  for (auto value : values) {
+    appendInt32BE(payload, value);
+  }
+  return payload;
+}
+
+std::vector<uint8_t> packAsciiPayload(const std::string& text)
+{
+  std::vector<uint8_t> payload(text.begin(), text.end());
+  if ((payload.size() & 1U) != 0U) {
+    payload.push_back('\0');
+  }
+  return payload;
+}
+
+std::vector<uint8_t> packReal8Payload(std::initializer_list<double> values)
+{
+  std::vector<uint8_t> payload;
+  payload.reserve(values.size() * 8);
+  for (auto value : values) {
+    appendUInt64BE(payload, encodeGdsReal8(value));
+  }
+  return payload;
+}
+
+std::vector<uint8_t> packTimestampPayload(time_t begin_time, time_t end_time)
+{
+  std::vector<uint8_t> payload;
+  payload.reserve(24);
+  for (const auto& ts : {makeTimestamp(begin_time), makeTimestamp(end_time)}) {
+    for (auto value : ts) {
+      appendInt16BE(payload, value);
+    }
+  }
+  return payload;
+}
+
+void writeRecord(std::fstream& gds_ofs, GdsRecordType record_type, GdsDataType data_type, const std::vector<uint8_t>& payload = {})
+{
+  const auto record_length = static_cast<uint16_t>(payload.size() + 4);
+  char header[4] = {static_cast<char>((record_length >> 8) & 0xFF), static_cast<char>(record_length & 0xFF), static_cast<char>(record_type),
+                    static_cast<char>(data_type)};
+  gds_ofs.write(header, sizeof(header));
+  if (!payload.empty()) {
+    gds_ofs.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
+  }
+}
+
+void writeRecordInt16(std::fstream& gds_ofs, GdsRecordType record_type, std::initializer_list<int16_t> values)
+{
+  writeRecord(gds_ofs, record_type, GdsDataType::kInt16, packInt16Payload(values));
+}
+
+void writeRecordInt32(std::fstream& gds_ofs, GdsRecordType record_type, const std::vector<int32_t>& values)
+{
+  writeRecord(gds_ofs, record_type, GdsDataType::kInt32, packInt32Payload(values));
+}
+
+void writeRecordAscii(std::fstream& gds_ofs, GdsRecordType record_type, const std::string& text)
+{
+  writeRecord(gds_ofs, record_type, GdsDataType::kAscii, packAsciiPayload(text));
+}
+
+void writeBoundary(std::fstream& gds_ofs, int layer, int data_type, const std::vector<Point>& points)
+{
+  writeRecord(gds_ofs, GdsRecordType::kBoundary, GdsDataType::kNoData);
+  writeRecordInt16(gds_ofs, GdsRecordType::kLayer, {clampToInt16(layer)});
+  writeRecordInt16(gds_ofs, GdsRecordType::kDataType, {clampToInt16(data_type)});
+
+  std::vector<int32_t> coords;
+  coords.reserve(points.size() * 2);
+  for (const auto& point : points) {
+    coords.push_back(point.x());
+    coords.push_back(point.y());
+  }
+  writeRecordInt32(gds_ofs, GdsRecordType::kXY, coords);
+  writeRecord(gds_ofs, GdsRecordType::kEndEl, GdsDataType::kNoData);
+}
+
+void writePath(std::fstream& gds_ofs, int layer, int width, const Point& begin, const Point& end)
+{
+  writeRecord(gds_ofs, GdsRecordType::kPath, GdsDataType::kNoData);
+  writeRecordInt16(gds_ofs, GdsRecordType::kLayer, {clampToInt16(layer)});
+  writeRecordInt16(gds_ofs, GdsRecordType::kDataType, {0});
+  writeRecordInt16(gds_ofs, GdsRecordType::kPathType, {0});
+  writeRecordInt32(gds_ofs, GdsRecordType::kWidth, {width});
+  writeRecordInt32(gds_ofs, GdsRecordType::kXY, {begin.x(), begin.y(), end.x(), end.y()});
+  writeRecord(gds_ofs, GdsRecordType::kEndEl, GdsDataType::kNoData);
+}
+
+void writeSRef(std::fstream& gds_ofs, const std::string& name)
+{
+  writeRecord(gds_ofs, GdsRecordType::kSRef, GdsDataType::kNoData);
+  writeRecordAscii(gds_ofs, GdsRecordType::kSName, name);
+  writeRecordInt32(gds_ofs, GdsRecordType::kXY, {0, 0});
+  writeRecord(gds_ofs, GdsRecordType::kEndEl, GdsDataType::kNoData);
+}
+
+}  // namespace
+
 void GDSPloter::plotDesign(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
   auto& clk_nets = design->get_nets();
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
-  auto file_path = path;
-  if (file_path.empty()) {
-    auto dir = std::filesystem::path(config->get_work_dir()).append("output").string();
-    if (!std::filesystem::exists(dir)) {
-      std::filesystem::create_directories(dir);
-    }
-    file_path = std::filesystem::path(dir).append("cts_design.gds").string();
-  }
-  auto ofs = std::fstream(file_path, std::ios::out | std::ios::trunc);
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
+  auto file_path = resolveDesignGdsPath(path);
+  ensureParentDirectory(file_path);
+  auto ofs = std::fstream(file_path, std::ios::out | std::ios::trunc | std::ios::binary);
 
   head(ofs);
 
   for (auto& clk_net : clk_nets) {
     size_t wire_id = 0;
     auto net_name = clk_net->get_net_name();
+    auto* driver_pin = resolveDriverPin(clk_net);
+    auto* driver = resolveDriverInst(clk_net, driver_pin);
+    if (driver_pin == nullptr) {
+      LOG_WARNING << "Skip design GDS for net " << net_name << " because driver pin is null.";
+      continue;
+    }
+    const int driver_level = resolveDriverLevel(driver);
 
     for (const auto& wire : clk_net->get_signal_wires()) {
       auto wire_name = "WIRE_" + net_name + "_" + std::to_string(wire_id++);
       auto first = wire.get_first().point;
       auto second = wire.get_second().point;
-      insertWire(ofs, first, second, wire_name, clk_net->get_driver_inst()->get_level());
+      insertWire(ofs, first, second, wire_name, driver_level);
     }
   }
 
@@ -109,6 +391,9 @@ void GDSPloter::plotDesign(const std::string& path)
   refPolygon(ofs, "core");
   for (auto& clk_net : clk_nets) {
     auto net_name = clk_net->get_net_name();
+    if (resolveDriverPin(clk_net) == nullptr) {
+      continue;
+    }
 
     for (size_t i = 0; i < clk_net->get_signal_wires().size(); ++i) {
       auto wire_name = "WIRE_" + net_name + "_" + std::to_string(i);
@@ -122,29 +407,27 @@ void GDSPloter::plotDesign(const std::string& path)
 
 void GDSPloter::plotFlyLine(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
   auto& clk_nets = design->get_nets();
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
-  auto file_path = path;
-  if (file_path.empty()) {
-    auto dir = std::filesystem::path(config->get_work_dir()).append("output").string();
-    if (!std::filesystem::exists(dir)) {
-      std::filesystem::create_directories(dir);
-    }
-    file_path = std::filesystem::path(dir).append("cts_flyline.gds").string();
-  }
-  auto ofs = std::fstream(file_path, std::ios::out | std::ios::trunc);
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
+  auto file_path = resolveFlylineGdsPath(path);
+  ensureParentDirectory(file_path);
+  auto ofs = std::fstream(file_path, std::ios::out | std::ios::trunc | std::ios::binary);
 
   head(ofs);
 
   for (auto& clk_net : clk_nets) {
-    auto* driver = clk_net->get_driver_inst();
-    auto* driver_pin = clk_net->get_driver_pin();
+    auto* driver_pin = resolveDriverPin(clk_net);
+    auto* driver = resolveDriverInst(clk_net, driver_pin);
+    if (driver_pin == nullptr) {
+      LOG_WARNING << "Skip flyline GDS for net " << clk_net->get_net_name() << " because driver pin is null.";
+      continue;
+    }
+    const int driver_level = resolveDriverLevel(driver);
     size_t wire_id = 0;
     for (auto* load_pin : clk_net->get_load_pins()) {
       auto wire_name = "WIRE_" + clk_net->get_net_name() + "_" + std::to_string(wire_id++);
-      insertWire(ofs, driver_pin->get_location(), load_pin->get_location(), wire_name, driver->get_level());
+      insertWire(ofs, driver_pin->get_location(), load_pin->get_location(), wire_name, driver_level);
     }
   }
 
@@ -199,7 +482,8 @@ void GDSPloter::plotFlyLine(const std::string& path)
   refPolygon(ofs, "core");
 
   for (auto& clk_net : clk_nets) {
-    for (size_t i = 0; i < clk_net->get_load_insts().size(); ++i) {
+    const auto load_pins = clk_net->get_load_pins();
+    for (size_t i = 0; i < load_pins.size(); ++i) {
       auto wire_name = "WIRE_" + clk_net->get_net_name() + "_" + std::to_string(i);
       refPolygon(ofs, wire_name);
     }
@@ -211,10 +495,10 @@ void GDSPloter::plotFlyLine(const std::string& path)
 
 void GDSPloter::writePyDesign(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
 
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* config = GetCtsRuntime().getConfig();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto file_path = path;
   if (file_path.empty()) {
     auto dir = std::filesystem::path(config->get_work_dir()).append("output").string();
@@ -269,11 +553,16 @@ void GDSPloter::writePyDesign(const std::string& path)
   }
   auto& clk_nets = design->get_nets();
   for (auto& clk_net : clk_nets) {
-    auto* driver = clk_net->get_driver_inst();
-    if (driver->get_location() == Point(-1, -1)) {
+    auto* driver_pin = resolveDriverPin(clk_net);
+    auto* driver = resolveDriverInst(clk_net, driver_pin);
+    if (driver_pin == nullptr) {
+      LOG_WARNING << "Skip design Python plot for net " << clk_net->get_net_name() << " because driver pin is null.";
       continue;
     }
-    auto level = driver->get_level();
+    if (driver != nullptr && driver->get_location() == Point(-1, -1)) {
+      continue;
+    }
+    auto level = resolveDriverLevel(driver);
 
     for (const auto& wire : clk_net->get_signal_wires()) {
       auto first = wire.get_first().point;
@@ -305,10 +594,10 @@ void GDSPloter::writePyDesign(const std::string& path)
 
 void GDSPloter::writePyFlyLine(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
+  auto* design = GetCtsRuntime().getDesign();
 
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* config = GetCtsRuntime().getConfig();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto file_path = path;
   if (file_path.empty()) {
     auto dir = std::filesystem::path(config->get_work_dir()).append("output").string();
@@ -363,14 +652,19 @@ void GDSPloter::writePyFlyLine(const std::string& path)
   }
   auto& clk_nets = design->get_nets();
   for (auto& clk_net : clk_nets) {
-    auto* driver = clk_net->get_driver_inst();
-    if (driver->get_location() == Point(-1, -1)) {
+    auto* driver_pin = resolveDriverPin(clk_net);
+    auto* driver = resolveDriverInst(clk_net, driver_pin);
+    if (driver_pin == nullptr) {
+      LOG_WARNING << "Skip flyline Python plot for net " << clk_net->get_net_name() << " because driver pin is null.";
       continue;
     }
-    auto level = driver->get_level();
+    if (driver != nullptr && driver->get_location() == Point(-1, -1)) {
+      continue;
+    }
+    auto level = resolveDriverLevel(driver);
     for (auto load_pin : clk_net->get_load_pins()) {
-      py_ofs << "plt.plot([" << clk_net->get_driver_pin()->get_location().x() << "," << load_pin->get_location().x() << "],["
-             << clk_net->get_driver_pin()->get_location().y() << "," << load_pin->get_location().y() << "],color=colors[" << level
+      py_ofs << "plt.plot([" << driver_pin->get_location().x() << "," << load_pin->get_location().x() << "],["
+             << driver_pin->get_location().y() << "," << load_pin->get_location().y() << "],color=colors[" << level
              << "],linewidth=line_width[" << level << "],zorder=" << level << ")" << std::endl;
     }
   }
@@ -396,9 +690,9 @@ void GDSPloter::writePyFlyLine(const std::string& path)
 
 void GDSPloter::writeJsonDesign(const std::string& path)
 {
-  auto* design = CTSAPIInst.get_design();
-  auto* config = CTSAPIInst.get_config();
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* design = GetCtsRuntime().getDesign();
+  auto* config = GetCtsRuntime().getConfig();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
 
   auto file_path = path;
   if (file_path.empty()) {
@@ -435,15 +729,19 @@ void GDSPloter::writeJsonDesign(const std::string& path)
   // Add wire information
   nlohmann::json nets = nlohmann::json::array();
   for (auto& clk_nets = design->get_nets(); auto& clk_net : clk_nets) {
-    auto* driver = clk_net->get_driver_inst();
-    auto* driver_pin = clk_net->get_driver_pin();
-    if (driver->get_location() == Point(-1, -1)) {
+    auto* driver_pin = resolveDriverPin(clk_net);
+    auto* driver = resolveDriverInst(clk_net, driver_pin);
+    if (driver_pin == nullptr) {
+      LOG_WARNING << "Skip JSON design export for net " << clk_net->get_net_name() << " because driver pin is null.";
+      continue;
+    }
+    if (driver != nullptr && driver->get_location() == Point(-1, -1)) {
       continue;
     }
 
     nlohmann::json net;
     net["name"] = clk_net->get_net_name();
-    net["driver_level"] = driver->get_level();
+    net["driver_level"] = resolveDriverLevel(driver);
     net["driver_location"]["x"] = driver_pin->get_location().x();
     net["driver_location"]["y"] = driver_pin->get_location().y();
 
@@ -468,13 +766,12 @@ void GDSPloter::writeJsonDesign(const std::string& path)
 
     // Only consider a single clock source for now.
     auto clk_port = design->get_clocks().front()->get_clock_name();
-    
+
     for (auto& p : clk_net->get_load_pins()) {
-      auto delay = CTSAPIInst.getClockAT(p->get_full_name(), clk_port);
-      auto driver = clk_net->get_driver_pin();
+      auto delay = GetCtsRuntime().getClockAt(p->get_full_name(), clk_port);
 
       nlohmann::json delay_obj;
-      delay_obj["from"] = driver->get_full_name();
+      delay_obj["from"] = driver_pin->get_full_name();
       delay_obj["to"] = p->get_full_name();
       delay_obj["delay"] = delay;
       delays.push_back(delay_obj);
@@ -522,15 +819,12 @@ void GDSPloter::writeJsonDesign(const std::string& path)
 
 void GDSPloter::refPolygon(std::fstream& log_ofs, const string& name)
 {
-  log_ofs << "SREF" << std::endl;
-  log_ofs << "SNAME " << name << std::endl;
-  log_ofs << "XY 0:0" << std::endl;
-  log_ofs << "ENDEL" << std::endl;
+  writeSRef(log_ofs, name);
 }
 
 void GDSPloter::insertInstance(std::fstream& log_ofs, CtsInstance* inst)
 {
-  auto* db_wrapper = CTSAPIInst.get_db_wrapper();
+  auto* db_wrapper = GetCtsRuntime().getDbWrapper();
   auto rect = db_wrapper->get_bounding_box(inst);
   string name = inst->get_name();
   int layer = inst->get_level();
@@ -540,21 +834,10 @@ void GDSPloter::insertInstance(std::fstream& log_ofs, CtsInstance* inst)
 void GDSPloter::insertWire(std::fstream& log_ofs, const Point& begin, const Point& end, const string& name, const int& layer,
                            const int& width)
 {
-  log_ofs << "BGNSTR" << std::endl;
-  log_ofs << "STRNAME " << name << std::endl;
-  log_ofs << "PATH" << std::endl;
-  log_ofs << "LAYER " + std::to_string(layer) << std::endl;
-  log_ofs << "DATATYPE 0" << std::endl;
-  log_ofs << "WIDTH " << std::to_string(width) << std::endl;
-  log_ofs << "XY" << std::endl;
-  auto begin_x = std::to_string(begin.x());
-  auto begin_y = std::to_string(begin.y());
-  auto end_x = std::to_string(end.x());
-  auto end_y = std::to_string(end.y());
-  log_ofs << begin_x << ":" << begin_y << std::endl;
-  log_ofs << end_x << ":" << end_y << std::endl;
-  log_ofs << "ENDEL" << std::endl;
-  log_ofs << "ENDSTR" << std::endl;
+  strBegin(log_ofs);
+  writeRecordAscii(log_ofs, GdsRecordType::kStrName, name);
+  writePath(log_ofs, layer, width, begin, end);
+  strEnd(log_ofs);
 }
 
 void GDSPloter::refInstance(std::fstream& log_ofs, CtsInstance* inst)
@@ -582,32 +865,26 @@ void GDSPloter::insertPolygon(std::fstream& log_ofs, IdbRect& poly, const string
   std::vector<Point> points
       = {Point(poly.get_low_x(), poly.get_low_y()), Point(poly.get_low_x(), poly.get_high_y()), Point(poly.get_high_x(), poly.get_high_y()),
          Point(poly.get_high_x(), poly.get_low_y()), Point(poly.get_low_x(), poly.get_low_y())};
-  log_ofs << "BGNSTR" << std::endl;
-  log_ofs << "STRNAME " << name << std::endl;
-
-  log_ofs << "BOUNDARY" << std::endl;
-  log_ofs << "LAYER " << layer << std::endl;
-  log_ofs << "DATATYPE " << type << std::endl;
-  log_ofs << "XY" << std::endl;
-  std::ranges::for_each(points, [&](const Point& point) { log_ofs << point << std::endl; });
-  log_ofs << "ENDEL" << std::endl;
-
-  log_ofs << "ENDSTR" << std::endl;
+  strBegin(log_ofs);
+  writeRecordAscii(log_ofs, GdsRecordType::kStrName, name);
+  writeBoundary(log_ofs, layer, type, points);
+  strEnd(log_ofs);
 }
 
 void GDSPloter::topBegin(std::fstream& log_ofs)
 {
-  log_ofs << "STRNAME top" << std::endl;
+  writeRecordAscii(log_ofs, GdsRecordType::kStrName, "top");
 }
 
 void GDSPloter::strBegin(std::fstream& log_ofs)
 {
-  log_ofs << "BGNSTR" << std::endl;
+  auto now = std::time(nullptr);
+  writeRecord(log_ofs, GdsRecordType::kBgnStr, GdsDataType::kInt16, packTimestampPayload(now, now));
 }
 
 void GDSPloter::strEnd(std::fstream& log_ofs)
 {
-  log_ofs << "ENDSTR" << std::endl;
+  writeRecord(log_ofs, GdsRecordType::kEndStr, GdsDataType::kNoData);
 }
 
 void GDSPloter::plotInstances(std::fstream& log_ofs, vector<CtsInstance*>& insts)
@@ -630,15 +907,16 @@ void GDSPloter::plotInstances(std::fstream& log_ofs, vector<CtsInstance*>& insts
 
 void GDSPloter::head(std::fstream& log_ofs)
 {
-  log_ofs << "HEADER 600" << std::endl;
-  log_ofs << "BGNLIB" << std::endl;
-  log_ofs << "LIBNAME CTS_Lib" << std::endl;
-  log_ofs << "UNITS 0.001 1e-9" << std::endl;
+  auto now = std::time(nullptr);
+  writeRecordInt16(log_ofs, GdsRecordType::kHeader, {600});
+  writeRecord(log_ofs, GdsRecordType::kBgnLib, GdsDataType::kInt16, packTimestampPayload(now, now));
+  writeRecordAscii(log_ofs, GdsRecordType::kLibName, "CTS_Lib");
+  writeRecord(log_ofs, GdsRecordType::kUnits, GdsDataType::kReal8, packReal8Payload({0.001, 1e-9}));
 }
 
 void GDSPloter::tail(std::fstream& log_ofs)
 {
-  log_ofs << "ENDLIB" << std::endl;
+  writeRecord(log_ofs, GdsRecordType::kEndLib, GdsDataType::kNoData);
 }
 
 }  // namespace icts

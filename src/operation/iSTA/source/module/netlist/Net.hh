@@ -44,8 +44,10 @@ class LibCurrentData;
  */
 class Net : public DesignObject {
  public:
+  Net() = default;
   explicit Net(const char *name);
   ~Net() override = default;
+  Net(const Net &other);
   Net(Net &&other) noexcept;
   Net &operator=(Net &&rhs) noexcept;
 
@@ -75,6 +77,15 @@ class Net : public DesignObject {
   bool isNetPinPort(DesignObject *pin) {
     auto it = std::find(_pin_ports.begin(), _pin_ports.end(), pin);
     return it != _pin_ports.end();
+  }
+
+  bool isConnectedToAllPorts() {
+    for (const auto &pin_port : _pin_ports) {
+      if (!pin_port->isPort()) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Vector<DesignObject *> &get_pin_ports() { return _pin_ports; }
@@ -116,8 +127,6 @@ class Net : public DesignObject {
   std::array<std::optional<double>, 4>
       _net_loads{};  //!< store the net loads for quickly calc.
   bool _is_clock_net = false;
-
-  FORBIDDEN_COPY(Net);
 };
 
 /**

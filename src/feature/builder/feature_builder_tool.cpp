@@ -56,7 +56,7 @@ RTSummary FeatureBuilder::buildRTSummary()
 
 CTSSummary FeatureBuilder::buildCTSSummary()
 {
-  CTSSummary summary = CTSAPIInst.outputSummary();
+  CTSSummary summary = CTSAPI_INST.outputSummary();
 
   return summary;
 }
@@ -71,7 +71,6 @@ NetOptSummary FeatureBuilder::buildNetOptSummary()
 TimingOptSummary FeatureBuilder::buildTimingOptSummary()
 {
   TimingOptSummary summary = ToApiInst.outputSummary();
-  
 
   return summary;
 }

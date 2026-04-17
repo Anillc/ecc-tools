@@ -17,6 +17,9 @@
 #include "api/TimingEngine.hh"
 #include "gtest/gtest.h"
 
+#include <filesystem>
+#include <fstream>
+
 using namespace ista;
 
 namespace {
@@ -40,6 +43,35 @@ TEST_F(TimingEngineTest, my_test) {
       break;
     }
   } while (have_sub_module);
+}
+
+TEST_F(TimingEngineTest, read_design_does_not_require_top_module_up_front) {
+  const auto verilog_path =
+      std::filesystem::temp_directory_path() / "ista_parse_only_top.v";
+  {
+    std::ofstream output(verilog_path);
+    output << "module top(input a, output y);\n";
+    output << "assign y = a;\n";
+    output << "endmodule\n";
+  }
+
+  const auto verilog_path_str = verilog_path.string();
+  EXPECT_EXIT(
+      {
+        char config[] = "test";
+        char* argv[] = {config};
+        if (!Log::isInit()) {
+          Log::init(argv);
+        }
+        TimingEngine::destroyTimingEngine();
+        auto* timing_engine = TimingEngine::getOrCreateTimingEngine();
+        timing_engine->readDesign(verilog_path_str.c_str());
+        std::_Exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+
+  std::error_code ec;
+  std::filesystem::remove(verilog_path, ec);
 }
 
 TEST_F(TimingEngineTest, resizer) {
