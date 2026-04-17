@@ -49,7 +49,7 @@ AI models are trained on millions of codebases - they know general patterns for 
 
 **The Problem**: AI writes code that "works" but doesn't match your project's style. It uses patterns that conflict with existing code. It makes decisions that violate unwritten team rules.
 
-**The Solution**: The `.trellis/spec/` directory contains project-specific guidelines. The `/trellis:before-dev` command injects this specialized knowledge into AI context before coding starts.
+**The Solution**: The `.trellis/spec/` directory contains project-specific guidelines. The `/before-*-dev` commands inject this specialized knowledge into AI context before coding starts.
 
 ### Challenge 3: AI Context Window Is Limited
 
@@ -57,7 +57,7 @@ Even after injecting guidelines, AI has limited context window. As conversation 
 
 **The Problem**: AI starts following guidelines, but as the session progresses and context fills up, it "forgets" the rules and reverts to generic patterns.
 
-**The Solution**: The `/trellis:check` command re-verifies code against guidelines AFTER writing, catching drift that occurred during development. The `/trellis:finish-work` command does a final holistic review.
+**The Solution**: The `/check-*` commands re-verify code against guidelines AFTER writing, catching drift that occurred during development. The `/trellis:finish-work` command does a final holistic review.
 
 ---
 
@@ -157,8 +157,8 @@ AI context window has limited capacity. As conversation progresses, guidelines i
 4. Identifies violations and suggests fixes
 
 **WHY THIS MATTERS**:
-- Without /trellis:check: Context drift goes unnoticed, code quality degrades.
-- With /trellis:check: Drift is caught and corrected before commit.
+- Without check-*: Context drift goes unnoticed, code quality degrades.
+- With check-*: Drift is caught and corrected before commit.
 
 ---
 
@@ -183,7 +183,7 @@ Most bugs don't come from lack of technical skill - they come from "didn't think
 ### /trellis:finish-work - Holistic Pre-Commit Review
 
 **WHY IT EXISTS**:
-The `/trellis:check` command focuses on code quality within a single layer. But real changes often have cross-cutting concerns.
+The `/check-*` commands focus on code quality within a single layer. But real changes often have cross-cutting concerns.
 
 **WHAT IT ACTUALLY DOES**:
 1. Reviews all changes holistically
@@ -256,8 +256,8 @@ All the context AI built during this session will be lost when session ends. The
 ## KEY RULES TO EMPHASIZE
 
 1. **AI NEVER commits** - Human tests and approves. AI prepares, human validates.
-2. **Guidelines before code** - `/trellis:before-dev` injects project knowledge.
-3. **Check after code** - `/trellis:check` catches context drift; `/trellis:check-cross-layer` covers cross-cutting changes.
+2. **Guidelines before code** - /before-dev command injects project knowledge.
+3. **Check after code** - /check-* commands catch context drift.
 4. **Record everything** - /trellis:record-session persists memory.
 
 ---
@@ -286,7 +286,7 @@ Explain to the developer:
 
 "I see that the development guidelines in `.trellis/spec/` are still empty templates. This is normal for a new Trellis setup!
 
-The templates contain placeholder text that needs to be replaced with YOUR project's actual conventions. Without this, `/trellis:before-dev` won't provide useful guidance.
+The templates contain placeholder text that needs to be replaced with YOUR project's actual conventions. Without this, `/before-*-dev` commands won't provide useful guidance.
 
 **Your first task should be to fill in these guidelines:**
 
@@ -307,7 +307,7 @@ If guidelines have real content (no "To be filled" placeholders), this is an exi
 
 Explain to the developer:
 
-"Great! Your team has already customized the development guidelines. You can start using `/trellis:before-dev` right away.
+"Great! Your team has already customized the development guidelines. You can start using `/before-*-dev` commands right away.
 
 I recommend reading through `.trellis/spec/` to familiarize yourself with the team's coding standards."
 

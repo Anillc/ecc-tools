@@ -8,7 +8,7 @@
   ".trellis/scripts/common/__pycache__/git_context.cpython-313.pyc": "12aa4c4b821d63625fcc4b44ad82c36784a08e12aa6fe885c7c0637e9c01ee14",
   ".trellis/scripts/common/__pycache__/paths.cpython-313.pyc": "21d0802dc02f24660067bf1b7432dd913f71bb6272286d77fd2eeb127cb656ad",
   ".trellis/scripts/common/__pycache__/task_utils.cpython-313.pyc": "fd8b14ca05e2f0217002b5e389cfcaa5523102cfd152752a4094e159348a3c84",
-  ".trellis/scripts/common/cli_adapter.py": "9988e60c71714bb3895df432a0fb9e630f2e6cc6231d69a2de20aac6b670d056",
+  ".trellis/scripts/common/cli_adapter.py": "d9bc50508918c5a2e17ce48384de5e1d9f7c2e32b0d57019d1bec973728d445f",
   ".trellis/scripts/common/developer.py": "f5f833123abe68890171b4da825a324216d24913f6b5ad9245afc556424ffd7b",
   ".trellis/scripts/common/git_context.py": "5a01f7209c4a85ec768c88e2cb2a02a40ff279ea26139a390d16bf7576efce9f",
   ".trellis/scripts/common/paths.py": "36f72bdc09e4f0db53250346a4744ff3699c634ea71380eed5b467095f3d946b",
@@ -53,7 +53,7 @@
   ".claude/commands/trellis/update-spec.md": "ff4d5a0405a763e61936f5b9df175fd25ea20ec5c20fa999855020ab78a919b6",
   ".claude/hooks/inject-subagent-context.py": "581f61369c29534513e5505e61f507beac339cb1720dc656b58f0584503b2452",
   ".claude/hooks/ralph-loop.py": "df864b971ea5faf5801a88f013f230c92d458f52f64731a91f02cd78d7b932c3",
-  ".claude/hooks/session-start.py": "abafa30139e1d43e9cb7684dc3a4d29c74b2c1380cad86d3e177045abcb07fac",
+  ".claude/hooks/session-start.py": "dfa553082095b75f2d714be42fbf46f651235df63caba9eb50d7b84306d486e3",
   ".claude/settings.json": "f468342f1ebfef18dbbde0a2528366b32ec154befca880e0c8b29fefdcccb1bf",
   ".cursor/commands/trellis-before-backend-dev.md": "7e35444de2a5779ef39944f17f566ea21d2ed7f4994246f4cfe6ebf9a11dd3e3",
   ".cursor/commands/trellis-before-frontend-dev.md": "a6225f9d123dbd4a7aec822652030cae50be3f5b308297015e04d42b23a27b2a",
@@ -118,8 +118,8 @@
   ".codex/agents/check.toml": "bd7f208dd61fe7d15550171fa468bf3c0ecd0b84626d2441777ff7261ef021ad",
   ".codex/agents/implement.toml": "24e14420227467ec9b5df59cec97640563a59d6f0092fb7be179d8554547f39b",
   ".codex/agents/research.toml": "eb7633412637869df29dd5b853458e869cba527f07ff4558838adce491a8837e",
-  ".codex/hooks/session-start.py": "35fa16d2b418a6f44e0d28c8f2f8e820742e2468b6ede141f4367ba04b084d84",
+  ".codex/hooks/session-start.py": "10b0ef333ea681f92d7798d70c166ef567e6d65eac2e8de5436fd69a1b4353d9",
   ".codex/hooks.json": "886075b7aef39969e1c34d372ca25ca4d09ce3ebc65f740818513abcf47ad25e",
   ".codex/config.toml": "7543da7e1773a0f26bc9178716b34154fdc5fefd820fb184e7cb169f1910cc99",
-  ".claude/hooks/statusline.py": "0183439cbf965275e4373342e269d434abf6c7efe34d4596ed680ccf71fb5134"
+  ".claude/hooks/statusline.py": "c92c0020a0c60308437b66f024a244303e708519c97089cf654ceddc144f7435"
 }

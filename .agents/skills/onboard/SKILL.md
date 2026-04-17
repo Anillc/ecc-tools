@@ -54,7 +54,7 @@ AI models are trained on millions of codebases - they know general patterns for 
 
 **The Problem**: AI writes code that "works" but doesn't match your project's style. It uses patterns that conflict with existing code. It makes decisions that violate unwritten team rules.
 
-**The Solution**: The `.trellis/spec/` directory contains project-specific guidelines. The `$before-dev` skill injects this specialized knowledge into AI context before coding starts.
+**The Solution**: The `.trellis/spec/` directory contains project-specific guidelines. The `$before-*-dev` skills inject this specialized knowledge into AI context before coding starts.
 
 ### Challenge 3: AI Context Window Is Limited
 
@@ -62,7 +62,7 @@ Even after injecting guidelines, AI has limited context window. As conversation 
 
 **The Problem**: AI starts following guidelines, but as the session progresses and context fills up, it "forgets" the rules and reverts to generic patterns.
 
-**The Solution**: The `$check` skill re-verifies code against guidelines AFTER writing, catching drift that occurred during development. The `$finish-work` skill does a final holistic review.
+**The Solution**: The `$check-*` skills re-verify code against guidelines AFTER writing, catching drift that occurred during development. The `$finish-work` skill does a final holistic review.
 
 ---
 
@@ -162,8 +162,8 @@ AI context window has limited capacity. As conversation progresses, guidelines i
 4. Identifies violations and suggests fixes
 
 **WHY THIS MATTERS**:
-- Without $check: Context drift goes unnoticed, code quality degrades.
-- With $check: Drift is caught and corrected before commit.
+- Without check-*: Context drift goes unnoticed, code quality degrades.
+- With check-*: Drift is caught and corrected before commit.
 
 ---
 
@@ -188,7 +188,7 @@ Most bugs don't come from lack of technical skill - they come from "didn't think
 ### $finish-work - Holistic Pre-Commit Review
 
 **WHY IT EXISTS**:
-The `$check` skill focuses on code quality within a single layer. But real changes often have cross-cutting concerns.
+The `$check-*` skills focus on code quality within a single layer. But real changes often have cross-cutting concerns.
 
 **WHAT IT ACTUALLY DOES**:
 1. Reviews all changes holistically
@@ -243,7 +243,7 @@ All the context AI built during this session will be lost when session ends. The
 
 **[1/5] $start** - Clear baseline before major changes
 **[2/5] Plan phases** - Break into verifiable chunks
-**[3/5] Execute phase by phase with $check after each and $check-cross-layer for cross-cutting changes** - Incremental verification
+**[3/5] Execute phase by phase with $check-* after each** - Incremental verification
 **[4/5] $finish-work** - Check if new patterns should be documented
 **[5/5] Record with multiple commit hashes** - Link all commits to one feature
 
@@ -261,8 +261,8 @@ All the context AI built during this session will be lost when session ends. The
 ## KEY RULES TO EMPHASIZE
 
 1. **AI NEVER commits** - Human tests and approves. AI prepares, human validates.
-2. **Guidelines before code** - `$before-dev` skill injects project knowledge.
-3. **Check after code** - `$check` catches context drift; `$check-cross-layer` covers cross-cutting changes.
+2. **Guidelines before code** - `$before-*-dev` skills inject project knowledge.
+3. **Check after code** - `$check-*` skills catch context drift.
 4. **Record everything** - $record-session persists memory.
 
 ---
@@ -291,7 +291,7 @@ Explain to the developer:
 
 "I see that the development guidelines in `.trellis/spec/` are still empty templates. This is normal for a new Trellis setup!
 
-The templates contain placeholder text that needs to be replaced with YOUR project's actual conventions. Without this, `$before-dev` won't provide useful guidance.
+The templates contain placeholder text that needs to be replaced with YOUR project's actual conventions. Without this, `$before-*-dev` skills won't provide useful guidance.
 
 **Your first task should be to fill in these guidelines:**
 
@@ -312,7 +312,7 @@ If guidelines have real content (no "To be filled" placeholders), this is an exi
 
 Explain to the developer:
 
-"Great! Your team has already customized the development guidelines. You can start using `$before-dev` right away.
+"Great! Your team has already customized the development guidelines. You can start using `$before-*-dev` skills right away.
 
 I recommend reading through `.trellis/spec/` to familiarize yourself with the team's coding standards."
 
