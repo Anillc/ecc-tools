@@ -16,11 +16,15 @@
 // ***************************************************************************************
 
 #include "DRCInterface.hpp"
+#include <vector>
 
 #include "DataManager.hpp"
 #include "GDSPlotter.hpp"
+#include "IdbEnum.h"
 #include "Monitor.hpp"
+#include "ParallelRunLengthSpacingRule.hpp"
 #include "RuleValidator.hpp"
+#include "SameLayerCutSpacingRule.hpp"
 #include "feature_manager.h"
 #include "idm.h"
 
@@ -87,7 +91,7 @@ void DRCInterface::checkDef()
   }
   printSummary(type_violation_map);
   outputViolationJson(type_violation_map);
-  // outputViolationFile(type_violation_map);
+  outputViolationFile(type_violation_map);
   outputTofeature(type_violation_map);
 }
 
@@ -601,15 +605,8 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
   {
     ParallelRunLengthSpacingRule& parallel_run_length_spacing_rule = routing_layer.get_parallel_run_length_spacing_rule();
     std::shared_ptr<idb::IdbParallelSpacingTable> idb_spacing_table;
-    bool exist_spacing_table = false;
     if (idb_layer->get_spacing_table().get()->get_parallel().get() != nullptr && idb_layer->get_spacing_table().get()->is_parallel()) {
       idb_spacing_table = idb_layer->get_spacing_table()->get_parallel();
-      exist_spacing_table = true;
-    } else if (idb_layer->get_spacing_list() != nullptr && !idb_layer->get_spacing_table().get()->is_parallel()) {
-      idb_spacing_table = idb_layer->get_spacing_table_from_spacing_list()->get_parallel();
-      exist_spacing_table = true;
-    }
-    if (exist_spacing_table) {
       std::vector<int32_t>& width_list = parallel_run_length_spacing_rule.width_list;
       std::vector<int32_t>& parallel_length_list = parallel_run_length_spacing_rule.parallel_length_list;
       GridMap<int32_t>& width_parallel_length_map = parallel_run_length_spacing_rule.width_parallel_length_map;
@@ -622,6 +619,28 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
           width_parallel_length_map[x][y] = idb_spacing_table->get_spacing_table()[x][y];
         }
       }
+      parallel_run_length_spacing_rule.has_spacing_table = true;
+      parallel_run_length_spacing_rule.print_spacing_table();
+      exist_rule_set.insert(ViolationType::kParallelRunLengthSpacing);
+    }
+
+    if (idb_layer->get_spacing_list() != nullptr) {
+      auto& spacing_list = parallel_run_length_spacing_rule.spacing_list;
+      for(auto& spacing_rule : idb_layer->get_spacing_list()->get_spacing_list()) {
+        LayerSpacingType spacing_type;
+        if (spacing_rule->get_spacing_type() == idb::IdbLayerSpacingType::kSpacingDefault) {
+          spacing_type = LayerSpacingType::kSpacingDefault;
+        } else if (spacing_rule->get_spacing_type() == idb::IdbLayerSpacingType::kSpacingRange) {
+          spacing_type = LayerSpacingType::kSpacingRange;
+        } else {
+          spacing_type = LayerSpacingType::kNone;
+        }
+        LayerSpacing spacing {spacing_type, spacing_rule->get_min_spacing(), spacing_rule->get_min_width(), spacing_rule->get_max_width()};
+        spacing_list.push_back(spacing);
+      }
+
+      parallel_run_length_spacing_rule.has_spacing_list = true;
+      parallel_run_length_spacing_rule.print_spacing_list();
       exist_rule_set.insert(ViolationType::kParallelRunLengthSpacing);
     }
   }
@@ -734,9 +753,17 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
   {
     SameLayerCutSpacingRule& same_layer_cut_spacing_rule = cut_layer.get_same_layer_cut_spacing_rule();
     if (!idb_layer->get_spacings().empty()) {
-      same_layer_cut_spacing_rule.curr_spacing = idb_layer->get_spacings().front()->get_spacing();
-      same_layer_cut_spacing_rule.curr_prl = 0;
-      same_layer_cut_spacing_rule.curr_prl_spacing = idb_layer->get_spacings().front()->get_spacing();
+      for (auto& cut_spacing : idb_layer->get_spacings()) {
+        SameLayerCutSpacing same_layer_cut_spacing;
+        same_layer_cut_spacing.curr_spacing = cut_spacing->get_spacing();
+        same_layer_cut_spacing.curr_prl = -1;
+        same_layer_cut_spacing.curr_prl_spacing = -1;
+        same_layer_cut_spacing.has_same_net = cut_spacing->get_has_same_net();
+        same_layer_cut_spacing_rule.spacings.push_back(same_layer_cut_spacing);
+        if (same_layer_cut_spacing.has_same_net) {
+          std::cout << "layer: " << cut_layer.get_layer_name() << " has sameNet\n"; 
+        }
+      }
       exist_rule_set.insert(ViolationType::kSameLayerCutSpacing);
     } else if (!idb_layer->get_lef58_spacing_table().empty()) {
       idb::cutlayer::Lef58SpacingTable* spacing_table = nullptr;
@@ -747,14 +774,13 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
         spacing_table = spacing_table_ptr.get();
       }
       if (spacing_table != nullptr) {
+        // NEXT 是否需要支持全部的规则，而不是第一条？
         idb::cutlayer::Lef58SpacingTable::CutSpacing cut_spacing = spacing_table->get_cutclass().get_cut_spacing(0, 0);
 
         int32_t curr_spacing = cut_spacing.get_cut_spacing1().value();
         int32_t curr_prl = spacing_table->get_prl().value().get_prl();
         int32_t curr_prl_spacing = cut_spacing.get_cut_spacing2().value();
-        same_layer_cut_spacing_rule.curr_spacing = curr_spacing;
-        same_layer_cut_spacing_rule.curr_prl = curr_prl;
-        same_layer_cut_spacing_rule.curr_prl_spacing = curr_prl_spacing;
+        same_layer_cut_spacing_rule.spacings.push_back({curr_spacing, curr_prl, curr_prl_spacing, false});
         exist_rule_set.insert(ViolationType::kSameLayerCutSpacing);
       }
     }
@@ -862,6 +888,10 @@ std::vector<ids::Shape> DRCInterface::buildEnvShapeList()
       // instance obs
       for (idb::IdbLayerShape* obs_box : idb_instance->get_obs_box_list()) {
         for (idb::IdbRect* rect : obs_box->get_rect_list()) {
+          if (obs_box->get_layer() == nullptr) {
+            // DRCLOG.warn(Loc::current(), "The obs box layer is empty for instance ", idb_instance->get_name());
+            continue;
+          }
           ids::Shape ids_shape;
           ids_shape.net_idx = -1;
           ids_shape.ll_x = rect->get_low_x();

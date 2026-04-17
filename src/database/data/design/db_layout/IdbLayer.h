@@ -556,9 +556,13 @@ class IdbLayerCutSpacing
   void set_adjacent_cuts(std::optional<AdjacentCuts> adj) { _adjacnet_cuts = adj; }
   [[nodiscard]] std::optional<AdjacentCuts> get_adjacent_cuts() const { return _adjacnet_cuts; }
 
+  void set_has_same_net(bool has_same_net) { _has_same_net = has_same_net; };
+  [[nodiscard]] bool get_has_same_net() const { return _has_same_net; }
+
  private:
   int32_t _spacing;
   std::optional<AdjacentCuts> _adjacnet_cuts;
+  bool _has_same_net;
 };
 
 class IdbLayerCut : public IdbLayer
