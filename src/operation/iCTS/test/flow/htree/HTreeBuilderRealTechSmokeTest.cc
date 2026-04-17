@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file HTreeBuilderRealTechSmokeTest.cc
- * @author OpenAI Codex
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-14
  * @brief Real-tech smoke coverage for HTreeBuilder on DEF-derived clock loads.
  */

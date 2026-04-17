@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file HTreeBuilder.cc
- * @author OpenAI Codex
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-14
  * @brief End-to-end H-tree synthesis flow built from topology and characterization modules.
  */

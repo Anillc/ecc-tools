@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file ScopedLogFileTest.cc
- * @author OpenAI Codex
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-16
  * @brief Regression coverage for scoped schema log redirection in tests.
  */

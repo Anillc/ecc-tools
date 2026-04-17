@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file HTreeVisualizationSupport.hh
- * @author OpenAI Codex
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-14
  * @brief SVG artifact emission helpers for HTreeBuilder tests.
  */

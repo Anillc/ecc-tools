@@ -16,7 +16,7 @@
 // ***************************************************************************************
 /**
  * @file HTreeBuilderTest.cc
- * @author OpenAI Codex
+ * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-14
  * @brief Unit coverage for HTreeBuilder degenerate cases.
  */
