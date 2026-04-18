@@ -17,6 +17,7 @@
 /**
  * @file CharBuilder.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-18
  * @brief Segment characterization builder: enumerate buffering patterns and
  *        obtain timing/power via CTSAPI.
  */
@@ -77,6 +78,13 @@ class CharBuilder
   auto get_max_cap() const -> double { return _max_cap; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
+  auto get_output_slew_overflow_samples() const -> std::size_t { return _output_slew_overflow_samples; }
+  auto get_driven_cap_overflow_samples() const -> std::size_t { return _driven_cap_overflow_samples; }
+  auto get_driven_cap_overflow_load_points() const -> std::size_t { return _driven_cap_overflow_load_points; }
+  auto get_max_observed_output_slew_ns() const -> double { return _max_observed_output_slew_ns; }
+  auto get_max_observed_output_slew_idx() const -> unsigned { return _max_observed_output_slew_idx; }
+  auto get_max_observed_driven_cap_pf() const -> double { return _max_observed_driven_cap_pf; }
+  auto get_max_observed_driven_cap_idx() const -> unsigned { return _max_observed_driven_cap_idx; }
 
  private:
   struct BuildProgress
@@ -90,6 +98,13 @@ class CharBuilder
     std::size_t skipped_load_points = 0;
     std::size_t skipped_sta_samples = 0;
     std::size_t executed_sta_samples = 0;
+    std::size_t output_slew_overflow_samples = 0;
+    std::size_t driven_cap_overflow_samples = 0;
+    std::size_t driven_cap_overflow_load_points = 0;
+    double max_observed_output_slew_ns = 0.0;
+    unsigned max_observed_output_slew_idx = 0;
+    double max_observed_driven_cap_pf = 0.0;
+    unsigned max_observed_driven_cap_idx = 0;
   };
 
   struct TopologyBits
@@ -112,6 +127,14 @@ class CharBuilder
     bool has_terminal_branch_buffer = false;
   };
 
+  struct StoredSampleIndices
+  {
+    unsigned input_slew_idx = 0U;
+    unsigned output_slew_idx = 0U;
+    unsigned driven_cap_idx = 0U;
+    unsigned load_cap_idx = 0U;
+  };
+
   struct PatternFeasibility
   {
     bool is_pattern_feasible = false;
@@ -120,12 +143,15 @@ class CharBuilder
 
   auto buildTopologyDesc(double wire_length_um, unsigned num_slots, TopologyBits topology_bits) const -> TopologyDesc;
   auto analyzePatternFeasibility(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) const -> PatternFeasibility;
+  auto tryMakeStoredSampleIndices(unsigned input_slew_idx, unsigned load_cap_idx, double output_slew_ns, double driven_cap_pf,
+                                  BuildProgress& build_progress) const -> std::optional<StoredSampleIndices>;
   auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, BuildProgress& build_progress) -> void;
   auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
   auto setCharParasitics(const TopologyDesc& topo, double load_pf) -> void;
   auto destroyCharCircuit() -> void;
 
-  static auto discretize(double value, double max_value, unsigned steps) -> unsigned;
+  static auto discretizeLatticeValue(double value, double max_value, unsigned steps) -> unsigned;
+  static auto tryDiscretizeObservedValue(double value, double max_value, unsigned steps) -> std::optional<unsigned>;
 
   auto findBufferInfo(const std::string& cell_master) const -> const CharBufferInfo*;
   std::vector<CharBufferInfo> _sorted_buffers;
@@ -160,6 +186,13 @@ class CharBuilder
   std::vector<SegmentChar> _segment_chars;
   std::vector<BufferingPattern> _buffering_patterns;
   unsigned _next_pattern_id = 0;
+  std::size_t _output_slew_overflow_samples = 0;
+  std::size_t _driven_cap_overflow_samples = 0;
+  std::size_t _driven_cap_overflow_load_points = 0;
+  double _max_observed_output_slew_ns = 0.0;
+  unsigned _max_observed_output_slew_idx = 0;
+  double _max_observed_driven_cap_pf = 0.0;
+  unsigned _max_observed_driven_cap_idx = 0;
 };
 
 }  // namespace icts

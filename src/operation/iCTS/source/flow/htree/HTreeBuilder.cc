@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -37,6 +38,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -106,10 +108,9 @@ enum class SegmentEntrySelection
   kLeafUnbuffered,
 };
 
-struct BoundaryFallbackSelection
+enum class PatternRepresentativeMode
 {
-  std::optional<HTreeTopologyChar> best_char = std::nullopt;
-  double score = 0.0;
+  kWorstCaseSelection,
 };
 
 auto toCharGridSourceName(CharGridSource source) -> const char*
@@ -143,13 +144,86 @@ struct BufferInstancePins
   Pin* output_pin = nullptr;
 };
 
+class BufferStrengthCache
+{
+ public:
+  auto getStrengthRank(const std::string& cell_master) -> unsigned
+  {
+    if (cell_master.empty()) {
+      return 0U;
+    }
+
+    if (!_drive_caps.contains(cell_master)) {
+      double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+      if (drive_cap_pf <= 0.0) {
+        drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+      }
+      _drive_caps[cell_master] = drive_cap_pf;
+      _ranks_dirty = true;
+
+      if (drive_cap_pf <= 0.0) {
+        LOG_WARNING << "HTreeBuilder: failed to resolve drive-strength rank for buffer master " << cell_master
+                    << "; monotonic composition falls back to an unconstrained boundary state.";
+      }
+    }
+
+    if (_ranks_dirty) {
+      rebuildRanks();
+    }
+
+    const auto rank_it = _strength_ranks.find(cell_master);
+    return rank_it == _strength_ranks.end() ? 0U : rank_it->second;
+  }
+
+ private:
+  auto rebuildRanks() -> void
+  {
+    std::vector<std::pair<std::string, double>> ordered_caps;
+    ordered_caps.reserve(_drive_caps.size());
+    for (const auto& [cell_master, drive_cap_pf] : _drive_caps) {
+      if (drive_cap_pf > 0.0) {
+        ordered_caps.emplace_back(cell_master, drive_cap_pf);
+      }
+    }
+
+    std::ranges::sort(ordered_caps, [](const auto& lhs, const auto& rhs) -> bool {
+      if (lhs.second != rhs.second) {
+        return lhs.second < rhs.second;
+      }
+      return lhs.first < rhs.first;
+    });
+
+    _strength_ranks.clear();
+    unsigned current_rank = 0U;
+    double last_cap_pf = 0.0;
+    bool has_last_cap = false;
+    for (const auto& [cell_master, drive_cap_pf] : ordered_caps) {
+      if (!has_last_cap || std::abs(drive_cap_pf - last_cap_pf) > 1e-12) {
+        ++current_rank;
+        last_cap_pf = drive_cap_pf;
+        has_last_cap = true;
+      }
+      _strength_ranks[cell_master] = current_rank;
+    }
+
+    _ranks_dirty = false;
+  }
+
+  std::unordered_map<std::string, double> _drive_caps;
+  std::unordered_map<std::string, unsigned> _strength_ranks;
+  bool _ranks_dirty = false;
+};
+
 struct BufferPatternRegistry
 {
   auto add(BufferingPattern pattern) -> void
   {
+    pattern = enrichBoundaryState(std::move(pattern));
     const PatternId pattern_id = pattern.get_pattern_id();
-    terminal_semantics[pattern_id]
-        = pattern.hasTerminalBranchBuffer() ? TerminalSemantic::kBranchBuffered : TerminalSemantic::kLeafUnbuffered;
+    composition_states[pattern_id] = PatternCompositionState{
+        .terminal_semantic = pattern.hasTerminalBranchBuffer() ? TerminalSemantic::kBranchBuffered : TerminalSemantic::kLeafUnbuffered,
+        .monotonic_boundary_state = pattern.get_monotonic_boundary_state(),
+    };
     patterns[pattern_id] = std::move(pattern);
   }
 
@@ -159,15 +233,53 @@ struct BufferPatternRegistry
     return it == patterns.end() ? nullptr : &it->second;
   }
 
-  auto getTerminalSemantic(PatternId pattern_id) const -> TerminalSemantic
+  auto getCompositionState(PatternId pattern_id) const -> PatternCompositionState
   {
-    const auto it = terminal_semantics.find(pattern_id);
-    LOG_FATAL_IF(it == terminal_semantics.end()) << "HTreeBuilder: missing segment pattern semantic cache entry.";
+    const auto it = composition_states.find(pattern_id);
+    LOG_FATAL_IF(it == composition_states.end()) << "HTreeBuilder: missing segment pattern composition-state cache entry.";
     return it->second;
   }
 
+  auto getTerminalSemantic(PatternId pattern_id) const -> TerminalSemantic { return getCompositionState(pattern_id).terminal_semantic; }
+
+ private:
+  auto resolveBoundaryState(const BufferingPattern& pattern) -> MonotonicBoundaryState
+  {
+    const auto explicit_state = pattern.get_monotonic_boundary_state();
+    if (!pattern.isBufferPattern()) {
+      return explicit_state;
+    }
+
+    const auto& cell_masters = pattern.get_cell_masters();
+    if (cell_masters.empty()) {
+      return explicit_state;
+    }
+
+    return MonotonicBoundaryState{
+        .source_strength_rank = explicit_state.source_strength_rank != 0U ? explicit_state.source_strength_rank
+                                                                          : _strength_cache.getStrengthRank(cell_masters.front()),
+        .sink_strength_rank = explicit_state.sink_strength_rank != 0U ? explicit_state.sink_strength_rank
+                                                                      : _strength_cache.getStrengthRank(cell_masters.back()),
+    };
+  }
+
+  auto enrichBoundaryState(BufferingPattern pattern) -> BufferingPattern
+  {
+    const auto boundary_state = resolveBoundaryState(pattern);
+    if (boundary_state == pattern.get_monotonic_boundary_state()) {
+      return pattern;
+    }
+
+    return BufferingPattern(pattern.get_length_idx(), pattern.get_pattern_id(), pattern.get_buffer_positions(), pattern.get_cell_masters(),
+                            pattern.hasTerminalBranchBuffer(), boundary_state);
+  }
+
+ public:
   std::unordered_map<PatternId, BufferingPattern> patterns;
-  std::unordered_map<PatternId, TerminalSemantic> terminal_semantics;
+  std::unordered_map<PatternId, PatternCompositionState> composition_states;
+
+ private:
+  BufferStrengthCache _strength_cache;
 };
 
 struct SegmentFrontierSet
@@ -200,6 +312,7 @@ struct TopologyPatternNode
   PatternId pattern_id{PatternDomain::kTopologyPattern, 0U};
   unsigned levels = 0U;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
+  MonotonicBoundaryState monotonic_boundary_state{};
   TopologyPatternNodeKind kind = TopologyPatternNodeKind::kSeed;
   PatternId segment_pattern_id{PatternDomain::kSegmentPattern, 0U};
   PatternId upstream_pattern_id{PatternDomain::kTopologyPattern, 0U};
@@ -208,7 +321,7 @@ struct TopologyPatternNode
 
 struct TopologyPatternRegistry
 {
-  auto addSeed(PatternId pattern_id, PatternId segment_pattern_id, TerminalSemantic terminal_semantic) -> void
+  auto addSeed(PatternId pattern_id, PatternId segment_pattern_id, const PatternCompositionState& composition_state) -> void
   {
     LOG_FATAL_IF(pattern_id.domain != PatternDomain::kTopologyPattern)
         << "HTreeBuilder: topology registry received a non-topology pattern ID.";
@@ -216,14 +329,15 @@ struct TopologyPatternRegistry
     nodes.push_back(TopologyPatternNode{
         .pattern_id = pattern_id,
         .levels = 1U,
-        .terminal_semantic = terminal_semantic,
+        .terminal_semantic = composition_state.terminal_semantic,
+        .monotonic_boundary_state = composition_state.monotonic_boundary_state,
         .kind = TopologyPatternNodeKind::kSeed,
         .segment_pattern_id = segment_pattern_id,
     });
   }
 
   auto addConcat(PatternId pattern_id, unsigned levels, PatternId upstream_pattern_id, PatternId downstream_pattern_id,
-                 TerminalSemantic terminal_semantic) -> void
+                 const PatternCompositionState& composition_state) -> void
   {
     LOG_FATAL_IF(pattern_id.domain != PatternDomain::kTopologyPattern)
         << "HTreeBuilder: topology registry received a non-topology pattern ID.";
@@ -231,7 +345,8 @@ struct TopologyPatternRegistry
     nodes.push_back(TopologyPatternNode{
         .pattern_id = pattern_id,
         .levels = levels,
-        .terminal_semantic = terminal_semantic,
+        .terminal_semantic = composition_state.terminal_semantic,
+        .monotonic_boundary_state = composition_state.monotonic_boundary_state,
         .kind = TopologyPatternNodeKind::kConcat,
         .upstream_pattern_id = upstream_pattern_id,
         .downstream_pattern_id = downstream_pattern_id,
@@ -246,12 +361,17 @@ struct TopologyPatternRegistry
     return &nodes.at(pattern_id.local_id);
   }
 
-  auto getTerminalSemantic(PatternId pattern_id) const -> TerminalSemantic
+  auto getCompositionState(PatternId pattern_id) const -> PatternCompositionState
   {
     const auto* node = findNode(pattern_id);
-    LOG_FATAL_IF(node == nullptr) << "HTreeBuilder: missing topology pattern semantic cache entry.";
-    return node->terminal_semantic;
+    LOG_FATAL_IF(node == nullptr) << "HTreeBuilder: missing topology pattern composition-state cache entry.";
+    return PatternCompositionState{
+        .terminal_semantic = node->terminal_semantic,
+        .monotonic_boundary_state = node->monotonic_boundary_state,
+    };
   }
+
+  auto getTerminalSemantic(PatternId pattern_id) const -> TerminalSemantic { return getCompositionState(pattern_id).terminal_semantic; }
 
   auto materialize(PatternId pattern_id) const -> HTreeTopologyPattern
   {
@@ -302,17 +422,29 @@ class SegmentPatternRegistryCombiner
  public:
   SegmentPatternRegistryCombiner(BufferPatternRegistry& registry, unsigned start_id) : _registry(&registry), _next_id(start_id) {}
 
+  auto canCompose(PatternId upstream, PatternId downstream) const -> bool
+  {
+    const auto* upstream_pattern = _registry->find(upstream);
+    const auto* downstream_pattern = _registry->find(downstream);
+    LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
+        << "HTreeBuilder: missing segment pattern during monotonic-state validation.";
+    return BufferingPattern::canConcatMonotonic(*upstream_pattern, *downstream_pattern);
+  }
+
   auto combine(PatternId upstream, PatternId downstream) const -> PatternId
   {
     const auto* upstream_pattern = _registry->find(upstream);
     const auto* downstream_pattern = _registry->find(downstream);
     LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
         << "HTreeBuilder: missing segment pattern during composition.";
+    LOG_FATAL_IF(!BufferingPattern::canConcatMonotonic(*upstream_pattern, *downstream_pattern))
+        << "HTreeBuilder: invalid non-monotonic segment pattern composition.";
 
     const PatternId merged_pattern_id = PatternId::segment(_next_id++);
     auto merged_pattern = BufferingPattern::concat(*upstream_pattern, *downstream_pattern);
     _registry->add(BufferingPattern(merged_pattern.get_length_idx(), merged_pattern_id, merged_pattern.get_buffer_positions(),
-                                    merged_pattern.get_cell_masters(), merged_pattern.hasTerminalBranchBuffer()));
+                                    merged_pattern.get_cell_masters(), merged_pattern.hasTerminalBranchBuffer(),
+                                    merged_pattern.get_monotonic_boundary_state()));
     return merged_pattern_id;
   }
 
@@ -328,16 +460,30 @@ class TopologyPatternRegistryCombiner
  public:
   TopologyPatternRegistryCombiner(TopologyPatternRegistry& registry, unsigned start_id) : _registry(&registry), _next_id(start_id) {}
 
+  auto canCompose(PatternId upstream, PatternId downstream) const -> bool
+  {
+    const auto upstream_state = _registry->getCompositionState(upstream);
+    const auto downstream_state = _registry->getCompositionState(downstream);
+    return upstream_state.monotonic_boundary_state.canComposeWith(downstream_state.monotonic_boundary_state);
+  }
+
   auto combine(PatternId upstream, PatternId downstream) const -> PatternId
   {
     const auto* upstream_pattern = _registry->findNode(upstream);
     const auto* downstream_pattern = _registry->findNode(downstream);
     LOG_FATAL_IF(upstream_pattern == nullptr || downstream_pattern == nullptr)
         << "HTreeBuilder: missing topology pattern during composition.";
+    LOG_FATAL_IF(!canCompose(upstream, downstream)) << "HTreeBuilder: invalid non-monotonic topology pattern composition.";
 
     const PatternId merged_pattern_id = PatternId::topology(_next_id++);
+    const auto upstream_state = _registry->getCompositionState(upstream);
+    const auto downstream_state = _registry->getCompositionState(downstream);
     _registry->addConcat(merged_pattern_id, upstream_pattern->levels + downstream_pattern->levels, upstream, downstream,
-                         downstream_pattern->terminal_semantic);
+                         PatternCompositionState{
+                             .terminal_semantic = downstream_state.terminal_semantic,
+                             .monotonic_boundary_state = MonotonicBoundaryState::compose(upstream_state.monotonic_boundary_state,
+                                                                                         downstream_state.monotonic_boundary_state),
+                         });
     return merged_pattern_id;
   }
 
@@ -373,32 +519,78 @@ class BufferPortCache
   std::unordered_map<std::string, BufferPortInfo> _cache;
 };
 
-auto resolveSegmentTerminalSemantic(const BufferPatternRegistry& pattern_registry, PatternId pattern_id) -> TerminalSemantic
+auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -> std::vector<const HTreeTopologyChar*>;
+auto PreferDelayPowerTieBreak(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool;
+auto PreferPowerMedianOrder(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool;
+
+struct StructuralPatternKey
 {
-  return pattern_registry.getTerminalSemantic(pattern_id);
+  std::vector<unsigned> level_segment_pattern_ids;
+
+  auto operator==(const StructuralPatternKey& rhs) const -> bool = default;
+};
+
+struct StructuralPatternKeyHash
+{
+  auto operator()(const StructuralPatternKey& key) const noexcept -> std::size_t
+  {
+    std::size_t hash_value = 0U;
+    for (const unsigned packed_id : key.level_segment_pattern_ids) {
+      hash_value ^= std::hash<unsigned>{}(packed_id) + 0x9e3779b9U + (hash_value << 6U) + (hash_value >> 2U);
+    }
+    return hash_value;
+  }
+};
+
+class TopologyPatternStructuralKeyCache
+{
+ public:
+  auto get(PatternId topology_pattern_id, const TopologyPatternRegistry& topology_registry) -> const StructuralPatternKey&
+  {
+    const auto cache_it = _key_by_pattern.find(topology_pattern_id);
+    if (cache_it != _key_by_pattern.end()) {
+      return cache_it->second;
+    }
+
+    StructuralPatternKey key;
+    const auto topology_pattern = topology_registry.materialize(topology_pattern_id);
+    key.level_segment_pattern_ids.reserve(topology_pattern.get_level_segment_pattern_ids().size());
+    for (const auto segment_pattern_id : topology_pattern.get_level_segment_pattern_ids()) {
+      key.level_segment_pattern_ids.push_back(segment_pattern_id.pack());
+    }
+
+    return _key_by_pattern.emplace(topology_pattern_id, std::move(key)).first->second;
+  }
+
+ private:
+  std::unordered_map<PatternId, StructuralPatternKey> _key_by_pattern;
+};
+
+auto resolveSegmentCompositionState(const BufferPatternRegistry& pattern_registry, PatternId pattern_id) -> PatternCompositionState
+{
+  return pattern_registry.getCompositionState(pattern_id);
 }
 
-auto resolveHTreeLeafTerminalSemantic(const TopologyPatternRegistry& topology_registry,
-                                      const BufferPatternRegistry& segment_pattern_registry, PatternId topology_pattern_id)
-    -> TerminalSemantic
+auto resolveHTreeCompositionState(const TopologyPatternRegistry& topology_registry, PatternId topology_pattern_id)
+    -> PatternCompositionState
 {
-  (void) segment_pattern_registry;
-  return topology_registry.getTerminalSemantic(topology_pattern_id);
+  return topology_registry.getCompositionState(topology_pattern_id);
 }
 
 auto BuildSegmentStateFrontier(const std::vector<SegmentChar>& chars, const BufferPatternRegistry& pattern_registry)
     -> std::vector<SegmentChar>
 {
-  return icts::BuildSegmentStateFrontier(chars, [&](const SegmentChar& entry) -> TerminalSemantic {
-    return resolveSegmentTerminalSemantic(pattern_registry, entry.get_pattern_id());
+  return icts::BuildSegmentStateFrontier(chars, [&](const SegmentChar& entry) -> PatternCompositionState {
+    return resolveSegmentCompositionState(pattern_registry, entry.get_pattern_id());
   });
 }
 
 auto BuildHTreeStateFrontier(const std::vector<HTreeTopologyChar>& chars, const TopologyPatternRegistry& topology_registry,
                              const BufferPatternRegistry& segment_pattern_registry) -> std::vector<HTreeTopologyChar>
 {
-  return icts::BuildHTreeStateFrontier(chars, [&](const HTreeTopologyChar& entry) -> TerminalSemantic {
-    return resolveHTreeLeafTerminalSemantic(topology_registry, segment_pattern_registry, entry.get_pattern_id());
+  (void) segment_pattern_registry;
+  return icts::BuildHTreeStateFrontier(chars, [&](const HTreeTopologyChar& entry) -> PatternCompositionState {
+    return resolveHTreeCompositionState(topology_registry, entry.get_pattern_id());
   });
 }
 
@@ -419,12 +611,14 @@ auto SelectSegmentCompositionCandidates(const std::vector<SegmentChar>& entries,
   std::vector<SegmentChar> selected_entries;
   selected_entries.reserve(ordered_entries.size());
   for (const auto& entry : ordered_entries) {
+    const auto composition_state = resolveSegmentCompositionState(pattern_registry, entry.get_pattern_id());
     const SegmentFrontierStateKey group_key{
         .input_slew_idx = entry.get_input_slew_idx(),
         .driven_cap_idx = entry.get_driven_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
-        .terminal_semantic = resolveSegmentTerminalSemantic(pattern_registry, entry.get_pattern_id()),
+        .terminal_semantic = composition_state.terminal_semantic,
+        .monotonic_boundary_state = composition_state.monotonic_boundary_state,
     };
     auto& kept_count = group_counts[group_key];
     if (kept_count >= max_per_state_group) {
@@ -440,6 +634,7 @@ auto SelectSegmentCompositionCandidates(const std::vector<SegmentChar>& entries,
 auto SelectHTreeCompositionCandidates(const std::vector<HTreeTopologyChar>& entries, const TopologyPatternRegistry& topology_registry,
                                       const BufferPatternRegistry& segment_pattern_registry) -> std::vector<HTreeTopologyChar>
 {
+  (void) segment_pattern_registry;
   const std::size_t max_per_state_group = CONFIG_INST.get_relaxed_candidates_per_boundary_group();
   if (max_per_state_group == 0U) {
     return entries;
@@ -454,13 +649,15 @@ auto SelectHTreeCompositionCandidates(const std::vector<HTreeTopologyChar>& entr
   std::vector<HTreeTopologyChar> selected_entries;
   selected_entries.reserve(ordered_entries.size());
   for (const auto& entry : ordered_entries) {
+    const auto composition_state = resolveHTreeCompositionState(topology_registry, entry.get_pattern_id());
     const HTreeFrontierStateKey group_key{
         .input_slew_idx = entry.get_input_slew_idx(),
         .driven_cap_idx = entry.get_driven_cap_idx(),
         .leaf_driven_cap_idx = entry.get_leaf_driven_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
-        .terminal_semantic = resolveHTreeLeafTerminalSemantic(topology_registry, segment_pattern_registry, entry.get_pattern_id()),
+        .terminal_semantic = composition_state.terminal_semantic,
+        .monotonic_boundary_state = composition_state.monotonic_boundary_state,
     };
     auto& kept_count = group_counts[group_key];
     if (kept_count >= max_per_state_group) {
@@ -616,14 +813,6 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   return plan;
 }
 
-auto NormalizeMetric(double value, double min_value, double max_value) -> double
-{
-  if (max_value <= min_value) {
-    return 0.0;
-  }
-  return std::clamp((value - min_value) / (max_value - min_value), 0.0, 1.0);
-}
-
 auto DelayPowerDominates(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool
 {
   const bool not_worse = lhs.get_delay() <= rhs.get_delay() && lhs.get_power() <= rhs.get_power();
@@ -683,6 +872,17 @@ auto PreferDelayPowerTieBreak(const HTreeTopologyChar& lhs, const HTreeTopologyC
              && lhs.get_input_slew_idx() == rhs.get_input_slew_idx() && lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack());
 }
 
+auto PreferPowerMedianOrder(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool
+{
+  if (lhs.get_power() != rhs.get_power()) {
+    return lhs.get_power() < rhs.get_power();
+  }
+  if (lhs.get_delay() != rhs.get_delay()) {
+    return lhs.get_delay() < rhs.get_delay();
+  }
+  return PreferDelayPowerTieBreak(lhs, rhs);
+}
+
 auto hasTerminalBranchBufferPattern(const BufferPatternRegistry& pattern_registry, PatternId pattern_id) -> bool
 {
   const auto* pattern = pattern_registry.find(pattern_id);
@@ -710,19 +910,9 @@ auto DiscretizeBoundaryValue(double value, double max_value, unsigned steps) -> 
 auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBuilder& char_builder) -> ResolvedBuildOptions
 {
   ResolvedBuildOptions resolved;
-  std::optional<bool> force_branch_buffer = options.force_branch_buffer;
-  if (options.force_leaf_branch_buffer.has_value()) {
-    if (force_branch_buffer.has_value() && *force_branch_buffer != *options.force_leaf_branch_buffer) {
-      LOG_WARNING << "HTreeBuilder: both force_branch_buffer and deprecated force_leaf_branch_buffer are set; "
-                     "using force_branch_buffer.";
-    } else if (!force_branch_buffer.has_value()) {
-      force_branch_buffer = options.force_leaf_branch_buffer;
-    }
-  }
-
   resolved.force_leaf_unbuffered = options.force_leaf_unbuffered.value_or(false);
-  resolved.force_branch_buffer = force_branch_buffer.value_or(CONFIG_INST.is_force_branch_buffer());
-  if (resolved.force_leaf_unbuffered && !force_branch_buffer.has_value()) {
+  resolved.force_branch_buffer = options.force_branch_buffer.value_or(CONFIG_INST.is_force_branch_buffer());
+  if (resolved.force_leaf_unbuffered && !options.force_branch_buffer.has_value()) {
     resolved.force_branch_buffer = false;
   }
   LOG_FATAL_IF(resolved.force_branch_buffer && resolved.force_leaf_unbuffered)
@@ -827,6 +1017,11 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
         .aligned_length_idx = aligned_length_idx,
         .aligned_length_um = static_cast<double>(aligned_length_idx) * length_step_um,
         .is_leaf_level = (level + 1U == levels.size()),
+        .selected_has_any_buffer = false,
+        .selected_has_terminal_branch_buffer = false,
+        .selected_leaf_buffer_cell_master = {},
+        .selected_terminal_cell_master = {},
+        .segment_pattern_id = PatternId::segment(0),
     });
   }
 
@@ -844,6 +1039,9 @@ auto ComposeRelaxedSegmentEntries(const std::vector<SegmentChar>& upstream, cons
     for (const auto& downstream_entry : downstream) {
       if (downstream_entry.get_input_slew_idx() < upstream_entry.get_output_slew_idx()
           || upstream_entry.get_load_cap_idx() < downstream_entry.get_driven_cap_idx()) {
+        continue;
+      }
+      if (!combiner.canCompose(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id())) {
         continue;
       }
       const auto merged_pattern_id = combiner.combine(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
@@ -868,7 +1066,7 @@ auto ComposeExactSegmentEntriesWithFrontier(const std::vector<SegmentChar>& upst
   ExactSegmentEntriesWithFrontier result;
   SegmentPatternRegistryCombiner combiner(pattern_registry, start_pattern_id);
   auto pruner = MakeSegmentStateFrontierPruner(
-      [&](const SegmentChar& entry) -> TerminalSemantic { return pattern_registry.getTerminalSemantic(entry.get_pattern_id()); });
+      [&](const SegmentChar& entry) -> PatternCompositionState { return pattern_registry.getCompositionState(entry.get_pattern_id()); });
   detail::HashJoinConcatRawAndFrontier<SegmentChar, SegmentTraits>(upstream, downstream, combiner, result.raw_entries,
                                                                    result.frontier_entries, pruner);
   SortSegmentFrontierEntries(result.frontier_entries);
@@ -1082,7 +1280,7 @@ auto MakeHTreeSeedEntries(const std::vector<SegmentChar>& segment_frontier, cons
   for (const auto& segment_entry : segment_frontier) {
     const auto topology_pattern_id = PatternId::topology(next_pattern_id++);
     topology_registry.addSeed(topology_pattern_id, segment_entry.get_pattern_id(),
-                              segment_pattern_registry.getTerminalSemantic(segment_entry.get_pattern_id()));
+                              segment_pattern_registry.getCompositionState(segment_entry.get_pattern_id()));
     const CharCore core(segment_entry.get_input_slew_idx(), segment_entry.get_output_slew_idx(), segment_entry.get_driven_cap_idx(),
                         segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id);
     seed_entries.emplace_back(core, 1U, segment_entry.get_driven_cap_idx());
@@ -1101,6 +1299,9 @@ auto ComposeRelaxedHTreeEntries(const std::vector<HTreeTopologyChar>& upstream, 
     for (const auto& downstream_entry : downstream) {
       if (downstream_entry.get_input_slew_idx() < upstream_entry.get_output_slew_idx()
           || HTreeTraits::halfCapKey(upstream_entry.get_load_cap_idx()) < downstream_entry.get_driven_cap_idx()) {
+        continue;
+      }
+      if (!combiner.canCompose(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id())) {
         continue;
       }
       const auto merged_pattern_id = combiner.combine(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
@@ -1124,8 +1325,9 @@ auto ComposeExactHTreeEntriesWithFrontier(const std::vector<HTreeTopologyChar>& 
 {
   ExactHTreeEntriesWithFrontier result;
   TopologyPatternRegistryCombiner combiner(topology_registry, start_pattern_id);
-  auto pruner = MakeHTreeStateFrontierPruner(
-      [&](const HTreeTopologyChar& entry) -> TerminalSemantic { return topology_registry.getTerminalSemantic(entry.get_pattern_id()); });
+  auto pruner = MakeHTreeStateFrontierPruner([&](const HTreeTopologyChar& entry) -> PatternCompositionState {
+    return topology_registry.getCompositionState(entry.get_pattern_id());
+  });
   detail::HashJoinConcatRawAndFrontier<HTreeTopologyChar, HTreeTraits>(upstream, downstream, combiner, result.raw_entries,
                                                                        result.frontier_entries, pruner);
   SortHTreeFrontierEntries(result.frontier_entries);
@@ -1225,6 +1427,68 @@ auto FilterBoundaryFeasibleHTreeChars(const std::vector<HTreeTopologyChar>& entr
 }
 
 auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps,
+                               unsigned cap_steps) -> double;
+
+auto PreferWorstCaseRepresentative(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool
+{
+  if (lhs.get_power() != rhs.get_power()) {
+    return lhs.get_power() > rhs.get_power();
+  }
+  if (lhs.get_delay() != rhs.get_delay()) {
+    return lhs.get_delay() > rhs.get_delay();
+  }
+  if (lhs.get_driven_cap_idx() != rhs.get_driven_cap_idx()) {
+    return lhs.get_driven_cap_idx() > rhs.get_driven_cap_idx();
+  }
+  if (lhs.get_output_slew_idx() != rhs.get_output_slew_idx()) {
+    return lhs.get_output_slew_idx() > rhs.get_output_slew_idx();
+  }
+  if (lhs.get_load_cap_idx() != rhs.get_load_cap_idx()) {
+    return lhs.get_load_cap_idx() > rhs.get_load_cap_idx();
+  }
+  if (lhs.get_input_slew_idx() != rhs.get_input_slew_idx()) {
+    return lhs.get_input_slew_idx() < rhs.get_input_slew_idx();
+  }
+  return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
+}
+
+auto PreferPatternRepresentative(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs, PatternRepresentativeMode mode) -> bool
+{
+  if (mode == PatternRepresentativeMode::kWorstCaseSelection) {
+    return PreferWorstCaseRepresentative(lhs, rhs);
+  }
+
+  return false;
+}
+
+auto BuildPatternRepresentativePool(const std::vector<HTreeTopologyChar>& entries, PatternRepresentativeMode mode,
+                                    const TopologyPatternRegistry& topology_registry,
+                                    TopologyPatternStructuralKeyCache& structural_key_cache) -> std::vector<HTreeTopologyChar>
+{
+  std::unordered_map<StructuralPatternKey, HTreeTopologyChar, StructuralPatternKeyHash> representative_by_pattern;
+  representative_by_pattern.reserve(entries.size());
+  for (const auto& entry : entries) {
+    const auto& structural_key = structural_key_cache.get(entry.get_pattern_id(), topology_registry);
+    auto [it, inserted] = representative_by_pattern.emplace(structural_key, entry);
+    if (!inserted && PreferPatternRepresentative(entry, it->second, mode)) {
+      it->second = entry;
+    }
+  }
+
+  std::vector<HTreeTopologyChar> representatives;
+  representatives.reserve(representative_by_pattern.size());
+  for (const auto& [structural_key, representative] : representative_by_pattern) {
+    (void) structural_key;
+    representatives.push_back(representative);
+  }
+
+  std::ranges::sort(representatives, [](const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool {
+    return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
+  });
+  return representatives;
+}
+
+auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps,
                                unsigned cap_steps) -> double
 {
   double score = 0.0;
@@ -1237,89 +1501,24 @@ auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBui
   return score;
 }
 
-auto PreferBoundaryFallbackTieBreak(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs,
-                                    const ResolvedBuildOptions& resolved_options) -> bool
-{
-  if (resolved_options.top_input_slew_floor_idx.has_value() && lhs.get_input_slew_idx() != rhs.get_input_slew_idx()) {
-    return lhs.get_input_slew_idx() > rhs.get_input_slew_idx();
-  }
-  if (resolved_options.leaf_driven_cap_floor_idx.has_value() && lhs.get_leaf_driven_cap_idx() != rhs.get_leaf_driven_cap_idx()) {
-    return lhs.get_leaf_driven_cap_idx() > rhs.get_leaf_driven_cap_idx();
-  }
-  if (lhs.get_delay() != rhs.get_delay()) {
-    return lhs.get_delay() < rhs.get_delay();
-  }
-  if (lhs.get_power() != rhs.get_power()) {
-    return lhs.get_power() < rhs.get_power();
-  }
-  return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
-}
-
-auto SelectClosestBoundaryFallbackChar(const std::vector<HTreeTopologyChar>& entries, const ResolvedBuildOptions& resolved_options,
-                                       unsigned slew_steps, unsigned cap_steps) -> BoundaryFallbackSelection
-{
-  BoundaryFallbackSelection selection;
-  if (entries.empty()) {
-    return selection;
-  }
-
-  constexpr double score_tolerance = 1e-12;
-  const auto* best_entry = &entries.front();
-  double best_score = CalcBoundaryFallbackScore(*best_entry, resolved_options, slew_steps, cap_steps);
-  for (const auto& entry : entries) {
-    const double score = CalcBoundaryFallbackScore(entry, resolved_options, slew_steps, cap_steps);
-    const bool better
-        = (score > best_score + score_tolerance)
-          || (std::abs(score - best_score) <= score_tolerance && PreferBoundaryFallbackTieBreak(entry, *best_entry, resolved_options));
-    if (better) {
-      best_entry = &entry;
-      best_score = score;
-    }
-  }
-
-  selection.best_char = *best_entry;
-  selection.score = best_score;
-  return selection;
-}
-
 auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::optional<HTreeTopologyChar>
 {
   if (entries.empty()) {
     return std::nullopt;
   }
 
-  const auto [min_delay_it, max_delay_it] = std::ranges::minmax_element(entries, {}, &HTreeTopologyChar::get_delay);
-  const auto [min_power_it, max_power_it] = std::ranges::minmax_element(entries, {}, &HTreeTopologyChar::get_power);
-  const double min_delay = min_delay_it->get_delay();
-  const double max_delay = max_delay_it->get_delay();
-  const double min_power = min_power_it->get_power();
-  const double max_power = max_power_it->get_power();
-
-  const auto pareto_front = BuildDelayPowerParetoFront(entries);
+  auto pareto_front = BuildDelayPowerParetoFront(entries);
   if (pareto_front.empty()) {
     return entries.front();
   }
 
-  constexpr double score_tolerance = 1e-12;
-  const auto* best_entry = pareto_front.front();
-  auto calc_score = [min_delay, max_delay, min_power, max_power](const HTreeTopologyChar& entry) -> double {
-    const double normalized_delay = NormalizeMetric(entry.get_delay(), min_delay, max_delay);
-    const double normalized_power = NormalizeMetric(entry.get_power(), min_power, max_power);
-    return (normalized_delay * normalized_delay) + (normalized_power * normalized_power);
-  };
+  std::ranges::sort(pareto_front, [](const HTreeTopologyChar* lhs, const HTreeTopologyChar* rhs) -> bool {
+    LOG_FATAL_IF(lhs == nullptr || rhs == nullptr) << "HTreeBuilder: null pareto entry encountered during final selection.";
+    return PreferPowerMedianOrder(*lhs, *rhs);
+  });
 
-  double best_score = calc_score(*best_entry);
-  for (const auto* entry : pareto_front) {
-    const double score = calc_score(*entry);
-    const bool better = (score + score_tolerance < best_score)
-                        || (std::abs(score - best_score) <= score_tolerance && PreferDelayPowerTieBreak(*entry, *best_entry));
-    if (better) {
-      best_entry = entry;
-      best_score = score;
-    }
-  }
-
-  return *best_entry;
+  const std::size_t median_index = (pareto_front.size() - 1U) / 2U;
+  return *pareto_front.at(median_index);
 }
 
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>
@@ -1408,6 +1607,123 @@ auto CreateNet(HTreeBuilder::BuildResult& result, const std::string& net_name, P
   return net_ptr;
 }
 
+template <typename T>
+auto EraseRawPointer(std::vector<T*>& objects, T* target) -> void
+{
+  objects.erase(std::remove(objects.begin(), objects.end(), target), objects.end());
+}
+
+template <typename T>
+auto EraseOwnedPointer(std::vector<std::unique_ptr<T>>& objects, T* target) -> void
+{
+  objects.erase(
+      std::remove_if(objects.begin(), objects.end(), [target](const std::unique_ptr<T>& object) -> bool { return object.get() == target; }),
+      objects.end());
+}
+
+auto FindSingleBufferInputPin(Inst* inst) -> Pin*
+{
+  if (inst == nullptr) {
+    return nullptr;
+  }
+
+  const auto* driver_pin = inst->findDriverPin();
+  for (auto* pin : inst->get_pins()) {
+    if (pin == nullptr || pin == driver_pin) {
+      continue;
+    }
+    if (pin->get_type() == PinType::kIn || pin->get_type() == PinType::kClock) {
+      return pin;
+    }
+  }
+
+  for (auto* pin : inst->get_pins()) {
+    if (pin != nullptr && pin != driver_pin) {
+      return pin;
+    }
+  }
+  return nullptr;
+}
+
+auto ReplaceNetLoad(Net* net, Pin* old_load, Pin* new_load) -> bool
+{
+  if (net == nullptr || old_load == nullptr || new_load == nullptr) {
+    return false;
+  }
+
+  auto updated_loads = net->get_loads();
+  const auto load_it = std::ranges::find(updated_loads, old_load);
+  if (load_it == updated_loads.end()) {
+    return false;
+  }
+
+  *load_it = new_load;
+  net->set_loads(updated_loads);
+  return true;
+}
+
+auto PruneLeafSingleLoadBuffers(HTreeBuilder::BuildResult& result) -> std::size_t
+{
+  const std::unordered_set<Inst*> inserted_inst_set(result.inserted_insts.begin(), result.inserted_insts.end());
+  const std::vector<Inst*> candidate_insts = result.inserted_insts;
+  std::size_t pruned_count = 0U;
+
+  for (auto* inst : candidate_insts) {
+    if (inst == nullptr || !inst->is_buffer()) {
+      continue;
+    }
+
+    auto* output_pin = inst->findDriverPin();
+    if (output_pin == nullptr) {
+      continue;
+    }
+    auto* output_net = output_pin->get_net();
+    if (output_net == nullptr || output_net->get_loads().size() != 1U || output_net->get_loads().front() == nullptr) {
+      continue;
+    }
+
+    auto* downstream_load = output_net->get_loads().front();
+    auto* downstream_inst = downstream_load->get_inst();
+    if (downstream_inst != nullptr && inserted_inst_set.contains(downstream_inst)) {
+      continue;
+    }
+
+    auto* input_pin = FindSingleBufferInputPin(inst);
+    if (input_pin == nullptr) {
+      continue;
+    }
+    auto* upstream_net = input_pin->get_net();
+    if (upstream_net == nullptr || !ReplaceNetLoad(upstream_net, input_pin, downstream_load)) {
+      continue;
+    }
+
+    downstream_load->set_net(upstream_net);
+    input_pin->set_net(nullptr);
+    output_pin->set_net(nullptr);
+    output_net->set_driver(nullptr);
+    output_net->set_loads({});
+
+    const auto inst_pins = inst->get_pins();
+    for (auto* pin : inst_pins) {
+      if (pin == nullptr) {
+        continue;
+      }
+      pin->set_inst(nullptr);
+      pin->set_net(nullptr);
+      EraseRawPointer(result.inserted_pins, pin);
+      EraseOwnedPointer(result.pin_storage, pin);
+    }
+
+    EraseRawPointer(result.inserted_nets, output_net);
+    EraseOwnedPointer(result.net_storage, output_net);
+    EraseRawPointer(result.inserted_insts, inst);
+    EraseOwnedPointer(result.inst_storage, inst);
+    ++pruned_count;
+  }
+
+  return pruned_count;
+}
+
 struct MaterializationContext
 {
   HTreeBuilder::BuildResult* result = nullptr;
@@ -1431,16 +1747,21 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
   const auto& cell_masters = segment_pattern.get_cell_masters();
   const auto& positions = segment_pattern.get_buffer_positions();
   const auto buffer_count = std::min(cell_masters.size(), positions.size());
-  if (buffer_count == 0U) {
-    if (!child_entry_loads.empty()) {
-      return child_entry_loads;
-    }
-    return child_node.get_loads();
+
+  std::vector<Pin*> terminal_loads = child_entry_loads;
+  if (terminal_loads.empty()) {
+    terminal_loads = child_node.get_loads();
+  }
+  LOG_FATAL_IF(terminal_loads.empty()) << "HTreeBuilder: segment terminal loads are empty for child node " << child_node.get_id();
+
+  const std::size_t materialized_buffer_count = buffer_count;
+  if (materialized_buffer_count == 0U) {
+    return terminal_loads;
   }
 
   std::vector<BufferInstancePins> segment_buffers;
-  segment_buffers.reserve(buffer_count);
-  for (std::size_t buffer_index = 0; buffer_index < buffer_count; ++buffer_index) {
+  segment_buffers.reserve(materialized_buffer_count);
+  for (std::size_t buffer_index = 0; buffer_index < materialized_buffer_count; ++buffer_index) {
     const auto* ports = context.port_cache->get(cell_masters.at(buffer_index));
     LOG_FATAL_IF(ports == nullptr) << "HTreeBuilder: unresolved ports for edge buffer master " << cell_masters.at(buffer_index);
 
@@ -1454,12 +1775,6 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
     CreateNet(*context.result, context.nextNetName(), segment_buffers.at(buffer_index).output_pin,
               std::vector<Pin*>{segment_buffers.at(buffer_index + 1U).input_pin});
   }
-
-  std::vector<Pin*> terminal_loads = child_entry_loads;
-  if (terminal_loads.empty()) {
-    terminal_loads = child_node.get_loads();
-  }
-  LOG_FATAL_IF(terminal_loads.empty()) << "HTreeBuilder: segment terminal loads are empty for child node " << child_node.get_id();
 
   CreateNet(*context.result, context.nextNetName(), segment_buffers.back().output_pin, terminal_loads);
   return std::vector<Pin*>{segment_buffers.front().input_pin};
@@ -1552,6 +1867,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   auto root_entry_loads = (root_it != entry_loads_by_node.end()) ? root_it->second : root_node->get_loads();
   LOG_FATAL_IF(root_entry_loads.empty()) << "HTreeBuilder: root entry loads are empty during materialization.";
   CreateNet(result, context.nextNetName(), result.root_output_pin, root_entry_loads);
+  result.pruned_leaf_single_load_buffers = PruneLeafSingleLoadBuffers(result);
 }
 
 }  // namespace
@@ -1665,7 +1981,6 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
 
   const auto resolved_options = ResolveBuildOptions(options, char_builder);
   result.force_branch_buffer = resolved_options.force_branch_buffer;
-  result.force_leaf_branch_buffer = result.force_branch_buffer;
   result.force_leaf_unbuffered = resolved_options.force_leaf_unbuffered;
   result.min_top_input_slew_ns = resolved_options.min_top_input_slew_ns;
   result.top_input_slew_floor_idx = resolved_options.top_input_slew_floor_idx;
@@ -1707,32 +2022,40 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   }
 
   topology_pattern_registry = composition.topology_pattern_registry;
+  TopologyPatternStructuralKeyCache structural_key_cache;
   if (has_boundary_constraints) {
     result.candidate_chars = std::move(composition.frontier);
+    result.candidate_pattern_representatives = BuildPatternRepresentativePool(
+        result.candidate_chars, PatternRepresentativeMode::kWorstCaseSelection, topology_pattern_registry, structural_key_cache);
     result.feasible_chars = FilterBoundaryFeasibleHTreeChars(result.candidate_chars, resolved_options);
+    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
+        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, topology_pattern_registry, structural_key_cache);
   } else {
     result.feasible_chars = std::move(composition.frontier);
+    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
+        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, topology_pattern_registry, structural_key_cache);
   }
 
-  if (!result.feasible_chars.empty()) {
-    result.best_char = SelectBestHTreeChar(result.feasible_chars);
+  if (!result.feasible_pattern_representatives.empty()) {
+    result.best_char = SelectBestHTreeChar(result.feasible_pattern_representatives);
   } else if (has_boundary_constraints) {
-    const auto fallback_selection
-        = SelectClosestBoundaryFallbackChar(result.candidate_chars, resolved_options, result.char_slew_steps, result.char_cap_steps);
-    if (!fallback_selection.best_char.has_value()) {
-      LOG_WARNING << "HTreeBuilder: boundary fallback frontier is non-empty but no closest entry could be selected.";
+    result.best_char = SelectBestHTreeChar(result.candidate_pattern_representatives);
+    if (!result.best_char.has_value()) {
+      LOG_WARNING << "HTreeBuilder: boundary fallback frontier is non-empty but no fallback entry could be selected.";
       build_stage.skip({{"reason", "missing_boundary_fallback_char"}});
       return result;
     }
 
     result.used_boundary_fallback = true;
     result.boundary_fallback_reason = "no_strict_boundary_feasible_solution";
-    result.boundary_fallback_score = fallback_selection.score;
-    result.best_char = fallback_selection.best_char;
+    result.boundary_fallback_score
+        = CalcBoundaryFallbackScore(*result.best_char, resolved_options, result.char_slew_steps, result.char_cap_steps);
 
-    LOG_WARNING << "HTreeBuilder: no feasible H-tree topology satisfies caller boundary constraints; selecting closest available solution.";
+    LOG_WARNING << "HTreeBuilder: no feasible H-tree topology satisfies caller boundary constraints; selecting fallback solution "
+                   "from candidate pattern representatives.";
     schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "HTreeBuilder",
-                           "no feasible H-tree topology satisfies caller boundary constraints; selected the closest available solution.",
+                           "no feasible H-tree topology satisfies caller boundary constraints; selected fallback solution using pattern "
+                           "worst-case representatives and delay-power Pareto power-median policy.",
                            {
                                {"reason", result.boundary_fallback_reason},
                                {"fallback_score", std::to_string(result.boundary_fallback_score.value_or(0.0))},
@@ -1763,7 +2086,18 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
     result.levels.at(level_index).segment_pattern_id = segment_pattern_id;
     const auto* segment_pattern = segment_pattern_registry.find(segment_pattern_id);
     LOG_FATAL_IF(segment_pattern == nullptr) << "HTreeBuilder: selected segment pattern metadata is missing.";
+    result.levels.at(level_index).selected_has_any_buffer = !segment_pattern->get_cell_masters().empty();
+    if (!segment_pattern->get_cell_masters().empty()) {
+      result.levels.at(level_index).selected_leaf_buffer_cell_master = segment_pattern->get_cell_masters().back();
+    } else {
+      result.levels.at(level_index).selected_leaf_buffer_cell_master.clear();
+    }
     result.levels.at(level_index).selected_has_terminal_branch_buffer = segment_pattern->hasTerminalBranchBuffer();
+    if (segment_pattern->hasTerminalBranchBuffer() && !segment_pattern->get_cell_masters().empty()) {
+      result.levels.at(level_index).selected_terminal_cell_master = segment_pattern->get_cell_masters().back();
+    } else {
+      result.levels.at(level_index).selected_terminal_cell_master.clear();
+    }
   }
 
   MaterializeCTSObjects(result, segment_pattern_registry);
@@ -1773,14 +2107,27 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   const logformat::TableRows build_summary_rows = {
       {"levels", std::to_string(result.levels.size()), "synthesized H-tree levels"},
       {"selected_topology_pattern_id", std::to_string(result.best_char->get_pattern_id().local_id),
-       result.used_boundary_fallback ? "selected closest topology pattern under caller boundary fallback"
+       result.used_boundary_fallback ? "selected fallback topology pattern from candidate pattern representatives"
                                      : "selected strict-feasible topology pattern"},
+      {"selection_policy", result.used_boundary_fallback ? "boundary_fallback" : "pattern_worst_case_pareto_power_median",
+       result.used_boundary_fallback
+           ? "strict-feasible pool is empty; candidate pattern representatives use worst-case delay/power, Pareto front, and "
+             "power-median fallback selection"
+           : "each structural pattern contributes its worst feasible delay/power scenario; Pareto front is sorted by "
+             "power then delay and the lower median entry is selected"},
       {"candidate_solutions", std::to_string(result.candidate_chars.size()),
        has_boundary_constraints ? "frontier entries after full composition" : "not materialized on unrestricted builds"},
+      {"candidate_unique_patterns", std::to_string(result.candidate_pattern_representatives.size()),
+       has_boundary_constraints ? "one worst-case representative per structural buffering pattern before feasible filtering"
+                                : "not materialized on unrestricted builds"},
       {"feasible_solutions", std::to_string(result.feasible_chars.size()),
        has_boundary_constraints ? "strict-feasible entries after caller boundary filtering" : "same as composed frontier"},
+      {"feasible_unique_patterns", std::to_string(result.feasible_pattern_representatives.size()),
+       "one representative entry per structural buffering pattern after feasible filtering"},
       {"inserted_insts", std::to_string(result.inserted_insts.size()), "materialized CTS buffer instances"},
       {"inserted_nets", std::to_string(result.inserted_nets.size()), "materialized CTS nets"},
+      {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers),
+       "post-materialization redundant leaf buffers removed when a leaf buffer directly drove one external load"},
       {"power", logformat::FormatPowerW(result.best_char->get_power()), "selected pattern metric (total power)"},
       {"delay", logformat::FormatWithUnit(result.best_char->get_delay(), "ns"), "selected pattern metric"},
       {"root_driven_cap_idx", std::to_string(result.best_char->get_driven_cap_idx()), "selected pattern metric"},
@@ -1802,13 +2149,14 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
       {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback),
        result.used_boundary_fallback ? result.boundary_fallback_reason : "constraints satisfied without fallback"},
       {"boundary_fallback_score", result.boundary_fallback_score.has_value() ? std::to_string(*result.boundary_fallback_score) : "none",
-       result.used_boundary_fallback ? "normalized active-boundary capability score" : "not used"},
+       result.used_boundary_fallback ? "diagnostic normalized active-boundary score of the selected fallback" : "not used"},
   };
   logInfoTable("HTreeBuilder Build Summary", {"Item", "Value", "Detail"}, build_summary_rows);
   build_stage.finish({{"success", result.success ? "true" : "false"},
                       {"levels", std::to_string(result.levels.size())},
                       {"inserted_insts", std::to_string(result.inserted_insts.size())},
-                      {"inserted_nets", std::to_string(result.inserted_nets.size())}},
+                      {"inserted_nets", std::to_string(result.inserted_nets.size())},
+                      {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers)}},
                      result.success ? "success" : "incomplete");
   return result;
 }

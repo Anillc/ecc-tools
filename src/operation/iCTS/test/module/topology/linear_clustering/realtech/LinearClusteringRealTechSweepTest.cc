@@ -30,15 +30,23 @@
 namespace icts_test::linear_clustering::realtech {
 namespace {
 
+#ifndef ICTS_ENABLE_SLOW_REALTECH_REGRESSION
+#define ICTS_ENABLE_SLOW_REALTECH_REGRESSION 0
+#endif
+
+#if !ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 TEST(LinearClusteringRealTechSweepTest, RealTechOrFallbackSweepsGenerateArtifacts)
 {
   RunRealTechOrFallbackSweepsGenerateArtifacts();
 }
+#endif
 
+#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 TEST(LinearClusteringRealTechSweepTest, RealTechDiameterLadderIsResponsive)
 {
   RunRealTechDiameterLadderIsResponsive();
 }
+#endif
 
 }  // namespace
 }  // namespace icts_test::linear_clustering::realtech

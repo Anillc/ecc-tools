@@ -31,6 +31,8 @@
 namespace icts {
 
 struct BiPartitionConfig;
+struct ClusterResult;
+struct LinearClusteringConfig;
 class Pin;
 
 class TopologyGen
@@ -41,6 +43,8 @@ class TopologyGen
 
   static auto build(const std::vector<Pin*>& loads) -> Tree;
   static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree;
+  static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
+  static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
 
  private:
   struct BuildCursor

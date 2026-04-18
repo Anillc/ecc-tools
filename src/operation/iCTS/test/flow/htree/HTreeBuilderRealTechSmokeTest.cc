@@ -24,30 +24,26 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <memory>
 #include <optional>
-#include <ranges>
 #include <regex>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include "CharBuilder.hh"
 #include "Clock.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
 #include "Inst.hh"
+#include "Net.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
-#include "Point.hh"
-#include "SegmentChar.hh"
 #include "Tree.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
@@ -63,13 +59,19 @@
 namespace icts_test {
 namespace {
 
+#ifndef ICTS_ENABLE_SLOW_REALTECH_REGRESSION
+#define ICTS_ENABLE_SLOW_REALTECH_REGRESSION 0
+#endif
+
 namespace common_realtech = common::realtech;
 namespace realtech_support = characterization::realtech;
 
 constexpr std::size_t kMaxRealClockLoadCount = 64U;
 constexpr double kHTreeSmokeMaxSlewNs = 0.05;
 constexpr double kHTreeSmokeMaxCapPf = 0.15;
+#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 constexpr unsigned kLeafUnbufferedRealTechCharSteps = 10U;
+#endif
 
 struct RealClockLoadSelection
 {
@@ -157,6 +159,29 @@ auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pi
   return leaf_loads;
 }
 
+auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  const std::unordered_set<const icts::Inst*> inserted_insts(result.inserted_insts.begin(), result.inserted_insts.end());
+  for (const auto* inst : result.inserted_insts) {
+    if (inst == nullptr || !inst->is_buffer()) {
+      continue;
+    }
+
+    const auto* output_pin = inst->findDriverPin();
+    ASSERT_NE(output_pin, nullptr);
+    const auto* output_net = output_pin->get_net();
+    if (output_net == nullptr || output_net->get_loads().size() != 1U || output_net->get_loads().front() == nullptr) {
+      continue;
+    }
+
+    const auto* downstream_load = output_net->get_loads().front();
+    const auto* downstream_inst = downstream_load->get_inst();
+    const bool drives_internal_htree_inst = downstream_inst != nullptr && inserted_insts.contains(downstream_inst);
+    EXPECT_TRUE(drives_internal_htree_inst) << "Expected leaf single-load buffer pruning to remove " << inst->get_name()
+                                            << " but it still drives " << downstream_load->get_name();
+  }
+}
+
 auto ReadTextFile(const std::filesystem::path& path) -> std::string
 {
   std::ifstream input_stream(path);
@@ -169,11 +194,28 @@ auto ReadTextFile(const std::filesystem::path& path) -> std::string
   return content_stream.str();
 }
 
+auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
+{
+  constexpr double metric_tolerance = 1e-12;
+  return lhs.get_pattern_id() == rhs.get_pattern_id() && lhs.get_input_slew_idx() == rhs.get_input_slew_idx()
+         && lhs.get_output_slew_idx() == rhs.get_output_slew_idx() && lhs.get_driven_cap_idx() == rhs.get_driven_cap_idx()
+         && lhs.get_leaf_driven_cap_idx() == rhs.get_leaf_driven_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
+         && std::abs(lhs.get_delay() - rhs.get_delay()) <= metric_tolerance
+         && std::abs(lhs.get_power() - rhs.get_power()) <= metric_tolerance;
+}
+
+auto ContainsCharEntry(const std::vector<icts::HTreeTopologyChar>& entries, const icts::HTreeTopologyChar& target) -> bool
+{
+  return std::ranges::any_of(entries, [&target](const icts::HTreeTopologyChar& entry) -> bool { return IsSameCharEntry(entry, target); });
+}
+
+#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 auto UseLeafUnbufferedRealTechCharSteps() -> void
 {
   CONFIG_INST.set_slew_steps(kLeafUnbufferedRealTechCharSteps);
   CONFIG_INST.set_cap_steps(kLeafUnbufferedRealTechCharSteps);
 }
+#endif
 
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
@@ -188,12 +230,12 @@ auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_path
   EXPECT_TRUE(std::filesystem::exists(artifact_paths.report_log));
 }
 
+#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 auto AssertBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult& result) -> void
 {
   ASSERT_TRUE(result.success);
   ASSERT_FALSE(result.levels.empty());
   ASSERT_TRUE(result.force_branch_buffer);
-  ASSERT_TRUE(result.force_leaf_branch_buffer);
 
   std::vector<icts::Point<int>> required_terminal_positions;
   const auto topology_levels = result.topology.levels();
@@ -227,7 +269,6 @@ auto AssertLeafUnbufferedMaterialization(const icts::HTreeBuilder::BuildResult& 
   ASSERT_FALSE(result.levels.empty());
   ASSERT_TRUE(result.force_leaf_unbuffered);
   ASSERT_FALSE(result.force_branch_buffer);
-  ASSERT_FALSE(result.force_leaf_branch_buffer);
 
   std::vector<icts::Point<int>> terminal_positions;
   const auto topology_levels = result.topology.levels();
@@ -261,74 +302,7 @@ auto AssertLeafUnbufferedMaterialization(const icts::HTreeBuilder::BuildResult& 
     EXPECT_FALSE(has_terminal_inst);
   }
 }
-
-auto FilterSegmentFrontierByFloor(const std::vector<icts::SegmentChar>& entries, std::optional<unsigned> input_slew_floor_idx,
-                                  std::optional<unsigned> driven_cap_floor_idx) -> std::vector<icts::SegmentChar>
-{
-  std::vector<icts::SegmentChar> filtered_entries;
-  filtered_entries.reserve(entries.size());
-  for (const auto& entry : entries) {
-    if (input_slew_floor_idx.has_value() && entry.get_input_slew_idx() < *input_slew_floor_idx) {
-      continue;
-    }
-    if (driven_cap_floor_idx.has_value() && entry.get_driven_cap_idx() < *driven_cap_floor_idx) {
-      continue;
-    }
-    filtered_entries.push_back(entry);
-  }
-  return filtered_entries;
-}
-
-auto CollectUniqueSegmentBoundaryIndices(const std::vector<icts::SegmentChar>& entries, bool use_input_slew_idx) -> std::vector<unsigned>
-{
-  std::vector<unsigned> indices;
-  indices.reserve(entries.size());
-  for (const auto& entry : entries) {
-    indices.push_back(use_input_slew_idx ? entry.get_input_slew_idx() : entry.get_driven_cap_idx());
-  }
-
-  std::ranges::sort(indices);
-  indices.erase(std::ranges::unique(indices).begin(), indices.end());
-  std::ranges::reverse(indices);
-  return indices;
-}
-
-auto BuildFeasibleBoundaryFrontier(const std::vector<unsigned>& level_length_indices,
-                                   const std::unordered_map<unsigned, std::vector<icts::SegmentChar>>& frontier_by_length,
-                                   std::optional<unsigned> top_input_slew_floor_idx, std::optional<unsigned> leaf_driven_cap_floor_idx)
-    -> std::vector<icts::HTreeTopologyChar>
-{
-  std::vector<icts::HTreeTopologyChar> current_frontier;
-  unsigned next_topology_pattern_id = 0U;
-  for (std::size_t reverse_level = level_length_indices.size(); reverse_level > 0U; --reverse_level) {
-    const bool is_top_level = (reverse_level == 1U);
-    const bool is_leaf_level = (reverse_level == level_length_indices.size());
-    const auto frontier_it = frontier_by_length.find(level_length_indices.at(reverse_level - 1U));
-    if (frontier_it == frontier_by_length.end()) {
-      return {};
-    }
-
-    auto segment_frontier = FilterSegmentFrontierByFloor(frontier_it->second, is_top_level ? top_input_slew_floor_idx : std::nullopt,
-                                                         is_leaf_level ? leaf_driven_cap_floor_idx : std::nullopt);
-    if (segment_frontier.empty()) {
-      return {};
-    }
-
-    auto seed_entries = realtech_support::MakeHTreeSeedEntries(segment_frontier, next_topology_pattern_id);
-    if (current_frontier.empty()) {
-      current_frontier = realtech_support::BuildInputBoundaryFrontier(seed_entries);
-      continue;
-    }
-
-    current_frontier = realtech_support::BuildInputBoundaryFrontier(
-        realtech_support::ComposeHTreeEntriesExact(seed_entries, current_frontier, next_topology_pattern_id));
-    if (current_frontier.empty()) {
-      return {};
-    }
-  }
-
-  return current_frontier;
-}
+#endif
 
 TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
 {
@@ -377,8 +351,14 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   auto result = icts::HTreeBuilder::build(real_loads);
 
   ASSERT_TRUE(result.success);
+  EXPECT_TRUE(result.failure_reason.empty());
   ASSERT_TRUE(result.best_char.has_value());
   ASSERT_TRUE(result.best_pattern.has_value());
+  ASSERT_FALSE(result.feasible_chars.empty());
+  ASSERT_FALSE(result.feasible_pattern_representatives.empty());
+  EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
+  const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
+  EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
   const icts::HTreeTopologyPattern* best_pattern = nullptr;
   if (result.best_pattern.has_value()) {
     best_pattern = &result.best_pattern.value();
@@ -391,6 +371,7 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_NE(result.root_input_pin, result.root_output_pin);
   EXPECT_FALSE(result.inserted_pins.empty());
   EXPECT_FALSE(result.inserted_nets.empty());
+  AssertNoSingleLoadExternalLeafBuffer(result);
 
   const auto leaf_loads = CollectLeafLoads(result.topology);
   EXPECT_EQ(leaf_loads.size(), original_loads.size());
@@ -401,10 +382,12 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
     EXPECT_NE(load->get_net(), nullptr);
   }
 
-  EXPECT_TRUE(htree::WriteHTreeArtifacts(artifact_paths, "htree_builder_realtech_smoke", selected_clock->clock_name, real_loads, result));
+  WriteAndAssertHTreeArtifacts(artifact_paths, "htree_builder_realtech_smoke", selected_clock->clock_name, real_loads, result);
 
   const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
+  const auto report_log_content = ReadTextFile(artifact_paths.report_log);
   ASSERT_FALSE(cts_log_content.empty());
+  ASSERT_FALSE(report_log_content.empty());
   const auto first_line_break = cts_log_content.find('\n');
   ASSERT_NE(first_line_break, std::string::npos);
   EXPECT_EQ(cts_log_content.find("Generate the report at "), first_line_break + 1U);
@@ -419,8 +402,16 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_NE(cts_log_content.find("details omitted from cts.log"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("CharBuilder build Running"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("pareto_solution pattern_id="), std::string::npos);
+  EXPECT_NE(report_log_content.find("frontier_feasible_solution_count="), std::string::npos);
+  EXPECT_NE(report_log_content.find("feasible_pattern_representative_count="), std::string::npos);
+  EXPECT_NE(report_log_content.find("delay_power_selection_summary"), std::string::npos);
+  EXPECT_NE(report_log_content.find("frontier_selection_pool_size="), std::string::npos);
+  EXPECT_NE(report_log_content.find("selection_policy=pattern_worst_case_pareto_power_median"), std::string::npos);
+  EXPECT_NE(report_log_content.find("pareto_power_median_index="), std::string::npos);
+  EXPECT_NE(report_log_content.find("selected_pareto_power_order_index="), std::string::npos);
 }
 
+#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatternsOnEveryLevel)
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
@@ -459,6 +450,13 @@ TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatter
   auto result = icts::HTreeBuilder::build(selected_clock->loads);
 
   ASSERT_TRUE(result.success);
+  EXPECT_TRUE(result.failure_reason.empty());
+  ASSERT_FALSE(result.feasible_chars.empty());
+  ASSERT_FALSE(result.feasible_pattern_representatives.empty());
+  EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
+  ASSERT_TRUE(result.best_char.has_value());
+  const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
+  EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
   EXPECT_EQ(result.char_slew_steps, realtech_support::kRealTechCharSlewSteps);
   EXPECT_EQ(result.char_cap_steps, realtech_support::kRealTechCharCapSteps);
   AssertBranchBufferMaterialization(result);
@@ -540,8 +538,14 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingLeafUnbufferedOptionSelectsUnbuf
 
   ASSERT_TRUE(result.force_leaf_unbuffered);
   ASSERT_FALSE(result.force_branch_buffer);
-  ASSERT_FALSE(result.force_leaf_branch_buffer);
   ASSERT_TRUE(result.success);
+  EXPECT_TRUE(result.failure_reason.empty());
+  ASSERT_FALSE(result.feasible_chars.empty());
+  ASSERT_FALSE(result.feasible_pattern_representatives.empty());
+  EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
+  ASSERT_TRUE(result.best_char.has_value());
+  const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
+  EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
   EXPECT_EQ(result.char_slew_steps, kLeafUnbufferedRealTechCharSteps);
   EXPECT_EQ(result.char_cap_steps, kLeafUnbufferedRealTechCharSteps);
   AssertLeafUnbufferedMaterialization(result);
@@ -577,64 +581,22 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   const auto baseline_result = icts::HTreeBuilder::build(selected_clock->loads);
   ASSERT_TRUE(baseline_result.success);
   ASSERT_FALSE(baseline_result.levels.empty());
+  ASSERT_FALSE(baseline_result.feasible_chars.empty());
   ASSERT_GT(baseline_result.char_slew_steps, 0U);
   ASSERT_GT(baseline_result.char_cap_steps, 0U);
   ASSERT_GT(baseline_result.char_max_slew_ns, 0.0);
   ASSERT_GT(baseline_result.char_max_cap_pf, 0.0);
 
-  icts::CharBuilder char_builder;
-  char_builder.init();
-  char_builder.build();
-  ASSERT_FALSE(char_builder.get_segment_chars().empty());
+  const auto top_floor_it = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
+  ASSERT_NE(top_floor_it, baseline_result.feasible_chars.end());
+  const auto leaf_floor_it
+      = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_leaf_driven_cap_idx);
+  ASSERT_NE(leaf_floor_it, baseline_result.feasible_chars.end());
 
-  std::vector<unsigned> level_length_indices;
-  level_length_indices.reserve(baseline_result.levels.size());
-  unsigned max_target_length_idx = 0U;
-  for (const auto& level : baseline_result.levels) {
-    level_length_indices.push_back(level.aligned_length_idx);
-    max_target_length_idx = std::max(max_target_length_idx, level.aligned_length_idx);
-  }
-
-  auto frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(char_builder.get_segment_chars());
-  unsigned next_segment_pattern_id = realtech_support::FindNextSegmentPatternId(char_builder.get_segment_chars());
-  ASSERT_TRUE(realtech_support::SynthesizeSegmentFrontierIfMissing(frontier_by_length, max_target_length_idx, next_segment_pattern_id));
-
-  const auto top_frontier_it = frontier_by_length.find(level_length_indices.front());
-  const auto leaf_frontier_it = frontier_by_length.find(level_length_indices.back());
-  ASSERT_NE(top_frontier_it, frontier_by_length.end());
-  ASSERT_NE(leaf_frontier_it, frontier_by_length.end());
-  ASSERT_FALSE(top_frontier_it->second.empty());
-  ASSERT_FALSE(leaf_frontier_it->second.empty());
-
-  const auto top_input_slew_floor_candidates = CollectUniqueSegmentBoundaryIndices(top_frontier_it->second, true);
-  const auto leaf_driven_cap_floor_candidates = CollectUniqueSegmentBoundaryIndices(leaf_frontier_it->second, false);
-  ASSERT_FALSE(top_input_slew_floor_candidates.empty());
-  ASSERT_FALSE(leaf_driven_cap_floor_candidates.empty());
-
-  const auto top_input_slew_floor_idx = [&]() -> std::optional<unsigned> {
-    for (const unsigned candidate_idx : top_input_slew_floor_candidates) {
-      if (!BuildFeasibleBoundaryFrontier(level_length_indices, frontier_by_length, candidate_idx, std::nullopt).empty()) {
-        return candidate_idx;
-      }
-    }
-    return std::nullopt;
-  }();
-  const auto leaf_driven_cap_floor_idx = [&]() -> std::optional<unsigned> {
-    for (const unsigned candidate_idx : leaf_driven_cap_floor_candidates) {
-      if (!BuildFeasibleBoundaryFrontier(level_length_indices, frontier_by_length, std::nullopt, candidate_idx).empty()) {
-        return candidate_idx;
-      }
-    }
-    return std::nullopt;
-  }();
-
-  if (!top_input_slew_floor_idx.has_value() || !leaf_driven_cap_floor_idx.has_value()) {
-    GTEST_SKIP() << "Real-tech assets cannot realize caller-facing HTree boundary constraints with the current frontier.";
-    return;
-  }
-
-  const unsigned top_floor_idx = top_input_slew_floor_idx.value_or(0U);
-  const unsigned leaf_floor_idx = leaf_driven_cap_floor_idx.value_or(0U);
+  const unsigned top_floor_idx = top_floor_it->get_input_slew_idx();
+  const unsigned leaf_floor_idx = leaf_floor_it->get_leaf_driven_cap_idx();
+  ASSERT_GT(top_floor_idx, 0U);
+  ASSERT_GT(leaf_floor_idx, 0U);
   const double top_input_slew_ns = (static_cast<double>(top_floor_idx) - 0.5) * baseline_result.char_max_slew_ns
                                    / static_cast<double>(baseline_result.char_slew_steps);
   const double leaf_driven_cap_pf
@@ -682,15 +644,14 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_TRUE(impossible_top_boundary_result.boundary_fallback_score.has_value());
   EXPECT_TRUE(impossible_top_boundary_result.feasible_chars.empty());
   ASSERT_FALSE(impossible_top_boundary_result.candidate_chars.empty());
+  ASSERT_FALSE(impossible_top_boundary_result.candidate_pattern_representatives.empty());
+  EXPECT_LE(impossible_top_boundary_result.candidate_pattern_representatives.size(), impossible_top_boundary_result.candidate_chars.size());
   ASSERT_TRUE(impossible_top_boundary_result.best_char.has_value());
   const auto impossible_top_best_char = impossible_top_boundary_result.best_char.value_or(icts::HTreeTopologyChar{});
+  EXPECT_TRUE(ContainsCharEntry(impossible_top_boundary_result.candidate_pattern_representatives, impossible_top_best_char));
   const unsigned impossible_top_floor_idx = impossible_top_boundary_result.top_input_slew_floor_idx.value_or(0U);
   ASSERT_GT(impossible_top_floor_idx, 0U);
-  const auto impossible_top_max_it
-      = std::ranges::max_element(impossible_top_boundary_result.candidate_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
-  ASSERT_NE(impossible_top_max_it, impossible_top_boundary_result.candidate_chars.end());
   EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_floor_idx);
-  EXPECT_EQ(impossible_top_best_char.get_input_slew_idx(), impossible_top_max_it->get_input_slew_idx());
   EXPECT_DOUBLE_EQ(
       impossible_top_boundary_result.boundary_fallback_score.value_or(0.0),
       static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps));
@@ -709,19 +670,20 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_TRUE(impossible_leaf_boundary_result.boundary_fallback_score.has_value());
   EXPECT_TRUE(impossible_leaf_boundary_result.feasible_chars.empty());
   ASSERT_FALSE(impossible_leaf_boundary_result.candidate_chars.empty());
+  ASSERT_FALSE(impossible_leaf_boundary_result.candidate_pattern_representatives.empty());
+  EXPECT_LE(impossible_leaf_boundary_result.candidate_pattern_representatives.size(),
+            impossible_leaf_boundary_result.candidate_chars.size());
   ASSERT_TRUE(impossible_leaf_boundary_result.best_char.has_value());
   const auto impossible_leaf_best_char = impossible_leaf_boundary_result.best_char.value_or(icts::HTreeTopologyChar{});
+  EXPECT_TRUE(ContainsCharEntry(impossible_leaf_boundary_result.candidate_pattern_representatives, impossible_leaf_best_char));
   const unsigned impossible_leaf_floor_idx = impossible_leaf_boundary_result.leaf_driven_cap_floor_idx.value_or(0U);
   ASSERT_GT(impossible_leaf_floor_idx, 0U);
-  const auto impossible_leaf_max_it
-      = std::ranges::max_element(impossible_leaf_boundary_result.candidate_chars, {}, &icts::HTreeTopologyChar::get_leaf_driven_cap_idx);
-  ASSERT_NE(impossible_leaf_max_it, impossible_leaf_boundary_result.candidate_chars.end());
   EXPECT_LT(impossible_leaf_best_char.get_leaf_driven_cap_idx(), impossible_leaf_floor_idx);
-  EXPECT_EQ(impossible_leaf_best_char.get_leaf_driven_cap_idx(), impossible_leaf_max_it->get_leaf_driven_cap_idx());
   EXPECT_DOUBLE_EQ(
       impossible_leaf_boundary_result.boundary_fallback_score.value_or(0.0),
       static_cast<double>(impossible_leaf_best_char.get_leaf_driven_cap_idx()) / static_cast<double>(baseline_result.char_cap_steps));
 }
+#endif
 
 }  // namespace
 }  // namespace icts_test

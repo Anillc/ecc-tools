@@ -7,9 +7,3 @@ icts_add_test_executable(
   LIBS
     icts_test_module_topology_gen_support
 )
-
-target_link_libraries(
-  icts_test_module_topology_gen
-  PUBLIC
-  icts_test_module_topology_gen_support
-)

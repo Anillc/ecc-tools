@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <fstream>
@@ -85,6 +86,17 @@ struct DelayPowerPoint
   double normalized_power = 0.0;
   bool is_pareto = false;
   bool is_selected = false;
+};
+
+struct DelayPowerSelectionSummary
+{
+  std::size_t frontier_selection_pool_size = 0U;
+  std::size_t selection_pool_size = 0U;
+  std::size_t pareto_solution_count = 0U;
+  std::optional<std::size_t> pareto_power_median_index = std::nullopt;
+  std::optional<std::size_t> selected_pareto_power_order_index = std::nullopt;
+  bool median_uses_lower_index = false;
+  bool selected_on_pareto_front = false;
 };
 
 auto FormatSvgNumber(double value) -> std::string
@@ -306,9 +318,33 @@ auto DelayPowerDominates(const icts::HTreeTopologyChar& lhs, const icts::HTreeTo
   return not_worse && strictly_better;
 }
 
+auto GetDisplayChars(const icts::HTreeBuilder::BuildResult& result) -> const std::vector<icts::HTreeTopologyChar>&
+{
+  if (!result.feasible_pattern_representatives.empty()) {
+    return result.feasible_pattern_representatives;
+  }
+  if (!result.candidate_pattern_representatives.empty()) {
+    return result.candidate_pattern_representatives;
+  }
+  if (!result.feasible_chars.empty()) {
+    return result.feasible_chars;
+  }
+  return result.candidate_chars;
+}
+
+auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
+{
+  constexpr double metric_tolerance = 1e-12;
+  return lhs.get_pattern_id() == rhs.get_pattern_id() && lhs.get_input_slew_idx() == rhs.get_input_slew_idx()
+         && lhs.get_output_slew_idx() == rhs.get_output_slew_idx() && lhs.get_driven_cap_idx() == rhs.get_driven_cap_idx()
+         && lhs.get_leaf_driven_cap_idx() == rhs.get_leaf_driven_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
+         && std::abs(lhs.get_delay() - rhs.get_delay()) <= metric_tolerance
+         && std::abs(lhs.get_power() - rhs.get_power()) <= metric_tolerance;
+}
+
 auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std::vector<DelayPowerPoint>
 {
-  const auto& display_chars = result.feasible_chars.empty() ? result.candidate_chars : result.feasible_chars;
+  const auto& display_chars = GetDisplayChars(result);
   if (display_chars.empty()) {
     return {};
   }
@@ -333,9 +369,6 @@ auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std
     }
   }
 
-  const auto selected_pattern_id
-      = result.best_char.has_value() ? std::optional<icts::PatternId>(result.best_char->get_pattern_id()) : std::nullopt;
-
   std::vector<DelayPowerPoint> points;
   points.reserve(display_chars.size());
   for (std::size_t index = 0; index < display_chars.size(); ++index) {
@@ -345,7 +378,7 @@ auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std
         .normalized_delay = NormalizeMetric(entry.get_delay(), min_delay, max_delay),
         .normalized_power = NormalizeMetric(entry.get_power(), min_power, max_power),
         .is_pareto = pareto_flags[index],
-        .is_selected = selected_pattern_id.has_value() && entry.get_pattern_id() == *selected_pattern_id,
+        .is_selected = result.best_char.has_value() && IsSameCharEntry(entry, *result.best_char),
     });
   }
 
@@ -359,6 +392,68 @@ auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std
     return lhs.entry->get_pattern_id().pack() < rhs.entry->get_pattern_id().pack();
   });
   return points;
+}
+
+auto PreferPowerDelayOrder(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
+{
+  if (lhs.get_power() != rhs.get_power()) {
+    return lhs.get_power() < rhs.get_power();
+  }
+  if (lhs.get_delay() != rhs.get_delay()) {
+    return lhs.get_delay() < rhs.get_delay();
+  }
+  return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
+}
+
+auto BuildDelayPowerSelectionSummary(const icts::HTreeBuilder::BuildResult& result) -> std::optional<DelayPowerSelectionSummary>
+{
+  const auto& raw_selection_pool = result.feasible_chars.empty() ? result.candidate_chars : result.feasible_chars;
+  const auto& selection_pool = GetDisplayChars(result);
+  if (selection_pool.empty() || !result.best_char.has_value()) {
+    return std::nullopt;
+  }
+
+  std::vector<const icts::HTreeTopologyChar*> pareto_front;
+  pareto_front.reserve(selection_pool.size());
+  for (std::size_t index = 0; index < selection_pool.size(); ++index) {
+    bool is_pareto = true;
+    for (std::size_t other_index = 0; other_index < selection_pool.size(); ++other_index) {
+      if (index == other_index) {
+        continue;
+      }
+      if (DelayPowerDominates(selection_pool[other_index], selection_pool[index])) {
+        is_pareto = false;
+        break;
+      }
+    }
+    if (is_pareto) {
+      pareto_front.push_back(&selection_pool[index]);
+    }
+  }
+
+  std::ranges::sort(pareto_front, [](const icts::HTreeTopologyChar* lhs, const icts::HTreeTopologyChar* rhs) -> bool {
+    return lhs != nullptr && rhs != nullptr && PreferPowerDelayOrder(*lhs, *rhs);
+  });
+
+  DelayPowerSelectionSummary summary{
+      .frontier_selection_pool_size = raw_selection_pool.size(),
+      .selection_pool_size = selection_pool.size(),
+      .pareto_solution_count = pareto_front.size(),
+      .median_uses_lower_index = pareto_front.size() > 1U && (pareto_front.size() % 2U == 0U),
+  };
+  if (!pareto_front.empty()) {
+    summary.pareto_power_median_index = (pareto_front.size() - 1U) / 2U;
+  }
+
+  const auto selected_it = std::ranges::find_if(pareto_front, [&result](const icts::HTreeTopologyChar* entry) -> bool {
+    return entry != nullptr && IsSameCharEntry(*entry, *result.best_char);
+  });
+  if (selected_it != pareto_front.end()) {
+    summary.selected_on_pareto_front = true;
+    summary.selected_pareto_power_order_index = static_cast<std::size_t>(selected_it - pareto_front.begin());
+  }
+
+  return summary;
 }
 
 auto BuildDelayPowerTooltip(const DelayPowerPoint& point) -> std::string
@@ -682,9 +777,8 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
   output_stream << common::visualization::detail::kSvgBackgroundRect;
 
   output_stream << R"(<g font-family="monospace" fill="#1f2933">)";
-  output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Normalized Delay-Power Frontier</text>)";
-  output_stream
-      << R"(<text x="36" y="46" font-size="12">Lower-left is better. Orange points are Pareto-optimal. Purple point is selected.</text>)";
+  output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Pattern-Representative Delay-Power Frontier</text>)";
+  output_stream << R"(<text x="36" y="46" font-size="12">Each point is one topology pattern representative. Lower-left is better.</text>)";
   output_stream << R"(<rect x=")" << FormatSvgNumber(plot_left) << R"(" y=")" << FormatSvgNumber(plot_top) << R"(" width=")"
                 << FormatSvgNumber(plot_width) << R"(" height=")" << FormatSvgNumber(plot_height)
                 << R"(" fill="#ffffff" fill-opacity="0.85" stroke="#d0d7de" />)";
@@ -765,7 +859,7 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
   output_stream << R"(<g font-size="12">)";
   output_stream << R"(<rect x="478" y="60" width="200" height="92" rx="6" fill="#ffffff" fill-opacity="0.9" stroke="#d0d7de" />)";
   output_stream << R"(<circle cx="494" cy="84" r="4.5" fill="#94a3b8" stroke="#64748b" stroke-width="1.2" />)";
-  output_stream << R"(<text x="508" y="88">feasible solution</text>)";
+  output_stream << R"(<text x="508" y="88">pattern representative</text>)";
   output_stream << R"(<circle cx="494" cy="108" r="5.0" fill="#e76f51" stroke="#91361f" stroke-width="1.2" />)";
   output_stream << R"(<text x="508" y="112">Pareto front</text>)";
   output_stream << R"(<circle cx="494" cy="132" r="6.5" fill="#6a3d9a" stroke="#2d1b69" stroke-width="1.2" />)";
@@ -796,8 +890,40 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
          << ", distinct_level_bins=" << result.char_unique_level_bins << ", adapted=" << (result.char_grid_adapted ? "true" : "false")
          << "\n";
   report << "char_limits max_slew_ns=" << result.char_max_slew_ns << ", max_cap_pf=" << result.char_max_cap_pf << "\n";
+  report << "frontier_candidate_solution_count=" << result.candidate_chars.size()
+         << ", candidate_pattern_representative_count=" << result.candidate_pattern_representatives.size() << "\n";
+  report << "frontier_feasible_solution_count=" << result.feasible_chars.size()
+         << ", feasible_pattern_representative_count=" << result.feasible_pattern_representatives.size() << "\n";
   report << "frontier_solution_count=" << delay_power_points.size() << ", pareto_solution_count="
          << std::ranges::count_if(delay_power_points, [](const DelayPowerPoint& point) -> bool { return point.is_pareto; }) << "\n";
+  const auto selection_summary = BuildDelayPowerSelectionSummary(result);
+  if (selection_summary.has_value()) {
+    report << std::setprecision(9);
+    report << "delay_power_selection_summary selection_policy="
+           << (result.used_boundary_fallback ? "boundary_fallback" : "pattern_worst_case_pareto_power_median")
+           << ", frontier_selection_pool_size=" << selection_summary->frontier_selection_pool_size
+           << ", selection_pool_size=" << selection_summary->selection_pool_size
+           << ", pareto_solution_count=" << selection_summary->pareto_solution_count << ", pareto_power_median_index=";
+    if (selection_summary->pareto_power_median_index.has_value()) {
+      report << *selection_summary->pareto_power_median_index;
+    } else {
+      report << "none";
+    }
+    report << ", selected_pareto_power_order_index=";
+    if (selection_summary->selected_pareto_power_order_index.has_value()) {
+      report << *selection_summary->selected_pareto_power_order_index;
+    } else {
+      report << "none";
+    }
+    report << ", median_uses_lower_index=" << (selection_summary->median_uses_lower_index ? "true" : "false")
+           << ", selected_on_pareto_front=" << (selection_summary->selected_on_pareto_front ? "true" : "false");
+    if (result.best_char.has_value()) {
+      report << ", selected_pattern_id=" << result.best_char->get_pattern_id().local_id
+             << ", selected_delay=" << result.best_char->get_delay() << ", selected_power=" << result.best_char->get_power();
+    }
+    report << "\n";
+    report << std::setprecision(3);
+  }
   for (const auto& summary : CollectBufferMasterSummaries(result.inserted_insts)) {
     report << "buffer_master=" << summary.cell_master << ", count=" << summary.count;
     if (summary.drive_strength >= 0) {

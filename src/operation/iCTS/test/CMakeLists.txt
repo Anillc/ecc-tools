@@ -19,21 +19,17 @@ target_link_libraries(
 
 add_library(icts_test_realtech_base INTERFACE)
 
-target_include_directories(
-  icts_test_realtech_base
-  INTERFACE
-  ${PROJECT_SOURCE_DIR}/src/platform/data_manager
-  ${PROJECT_SOURCE_DIR}/src/platform/data_manager/config
-)
-
 target_link_libraries(
   icts_test_realtech_base
   INTERFACE
   icts_test_base
+  idm
 )
 
 add_library(icts_test_main OBJECT ${ICTS_TEST}/main.cc)
 target_link_libraries(icts_test_main PUBLIC icts_test_base)
+
+option(ICTS_BUILD_SLOW_REALTECH_TESTS "Build slow iCTS real-tech regression tests" OFF)
 
 function(icts_add_test_executable target_name)
   set(options REALTECH)

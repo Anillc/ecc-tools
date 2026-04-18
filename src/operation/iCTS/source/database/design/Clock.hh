@@ -22,7 +22,10 @@
  */
 
 #pragma once
+
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "Inst.hh"
@@ -46,6 +49,8 @@ class Clock
   auto get_clock_net_name() const -> const std::string& { return _clock_net_name; }
   auto get_clock_source() const -> Pin* { return _clock_source; }
   auto get_loads() const -> const std::vector<Pin*>& { return _loads; }
+  auto get_inserted_insts() const -> const std::vector<Inst*>& { return _inserted_insts; }
+  auto get_inserted_nets() const -> const std::vector<Net*>& { return _inserted_nets; }
 
   // Setter
   auto set_clock_name(const std::string& clock_name) -> void { _clock_name = clock_name; }
@@ -57,6 +62,22 @@ class Clock
   auto add_load(Pin* load) -> void { _loads.push_back(load); }
   auto add_inserted_inst(Inst* inst) -> void { _inserted_insts.push_back(inst); }
   auto add_inserted_net(Net* net) -> void { _inserted_nets.push_back(net); }
+  auto adoptInsertedCtsOwnership(std::vector<std::unique_ptr<Inst>> inserted_inst_storage,
+                                 std::vector<std::unique_ptr<Pin>> inserted_pin_storage,
+                                 std::vector<std::unique_ptr<Net>> inserted_net_storage) -> void
+  {
+    _inserted_inst_storage = std::move(inserted_inst_storage);
+    _inserted_pin_storage = std::move(inserted_pin_storage);
+    _inserted_net_storage = std::move(inserted_net_storage);
+  }
+  auto clearInsertedCtsObjects() -> void
+  {
+    _inserted_insts.clear();
+    _inserted_nets.clear();
+    _inserted_inst_storage.clear();
+    _inserted_pin_storage.clear();
+    _inserted_net_storage.clear();
+  }
 
  private:
   std::string _clock_name = "";
@@ -66,6 +87,9 @@ class Clock
   // CTS Result
   std::vector<Inst*> _inserted_insts;
   std::vector<Net*> _inserted_nets;
+  std::vector<std::unique_ptr<Inst>> _inserted_inst_storage;
+  std::vector<std::unique_ptr<Pin>> _inserted_pin_storage;
+  std::vector<std::unique_ptr<Net>> _inserted_net_storage;
 };
 
 }  // namespace icts

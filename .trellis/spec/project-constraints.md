@@ -86,9 +86,9 @@ Use established iCTS terms:
 
 ### Required Validation
 
-- Run `ecc_dev_tools` on touched paths before handoff.
-- If public headers or CMake targets changed, also run structure checks.
-- Use full `src/operation/iCTS` checks only as a final regression pass.
+- Do not use `ecc_dev_tools` in the default development loop for iCTS tasks.
+- In `finish-work`, run one full `src/operation/iCTS` check before handoff.
+- If that final full check reports in-scope findings, fix them and rerun the same full check until they are clean.
 
 ## Checklist
 
@@ -99,7 +99,7 @@ Before handoff, verify:
 - [ ] New files include the required copyright and Doxygen header
 - [ ] Code follows backend quality, logging, and error-handling specs
 - [ ] CMake was updated before implementation when structure changed
-- [ ] Path-scoped validation has been run
+- [ ] Final full `src/operation/iCTS` `ecc_dev_tools` validation was run in `finish-work`
 - [ ] External-module diffs, if any, remain minimal and are called out for human review
 
 ## Related Docs

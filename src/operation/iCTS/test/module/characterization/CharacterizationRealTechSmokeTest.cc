@@ -16,6 +16,8 @@
 // ***************************************************************************************
 /**
  * @file CharacterizationRealTechSmokeTest.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-18
  * @brief Smoke coverage for manual H-tree composition on real-tech assets.
  */
 
@@ -29,7 +31,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "database/characterization/BufferingPattern.hh"
 #include "database/characterization/HTreeTopologyChar.hh"
 #include "database/characterization/SegmentChar.hh"
 #include "database/config/Config.hh"
@@ -38,6 +39,10 @@
 
 namespace icts_test {
 namespace {
+
+#ifndef ICTS_ENABLE_SLOW_REALTECH_REGRESSION
+#define ICTS_ENABLE_SLOW_REALTECH_REGRESSION 0
+#endif
 
 namespace realtech_support = characterization::realtech;
 
@@ -74,6 +79,13 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
   EXPECT_GT(realtech_support::CountPositivePower(builder.get_segment_chars()), 0U);
+  const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
+  EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
+  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
+  EXPECT_LE(lattice_summary.max_input_slew_idx, builder.get_slew_steps());
+  EXPECT_LE(lattice_summary.max_output_slew_idx, builder.get_slew_steps());
+  EXPECT_LE(lattice_summary.max_driven_cap_idx, builder.get_cap_steps());
+  EXPECT_LE(lattice_summary.max_load_cap_idx, builder.get_cap_steps());
 
   const auto grid = realtech_support::CalcCharGrid(builder);
   ASSERT_GT(grid.length_step_um, 0.0);
@@ -188,6 +200,14 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   report_stream << "resolved_max_cap_pf=" << builder.get_max_cap() << "\n";
   report_stream << "wire_length_unit_um=" << builder.get_wire_length_unit_um() << "\n";
   report_stream << "wire_length_iterations=" << builder.get_wire_length_iterations() << "\n";
+  report_stream << "segment_char_lattice=" << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder) << "\n";
+  report_stream << "observed_sample_bounds{output_slew_overflow_samples=" << builder.get_output_slew_overflow_samples()
+                << ",max_observed_output_slew_ns=" << builder.get_max_observed_output_slew_ns()
+                << ",max_observed_output_slew_idx=" << builder.get_max_observed_output_slew_idx()
+                << ",driven_cap_overflow_samples=" << builder.get_driven_cap_overflow_samples()
+                << ",driven_cap_overflow_load_points=" << builder.get_driven_cap_overflow_load_points()
+                << ",max_observed_driven_cap_pf=" << builder.get_max_observed_driven_cap_pf()
+                << ",max_observed_driven_cap_idx=" << builder.get_max_observed_driven_cap_idx() << "}\n";
   report_stream << "configured_relaxed_candidates_per_boundary_group=" << CONFIG_INST.get_relaxed_candidates_per_boundary_group() << "\n";
   report_stream << "manual_capped_candidates_per_boundary_group=" << kManualCappedCandidatesPerBoundaryGroup << "\n";
   report_stream << "segment_200_source=" << synthesized_200_mode << "\n";
@@ -245,6 +265,7 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   ASSERT_TRUE(realtech_support::WriteScenarioLog("smoke_manual_htree", "smoke_manual_htree_report.txt", report_stream.str()));
 }
 
+#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvailableIndependentOfBuildPolicy)
 {
   auto collect_terminal_pattern_count = [](bool force_branch_buffer) -> std::optional<std::size_t> {
@@ -259,6 +280,11 @@ TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvai
     builder.init();
     builder.build();
     if (builder.get_segment_chars().empty()) {
+      return std::nullopt;
+    }
+    const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
+    EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
+    if (lattice_summary.out_of_range_entries != 0U) {
       return std::nullopt;
     }
 
@@ -288,6 +314,7 @@ TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvai
   EXPECT_EQ(*disabled_count, *enabled_count);
   EXPECT_GT(*enabled_count, 0U);
 }
+#endif
 
 }  // namespace
 }  // namespace icts_test

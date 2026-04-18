@@ -31,6 +31,34 @@
 namespace icts {
 
 /**
+ * @brief Source/sink boundary strength state for monotonic buffer composition.
+ *
+ * Strength ranks are ordered weak -> strong, so a source-to-sink monotonic
+ * pattern must keep ranks non-increasing across concatenation boundaries.
+ * A zero rank means the pattern exposes no buffer on that boundary.
+ */
+struct MonotonicBoundaryState
+{
+  unsigned source_strength_rank = 0U;
+  unsigned sink_strength_rank = 0U;
+
+  auto operator==(const MonotonicBoundaryState& rhs) const -> bool = default;
+
+  auto canComposeWith(const MonotonicBoundaryState& downstream) const -> bool
+  {
+    return sink_strength_rank == 0U || downstream.source_strength_rank == 0U || sink_strength_rank >= downstream.source_strength_rank;
+  }
+
+  static auto compose(const MonotonicBoundaryState& upstream, const MonotonicBoundaryState& downstream) -> MonotonicBoundaryState
+  {
+    return MonotonicBoundaryState{
+        .source_strength_rank = upstream.source_strength_rank != 0U ? upstream.source_strength_rank : downstream.source_strength_rank,
+        .sink_strength_rank = downstream.sink_strength_rank != 0U ? downstream.sink_strength_rank : upstream.sink_strength_rank,
+    };
+  }
+};
+
+/**
  * @brief Segment buffering pattern.
  *
  * Represents a wire segment with optional buffer insertions.
@@ -45,12 +73,13 @@ class BufferingPattern
   BufferingPattern() = default;
 
   BufferingPattern(unsigned length_idx, PatternId pattern_id, std::vector<double> buffer_positions, std::vector<std::string> cell_masters,
-                   bool has_terminal_branch_buffer = false)
+                   bool has_terminal_branch_buffer = false, MonotonicBoundaryState monotonic_boundary_state = {})
       : _length_idx(length_idx),
         _pattern_id(pattern_id),
         _buffer_positions(std::move(buffer_positions)),
         _cell_masters(std::move(cell_masters)),
-        _has_terminal_branch_buffer(has_terminal_branch_buffer)
+        _has_terminal_branch_buffer(has_terminal_branch_buffer),
+        _monotonic_boundary_state(monotonic_boundary_state)
   {
   }
 
@@ -60,6 +89,7 @@ class BufferingPattern
   auto get_buffer_positions() const -> const std::vector<double>& { return _buffer_positions; }
   auto get_cell_masters() const -> const std::vector<std::string>& { return _cell_masters; }
   auto hasTerminalBranchBuffer() const -> bool { return _has_terminal_branch_buffer; }
+  auto get_monotonic_boundary_state() const -> const MonotonicBoundaryState& { return _monotonic_boundary_state; }
 
   /**
    * @brief Check if this is a pure wire pattern (no buffers).
@@ -77,11 +107,16 @@ class BufferingPattern
    * Upstream pattern comes first, downstream pattern comes after.
    * Buffer positions are renormalized to the combined length.
    */
+  static auto canConcatMonotonic(const BufferingPattern& upstream, const BufferingPattern& downstream) -> bool
+  {
+    return upstream._monotonic_boundary_state.canComposeWith(downstream._monotonic_boundary_state);
+  }
+
   static auto concat(const BufferingPattern& upstream, const BufferingPattern& downstream) -> BufferingPattern
   {
     unsigned total_length = upstream._length_idx + downstream._length_idx;
     if (total_length == 0) {
-      return BufferingPattern{0, PatternId::segment(0), {}, {}, false};
+      return BufferingPattern{0, PatternId::segment(0), {}, {}, false, {}};
     }
 
     double up_ratio = static_cast<double>(upstream._length_idx) / total_length;
@@ -105,7 +140,12 @@ class BufferingPattern
 
     // Note: pattern_id for merged pattern should be assigned by the caller
     return BufferingPattern{
-        total_length, PatternId::segment(0), std::move(merged_positions), std::move(merged_masters), downstream._has_terminal_branch_buffer,
+        total_length,
+        PatternId::segment(0),
+        std::move(merged_positions),
+        std::move(merged_masters),
+        downstream._has_terminal_branch_buffer,
+        MonotonicBoundaryState::compose(upstream._monotonic_boundary_state, downstream._monotonic_boundary_state),
     };
   }
 
@@ -115,6 +155,7 @@ class BufferingPattern
   std::vector<double> _buffer_positions;   ///< Normalized positions in (0, 1]
   std::vector<std::string> _cell_masters;  ///< Cell master names for each buffer
   bool _has_terminal_branch_buffer = false;
+  MonotonicBoundaryState _monotonic_boundary_state;
 };
 
 }  // namespace icts

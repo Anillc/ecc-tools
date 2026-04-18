@@ -17,6 +17,7 @@
 /**
  * @file CharBuilder.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-18
  * @brief Segment characterization builder implementation.
  */
 
@@ -424,6 +425,13 @@ auto CharBuilder::init(const InitOptions& options) -> void
   _char_clock_name.clear();
   _next_pattern_id = 0U;
   _char_circuit_id = 0U;
+  _output_slew_overflow_samples = 0U;
+  _driven_cap_overflow_samples = 0U;
+  _driven_cap_overflow_load_points = 0U;
+  _max_observed_output_slew_ns = 0.0;
+  _max_observed_output_slew_idx = 0U;
+  _max_observed_driven_cap_pf = 0.0;
+  _max_observed_driven_cap_idx = 0U;
 
   _sorted_buffers = collectSortedBuffers();
   const ResolvedValue max_slew_resolution = resolveMaxSlew();
@@ -504,6 +512,14 @@ auto CharBuilder::build() -> void
   schema::ScopedStage build_stage("CharBuilder", "build");
   logformat::TableRows progress_rows;
 
+  _output_slew_overflow_samples = 0U;
+  _driven_cap_overflow_samples = 0U;
+  _driven_cap_overflow_load_points = 0U;
+  _max_observed_output_slew_ns = 0.0;
+  _max_observed_output_slew_idx = 0U;
+  _max_observed_driven_cap_pf = 0.0;
+  _max_observed_driven_cap_idx = 0U;
+
   if (_sorted_buffers.empty()) {
     LOG_WARNING << "CharBuilder: no usable buffers remain after Config/liberty filtering, skip characterization build";
     STA_ADAPTER_INST.finishCharOnly();
@@ -552,7 +568,18 @@ auto CharBuilder::build() -> void
         std::to_string(build_progress.skipped_patterns_infeasible),
         std::to_string(build_progress.executed_sta_samples),
         std::to_string(build_progress.skipped_sta_samples),
+        std::to_string(build_progress.output_slew_overflow_samples),
+        std::to_string(build_progress.driven_cap_overflow_samples),
+        std::to_string(build_progress.driven_cap_overflow_load_points),
     });
+
+    _output_slew_overflow_samples += build_progress.output_slew_overflow_samples;
+    _driven_cap_overflow_samples += build_progress.driven_cap_overflow_samples;
+    _driven_cap_overflow_load_points += build_progress.driven_cap_overflow_load_points;
+    _max_observed_output_slew_ns = std::max(_max_observed_output_slew_ns, build_progress.max_observed_output_slew_ns);
+    _max_observed_output_slew_idx = std::max(_max_observed_output_slew_idx, build_progress.max_observed_output_slew_idx);
+    _max_observed_driven_cap_pf = std::max(_max_observed_driven_cap_pf, build_progress.max_observed_driven_cap_pf);
+    _max_observed_driven_cap_idx = std::max(_max_observed_driven_cap_idx, build_progress.max_observed_driven_cap_idx);
 
     LOG_INFO << "CharBuilder: [RUNNING] wire_length=" << formatFixed(wire_length_um)
              << " um, generated_chars=" << (_segment_chars.size() - char_count_before)
@@ -560,19 +587,40 @@ auto CharBuilder::build() -> void
              << ", feasible_patterns=" << build_progress.feasible_patterns
              << ", skipped_patterns=" << build_progress.skipped_patterns_infeasible
              << ", executed_sta_samples=" << build_progress.executed_sta_samples
-             << ", skipped_sta_samples=" << build_progress.skipped_sta_samples;
+             << ", skipped_sta_samples=" << build_progress.skipped_sta_samples
+             << ", output_slew_overflow_samples=" << build_progress.output_slew_overflow_samples
+             << ", driven_cap_overflow_samples=" << build_progress.driven_cap_overflow_samples
+             << ", driven_cap_overflow_load_points=" << build_progress.driven_cap_overflow_load_points;
   }
 
   if (!progress_rows.empty()) {
-    logInfoTable("CharBuilder Sweep Progress",
-                 {"Wire Length", "Topology Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns", "Skipped Patterns",
-                  "Executed STA Samples", "Skipped STA Samples"},
-                 progress_rows);
+    logInfoTable(
+        "CharBuilder Sweep Progress",
+        {"Wire Length", "Topology Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns", "Skipped Patterns",
+         "Executed STA Samples", "Skipped STA Samples", "Output Slew Overflow", "Driven Cap Overflow", "Driven Cap Overflow Load Points"},
+        progress_rows);
   }
+
+  const schema::KeyValueFields observed_fields = {
+      {"segment_chars", std::to_string(_segment_chars.size())},
+      {"output_slew_overflow_samples", std::to_string(_output_slew_overflow_samples)},
+      {"max_observed_output_slew_ns", logformat::FormatWithUnit(_max_observed_output_slew_ns, "ns")},
+      {"max_observed_output_slew_idx", std::to_string(_max_observed_output_slew_idx)},
+      {"slew_steps", std::to_string(_slew_steps)},
+      {"driven_cap_overflow_samples", std::to_string(_driven_cap_overflow_samples)},
+      {"driven_cap_overflow_load_points", std::to_string(_driven_cap_overflow_load_points)},
+      {"max_observed_driven_cap_pf", logformat::FormatWithUnit(_max_observed_driven_cap_pf, "pF")},
+      {"max_observed_driven_cap_idx", std::to_string(_max_observed_driven_cap_idx)},
+      {"cap_steps", std::to_string(_cap_steps)},
+  };
+  SCHEMA_WRITER_INST.emitKeyValueTable("CharBuilder Observed Sample Bounds", observed_fields);
 
   build_stage.finish({
       {"segment_chars", std::to_string(_segment_chars.size())},
       {"patterns", std::to_string(_buffering_patterns.size())},
+      {"output_slew_overflow_samples", std::to_string(_output_slew_overflow_samples)},
+      {"driven_cap_overflow_samples", std::to_string(_driven_cap_overflow_samples)},
+      {"driven_cap_overflow_load_points", std::to_string(_driven_cap_overflow_load_points)},
   });
   STA_ADAPTER_INST.finishCharOnly();
 }
@@ -796,6 +844,36 @@ auto CharBuilder::analyzePatternFeasibility(const TopologyDesc& topo, const std:
   return PatternFeasibility{.is_pattern_feasible = true, .max_load_pf = max_external_load_pf};
 }
 
+auto CharBuilder::tryMakeStoredSampleIndices(unsigned input_slew_idx, unsigned load_cap_idx, double output_slew_ns, double driven_cap_pf,
+                                             BuildProgress& build_progress) const -> std::optional<StoredSampleIndices>
+{
+  const unsigned output_slew_idx = discretizeLatticeValue(output_slew_ns, _max_slew, _slew_steps);
+  const unsigned driven_cap_idx = discretizeLatticeValue(driven_cap_pf, _max_cap, _cap_steps);
+
+  build_progress.max_observed_output_slew_ns = std::max(build_progress.max_observed_output_slew_ns, output_slew_ns);
+  build_progress.max_observed_output_slew_idx = std::max(build_progress.max_observed_output_slew_idx, output_slew_idx);
+  build_progress.max_observed_driven_cap_pf = std::max(build_progress.max_observed_driven_cap_pf, driven_cap_pf);
+  build_progress.max_observed_driven_cap_idx = std::max(build_progress.max_observed_driven_cap_idx, driven_cap_idx);
+
+  const auto observed_output_slew_idx = tryDiscretizeObservedValue(output_slew_ns, _max_slew, _slew_steps);
+  if (!observed_output_slew_idx.has_value()) {
+    ++build_progress.output_slew_overflow_samples;
+    return std::nullopt;
+  }
+  const auto observed_driven_cap_idx = tryDiscretizeObservedValue(driven_cap_pf, _max_cap, _cap_steps);
+  if (!observed_driven_cap_idx.has_value()) {
+    ++build_progress.driven_cap_overflow_samples;
+    return std::nullopt;
+  }
+
+  return StoredSampleIndices{
+      .input_slew_idx = input_slew_idx,
+      .output_slew_idx = *observed_output_slew_idx,
+      .driven_cap_idx = *observed_driven_cap_idx,
+      .load_cap_idx = load_cap_idx,
+  };
+}
+
 auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, BuildProgress& build_progress)
     -> void
 {
@@ -824,7 +902,7 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     buffer_positions_norm.push_back(1.0);
   }
 
-  const unsigned length_idx = discretize(total_length_um, _max_length, _wire_length_iterations);
+  const unsigned length_idx = discretizeLatticeValue(total_length_um, _max_length, _wire_length_iterations);
 
   const PatternId pid = PatternId::segment(_next_pattern_id);
   BufferingPattern pattern(length_idx, pid, buffer_positions_norm, buf_masters, topo.has_terminal_branch_buffer);
@@ -873,6 +951,29 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
       continue;
     }
 
+    double driven_cap_pf = 0.0;
+    if (!buf_masters.empty()) {
+      driven_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(buf_masters.front());
+      driven_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
+    } else {
+      driven_cap_pf = load_pf;
+      for (const double seg_len_um : topo.wire_segments_um) {
+        driven_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
+      }
+    }
+
+    build_progress.max_observed_driven_cap_pf = std::max(build_progress.max_observed_driven_cap_pf, driven_cap_pf);
+    build_progress.max_observed_driven_cap_idx
+        = std::max(build_progress.max_observed_driven_cap_idx, discretizeLatticeValue(driven_cap_pf, _max_cap, _cap_steps));
+    const auto driven_cap_idx = tryDiscretizeObservedValue(driven_cap_pf, _max_cap, _cap_steps);
+    if (!driven_cap_idx.has_value()) {
+      ++build_progress.skipped_load_points;
+      build_progress.skipped_sta_samples += _slews_to_test.size();
+      build_progress.driven_cap_overflow_samples += _slews_to_test.size();
+      ++build_progress.driven_cap_overflow_load_points;
+      continue;
+    }
+
     setCharParasitics(topo, effective_load);
     if (kEnableCharPowerSampling && power_context_ready) {
       const bool refreshed_power_load = STA_ADAPTER_INST.refreshCharPowerLoad();
@@ -884,6 +985,7 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
     }
 
     bool is_first_slew_sample_for_load = true;
+    const unsigned load_cap_idx = discretizeLatticeValue(load_pf, _max_cap, _cap_steps);
     for (const double input_slew_ns : _slews_to_test) {
       if (is_first_slew_sample_for_load) {
         STA_ADAPTER_INST.prepareCharTimingSample();
@@ -905,6 +1007,7 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
       ++build_progress.executed_sta_samples;
 
       const double delay_ns = STA_ADAPTER_INST.queryCharClockAT(_char_clock_name);
+      const unsigned input_slew_idx = discretizeLatticeValue(input_slew_ns, _max_slew, _slew_steps);
 
       const double output_slew_ns = STA_ADAPTER_INST.queryCharSlew();
 
@@ -920,26 +1023,17 @@ auto CharBuilder::characterizeTopology(const TopologyDesc& topo, const std::vect
         }
       }
 
-      double input_cap_pf = 0.0;
-      if (!buf_masters.empty()) {
-        input_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(buf_masters.front());
-        input_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
-      } else {
-        input_cap_pf = load_pf;
-        for (const double seg_len_um : topo.wire_segments_um) {
-          input_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
-        }
+      const auto stored_sample_indices
+          = tryMakeStoredSampleIndices(input_slew_idx, load_cap_idx, output_slew_ns, driven_cap_pf, build_progress);
+      is_first_slew_sample_for_load = false;
+      if (!stored_sample_indices.has_value()) {
+        continue;
       }
 
-      const unsigned input_slew_idx = discretize(input_slew_ns, _max_slew, _slew_steps);
-      const unsigned output_slew_idx = discretize(output_slew_ns, _max_slew, _slew_steps);
-      const unsigned driven_cap_idx = discretize(input_cap_pf, _max_cap, _cap_steps);
-      const unsigned load_cap_idx = discretize(load_pf, _max_cap, _cap_steps);
-
-      const CharCore core(input_slew_idx, output_slew_idx, driven_cap_idx, load_cap_idx, delay_ns, power_w, pid);
+      const CharCore core(stored_sample_indices->input_slew_idx, stored_sample_indices->output_slew_idx,
+                          stored_sample_indices->driven_cap_idx, stored_sample_indices->load_cap_idx, delay_ns, power_w, pid);
       const SegmentChar seg_char(core, length_idx);
       _segment_chars.push_back(seg_char);
-      is_first_slew_sample_for_load = false;
     }
   }
 
@@ -1052,13 +1146,24 @@ auto CharBuilder::destroyCharCircuit() -> void
 // Discretization: physical value -> bin index in [1, steps]
 // ---------------------------------------------------------------------------
 
-auto CharBuilder::discretize(double value, double max_value, unsigned steps) -> unsigned
+auto CharBuilder::discretizeLatticeValue(double value, double max_value, unsigned steps) -> unsigned
 {
   if (max_value <= 0.0 || steps == 0 || value <= 0.0) {
     return 0;
   }
-  const double step_size = max_value / steps;
+  const double step_size = max_value / static_cast<double>(steps);
   return static_cast<unsigned>(std::ceil(value / step_size));
+}
+
+auto CharBuilder::tryDiscretizeObservedValue(double value, double max_value, unsigned steps) -> std::optional<unsigned>
+{
+  if (value <= 0.0 || max_value <= 0.0 || steps == 0U) {
+    return std::nullopt;
+  }
+  if (value > max_value + kLengthLatticeEpsilon) {
+    return std::nullopt;
+  }
+  return std::clamp(discretizeLatticeValue(value, max_value, steps), 1U, steps);
 }
 
 }  // namespace icts

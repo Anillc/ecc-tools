@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -44,7 +45,6 @@ class HTreeBuilder
   struct BuildOptions
   {
     std::optional<bool> force_branch_buffer = std::nullopt;
-    std::optional<bool> force_leaf_branch_buffer = std::nullopt;
     std::optional<bool> force_leaf_unbuffered = std::nullopt;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
@@ -57,7 +57,10 @@ class HTreeBuilder
     unsigned aligned_length_idx = 0;
     double aligned_length_um = 0.0;
     bool is_leaf_level = false;
+    bool selected_has_any_buffer = false;
     bool selected_has_terminal_branch_buffer = false;
+    std::string selected_leaf_buffer_cell_master;
+    std::string selected_terminal_cell_master;
     PatternId segment_pattern_id = PatternId::segment(0);
   };
 
@@ -72,7 +75,9 @@ class HTreeBuilder
     std::optional<HTreeTopologyChar> best_char = std::nullopt;
     std::optional<HTreeTopologyPattern> best_pattern = std::nullopt;
     std::vector<HTreeTopologyChar> candidate_chars;
+    std::vector<HTreeTopologyChar> candidate_pattern_representatives;
     std::vector<HTreeTopologyChar> feasible_chars;
+    std::vector<HTreeTopologyChar> feasible_pattern_representatives;
     double char_wire_length_unit_um = 0.0;
     unsigned char_wire_length_iterations = 0U;
     unsigned char_unique_level_bins = 0U;
@@ -82,8 +87,6 @@ class HTreeBuilder
     unsigned char_slew_steps = 0U;
     unsigned char_cap_steps = 0U;
     bool force_branch_buffer = false;
-    // Compatibility alias for older callers that still inspect the leaf-named field.
-    bool force_leaf_branch_buffer = false;
     bool force_leaf_unbuffered = false;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<unsigned> top_input_slew_floor_idx = std::nullopt;
@@ -92,6 +95,7 @@ class HTreeBuilder
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;
+    std::size_t pruned_leaf_single_load_buffers = 0U;
 
     std::vector<std::unique_ptr<Inst>> inst_storage;
     std::vector<std::unique_ptr<Pin>> pin_storage;

@@ -1,0 +1,11 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Review new iCTS files, naming, validation order, and full-scope acceptance constraints"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify module/test placement and CMake layering for new synthesis flow"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review include order, dependency visibility, naming, and validation coverage"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Review ownership and raw-pointer borrowing across Config/Clock/Pin/Net changes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review invalid-input and propagation failure handling"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review LOG_* usage and flow-level summary output"}
+{"file": "src/operation/iCTS/source/flow/htree/HTreeBuilder.cc", "reason": "Reference behavior for H-tree materialization and boundary options during review"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review config-to-flow-to-clock ownership and boundary assumptions"}
+{"file": "src/operation/iCTS/test/flow/htree/HTreeBuilderRealTechSmokeTest.cc", "reason": "Reference assertions for real-tech H-tree smoke review"}

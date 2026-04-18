@@ -67,13 +67,16 @@ Use this include order, with blank lines between groups:
 
 Use the repository-local checker at `.trellis/ecc_dev_tools/check.py`.
 
-Recommended flow:
+Default iCTS workflow:
 
 ```bash
-python3 ./.trellis/ecc_dev_tools/check.py check --path <touched-path>
-python3 ./.trellis/ecc_dev_tools/check.py check --path <touched-path> --preset structure
-python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS --no-fail-on-findings --quiet
+python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS
 ```
+
+Guidance:
+- Do not run `ecc_dev_tools` during the normal edit/build/test loop unless you are explicitly debugging the checker itself.
+- Reserve `ecc_dev_tools` for the final `finish-work` pass.
+- Treat the final full-module pass as the source of truth; if it reports in-scope findings, fix them and rerun the same full pass until they are clean.
 
 Detailed checker usage, presets, outputs, suppressions, and tool behavior live in `../../ecc_dev_tools/README.md`.
 
@@ -86,9 +89,8 @@ Before handoff, verify:
 - [ ] Headers are minimal and self-contained
 - [ ] Include order is correct
 - [ ] CMake dependencies use the correct visibility
-- [ ] Public-header changes were checked with `--preset structure`
 - [ ] IWYU findings were fixed or explicitly justified
-- [ ] Path-scoped `ecc_dev_tools` validation has been run
+- [ ] Final full `src/operation/iCTS` `ecc_dev_tools` validation was run in `finish-work`
 
 ## Related Docs
 

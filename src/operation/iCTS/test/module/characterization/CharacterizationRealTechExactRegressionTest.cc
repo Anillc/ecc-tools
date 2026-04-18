@@ -16,6 +16,8 @@
 // ***************************************************************************************
 /**
  * @file CharacterizationRealTechExactRegressionTest.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-18
  * @brief Exact compose and exact join regression coverage on real-tech assets.
  */
 
@@ -57,6 +59,13 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemain
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
+  const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
+  EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
+  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
+  EXPECT_LE(lattice_summary.max_input_slew_idx, builder.get_slew_steps());
+  EXPECT_LE(lattice_summary.max_output_slew_idx, builder.get_slew_steps());
+  EXPECT_LE(lattice_summary.max_driven_cap_idx, builder.get_cap_steps());
+  EXPECT_LE(lattice_summary.max_load_cap_idx, builder.get_cap_steps());
   const auto grid = realtech_support::CalcCharGrid(builder);
   ASSERT_GT(grid.length_step_um, 0.0);
 
@@ -121,6 +130,13 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemain
   report_stream << std::setprecision(3);
   report_stream << "scenario=exact_regression\n";
   report_stream << "usable_buffers=" << realtech_support::JoinStrings(usable_buffers) << "\n";
+  report_stream << "segment_char_lattice=" << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder) << "\n";
+  report_stream << "observed_sample_bounds{output_slew_overflow_samples=" << builder.get_output_slew_overflow_samples()
+                << ",max_observed_output_slew_ns=" << builder.get_max_observed_output_slew_ns()
+                << ",max_observed_output_slew_idx=" << builder.get_max_observed_output_slew_idx()
+                << ",driven_cap_overflow_samples=" << builder.get_driven_cap_overflow_samples()
+                << ",max_observed_driven_cap_pf=" << builder.get_max_observed_driven_cap_pf()
+                << ",max_observed_driven_cap_idx=" << builder.get_max_observed_driven_cap_idx() << "}\n";
   report_stream << "exact_segment_compose{lhs=50um,rhs=50um,target=100um,raw_count=" << exact_segment_100_raw.size()
                 << ",frontier_count=" << exact_segment_100_frontier.size() << "}\n";
   report_stream << "exact_htree_frontier_counts{leaf=" << leaf_stage.frontier_entries.size() << ",mid=" << mid_stage.frontier_entries.size()

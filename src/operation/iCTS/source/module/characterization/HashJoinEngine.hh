@@ -61,6 +61,15 @@ using PrunerGroupKeyT = typename PrunerT::GroupKey;
 template <class PrunerT>
 using PrunerGroupKeyHashT = typename PrunerT::GroupKeyHash;
 
+template <class CombinerT, class CharT>
+inline auto CanCompose(const CombinerT& combiner, const CharT& upstream, const CharT& downstream) -> bool
+{
+  if constexpr (requires { combiner.canCompose(upstream.get_pattern_id(), downstream.get_pattern_id()); }) {
+    return static_cast<bool>(combiner.canCompose(upstream.get_pattern_id(), downstream.get_pattern_id()));
+  }
+  return true;
+}
+
 /**
  * @brief Hash-Join concatenation of two tables.
  *
@@ -98,7 +107,7 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
       grouped_out.reserve(out.size());
 
       for (auto& existing : out) {
-        unsigned group = pruner->groupKey(existing);
+        const auto group = pruner->groupKey(existing);
         auto [it, inserted] = group_to_index.emplace(group, grouped_out.size());
         if (inserted) {
           grouped_out.emplace_back();
@@ -123,9 +132,12 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
 
         for (std::size_t di : it->second) {
           const auto& down = downstream[di];
+          if (!CanCompose(combiner, up, down)) {
+            continue;
+          }
           PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
           CharT result = Traits::compose(up, down, merged_pid);
-          const unsigned group = pruner->groupKey(result);
+          const auto group = pruner->groupKey(result);
 
           auto [group_it, inserted] = group_to_index.emplace(group, grouped_out.size());
           if (inserted) {
@@ -182,6 +194,9 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
 
     for (std::size_t di : it->second) {
       const auto& down = downstream[di];
+      if (!CanCompose(combiner, up, down)) {
+        continue;
+      }
       PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
       out.push_back(Traits::compose(up, down, merged_pid));
     }
@@ -217,6 +232,9 @@ inline auto HashJoinConcatRawAndFrontier(const std::vector<CharT>& upstream, con
 
     for (const std::size_t di : it->second) {
       const auto& down = downstream[di];
+      if (!CanCompose(combiner, up, down)) {
+        continue;
+      }
       const PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
       CharT result = Traits::compose(up, down, merged_pid);
       raw_out.push_back(result);

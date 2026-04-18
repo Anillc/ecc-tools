@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "characterization/BufferingPattern.hh"
 #include "characterization/HTreeTopologyChar.hh"
 #include "characterization/SegmentChar.hh"
 
@@ -43,6 +44,24 @@ enum class TerminalSemantic : unsigned
   kBranchBuffered = 1U,
 };
 
+struct PatternCompositionState
+{
+  TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
+  MonotonicBoundaryState monotonic_boundary_state{};
+
+  auto operator==(const PatternCompositionState& rhs) const -> bool = default;
+};
+
+inline auto NormalizePatternCompositionState(TerminalSemantic terminal_semantic) -> PatternCompositionState
+{
+  return PatternCompositionState{.terminal_semantic = terminal_semantic};
+}
+
+inline auto NormalizePatternCompositionState(const PatternCompositionState& state) -> PatternCompositionState
+{
+  return state;
+}
+
 struct SegmentFrontierStateKey
 {
   unsigned input_slew_idx = 0U;
@@ -50,6 +69,7 @@ struct SegmentFrontierStateKey
   unsigned output_slew_idx = 0U;
   unsigned load_cap_idx = 0U;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
+  MonotonicBoundaryState monotonic_boundary_state{};
 
   auto operator==(const SegmentFrontierStateKey& rhs) const -> bool = default;
 };
@@ -63,6 +83,8 @@ struct SegmentFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.terminal_semantic)) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     return seed;
   }
 };
@@ -75,6 +97,7 @@ struct HTreeFrontierStateKey
   unsigned output_slew_idx = 0U;
   unsigned load_cap_idx = 0U;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
+  MonotonicBoundaryState monotonic_boundary_state{};
 
   auto operator==(const HTreeFrontierStateKey& rhs) const -> bool = default;
 };
@@ -89,6 +112,8 @@ struct HTreeFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.terminal_semantic)) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     return seed;
   }
 };
@@ -180,33 +205,37 @@ class StateFrontierPruner
   KeyBuilderT _key_builder;
 };
 
-template <class SemanticResolverT>
-inline auto MakeSegmentStateFrontierPruner(SemanticResolverT semantic_resolver)
+template <class StateResolverT>
+inline auto MakeSegmentStateFrontierPruner(StateResolverT state_resolver)
 {
-  auto key_builder = [semantic_resolver = std::move(semantic_resolver)](const SegmentChar& entry) -> SegmentFrontierStateKey {
+  auto key_builder = [state_resolver = std::move(state_resolver)](const SegmentChar& entry) -> SegmentFrontierStateKey {
+    const auto state = NormalizePatternCompositionState(state_resolver(entry));
     return SegmentFrontierStateKey{
         .input_slew_idx = entry.get_input_slew_idx(),
         .driven_cap_idx = entry.get_driven_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
-        .terminal_semantic = semantic_resolver(entry),
+        .terminal_semantic = state.terminal_semantic,
+        .monotonic_boundary_state = state.monotonic_boundary_state,
     };
   };
   return StateFrontierPruner<SegmentChar, SegmentFrontierStateKey, SegmentFrontierStateKeyHash, decltype(key_builder)>(
       std::move(key_builder));
 }
 
-template <class SemanticResolverT>
-inline auto MakeHTreeStateFrontierPruner(SemanticResolverT semantic_resolver)
+template <class StateResolverT>
+inline auto MakeHTreeStateFrontierPruner(StateResolverT state_resolver)
 {
-  auto key_builder = [semantic_resolver = std::move(semantic_resolver)](const HTreeTopologyChar& entry) -> HTreeFrontierStateKey {
+  auto key_builder = [state_resolver = std::move(state_resolver)](const HTreeTopologyChar& entry) -> HTreeFrontierStateKey {
+    const auto state = NormalizePatternCompositionState(state_resolver(entry));
     return HTreeFrontierStateKey{
         .input_slew_idx = entry.get_input_slew_idx(),
         .driven_cap_idx = entry.get_driven_cap_idx(),
         .leaf_driven_cap_idx = entry.get_leaf_driven_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
-        .terminal_semantic = semantic_resolver(entry),
+        .terminal_semantic = state.terminal_semantic,
+        .monotonic_boundary_state = state.monotonic_boundary_state,
     };
   };
   return StateFrontierPruner<HTreeTopologyChar, HTreeFrontierStateKey, HTreeFrontierStateKeyHash, decltype(key_builder)>(
@@ -252,20 +281,20 @@ inline auto BuildStateFrontierImpl(const std::vector<CharT>& chars, const KeyBui
   return frontier_entries;
 }
 
-template <class SemanticResolverT>
-inline auto BuildSegmentStateFrontier(const std::vector<SegmentChar>& chars, const SemanticResolverT& semantic_resolver)
+template <class CompositionStateResolverT>
+inline auto BuildSegmentStateFrontier(const std::vector<SegmentChar>& chars, const CompositionStateResolverT& composition_state_resolver)
     -> std::vector<SegmentChar>
 {
-  auto pruner = MakeSegmentStateFrontierPruner(std::move(semantic_resolver));
+  auto pruner = MakeSegmentStateFrontierPruner(std::move(composition_state_resolver));
   return BuildStateFrontierImpl<SegmentChar, SegmentFrontierStateKey, SegmentFrontierStateKeyHash>(
       chars, [&](const SegmentChar& entry) -> SegmentFrontierStateKey { return pruner.groupKey(entry); }, SortSegmentFrontierEntries);
 }
 
-template <class SemanticResolverT>
-inline auto BuildHTreeStateFrontier(const std::vector<HTreeTopologyChar>& chars, const SemanticResolverT& semantic_resolver)
-    -> std::vector<HTreeTopologyChar>
+template <class CompositionStateResolverT>
+inline auto BuildHTreeStateFrontier(const std::vector<HTreeTopologyChar>& chars,
+                                    const CompositionStateResolverT& composition_state_resolver) -> std::vector<HTreeTopologyChar>
 {
-  auto pruner = MakeHTreeStateFrontierPruner(std::move(semantic_resolver));
+  auto pruner = MakeHTreeStateFrontierPruner(std::move(composition_state_resolver));
   return BuildStateFrontierImpl<HTreeTopologyChar, HTreeFrontierStateKey, HTreeFrontierStateKeyHash>(
       chars, [&](const HTreeTopologyChar& entry) -> HTreeFrontierStateKey { return pruner.groupKey(entry); }, SortHTreeFrontierEntries);
 }

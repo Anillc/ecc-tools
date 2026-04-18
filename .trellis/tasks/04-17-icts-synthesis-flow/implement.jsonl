@@ -1,0 +1,16 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints for new source/test files and validation order"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Place new flow/synthesis module and mirrored tests with correct CMake layering"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include hygiene, dependency visibility, and final validation expectations"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Safe failure behavior for invalid inputs and H-tree propagation failures"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Change crosses config, design DB, flow orchestration, and tests"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Config/Clock/Pin/Net ownership and singleton boundary rules"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Use LOG_* and schema summaries at flow boundaries"}
+{"file": "src/operation/iCTS/source/module/topology/clustering/Clustering.hh", "reason": "Linear clustering facade used by synthesis"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse HTreeBuilder and clustering patterns instead of duplicating flow logic"}
+{"file": "src/operation/iCTS/source/flow/htree/HTreeBuilder.hh", "reason": "Existing caller-facing H-tree flow/result contract to compose from synthesis"}
+{"file": "src/operation/iCTS/source/flow/htree/HTreeBuilder.cc", "reason": "Materialization and boundary-option behavior reused by synthesis"}
+{"file": "src/operation/iCTS/source/database/config/Config.hh", "reason": "Pattern for extending runtime config surface"}
+{"file": "src/operation/iCTS/test/flow/htree/HTreeBuilderRealTechSmokeTest.cc", "reason": "Reference pattern for real-tech flow smoke tests and H-tree assertions"}
+{"file": "src/operation/iCTS/test/module/characterization/support/CharacterizationRealTechTestSupport.hh", "reason": "Reference pattern for temporary real-tech config sessions in tests"}

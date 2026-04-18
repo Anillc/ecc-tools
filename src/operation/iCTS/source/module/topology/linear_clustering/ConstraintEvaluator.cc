@@ -415,7 +415,7 @@ auto ConstraintEvaluator::queryPinCap(const Pin* pin) -> double
     return 0.0;
   }
 
-  if (WRAPPER_INST.get_idb() == nullptr || WRAPPER_INST.get_idb_design() == nullptr) {
+  if (!WRAPPER_INST.is_design_ready()) {
     LOG_WARNING << "Linear clustering pin-cap query degraded: iDB/STA context is not ready, use 0.0 cap for pin " << pin->get_name() << ".";
     _pin_cap_cache[pin] = 0.0;
     return 0.0;

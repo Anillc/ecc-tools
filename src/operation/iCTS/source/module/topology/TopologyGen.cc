@@ -99,6 +99,16 @@ auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
   return build(loads, BiPartitionConfig{});
 }
 
+auto TopologyGen::linearClustering(const std::vector<Pin*>& loads) -> ClusterResult
+{
+  return linearClustering(loads, LinearClusteringConfig{});
+}
+
+auto TopologyGen::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
+{
+  return Clustering::linearClustering(loads, config);
+}
+
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree
 {
   Tree tree;

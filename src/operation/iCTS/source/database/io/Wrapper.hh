@@ -82,12 +82,9 @@ class Wrapper
     _idb2cts_pin_map.clear();
   }
 
-  // Getter
-  auto get_idb() const -> idb::IdbBuilder* { return _idb; }
-  auto get_idb_design() const -> idb::IdbDesign* { return _idb_design; }
-  auto get_idb_layout() const -> idb::IdbLayout* { return _idb_layout; }
-
   auto queryDbUnit() const -> int32_t;
+  auto is_design_ready() const -> bool { return _idb != nullptr && _idb_design != nullptr; }
+  auto is_layout_ready() const -> bool { return _idb != nullptr && _idb_layout != nullptr; }
 
   // Setter
   auto set_idb_design(idb::IdbDesign* design) -> void { _idb_design = design; }

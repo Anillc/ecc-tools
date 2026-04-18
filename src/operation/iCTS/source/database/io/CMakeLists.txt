@@ -5,10 +5,10 @@ target_include_directories(
   PUBLIC
   ${ICTS_DATABASE_IO}
   ${ICTS_DATABASE}
+  PRIVATE
   ${HOME_DATABASE}/data/design
   ${HOME_DATABASE}/data/design/db_design
   ${HOME_DATABASE}/data/design/db_layout
-  PRIVATE
   ${HOME_DATABASE}/manager/builder
 )
 

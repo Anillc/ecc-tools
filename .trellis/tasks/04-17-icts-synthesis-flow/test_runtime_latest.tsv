@@ -1,0 +1,13 @@
+0	PASS	icts_test_common_io_artifact
+0	PASS	icts_test_common_logging
+0	PASS	icts_test_database_spatial
+0	PASS	icts_test_flow_htree
+348	PASS	icts_test_flow_htree_realtech
+0	PASS	icts_test_flow_synthesis
+96	PASS	icts_test_flow_synthesis_realtech
+0	PASS	icts_test_module_characterization
+230	PASS	icts_test_module_characterization_realtech
+1	PASS	icts_test_module_routing
+0	PASS	icts_test_module_topology_gen
+0	PASS	icts_test_module_topology_linear_clustering
+8	PASS	icts_test_module_topology_linear_clustering_realtech

@@ -16,15 +16,19 @@
 // ***************************************************************************************
 /**
  * @file CharacterizationRealTechFallbackTest.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-18
  * @brief Asset-dependent fallback and table-axis coverage on real-tech assets.
  */
 
 #include <gtest/gtest.h>
 
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <optional>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -48,6 +52,30 @@ auto ReadTextFile(const std::filesystem::path& path) -> std::string
   std::ostringstream content_stream;
   content_stream << input_stream.rdbuf();
   return content_stream.str();
+}
+
+auto ReadSchemaFieldValue(const std::string& content, const std::string& field) -> std::optional<std::string>
+{
+  const std::regex row_regex(R"(\|\s*)" + field + R"(\s*\|\s*([^|\n]+?)\s*\|)");
+  std::smatch match;
+  if (!std::regex_search(content, match, row_regex) || match.size() < 2U) {
+    return std::nullopt;
+  }
+  return match[1].str();
+}
+
+auto ReadSchemaUnsignedFieldValue(const std::string& content, const std::string& field) -> std::optional<unsigned long long>
+{
+  const auto value = ReadSchemaFieldValue(content, field);
+  if (!value.has_value()) {
+    return std::nullopt;
+  }
+
+  try {
+    return std::stoull(*value);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
 }
 
 TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBufferHeight)
@@ -173,6 +201,94 @@ TEST(CharacterizationRealTechFallbackTest, TableAxisFallbackMatchesAvailableAsse
     GTEST_SKIP() << "Current real-tech assets cannot directly exercise table-axis-only fallback. "
                  << realtech_support::JoinStrings(limitation_notes);
   }
+}
+
+TEST(CharacterizationRealTechFallbackTest, OverflowSamplesAreSkippedAndReportedWithinLatticeBounds)
+{
+  std::vector<realtech_support::BufferLimitInfo> buffer_infos;
+  std::vector<std::string> usable_buffers;
+  double baseline_max_slew = 0.0;
+  double baseline_max_cap = 0.0;
+
+  {
+    realtech_support::RealTechCharSession baseline_session;
+    if (const auto prepare_error = baseline_session.prepare("overflow_skip_baseline", std::nullopt, 0.0, 0.0); prepare_error.has_value()) {
+      GTEST_SKIP() << *prepare_error;
+      return;
+    }
+
+    buffer_infos = realtech_support::CollectConfiguredBufferLimitInfo();
+    usable_buffers = realtech_support::CollectUsableBufferMasters(buffer_infos);
+    if (usable_buffers.empty()) {
+      GTEST_SKIP() << "No configured buffer has both slew and cap support via port or table limits.";
+      return;
+    }
+
+    baseline_max_slew = realtech_support::MinPositiveResolvedLimit(buffer_infos, usable_buffers, true);
+    baseline_max_cap = realtech_support::MinPositiveResolvedLimit(buffer_infos, usable_buffers, false);
+  }
+
+  ASSERT_GT(baseline_max_slew, 0.0);
+  ASSERT_GT(baseline_max_cap, 0.0);
+  const double constrained_max_slew = baseline_max_slew * 0.5;
+  const double constrained_max_cap = baseline_max_cap * 0.5;
+  ASSERT_GT(constrained_max_slew, 0.0);
+  ASSERT_GT(constrained_max_cap, 0.0);
+
+  realtech_support::RealTechCharSession overflow_session;
+  const auto prepare_error = overflow_session.prepare("overflow_skip_reporting", std::nullopt, constrained_max_slew, constrained_max_cap);
+  ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
+
+  icts::CharBuilder builder;
+  builder.init();
+  EXPECT_DOUBLE_EQ(builder.get_max_slew(), constrained_max_slew);
+  EXPECT_DOUBLE_EQ(builder.get_max_cap(), constrained_max_cap);
+  builder.build();
+
+  ASSERT_FALSE(builder.get_segment_chars().empty());
+  const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
+  EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
+  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
+  EXPECT_LE(lattice_summary.max_input_slew_idx, builder.get_slew_steps());
+  EXPECT_LE(lattice_summary.max_output_slew_idx, builder.get_slew_steps());
+  EXPECT_LE(lattice_summary.max_driven_cap_idx, builder.get_cap_steps());
+  EXPECT_LE(lattice_summary.max_load_cap_idx, builder.get_cap_steps());
+
+  const bool saw_output_overflow = builder.get_output_slew_overflow_samples() > 0U;
+  const bool saw_driven_cap_overflow = builder.get_driven_cap_overflow_samples() > 0U;
+  EXPECT_TRUE(saw_output_overflow || saw_driven_cap_overflow);
+  if (saw_output_overflow) {
+    EXPECT_GT(builder.get_max_observed_output_slew_idx(), builder.get_slew_steps());
+  }
+  if (saw_driven_cap_overflow) {
+    EXPECT_GT(builder.get_max_observed_driven_cap_idx(), builder.get_cap_steps());
+  }
+
+  const auto cts_log_path = common::io::ResolveOutputDir() / "characterization" / "realtech" / "overflow_skip_reporting" / "cts.log";
+  const auto cts_log_content = ReadTextFile(cts_log_path);
+  ASSERT_FALSE(cts_log_content.empty());
+  EXPECT_NE(cts_log_content.find("CharBuilder Observed Sample Bounds"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("output_slew_overflow_samples"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("driven_cap_overflow_samples"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("max_observed_output_slew_idx"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("max_observed_driven_cap_idx"), std::string::npos);
+
+  const auto logged_output_overflow_samples = ReadSchemaUnsignedFieldValue(cts_log_content, "output_slew_overflow_samples");
+  const auto logged_driven_cap_overflow_samples = ReadSchemaUnsignedFieldValue(cts_log_content, "driven_cap_overflow_samples");
+  const auto logged_max_output_slew_idx = ReadSchemaUnsignedFieldValue(cts_log_content, "max_observed_output_slew_idx");
+  const auto logged_max_driven_cap_idx = ReadSchemaUnsignedFieldValue(cts_log_content, "max_observed_driven_cap_idx");
+  ASSERT_TRUE(logged_output_overflow_samples.has_value());
+  ASSERT_TRUE(logged_driven_cap_overflow_samples.has_value());
+  ASSERT_TRUE(logged_max_output_slew_idx.has_value());
+  ASSERT_TRUE(logged_max_driven_cap_idx.has_value());
+  const auto logged_output_overflow_samples_value = logged_output_overflow_samples.value_or(0ULL);
+  const auto logged_driven_cap_overflow_samples_value = logged_driven_cap_overflow_samples.value_or(0ULL);
+  const auto logged_max_output_slew_idx_value = logged_max_output_slew_idx.value_or(0ULL);
+  const auto logged_max_driven_cap_idx_value = logged_max_driven_cap_idx.value_or(0ULL);
+  EXPECT_EQ(logged_output_overflow_samples_value, builder.get_output_slew_overflow_samples());
+  EXPECT_EQ(logged_driven_cap_overflow_samples_value, builder.get_driven_cap_overflow_samples());
+  EXPECT_EQ(logged_max_output_slew_idx_value, builder.get_max_observed_output_slew_idx());
+  EXPECT_EQ(logged_max_driven_cap_idx_value, builder.get_max_observed_driven_cap_idx());
 }
 
 }  // namespace
