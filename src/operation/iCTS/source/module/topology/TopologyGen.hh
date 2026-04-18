@@ -24,24 +24,31 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 #include "Tree.hh"
+#include "clustering/Clustering.hh"
+#include "config/TopologyConfig.hh"
 
 namespace icts {
 
-struct BiPartitionConfig;
-struct ClusterResult;
-struct LinearClusteringConfig;
 class Pin;
 
 class TopologyGen
 {
  public:
+  struct BuildOptions
+  {
+    BiPartitionConfig partition_config;
+    std::optional<unsigned> target_depth = std::nullopt;
+  };
+
   TopologyGen() = delete;
   ~TopologyGen() = default;
 
   static auto build(const std::vector<Pin*>& loads) -> Tree;
+  static auto build(const std::vector<Pin*>& loads, const BuildOptions& options) -> Tree;
   static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree;
   static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
   static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
@@ -55,7 +62,9 @@ class TopologyGen
 
   static auto reportLoadDistribution(const std::vector<Pin*>& loads) -> void;
   static auto reportRootToLeafLengths(const Tree& tree) -> void;
+  static auto calcMaxDepth(std::size_t load_count) -> unsigned;
   static auto calcLeafCount(std::size_t load_count) -> std::size_t;
+  static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth) -> Tree;
   static auto buildFullTree(Tree& tree, const BuildCursor& cursor, int height) -> void;
   static auto embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
                              const BiPartitionConfig& config) -> void;

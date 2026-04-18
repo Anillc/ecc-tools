@@ -133,6 +133,26 @@ auto MaterializeClusterResult(const std::vector<OrderedLoad>& ordered_loads, con
   return result;
 }
 
+auto BuildElectricalSummaries(const PartitionScore& partition) -> std::vector<ClusterElectricalSummary>
+{
+  std::vector<ClusterElectricalSummary> summaries;
+  summaries.reserve(partition.clusters.size());
+  for (const auto& cluster_score : partition.clusters) {
+    const auto& metrics = cluster_score.constraint.metrics;
+    summaries.push_back(ClusterElectricalSummary{
+        .exact = metrics.electrical.exact,
+        .route_success = metrics.electrical.route_success,
+        .sink_count = metrics.fanout,
+        .diameter_dbu = metrics.diameter,
+        .pin_cap_pf = metrics.electrical.pin_cap,
+        .wire_cap_pf = metrics.electrical.wire_cap,
+        .total_cap_pf = metrics.electrical.total_cap,
+        .wirelength_dbu = metrics.wirelength,
+    });
+  }
+  return summaries;
+}
+
 auto RotateOrderedLoads(const std::vector<OrderedLoad>& ordered_loads, std::size_t rotation_offset) -> std::vector<OrderedLoad>
 {
   if (ordered_loads.empty()) {
@@ -177,6 +197,7 @@ auto LinearClustering::run(const std::vector<Pin*>& loads, const LinearClusterin
   const auto sweep_resolution = SequenceSplitter::resolveSweepOffsets(ordered_loads.size(), config);
   const auto materialized_loads = RotateOrderedLoads(ordered_loads, partition.rotation_offset);
   result = MaterializeClusterResult(materialized_loads, partition.segments);
+  result.electrical_summaries = BuildElectricalSummaries(partition);
   LOG_INFO << "Linear clustering done: loads=" << ordered_loads.size() << ", clusters=" << result.clusters.size()
            << ", order_strategy=" << OrderStrategyName(config.order_strategy)
            << ", split_strategy=" << SplitStrategyName(config.split_strategy)

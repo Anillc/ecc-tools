@@ -350,6 +350,11 @@ auto AssertClusteredArtifacts(const synthesis::ClockSynthesisArtifactPaths& arti
   EXPECT_NE(cts_log_content.find("Cluster Center vs H-Tree Leaf Distance Details"), std::string::npos);
   EXPECT_NE(cts_log_content.find("mean_distance_dbu"), std::string::npos);
   EXPECT_NE(cts_log_content.find("median_distance_dbu"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_group_count"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_min"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_max"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_mean"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_median"), std::string::npos);
 
   const auto svg_content = ReadTextFile(artifact_paths.synthesis_svg);
   ASSERT_FALSE(svg_content.empty());
@@ -365,6 +370,11 @@ auto AssertNonClusteredArtifacts(const synthesis::ClockSynthesisArtifactPaths& a
   ASSERT_FALSE(cts_log_content.empty());
   EXPECT_EQ(cts_log_content.find("Cluster Center vs H-Tree Leaf Distance Summary"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("Cluster Center vs H-Tree Leaf Distance Details"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_group_count"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_min"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_max"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_mean"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_median"), std::string::npos);
 
   const auto svg_content = ReadTextFile(artifact_paths.synthesis_svg);
   ASSERT_FALSE(svg_content.empty());
@@ -393,6 +403,58 @@ auto CountTopologyLeafNodes(const icts::Tree& topology) -> std::size_t
     return 0U;
   }
   return levels.back().size();
+}
+
+auto FindSelectedDepthSummary(const icts::HTreeBuilder::BuildResult& result)
+    -> const icts::HTreeBuilder::BuildResult::DepthCandidateSummary*
+{
+  const auto summary_it = std::ranges::find_if(result.depth_candidates, [](const auto& summary) -> bool { return summary.selected; });
+  if (summary_it == result.depth_candidates.end()) {
+    return nullptr;
+  }
+  return &(*summary_it);
+}
+
+auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  ASSERT_FALSE(result.depth_candidates.empty());
+  ASSERT_TRUE(result.selected_depth.has_value());
+
+  const auto topology_levels = result.topology.levels();
+  ASSERT_GT(topology_levels.size(), 1U);
+  const auto max_depth = static_cast<unsigned>(topology_levels.size() - 1U);
+  EXPECT_EQ(result.depth_candidates.size(), std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
+
+  const auto* selected_summary = FindSelectedDepthSummary(result);
+  ASSERT_NE(selected_summary, nullptr);
+  EXPECT_EQ(selected_summary->depth, result.selected_depth.value_or(0U));
+  EXPECT_EQ(selected_summary->depth, result.levels.size());
+  EXPECT_TRUE(selected_summary->success);
+}
+
+auto AssertSelectedLeafCapDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  const auto* selected_summary = FindSelectedDepthSummary(result);
+  ASSERT_NE(selected_summary, nullptr);
+  ASSERT_GT(selected_summary->evaluated_leaf_count, 0U);
+  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_mean_pf);
+  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_median_pf);
+  EXPECT_LE(selected_summary->leaf_cap_mean_pf, selected_summary->leaf_cap_max_pf);
+  EXPECT_LE(selected_summary->leaf_cap_median_pf, selected_summary->leaf_cap_max_pf);
+  if (!selected_summary->used_explicit_leaf_driven_cap) {
+    EXPECT_DOUBLE_EQ(selected_summary->requested_leaf_driven_cap_pf, selected_summary->leaf_cap_max_pf);
+  }
+}
+
+auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  const auto* selected_summary = FindSelectedDepthSummary(result);
+  ASSERT_NE(selected_summary, nullptr);
+  ASSERT_GT(selected_summary->htree_load_group_count, 0U);
+  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_mean_pf);
+  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_median_pf);
+  EXPECT_LE(selected_summary->htree_load_cap_mean_pf, selected_summary->htree_load_cap_max_pf);
+  EXPECT_LE(selected_summary->htree_load_cap_median_pf, selected_summary->htree_load_cap_max_pf);
 }
 
 TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesUnrestrictedHtreeFrontier)
@@ -465,10 +527,16 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
 
   AssertUnrestrictedFrontierHTree(result.htree_result);
   AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
+  AssertDepthCandidateCoverage(result.htree_result);
+  AssertSelectedLeafCapDistribution(result.htree_result);
+  AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), kSynthesisSmokeMaxSlewNs * 0.5);
   EXPECT_TRUE(result.htree_result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_DOUBLE_EQ(result.htree_result.min_leaf_driven_cap_pf.value_or(0.0), kSynthesisSmokeMaxCapPf * 0.5);
+  const auto* clustered_depth_summary = FindSelectedDepthSummary(result.htree_result);
+  ASSERT_NE(clustered_depth_summary, nullptr);
+  EXPECT_DOUBLE_EQ(clustered_depth_summary->requested_leaf_driven_cap_pf, result.htree_result.min_leaf_driven_cap_pf.value_or(0.0));
+  EXPECT_FALSE(clustered_depth_summary->leaf_driven_cap_source.empty());
 
   AssertClusterBufferMastersFollowLeafSemantics(result, expected_cluster_master_name);
   const auto cluster_buffer_insts = CollectClusterBufferInsts(result);
@@ -602,10 +670,16 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
 
   AssertLeafUnbufferedHTree(result.htree_result);
   AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
+  AssertDepthCandidateCoverage(result.htree_result);
+  AssertSelectedLeafCapDistribution(result.htree_result);
+  AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), kSynthesisSmokeMaxSlewNs * 0.5);
   EXPECT_TRUE(result.htree_result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_DOUBLE_EQ(result.htree_result.min_leaf_driven_cap_pf.value_or(0.0), kSynthesisSmokeMaxCapPf * 0.5);
+  const auto* non_clustered_depth_summary = FindSelectedDepthSummary(result.htree_result);
+  ASSERT_NE(non_clustered_depth_summary, nullptr);
+  EXPECT_DOUBLE_EQ(non_clustered_depth_summary->requested_leaf_driven_cap_pf, result.htree_result.min_leaf_driven_cap_pf.value_or(0.0));
+  EXPECT_FALSE(non_clustered_depth_summary->leaf_driven_cap_source.empty());
   EXPECT_TRUE(result.cluster_buffers.empty());
   EXPECT_EQ(CountTopologyLeafNodes(result.htree_result.topology), CalcFloorPowerOfTwo(selected_clock_data.sinks.size()));
 

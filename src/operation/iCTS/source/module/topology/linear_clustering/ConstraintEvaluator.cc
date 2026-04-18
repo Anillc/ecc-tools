@@ -175,32 +175,79 @@ auto UpdateEstimateFromRcTree(ElectricalEstimate& estimate, RCTree& rc_tree) -> 
 auto ConstraintEvaluator::evaluate(const std::vector<OrderedLoad>& ordered_loads, const SegmentRange& segment,
                                    const LinearClusteringConfig& config, bool need_exact_cap) -> ConstraintEvaluation
 {
-  ConstraintEvaluation evaluation;
-  evaluation.legal = false;
-  evaluation.violation = ConstraintViolation::kEmptyCluster;
-
   if (segment.isEmpty() || segment.end > ordered_loads.size()) {
-    return evaluation;
-  }
-
-  evaluation.metrics.fanout = segment.size();
-  if (evaluation.metrics.fanout == 0) {
-    return evaluation;
+    return ConstraintEvaluation{
+        .legal = false,
+        .violation = ConstraintViolation::kEmptyCluster,
+        .metrics = {},
+    };
   }
 
   const auto span_metrics = calcSpan(ordered_loads, segment);
-  evaluation.metrics.diameter = span_metrics.diameter;
-  evaluation.metrics.electrical.synthetic_root = ResolveSyntheticRoot(span_metrics, config);
-  evaluation.metrics.electrical.legalized_root = evaluation.metrics.electrical.synthetic_root;
-  evaluation.metrics.electrical.routed_root = evaluation.metrics.electrical.synthetic_root;
+  const auto has_cap_limit = IsFiniteCapLimit(config.max_cap);
+  const auto need_exact_eval = need_exact_cap && (has_cap_limit || config.always_build_exact_cap);
+  const auto cluster_pins = (has_cap_limit || need_exact_eval) ? collectPins(ordered_loads, segment) : std::vector<Pin*>{};
+  return evaluatePinnedLoads(cluster_pins, segment.size(), span_metrics.diameter, ResolveSyntheticRoot(span_metrics, config), config,
+                             need_exact_cap);
+}
+
+auto ConstraintEvaluator::evaluateLoads(const std::vector<Pin*>& loads, const Point<int>& routing_root,
+                                        const LinearClusteringConfig& config, bool need_exact_cap) -> ConstraintEvaluation
+{
+  std::vector<Pin*> active_loads;
+  active_loads.reserve(loads.size());
+  for (auto* pin : loads) {
+    if (pin != nullptr) {
+      active_loads.push_back(pin);
+    }
+  }
+
+  if (active_loads.empty()) {
+    return ConstraintEvaluation{
+        .legal = false,
+        .violation = ConstraintViolation::kEmptyCluster,
+        .metrics = {},
+    };
+  }
+
+  std::vector<OrderedLoad> ordered_loads;
+  ordered_loads.reserve(active_loads.size());
+  for (std::size_t index = 0; index < active_loads.size(); ++index) {
+    auto* pin = active_loads.at(index);
+    ordered_loads.push_back(OrderedLoad{
+        .pin = pin,
+        .location = pin->get_location(),
+        .original_index = index,
+    });
+  }
+
+  const SegmentRange full_segment{.begin = 0U, .end = ordered_loads.size()};
+  const auto span_metrics = calcSpan(ordered_loads, full_segment);
+  return evaluatePinnedLoads(active_loads, active_loads.size(), span_metrics.diameter, routing_root, config, need_exact_cap);
+}
+
+auto ConstraintEvaluator::evaluatePinnedLoads(const std::vector<Pin*>& loads, std::size_t fanout, int diameter,
+                                              const Point<int>& routing_root, const LinearClusteringConfig& config, bool need_exact_cap)
+    -> ConstraintEvaluation
+{
+  ConstraintEvaluation evaluation;
+  evaluation.legal = false;
+  evaluation.violation = ConstraintViolation::kEmptyCluster;
+  evaluation.metrics.fanout = fanout;
+  if (fanout == 0U) {
+    return evaluation;
+  }
+
+  evaluation.metrics.diameter = diameter;
+  evaluation.metrics.electrical.synthetic_root = routing_root;
+  evaluation.metrics.electrical.legalized_root = routing_root;
+  evaluation.metrics.electrical.routed_root = routing_root;
 
   const auto has_cap_limit = IsFiniteCapLimit(config.max_cap);
   const auto need_exact_eval = need_exact_cap && (has_cap_limit || config.always_build_exact_cap);
-  std::vector<Pin*> cluster_pins;
 
   if (has_cap_limit || need_exact_eval) {
-    cluster_pins = collectPins(ordered_loads, segment);
-    evaluation.metrics.cap_lower_bound = estimatePinCap(cluster_pins);
+    evaluation.metrics.cap_lower_bound = estimatePinCap(loads);
     evaluation.metrics.total_cap = evaluation.metrics.cap_lower_bound;
     evaluation.metrics.electrical.pin_cap = evaluation.metrics.cap_lower_bound;
     evaluation.metrics.electrical.total_cap = evaluation.metrics.cap_lower_bound;
@@ -211,12 +258,12 @@ auto ConstraintEvaluator::evaluate(const std::vector<OrderedLoad>& ordered_loads
     evaluation.metrics.electrical.total_cap = 0.0;
   }
 
-  if (config.max_fanout > 0 && evaluation.metrics.fanout > config.max_fanout) {
+  if (config.max_fanout > 0 && fanout > config.max_fanout) {
     evaluation.violation = ConstraintViolation::kFanout;
     return evaluation;
   }
 
-  if (config.max_diameter > 0 && evaluation.metrics.diameter > config.max_diameter) {
+  if (config.max_diameter > 0 && diameter > config.max_diameter) {
     evaluation.violation = ConstraintViolation::kDiameter;
     return evaluation;
   }
@@ -227,7 +274,7 @@ auto ConstraintEvaluator::evaluate(const std::vector<OrderedLoad>& ordered_loads
   }
 
   if (need_exact_eval) {
-    auto exact_electrical = estimateExactCap(cluster_pins, evaluation.metrics.electrical.synthetic_root, config);
+    auto exact_electrical = estimateExactCap(loads, routing_root, config);
     evaluation.metrics.electrical = exact_electrical;
     evaluation.metrics.total_cap = exact_electrical.total_cap;
     evaluation.metrics.wirelength = exact_electrical.wirelength;

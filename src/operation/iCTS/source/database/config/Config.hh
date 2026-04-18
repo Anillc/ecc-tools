@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -74,6 +75,7 @@ class Config
     _wire_width = 0.0;
     _char_buf_redundancy_pct = 0.0;
     _force_branch_buffer = false;
+    _htree_depth_explore_window = 4;
     _enable_sink_clustering = true;
     _work_dir = "./result/cts";
     _output_def_path = "./result/cts/output";
@@ -102,6 +104,7 @@ class Config
   auto get_buffer_types() const -> const std::vector<std::string>& { return _buffer_types; }
   auto get_char_buf_redundancy_pct() const -> double { return _char_buf_redundancy_pct; }
   auto is_force_branch_buffer() const -> bool { return _force_branch_buffer; }
+  auto get_htree_depth_explore_window() const -> unsigned { return _htree_depth_explore_window; }
   auto is_enable_sink_clustering() const -> bool { return _enable_sink_clustering; }
 
   // file
@@ -137,6 +140,7 @@ class Config
   auto set_buffer_types(const std::vector<std::string>& types) -> void { _buffer_types = types; }
   auto set_char_buf_redundancy_pct(double pct) -> void { _char_buf_redundancy_pct = pct; }
   auto set_force_branch_buffer(bool force_branch_buffer) -> void { _force_branch_buffer = force_branch_buffer; }
+  auto set_htree_depth_explore_window(unsigned window) -> void { _htree_depth_explore_window = std::max(1U, window); }
   auto set_enable_sink_clustering(bool enable_sink_clustering) -> void { _enable_sink_clustering = enable_sink_clustering; }
 
   // file
@@ -175,6 +179,7 @@ class Config
   std::vector<std::string> _buffer_types;
   double _char_buf_redundancy_pct = 0.0;
   bool _force_branch_buffer = false;
+  unsigned _htree_depth_explore_window = 4;
   bool _enable_sink_clustering = true;
 
   // file

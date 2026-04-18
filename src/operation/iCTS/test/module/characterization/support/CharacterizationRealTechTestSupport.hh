@@ -78,6 +78,7 @@ struct ConfigState
   std::vector<std::string> buffer_types;
   double char_buf_redundancy_pct = 0.0;
   bool force_branch_buffer = false;
+  unsigned htree_depth_explore_window = 4U;
   bool enable_sink_clustering = true;
   std::string work_dir;
   std::string output_def_path;

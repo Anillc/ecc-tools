@@ -53,6 +53,7 @@
 #include "Pin.hh"
 #include "Point.hh"
 #include "SegmentChar.hh"
+#include "TopologyConfig.hh"
 #include "Tree.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "characterization/CharBuilder.hh"
@@ -60,6 +61,7 @@
 #include "characterization/HTreeTraits.hh"
 #include "characterization/HashJoinEngine.hh"
 #include "characterization/SegmentTraits.hh"
+#include "clustering/Clustering.hh"
 #include "config/Config.hh"
 #include "geometry/Geometry.hh"
 #include "io/Wrapper.hh"
@@ -99,6 +101,86 @@ struct ResolvedBuildOptions
   std::optional<unsigned> top_input_slew_floor_idx = std::nullopt;
   std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
   std::optional<unsigned> leaf_driven_cap_floor_idx = std::nullopt;
+};
+
+struct LeafDrivenCapResolution
+{
+  std::optional<double> cap_pf = std::nullopt;
+  bool used_explicit_value = false;
+  std::string source = "unconstrained";
+  bool depth_infeasible = false;
+  std::string failure_reason;
+  std::size_t evaluated_leaf_count = 0U;
+  double leaf_cap_min_pf = 0.0;
+  double leaf_cap_max_pf = 0.0;
+  double leaf_cap_mean_pf = 0.0;
+  double leaf_cap_median_pf = 0.0;
+};
+
+struct CapDistributionStats
+{
+  std::size_t group_count = 0U;
+  double cap_min_pf = 0.0;
+  double cap_max_pf = 0.0;
+  double cap_mean_pf = 0.0;
+  double cap_median_pf = 0.0;
+};
+
+struct ActualLoadBoundaryGroup
+{
+  std::size_t node_id = std::numeric_limits<std::size_t>::max();
+  Point<int> anchor;
+  const std::vector<Pin*>* loads = nullptr;
+};
+
+struct ActualLoadLegalitySignature
+{
+  int bottom_most_buffered_level = -1;
+  PatternId segment_pattern_id = PatternId::segment(0);
+
+  auto operator==(const ActualLoadLegalitySignature& rhs) const -> bool = default;
+};
+
+struct ActualLoadLegalitySignatureHash
+{
+  auto operator()(const ActualLoadLegalitySignature& signature) const noexcept -> std::size_t
+  {
+    std::size_t hash_value = std::hash<int>{}(signature.bottom_most_buffered_level);
+    hash_value ^= std::hash<unsigned>{}(signature.segment_pattern_id.pack()) + 0x9e3779b9U + (hash_value << 6U) + (hash_value >> 2U);
+    return hash_value;
+  }
+};
+
+enum class ActualLoadViolation
+{
+  kNone,
+  kMissingTopologyRoot,
+  kMissingTopologyNode,
+  kMissingTopologyLevel,
+  kMissingSegmentPattern,
+  kMissingBufferPosition,
+  kEmptyLoadGroup,
+  kFanout,
+  kPinCapLowerBound,
+  kRoutingFailed,
+  kCapacitance,
+};
+
+struct ActualLoadLegalityResult
+{
+  bool legal = false;
+  bool monotone_hard_fail = false;
+  ActualLoadViolation violation = ActualLoadViolation::kMissingTopologyRoot;
+  std::string failure_reason;
+  CapDistributionStats cap_distribution;
+  int bottom_most_buffered_level = -1;
+  PatternId segment_pattern_id = PatternId::segment(0);
+};
+
+struct ActualLoadLegalityContext
+{
+  std::unordered_map<ActualLoadLegalitySignature, ActualLoadLegalityResult, ActualLoadLegalitySignatureHash> result_by_signature;
+  int max_monotone_failed_level = std::numeric_limits<int>::min();
 };
 
 enum class SegmentEntrySelection
@@ -522,6 +604,7 @@ class BufferPortCache
 auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -> std::vector<const HTreeTopologyChar*>;
 auto PreferDelayPowerTieBreak(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool;
 auto PreferPowerMedianOrder(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool;
+auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
 
 struct StructuralPatternKey
 {
@@ -564,6 +647,39 @@ class TopologyPatternStructuralKeyCache
 
  private:
   std::unordered_map<PatternId, StructuralPatternKey> _key_by_pattern;
+};
+
+struct CandidateBuildEvaluation
+{
+  unsigned depth = 0U;
+  std::size_t leaf_count = 0U;
+  ResolvedBuildOptions resolved_options;
+  std::vector<HTreeBuilder::LevelPlan> levels;
+  bool success = false;
+  std::string failure_reason;
+  std::optional<unsigned> failure_level = std::nullopt;
+  std::optional<unsigned> failure_length_idx = std::nullopt;
+  std::vector<HTreeTopologyChar> candidate_chars;
+  std::vector<HTreeTopologyChar> candidate_pattern_representatives;
+  std::vector<HTreeTopologyChar> feasible_chars;
+  std::vector<HTreeTopologyChar> feasible_pattern_representatives;
+  std::optional<HTreeTopologyChar> best_char = std::nullopt;
+  bool used_boundary_fallback = false;
+  std::optional<double> boundary_fallback_score = std::nullopt;
+  std::string boundary_fallback_reason;
+  TopologyPatternRegistry topology_pattern_registry;
+};
+
+struct ActualLoadRepresentativeFilterResult
+{
+  std::vector<HTreeTopologyChar> entries;
+  std::string first_failure_reason;
+};
+
+struct CandidateRepresentativeRef
+{
+  std::size_t candidate_index = 0U;
+  const HTreeTopologyChar* entry = nullptr;
 };
 
 auto resolveSegmentCompositionState(const BufferPatternRegistry& pattern_registry, PatternId pattern_id) -> PatternCompositionState
@@ -1026,6 +1142,510 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
   }
 
   return plans;
+}
+
+auto MakeCandidateLevelPlans(const std::vector<HTreeBuilder::LevelPlan>& full_level_plans, unsigned depth)
+    -> std::vector<HTreeBuilder::LevelPlan>
+{
+  std::vector<HTreeBuilder::LevelPlan> candidate_levels;
+  if (depth == 0U || full_level_plans.empty()) {
+    return candidate_levels;
+  }
+
+  const std::size_t level_count = std::min<std::size_t>(depth, full_level_plans.size());
+  candidate_levels.reserve(level_count);
+  for (std::size_t level_index = 0; level_index < level_count; ++level_index) {
+    auto level = full_level_plans.at(level_index);
+    level.is_leaf_level = (level_index + 1U == level_count);
+    level.selected_has_any_buffer = false;
+    level.selected_has_terminal_branch_buffer = false;
+    level.selected_leaf_buffer_cell_master.clear();
+    level.selected_terminal_cell_master.clear();
+    level.segment_pattern_id = PatternId::segment(0);
+    candidate_levels.push_back(std::move(level));
+  }
+
+  return candidate_levels;
+}
+
+auto CountCandidateLeafNodes(const Tree& topology, unsigned depth) -> std::size_t
+{
+  const auto topology_levels = topology.levels();
+  if (depth == 0U || depth >= topology_levels.size()) {
+    return 0U;
+  }
+  return topology_levels.at(depth).size();
+}
+
+auto ResolveDepthCandidates(unsigned max_depth, const HTreeBuilder::BuildOptions& options) -> std::vector<unsigned>
+{
+  if (max_depth == 0U) {
+    return {};
+  }
+
+  if (options.target_depth.has_value()) {
+    const unsigned resolved_depth = std::clamp(*options.target_depth, 1U, max_depth);
+    return {resolved_depth};
+  }
+
+  const unsigned requested_window = options.depth_explore_window.value_or(CONFIG_INST.get_htree_depth_explore_window());
+  const unsigned resolved_window = std::max(1U, std::min(requested_window, max_depth));
+
+  std::vector<unsigned> candidates;
+  candidates.reserve(resolved_window);
+  for (unsigned offset = 0U; offset < resolved_window; ++offset) {
+    candidates.push_back(max_depth - offset);
+  }
+  return candidates;
+}
+
+auto ExceedsLeafFanoutCapacity(std::size_t load_count, std::size_t leaf_count, std::size_t max_fanout) -> bool
+{
+  if (max_fanout == 0U) {
+    return false;
+  }
+  if (leaf_count == 0U) {
+    return load_count > 0U;
+  }
+  if (leaf_count > std::numeric_limits<std::size_t>::max() / max_fanout) {
+    return false;
+  }
+  return load_count > leaf_count * max_fanout;
+}
+
+auto CalcMedianCapPf(std::vector<double> caps_pf) -> double
+{
+  if (caps_pf.empty()) {
+    return 0.0;
+  }
+
+  std::ranges::sort(caps_pf);
+  const std::size_t middle = caps_pf.size() / 2U;
+  if ((caps_pf.size() & 1U) == 1U) {
+    return caps_pf.at(middle);
+  }
+  return (caps_pf.at(middle - 1U) + caps_pf.at(middle)) * 0.5;
+}
+
+auto BuildCapDistributionStats(const std::vector<double>& caps_pf) -> CapDistributionStats
+{
+  CapDistributionStats stats;
+  if (caps_pf.empty()) {
+    return stats;
+  }
+
+  stats.group_count = caps_pf.size();
+  stats.cap_min_pf = *std::ranges::min_element(caps_pf);
+  stats.cap_max_pf = *std::ranges::max_element(caps_pf);
+
+  double total_cap_pf = 0.0;
+  for (const double cap_pf : caps_pf) {
+    total_cap_pf += cap_pf;
+  }
+  stats.cap_mean_pf = total_cap_pf / static_cast<double>(caps_pf.size());
+  stats.cap_median_pf = CalcMedianCapPf(caps_pf);
+  return stats;
+}
+
+auto BuildLeafElectricalConfig() -> LinearClusteringConfig
+{
+  LinearClusteringConfig config;
+  config.max_fanout = CONFIG_INST.get_max_fanout();
+  config.max_diameter = std::numeric_limits<int>::max();
+  config.max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
+  config.enable_exact_cap = true;
+  config.always_build_exact_cap = true;
+  config.scoring_strategy = LinearScoringStrategy::kTotalWirelength;
+  return config;
+}
+
+auto BuildLeafFeasibilityReason(std::size_t node_id, const Point<int>& anchor, const std::string& detail) -> std::string
+{
+  std::ostringstream stream;
+  stream << "leaf_node_" << node_id << " anchor=(" << anchor.get_x() << "," << anchor.get_y() << ") " << detail;
+  return stream.str();
+}
+
+auto ResolveBottomMostBufferedLevel(const HTreeTopologyPattern& topology_pattern, const BufferPatternRegistry& segment_pattern_registry)
+    -> int
+{
+  const auto& level_segment_pattern_ids = topology_pattern.get_level_segment_pattern_ids();
+  for (int level = static_cast<int>(level_segment_pattern_ids.size()) - 1; level >= 0; --level) {
+    const auto segment_pattern_id = level_segment_pattern_ids.at(static_cast<std::size_t>(level));
+    const auto* segment_pattern = segment_pattern_registry.find(segment_pattern_id);
+    LOG_FATAL_IF(segment_pattern == nullptr) << "HTreeBuilder: missing segment pattern metadata while resolving actual-load boundary.";
+    if (!segment_pattern->get_buffer_positions().empty()) {
+      return level;
+    }
+  }
+  return -1;
+}
+
+auto ResolveActualLoadLegalitySignature(const HTreeTopologyPattern& topology_pattern, const BufferPatternRegistry& segment_pattern_registry)
+    -> ActualLoadLegalitySignature
+{
+  const int bottom_most_buffered_level = ResolveBottomMostBufferedLevel(topology_pattern, segment_pattern_registry);
+  ActualLoadLegalitySignature signature;
+  signature.bottom_most_buffered_level = bottom_most_buffered_level;
+  if (bottom_most_buffered_level >= 0) {
+    signature.segment_pattern_id
+        = topology_pattern.get_level_segment_pattern_ids().at(static_cast<std::size_t>(bottom_most_buffered_level));
+  }
+  return signature;
+}
+
+auto BuildActualLoadFeasibilityReason(std::size_t node_id, const Point<int>& anchor, const std::string& detail) -> std::string
+{
+  std::ostringstream stream;
+  stream << "htree_load_group_node_" << node_id << " anchor=(" << anchor.get_x() << "," << anchor.get_y() << ") " << detail;
+  return stream.str();
+}
+
+auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegalitySignature& signature,
+                                     const BufferPatternRegistry& segment_pattern_registry)
+    -> std::pair<std::vector<ActualLoadBoundaryGroup>, std::string>
+{
+  std::vector<ActualLoadBoundaryGroup> groups;
+
+  const auto* root_node = topology.get_node(topology.get_root());
+  if (root_node == nullptr) {
+    return {std::move(groups), "missing_topology_root"};
+  }
+
+  if (signature.bottom_most_buffered_level < 0) {
+    if (root_node->get_loads().empty()) {
+      return {std::move(groups), "empty_root_load_group"};
+    }
+    groups.push_back(ActualLoadBoundaryGroup{
+        .node_id = root_node->get_id(),
+        .anchor = root_node->get_position(),
+        .loads = &root_node->get_loads(),
+    });
+    return {std::move(groups), {}};
+  }
+
+  const auto topology_levels = topology.levels();
+  const std::size_t boundary_level = static_cast<std::size_t>(signature.bottom_most_buffered_level) + 1U;
+  if (boundary_level >= topology_levels.size()) {
+    return {std::move(groups), "missing_actual_load_boundary_level"};
+  }
+
+  const auto* segment_pattern = segment_pattern_registry.find(signature.segment_pattern_id);
+  if (segment_pattern == nullptr) {
+    return {std::move(groups), "missing_boundary_segment_pattern"};
+  }
+  if (segment_pattern->get_buffer_positions().empty()) {
+    return {std::move(groups), "missing_boundary_buffer_position"};
+  }
+
+  const double last_buffer_position = segment_pattern->get_buffer_positions().back();
+  groups.reserve(topology_levels.at(boundary_level).size());
+  for (const auto node_id : topology_levels.at(boundary_level)) {
+    const auto* node = topology.get_node(node_id);
+    if (node == nullptr) {
+      return {std::move(groups), "missing_boundary_topology_node"};
+    }
+    if (node->get_loads().empty()) {
+      continue;
+    }
+
+    const auto* parent_node = topology.get_node(node->get_parent());
+    if (parent_node == nullptr) {
+      return {std::move(groups), "missing_boundary_parent_node"};
+    }
+
+    groups.push_back(ActualLoadBoundaryGroup{
+        .node_id = node_id,
+        .anchor = InterpolateManhattanPoint(parent_node->get_position(), node->get_position(), last_buffer_position),
+        .loads = &node->get_loads(),
+    });
+  }
+
+  if (groups.empty()) {
+    return {std::move(groups), "empty_actual_load_groups"};
+  }
+  return {std::move(groups), {}};
+}
+
+auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySignature& signature,
+                                const BufferPatternRegistry& segment_pattern_registry) -> ActualLoadLegalityResult
+{
+  ActualLoadLegalityResult result;
+  result.bottom_most_buffered_level = signature.bottom_most_buffered_level;
+  result.segment_pattern_id = signature.segment_pattern_id;
+
+  const auto [groups, collection_error] = CollectActualLoadBoundaryGroups(topology, signature, segment_pattern_registry);
+  if (!collection_error.empty()) {
+    result.failure_reason = collection_error;
+    if (collection_error == "missing_topology_root") {
+      result.violation = ActualLoadViolation::kMissingTopologyRoot;
+    } else if (collection_error == "missing_actual_load_boundary_level") {
+      result.violation = ActualLoadViolation::kMissingTopologyLevel;
+    } else if (collection_error == "missing_boundary_segment_pattern") {
+      result.violation = ActualLoadViolation::kMissingSegmentPattern;
+    } else if (collection_error == "missing_boundary_buffer_position") {
+      result.violation = ActualLoadViolation::kMissingBufferPosition;
+    } else if (collection_error == "empty_root_load_group" || collection_error == "empty_actual_load_groups") {
+      result.violation = ActualLoadViolation::kEmptyLoadGroup;
+    } else {
+      result.violation = ActualLoadViolation::kMissingTopologyNode;
+    }
+    return result;
+  }
+
+  const auto electrical_config = BuildLeafElectricalConfig();
+  const std::size_t max_fanout = CONFIG_INST.get_max_fanout();
+  for (const auto& group : groups) {
+    const auto* loads = group.loads;
+    if (loads == nullptr || loads->empty()) {
+      result.violation = ActualLoadViolation::kEmptyLoadGroup;
+      result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, "empty_group_loads");
+      return result;
+    }
+    if (max_fanout > 0U && loads->size() > max_fanout) {
+      std::ostringstream detail;
+      detail << "fanout_violation load_count=" << loads->size() << ", max_fanout=" << max_fanout;
+      result.violation = ActualLoadViolation::kFanout;
+      result.monotone_hard_fail = true;
+      result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, detail.str());
+      return result;
+    }
+
+    const auto lower_bound = Clustering::evaluateClusterElectrical(*loads, group.anchor, electrical_config, false);
+    if (!lower_bound.legal) {
+      if (lower_bound.violation == ClusterElectricalViolation::kFanout) {
+        std::ostringstream detail;
+        detail << "fanout_violation load_count=" << loads->size() << ", max_fanout=" << max_fanout;
+        result.violation = ActualLoadViolation::kFanout;
+        result.monotone_hard_fail = true;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, detail.str());
+      } else if (lower_bound.violation == ClusterElectricalViolation::kCapacitance) {
+        std::ostringstream detail;
+        detail << "pin_cap_lower_bound_violation total_cap_pf=" << lower_bound.summary.total_cap_pf;
+        if (CONFIG_INST.has_max_cap()) {
+          detail << ", max_cap_pf=" << CONFIG_INST.get_max_cap();
+        }
+        result.violation = ActualLoadViolation::kPinCapLowerBound;
+        result.monotone_hard_fail = true;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, detail.str());
+      } else {
+        result.violation = ActualLoadViolation::kEmptyLoadGroup;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, "lower_bound_evaluation_failed");
+      }
+      return result;
+    }
+  }
+
+  std::vector<double> total_caps_pf;
+  total_caps_pf.reserve(groups.size());
+  for (const auto& group : groups) {
+    const auto* loads = group.loads;
+    LOG_FATAL_IF(loads == nullptr || loads->empty()) << "HTreeBuilder: actual-load boundary group lost its load set.";
+
+    const auto exact = Clustering::evaluateClusterElectrical(*loads, group.anchor, electrical_config, true);
+    if (!exact.legal) {
+      if (exact.violation == ClusterElectricalViolation::kRoutingFailed) {
+        result.violation = ActualLoadViolation::kRoutingFailed;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, "routing_failed");
+      } else if (exact.violation == ClusterElectricalViolation::kCapacitance) {
+        std::ostringstream detail;
+        detail << "cap_violation total_cap_pf=" << exact.summary.total_cap_pf;
+        if (CONFIG_INST.has_max_cap()) {
+          detail << ", max_cap_pf=" << CONFIG_INST.get_max_cap();
+        }
+        result.violation = ActualLoadViolation::kCapacitance;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, detail.str());
+      } else if (exact.violation == ClusterElectricalViolation::kFanout) {
+        std::ostringstream detail;
+        detail << "fanout_violation load_count=" << loads->size() << ", max_fanout=" << max_fanout;
+        result.violation = ActualLoadViolation::kFanout;
+        result.monotone_hard_fail = true;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, detail.str());
+      } else {
+        result.violation = ActualLoadViolation::kEmptyLoadGroup;
+        result.failure_reason = BuildActualLoadFeasibilityReason(group.node_id, group.anchor, "exact_evaluation_failed");
+      }
+      return result;
+    }
+
+    total_caps_pf.push_back(exact.summary.total_cap_pf);
+  }
+
+  result.cap_distribution = BuildCapDistributionStats(total_caps_pf);
+  result.violation = ActualLoadViolation::kNone;
+  result.legal = true;
+  return result;
+}
+
+auto ResolveActualLoadLegality(const Tree& topology, PatternId topology_pattern_id, const TopologyPatternRegistry& topology_registry,
+                               const BufferPatternRegistry& segment_pattern_registry, ActualLoadLegalityContext& legality_context)
+    -> ActualLoadLegalityResult
+{
+  const auto topology_pattern = topology_registry.materialize(topology_pattern_id);
+  const auto signature = ResolveActualLoadLegalitySignature(topology_pattern, segment_pattern_registry);
+  if (signature.bottom_most_buffered_level <= legality_context.max_monotone_failed_level) {
+    ActualLoadLegalityResult result;
+    result.bottom_most_buffered_level = signature.bottom_most_buffered_level;
+    result.segment_pattern_id = signature.segment_pattern_id;
+    result.violation = ActualLoadViolation::kFanout;
+    std::ostringstream detail;
+    detail << "monotone_pruned_by_bottom_most_buffered_level threshold=" << legality_context.max_monotone_failed_level
+           << ", candidate_level=" << signature.bottom_most_buffered_level;
+    result.failure_reason = detail.str();
+    return result;
+  }
+
+  const auto cache_it = legality_context.result_by_signature.find(signature);
+  if (cache_it != legality_context.result_by_signature.end()) {
+    return cache_it->second;
+  }
+
+  auto evaluated = EvaluateActualLoadLegality(topology, signature, segment_pattern_registry);
+  if (!evaluated.legal && evaluated.monotone_hard_fail) {
+    legality_context.max_monotone_failed_level = std::max(legality_context.max_monotone_failed_level, signature.bottom_most_buffered_level);
+  }
+  return legality_context.result_by_signature.emplace(signature, std::move(evaluated)).first->second;
+}
+
+auto FilterActualLoadLegalRepresentatives(const std::vector<HTreeTopologyChar>& representatives, const Tree& topology,
+                                          const TopologyPatternRegistry& topology_registry,
+                                          const BufferPatternRegistry& segment_pattern_registry,
+                                          ActualLoadLegalityContext& legality_context) -> ActualLoadRepresentativeFilterResult
+{
+  ActualLoadRepresentativeFilterResult result;
+  result.entries.reserve(representatives.size());
+  for (const auto& representative : representatives) {
+    const auto legality = ResolveActualLoadLegality(topology, representative.get_pattern_id(), topology_registry, segment_pattern_registry,
+                                                    legality_context);
+    if (!legality.legal) {
+      if (result.first_failure_reason.empty()) {
+        result.first_failure_reason = legality.failure_reason;
+      }
+      continue;
+    }
+    result.entries.push_back(representative);
+  }
+  return result;
+}
+
+auto EstimateLeafDrivenCapResolution(const Tree& topology, unsigned depth, const HTreeBuilder::BuildOptions& build_options)
+    -> LeafDrivenCapResolution
+{
+  LeafDrivenCapResolution resolution;
+  if (build_options.min_leaf_driven_cap_pf.has_value() && *build_options.min_leaf_driven_cap_pf > 0.0) {
+    resolution.cap_pf = build_options.min_leaf_driven_cap_pf;
+    resolution.used_explicit_value = true;
+    resolution.source = "explicit_build_option";
+  }
+
+  const auto* root = topology.get_node(topology.get_root());
+  if (root == nullptr) {
+    resolution.depth_infeasible = true;
+    resolution.failure_reason = "missing_topology_root";
+    return resolution;
+  }
+
+  const auto topology_levels = topology.levels();
+  if (depth == 0U || depth >= topology_levels.size()) {
+    resolution.depth_infeasible = true;
+    resolution.failure_reason = "invalid_candidate_depth";
+    return resolution;
+  }
+
+  const auto& leaf_node_ids = topology_levels.at(depth);
+  const std::size_t leaf_count = leaf_node_ids.size();
+  const std::size_t load_count = root->get_loads().size();
+  const std::size_t max_fanout = CONFIG_INST.get_max_fanout();
+  if (ExceedsLeafFanoutCapacity(load_count, leaf_count, max_fanout)) {
+    resolution.depth_infeasible = true;
+    std::ostringstream reason;
+    reason << "max_fanout_precheck_failed load_count=" << load_count << ", leaf_count=" << leaf_count << ", max_fanout=" << max_fanout;
+    resolution.failure_reason = reason.str();
+    return resolution;
+  }
+
+  const auto electrical_config = BuildLeafElectricalConfig();
+  std::vector<double> leaf_caps_pf;
+  leaf_caps_pf.reserve(leaf_node_ids.size());
+  for (const auto node_id : leaf_node_ids) {
+    const auto* node = topology.get_node(node_id);
+    if (node == nullptr) {
+      resolution.depth_infeasible = true;
+      resolution.failure_reason = "missing_leaf_node";
+      return resolution;
+    }
+
+    const auto& leaf_loads = node->get_loads();
+    if (leaf_loads.empty()) {
+      continue;
+    }
+    if (max_fanout > 0U && leaf_loads.size() > max_fanout) {
+      resolution.depth_infeasible = true;
+      std::ostringstream detail;
+      detail << "fanout_violation load_count=" << leaf_loads.size() << ", max_fanout=" << max_fanout;
+      resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), detail.str());
+      return resolution;
+    }
+
+    const auto electrical = Clustering::evaluateClusterElectrical(leaf_loads, node->get_position(), electrical_config);
+    if (!electrical.legal) {
+      resolution.depth_infeasible = true;
+      if (electrical.violation == ClusterElectricalViolation::kRoutingFailed) {
+        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), "routing_failed");
+      } else if (electrical.violation == ClusterElectricalViolation::kCapacitance) {
+        std::ostringstream detail;
+        detail << "cap_violation total_cap_pf=" << electrical.summary.total_cap_pf;
+        if (CONFIG_INST.has_max_cap()) {
+          detail << ", max_cap_pf=" << CONFIG_INST.get_max_cap();
+        }
+        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), detail.str());
+      } else if (electrical.violation == ClusterElectricalViolation::kFanout) {
+        std::ostringstream detail;
+        detail << "fanout_violation load_count=" << leaf_loads.size() << ", max_fanout=" << max_fanout;
+        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), detail.str());
+      } else {
+        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), "electrical_evaluation_failed");
+      }
+      return resolution;
+    }
+
+    leaf_caps_pf.push_back(electrical.summary.total_cap_pf);
+  }
+
+  if (load_count > 0U && leaf_caps_pf.empty()) {
+    resolution.depth_infeasible = true;
+    resolution.failure_reason = "empty_leaf_cap_distribution";
+    return resolution;
+  }
+
+  if (!leaf_caps_pf.empty()) {
+    const auto stats = BuildCapDistributionStats(leaf_caps_pf);
+    resolution.evaluated_leaf_count = stats.group_count;
+    resolution.leaf_cap_min_pf = stats.cap_min_pf;
+    resolution.leaf_cap_max_pf = stats.cap_max_pf;
+    resolution.leaf_cap_mean_pf = stats.cap_mean_pf;
+    resolution.leaf_cap_median_pf = stats.cap_median_pf;
+  }
+
+  if (!resolution.used_explicit_value && resolution.evaluated_leaf_count > 0U) {
+    resolution.cap_pf = resolution.leaf_cap_max_pf;
+    resolution.source = "leaf_total_cap_max";
+  }
+  return resolution;
+}
+
+auto ApplyLeafDrivenCapResolution(const ResolvedBuildOptions& base_options, const LeafDrivenCapResolution& cap_resolution,
+                                  const CharBuilder& char_builder) -> ResolvedBuildOptions
+{
+  ResolvedBuildOptions resolved = base_options;
+  resolved.min_leaf_driven_cap_pf = std::nullopt;
+  resolved.leaf_driven_cap_floor_idx = std::nullopt;
+  if (cap_resolution.cap_pf.has_value() && *cap_resolution.cap_pf > 0.0) {
+    resolved.min_leaf_driven_cap_pf = cap_resolution.cap_pf;
+    resolved.leaf_driven_cap_floor_idx
+        = DiscretizeBoundaryValue(*cap_resolution.cap_pf, char_builder.get_max_cap(), char_builder.get_cap_steps());
+  }
+  return resolved;
 }
 
 auto ComposeRelaxedSegmentEntries(const std::vector<SegmentChar>& upstream, const std::vector<SegmentChar>& downstream,
@@ -1521,6 +2141,132 @@ auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::
   return *pareto_front.at(median_index);
 }
 
+auto BuildDelayPowerParetoFront(const std::vector<CandidateRepresentativeRef>& entries) -> std::vector<CandidateRepresentativeRef>
+{
+  std::vector<CandidateRepresentativeRef> pareto_front;
+  pareto_front.reserve(entries.size());
+
+  for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
+    if (entries.at(entry_index).entry == nullptr) {
+      continue;
+    }
+
+    bool dominated = false;
+    for (std::size_t other_index = 0; other_index < entries.size(); ++other_index) {
+      if (entry_index == other_index || entries.at(other_index).entry == nullptr) {
+        continue;
+      }
+      if (DelayPowerDominates(*entries.at(other_index).entry, *entries.at(entry_index).entry)) {
+        dominated = true;
+        break;
+      }
+    }
+
+    if (!dominated) {
+      pareto_front.push_back(entries.at(entry_index));
+    }
+  }
+
+  std::ranges::sort(pareto_front, [](const CandidateRepresentativeRef& lhs, const CandidateRepresentativeRef& rhs) -> bool {
+    LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTreeBuilder: null global candidate representative encountered.";
+    return PreferPowerMedianOrder(*lhs.entry, *rhs.entry);
+  });
+  return pareto_front;
+}
+
+auto SelectBestGlobalRepresentative(const std::vector<CandidateRepresentativeRef>& entries) -> std::optional<CandidateRepresentativeRef>
+{
+  if (entries.empty()) {
+    return std::nullopt;
+  }
+
+  auto pareto_front = BuildDelayPowerParetoFront(entries);
+  if (pareto_front.empty()) {
+    return std::nullopt;
+  }
+
+  const std::size_t median_index = (pareto_front.size() - 1U) / 2U;
+  return pareto_front.at(median_index);
+}
+
+auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
+                            const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,
+                            const BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& resolved_options,
+                            const Tree& topology, ActualLoadLegalityContext& actual_load_legality_context, std::size_t leaf_count,
+                            unsigned depth, double char_max_cap_pf, unsigned char_slew_steps, unsigned char_cap_steps)
+    -> CandidateBuildEvaluation
+{
+  CandidateBuildEvaluation result;
+  result.depth = depth;
+  result.leaf_count = leaf_count;
+  result.resolved_options = resolved_options;
+  result.levels = levels;
+
+  const bool has_boundary_constraints = HasBoundaryConstraints(resolved_options);
+  const auto composition = BuildHTreeComposition(levels, entry_sets_by_length, segment_pattern_registry, resolved_options);
+  if (!composition.success) {
+    result.failure_reason = composition.failure_reason.empty() ? std::string{"empty_frontier"} : composition.failure_reason;
+    result.failure_level = composition.failure_level;
+    result.failure_length_idx = composition.failure_length_idx;
+    return result;
+  }
+
+  result.topology_pattern_registry = composition.topology_pattern_registry;
+  TopologyPatternStructuralKeyCache structural_key_cache;
+  if (has_boundary_constraints) {
+    result.candidate_chars = composition.frontier;
+    result.candidate_pattern_representatives = BuildPatternRepresentativePool(
+        result.candidate_chars, PatternRepresentativeMode::kWorstCaseSelection, result.topology_pattern_registry, structural_key_cache);
+    auto candidate_actual_filter
+        = FilterActualLoadLegalRepresentatives(result.candidate_pattern_representatives, topology, result.topology_pattern_registry,
+                                               segment_pattern_registry, actual_load_legality_context);
+    result.candidate_pattern_representatives = std::move(candidate_actual_filter.entries);
+    result.feasible_chars = FilterBoundaryFeasibleHTreeChars(result.candidate_chars, resolved_options);
+    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
+        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, result.topology_pattern_registry, structural_key_cache);
+    auto feasible_actual_filter
+        = FilterActualLoadLegalRepresentatives(result.feasible_pattern_representatives, topology, result.topology_pattern_registry,
+                                               segment_pattern_registry, actual_load_legality_context);
+    result.feasible_pattern_representatives = std::move(feasible_actual_filter.entries);
+    if (result.candidate_pattern_representatives.empty() && !candidate_actual_filter.first_failure_reason.empty()) {
+      result.failure_reason = candidate_actual_filter.first_failure_reason;
+    }
+    if (result.feasible_pattern_representatives.empty() && result.failure_reason.empty()
+        && !feasible_actual_filter.first_failure_reason.empty()) {
+      result.failure_reason = feasible_actual_filter.first_failure_reason;
+    }
+  } else {
+    result.feasible_chars = composition.frontier;
+    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
+        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, result.topology_pattern_registry, structural_key_cache);
+    auto feasible_actual_filter
+        = FilterActualLoadLegalRepresentatives(result.feasible_pattern_representatives, topology, result.topology_pattern_registry,
+                                               segment_pattern_registry, actual_load_legality_context);
+    result.feasible_pattern_representatives = std::move(feasible_actual_filter.entries);
+    if (result.feasible_pattern_representatives.empty() && !feasible_actual_filter.first_failure_reason.empty()) {
+      result.failure_reason = feasible_actual_filter.first_failure_reason;
+    }
+  }
+
+  if (!result.feasible_pattern_representatives.empty()) {
+    result.best_char = SelectBestHTreeChar(result.feasible_pattern_representatives);
+  } else if (has_boundary_constraints) {
+    result.best_char = SelectBestHTreeChar(result.candidate_pattern_representatives);
+    if (result.best_char.has_value()) {
+      result.used_boundary_fallback = true;
+      result.boundary_fallback_reason = "no_strict_boundary_feasible_solution";
+      result.boundary_fallback_score = CalcBoundaryFallbackScore(*result.best_char, resolved_options, char_slew_steps, char_cap_steps);
+    }
+  }
+
+  result.success = result.best_char.has_value();
+  if (!result.success && result.failure_reason.empty()) {
+    result.failure_reason = "no_actual_load_legal_pattern_representatives";
+  }
+  (void) char_max_cap_pf;
+  return result;
+}
+
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>
 {
   const double clamped_position = std::clamp(normalized_position, 0.0, 1.0);
@@ -1786,8 +2532,9 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
     return;
   }
 
-  const auto levels = result.topology.levels();
-  if (levels.size() <= 1U) {
+  const auto topology_levels = result.topology.levels();
+  const std::size_t candidate_level_count = result.levels.size();
+  if (topology_levels.size() <= 1U || candidate_level_count == 0U || candidate_level_count >= topology_levels.size()) {
     result.success = result.success && result.best_char.has_value();
     return;
   }
@@ -1820,7 +2567,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   std::unordered_map<std::size_t, std::vector<Pin*>> entry_loads_by_node;
   entry_loads_by_node.reserve(result.topology.get_size());
 
-  for (const auto node_id : levels.back()) {
+  for (const auto node_id : topology_levels.at(candidate_level_count)) {
     const auto* node = result.topology.get_node(node_id);
     if (node == nullptr || node->get_loads().empty()) {
       continue;
@@ -1828,12 +2575,12 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
     entry_loads_by_node[node_id] = node->get_loads();
   }
 
-  for (std::size_t reverse_depth = levels.size() - 1U; reverse_depth > 0U; --reverse_depth) {
+  for (std::size_t reverse_depth = candidate_level_count; reverse_depth > 0U; --reverse_depth) {
     const std::size_t depth = reverse_depth - 1U;
     const auto* segment_pattern = level_patterns.at(depth);
     LOG_FATAL_IF(segment_pattern == nullptr) << "HTreeBuilder: missing selected segment pattern metadata during materialization.";
 
-    for (const auto node_id : levels.at(depth)) {
+    for (const auto node_id : topology_levels.at(depth)) {
       const auto* node = result.topology.get_node(node_id);
       if (node == nullptr || node->get_loads().empty()) {
         continue;
@@ -1979,20 +2726,26 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   };
   logInfoTable("HTreeBuilder Characterization Summary", {"Item", "Value", "Detail"}, char_summary_rows);
 
-  const auto resolved_options = ResolveBuildOptions(options, char_builder);
-  result.force_branch_buffer = resolved_options.force_branch_buffer;
-  result.force_leaf_unbuffered = resolved_options.force_leaf_unbuffered;
-  result.min_top_input_slew_ns = resolved_options.min_top_input_slew_ns;
-  result.top_input_slew_floor_idx = resolved_options.top_input_slew_floor_idx;
-  result.min_leaf_driven_cap_pf = resolved_options.min_leaf_driven_cap_pf;
-  result.leaf_driven_cap_floor_idx = resolved_options.leaf_driven_cap_floor_idx;
+  const auto base_resolved_options = ResolveBuildOptions(options, char_builder);
+  result.force_branch_buffer = base_resolved_options.force_branch_buffer;
+  result.force_leaf_unbuffered = base_resolved_options.force_leaf_unbuffered;
+  result.target_depth = options.target_depth;
 
-  result.levels = BuildLevelPlans(result.topology, length_step_um, dbu_per_um);
-  if (result.levels.empty()) {
+  const auto full_level_plans = BuildLevelPlans(result.topology, length_step_um, dbu_per_um);
+  if (full_level_plans.empty()) {
     LOG_WARNING << "HTreeBuilder: failed to derive H-tree level plans from topology.";
     build_stage.skip({{"reason", "empty_level_plans"}});
     return result;
   }
+
+  const unsigned max_depth = static_cast<unsigned>(full_level_plans.size());
+  const auto depth_candidates = ResolveDepthCandidates(max_depth, options);
+  if (depth_candidates.empty()) {
+    LOG_WARNING << "HTreeBuilder: no depth candidates were resolved from topology.";
+    build_stage.skip({{"reason", "empty_depth_candidates"}});
+    return result;
+  }
+  result.depth_explore_window = static_cast<unsigned>(depth_candidates.size());
 
   BufferPatternRegistry segment_pattern_registry;
   for (const auto& pattern : char_builder.get_buffering_patterns()) {
@@ -2000,87 +2753,141 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   }
 
   unsigned max_target_length_idx = 0U;
-  for (const auto& level : result.levels) {
+  for (const auto& level : full_level_plans) {
     max_target_length_idx = std::max(max_target_length_idx, level.aligned_length_idx);
   }
 
   auto entry_sets_by_length = SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_registry, max_target_length_idx);
 
-  TopologyPatternRegistry topology_pattern_registry;
-  const bool has_boundary_constraints = HasBoundaryConstraints(resolved_options);
-  const auto composition = BuildHTreeComposition(result.levels, entry_sets_by_length, segment_pattern_registry, resolved_options);
-  if (!composition.success) {
-    const std::string reason = composition.failure_reason.empty() ? std::string{"empty_frontier"} : composition.failure_reason;
-    result.failure_reason = reason;
-    result.failure_level = composition.failure_level;
-    result.failure_length_idx = composition.failure_length_idx;
-    LOG_WARNING << "HTreeBuilder: failed to synthesize a usable H-tree frontier.";
-    build_stage.skip({{"reason", reason},
-                      {"level", std::to_string(composition.failure_level)},
-                      {"aligned_length_idx", std::to_string(composition.failure_length_idx)}});
-    return result;
-  }
+  std::vector<CandidateBuildEvaluation> candidate_evaluations;
+  candidate_evaluations.reserve(depth_candidates.size());
 
-  topology_pattern_registry = composition.topology_pattern_registry;
-  TopologyPatternStructuralKeyCache structural_key_cache;
-  if (has_boundary_constraints) {
-    result.candidate_chars = std::move(composition.frontier);
-    result.candidate_pattern_representatives = BuildPatternRepresentativePool(
-        result.candidate_chars, PatternRepresentativeMode::kWorstCaseSelection, topology_pattern_registry, structural_key_cache);
-    result.feasible_chars = FilterBoundaryFeasibleHTreeChars(result.candidate_chars, resolved_options);
-    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
-        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, topology_pattern_registry, structural_key_cache);
-  } else {
-    result.feasible_chars = std::move(composition.frontier);
-    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
-        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, topology_pattern_registry, structural_key_cache);
-  }
+  std::vector<CandidateRepresentativeRef> global_feasible_pool;
+  std::vector<CandidateRepresentativeRef> global_candidate_pool;
+  ActualLoadLegalityContext actual_load_legality_context;
 
-  if (!result.feasible_pattern_representatives.empty()) {
-    result.best_char = SelectBestHTreeChar(result.feasible_pattern_representatives);
-  } else if (has_boundary_constraints) {
-    result.best_char = SelectBestHTreeChar(result.candidate_pattern_representatives);
-    if (!result.best_char.has_value()) {
-      LOG_WARNING << "HTreeBuilder: boundary fallback frontier is non-empty but no fallback entry could be selected.";
-      build_stage.skip({{"reason", "missing_boundary_fallback_char"}});
-      return result;
+  for (const unsigned depth : depth_candidates) {
+    auto candidate_levels = MakeCandidateLevelPlans(full_level_plans, depth);
+    const std::size_t leaf_count = CountCandidateLeafNodes(result.topology, depth);
+    const auto cap_resolution = EstimateLeafDrivenCapResolution(result.topology, depth, options);
+    const auto candidate_options = ApplyLeafDrivenCapResolution(base_resolved_options, cap_resolution, char_builder);
+    CandidateBuildEvaluation evaluation;
+    if (cap_resolution.depth_infeasible) {
+      evaluation.depth = depth;
+      evaluation.leaf_count = leaf_count;
+      evaluation.resolved_options = candidate_options;
+      evaluation.levels = candidate_levels;
+      evaluation.success = false;
+      evaluation.failure_reason = cap_resolution.failure_reason;
+      LOG_WARNING << "HTreeBuilder: skip depth " << depth << " before characterization because " << cap_resolution.failure_reason << ".";
+    } else {
+      evaluation = EvaluateCandidateBuild(candidate_levels, entry_sets_by_length, segment_pattern_registry, candidate_options,
+                                          result.topology, actual_load_legality_context, leaf_count, depth, result.char_max_cap_pf,
+                                          result.char_slew_steps, result.char_cap_steps);
     }
 
-    result.used_boundary_fallback = true;
-    result.boundary_fallback_reason = "no_strict_boundary_feasible_solution";
-    result.boundary_fallback_score
-        = CalcBoundaryFallbackScore(*result.best_char, resolved_options, result.char_slew_steps, result.char_cap_steps);
-
-    LOG_WARNING << "HTreeBuilder: no feasible H-tree topology satisfies caller boundary constraints; selecting fallback solution "
-                   "from candidate pattern representatives.";
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "HTreeBuilder",
-                           "no feasible H-tree topology satisfies caller boundary constraints; selected fallback solution using pattern "
-                           "worst-case representatives and delay-power Pareto power-median policy.",
-                           {
-                               {"reason", result.boundary_fallback_reason},
-                               {"fallback_score", std::to_string(result.boundary_fallback_score.value_or(0.0))},
-                               {"selected_top_input_slew_idx", std::to_string(result.best_char->get_input_slew_idx())},
-                               {"selected_leaf_driven_cap_idx", std::to_string(result.best_char->get_leaf_driven_cap_idx())},
-                               {"requested_top_input_slew_floor_idx", resolved_options.top_input_slew_floor_idx.has_value()
-                                                                          ? std::to_string(*resolved_options.top_input_slew_floor_idx)
-                                                                          : std::string{"none"}},
-                               {"requested_leaf_driven_cap_floor_idx", resolved_options.leaf_driven_cap_floor_idx.has_value()
-                                                                           ? std::to_string(*resolved_options.leaf_driven_cap_floor_idx)
-                                                                           : std::string{"none"}},
-                           });
+    const std::string candidate_failure_reason
+        = cap_resolution.depth_infeasible ? cap_resolution.failure_reason : evaluation.failure_reason;
+    result.depth_candidates.push_back(BuildResult::DepthCandidateSummary{
+        .depth = depth,
+        .leaf_count = leaf_count,
+        .success = evaluation.success,
+        .selected = false,
+        .used_explicit_target_depth = options.target_depth.has_value(),
+        .used_explicit_leaf_driven_cap = cap_resolution.used_explicit_value,
+        .requested_leaf_driven_cap_pf = cap_resolution.cap_pf.value_or(0.0),
+        .leaf_driven_cap_source = cap_resolution.source,
+        .failure_reason = candidate_failure_reason,
+        .evaluated_leaf_count = cap_resolution.evaluated_leaf_count,
+        .leaf_cap_min_pf = cap_resolution.leaf_cap_min_pf,
+        .leaf_cap_max_pf = cap_resolution.leaf_cap_max_pf,
+        .leaf_cap_mean_pf = cap_resolution.leaf_cap_mean_pf,
+        .leaf_cap_median_pf = cap_resolution.leaf_cap_median_pf,
+        .candidate_solution_count = evaluation.candidate_chars.size(),
+        .feasible_solution_count = evaluation.feasible_chars.size(),
+        .feasible_pattern_count = evaluation.feasible_pattern_representatives.size(),
+        .used_boundary_fallback = evaluation.used_boundary_fallback,
+        .selected_power_w = evaluation.best_char.has_value() ? evaluation.best_char->get_power() : 0.0,
+        .selected_delay_ns = evaluation.best_char.has_value() ? evaluation.best_char->get_delay() : 0.0,
+    });
+    candidate_evaluations.push_back(std::move(evaluation));
+    const auto candidate_index = candidate_evaluations.size() - 1U;
+    const auto& stored_evaluation = candidate_evaluations.back();
+    for (const auto& entry : stored_evaluation.feasible_pattern_representatives) {
+      global_feasible_pool.push_back(CandidateRepresentativeRef{
+          .candidate_index = candidate_index,
+          .entry = &entry,
+      });
+    }
+    for (const auto& entry : stored_evaluation.candidate_pattern_representatives) {
+      global_candidate_pool.push_back(CandidateRepresentativeRef{
+          .candidate_index = candidate_index,
+          .entry = &entry,
+      });
+    }
   }
 
-  if (!result.best_char.has_value()) {
-    LOG_WARNING << "HTreeBuilder: failed to select a best H-tree characterization entry.";
-    build_stage.skip({{"reason", "missing_best_char"}});
+  const auto selected_feasible_ref = SelectBestGlobalRepresentative(global_feasible_pool);
+  const auto selected_fallback_ref = selected_feasible_ref.has_value() ? std::optional<CandidateRepresentativeRef>{}
+                                                                       : SelectBestGlobalRepresentative(global_candidate_pool);
+  const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
+  if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
+    result.failure_reason = global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
+    LOG_WARNING << "HTreeBuilder: failed to select a best H-tree characterization entry across depth candidates.";
+    build_stage.skip({{"reason", result.failure_reason}, {"depth_candidates", std::to_string(depth_candidates.size())}});
     return result;
   }
 
-  result.best_pattern = topology_pattern_registry.materialize(result.best_char->get_pattern_id());
-  const auto& best_level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
+  const std::size_t selected_candidate_index = selected_ref->candidate_index;
+  auto& selected_evaluation = candidate_evaluations.at(selected_candidate_index);
+  auto& selected_summary = result.depth_candidates.at(selected_candidate_index);
+  selected_summary.selected = true;
+  selected_summary.selected_power_w = selected_ref->entry->get_power();
+  selected_summary.selected_delay_ns = selected_ref->entry->get_delay();
+  const auto selected_actual_legality
+      = ResolveActualLoadLegality(result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_registry,
+                                  segment_pattern_registry, actual_load_legality_context);
+  LOG_FATAL_IF(!selected_actual_legality.legal) << "HTreeBuilder: selected global representative is missing actual-load legality coverage.";
+  selected_summary.htree_load_group_count = selected_actual_legality.cap_distribution.group_count;
+  selected_summary.htree_load_cap_min_pf = selected_actual_legality.cap_distribution.cap_min_pf;
+  selected_summary.htree_load_cap_max_pf = selected_actual_legality.cap_distribution.cap_max_pf;
+  selected_summary.htree_load_cap_mean_pf = selected_actual_legality.cap_distribution.cap_mean_pf;
+  selected_summary.htree_load_cap_median_pf = selected_actual_legality.cap_distribution.cap_median_pf;
 
+  result.selected_depth = selected_evaluation.depth;
+  result.best_char = *selected_ref->entry;
+  result.levels = selected_evaluation.levels;
+  result.candidate_chars = std::move(selected_evaluation.candidate_chars);
+  result.candidate_pattern_representatives = std::move(selected_evaluation.candidate_pattern_representatives);
+  result.feasible_chars = std::move(selected_evaluation.feasible_chars);
+  result.feasible_pattern_representatives = std::move(selected_evaluation.feasible_pattern_representatives);
+  result.min_top_input_slew_ns = selected_evaluation.resolved_options.min_top_input_slew_ns;
+  result.top_input_slew_floor_idx = selected_evaluation.resolved_options.top_input_slew_floor_idx;
+  result.min_leaf_driven_cap_pf = selected_evaluation.resolved_options.min_leaf_driven_cap_pf;
+  result.leaf_driven_cap_floor_idx = selected_evaluation.resolved_options.leaf_driven_cap_floor_idx;
+
+  if (!selected_feasible_ref.has_value()) {
+    result.used_boundary_fallback = true;
+    result.boundary_fallback_reason = "no_strict_boundary_feasible_solution_any_depth";
+    result.boundary_fallback_score
+        = CalcBoundaryFallbackScore(*result.best_char, selected_evaluation.resolved_options, result.char_slew_steps, result.char_cap_steps);
+
+    schema::EmitDiagnostic(
+        schema::DiagnosticLevel::kFallback, "HTreeBuilder",
+        "no depth candidate satisfied caller boundary constraints; selected fallback solution from the global candidate pool.",
+        {
+            {"reason", result.boundary_fallback_reason},
+            {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
+            {"fallback_score", std::to_string(result.boundary_fallback_score.value_or(0.0))},
+            {"selected_top_input_slew_idx", std::to_string(result.best_char->get_input_slew_idx())},
+            {"selected_leaf_driven_cap_idx", std::to_string(result.best_char->get_leaf_driven_cap_idx())},
+        });
+  }
+
+  result.best_pattern = selected_evaluation.topology_pattern_registry.materialize(result.best_char->get_pattern_id());
+  const auto& best_level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
   LOG_FATAL_IF(best_level_segment_pattern_ids.size() != result.levels.size())
-      << "HTreeBuilder: best H-tree pattern level count does not match topology depth.";
+      << "HTreeBuilder: best H-tree pattern level count does not match selected depth.";
   for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
     const auto segment_pattern_id = best_level_segment_pattern_ids.at(level_index);
     result.levels.at(level_index).segment_pattern_id = segment_pattern_id;
@@ -2104,26 +2911,32 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   result.success = result.best_char.has_value() && result.best_pattern.has_value() && result.root_input_pin != nullptr
                    && result.root_output_pin != nullptr && !result.inserted_nets.empty();
 
+  const bool selected_has_boundary_constraints = HasBoundaryConstraints(selected_evaluation.resolved_options);
+
   const logformat::TableRows build_summary_rows = {
-      {"levels", std::to_string(result.levels.size()), "synthesized H-tree levels"},
+      {"levels", std::to_string(result.levels.size()), "selected H-tree levels"},
+      {"depth_candidates", std::to_string(result.depth_candidates.size()), "evaluated descending depth candidates"},
+      {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
+       "global winner across all evaluated depth candidates"},
       {"selected_topology_pattern_id", std::to_string(result.best_char->get_pattern_id().local_id),
        result.used_boundary_fallback ? "selected fallback topology pattern from candidate pattern representatives"
-                                     : "selected strict-feasible topology pattern"},
-      {"selection_policy", result.used_boundary_fallback ? "boundary_fallback" : "pattern_worst_case_pareto_power_median",
+                                     : "selected strict-feasible topology pattern from the global feasible pool"},
+      {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_pattern_worst_case_pareto_power_median",
        result.used_boundary_fallback
-           ? "strict-feasible pool is empty; candidate pattern representatives use worst-case delay/power, Pareto front, and "
-             "power-median fallback selection"
-           : "each structural pattern contributes its worst feasible delay/power scenario; Pareto front is sorted by "
-             "power then delay and the lower median entry is selected"},
+           ? "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global candidate "
+             "representative pool with delay-power Pareto power-median ordering"
+           : "each structural pattern contributes its worst feasible delay/power scenario per candidate depth; the global feasible "
+             "representative pool is Pareto filtered and the lower power-ordered median entry is selected"},
       {"candidate_solutions", std::to_string(result.candidate_chars.size()),
-       has_boundary_constraints ? "frontier entries after full composition" : "not materialized on unrestricted builds"},
+       selected_has_boundary_constraints ? "selected-depth frontier entries after full composition"
+                                         : "not materialized on unrestricted builds"},
       {"candidate_unique_patterns", std::to_string(result.candidate_pattern_representatives.size()),
-       has_boundary_constraints ? "one worst-case representative per structural buffering pattern before feasible filtering"
-                                : "not materialized on unrestricted builds"},
+       selected_has_boundary_constraints ? "selected-depth worst-case representatives before feasible filtering"
+                                         : "not materialized on unrestricted builds"},
       {"feasible_solutions", std::to_string(result.feasible_chars.size()),
-       has_boundary_constraints ? "strict-feasible entries after caller boundary filtering" : "same as composed frontier"},
+       selected_has_boundary_constraints ? "selected-depth strict-feasible entries after boundary filtering" : "same as composed frontier"},
       {"feasible_unique_patterns", std::to_string(result.feasible_pattern_representatives.size()),
-       "one representative entry per structural buffering pattern after feasible filtering"},
+       "selected-depth one representative entry per structural buffering pattern after feasible filtering"},
       {"inserted_insts", std::to_string(result.inserted_insts.size()), "materialized CTS buffer instances"},
       {"inserted_nets", std::to_string(result.inserted_nets.size()), "materialized CTS nets"},
       {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers),
@@ -2134,18 +2947,46 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
       {"leaf_driven_cap_idx", std::to_string(result.best_char->get_leaf_driven_cap_idx()), "selected pattern metric"},
       {"leaf_output_slew_idx", std::to_string(result.best_char->get_output_slew_idx()), "selected pattern metric"},
       {"root_load_cap_idx", std::to_string(result.best_char->get_load_cap_idx()), "selected pattern metric"},
-      {"force_branch_buffer", logformat::FormatBool(resolved_options.force_branch_buffer),
-       resolved_options.force_branch_buffer ? "every H-tree level requires terminal-buffered segment frontier" : "disabled"},
-      {"force_leaf_unbuffered", logformat::FormatBool(resolved_options.force_leaf_unbuffered),
-       resolved_options.force_leaf_unbuffered ? "leaf H-tree level requires terminal-unbuffered segment frontier" : "disabled"},
+      {"force_branch_buffer", logformat::FormatBool(selected_evaluation.resolved_options.force_branch_buffer),
+       selected_evaluation.resolved_options.force_branch_buffer ? "every H-tree level requires terminal-buffered segment frontier"
+                                                                : "disabled"},
+      {"force_leaf_unbuffered", logformat::FormatBool(selected_evaluation.resolved_options.force_leaf_unbuffered),
+       selected_evaluation.resolved_options.force_leaf_unbuffered ? "leaf H-tree level requires terminal-unbuffered segment frontier"
+                                                                  : "disabled"},
       {"top_input_slew_floor_idx",
-       resolved_options.top_input_slew_floor_idx.has_value() ? std::to_string(*resolved_options.top_input_slew_floor_idx) : "none",
-       resolved_options.min_top_input_slew_ns.has_value() ? logformat::FormatWithUnit(*resolved_options.min_top_input_slew_ns, "ns")
-                                                          : "unconstrained"},
+       selected_evaluation.resolved_options.top_input_slew_floor_idx.has_value()
+           ? std::to_string(*selected_evaluation.resolved_options.top_input_slew_floor_idx)
+           : "none",
+       selected_evaluation.resolved_options.min_top_input_slew_ns.has_value()
+           ? logformat::FormatWithUnit(*selected_evaluation.resolved_options.min_top_input_slew_ns, "ns")
+           : "unconstrained"},
       {"leaf_driven_cap_floor_idx",
-       resolved_options.leaf_driven_cap_floor_idx.has_value() ? std::to_string(*resolved_options.leaf_driven_cap_floor_idx) : "none",
-       resolved_options.min_leaf_driven_cap_pf.has_value() ? logformat::FormatWithUnit(*resolved_options.min_leaf_driven_cap_pf, "pF")
-                                                           : "unconstrained"},
+       selected_evaluation.resolved_options.leaf_driven_cap_floor_idx.has_value()
+           ? std::to_string(*selected_evaluation.resolved_options.leaf_driven_cap_floor_idx)
+           : "none",
+       selected_evaluation.resolved_options.min_leaf_driven_cap_pf.has_value()
+           ? logformat::FormatWithUnit(*selected_evaluation.resolved_options.min_leaf_driven_cap_pf, "pF")
+           : "unconstrained"},
+      {"leaf_load_count", std::to_string(selected_summary.evaluated_leaf_count),
+       "selected depth topology leaf groups with exact routing-cap evaluation for driven-cap resolution"},
+      {"leaf_load_cap_min", logformat::FormatWithUnit(selected_summary.leaf_cap_min_pf, "pF"),
+       "selected depth topology leaf total-cap minimum across precheck groups"},
+      {"leaf_load_cap_max", logformat::FormatWithUnit(selected_summary.leaf_cap_max_pf, "pF"),
+       "selected depth topology leaf total-cap maximum across precheck groups; auto-driven-cap source uses this value"},
+      {"leaf_load_cap_mean", logformat::FormatWithUnit(selected_summary.leaf_cap_mean_pf, "pF"),
+       "selected depth topology leaf total-cap mean across precheck groups"},
+      {"leaf_load_cap_median", logformat::FormatWithUnit(selected_summary.leaf_cap_median_pf, "pF"),
+       "selected depth topology leaf total-cap median across precheck groups"},
+      {"htree_load_group_count", std::to_string(selected_summary.htree_load_group_count),
+       "selected H-tree external-load groups driven by the bottom-most buffered segments"},
+      {"htree_load_cap_min", logformat::FormatWithUnit(selected_summary.htree_load_cap_min_pf, "pF"),
+       "selected H-tree external-load total-cap minimum across real driven-load groups"},
+      {"htree_load_cap_max", logformat::FormatWithUnit(selected_summary.htree_load_cap_max_pf, "pF"),
+       "selected H-tree external-load total-cap maximum across real driven-load groups"},
+      {"htree_load_cap_mean", logformat::FormatWithUnit(selected_summary.htree_load_cap_mean_pf, "pF"),
+       "selected H-tree external-load total-cap mean across real driven-load groups"},
+      {"htree_load_cap_median", logformat::FormatWithUnit(selected_summary.htree_load_cap_median_pf, "pF"),
+       "selected H-tree external-load total-cap median across real driven-load groups"},
       {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback),
        result.used_boundary_fallback ? result.boundary_fallback_reason : "constraints satisfied without fallback"},
       {"boundary_fallback_score", result.boundary_fallback_score.has_value() ? std::to_string(*result.boundary_fallback_score) : "none",

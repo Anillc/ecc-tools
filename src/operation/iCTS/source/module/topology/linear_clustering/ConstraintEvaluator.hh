@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <unordered_map>
 #include <vector>
 
@@ -43,10 +44,14 @@ class ConstraintEvaluator
 
   auto evaluate(const std::vector<OrderedLoad>& ordered_loads, const SegmentRange& segment, const LinearClusteringConfig& config,
                 bool need_exact_cap) -> ConstraintEvaluation;
+  auto evaluateLoads(const std::vector<Pin*>& loads, const Point<int>& routing_root, const LinearClusteringConfig& config,
+                     bool need_exact_cap) -> ConstraintEvaluation;
 
  private:
   static auto calcSpan(const std::vector<OrderedLoad>& ordered_loads, const SegmentRange& segment) -> ClusterSpanMetrics;
   static auto collectPins(const std::vector<OrderedLoad>& ordered_loads, const SegmentRange& segment) -> std::vector<Pin*>;
+  auto evaluatePinnedLoads(const std::vector<Pin*>& loads, std::size_t fanout, int diameter, const Point<int>& routing_root,
+                           const LinearClusteringConfig& config, bool need_exact_cap) -> ConstraintEvaluation;
   auto estimatePinCap(const std::vector<Pin*>& loads) -> double;
   auto estimateExactCap(const std::vector<Pin*>& loads, const Point<int>& synthetic_root, const LinearClusteringConfig& config)
       -> ElectricalEstimate;

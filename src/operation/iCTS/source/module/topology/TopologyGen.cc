@@ -96,7 +96,12 @@ auto FormatPoint(double x, double y) -> std::string
 
 auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
 {
-  return build(loads, BiPartitionConfig{});
+  return build(loads, BuildOptions{});
+}
+
+auto TopologyGen::build(const std::vector<Pin*>& loads, const BuildOptions& options) -> Tree
+{
+  return build(loads, options.partition_config, options.target_depth);
 }
 
 auto TopologyGen::linearClustering(const std::vector<Pin*>& loads) -> ClusterResult
@@ -111,6 +116,11 @@ auto TopologyGen::linearClustering(const std::vector<Pin*>& loads, const LinearC
 
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree
 {
+  return build(loads, BuildOptions{.partition_config = config});
+}
+
+auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth) -> Tree
+{
   Tree tree;
   schema::ScopedStage build_stage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads");
   if (loads.empty()) {
@@ -122,7 +132,12 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   reportLoadDistribution(loads);
   const auto bounds = CalcLoadBounds(loads);
 
-  const std::size_t leaf_count = calcLeafCount(loads.size());
+  std::size_t leaf_count = calcLeafCount(loads.size());
+  const unsigned max_depth = calcMaxDepth(loads.size());
+  if (target_depth.has_value()) {
+    const unsigned resolved_depth = std::min(*target_depth, max_depth);
+    leaf_count = resolved_depth == 0U ? 1U : (std::size_t{1} << resolved_depth);
+  }
   if (leaf_count == 0) {
     LOG_WARNING << "Topology generation skipped: leaf count is zero.";
     build_stage.skip({{"leaf_count", "0"}});
@@ -260,6 +275,15 @@ auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
                                                                          {"valid_leaf_paths", std::to_string(leaf_count)},
                                                                          {"invalid_leaf_paths", std::to_string(invalid_count)},
                                                                      });
+}
+
+auto TopologyGen::calcMaxDepth(std::size_t load_count) -> unsigned
+{
+  unsigned depth = 0U;
+  for (std::size_t leaf_count = calcLeafCount(load_count); leaf_count > 1U; leaf_count >>= 1U) {
+    ++depth;
+  }
+  return depth;
 }
 
 auto TopologyGen::calcLeafCount(std::size_t load_count) -> std::size_t

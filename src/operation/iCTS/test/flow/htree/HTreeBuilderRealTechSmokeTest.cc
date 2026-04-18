@@ -209,6 +209,58 @@ auto ContainsCharEntry(const std::vector<icts::HTreeTopologyChar>& entries, cons
   return std::ranges::any_of(entries, [&target](const icts::HTreeTopologyChar& entry) -> bool { return IsSameCharEntry(entry, target); });
 }
 
+auto FindSelectedDepthSummary(const icts::HTreeBuilder::BuildResult& result)
+    -> const icts::HTreeBuilder::BuildResult::DepthCandidateSummary*
+{
+  const auto summary_it = std::ranges::find_if(result.depth_candidates, [](const auto& summary) -> bool { return summary.selected; });
+  if (summary_it == result.depth_candidates.end()) {
+    return nullptr;
+  }
+  return &(*summary_it);
+}
+
+auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  ASSERT_FALSE(result.depth_candidates.empty());
+  ASSERT_TRUE(result.selected_depth.has_value());
+
+  const auto topology_levels = result.topology.levels();
+  ASSERT_GT(topology_levels.size(), 1U);
+  const auto max_depth = static_cast<unsigned>(topology_levels.size() - 1U);
+  EXPECT_EQ(result.depth_candidates.size(), std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
+
+  const auto* selected_summary = FindSelectedDepthSummary(result);
+  ASSERT_NE(selected_summary, nullptr);
+  EXPECT_EQ(selected_summary->depth, result.selected_depth.value_or(0U));
+  EXPECT_EQ(selected_summary->depth, result.levels.size());
+  EXPECT_TRUE(selected_summary->success);
+}
+
+auto AssertSelectedLeafCapDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  const auto* selected_summary = FindSelectedDepthSummary(result);
+  ASSERT_NE(selected_summary, nullptr);
+  ASSERT_GT(selected_summary->evaluated_leaf_count, 0U);
+  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_mean_pf);
+  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_median_pf);
+  EXPECT_LE(selected_summary->leaf_cap_mean_pf, selected_summary->leaf_cap_max_pf);
+  EXPECT_LE(selected_summary->leaf_cap_median_pf, selected_summary->leaf_cap_max_pf);
+  if (!selected_summary->used_explicit_leaf_driven_cap) {
+    EXPECT_DOUBLE_EQ(selected_summary->requested_leaf_driven_cap_pf, selected_summary->leaf_cap_max_pf);
+  }
+}
+
+auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
+{
+  const auto* selected_summary = FindSelectedDepthSummary(result);
+  ASSERT_NE(selected_summary, nullptr);
+  ASSERT_GT(selected_summary->htree_load_group_count, 0U);
+  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_mean_pf);
+  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_median_pf);
+  EXPECT_LE(selected_summary->htree_load_cap_mean_pf, selected_summary->htree_load_cap_max_pf);
+  EXPECT_LE(selected_summary->htree_load_cap_median_pf, selected_summary->htree_load_cap_max_pf);
+}
+
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 auto UseLeafUnbufferedRealTechCharSteps() -> void
 {
@@ -356,6 +408,10 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   ASSERT_TRUE(result.best_pattern.has_value());
   ASSERT_FALSE(result.feasible_chars.empty());
   ASSERT_FALSE(result.feasible_pattern_representatives.empty());
+  AssertDepthCandidateCoverage(result);
+  AssertSelectedLeafCapDistribution(result);
+  AssertSelectedHTreeLoadDistribution(result);
+  EXPECT_TRUE(result.min_leaf_driven_cap_pf.has_value());
   EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
   const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
   EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
@@ -396,6 +452,15 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_NE(cts_log_content.find("HTreeBuilder Build Summary"), std::string::npos);
   EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
   EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("leaf_load_cap_min"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("leaf_load_cap_max"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("leaf_load_cap_mean"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("leaf_load_cap_median"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_group_count"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_min"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_max"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_mean"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_load_cap_median"), std::string::npos);
   EXPECT_TRUE(std::regex_search(cts_log_content, std::regex(R"(\|\s*power\s*\|\s*[^|\n]*W\s*\|)")));
   EXPECT_NE(cts_log_content.find("CharBuilder Sweep Progress"), std::string::npos);
   EXPECT_NE(cts_log_content.find("report.log Details"), std::string::npos);

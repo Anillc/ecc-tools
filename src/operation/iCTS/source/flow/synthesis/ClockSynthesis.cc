@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "Clock.hh"
+#include "Clustering.hh"
 #include "Inst.hh"
 #include "Log.hh"
 #include "Net.hh"
@@ -422,10 +423,6 @@ auto buildHtreeOptions(const bool enable_sink_clustering) -> HTreeBuilder::Build
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
   if (max_buf_tran > 0.0) {
     htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
-  }
-  const double max_cap = CONFIG_INST.get_max_cap();
-  if (max_cap > 0.0) {
-    htree_options.min_leaf_driven_cap_pf = max_cap * 0.5;
   }
   return htree_options;
 }

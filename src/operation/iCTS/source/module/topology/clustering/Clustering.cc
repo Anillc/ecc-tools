@@ -30,9 +30,11 @@
 #include <utility>
 #include <vector>
 
+#include "ConstraintEvaluator.hh"
 #include "Geometry.hh"
 #include "KMeans.hh"
 #include "LinearClustering.hh"
+#include "LinearClusteringTypes.hh"
 #include "MinCostFlow.hh"
 #include "Pin.hh"
 #include "Point.hh"
@@ -85,6 +87,25 @@ auto CalcCenters(const std::vector<std::vector<Pin*>>& clusters) -> std::vector<
     centers.push_back(geometry::CalcCenter(cluster, [](Pin* pin) -> auto { return pin->get_location(); }));
   }
   return centers;
+}
+
+auto ToClusterElectricalViolation(ConstraintViolation violation) -> ClusterElectricalViolation
+{
+  switch (violation) {
+    case ConstraintViolation::kNone:
+      return ClusterElectricalViolation::kNone;
+    case ConstraintViolation::kEmptyCluster:
+      return ClusterElectricalViolation::kEmptyCluster;
+    case ConstraintViolation::kFanout:
+      return ClusterElectricalViolation::kFanout;
+    case ConstraintViolation::kDiameter:
+      return ClusterElectricalViolation::kDiameter;
+    case ConstraintViolation::kCapacitance:
+      return ClusterElectricalViolation::kCapacitance;
+    case ConstraintViolation::kRoutingFailed:
+      return ClusterElectricalViolation::kRoutingFailed;
+  }
+  return ClusterElectricalViolation::kEmptyCluster;
 }
 
 }  // namespace
@@ -184,6 +205,36 @@ auto Clustering::linearClustering(const std::vector<Pin*>& loads) -> ClusterResu
 auto Clustering::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
 {
   return LinearClustering::run(loads, config);
+}
+
+auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config)
+    -> ClusterElectricalEvaluation
+{
+  const bool need_exact_cap = config.enable_exact_cap || config.always_build_exact_cap || IsFiniteCapLimit(config.max_cap);
+  return evaluateClusterElectrical(loads, anchor, config, need_exact_cap);
+}
+
+auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config,
+                                           bool need_exact_cap) -> ClusterElectricalEvaluation
+{
+  ConstraintEvaluator evaluator;
+  const auto evaluation = evaluator.evaluateLoads(loads, anchor, config, need_exact_cap);
+  const auto& metrics = evaluation.metrics;
+  return ClusterElectricalEvaluation{
+      .legal = evaluation.legal,
+      .violation = ToClusterElectricalViolation(evaluation.violation),
+      .summary =
+          ClusterElectricalSummary{
+              .exact = metrics.electrical.exact,
+              .route_success = metrics.electrical.route_success,
+              .sink_count = metrics.fanout,
+              .diameter_dbu = metrics.diameter,
+              .pin_cap_pf = metrics.electrical.pin_cap,
+              .wire_cap_pf = metrics.electrical.wire_cap,
+              .total_cap_pf = metrics.electrical.total_cap,
+              .wirelength_dbu = metrics.wirelength,
+          },
+  };
 }
 
 }  // namespace icts

@@ -155,6 +155,7 @@ auto CaptureConfigState() -> ConfigState
   state.buffer_types = CONFIG_INST.get_buffer_types();
   state.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
   state.force_branch_buffer = CONFIG_INST.is_force_branch_buffer();
+  state.htree_depth_explore_window = CONFIG_INST.get_htree_depth_explore_window();
   state.enable_sink_clustering = CONFIG_INST.is_enable_sink_clustering();
   state.work_dir = CONFIG_INST.get_work_dir();
   state.output_def_path = CONFIG_INST.get_output_def_path();
@@ -188,6 +189,7 @@ auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_buffer_types(state.buffer_types);
   CONFIG_INST.set_char_buf_redundancy_pct(state.char_buf_redundancy_pct);
   CONFIG_INST.set_force_branch_buffer(state.force_branch_buffer);
+  CONFIG_INST.set_htree_depth_explore_window(state.htree_depth_explore_window);
   CONFIG_INST.set_enable_sink_clustering(state.enable_sink_clustering);
   CONFIG_INST.set_work_dir(state.work_dir);
   CONFIG_INST.set_output_def_path(state.output_def_path);

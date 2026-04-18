@@ -34,10 +34,40 @@ class Pin;
 struct BiPartitionConfig;
 struct LinearClusteringConfig;
 
+struct ClusterElectricalSummary
+{
+  bool exact = false;
+  bool route_success = false;
+  std::size_t sink_count = 0;
+  int diameter_dbu = 0;
+  double pin_cap_pf = 0.0;
+  double wire_cap_pf = 0.0;
+  double total_cap_pf = 0.0;
+  double wirelength_dbu = 0.0;
+};
+
+enum class ClusterElectricalViolation
+{
+  kNone,
+  kEmptyCluster,
+  kFanout,
+  kDiameter,
+  kCapacitance,
+  kRoutingFailed,
+};
+
+struct ClusterElectricalEvaluation
+{
+  bool legal = false;
+  ClusterElectricalViolation violation = ClusterElectricalViolation::kEmptyCluster;
+  ClusterElectricalSummary summary;
+};
+
 struct ClusterResult
 {
   std::vector<std::vector<Pin*>> clusters;
   std::vector<Point<int>> centers;
+  std::vector<ClusterElectricalSummary> electrical_summaries;
 };
 
 class Clustering
@@ -50,6 +80,10 @@ class Clustering
   static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterResult;
   static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
   static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
+  static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config)
+      -> ClusterElectricalEvaluation;
+  static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config,
+                                        bool need_exact_cap) -> ClusterElectricalEvaluation;
 };
 
 }  // namespace icts
