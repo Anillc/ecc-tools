@@ -1198,3 +1198,44 @@ Migrated from the mistakenly initialized `codex-agent` workspace so the session 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: Multi-depth H-tree selection and legality filtering
+
+**Date**: 2026-04-18
+**Task**: Multi-depth H-tree selection and legality filtering
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Summary |
+|------|---------|
+| H-tree flow | Added multi-depth H-tree depth exploration with configurable depth window and explicit topology target-depth support. |
+| Legality | Added actual-load legality filtering based on the real bottom-most buffered segment boundary, including real fanout and exact routing-cap checks before candidates enter the selection pool. |
+| Selection | Switched to global representative selection across feasible depth candidates while preserving fallback behavior when the strict-feasible pool is empty. |
+| Characterization reuse | Kept characterization reusable across depth candidates and avoided depth-local duplicated characterization work. |
+| Reporting | Added selected H-tree load distribution reporting to `cts.log` with group count and min/max/mean/median caps. |
+| Validation | Passed `icts_test_module_topology_gen`, `icts_test_flow_htree`, `icts_test_flow_synthesis`, `icts_test_flow_htree_realtech`, `icts_test_flow_synthesis_realtech`, and `ecc_dev_tools` with 0 in-scope findings. |
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `71281b08f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

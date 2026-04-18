@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 22
+- **Total Sessions**: 23
 - **Last Active**: 2026-04-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1200 | Active |
+| `journal-1.md` | ~1241 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-04-18 | Multi-depth H-tree selection and legality filtering | `71281b08f` | `cts_refactor` |
 | 22 | 2026-04-17 | Refine H-tree frontier semantics and branch buffering | `11ef4c8fb` | `cts_refactor` |
 | 21 | 2026-04-18 | iCTS synthesis flow and finish-work convergence | `8298f3f7f` | `cts_refactor` |
 | 20 | 2026-04-16 | iCTS forced leaf buffering and H-tree boundary controls | `3c82c1ee7` | `cts_refactor` |
