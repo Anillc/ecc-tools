@@ -1108,3 +1108,44 @@ Delivered the real-tech characterization repair work for iCTS: max slew/cap reso
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: iCTS synthesis flow and finish-work convergence
+
+**Date**: 2026-04-18
+**Task**: iCTS synthesis flow and finish-work convergence
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Synthesis flow | Added `src/operation/iCTS/source/flow/synthesis` to orchestrate optional sink clustering plus H-tree build and physical hookup. |
+| H-tree semantics | Refined clustered and non-clustered hookup behavior, added post-materialization pruning for leaf buffers that directly drive a single external load. |
+| Characterization / topology | Integrated pattern worst-case selection policy updates, topology/clustering flow adjustments, and leaf/boundary constraint propagation fixes. |
+| Test strategy | Split default smoke vs optional slow real-tech coverage, reduced default runtime burden, and expanded synthesis / htree real-tech assertions and SVG/report validation. |
+| Final validation | Ran unit and real-tech flow tests, then executed full `ecc_dev_tools` on `src/operation/iCTS` and cleared all in-scope findings. |
+| Spec sync | Updated `.trellis/spec/project-constraints.md` and `.trellis/spec/backend/quality-guidelines.md` so `ecc_dev_tools` is reserved for final `finish-work` full-module validation. |
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8298f3f7f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
