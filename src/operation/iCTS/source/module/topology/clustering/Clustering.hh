@@ -79,6 +79,7 @@ class Clustering
   static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> ClusterResult;
   static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterResult;
   static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
+  static auto defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
   static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
   static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config)
       -> ClusterElectricalEvaluation;

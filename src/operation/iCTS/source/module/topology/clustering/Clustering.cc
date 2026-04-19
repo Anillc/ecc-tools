@@ -199,7 +199,12 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
 
 auto Clustering::linearClustering(const std::vector<Pin*>& loads) -> ClusterResult
 {
-  return linearClustering(loads, LinearClusteringConfig{});
+  return defaultLinearClustering(loads, LinearClusteringConfig{});
+}
+
+auto Clustering::defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
+{
+  return LinearClustering::runDefault(loads, base_config);
 }
 
 auto Clustering::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult

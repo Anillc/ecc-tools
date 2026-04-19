@@ -17,6 +17,7 @@ target_link_libraries(
   icts_source_module_topology_clustering
   PRIVATE
   icts_source_database_design
+  icts_source_module_topology_linear_clustering
   icts_source_utils
   icts_source_utils_geometry
   icts_source_utils_logger

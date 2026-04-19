@@ -150,6 +150,9 @@ struct ConstraintConfigSpec
 struct StrategySweepObservation
 {
   icts::LinearOrderStrategy order_strategy = icts::LinearOrderStrategy::kContinuousHilbert;
+  icts::DiscreteHilbertEncoding discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kSinkThetaCell;
+  icts::HilbertTransform hilbert_transform = icts::HilbertTransform::kIdentity;
+  int order_bits = 16;
   icts::LinearSplitStrategy split_strategy = icts::LinearSplitStrategy::kBidirectionalGreedy;
   icts::LinearSweepMode sweep_mode = icts::LinearSweepMode::kPrefixSweep;
   icts::LinearSweepMode effective_sweep_mode = icts::LinearSweepMode::kPrefixSweep;
@@ -184,7 +187,9 @@ struct ReferenceDensityScaledContinuousConfig
 
 struct ReferenceDensityScaledDiscreteConfig
 {
-  int order_bits = 12;
+  icts::DiscreteHilbertEncoding discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kSinkThetaCell;
+  icts::HilbertTransform hilbert_transform = icts::HilbertTransform::kIdentity;
+  int order_bits = 16;
   std::size_t density_grid_size = 1;
   double density_scale_power = 1.0;
 };
@@ -216,11 +221,14 @@ auto BuildConstraintObservationReport(const std::string& test_name, const std::s
                                       const std::vector<LadderObservation>& observations) -> std::string;
 auto MakeConstraintConfig(const ConstraintConfigSpec& spec) -> icts::LinearClusteringConfig;
 auto OrderStrategyName(icts::LinearOrderStrategy strategy) -> const char*;
+auto DiscreteHilbertEncodingName(icts::DiscreteHilbertEncoding encoding) -> const char*;
+auto HilbertTransformName(icts::HilbertTransform transform) -> const char*;
 auto SplitStrategyName(icts::LinearSplitStrategy strategy) -> const char*;
 auto SweepModeName(icts::LinearSweepMode mode) -> const char*;
 auto MakeSweepLabel(icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string;
-auto MakeStrategyLabel(icts::LinearOrderStrategy order_strategy, icts::LinearSplitStrategy split_strategy, icts::LinearSweepMode sweep_mode,
-                       std::size_t strided_sweep_count) -> std::string;
+auto MakeStrategyLabel(icts::LinearOrderStrategy order_strategy, icts::DiscreteHilbertEncoding discrete_hilbert_encoding,
+                       icts::HilbertTransform hilbert_transform, int order_bits, icts::LinearSplitStrategy split_strategy,
+                       icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string;
 auto FormatResolvedOffsets(const std::vector<std::size_t>& offsets) -> std::string;
 auto BuildSweepCandidates(std::size_t load_count) -> std::vector<SweepConfigSpec>;
 auto BuildSweepNote(std::size_t load_count, const icts::LinearClusteringConfig& config) -> std::string;

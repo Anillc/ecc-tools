@@ -35,6 +35,16 @@ TEST(LinearClusteringOrderTest, ContinuousHilbertMatchesSinkReferenceOrder)
   RunContinuousHilbertMatchesSinkReferenceOrder();
 }
 
+TEST(LinearClusteringOrderTest, DiscreteHilbertMatchesQuantizedSinkReferenceOrder)
+{
+  RunDiscreteHilbertMatchesQuantizedSinkReferenceOrder();
+}
+
+TEST(LinearClusteringOrderTest, DiscreteHilbertAlternativeEncodingsMatchReferenceOrder)
+{
+  RunDiscreteHilbertAlternativeEncodingsMatchReferenceOrder();
+}
+
 TEST(LinearClusteringOrderTest, DensityScaledDiscreteHilbertMatchesSeparableMarginalReference)
 {
   RunDensityScaledDiscreteHilbertMatchesSeparableMarginalReference();

@@ -40,6 +40,11 @@
 namespace icts_test::linear_clustering::synthetic::detail {
 namespace {
 
+auto UsesDiscreteHilbertOrder(icts::LinearOrderStrategy strategy) -> bool
+{
+  return strategy == icts::LinearOrderStrategy::kDiscreteHilbert || strategy == icts::LinearOrderStrategy::kDensityScaledDiscreteHilbert;
+}
+
 auto CsvEscape(const std::string& value) -> std::string
 {
   bool needs_quotes = false;
@@ -197,6 +202,44 @@ auto OrderStrategyName(icts::LinearOrderStrategy strategy) -> const char*
   return "unknown";
 }
 
+auto DiscreteHilbertEncodingName(icts::DiscreteHilbertEncoding encoding) -> const char*
+{
+  switch (encoding) {
+    case icts::DiscreteHilbertEncoding::kSinkThetaCell:
+      return "sink_theta_cell";
+    case icts::DiscreteHilbertEncoding::kSinkThetaCellTangent:
+      return "sink_theta_cell_tangent";
+    case icts::DiscreteHilbertEncoding::kClassicIndex:
+      return "classic_index";
+    case icts::DiscreteHilbertEncoding::kClassicIndexTangent:
+      return "classic_index_tangent";
+  }
+  return "unknown";
+}
+
+auto HilbertTransformName(icts::HilbertTransform transform) -> const char*
+{
+  switch (transform) {
+    case icts::HilbertTransform::kIdentity:
+      return "identity";
+    case icts::HilbertTransform::kMirrorX:
+      return "mirror_x";
+    case icts::HilbertTransform::kMirrorY:
+      return "mirror_y";
+    case icts::HilbertTransform::kMirrorXY:
+      return "mirror_xy";
+    case icts::HilbertTransform::kSwapXY:
+      return "swap_xy";
+    case icts::HilbertTransform::kSwapMirrorX:
+      return "swap_mirror_x";
+    case icts::HilbertTransform::kSwapMirrorY:
+      return "swap_mirror_y";
+    case icts::HilbertTransform::kSwapMirrorXY:
+      return "swap_mirror_xy";
+  }
+  return "unknown";
+}
+
 auto SplitStrategyName(icts::LinearSplitStrategy strategy) -> const char*
 {
   switch (strategy) {
@@ -232,11 +275,24 @@ auto MakeSweepLabel(icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_
   return label;
 }
 
-auto MakeStrategyLabel(icts::LinearOrderStrategy order_strategy, icts::LinearSplitStrategy split_strategy, icts::LinearSweepMode sweep_mode,
-                       std::size_t strided_sweep_count) -> std::string
+auto MakeStrategyLabel(icts::LinearOrderStrategy order_strategy, icts::DiscreteHilbertEncoding discrete_hilbert_encoding,
+                       icts::HilbertTransform hilbert_transform, int order_bits, icts::LinearSplitStrategy split_strategy,
+                       icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string
 {
-  return std::string(OrderStrategyName(order_strategy)) + "__" + SplitStrategyName(split_strategy) + "__"
-         + MakeSweepLabel(sweep_mode, strided_sweep_count);
+  auto label = std::string(OrderStrategyName(order_strategy));
+  if (UsesDiscreteHilbertOrder(order_strategy)) {
+    label += "__";
+    label += DiscreteHilbertEncodingName(discrete_hilbert_encoding);
+    label += "__";
+    label += HilbertTransformName(hilbert_transform);
+    label += "__bits_";
+    label += std::to_string(order_bits);
+  }
+  label += "__";
+  label += SplitStrategyName(split_strategy);
+  label += "__";
+  label += MakeSweepLabel(sweep_mode, strided_sweep_count);
+  return label;
 }
 
 auto FormatResolvedOffsets(const std::vector<std::size_t>& offsets) -> std::string
@@ -312,9 +368,11 @@ auto PickBestStrategy(const std::vector<StrategySweepObservation>& observations)
     }
     if (candidate.selection_score == current_best.selection_score) {
       const auto candidate_label
-          = MakeStrategyLabel(candidate.order_strategy, candidate.split_strategy, candidate.sweep_mode, candidate.strided_sweep_count);
-      const auto best_label = MakeStrategyLabel(current_best.order_strategy, current_best.split_strategy, current_best.sweep_mode,
-                                                current_best.strided_sweep_count);
+          = MakeStrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding, candidate.hilbert_transform,
+                              candidate.order_bits, candidate.split_strategy, candidate.sweep_mode, candidate.strided_sweep_count);
+      const auto best_label = MakeStrategyLabel(current_best.order_strategy, current_best.discrete_hilbert_encoding,
+                                                current_best.hilbert_transform, current_best.order_bits, current_best.split_strategy,
+                                                current_best.sweep_mode, current_best.strided_sweep_count);
       if (candidate_label < best_label) {
         best_index = index;
       }
@@ -335,7 +393,7 @@ auto BuildStrategySweepReport(const std::string& test_name, const std::string& i
   output_stream << "Input: " << input_summary << "\n";
   output_stream << "Selection rule: choose the legal, non-empty candidate with the smallest actual partition score.\n";
   output_stream << "Selection score: partition.total_score computed by LinearOrderGenerator + SequenceSplitter under the active config.\n";
-  output_stream << "Tie break: lexicographic(order, split, sweep_mode).\n";
+  output_stream << "Tie break: lexicographic(strategy_label).\n";
   output_stream << "Sweep semantics: prefix_sweep uses Sink-style offsets [0..prefix_count-1]; strided_sweep samples the full ring; "
                    "prefix_and_strided_sweep expands each strided anchor into a prefix-length sequential window and normalizes to the "
                    "full ring when those anchor windows cover every rotation.\n";
@@ -343,7 +401,12 @@ auto BuildStrategySweepReport(const std::string& test_name, const std::string& i
   output_stream << "Strategy space\n";
   for (std::size_t index = 0; index < observations.size(); ++index) {
     const auto& candidate = observations.at(index);
-    output_stream << "- candidate[" << index << "] order=" << OrderStrategyName(candidate.order_strategy)
+    output_stream << "- candidate[" << index << "] order=" << OrderStrategyName(candidate.order_strategy) << ", discrete_encoding="
+                  << (UsesDiscreteHilbertOrder(candidate.order_strategy) ? DiscreteHilbertEncodingName(candidate.discrete_hilbert_encoding)
+                                                                         : "-")
+                  << ", hilbert_transform="
+                  << (UsesDiscreteHilbertOrder(candidate.order_strategy) ? HilbertTransformName(candidate.hilbert_transform) : "-")
+                  << ", order_bits=" << (UsesDiscreteHilbertOrder(candidate.order_strategy) ? candidate.order_bits : 0)
                   << ", split=" << SplitStrategyName(candidate.split_strategy) << ", sweep_mode=" << SweepModeName(candidate.sweep_mode)
                   << ", strided_sweep_count=" << candidate.strided_sweep_count
                   << ", effective_sweep_mode=" << SweepModeName(candidate.effective_sweep_mode)
@@ -362,7 +425,8 @@ auto BuildStrategySweepReport(const std::string& test_name, const std::string& i
     output_stream << "\nSelected strategy\n";
     output_stream << "- candidate_index=" << selected_index.value() << "\n";
     output_stream << "- strategy="
-                  << MakeStrategyLabel(selected.order_strategy, selected.split_strategy, selected.sweep_mode, selected.strided_sweep_count)
+                  << MakeStrategyLabel(selected.order_strategy, selected.discrete_hilbert_encoding, selected.hilbert_transform,
+                                       selected.order_bits, selected.split_strategy, selected.sweep_mode, selected.strided_sweep_count)
                   << "\n";
     output_stream << "- selection_score=" << selected.selection_score << "\n";
     output_stream << "- selected_rotation_offset=" << selected.selected_rotation_offset << "\n";
@@ -383,7 +447,8 @@ auto BuildStrategySweepCsv(const std::vector<StrategySweepObservation>& observat
   output_stream << std::setprecision(2);
   output_stream
       << "candidate_index,is_selected,strategy_label,order_strategy,split_strategy,sweep_mode,effective_sweep_mode,prefix_count,"
-         "configured_strided_sweep_count,resolved_strided_count,degraded_to_prefix,resolved_offsets_count,resolved_offsets,"
+         "discrete_hilbert_encoding,hilbert_transform,order_bits,configured_strided_sweep_count,resolved_strided_count,"
+         "degraded_to_prefix,resolved_offsets_count,resolved_offsets,"
          "selected_rotation_offset,empty,legal,cluster_count,singleton_cluster_count,min_cluster_size,max_cluster_size,avg_cluster_size,"
          "min_cluster_diameter,max_cluster_diameter,selection_score,partition_score,min_cluster_score,max_cluster_score,"
          "avg_cluster_score,note\n";
@@ -393,15 +458,23 @@ auto BuildStrategySweepCsv(const std::vector<StrategySweepObservation>& observat
     bool first_cell = true;
     AppendCsvCell(output_stream, index, &first_cell);
     AppendCsvCell(output_stream, CsvBool(selected_index.has_value() && selected_index.value() == index), &first_cell);
-    AppendCsvCell(
-        output_stream,
-        MakeStrategyLabel(candidate.order_strategy, candidate.split_strategy, candidate.sweep_mode, candidate.strided_sweep_count),
-        &first_cell);
+    AppendCsvCell(output_stream,
+                  MakeStrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding, candidate.hilbert_transform,
+                                    candidate.order_bits, candidate.split_strategy, candidate.sweep_mode, candidate.strided_sweep_count),
+                  &first_cell);
     AppendCsvCell(output_stream, OrderStrategyName(candidate.order_strategy), &first_cell);
     AppendCsvCell(output_stream, SplitStrategyName(candidate.split_strategy), &first_cell);
     AppendCsvCell(output_stream, SweepModeName(candidate.sweep_mode), &first_cell);
     AppendCsvCell(output_stream, SweepModeName(candidate.effective_sweep_mode), &first_cell);
     AppendCsvCell(output_stream, candidate.prefix_count, &first_cell);
+    AppendCsvCell(
+        output_stream,
+        UsesDiscreteHilbertOrder(candidate.order_strategy) ? DiscreteHilbertEncodingName(candidate.discrete_hilbert_encoding) : "-",
+        &first_cell);
+    AppendCsvCell(output_stream,
+                  UsesDiscreteHilbertOrder(candidate.order_strategy) ? HilbertTransformName(candidate.hilbert_transform) : "-",
+                  &first_cell);
+    AppendCsvCell(output_stream, UsesDiscreteHilbertOrder(candidate.order_strategy) ? candidate.order_bits : 0, &first_cell);
     AppendCsvCell(output_stream, candidate.strided_sweep_count, &first_cell);
     AppendCsvCell(output_stream, candidate.resolved_strided_count, &first_cell);
     AppendCsvCell(output_stream, CsvBool(candidate.degraded_to_prefix), &first_cell);

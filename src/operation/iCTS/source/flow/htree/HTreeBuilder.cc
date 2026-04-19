@@ -1249,10 +1249,8 @@ auto BuildCapDistributionStats(const std::vector<double>& caps_pf) -> CapDistrib
 
 auto BuildLeafElectricalConfig() -> LinearClusteringConfig
 {
-  LinearClusteringConfig config;
-  config.max_fanout = CONFIG_INST.get_max_fanout();
-  config.max_diameter = std::numeric_limits<int>::max();
-  config.max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
+  const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
+  auto config = TopologyGen::buildLinearClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
   config.enable_exact_cap = true;
   config.always_build_exact_cap = true;
   config.scoring_strategy = LinearScoringStrategy::kTotalWirelength;

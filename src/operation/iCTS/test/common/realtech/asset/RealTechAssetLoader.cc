@@ -59,6 +59,8 @@ struct RealTechAssets
   std::filesystem::path tech_lef_path;
   std::vector<std::filesystem::path> lef_paths;
   std::filesystem::path def_path;
+  std::filesystem::path verilog_path;
+  std::string top_module;
   std::vector<std::filesystem::path> lib_paths;
   std::filesystem::path sdc_path;
   std::filesystem::path output_dir;
@@ -77,6 +79,17 @@ constexpr std::array<std::string_view, 2> kFlowScriptRelPaths = {
 };
 constexpr std::string_view kRunScriptRelPath = "run_iEDA.sh";
 constexpr std::string_view kCtsConfigRelPath = "iEDA_config/cts_default_config.json";
+constexpr std::array<std::string_view, 3> kArm9DefRelPaths = {
+    "result/arm9_place.def.gz",
+    "result/arm9_place.def",
+    "result/iPL_result.def",
+};
+constexpr std::array<std::string_view, 4> kArm9VerilogRelPaths = {
+    "result/arm9_place.v",
+    "result/iCTS_result.v",
+    "result/iPL_result.v",
+    "result/verilog/gcd_nl.v",
+};
 
 auto TrimAscii(const std::string& text) -> std::string
 {
@@ -136,6 +149,19 @@ auto ResolveExistingPath(const std::filesystem::path& base_path, const std::arra
   return base_path / relative_candidates.front();
 }
 
+template <std::size_t N>
+auto ResolveExistingPath(const std::filesystem::path& base_path, const std::array<std::string_view, N>& relative_candidates)
+    -> std::filesystem::path
+{
+  for (const auto& relative_path : relative_candidates) {
+    const auto candidate = base_path / relative_path;
+    if (std::filesystem::exists(candidate)) {
+      return candidate;
+    }
+  }
+  return base_path / relative_candidates.front();
+}
+
 auto TryParseShellExport(const std::filesystem::path& script_path, std::string_view variable_name) -> std::filesystem::path
 {
   std::ifstream input_stream(script_path);
@@ -184,6 +210,36 @@ auto TryParseTclSet(const std::filesystem::path& script_path, std::string_view v
   return {};
 }
 
+auto TryParseVerilogTopModule(const std::filesystem::path& verilog_path) -> std::string
+{
+  std::ifstream input_stream(verilog_path);
+  if (!input_stream) {
+    return {};
+  }
+
+  std::string line;
+  while (std::getline(input_stream, line)) {
+    const auto trimmed_line = TrimAscii(line);
+    if (!trimmed_line.starts_with("module ")) {
+      continue;
+    }
+
+    std::istringstream line_stream(trimmed_line);
+    std::string module_keyword;
+    std::string module_name;
+    line_stream >> module_keyword >> module_name;
+    if (module_keyword != "module" || module_name.empty()) {
+      continue;
+    }
+
+    while (!module_name.empty() && (module_name.back() == '(' || module_name.back() == ';')) {
+      module_name.pop_back();
+    }
+    return module_name;
+  }
+  return {};
+}
+
 auto ResolvePdkRootPath(const std::filesystem::path& workspace_path) -> std::filesystem::path
 {
   const auto absolutize_to_workspace = [&workspace_path](std::filesystem::path candidate_path) -> std::filesystem::path {
@@ -227,7 +283,11 @@ auto BuildAssetsFromWorkspace(const std::filesystem::path& workspace_path) -> st
       assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef",
       assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef",
   };
-  assets.def_path = workspace_path / "result/iPL_result.def";
+  assets.def_path = ResolveExistingPath(workspace_path, kArm9DefRelPaths);
+  assets.verilog_path = ResolveExistingPath(workspace_path, kArm9VerilogRelPaths);
+  if (!assets.verilog_path.empty() && std::filesystem::exists(assets.verilog_path)) {
+    assets.top_module = TryParseVerilogTopModule(assets.verilog_path);
+  }
   assets.lib_paths = {
       assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib",
       assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib",
@@ -282,6 +342,9 @@ auto ValidateAssets(const RealTechAssets& assets, std::string& error) -> bool
   check_file("cts_config", assets.cts_config_path);
   check_file("tech_lef", assets.tech_lef_path);
   check_file("def", assets.def_path);
+  if (!assets.verilog_path.empty()) {
+    check_file("verilog", assets.verilog_path);
+  }
   check_file("sdc", assets.sdc_path);
   if (assets.lef_paths.empty()) {
     missing_entries.emplace_back("lef_paths=<empty>");
@@ -336,6 +399,17 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
   if (!dmInst->readLef(lef_paths, false)) {
     error = "readLef(cells) failed";
     return false;
+  }
+
+  if (!assets.verilog_path.empty() && std::filesystem::exists(assets.verilog_path)) {
+    if (assets.top_module.empty()) {
+      error = "cannot resolve top module from verilog: " + assets.verilog_path.string();
+      return false;
+    }
+    if (!dmInst->readVerilog(assets.verilog_path.string(), assets.top_module)) {
+      error = "readVerilog failed";
+      return false;
+    }
   }
 
   if (!dmInst->readDef(assets.def_path.string())) {
@@ -417,7 +491,8 @@ auto BuildRealTechSetupState() -> RealTechSetupState
       state.mode = RealTechMode::kRealTech;
       state.setup_succeeded = true;
       state.source_label = "real_tech:" + workspace_path.string();
-      state.summary = "loaded real tech/design from workspace " + workspace_path.string();
+      state.summary = "loaded real tech/design from workspace " + workspace_path.string() + ", def=" + assets.def_path.filename().string()
+                      + ", verilog=" + (assets.verilog_path.empty() ? std::string("<none>") : assets.verilog_path.filename().string());
       LOG_INFO << "RealTechSetup: " << state.summary;
       return state;
     }

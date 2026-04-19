@@ -1,6 +1,7 @@
 add_subdirectory(setup)
 add_subdirectory(sweep)
 add_subdirectory(electrical)
+add_subdirectory(experiment)
 
 add_library(icts_test_module_topology_linear_clustering_realtech_support INTERFACE)
 
@@ -11,4 +12,5 @@ target_link_libraries(
   icts_test_module_topology_linear_clustering_realtech_setup_scenario_support
   icts_test_module_topology_linear_clustering_realtech_sweep_scenario_support
   icts_test_module_topology_linear_clustering_realtech_electrical_scenario_support
+  icts_test_module_topology_linear_clustering_realtech_experiment_scenario_support
 )

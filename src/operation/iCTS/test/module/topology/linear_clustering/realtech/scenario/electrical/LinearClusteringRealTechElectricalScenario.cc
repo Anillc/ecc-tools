@@ -211,7 +211,10 @@ auto AppendExactCapRegressionCase(std::ostringstream& overall_summary, const std
                   << ", enable_exact_cap=true, scoring=" << ScoringStrategyName(selected_artifacts.config->scoring_strategy) << "\n";
   overall_summary << "Selected strategy: "
                   << StrategyLabel(selected_artifacts.selected_candidate->order_strategy,
-                                   selected_artifacts.selected_candidate->split_strategy, selected_artifacts.selected_candidate->sweep_mode,
+                                   selected_artifacts.selected_candidate->discrete_hilbert_encoding,
+                                   selected_artifacts.selected_candidate->hilbert_transform,
+                                   selected_artifacts.selected_candidate->order_bits, selected_artifacts.selected_candidate->split_strategy,
+                                   selected_artifacts.selected_candidate->sweep_mode,
                                    selected_artifacts.selected_candidate->strided_sweep_count)
                   << " (selection_score=" << selected_artifacts.selected_candidate->selection_score << ")\n";
   overall_summary << "Observed result: cluster_count=" << selected_artifacts.result->clusters.size() << "\n";

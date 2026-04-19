@@ -45,7 +45,6 @@
 #include "Pin.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
-#include "config/TopologyConfig.hh"
 #include "logger/Schema.hh"
 #include "topology/TopologyGen.hh"
 
@@ -551,9 +550,9 @@ auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, co
   htree_sinks.reserve(sinks.size());
 
   if (enable_sink_clustering) {
-    LinearClusteringConfig clustering_config;
-    clustering_config.max_fanout = CONFIG_INST.get_max_fanout();
-    auto cluster_result = TopologyGen::linearClustering(sinks, clustering_config);
+    const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
+    auto clustering_config = TopologyGen::buildLinearClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
+    auto cluster_result = TopologyGen::defaultLinearClustering(sinks, clustering_config);
     result.cluster_result = std::move(cluster_result);
     const auto cluster_buffer_master = resolveMinLegalClusterBufferMaster();
     if (!cluster_buffer_master.has_value()) {

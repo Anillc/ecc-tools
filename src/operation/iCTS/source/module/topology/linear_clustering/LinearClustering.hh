@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 namespace icts {
@@ -37,6 +38,8 @@ class LinearClustering
   LinearClustering() = delete;
   ~LinearClustering() = default;
 
+  static auto buildElectricalBaseConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig;
+  static auto runDefault(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
   static auto run(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
 };
 

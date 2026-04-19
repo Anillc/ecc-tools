@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints for test/source edits and validation scope."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Real-tech setup touches Config/Wrapper/STAAdapter and must preserve database ownership boundaries."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "The experiment must emit ranking output into cts.log using schema/report helpers."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Real-tech loader and experiment helpers need safe fallback/error behavior without exceptions."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Changes span real-tech support, scenarios, and tests under the mirrored linear_clustering tree."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The task crosses asset loading, STA/Wrapper setup, test support, and algorithm evaluation."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Prefer reusing the existing real-tech and synthetic strategy-sweep helpers instead of building a parallel harness."}

@@ -32,19 +32,21 @@
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "Pin.hh"
 #include "Point.hh"
 #include "linear_clustering/LinearClusteringTypes.hh"
+#include "module/topology/config/TopologyConfig.hh"
 #include "module/topology/linear_clustering/synthetic/support/LinearClusteringSyntheticInternal.hh"
 
 namespace icts_test::linear_clustering::synthetic::detail {
 namespace {
 
 constexpr double kReferenceDensityEmptyBinFloor = 1.0e-6;
-constexpr std::uint32_t kReferenceDefaultDiscreteOrderBits = 12U;
+constexpr std::uint32_t kReferenceDefaultDiscreteOrderBits = 16U;
 constexpr std::uint32_t kReferenceMaxDiscreteOrderBits = 31U;
 
 struct ReferenceBounds
@@ -86,6 +88,18 @@ struct ReferenceDiscretePoint
 {
   std::uint32_t x_coord = 0U;
   std::uint32_t y_coord = 0U;
+};
+
+struct ReferenceDiscreteOrderEntry
+{
+  double cell_theta = 0.0;
+  std::uint64_t hilbert_index = 0U;
+  double fine_theta = 0.0;
+  double projected_x = 0.0;
+  double projected_y = 0.0;
+  double tangent_position = 0.0;
+  double orthogonal_position = 0.0;
+  std::size_t original_index = 0U;
 };
 
 auto NormalizeSinkReferenceCoord(int coord, int min_coord, int max_coord) -> double
@@ -336,6 +350,122 @@ auto CalcDiscreteHilbertIndex(ReferenceDiscretePoint point, ReferenceOrderBits o
   return index;
 }
 
+auto ComputeDiscreteHilbertTheta(ReferenceDiscretePoint point, ReferenceOrderBits order_bits) -> double
+{
+  if (order_bits.value == 0U) {
+    return ComputeSinkReferenceTheta(kSinkReferenceCenterCoord, kSinkReferenceCenterCoord);
+  }
+
+  const auto grid_width = static_cast<double>(std::uint64_t{1} << order_bits.value);
+  const auto cell_center_x = (static_cast<double>(point.x_coord) + kSinkReferenceTerminalTheta) / grid_width;
+  const auto cell_center_y = (static_cast<double>(point.y_coord) + kSinkReferenceTerminalTheta) / grid_width;
+  return ComputeSinkReferenceTheta(cell_center_x, cell_center_y);
+}
+
+auto ApplyHilbertTransform(double x_coord, double y_coord, icts::HilbertTransform transform) -> std::pair<double, double>
+{
+  const auto x = std::clamp(x_coord, 0.0, 1.0);
+  const auto y = std::clamp(y_coord, 0.0, 1.0);
+
+  switch (transform) {
+    case icts::HilbertTransform::kIdentity:
+      return {x, y};
+    case icts::HilbertTransform::kMirrorX:
+      return {1.0 - x, y};
+    case icts::HilbertTransform::kMirrorY:
+      return {x, 1.0 - y};
+    case icts::HilbertTransform::kMirrorXY:
+      return {1.0 - x, 1.0 - y};
+    case icts::HilbertTransform::kSwapXY:
+      return {y, x};
+    case icts::HilbertTransform::kSwapMirrorX:
+      return {1.0 - y, x};
+    case icts::HilbertTransform::kSwapMirrorY:
+      return {y, 1.0 - x};
+    case icts::HilbertTransform::kSwapMirrorXY:
+      return {1.0 - y, 1.0 - x};
+  }
+  return {x, y};
+}
+
+auto CalcDiscreteCellLocalCoord(double normalized_coord, std::uint32_t axis_coord, ReferenceOrderBits order_bits) -> double
+{
+  if (order_bits.value == 0U) {
+    return kSinkReferenceCenterCoord;
+  }
+
+  const auto grid_width = static_cast<double>(std::uint64_t{1} << order_bits.value);
+  const auto scaled = (std::clamp(normalized_coord, 0.0, 1.0) * grid_width) - static_cast<double>(axis_coord);
+  return std::clamp(scaled, 0.0, 1.0);
+}
+
+auto CalcHilbertPointFromIndex(std::uint64_t hilbert_index, ReferenceOrderBits order_bits) -> ReferenceDiscretePoint
+{
+  if (order_bits.value == 0U) {
+    return {};
+  }
+
+  ReferenceDiscretePoint point;
+  const auto grid_width = static_cast<std::uint32_t>(1U << order_bits.value);
+  for (std::uint32_t step = 1U; step < grid_width; step <<= 1U) {
+    const auto rotation_x = static_cast<std::uint32_t>((hilbert_index >> 1U) & 1U);
+    const auto rotation_y = static_cast<std::uint32_t>((hilbert_index ^ rotation_x) & 1U);
+    auto rotated_x = point.x_coord;
+    auto rotated_y = point.y_coord;
+    HilbertRotate(step, rotated_x, rotated_y, rotation_x, rotation_y);
+    point.x_coord = rotated_x + (step * rotation_x);
+    point.y_coord = rotated_y + (step * rotation_y);
+    hilbert_index >>= 2U;
+  }
+  return point;
+}
+
+auto CalcHilbertTangentProjection(std::uint64_t hilbert_index, ReferenceOrderBits order_bits, double local_x, double local_y)
+    -> std::pair<double, double>
+{
+  if (order_bits.value == 0U) {
+    return {0.0, 0.0};
+  }
+
+  const auto current_point = CalcHilbertPointFromIndex(hilbert_index, order_bits);
+  const auto max_index = (std::uint64_t{1} << (2U * order_bits.value)) - 1U;
+
+  auto previous_point = current_point;
+  auto next_point = current_point;
+  if (hilbert_index > 0U) {
+    previous_point = CalcHilbertPointFromIndex(hilbert_index - 1U, order_bits);
+  }
+  if (hilbert_index < max_index) {
+    next_point = CalcHilbertPointFromIndex(hilbert_index + 1U, order_bits);
+  }
+
+  double direction_x = static_cast<double>(next_point.x_coord) - static_cast<double>(previous_point.x_coord);
+  double direction_y = static_cast<double>(next_point.y_coord) - static_cast<double>(previous_point.y_coord);
+  if (direction_x == 0.0 && direction_y == 0.0) {
+    if (hilbert_index > 0U) {
+      direction_x = static_cast<double>(current_point.x_coord) - static_cast<double>(previous_point.x_coord);
+      direction_y = static_cast<double>(current_point.y_coord) - static_cast<double>(previous_point.y_coord);
+    } else if (hilbert_index < max_index) {
+      direction_x = static_cast<double>(next_point.x_coord) - static_cast<double>(current_point.x_coord);
+      direction_y = static_cast<double>(next_point.y_coord) - static_cast<double>(current_point.y_coord);
+    }
+  }
+
+  const auto direction_norm = std::hypot(direction_x, direction_y);
+  if (direction_norm <= 0.0) {
+    return {0.0, 0.0};
+  }
+
+  direction_x /= direction_norm;
+  direction_y /= direction_norm;
+  const auto centered_x = local_x - kSinkReferenceCenterCoord;
+  const auto centered_y = local_y - kSinkReferenceCenterCoord;
+  return {
+      (centered_x * direction_x) + (centered_y * direction_y),
+      (-centered_x * direction_y) + (centered_y * direction_x),
+  };
+}
+
 }  // namespace
 
 auto ExtractOriginalIndices(const std::vector<icts::OrderedLoad>& ordered_loads) -> std::vector<std::size_t>
@@ -440,34 +570,126 @@ auto BuildReferenceDensityScaledDiscreteOrder(const std::vector<icts::Pin*>& loa
   const auto y_axis_model = BuildReferenceDensityAxisModel(loads, ReferenceAxis::kY, bounds, grid_size, scale_power);
   const auto resolved_order_bits = ResolveDiscreteOrderBits(config.order_bits);
 
-  std::vector<std::pair<std::uint64_t, std::size_t>> indexed_order;
+  std::vector<ReferenceDiscreteOrderEntry> indexed_order;
   indexed_order.reserve(loads.size());
   for (std::size_t index = 0; index < loads.size(); ++index) {
     const auto* pin = loads.at(index);
     if (pin == nullptr) {
       continue;
     }
-    const auto projected_x = ApplyReferenceDensityScaledCoord(pin->get_location().get_x(), x_axis_model);
-    const auto projected_y = ApplyReferenceDensityScaledCoord(pin->get_location().get_y(), y_axis_model);
+    auto projected_x = ApplyReferenceDensityScaledCoord(pin->get_location().get_x(), x_axis_model);
+    auto projected_y = ApplyReferenceDensityScaledCoord(pin->get_location().get_y(), y_axis_model);
+    std::tie(projected_x, projected_y) = ApplyHilbertTransform(projected_x, projected_y, config.hilbert_transform);
     const ReferenceDiscretePoint point{
         .x_coord = QuantizeToDiscreteAxisCoord(projected_x, resolved_order_bits),
         .y_coord = QuantizeToDiscreteAxisCoord(projected_y, resolved_order_bits),
     };
-    indexed_order.emplace_back(CalcDiscreteHilbertIndex(point, resolved_order_bits), index);
+    const auto hilbert_index = CalcDiscreteHilbertIndex(point, resolved_order_bits);
+    const auto local_x = CalcDiscreteCellLocalCoord(projected_x, point.x_coord, resolved_order_bits);
+    const auto local_y = CalcDiscreteCellLocalCoord(projected_y, point.y_coord, resolved_order_bits);
+    const auto [tangent_position, orthogonal_position] = CalcHilbertTangentProjection(hilbert_index, resolved_order_bits, local_x, local_y);
+    indexed_order.push_back(ReferenceDiscreteOrderEntry{
+        .cell_theta = ComputeDiscreteHilbertTheta(point, resolved_order_bits),
+        .hilbert_index = hilbert_index,
+        .fine_theta = ComputeSinkReferenceTheta(projected_x, projected_y),
+        .projected_x = projected_x,
+        .projected_y = projected_y,
+        .tangent_position = tangent_position,
+        .orthogonal_position = orthogonal_position,
+        .original_index = index,
+    });
   }
 
-  std::ranges::stable_sort(indexed_order, [](const auto& lhs, const auto& rhs) -> bool {
-    if (lhs.first != rhs.first) {
-      return lhs.first < rhs.first;
-    }
-    return lhs.second < rhs.second;
-  });
+  const auto encoding = config.discrete_hilbert_encoding;
+  std::ranges::stable_sort(
+      indexed_order, [encoding](const ReferenceDiscreteOrderEntry& lhs, const ReferenceDiscreteOrderEntry& rhs) -> bool {
+        auto compare_doubles = [](double lhs_value, double rhs_value) -> std::optional<bool> {
+          if (const auto order = lhs_value <=> rhs_value; order != std::partial_ordering::equivalent) {
+            return order == std::partial_ordering::less;
+          }
+          return std::nullopt;
+        };
+        auto compare_indices = [](std::uint64_t lhs_value, std::uint64_t rhs_value) -> std::optional<bool> {
+          if (lhs_value == rhs_value) {
+            return std::nullopt;
+          }
+          return lhs_value < rhs_value;
+        };
+        const auto compare_standard_tail = [&lhs, &rhs, &compare_doubles]() -> std::optional<bool> {
+          if (const auto order = compare_doubles(lhs.fine_theta, rhs.fine_theta); order.has_value()) {
+            return order;
+          }
+          if (const auto order = compare_doubles(lhs.projected_x, rhs.projected_x); order.has_value()) {
+            return order;
+          }
+          if (const auto order = compare_doubles(lhs.projected_y, rhs.projected_y); order.has_value()) {
+            return order;
+          }
+          return std::nullopt;
+        };
+
+        switch (encoding) {
+          case icts::DiscreteHilbertEncoding::kSinkThetaCell:
+            if (const auto order = compare_doubles(lhs.cell_theta, rhs.cell_theta); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_standard_tail(); order.has_value()) {
+              return order.value();
+            }
+            break;
+          case icts::DiscreteHilbertEncoding::kSinkThetaCellTangent:
+            if (const auto order = compare_doubles(lhs.cell_theta, rhs.cell_theta); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_doubles(lhs.tangent_position, rhs.tangent_position); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_doubles(lhs.orthogonal_position, rhs.orthogonal_position); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_standard_tail(); order.has_value()) {
+              return order.value();
+            }
+            break;
+          case icts::DiscreteHilbertEncoding::kClassicIndex:
+            if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_doubles(lhs.cell_theta, rhs.cell_theta); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_standard_tail(); order.has_value()) {
+              return order.value();
+            }
+            break;
+          case icts::DiscreteHilbertEncoding::kClassicIndexTangent:
+            if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_doubles(lhs.tangent_position, rhs.tangent_position); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_doubles(lhs.orthogonal_position, rhs.orthogonal_position); order.has_value()) {
+              return order.value();
+            }
+            if (const auto order = compare_standard_tail(); order.has_value()) {
+              return order.value();
+            }
+            break;
+        }
+        return lhs.original_index < rhs.original_index;
+      });
 
   std::vector<std::size_t> reference_order;
   reference_order.reserve(indexed_order.size());
-  for (const auto& [hilbert_index, original_index] : indexed_order) {
-    (void) hilbert_index;
-    reference_order.push_back(original_index);
+  for (const auto& entry : indexed_order) {
+    reference_order.push_back(entry.original_index);
   }
   return reference_order;
 }

@@ -31,6 +31,9 @@
 #include <unordered_map>
 #include <vector>
 
+#if defined(ICTS_ENABLE_SLOW_REALTECH_REGRESSION) && ICTS_ENABLE_SLOW_REALTECH_REGRESSION
+#include "BufferingPattern.hh"
+#endif
 #include "database/characterization/HTreeTopologyChar.hh"
 #include "database/characterization/SegmentChar.hh"
 #include "database/config/Config.hh"

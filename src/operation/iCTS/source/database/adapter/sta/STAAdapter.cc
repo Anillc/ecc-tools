@@ -79,6 +79,7 @@
 #include "netlist/Net.hh"
 #include "netlist/Netlist.hh"
 #include "netlist/Pin.hh"
+#include "netlist/Port.hh"
 #include "sta/Sta.hh"
 #include "sta/StaClock.hh"
 #include "sta/StaData.hh"
@@ -1400,9 +1401,31 @@ auto STAAdapter::queryPinCapacitance(const Pin* pin) -> double
 
   auto* inst = pin->get_inst();
   const std::string pin_full_name = inst != nullptr ? (inst->get_name() + "/" + pin->get_name()) : pin->get_name();
-  const double pin_cap = GetStaEngine()->getInstPinCapacitance(pin_full_name.c_str());
+  auto* timing_engine = GetStaEngine();
+  auto* ista = timing_engine != nullptr ? timing_engine->get_ista() : nullptr;
+  auto* design_netlist = ista != nullptr ? ista->get_netlist() : nullptr;
+  if (design_netlist == nullptr) {
+    LOG_WARNING << "Pin-cap query skipped: STA netlist is not ready for " << pin_full_name << ".";
+    return 0.0;
+  }
 
-  return pin_cap;
+  auto match_pins = design_netlist->findPin(pin_full_name.c_str(), false, false);
+  if (!match_pins.empty()) {
+    auto* ista_pin = dynamic_cast<ista::Pin*>(match_pins.front());
+    if (ista_pin == nullptr) {
+      LOG_WARNING << "Pin-cap query skipped: STA object is not a pin for " << pin_full_name << ".";
+      return 0.0;
+    }
+    return ista_pin->cap();
+  }
+
+  auto* port = design_netlist->findPort(pin_full_name.c_str());
+  if (port == nullptr) {
+    LOG_WARNING << "Pin-cap query skipped: STA design has no pin or port named " << pin_full_name << ".";
+    return 0.0;
+  }
+
+  return port->cap();
 }
 
 auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>

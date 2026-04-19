@@ -205,7 +205,10 @@ auto AppendRealTechArtifactSweepCase(std::ostringstream& overall_summary, const 
                   << cluster_summary.avg_cluster_size << "\n";
   overall_summary << "Selected strategy: "
                   << StrategyLabel(selected_artifacts.selected_candidate->order_strategy,
-                                   selected_artifacts.selected_candidate->split_strategy, selected_artifacts.selected_candidate->sweep_mode,
+                                   selected_artifacts.selected_candidate->discrete_hilbert_encoding,
+                                   selected_artifacts.selected_candidate->hilbert_transform,
+                                   selected_artifacts.selected_candidate->order_bits, selected_artifacts.selected_candidate->split_strategy,
+                                   selected_artifacts.selected_candidate->sweep_mode,
                                    selected_artifacts.selected_candidate->strided_sweep_count)
                   << " (selection_score=" << selected_artifacts.selected_candidate->selection_score << ")\n";
   overall_summary << "Strategy sweep\n"
@@ -259,8 +262,11 @@ auto AppendDiameterLadderStepReport(std::ostringstream& report, const DiameterLa
   report << "Requested max_diameter: " << step_data.artifacts.config->max_diameter << "\n";
   report << "Observed result: " << FormatMetricsLine(step_data.metrics) << "\n";
   report << "Selected strategy: "
-         << StrategyLabel(step_data.artifacts.selected_candidate->order_strategy, step_data.artifacts.selected_candidate->split_strategy,
-                          step_data.artifacts.selected_candidate->sweep_mode, step_data.artifacts.selected_candidate->strided_sweep_count)
+         << StrategyLabel(step_data.artifacts.selected_candidate->order_strategy,
+                          step_data.artifacts.selected_candidate->discrete_hilbert_encoding,
+                          step_data.artifacts.selected_candidate->hilbert_transform, step_data.artifacts.selected_candidate->order_bits,
+                          step_data.artifacts.selected_candidate->split_strategy, step_data.artifacts.selected_candidate->sweep_mode,
+                          step_data.artifacts.selected_candidate->strided_sweep_count)
          << " (selection_score=" << step_data.artifacts.selected_candidate->selection_score << ")\n";
   report << "Strategy sweep\n"
          << BuildStrategySweepSection(step_data.selection.candidates, step_data.selection.selected_index,
@@ -394,7 +400,10 @@ auto RunSyntheticFallbackArtifactSweep(const RealTechSetupState& setup_state, co
                  << cluster_summary.avg_cluster_size << "\n";
   summary_stream << "Selected strategy: "
                  << StrategyLabel(selected_artifacts.selected_candidate->order_strategy,
-                                  selected_artifacts.selected_candidate->split_strategy, selected_artifacts.selected_candidate->sweep_mode,
+                                  selected_artifacts.selected_candidate->discrete_hilbert_encoding,
+                                  selected_artifacts.selected_candidate->hilbert_transform,
+                                  selected_artifacts.selected_candidate->order_bits, selected_artifacts.selected_candidate->split_strategy,
+                                  selected_artifacts.selected_candidate->sweep_mode,
                                   selected_artifacts.selected_candidate->strided_sweep_count)
                  << " (selection_score=" << selected_artifacts.selected_candidate->selection_score << ")\n";
   summary_stream << "Strategy sweep\n"

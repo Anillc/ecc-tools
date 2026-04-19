@@ -31,5 +31,6 @@ auto RunRealTechOrFallbackSweepsGenerateArtifacts() -> void;
 auto RunRealTechDiameterLadderIsResponsive() -> void;
 auto RunRealTechExactCapRegression() -> void;
 auto RunRealTechExactCapRootCollisionIsLegalizedBeforeRouting() -> void;
+auto RunRealTechArm9StrategyRankingExperiment() -> void;
 
 }  // namespace icts_test::linear_clustering::realtech

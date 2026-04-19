@@ -82,6 +82,9 @@ struct ClusterMetrics
 struct StrategySweepCandidate
 {
   icts::LinearOrderStrategy order_strategy = icts::LinearOrderStrategy::kContinuousHilbert;
+  icts::DiscreteHilbertEncoding discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kSinkThetaCell;
+  icts::HilbertTransform hilbert_transform = icts::HilbertTransform::kIdentity;
+  int order_bits = 16;
   icts::LinearSplitStrategy split_strategy = icts::LinearSplitStrategy::kBidirectionalGreedy;
   icts::LinearSweepMode sweep_mode = icts::LinearSweepMode::kPrefixSweep;
   std::size_t strided_sweep_count = 0;
@@ -110,6 +113,9 @@ struct FanoutConfigSpec
   int max_diameter = 0;
   bool enable_exact_cap = false;
   icts::LinearOrderStrategy order_strategy = icts::LinearOrderStrategy::kContinuousHilbert;
+  icts::DiscreteHilbertEncoding discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kSinkThetaCell;
+  icts::HilbertTransform hilbert_transform = icts::HilbertTransform::kIdentity;
+  int order_bits = 16;
   icts::LinearSplitStrategy split_strategy = icts::LinearSplitStrategy::kBidirectionalGreedy;
   icts::LinearSweepMode sweep_mode = icts::LinearSweepMode::kPrefixSweep;
   std::size_t strided_sweep_count = 0;
@@ -149,11 +155,14 @@ auto ValidateClusterLegality(const icts::ClusterResult& result, const icts::Line
 auto PrepareOutputDir(const std::string& case_name) -> std::filesystem::path;
 auto WriteCaseLog(const std::filesystem::path& path, const std::string& content) -> bool;
 auto OrderStrategyName(icts::LinearOrderStrategy strategy) -> const char*;
+auto DiscreteHilbertEncodingName(icts::DiscreteHilbertEncoding encoding) -> const char*;
+auto HilbertTransformName(icts::HilbertTransform transform) -> const char*;
 auto SplitStrategyName(icts::LinearSplitStrategy strategy) -> const char*;
 auto SweepModeName(icts::LinearSweepMode mode) -> const char*;
 auto MakeSweepLabel(icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string;
-auto StrategyLabel(icts::LinearOrderStrategy order_strategy, icts::LinearSplitStrategy split_strategy, icts::LinearSweepMode sweep_mode,
-                   std::size_t strided_sweep_count) -> std::string;
+auto StrategyLabel(icts::LinearOrderStrategy order_strategy, icts::DiscreteHilbertEncoding discrete_hilbert_encoding,
+                   icts::HilbertTransform hilbert_transform, int order_bits, icts::LinearSplitStrategy split_strategy,
+                   icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string;
 auto ScoringStrategyName(icts::LinearScoringStrategy strategy) -> const char*;
 auto FormatResolvedOffsets(const std::vector<std::size_t>& offsets) -> std::string;
 auto BuildSweepCandidates(std::size_t load_count) -> std::vector<SweepConfigSpec>;

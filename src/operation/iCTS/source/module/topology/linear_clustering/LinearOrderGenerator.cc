@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <tuple>
 #include <utility>
@@ -44,7 +45,7 @@ namespace icts {
 namespace {
 
 constexpr std::uint32_t kMaxDiscreteOrderBits = 31U;
-constexpr std::uint32_t kDefaultDiscreteOrderBits = 12U;
+constexpr std::uint32_t kDefaultDiscreteOrderBits = 16U;
 constexpr double kDegenerateAxisNormalizedCoord = 0.5;
 constexpr double kDensityEmptyBinFloor = 1.0e-6;
 constexpr double kHilbertTerminalTheta = 0.5;
@@ -105,7 +106,15 @@ struct DiscreteOrderEntry
 {
   OrderedLoad load;
   std::uint64_t hilbert_index = 0U;
+  double cell_theta = 0.0;
+  double theta = 0.0;
+  double projected_x = 0.0;
+  double projected_y = 0.0;
+  double tangent_position = 0.0;
+  double orthogonal_position = 0.0;
 };
+
+auto CalcContinuousHilbertTheta(double x_coord, double y_coord) -> double;
 
 auto NormalizeCoord(int coord, int min_coord, int max_coord) -> NormalizedCoord
 {
@@ -232,6 +241,120 @@ auto CalcDiscreteHilbertIndex(HilbertAxes axes, std::uint32_t order_bits) -> std
   return index;
 }
 
+auto CalcDiscreteHilbertTheta(HilbertAxes axes, std::uint32_t order_bits) -> double
+{
+  if (order_bits == 0U) {
+    return CalcContinuousHilbertTheta(kHilbertCenterCoord, kHilbertCenterCoord);
+  }
+
+  const auto grid_width = static_cast<double>(std::uint64_t{1} << order_bits);
+  const auto cell_center_x = (static_cast<double>(axes.x_coord) + kHilbertTerminalTheta) / grid_width;
+  const auto cell_center_y = (static_cast<double>(axes.y_coord) + kHilbertTerminalTheta) / grid_width;
+  return CalcContinuousHilbertTheta(cell_center_x, cell_center_y);
+}
+
+auto CalcDiscreteCellLocalCoord(NormalizedCoord normalized_coord, std::uint32_t axis_coord, std::uint32_t order_bits) -> double
+{
+  if (order_bits == 0U) {
+    return kDegenerateAxisNormalizedCoord;
+  }
+
+  const auto grid_width = static_cast<double>(std::uint64_t{1} << order_bits);
+  const auto scaled = (std::clamp(normalized_coord.value, 0.0, 1.0) * grid_width) - static_cast<double>(axis_coord);
+  return std::clamp(scaled, 0.0, 1.0);
+}
+
+auto CalcHilbertAxesFromIndex(std::uint64_t hilbert_index, std::uint32_t order_bits) -> HilbertAxes
+{
+  if (order_bits == 0U) {
+    return {};
+  }
+
+  HilbertAxes axes;
+  const auto grid_width = static_cast<std::uint32_t>(1U << order_bits);
+  for (std::uint32_t step = 1U; step < grid_width; step <<= 1U) {
+    const auto rotation_x = static_cast<std::uint32_t>((hilbert_index >> 1U) & 1U);
+    const auto rotation_y = static_cast<std::uint32_t>((hilbert_index ^ rotation_x) & 1U);
+    axes = HilbertRotate(step, axes, rotation_x, rotation_y);
+    axes.x_coord += step * rotation_x;
+    axes.y_coord += step * rotation_y;
+    hilbert_index >>= 2U;
+  }
+  return axes;
+}
+
+auto CalcHilbertTangentProjection(std::uint64_t hilbert_index, std::uint32_t order_bits, double local_x, double local_y)
+    -> std::pair<double, double>
+{
+  if (order_bits == 0U) {
+    return {0.0, 0.0};
+  }
+
+  const auto current_axes = CalcHilbertAxesFromIndex(hilbert_index, order_bits);
+  const auto max_index = (std::uint64_t{1} << (2U * order_bits)) - 1U;
+
+  auto previous_axes = current_axes;
+  auto next_axes = current_axes;
+  if (hilbert_index > 0U) {
+    previous_axes = CalcHilbertAxesFromIndex(hilbert_index - 1U, order_bits);
+  }
+  if (hilbert_index < max_index) {
+    next_axes = CalcHilbertAxesFromIndex(hilbert_index + 1U, order_bits);
+  }
+
+  double direction_x = static_cast<double>(next_axes.x_coord) - static_cast<double>(previous_axes.x_coord);
+  double direction_y = static_cast<double>(next_axes.y_coord) - static_cast<double>(previous_axes.y_coord);
+  if (direction_x == 0.0 && direction_y == 0.0) {
+    if (hilbert_index > 0U) {
+      direction_x = static_cast<double>(current_axes.x_coord) - static_cast<double>(previous_axes.x_coord);
+      direction_y = static_cast<double>(current_axes.y_coord) - static_cast<double>(previous_axes.y_coord);
+    } else if (hilbert_index < max_index) {
+      direction_x = static_cast<double>(next_axes.x_coord) - static_cast<double>(current_axes.x_coord);
+      direction_y = static_cast<double>(next_axes.y_coord) - static_cast<double>(current_axes.y_coord);
+    }
+  }
+
+  const auto direction_norm = std::hypot(direction_x, direction_y);
+  if (direction_norm <= 0.0) {
+    return {0.0, 0.0};
+  }
+
+  direction_x /= direction_norm;
+  direction_y /= direction_norm;
+  const auto centered_x = local_x - kHilbertCenterCoord;
+  const auto centered_y = local_y - kHilbertCenterCoord;
+  const auto tangent_position = (centered_x * direction_x) + (centered_y * direction_y);
+  const auto orthogonal_position = (-centered_x * direction_y) + (centered_y * direction_x);
+  return {tangent_position, orthogonal_position};
+}
+
+auto ApplyHilbertTransform(NormalizedCoord x_coord, NormalizedCoord y_coord, HilbertTransform transform)
+    -> std::pair<NormalizedCoord, NormalizedCoord>
+{
+  const auto x = std::clamp(x_coord.value, 0.0, 1.0);
+  const auto y = std::clamp(y_coord.value, 0.0, 1.0);
+
+  switch (transform) {
+    case HilbertTransform::kIdentity:
+      return {NormalizedCoord{.value = x}, NormalizedCoord{.value = y}};
+    case HilbertTransform::kMirrorX:
+      return {NormalizedCoord{.value = 1.0 - x}, NormalizedCoord{.value = y}};
+    case HilbertTransform::kMirrorY:
+      return {NormalizedCoord{.value = x}, NormalizedCoord{.value = 1.0 - y}};
+    case HilbertTransform::kMirrorXY:
+      return {NormalizedCoord{.value = 1.0 - x}, NormalizedCoord{.value = 1.0 - y}};
+    case HilbertTransform::kSwapXY:
+      return {NormalizedCoord{.value = y}, NormalizedCoord{.value = x}};
+    case HilbertTransform::kSwapMirrorX:
+      return {NormalizedCoord{.value = 1.0 - y}, NormalizedCoord{.value = x}};
+    case HilbertTransform::kSwapMirrorY:
+      return {NormalizedCoord{.value = y}, NormalizedCoord{.value = 1.0 - x}};
+    case HilbertTransform::kSwapMirrorXY:
+      return {NormalizedCoord{.value = 1.0 - y}, NormalizedCoord{.value = 1.0 - x}};
+  }
+  return {NormalizedCoord{.value = x}, NormalizedCoord{.value = y}};
+}
+
 auto QuantizeToDiscreteAxisCoord(NormalizedCoord normalized_coord, std::uint32_t order_bits) -> std::uint32_t
 {
   if (order_bits == 0U) {
@@ -254,6 +377,11 @@ auto QuantizeToDiscreteAxisCoord(NormalizedCoord normalized_coord, std::uint32_t
 auto IsContinuousHilbert(LinearOrderStrategy strategy) -> bool
 {
   return strategy == LinearOrderStrategy::kContinuousHilbert || strategy == LinearOrderStrategy::kDensityScaledContinuousHilbert;
+}
+
+auto IsDiscreteHilbert(LinearOrderStrategy strategy) -> bool
+{
+  return strategy == LinearOrderStrategy::kDiscreteHilbert || strategy == LinearOrderStrategy::kDensityScaledDiscreteHilbert;
 }
 
 auto UsesDensityEqualization(LinearOrderStrategy strategy) -> bool
@@ -447,26 +575,117 @@ auto SortByContinuousHilbert(const std::vector<ProjectedLoad>& projected_loads) 
   return ordered_loads;
 }
 
-auto SortByDiscreteHilbert(const std::vector<ProjectedLoad>& projected_loads, int configured_order_bits) -> std::vector<OrderedLoad>
+auto SortByDiscreteHilbert(const std::vector<ProjectedLoad>& projected_loads, const LinearClusteringConfig& config)
+    -> std::vector<OrderedLoad>
 {
-  const auto order_bits = ResolveDiscreteOrderBits(configured_order_bits);
+  const auto order_bits = ResolveDiscreteOrderBits(config.order_bits);
 
   std::vector<DiscreteOrderEntry> entries;
   entries.reserve(projected_loads.size());
   for (const auto& projected_load : projected_loads) {
+    auto [transformed_x, transformed_y] = ApplyHilbertTransform(projected_load.x, projected_load.y, config.hilbert_transform);
     const HilbertAxes axes{
-        .x_coord = QuantizeToDiscreteAxisCoord(projected_load.x, order_bits),
-        .y_coord = QuantizeToDiscreteAxisCoord(projected_load.y, order_bits),
+        .x_coord = QuantizeToDiscreteAxisCoord(transformed_x, order_bits),
+        .y_coord = QuantizeToDiscreteAxisCoord(transformed_y, order_bits),
     };
+    const auto hilbert_index = CalcDiscreteHilbertIndex(axes, order_bits);
+    const auto local_x = CalcDiscreteCellLocalCoord(transformed_x, axes.x_coord, order_bits);
+    const auto local_y = CalcDiscreteCellLocalCoord(transformed_y, axes.y_coord, order_bits);
+    const auto [tangent_position, orthogonal_position] = CalcHilbertTangentProjection(hilbert_index, order_bits, local_x, local_y);
     entries.push_back(DiscreteOrderEntry{
         .load = projected_load.load,
-        .hilbert_index = CalcDiscreteHilbertIndex(axes, order_bits),
+        .hilbert_index = hilbert_index,
+        .cell_theta = CalcDiscreteHilbertTheta(axes, order_bits),
+        .theta = CalcContinuousHilbertTheta(transformed_x.value, transformed_y.value),
+        .projected_x = transformed_x.value,
+        .projected_y = transformed_y.value,
+        .tangent_position = tangent_position,
+        .orthogonal_position = orthogonal_position,
     });
   }
 
-  std::ranges::stable_sort(entries, [](const DiscreteOrderEntry& lhs, const DiscreteOrderEntry& rhs) -> bool {
-    if (lhs.hilbert_index != rhs.hilbert_index) {
-      return lhs.hilbert_index < rhs.hilbert_index;
+  const auto encoding = config.discrete_hilbert_encoding;
+  std::ranges::stable_sort(entries, [encoding](const DiscreteOrderEntry& lhs, const DiscreteOrderEntry& rhs) -> bool {
+    auto compare_doubles = [](double lhs_value, double rhs_value) -> std::optional<bool> {
+      if (const auto order = lhs_value <=> rhs_value; order != std::partial_ordering::equivalent) {
+        return order == std::partial_ordering::less;
+      }
+      return std::nullopt;
+    };
+    auto compare_indices = [](std::uint64_t lhs_value, std::uint64_t rhs_value) -> std::optional<bool> {
+      if (lhs_value == rhs_value) {
+        return std::nullopt;
+      }
+      return lhs_value < rhs_value;
+    };
+
+    const auto compare_standard_tail = [&lhs, &rhs, &compare_doubles]() -> std::optional<bool> {
+      if (const auto order = compare_doubles(lhs.theta, rhs.theta); order.has_value()) {
+        return order;
+      }
+      if (const auto order = compare_doubles(lhs.projected_x, rhs.projected_x); order.has_value()) {
+        return order;
+      }
+      if (const auto order = compare_doubles(lhs.projected_y, rhs.projected_y); order.has_value()) {
+        return order;
+      }
+      return std::nullopt;
+    };
+
+    switch (encoding) {
+      case DiscreteHilbertEncoding::kSinkThetaCell:
+        if (const auto order = compare_doubles(lhs.cell_theta, rhs.cell_theta); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_standard_tail(); order.has_value()) {
+          return order.value();
+        }
+        break;
+      case DiscreteHilbertEncoding::kSinkThetaCellTangent:
+        if (const auto order = compare_doubles(lhs.cell_theta, rhs.cell_theta); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_doubles(lhs.tangent_position, rhs.tangent_position); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_doubles(lhs.orthogonal_position, rhs.orthogonal_position); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_standard_tail(); order.has_value()) {
+          return order.value();
+        }
+        break;
+      case DiscreteHilbertEncoding::kClassicIndex:
+        if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_doubles(lhs.cell_theta, rhs.cell_theta); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_standard_tail(); order.has_value()) {
+          return order.value();
+        }
+        break;
+      case DiscreteHilbertEncoding::kClassicIndexTangent:
+        if (const auto order = compare_indices(lhs.hilbert_index, rhs.hilbert_index); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_doubles(lhs.tangent_position, rhs.tangent_position); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_doubles(lhs.orthogonal_position, rhs.orthogonal_position); order.has_value()) {
+          return order.value();
+        }
+        if (const auto order = compare_standard_tail(); order.has_value()) {
+          return order.value();
+        }
+        break;
     }
     return lhs.load.original_index < rhs.load.original_index;
   });
@@ -493,7 +712,10 @@ auto LinearOrderGenerator::generateOrder(const std::vector<Pin*>& loads, const L
   if (IsContinuousHilbert(config.order_strategy)) {
     return SortByContinuousHilbert(projected_loads);
   }
-  return SortByDiscreteHilbert(projected_loads, config.order_bits);
+  if (IsDiscreteHilbert(config.order_strategy)) {
+    return SortByDiscreteHilbert(projected_loads, config);
+  }
+  return SortByContinuousHilbert(projected_loads);
 }
 
 auto LinearOrderGenerator::calcBounds(const std::vector<Pin*>& loads) -> LinearOrderGenerator::Bounds

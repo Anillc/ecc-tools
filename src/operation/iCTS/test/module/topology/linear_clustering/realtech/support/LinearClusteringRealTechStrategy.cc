@@ -46,6 +46,11 @@ namespace icts_test::linear_clustering::realtech::detail {
 
 namespace {
 
+auto UsesDiscreteHilbertOrder(icts::LinearOrderStrategy strategy) -> bool
+{
+  return strategy == icts::LinearOrderStrategy::kDiscreteHilbert || strategy == icts::LinearOrderStrategy::kDensityScaledDiscreteHilbert;
+}
+
 struct StrategySweepSpecInput
 {
   std::size_t load_count = 0;
@@ -60,7 +65,7 @@ auto EmitStrategySweepIntro(std::ostringstream& output_stream, icts::LinearScori
   output_stream << "Selection rule: choose the legal, non-empty candidate with the smallest actual partition score.\n";
   output_stream << "Selection score: partition.total_score computed by LinearOrderGenerator + SequenceSplitter.\n";
   output_stream << "Scoring strategy: " << ScoringStrategyName(scoring_strategy) << ".\n";
-  output_stream << "Tie break: lexicographic(order, split, sweep_mode).\n";
+  output_stream << "Tie break: lexicographic(strategy_label).\n";
   output_stream << "Sweep semantics: prefix_sweep uses Sink-style offsets [0..prefix_count-1]; strided_sweep samples the full ring; "
                    "prefix_and_strided_sweep expands each strided anchor into a prefix-length sequential window and normalizes to the "
                    "full ring when those anchor windows cover every rotation.\n";
@@ -71,7 +76,12 @@ auto EmitStrategySweepCandidates(std::ostringstream& output_stream, const std::v
 {
   for (std::size_t index = 0; index < candidates.size(); ++index) {
     const auto& candidate = candidates.at(index);
-    output_stream << "- candidate[" << index << "] order=" << OrderStrategyName(candidate.order_strategy)
+    output_stream << "- candidate[" << index << "] order=" << OrderStrategyName(candidate.order_strategy) << ", discrete_encoding="
+                  << (UsesDiscreteHilbertOrder(candidate.order_strategy) ? DiscreteHilbertEncodingName(candidate.discrete_hilbert_encoding)
+                                                                         : "-")
+                  << ", hilbert_transform="
+                  << (UsesDiscreteHilbertOrder(candidate.order_strategy) ? HilbertTransformName(candidate.hilbert_transform) : "-")
+                  << ", order_bits=" << (UsesDiscreteHilbertOrder(candidate.order_strategy) ? candidate.order_bits : 0)
                   << ", split=" << SplitStrategyName(candidate.split_strategy) << ", sweep_mode=" << SweepModeName(candidate.sweep_mode)
                   << ", strided_sweep_count=" << candidate.strided_sweep_count << ", empty=" << (candidate.empty_result ? "true" : "false")
                   << ", legal=" << (candidate.legal ? "true" : "false") << ", selection_score=" << candidate.selection_score << ", "
@@ -89,7 +99,8 @@ auto EmitSelectedStrategySweepCandidate(std::ostringstream& output_stream, const
 
   const auto& selected = candidates.at(selected_index.value());
   output_stream << "Selected candidate: index=" << selected_index.value() << ", strategy="
-                << StrategyLabel(selected.order_strategy, selected.split_strategy, selected.sweep_mode, selected.strided_sweep_count)
+                << StrategyLabel(selected.order_strategy, selected.discrete_hilbert_encoding, selected.hilbert_transform,
+                                 selected.order_bits, selected.split_strategy, selected.sweep_mode, selected.strided_sweep_count)
                 << ", selection_score=" << selected.selection_score << "\n";
 }
 
@@ -134,6 +145,44 @@ auto OrderStrategyName(icts::LinearOrderStrategy strategy) -> const char*
   return "unknown";
 }
 
+auto DiscreteHilbertEncodingName(icts::DiscreteHilbertEncoding encoding) -> const char*
+{
+  switch (encoding) {
+    case icts::DiscreteHilbertEncoding::kSinkThetaCell:
+      return "sink_theta_cell";
+    case icts::DiscreteHilbertEncoding::kSinkThetaCellTangent:
+      return "sink_theta_cell_tangent";
+    case icts::DiscreteHilbertEncoding::kClassicIndex:
+      return "classic_index";
+    case icts::DiscreteHilbertEncoding::kClassicIndexTangent:
+      return "classic_index_tangent";
+  }
+  return "unknown";
+}
+
+auto HilbertTransformName(icts::HilbertTransform transform) -> const char*
+{
+  switch (transform) {
+    case icts::HilbertTransform::kIdentity:
+      return "identity";
+    case icts::HilbertTransform::kMirrorX:
+      return "mirror_x";
+    case icts::HilbertTransform::kMirrorY:
+      return "mirror_y";
+    case icts::HilbertTransform::kMirrorXY:
+      return "mirror_xy";
+    case icts::HilbertTransform::kSwapXY:
+      return "swap_xy";
+    case icts::HilbertTransform::kSwapMirrorX:
+      return "swap_mirror_x";
+    case icts::HilbertTransform::kSwapMirrorY:
+      return "swap_mirror_y";
+    case icts::HilbertTransform::kSwapMirrorXY:
+      return "swap_mirror_xy";
+  }
+  return "unknown";
+}
+
 auto SplitStrategyName(icts::LinearSplitStrategy strategy) -> const char*
 {
   switch (strategy) {
@@ -169,11 +218,24 @@ auto MakeSweepLabel(icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_
   return label;
 }
 
-auto StrategyLabel(icts::LinearOrderStrategy order_strategy, icts::LinearSplitStrategy split_strategy, icts::LinearSweepMode sweep_mode,
-                   std::size_t strided_sweep_count) -> std::string
+auto StrategyLabel(icts::LinearOrderStrategy order_strategy, icts::DiscreteHilbertEncoding discrete_hilbert_encoding,
+                   icts::HilbertTransform hilbert_transform, int order_bits, icts::LinearSplitStrategy split_strategy,
+                   icts::LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string
 {
-  return std::string(OrderStrategyName(order_strategy)) + "__" + SplitStrategyName(split_strategy) + "__"
-         + MakeSweepLabel(sweep_mode, strided_sweep_count);
+  auto label = std::string(OrderStrategyName(order_strategy));
+  if (UsesDiscreteHilbertOrder(order_strategy)) {
+    label += "__";
+    label += DiscreteHilbertEncodingName(discrete_hilbert_encoding);
+    label += "__";
+    label += HilbertTransformName(hilbert_transform);
+    label += "__bits_";
+    label += std::to_string(order_bits);
+  }
+  label += "__";
+  label += SplitStrategyName(split_strategy);
+  label += "__";
+  label += MakeSweepLabel(sweep_mode, strided_sweep_count);
+  return label;
 }
 
 auto ScoringStrategyName(icts::LinearScoringStrategy strategy) -> const char*
@@ -271,9 +333,11 @@ auto PickBestStrategyCandidate(const std::vector<StrategySweepCandidate>& candid
     }
     if (candidate.selection_score == current_best.selection_score) {
       const auto candidate_label
-          = StrategyLabel(candidate.order_strategy, candidate.split_strategy, candidate.sweep_mode, candidate.strided_sweep_count);
-      const auto best_label = StrategyLabel(current_best.order_strategy, current_best.split_strategy, current_best.sweep_mode,
-                                            current_best.strided_sweep_count);
+          = StrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding, candidate.hilbert_transform, candidate.order_bits,
+                          candidate.split_strategy, candidate.sweep_mode, candidate.strided_sweep_count);
+      const auto best_label
+          = StrategyLabel(current_best.order_strategy, current_best.discrete_hilbert_encoding, current_best.hilbert_transform,
+                          current_best.order_bits, current_best.split_strategy, current_best.sweep_mode, current_best.strided_sweep_count);
       if (candidate_label < best_label) {
         best_index = index;
       }
@@ -327,6 +391,9 @@ auto BuildRealTechFanoutConfig(const FanoutConfigSpec& spec) -> icts::LinearClus
   config.enable_exact_cap = spec.enable_exact_cap;
   config.always_build_exact_cap = spec.enable_exact_cap;
   config.order_strategy = spec.order_strategy;
+  config.discrete_hilbert_encoding = spec.discrete_hilbert_encoding;
+  config.hilbert_transform = spec.hilbert_transform;
+  config.order_bits = spec.order_bits;
   config.split_strategy = spec.split_strategy;
   config.sweep_mode = spec.sweep_mode;
   config.strided_sweep_count = spec.strided_sweep_count;
@@ -385,6 +452,9 @@ auto BuildStrategySweepSelection(const std::vector<icts::Pin*>& loads, std::size
 
     StrategySweepCandidate candidate;
     candidate.order_strategy = spec.order_strategy;
+    candidate.discrete_hilbert_encoding = spec.discrete_hilbert_encoding;
+    candidate.hilbert_transform = spec.hilbert_transform;
+    candidate.order_bits = spec.order_bits;
     candidate.split_strategy = spec.split_strategy;
     candidate.sweep_mode = spec.sweep_mode;
     candidate.strided_sweep_count = spec.strided_sweep_count;

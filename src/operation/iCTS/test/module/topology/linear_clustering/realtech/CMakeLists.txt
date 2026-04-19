@@ -27,6 +27,7 @@ if(ICTS_BUILD_SLOW_REALTECH_TESTS)
     ${ICTS_TEST_MODULE_TOPOLOGY_LINEAR_CLUSTERING_REALTECH_SMOKE_SOURCES}
     ${ICTS_TEST}/module/topology/linear_clustering/realtech/LinearClusteringRealTechSetupTest.cc
     ${ICTS_TEST}/module/topology/linear_clustering/realtech/LinearClusteringRealTechElectricalTest.cc
+    ${ICTS_TEST}/module/topology/linear_clustering/realtech/LinearClusteringRealTechExperimentTest.cc
   )
 
   icts_add_test_executable(
@@ -38,6 +39,7 @@ if(ICTS_BUILD_SLOW_REALTECH_TESTS)
       icts_test_module_topology_linear_clustering_realtech_setup_scenario_support
       icts_test_module_topology_linear_clustering_realtech_sweep_scenario_support
       icts_test_module_topology_linear_clustering_realtech_electrical_scenario_support
+      icts_test_module_topology_linear_clustering_realtech_experiment_scenario_support
   )
 
   target_compile_definitions(

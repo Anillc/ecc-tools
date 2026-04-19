@@ -101,6 +101,8 @@ auto BuildOrderRegressionPins(const std::vector<icts::Point<int>>& points, const
 auto BuildDiscreteReferenceConfig(const icts::LinearClusteringConfig& config) -> detail::ReferenceDensityScaledDiscreteConfig
 {
   return {
+      .discrete_hilbert_encoding = config.discrete_hilbert_encoding,
+      .hilbert_transform = config.hilbert_transform,
       .order_bits = config.order_bits,
       .density_grid_size = config.density_grid_size,
       .density_scale_power = config.density_scale_power,
@@ -273,6 +275,115 @@ auto RunContinuousHilbertMatchesSinkReferenceOrder() -> void
   const auto report_path = output_dir / "report.log";
   EXPECT_TRUE(common::io::WriteTextLog(report_path, report.str())) << "Failed to write report: " << report_path.string();
   common::io::EmitInfoReport(InfoReport{.title = "continuous_hilbert_matches_sink_reference_order", .content = report.str()});
+}
+
+auto RunDiscreteHilbertMatchesQuantizedSinkReferenceOrder() -> void
+{
+  const auto output_dir = detail::PrepareSyntheticOutputDir("discrete_hilbert_matches_quantized_sink_reference_order");
+  ASSERT_FALSE(output_dir.empty()) << "Failed to prepare discrete-order reference output dir.";
+
+  const std::vector<icts::Point<int>> points = {
+      {100, 100}, {0, 0}, {100, 0}, {0, 100}, {40, 40}, {60, 60}, {60, 40}, {40, 60}, {50, 50}, {50, 50}, {25, 75}, {75, 25},
+  };
+  auto generated = common::data::BuildPinsFromPoints(
+      points, CanvasSize{.width = detail::kReferenceCanvasExtent, .height = detail::kReferenceCanvasExtent}, "discrete_ref");
+  ASSERT_EQ(generated.loads.size(), points.size());
+
+  icts::LinearClusteringConfig config{};
+  detail::ConfigureLinearDefaults(config, detail::kOrderStrategyCoverageFanout);
+  detail::ConfigureSyntheticFallbackCapNeutral(config);
+  config.order_strategy = icts::LinearOrderStrategy::kDiscreteHilbert;
+  config.order_bits = 4;
+  config.density_grid_size = 1;
+  config.density_scale_power = 1.0;
+
+  const auto ordered_loads = icts::LinearOrderGenerator::generateOrder(generated.loads, config);
+  const auto actual_order = detail::ExtractOriginalIndices(ordered_loads);
+  const auto reference_order
+      = detail::BuildReferenceDensityScaledDiscreteOrder(generated.loads, detail::ReferenceDensityScaledDiscreteConfig{
+                                                                              .discrete_hilbert_encoding = config.discrete_hilbert_encoding,
+                                                                              .hilbert_transform = config.hilbert_transform,
+                                                                              .order_bits = config.order_bits,
+                                                                              .density_grid_size = config.density_grid_size,
+                                                                              .density_scale_power = config.density_scale_power,
+                                                                          });
+
+  EXPECT_EQ(actual_order, reference_order);
+
+  std::ostringstream report;
+  report << "Test: LinearClusteringOrderTest.DiscreteHilbertMatchesQuantizedSinkReferenceOrder\n";
+  report << "Mode: quantized Sink-compatible discrete theta regression\n";
+  report << "Config: discrete_encoding=" << detail::DiscreteHilbertEncodingName(config.discrete_hilbert_encoding)
+         << ", hilbert_transform=" << detail::HilbertTransformName(config.hilbert_transform) << ", order_bits=" << config.order_bits
+         << ", density_grid_size=" << config.density_grid_size << ", density_scale_power=" << config.density_scale_power << "\n";
+  report << "Point count: " << generated.loads.size() << "\n";
+  report << "Actual order: " << detail::FormatOrderIndices(actual_order) << "\n";
+  report << "Reference order: " << detail::FormatOrderIndices(reference_order) << "\n";
+  report << "Artifacts: report.log\n";
+
+  const auto report_path = output_dir / "report.log";
+  EXPECT_TRUE(common::io::WriteTextLog(report_path, report.str())) << "Failed to write report: " << report_path.string();
+  common::io::EmitInfoReport(InfoReport{.title = "discrete_hilbert_matches_quantized_sink_reference_order", .content = report.str()});
+}
+
+auto RunDiscreteHilbertAlternativeEncodingsMatchReferenceOrder() -> void
+{
+  const auto output_dir = detail::PrepareSyntheticOutputDir("discrete_hilbert_alternative_encodings_match_reference_order");
+  ASSERT_FALSE(output_dir.empty()) << "Failed to prepare alternative discrete-order reference output dir.";
+
+  const std::vector<icts::Point<int>> points = {
+      {100, 100}, {0, 0}, {100, 0}, {0, 100}, {40, 40}, {60, 60}, {60, 40}, {40, 60}, {50, 50}, {50, 50}, {25, 75}, {75, 25},
+  };
+  auto generated = common::data::BuildPinsFromPoints(
+      points, CanvasSize{.width = detail::kReferenceCanvasExtent, .height = detail::kReferenceCanvasExtent}, "discrete_alt_ref");
+  ASSERT_EQ(generated.loads.size(), points.size());
+
+  struct AlternativeDiscreteCase
+  {
+    icts::DiscreteHilbertEncoding discrete_hilbert_encoding;
+    icts::HilbertTransform hilbert_transform;
+    int order_bits;
+  };
+
+  const std::vector<AlternativeDiscreteCase> cases = {
+      {icts::DiscreteHilbertEncoding::kSinkThetaCellTangent, icts::HilbertTransform::kMirrorX, 4},
+      {icts::DiscreteHilbertEncoding::kClassicIndex, icts::HilbertTransform::kSwapXY, 4},
+      {icts::DiscreteHilbertEncoding::kClassicIndexTangent, icts::HilbertTransform::kSwapMirrorY, 4},
+  };
+
+  std::ostringstream report;
+  report << "Test: LinearClusteringOrderTest.DiscreteHilbertAlternativeEncodingsMatchReferenceOrder\n";
+  report << "Mode: alternative discrete Hilbert encoding regression\n";
+  report << "Point count: " << generated.loads.size() << "\n";
+
+  for (const auto& discrete_case : cases) {
+    icts::LinearClusteringConfig config{};
+    detail::ConfigureLinearDefaults(config, detail::kOrderStrategyCoverageFanout);
+    detail::ConfigureSyntheticFallbackCapNeutral(config);
+    config.order_strategy = icts::LinearOrderStrategy::kDiscreteHilbert;
+    config.discrete_hilbert_encoding = discrete_case.discrete_hilbert_encoding;
+    config.hilbert_transform = discrete_case.hilbert_transform;
+    config.order_bits = discrete_case.order_bits;
+    config.density_grid_size = 1;
+    config.density_scale_power = 1.0;
+
+    const auto ordered_loads = icts::LinearOrderGenerator::generateOrder(generated.loads, config);
+    const auto actual_order = detail::ExtractOriginalIndices(ordered_loads);
+    const auto reference_order = detail::BuildReferenceDensityScaledDiscreteOrder(generated.loads, BuildDiscreteReferenceConfig(config));
+
+    EXPECT_EQ(actual_order, reference_order);
+
+    report << "Case: discrete_encoding=" << detail::DiscreteHilbertEncodingName(config.discrete_hilbert_encoding)
+           << ", hilbert_transform=" << detail::HilbertTransformName(config.hilbert_transform) << ", order_bits=" << config.order_bits
+           << "\n";
+    report << "Actual order: " << detail::FormatOrderIndices(actual_order) << "\n";
+    report << "Reference order: " << detail::FormatOrderIndices(reference_order) << "\n";
+  }
+  report << "Artifacts: report.log\n";
+
+  const auto report_path = output_dir / "report.log";
+  EXPECT_TRUE(common::io::WriteTextLog(report_path, report.str())) << "Failed to write report: " << report_path.string();
+  common::io::EmitInfoReport(InfoReport{.title = "discrete_hilbert_alternative_encodings_match_reference_order", .content = report.str()});
 }
 
 auto RunDensityScaledDiscreteHilbertMatchesSeparableMarginalReference() -> void

@@ -44,6 +44,11 @@
 #include "Net.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
+#if defined(ICTS_ENABLE_SLOW_REALTECH_REGRESSION) && ICTS_ENABLE_SLOW_REALTECH_REGRESSION
+#include <functional>
+
+#include "Point.hh"
+#endif
 #include "Tree.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"

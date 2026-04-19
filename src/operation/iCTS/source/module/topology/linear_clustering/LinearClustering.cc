@@ -25,9 +25,13 @@
 
 #include <glog/logging.h>
 
+#include <array>
 #include <cmath>
+#include <compare>
 #include <cstddef>
-#include <ostream>
+#include <limits>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -73,6 +77,44 @@ auto SplitStrategyName(LinearSplitStrategy strategy) -> const char*
   return "unknown";
 }
 
+auto DiscreteHilbertEncodingName(DiscreteHilbertEncoding encoding) -> const char*
+{
+  switch (encoding) {
+    case DiscreteHilbertEncoding::kSinkThetaCell:
+      return "sink_theta_cell";
+    case DiscreteHilbertEncoding::kSinkThetaCellTangent:
+      return "sink_theta_cell_tangent";
+    case DiscreteHilbertEncoding::kClassicIndex:
+      return "classic_index";
+    case DiscreteHilbertEncoding::kClassicIndexTangent:
+      return "classic_index_tangent";
+  }
+  return "unknown";
+}
+
+auto HilbertTransformName(HilbertTransform transform) -> const char*
+{
+  switch (transform) {
+    case HilbertTransform::kIdentity:
+      return "identity";
+    case HilbertTransform::kMirrorX:
+      return "mirror_x";
+    case HilbertTransform::kMirrorY:
+      return "mirror_y";
+    case HilbertTransform::kMirrorXY:
+      return "mirror_xy";
+    case HilbertTransform::kSwapXY:
+      return "swap_xy";
+    case HilbertTransform::kSwapMirrorX:
+      return "swap_mirror_x";
+    case HilbertTransform::kSwapMirrorY:
+      return "swap_mirror_y";
+    case HilbertTransform::kSwapMirrorXY:
+      return "swap_mirror_xy";
+  }
+  return "unknown";
+}
+
 auto SweepModeName(LinearSweepMode mode) -> const char*
 {
   switch (mode) {
@@ -86,6 +128,11 @@ auto SweepModeName(LinearSweepMode mode) -> const char*
   return "unknown";
 }
 
+auto UsesDiscreteHilbertOrder(LinearOrderStrategy strategy) -> bool
+{
+  return strategy == LinearOrderStrategy::kDiscreteHilbert || strategy == LinearOrderStrategy::kDensityScaledDiscreteHilbert;
+}
+
 auto FormatOffsets(const std::vector<std::size_t>& offsets) -> std::string
 {
   std::string text = "[";
@@ -97,6 +144,33 @@ auto FormatOffsets(const std::vector<std::size_t>& offsets) -> std::string
   }
   text += "]";
   return text;
+}
+
+auto MakeSweepLabel(LinearSweepMode sweep_mode, std::size_t strided_sweep_count) -> std::string
+{
+  auto label = std::string(SweepModeName(sweep_mode));
+  if (sweep_mode != LinearSweepMode::kPrefixSweep) {
+    label += "__strided_count_" + std::to_string(strided_sweep_count);
+  }
+  return label;
+}
+
+auto MakeStrategyLabel(const LinearClusteringConfig& config) -> std::string
+{
+  auto label = std::string(OrderStrategyName(config.order_strategy));
+  if (UsesDiscreteHilbertOrder(config.order_strategy)) {
+    label += "__";
+    label += DiscreteHilbertEncodingName(config.discrete_hilbert_encoding);
+    label += "__";
+    label += HilbertTransformName(config.hilbert_transform);
+    label += "__bits_";
+    label += std::to_string(config.order_bits);
+  }
+  label += "__";
+  label += SplitStrategyName(config.split_strategy);
+  label += "__";
+  label += MakeSweepLabel(config.sweep_mode, config.strided_sweep_count);
+  return label;
 }
 
 auto CalcClusterCenter(const std::vector<Pin*>& cluster) -> Point<int>
@@ -171,7 +245,168 @@ auto RotateOrderedLoads(const std::vector<OrderedLoad>& ordered_loads, std::size
   return rotated_loads;
 }
 
+constexpr std::size_t kDefaultRetainedStridedSweepCount = 4U;
+constexpr int kDefaultRetainedDiscreteBits = 10;
+
+enum class LinearClusteringRunStatus
+{
+  kSuccess,
+  kEmptyOrder,
+  kIllegalPartition,
+};
+
+struct LinearClusteringExecution
+{
+  LinearClusteringRunStatus status = LinearClusteringRunStatus::kEmptyOrder;
+  std::vector<OrderedLoad> ordered_loads;
+  SweepResolution sweep_resolution;
+  PartitionScore partition;
+  ClusterResult result;
+};
+
+struct RetainedStrategyRun
+{
+  std::string label;
+  LinearClusteringConfig config;
+  LinearClusteringExecution execution;
+};
+
+auto BuildRetainedStrategyConfigs(const LinearClusteringConfig& base_config) -> std::array<LinearClusteringConfig, 4>
+{
+  auto discrete_classic = base_config;
+  discrete_classic.order_strategy = LinearOrderStrategy::kDiscreteHilbert;
+  discrete_classic.discrete_hilbert_encoding = DiscreteHilbertEncoding::kClassicIndex;
+  discrete_classic.hilbert_transform = HilbertTransform::kSwapXY;
+  discrete_classic.order_bits = kDefaultRetainedDiscreteBits;
+  discrete_classic.split_strategy = LinearSplitStrategy::kBidirectionalGreedy;
+  discrete_classic.sweep_mode = LinearSweepMode::kPrefixAndStridedSweep;
+  discrete_classic.strided_sweep_count = kDefaultRetainedStridedSweepCount;
+
+  auto discrete_classic_tangent = discrete_classic;
+  discrete_classic_tangent.discrete_hilbert_encoding = DiscreteHilbertEncoding::kClassicIndexTangent;
+
+  auto continuous_reverse = base_config;
+  continuous_reverse.order_strategy = LinearOrderStrategy::kContinuousHilbert;
+  continuous_reverse.split_strategy = LinearSplitStrategy::kReverseGreedy;
+  continuous_reverse.sweep_mode = LinearSweepMode::kPrefixAndStridedSweep;
+  continuous_reverse.strided_sweep_count = kDefaultRetainedStridedSweepCount;
+
+  auto continuous_forward = base_config;
+  continuous_forward.order_strategy = LinearOrderStrategy::kContinuousHilbert;
+  continuous_forward.split_strategy = LinearSplitStrategy::kForwardGreedy;
+  continuous_forward.sweep_mode = LinearSweepMode::kPrefixAndStridedSweep;
+  continuous_forward.strided_sweep_count = kDefaultRetainedStridedSweepCount;
+
+  return {discrete_classic, discrete_classic_tangent, continuous_reverse, continuous_forward};
+}
+
+auto ExecuteLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> LinearClusteringExecution
+{
+  LinearClusteringExecution execution;
+  execution.ordered_loads = LinearOrderGenerator::generateOrder(loads, config);
+  if (execution.ordered_loads.empty()) {
+    execution.status = LinearClusteringRunStatus::kEmptyOrder;
+    return execution;
+  }
+
+  SequenceSplitter splitter;
+  execution.partition = splitter.split(execution.ordered_loads, config);
+  if (!execution.partition.legal) {
+    execution.status = LinearClusteringRunStatus::kIllegalPartition;
+    return execution;
+  }
+
+  execution.sweep_resolution = SequenceSplitter::resolveSweepOffsets(execution.ordered_loads.size(), config);
+  const auto materialized_loads = RotateOrderedLoads(execution.ordered_loads, execution.partition.rotation_offset);
+  execution.result = MaterializeClusterResult(materialized_loads, execution.partition.segments);
+  execution.result.electrical_summaries = BuildElectricalSummaries(execution.partition);
+  execution.status = LinearClusteringRunStatus::kSuccess;
+  return execution;
+}
+
+auto BuildRetainedCandidateSummary(const std::string& label, const LinearClusteringExecution& execution) -> std::string
+{
+  if (execution.status == LinearClusteringRunStatus::kEmptyOrder) {
+    return label + "(empty_order)";
+  }
+  if (execution.status == LinearClusteringRunStatus::kIllegalPartition) {
+    return label + "(illegal_partition)";
+  }
+
+  std::ostringstream stream;
+  stream << label << "(score=" << execution.partition.total_score << ",clusters=" << execution.result.clusters.size()
+         << ",rotation=" << execution.partition.rotation_offset << ")";
+  return stream.str();
+}
+
+auto JoinCandidateSummaries(const std::vector<std::string>& summaries) -> std::string
+{
+  std::ostringstream stream;
+  for (std::size_t index = 0; index < summaries.size(); ++index) {
+    if (index > 0U) {
+      stream << "; ";
+    }
+    stream << summaries.at(index);
+  }
+  return stream.str();
+}
+
 }  // namespace
+
+auto LinearClustering::buildElectricalBaseConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig
+{
+  LinearClusteringConfig config;
+  config.max_fanout = max_fanout;
+  config.max_diameter = std::numeric_limits<int>::max();
+  config.max_cap = max_cap;
+  return config;
+}
+
+auto LinearClustering::runDefault(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
+{
+  ClusterResult result;
+  if (loads.empty()) {
+    return result;
+  }
+
+  const auto retained_configs = BuildRetainedStrategyConfigs(base_config);
+  std::vector<std::string> candidate_summaries;
+  candidate_summaries.reserve(retained_configs.size());
+  std::optional<RetainedStrategyRun> best_run = std::nullopt;
+
+  for (const auto& config : retained_configs) {
+    auto execution = ExecuteLinearClustering(loads, config);
+    const auto label = MakeStrategyLabel(config);
+    candidate_summaries.push_back(BuildRetainedCandidateSummary(label, execution));
+    if (execution.status != LinearClusteringRunStatus::kSuccess) {
+      continue;
+    }
+
+    if (!best_run.has_value() || execution.partition.total_score < best_run->execution.partition.total_score
+        || (execution.partition.total_score == best_run->execution.partition.total_score && label < best_run->label)) {
+      best_run = RetainedStrategyRun{
+          .label = label,
+          .config = config,
+          .execution = std::move(execution),
+      };
+    }
+  }
+
+  if (!best_run.has_value()) {
+    LOG_WARNING << "Linear clustering default exploration failed: loads=" << loads.size()
+                << ", candidates=" << JoinCandidateSummaries(candidate_summaries);
+    return result;
+  }
+
+  LOG_INFO << "Linear clustering default exploration selected: loads=" << loads.size()
+           << ", retained_candidate_count=" << retained_configs.size() << ", strategy=" << best_run->label
+           << ", partition_score=" << best_run->execution.partition.total_score
+           << ", cluster_count=" << best_run->execution.result.clusters.size()
+           << ", selected_rotation_offset=" << best_run->execution.partition.rotation_offset
+           << ", resolved_offsets=" << FormatOffsets(best_run->execution.sweep_resolution.offsets)
+           << ", candidates=" << JoinCandidateSummaries(candidate_summaries);
+  return best_run->execution.result;
+}
 
 auto LinearClustering::run(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
 {
@@ -180,33 +415,27 @@ auto LinearClustering::run(const std::vector<Pin*>& loads, const LinearClusterin
     return result;
   }
 
-  auto ordered_loads = LinearOrderGenerator::generateOrder(loads, config);
-  if (ordered_loads.empty()) {
+  auto execution = ExecuteLinearClustering(loads, config);
+  if (execution.status == LinearClusteringRunStatus::kEmptyOrder) {
     LOG_WARNING << "Linear clustering skipped: no valid load pins after order generation.";
     return result;
   }
-
-  SequenceSplitter splitter;
-  auto partition = splitter.split(ordered_loads, config);
-  if (!partition.legal) {
-    LOG_WARNING << "Linear clustering failed: no legal greedy partition found for loads=" << ordered_loads.size()
+  if (execution.status == LinearClusteringRunStatus::kIllegalPartition) {
+    LOG_WARNING << "Linear clustering failed: no legal greedy partition found for loads=" << execution.ordered_loads.size()
                 << ". Returning empty result.";
     return result;
   }
 
-  const auto sweep_resolution = SequenceSplitter::resolveSweepOffsets(ordered_loads.size(), config);
-  const auto materialized_loads = RotateOrderedLoads(ordered_loads, partition.rotation_offset);
-  result = MaterializeClusterResult(materialized_loads, partition.segments);
-  result.electrical_summaries = BuildElectricalSummaries(partition);
-  LOG_INFO << "Linear clustering done: loads=" << ordered_loads.size() << ", clusters=" << result.clusters.size()
-           << ", order_strategy=" << OrderStrategyName(config.order_strategy)
-           << ", split_strategy=" << SplitStrategyName(config.split_strategy)
-           << ", sweep_mode=" << SweepModeName(sweep_resolution.requested_mode)
-           << ", effective_sweep_mode=" << SweepModeName(sweep_resolution.effective_mode)
-           << ", prefix_count=" << sweep_resolution.prefix_count << ", strided_sweep_count=" << sweep_resolution.strided_count
-           << ", degraded_to_prefix=" << (sweep_resolution.degraded_to_prefix ? "true" : "false")
-           << ", resolved_offsets=" << FormatOffsets(sweep_resolution.offsets) << ", selected_rotation_offset=" << partition.rotation_offset
-           << ", partition_score=" << partition.total_score;
+  result = std::move(execution.result);
+  LOG_INFO << "Linear clustering done: loads=" << execution.ordered_loads.size() << ", clusters=" << result.clusters.size()
+           << ", strategy=" << MakeStrategyLabel(config) << ", sweep_mode=" << SweepModeName(execution.sweep_resolution.requested_mode)
+           << ", effective_sweep_mode=" << SweepModeName(execution.sweep_resolution.effective_mode)
+           << ", prefix_count=" << execution.sweep_resolution.prefix_count
+           << ", strided_sweep_count=" << execution.sweep_resolution.strided_count
+           << ", degraded_to_prefix=" << (execution.sweep_resolution.degraded_to_prefix ? "true" : "false")
+           << ", resolved_offsets=" << FormatOffsets(execution.sweep_resolution.offsets)
+           << ", selected_rotation_offset=" << execution.partition.rotation_offset
+           << ", partition_score=" << execution.partition.total_score;
   return result;
 }
 

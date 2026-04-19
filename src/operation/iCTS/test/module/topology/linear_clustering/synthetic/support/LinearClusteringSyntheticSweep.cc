@@ -25,12 +25,14 @@
 
 #include <algorithm>
 #include <array>
+#include <compare>
 #include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "Pin.hh"
@@ -55,6 +57,9 @@ namespace {
 struct StrategyCandidate
 {
   icts::LinearOrderStrategy order_strategy = icts::LinearOrderStrategy::kContinuousHilbert;
+  icts::DiscreteHilbertEncoding discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kSinkThetaCell;
+  icts::HilbertTransform hilbert_transform = icts::HilbertTransform::kIdentity;
+  int order_bits = 16;
   icts::LinearSplitStrategy split_strategy = icts::LinearSplitStrategy::kBidirectionalGreedy;
   detail::SweepConfigSpec sweep{};
 };
@@ -101,7 +106,8 @@ auto EmitSweepReport(const std::filesystem::path& output_dir, const std::string&
   common::io::EmitInfoReport(InfoReport{.title = title, .content = report});
 }
 
-auto BuildStrategyCandidates(const std::array<icts::LinearOrderStrategy, 4>& order_strategies,
+template <std::size_t kOrderStrategyCount>
+auto BuildStrategyCandidates(const std::array<icts::LinearOrderStrategy, kOrderStrategyCount>& order_strategies,
                              const std::array<icts::LinearSplitStrategy, 3>& split_strategies,
                              const std::vector<detail::SweepConfigSpec>& sweep_candidates) -> std::vector<StrategyCandidate>
 {
@@ -130,11 +136,17 @@ auto EvaluateStrategyCandidate(const StrategyCandidate& candidate, const std::ve
       .max_diameter = detail::kOrderStrategyCoverageDiameter,
   });
   config.order_strategy = candidate.order_strategy;
+  config.discrete_hilbert_encoding = candidate.discrete_hilbert_encoding;
+  config.hilbert_transform = candidate.hilbert_transform;
+  config.order_bits = candidate.order_bits;
   config.split_strategy = candidate.split_strategy;
   config.sweep_mode = candidate.sweep.sweep_mode;
   config.strided_sweep_count = candidate.sweep.strided_sweep_count;
 
   observation.order_strategy = candidate.order_strategy;
+  observation.discrete_hilbert_encoding = candidate.discrete_hilbert_encoding;
+  observation.hilbert_transform = candidate.hilbert_transform;
+  observation.order_bits = candidate.order_bits;
   observation.split_strategy = candidate.split_strategy;
   observation.sweep_mode = candidate.sweep.sweep_mode;
   observation.strided_sweep_count = candidate.sweep.strided_sweep_count;
@@ -152,8 +164,10 @@ auto EvaluateStrategyCandidate(const StrategyCandidate& candidate, const std::ve
   icts::PartitionScore partition;
   detail::RunDetailedLinearClustering(loads, config, result, partition);
   ASSERT_FALSE(result.clusters.empty()) << "Strategy "
-                                        << detail::MakeStrategyLabel(candidate.order_strategy, candidate.split_strategy,
-                                                                     candidate.sweep.sweep_mode, candidate.sweep.strided_sweep_count)
+                                        << detail::MakeStrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding,
+                                                                     candidate.hilbert_transform, candidate.order_bits,
+                                                                     candidate.split_strategy, candidate.sweep.sweep_mode,
+                                                                     candidate.sweep.strided_sweep_count)
                                         << " produced empty result.";
 
   std::string error;
@@ -164,8 +178,9 @@ auto EvaluateStrategyCandidate(const StrategyCandidate& candidate, const std::ve
   std::vector<std::size_t> cluster_sizes;
   ASSERT_TRUE(common::linear_clustering::BuildClusterArtifacts(result, loads, cluster_map, centers, cluster_sizes, error)) << error;
 
-  const auto strategy_label = detail::MakeStrategyLabel(candidate.order_strategy, candidate.split_strategy, candidate.sweep.sweep_mode,
-                                                        candidate.sweep.strided_sweep_count);
+  const auto strategy_label = detail::MakeStrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding,
+                                                        candidate.hilbert_transform, candidate.order_bits, candidate.split_strategy,
+                                                        candidate.sweep.sweep_mode, candidate.sweep.strided_sweep_count);
   const auto svg_name = "strategy_" + strategy_label + ".svg";
   const auto svg_path = output_dir / svg_name;
   EXPECT_TRUE(common::visualization::WriteClusterSvg(svg_path.string(), loads, cluster_map, centers))
@@ -252,6 +267,84 @@ auto BuildSingletonPenaltyReport(const icts::PartitionScore& partition) -> std::
   return report.str();
 }
 
+auto BuildRetainedDefaultCandidates(const icts::LinearClusteringConfig& base_config) -> std::array<StrategyCandidate, 4>
+{
+  const auto make_candidate = [](const icts::LinearClusteringConfig& config) -> StrategyCandidate {
+    return StrategyCandidate{
+        .order_strategy = config.order_strategy,
+        .discrete_hilbert_encoding = config.discrete_hilbert_encoding,
+        .hilbert_transform = config.hilbert_transform,
+        .order_bits = config.order_bits,
+        .split_strategy = config.split_strategy,
+        .sweep =
+            detail::SweepConfigSpec{
+                .sweep_mode = config.sweep_mode,
+                .strided_sweep_count = config.strided_sweep_count,
+            },
+    };
+  };
+
+  auto discrete_classic = base_config;
+  discrete_classic.order_strategy = icts::LinearOrderStrategy::kDiscreteHilbert;
+  discrete_classic.discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kClassicIndex;
+  discrete_classic.hilbert_transform = icts::HilbertTransform::kSwapXY;
+  discrete_classic.order_bits = 10;
+  discrete_classic.split_strategy = icts::LinearSplitStrategy::kBidirectionalGreedy;
+  discrete_classic.sweep_mode = icts::LinearSweepMode::kPrefixAndStridedSweep;
+  discrete_classic.strided_sweep_count = detail::kDefaultStridedSweepCount;
+
+  auto discrete_classic_tangent = discrete_classic;
+  discrete_classic_tangent.discrete_hilbert_encoding = icts::DiscreteHilbertEncoding::kClassicIndexTangent;
+
+  auto continuous_reverse = base_config;
+  continuous_reverse.order_strategy = icts::LinearOrderStrategy::kContinuousHilbert;
+  continuous_reverse.split_strategy = icts::LinearSplitStrategy::kReverseGreedy;
+  continuous_reverse.sweep_mode = icts::LinearSweepMode::kPrefixAndStridedSweep;
+  continuous_reverse.strided_sweep_count = detail::kDefaultStridedSweepCount;
+
+  auto continuous_forward = base_config;
+  continuous_forward.order_strategy = icts::LinearOrderStrategy::kContinuousHilbert;
+  continuous_forward.split_strategy = icts::LinearSplitStrategy::kForwardGreedy;
+  continuous_forward.sweep_mode = icts::LinearSweepMode::kPrefixAndStridedSweep;
+  continuous_forward.strided_sweep_count = detail::kDefaultStridedSweepCount;
+
+  return {
+      make_candidate(discrete_classic),
+      make_candidate(discrete_classic_tangent),
+      make_candidate(continuous_reverse),
+      make_candidate(continuous_forward),
+  };
+}
+
+auto BuildNormalizedClusterIndexSets(const icts::ClusterResult& result, const std::vector<icts::Pin*>& loads)
+    -> std::vector<std::vector<std::size_t>>
+{
+  std::unordered_map<const icts::Pin*, std::size_t> pin_to_index;
+  pin_to_index.reserve(loads.size() * 2U);
+  for (std::size_t index = 0; index < loads.size(); ++index) {
+    pin_to_index.emplace(loads.at(index), index);
+  }
+
+  std::vector<std::vector<std::size_t>> cluster_indices;
+  cluster_indices.reserve(result.clusters.size());
+  for (const auto& cluster : result.clusters) {
+    std::vector<std::size_t> indices;
+    indices.reserve(cluster.size());
+    for (const auto* pin : cluster) {
+      const auto iter = pin_to_index.find(pin);
+      EXPECT_TRUE(iter != pin_to_index.end()) << "Unexpected pin in cluster result.";
+      if (iter != pin_to_index.end()) {
+        indices.push_back(iter->second);
+      }
+    }
+    std::ranges::sort(indices);
+    cluster_indices.push_back(std::move(indices));
+  }
+
+  std::ranges::sort(cluster_indices);
+  return cluster_indices;
+}
+
 }  // namespace
 
 auto RunRemainingOrderStrategiesProduceLegalResults() -> void
@@ -305,6 +398,65 @@ auto RunRemainingOrderStrategiesProduceLegalResults() -> void
   const auto report = detail::BuildStrategySweepReport("LinearClusteringTest.RemainingOrderStrategiesProduceLegalResults",
                                                        input_summary.str(), sweep_observations, selected_index, report_artifact_names);
   EmitSweepReport(output_dir, "remaining_order_strategies_produce_legal_results", report);
+}
+
+auto RunDefaultRetainedStrategiesMatchManualBestSelection() -> void
+{
+  auto generated = common::data::MakeGaussianMixture(detail::kOrderStrategyCoverageLoadCount,
+                                                     CanvasSize{.width = detail::kCanvasWidth, .height = detail::kCanvasHeight},
+                                                     detail::kOrderStrategyCoverageSeed);
+  ASSERT_EQ(generated.loads.size(), detail::kOrderStrategyCoverageLoadCount);
+
+  auto base_config = detail::MakeConstraintConfig(detail::ConstraintConfigSpec{
+      .max_fanout = detail::kOrderStrategyCoverageFanout,
+      .max_diameter = detail::kOrderStrategyCoverageDiameter,
+  });
+  const auto retained_candidates = BuildRetainedDefaultCandidates(base_config);
+
+  std::optional<std::string> best_label = std::nullopt;
+  std::optional<double> best_score = std::nullopt;
+  icts::ClusterResult best_result;
+  for (const auto& candidate : retained_candidates) {
+    auto config = base_config;
+    config.order_strategy = candidate.order_strategy;
+    config.discrete_hilbert_encoding = candidate.discrete_hilbert_encoding;
+    config.hilbert_transform = candidate.hilbert_transform;
+    config.order_bits = candidate.order_bits;
+    config.split_strategy = candidate.split_strategy;
+    config.sweep_mode = candidate.sweep.sweep_mode;
+    config.strided_sweep_count = candidate.sweep.strided_sweep_count;
+
+    icts::ClusterResult candidate_result;
+    icts::PartitionScore candidate_partition;
+    detail::RunDetailedLinearClustering(generated.loads, config, candidate_result, candidate_partition);
+    ASSERT_TRUE(candidate_partition.legal) << "Retained candidate produced illegal partition: "
+                                           << detail::MakeStrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding,
+                                                                        candidate.hilbert_transform, candidate.order_bits,
+                                                                        candidate.split_strategy, candidate.sweep.sweep_mode,
+                                                                        candidate.sweep.strided_sweep_count);
+    ASSERT_FALSE(candidate_result.clusters.empty());
+
+    const auto candidate_label = detail::MakeStrategyLabel(candidate.order_strategy, candidate.discrete_hilbert_encoding,
+                                                           candidate.hilbert_transform, candidate.order_bits, candidate.split_strategy,
+                                                           candidate.sweep.sweep_mode, candidate.sweep.strided_sweep_count);
+    const bool is_better_score = !best_score.has_value() || candidate_partition.total_score < best_score.value();
+    const bool is_tie_break_better = best_score.has_value() && best_label.has_value()
+                                     && candidate_partition.total_score == best_score.value() && candidate_label < best_label.value();
+    if (is_better_score || is_tie_break_better) {
+      best_score = candidate_partition.total_score;
+      best_label = candidate_label;
+      best_result = std::move(candidate_result);
+    }
+  }
+
+  ASSERT_TRUE(best_label.has_value());
+  if (!best_label.has_value()) {
+    return;
+  }
+  const auto default_result = icts::Clustering::defaultLinearClustering(generated.loads, base_config);
+  ASSERT_FALSE(default_result.clusters.empty());
+  EXPECT_EQ(BuildNormalizedClusterIndexSets(default_result, generated.loads), BuildNormalizedClusterIndexSets(best_result, generated.loads))
+      << "default retained strategy selection diverged from manual best candidate=" << *best_label;
 }
 
 auto RunPrefixSweepResolvesSinkStyleOffsets() -> void

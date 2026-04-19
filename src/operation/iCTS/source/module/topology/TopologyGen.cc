@@ -42,6 +42,7 @@
 #include "Tree.hh"
 #include "clustering/Clustering.hh"
 #include "config/TopologyConfig.hh"
+#include "linear_clustering/LinearClustering.hh"
 
 namespace icts {
 namespace {
@@ -104,9 +105,19 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BuildOptions& opti
   return build(loads, options.partition_config, options.target_depth);
 }
 
+auto TopologyGen::buildLinearClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig
+{
+  return LinearClustering::buildElectricalBaseConfig(max_fanout, max_cap);
+}
+
 auto TopologyGen::linearClustering(const std::vector<Pin*>& loads) -> ClusterResult
 {
-  return linearClustering(loads, LinearClusteringConfig{});
+  return defaultLinearClustering(loads, LinearClusteringConfig{});
+}
+
+auto TopologyGen::defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
+{
+  return Clustering::defaultLinearClustering(loads, base_config);
 }
 
 auto TopologyGen::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult

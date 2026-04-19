@@ -44,6 +44,26 @@ enum class LinearOrderStrategy
   kDensityScaledDiscreteHilbert,
 };
 
+enum class DiscreteHilbertEncoding
+{
+  kSinkThetaCell,
+  kSinkThetaCellTangent,
+  kClassicIndex,
+  kClassicIndexTangent,
+};
+
+enum class HilbertTransform
+{
+  kIdentity,
+  kMirrorX,
+  kMirrorY,
+  kMirrorXY,
+  kSwapXY,
+  kSwapMirrorX,
+  kSwapMirrorY,
+  kSwapMirrorXY,
+};
+
 enum class LinearSplitStrategy
 {
   kForwardGreedy,
@@ -97,7 +117,9 @@ struct LinearClusteringConfig
   // Prefix sweep count is derived from max_fanout and clamped to load_count.
   std::size_t strided_sweep_count = 2;
 
-  int order_bits = 12;
+  DiscreteHilbertEncoding discrete_hilbert_encoding = DiscreteHilbertEncoding::kSinkThetaCell;
+  HilbertTransform hilbert_transform = HilbertTransform::kIdentity;
+  int order_bits = 16;
   std::size_t density_grid_size = 8;
   double density_scale_power = 0.5;
 

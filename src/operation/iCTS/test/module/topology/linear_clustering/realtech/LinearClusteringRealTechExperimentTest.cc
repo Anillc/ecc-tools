@@ -15,30 +15,25 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file LinearClusteringSyntheticStrategyTest.cc
+ * @file LinearClusteringRealTechExperimentTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-04-11
- * @brief Synthetic linear clustering strategy-space regression tests.
+ * @date 2026-04-18
+ * @brief Arm9 real-tech linear clustering experiment regression tests.
  */
 
 #include <gtest/gtest.h>
 
 #include <string>
 
-#include "module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh"
+#include "module/topology/linear_clustering/realtech/support/LinearClusteringRealTechShared.hh"
 
-namespace icts_test::linear_clustering::synthetic {
+namespace icts_test::linear_clustering::realtech {
 namespace {
 
-TEST(LinearClusteringTest, RemainingOrderStrategiesProduceLegalResults)
+TEST(LinearClusteringRealTechExperimentTest, Arm9StrategyRankingExperiment)
 {
-  RunRemainingOrderStrategiesProduceLegalResults();
-}
-
-TEST(LinearClusteringTest, DefaultRetainedStrategiesMatchManualBestSelection)
-{
-  RunDefaultRetainedStrategiesMatchManualBestSelection();
+  RunRealTechArm9StrategyRankingExperiment();
 }
 
 }  // namespace
-}  // namespace icts_test::linear_clustering::synthetic
+}  // namespace icts_test::linear_clustering::realtech
