@@ -1239,3 +1239,48 @@ Migrated from the mistakenly initialized `codex-agent` workspace so the session 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: Arm9 linear clustering default strategy productization
+
+**Date**: 2026-04-19
+**Task**: Arm9 linear clustering default strategy productization
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Production defaults | Promoted the retained arm9 best-performing linear clustering top4 into the source default exploration path so CTS selects among two discrete and two continuous strategies by default. |
+| Benchmark cleanup | Reduced experiment scope to the retained representative strategy set, kept real arm9 plus representative synthetic coverage, and removed temporary or non-competitive runtime-costly configurations. |
+| Regression coverage | Kept benchmark tests and added synthetic regression coverage so default retained-strategy selection stays aligned with manual best-strategy selection. |
+| Bug fixes | Fixed benchmark-discovered exact-cap / pin lookup issues and resolved finish-work checker findings in the touched iCTS source and tests. |
+| Final verification | Re-ran `ecc_dev_tools` on `src/operation/iCTS`; final result: 0 in-scope findings, with only pre-existing out-of-scope noise remaining. |
+
+**Key outcomes**:
+- Real arm9 retained top4 ranking stayed headed by the two discrete `swap_xy` variants, followed by the two strongest continuous baselines.
+- Source default linear clustering now uses the retained four-strategy exploration bundle rather than a single baked-in strategy.
+- The arm9 validation task was archived after push and finish-work cleanup.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d8d18730d14d6745bf1051dd119f410bd96f34e4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
