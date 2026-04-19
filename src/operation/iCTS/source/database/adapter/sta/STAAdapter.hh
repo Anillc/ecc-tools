@@ -98,7 +98,7 @@ class STAAdapter
   static auto buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void;
   static auto createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void;
   static auto destroyCharClock() -> void;
-  static auto clearCharSandbox() -> void;
+  static auto resetCharContext() -> void;
 
   // Characterization-only runtime facade used by iCTS CharBuilder.
   static auto prepareCharTimingContext(const std::string& input_pin_full_name, const std::string& output_pin_full_name,
@@ -129,7 +129,7 @@ class STAAdapter
  private:
   STAAdapter() = default;
   ~STAAdapter();
-  struct IctsCharTimingRuntime
+  struct CharTimingState
   {
     bool is_ready = false;
     ista::Pin* source_input_pin = nullptr;
@@ -143,14 +143,14 @@ class STAAdapter
     ista::LibArc* source_lib_arc = nullptr;
   };
 
-  struct IctsCharPowerRuntime
+  struct CharPowerState
   {
-    IctsCharPowerRuntime() = default;
-    ~IctsCharPowerRuntime();
-    IctsCharPowerRuntime(IctsCharPowerRuntime&& rhs) noexcept = default;
-    auto operator=(IctsCharPowerRuntime&& rhs) noexcept -> IctsCharPowerRuntime& = default;
-    IctsCharPowerRuntime(const IctsCharPowerRuntime& rhs) = delete;
-    auto operator=(const IctsCharPowerRuntime& rhs) -> IctsCharPowerRuntime& = delete;
+    CharPowerState() = default;
+    ~CharPowerState();
+    CharPowerState(CharPowerState&& rhs) noexcept = default;
+    auto operator=(CharPowerState&& rhs) noexcept -> CharPowerState& = default;
+    CharPowerState(const CharPowerState& rhs) = delete;
+    auto operator=(const CharPowerState& rhs) -> CharPowerState& = delete;
 
     std::vector<std::string> inst_names;
     std::vector<std::string> net_names;
@@ -162,15 +162,17 @@ class STAAdapter
     double cached_leakage_power_w = 0.0;
     double cached_switch_power_w = 0.0;
     double last_total_power_w = 0.0;
-    IctsCharPowerPtr sandbox_power;
+    IctsCharPowerPtr char_power;
   };
 
-  auto resetIctsCharTimingRuntime() -> void;
-  auto resetIctsCharPowerRuntime() -> void;
+  auto resetCharTimingState() -> void;
+  auto resetCharPowerState() -> void;
+  auto resetStaTransientState() -> void;
+  auto prepareFullDesignTiming() -> void;
 
   bool _is_char_only_active = false;
-  IctsCharTimingRuntime _icts_char_timing_runtime;
-  IctsCharPowerRuntime _icts_char_power_runtime;
+  CharTimingState _char_timing_state;
+  CharPowerState _char_power_state;
 };
 
 }  // namespace icts

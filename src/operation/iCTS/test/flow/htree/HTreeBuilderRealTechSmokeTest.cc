@@ -656,6 +656,8 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_GT(baseline_result.char_cap_steps, 0U);
   ASSERT_GT(baseline_result.char_max_slew_ns, 0.0);
   ASSERT_GT(baseline_result.char_max_cap_pf, 0.0);
+  ASSERT_TRUE(baseline_result.min_leaf_driven_cap_pf.has_value());
+  ASSERT_TRUE(baseline_result.leaf_driven_cap_floor_idx.has_value());
 
   const auto top_floor_it = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
   ASSERT_NE(top_floor_it, baseline_result.feasible_chars.end());
@@ -683,8 +685,10 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   EXPECT_TRUE(std::ranges::all_of(top_boundary_result.feasible_chars, [&](const icts::HTreeTopologyChar& entry) -> bool {
     return entry.get_input_slew_idx() >= top_floor_idx;
   }));
-  EXPECT_FALSE(top_boundary_result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_FALSE(top_boundary_result.leaf_driven_cap_floor_idx.has_value());
+  ASSERT_TRUE(top_boundary_result.min_leaf_driven_cap_pf.has_value());
+  EXPECT_DOUBLE_EQ(top_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), baseline_result.min_leaf_driven_cap_pf.value_or(0.0));
+  ASSERT_TRUE(top_boundary_result.leaf_driven_cap_floor_idx.has_value());
+  EXPECT_EQ(top_boundary_result.leaf_driven_cap_floor_idx.value_or(0U), baseline_result.leaf_driven_cap_floor_idx.value_or(0U));
 
   auto leaf_boundary_result
       = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_leaf_driven_cap_pf = leaf_driven_cap_pf});
@@ -722,9 +726,13 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   const unsigned impossible_top_floor_idx = impossible_top_boundary_result.top_input_slew_floor_idx.value_or(0U);
   ASSERT_GT(impossible_top_floor_idx, 0U);
   EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_floor_idx);
-  EXPECT_DOUBLE_EQ(
-      impossible_top_boundary_result.boundary_fallback_score.value_or(0.0),
-      static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps));
+  double expected_top_boundary_fallback_score
+      = static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps);
+  if (impossible_top_boundary_result.leaf_driven_cap_floor_idx.has_value() && baseline_result.char_cap_steps > 0U) {
+    expected_top_boundary_fallback_score
+        += static_cast<double>(impossible_top_best_char.get_leaf_driven_cap_idx()) / static_cast<double>(baseline_result.char_cap_steps);
+  }
+  EXPECT_DOUBLE_EQ(impossible_top_boundary_result.boundary_fallback_score.value_or(0.0), expected_top_boundary_fallback_score);
 
   const double impossible_leaf_driven_cap_pf
       = baseline_result.char_max_cap_pf + (baseline_result.char_max_cap_pf / static_cast<double>(baseline_result.char_cap_steps));

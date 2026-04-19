@@ -522,23 +522,24 @@ auto CharBuilder::build() -> void
 
   if (_sorted_buffers.empty()) {
     LOG_WARNING << "CharBuilder: no usable buffers remain after Config/liberty filtering, skip characterization build";
-    STA_ADAPTER_INST.finishCharOnly();
     build_stage.skip({{"reason", "no_usable_buffers"}});
     return;
   }
   if (_wire_lengths_um.empty()) {
     LOG_ERROR << "CharBuilder: no wire lengths to enumerate, aborting build";
-    STA_ADAPTER_INST.finishCharOnly();
     build_stage.skip({{"reason", "no_wire_lengths"}}, "failed");
     return;
   }
   if (_slews_to_test.empty() || _loads_to_test.empty()) {
     LOG_WARNING << "CharBuilder: characterization limits are unresolved"
                 << " (max_slew_ns=" << _max_slew << ", max_cap_pf=" << _max_cap << "), skip characterization build";
-    STA_ADAPTER_INST.finishCharOnly();
     build_stage.skip({{"reason", "unresolved_characterization_limits"}});
     return;
   }
+
+  // CharBuilder owns the char-only lifecycle so callers do not need to coordinate
+  // STA graph resets around characterization.
+  STA_ADAPTER_INST.initCharOnly();
 
   for (const double wire_length_um : _wire_lengths_um) {
     const unsigned topology_slots = calcTopologySlotCount(wire_length_um);
@@ -1132,7 +1133,7 @@ auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) ->
 
 auto CharBuilder::destroyCharCircuit() -> void
 {
-  STA_ADAPTER_INST.clearCharSandbox();
+  STA_ADAPTER_INST.resetCharContext();
   _sink_inst_name.clear();
   _source_inst_name.clear();
   _temp_net_names.clear();

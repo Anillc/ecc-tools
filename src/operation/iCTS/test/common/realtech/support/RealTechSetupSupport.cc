@@ -43,6 +43,11 @@ auto EnsureRealTechSetup() -> const RealTechSetupState&
   return setup_state;
 }
 
+auto TryFindRepresentativeRealPinCapProbe() -> std::optional<RealPinCapProbe>
+{
+  return asset::TryFindRepresentativeRealPinCapProbe();
+}
+
 auto MakeRealTechOrSyntheticLoads(std::size_t target_count, unsigned seed, std::string& source_label) -> GeneratedPins
 {
   const auto& setup_state = EnsureRealTechSetup();

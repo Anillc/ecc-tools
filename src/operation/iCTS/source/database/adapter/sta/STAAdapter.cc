@@ -38,7 +38,6 @@
 #include <optional>
 #include <ostream>
 #include <ranges>
-#include <set>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -62,11 +61,13 @@
 #include "api/TimingIDBAdapter.hh"
 #include "builder.h"
 #include "config/Config.hh"
+#include "core/PwrAnalysisData.hh"
 #include "core/PwrCell.hh"
 #include "core/PwrClock.hh"
 #include "core/PwrGraph.hh"
 #include "core/PwrVertex.hh"
 #include "def_service.h"
+#include "delay/ElmoreDelayCalc.hh"
 #include "design/Inst.hh"
 #include "design/Pin.hh"
 #include "dm_config.h"
@@ -79,8 +80,8 @@
 #include "netlist/Net.hh"
 #include "netlist/Netlist.hh"
 #include "netlist/Pin.hh"
-#include "netlist/Port.hh"
 #include "sta/Sta.hh"
+#include "sta/StaBuildGraph.hh"
 #include "sta/StaClock.hh"
 #include "sta/StaData.hh"
 #include "sta/StaGraph.hh"
@@ -126,23 +127,19 @@ auto GetStaEngine() -> ista::TimingEngine*
   return ista::TimingEngine::getOrCreateTimingEngine();
 }
 
-auto GetCharTimingFacade() -> ista::icts_char::TimingFacade
+auto BuildCharPower() -> IctsCharPowerPtr
 {
-  return ista::icts_char::TimingFacade(*GetStaEngine());
-}
-
-auto BuildSandboxCharPower() -> IctsCharPowerPtr
-{
-  auto timing_facade = GetCharTimingFacade();
-  auto* char_graph = timing_facade.getCharGraph();
+  auto* timing_engine = GetStaEngine();
+  auto* ista = timing_engine != nullptr ? timing_engine->get_ista() : nullptr;
+  auto* char_graph = ista != nullptr ? &(ista->get_graph()) : nullptr;
   if (char_graph == nullptr) {
-    LOG_WARNING << "Characterization power setup skipped: sandbox STA graph is not ready.";
+    LOG_WARNING << "Characterization power setup skipped: char-only STA graph is not ready.";
     return nullptr;
   }
 
-  auto clocks = timing_facade.getCharClocks();
+  auto clocks = ista->getClocks();
   if (clocks.empty()) {
-    LOG_WARNING << "Characterization power setup skipped: sandbox STA has no clock objects.";
+    LOG_WARNING << "Characterization power setup skipped: char-only STA has no clock objects.";
     return nullptr;
   }
 
@@ -156,19 +153,25 @@ auto BuildSandboxCharPower() -> IctsCharPowerPtr
     }
   }
   if (fastest_clock == nullptr) {
-    LOG_WARNING << "Characterization power setup skipped: sandbox propagated clock is null.";
+    LOG_WARNING << "Characterization power setup skipped: propagated char-only clock is null.";
     return nullptr;
   }
 
-  auto power = std::make_shared<ipower::Power>(char_graph);
+  ipower::Power::destroyPower();
+  auto* power = ipower::Power::getOrCreatePower(char_graph);
+  if (power == nullptr) {
+    LOG_WARNING << "Characterization power setup skipped: failed to create iPA context.";
+    return nullptr;
+  }
+
   ipower::PwrClock pwr_fastest_clock(fastest_clock->get_clock_name(), fastest_clock->getPeriodNs());
   power->setupClock(std::move(pwr_fastest_clock), std::move(clocks));
   power->buildGraph();
   power->buildSeqGraph();
-  if (ipower::icts_char::PowerFacade(*power).prepareCharClockPowerData() == 0U) {
+  if (power->initToggleSPData() == 0U) {
     return nullptr;
   }
-  return power;
+  return IctsCharPowerPtr(power, [](ipower::Power*) -> void {});
 }
 
 auto ConfigureStaWorkspace(ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void
@@ -188,11 +191,6 @@ auto BuildStaLibPathList() -> std::vector<const char*>
   return lib_paths;
 }
 
-auto BuildConfiguredBufferCellSet() -> std::set<std::string>
-{
-  return std::set<std::string>(std::ranges::begin(CONFIG_INST.get_buffer_types()), std::ranges::end(CONFIG_INST.get_buffer_types()));
-}
-
 auto InstallTimingIDBAdapter(ista::TimingEngine* timing_engine) -> void
 {
   auto db_adapter = std::make_unique<ista::TimingIDBAdapter>(timing_engine->get_ista());
@@ -202,25 +200,38 @@ auto InstallTimingIDBAdapter(ista::TimingEngine* timing_engine) -> void
 
 auto LoadConfiguredLiberty(ista::TimingEngine* timing_engine) -> void
 {
-  timing_engine->get_ista()->addLinkCells(BuildConfiguredBufferCellSet());
   auto lib_paths = BuildStaLibPathList();
   timing_engine->readLiberty(lib_paths);
+  // Link all liberty cells once during base STA setup so lightweight cell queries
+  // can use liberty metadata without forcing full-design DB conversion.
+  timing_engine->get_ista()->linkLibertys();
 }
 
-auto LoadConfiguredSdc(ista::TimingEngine* timing_engine) -> void
+auto LoadConfiguredSdcIfPresent(ista::TimingEngine* timing_engine) -> void
 {
   const auto& sdc_path = GetDbConfig().get_sdc_path();
   if (sdc_path.empty()) {
-    LOG_WARNING << "STA SDC path is empty; skip readSdc during initialization.";
+    LOG_WARNING << "STA SDC path is empty; skip readSdc during full-design timing preparation.";
+    return;
+  }
+  if (!std::filesystem::exists(sdc_path)) {
+    LOG_WARNING << "STA SDC path does not exist: " << sdc_path << ". Skip readSdc during full-design timing preparation.";
     return;
   }
   timing_engine->readSdc(sdc_path.c_str());
 }
 
-auto IsFullDesignStaReady() -> bool
+auto HasFullDesignTimingContext() -> bool
 {
   auto* timing_engine = GetStaEngine();
   return timing_engine->get_db_adapter() != nullptr && timing_engine->isBuildGraph();
+}
+
+auto HasStaBaseContext() -> bool
+{
+  auto* timing_engine = GetStaEngine();
+  auto* ista = timing_engine->get_ista();
+  return timing_engine->get_db_adapter() != nullptr && ista != nullptr && !ista->getAllLib().empty();
 }
 
 auto PrimeCharPower(ipower::Power* power) -> bool
@@ -228,9 +239,45 @@ auto PrimeCharPower(ipower::Power* power) -> bool
   return power != nullptr && power->isBuildGraph() != 0U;
 }
 
-auto FindCharVertex(const std::string& pin_full_name) -> ista::StaVertex*
+auto FindStaVertex(const std::string& pin_full_name) -> ista::StaVertex*
 {
-  return GetCharTimingFacade().findCharVertex(pin_full_name);
+  return GetStaEngine()->findVertex(pin_full_name.c_str());
+}
+
+auto NormalizeInstName(std::string inst_name) -> std::string
+{
+  std::erase(inst_name, '\\');
+  return inst_name;
+}
+
+auto NormalizePortName(const std::string& pin_name) -> std::string
+{
+  const auto separator_pos = pin_name.rfind('/');
+  return separator_pos == std::string::npos ? pin_name : pin_name.substr(separator_pos + 1);
+}
+
+auto FindIdbInstance(const std::string& inst_name) -> idb::IdbInstance*
+{
+  auto* idb_builder = dmInst->get_idb_builder();
+  LOG_FATAL_IF(idb_builder == nullptr) << "iDB builder is null when querying instance metadata for " << inst_name;
+  auto* def_service = idb_builder->get_def_service();
+  LOG_FATAL_IF(def_service == nullptr) << "DEF service is null when querying instance metadata for " << inst_name;
+  auto* idb_design = def_service->get_design();
+  LOG_FATAL_IF(idb_design == nullptr) << "iDB design is null when querying instance metadata for " << inst_name;
+  auto* inst_list = idb_design->get_instance_list();
+  LOG_FATAL_IF(inst_list == nullptr) << "iDB instance list is null when querying instance metadata for " << inst_name;
+  return inst_list->find_instance(inst_name);
+}
+
+auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_master) -> ista::LibCell*
+{
+  auto normalized_inst_name = NormalizeInstName(inst_name);
+  auto* idb_inst = FindIdbInstance(normalized_inst_name);
+  LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << normalized_inst_name << " is not found in iDB when querying liberty metadata.";
+  auto* idb_master = idb_inst->get_cell_master();
+  LOG_FATAL_IF(idb_master == nullptr) << "Instance " << normalized_inst_name << " has no iDB cell master.";
+  cell_master = idb_master->get_name();
+  return GetStaEngine()->findLibertyCell(cell_master.c_str());
 }
 
 template <class PowerDataT>
@@ -329,7 +376,7 @@ auto AnnotateCharSourceInputPower(ipower::Power* power, const std::optional<std:
     return;
   }
 
-  auto* source_vertex = FindCharVertex(*source_input_pin_full_name);
+  auto* source_vertex = FindStaVertex(*source_input_pin_full_name);
   if (source_vertex == nullptr) {
     LOG_WARNING << "Characterization power source pin is not found: " << *source_input_pin_full_name;
     return;
@@ -556,7 +603,34 @@ auto ConvertPfLoadToLibUnit(ista::LibCell* lib_cell, double load_pf) -> double
 
 auto QueryOutputNetLoadPf(ista::Pin* output_pin, ista::TransType trans_type) -> double
 {
-  return GetCharTimingFacade().queryCharOutputNetLoadPf(output_pin, trans_type);
+  auto* output_net = output_pin != nullptr ? output_pin->get_net() : nullptr;
+  if (output_net == nullptr) {
+    return 0.0;
+  }
+
+  auto* ista = GetStaEngine()->get_ista();
+  auto* rc_net = ista != nullptr ? ista->getRcNet(output_net) : nullptr;
+  if (rc_net != nullptr) {
+    return rc_net->load(ista::AnalysisMode::kMax, trans_type);
+  }
+  return output_net->getLoad(ista::AnalysisMode::kMax, trans_type);
+}
+
+auto QueryLibPortCapacitancePf(ista::LibCell* lib_cell, ista::LibPort* lib_port) -> double
+{
+  if (lib_cell == nullptr || lib_port == nullptr) {
+    return 0.0;
+  }
+  if (lib_port->isInput() == 0U) {
+    return 0.0;
+  }
+
+  double cap_value = lib_port->get_port_cap();
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMax, ista::TransType::kRise).value_or(0.0));
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMax, ista::TransType::kFall).value_or(0.0));
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMin, ista::TransType::kRise).value_or(0.0));
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMin, ista::TransType::kFall).value_or(0.0));
+  return ConvertLibCapToPf(lib_cell, cap_value);
 }
 
 auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
@@ -567,20 +641,6 @@ auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double
   auto slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, trans_type, vertex, slew_fs);
   slew_data->set_output_current_data(std::move(output_current_data));
   vertex->addData(slew_data.release());
-}
-
-auto UpsertCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
-                        std::unique_ptr<ista::LibCurrentData> output_current_data = nullptr) -> void
-{
-  LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when updating characterization slew data.";
-  auto* slew_data = vertex->getSlewData(ista::AnalysisMode::kMax, trans_type, nullptr);
-  if (slew_data == nullptr) {
-    AddCharSlewData(vertex, trans_type, slew_ns, std::move(output_current_data));
-    return;
-  }
-
-  slew_data->set_slew(static_cast<int>(NS_TO_FS(slew_ns)));
-  slew_data->set_output_current_data(std::move(output_current_data));
 }
 
 auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_pin, ista::StaVertex* output_vertex,
@@ -620,43 +680,6 @@ auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_p
     const double output_slew_ns = slew_values.front();
     auto output_current = lib_arc->getOutputCurrent(output_trans_type, slew_ns, output_load);
     AddCharSlewData(output_vertex, output_trans_type, output_slew_ns, std::move(output_current));
-  };
-
-  apply_output_model(ista::TransType::kRise);
-  apply_output_model(ista::TransType::kFall);
-}
-
-auto UpdateCharBufferOutputSlew(ista::Pin* output_pin, ista::StaVertex* output_vertex, ista::LibCell* lib_cell,
-                                ista::LibArcSet* source_arc_set, ista::LibArc* lib_arc, double slew_ns) -> void
-{
-  LOG_FATAL_IF(output_pin == nullptr) << "Null source output STA pin in characterization slew update.";
-  LOG_FATAL_IF(output_vertex == nullptr) << "Null source output STA vertex in characterization slew update.";
-  LOG_FATAL_IF(lib_cell == nullptr) << "Null source liberty cell in characterization slew update.";
-  LOG_FATAL_IF(source_arc_set == nullptr || source_arc_set->get_arcs().empty())
-      << "Missing source buffer timing arc set for characterization slew update.";
-  LOG_FATAL_IF(lib_arc == nullptr) << "Missing source liberty arc in characterization slew update.";
-
-  const bool is_negative_arc = source_arc_set->isNegativeArc() != 0U;
-  const auto apply_output_model = [&](ista::TransType input_trans_type) -> void {
-    auto output_trans_type = input_trans_type;
-    if (is_negative_arc) {
-      output_trans_type = (input_trans_type == ista::TransType::kRise) ? ista::TransType::kFall : ista::TransType::kRise;
-    }
-    if (!source_arc_set->isMatchTimingType(output_trans_type)) {
-      return;
-    }
-
-    const double output_load_pf = QueryOutputNetLoadPf(output_pin, output_trans_type);
-    const double output_load = ConvertPfLoadToLibUnit(lib_cell, output_load_pf);
-    const auto slew_values = source_arc_set->getSlewNs(input_trans_type, output_trans_type, slew_ns, output_load);
-    if (slew_values.empty()) {
-      LOG_WARNING << "Characterization source output slew lookup is empty for " << output_pin->getFullName();
-      return;
-    }
-
-    const double output_slew_ns = slew_values.front();
-    auto output_current = lib_arc->getOutputCurrent(output_trans_type, slew_ns, output_load);
-    UpsertCharSlewData(output_vertex, output_trans_type, output_slew_ns, std::move(output_current));
   };
 
   apply_output_model(ista::TransType::kRise);
@@ -794,32 +817,27 @@ auto QueryBufferTableAxisMax(const std::string& cell_master, const char* query_n
 
 STAAdapter::~STAAdapter() = default;
 
-STAAdapter::IctsCharPowerRuntime::~IctsCharPowerRuntime() = default;
+STAAdapter::CharPowerState::~CharPowerState() = default;
 
 auto STAAdapter::init() -> void
 {
   auto& adapter = getInst();
-  adapter.resetIctsCharTimingRuntime();
-  adapter.resetIctsCharPowerRuntime();
+  adapter.resetCharTimingState();
+  adapter.resetCharPowerState();
   adapter._is_char_only_active = false;
-  ipower::Power::destroyPower();
-  ista::TimingEngine::destroyTimingEngine();
   auto* timing_engine = GetStaEngine();
+  if (!HasStaBaseContext()) {
+    ipower::Power::destroyPower();
+    ista::TimingEngine::destroyTimingEngine();
+    timing_engine = GetStaEngine();
+    InstallTimingIDBAdapter(timing_engine);
+    LoadConfiguredLiberty(timing_engine);
+  }
 
-  InstallTimingIDBAdapter(timing_engine);
   timing_engine->set_num_threads(kStaThreadCount);
   ConfigureStaWorkspace(timing_engine, "sta");
-  LoadConfiguredLiberty(timing_engine);
-
-  timing_engine->resetNetlist();
-  timing_engine->resetGraph();
-  timing_engine->get_db_adapter()->convertDBToTimingNetlist();
-  LoadConfiguredSdc(timing_engine);
-  timing_engine->buildGraph();
-
-  timing_engine->initRcTree();
+  adapter.resetStaTransientState();
   timing_engine->get_ista()->set_n_worst_path_per_clock(kWorstPathPerClock);
-  ista::icts_char::TimingFacade(*timing_engine).resetCharTimingContext();
 }
 
 auto STAAdapter::initCharOnly() -> void
@@ -830,35 +848,31 @@ auto STAAdapter::initCharOnly() -> void
                 << "resetting the previous characterization state first.";
     finishCharOnly();
   }
-  adapter.resetIctsCharTimingRuntime();
-  adapter.resetIctsCharPowerRuntime();
-  adapter._is_char_only_active = true;
 
-  if (!IsFullDesignStaReady()) {
+  if (!HasStaBaseContext()) {
     init();
-    adapter._is_char_only_active = true;
   }
 
+  adapter._is_char_only_active = true;
   auto* timing_engine = GetStaEngine();
   timing_engine->set_num_threads(kCharStaThreadCount);
   ConfigureStaWorkspace(timing_engine, "sta_char");
-  ista::icts_char::TimingFacade(*timing_engine).resetCharTimingContext();
+  adapter.resetStaTransientState();
 }
 
 auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 {
   auto inst_type = icts::InstType::kUnknown;
+  const auto name = NormalizeInstName(inst_name);
+  std::string cell_master = "unknown";
+  auto* idb_inst = FindIdbInstance(name);
+  LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " is not found in iDB when querying instance type.";
+  auto* pin_list = idb_inst->get_pin_list();
+  LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
 
-  auto name = inst_name;
-  std::erase(name, '\\');
-  auto* sta_netlist = GetStaEngine()->get_netlist();
-  LOG_FATAL_IF(sta_netlist == nullptr) << "STA netlist is null.";
-  auto* sta_inst = sta_netlist->findInstance(name.c_str());
-  auto* lib_cell = sta_inst != nullptr ? sta_inst->get_inst_cell() : nullptr;
-  if (sta_inst == nullptr) {
-    LOG_ERROR << "Instance " << name << " is not found in the STA netlist.";
-  } else if (lib_cell == nullptr) {
-    LOG_ERROR << "Instance " << name << " has no liberty cell in the STA netlist.";
+  auto* lib_cell = FindLibertyCellForInstName(name, cell_master);
+  if (lib_cell == nullptr) {
+    LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master << "\" is not found; fallback to iDB-only type heuristics.";
   } else if (lib_cell->isSequentialCell()) {
     inst_type = icts::InstType::kFlipFlop;
   } else if (lib_cell->isBuffer()) {
@@ -872,23 +886,11 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
     return inst_type;
   }
 
-  const std::string cell_master = lib_cell != nullptr ? lib_cell->get_cell_name() : "unknown";
-  auto* idb_builder = dmInst->get_idb_builder();
-  LOG_FATAL_IF(idb_builder == nullptr) << "iDB builder is null when querying instance type for " << name;
-  auto* def_service = idb_builder->get_def_service();
-  LOG_FATAL_IF(def_service == nullptr) << "DEF service is null when querying instance type for " << name;
-  auto* idb_design = def_service->get_design();
-  LOG_FATAL_IF(idb_design == nullptr) << "iDB design is null when querying instance type for " << name;
-  auto* inst_list = idb_design->get_instance_list();
-  LOG_FATAL_IF(inst_list == nullptr) << "iDB instance list is null when querying instance type for " << name;
-  idb::IdbInstance* idb_inst = inst_list->find_instance(inst_name);
-  LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " type is unknown (not found instance in iDB) which cell is " << cell_master;
-
-  auto* pin_list = idb_inst->get_pin_list();
-  LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
-
   constexpr std::ptrdiff_t clock_input_pin_limit = 1;
   const auto clock_input_pins = std::ranges::count_if(pin_list->get_pin_list(), [&](auto* idb_pin) -> bool {
+    if (idb_pin == nullptr || idb_pin->get_term() == nullptr) {
+      return false;
+    }
     auto* term = idb_pin->get_term();
     auto direction = term->get_direction();
     if (direction != idb::IdbConnectDirection::kInput && direction != idb::IdbConnectDirection::kInOut) {
@@ -916,13 +918,12 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 
 auto STAAdapter::isFlipFlop(const std::string& inst_name) -> bool
 {
-  auto name = inst_name;
-  std::erase(name, '\\');
-  return GetStaEngine()->isSequentialCell(name.c_str()) != 0U;
+  return queryInstType(inst_name) == icts::InstType::kFlipFlop;
 }
 
 auto STAAdapter::isClockNet(const std::string& net_name) -> bool
 {
+  getInst().prepareFullDesignTiming();
   auto* sta_netlist = GetStaEngine()->get_netlist();
   if (sta_netlist == nullptr) {
     LOG_ERROR << "STA netlist is not ready.";
@@ -938,6 +939,7 @@ auto STAAdapter::isClockNet(const std::string& net_name) -> bool
 
 auto STAAdapter::collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>
 {
+  getInst().prepareFullDesignTiming();
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
   auto* sta_netlist = GetStaEngine()->get_netlist();
   if (sta_netlist == nullptr) {
@@ -1090,67 +1092,131 @@ auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
 
 auto STAAdapter::createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string
 {
-  auto* inst = GetCharTimingFacade().createCharInstance(cell_master, inst_name);
-  LOG_FATAL_IF(inst == nullptr) << "Failed to create instance: " << inst_name;
+  auto& adapter = getInst();
+  LOG_FATAL_IF(!adapter._is_char_only_active) << "Characterization instance creation requires initCharOnly() first.";
+  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
+  LOG_FATAL_IF(lib_cell == nullptr) << "Failed to create characterization instance " << inst_name << ": liberty cell " << cell_master
+                                    << " is not found.";
+
+  ista::Instance char_inst(inst_name.c_str(), lib_cell);
+  for (const auto& lib_port_ptr : lib_cell->get_cell_ports()) {
+    auto* lib_port = lib_port_ptr.get();
+    if (lib_port == nullptr) {
+      continue;
+    }
+    char_inst.addPin(lib_port->get_port_name(), lib_port);
+  }
+
+  auto& created_inst = GetStaEngine()->get_netlist()->addInstance(std::move(char_inst));
+  ista::StaBuildGraph build_graph;
+  build_graph.buildInst(&(GetStaEngine()->get_ista()->get_graph()), &created_inst);
   return inst_name;
 }
 
 auto STAAdapter::createCharNet(const std::string& net_name) -> std::string
 {
-  auto* net = GetCharTimingFacade().createCharNet(net_name);
-  LOG_FATAL_IF(net == nullptr) << "Failed to create net: " << net_name;
+  auto& adapter = getInst();
+  LOG_FATAL_IF(!adapter._is_char_only_active) << "Characterization net creation requires initCharOnly() first.";
+  auto& created_net = GetStaEngine()->get_netlist()->addNet(ista::Net(net_name.c_str()));
+  (void) created_net;
   return net_name;
 }
 
 auto STAAdapter::attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void
 {
-  auto* pin = GetCharTimingFacade().attachCharPin(inst_name, port_name, net_name);
-  LOG_FATAL_IF(pin == nullptr) << "Cannot attach characterization pin " << inst_name << "/" << port_name;
+  auto* netlist = GetStaEngine()->get_netlist();
+  auto* inst = netlist->findInstance(inst_name.c_str());
+  LOG_FATAL_IF(inst == nullptr) << "Cannot attach characterization pin because instance is not found: " << inst_name;
+  auto* net = netlist->findNet(net_name.c_str());
+  LOG_FATAL_IF(net == nullptr) << "Cannot attach characterization pin because net is not found: " << net_name;
+
+  auto pin = inst->getPin(port_name.c_str());
+  LOG_FATAL_IF(!pin) << "Cannot attach characterization pin " << inst_name << "/" << port_name;
+  net->addPinPort(*pin);
 }
 
 auto STAAdapter::buildCharNetGraph(const std::string& net_name) -> void
 {
-  GetCharTimingFacade().buildCharNetGraph(net_name);
+  auto* net = GetStaEngine()->get_netlist()->findNet(net_name.c_str());
+  LOG_FATAL_IF(net == nullptr) << "Cannot build characterization graph because net is not found: " << net_name;
+  ista::StaBuildGraph build_graph;
+  build_graph.buildNet(&(GetStaEngine()->get_ista()->get_graph()), net);
 }
 
 auto STAAdapter::buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void
 {
-  GetCharTimingFacade().buildCharRcTree(net_name, rc_tree_config.wire_res, rc_tree_config.wire_cap, rc_tree_config.load_cap);
+  auto* timing_engine = GetStaEngine();
+  auto* net = timing_engine->get_netlist()->findNet(net_name.c_str());
+  LOG_FATAL_IF(net == nullptr) << "Characterization net " << net_name << " is not found for RC tree.";
+
+  timing_engine->resetRcTree(net);
+  timing_engine->initRcTree(net);
+
+  auto* driver_pin = net->getDriver();
+  LOG_FATAL_IF(driver_pin == nullptr) << "Characterization net " << net_name << " has no driver pin.";
+
+  auto* driver_node = timing_engine->makeOrFindRCTreeNode(driver_pin);
+  auto load_pins = net->getLoads();
+  for (auto* load_pin : load_pins) {
+    auto* load_node = timing_engine->makeOrFindRCTreeNode(load_pin);
+    timing_engine->makeResistor(net, driver_node, load_node, rc_tree_config.wire_res);
+    timing_engine->incrCap(driver_node, rc_tree_config.wire_cap / 2.0, true);
+    timing_engine->incrCap(load_node, (rc_tree_config.wire_cap / 2.0) + rc_tree_config.load_cap, true);
+  }
+  timing_engine->updateRCTreeInfo(net);
 }
 
 auto STAAdapter::createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void
 {
-  auto* clock = GetCharTimingFacade().createCharClock(source_pin_full_name, clock_name, period_ns);
-  LOG_FATAL_IF(clock == nullptr) << "Cannot create characterization clock: " << clock_name;
+  const auto source_pin_objs = GetStaEngine()->get_netlist()->findPin(source_pin_full_name.c_str(), false, false);
+  LOG_FATAL_IF(source_pin_objs.empty()) << "Cannot create characterization clock because source pin is not found: " << source_pin_full_name;
+  auto* source_pin = dynamic_cast<ista::Pin*>(source_pin_objs.front());
+  LOG_FATAL_IF(source_pin == nullptr) << "Cannot create characterization clock because source object is not a pin: "
+                                      << source_pin_full_name;
+  auto source_vertex = GetStaEngine()->get_ista()->get_graph().findVertex(source_pin);
+  LOG_FATAL_IF(!source_vertex) << "Cannot create characterization clock because source vertex is not found: " << source_pin_full_name;
+
+  const int period_ps = static_cast<int>(NS_TO_PS(period_ns));
+  auto sta_clock = std::make_unique<ista::StaClock>(clock_name.c_str(), ista::StaClock::ClockType::kPropagated, period_ps);
+  ista::StaWaveForm wave_form;
+  wave_form.addWaveEdge(0);
+  wave_form.addWaveEdge(period_ps / 2);
+  sta_clock->set_wave_form(std::move(wave_form));
+  sta_clock->addVertex(*source_vertex);
+
+  GetStaEngine()->get_ista()->addClock(std::move(sta_clock));
 }
 
 auto STAAdapter::destroyCharClock() -> void
 {
-  GetCharTimingFacade().clearCharClocks();
-  getInst().resetIctsCharTimingRuntime();
+  GetStaEngine()->get_ista()->clearClocks();
+  getInst().resetCharTimingState();
 }
 
-auto STAAdapter::clearCharSandbox() -> void
+auto STAAdapter::resetCharContext() -> void
 {
   auto& adapter = getInst();
-  adapter.resetIctsCharTimingRuntime();
-  adapter.resetIctsCharPowerRuntime();
-  GetCharTimingFacade().resetCharTimingContext();
+  adapter.resetStaTransientState();
+  auto* timing_engine = GetStaEngine();
+  timing_engine->set_num_threads(adapter._is_char_only_active ? kCharStaThreadCount : kStaThreadCount);
+  ConfigureStaWorkspace(timing_engine, adapter._is_char_only_active ? "sta_char" : "sta");
 }
 
 auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name, const std::string& output_pin_full_name,
                                           const std::string& sink_pin_full_name) -> void
 {
   auto& adapter = getInst();
-  adapter.resetIctsCharTimingRuntime();
+  adapter.resetCharTimingState();
 
-  auto& runtime = adapter._icts_char_timing_runtime;
-  auto timing_facade = GetCharTimingFacade();
-  runtime.source_input_pin = timing_facade.findCharPin(input_pin_full_name);
-  runtime.source_output_pin = timing_facade.findCharPin(output_pin_full_name);
-  runtime.source_input_vertex = timing_facade.findCharVertex(input_pin_full_name);
-  runtime.source_output_vertex = timing_facade.findCharVertex(output_pin_full_name);
-  runtime.sink_vertex = timing_facade.findCharVertex(sink_pin_full_name);
+  auto& runtime = adapter._char_timing_state;
+  auto* netlist = GetStaEngine()->get_netlist();
+  auto source_input_match = netlist->findPin(input_pin_full_name.c_str(), false, false);
+  auto source_output_match = netlist->findPin(output_pin_full_name.c_str(), false, false);
+  runtime.source_input_pin = source_input_match.empty() ? nullptr : dynamic_cast<ista::Pin*>(source_input_match.front());
+  runtime.source_output_pin = source_output_match.empty() ? nullptr : dynamic_cast<ista::Pin*>(source_output_match.front());
+  runtime.source_input_vertex = FindStaVertex(input_pin_full_name);
+  runtime.source_output_vertex = FindStaVertex(output_pin_full_name);
+  runtime.sink_vertex = FindStaVertex(sink_pin_full_name);
 
   LOG_FATAL_IF(runtime.source_input_pin == nullptr) << "Cannot find source input pin: " << input_pin_full_name;
   LOG_FATAL_IF(runtime.source_output_pin == nullptr) << "Cannot find source output pin: " << output_pin_full_name;
@@ -1175,18 +1241,17 @@ auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name
   LOG_FATAL_IF(runtime.source_lib_arc == nullptr) << "Source buffer liberty arc is null for instance " << runtime.source_inst->get_name();
 
   runtime.is_ready = true;
-  timing_facade.prepareCharTimingContext();
 }
 
 auto STAAdapter::prepareCharTimingSample() -> void
 {
-  ista::icts_char::TimingFacade(*GetStaEngine()).resetCharTimingSample();
+  GetStaEngine()->prepareCharTiming();
 }
 
 auto STAAdapter::setCharBufferInputSlew(double slew_ns) -> void
 {
   auto& adapter = getInst();
-  auto& runtime = adapter._icts_char_timing_runtime;
+  auto& runtime = adapter._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew injection.";
   runtime.source_input_vertex->resetColor();
   runtime.source_input_vertex->resetLevel();
@@ -1205,34 +1270,30 @@ auto STAAdapter::setCharBufferInputSlew(double slew_ns) -> void
 auto STAAdapter::setCharBufferInputSlewIncremental(double slew_ns) -> void
 {
   auto& adapter = getInst();
-  auto& runtime = adapter._icts_char_timing_runtime;
+  auto& runtime = adapter._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental slew injection.";
-
-  runtime.source_input_vertex->resetSlewBucket();
-  AddCharSlewData(runtime.source_input_vertex, ista::TransType::kRise, slew_ns);
-  AddCharSlewData(runtime.source_input_vertex, ista::TransType::kFall, slew_ns);
-  UpdateCharBufferOutputSlew(runtime.source_output_pin, runtime.source_output_vertex, runtime.source_lib_cell, runtime.source_arc_set,
-                             runtime.source_lib_arc, slew_ns);
+  GetStaEngine()->prepareCharTiming();
+  setCharBufferInputSlew(slew_ns);
 }
 
 auto STAAdapter::updateCharTimingSample() -> void
 {
-  ista::icts_char::TimingFacade(*GetStaEngine()).propagateCharTimingSample();
+  GetStaEngine()->updateCharTiming();
 }
 
 auto STAAdapter::updateCharTimingIncrementalSample() -> void
 {
-  auto& runtime = getInst()._icts_char_timing_runtime;
+  auto& runtime = getInst()._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental propagation.";
-  ista::icts_char::TimingFacade(*GetStaEngine()).propagateCharTimingIncrementalSample(runtime.source_output_vertex, runtime.sink_vertex);
+  GetStaEngine()->updateCharTiming();
 }
 
 auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
                                   std::optional<std::string> source_input_pin_full_name) -> bool
 {
   auto& adapter = getInst();
-  adapter.resetIctsCharPowerRuntime();
-  auto& runtime = adapter._icts_char_power_runtime;
+  adapter.resetCharPowerState();
+  auto& runtime = adapter._char_power_state;
   runtime.inst_names = inst_names;
   runtime.net_names = net_names;
   runtime.inst_name_set = std::unordered_set<std::string>(inst_names.begin(), inst_names.end());
@@ -1244,9 +1305,9 @@ auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, co
     return false;
   }
 
-  auto clocks = GetCharTimingFacade().getCharClocks();
+  auto clocks = GetStaEngine()->get_ista()->getClocks();
   if (clocks.empty()) {
-    LOG_WARNING << "Characterization power setup skipped: sandbox STA has no clock objects.";
+    LOG_WARNING << "Characterization power setup skipped: char-only STA has no clock objects.";
     return false;
   }
 
@@ -1256,13 +1317,13 @@ auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, co
 auto STAAdapter::refreshCharPowerLoad() -> bool
 {
   auto& adapter = getInst();
-  auto& runtime = adapter._icts_char_power_runtime;
+  auto& runtime = adapter._char_power_state;
   if (!runtime.is_runtime_ready) {
     runtime.is_switch_power_cached = false;
     return true;
   }
 
-  auto* power = runtime.sandbox_power.get();
+  auto* power = runtime.char_power.get();
   if (!PrimeCharPower(power)) {
     LOG_WARNING << "Characterization power load refresh skipped: iPA graph is not ready.";
     return false;
@@ -1270,18 +1331,17 @@ auto STAAdapter::refreshCharPowerLoad() -> bool
 
   runtime.cached_switch_power_w = CalcSelectedNetSwitchPower(power, runtime.net_name_set);
   runtime.is_switch_power_cached = true;
-  ipower::icts_char::PowerFacade(*power).refreshCharInternalPowerLoadContext();
   return true;
 }
 
 auto STAAdapter::updateCharPower() -> bool
 {
   auto& adapter = getInst();
-  auto& runtime = adapter._icts_char_power_runtime;
-  auto* power = runtime.sandbox_power.get();
+  auto& runtime = adapter._char_power_state;
+  auto* power = runtime.char_power.get();
   if (!runtime.is_runtime_ready) {
-    runtime.sandbox_power = BuildSandboxCharPower();
-    power = runtime.sandbox_power.get();
+    runtime.char_power = BuildCharPower();
+    power = runtime.char_power.get();
     if (!PrimeCharPower(power)) {
       LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
       return false;
@@ -1289,25 +1349,12 @@ auto STAAdapter::updateCharPower() -> bool
 
     AnnotateCharSourceInputPower(power, runtime.source_input_pin_full_name);
     FilterPowerCells(power, runtime.inst_name_set);
-    ipower::icts_char::PowerFacade(*power).resetCharLeakagePowerData();
     if (power->calcLeakagePower() == 0U) {
       LOG_WARNING << "Characterization power update skipped: leakage calculation failed.";
-      ipower::icts_char::PowerFacade(*power).resetCharLeakagePowerData();
       return false;
     }
 
-    runtime.cached_leakage_power_w = power->getSumLeakagePower();
-    auto power_facade = ipower::icts_char::PowerFacade(*power);
-    power_facade.resetCharLeakagePowerData();
-    if (power_facade.prepareCharInternalPowerContext() == 0U || power_facade.prepareCharInternalPowerSampleContext() == 0U) {
-      LOG_WARNING << "Characterization power update skipped: internal-power prepared sample context failed.";
-      return false;
-    }
-    if (power_facade.freezeCharInternalPowerContext() == 0U) {
-      LOG_WARNING << "Characterization power update skipped: internal-power frozen context failed.";
-      return false;
-    }
-    power_facade.refreshCharInternalPowerLoadContext();
+    runtime.cached_leakage_power_w = SumInstPowerData(power->get_leakage_powers(), runtime.inst_name_set);
     runtime.is_runtime_ready = true;
     runtime.is_switch_power_cached = false;
   } else if (!PrimeCharPower(power)) {
@@ -1320,11 +1367,11 @@ auto STAAdapter::updateCharPower() -> bool
     runtime.is_switch_power_cached = true;
   }
 
-  double internal_power_w = 0.0;
-  if (ipower::icts_char::PowerFacade(*power).calcFrozenCharInternalPowerTotal(internal_power_w) == 0U) {
-    LOG_WARNING << "Characterization power update skipped: selected-instance internal-power total-only calculation failed.";
+  if (power->calcInternalPower() == 0U) {
+    LOG_WARNING << "Characterization power update skipped: internal-power calculation failed.";
     return false;
   }
+  const double internal_power_w = SumInstPowerData(power->get_internal_powers(), runtime.inst_name_set);
 
   runtime.last_total_power_w = runtime.cached_leakage_power_w + internal_power_w + runtime.cached_switch_power_w;
   return true;
@@ -1332,13 +1379,13 @@ auto STAAdapter::updateCharPower() -> bool
 
 auto STAAdapter::queryCharPower() -> double
 {
-  return getInst()._icts_char_power_runtime.last_total_power_w;
+  return getInst()._char_power_state.last_total_power_w;
 }
 
 auto STAAdapter::destroyCharPower() -> void
 {
   auto& adapter = getInst();
-  adapter.resetIctsCharPowerRuntime();
+  adapter.resetCharPowerState();
 }
 
 auto STAAdapter::finishCharOnly() -> void
@@ -1348,10 +1395,8 @@ auto STAAdapter::finishCharOnly() -> void
     return;
   }
 
-  adapter.resetIctsCharTimingRuntime();
-  adapter.resetIctsCharPowerRuntime();
+  resetCharContext();
   adapter._is_char_only_active = false;
-  GetCharTimingFacade().resetCharTimingContext();
   auto* timing_engine = GetStaEngine();
   timing_engine->set_num_threads(kStaThreadCount);
   ConfigureStaWorkspace(timing_engine, "sta");
@@ -1359,19 +1404,20 @@ auto STAAdapter::finishCharOnly() -> void
 
 auto STAAdapter::updateTiming() -> void
 {
+  getInst().prepareFullDesignTiming();
   GetStaEngine()->updateTiming();
 }
 
 auto STAAdapter::queryCharClockAT(const std::string& clock_name) -> double
 {
-  auto& runtime = getInst()._icts_char_timing_runtime;
+  auto& runtime = getInst()._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before clock-arrival query.";
   return QueryCharClockATFromVertex(runtime.sink_vertex, clock_name);
 }
 
 auto STAAdapter::queryCharSlew() -> double
 {
-  auto& runtime = getInst()._icts_char_timing_runtime;
+  auto& runtime = getInst()._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew query.";
   return QueryCharSlewFromVertex(runtime.sink_vertex);
 }
@@ -1401,31 +1447,34 @@ auto STAAdapter::queryPinCapacitance(const Pin* pin) -> double
 
   auto* inst = pin->get_inst();
   const std::string pin_full_name = inst != nullptr ? (inst->get_name() + "/" + pin->get_name()) : pin->get_name();
-  auto* timing_engine = GetStaEngine();
-  auto* ista = timing_engine != nullptr ? timing_engine->get_ista() : nullptr;
-  auto* design_netlist = ista != nullptr ? ista->get_netlist() : nullptr;
-  if (design_netlist == nullptr) {
-    LOG_WARNING << "Pin-cap query skipped: STA netlist is not ready for " << pin_full_name << ".";
+  if (inst == nullptr) {
+    LOG_WARNING << "Pin-cap query skipped: CTS pin has no owning instance for " << pin_full_name << ".";
     return 0.0;
   }
 
-  auto match_pins = design_netlist->findPin(pin_full_name.c_str(), false, false);
-  if (!match_pins.empty()) {
-    auto* ista_pin = dynamic_cast<ista::Pin*>(match_pins.front());
-    if (ista_pin == nullptr) {
-      LOG_WARNING << "Pin-cap query skipped: STA object is not a pin for " << pin_full_name << ".";
-      return 0.0;
-    }
-    return ista_pin->cap();
-  }
-
-  auto* port = design_netlist->findPort(pin_full_name.c_str());
-  if (port == nullptr) {
-    LOG_WARNING << "Pin-cap query skipped: STA design has no pin or port named " << pin_full_name << ".";
+  const auto& cell_master = inst->get_cell_master();
+  if (cell_master.empty()) {
+    LOG_WARNING << "Pin-cap query skipped: CTS instance has no cell master for " << pin_full_name << ".";
     return 0.0;
   }
 
-  return port->cap();
+  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
+  if (lib_cell == nullptr) {
+    LOG_WARNING << "Pin-cap query skipped: liberty cell \"" << cell_master << "\" is not found for " << pin_full_name << ".";
+    return 0.0;
+  }
+
+  const auto port_name = NormalizePortName(pin->get_name());
+  auto* lib_port = lib_cell->get_cell_port_or_port_bus(port_name.c_str());
+  if (lib_port == nullptr) {
+    LOG_WARNING << "Pin-cap query skipped: liberty port \"" << port_name << "\" is not found on cell " << cell_master << ".";
+    return 0.0;
+  }
+  if (lib_port->isInput() == 0U) {
+    return 0.0;
+  }
+
+  return QueryLibPortCapacitancePf(lib_cell, lib_port);
 }
 
 auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>
@@ -1446,23 +1495,62 @@ auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<s
 auto STAAdapter::destroyCharInstance(const std::string& inst_name) -> void
 {
   (void) inst_name;
-  clearCharSandbox();
+  resetCharContext();
 }
 
 auto STAAdapter::destroyCharNet(const std::string& net_name) -> void
 {
   (void) net_name;
-  clearCharSandbox();
+  resetCharContext();
 }
 
-auto STAAdapter::resetIctsCharTimingRuntime() -> void
+auto STAAdapter::resetStaTransientState() -> void
 {
-  _icts_char_timing_runtime = IctsCharTimingRuntime{};
+  resetCharTimingState();
+  resetCharPowerState();
+  ipower::Power::destroyPower();
+
+  auto* timing_engine = GetStaEngine();
+  auto* ista = timing_engine->get_ista();
+  if (ista != nullptr) {
+    ista->resetAllRcNet();
+    ista->resetSdcConstrain();
+  }
+  timing_engine->resetNetlist();
+  timing_engine->resetGraph();
 }
 
-auto STAAdapter::resetIctsCharPowerRuntime() -> void
+auto STAAdapter::prepareFullDesignTiming() -> void
 {
-  _icts_char_power_runtime = IctsCharPowerRuntime{};
+  auto* timing_engine = GetStaEngine();
+  LOG_FATAL_IF(timing_engine->get_db_adapter() == nullptr) << "STA full-design preparation requires STAAdapter::init() first.";
+
+  if (_is_char_only_active) {
+    resetStaTransientState();
+    _is_char_only_active = false;
+  }
+  if (HasFullDesignTimingContext()) {
+    return;
+  }
+
+  timing_engine->set_num_threads(kStaThreadCount);
+  ConfigureStaWorkspace(timing_engine, "sta");
+  resetStaTransientState();
+  timing_engine->get_db_adapter()->convertDBToTimingNetlist();
+  LoadConfiguredSdcIfPresent(timing_engine);
+  timing_engine->buildGraph();
+  timing_engine->initRcTree();
+  timing_engine->get_ista()->set_n_worst_path_per_clock(kWorstPathPerClock);
+}
+
+auto STAAdapter::resetCharTimingState() -> void
+{
+  _char_timing_state = CharTimingState{};
+}
+
+auto STAAdapter::resetCharPowerState() -> void
+{
+  _char_power_state = CharPowerState{};
 }
 
 }  // namespace icts

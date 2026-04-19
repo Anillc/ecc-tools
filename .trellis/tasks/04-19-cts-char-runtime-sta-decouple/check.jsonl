@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Validate final iCTS scope and external-module boundaries."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Validate adapter/module/test placement and scope."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Validate naming, includes, and checker boundary."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Validate degraded query fallbacks and fatal/error choices."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Validate adapter boundary and reset-safe ownership handling."}
+{"file": "src/operation/iCTS/source/database/adapter/sta/STAAdapter.cc", "reason": "Reference existing adapter/query orchestration patterns during review."}

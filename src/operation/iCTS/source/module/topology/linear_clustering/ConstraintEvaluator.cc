@@ -35,7 +35,6 @@
 #include <vector>
 
 #include "Geometry.hh"
-#include "Inst.hh"
 #include "LinearClusteringTypes.hh"
 #include "Log.hh"
 #include "Pin.hh"
@@ -453,17 +452,7 @@ auto ConstraintEvaluator::queryPinCap(const Pin* pin) -> double
     return iter->second;
   }
 
-  if (pin->get_inst() == nullptr || pin->get_net() == nullptr || pin->get_name().empty()) {
-    _pin_cap_cache[pin] = 0.0;
-    return 0.0;
-  }
-  if (pin->get_inst()->get_name().empty()) {
-    _pin_cap_cache[pin] = 0.0;
-    return 0.0;
-  }
-
-  if (!WRAPPER_INST.is_design_ready()) {
-    LOG_WARNING << "Linear clustering pin-cap query degraded: iDB/STA context is not ready, use 0.0 cap for pin " << pin->get_name() << ".";
+  if (pin->get_inst() == nullptr || pin->get_name().empty()) {
     _pin_cap_cache[pin] = 0.0;
     return 0.0;
   }

@@ -37,32 +37,6 @@
 using namespace iir;
 
 namespace ipower {
-
-class Power;
-
-namespace icts_char {
-
-struct InternalPowerContext;
-
-class PowerFacade {
- public:
-  explicit PowerFacade(Power& power) : _power(power) {}
-
-  auto prepareCharClockPowerData() -> unsigned;
-  auto prepareCharInternalPowerContext() -> unsigned;
-  auto prepareCharInternalPowerSampleContext() -> unsigned;
-  auto freezeCharInternalPowerContext() -> unsigned;
-  auto resetCharLeakagePowerData() -> void;
-  auto refreshCharInternalPowerLoadContext() -> void;
-  auto calcFrozenCharInternalPowerTotal(double& total_internal_power_w)
-      -> unsigned;
-
- private:
-  Power& _power;
-};
-
-}  // namespace icts_char
-
 /**
  * @brief The top class of power analysis.
  *
@@ -229,28 +203,6 @@ class Power {
   std::map<ista::Instance::Coordinate, double> displayInstancePowerMap();
 
  private:
-  friend class icts_char::PowerFacade;
-
-  struct IctsCharSupport {
-    std::shared_ptr<icts_char::InternalPowerContext> internal_power_context;
-  };
-
-  void resetCalcPowerData();
-  void resetCalcLeakagePowerData();
-  void resetCalcInternalPowerData();
-  void resetCalcSwitchPowerData();
-  unsigned prepareInternalPowerContext();
-  void resetPreparedInternalPowerData();
-  unsigned calcPreparedInternalPower();
-  unsigned prepareInternalPowerSampleContext();
-  void refreshPreparedInternalPowerSampleContext();
-  unsigned freezePreparedInternalPowerSamplePowerContext();
-  void refreshPreparedInternalPowerLoadSampleContext();
-  void refreshPreparedInternalPowerSlewSampleContext();
-  unsigned calcPreparedInternalPowerBySampleContext();
-  unsigned calcPreparedInternalPowerTotalOnly(double& total_internal_power_w);
-  unsigned calcPreparedInternalPowerTotalOnlyFrozenPower(
-      double& total_internal_power_w);
   std::string _design_work_space;  //!< The power report work space.
   std::optional<std::pair<std::string, std::string>> _backup_work_dir;
   double _default_toggle = 0.02;  //!< The default toggle value.
@@ -275,7 +227,6 @@ class Power {
   const void* _rust_pg_rc_data = nullptr;  //!< The rust power/ground rc data.
 
   bool _is_json_report_enabled = false;  //!< Whether to enable json report.
-  IctsCharSupport _icts_char_support;
 
   static Power* _power;
   FORBIDDEN_COPY(Power);

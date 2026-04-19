@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 #include "common/types/TestDataTypes.hh"
@@ -50,7 +51,18 @@ struct RealTechSetupState
   std::string summary;
 };
 
+struct RealPinCapProbe
+{
+  std::string net_name;
+  std::string inst_name;
+  std::string cell_master;
+  std::string pin_name;
+  bool is_clock_net = false;
+  double pre_timing_cap_pf = 0.0;
+};
+
 auto EnsureRealTechSetup() -> const RealTechSetupState&;
 auto MakeRealTechOrSyntheticLoads(std::size_t target_count, unsigned seed, std::string& source_label) -> GeneratedPins;
+auto TryFindRepresentativeRealPinCapProbe() -> std::optional<RealPinCapProbe>;
 
 }  // namespace icts_test::common::realtech

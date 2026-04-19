@@ -31,9 +31,17 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "BufferingPattern.hh"
+#include "Point.hh"
+#include "SegmentChar.hh"
 #include "common/io/TestArtifactIO.hh"
+#include "common/realtech/support/RealTechSetupSupport.hh"
+#include "database/adapter/sta/STAAdapter.hh"
+#include "database/design/Inst.hh"
+#include "database/design/Pin.hh"
 #include "module/characterization/CharBuilder.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
 
@@ -115,6 +123,54 @@ TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBuf
   EXPECT_NE(cts_log_content.find("strongest buffer"), std::string::npos);
   EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
   EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
+}
+
+TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAcrossLazyAndPreparedTimingContexts)
+{
+  const auto& setup_state = common::realtech::EnsureRealTechSetup();
+  if (setup_state.mode != common::realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
+    GTEST_SKIP() << setup_state.summary;
+    return;
+  }
+
+  STA_ADAPTER_INST.init();
+
+  const auto buffer_infos = realtech_support::CollectConfiguredBufferLimitInfo();
+  ASSERT_FALSE(buffer_infos.empty());
+
+  const auto probe = common::realtech::TryFindRepresentativeRealPinCapProbe();
+  if (!probe.has_value()) {
+    GTEST_SKIP() << "Cannot find a representative real-design load pin with resolvable capacitance before full timing preparation.";
+    return;
+  }
+
+  EXPECT_GT(probe->pre_timing_cap_pf, 0.0);
+
+  icts::Inst probe_inst(probe->inst_name, probe->cell_master, icts::InstType::kUnknown, icts::Point<int>(-1, -1));
+  icts::Pin probe_pin(probe->pin_name, icts::PinType::kIn, icts::Point<int>(-1, -1), &probe_inst);
+
+  STA_ADAPTER_INST.updateTiming();
+  const auto clock_net_pairs = STA_ADAPTER_INST.collectClockNetPairs();
+  ASSERT_FALSE(clock_net_pairs.empty()) << "Real-tech setup should expose at least one clock net after full timing preparation.";
+
+  const double post_timing_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(&probe_pin);
+  EXPECT_GT(post_timing_cap_pf, 0.0);
+  const double cap_tolerance_pf = probe->pre_timing_cap_pf * 1e-6 + 1e-6;
+  EXPECT_NEAR(post_timing_cap_pf, probe->pre_timing_cap_pf, cap_tolerance_pf);
+
+  std::ostringstream report_stream;
+  report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
+  report_stream << std::setprecision(6);
+  report_stream << "scenario=lazy_pin_cap_probe\n";
+  report_stream << "net_name=" << probe->net_name << "\n";
+  report_stream << "is_clock_net=" << (probe->is_clock_net ? "true" : "false") << "\n";
+  report_stream << "inst_name=" << probe->inst_name << "\n";
+  report_stream << "cell_master=" << probe->cell_master << "\n";
+  report_stream << "pin_name=" << probe->pin_name << "\n";
+  report_stream << "pre_timing_cap_pf=" << probe->pre_timing_cap_pf << "\n";
+  report_stream << "post_timing_cap_pf=" << post_timing_cap_pf << "\n";
+  report_stream << "clock_net_pair_count=" << clock_net_pairs.size() << "\n";
+  ASSERT_TRUE(realtech_support::WriteScenarioLog("lazy_pin_cap_probe", "lazy_pin_cap_probe_report.txt", report_stream.str()));
 }
 
 TEST(CharacterizationRealTechFallbackTest, TableAxisFallbackMatchesAvailableAssetCoverage)
@@ -289,6 +345,72 @@ TEST(CharacterizationRealTechFallbackTest, OverflowSamplesAreSkippedAndReportedW
   EXPECT_EQ(logged_driven_cap_overflow_samples_value, builder.get_driven_cap_overflow_samples());
   EXPECT_EQ(logged_max_output_slew_idx_value, builder.get_max_observed_output_slew_idx());
   EXPECT_EQ(logged_max_driven_cap_idx_value, builder.get_max_observed_driven_cap_idx());
+}
+
+TEST(CharacterizationRealTechFallbackTest, RepeatedReducedBuildsRemainUsableWithinOnePreparedSession)
+{
+  const auto& setup_state = common::realtech::EnsureRealTechSetup();
+  if (setup_state.mode != common::realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
+    GTEST_SKIP() << setup_state.summary;
+    return;
+  }
+
+  const auto buffer_infos = realtech_support::CollectConfiguredBufferLimitInfo();
+  const auto usable_buffers = realtech_support::CollectUsableBufferMasters(buffer_infos);
+  if (usable_buffers.empty()) {
+    GTEST_SKIP() << "No configured buffer has both slew and cap support via port or table limits.";
+    return;
+  }
+
+  realtech_support::RealTechCharSession char_session;
+  const auto prepare_error = char_session.prepare("repeat_reduced_builds", std::vector<std::string>{usable_buffers.front()}, 0.0, 0.0);
+  if (prepare_error.has_value()) {
+    GTEST_SKIP() << *prepare_error;
+    return;
+  }
+
+  icts::CharBuilder::InitOptions reduced_options;
+  reduced_options.wire_length_iterations = 2U;
+
+  icts::CharBuilder first_builder;
+  first_builder.init(reduced_options);
+  first_builder.build();
+  ASSERT_FALSE(first_builder.get_segment_chars().empty());
+  const auto first_summary = realtech_support::SummarizeSegmentCharLattice(first_builder.get_segment_chars(), first_builder);
+  EXPECT_EQ(first_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(first_summary, first_builder);
+
+  icts::CharBuilder second_builder;
+  second_builder.init(reduced_options);
+  second_builder.build();
+  ASSERT_FALSE(second_builder.get_segment_chars().empty());
+  const auto second_summary = realtech_support::SummarizeSegmentCharLattice(second_builder.get_segment_chars(), second_builder);
+  EXPECT_EQ(second_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(second_summary, second_builder);
+
+  EXPECT_EQ(first_builder.get_wire_length_iterations(), reduced_options.wire_length_iterations.value_or(0U));
+  EXPECT_EQ(second_builder.get_wire_length_iterations(), reduced_options.wire_length_iterations.value_or(0U));
+  EXPECT_EQ(first_builder.get_segment_chars().size(), second_builder.get_segment_chars().size());
+  EXPECT_EQ(first_builder.get_buffering_patterns().size(), second_builder.get_buffering_patterns().size());
+  EXPECT_EQ(first_summary.total_entries, second_summary.total_entries);
+  EXPECT_EQ(first_summary.max_length_idx, second_summary.max_length_idx);
+  EXPECT_EQ(first_summary.max_input_slew_idx, second_summary.max_input_slew_idx);
+  STA_ADAPTER_INST.updateTiming();
+  const auto clock_net_pairs = STA_ADAPTER_INST.collectClockNetPairs();
+  EXPECT_FALSE(clock_net_pairs.empty()) << "Full-design STA should remain usable after repeated char-only builds.";
+  EXPECT_EQ(first_summary.max_output_slew_idx, second_summary.max_output_slew_idx);
+  EXPECT_EQ(first_summary.max_driven_cap_idx, second_summary.max_driven_cap_idx);
+  EXPECT_EQ(first_summary.max_load_cap_idx, second_summary.max_load_cap_idx);
+
+  std::ostringstream report_stream;
+  report_stream << "scenario=repeat_reduced_builds\n";
+  report_stream << "selected_buffer=" << usable_buffers.front() << "\n";
+  report_stream << "wire_length_iterations=" << reduced_options.wire_length_iterations.value_or(0U) << "\n";
+  report_stream << "first_segment_chars=" << first_builder.get_segment_chars().size() << "\n";
+  report_stream << "second_segment_chars=" << second_builder.get_segment_chars().size() << "\n";
+  report_stream << "first_patterns=" << first_builder.get_buffering_patterns().size() << "\n";
+  report_stream << "second_patterns=" << second_builder.get_buffering_patterns().size() << "\n";
+  report_stream << "first_lattice=" << realtech_support::FormatSegmentCharLatticeSummary(first_summary, first_builder) << "\n";
+  report_stream << "second_lattice=" << realtech_support::FormatSegmentCharLatticeSummary(second_summary, second_builder) << "\n";
+  ASSERT_TRUE(realtech_support::WriteScenarioLog("repeat_reduced_builds", "repeat_reduced_builds_report.txt", report_stream.str()));
 }
 
 }  // namespace

@@ -264,7 +264,6 @@ auto RealTechCharSession::prepare(const std::string& scenario_name, std::optiona
                                                                         {"omit_wire_length_unit", omit_wire_length_unit ? "true" : "false"},
                                                                         {"force_branch_buffer", force_branch_buffer ? "true" : "false"},
                                                                     });
-  STA_ADAPTER_INST.initCharOnly();
   _is_prepared = true;
   return std::nullopt;
 }

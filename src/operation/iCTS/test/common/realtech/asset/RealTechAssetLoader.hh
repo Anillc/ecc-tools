@@ -23,10 +23,13 @@
 
 #pragma once
 
+#include <optional>
+
 #include "common/realtech/support/RealTechSetupSupport.hh"
 
 namespace icts_test::common::realtech::asset {
 
 auto BuildRealTechSetupState() -> RealTechSetupState;
+auto TryFindRepresentativeRealPinCapProbe() -> std::optional<RealPinCapProbe>;
 
 }  // namespace icts_test::common::realtech::asset

@@ -1,0 +1,13 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints, external-module diff limits, and final full-module validation requirement."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Source/database adapter, module characterization, and mirrored test placement rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include discipline, and final checker boundary for touched iCTS code."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Keep iDB/iSTA access inside adapter boundaries and respect borrowed-pointer lifetime across resets."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Safe fallback and logging rules for degraded lookup/query paths."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This refactor crosses Wrapper, Design, STAAdapter, characterization, and linear clustering boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Consolidate repeated liberty/iDB lookup logic in adapter helpers instead of scattering it."}
+{"file": "src/operation/iCTS/source/database/adapter/sta/STAAdapter.cc", "reason": "Primary refactor target for lazy design conversion and char runtime reset."}
+{"file": "src/operation/iCTS/source/module/characterization/CharBuilder.cc", "reason": "Current char lifecycle and sample loop usage of STAAdapter APIs."}
+{"file": "src/operation/iCTS/source/module/topology/linear_clustering/ConstraintEvaluator.cc", "reason": "Main CTS consumer of queryPinCapacitance without full STA conversion."}
+{"file": "src/operation/iCTS/source/database/io/Wrapper.cc", "reason": "Current instance typing path that must stop requiring full STA netlist conversion."}
