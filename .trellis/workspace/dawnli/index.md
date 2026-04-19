@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 24
-- **Last Active**: 2026-04-19
+- **Total Sessions**: 25
+- **Last Active**: 2026-04-20
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1286 | Active |
+| `journal-1.md` | ~1328 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 25 | 2026-04-20 | CTS char runtime decouple and cleanup | `7e8ba48d0` | `cts_refactor` |
 | 24 | 2026-04-19 | Arm9 linear clustering default strategy productization | `d8d18730d14d6745bf1051dd119f410bd96f34e4` | `cts_refactor` |
 | 23 | 2026-04-18 | Multi-depth H-tree selection and legality filtering | `71281b08f` | `cts_refactor` |
 | 22 | 2026-04-17 | Refine H-tree frontier semantics and branch buffering | `11ef4c8fb` | `cts_refactor` |

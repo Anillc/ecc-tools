@@ -1284,3 +1284,45 @@ Migrated from the mistakenly initialized `codex-agent` workspace so the session 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: CTS char runtime decouple and cleanup
+
+**Date**: 2026-04-20
+**Task**: CTS char runtime decouple and cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Runtime | Removed eager full-design DB-to-STA conversion from iCTS characterization init; full-design timing preparation is now lazy and char-only lifecycle resets transient STA state instead of using sandbox-style isolation. |
+| Adapter cleanup | Reworked STA adapter queries to use iDB/liberty-backed lookup where possible, removed the misleading `ValidateConfiguredSdc()` path, and renamed residual sandbox-oriented state to CTS-friendly char context naming. |
+| External cleanup | Restored iSTA/iPA files to the state before the temporary incremental characterization perf interfaces and adapted iCTS char-power flow back to the generic iPA path with minimal external-module disturbance. |
+| Quality validation | Old-vs-new comparison passed on both small and large realtech designs: exact reports are identical, while htree/synth reports differ only in `output_dir`. |
+| Runtime outcome | Large-design characterization/htree runtime blow-up was removed: runtime now stays near the small-design range instead of scaling to ~500s under the previous eager full-design STA conversion path. |
+| SDC conclusion | Current char flow does not consume full-design SDC; it uses an internal fixed 10ns reference clock. Under current implementation, design SDC period does not affect char delay/slew, and only a char clock period would influence the power reference scale. |
+| Final checks | Rebuilt the relevant iCTS realtech targets and completed final `ecc_dev_tools` checking on `src/operation/iCTS` with 0 in-scope findings. |
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7e8ba48d0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
