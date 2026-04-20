@@ -42,6 +42,7 @@
 #include "tcl_register_idrc.h"
 #include "tcl_register_inst.h"
 #include "tcl_register_irt.h"
+#include "tcl_register_ircx.h"
 #include "tcl_register_no.h"
 #include "tcl_register_pdn.h"
 #include "tcl_register_pl.h"
@@ -97,6 +98,9 @@ int registerCommands()
 
   /// DRC
   registerCmdDRC();
+
+  /// RCX
+  registerCmdRCX();
 
   /// STA
   registerCmdSTA();
