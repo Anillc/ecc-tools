@@ -21,11 +21,11 @@
  * @version 0.1
  * @date 2025-12-09
  */
- #include "rcxShellCmd.hh"
- #include "RCX.hpp"
- 
+#include <iostream>
 #include <memory>
 
+#include "RCX.hpp"
+#include "rcxShellCmd.hh"
 namespace ircx {
 
 CmdRCXInit::CmdRCXInit(const char* cmd_name) : TclCmd(cmd_name) {
@@ -41,6 +41,18 @@ unsigned CmdRCXInit::exec() {
   if (!check()) {
     return 0;
   }
+
+  const std::string hello_info =
+      "\033[49;32m***************************\n"
+      "  _  _____   _____ __   __\n"
+      " (_)|  __ \\ /  __ \\\\ \\ / /\n"
+      "  _ | |__) || |     \\ V / \n"
+      " | ||  _  / | |      > <  \n"
+      " | || | \\ \\ | |____ / . \\ \n"
+      " |_||_|  \\_\\ \\_____/_/ \\_\\\n"
+      "***************************\n"
+      "WELCOME TO iRCX TCL-shell interface. \e[0m";
+  std::cout << hello_info << std::endl;
 
   RCX& rcx = RCX::getOrCreateInst();
 

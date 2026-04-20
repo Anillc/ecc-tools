@@ -1,29 +1,22 @@
-cmake_minimum_required(VERSION 3.11)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-##-------------------------- External CMake ------------------------##
-include(${HOME_CMAKE}/operation/idb.cmake)
-
-##-------------------------- Source Files ------------------------##
-add_library(ircx_engine 
-    ParasiticXEngine.cpp
-    ParasiticXIDBAdapter.cpp
+set(IRCX_ENGINE_SRC
+  ParasiticXEngine.cpp
+  ParasiticXIDBAdapter.cpp
 )
 
-##-------------------------- Link Libraries ------------------------##
+add_library(ircx_engine ${IRCX_ENGINE_SRC})
+
 target_link_libraries(ircx_engine
-    PUBLIC
-        log
-    PRIVATE
-        idb
-        def_service
-        lef_service
+  PUBLIC
+    IdbBuilder
+    ircx_headers
+  PRIVATE
+    def_service
+    idb
+    lef_service
+    log
 )
 
-##-------------------------- Include Directories ------------------------##
 target_include_directories(ircx_engine
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
-

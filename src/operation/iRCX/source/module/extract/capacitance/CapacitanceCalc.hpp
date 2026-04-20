@@ -1,13 +1,26 @@
+// ***************************************************************************************
+// Copyright (c) 2023-2025 Peng Cheng Laboratory
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+//
+// iEDA is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+// http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+//
+// See the Mulan PSL v2 for more details.
+// ***************************************************************************************
 #pragma once
 
 #include <vector>
 
-#include "RCTable.hpp"
 #include "LayoutData.hpp"
-#include "TopoPool.hpp"
-#include "ProcessCorner.hpp"
 #include "EnvPool.hpp"
-
+#include "RCTable.hpp"
 namespace ircx {
 
 namespace parser {
@@ -15,8 +28,15 @@ class CapTable;
 }
 
 class LayoutData;
-class TopoPool;
 class LayerTable;
+class TopoPool;
+}
+
+namespace itf {
+class ProcessCorner;
+}
+
+namespace ircx {
 
 class CapacitanceCalc {
  public:
@@ -42,7 +62,7 @@ class CapacitanceCalc {
   void set_cap_tables(const std::vector<const parser::CapTable*>& v) {
     cap_tables_ = v;
   }
-  void set_corners(const std::vector<::itf::ProcessCorner*>& v) {
+  void set_corners(const std::vector<itf::ProcessCorner*>& v) {
     corners_ = v;
     corner_num_ = v.size();
   }
@@ -68,7 +88,7 @@ class CapacitanceCalc {
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   std::vector<const parser::CapTable*> cap_tables_;
-  std::vector<::itf::ProcessCorner*> corners_;
+  std::vector<itf::ProcessCorner*> corners_;
 
   RCTable* rc_table_{nullptr};
 };

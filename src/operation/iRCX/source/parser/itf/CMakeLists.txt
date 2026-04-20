@@ -1,14 +1,3 @@
-##-------------------------- CMake Information ----------------------##
-cmake_minimum_required(VERSION 3.11)
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-##-------------------------- Compile Options ------------------------##
-# Configure compile options
-add_compile_options(-Wall -Wextra -pedantic)
-
-##-------------------------- Bison & Flex ---------------------------##
 set(ITF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${ITF_GENERATED_DIR})
 
@@ -48,8 +37,12 @@ add_library(itf
     ${FLEX_itfScanner_OUTPUTS}
     ${BISON_itfParser_OUTPUTS}
 )
+
+target_compile_options(itf PRIVATE -Wall -Wextra -pedantic)
+
 target_include_directories(itf
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE
     ${ITF_GENERATED_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
 )

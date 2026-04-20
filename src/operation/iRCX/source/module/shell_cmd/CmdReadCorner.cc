@@ -21,14 +21,12 @@
  * @version 0.1
  * @date 2025-12-08
  */
-#include "rcxShellCmd.hh"
-
 #include <filesystem>
 #include <memory>
 
 #include "RCX.hpp"
+#include "rcxShellCmd.hh"
 #include "log/Log.hh"
-
 namespace ircx {
 
 CmdReadCorner::CmdReadCorner(const char* cmd_name) : TclCmd(cmd_name)

@@ -21,12 +21,11 @@
  * @version 0.1
  * @date 2025-12-09
  */
-#include "rcxShellCmd.hh"
-#include "RCX.hpp"
-
-#include <omp.h>
 #include <memory>
+#include <omp.h>
 
+#include "RCX.hpp"
+#include "rcxShellCmd.hh"
 namespace ircx {
 
 CmdRCXRun::CmdRCXRun(const char* cmd_name) : TclCmd(cmd_name) {

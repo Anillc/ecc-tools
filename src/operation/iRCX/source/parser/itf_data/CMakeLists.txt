@@ -1,13 +1,17 @@
-cmake_minimum_required(VERSION 3.11)
-set(CMAKE_CXX_STANDARD 20)
-
-set( IRC_ITF_DB
+set(IRCX_ITF_DATA_SRC
   Layer.cpp
   ProcessCorner.cpp
   VariationParams.cpp
-)  
-add_library(itf_data ${IRC_ITF_DB})
+)
+
+add_library(itf_data ${IRCX_ITF_DATA_SRC})
+
 target_link_libraries(itf_data
- PUBLIC
-  itf
+  PUBLIC
+    itf
+)
+
+target_include_directories(itf_data
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
