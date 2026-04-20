@@ -110,12 +110,24 @@ class IdbLayerSpacing
   const int32_t get_min_spacing() const { return _min_spacing; }
   const int32_t get_min_width() const { return _min_width; }
   const int32_t get_max_width() const { return _max_width; }
+  const int32_t get_eol_width() const { return _eol_width; }
+  const int32_t get_eol_within() const { return _eol_within; }
+  const bool get_has_parallel_edge() const { return _has_parallel_edge; }
+  const int32_t get_par_space() const { return _par_space; }
+  const int32_t get_par_within() const { return _par_within; }
+  const bool get_has_two_edges() const { return _has_two_edges; }
 
   // setter
   void set_spacing_type(IdbLayerSpacingType spacing_type) { _spacing_type = spacing_type; }
   void set_min_spacing(int32_t min_spacing) { _min_spacing = min_spacing; }
   void set_min_width(int32_t min_width) { _min_width = min_width; }
   void set_max_width(int32_t max_width) { _max_width = max_width; }
+  void set_eol_width(int32_t eol_width) { _eol_width = eol_width; }
+  void set_eol_within(int32_t eol_within) { _eol_within = eol_within; }
+  void set_has_parallel_edge(bool has_parallel_edge) { _has_parallel_edge = has_parallel_edge; }
+  void set_par_space(int32_t par_space) { _par_space = par_space; }
+  void set_par_within(int32_t par_within) { _par_within = par_within; }
+  void set_has_two_edges(bool has_two_edges) { _has_two_edges = has_two_edges; }
 
   // operator
   bool isDefault() { return _spacing_type == IdbLayerSpacingType::kSpacingDefault ? true : false; }
@@ -126,6 +138,14 @@ class IdbLayerSpacing
   int32_t _min_spacing;
   int32_t _min_width;
   int32_t _max_width;
+
+  // end of line 
+  int32_t _eol_width;
+  int32_t _eol_within;
+  bool _has_parallel_edge;
+  int32_t _par_space;
+  int32_t _par_within;
+  bool _has_two_edges;
 };
 
 class IdbLayerSpacingList

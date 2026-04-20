@@ -674,6 +674,17 @@ int LefRead::parse_layer_routing(lefiLayer* lef_layer, IdbLayerRouting* layer_ro
         // 如果有notchLength关键字，不能再算作Spacing规则
         continue;
       }
+      if (lef_layer->hasSpacingEndOfLine(i)) {
+        layer_spacing->set_spacing_type(IdbLayerSpacingType::kSpacingEndOfLine);
+        layer_spacing->set_eol_width(transUnitDB(lef_layer->spacingEolWidth(i)));
+        layer_spacing->set_eol_within(transUnitDB(lef_layer->spacingEolWithin(i)));
+        layer_spacing->set_has_parallel_edge(lef_layer->hasSpacingParellelEdge(i));
+        if (layer_spacing->get_has_parallel_edge()) {
+          layer_spacing->set_par_space(transUnitDB(lef_layer->spacingParSpace(i)));
+          layer_spacing->set_par_within(transUnitDB(lef_layer->spacingParWithin(i)));
+          layer_spacing->set_has_two_edges(lef_layer->hasSpacingTwoEdges(i));
+        }
+      }
       spacing_list->add_spacing(layer_spacing);
     }
   }

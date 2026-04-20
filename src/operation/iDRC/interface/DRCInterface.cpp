@@ -498,6 +498,27 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
       }
       exist_rule_set.insert(ViolationType::kEndOfLineSpacing);
     }
+
+    if (idb_layer->get_spacing_list() != nullptr) {
+      for (auto& spacing_rule : idb_layer->get_spacing_list()->get_spacing_list()) {
+        EndOfLineSpacingRule end_of_line_spacing_rule;
+        if (spacing_rule->get_spacing_type() == idb::IdbLayerSpacingType::kSpacingEndOfLine) {
+          end_of_line_spacing_rule.eol_spacing = spacing_rule->get_min_spacing();
+          end_of_line_spacing_rule.eol_width = spacing_rule->get_eol_width();
+          end_of_line_spacing_rule.eol_within = spacing_rule->get_eol_within();
+          end_of_line_spacing_rule.has_par = spacing_rule->get_has_parallel_edge();
+          end_of_line_spacing_rule.par_spacing = spacing_rule->get_par_space();
+          end_of_line_spacing_rule.par_within = spacing_rule->get_par_within();
+          end_of_line_spacing_rule.has_two_edges = spacing_rule->get_has_parallel_edge() && spacing_rule->get_has_two_edges();
+          end_of_line_spacing_rule_list.push_back(end_of_line_spacing_rule);
+          exist_rule_set.insert(ViolationType::kEndOfLineSpacing);
+        }
+      }
+      std::cout << "############# end of line ###########\n";
+      for (auto rule : end_of_line_spacing_rule_list) {
+        std::cout << rule.eol_spacing << " " << rule.has_ete << " "  << rule.ete_spacing <<" " << rule.has_par << " " << rule.has_two_edges << "\n";
+      }
+    }
   }
   // MaximumWidthRule
   {
@@ -632,6 +653,8 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
           spacing_type = LayerSpacingType::kSpacingDefault;
         } else if (spacing_rule->get_spacing_type() == idb::IdbLayerSpacingType::kSpacingRange) {
           spacing_type = LayerSpacingType::kSpacingRange;
+        } else if (spacing_rule->get_spacing_type() == idb::IdbLayerSpacingType::kSpacingEndOfLine) {
+          continue;
         } else {
           spacing_type = LayerSpacingType::kNone;
         }

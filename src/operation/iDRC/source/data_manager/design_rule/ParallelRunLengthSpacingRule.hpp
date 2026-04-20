@@ -28,6 +28,7 @@ enum class LayerSpacingType : uint8_t
   kSpacingRange,
   //!-----tbd-------------
   kSpacingRangeLenThreshold,
+  kSpacingEOL,
   kMax
 };
 struct LayerSpacing
