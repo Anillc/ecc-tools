@@ -18,6 +18,7 @@
 #include "DRCInterface.hpp"
 #include <vector>
 
+#include "AdjacentCutSpacingRule.hpp"
 #include "DataManager.hpp"
 #include "GDSPlotter.hpp"
 #include "IdbEnum.h"
@@ -677,6 +678,23 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
   {
     exist_rule_set.insert(ViolationType::kCutShort);
   }
+  // AdjacentCutSpacingRule
+  {
+    AdjacentCutSpacingRule& adj_cut_spacing_rule = cut_layer.get_adjacent_cut_rule();
+    if (!idb_layer->get_spacings().empty()) {
+      for (auto& cut_spacing : idb_layer->get_spacings()) {
+        if (cut_spacing->get_adjacent_cuts().has_value()) {
+          adj_cut_spacing_rule.cut_spacing = cut_spacing->get_spacing();
+          adj_cut_spacing_rule.adjacnet_cuts = cut_spacing->get_adjacent_cuts()->get_adjacent_cuts();
+          adj_cut_spacing_rule.cut_within = cut_spacing->get_adjacent_cuts()->get_cut_within();
+          exist_rule_set.insert(ViolationType::kAdjacentCutSpacing);
+          std::cout << " adj cut: " << adj_cut_spacing_rule.adjacnet_cuts << " " << adj_cut_spacing_rule.cut_within << "\n";
+          // only one ADJACENTCUTS statement per cut layer
+          continue;
+        }
+      }
+    }  
+  }
   // CutEOLSpacingRule
   {
     CutEOLSpacingRule& cut_eol_spacing_rule = cut_layer.get_cut_eol_spacing_rule();
@@ -777,15 +795,15 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
     SameLayerCutSpacingRule& same_layer_cut_spacing_rule = cut_layer.get_same_layer_cut_spacing_rule();
     if (!idb_layer->get_spacings().empty()) {
       for (auto& cut_spacing : idb_layer->get_spacings()) {
+        if (cut_spacing->get_adjacent_cuts().has_value()) {
+          continue;
+        }
         SameLayerCutSpacing same_layer_cut_spacing;
         same_layer_cut_spacing.curr_spacing = cut_spacing->get_spacing();
         same_layer_cut_spacing.curr_prl = -1;
         same_layer_cut_spacing.curr_prl_spacing = -1;
         same_layer_cut_spacing.has_same_net = cut_spacing->get_has_same_net();
         same_layer_cut_spacing_rule.spacings.push_back(same_layer_cut_spacing);
-        if (same_layer_cut_spacing.has_same_net) {
-          std::cout << "layer: " << cut_layer.get_layer_name() << " has sameNet\n"; 
-        }
       }
       exist_rule_set.insert(ViolationType::kSameLayerCutSpacing);
     } else if (!idb_layer->get_lef58_spacing_table().empty()) {
