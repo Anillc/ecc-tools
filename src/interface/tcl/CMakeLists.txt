@@ -6,6 +6,7 @@ add_subdirectory(tcl_icts)
 add_subdirectory(tcl_idrc)
 add_subdirectory(tcl_instance)
 add_subdirectory(tcl_irt)
+add_subdirectory(tcl_ircx)
 add_subdirectory(tcl_ifp)
 add_subdirectory(tcl_ipdn)
 add_subdirectory(tcl_ipnp)
@@ -43,7 +44,8 @@ target_link_libraries(ieda_tcl
         tcl_flow
         tcl_icts
         tcl_idrc
-        tcl_irt 
+        tcl_irt
+        tcl_ircx 
         tcl_ifp 
         tcl_ipdn
         tcl_inst 
