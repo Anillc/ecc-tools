@@ -209,35 +209,6 @@ bool updateTiming()
   return true;
 }
 
-bool writeAbstractLef(const std::string& output_lef_path)
-{
-  namespace fs = std::filesystem;
-
-  const fs::path output_lef(output_lef_path);
-  if (!output_lef.parent_path().empty()) {
-    std::error_code ec;
-    fs::create_directories(output_lef.parent_path(), ec);
-    if (ec) {
-      throw std::runtime_error("failed to create output directory: " +
-                               output_lef.parent_path().string() + ", error=" +
-                               ec.message());
-    }
-  }
-
-  std::error_code ec;
-  fs::remove(output_lef, ec);
-
-  // saveLef currently inherits a legacy closeFile() return convention where a
-  // successful fclose() yields 0/false, so use the emitted file as the
-  // user-visible success criterion here.
-  dmInst->saveLef(output_lef_path);
-
-  if (!fs::exists(output_lef)) {
-    return false;
-  }
-  return fs::file_size(output_lef) > 0;
-}
-
 bool writeTimingModel(const std::string& output_lib_path,
                       const std::string& analysis_mode)
 {

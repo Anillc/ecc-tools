@@ -33,7 +33,10 @@
 
 #include "gds_write.h"
 
+#include <algorithm>
+
 #include "../../../data/design/IdbDesign.h"
+#include "boost_definition.h"
 #include "omp.h"
 
 namespace idb {
@@ -850,6 +853,337 @@ int32_t Def2GdsWrite::write_fill()
 
   addStruct(gds_struct);
 
+  writeStruct();
+
+  return kDbSuccess;
+}
+
+std::pair<int32_t, int32_t> Def2GdsWrite::get_pdn_layer_order_range()
+{
+  auto* design = _def_service->get_design();
+  auto* layout = _def_service->get_layout();
+  auto* layers = layout == nullptr ? nullptr : layout->get_layers();
+  auto* pdn_list = design == nullptr ? nullptr : design->get_special_net_list();
+  if (layers == nullptr || pdn_list == nullptr || pdn_list->get_num() == 0) {
+    return {0, -1};
+  }
+
+  int min_layer = layers->get_layers_num() - 1;
+  int max_layer = 0;
+  bool has_routing_data = false;
+
+  for (auto* net : pdn_list->get_net_list()) {
+    if (net == nullptr || net->get_wire_list() == nullptr) {
+      continue;
+    }
+
+    for (auto* wire : net->get_wire_list()->get_wire_list()) {
+      if (wire == nullptr) {
+        continue;
+      }
+
+      for (auto* segment : wire->get_segment_list()) {
+        if (segment == nullptr || (segment->is_via() && segment->get_point_num() < 2) || segment->get_layer() == nullptr) {
+          continue;
+        }
+
+        const int order = segment->get_layer()->get_order();
+        min_layer = std::min(min_layer, order);
+        max_layer = std::max(max_layer, order);
+        has_routing_data = true;
+      }
+    }
+  }
+
+  return has_routing_data ? std::make_pair(min_layer, max_layer) : std::make_pair(0, -1);
+}
+
+bool Def2GdsWrite::writeHardenedDb(const char* file)
+{
+  if (!_writer.init(file, &_gds)) {
+    return false;
+  }
+
+  if (set_units() != kDbSuccess) {
+    return false;
+  }
+
+  _writer.begin();
+
+  write_version();
+  write_design();
+  write_die();
+  write_harden_macro_pins();
+  write_harden_macro_obs();
+
+  return _writer.finish();
+}
+
+int32_t Def2GdsWrite::write_harden_macro_pins()
+{
+  auto* design = _def_service->get_design();
+  auto* layout = _def_service->get_layout();
+  if (design == nullptr || layout == nullptr) {
+    std::cout << "Write harden macro pins failed..." << std::endl;
+    return kDbFail;
+  }
+
+  auto* pin_list = design->get_io_pin_list();
+  auto* layers = layout->get_layers();
+  auto* pdn_list = design->get_special_net_list();
+
+  GdsStruct* gds_struct = new GdsStruct("HARDEN_MACRO_PINS");
+
+  if (pin_list != nullptr) {
+    for (auto* pin : pin_list->get_pin_list()) {
+      if (pin != nullptr) {
+        packPin(gds_struct, pin);
+      }
+    }
+  }
+
+  auto get_top_pdn_rect = [&](IdbLayer* layer, bool is_power) -> std::vector<IdbRect> {
+    std::vector<IdbRect> pdn_rects;
+    auto* routing_layer = dynamic_cast<IdbLayerRouting*>(layer);
+    if (routing_layer == nullptr || pdn_list == nullptr) {
+      return pdn_rects;
+    }
+
+    for (auto* net : pdn_list->get_net_list()) {
+      if (net == nullptr || net->get_wire_list() == nullptr) {
+        continue;
+      }
+
+      if ((net->is_vdd() && !is_power) || (net->is_vss() && is_power)) {
+        continue;
+      }
+
+      for (auto* wire : net->get_wire_list()->get_wire_list()) {
+        if (wire == nullptr) {
+          continue;
+        }
+
+        for (auto* segment : wire->get_segment_list()) {
+          if (segment == nullptr || (segment->is_via() && segment->get_point_num() < 2) || segment->get_layer() != layer) {
+            continue;
+          }
+
+          auto* point_1 = segment->get_point_start();
+          auto* point_2 = segment->get_point_second();
+          if (point_1 == nullptr || point_2 == nullptr) {
+            continue;
+          }
+
+          const int32_t routing_width = segment->get_route_width() == 0 ? routing_layer->get_width() : segment->get_route_width();
+
+          int32_t ll_x = 0;
+          int32_t ll_y = 0;
+          int32_t ur_x = 0;
+          int32_t ur_y = 0;
+
+          if (point_1->get_y() == point_2->get_y()) {
+            ll_x = std::min(point_1->get_x(), point_2->get_x());
+            ll_y = std::min(point_1->get_y(), point_2->get_y()) - routing_width / 2;
+            ur_x = std::max(point_1->get_x(), point_2->get_x());
+            ur_y = ll_y + routing_width;
+          } else if (point_1->get_x() == point_2->get_x()) {
+            ll_x = std::min(point_1->get_x(), point_2->get_x()) - routing_width / 2;
+            ll_y = std::min(point_1->get_y(), point_2->get_y());
+            ur_x = ll_x + routing_width;
+            ur_y = std::max(point_1->get_y(), point_2->get_y());
+          } else {
+            continue;
+          }
+
+          pdn_rects.emplace_back(ll_x, ll_y, ur_x, ur_y);
+        }
+      }
+    }
+
+    return pdn_rects;
+  };
+
+  auto layer_pair = get_pdn_layer_order_range();
+  if (layers != nullptr && layer_pair.first <= layer_pair.second) {
+    auto* top_layer = layers->find_layer_by_order(layer_pair.second);
+    if (top_layer != nullptr) {
+      auto top_vdd = get_top_pdn_rect(top_layer, true);
+      auto top_vss = get_top_pdn_rect(top_layer, false);
+
+      for (auto& rect : top_vdd) {
+        packRect(gds_struct, &rect, top_layer);
+      }
+
+      for (auto& rect : top_vss) {
+        packRect(gds_struct, &rect, top_layer);
+      }
+    }
+  }
+
+  if (gds_struct->get_element_list().empty()) {
+    delete gds_struct;
+    return kDbSuccess;
+  }
+
+  addSRefDefault(gds_struct->get_name());
+  addStruct(gds_struct);
+  writeStruct();
+
+  return kDbSuccess;
+}
+
+int32_t Def2GdsWrite::write_harden_macro_obs()
+{
+  auto* design = _def_service->get_design();
+  auto* layout = _def_service->get_layout();
+  auto* die = layout == nullptr ? nullptr : layout->get_die();
+  auto* layers = layout == nullptr ? nullptr : layout->get_layers();
+  auto* io_pins = design == nullptr ? nullptr : design->get_io_pin_list();
+  auto* pdn_list = design == nullptr ? nullptr : design->get_special_net_list();
+  if (design == nullptr || layout == nullptr || die == nullptr || layers == nullptr) {
+    std::cout << "Write harden macro obs failed..." << std::endl;
+    return kDbFail;
+  }
+
+  auto get_obs_rect = [&](IdbLayer* layer, bool is_top) -> std::vector<IdbRect> {
+    std::vector<IdbRect> obs_list;
+    auto* routing_layer = dynamic_cast<IdbLayerRouting*>(layer);
+    auto* die_bbox = die->get_bounding_box();
+    if (routing_layer == nullptr || die_bbox == nullptr) {
+      return obs_list;
+    }
+
+    ieda_solver::GtlPolygon90Set polyset_die;
+    ieda_solver::GtlRect die_rect(die_bbox->get_low_x(), die_bbox->get_low_y(), die_bbox->get_high_x(), die_bbox->get_high_y());
+    polyset_die += die_rect;
+
+    ieda_solver::GtlPolygon90Set polyset_data;
+    if (is_top && pdn_list != nullptr) {
+      for (auto* net : pdn_list->get_net_list()) {
+        if (net == nullptr || net->get_wire_list() == nullptr) {
+          continue;
+        }
+
+        for (auto* wire : net->get_wire_list()->get_wire_list()) {
+          if (wire == nullptr) {
+            continue;
+          }
+
+          for (auto* segment : wire->get_segment_list()) {
+            if (segment == nullptr || (segment->is_via() && segment->get_point_num() < 2) || segment->get_layer() != layer) {
+              continue;
+            }
+
+            auto* point_1 = segment->get_point_start();
+            auto* point_2 = segment->get_point_second();
+            if (point_1 == nullptr || point_2 == nullptr) {
+              continue;
+            }
+
+            const int32_t routing_width = segment->get_route_width() == 0 ? routing_layer->get_width() : segment->get_route_width();
+
+            int32_t ll_x = 0;
+            int32_t ll_y = 0;
+            int32_t ur_x = 0;
+            int32_t ur_y = 0;
+
+            if (point_1->get_y() == point_2->get_y()) {
+              ll_x = std::min(point_1->get_x(), point_2->get_x());
+              ll_y = std::min(point_1->get_y(), point_2->get_y()) - routing_width / 2;
+              ur_x = std::max(point_1->get_x(), point_2->get_x());
+              ur_y = ll_y + routing_width;
+            } else if (point_1->get_x() == point_2->get_x()) {
+              ll_x = std::min(point_1->get_x(), point_2->get_x()) - routing_width / 2;
+              ll_y = std::min(point_1->get_y(), point_2->get_y());
+              ur_x = ll_x + routing_width;
+              ur_y = std::max(point_1->get_y(), point_2->get_y());
+            } else {
+              continue;
+            }
+
+            int32_t required_size_h = routing_layer->get_spacing(ur_x - ll_x, ur_y - ll_y);
+            int32_t required_size_v = routing_layer->get_spacing(ur_y - ll_y, ur_x - ll_x);
+
+            ieda_solver::GtlRect bloat_rect(ll_x, ll_y, ur_x, ur_y);
+            gtl::bloat(bloat_rect, gtl::HORIZONTAL, required_size_h);
+            gtl::bloat(bloat_rect, gtl::VERTICAL, required_size_v);
+            polyset_data += bloat_rect;
+          }
+        }
+      }
+    }
+
+    if (io_pins != nullptr) {
+      for (auto* pin : io_pins->get_pin_list()) {
+        if (pin == nullptr) {
+          continue;
+        }
+
+        for (auto* layer_shape : pin->get_port_box_list()) {
+          if (layer_shape == nullptr || layer_shape->get_layer() != layer) {
+            continue;
+          }
+
+          for (auto* port_rect : layer_shape->get_rect_list()) {
+            if (port_rect == nullptr) {
+              continue;
+            }
+
+            int32_t required_size_h = routing_layer->get_spacing(port_rect->get_width(), port_rect->get_height());
+            int32_t required_size_v = routing_layer->get_spacing(port_rect->get_height(), port_rect->get_width());
+
+            ieda_solver::GtlRect bloat_rect(port_rect->get_low_x(), port_rect->get_low_y(), port_rect->get_high_x(),
+                                            port_rect->get_high_y());
+            gtl::bloat(bloat_rect, gtl::HORIZONTAL, required_size_h);
+            gtl::bloat(bloat_rect, gtl::VERTICAL, required_size_v);
+            polyset_data += bloat_rect;
+          }
+        }
+      }
+    }
+
+    polyset_die.clean();
+    polyset_data.clean();
+
+    auto polyset_obs = polyset_die - polyset_data;
+    auto direction = routing_layer->is_horizontal() ? gtl::HORIZONTAL : gtl::VERTICAL;
+
+    std::vector<ieda_solver::GtlRect> obs_rects;
+    gtl::get_rectangles(obs_rects, polyset_obs, direction);
+
+    obs_list.reserve(obs_rects.size());
+    for (auto& obs_rect : obs_rects) {
+      obs_list.emplace_back(gtl::xl(obs_rect), gtl::yl(obs_rect), gtl::xh(obs_rect), gtl::yh(obs_rect));
+    }
+
+    return obs_list;
+  };
+
+  auto layer_pair = get_pdn_layer_order_range();
+  if (layer_pair.first > layer_pair.second) {
+    return kDbSuccess;
+  }
+
+  GdsStruct* gds_struct = new GdsStruct("HARDEN_MACRO_OBS");
+  for (auto layer_order = layer_pair.first; layer_order <= layer_pair.second; layer_order += 2) {
+    auto* layer = layers->find_layer_by_order(layer_order);
+    if (layer == nullptr) {
+      continue;
+    }
+
+    auto obs_rects = get_obs_rect(layer, layer_order == layer_pair.second);
+    for (auto& obs_rect : obs_rects) {
+      packRect(gds_struct, &obs_rect, layer);
+    }
+  }
+
+  if (gds_struct->get_element_list().empty()) {
+    delete gds_struct;
+    return kDbSuccess;
+  }
+
+  addSRefDefault(gds_struct->get_name());
+  addStruct(gds_struct);
   writeStruct();
 
   return kDbSuccess;

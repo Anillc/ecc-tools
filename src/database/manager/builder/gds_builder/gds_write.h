@@ -34,6 +34,7 @@
 
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../def_service/def_service.h"
@@ -94,6 +95,9 @@ class Def2GdsWrite
 
   // operator
   bool writeDb(const char* file);
+  bool writeHardenedDb(const char* file);
+  int32_t write_harden_macro_pins();
+  int32_t write_harden_macro_obs();
   bool writeChip();
 
  private:
@@ -117,6 +121,7 @@ class Def2GdsWrite
 
   void addStruct(GdsStruct* gds_struct);
   void writeStruct();
+  std::pair<int32_t, int32_t> get_pdn_layer_order_range();
 
   int32_t _unit_microns = -1;
   int32_t transDB2Unit(int32_t value)

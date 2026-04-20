@@ -327,7 +327,7 @@ void IdbBuilder::saveVerilog(std::string verilog_file_name, std::set<std::string
   writer.writeModule();
 }
 
-bool IdbBuilder::saveGDSII(string file)
+bool IdbBuilder::saveGDSII(string file, bool is_hardened /* = false */)
 {
   if (IdbDefServiceResult::kServiceFailed == _def_service->DefFileWriteInit(file.c_str())) {
     std::cout << "Create GDSII file failed..." << endl;
@@ -335,7 +335,11 @@ bool IdbBuilder::saveGDSII(string file)
   }
 
   std::shared_ptr<Def2GdsWrite> gds_write = std::make_shared<Def2GdsWrite>(_def_service);
-  return gds_write->writeDb(file.c_str());
+  if(is_hardened) {
+    return gds_write->writeHardenedDb(file.c_str());
+  }else{
+    return gds_write->writeDb(file.c_str());
+  }
 }
 
 bool IdbBuilder::saveJSON(string file, string options)

@@ -370,6 +370,9 @@ CmdSaveGDS::CmdSaveGDS(const char* cmd_name) : TclCmd(cmd_name)
 
   auto* path = new TclStringOption(TCL_PATH, 1);
   addOption(path);
+
+  auto* harden_option = new TclSwitchOption("-harden");
+  addOption(harden_option);
 }
 
 unsigned CmdSaveGDS::check()
@@ -379,6 +382,10 @@ unsigned CmdSaveGDS::check()
 
   TclOption* path = getOptionOrArg(TCL_PATH);
   LOG_FATAL_IF(!path);
+
+  TclOption* harden_option = getOptionOrArg("-harden");
+  LOG_FATAL_IF(!harden_option);
+
   return 1;
 }
 
@@ -390,8 +397,13 @@ unsigned CmdSaveGDS::exec()
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
   auto str_path = def_path->getStringVal();
+  TclOption* harden_option = getOptionOrArg("-harden");
+  bool is_harden = false;
+  if (harden_option->is_set_val()) {
+    is_harden = true;
+  }
   if (str_path != nullptr) {
-    dmInst->saveGDSII(str_path);
+    dmInst->saveGDSII(str_path, is_harden);
     return 1;
   }
   return 1;

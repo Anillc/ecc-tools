@@ -54,6 +54,7 @@ int registerCmdSTA()
   registerTclCmd(ista::CmdReadSpef, "read_spef");
   registerTclCmd(ista::CmdReadSdc, "read_sdc");
   registerTclCmd(ista::CmdReportTiming, "report_timing");
+  registerTclCmd(ista::CmdWriteTimingModel, "write_timing_model");
   registerTclCmd(ista::CmdReportConstraint, "report_constraint");
   registerTclCmd(ista::CmdDefToVerilog, "def_to_verilog");
   registerTclCmd(ista::CmdVerilogToDef, "verilog_to_def");
