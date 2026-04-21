@@ -1326,3 +1326,55 @@ Migrated from the mistakenly initialized `codex-agent` workspace so the session 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: CTS char/htree semantic refactor archived
+
+**Date**: 2026-04-22
+**Task**: CTS char/htree semantic refactor archived
+**Branch**: `cts_refactor`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Description |
+|------|-------------|
+| Semantic refactor | Unified char and H-tree composition semantics around monotonic boundary state, group/frontier contracts, and frontier-only composition behavior. |
+| Runtime repair | Enforced `wire_length_iterations` as a hard cap for direct characterization under auto-derived wire length; longer required lengths are now composed instead of over-characterized. |
+| Cleanup | Removed temporary runtime/frontier debug instrumentation from source and deleted the corresponding transient debug smoke coverage. |
+| Test cleanup | Consolidated synthesis real-tech coverage to auto-unit oriented defaults, removed duplicate auto/non-auto cases, and aligned default max fanout for synthesis tests to `32`. |
+| Validation | Re-ran characterization regression, H-tree real-tech matrix, synthesis real-tech smoke/matrix, and full `ecc_dev_tools` check for `src/operation/iCTS`. |
+
+**Main code commit**
+- `21e4a7855` `fix: semantic alignment and performance repair of the CTS characterization module`
+
+**Key validation results**
+- `icts_test_module_characterization`: `PrunerTest.*` and `SegmentJoinTest.*` passed.
+- `CharacterizationRealTechSmokeTest.ManualHTreeCompositionProducesInspectableReport` passed.
+- `CharacterizationRealTechExactRegressionTest.ExactComposeAndExactJoinRemainUsable` passed.
+- `HTreeBuilderRealTechSmokeTest.SynthesizesMaterializedHTreeFromRealClockLoads` passed.
+- `HTreeBuilderRealTechSmokeTest.Arm9FullSinkExperimentMatrixAutoWireLengthUnit` passed.
+- `icts_test_flow_synthesis_realtech` full suite passed.
+- `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS` finished with `in-scope findings: 0`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `21e4a7855` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
