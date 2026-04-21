@@ -280,13 +280,15 @@ void RTInterface::cleanDef()
 #endif
 }
 
-void RTInterface::fixFanout()
+void RTInterface::fixFanout(std::map<std::string, std::any> config_map)
 {
+  std::string buffer = RTUTIL.getConfigValue<std::string>(config_map, "-buffer", "buffer");
+
   idb::IdbNetList* idb_net_list = dmInst->get_idb_def_service()->get_design()->get_net_list();
   idb::IdbInstanceList* idb_instance_list = dmInst->get_idb_def_service()->get_design()->get_instance_list();
   idb::IdbCellMasterList* idb_cell_master_list = dmInst->get_idb_def_service()->get_layout()->get_cell_master_list();
 
-  size_t max_fanout = 16;
+  size_t max_fanout = 32;
   while (true) {
     std::set<idb::IdbNet*> origin_net_set;
     for (idb::IdbNet* idb_net : idb_net_list->get_net_list()) {
@@ -318,7 +320,7 @@ void RTInterface::fixFanout()
         // 生成buf
         idb::IdbInstance* new_buf = new IdbInstance();
         new_buf->set_name(RTUTIL.getString("rt_fanout_buf_", new_idx++));
-        new_buf->set_cell_master(idb_cell_master_list->find_cell_master(RTUTIL.getString("BUFFD3BWP35P140LVT")));
+        new_buf->set_cell_master(idb_cell_master_list->find_cell_master(buffer));
         idb_instance_list->add_instance(new_buf);
         // 连接buf
         for (idb::IdbPin* buf_pin : new_buf->get_pin_list()->get_pin_list()) {
