@@ -177,6 +177,7 @@ unsigned StaIO::updateTiming()
 {
   auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
   auto* ista = timing_engine->get_ista();
+  timing_engine->buildGraph();
   unsigned is_ok = ista->updateTiming();
   return is_ok;
 }

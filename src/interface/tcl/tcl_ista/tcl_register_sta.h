@@ -59,6 +59,7 @@ int registerCmdSTA()
   registerTclCmd(ista::CmdDefToVerilog, "def_to_verilog");
   registerTclCmd(ista::CmdVerilogToDef, "verilog_to_def");
   registerTclCmd(ista::CmdGetLibs, "get_libs");
+  registerTclCmd(CmdUpdateTiming, "update_timing");
   return EXIT_SUCCESS;
 }
 
