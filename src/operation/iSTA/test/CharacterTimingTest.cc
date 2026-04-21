@@ -18,6 +18,8 @@
 #include "CharacterTimingTestCommon.hh"
 #include "gtest/gtest.h"
 #include "log/Log.hh"
+#include "idm.h"
+#include "sta/Sta.hh"
 #include "sta/StaVertex.hh"
 #include "usage/usage.hh"
 
@@ -37,6 +39,9 @@ class CharacterTimingTest : public testing::Test {
   }
   void TearDown() final {
     ieval::TimingAPI::destroyInst();
+    TimingEngine::destroyTimingEngine();
+    Sta::destroySta();
+    dmInst->reset();
     Log::end();
   }
 };
@@ -56,6 +61,9 @@ TimingEngine* buildGoldenCaseTimingWithSdc(const std::filesystem::path& sdc_path
   }
 
   ieval::TimingAPI::destroyInst();
+  TimingEngine::destroyTimingEngine();
+  Sta::destroySta();
+  dmInst->reset();
   auto* timing_api = ieval::TimingAPI::getInst();
 
   EXPECT_TRUE(dmInst->init(db_config_path.string()))

@@ -51,6 +51,11 @@ IdbBuilder::IdbBuilder()
 
 IdbBuilder::~IdbBuilder()
 {
+  delete _def_service;
+  _def_service = nullptr;
+
+  delete _lef_service;
+  _lef_service = nullptr;
 }
 
 void IdbBuilder::log()
