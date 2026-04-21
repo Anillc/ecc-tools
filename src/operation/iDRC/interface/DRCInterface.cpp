@@ -16,7 +16,6 @@
 // ***************************************************************************************
 
 #include "DRCInterface.hpp"
-#include <vector>
 
 #include "AdjacentCutSpacingRule.hpp"
 #include "DataManager.hpp"
@@ -456,6 +455,28 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
       exist_rule_set.insert(ViolationType::kCornerFillSpacing);
     }
   }
+  // CornerSpacingRule
+  {
+    std::vector<CornerSpacingRule>& corner_spacing_rule_list = routing_layer.get_corner_spacing_rule_list();
+    if (!idb_layer->get_lef58_corner_spacing_list().empty()) {
+      for (const std::shared_ptr<idb::routinglayer::Lef58CornerSpacing>& idb_corner_spacing : idb_layer->get_lef58_corner_spacing_list()) {
+        CornerSpacingRule corner_spacing_rule;
+        corner_spacing_rule.has_convex_corner
+            = idb_corner_spacing->get_corner_type() == idb::routinglayer::Lef58CornerSpacing::CornerType::kConvexCorner;
+        corner_spacing_rule.has_concave_corner
+            = idb_corner_spacing->get_corner_type() == idb::routinglayer::Lef58CornerSpacing::CornerType::kConcaveCorner;
+        corner_spacing_rule.has_except_eol = idb_corner_spacing->get_except_eol().has_value();
+        if (idb_corner_spacing->get_except_eol().has_value()) {
+          corner_spacing_rule.except_eol = idb_corner_spacing->get_except_eol().value();
+        }
+        for (const auto& width_spacing : idb_corner_spacing->get_width_spacing_list()) {
+          corner_spacing_rule.width_spacing_list.emplace_back(width_spacing.get_width(), width_spacing.get_spacing());
+        }
+        corner_spacing_rule_list.push_back(std::move(corner_spacing_rule));
+      }
+      exist_rule_set.insert(ViolationType::kCornerSpacing);
+    }
+  }
   // EndOfLineSpacingRule
   {
     std::vector<EndOfLineSpacingRule>& end_of_line_spacing_rule_list = routing_layer.get_end_of_line_spacing_rule_list();
@@ -514,10 +535,6 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
           end_of_line_spacing_rule_list.push_back(end_of_line_spacing_rule);
           exist_rule_set.insert(ViolationType::kEndOfLineSpacing);
         }
-      }
-      std::cout << "############# end of line ###########\n";
-      for (auto rule : end_of_line_spacing_rule_list) {
-        std::cout << rule.eol_spacing << " " << rule.has_ete << " "  << rule.ete_spacing <<" " << rule.has_par << " " << rule.has_two_edges << "\n";
       }
     }
   }
@@ -642,7 +659,6 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
         }
       }
       parallel_run_length_spacing_rule.has_spacing_table = true;
-      parallel_run_length_spacing_rule.print_spacing_table();
       exist_rule_set.insert(ViolationType::kParallelRunLengthSpacing);
     }
 
@@ -664,7 +680,6 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
       }
 
       parallel_run_length_spacing_rule.has_spacing_list = true;
-      parallel_run_length_spacing_rule.print_spacing_list();
       exist_rule_set.insert(ViolationType::kParallelRunLengthSpacing);
     }
   }
@@ -688,7 +703,6 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
           adj_cut_spacing_rule.adjacnet_cuts = cut_spacing->get_adjacent_cuts()->get_adjacent_cuts();
           adj_cut_spacing_rule.cut_within = cut_spacing->get_adjacent_cuts()->get_cut_within();
           exist_rule_set.insert(ViolationType::kAdjacentCutSpacing);
-          std::cout << " adj cut: " << adj_cut_spacing_rule.adjacnet_cuts << " " << adj_cut_spacing_rule.cut_within << "\n";
           // only one ADJACENTCUTS statement per cut layer
           continue;
         }

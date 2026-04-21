@@ -363,6 +363,7 @@ class IdbLayerRouting : public IdbLayer
   std::vector<std::shared_ptr<routinglayer::Lef58SpacingEol>>& get_lef58_spacing_eol_list() { return _lef58_spacing_eol_list; };
   std::vector<std::shared_ptr<routinglayer::Lef58Area>>& get_lef58_area() { return _lef58_area; }
   std::shared_ptr<routinglayer::Lef58CornerFillSpacing> get_lef58_corner_fill_spacing() { return _lef58_corner_fill_spacing; }
+  std::vector<std::shared_ptr<routinglayer::Lef58CornerSpacing>>& get_lef58_corner_spacing_list() { return _lef58_corner_spacing_list; }
   std::vector<std::shared_ptr<routinglayer::Lef58MinimumCut>>& get_lef58_minimum_cut() { return _lef58_minimum_cut; }
   std::vector<std::shared_ptr<routinglayer::Lef58MinStep>>& get_lef58_min_step() { return _lef58_min_steps; }
   std::shared_ptr<routinglayer::Lef58SpacingNotchlength> get_lef58_spacing_notchlength() { return _lef58_spacing_notchlength; }
@@ -411,6 +412,10 @@ class IdbLayerRouting : public IdbLayer
   void set_lef58_cornerfill_spacing(std::shared_ptr<routinglayer::Lef58CornerFillSpacing> cornerfill_spacing)
   {
     _lef58_corner_fill_spacing = std::move(cornerfill_spacing);
+  }
+  void add_lef58_corner_spacing(std::shared_ptr<routinglayer::Lef58CornerSpacing> corner_spacing)
+  {
+    _lef58_corner_spacing_list.emplace_back(std::move(corner_spacing));
   }
   void add_lef58_minimum_cut(std::shared_ptr<routinglayer::Lef58MinimumCut> minimum_cut)
   {
@@ -463,6 +468,7 @@ class IdbLayerRouting : public IdbLayer
   std::vector<std::shared_ptr<routinglayer::Lef58SpacingEol>> _lef58_spacing_eol_list;
   std::vector<std::shared_ptr<routinglayer::Lef58Area>> _lef58_area;
   std::shared_ptr<routinglayer::Lef58CornerFillSpacing> _lef58_corner_fill_spacing;
+  std::vector<std::shared_ptr<routinglayer::Lef58CornerSpacing>> _lef58_corner_spacing_list;
   std::vector<std::shared_ptr<routinglayer::Lef58MinimumCut>> _lef58_minimum_cut;
   std::vector<std::shared_ptr<routinglayer::Lef58MinStep>> _lef58_min_steps;
   std::shared_ptr<routinglayer::Lef58SpacingNotchlength> _lef58_spacing_notchlength;

@@ -67,24 +67,9 @@ class ParallelRunLengthSpacingRule
   std::vector<int32_t> parallel_length_list;
   GridMap<int32_t> width_parallel_length_map;
   bool has_spacing_table = false;
-  void print_spacing_table() {
-    std::cout << "#############spacing table###########\n";
-    for (int32_t x = 0; x < width_parallel_length_map.get_x_size(); x++) {
-      for (int32_t y = 0; y < width_parallel_length_map.get_y_size(); y++) {
-        std::cout << width_parallel_length_map[x][y] << "   ";
-      }
-      std::cout << "\n";
-    }
-  }
 
   std::vector<LayerSpacing> spacing_list;
   bool has_spacing_list = false;
-  void print_spacing_list() {
-    std::cout << "#############spacing list###########\n";
-    for (auto rule : spacing_list) {
-      std::cout << rule.min_spacing << " " << rule.min_width << " " <<rule.max_width << "\n";
-    }
-  }
 
   int32_t getSpacingWithWidth(int32_t width) {
     int32_t spacing = -1;
