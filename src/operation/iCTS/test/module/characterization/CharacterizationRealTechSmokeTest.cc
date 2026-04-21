@@ -23,7 +23,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstddef>
 #include <iomanip>
 #include <optional>
 #include <sstream>
@@ -48,8 +47,6 @@ namespace {
 #endif
 
 namespace realtech_support = characterization::realtech;
-
-constexpr std::size_t kManualCappedCandidatesPerBoundaryGroup = 2U;
 
 TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectableReport)
 {
@@ -81,6 +78,7 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
+  auto segment_context = realtech_support::BuildSegmentFrontierContext(builder.get_buffering_patterns());
   EXPECT_GT(realtech_support::CountPositivePower(builder.get_segment_chars()), 0U);
   const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
   EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
@@ -100,22 +98,16 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   ASSERT_GT(length_100_idx, 0U);
   ASSERT_GT(length_200_idx, 0U);
 
-  auto frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars());
+  auto frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
   ASSERT_TRUE(frontier_by_length.contains(length_50_idx));
   ASSERT_TRUE(frontier_by_length.contains(length_100_idx));
   ASSERT_FALSE(frontier_by_length.at(length_50_idx).empty());
   ASSERT_FALSE(frontier_by_length.at(length_100_idx).empty());
 
   std::string synthesized_200_mode = "characterized";
-  unsigned next_segment_pattern_id = realtech_support::FindNextSegmentPatternId(builder.get_segment_chars());
   if (!frontier_by_length.contains(length_200_idx) || frontier_by_length.at(length_200_idx).empty()) {
     synthesized_200_mode = "exact_compose";
-    if (!realtech_support::SynthesizeSegmentFrontierExactOnly(frontier_by_length, length_200_idx, next_segment_pattern_id)) {
-      frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars());
-      next_segment_pattern_id = realtech_support::FindNextSegmentPatternId(builder.get_segment_chars());
-      ASSERT_TRUE(realtech_support::SynthesizeSegmentFrontierIfMissing(frontier_by_length, length_200_idx, next_segment_pattern_id));
-      synthesized_200_mode = "relaxed_compose";
-    }
+    ASSERT_TRUE(realtech_support::SynthesizeSegmentFrontierExactOnly(frontier_by_length, length_200_idx, segment_context));
   }
 
   struct HTreeFlowResult
@@ -131,65 +123,48 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
 
   const auto run_htree_flow
       = [](const std::vector<icts::SegmentChar>& leaf_candidates, const std::vector<icts::SegmentChar>& mid_candidates,
-           const std::vector<icts::SegmentChar>& root_candidates) -> HTreeFlowResult {
+           const std::vector<icts::SegmentChar>& root_candidates,
+           const realtech_support::SegmentFrontierContext& segment_context) -> HTreeFlowResult {
     HTreeFlowResult result;
     result.leaf_candidates = leaf_candidates;
     result.mid_candidates = mid_candidates;
     result.root_candidates = root_candidates;
 
-    unsigned next_topology_pattern_id = 0U;
+    realtech_support::HTreeFrontierContext htree_context;
 
     result.leaf_stage.label = "leaf_50um";
-    result.leaf_stage.raw_entries = realtech_support::MakeHTreeSeedEntries(result.leaf_candidates, next_topology_pattern_id);
-    result.leaf_stage.frontier_entries = realtech_support::BuildInputBoundaryFrontier(result.leaf_stage.raw_entries);
+    result.leaf_stage.raw_entries = realtech_support::MakeHTreeSeedEntries(result.leaf_candidates, segment_context, htree_context);
+    result.leaf_stage.frontier_entries = realtech_support::BuildHTreeStateFrontier(result.leaf_stage.raw_entries, htree_context);
 
     result.mid_stage.label = "mid_100um_to_50um";
     result.mid_stage.raw_entries = realtech_support::ComposeHTreeEntriesExact(
-        realtech_support::MakeHTreeSeedEntries(result.mid_candidates, next_topology_pattern_id), result.leaf_stage.frontier_entries,
-        next_topology_pattern_id);
-    result.mid_stage.frontier_entries = realtech_support::BuildInputBoundaryFrontier(result.mid_stage.raw_entries);
+        realtech_support::MakeHTreeSeedEntries(result.mid_candidates, segment_context, htree_context), result.leaf_stage.frontier_entries,
+        htree_context);
+    result.mid_stage.frontier_entries = realtech_support::BuildHTreeStateFrontier(result.mid_stage.raw_entries, htree_context);
 
     result.root_stage.label = "root_200um_to_100um_to_50um";
     result.root_stage.raw_entries = realtech_support::ComposeHTreeEntriesExact(
-        realtech_support::MakeHTreeSeedEntries(result.root_candidates, next_topology_pattern_id), result.mid_stage.frontier_entries,
-        next_topology_pattern_id);
-    result.root_stage.frontier_entries = realtech_support::BuildInputBoundaryFrontier(result.root_stage.raw_entries);
+        realtech_support::MakeHTreeSeedEntries(result.root_candidates, segment_context, htree_context), result.mid_stage.frontier_entries,
+        htree_context);
+    result.root_stage.frontier_entries = realtech_support::BuildHTreeStateFrontier(result.root_stage.raw_entries, htree_context);
     result.best_char = realtech_support::SelectBestHTreeChar(result.root_stage.frontier_entries);
     return result;
   };
 
-  const auto leaf_candidates_uncapped = frontier_by_length.at(length_50_idx);
-  const auto mid_candidates_uncapped = frontier_by_length.at(length_100_idx);
-  const auto root_candidates_uncapped = frontier_by_length.at(length_200_idx);
-  ASSERT_FALSE(leaf_candidates_uncapped.empty());
-  ASSERT_FALSE(mid_candidates_uncapped.empty());
-  ASSERT_FALSE(root_candidates_uncapped.empty());
+  const auto leaf_candidates = frontier_by_length.at(length_50_idx);
+  const auto mid_candidates = frontier_by_length.at(length_100_idx);
+  const auto root_candidates = frontier_by_length.at(length_200_idx);
+  ASSERT_FALSE(leaf_candidates.empty());
+  ASSERT_FALSE(mid_candidates.empty());
+  ASSERT_FALSE(root_candidates.empty());
 
-  const auto leaf_candidates_capped
-      = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_50_idx), kManualCappedCandidatesPerBoundaryGroup);
-  const auto mid_candidates_capped
-      = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_100_idx), kManualCappedCandidatesPerBoundaryGroup);
-  const auto root_candidates_capped
-      = realtech_support::SelectCompositionCandidates(frontier_by_length.at(length_200_idx), kManualCappedCandidatesPerBoundaryGroup);
-  ASSERT_FALSE(leaf_candidates_capped.empty());
-  ASSERT_FALSE(mid_candidates_capped.empty());
-  ASSERT_FALSE(root_candidates_capped.empty());
+  const auto exact_flow = run_htree_flow(leaf_candidates, mid_candidates, root_candidates, segment_context);
+  ASSERT_FALSE(exact_flow.leaf_stage.frontier_entries.empty());
+  ASSERT_FALSE(exact_flow.mid_stage.frontier_entries.empty());
+  ASSERT_FALSE(exact_flow.root_stage.frontier_entries.empty());
 
-  const auto uncapped_flow = run_htree_flow(leaf_candidates_uncapped, mid_candidates_uncapped, root_candidates_uncapped);
-  const auto capped_flow = run_htree_flow(leaf_candidates_capped, mid_candidates_capped, root_candidates_capped);
-  ASSERT_FALSE(uncapped_flow.leaf_stage.frontier_entries.empty());
-  ASSERT_FALSE(uncapped_flow.mid_stage.frontier_entries.empty());
-  ASSERT_FALSE(uncapped_flow.root_stage.frontier_entries.empty());
-  ASSERT_FALSE(capped_flow.leaf_stage.frontier_entries.empty());
-  ASSERT_FALSE(capped_flow.mid_stage.frontier_entries.empty());
-  ASSERT_FALSE(capped_flow.root_stage.frontier_entries.empty());
-
-  if (!uncapped_flow.best_char.has_value()) {
-    GTEST_FAIL() << "Failed to select uncapped H-tree characterization entry.";
-    return;
-  }
-  if (!capped_flow.best_char.has_value()) {
-    GTEST_FAIL() << "Failed to select capped H-tree characterization entry.";
+  if (!exact_flow.best_char.has_value()) {
+    GTEST_FAIL() << "Failed to select exact H-tree characterization entry.";
     return;
   }
 
@@ -211,30 +186,18 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
                 << ",driven_cap_overflow_load_points=" << builder.get_driven_cap_overflow_load_points()
                 << ",max_observed_driven_cap_pf=" << builder.get_max_observed_driven_cap_pf()
                 << ",max_observed_driven_cap_idx=" << builder.get_max_observed_driven_cap_idx() << "}\n";
-  report_stream << "configured_relaxed_candidates_per_boundary_group=" << CONFIG_INST.get_relaxed_candidates_per_boundary_group() << "\n";
-  report_stream << "manual_capped_candidates_per_boundary_group=" << kManualCappedCandidatesPerBoundaryGroup << "\n";
   report_stream << "segment_200_source=" << synthesized_200_mode << "\n";
   report_stream << "positive_power_segment_chars=" << realtech_support::CountPositivePower(builder.get_segment_chars()) << "/"
                 << builder.get_segment_chars().size() << "\n";
   report_stream << "segment_frontier_counts{50um=" << frontier_by_length.at(length_50_idx).size()
                 << ",100um=" << frontier_by_length.at(length_100_idx).size() << ",200um=" << frontier_by_length.at(length_200_idx).size()
                 << "}\n";
-  report_stream << "htree_candidate_counts{leaf_uncapped=" << uncapped_flow.leaf_candidates.size()
-                << ",leaf_capped=" << capped_flow.leaf_candidates.size() << ",mid_uncapped=" << uncapped_flow.mid_candidates.size()
-                << ",mid_capped=" << capped_flow.mid_candidates.size() << ",root_uncapped=" << uncapped_flow.root_candidates.size()
-                << ",root_capped=" << capped_flow.root_candidates.size() << "}\n";
-  report_stream << "htree_uncapped_counts{leaf_raw=" << uncapped_flow.leaf_stage.raw_entries.size()
-                << ",leaf_frontier=" << uncapped_flow.leaf_stage.frontier_entries.size()
-                << ",mid_raw=" << uncapped_flow.mid_stage.raw_entries.size()
-                << ",mid_frontier=" << uncapped_flow.mid_stage.frontier_entries.size()
-                << ",root_raw=" << uncapped_flow.root_stage.raw_entries.size()
-                << ",root_frontier=" << uncapped_flow.root_stage.frontier_entries.size() << "}\n";
-  report_stream << "htree_capped_counts{leaf_raw=" << capped_flow.leaf_stage.raw_entries.size()
-                << ",leaf_frontier=" << capped_flow.leaf_stage.frontier_entries.size()
-                << ",mid_raw=" << capped_flow.mid_stage.raw_entries.size()
-                << ",mid_frontier=" << capped_flow.mid_stage.frontier_entries.size()
-                << ",root_raw=" << capped_flow.root_stage.raw_entries.size()
-                << ",root_frontier=" << capped_flow.root_stage.frontier_entries.size() << "}\n";
+  report_stream << "htree_exact_counts{leaf_raw=" << exact_flow.leaf_stage.raw_entries.size()
+                << ",leaf_frontier=" << exact_flow.leaf_stage.frontier_entries.size()
+                << ",mid_raw=" << exact_flow.mid_stage.raw_entries.size()
+                << ",mid_frontier=" << exact_flow.mid_stage.frontier_entries.size()
+                << ",root_raw=" << exact_flow.root_stage.raw_entries.size()
+                << ",root_frontier=" << exact_flow.root_stage.frontier_entries.size() << "}\n";
   realtech_support::AppendExamples(
       report_stream, "segment_50_example=", frontier_by_length.at(length_50_idx),
       [&](const icts::SegmentChar& entry) -> std::string { return realtech_support::FormatSegmentChar(entry, grid); });
@@ -245,25 +208,15 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
       report_stream, "segment_200_example=", frontier_by_length.at(length_200_idx),
       [&](const icts::SegmentChar& entry) -> std::string { return realtech_support::FormatSegmentChar(entry, grid); });
   realtech_support::AppendExamples(
-      report_stream, "htree_uncapped_leaf_example=", uncapped_flow.leaf_stage.frontier_entries,
+      report_stream, "htree_exact_leaf_example=", exact_flow.leaf_stage.frontier_entries,
       [&](const icts::HTreeTopologyChar& entry) -> std::string { return realtech_support::FormatHTreeChar(entry, grid); });
   realtech_support::AppendExamples(
-      report_stream, "htree_uncapped_mid_example=", uncapped_flow.mid_stage.frontier_entries,
+      report_stream, "htree_exact_mid_example=", exact_flow.mid_stage.frontier_entries,
       [&](const icts::HTreeTopologyChar& entry) -> std::string { return realtech_support::FormatHTreeChar(entry, grid); });
   realtech_support::AppendExamples(
-      report_stream, "htree_uncapped_root_example=", uncapped_flow.root_stage.frontier_entries,
+      report_stream, "htree_exact_root_example=", exact_flow.root_stage.frontier_entries,
       [&](const icts::HTreeTopologyChar& entry) -> std::string { return realtech_support::FormatHTreeChar(entry, grid); });
-  realtech_support::AppendExamples(
-      report_stream, "htree_capped_leaf_example=", capped_flow.leaf_stage.frontier_entries,
-      [&](const icts::HTreeTopologyChar& entry) -> std::string { return realtech_support::FormatHTreeChar(entry, grid); });
-  realtech_support::AppendExamples(
-      report_stream, "htree_capped_mid_example=", capped_flow.mid_stage.frontier_entries,
-      [&](const icts::HTreeTopologyChar& entry) -> std::string { return realtech_support::FormatHTreeChar(entry, grid); });
-  realtech_support::AppendExamples(
-      report_stream, "htree_capped_root_example=", capped_flow.root_stage.frontier_entries,
-      [&](const icts::HTreeTopologyChar& entry) -> std::string { return realtech_support::FormatHTreeChar(entry, grid); });
-  report_stream << "best_uncapped_htree_char=" << realtech_support::FormatHTreeChar(uncapped_flow.best_char.value(), grid) << "\n";
-  report_stream << "best_capped_htree_char=" << realtech_support::FormatHTreeChar(capped_flow.best_char.value(), grid) << "\n";
+  report_stream << "best_exact_htree_char=" << realtech_support::FormatHTreeChar(exact_flow.best_char.value(), grid) << "\n";
 
   ASSERT_TRUE(realtech_support::WriteScenarioLog("smoke_manual_htree", "smoke_manual_htree_report.txt", report_stream.str()));
 }
@@ -271,7 +224,7 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvailableIndependentOfBuildPolicy)
 {
-  auto collect_terminal_pattern_count = [](bool force_branch_buffer) -> std::optional<std::size_t> {
+  auto collect_terminal_pattern_count = [](bool force_branch_buffer) -> std::optional<unsigned> {
     realtech_support::RealTechCharSession char_session;
     if (const auto prepare_error = char_session.prepare(force_branch_buffer ? "branch_buffer_on" : "branch_buffer_off", std::nullopt, 0.0,
                                                         0.0, false, force_branch_buffer);
@@ -292,7 +245,7 @@ TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvai
     }
 
     const unsigned target_length_idx = builder.get_wire_length_iterations();
-    std::size_t terminal_pattern_count = 0U;
+    unsigned terminal_pattern_count = 0U;
     for (const auto& pattern : builder.get_buffering_patterns()) {
       if (pattern.get_length_idx() != target_length_idx || !pattern.hasTerminalBranchBuffer()) {
         continue;

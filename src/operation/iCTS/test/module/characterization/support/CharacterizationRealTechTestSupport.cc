@@ -23,7 +23,10 @@
 
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
 
+#include <glog/logging.h>
+
 #include <cmath>
+#include <compare>
 #include <filesystem>
 #include <iomanip>
 #include <limits>
@@ -31,7 +34,9 @@
 #include <sstream>
 #include <system_error>
 
+#include "BufferingPattern.hh"
 #include "HTreeTopologyChar.hh"
+#include "Log.hh"
 #include "SegmentChar.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
@@ -39,78 +44,217 @@
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/characterization/CharCore.hh"
 #include "database/characterization/PatternId.hh"
+#include "database/characterization/ValueLattice.hh"
 #include "database/config/Config.hh"
 #include "module/characterization/CharBuilder.hh"
+#include "module/characterization/Frontier.hh"
 #include "module/characterization/HTreeTopologyCharTable.hh"
-#include "module/characterization/PatternCombiner.hh"
-#include "module/characterization/Pruner.hh"
 #include "module/characterization/SegmentCharTable.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test::characterization::realtech {
 namespace {
 
-template <class CharT>
-auto BuildInputBoundaryFrontierImpl(const std::vector<CharT>& chars) -> std::vector<CharT>
+class BufferStrengthCache
 {
-  const icts::InputBoundaryPruner<CharT> pruner;
-  std::unordered_map<unsigned, std::vector<const CharT*>> grouped_entries;
-  grouped_entries.reserve(chars.size());
+ public:
+  auto getStrengthRank(const std::string& cell_master) -> unsigned
+  {
+    if (cell_master.empty()) {
+      return 0U;
+    }
 
-  for (const auto& entry : chars) {
-    grouped_entries[pruner.groupKey(entry)].push_back(&entry);
-  }
-
-  std::vector<CharT> frontier_entries;
-  frontier_entries.reserve(chars.size());
-  for (const auto& [group_key, entries] : grouped_entries) {
-    (void) group_key;
-    for (std::size_t index = 0; index < entries.size(); ++index) {
-      bool dominated = false;
-      for (std::size_t other_index = 0; other_index < entries.size(); ++other_index) {
-        if (index == other_index) {
-          continue;
-        }
-        if (pruner.dominates(*entries.at(other_index), *entries.at(index))) {
-          dominated = true;
-          break;
-        }
+    if (!_drive_caps.contains(cell_master)) {
+      double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+      if (drive_cap_pf <= 0.0) {
+        drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
       }
-      if (!dominated) {
-        frontier_entries.push_back(*entries.at(index));
+      _drive_caps[cell_master] = drive_cap_pf;
+      _ranks_dirty = true;
+
+      if (drive_cap_pf <= 0.0) {
+        LOG_WARNING << "CharacterizationRealTechTestSupport: unresolved drive-strength rank for buffer master " << cell_master
+                    << "; manual compose keeps an explicit boundary buffer with unresolved size class.";
       }
     }
-  }
 
-  SortCharsForReport(frontier_entries);
-  return frontier_entries;
-}
-
-template <class CharT>
-auto SelectCompositionCandidatesImpl(const std::vector<CharT>& entries, std::size_t max_per_boundary_group) -> std::vector<CharT>
-{
-  if (max_per_boundary_group == 0U) {
-    return entries;
-  }
-
-  const icts::InputBoundaryPruner<CharT> pruner;
-  std::unordered_map<unsigned, std::size_t> group_counts;
-  group_counts.reserve(entries.size());
-
-  std::vector<CharT> selected_entries;
-  selected_entries.reserve(entries.size());
-  for (const auto& entry : entries) {
-    const unsigned group_key = pruner.groupKey(entry);
-    auto& kept_count = group_counts[group_key];
-    if (kept_count >= max_per_boundary_group) {
-      continue;
+    if (_ranks_dirty) {
+      rebuildRanks();
     }
-    selected_entries.push_back(entry);
-    ++kept_count;
+
+    const auto rank_it = _strength_ranks.find(cell_master);
+    return rank_it == _strength_ranks.end() ? 0U : rank_it->second;
   }
 
-  return selected_entries;
+ private:
+  auto rebuildRanks() -> void
+  {
+    std::vector<std::pair<std::string, double>> ordered_caps;
+    ordered_caps.reserve(_drive_caps.size());
+    for (const auto& [cell_master, drive_cap_pf] : _drive_caps) {
+      if (drive_cap_pf > 0.0) {
+        ordered_caps.emplace_back(cell_master, drive_cap_pf);
+      }
+    }
+
+    std::ranges::sort(ordered_caps, [](const auto& lhs, const auto& rhs) -> bool {
+      if (lhs.second != rhs.second) {
+        return lhs.second < rhs.second;
+      }
+      return lhs.first < rhs.first;
+    });
+
+    _strength_ranks.clear();
+    unsigned current_rank = 0U;
+    double last_cap_pf = 0.0;
+    bool has_last_cap = false;
+    for (const auto& [cell_master, drive_cap_pf] : ordered_caps) {
+      if (!has_last_cap || std::abs(drive_cap_pf - last_cap_pf) > 1e-12) {
+        ++current_rank;
+        last_cap_pf = drive_cap_pf;
+        has_last_cap = true;
+      }
+      _strength_ranks[cell_master] = current_rank;
+    }
+
+    _ranks_dirty = false;
+  }
+
+  std::unordered_map<std::string, double> _drive_caps;
+  std::unordered_map<std::string, unsigned> _strength_ranks;
+  bool _ranks_dirty = false;
+};
+
+auto ResolveBoundaryBufferState(const icts::BoundaryBufferState& explicit_state, const std::string& cell_master,
+                                BufferStrengthCache& strength_cache) -> icts::BoundaryBufferState
+{
+  if (explicit_state.has_buffer) {
+    return explicit_state;
+  }
+  if (cell_master.empty()) {
+    return explicit_state;
+  }
+  return icts::BoundaryBufferState{.has_buffer = true, .strength_rank = strength_cache.getStrengthRank(cell_master)};
 }
+
+auto ResolvePatternBoundaryState(const icts::BufferingPattern& pattern, BufferStrengthCache& strength_cache) -> icts::MonotonicBoundaryState
+{
+  const auto explicit_state = pattern.get_monotonic_boundary_state();
+  if (!pattern.isBufferPattern()) {
+    return explicit_state;
+  }
+
+  const auto& cell_masters = pattern.get_cell_masters();
+  if (cell_masters.empty()) {
+    return explicit_state;
+  }
+
+  return icts::MonotonicBoundaryState{
+      .source = ResolveBoundaryBufferState(explicit_state.source, cell_masters.front(), strength_cache),
+      .sink = ResolveBoundaryBufferState(explicit_state.sink, cell_masters.back(), strength_cache),
+  };
+}
+
+auto EnrichPatternBoundaryState(const icts::BufferingPattern& pattern, BufferStrengthCache& strength_cache) -> icts::BufferingPattern
+{
+  const auto boundary_state = ResolvePatternBoundaryState(pattern, strength_cache);
+  if (boundary_state == pattern.get_monotonic_boundary_state()) {
+    return pattern;
+  }
+
+  return icts::BufferingPattern(pattern.get_length_idx(), pattern.get_pattern_id(), pattern.get_buffer_positions(),
+                                pattern.get_cell_masters(), pattern.hasTerminalBranchBuffer(), boundary_state);
+}
+
+auto BuildCompositionState(const icts::BufferingPattern& pattern) -> icts::PatternCompositionState
+{
+  return icts::PatternCompositionState{
+      .terminal_semantic
+      = pattern.hasTerminalBranchBuffer() ? icts::TerminalSemantic::kBranchBuffered : icts::TerminalSemantic::kLeafUnbuffered,
+      .monotonic_boundary_state = pattern.get_monotonic_boundary_state(),
+  };
+}
+
+auto LookupSegmentState(const SegmentFrontierContext& context, icts::PatternId pattern_id) -> icts::PatternCompositionState
+{
+  const auto it = context.composition_states.find(pattern_id);
+  LOG_FATAL_IF(it == context.composition_states.end())
+      << "CharacterizationRealTechTestSupport: missing segment composition state for pattern " << pattern_id.local_id;
+  return it->second;
+}
+
+auto LookupTopologyState(const HTreeFrontierContext& context, icts::PatternId pattern_id) -> icts::PatternCompositionState
+{
+  const auto it = context.composition_states.find(pattern_id);
+  LOG_FATAL_IF(it == context.composition_states.end())
+      << "CharacterizationRealTechTestSupport: missing topology composition state for pattern " << pattern_id.local_id;
+  return it->second;
+}
+
+class SegmentStateCombiner
+{
+ public:
+  explicit SegmentStateCombiner(SegmentFrontierContext* context) : _context(context) {}
+
+  auto canCompose(icts::PatternId upstream, icts::PatternId downstream) const -> bool
+  {
+    const auto upstream_state = LookupSegmentState(*_context, upstream);
+    const auto downstream_state = LookupSegmentState(*_context, downstream);
+    return upstream_state.monotonic_boundary_state.canComposeWith(downstream_state.monotonic_boundary_state);
+  }
+
+  auto combine(icts::PatternId upstream, icts::PatternId downstream) const -> icts::PatternId
+  {
+    LOG_FATAL_IF(!canCompose(upstream, downstream)) << "CharacterizationRealTechTestSupport: invalid non-monotonic segment composition.";
+    const auto upstream_it = _context->patterns.find(upstream);
+    const auto downstream_it = _context->patterns.find(downstream);
+    LOG_FATAL_IF(upstream_it == _context->patterns.end() || downstream_it == _context->patterns.end())
+        << "CharacterizationRealTechTestSupport: missing segment pattern during exact compose.";
+
+    const auto merged_pattern_id = icts::PatternId::segment(_context->next_pattern_id++);
+    auto merged_pattern = icts::BufferingPattern::concat(upstream_it->second, downstream_it->second);
+    merged_pattern = icts::BufferingPattern(merged_pattern.get_length_idx(), merged_pattern_id, merged_pattern.get_buffer_positions(),
+                                            merged_pattern.get_cell_masters(), merged_pattern.hasTerminalBranchBuffer(),
+                                            merged_pattern.get_monotonic_boundary_state());
+    _context->patterns[merged_pattern_id] = merged_pattern;
+    _context->composition_states[merged_pattern_id] = BuildCompositionState(merged_pattern);
+    return merged_pattern_id;
+  }
+
+ private:
+  SegmentFrontierContext* _context = nullptr;
+};
+
+class TopologyStateCombiner
+{
+ public:
+  explicit TopologyStateCombiner(HTreeFrontierContext* context) : _context(context) {}
+
+  auto canCompose(icts::PatternId upstream, icts::PatternId downstream) const -> bool
+  {
+    const auto upstream_state = LookupTopologyState(*_context, upstream);
+    const auto downstream_state = LookupTopologyState(*_context, downstream);
+    return upstream_state.monotonic_boundary_state.canComposeWith(downstream_state.monotonic_boundary_state);
+  }
+
+  auto combine(icts::PatternId upstream, icts::PatternId downstream) const -> icts::PatternId
+  {
+    LOG_FATAL_IF(!canCompose(upstream, downstream)) << "CharacterizationRealTechTestSupport: invalid non-monotonic topology composition.";
+    const auto upstream_state = LookupTopologyState(*_context, upstream);
+    const auto downstream_state = LookupTopologyState(*_context, downstream);
+
+    const auto merged_pattern_id = icts::PatternId::topology(_context->next_pattern_id++);
+    _context->composition_states[merged_pattern_id] = icts::PatternCompositionState{
+        .terminal_semantic = downstream_state.terminal_semantic,
+        .monotonic_boundary_state
+        = icts::MonotonicBoundaryState::compose(upstream_state.monotonic_boundary_state, downstream_state.monotonic_boundary_state),
+    };
+    return merged_pattern_id;
+  }
+
+ private:
+  HTreeFrontierContext* _context = nullptr;
+};
 
 auto MakeSegmentCharTable(const std::vector<icts::SegmentChar>& chars) -> icts::SegmentCharTable
 {
@@ -148,7 +292,6 @@ auto CaptureConfigState() -> ConfigState
   state.wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
   state.slew_steps = CONFIG_INST.get_slew_steps();
   state.cap_steps = CONFIG_INST.get_cap_steps();
-  state.relaxed_candidates_per_boundary_group = CONFIG_INST.get_relaxed_candidates_per_boundary_group();
   state.wire_width = CONFIG_INST.get_wire_width();
   state.max_fanout = CONFIG_INST.get_max_fanout();
   state.routing_layers = CONFIG_INST.get_routing_layers();
@@ -182,7 +325,6 @@ auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_wire_length_iterations(state.wire_length_iterations);
   CONFIG_INST.set_slew_steps(state.slew_steps);
   CONFIG_INST.set_cap_steps(state.cap_steps);
-  CONFIG_INST.set_relaxed_candidates_per_boundary_group(state.relaxed_candidates_per_boundary_group);
   CONFIG_INST.set_wire_width(state.wire_width);
   CONFIG_INST.set_max_fanout(state.max_fanout);
   CONFIG_INST.set_routing_layers(state.routing_layers);
@@ -413,26 +555,36 @@ auto ResolveDefaultWireLengthUnitUm(const std::vector<BufferLimitInfo>& infos, c
   return resolved_unit_um;
 }
 
-auto BuildInputBoundaryFrontier(const std::vector<icts::SegmentChar>& chars) -> std::vector<icts::SegmentChar>
+auto BuildSegmentFrontierContext(const std::vector<icts::BufferingPattern>& patterns) -> SegmentFrontierContext
 {
-  return BuildInputBoundaryFrontierImpl(chars);
+  SegmentFrontierContext context;
+  BufferStrengthCache strength_cache;
+  context.patterns.reserve(patterns.size());
+  context.composition_states.reserve(patterns.size());
+  for (const auto& pattern : patterns) {
+    const auto enriched_pattern = EnrichPatternBoundaryState(pattern, strength_cache);
+    const auto pattern_id = enriched_pattern.get_pattern_id();
+    context.next_pattern_id = std::max(context.next_pattern_id, pattern_id.local_id + 1U);
+    context.patterns[pattern_id] = enriched_pattern;
+    context.composition_states[pattern_id] = BuildCompositionState(enriched_pattern);
+  }
+  return context;
 }
 
-auto BuildInputBoundaryFrontier(const std::vector<icts::HTreeTopologyChar>& chars) -> std::vector<icts::HTreeTopologyChar>
-{
-  return BuildInputBoundaryFrontierImpl(chars);
-}
-
-auto SelectCompositionCandidates(const std::vector<icts::SegmentChar>& entries, std::size_t max_per_boundary_group)
+auto BuildSegmentStateFrontier(const std::vector<icts::SegmentChar>& chars, const SegmentFrontierContext& context)
     -> std::vector<icts::SegmentChar>
 {
-  return SelectCompositionCandidatesImpl(entries, max_per_boundary_group);
+  return icts::BuildSegmentStateFrontier(chars, [&](const icts::SegmentChar& entry) -> icts::PatternCompositionState {
+    return LookupSegmentState(context, entry.get_pattern_id());
+  });
 }
 
-auto SelectCompositionCandidates(const std::vector<icts::HTreeTopologyChar>& entries, std::size_t max_per_boundary_group)
+auto BuildHTreeStateFrontier(const std::vector<icts::HTreeTopologyChar>& chars, const HTreeFrontierContext& context)
     -> std::vector<icts::HTreeTopologyChar>
 {
-  return SelectCompositionCandidatesImpl(entries, max_per_boundary_group);
+  return icts::BuildHTreeStateFrontier(chars, [&](const icts::HTreeTopologyChar& entry) -> icts::PatternCompositionState {
+    return LookupTopologyState(context, entry.get_pattern_id());
+  });
 }
 
 auto MakeLengthIndex(double length_um, double length_step_um) -> unsigned
@@ -440,7 +592,7 @@ auto MakeLengthIndex(double length_um, double length_step_um) -> unsigned
   if (length_step_um <= 0.0) {
     return 0U;
   }
-  return static_cast<unsigned>(std::lround(length_um / length_step_um));
+  return icts::UniformValueLattice(length_step_um, std::numeric_limits<unsigned>::max()).coveringIndex(length_um);
 }
 
 auto CalcCharGrid(const icts::CharBuilder& builder) -> CharGrid
@@ -508,48 +660,16 @@ auto FormatSegmentCharLatticeSummary(const SegmentCharLatticeSummary& summary, c
   return output_stream.str();
 }
 
-auto FindNextSegmentPatternId(const std::vector<icts::SegmentChar>& chars) -> unsigned
-{
-  unsigned next_id = 0U;
-  for (const auto& entry : chars) {
-    next_id = std::max(next_id, entry.get_pattern_id().local_id + 1U);
-  }
-  return next_id;
-}
-
 auto ComposeSegmentEntriesExact(const std::vector<icts::SegmentChar>& upstream, const std::vector<icts::SegmentChar>& downstream,
-                                unsigned& next_pattern_id) -> std::vector<icts::SegmentChar>
+                                SegmentFrontierContext& context) -> std::vector<icts::SegmentChar>
 {
-  icts::SegmentPatternCombiner combiner(next_pattern_id);
+  SegmentStateCombiner combiner(&context);
   auto composed_entries = MakeSegmentCharTable(upstream).concatWith(MakeSegmentCharTable(downstream), combiner).get_chars();
-  next_pattern_id = combiner.get_next_id();
   SortCharsForReport(composed_entries);
   return composed_entries;
 }
 
-auto ComposeSegmentEntriesRelaxed(const std::vector<icts::SegmentChar>& upstream, const std::vector<icts::SegmentChar>& downstream,
-                                  unsigned& next_pattern_id) -> std::vector<icts::SegmentChar>
-{
-  icts::SegmentPatternCombiner combiner(next_pattern_id);
-  std::vector<icts::SegmentChar> composed_entries;
-  composed_entries.reserve(upstream.size() * downstream.size());
-  for (const auto& upstream_entry : upstream) {
-    for (const auto& downstream_entry : downstream) {
-      if (downstream_entry.get_input_slew_idx() < upstream_entry.get_output_slew_idx()
-          || upstream_entry.get_load_cap_idx() < downstream_entry.get_driven_cap_idx()) {
-        continue;
-      }
-      const auto merged_pattern_id = combiner.combine(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
-      composed_entries.push_back(icts::SegmentChar::compose(upstream_entry, downstream_entry, merged_pattern_id));
-    }
-  }
-
-  next_pattern_id = combiner.get_next_id();
-  SortCharsForReport(composed_entries);
-  return composed_entries;
-}
-
-auto BuildSegmentLengthFrontiers(const std::vector<icts::SegmentChar>& chars)
+auto BuildSegmentLengthFrontiers(const std::vector<icts::SegmentChar>& chars, const SegmentFrontierContext& context)
     -> std::unordered_map<unsigned, std::vector<icts::SegmentChar>>
 {
   std::unordered_map<unsigned, std::vector<icts::SegmentChar>> raw_by_length;
@@ -562,14 +682,14 @@ auto BuildSegmentLengthFrontiers(const std::vector<icts::SegmentChar>& chars)
   frontier_by_length.reserve(raw_by_length.size());
   for (auto& [length_idx, raw_entries] : raw_by_length) {
     (void) length_idx;
-    frontier_by_length[length_idx] = BuildInputBoundaryFrontier(raw_entries);
+    frontier_by_length[length_idx] = BuildSegmentStateFrontier(raw_entries, context);
   }
 
   return frontier_by_length;
 }
 
 auto SynthesizeSegmentFrontierExactOnly(std::unordered_map<unsigned, std::vector<icts::SegmentChar>>& frontier_by_length,
-                                        unsigned target_length_idx, unsigned& next_segment_pattern_id) -> bool
+                                        unsigned target_length_idx, SegmentFrontierContext& context) -> bool
 {
   for (unsigned length_idx = 1U; length_idx <= target_length_idx; ++length_idx) {
     if (frontier_by_length.contains(length_idx) && !frontier_by_length.at(length_idx).empty()) {
@@ -588,80 +708,26 @@ auto SynthesizeSegmentFrontierExactOnly(std::unordered_map<unsigned, std::vector
         continue;
       }
 
-      auto partial = ComposeSegmentEntriesExact(left_it->second, right_it->second, next_segment_pattern_id);
+      auto partial = ComposeSegmentEntriesExact(left_it->second, right_it->second, context);
       exact_composed_entries.insert(exact_composed_entries.end(), partial.begin(), partial.end());
     }
 
     if (!exact_composed_entries.empty()) {
-      frontier_by_length[length_idx] = BuildInputBoundaryFrontier(exact_composed_entries);
+      frontier_by_length[length_idx] = BuildSegmentStateFrontier(exact_composed_entries, context);
     }
   }
 
   return frontier_by_length.contains(target_length_idx) && !frontier_by_length.at(target_length_idx).empty();
 }
 
-auto SynthesizeSegmentFrontierIfMissing(std::unordered_map<unsigned, std::vector<icts::SegmentChar>>& frontier_by_length,
-                                        unsigned target_length_idx, unsigned& next_segment_pattern_id) -> bool
-{
-  for (unsigned length_idx = 1U; length_idx <= target_length_idx; ++length_idx) {
-    if (frontier_by_length.contains(length_idx) && !frontier_by_length.at(length_idx).empty()) {
-      continue;
-    }
-
-    std::vector<icts::SegmentChar> exact_composed_entries;
-    for (unsigned left_idx = 1U; left_idx < length_idx; ++left_idx) {
-      const unsigned right_idx = length_idx - left_idx;
-      const auto left_it = frontier_by_length.find(left_idx);
-      const auto right_it = frontier_by_length.find(right_idx);
-      if (left_it == frontier_by_length.end() || right_it == frontier_by_length.end()) {
-        continue;
-      }
-      if (left_it->second.empty() || right_it->second.empty()) {
-        continue;
-      }
-
-      auto partial = ComposeSegmentEntriesExact(left_it->second, right_it->second, next_segment_pattern_id);
-      exact_composed_entries.insert(exact_composed_entries.end(), partial.begin(), partial.end());
-    }
-
-    if (!exact_composed_entries.empty()) {
-      frontier_by_length[length_idx] = BuildInputBoundaryFrontier(exact_composed_entries);
-      continue;
-    }
-
-    std::vector<icts::SegmentChar> relaxed_composed_entries;
-    for (unsigned left_idx = 1U; left_idx < length_idx; ++left_idx) {
-      const unsigned right_idx = length_idx - left_idx;
-      const auto left_it = frontier_by_length.find(left_idx);
-      const auto right_it = frontier_by_length.find(right_idx);
-      if (left_it == frontier_by_length.end() || right_it == frontier_by_length.end()) {
-        continue;
-      }
-      if (left_it->second.empty() || right_it->second.empty()) {
-        continue;
-      }
-
-      const auto left_candidates = SelectCompositionCandidates(left_it->second, CONFIG_INST.get_relaxed_candidates_per_boundary_group());
-      const auto right_candidates = SelectCompositionCandidates(right_it->second, CONFIG_INST.get_relaxed_candidates_per_boundary_group());
-      auto partial = ComposeSegmentEntriesRelaxed(left_candidates, right_candidates, next_segment_pattern_id);
-      relaxed_composed_entries.insert(relaxed_composed_entries.end(), partial.begin(), partial.end());
-    }
-
-    if (!relaxed_composed_entries.empty()) {
-      frontier_by_length[length_idx] = BuildInputBoundaryFrontier(relaxed_composed_entries);
-    }
-  }
-
-  return frontier_by_length.contains(target_length_idx) && !frontier_by_length.at(target_length_idx).empty();
-}
-
-auto MakeHTreeSeedEntries(const std::vector<icts::SegmentChar>& segment_frontier, unsigned& next_topology_pattern_id)
-    -> std::vector<icts::HTreeTopologyChar>
+auto MakeHTreeSeedEntries(const std::vector<icts::SegmentChar>& segment_frontier, const SegmentFrontierContext& segment_context,
+                          HTreeFrontierContext& htree_context) -> std::vector<icts::HTreeTopologyChar>
 {
   std::vector<icts::HTreeTopologyChar> seed_entries;
   seed_entries.reserve(segment_frontier.size());
   for (const auto& segment_entry : segment_frontier) {
-    const auto topology_pattern_id = icts::PatternId::topology(next_topology_pattern_id++);
+    const auto topology_pattern_id = icts::PatternId::topology(htree_context.next_pattern_id++);
+    htree_context.composition_states[topology_pattern_id] = LookupSegmentState(segment_context, segment_entry.get_pattern_id());
     const icts::CharCore core(segment_entry.get_input_slew_idx(), segment_entry.get_output_slew_idx(), segment_entry.get_driven_cap_idx(),
                               segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id);
     seed_entries.emplace_back(core, 1U);
@@ -671,11 +737,10 @@ auto MakeHTreeSeedEntries(const std::vector<icts::SegmentChar>& segment_frontier
 }
 
 auto ComposeHTreeEntriesExact(const std::vector<icts::HTreeTopologyChar>& upstream, const std::vector<icts::HTreeTopologyChar>& downstream,
-                              unsigned& next_topology_pattern_id) -> std::vector<icts::HTreeTopologyChar>
+                              HTreeFrontierContext& htree_context) -> std::vector<icts::HTreeTopologyChar>
 {
-  icts::TopologyPatternCombiner combiner(next_topology_pattern_id);
+  TopologyStateCombiner combiner(&htree_context);
   auto composed_entries = MakeHTreeCharTable(upstream).concatWith(MakeHTreeCharTable(downstream), combiner).get_chars();
-  next_topology_pattern_id = combiner.get_next_id();
   SortCharsForReport(composed_entries);
   return composed_entries;
 }

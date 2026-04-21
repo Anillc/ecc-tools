@@ -252,8 +252,6 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyUnsignedIfPresent(json, "wire_length_iterations", *this, &Config::get_wire_length_iterations, &Config::set_wire_length_iterations);
   ApplyUnsignedIfPresent(json, "slew_steps", *this, &Config::get_slew_steps, &Config::set_slew_steps);
   ApplyUnsignedIfPresent(json, "cap_steps", *this, &Config::get_cap_steps, &Config::set_cap_steps);
-  ApplyUnsignedIfPresent(json, "relaxed_candidates_per_boundary_group", *this, &Config::get_relaxed_candidates_per_boundary_group,
-                         &Config::set_relaxed_candidates_per_boundary_group);
   ApplyDoubleIfPresent(json, "wire_width", *this, &Config::get_wire_width, &Config::set_wire_width);
   ApplyUnsignedIfPresent(json, "max_fanout", *this, &Config::get_max_fanout, &Config::set_max_fanout);
   ApplyRoutingLayersIfPresent(json, *this);
@@ -273,7 +271,6 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
   const auto& buffer_types = get_buffer_types();
   const bool has_wire_length_unit = get_wire_length_unit_um() > 0.0;
   const bool has_wire_width = get_wire_width() > 0.0;
-  const bool has_relaxed_limit = get_relaxed_candidates_per_boundary_group() > 0U;
 
   return {
       {"skew_bound_ns", logformat::FormatWithUnit(get_skew_bound(), "ns"), "clock skew target"},
@@ -288,9 +285,6 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
       {"wire_length_iterations", std::to_string(get_wire_length_iterations()), "characterization length bins"},
       {"slew_steps", std::to_string(get_slew_steps()), "characterization slew bins"},
       {"cap_steps", std::to_string(get_cap_steps()), "characterization load-cap bins"},
-      {"relaxed_candidates_per_boundary_group",
-       has_relaxed_limit ? std::to_string(get_relaxed_candidates_per_boundary_group()) : "0 (unlimited)",
-       "frontier composition throttling"},
       {"wire_width_um", has_wire_width ? logformat::FormatWithUnit(get_wire_width(), "um") : "library_default",
        has_wire_width ? "explicit RC width override" : "use technology default width in RC query"},
       {"max_fanout", std::to_string(get_max_fanout()), "fanout constraint"},

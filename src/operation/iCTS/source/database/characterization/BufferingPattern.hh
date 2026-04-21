@@ -31,29 +31,47 @@
 namespace icts {
 
 /**
- * @brief Source/sink boundary strength state for monotonic buffer composition.
+ * @brief One compose-visible boundary buffer signature.
+ *
+ * `has_buffer=false` represents a pure-wire boundary with no exposed buffer.
+ * `has_buffer=true` with `strength_rank>0` represents the monotonic size class
+ * used by group/compose semantics. `strength_rank=0` is reserved for an
+ * unresolved size class and is kept distinct from pure wire by `has_buffer`.
+ */
+struct BoundaryBufferState
+{
+  bool has_buffer = false;
+  unsigned strength_rank = 0U;
+
+  auto operator==(const BoundaryBufferState& rhs) const -> bool = default;
+};
+
+/**
+ * @brief Source/sink boundary state for monotonic composition.
  *
  * Strength ranks are ordered weak -> strong, so a source-to-sink monotonic
  * pattern must keep ranks non-increasing across concatenation boundaries.
- * A zero rank means the pattern exposes no buffer on that boundary.
  */
 struct MonotonicBoundaryState
 {
-  unsigned source_strength_rank = 0U;
-  unsigned sink_strength_rank = 0U;
+  BoundaryBufferState source{};
+  BoundaryBufferState sink{};
 
   auto operator==(const MonotonicBoundaryState& rhs) const -> bool = default;
 
   auto canComposeWith(const MonotonicBoundaryState& downstream) const -> bool
   {
-    return sink_strength_rank == 0U || downstream.source_strength_rank == 0U || sink_strength_rank >= downstream.source_strength_rank;
+    if (!sink.has_buffer || !downstream.source.has_buffer) {
+      return true;
+    }
+    return sink.strength_rank >= downstream.source.strength_rank;
   }
 
   static auto compose(const MonotonicBoundaryState& upstream, const MonotonicBoundaryState& downstream) -> MonotonicBoundaryState
   {
     return MonotonicBoundaryState{
-        .source_strength_rank = upstream.source_strength_rank != 0U ? upstream.source_strength_rank : downstream.source_strength_rank,
-        .sink_strength_rank = downstream.sink_strength_rank != 0U ? downstream.sink_strength_rank : upstream.sink_strength_rank,
+        .source = upstream.source.has_buffer ? upstream.source : downstream.source,
+        .sink = downstream.sink.has_buffer ? downstream.sink : upstream.sink,
     };
   }
 };

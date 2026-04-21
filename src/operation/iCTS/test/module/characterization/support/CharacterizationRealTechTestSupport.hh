@@ -33,8 +33,11 @@
 #include <utility>
 #include <vector>
 
+#include "database/characterization/BufferingPattern.hh"
 #include "database/characterization/HTreeTopologyChar.hh"
+#include "database/characterization/PatternId.hh"
 #include "database/characterization/SegmentChar.hh"
+#include "module/characterization/Frontier.hh"
 
 namespace icts {
 class CharBuilder;
@@ -71,7 +74,6 @@ struct ConfigState
   unsigned wire_length_iterations = 0U;
   unsigned slew_steps = 0U;
   unsigned cap_steps = 0U;
-  unsigned relaxed_candidates_per_boundary_group = 0U;
   double wire_width = 0.0;
   unsigned max_fanout = 0U;
   std::vector<unsigned> routing_layers;
@@ -156,6 +158,19 @@ struct HTreeStageSummary
   std::vector<icts::HTreeTopologyChar> frontier_entries;
 };
 
+struct SegmentFrontierContext
+{
+  std::unordered_map<icts::PatternId, icts::BufferingPattern> patterns;
+  std::unordered_map<icts::PatternId, icts::PatternCompositionState> composition_states;
+  unsigned next_pattern_id = 0U;
+};
+
+struct HTreeFrontierContext
+{
+  std::unordered_map<icts::PatternId, icts::PatternCompositionState> composition_states;
+  unsigned next_pattern_id = 0U;
+};
+
 auto JoinStrings(const std::vector<std::string>& values) -> std::string;
 auto WriteScenarioLog(const std::string& scenario_name, const std::string& file_name, const std::string& content) -> bool;
 auto CollectConfiguredBufferLimitInfo() -> std::vector<BufferLimitInfo>;
@@ -203,11 +218,10 @@ inline auto SortCharsForReport(std::vector<CharT>& chars) -> void
   });
 }
 
-auto BuildInputBoundaryFrontier(const std::vector<icts::SegmentChar>& chars) -> std::vector<icts::SegmentChar>;
-auto BuildInputBoundaryFrontier(const std::vector<icts::HTreeTopologyChar>& chars) -> std::vector<icts::HTreeTopologyChar>;
-auto SelectCompositionCandidates(const std::vector<icts::SegmentChar>& entries, std::size_t max_per_boundary_group)
+auto BuildSegmentFrontierContext(const std::vector<icts::BufferingPattern>& patterns) -> SegmentFrontierContext;
+auto BuildSegmentStateFrontier(const std::vector<icts::SegmentChar>& chars, const SegmentFrontierContext& context)
     -> std::vector<icts::SegmentChar>;
-auto SelectCompositionCandidates(const std::vector<icts::HTreeTopologyChar>& entries, std::size_t max_per_boundary_group)
+auto BuildHTreeStateFrontier(const std::vector<icts::HTreeTopologyChar>& chars, const HTreeFrontierContext& context)
     -> std::vector<icts::HTreeTopologyChar>;
 
 auto MakeLengthIndex(double length_um, double length_step_um) -> unsigned;
@@ -215,21 +229,16 @@ auto CalcCharGrid(const icts::CharBuilder& builder) -> CharGrid;
 auto SummarizeSegmentCharLattice(const std::vector<icts::SegmentChar>& chars, const icts::CharBuilder& builder)
     -> SegmentCharLatticeSummary;
 auto FormatSegmentCharLatticeSummary(const SegmentCharLatticeSummary& summary, const icts::CharBuilder& builder) -> std::string;
-auto FindNextSegmentPatternId(const std::vector<icts::SegmentChar>& chars) -> unsigned;
 auto ComposeSegmentEntriesExact(const std::vector<icts::SegmentChar>& upstream, const std::vector<icts::SegmentChar>& downstream,
-                                unsigned& next_pattern_id) -> std::vector<icts::SegmentChar>;
-auto ComposeSegmentEntriesRelaxed(const std::vector<icts::SegmentChar>& upstream, const std::vector<icts::SegmentChar>& downstream,
-                                  unsigned& next_pattern_id) -> std::vector<icts::SegmentChar>;
-auto BuildSegmentLengthFrontiers(const std::vector<icts::SegmentChar>& chars)
+                                SegmentFrontierContext& context) -> std::vector<icts::SegmentChar>;
+auto BuildSegmentLengthFrontiers(const std::vector<icts::SegmentChar>& chars, const SegmentFrontierContext& context)
     -> std::unordered_map<unsigned, std::vector<icts::SegmentChar>>;
 auto SynthesizeSegmentFrontierExactOnly(std::unordered_map<unsigned, std::vector<icts::SegmentChar>>& frontier_by_length,
-                                        unsigned target_length_idx, unsigned& next_segment_pattern_id) -> bool;
-auto SynthesizeSegmentFrontierIfMissing(std::unordered_map<unsigned, std::vector<icts::SegmentChar>>& frontier_by_length,
-                                        unsigned target_length_idx, unsigned& next_segment_pattern_id) -> bool;
-auto MakeHTreeSeedEntries(const std::vector<icts::SegmentChar>& segment_frontier, unsigned& next_topology_pattern_id)
-    -> std::vector<icts::HTreeTopologyChar>;
+                                        unsigned target_length_idx, SegmentFrontierContext& context) -> bool;
+auto MakeHTreeSeedEntries(const std::vector<icts::SegmentChar>& segment_frontier, const SegmentFrontierContext& segment_context,
+                          HTreeFrontierContext& htree_context) -> std::vector<icts::HTreeTopologyChar>;
 auto ComposeHTreeEntriesExact(const std::vector<icts::HTreeTopologyChar>& upstream, const std::vector<icts::HTreeTopologyChar>& downstream,
-                              unsigned& next_topology_pattern_id) -> std::vector<icts::HTreeTopologyChar>;
+                              HTreeFrontierContext& htree_context) -> std::vector<icts::HTreeTopologyChar>;
 auto CountPositivePower(const std::vector<icts::SegmentChar>& chars) -> std::size_t;
 auto FormatSegmentChar(const icts::SegmentChar& entry, const CharGrid& grid) -> std::string;
 auto FormatHTreeChar(const icts::HTreeTopologyChar& entry, const CharGrid& grid) -> std::string;

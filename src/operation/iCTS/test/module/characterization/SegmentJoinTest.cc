@@ -49,8 +49,8 @@ auto MakePatternCompositionState(unsigned source_strength_rank, unsigned sink_st
   return icts::PatternCompositionState{
       .terminal_semantic = terminal_semantic,
       .monotonic_boundary_state = icts::MonotonicBoundaryState{
-          .source_strength_rank = source_strength_rank,
-          .sink_strength_rank = sink_strength_rank,
+          .source = icts::BoundaryBufferState{.has_buffer = source_strength_rank != 0U, .strength_rank = source_strength_rank},
+          .sink = icts::BoundaryBufferState{.has_buffer = sink_strength_rank != 0U, .strength_rank = sink_strength_rank},
       },
   };
 }

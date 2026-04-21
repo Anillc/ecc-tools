@@ -83,8 +83,10 @@ struct SegmentFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.terminal_semantic)) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<bool>{}(key.monotonic_boundary_state.source.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<bool>{}(key.monotonic_boundary_state.sink.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     return seed;
   }
 };
@@ -112,8 +114,10 @@ struct HTreeFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.terminal_semantic)) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink_strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<bool>{}(key.monotonic_boundary_state.source.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<bool>{}(key.monotonic_boundary_state.sink.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     return seed;
   }
 };

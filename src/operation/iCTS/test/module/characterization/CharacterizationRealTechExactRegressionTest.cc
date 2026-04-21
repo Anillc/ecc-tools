@@ -59,6 +59,7 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemain
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
+  auto segment_context = realtech_support::BuildSegmentFrontierContext(builder.get_buffering_patterns());
   const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
   EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
   EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
@@ -73,7 +74,7 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemain
   const unsigned length_50_idx = realtech_support::MakeLengthIndex(realtech_support::kExactMidLevelLengthUm, grid.length_step_um);
   const unsigned length_100_idx = realtech_support::MakeLengthIndex(realtech_support::kExactRootLevelLengthUm, grid.length_step_um);
 
-  auto frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars());
+  auto frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
   ASSERT_TRUE(frontier_by_length.contains(length_25_idx));
   ASSERT_TRUE(frontier_by_length.contains(length_50_idx));
   ASSERT_TRUE(frontier_by_length.contains(length_100_idx));
@@ -81,38 +82,37 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemain
   ASSERT_FALSE(frontier_by_length.at(length_50_idx).empty());
   ASSERT_FALSE(frontier_by_length.at(length_100_idx).empty());
 
-  unsigned next_segment_pattern_id = realtech_support::FindNextSegmentPatternId(builder.get_segment_chars());
   auto exact_segment_100_raw = realtech_support::ComposeSegmentEntriesExact(frontier_by_length.at(length_50_idx),
-                                                                            frontier_by_length.at(length_50_idx), next_segment_pattern_id);
+                                                                            frontier_by_length.at(length_50_idx), segment_context);
   ASSERT_FALSE(exact_segment_100_raw.empty());
-  auto exact_segment_100_frontier = realtech_support::BuildInputBoundaryFrontier(exact_segment_100_raw);
+  auto exact_segment_100_frontier = realtech_support::BuildSegmentStateFrontier(exact_segment_100_raw, segment_context);
   ASSERT_FALSE(exact_segment_100_frontier.empty());
   EXPECT_TRUE(std::ranges::all_of(exact_segment_100_frontier, [length_100_idx](const icts::SegmentChar& entry) -> bool {
     return entry.get_length_idx() == length_100_idx;
   }));
 
-  unsigned next_topology_pattern_id = 0U;
+  realtech_support::HTreeFrontierContext htree_context;
 
   realtech_support::HTreeStageSummary leaf_stage;
   leaf_stage.label = "leaf_25um";
-  leaf_stage.raw_entries = realtech_support::MakeHTreeSeedEntries(frontier_by_length.at(length_25_idx), next_topology_pattern_id);
-  leaf_stage.frontier_entries = realtech_support::BuildInputBoundaryFrontier(leaf_stage.raw_entries);
+  leaf_stage.raw_entries = realtech_support::MakeHTreeSeedEntries(frontier_by_length.at(length_25_idx), segment_context, htree_context);
+  leaf_stage.frontier_entries = realtech_support::BuildHTreeStateFrontier(leaf_stage.raw_entries, htree_context);
   ASSERT_FALSE(leaf_stage.frontier_entries.empty());
 
   realtech_support::HTreeStageSummary mid_stage;
   mid_stage.label = "mid_50um_to_25um";
   mid_stage.raw_entries = realtech_support::ComposeHTreeEntriesExact(
-      realtech_support::MakeHTreeSeedEntries(frontier_by_length.at(length_50_idx), next_topology_pattern_id), leaf_stage.frontier_entries,
-      next_topology_pattern_id);
-  mid_stage.frontier_entries = realtech_support::BuildInputBoundaryFrontier(mid_stage.raw_entries);
+      realtech_support::MakeHTreeSeedEntries(frontier_by_length.at(length_50_idx), segment_context, htree_context),
+      leaf_stage.frontier_entries, htree_context);
+  mid_stage.frontier_entries = realtech_support::BuildHTreeStateFrontier(mid_stage.raw_entries, htree_context);
   ASSERT_FALSE(mid_stage.frontier_entries.empty());
 
   realtech_support::HTreeStageSummary root_stage;
   root_stage.label = "root_100um_to_50um_to_25um";
   root_stage.raw_entries = realtech_support::ComposeHTreeEntriesExact(
-      realtech_support::MakeHTreeSeedEntries(frontier_by_length.at(length_100_idx), next_topology_pattern_id), mid_stage.frontier_entries,
-      next_topology_pattern_id);
-  root_stage.frontier_entries = realtech_support::BuildInputBoundaryFrontier(root_stage.raw_entries);
+      realtech_support::MakeHTreeSeedEntries(frontier_by_length.at(length_100_idx), segment_context, htree_context),
+      mid_stage.frontier_entries, htree_context);
+  root_stage.frontier_entries = realtech_support::BuildHTreeStateFrontier(root_stage.raw_entries, htree_context);
   ASSERT_FALSE(root_stage.frontier_entries.empty());
 
   EXPECT_GE(exact_segment_100_raw.size(), exact_segment_100_frontier.size());

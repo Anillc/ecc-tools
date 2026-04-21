@@ -89,9 +89,10 @@ class HTreeBuilder
       double htree_load_cap_max_pf = 0.0;
       double htree_load_cap_mean_pf = 0.0;
       double htree_load_cap_median_pf = 0.0;
+      std::size_t final_frontier_count = 0U;
       std::size_t candidate_solution_count = 0U;
       std::size_t feasible_solution_count = 0U;
-      std::size_t feasible_pattern_count = 0U;
+      std::size_t feasible_frontier_entry_count = 0U;
       bool used_boundary_fallback = false;
       double selected_power_w = 0.0;
       double selected_delay_ns = 0.0;
@@ -106,9 +107,9 @@ class HTreeBuilder
     std::optional<HTreeTopologyChar> best_char = std::nullopt;
     std::optional<HTreeTopologyPattern> best_pattern = std::nullopt;
     std::vector<HTreeTopologyChar> candidate_chars;
-    std::vector<HTreeTopologyChar> candidate_pattern_representatives;
+    std::vector<HTreeTopologyChar> candidate_frontier_entries;
     std::vector<HTreeTopologyChar> feasible_chars;
-    std::vector<HTreeTopologyChar> feasible_pattern_representatives;
+    std::vector<HTreeTopologyChar> feasible_frontier_entries;
     double char_wire_length_unit_um = 0.0;
     unsigned char_wire_length_iterations = 0U;
     unsigned char_unique_level_bins = 0U;
@@ -123,9 +124,9 @@ class HTreeBuilder
     unsigned depth_explore_window = 0U;
     std::optional<unsigned> selected_depth = std::nullopt;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
-    std::optional<unsigned> top_input_slew_floor_idx = std::nullopt;
+    std::optional<unsigned> top_input_slew_covering_idx = std::nullopt;
     std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
-    std::optional<unsigned> leaf_driven_cap_floor_idx = std::nullopt;
+    std::optional<unsigned> leaf_driven_cap_covering_idx = std::nullopt;
     std::vector<DepthCandidateSummary> depth_candidates;
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;

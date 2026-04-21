@@ -32,6 +32,7 @@
 
 #include "BufferingPattern.hh"
 #include "SegmentChar.hh"
+#include "ValueLattice.hh"
 
 namespace icts {
 
@@ -58,6 +59,7 @@ class CharBuilder
   {
     std::optional<double> wire_length_unit_um = std::nullopt;
     std::optional<unsigned> wire_length_iterations = std::nullopt;
+    std::optional<std::vector<unsigned>> wire_length_indices = std::nullopt;
   };
 
   CharBuilder() = default;
@@ -70,6 +72,7 @@ class CharBuilder
   auto get_segment_chars() const -> const std::vector<SegmentChar>& { return _segment_chars; }
   auto get_buffering_patterns() const -> const std::vector<BufferingPattern>& { return _buffering_patterns; }
   auto get_wire_lengths_um() const -> const std::vector<double>& { return _wire_lengths_um; }
+  auto get_wire_length_indices() const -> const std::vector<unsigned>& { return _wire_length_indices; }
   auto get_wire_length_unit_um() const -> double { return _length_unit_um; }
   auto get_wire_length_unit_source() const -> const std::string& { return _wire_length_unit_source; }
   auto get_wire_length_unit_detail() const -> const std::string& { return _wire_length_unit_detail; }
@@ -78,6 +81,9 @@ class CharBuilder
   auto get_max_cap() const -> double { return _max_cap; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
+  auto get_length_lattice() const -> UniformValueLattice { return UniformValueLattice(_length_unit_um, _wire_length_iterations); }
+  auto get_slew_lattice() const -> UniformValueLattice { return UniformValueLattice::buildFromMax(_max_slew, _slew_steps); }
+  auto get_cap_lattice() const -> UniformValueLattice { return UniformValueLattice::buildFromMax(_max_cap, _cap_steps); }
   auto get_output_slew_overflow_samples() const -> std::size_t { return _output_slew_overflow_samples; }
   auto get_driven_cap_overflow_samples() const -> std::size_t { return _driven_cap_overflow_samples; }
   auto get_driven_cap_overflow_load_points() const -> std::size_t { return _driven_cap_overflow_load_points; }
@@ -115,8 +121,9 @@ class CharBuilder
   auto calcTopologySlotCount(double wire_length_um) const -> unsigned;
   static auto countSelectedSlots(TopologyBits topology_bits) -> unsigned;
   auto estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t;
-  auto enumerateWireLength(double wire_length_um, BuildProgress& build_progress) -> void;
-  auto enumerateTopology(double wire_length_um, unsigned num_slots, TopologyBits topology_bits, BuildProgress& build_progress) -> void;
+  auto enumerateWireLength(unsigned length_idx, double wire_length_um, BuildProgress& build_progress) -> void;
+  auto enumerateTopology(unsigned length_idx, double wire_length_um, unsigned num_slots, TopologyBits topology_bits,
+                         BuildProgress& build_progress) -> void;
   static auto getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t;
   static auto advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool;
 
@@ -145,18 +152,17 @@ class CharBuilder
   auto analyzePatternFeasibility(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) const -> PatternFeasibility;
   auto tryMakeStoredSampleIndices(unsigned input_slew_idx, unsigned load_cap_idx, double output_slew_ns, double driven_cap_pf,
                                   BuildProgress& build_progress) const -> std::optional<StoredSampleIndices>;
-  auto characterizeTopology(const TopologyDesc& topo, const std::vector<std::string>& buf_masters, BuildProgress& build_progress) -> void;
+  auto characterizeTopology(unsigned length_idx, const TopologyDesc& topo, const std::vector<std::string>& buf_masters,
+                            BuildProgress& build_progress) -> void;
   auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
   auto setCharParasitics(const TopologyDesc& topo, double load_pf) -> void;
   auto destroyCharCircuit() -> void;
-
-  static auto discretizeLatticeValue(double value, double max_value, unsigned steps) -> unsigned;
-  static auto tryDiscretizeObservedValue(double value, double max_value, unsigned steps) -> std::optional<unsigned>;
 
   auto findBufferInfo(const std::string& cell_master) const -> const CharBufferInfo*;
   std::vector<CharBufferInfo> _sorted_buffers;
 
   // Physical sweep grids kept in user units before discretization.
+  std::vector<unsigned> _wire_length_indices;
   std::vector<double> _wire_lengths_um;
   std::vector<double> _slews_to_test;
   std::vector<double> _loads_to_test;

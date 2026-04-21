@@ -55,6 +55,7 @@
 #include "SegmentChar.hh"
 #include "TopologyConfig.hh"
 #include "Tree.hh"
+#include "ValueLattice.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "characterization/CharBuilder.hh"
 #include "characterization/Frontier.hh"
@@ -83,6 +84,8 @@ struct CharacterizationGridPlan
 {
   double wire_length_unit_um = 0.0;
   unsigned wire_length_iterations = 0U;
+  unsigned configured_wire_length_iterations = 0U;
+  unsigned required_covering_iterations = 0U;
   unsigned unique_level_bins = 0U;
   double configured_wire_length_unit_um = 0.0;
   double auto_derived_wire_length_unit_um = 0.0;
@@ -98,9 +101,9 @@ struct ResolvedBuildOptions
   bool force_branch_buffer = false;
   bool force_leaf_unbuffered = false;
   std::optional<double> min_top_input_slew_ns = std::nullopt;
-  std::optional<unsigned> top_input_slew_floor_idx = std::nullopt;
+  std::optional<unsigned> top_input_slew_covering_idx = std::nullopt;
   std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
-  std::optional<unsigned> leaf_driven_cap_floor_idx = std::nullopt;
+  std::optional<unsigned> leaf_driven_cap_covering_idx = std::nullopt;
 };
 
 struct LeafDrivenCapResolution
@@ -190,11 +193,6 @@ enum class SegmentEntrySelection
   kLeafUnbuffered,
 };
 
-enum class PatternRepresentativeMode
-{
-  kWorstCaseSelection,
-};
-
 auto toCharGridSourceName(CharGridSource source) -> const char*
 {
   switch (source) {
@@ -245,7 +243,7 @@ class BufferStrengthCache
 
       if (drive_cap_pf <= 0.0) {
         LOG_WARNING << "HTreeBuilder: failed to resolve drive-strength rank for buffer master " << cell_master
-                    << "; monotonic composition falls back to an unconstrained boundary state.";
+                    << "; monotonic composition keeps an explicit boundary buffer with unresolved size class.";
       }
     }
 
@@ -325,6 +323,18 @@ struct BufferPatternRegistry
   auto getTerminalSemantic(PatternId pattern_id) const -> TerminalSemantic { return getCompositionState(pattern_id).terminal_semantic; }
 
  private:
+  static auto resolveBoundaryBufferState(const BoundaryBufferState& explicit_state, const std::string& cell_master,
+                                         BufferStrengthCache& strength_cache) -> BoundaryBufferState
+  {
+    if (explicit_state.has_buffer) {
+      return explicit_state;
+    }
+    if (cell_master.empty()) {
+      return explicit_state;
+    }
+    return BoundaryBufferState{.has_buffer = true, .strength_rank = strength_cache.getStrengthRank(cell_master)};
+  }
+
   auto resolveBoundaryState(const BufferingPattern& pattern) -> MonotonicBoundaryState
   {
     const auto explicit_state = pattern.get_monotonic_boundary_state();
@@ -338,10 +348,8 @@ struct BufferPatternRegistry
     }
 
     return MonotonicBoundaryState{
-        .source_strength_rank = explicit_state.source_strength_rank != 0U ? explicit_state.source_strength_rank
-                                                                          : _strength_cache.getStrengthRank(cell_masters.front()),
-        .sink_strength_rank = explicit_state.sink_strength_rank != 0U ? explicit_state.sink_strength_rank
-                                                                      : _strength_cache.getStrengthRank(cell_masters.back()),
+        .source = resolveBoundaryBufferState(explicit_state.source, cell_masters.front(), _strength_cache),
+        .sink = resolveBoundaryBufferState(explicit_state.sink, cell_masters.back(), _strength_cache),
     };
   }
 
@@ -366,21 +374,39 @@ struct BufferPatternRegistry
 
 struct SegmentFrontierSet
 {
-  // Raw composed entries are retained even after extracting a frontier so later
-  // stages can still form A-frontier + B-all and A-raw + B-leaf_unbuffered.
-  std::vector<SegmentChar> all_raw_entries;
-  // Frontier of A-frontier + B-all-raw compositions. This is the default
+  // Frontier of A-frontier + B-frontier compositions. This is the default
   // family when no terminal semantic is forced on the current H-tree level.
   std::vector<SegmentChar> all_frontier_entries;
   // Frontier of solutions whose downstream-most terminal remains buffered.
-  // This family is valid for enforcing branch-buffered selection on any
-  // H-tree level, not only the leaf level.
   std::vector<SegmentChar> branch_buffered_entries;
   // Frontier of solutions whose downstream-most terminal remains unbuffered.
-  // It is built from A-raw + B-leaf_unbuffered compositions and is only used
-  // for the final H-tree level when the caller explicitly requests an
-  // unbuffered leaf terminal.
   std::vector<SegmentChar> leaf_unbuffered_entries;
+};
+
+struct RequiredLengthStateKey
+{
+  std::vector<unsigned> pending_lengths;
+
+  auto operator==(const RequiredLengthStateKey& rhs) const -> bool = default;
+};
+
+struct RequiredLengthStateKeyHash
+{
+  auto operator()(const RequiredLengthStateKey& key) const noexcept -> std::size_t
+  {
+    std::size_t hash_value = 0U;
+    for (const unsigned length_idx : key.pending_lengths) {
+      hash_value ^= std::hash<unsigned>{}(length_idx) + 0x9e3779b9U + (hash_value << 6U) + (hash_value >> 2U);
+    }
+    return hash_value;
+  }
+};
+
+struct SegmentClosureSolution
+{
+  bool feasible = false;
+  unsigned total_cost = 0U;
+  std::unordered_map<unsigned, SegmentFrontierSet> synthesized_entry_sets;
 };
 
 enum class TopologyPatternNodeKind
@@ -606,49 +632,6 @@ auto PreferDelayPowerTieBreak(const HTreeTopologyChar& lhs, const HTreeTopologyC
 auto PreferPowerMedianOrder(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool;
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
 
-struct StructuralPatternKey
-{
-  std::vector<unsigned> level_segment_pattern_ids;
-
-  auto operator==(const StructuralPatternKey& rhs) const -> bool = default;
-};
-
-struct StructuralPatternKeyHash
-{
-  auto operator()(const StructuralPatternKey& key) const noexcept -> std::size_t
-  {
-    std::size_t hash_value = 0U;
-    for (const unsigned packed_id : key.level_segment_pattern_ids) {
-      hash_value ^= std::hash<unsigned>{}(packed_id) + 0x9e3779b9U + (hash_value << 6U) + (hash_value >> 2U);
-    }
-    return hash_value;
-  }
-};
-
-class TopologyPatternStructuralKeyCache
-{
- public:
-  auto get(PatternId topology_pattern_id, const TopologyPatternRegistry& topology_registry) -> const StructuralPatternKey&
-  {
-    const auto cache_it = _key_by_pattern.find(topology_pattern_id);
-    if (cache_it != _key_by_pattern.end()) {
-      return cache_it->second;
-    }
-
-    StructuralPatternKey key;
-    const auto topology_pattern = topology_registry.materialize(topology_pattern_id);
-    key.level_segment_pattern_ids.reserve(topology_pattern.get_level_segment_pattern_ids().size());
-    for (const auto segment_pattern_id : topology_pattern.get_level_segment_pattern_ids()) {
-      key.level_segment_pattern_ids.push_back(segment_pattern_id.pack());
-    }
-
-    return _key_by_pattern.emplace(topology_pattern_id, std::move(key)).first->second;
-  }
-
- private:
-  std::unordered_map<PatternId, StructuralPatternKey> _key_by_pattern;
-};
-
 struct CandidateBuildEvaluation
 {
   unsigned depth = 0U;
@@ -659,10 +642,11 @@ struct CandidateBuildEvaluation
   std::string failure_reason;
   std::optional<unsigned> failure_level = std::nullopt;
   std::optional<unsigned> failure_length_idx = std::nullopt;
+  std::size_t final_frontier_count = 0U;
   std::vector<HTreeTopologyChar> candidate_chars;
-  std::vector<HTreeTopologyChar> candidate_pattern_representatives;
+  std::vector<HTreeTopologyChar> candidate_frontier_entries;
   std::vector<HTreeTopologyChar> feasible_chars;
-  std::vector<HTreeTopologyChar> feasible_pattern_representatives;
+  std::vector<HTreeTopologyChar> feasible_frontier_entries;
   std::optional<HTreeTopologyChar> best_char = std::nullopt;
   bool used_boundary_fallback = false;
   std::optional<double> boundary_fallback_score = std::nullopt;
@@ -670,13 +654,13 @@ struct CandidateBuildEvaluation
   TopologyPatternRegistry topology_pattern_registry;
 };
 
-struct ActualLoadRepresentativeFilterResult
+struct ActualLoadEntryFilterResult
 {
   std::vector<HTreeTopologyChar> entries;
   std::string first_failure_reason;
 };
 
-struct CandidateRepresentativeRef
+struct CandidateCharRef
 {
   std::size_t candidate_index = 0U;
   const HTreeTopologyChar* entry = nullptr;
@@ -687,103 +671,12 @@ auto resolveSegmentCompositionState(const BufferPatternRegistry& pattern_registr
   return pattern_registry.getCompositionState(pattern_id);
 }
 
-auto resolveHTreeCompositionState(const TopologyPatternRegistry& topology_registry, PatternId topology_pattern_id)
-    -> PatternCompositionState
-{
-  return topology_registry.getCompositionState(topology_pattern_id);
-}
-
 auto BuildSegmentStateFrontier(const std::vector<SegmentChar>& chars, const BufferPatternRegistry& pattern_registry)
     -> std::vector<SegmentChar>
 {
   return icts::BuildSegmentStateFrontier(chars, [&](const SegmentChar& entry) -> PatternCompositionState {
     return resolveSegmentCompositionState(pattern_registry, entry.get_pattern_id());
   });
-}
-
-auto BuildHTreeStateFrontier(const std::vector<HTreeTopologyChar>& chars, const TopologyPatternRegistry& topology_registry,
-                             const BufferPatternRegistry& segment_pattern_registry) -> std::vector<HTreeTopologyChar>
-{
-  (void) segment_pattern_registry;
-  return icts::BuildHTreeStateFrontier(chars, [&](const HTreeTopologyChar& entry) -> PatternCompositionState {
-    return resolveHTreeCompositionState(topology_registry, entry.get_pattern_id());
-  });
-}
-
-auto SelectSegmentCompositionCandidates(const std::vector<SegmentChar>& entries, const BufferPatternRegistry& pattern_registry)
-    -> std::vector<SegmentChar>
-{
-  const std::size_t max_per_state_group = CONFIG_INST.get_relaxed_candidates_per_boundary_group();
-  if (max_per_state_group == 0U) {
-    return entries;
-  }
-
-  std::vector<SegmentChar> ordered_entries = entries;
-  SortSegmentFrontierEntries(ordered_entries);
-
-  std::unordered_map<SegmentFrontierStateKey, std::size_t, SegmentFrontierStateKeyHash> group_counts;
-  group_counts.reserve(ordered_entries.size());
-
-  std::vector<SegmentChar> selected_entries;
-  selected_entries.reserve(ordered_entries.size());
-  for (const auto& entry : ordered_entries) {
-    const auto composition_state = resolveSegmentCompositionState(pattern_registry, entry.get_pattern_id());
-    const SegmentFrontierStateKey group_key{
-        .input_slew_idx = entry.get_input_slew_idx(),
-        .driven_cap_idx = entry.get_driven_cap_idx(),
-        .output_slew_idx = entry.get_output_slew_idx(),
-        .load_cap_idx = entry.get_load_cap_idx(),
-        .terminal_semantic = composition_state.terminal_semantic,
-        .monotonic_boundary_state = composition_state.monotonic_boundary_state,
-    };
-    auto& kept_count = group_counts[group_key];
-    if (kept_count >= max_per_state_group) {
-      continue;
-    }
-    selected_entries.push_back(entry);
-    ++kept_count;
-  }
-
-  return selected_entries;
-}
-
-auto SelectHTreeCompositionCandidates(const std::vector<HTreeTopologyChar>& entries, const TopologyPatternRegistry& topology_registry,
-                                      const BufferPatternRegistry& segment_pattern_registry) -> std::vector<HTreeTopologyChar>
-{
-  (void) segment_pattern_registry;
-  const std::size_t max_per_state_group = CONFIG_INST.get_relaxed_candidates_per_boundary_group();
-  if (max_per_state_group == 0U) {
-    return entries;
-  }
-
-  std::vector<HTreeTopologyChar> ordered_entries = entries;
-  SortHTreeFrontierEntries(ordered_entries);
-
-  std::unordered_map<HTreeFrontierStateKey, std::size_t, HTreeFrontierStateKeyHash> group_counts;
-  group_counts.reserve(ordered_entries.size());
-
-  std::vector<HTreeTopologyChar> selected_entries;
-  selected_entries.reserve(ordered_entries.size());
-  for (const auto& entry : ordered_entries) {
-    const auto composition_state = resolveHTreeCompositionState(topology_registry, entry.get_pattern_id());
-    const HTreeFrontierStateKey group_key{
-        .input_slew_idx = entry.get_input_slew_idx(),
-        .driven_cap_idx = entry.get_driven_cap_idx(),
-        .leaf_driven_cap_idx = entry.get_leaf_driven_cap_idx(),
-        .output_slew_idx = entry.get_output_slew_idx(),
-        .load_cap_idx = entry.get_load_cap_idx(),
-        .terminal_semantic = composition_state.terminal_semantic,
-        .monotonic_boundary_state = composition_state.monotonic_boundary_state,
-    };
-    auto& kept_count = group_counts[group_key];
-    if (kept_count >= max_per_state_group) {
-      continue;
-    }
-    selected_entries.push_back(entry);
-    ++kept_count;
-  }
-
-  return selected_entries;
 }
 
 auto FindNextSegmentPatternId(const std::vector<SegmentChar>& chars) -> unsigned
@@ -795,12 +688,9 @@ auto FindNextSegmentPatternId(const std::vector<SegmentChar>& chars) -> unsigned
   return next_id;
 }
 
-auto MakeNearestLengthIndex(double length_um, double length_step_um) -> unsigned
+auto MakeCoveringLengthIndex(double length_um, double length_step_um) -> unsigned
 {
-  if (length_um <= 0.0 || length_step_um <= 0.0) {
-    return 0U;
-  }
-  return std::max(1U, static_cast<unsigned>(std::lround(length_um / length_step_um)));
+  return UniformValueLattice(length_step_um, std::numeric_limits<unsigned>::max()).coveringIndex(length_um);
 }
 
 auto CountUniqueAlignedLengthBins(const std::vector<double>& requested_lengths_um, double length_step_um) -> unsigned
@@ -812,7 +702,7 @@ auto CountUniqueAlignedLengthBins(const std::vector<double>& requested_lengths_u
   std::vector<unsigned> aligned_bins;
   aligned_bins.reserve(requested_lengths_um.size());
   for (const double requested_length_um : requested_lengths_um) {
-    const unsigned aligned_idx = MakeNearestLengthIndex(requested_length_um, length_step_um);
+    const unsigned aligned_idx = MakeCoveringLengthIndex(requested_length_um, length_step_um);
     if (aligned_idx > 0U) {
       aligned_bins.push_back(aligned_idx);
     }
@@ -881,6 +771,7 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   plan.requested_level_lengths = static_cast<unsigned>(requested_lengths_um.size());
 
   const double configured_unit_um = CONFIG_INST.get_wire_length_unit_um();
+  plan.configured_wire_length_iterations = std::max(1U, CONFIG_INST.get_wire_length_iterations());
   plan.configured_wire_length_unit_um = configured_unit_um;
   plan.configured_wire_length_missing = configured_unit_um <= 0.0;
 
@@ -925,7 +816,8 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   }
 
   plan.wire_length_unit_um = effective_unit_um;
-  plan.wire_length_iterations = std::max(1U, static_cast<unsigned>(std::ceil(max_requested_length_um / effective_unit_um)));
+  plan.required_covering_iterations = std::max(1U, static_cast<unsigned>(std::ceil(max_requested_length_um / effective_unit_um)));
+  plan.wire_length_iterations = std::min(plan.configured_wire_length_iterations, plan.required_covering_iterations);
   return plan;
 }
 
@@ -1005,22 +897,15 @@ auto hasTerminalBranchBufferPattern(const BufferPatternRegistry& pattern_registr
   return pattern != nullptr && pattern->hasTerminalBranchBuffer();
 }
 
-auto DiscretizeBoundaryValue(double value, double max_value, unsigned steps) -> std::optional<unsigned>
+auto CoveringBoundaryIndex(double value, const UniformValueLattice& lattice) -> std::optional<unsigned>
 {
-  if (value <= 0.0 || max_value <= 0.0 || steps == 0U) {
+  if (value <= 0.0 || !lattice.isValid()) {
     return std::nullopt;
   }
-  if (value > max_value) {
-    return steps + 1U;
+  if (value > lattice.maxValue() + kValueLatticeEpsilon) {
+    return lattice.steps() + 1U;
   }
-
-  const double step_size = max_value / static_cast<double>(steps);
-  if (step_size <= 0.0) {
-    return std::nullopt;
-  }
-
-  const auto boundary_idx = static_cast<unsigned>(std::ceil(value / step_size));
-  return std::clamp(boundary_idx, 1U, steps);
+  return std::clamp(lattice.coveringIndex(value), 1U, lattice.steps());
 }
 
 auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBuilder& char_builder) -> ResolvedBuildOptions
@@ -1036,14 +921,12 @@ auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBu
 
   if (options.min_top_input_slew_ns.has_value() && *options.min_top_input_slew_ns > 0.0) {
     resolved.min_top_input_slew_ns = options.min_top_input_slew_ns;
-    resolved.top_input_slew_floor_idx
-        = DiscretizeBoundaryValue(*options.min_top_input_slew_ns, char_builder.get_max_slew(), char_builder.get_slew_steps());
+    resolved.top_input_slew_covering_idx = CoveringBoundaryIndex(*options.min_top_input_slew_ns, char_builder.get_slew_lattice());
   }
 
   if (options.min_leaf_driven_cap_pf.has_value() && *options.min_leaf_driven_cap_pf > 0.0) {
     resolved.min_leaf_driven_cap_pf = options.min_leaf_driven_cap_pf;
-    resolved.leaf_driven_cap_floor_idx
-        = DiscretizeBoundaryValue(*options.min_leaf_driven_cap_pf, char_builder.get_max_cap(), char_builder.get_cap_steps());
+    resolved.leaf_driven_cap_covering_idx = CoveringBoundaryIndex(*options.min_leaf_driven_cap_pf, char_builder.get_cap_lattice());
   }
 
   return resolved;
@@ -1051,10 +934,74 @@ auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBu
 
 auto HasBoundaryConstraints(const ResolvedBuildOptions& options) -> bool
 {
-  return options.top_input_slew_floor_idx.has_value() || options.leaf_driven_cap_floor_idx.has_value();
+  return options.top_input_slew_covering_idx.has_value() || options.leaf_driven_cap_covering_idx.has_value();
 }
 
-auto BuildSegmentLengthEntrySets(const std::vector<SegmentChar>& chars, const BufferPatternRegistry& pattern_registry)
+auto CountSegmentFrontierEntries(const SegmentFrontierSet& entry_set) -> std::size_t
+{
+  return entry_set.all_frontier_entries.size() + entry_set.branch_buffered_entries.size() + entry_set.leaf_unbuffered_entries.size();
+}
+
+auto CountTotalSegmentFrontierEntries(const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets) -> std::size_t
+{
+  std::size_t total_entries = 0U;
+  for (const auto& [length_idx, entry_set] : entry_sets) {
+    (void) length_idx;
+    total_entries += CountSegmentFrontierEntries(entry_set);
+  }
+  return total_entries;
+}
+
+auto FindSegmentFrontierSet(const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets, unsigned length_idx)
+    -> const SegmentFrontierSet*
+{
+  const auto it = entry_sets.find(length_idx);
+  return it == entry_sets.end() ? nullptr : &it->second;
+}
+
+auto ComposeSegmentFrontierEntries(const std::vector<SegmentChar>& upstream, const std::vector<SegmentChar>& downstream,
+                                   BufferPatternRegistry& pattern_registry, unsigned start_pattern_id)
+    -> std::pair<std::vector<SegmentChar>, unsigned>
+{
+  if (upstream.empty() || downstream.empty()) {
+    return {{}, start_pattern_id};
+  }
+
+  SegmentPatternRegistryCombiner combiner(pattern_registry, start_pattern_id);
+  auto pruner = MakeSegmentStateFrontierPruner(
+      [&](const SegmentChar& entry) -> PatternCompositionState { return pattern_registry.getCompositionState(entry.get_pattern_id()); });
+  std::vector<SegmentChar> frontier_entries;
+  detail::HashJoinConcat<SegmentChar, SegmentTraits>(upstream, downstream, combiner, frontier_entries, &pruner);
+  SortSegmentFrontierEntries(frontier_entries);
+  return {std::move(frontier_entries), combiner.get_next_id()};
+}
+
+auto ComposeSegmentFrontierSet(const SegmentFrontierSet& upstream, const SegmentFrontierSet& downstream,
+                               BufferPatternRegistry& pattern_registry, unsigned start_pattern_id)
+    -> std::pair<SegmentFrontierSet, unsigned>
+{
+  SegmentFrontierSet result;
+  unsigned next_pattern_id = start_pattern_id;
+
+  auto [all_frontier_entries, after_all_pattern_id]
+      = ComposeSegmentFrontierEntries(upstream.all_frontier_entries, downstream.all_frontier_entries, pattern_registry, next_pattern_id);
+  result.all_frontier_entries = std::move(all_frontier_entries);
+  next_pattern_id = after_all_pattern_id;
+
+  auto [branch_frontier_entries, after_branch_pattern_id]
+      = ComposeSegmentFrontierEntries(upstream.all_frontier_entries, downstream.branch_buffered_entries, pattern_registry, next_pattern_id);
+  result.branch_buffered_entries = std::move(branch_frontier_entries);
+  next_pattern_id = after_branch_pattern_id;
+
+  auto [leaf_frontier_entries, after_leaf_pattern_id]
+      = ComposeSegmentFrontierEntries(upstream.all_frontier_entries, downstream.leaf_unbuffered_entries, pattern_registry, next_pattern_id);
+  result.leaf_unbuffered_entries = std::move(leaf_frontier_entries);
+  next_pattern_id = after_leaf_pattern_id;
+
+  return {std::move(result), next_pattern_id};
+}
+
+auto BuildBaseSegmentLengthEntrySets(const std::vector<SegmentChar>& chars, const BufferPatternRegistry& pattern_registry)
     -> std::unordered_map<unsigned, SegmentFrontierSet>
 {
   std::unordered_map<unsigned, std::vector<SegmentChar>> raw_all_by_length;
@@ -1076,8 +1023,7 @@ auto BuildSegmentLengthEntrySets(const std::vector<SegmentChar>& chars, const Bu
   entry_sets_by_length.reserve(raw_all_by_length.size());
   for (auto& [length_idx, raw_entries] : raw_all_by_length) {
     auto& entry_set = entry_sets_by_length[length_idx];
-    entry_set.all_raw_entries = std::move(raw_entries);
-    entry_set.all_frontier_entries = BuildSegmentStateFrontier(entry_set.all_raw_entries, pattern_registry);
+    entry_set.all_frontier_entries = BuildSegmentStateFrontier(raw_entries, pattern_registry);
   }
   for (auto& [length_idx, raw_entries] : raw_branch_by_length) {
     auto& entry_set = entry_sets_by_length[length_idx];
@@ -1086,6 +1032,160 @@ auto BuildSegmentLengthEntrySets(const std::vector<SegmentChar>& chars, const Bu
   for (auto& [length_idx, raw_entries] : raw_leaf_unbuffered_by_length) {
     auto& entry_set = entry_sets_by_length[length_idx];
     entry_set.leaf_unbuffered_entries = BuildSegmentStateFrontier(raw_entries, pattern_registry);
+  }
+  return entry_sets_by_length;
+}
+
+auto NormalizeRequiredLengths(std::vector<unsigned> lengths) -> std::vector<unsigned>
+{
+  lengths.erase(std::remove(lengths.begin(), lengths.end(), 0U), lengths.end());
+  std::ranges::sort(lengths);
+  const auto unique_tail = std::ranges::unique(lengths);
+  lengths.erase(unique_tail.begin(), unique_tail.end());
+  return lengths;
+}
+
+auto CollectRequiredLengthIndices(const std::vector<HTreeBuilder::LevelPlan>& levels) -> std::vector<unsigned>
+{
+  std::vector<unsigned> required_lengths;
+  required_lengths.reserve(levels.size());
+  for (const auto& level : levels) {
+    if (level.aligned_length_idx > 0U) {
+      required_lengths.push_back(level.aligned_length_idx);
+    }
+  }
+  return NormalizeRequiredLengths(std::move(required_lengths));
+}
+
+auto BuildPendingLengthKey(const std::vector<unsigned>& pending_lengths,
+                           const std::unordered_map<unsigned, SegmentFrontierSet>& base_entry_sets) -> RequiredLengthStateKey
+{
+  std::vector<unsigned> canonical_lengths;
+  canonical_lengths.reserve(pending_lengths.size());
+  for (const unsigned length_idx : pending_lengths) {
+    const auto* base_entry_set = FindSegmentFrontierSet(base_entry_sets, length_idx);
+    if (base_entry_set != nullptr && !base_entry_set->all_frontier_entries.empty()) {
+      continue;
+    }
+    canonical_lengths.push_back(length_idx);
+  }
+
+  return RequiredLengthStateKey{.pending_lengths = NormalizeRequiredLengths(std::move(canonical_lengths))};
+}
+
+auto ResolveSegmentFrontierSet(unsigned length_idx, const std::unordered_map<unsigned, SegmentFrontierSet>& base_entry_sets,
+                               const std::unordered_map<unsigned, SegmentFrontierSet>& synthesized_entry_sets) -> const SegmentFrontierSet*
+{
+  if (const auto* synthesized_entry_set = FindSegmentFrontierSet(synthesized_entry_sets, length_idx); synthesized_entry_set != nullptr) {
+    return synthesized_entry_set;
+  }
+  return FindSegmentFrontierSet(base_entry_sets, length_idx);
+}
+
+auto PreferSegmentClosureSolution(const SegmentClosureSolution& lhs, const SegmentClosureSolution& rhs) -> bool
+{
+  if (!lhs.feasible) {
+    return false;
+  }
+  if (!rhs.feasible) {
+    return true;
+  }
+  if (lhs.total_cost != rhs.total_cost) {
+    return lhs.total_cost < rhs.total_cost;
+  }
+
+  const std::size_t lhs_frontier_entries = CountTotalSegmentFrontierEntries(lhs.synthesized_entry_sets);
+  const std::size_t rhs_frontier_entries = CountTotalSegmentFrontierEntries(rhs.synthesized_entry_sets);
+  if (lhs_frontier_entries != rhs_frontier_entries) {
+    return lhs_frontier_entries > rhs_frontier_entries;
+  }
+
+  return lhs.synthesized_entry_sets.size() < rhs.synthesized_entry_sets.size();
+}
+
+auto SolveRequiredLengthState(const RequiredLengthStateKey& state_key,
+                              const std::unordered_map<unsigned, SegmentFrontierSet>& base_entry_sets,
+                              BufferPatternRegistry& pattern_registry, unsigned& next_pattern_id,
+                              std::unordered_map<RequiredLengthStateKey, SegmentClosureSolution, RequiredLengthStateKeyHash>& memo)
+    -> SegmentClosureSolution
+{
+  if (state_key.pending_lengths.empty()) {
+    return SegmentClosureSolution{
+        .feasible = true,
+        .total_cost = 0U,
+        .synthesized_entry_sets = {},
+    };
+  }
+
+  const auto memo_it = memo.find(state_key);
+  if (memo_it != memo.end()) {
+    return memo_it->second;
+  }
+
+  const unsigned target_length_idx = state_key.pending_lengths.back();
+  std::vector<unsigned> remaining_lengths = state_key.pending_lengths;
+  remaining_lengths.pop_back();
+
+  SegmentClosureSolution best_solution;
+  for (unsigned left_length_idx = 1U; left_length_idx < target_length_idx; ++left_length_idx) {
+    const unsigned right_length_idx = target_length_idx - left_length_idx;
+
+    auto sub_pending_lengths = remaining_lengths;
+    sub_pending_lengths.push_back(left_length_idx);
+    sub_pending_lengths.push_back(right_length_idx);
+    const RequiredLengthStateKey sub_state_key = BuildPendingLengthKey(sub_pending_lengths, base_entry_sets);
+    const auto sub_solution = SolveRequiredLengthState(sub_state_key, base_entry_sets, pattern_registry, next_pattern_id, memo);
+    if (!sub_solution.feasible) {
+      continue;
+    }
+
+    const auto* left_entry_set = ResolveSegmentFrontierSet(left_length_idx, base_entry_sets, sub_solution.synthesized_entry_sets);
+    const auto* right_entry_set = ResolveSegmentFrontierSet(right_length_idx, base_entry_sets, sub_solution.synthesized_entry_sets);
+    if (left_entry_set == nullptr || right_entry_set == nullptr) {
+      continue;
+    }
+    if (left_entry_set->all_frontier_entries.empty() || right_entry_set->all_frontier_entries.empty()) {
+      continue;
+    }
+
+    auto [composed_entry_set, updated_next_pattern_id]
+        = ComposeSegmentFrontierSet(*left_entry_set, *right_entry_set, pattern_registry, next_pattern_id);
+    next_pattern_id = updated_next_pattern_id;
+    if (composed_entry_set.all_frontier_entries.empty()) {
+      continue;
+    }
+
+    auto candidate_solution = sub_solution;
+    candidate_solution.feasible = true;
+    candidate_solution.total_cost += target_length_idx;
+    candidate_solution.synthesized_entry_sets[target_length_idx] = std::move(composed_entry_set);
+    if (PreferSegmentClosureSolution(candidate_solution, best_solution)) {
+      best_solution = std::move(candidate_solution);
+    }
+  }
+
+  memo[state_key] = best_solution;
+  return memo.at(state_key);
+}
+
+auto SynthesizeSegmentEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternRegistry& pattern_registry,
+                                const std::vector<unsigned>& required_length_indices) -> std::unordered_map<unsigned, SegmentFrontierSet>
+{
+  auto entry_sets_by_length = BuildBaseSegmentLengthEntrySets(base_segment_chars, pattern_registry);
+  const RequiredLengthStateKey root_state_key = BuildPendingLengthKey(required_length_indices, entry_sets_by_length);
+  if (root_state_key.pending_lengths.empty()) {
+    return entry_sets_by_length;
+  }
+
+  unsigned next_pattern_id = FindNextSegmentPatternId(base_segment_chars);
+  std::unordered_map<RequiredLengthStateKey, SegmentClosureSolution, RequiredLengthStateKeyHash> memo;
+  auto closure_solution = SolveRequiredLengthState(root_state_key, entry_sets_by_length, pattern_registry, next_pattern_id, memo);
+  if (!closure_solution.feasible) {
+    return {};
+  }
+
+  for (auto& [length_idx, entry_set] : closure_solution.synthesized_entry_sets) {
+    entry_sets_by_length[length_idx] = std::move(entry_set);
   }
   return entry_sets_by_length;
 }
@@ -1126,7 +1226,7 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
         = static_cast<int>(std::llround(static_cast<double>(distance_sum) / static_cast<double>(distance_count)));
     const double requested_length_um
         = static_cast<double>(std::max(requested_length_dbu, 0)) / static_cast<double>(std::max(dbu_per_um, int32_t{1}));
-    const unsigned aligned_length_idx = MakeNearestLengthIndex(requested_length_um, length_step_um);
+    const unsigned aligned_length_idx = MakeCoveringLengthIndex(requested_length_um, length_step_um);
     plans.push_back(HTreeBuilder::LevelPlan{
         .requested_length_dbu = requested_length_dbu,
         .requested_length_um = requested_length_um,
@@ -1142,6 +1242,34 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
   }
 
   return plans;
+}
+
+auto MakeDenseLengthIndices(unsigned max_length_idx) -> std::vector<unsigned>
+{
+  std::vector<unsigned> length_indices;
+  length_indices.reserve(max_length_idx);
+  for (unsigned length_idx = 1U; length_idx <= max_length_idx; ++length_idx) {
+    length_indices.push_back(length_idx);
+  }
+  return length_indices;
+}
+
+auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const CharacterizationGridPlan& char_grid_plan, int32_t dbu_per_um)
+    -> std::vector<unsigned>
+{
+  if (!char_grid_plan.adapted || char_grid_plan.wire_length_iterations == 0U) {
+    return {};
+  }
+
+  if (char_grid_plan.required_covering_iterations > char_grid_plan.wire_length_iterations) {
+    return MakeDenseLengthIndices(char_grid_plan.wire_length_iterations);
+  }
+
+  auto required_length_indices = CollectRequiredLengthIndices(BuildLevelPlans(topology, char_grid_plan.wire_length_unit_um, dbu_per_um));
+  required_length_indices.erase(std::remove_if(required_length_indices.begin(), required_length_indices.end(),
+                                               [&](unsigned length_idx) { return length_idx > char_grid_plan.wire_length_iterations; }),
+                                required_length_indices.end());
+  return required_length_indices;
 }
 
 auto MakeCandidateLevelPlans(const std::vector<HTreeBuilder::LevelPlan>& full_level_plans, unsigned depth)
@@ -1505,23 +1633,22 @@ auto ResolveActualLoadLegality(const Tree& topology, PatternId topology_pattern_
   return legality_context.result_by_signature.emplace(signature, std::move(evaluated)).first->second;
 }
 
-auto FilterActualLoadLegalRepresentatives(const std::vector<HTreeTopologyChar>& representatives, const Tree& topology,
-                                          const TopologyPatternRegistry& topology_registry,
-                                          const BufferPatternRegistry& segment_pattern_registry,
-                                          ActualLoadLegalityContext& legality_context) -> ActualLoadRepresentativeFilterResult
+auto FilterActualLoadLegalEntries(const std::vector<HTreeTopologyChar>& entries, const Tree& topology,
+                                  const TopologyPatternRegistry& topology_registry, const BufferPatternRegistry& segment_pattern_registry,
+                                  ActualLoadLegalityContext& legality_context) -> ActualLoadEntryFilterResult
 {
-  ActualLoadRepresentativeFilterResult result;
-  result.entries.reserve(representatives.size());
-  for (const auto& representative : representatives) {
-    const auto legality = ResolveActualLoadLegality(topology, representative.get_pattern_id(), topology_registry, segment_pattern_registry,
-                                                    legality_context);
+  ActualLoadEntryFilterResult result;
+  result.entries.reserve(entries.size());
+  for (const auto& entry : entries) {
+    const auto legality
+        = ResolveActualLoadLegality(topology, entry.get_pattern_id(), topology_registry, segment_pattern_registry, legality_context);
     if (!legality.legal) {
       if (result.first_failure_reason.empty()) {
         result.first_failure_reason = legality.failure_reason;
       }
       continue;
     }
-    result.entries.push_back(representative);
+    result.entries.push_back(entry);
   }
   return result;
 }
@@ -1637,59 +1764,12 @@ auto ApplyLeafDrivenCapResolution(const ResolvedBuildOptions& base_options, cons
 {
   ResolvedBuildOptions resolved = base_options;
   resolved.min_leaf_driven_cap_pf = std::nullopt;
-  resolved.leaf_driven_cap_floor_idx = std::nullopt;
+  resolved.leaf_driven_cap_covering_idx = std::nullopt;
   if (cap_resolution.cap_pf.has_value() && *cap_resolution.cap_pf > 0.0) {
     resolved.min_leaf_driven_cap_pf = cap_resolution.cap_pf;
-    resolved.leaf_driven_cap_floor_idx
-        = DiscretizeBoundaryValue(*cap_resolution.cap_pf, char_builder.get_max_cap(), char_builder.get_cap_steps());
+    resolved.leaf_driven_cap_covering_idx = CoveringBoundaryIndex(*cap_resolution.cap_pf, char_builder.get_cap_lattice());
   }
   return resolved;
-}
-
-auto ComposeRelaxedSegmentEntries(const std::vector<SegmentChar>& upstream, const std::vector<SegmentChar>& downstream,
-                                  BufferPatternRegistry& pattern_registry, unsigned start_pattern_id)
-    -> std::pair<std::vector<SegmentChar>, unsigned>
-{
-  SegmentPatternRegistryCombiner combiner(pattern_registry, start_pattern_id);
-  std::vector<SegmentChar> composed_entries;
-  composed_entries.reserve(upstream.size() * downstream.size());
-  for (const auto& upstream_entry : upstream) {
-    for (const auto& downstream_entry : downstream) {
-      if (downstream_entry.get_input_slew_idx() < upstream_entry.get_output_slew_idx()
-          || upstream_entry.get_load_cap_idx() < downstream_entry.get_driven_cap_idx()) {
-        continue;
-      }
-      if (!combiner.canCompose(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id())) {
-        continue;
-      }
-      const auto merged_pattern_id = combiner.combine(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
-      composed_entries.push_back(SegmentChar::compose(upstream_entry, downstream_entry, merged_pattern_id));
-    }
-  }
-
-  return {std::move(composed_entries), combiner.get_next_id()};
-}
-
-struct ExactSegmentEntriesWithFrontier
-{
-  std::vector<SegmentChar> raw_entries;
-  std::vector<SegmentChar> frontier_entries;
-  unsigned next_pattern_id = 0U;
-};
-
-auto ComposeExactSegmentEntriesWithFrontier(const std::vector<SegmentChar>& upstream, const std::vector<SegmentChar>& downstream,
-                                            BufferPatternRegistry& pattern_registry, unsigned start_pattern_id)
-    -> ExactSegmentEntriesWithFrontier
-{
-  ExactSegmentEntriesWithFrontier result;
-  SegmentPatternRegistryCombiner combiner(pattern_registry, start_pattern_id);
-  auto pruner = MakeSegmentStateFrontierPruner(
-      [&](const SegmentChar& entry) -> PatternCompositionState { return pattern_registry.getCompositionState(entry.get_pattern_id()); });
-  detail::HashJoinConcatRawAndFrontier<SegmentChar, SegmentTraits>(upstream, downstream, combiner, result.raw_entries,
-                                                                   result.frontier_entries, pruner);
-  SortSegmentFrontierEntries(result.frontier_entries);
-  result.next_pattern_id = combiner.get_next_id();
-  return result;
 }
 
 auto ResolveSegmentEntrySelection(bool is_leaf_level, const ResolvedBuildOptions& resolved_options) -> SegmentEntrySelection
@@ -1729,167 +1809,6 @@ auto DescribeMissingSegmentEntries(SegmentEntrySelection selection) -> std::stri
   return "missing_segment_frontier";
 }
 
-auto SynthesizeSegmentEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternRegistry& pattern_registry,
-                                unsigned max_target_length_idx) -> std::unordered_map<unsigned, SegmentFrontierSet>
-{
-  auto entry_sets_by_length = BuildSegmentLengthEntrySets(base_segment_chars, pattern_registry);
-  std::unordered_map<unsigned, unsigned> min_piece_count_by_length;
-  min_piece_count_by_length.reserve(entry_sets_by_length.size());
-  for (const auto& [length_idx, entry_set] : entry_sets_by_length) {
-    if (!entry_set.all_frontier_entries.empty()) {
-      min_piece_count_by_length[length_idx] = 1U;
-    }
-  }
-
-  unsigned next_pattern_id = FindNextSegmentPatternId(base_segment_chars);
-  for (unsigned length_idx = 1U; length_idx <= max_target_length_idx; ++length_idx) {
-    unsigned best_piece_count = std::numeric_limits<unsigned>::max();
-    std::vector<std::pair<unsigned, unsigned>> best_splits;
-    const bool needs_all_frontier
-        = !entry_sets_by_length.contains(length_idx) || entry_sets_by_length.at(length_idx).all_frontier_entries.empty();
-    const bool needs_branch_frontier
-        = !entry_sets_by_length.contains(length_idx) || entry_sets_by_length.at(length_idx).branch_buffered_entries.empty();
-    const bool needs_leaf_unbuffered
-        = !entry_sets_by_length.contains(length_idx) || entry_sets_by_length.at(length_idx).leaf_unbuffered_entries.empty();
-
-    if (needs_all_frontier || needs_branch_frontier || needs_leaf_unbuffered) {
-      for (unsigned left_idx = 1U; left_idx < length_idx; ++left_idx) {
-        const unsigned right_idx = length_idx - left_idx;
-        if (!min_piece_count_by_length.contains(left_idx) || !min_piece_count_by_length.contains(right_idx)) {
-          continue;
-        }
-
-        const unsigned candidate_piece_count = min_piece_count_by_length.at(left_idx) + min_piece_count_by_length.at(right_idx);
-        if (candidate_piece_count < best_piece_count) {
-          best_piece_count = candidate_piece_count;
-          best_splits.assign(1U, {left_idx, right_idx});
-        } else if (candidate_piece_count == best_piece_count) {
-          best_splits.emplace_back(left_idx, right_idx);
-        }
-      }
-    }
-
-    if (needs_all_frontier && !best_splits.empty()) {
-      std::vector<SegmentChar> composed_raw_entries;
-      std::vector<SegmentChar> composed_frontier_entries;
-      for (const auto& [left_idx, right_idx] : best_splits) {
-        auto partial
-            = ComposeExactSegmentEntriesWithFrontier(entry_sets_by_length.at(left_idx).all_frontier_entries,
-                                                     entry_sets_by_length.at(right_idx).all_raw_entries, pattern_registry, next_pattern_id);
-        next_pattern_id = partial.next_pattern_id;
-        composed_raw_entries.insert(composed_raw_entries.end(), partial.raw_entries.begin(), partial.raw_entries.end());
-        composed_frontier_entries.insert(composed_frontier_entries.end(), partial.frontier_entries.begin(), partial.frontier_entries.end());
-      }
-
-      if (!composed_raw_entries.empty()) {
-        auto& entry_set = entry_sets_by_length[length_idx];
-        entry_set.all_raw_entries = std::move(composed_raw_entries);
-        entry_set.all_frontier_entries = BuildSegmentStateFrontier(composed_frontier_entries, pattern_registry);
-        min_piece_count_by_length[length_idx] = best_piece_count;
-      } else {
-        std::vector<SegmentChar> relaxed_entries;
-        for (const auto& [left_idx, right_idx] : best_splits) {
-          const auto left_candidates
-              = SelectSegmentCompositionCandidates(entry_sets_by_length.at(left_idx).all_frontier_entries, pattern_registry);
-          const auto right_candidates
-              = SelectSegmentCompositionCandidates(entry_sets_by_length.at(right_idx).all_raw_entries, pattern_registry);
-          auto [partial, updated_next_pattern_id]
-              = ComposeRelaxedSegmentEntries(left_candidates, right_candidates, pattern_registry, next_pattern_id);
-          next_pattern_id = updated_next_pattern_id;
-          relaxed_entries.insert(relaxed_entries.end(), partial.begin(), partial.end());
-        }
-
-        if (!relaxed_entries.empty()) {
-          auto& entry_set = entry_sets_by_length[length_idx];
-          entry_set.all_raw_entries = std::move(relaxed_entries);
-          entry_set.all_frontier_entries = BuildSegmentStateFrontier(entry_set.all_raw_entries, pattern_registry);
-          min_piece_count_by_length[length_idx] = best_piece_count;
-        }
-      }
-    }
-
-    if (needs_branch_frontier && !best_splits.empty()) {
-      std::vector<SegmentChar> branch_frontier_entries;
-      for (const auto& [left_idx, right_idx] : best_splits) {
-        if (entry_sets_by_length.at(right_idx).branch_buffered_entries.empty()) {
-          continue;
-        }
-        auto partial = ComposeExactSegmentEntriesWithFrontier(entry_sets_by_length.at(left_idx).all_frontier_entries,
-                                                              entry_sets_by_length.at(right_idx).branch_buffered_entries, pattern_registry,
-                                                              next_pattern_id);
-        next_pattern_id = partial.next_pattern_id;
-        branch_frontier_entries.insert(branch_frontier_entries.end(), partial.frontier_entries.begin(), partial.frontier_entries.end());
-      }
-
-      if (!branch_frontier_entries.empty()) {
-        entry_sets_by_length[length_idx].branch_buffered_entries = BuildSegmentStateFrontier(branch_frontier_entries, pattern_registry);
-      } else {
-        std::vector<SegmentChar> relaxed_entries;
-        for (const auto& [left_idx, right_idx] : best_splits) {
-          if (entry_sets_by_length.at(right_idx).branch_buffered_entries.empty()) {
-            continue;
-          }
-          const auto left_candidates
-              = SelectSegmentCompositionCandidates(entry_sets_by_length.at(left_idx).all_frontier_entries, pattern_registry);
-          const auto right_candidates
-              = SelectSegmentCompositionCandidates(entry_sets_by_length.at(right_idx).branch_buffered_entries, pattern_registry);
-          auto [partial, updated_next_pattern_id]
-              = ComposeRelaxedSegmentEntries(left_candidates, right_candidates, pattern_registry, next_pattern_id);
-          next_pattern_id = updated_next_pattern_id;
-          relaxed_entries.insert(relaxed_entries.end(), partial.begin(), partial.end());
-        }
-
-        if (!relaxed_entries.empty()) {
-          entry_sets_by_length[length_idx].branch_buffered_entries = BuildSegmentStateFrontier(relaxed_entries, pattern_registry);
-        }
-      }
-    }
-
-    if (needs_leaf_unbuffered && !best_splits.empty()) {
-      std::vector<SegmentChar> leaf_unbuffered_frontier_entries;
-      for (const auto& [left_idx, right_idx] : best_splits) {
-        if (entry_sets_by_length.at(left_idx).all_raw_entries.empty()
-            || entry_sets_by_length.at(right_idx).leaf_unbuffered_entries.empty()) {
-          continue;
-        }
-        auto partial = ComposeExactSegmentEntriesWithFrontier(entry_sets_by_length.at(left_idx).all_raw_entries,
-                                                              entry_sets_by_length.at(right_idx).leaf_unbuffered_entries, pattern_registry,
-                                                              next_pattern_id);
-        next_pattern_id = partial.next_pattern_id;
-        leaf_unbuffered_frontier_entries.insert(leaf_unbuffered_frontier_entries.end(), partial.frontier_entries.begin(),
-                                                partial.frontier_entries.end());
-      }
-
-      if (!leaf_unbuffered_frontier_entries.empty()) {
-        entry_sets_by_length[length_idx].leaf_unbuffered_entries
-            = BuildSegmentStateFrontier(leaf_unbuffered_frontier_entries, pattern_registry);
-      } else {
-        std::vector<SegmentChar> relaxed_entries;
-        for (const auto& [left_idx, right_idx] : best_splits) {
-          if (entry_sets_by_length.at(left_idx).all_raw_entries.empty()
-              || entry_sets_by_length.at(right_idx).leaf_unbuffered_entries.empty()) {
-            continue;
-          }
-          const auto left_candidates
-              = SelectSegmentCompositionCandidates(entry_sets_by_length.at(left_idx).all_raw_entries, pattern_registry);
-          const auto right_candidates
-              = SelectSegmentCompositionCandidates(entry_sets_by_length.at(right_idx).leaf_unbuffered_entries, pattern_registry);
-          auto [partial, updated_next_pattern_id]
-              = ComposeRelaxedSegmentEntries(left_candidates, right_candidates, pattern_registry, next_pattern_id);
-          next_pattern_id = updated_next_pattern_id;
-          relaxed_entries.insert(relaxed_entries.end(), partial.begin(), partial.end());
-        }
-
-        if (!relaxed_entries.empty()) {
-          entry_sets_by_length[length_idx].leaf_unbuffered_entries = BuildSegmentStateFrontier(relaxed_entries, pattern_registry);
-        }
-      }
-    }
-  }
-
-  return entry_sets_by_length;
-}
-
 auto MakeHTreeSeedEntries(const std::vector<SegmentChar>& segment_frontier, const BufferPatternRegistry& segment_pattern_registry,
                           TopologyPatternRegistry& topology_registry, unsigned& next_pattern_id) -> std::vector<HTreeTopologyChar>
 {
@@ -1906,51 +1825,22 @@ auto MakeHTreeSeedEntries(const std::vector<SegmentChar>& segment_frontier, cons
   return seed_entries;
 }
 
-auto ComposeRelaxedHTreeEntries(const std::vector<HTreeTopologyChar>& upstream, const std::vector<HTreeTopologyChar>& downstream,
-                                TopologyPatternRegistry& topology_registry, unsigned start_pattern_id)
+auto ComposeHTreeFrontierEntries(const std::vector<HTreeTopologyChar>& upstream, const std::vector<HTreeTopologyChar>& downstream,
+                                 TopologyPatternRegistry& topology_registry, unsigned start_pattern_id)
     -> std::pair<std::vector<HTreeTopologyChar>, unsigned>
 {
-  TopologyPatternRegistryCombiner combiner(topology_registry, start_pattern_id);
-  std::vector<HTreeTopologyChar> composed_entries;
-  composed_entries.reserve(upstream.size() * downstream.size());
-  for (const auto& upstream_entry : upstream) {
-    for (const auto& downstream_entry : downstream) {
-      if (downstream_entry.get_input_slew_idx() < upstream_entry.get_output_slew_idx()
-          || HTreeTraits::halfCapKey(upstream_entry.get_load_cap_idx()) < downstream_entry.get_driven_cap_idx()) {
-        continue;
-      }
-      if (!combiner.canCompose(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id())) {
-        continue;
-      }
-      const auto merged_pattern_id = combiner.combine(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
-      composed_entries.push_back(HTreeTopologyChar::compose(upstream_entry, downstream_entry, merged_pattern_id));
-    }
+  if (upstream.empty() || downstream.empty()) {
+    return {{}, start_pattern_id};
   }
 
-  return {std::move(composed_entries), combiner.get_next_id()};
-}
-
-struct ExactHTreeEntriesWithFrontier
-{
-  std::vector<HTreeTopologyChar> raw_entries;
-  std::vector<HTreeTopologyChar> frontier_entries;
-  unsigned next_pattern_id = 0U;
-};
-
-auto ComposeExactHTreeEntriesWithFrontier(const std::vector<HTreeTopologyChar>& upstream, const std::vector<HTreeTopologyChar>& downstream,
-                                          TopologyPatternRegistry& topology_registry, unsigned start_pattern_id)
-    -> ExactHTreeEntriesWithFrontier
-{
-  ExactHTreeEntriesWithFrontier result;
   TopologyPatternRegistryCombiner combiner(topology_registry, start_pattern_id);
   auto pruner = MakeHTreeStateFrontierPruner([&](const HTreeTopologyChar& entry) -> PatternCompositionState {
     return topology_registry.getCompositionState(entry.get_pattern_id());
   });
-  detail::HashJoinConcatRawAndFrontier<HTreeTopologyChar, HTreeTraits>(upstream, downstream, combiner, result.raw_entries,
-                                                                       result.frontier_entries, pruner);
-  SortHTreeFrontierEntries(result.frontier_entries);
-  result.next_pattern_id = combiner.get_next_id();
-  return result;
+  std::vector<HTreeTopologyChar> frontier_entries;
+  detail::HashJoinConcat<HTreeTopologyChar, HTreeTraits>(upstream, downstream, combiner, frontier_entries, &pruner);
+  SortHTreeFrontierEntries(frontier_entries);
+  return {std::move(frontier_entries), combiner.get_next_id()};
 }
 
 auto BuildHTreeComposition(const std::vector<HTreeBuilder::LevelPlan>& levels,
@@ -1960,7 +1850,6 @@ auto BuildHTreeComposition(const std::vector<HTreeBuilder::LevelPlan>& levels,
 {
   HTreeCompositionResult result;
   unsigned next_topology_pattern_id = 0U;
-  std::vector<HTreeTopologyChar> current_raw_entries;
   std::vector<HTreeTopologyChar> current_frontier_entries;
 
   for (std::size_t reverse_level = levels.size(); reverse_level > 0U; --reverse_level) {
@@ -1985,32 +1874,14 @@ auto BuildHTreeComposition(const std::vector<HTreeBuilder::LevelPlan>& levels,
     auto seed_entries
         = MakeHTreeSeedEntries(base_segment_frontier, segment_pattern_registry, result.topology_pattern_registry, next_topology_pattern_id);
     if (current_frontier_entries.empty()) {
-      current_raw_entries = std::move(seed_entries);
-      current_frontier_entries = BuildHTreeStateFrontier(current_raw_entries, result.topology_pattern_registry, segment_pattern_registry);
+      current_frontier_entries = std::move(seed_entries);
       continue;
     }
 
-    auto exact_entries = ComposeExactHTreeEntriesWithFrontier(seed_entries, current_raw_entries, result.topology_pattern_registry,
-                                                              next_topology_pattern_id);
-    next_topology_pattern_id = exact_entries.next_pattern_id;
-    if (exact_entries.raw_entries.empty()) {
-      const auto upstream_candidates
-          = SelectHTreeCompositionCandidates(seed_entries, result.topology_pattern_registry, segment_pattern_registry);
-      const auto downstream_candidates
-          = SelectHTreeCompositionCandidates(current_raw_entries, result.topology_pattern_registry, segment_pattern_registry);
-      auto [relaxed_entries, updated_next_pattern_id] = ComposeRelaxedHTreeEntries(
-          upstream_candidates, downstream_candidates, result.topology_pattern_registry, next_topology_pattern_id);
-      next_topology_pattern_id = updated_next_pattern_id;
-      if (relaxed_entries.empty()) {
-        result.failure_reason = "empty_frontier";
-        return result;
-      }
-      current_raw_entries = std::move(relaxed_entries);
-      current_frontier_entries = BuildHTreeStateFrontier(current_raw_entries, result.topology_pattern_registry, segment_pattern_registry);
-    } else {
-      current_raw_entries = std::move(exact_entries.raw_entries);
-      current_frontier_entries = std::move(exact_entries.frontier_entries);
-    }
+    auto [composed_frontier_entries, updated_next_pattern_id]
+        = ComposeHTreeFrontierEntries(seed_entries, current_frontier_entries, result.topology_pattern_registry, next_topology_pattern_id);
+    next_topology_pattern_id = updated_next_pattern_id;
+    current_frontier_entries = std::move(composed_frontier_entries);
     if (current_frontier_entries.empty()) {
       result.failure_reason = "empty_frontier";
       return result;
@@ -2032,11 +1903,12 @@ auto FilterBoundaryFeasibleHTreeChars(const std::vector<HTreeTopologyChar>& entr
   std::vector<HTreeTopologyChar> filtered_entries;
   filtered_entries.reserve(entries.size());
   for (const auto& entry : entries) {
-    if (resolved_options.top_input_slew_floor_idx.has_value() && entry.get_input_slew_idx() < *resolved_options.top_input_slew_floor_idx) {
+    if (resolved_options.top_input_slew_covering_idx.has_value()
+        && entry.get_input_slew_idx() < *resolved_options.top_input_slew_covering_idx) {
       continue;
     }
-    if (resolved_options.leaf_driven_cap_floor_idx.has_value()
-        && entry.get_leaf_driven_cap_idx() < *resolved_options.leaf_driven_cap_floor_idx) {
+    if (resolved_options.leaf_driven_cap_covering_idx.has_value()
+        && entry.get_leaf_driven_cap_idx() < *resolved_options.leaf_driven_cap_covering_idx) {
       continue;
     }
     filtered_entries.push_back(entry);
@@ -2047,73 +1919,14 @@ auto FilterBoundaryFeasibleHTreeChars(const std::vector<HTreeTopologyChar>& entr
 auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps,
                                unsigned cap_steps) -> double;
 
-auto PreferWorstCaseRepresentative(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool
-{
-  if (lhs.get_power() != rhs.get_power()) {
-    return lhs.get_power() > rhs.get_power();
-  }
-  if (lhs.get_delay() != rhs.get_delay()) {
-    return lhs.get_delay() > rhs.get_delay();
-  }
-  if (lhs.get_driven_cap_idx() != rhs.get_driven_cap_idx()) {
-    return lhs.get_driven_cap_idx() > rhs.get_driven_cap_idx();
-  }
-  if (lhs.get_output_slew_idx() != rhs.get_output_slew_idx()) {
-    return lhs.get_output_slew_idx() > rhs.get_output_slew_idx();
-  }
-  if (lhs.get_load_cap_idx() != rhs.get_load_cap_idx()) {
-    return lhs.get_load_cap_idx() > rhs.get_load_cap_idx();
-  }
-  if (lhs.get_input_slew_idx() != rhs.get_input_slew_idx()) {
-    return lhs.get_input_slew_idx() < rhs.get_input_slew_idx();
-  }
-  return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
-}
-
-auto PreferPatternRepresentative(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs, PatternRepresentativeMode mode) -> bool
-{
-  if (mode == PatternRepresentativeMode::kWorstCaseSelection) {
-    return PreferWorstCaseRepresentative(lhs, rhs);
-  }
-
-  return false;
-}
-
-auto BuildPatternRepresentativePool(const std::vector<HTreeTopologyChar>& entries, PatternRepresentativeMode mode,
-                                    const TopologyPatternRegistry& topology_registry,
-                                    TopologyPatternStructuralKeyCache& structural_key_cache) -> std::vector<HTreeTopologyChar>
-{
-  std::unordered_map<StructuralPatternKey, HTreeTopologyChar, StructuralPatternKeyHash> representative_by_pattern;
-  representative_by_pattern.reserve(entries.size());
-  for (const auto& entry : entries) {
-    const auto& structural_key = structural_key_cache.get(entry.get_pattern_id(), topology_registry);
-    auto [it, inserted] = representative_by_pattern.emplace(structural_key, entry);
-    if (!inserted && PreferPatternRepresentative(entry, it->second, mode)) {
-      it->second = entry;
-    }
-  }
-
-  std::vector<HTreeTopologyChar> representatives;
-  representatives.reserve(representative_by_pattern.size());
-  for (const auto& [structural_key, representative] : representative_by_pattern) {
-    (void) structural_key;
-    representatives.push_back(representative);
-  }
-
-  std::ranges::sort(representatives, [](const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool {
-    return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
-  });
-  return representatives;
-}
-
 auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps,
                                unsigned cap_steps) -> double
 {
   double score = 0.0;
-  if (resolved_options.top_input_slew_floor_idx.has_value() && slew_steps > 0U) {
+  if (resolved_options.top_input_slew_covering_idx.has_value() && slew_steps > 0U) {
     score += static_cast<double>(entry.get_input_slew_idx()) / static_cast<double>(slew_steps);
   }
-  if (resolved_options.leaf_driven_cap_floor_idx.has_value() && cap_steps > 0U) {
+  if (resolved_options.leaf_driven_cap_covering_idx.has_value() && cap_steps > 0U) {
     score += static_cast<double>(entry.get_leaf_driven_cap_idx()) / static_cast<double>(cap_steps);
   }
   return score;
@@ -2139,9 +1952,9 @@ auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::
   return *pareto_front.at(median_index);
 }
 
-auto BuildDelayPowerParetoFront(const std::vector<CandidateRepresentativeRef>& entries) -> std::vector<CandidateRepresentativeRef>
+auto BuildDelayPowerParetoFront(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>
 {
-  std::vector<CandidateRepresentativeRef> pareto_front;
+  std::vector<CandidateCharRef> pareto_front;
   pareto_front.reserve(entries.size());
 
   for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
@@ -2165,14 +1978,14 @@ auto BuildDelayPowerParetoFront(const std::vector<CandidateRepresentativeRef>& e
     }
   }
 
-  std::ranges::sort(pareto_front, [](const CandidateRepresentativeRef& lhs, const CandidateRepresentativeRef& rhs) -> bool {
-    LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTreeBuilder: null global candidate representative encountered.";
+  std::ranges::sort(pareto_front, [](const CandidateCharRef& lhs, const CandidateCharRef& rhs) -> bool {
+    LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTreeBuilder: null global candidate frontier entry encountered.";
     return PreferPowerMedianOrder(*lhs.entry, *rhs.entry);
   });
   return pareto_front;
 }
 
-auto SelectBestGlobalRepresentative(const std::vector<CandidateRepresentativeRef>& entries) -> std::optional<CandidateRepresentativeRef>
+auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>
 {
   if (entries.empty()) {
     return std::nullopt;
@@ -2210,46 +2023,36 @@ auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
   }
 
   result.topology_pattern_registry = composition.topology_pattern_registry;
-  TopologyPatternStructuralKeyCache structural_key_cache;
+  result.final_frontier_count = composition.frontier.size();
   if (has_boundary_constraints) {
     result.candidate_chars = composition.frontier;
-    result.candidate_pattern_representatives = BuildPatternRepresentativePool(
-        result.candidate_chars, PatternRepresentativeMode::kWorstCaseSelection, result.topology_pattern_registry, structural_key_cache);
-    auto candidate_actual_filter
-        = FilterActualLoadLegalRepresentatives(result.candidate_pattern_representatives, topology, result.topology_pattern_registry,
-                                               segment_pattern_registry, actual_load_legality_context);
-    result.candidate_pattern_representatives = std::move(candidate_actual_filter.entries);
+    auto candidate_actual_filter = FilterActualLoadLegalEntries(result.candidate_chars, topology, result.topology_pattern_registry,
+                                                                segment_pattern_registry, actual_load_legality_context);
+    result.candidate_frontier_entries = std::move(candidate_actual_filter.entries);
     result.feasible_chars = FilterBoundaryFeasibleHTreeChars(result.candidate_chars, resolved_options);
-    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
-        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, result.topology_pattern_registry, structural_key_cache);
-    auto feasible_actual_filter
-        = FilterActualLoadLegalRepresentatives(result.feasible_pattern_representatives, topology, result.topology_pattern_registry,
-                                               segment_pattern_registry, actual_load_legality_context);
-    result.feasible_pattern_representatives = std::move(feasible_actual_filter.entries);
-    if (result.candidate_pattern_representatives.empty() && !candidate_actual_filter.first_failure_reason.empty()) {
+    auto feasible_actual_filter = FilterActualLoadLegalEntries(result.feasible_chars, topology, result.topology_pattern_registry,
+                                                               segment_pattern_registry, actual_load_legality_context);
+    result.feasible_frontier_entries = std::move(feasible_actual_filter.entries);
+    if (result.candidate_frontier_entries.empty() && !candidate_actual_filter.first_failure_reason.empty()) {
       result.failure_reason = candidate_actual_filter.first_failure_reason;
     }
-    if (result.feasible_pattern_representatives.empty() && result.failure_reason.empty()
-        && !feasible_actual_filter.first_failure_reason.empty()) {
+    if (result.feasible_frontier_entries.empty() && result.failure_reason.empty() && !feasible_actual_filter.first_failure_reason.empty()) {
       result.failure_reason = feasible_actual_filter.first_failure_reason;
     }
   } else {
     result.feasible_chars = composition.frontier;
-    result.feasible_pattern_representatives = BuildPatternRepresentativePool(
-        result.feasible_chars, PatternRepresentativeMode::kWorstCaseSelection, result.topology_pattern_registry, structural_key_cache);
-    auto feasible_actual_filter
-        = FilterActualLoadLegalRepresentatives(result.feasible_pattern_representatives, topology, result.topology_pattern_registry,
-                                               segment_pattern_registry, actual_load_legality_context);
-    result.feasible_pattern_representatives = std::move(feasible_actual_filter.entries);
-    if (result.feasible_pattern_representatives.empty() && !feasible_actual_filter.first_failure_reason.empty()) {
+    auto feasible_actual_filter = FilterActualLoadLegalEntries(result.feasible_chars, topology, result.topology_pattern_registry,
+                                                               segment_pattern_registry, actual_load_legality_context);
+    result.feasible_frontier_entries = std::move(feasible_actual_filter.entries);
+    if (result.feasible_frontier_entries.empty() && !feasible_actual_filter.first_failure_reason.empty()) {
       result.failure_reason = feasible_actual_filter.first_failure_reason;
     }
   }
 
-  if (!result.feasible_pattern_representatives.empty()) {
-    result.best_char = SelectBestHTreeChar(result.feasible_pattern_representatives);
+  if (!result.feasible_frontier_entries.empty()) {
+    result.best_char = SelectBestHTreeChar(result.feasible_frontier_entries);
   } else if (has_boundary_constraints) {
-    result.best_char = SelectBestHTreeChar(result.candidate_pattern_representatives);
+    result.best_char = SelectBestHTreeChar(result.candidate_frontier_entries);
     if (result.best_char.has_value()) {
       result.used_boundary_fallback = true;
       result.boundary_fallback_reason = "no_strict_boundary_feasible_solution";
@@ -2259,7 +2062,7 @@ auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
 
   result.success = result.best_char.has_value();
   if (!result.success && result.failure_reason.empty()) {
-    result.failure_reason = "no_actual_load_legal_pattern_representatives";
+    result.failure_reason = "no_actual_load_legal_frontier_entries";
   }
   (void) char_max_cap_pf;
   return result;
@@ -2670,10 +2473,14 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
        char_grid_plan.configured_wire_length_unit_um > 0.0 ? logformat::FormatWithUnit(char_grid_plan.configured_wire_length_unit_um, "um")
                                                            : std::string{"auto"},
        char_grid_plan.configured_wire_length_missing ? "missing" : "present"},
+      {"configured_wire_length_iterations", std::to_string(char_grid_plan.configured_wire_length_iterations),
+       "hard cap for direct characterization length bins"},
       {"effective_wire_length_unit_um", grid_effective_unit,
        char_grid_plan.adapted ? "caller override for characterization" : "no override"},
+      {"required_covering_iterations", std::to_string(char_grid_plan.required_covering_iterations),
+       char_grid_plan.adapted ? "cover all topology level lengths under effective unit" : "0 (disabled)"},
       {"wire_length_iterations_override", std::to_string(char_grid_plan.wire_length_iterations),
-       char_grid_plan.adapted ? "caller override for characterization" : "0 (disabled)"},
+       char_grid_plan.adapted ? "effective direct-char upper bound after cap" : "0 (disabled)"},
       {"distinct_level_bins", std::to_string(char_grid_plan.unique_level_bins), "aligned-length bins under effective unit"},
       {"decision_flags", decision_flags, "fallback trigger diagnostics"},
   };
@@ -2685,6 +2492,10 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   if (char_grid_plan.adapted) {
     char_options.wire_length_unit_um = char_grid_plan.wire_length_unit_um;
     char_options.wire_length_iterations = char_grid_plan.wire_length_iterations;
+    auto direct_length_indices = ResolveDirectCharacterizationLengthIndices(result.topology, char_grid_plan, dbu_per_um);
+    if (!direct_length_indices.empty()) {
+      char_options.wire_length_indices = std::move(direct_length_indices);
+    }
   }
   char_builder.init(char_options);
   char_builder.build();
@@ -2750,18 +2561,20 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
     segment_pattern_registry.add(pattern);
   }
 
-  unsigned max_target_length_idx = 0U;
-  for (const auto& level : full_level_plans) {
-    max_target_length_idx = std::max(max_target_length_idx, level.aligned_length_idx);
+  const auto required_length_indices = CollectRequiredLengthIndices(full_level_plans);
+  auto entry_sets_by_length
+      = SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_registry, required_length_indices);
+  if (entry_sets_by_length.empty()) {
+    LOG_WARNING << "HTreeBuilder: segment frontier synthesis failed for the required aligned lengths.";
+    build_stage.skip({{"reason", "missing_required_segment_frontiers"}});
+    return result;
   }
-
-  auto entry_sets_by_length = SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_registry, max_target_length_idx);
 
   std::vector<CandidateBuildEvaluation> candidate_evaluations;
   candidate_evaluations.reserve(depth_candidates.size());
 
-  std::vector<CandidateRepresentativeRef> global_feasible_pool;
-  std::vector<CandidateRepresentativeRef> global_candidate_pool;
+  std::vector<CandidateCharRef> global_feasible_pool;
+  std::vector<CandidateCharRef> global_candidate_pool;
   ActualLoadLegalityContext actual_load_legality_context;
 
   for (const unsigned depth : depth_candidates) {
@@ -2801,9 +2614,10 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
         .leaf_cap_max_pf = cap_resolution.leaf_cap_max_pf,
         .leaf_cap_mean_pf = cap_resolution.leaf_cap_mean_pf,
         .leaf_cap_median_pf = cap_resolution.leaf_cap_median_pf,
+        .final_frontier_count = evaluation.final_frontier_count,
         .candidate_solution_count = evaluation.candidate_chars.size(),
         .feasible_solution_count = evaluation.feasible_chars.size(),
-        .feasible_pattern_count = evaluation.feasible_pattern_representatives.size(),
+        .feasible_frontier_entry_count = evaluation.feasible_frontier_entries.size(),
         .used_boundary_fallback = evaluation.used_boundary_fallback,
         .selected_power_w = evaluation.best_char.has_value() ? evaluation.best_char->get_power() : 0.0,
         .selected_delay_ns = evaluation.best_char.has_value() ? evaluation.best_char->get_delay() : 0.0,
@@ -2811,23 +2625,23 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
     candidate_evaluations.push_back(std::move(evaluation));
     const auto candidate_index = candidate_evaluations.size() - 1U;
     const auto& stored_evaluation = candidate_evaluations.back();
-    for (const auto& entry : stored_evaluation.feasible_pattern_representatives) {
-      global_feasible_pool.push_back(CandidateRepresentativeRef{
+    for (const auto& entry : stored_evaluation.feasible_frontier_entries) {
+      global_feasible_pool.push_back(CandidateCharRef{
           .candidate_index = candidate_index,
           .entry = &entry,
       });
     }
-    for (const auto& entry : stored_evaluation.candidate_pattern_representatives) {
-      global_candidate_pool.push_back(CandidateRepresentativeRef{
+    for (const auto& entry : stored_evaluation.candidate_frontier_entries) {
+      global_candidate_pool.push_back(CandidateCharRef{
           .candidate_index = candidate_index,
           .entry = &entry,
       });
     }
   }
 
-  const auto selected_feasible_ref = SelectBestGlobalRepresentative(global_feasible_pool);
-  const auto selected_fallback_ref = selected_feasible_ref.has_value() ? std::optional<CandidateRepresentativeRef>{}
-                                                                       : SelectBestGlobalRepresentative(global_candidate_pool);
+  const auto selected_feasible_ref = SelectBestGlobalEntry(global_feasible_pool);
+  const auto selected_fallback_ref
+      = selected_feasible_ref.has_value() ? std::optional<CandidateCharRef>{} : SelectBestGlobalEntry(global_candidate_pool);
   const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
     result.failure_reason = global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
@@ -2845,7 +2659,7 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   const auto selected_actual_legality
       = ResolveActualLoadLegality(result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_registry,
                                   segment_pattern_registry, actual_load_legality_context);
-  LOG_FATAL_IF(!selected_actual_legality.legal) << "HTreeBuilder: selected global representative is missing actual-load legality coverage.";
+  LOG_FATAL_IF(!selected_actual_legality.legal) << "HTreeBuilder: selected global frontier entry is missing actual-load legality coverage.";
   selected_summary.htree_load_group_count = selected_actual_legality.cap_distribution.group_count;
   selected_summary.htree_load_cap_min_pf = selected_actual_legality.cap_distribution.cap_min_pf;
   selected_summary.htree_load_cap_max_pf = selected_actual_legality.cap_distribution.cap_max_pf;
@@ -2856,13 +2670,13 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   result.best_char = *selected_ref->entry;
   result.levels = selected_evaluation.levels;
   result.candidate_chars = std::move(selected_evaluation.candidate_chars);
-  result.candidate_pattern_representatives = std::move(selected_evaluation.candidate_pattern_representatives);
+  result.candidate_frontier_entries = std::move(selected_evaluation.candidate_frontier_entries);
   result.feasible_chars = std::move(selected_evaluation.feasible_chars);
-  result.feasible_pattern_representatives = std::move(selected_evaluation.feasible_pattern_representatives);
+  result.feasible_frontier_entries = std::move(selected_evaluation.feasible_frontier_entries);
   result.min_top_input_slew_ns = selected_evaluation.resolved_options.min_top_input_slew_ns;
-  result.top_input_slew_floor_idx = selected_evaluation.resolved_options.top_input_slew_floor_idx;
+  result.top_input_slew_covering_idx = selected_evaluation.resolved_options.top_input_slew_covering_idx;
   result.min_leaf_driven_cap_pf = selected_evaluation.resolved_options.min_leaf_driven_cap_pf;
-  result.leaf_driven_cap_floor_idx = selected_evaluation.resolved_options.leaf_driven_cap_floor_idx;
+  result.leaf_driven_cap_covering_idx = selected_evaluation.resolved_options.leaf_driven_cap_covering_idx;
 
   if (!selected_feasible_ref.has_value()) {
     result.used_boundary_fallback = true;
@@ -2917,24 +2731,25 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
       {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
        "global winner across all evaluated depth candidates"},
       {"selected_topology_pattern_id", std::to_string(result.best_char->get_pattern_id().local_id),
-       result.used_boundary_fallback ? "selected fallback topology pattern from candidate pattern representatives"
-                                     : "selected strict-feasible topology pattern from the global feasible pool"},
-      {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_pattern_worst_case_pareto_power_median",
+       result.used_boundary_fallback ? "selected fallback topology pattern from candidate frontier selection entries"
+                                     : "selected strict-feasible topology pattern from the global feasible frontier pool"},
+      {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_frontier_pareto_power_median",
        result.used_boundary_fallback
            ? "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global candidate "
-             "representative pool with delay-power Pareto power-median ordering"
-           : "each structural pattern contributes its worst feasible delay/power scenario per candidate depth; the global feasible "
-             "representative pool is Pareto filtered and the lower power-ordered median entry is selected"},
+             "frontier pool with delay-power Pareto power-median ordering"
+           : "the global feasible frontier pool is Pareto filtered and the lower power-ordered median entry is selected"},
+      {"final_frontier_count", std::to_string(selected_summary.final_frontier_count),
+       "selected-depth root frontier size before boundary filtering and actual-load legality filtering"},
       {"candidate_solutions", std::to_string(result.candidate_chars.size()),
        selected_has_boundary_constraints ? "selected-depth frontier entries after full composition"
                                          : "not materialized on unrestricted builds"},
-      {"candidate_unique_patterns", std::to_string(result.candidate_pattern_representatives.size()),
-       selected_has_boundary_constraints ? "selected-depth worst-case representatives before feasible filtering"
+      {"candidate_frontier_entry_count", std::to_string(result.candidate_frontier_entries.size()),
+       selected_has_boundary_constraints ? "selected-depth actual-load-legal candidate frontier entries before feasible filtering"
                                          : "not materialized on unrestricted builds"},
       {"feasible_solutions", std::to_string(result.feasible_chars.size()),
        selected_has_boundary_constraints ? "selected-depth strict-feasible entries after boundary filtering" : "same as composed frontier"},
-      {"feasible_unique_patterns", std::to_string(result.feasible_pattern_representatives.size()),
-       "selected-depth one representative entry per structural buffering pattern after feasible filtering"},
+      {"feasible_frontier_entry_count", std::to_string(result.feasible_frontier_entries.size()),
+       "selected-depth actual-load-legal frontier entries after feasible filtering"},
       {"inserted_insts", std::to_string(result.inserted_insts.size()), "materialized CTS buffer instances"},
       {"inserted_nets", std::to_string(result.inserted_nets.size()), "materialized CTS nets"},
       {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers),
@@ -2951,16 +2766,16 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
       {"force_leaf_unbuffered", logformat::FormatBool(selected_evaluation.resolved_options.force_leaf_unbuffered),
        selected_evaluation.resolved_options.force_leaf_unbuffered ? "leaf H-tree level requires terminal-unbuffered segment frontier"
                                                                   : "disabled"},
-      {"top_input_slew_floor_idx",
-       selected_evaluation.resolved_options.top_input_slew_floor_idx.has_value()
-           ? std::to_string(*selected_evaluation.resolved_options.top_input_slew_floor_idx)
+      {"top_input_slew_covering_idx",
+       selected_evaluation.resolved_options.top_input_slew_covering_idx.has_value()
+           ? std::to_string(*selected_evaluation.resolved_options.top_input_slew_covering_idx)
            : "none",
        selected_evaluation.resolved_options.min_top_input_slew_ns.has_value()
            ? logformat::FormatWithUnit(*selected_evaluation.resolved_options.min_top_input_slew_ns, "ns")
            : "unconstrained"},
-      {"leaf_driven_cap_floor_idx",
-       selected_evaluation.resolved_options.leaf_driven_cap_floor_idx.has_value()
-           ? std::to_string(*selected_evaluation.resolved_options.leaf_driven_cap_floor_idx)
+      {"leaf_driven_cap_covering_idx",
+       selected_evaluation.resolved_options.leaf_driven_cap_covering_idx.has_value()
+           ? std::to_string(*selected_evaluation.resolved_options.leaf_driven_cap_covering_idx)
            : "none",
        selected_evaluation.resolved_options.min_leaf_driven_cap_pf.has_value()
            ? logformat::FormatWithUnit(*selected_evaluation.resolved_options.min_leaf_driven_cap_pf, "pF")

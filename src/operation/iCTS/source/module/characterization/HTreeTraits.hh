@@ -25,6 +25,7 @@
 
 #include "HTreeTopologyChar.hh"
 #include "HashJoinEngine.hh"
+#include "ValueLattice.hh"
 
 namespace icts {
 
@@ -39,12 +40,7 @@ namespace icts {
  */
 struct HTreeTraits
 {
-  static auto halfCapKey(unsigned load_cap_idx) -> unsigned
-  {
-    // CharBuilder uses a uniform cap lattice, so remapping physical load/2
-    // onto the same lattice reduces to ceil(idx / 2).
-    return (load_cap_idx + 1U) / 2U;
-  }
+  static auto halfCapKey(unsigned load_cap_idx) -> unsigned { return CeilDivUnsigned(load_cap_idx, 2U); }
 
   /**
    * @brief Build key from downstream entry.

@@ -24,23 +24,30 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <compare>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <regex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "HTreeTopologyChar.hh"
+#include "PatternId.hh"
 #include "Point.hh"
 #include "Tree.hh"
 #include "clustering/Clustering.hh"
+#include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
@@ -63,11 +70,14 @@ namespace {
 namespace common_realtech = common::realtech;
 namespace realtech_support = characterization::realtech;
 
-constexpr std::size_t kMaxRealClockLoadCount = 64U;
 constexpr std::size_t kClusteredMinLoadCount = 5U;
 constexpr double kSynthesisSmokeMaxSlewNs = 0.05;
 constexpr double kSynthesisSmokeMaxCapPf = 0.15;
-constexpr unsigned kClusteredMaxFanout = 4U;
+constexpr unsigned kSynthesisTestDefaultMaxFanout = 32U;
+constexpr double kArm9SynthesisRuntimeBudgetS = 600.0;
+constexpr std::string_view kArm9ClockSynthesisScenario = "clock_synthesis_arm9_full_sink_matrix";
+constexpr std::array<unsigned, 4> kArm9ExperimentIterations = {2U, 3U, 4U, 5U};
+constexpr std::array<unsigned, 2> kArm9ExperimentSteps = {10U, 15U};
 
 struct RealClockSelection
 {
@@ -77,12 +87,67 @@ struct RealClockSelection
   std::vector<icts::Pin*> sinks;
 };
 
+struct ClockSynthesisExperimentRecord
+{
+  unsigned wire_length_iterations = 0U;
+  unsigned slew_cap_steps = 0U;
+  double runtime_s = 0.0;
+  bool success = false;
+  std::size_t sink_count = 0U;
+  std::size_t final_frontier_count = 0U;
+  unsigned selected_depth = 0U;
+  unsigned best_pattern_id = 0U;
+  double best_delay_ns = 0.0;
+  double best_power_w = 0.0;
+  double char_wire_length_unit_um = 0.0;
+  unsigned char_wire_length_iterations = 0U;
+  bool char_grid_adapted = false;
+  bool used_boundary_fallback = false;
+  std::string failure_reason;
+};
+
 auto ReadTextFile(const std::filesystem::path& path) -> std::string
 {
   std::ifstream input_stream(path);
   std::ostringstream buffer;
   buffer << input_stream.rdbuf();
   return buffer.str();
+}
+
+auto FormatClockSynthesisExperimentReport(std::string_view scenario_name, const RealClockSelection& selection, bool omit_wire_length_unit,
+                                          const std::vector<ClockSynthesisExperimentRecord>& records) -> std::string
+{
+  std::ostringstream report_stream;
+  report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
+  report_stream << std::setprecision(6);
+  report_stream << "scenario=" << scenario_name << "\n";
+  report_stream << "clock_name=" << selection.clock_name << "\n";
+  report_stream << "clock_net=" << selection.net_name << "\n";
+  report_stream << "sink_count=" << selection.sinks.size() << "\n";
+  report_stream << "sink_clustering_enabled=false\n";
+  report_stream << "omit_wire_length_unit=" << (omit_wire_length_unit ? "true" : "false") << "\n";
+  report_stream << "runtime_budget_s=" << kArm9SynthesisRuntimeBudgetS << "\n";
+  report_stream << "columns=iter,step,runtime_s,success,frontier_count,selected_depth,best_pattern_id,best_delay_ns,best_power_w,"
+                   "char_wire_length_unit_um,char_wire_length_iterations,char_grid_adapted,used_boundary_fallback,failure_reason\n";
+  for (const auto& record : records) {
+    report_stream << record.wire_length_iterations << "," << record.slew_cap_steps << "," << record.runtime_s << ","
+                  << (record.success ? "true" : "false") << "," << record.final_frontier_count << "," << record.selected_depth << ","
+                  << record.best_pattern_id << "," << record.best_delay_ns << "," << record.best_power_w << ","
+                  << record.char_wire_length_unit_um << "," << record.char_wire_length_iterations << ","
+                  << (record.char_grid_adapted ? "true" : "false") << "," << (record.used_boundary_fallback ? "true" : "false") << ","
+                  << record.failure_reason << "\n";
+  }
+  return report_stream.str();
+}
+
+auto WriteClockSynthesisMatrixReport(std::string_view scenario_name, const std::string& file_name, const std::string& content) -> bool
+{
+  const auto output_dir = common::io::PrepareCleanOutputDir(common::io::ResolveOutputDir() / "flow" / "synthesis"
+                                                            / common::io::SanitizeOutputName(std::string(scenario_name)));
+  if (output_dir.empty()) {
+    return false;
+  }
+  return common::io::WriteTextLog(output_dir / file_name, content);
 }
 
 auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_count) -> std::vector<icts::Pin*>
@@ -465,7 +530,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
     return;
   }
 
-  const auto selected_clock = SelectLargestRealClock(kMaxRealClockLoadCount, kClusteredMinLoadCount);
+  const auto selected_clock = SelectLargestRealClock(std::numeric_limits<std::size_t>::max(), kClusteredMinLoadCount);
   if (!selected_clock.has_value()) {
     GTEST_SKIP() << "No DEF-derived clock net exposes source plus at least five sinks.";
     return;
@@ -474,14 +539,14 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
 
   realtech_support::RealTechCharSession char_session;
   if (const auto prepare_error
-      = char_session.prepare("clock_synthesis_clustered_smoke", std::nullopt, kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf);
+      = char_session.prepare("clock_synthesis_clustered_smoke", std::nullopt, kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
 
-  CONFIG_INST.set_max_fanout(kClusteredMaxFanout);
-  ASSERT_EQ(CONFIG_INST.get_max_fanout(), kClusteredMaxFanout);
+  CONFIG_INST.set_max_fanout(kSynthesisTestDefaultMaxFanout);
+  ASSERT_EQ(CONFIG_INST.get_max_fanout(), kSynthesisTestDefaultMaxFanout);
 
   const auto artifact_paths = synthesis::PrepareClockSynthesisArtifactPaths("clustered_mode_realtech_smoke");
   ASSERT_FALSE(artifact_paths.output_dir.empty());
@@ -493,6 +558,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
                                            {"clock_net", selected_clock_data.net_name},
                                            {"load_count", std::to_string(selected_clock_data.sinks.size())},
                                            {"enable_sink_clustering", "true"},
+                                           {"omit_wire_length_unit", "true"},
                                        });
 
   const auto expected_cluster_master = ResolveExpectedMinClusterBufferMaster();
@@ -510,6 +576,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.sink_clustering_enabled);
+  EXPECT_GT(result.htree_result.char_wire_length_unit_um, 0.0);
+  EXPECT_TRUE(result.htree_result.char_grid_adapted
+              || result.htree_result.char_wire_length_iterations == result.htree_result.char_unique_level_bins);
   if (!result.cluster_result.has_value()) {
     FAIL() << "Expected clustered synthesis result to include cluster metadata.";
     return;
@@ -544,7 +613,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
   AssertClusteredSinkConnectivity(selected_clock_data.sinks, cluster_buffer_insts);
   for (const auto& cluster_buffer : result.cluster_buffers) {
     ASSERT_NE(cluster_buffer.sink_net, nullptr);
-    EXPECT_LE(cluster_buffer.sink_net->get_loads().size(), kClusteredMaxFanout);
+    EXPECT_LE(cluster_buffer.sink_net->get_loads().size(), kSynthesisTestDefaultMaxFanout);
   }
 
   WriteAndAssertSynthesisArtifacts("clustered_mode_realtech_smoke", "clustered_mode", selected_clock_data.clock_name, artifact_paths,
@@ -560,7 +629,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
     return;
   }
 
-  const auto selected_clock = SelectLargestRealClock(kMaxRealClockLoadCount, kClusteredMinLoadCount);
+  const auto selected_clock = SelectLargestRealClock(std::numeric_limits<std::size_t>::max(), kClusteredMinLoadCount);
   if (!selected_clock.has_value()) {
     GTEST_SKIP() << "No DEF-derived clock net exposes source plus at least five sinks.";
     return;
@@ -569,14 +638,14 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
 
   realtech_support::RealTechCharSession char_session;
   if (const auto prepare_error = char_session.prepare("clock_synthesis_clustered_force_branch_buffer", std::nullopt,
-                                                      kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf, false, true);
+                                                      kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf, true, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
 
-  CONFIG_INST.set_max_fanout(kClusteredMaxFanout);
-  ASSERT_EQ(CONFIG_INST.get_max_fanout(), kClusteredMaxFanout);
+  CONFIG_INST.set_max_fanout(kSynthesisTestDefaultMaxFanout);
+  ASSERT_EQ(CONFIG_INST.get_max_fanout(), kSynthesisTestDefaultMaxFanout);
   ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
 
   const auto artifact_paths = synthesis::PrepareClockSynthesisArtifactPaths("clustered_mode_force_branch_buffered_realtech_smoke");
@@ -589,6 +658,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
                                            {"clock_net", selected_clock_data.net_name},
                                            {"load_count", std::to_string(selected_clock_data.sinks.size())},
                                            {"enable_sink_clustering", "true"},
+                                           {"omit_wire_length_unit", "true"},
                                            {"force_branch_buffer", "true"},
                                        });
 
@@ -606,6 +676,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.sink_clustering_enabled);
+  EXPECT_GT(result.htree_result.char_wire_length_unit_um, 0.0);
+  EXPECT_TRUE(result.htree_result.char_grid_adapted
+              || result.htree_result.char_wire_length_iterations == result.htree_result.char_unique_level_bins);
   AssertBranchBufferedHTree(result.htree_result);
   AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
   AssertClusterBufferMastersFollowLeafSemantics(result, *expected_cluster_master);
@@ -627,7 +700,7 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
     return;
   }
 
-  const auto selected_clock = SelectLargestRealClock(kMaxRealClockLoadCount, 2U);
+  const auto selected_clock = SelectLargestRealClock(std::numeric_limits<std::size_t>::max(), 2U);
   if (!selected_clock.has_value()) {
     GTEST_SKIP() << "No DEF-derived clock net exposes source plus at least two sinks.";
     return;
@@ -636,7 +709,7 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
 
   realtech_support::RealTechCharSession char_session;
   if (const auto prepare_error
-      = char_session.prepare("clock_synthesis_non_clustered_smoke", std::nullopt, kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf);
+      = char_session.prepare("clock_synthesis_non_clustered_smoke", std::nullopt, kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -652,6 +725,7 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
                                            {"clock_net", selected_clock_data.net_name},
                                            {"load_count", std::to_string(selected_clock_data.sinks.size())},
                                            {"enable_sink_clustering", "false"},
+                                           {"omit_wire_length_unit", "true"},
                                        });
 
   icts::ClockSynthesis::BuildOptions options;
@@ -661,6 +735,9 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
   ASSERT_TRUE(result.success);
   EXPECT_FALSE(result.sink_clustering_enabled);
   EXPECT_FALSE(result.cluster_result.has_value());
+  EXPECT_GT(result.htree_result.char_wire_length_unit_um, 0.0);
+  EXPECT_TRUE(result.htree_result.char_grid_adapted
+              || result.htree_result.char_wire_length_iterations == result.htree_result.char_unique_level_bins);
 
   auto* source_to_root_net = result.source_to_root_net;
   ASSERT_NE(source_to_root_net, nullptr);
@@ -686,6 +763,94 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
   WriteAndAssertSynthesisArtifacts("non_clustered_mode_realtech_smoke", "non_clustered_mode", selected_clock_data.clock_name,
                                    artifact_paths, selected_clock_data.source, selected_clock_data.sinks, result);
   AssertNonClusteredArtifacts(artifact_paths);
+}
+
+TEST(ClockSynthesisRealTechSmokeTest, Arm9FullSinkNonClusteredExperimentMatrix)
+{
+  const auto& setup_state = common_realtech::EnsureRealTechSetup();
+  if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
+    GTEST_SKIP() << setup_state.summary;
+    return;
+  }
+
+  const auto selected_clock = SelectLargestRealClock(std::numeric_limits<std::size_t>::max(), 2U);
+  if (!selected_clock.has_value()) {
+    GTEST_SKIP() << "No DEF-derived clock net exposes source plus at least two sinks.";
+    return;
+  }
+  const auto& selected_clock_data = selected_clock.value();
+
+  std::vector<ClockSynthesisExperimentRecord> records;
+  records.reserve(kArm9ExperimentIterations.size() * kArm9ExperimentSteps.size());
+
+  for (const unsigned wire_length_iterations : kArm9ExperimentIterations) {
+    for (const unsigned slew_cap_steps : kArm9ExperimentSteps) {
+      std::ostringstream scenario_name_stream;
+      scenario_name_stream << "clock_synthesis_arm9_full_sink_iter" << wire_length_iterations << "_step" << slew_cap_steps;
+      const std::string scenario_name = scenario_name_stream.str();
+
+      realtech_support::RealTechCharSession char_session;
+      if (const auto prepare_error
+          = char_session.prepare(scenario_name, std::nullopt, kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf, true);
+          prepare_error.has_value()) {
+        GTEST_SKIP() << *prepare_error;
+        return;
+      }
+
+      CONFIG_INST.set_wire_length_iterations(wire_length_iterations);
+      CONFIG_INST.set_slew_steps(slew_cap_steps);
+      CONFIG_INST.set_cap_steps(slew_cap_steps);
+
+      icts::ClockSynthesis::BuildOptions options;
+      SetEnableSinkClustering(options, false);
+
+      const auto runtime_start = std::chrono::steady_clock::now();
+      const auto result = icts::ClockSynthesis::build(selected_clock_data.source, selected_clock_data.sinks, options);
+      const auto runtime_end = std::chrono::steady_clock::now();
+      const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
+
+      ClockSynthesisExperimentRecord record{
+          .wire_length_iterations = wire_length_iterations,
+          .slew_cap_steps = slew_cap_steps,
+          .runtime_s = runtime_s,
+          .success = result.success,
+          .sink_count = selected_clock_data.sinks.size(),
+          .char_wire_length_unit_um = result.htree_result.char_wire_length_unit_um,
+          .char_wire_length_iterations = result.htree_result.char_wire_length_iterations,
+          .char_grid_adapted = result.htree_result.char_grid_adapted,
+          .used_boundary_fallback = result.htree_result.used_boundary_fallback,
+          .failure_reason = result.htree_result.failure_reason,
+      };
+
+      const auto* selected_summary = FindSelectedDepthSummary(result.htree_result);
+      if (selected_summary != nullptr) {
+        record.final_frontier_count = selected_summary->final_frontier_count;
+      }
+      if (result.htree_result.selected_depth.has_value()) {
+        record.selected_depth = *result.htree_result.selected_depth;
+      }
+      if (result.htree_result.best_char.has_value()) {
+        record.best_pattern_id = result.htree_result.best_char->get_pattern_id().local_id;
+        record.best_delay_ns = result.htree_result.best_char->get_delay();
+        record.best_power_w = result.htree_result.best_char->get_power();
+      }
+      records.push_back(record);
+
+      SCOPED_TRACE("iter=" + std::to_string(wire_length_iterations) + ", step=" + std::to_string(slew_cap_steps));
+      EXPECT_TRUE(result.success) << "failure_reason=" << result.htree_result.failure_reason;
+      EXPECT_FALSE(result.sink_clustering_enabled);
+      EXPECT_TRUE(result.cluster_buffers.empty());
+      EXPECT_LE(runtime_s, kArm9SynthesisRuntimeBudgetS);
+      EXPECT_GT(record.final_frontier_count, 0U);
+      EXPECT_TRUE(result.htree_result.best_char.has_value());
+      EXPECT_GT(record.char_wire_length_unit_um, 0.0);
+      EXPECT_LE(record.char_wire_length_iterations, wire_length_iterations);
+    }
+  }
+
+  EXPECT_TRUE(WriteClockSynthesisMatrixReport(
+      kArm9ClockSynthesisScenario, "matrix_report.txt",
+      FormatClockSynthesisExperimentReport(kArm9ClockSynthesisScenario, selected_clock_data, true, records)));
 }
 
 }  // namespace

@@ -71,7 +71,6 @@ class Config
     _buffer_types.clear();
     _slew_steps = 10;
     _cap_steps = 10;
-    _relaxed_candidates_per_boundary_group = 0;
     _wire_width = 0.0;
     _char_buf_redundancy_pct = 0.0;
     _force_branch_buffer = false;
@@ -97,7 +96,6 @@ class Config
   auto get_wire_length_iterations() const -> unsigned { return _wire_length_iterations; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
-  auto get_relaxed_candidates_per_boundary_group() const -> unsigned { return _relaxed_candidates_per_boundary_group; }
   auto get_wire_width() const -> double { return _wire_width; }
   auto get_max_fanout() const -> unsigned { return _max_fanout; }
   auto get_routing_layers() const -> const std::vector<unsigned>& { return _routing_layers; }
@@ -133,7 +131,6 @@ class Config
   auto set_wire_length_iterations(unsigned wire_length_iterations) -> void { _wire_length_iterations = wire_length_iterations; }
   auto set_slew_steps(unsigned steps) -> void { _slew_steps = steps; }
   auto set_cap_steps(unsigned steps) -> void { _cap_steps = steps; }
-  auto set_relaxed_candidates_per_boundary_group(unsigned count) -> void { _relaxed_candidates_per_boundary_group = count; }
   auto set_wire_width(double wire_width) -> void { _wire_width = wire_width; }
   auto set_max_fanout(unsigned max_fanout) -> void { _max_fanout = max_fanout; }
   auto set_routing_layers(const std::vector<unsigned>& routing_layers) -> void { _routing_layers = routing_layers; }
@@ -172,7 +169,6 @@ class Config
   unsigned _wire_length_iterations = 5;  // Active iteration count for wire-length lattice.
   unsigned _slew_steps = 10;
   unsigned _cap_steps = 10;
-  unsigned _relaxed_candidates_per_boundary_group = 0;  // 0 means unlimited.
   double _wire_width = 0.0;
   unsigned _max_fanout = 32;
   std::vector<unsigned> _routing_layers;

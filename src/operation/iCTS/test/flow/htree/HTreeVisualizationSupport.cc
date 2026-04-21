@@ -320,11 +320,11 @@ auto DelayPowerDominates(const icts::HTreeTopologyChar& lhs, const icts::HTreeTo
 
 auto GetDisplayChars(const icts::HTreeBuilder::BuildResult& result) -> const std::vector<icts::HTreeTopologyChar>&
 {
-  if (!result.feasible_pattern_representatives.empty()) {
-    return result.feasible_pattern_representatives;
+  if (!result.feasible_frontier_entries.empty()) {
+    return result.feasible_frontier_entries;
   }
-  if (!result.candidate_pattern_representatives.empty()) {
-    return result.candidate_pattern_representatives;
+  if (!result.candidate_frontier_entries.empty()) {
+    return result.candidate_frontier_entries;
   }
   if (!result.feasible_chars.empty()) {
     return result.feasible_chars;
@@ -777,8 +777,8 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
   output_stream << common::visualization::detail::kSvgBackgroundRect;
 
   output_stream << R"(<g font-family="monospace" fill="#1f2933">)";
-  output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Pattern-Representative Delay-Power Frontier</text>)";
-  output_stream << R"(<text x="36" y="46" font-size="12">Each point is one topology pattern representative. Lower-left is better.</text>)";
+  output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Actual-Load-Legal Delay-Power Frontier</text>)";
+  output_stream << R"(<text x="36" y="46" font-size="12">Each point is one actual-load-legal frontier entry. Lower-left is better.</text>)";
   output_stream << R"(<rect x=")" << FormatSvgNumber(plot_left) << R"(" y=")" << FormatSvgNumber(plot_top) << R"(" width=")"
                 << FormatSvgNumber(plot_width) << R"(" height=")" << FormatSvgNumber(plot_height)
                 << R"(" fill="#ffffff" fill-opacity="0.85" stroke="#d0d7de" />)";
@@ -859,7 +859,7 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
   output_stream << R"(<g font-size="12">)";
   output_stream << R"(<rect x="478" y="60" width="200" height="92" rx="6" fill="#ffffff" fill-opacity="0.9" stroke="#d0d7de" />)";
   output_stream << R"(<circle cx="494" cy="84" r="4.5" fill="#94a3b8" stroke="#64748b" stroke-width="1.2" />)";
-  output_stream << R"(<text x="508" y="88">pattern representative</text>)";
+  output_stream << R"(<text x="508" y="88">frontier entry</text>)";
   output_stream << R"(<circle cx="494" cy="108" r="5.0" fill="#e76f51" stroke="#91361f" stroke-width="1.2" />)";
   output_stream << R"(<text x="508" y="112">Pareto front</text>)";
   output_stream << R"(<circle cx="494" cy="132" r="6.5" fill="#6a3d9a" stroke="#2d1b69" stroke-width="1.2" />)";
@@ -891,16 +891,16 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
          << "\n";
   report << "char_limits max_slew_ns=" << result.char_max_slew_ns << ", max_cap_pf=" << result.char_max_cap_pf << "\n";
   report << "frontier_candidate_solution_count=" << result.candidate_chars.size()
-         << ", candidate_pattern_representative_count=" << result.candidate_pattern_representatives.size() << "\n";
+         << ", candidate_frontier_entry_count=" << result.candidate_frontier_entries.size() << "\n";
   report << "frontier_feasible_solution_count=" << result.feasible_chars.size()
-         << ", feasible_pattern_representative_count=" << result.feasible_pattern_representatives.size() << "\n";
+         << ", feasible_frontier_entry_count=" << result.feasible_frontier_entries.size() << "\n";
   report << "frontier_solution_count=" << delay_power_points.size() << ", pareto_solution_count="
          << std::ranges::count_if(delay_power_points, [](const DelayPowerPoint& point) -> bool { return point.is_pareto; }) << "\n";
   const auto selection_summary = BuildDelayPowerSelectionSummary(result);
   if (selection_summary.has_value()) {
     report << std::setprecision(9);
     report << "delay_power_selection_summary selection_policy="
-           << (result.used_boundary_fallback ? "boundary_fallback" : "pattern_worst_case_pareto_power_median")
+           << (result.used_boundary_fallback ? "boundary_fallback" : "global_frontier_pareto_power_median")
            << ", frontier_selection_pool_size=" << selection_summary->frontier_selection_pool_size
            << ", selection_pool_size=" << selection_summary->selection_pool_size
            << ", pareto_solution_count=" << selection_summary->pareto_solution_count << ", pareto_power_median_index=";

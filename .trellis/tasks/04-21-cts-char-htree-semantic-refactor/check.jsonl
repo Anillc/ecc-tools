@@ -1,0 +1,16 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repo-wide hard constraints for iCTS refactor work"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Placement and layering rules for characterization/database/flow changes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming/includes/validation rules for touched iCTS code"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Cross-layer ownership and STAAdapter boundary rules"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Logging and fallback diagnostics for new semantic contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "No-exception and fallback rules during semantic refactor"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Need reusable lattice/group/frontier helpers instead of ad hoc logic"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Refactor spans characterization, database adapters, and flow"}
+{"file": "src/operation/iCTS/source/module/characterization/Frontier.hh", "reason": "Review unified frontier/group contract against existing implementation"}
+{"file": ".trellis/tasks/04-21-cts-char-htree-semantic-refactor/prd.md", "reason": "Agreed semantic contract and scoped validated problems"}
+{"file": "src/operation/iCTS/source/database/characterization/BufferingPattern.hh", "reason": "Review explicit boundary buffer presence and monotonic rank semantics"}
+{"file": "src/operation/iCTS/source/module/characterization/CharBuilder.cc", "reason": "Review lattice semantics and characterization power accounting"}
+{"file": "src/operation/iCTS/source/flow/htree/HTreeBuilder.cc", "reason": "Review segment synthesis and frontier-only H-tree composition"}
+{"file": "src/operation/iCTS/source/module/characterization/HTreeTraits.hh", "reason": "Review binary fanout cap transform against new lattice contract"}

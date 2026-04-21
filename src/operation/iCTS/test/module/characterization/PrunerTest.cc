@@ -18,7 +18,7 @@
  * @file PrunerTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Pareto pruner tests for characterization.
+ * @brief Frontier helper tests for characterization composition states.
  */
 
 #include <gtest/gtest.h>
@@ -31,7 +31,6 @@
 #include "database/characterization/SegmentChar.hh"
 #include "module/characterization/Frontier.hh"
 #include "module/characterization/PatternCombiner.hh"
-#include "module/characterization/Pruner.hh"
 #include "module/characterization/SegmentCharTable.hh"
 #include "module/characterization/support/CharacterizationTestSupport.hh"
 
@@ -40,10 +39,8 @@ namespace {
 
 namespace support = characterization;
 
-TEST(PrunerTest, DominationCheck)
+TEST(PrunerTest, CostDominatesUsesDelayPowerOrdering)
 {
-  const icts::ParetoPruner<icts::SegmentChar> pruner;
-
   auto better_entry = support::MakeSegmentChar(support::kSlew80, support::kSlew90, support::kCap40, support::kCap60, support::kDelay1p0,
                                                support::kPower0p5,
                                                support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000});
@@ -51,14 +48,12 @@ TEST(PrunerTest, DominationCheck)
                                               support::kPower0p6,
                                               support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000});
 
-  EXPECT_TRUE(pruner.dominates(better_entry, worse_entry));
-  EXPECT_FALSE(pruner.dominates(worse_entry, better_entry));
+  EXPECT_TRUE(icts::CostDominates(better_entry, worse_entry));
+  EXPECT_FALSE(icts::CostDominates(worse_entry, better_entry));
 }
 
-TEST(PrunerTest, NonDomination)
+TEST(PrunerTest, CostDominatesRejectsTradeoffs)
 {
-  const icts::ParetoPruner<icts::SegmentChar> pruner;
-
   auto lower_slew_entry = support::MakeSegmentChar(
       support::kSlew80, support::kSlew90, support::kCap40, support::kCap50, support::kDelay1p0, support::kPower0p5,
       support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000});
@@ -66,32 +61,25 @@ TEST(PrunerTest, NonDomination)
       support::kSlew80, support::kSlew100, support::kCap40, support::kCap60, support::kDelay1p0, support::kPower0p5,
       support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000});
 
-  EXPECT_FALSE(pruner.dominates(lower_slew_entry, higher_cap_entry));
-  EXPECT_FALSE(pruner.dominates(higher_cap_entry, lower_slew_entry));
+  EXPECT_FALSE(icts::CostDominates(lower_slew_entry, higher_cap_entry));
+  EXPECT_FALSE(icts::CostDominates(higher_cap_entry, lower_slew_entry));
 }
 
-TEST(PrunerTest, WithPruning)
+TEST(PrunerTest, SegmentStateFrontierPrunesDominatedSameGroupEntries)
 {
-  icts::SegmentCharTable upstream;
-  icts::SegmentCharTable downstream;
+  const auto cheaper_entry = support::MakeSegmentChar(
+      support::kSlew80, support::kSlew100, support::kCap40, support::kCap60, support::kDelay1p0, support::kPower0p5,
+      support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000});
+  const auto dominated_entry = support::MakeSegmentChar(
+      support::kSlew80, support::kSlew100, support::kCap40, support::kCap60, support::kDelay2p0, support::kPower0p6,
+      support::SegmentShape{.pattern_id = support::kPattern2, .length_idx = support::kLength1000});
 
-  upstream.addChar(support::MakeSegmentChar(support::kSlew80, support::kSlew100, support::kCap40, support::kCap50, support::kDelay1p0,
-                                            support::kPower0p5,
-                                            support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000}));
+  const auto frontier = icts::BuildSegmentStateFrontier(
+      std::vector<icts::SegmentChar>{dominated_entry, cheaper_entry},
+      [](const icts::SegmentChar&) -> icts::TerminalSemantic { return icts::TerminalSemantic::kLeafUnbuffered; });
 
-  downstream.addChar(support::MakeSegmentChar(support::kSlew100, support::kSlew110, support::kCap50, support::kCap70, support::kDelay1p5,
-                                              support::kPower0p2,
-                                              support::SegmentShape{.pattern_id = support::kPattern2, .length_idx = support::kLength2000}));
-  downstream.addChar(support::MakeSegmentChar(support::kSlew100, support::kSlew120, support::kCap50, support::kCap60, support::kDelay2p0,
-                                              support::kPower0p3,
-                                              support::SegmentShape{.pattern_id = support::kPattern2, .length_idx = support::kLength2000}));
-
-  const icts::SegmentPatternCombiner combiner(support::kBoundaryKey);
-  const icts::InputBoundaryPruner<icts::SegmentChar> pruner;
-  auto result = upstream.concatWith(downstream, combiner, &pruner);
-
-  EXPECT_EQ(result.size(), 1U);
-  EXPECT_EQ(result.get_chars().front().get_output_slew_idx(), support::kSlew110);
+  ASSERT_EQ(frontier.size(), 1U);
+  EXPECT_EQ(frontier.front().get_pattern_id().local_id, support::kPattern1);
 }
 
 TEST(PrunerTest, SegmentStateFrontierPreservesDistinctExactJoinBoundaries)

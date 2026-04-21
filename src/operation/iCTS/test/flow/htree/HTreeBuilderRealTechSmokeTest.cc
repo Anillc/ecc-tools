@@ -24,15 +24,20 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
-#include <cstddef>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <regex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -74,6 +79,13 @@ namespace realtech_support = characterization::realtech;
 constexpr std::size_t kMaxRealClockLoadCount = 64U;
 constexpr double kHTreeSmokeMaxSlewNs = 0.05;
 constexpr double kHTreeSmokeMaxCapPf = 0.15;
+constexpr double kArm9ExperimentRuntimeBudgetS = 600.0;
+constexpr std::string_view kRunArm9ExperimentEnv = "ICTS_RUN_ARM9_HTREE_MATRIX";
+constexpr std::string_view kRunArm9ExperimentAutoUnitEnv = "ICTS_RUN_ARM9_HTREE_MATRIX_AUTO_UNIT";
+constexpr std::string_view kArm9ExperimentScenario = "htree_builder_arm9_full_sink_matrix";
+constexpr std::string_view kArm9ExperimentAutoUnitScenario = "htree_builder_arm9_full_sink_matrix_auto_unit";
+constexpr std::array<unsigned, 4> kArm9ExperimentIterations = {2U, 3U, 4U, 5U};
+constexpr std::array<unsigned, 2> kArm9ExperimentSteps = {10U, 15U};
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 constexpr unsigned kLeafUnbufferedRealTechCharSteps = 10U;
 #endif
@@ -83,6 +95,60 @@ struct RealClockLoadSelection
   std::string clock_name;
   std::vector<icts::Pin*> loads;
 };
+
+struct Arm9ExperimentRecord
+{
+  unsigned wire_length_iterations = 0U;
+  unsigned slew_cap_steps = 0U;
+  double runtime_s = 0.0;
+  bool success = false;
+  std::size_t load_count = 0U;
+  std::size_t final_frontier_count = 0U;
+  unsigned selected_depth = 0U;
+  unsigned best_pattern_id = 0U;
+  double best_delay_ns = 0.0;
+  double best_power_w = 0.0;
+  double char_wire_length_unit_um = 0.0;
+  unsigned char_wire_length_iterations = 0U;
+  bool char_grid_adapted = false;
+  bool used_boundary_fallback = false;
+  std::string failure_reason;
+};
+
+auto ReadEnvFlag(std::string_view env_name) -> bool
+{
+  const char* raw_value = std::getenv(std::string(env_name).c_str());
+  if (raw_value == nullptr) {
+    return false;
+  }
+
+  const std::string value = raw_value;
+  return !(value.empty() || value == "0" || value == "false" || value == "FALSE" || value == "False");
+}
+
+auto FormatArm9ExperimentReport(std::string_view scenario_name, const std::string& clock_name, std::size_t load_count,
+                                bool omit_wire_length_unit, const std::vector<Arm9ExperimentRecord>& records) -> std::string
+{
+  std::ostringstream report_stream;
+  report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
+  report_stream << std::setprecision(6);
+  report_stream << "scenario=" << scenario_name << "\n";
+  report_stream << "clock_name=" << clock_name << "\n";
+  report_stream << "load_count=" << load_count << "\n";
+  report_stream << "omit_wire_length_unit=" << (omit_wire_length_unit ? "true" : "false") << "\n";
+  report_stream << "runtime_budget_s=" << kArm9ExperimentRuntimeBudgetS << "\n";
+  report_stream << "columns=iter,step,runtime_s,success,frontier_count,selected_depth,best_pattern_id,best_delay_ns,best_power_w,"
+                   "char_wire_length_unit_um,char_wire_length_iterations,char_grid_adapted,used_boundary_fallback,failure_reason\n";
+  for (const auto& record : records) {
+    report_stream << record.wire_length_iterations << "," << record.slew_cap_steps << "," << record.runtime_s << ","
+                  << (record.success ? "true" : "false") << "," << record.final_frontier_count << "," << record.selected_depth << ","
+                  << record.best_pattern_id << "," << record.best_delay_ns << "," << record.best_power_w << ","
+                  << record.char_wire_length_unit_um << "," << record.char_wire_length_iterations << ","
+                  << (record.char_grid_adapted ? "true" : "false") << "," << (record.used_boundary_fallback ? "true" : "false") << ","
+                  << record.failure_reason << "\n";
+  }
+  return report_stream.str();
+}
 
 auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_count) -> std::vector<icts::Pin*>
 {
@@ -412,14 +478,14 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   ASSERT_TRUE(result.best_char.has_value());
   ASSERT_TRUE(result.best_pattern.has_value());
   ASSERT_FALSE(result.feasible_chars.empty());
-  ASSERT_FALSE(result.feasible_pattern_representatives.empty());
+  ASSERT_FALSE(result.feasible_frontier_entries.empty());
   AssertDepthCandidateCoverage(result);
   AssertSelectedLeafCapDistribution(result);
   AssertSelectedHTreeLoadDistribution(result);
   EXPECT_TRUE(result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
+  EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
   const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
+  EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
   const icts::HTreeTopologyPattern* best_pattern = nullptr;
   if (result.best_pattern.has_value()) {
     best_pattern = &result.best_pattern.value();
@@ -473,12 +539,189 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_EQ(cts_log_content.find("CharBuilder build Running"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("pareto_solution pattern_id="), std::string::npos);
   EXPECT_NE(report_log_content.find("frontier_feasible_solution_count="), std::string::npos);
-  EXPECT_NE(report_log_content.find("feasible_pattern_representative_count="), std::string::npos);
+  EXPECT_NE(report_log_content.find("feasible_frontier_entry_count="), std::string::npos);
   EXPECT_NE(report_log_content.find("delay_power_selection_summary"), std::string::npos);
   EXPECT_NE(report_log_content.find("frontier_selection_pool_size="), std::string::npos);
-  EXPECT_NE(report_log_content.find("selection_policy=pattern_worst_case_pareto_power_median"), std::string::npos);
+  EXPECT_NE(report_log_content.find("selection_policy=global_frontier_pareto_power_median"), std::string::npos);
   EXPECT_NE(report_log_content.find("pareto_power_median_index="), std::string::npos);
   EXPECT_NE(report_log_content.find("selected_pareto_power_order_index="), std::string::npos);
+}
+
+TEST(HTreeBuilderRealTechSmokeTest, Arm9FullSinkExperimentMatrix)
+{
+  if (!ReadEnvFlag(kRunArm9ExperimentEnv)) {
+    GTEST_SKIP() << "Set " << kRunArm9ExperimentEnv << "=1 to run the ARM9 full-sink H-tree experiment matrix.";
+    return;
+  }
+
+  const auto& setup_state = common_realtech::EnsureRealTechSetup();
+  if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
+    GTEST_SKIP() << setup_state.summary;
+    return;
+  }
+
+  const auto selected_clock = SelectLargestRealClockLoads(std::numeric_limits<std::size_t>::max());
+  if (!selected_clock.has_value()) {
+    GTEST_SKIP() << "No DEF-derived clock net exposes at least two CTS sink pins.";
+    return;
+  }
+
+  ASSERT_GE(selected_clock->loads.size(), 2U);
+  ASSERT_EQ(CountPinsWithRealContext(selected_clock->loads), selected_clock->loads.size())
+      << "Selected clock loads do not carry complete DEF/CTS instance context: " << selected_clock->clock_name;
+
+  std::vector<Arm9ExperimentRecord> records;
+  records.reserve(kArm9ExperimentIterations.size() * kArm9ExperimentSteps.size());
+
+  for (const unsigned wire_length_iterations : kArm9ExperimentIterations) {
+    for (const unsigned slew_cap_steps : kArm9ExperimentSteps) {
+      std::ostringstream scenario_name_stream;
+      scenario_name_stream << "htree_builder_arm9_full_sink_iter" << wire_length_iterations << "_step" << slew_cap_steps;
+      const std::string scenario_name = scenario_name_stream.str();
+
+      realtech_support::RealTechCharSession char_session;
+      if (const auto prepare_error = char_session.prepare(scenario_name, std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf);
+          prepare_error.has_value()) {
+        GTEST_SKIP() << *prepare_error;
+        return;
+      }
+
+      CONFIG_INST.set_wire_length_iterations(wire_length_iterations);
+      CONFIG_INST.set_slew_steps(slew_cap_steps);
+      CONFIG_INST.set_cap_steps(slew_cap_steps);
+
+      const auto runtime_start = std::chrono::steady_clock::now();
+      const auto result = icts::HTreeBuilder::build(selected_clock->loads);
+      const auto runtime_end = std::chrono::steady_clock::now();
+      const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
+
+      Arm9ExperimentRecord record{
+          .wire_length_iterations = wire_length_iterations,
+          .slew_cap_steps = slew_cap_steps,
+          .runtime_s = runtime_s,
+          .success = result.success,
+          .load_count = selected_clock->loads.size(),
+          .char_wire_length_unit_um = result.char_wire_length_unit_um,
+          .char_wire_length_iterations = result.char_wire_length_iterations,
+          .char_grid_adapted = result.char_grid_adapted,
+          .used_boundary_fallback = result.used_boundary_fallback,
+          .failure_reason = result.failure_reason,
+      };
+
+      if (const auto* selected_summary = FindSelectedDepthSummary(result); selected_summary != nullptr) {
+        record.final_frontier_count = selected_summary->final_frontier_count;
+      }
+      if (result.selected_depth.has_value()) {
+        record.selected_depth = *result.selected_depth;
+      }
+      if (result.best_char.has_value()) {
+        record.best_pattern_id = result.best_char->get_pattern_id().local_id;
+        record.best_delay_ns = result.best_char->get_delay();
+        record.best_power_w = result.best_char->get_power();
+      }
+      records.push_back(record);
+
+      SCOPED_TRACE("iter=" + std::to_string(wire_length_iterations) + ", step=" + std::to_string(slew_cap_steps));
+      EXPECT_TRUE(result.success) << "failure_reason=" << result.failure_reason;
+      EXPECT_LE(runtime_s, kArm9ExperimentRuntimeBudgetS);
+      EXPECT_GT(record.final_frontier_count, 0U);
+      EXPECT_TRUE(result.best_char.has_value());
+    }
+  }
+
+  const auto report
+      = FormatArm9ExperimentReport(kArm9ExperimentScenario, selected_clock->clock_name, selected_clock->loads.size(), false, records);
+  EXPECT_TRUE(realtech_support::WriteScenarioLog(std::string(kArm9ExperimentScenario), "matrix_report.txt", report));
+}
+
+TEST(HTreeBuilderRealTechSmokeTest, Arm9FullSinkExperimentMatrixAutoWireLengthUnit)
+{
+  if (!ReadEnvFlag(kRunArm9ExperimentAutoUnitEnv)) {
+    GTEST_SKIP() << "Set " << kRunArm9ExperimentAutoUnitEnv << "=1 to run the ARM9 full-sink H-tree experiment matrix with "
+                 << "auto-derived wire length unit.";
+    return;
+  }
+
+  const auto& setup_state = common_realtech::EnsureRealTechSetup();
+  if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
+    GTEST_SKIP() << setup_state.summary;
+    return;
+  }
+
+  const auto selected_clock = SelectLargestRealClockLoads(std::numeric_limits<std::size_t>::max());
+  if (!selected_clock.has_value()) {
+    GTEST_SKIP() << "No DEF-derived clock net exposes at least two CTS sink pins.";
+    return;
+  }
+
+  ASSERT_GE(selected_clock->loads.size(), 2U);
+  ASSERT_EQ(CountPinsWithRealContext(selected_clock->loads), selected_clock->loads.size())
+      << "Selected clock loads do not carry complete DEF/CTS instance context: " << selected_clock->clock_name;
+
+  std::vector<Arm9ExperimentRecord> records;
+  records.reserve(kArm9ExperimentIterations.size() * kArm9ExperimentSteps.size());
+
+  for (const unsigned wire_length_iterations : kArm9ExperimentIterations) {
+    for (const unsigned slew_cap_steps : kArm9ExperimentSteps) {
+      std::ostringstream scenario_name_stream;
+      scenario_name_stream << "htree_builder_arm9_full_sink_auto_unit_iter" << wire_length_iterations << "_step" << slew_cap_steps;
+      const std::string scenario_name = scenario_name_stream.str();
+
+      realtech_support::RealTechCharSession char_session;
+      if (const auto prepare_error = char_session.prepare(scenario_name, std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, true);
+          prepare_error.has_value()) {
+        GTEST_SKIP() << *prepare_error;
+        return;
+      }
+
+      CONFIG_INST.set_wire_length_iterations(wire_length_iterations);
+      CONFIG_INST.set_slew_steps(slew_cap_steps);
+      CONFIG_INST.set_cap_steps(slew_cap_steps);
+
+      const auto runtime_start = std::chrono::steady_clock::now();
+      const auto result = icts::HTreeBuilder::build(selected_clock->loads);
+      const auto runtime_end = std::chrono::steady_clock::now();
+      const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
+
+      Arm9ExperimentRecord record{
+          .wire_length_iterations = wire_length_iterations,
+          .slew_cap_steps = slew_cap_steps,
+          .runtime_s = runtime_s,
+          .success = result.success,
+          .load_count = selected_clock->loads.size(),
+          .char_wire_length_unit_um = result.char_wire_length_unit_um,
+          .char_wire_length_iterations = result.char_wire_length_iterations,
+          .char_grid_adapted = result.char_grid_adapted,
+          .used_boundary_fallback = result.used_boundary_fallback,
+          .failure_reason = result.failure_reason,
+      };
+
+      if (const auto* selected_summary = FindSelectedDepthSummary(result); selected_summary != nullptr) {
+        record.final_frontier_count = selected_summary->final_frontier_count;
+      }
+      if (result.selected_depth.has_value()) {
+        record.selected_depth = *result.selected_depth;
+      }
+      if (result.best_char.has_value()) {
+        record.best_pattern_id = result.best_char->get_pattern_id().local_id;
+        record.best_delay_ns = result.best_char->get_delay();
+        record.best_power_w = result.best_char->get_power();
+      }
+      records.push_back(record);
+
+      SCOPED_TRACE("iter=" + std::to_string(wire_length_iterations) + ", step=" + std::to_string(slew_cap_steps));
+      EXPECT_TRUE(result.success) << "failure_reason=" << result.failure_reason;
+      EXPECT_LE(runtime_s, kArm9ExperimentRuntimeBudgetS);
+      EXPECT_GT(record.final_frontier_count, 0U);
+      EXPECT_TRUE(result.best_char.has_value());
+      EXPECT_GT(record.char_wire_length_unit_um, 0.0);
+      EXPECT_LE(record.char_wire_length_iterations, wire_length_iterations);
+    }
+  }
+
+  const auto report = FormatArm9ExperimentReport(kArm9ExperimentAutoUnitScenario, selected_clock->clock_name, selected_clock->loads.size(),
+                                                 true, records);
+  EXPECT_TRUE(realtech_support::WriteScenarioLog(std::string(kArm9ExperimentAutoUnitScenario), "matrix_report.txt", report));
 }
 
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
@@ -522,11 +765,11 @@ TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatter
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.failure_reason.empty());
   ASSERT_FALSE(result.feasible_chars.empty());
-  ASSERT_FALSE(result.feasible_pattern_representatives.empty());
-  EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
+  ASSERT_FALSE(result.feasible_frontier_entries.empty());
+  EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
   ASSERT_TRUE(result.best_char.has_value());
   const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
+  EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
   EXPECT_EQ(result.char_slew_steps, realtech_support::kRealTechCharSlewSteps);
   EXPECT_EQ(result.char_cap_steps, realtech_support::kRealTechCharCapSteps);
   AssertBranchBufferMaterialization(result);
@@ -611,11 +854,11 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingLeafUnbufferedOptionSelectsUnbuf
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.failure_reason.empty());
   ASSERT_FALSE(result.feasible_chars.empty());
-  ASSERT_FALSE(result.feasible_pattern_representatives.empty());
-  EXPECT_LE(result.feasible_pattern_representatives.size(), result.feasible_chars.size());
+  ASSERT_FALSE(result.feasible_frontier_entries.empty());
+  EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
   ASSERT_TRUE(result.best_char.has_value());
   const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(result.feasible_pattern_representatives, best_char));
+  EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
   EXPECT_EQ(result.char_slew_steps, kLeafUnbufferedRealTechCharSteps);
   EXPECT_EQ(result.char_cap_steps, kLeafUnbufferedRealTechCharSteps);
   AssertLeafUnbufferedMaterialization(result);
@@ -657,52 +900,52 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_GT(baseline_result.char_max_slew_ns, 0.0);
   ASSERT_GT(baseline_result.char_max_cap_pf, 0.0);
   ASSERT_TRUE(baseline_result.min_leaf_driven_cap_pf.has_value());
-  ASSERT_TRUE(baseline_result.leaf_driven_cap_floor_idx.has_value());
+  ASSERT_TRUE(baseline_result.leaf_driven_cap_covering_idx.has_value());
 
-  const auto top_floor_it = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
-  ASSERT_NE(top_floor_it, baseline_result.feasible_chars.end());
-  const auto leaf_floor_it
+  const auto top_covering_it = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
+  ASSERT_NE(top_covering_it, baseline_result.feasible_chars.end());
+  const auto leaf_covering_it
       = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_leaf_driven_cap_idx);
-  ASSERT_NE(leaf_floor_it, baseline_result.feasible_chars.end());
+  ASSERT_NE(leaf_covering_it, baseline_result.feasible_chars.end());
 
-  const unsigned top_floor_idx = top_floor_it->get_input_slew_idx();
-  const unsigned leaf_floor_idx = leaf_floor_it->get_leaf_driven_cap_idx();
-  ASSERT_GT(top_floor_idx, 0U);
-  ASSERT_GT(leaf_floor_idx, 0U);
-  const double top_input_slew_ns = (static_cast<double>(top_floor_idx) - 0.5) * baseline_result.char_max_slew_ns
+  const unsigned top_covering_idx = top_covering_it->get_input_slew_idx();
+  const unsigned leaf_covering_idx = leaf_covering_it->get_leaf_driven_cap_idx();
+  ASSERT_GT(top_covering_idx, 0U);
+  ASSERT_GT(leaf_covering_idx, 0U);
+  const double top_input_slew_ns = (static_cast<double>(top_covering_idx) - 0.5) * baseline_result.char_max_slew_ns
                                    / static_cast<double>(baseline_result.char_slew_steps);
-  const double leaf_driven_cap_pf
-      = (static_cast<double>(leaf_floor_idx) - 0.5) * baseline_result.char_max_cap_pf / static_cast<double>(baseline_result.char_cap_steps);
+  const double leaf_driven_cap_pf = (static_cast<double>(leaf_covering_idx) - 0.5) * baseline_result.char_max_cap_pf
+                                    / static_cast<double>(baseline_result.char_cap_steps);
 
   auto top_boundary_result
       = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = top_input_slew_ns});
   ASSERT_TRUE(top_boundary_result.success);
   ASSERT_TRUE(top_boundary_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(top_boundary_result.min_top_input_slew_ns.value_or(0.0), top_input_slew_ns);
-  ASSERT_TRUE(top_boundary_result.top_input_slew_floor_idx.has_value());
-  EXPECT_EQ(top_boundary_result.top_input_slew_floor_idx.value_or(0U), top_floor_idx);
+  ASSERT_TRUE(top_boundary_result.top_input_slew_covering_idx.has_value());
+  EXPECT_EQ(top_boundary_result.top_input_slew_covering_idx.value_or(0U), top_covering_idx);
   ASSERT_FALSE(top_boundary_result.feasible_chars.empty());
   EXPECT_TRUE(std::ranges::all_of(top_boundary_result.feasible_chars, [&](const icts::HTreeTopologyChar& entry) -> bool {
-    return entry.get_input_slew_idx() >= top_floor_idx;
+    return entry.get_input_slew_idx() >= top_covering_idx;
   }));
   ASSERT_TRUE(top_boundary_result.min_leaf_driven_cap_pf.has_value());
   EXPECT_DOUBLE_EQ(top_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), baseline_result.min_leaf_driven_cap_pf.value_or(0.0));
-  ASSERT_TRUE(top_boundary_result.leaf_driven_cap_floor_idx.has_value());
-  EXPECT_EQ(top_boundary_result.leaf_driven_cap_floor_idx.value_or(0U), baseline_result.leaf_driven_cap_floor_idx.value_or(0U));
+  ASSERT_TRUE(top_boundary_result.leaf_driven_cap_covering_idx.has_value());
+  EXPECT_EQ(top_boundary_result.leaf_driven_cap_covering_idx.value_or(0U), baseline_result.leaf_driven_cap_covering_idx.value_or(0U));
 
   auto leaf_boundary_result
       = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_leaf_driven_cap_pf = leaf_driven_cap_pf});
   ASSERT_TRUE(leaf_boundary_result.success);
   ASSERT_TRUE(leaf_boundary_result.min_leaf_driven_cap_pf.has_value());
   EXPECT_DOUBLE_EQ(leaf_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), leaf_driven_cap_pf);
-  ASSERT_TRUE(leaf_boundary_result.leaf_driven_cap_floor_idx.has_value());
-  EXPECT_EQ(leaf_boundary_result.leaf_driven_cap_floor_idx.value_or(0U), leaf_floor_idx);
+  ASSERT_TRUE(leaf_boundary_result.leaf_driven_cap_covering_idx.has_value());
+  EXPECT_EQ(leaf_boundary_result.leaf_driven_cap_covering_idx.value_or(0U), leaf_covering_idx);
   ASSERT_FALSE(leaf_boundary_result.feasible_chars.empty());
   EXPECT_TRUE(std::ranges::all_of(leaf_boundary_result.feasible_chars, [&](const icts::HTreeTopologyChar& entry) -> bool {
-    return entry.get_leaf_driven_cap_idx() >= leaf_floor_idx;
+    return entry.get_leaf_driven_cap_idx() >= leaf_covering_idx;
   }));
   EXPECT_FALSE(leaf_boundary_result.min_top_input_slew_ns.has_value());
-  EXPECT_FALSE(leaf_boundary_result.top_input_slew_floor_idx.has_value());
+  EXPECT_FALSE(leaf_boundary_result.top_input_slew_covering_idx.has_value());
 
   const double impossible_top_input_slew_ns
       = baseline_result.char_max_slew_ns + (baseline_result.char_max_slew_ns / static_cast<double>(baseline_result.char_slew_steps));
@@ -711,24 +954,24 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_TRUE(impossible_top_boundary_result.success);
   ASSERT_TRUE(impossible_top_boundary_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(impossible_top_boundary_result.min_top_input_slew_ns.value_or(0.0), impossible_top_input_slew_ns);
-  ASSERT_TRUE(impossible_top_boundary_result.top_input_slew_floor_idx.has_value());
-  EXPECT_EQ(impossible_top_boundary_result.top_input_slew_floor_idx.value_or(0U), baseline_result.char_slew_steps + 1U);
+  ASSERT_TRUE(impossible_top_boundary_result.top_input_slew_covering_idx.has_value());
+  EXPECT_EQ(impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U), baseline_result.char_slew_steps + 1U);
   EXPECT_TRUE(impossible_top_boundary_result.used_boundary_fallback);
   EXPECT_FALSE(impossible_top_boundary_result.boundary_fallback_reason.empty());
   ASSERT_TRUE(impossible_top_boundary_result.boundary_fallback_score.has_value());
   EXPECT_TRUE(impossible_top_boundary_result.feasible_chars.empty());
   ASSERT_FALSE(impossible_top_boundary_result.candidate_chars.empty());
-  ASSERT_FALSE(impossible_top_boundary_result.candidate_pattern_representatives.empty());
-  EXPECT_LE(impossible_top_boundary_result.candidate_pattern_representatives.size(), impossible_top_boundary_result.candidate_chars.size());
+  ASSERT_FALSE(impossible_top_boundary_result.candidate_frontier_entries.empty());
+  EXPECT_LE(impossible_top_boundary_result.candidate_frontier_entries.size(), impossible_top_boundary_result.candidate_chars.size());
   ASSERT_TRUE(impossible_top_boundary_result.best_char.has_value());
   const auto impossible_top_best_char = impossible_top_boundary_result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(impossible_top_boundary_result.candidate_pattern_representatives, impossible_top_best_char));
-  const unsigned impossible_top_floor_idx = impossible_top_boundary_result.top_input_slew_floor_idx.value_or(0U);
-  ASSERT_GT(impossible_top_floor_idx, 0U);
-  EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_floor_idx);
+  EXPECT_TRUE(ContainsCharEntry(impossible_top_boundary_result.candidate_frontier_entries, impossible_top_best_char));
+  const unsigned impossible_top_covering_idx = impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U);
+  ASSERT_GT(impossible_top_covering_idx, 0U);
+  EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_covering_idx);
   double expected_top_boundary_fallback_score
       = static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps);
-  if (impossible_top_boundary_result.leaf_driven_cap_floor_idx.has_value() && baseline_result.char_cap_steps > 0U) {
+  if (impossible_top_boundary_result.leaf_driven_cap_covering_idx.has_value() && baseline_result.char_cap_steps > 0U) {
     expected_top_boundary_fallback_score
         += static_cast<double>(impossible_top_best_char.get_leaf_driven_cap_idx()) / static_cast<double>(baseline_result.char_cap_steps);
   }
@@ -741,22 +984,21 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_TRUE(impossible_leaf_boundary_result.success);
   ASSERT_TRUE(impossible_leaf_boundary_result.min_leaf_driven_cap_pf.has_value());
   EXPECT_DOUBLE_EQ(impossible_leaf_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), impossible_leaf_driven_cap_pf);
-  ASSERT_TRUE(impossible_leaf_boundary_result.leaf_driven_cap_floor_idx.has_value());
-  EXPECT_EQ(impossible_leaf_boundary_result.leaf_driven_cap_floor_idx.value_or(0U), baseline_result.char_cap_steps + 1U);
+  ASSERT_TRUE(impossible_leaf_boundary_result.leaf_driven_cap_covering_idx.has_value());
+  EXPECT_EQ(impossible_leaf_boundary_result.leaf_driven_cap_covering_idx.value_or(0U), baseline_result.char_cap_steps + 1U);
   EXPECT_TRUE(impossible_leaf_boundary_result.used_boundary_fallback);
   EXPECT_FALSE(impossible_leaf_boundary_result.boundary_fallback_reason.empty());
   ASSERT_TRUE(impossible_leaf_boundary_result.boundary_fallback_score.has_value());
   EXPECT_TRUE(impossible_leaf_boundary_result.feasible_chars.empty());
   ASSERT_FALSE(impossible_leaf_boundary_result.candidate_chars.empty());
-  ASSERT_FALSE(impossible_leaf_boundary_result.candidate_pattern_representatives.empty());
-  EXPECT_LE(impossible_leaf_boundary_result.candidate_pattern_representatives.size(),
-            impossible_leaf_boundary_result.candidate_chars.size());
+  ASSERT_FALSE(impossible_leaf_boundary_result.candidate_frontier_entries.empty());
+  EXPECT_LE(impossible_leaf_boundary_result.candidate_frontier_entries.size(), impossible_leaf_boundary_result.candidate_chars.size());
   ASSERT_TRUE(impossible_leaf_boundary_result.best_char.has_value());
   const auto impossible_leaf_best_char = impossible_leaf_boundary_result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(impossible_leaf_boundary_result.candidate_pattern_representatives, impossible_leaf_best_char));
-  const unsigned impossible_leaf_floor_idx = impossible_leaf_boundary_result.leaf_driven_cap_floor_idx.value_or(0U);
-  ASSERT_GT(impossible_leaf_floor_idx, 0U);
-  EXPECT_LT(impossible_leaf_best_char.get_leaf_driven_cap_idx(), impossible_leaf_floor_idx);
+  EXPECT_TRUE(ContainsCharEntry(impossible_leaf_boundary_result.candidate_frontier_entries, impossible_leaf_best_char));
+  const unsigned impossible_leaf_covering_idx = impossible_leaf_boundary_result.leaf_driven_cap_covering_idx.value_or(0U);
+  ASSERT_GT(impossible_leaf_covering_idx, 0U);
+  EXPECT_LT(impossible_leaf_best_char.get_leaf_driven_cap_idx(), impossible_leaf_covering_idx);
   EXPECT_DOUBLE_EQ(
       impossible_leaf_boundary_result.boundary_fallback_score.value_or(0.0),
       static_cast<double>(impossible_leaf_best_char.get_leaf_driven_cap_idx()) / static_cast<double>(baseline_result.char_cap_steps));
