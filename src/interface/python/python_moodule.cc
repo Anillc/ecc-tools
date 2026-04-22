@@ -31,6 +31,7 @@
 #include "py_register_ipl.h"
 #include "py_register_ipw.h"
 #include "py_register_irt.h"
+#include "py_register_ircx.h"
 #include "py_register_ista.h"
 #include "py_register_ito.h"
 #include "py_register_report.h"
@@ -54,6 +55,7 @@ PYBIND11_MODULE(ecc_py, m)
   register_ipnp(m);
   register_ipl(m);
   register_irt(m);
+  register_ircx(m);
   register_ista(m);
   register_ipw(m);
   register_ito(m);
