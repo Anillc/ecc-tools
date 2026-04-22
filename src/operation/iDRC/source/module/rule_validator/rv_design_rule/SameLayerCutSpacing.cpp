@@ -50,7 +50,7 @@ void RuleValidator::verifySameLayerCutSpacing(RVCluster& rv_cluster)
         curr_spacing = spacing_rule.curr_spacing;
       }
       curr_prl = -1 * spacing_rule.curr_prl;
-      curr_prl_spacing =spacing_rule.curr_prl_spacing;
+      curr_prl_spacing = spacing_rule.curr_prl_spacing;
     }
 
     for (const CutData& cut_data : cut_layer_data.getCuts()) {
@@ -72,8 +72,8 @@ void RuleValidator::verifySameLayerCutSpacing(RVCluster& rv_cluster)
         int32_t net_spacing = curr_spacing;
         PlanarRect env_rect = DRCUTIL.convertToPlanarRect(overlap_cut_data.rect);
         PlanarRect violation_rect = DRCUTIL.getSpacingRect(cut_rect, env_rect);
-        if ((env_net_idx == net_idx) && has_same_net) { 
-          net_spacing = curr_same_net_spacing; 
+        if ((env_net_idx == net_idx) && has_same_net) {
+          net_spacing = curr_same_net_spacing;
         }
         //  ignore cutShort
         if (DRCUTIL.isClosedOverlap(cut_rect, env_rect)) {

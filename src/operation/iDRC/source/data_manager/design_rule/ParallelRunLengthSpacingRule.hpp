@@ -71,7 +71,8 @@ class ParallelRunLengthSpacingRule
   std::vector<LayerSpacing> spacing_list;
   bool has_spacing_list = false;
 
-  int32_t getSpacingWithWidth(int32_t width) {
+  int32_t getSpacingWithWidth(int32_t width)
+  {
     int32_t spacing = -1;
     int32_t default_spacing = -1;
     for (auto& layerSpacing : spacing_list) {
@@ -86,7 +87,8 @@ class ParallelRunLengthSpacingRule
     return spacing == -1 ? default_spacing : spacing;
   }
 
-  int32_t getSpacingMaxWidth() {
+  int32_t getSpacingMaxWidth()
+  {
     int32_t spacing = -1;
     for (auto& layerSpacing : spacing_list) {
       spacing = std::max(spacing, layerSpacing.min_spacing);

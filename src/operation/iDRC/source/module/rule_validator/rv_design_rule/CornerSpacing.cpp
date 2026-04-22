@@ -17,7 +17,8 @@
 #include "RuleValidator.hpp"
 
 namespace idrc {
-struct Corner {
+struct Corner
+{
   PlanarCoord point;
   int32_t width;
   Orientation orient1;
@@ -33,8 +34,7 @@ void RuleValidator::verifyCornerSpacing(RVCluster& rv_cluster)
   std::vector<RoutingLayer>& routing_layer_list = DRCDM.getDatabase().get_routing_layer_list();
   const auto& layer_data = rv_cluster.get_layer_data();
 
-  auto collect_exempted_eol_edges = [&](const auto& curr_layer_data, int32_t eol_width,
-                                        std::set<int32_t>& exempted_eol_boundary_ids) {
+  auto collect_exempted_eol_edges = [&](const auto& curr_layer_data, int32_t eol_width, std::set<int32_t>& exempted_eol_boundary_ids) {
     for (const auto& net_entry : curr_layer_data.nets) {
       const RVRoutingNet& routing_net = net_entry.second;
       for (const PolygonData& polygon_data : curr_layer_data.getPolygons(routing_net)) {
@@ -377,12 +377,12 @@ void RuleValidator::verifyCornerSpacing(RVCluster& rv_cluster)
 
         // exempt eol boundary edge corner
         if (!exempted_eol_boundary_ids.empty()) {
-          check_corners.erase(
-              std::remove_if(check_corners.begin(), check_corners.end(), [&](const Corner& corner) {
-                return DRCUTIL.exist(exempted_eol_boundary_ids, corner.boundary_id)
-                       || DRCUTIL.exist(exempted_eol_boundary_ids, corner.next_boundary_id);
-              }),
-              check_corners.end());
+          check_corners.erase(std::remove_if(check_corners.begin(), check_corners.end(),
+                                             [&](const Corner& corner) {
+                                               return DRCUTIL.exist(exempted_eol_boundary_ids, corner.boundary_id)
+                                                      || DRCUTIL.exist(exempted_eol_boundary_ids, corner.next_boundary_id);
+                                             }),
+                              check_corners.end());
         }
 
         // query corner rect towards outside
@@ -432,7 +432,7 @@ void RuleValidator::verifyCornerSpacing(RVCluster& rv_cluster)
               continue;
             }
             PlanarRect violation_rect = DRCUTIL.getSpacingRect(corner_rect, env_edge_rect);
-            if(violation_rect.getArea() != 0) {
+            if (violation_rect.getArea() != 0) {
               std::vector<std::pair<GTLRectInt, int32_t>> overlap_rect_hits;
               merged_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(violation_rect), std::back_inserter(overlap_rect_hits));
               GTLPolySetInt violation_ps;
@@ -475,7 +475,6 @@ void RuleValidator::verifyCornerSpacing(RVCluster& rv_cluster)
         }
       }
     }
-
 
     // postprocess, build final violations
     {
@@ -523,7 +522,6 @@ void RuleValidator::verifyCornerSpacing(RVCluster& rv_cluster)
       rv_cluster.get_violation_list().insert(rv_cluster.get_violation_list().end(), std::make_move_iterator(violations.begin()),
                                              std::make_move_iterator(violations.end()));
     }
-
   }
 }
 }  // namespace idrc

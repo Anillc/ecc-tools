@@ -90,9 +90,7 @@ void RuleValidator::verifyAdjacentCutSpacing(RVCluster& rv_cluster)
         violation.set_required_size(adj_cut_rule.cut_spacing);
         rv_cluster.get_violation_list().push_back(violation);
       }
-
     }
-
   }
 }
 

@@ -19,7 +19,8 @@
 #include "DRCHeader.hpp"
 
 namespace idrc {
-struct SameLayerCutSpacing {
+struct SameLayerCutSpacing
+{
   int32_t curr_spacing = -1;
   int32_t curr_prl = -1;
   int32_t curr_prl_spacing = -1;

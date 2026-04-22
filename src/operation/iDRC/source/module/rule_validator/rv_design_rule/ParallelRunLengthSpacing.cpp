@@ -40,11 +40,11 @@ void RuleValidator::verifyParallelRunLengthSpacing(RVCluster& rv_cluster)
         std::vector<std::pair<GTLRectInt, int32_t>> neighbor_rect_id_list;
         {
           int32_t spacing_table_check = has_spacing_table ? parallel_run_length_spacing_rule.getMaxSpacing() : 0;
-          int32_t spacing_list_check = has_spacing_list ? parallel_run_length_spacing_rule.getSpacingMaxWidth() : 0; 
+          int32_t spacing_list_check = has_spacing_list ? parallel_run_length_spacing_rule.getSpacingMaxWidth() : 0;
           int32_t check_spacing = std::max(spacing_table_check, spacing_list_check);
-          
+
           PlanarRect check_rect = DRCUTIL.getEnlargedRect(rect, check_spacing);
-          rv_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(check_rect), std::back_inserter(neighbor_rect_id_list));          
+          rv_layer_data.queryMaxRects(DRCUTIL.convertToGTLRectInt(check_rect), std::back_inserter(neighbor_rect_id_list));
         }
 
         for (const auto& [gtl_rect, env_max_rect_id] : neighbor_rect_id_list) {
@@ -95,7 +95,7 @@ void RuleValidator::verifyParallelRunLengthSpacing(RVCluster& rv_cluster)
                 if (DRCUTIL.isInside(violation_env_rect, violation_rect)) {
                   zero_area_inside = true;
                 }
-                
+
                 for (auto orient : {Orientation::kEast, Orientation::kWest, Orientation::kNorth, Orientation::kSouth}) {
                   if (!DRCUTIL.exist(orient_inside, orient) && DRCUTIL.isInside(violation_env_rect, violation_rect.getOrientEdge(orient))) {
                     orient_inside.insert(orient);
@@ -160,11 +160,9 @@ void RuleValidator::verifyParallelRunLengthSpacing(RVCluster& rv_cluster)
               net_required_violation_rect_map[{net_idx, env_net_idx}][real_spacing].push_back(violation_rect);
             }
           }
-
         }
-
       }
-    } 
+    }
 
     std::map<std::set<int32_t>, std::map<int32_t, std::vector<PlanarRect>>> exclude_env;
     for (auto& [violation_net_set, required_violation_rect_map] : net_required_violation_rect_map) {

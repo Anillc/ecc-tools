@@ -461,10 +461,8 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
     if (!idb_layer->get_lef58_corner_spacing_list().empty()) {
       for (const std::shared_ptr<idb::routinglayer::Lef58CornerSpacing>& idb_corner_spacing : idb_layer->get_lef58_corner_spacing_list()) {
         CornerSpacingRule corner_spacing_rule;
-        corner_spacing_rule.has_convex_corner
-            = idb_corner_spacing->get_corner_type() == idb::routinglayer::Lef58CornerSpacing::CornerType::kConvexCorner;
-        corner_spacing_rule.has_concave_corner
-            = idb_corner_spacing->get_corner_type() == idb::routinglayer::Lef58CornerSpacing::CornerType::kConcaveCorner;
+        corner_spacing_rule.has_convex_corner = idb_corner_spacing->get_corner_type() == idb::routinglayer::Lef58CornerSpacing::CornerType::kConvexCorner;
+        corner_spacing_rule.has_concave_corner = idb_corner_spacing->get_corner_type() == idb::routinglayer::Lef58CornerSpacing::CornerType::kConcaveCorner;
         corner_spacing_rule.has_except_eol = idb_corner_spacing->get_except_eol().has_value();
         if (idb_corner_spacing->get_except_eol().has_value()) {
           corner_spacing_rule.except_eol = idb_corner_spacing->get_except_eol().value();
@@ -664,7 +662,7 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
 
     if (idb_layer->get_spacing_list() != nullptr) {
       auto& spacing_list = parallel_run_length_spacing_rule.spacing_list;
-      for(auto& spacing_rule : idb_layer->get_spacing_list()->get_spacing_list()) {
+      for (auto& spacing_rule : idb_layer->get_spacing_list()->get_spacing_list()) {
         LayerSpacingType spacing_type;
         if (spacing_rule->get_spacing_type() == idb::IdbLayerSpacingType::kSpacingDefault) {
           spacing_type = LayerSpacingType::kSpacingDefault;
@@ -675,7 +673,7 @@ void DRCInterface::wrapRoutingDesignRule(RoutingLayer& routing_layer, idb::IdbLa
         } else {
           spacing_type = LayerSpacingType::kNone;
         }
-        LayerSpacing spacing {spacing_type, spacing_rule->get_min_spacing(), spacing_rule->get_min_width(), spacing_rule->get_max_width()};
+        LayerSpacing spacing{spacing_type, spacing_rule->get_min_spacing(), spacing_rule->get_min_width(), spacing_rule->get_max_width()};
         spacing_list.push_back(spacing);
       }
 
@@ -707,7 +705,7 @@ void DRCInterface::wrapCutDesignRule(CutLayer& cut_layer, idb::IdbLayerCut* idb_
           continue;
         }
       }
-    }  
+    }
   }
   // CutEOLSpacingRule
   {

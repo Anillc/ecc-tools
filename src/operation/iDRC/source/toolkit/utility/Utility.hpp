@@ -920,15 +920,11 @@ class Utility
     // area term exceed int32_t and flip the sign, which breaks convex/concave checks.
     int64_t cross_product = 0;
     if (rotation == Rotation::kClockwise) {
-      cross_product = (static_cast<int64_t>(second_coord.get_x()) - first_coord.get_x())
-                          * (static_cast<int64_t>(third_coord.get_y()) - first_coord.get_y())
-                      - (static_cast<int64_t>(second_coord.get_y()) - first_coord.get_y())
-                            * (static_cast<int64_t>(third_coord.get_x()) - first_coord.get_x());
+      cross_product = (static_cast<int64_t>(second_coord.get_x()) - first_coord.get_x()) * (static_cast<int64_t>(third_coord.get_y()) - first_coord.get_y())
+                      - (static_cast<int64_t>(second_coord.get_y()) - first_coord.get_y()) * (static_cast<int64_t>(third_coord.get_x()) - first_coord.get_x());
     } else if (rotation == Rotation::kCounterclockwise) {
-      cross_product = (static_cast<int64_t>(second_coord.get_x()) - third_coord.get_x())
-                          * (static_cast<int64_t>(first_coord.get_y()) - third_coord.get_y())
-                      - (static_cast<int64_t>(second_coord.get_y()) - third_coord.get_y())
-                            * (static_cast<int64_t>(first_coord.get_x()) - third_coord.get_x());
+      cross_product = (static_cast<int64_t>(second_coord.get_x()) - third_coord.get_x()) * (static_cast<int64_t>(first_coord.get_y()) - third_coord.get_y())
+                      - (static_cast<int64_t>(second_coord.get_y()) - third_coord.get_y()) * (static_cast<int64_t>(first_coord.get_x()) - third_coord.get_x());
     } else {
       DRCLOG.error(Loc::current(), "The rotation is error!");
     }
@@ -1580,8 +1576,8 @@ class Utility
   static std::string getBooleanName(bool value) { return value ? "true" : "false"; }
 
   template <typename T>
-  static std::string getStringList(const std::vector<T>& value_list, const std::string& delimiter = ", ",
-                                   const std::string& prefix = "[", const std::string& suffix = "]")
+  static std::string getStringList(const std::vector<T>& value_list, const std::string& delimiter = ", ", const std::string& prefix = "[",
+                                   const std::string& suffix = "]")
   {
     std::stringstream oss;
     oss << prefix;
