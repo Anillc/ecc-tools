@@ -337,7 +337,7 @@ auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopolo
   constexpr double metric_tolerance = 1e-12;
   return lhs.get_pattern_id() == rhs.get_pattern_id() && lhs.get_input_slew_idx() == rhs.get_input_slew_idx()
          && lhs.get_output_slew_idx() == rhs.get_output_slew_idx() && lhs.get_driven_cap_idx() == rhs.get_driven_cap_idx()
-         && lhs.get_leaf_driven_cap_idx() == rhs.get_leaf_driven_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
+         && lhs.get_leaf_load_cap_idx() == rhs.get_leaf_load_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
          && std::abs(lhs.get_delay() - rhs.get_delay()) <= metric_tolerance
          && std::abs(lhs.get_power() - rhs.get_power()) <= metric_tolerance;
 }

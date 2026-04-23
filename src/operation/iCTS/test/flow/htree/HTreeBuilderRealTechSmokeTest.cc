@@ -86,10 +86,6 @@ constexpr std::string_view kArm9ExperimentScenario = "htree_builder_arm9_full_si
 constexpr std::string_view kArm9ExperimentAutoUnitScenario = "htree_builder_arm9_full_sink_matrix_auto_unit";
 constexpr std::array<unsigned, 4> kArm9ExperimentIterations = {2U, 3U, 4U, 5U};
 constexpr std::array<unsigned, 2> kArm9ExperimentSteps = {10U, 15U};
-#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
-constexpr unsigned kLeafUnbufferedRealTechCharSteps = 10U;
-#endif
-
 struct RealClockLoadSelection
 {
   std::string clock_name;
@@ -270,7 +266,7 @@ auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopolo
   constexpr double metric_tolerance = 1e-12;
   return lhs.get_pattern_id() == rhs.get_pattern_id() && lhs.get_input_slew_idx() == rhs.get_input_slew_idx()
          && lhs.get_output_slew_idx() == rhs.get_output_slew_idx() && lhs.get_driven_cap_idx() == rhs.get_driven_cap_idx()
-         && lhs.get_leaf_driven_cap_idx() == rhs.get_leaf_driven_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
+         && lhs.get_leaf_load_cap_idx() == rhs.get_leaf_load_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
          && std::abs(lhs.get_delay() - rhs.get_delay()) <= metric_tolerance
          && std::abs(lhs.get_power() - rhs.get_power()) <= metric_tolerance;
 }
@@ -307,20 +303,6 @@ auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result)
   EXPECT_TRUE(selected_summary->success);
 }
 
-auto AssertSelectedLeafCapDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
-{
-  const auto* selected_summary = FindSelectedDepthSummary(result);
-  ASSERT_NE(selected_summary, nullptr);
-  ASSERT_GT(selected_summary->evaluated_leaf_count, 0U);
-  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_mean_pf);
-  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_median_pf);
-  EXPECT_LE(selected_summary->leaf_cap_mean_pf, selected_summary->leaf_cap_max_pf);
-  EXPECT_LE(selected_summary->leaf_cap_median_pf, selected_summary->leaf_cap_max_pf);
-  if (!selected_summary->used_explicit_leaf_driven_cap) {
-    EXPECT_DOUBLE_EQ(selected_summary->requested_leaf_driven_cap_pf, selected_summary->leaf_cap_max_pf);
-  }
-}
-
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
 {
   const auto* selected_summary = FindSelectedDepthSummary(result);
@@ -331,14 +313,6 @@ auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& 
   EXPECT_LE(selected_summary->htree_load_cap_mean_pf, selected_summary->htree_load_cap_max_pf);
   EXPECT_LE(selected_summary->htree_load_cap_median_pf, selected_summary->htree_load_cap_max_pf);
 }
-
-#if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
-auto UseLeafUnbufferedRealTechCharSteps() -> void
-{
-  CONFIG_INST.set_slew_steps(kLeafUnbufferedRealTechCharSteps);
-  CONFIG_INST.set_cap_steps(kLeafUnbufferedRealTechCharSteps);
-}
-#endif
 
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
@@ -386,45 +360,6 @@ auto AssertBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult& re
   }
 }
 
-auto AssertLeafUnbufferedMaterialization(const icts::HTreeBuilder::BuildResult& result) -> void
-{
-  ASSERT_TRUE(result.success);
-  ASSERT_FALSE(result.levels.empty());
-  ASSERT_TRUE(result.force_leaf_unbuffered);
-  ASSERT_FALSE(result.force_branch_buffer);
-
-  std::vector<icts::Point<int>> terminal_positions;
-  const auto topology_levels = result.topology.levels();
-  bool exercised_requirement = false;
-  for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
-    const auto& level = result.levels.at(level_index);
-    if (!level.is_leaf_level) {
-      continue;
-    }
-    exercised_requirement = true;
-    EXPECT_FALSE(level.selected_has_terminal_branch_buffer);
-
-    if (level_index + 1U >= topology_levels.size()) {
-      continue;
-    }
-    for (const auto node_id : topology_levels.at(level_index + 1U)) {
-      const auto* node = result.topology.get_node(node_id);
-      if (node == nullptr || node->get_loads().empty()) {
-        continue;
-      }
-      terminal_positions.push_back(node->get_position());
-    }
-  }
-
-  EXPECT_TRUE(exercised_requirement);
-
-  for (const auto& terminal_position : terminal_positions) {
-    const bool has_terminal_inst = std::ranges::any_of(result.inserted_insts, [&terminal_position](const icts::Inst* inst) -> bool {
-      return inst != nullptr && inst->get_location() == terminal_position;
-    });
-    EXPECT_FALSE(has_terminal_inst);
-  }
-}
 #endif
 
 TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
@@ -480,9 +415,7 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   ASSERT_FALSE(result.feasible_chars.empty());
   ASSERT_FALSE(result.feasible_frontier_entries.empty());
   AssertDepthCandidateCoverage(result);
-  AssertSelectedLeafCapDistribution(result);
   AssertSelectedHTreeLoadDistribution(result);
-  EXPECT_TRUE(result.min_leaf_driven_cap_pf.has_value());
   EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
   const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
   EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
@@ -523,10 +456,7 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_NE(cts_log_content.find("HTreeBuilder Build Summary"), std::string::npos);
   EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
   EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("leaf_load_cap_min"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("leaf_load_cap_max"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("leaf_load_cap_mean"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("leaf_load_cap_median"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("leaf_load_cap_idx"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_load_group_count"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_load_cap_min"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_load_cap_max"), std::string::npos);
@@ -808,68 +738,7 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfi
   AssertBranchBufferMaterialization(result);
 }
 
-TEST(HTreeBuilderRealTechSmokeTest, CallerFacingLeafUnbufferedOptionSelectsUnbufferedLeafPatterns)
-{
-  const auto& setup_state = common_realtech::EnsureRealTechSetup();
-  if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
-    GTEST_SKIP() << setup_state.summary;
-    return;
-  }
-
-  const auto selected_clock = SelectLargestRealClockLoads(kMaxRealClockLoadCount);
-  if (!selected_clock.has_value()) {
-    GTEST_SKIP() << "No DEF-derived clock net exposes at least two CTS sink pins.";
-    return;
-  }
-
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error
-      = char_session.prepare("htree_builder_leaf_unbuffered_option", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, true);
-      prepare_error.has_value()) {
-    GTEST_SKIP() << *prepare_error;
-    return;
-  }
-  UseLeafUnbufferedRealTechCharSteps();
-
-  ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
-  EXPECT_EQ(CONFIG_INST.get_slew_steps(), kLeafUnbufferedRealTechCharSteps);
-  EXPECT_EQ(CONFIG_INST.get_cap_steps(), kLeafUnbufferedRealTechCharSteps);
-
-  const auto artifact_paths = htree::PrepareHTreeArtifactPaths("realtech_leaf_unbuffered_option");
-  ASSERT_FALSE(artifact_paths.output_dir.empty());
-  const common::logging::ScopedLogFile cts_log_guard(artifact_paths.cts_log, "HTree Flow Test Report");
-  SCHEMA_WRITER_INST.emitKeyValueTable("HTree Smoke Scenario", {
-                                                                   {"scenario", "htree_builder_leaf_unbuffered_option"},
-                                                                   {"clock_name", selected_clock->clock_name},
-                                                                   {"load_count", std::to_string(selected_clock->loads.size())},
-                                                               });
-
-  const auto result = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{
-                                                                           .force_branch_buffer = false,
-                                                                           .force_leaf_unbuffered = true,
-                                                                       });
-
-  ASSERT_TRUE(result.force_leaf_unbuffered);
-  ASSERT_FALSE(result.force_branch_buffer);
-  ASSERT_TRUE(result.success);
-  EXPECT_TRUE(result.failure_reason.empty());
-  ASSERT_FALSE(result.feasible_chars.empty());
-  ASSERT_FALSE(result.feasible_frontier_entries.empty());
-  EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
-  ASSERT_TRUE(result.best_char.has_value());
-  const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
-  EXPECT_EQ(result.char_slew_steps, kLeafUnbufferedRealTechCharSteps);
-  EXPECT_EQ(result.char_cap_steps, kLeafUnbufferedRealTechCharSteps);
-  AssertLeafUnbufferedMaterialization(result);
-  WriteAndAssertHTreeArtifacts(artifact_paths, "htree_builder_leaf_unbuffered_option", selected_clock->clock_name, selected_clock->loads,
-                               result);
-  const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
-  EXPECT_NE(cts_log_content.find("force_leaf_unbuffered"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("true"), std::string::npos);
-}
-
-TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhenFeasible)
+TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagateWhenFeasible)
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
   if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -899,23 +768,14 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   ASSERT_GT(baseline_result.char_cap_steps, 0U);
   ASSERT_GT(baseline_result.char_max_slew_ns, 0.0);
   ASSERT_GT(baseline_result.char_max_cap_pf, 0.0);
-  ASSERT_TRUE(baseline_result.min_leaf_driven_cap_pf.has_value());
-  ASSERT_TRUE(baseline_result.leaf_driven_cap_covering_idx.has_value());
 
   const auto top_covering_it = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
   ASSERT_NE(top_covering_it, baseline_result.feasible_chars.end());
-  const auto leaf_covering_it
-      = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_leaf_driven_cap_idx);
-  ASSERT_NE(leaf_covering_it, baseline_result.feasible_chars.end());
 
   const unsigned top_covering_idx = top_covering_it->get_input_slew_idx();
-  const unsigned leaf_covering_idx = leaf_covering_it->get_leaf_driven_cap_idx();
   ASSERT_GT(top_covering_idx, 0U);
-  ASSERT_GT(leaf_covering_idx, 0U);
   const double top_input_slew_ns = (static_cast<double>(top_covering_idx) - 0.5) * baseline_result.char_max_slew_ns
                                    / static_cast<double>(baseline_result.char_slew_steps);
-  const double leaf_driven_cap_pf = (static_cast<double>(leaf_covering_idx) - 0.5) * baseline_result.char_max_cap_pf
-                                    / static_cast<double>(baseline_result.char_cap_steps);
 
   auto top_boundary_result
       = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = top_input_slew_ns});
@@ -928,24 +788,6 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   EXPECT_TRUE(std::ranges::all_of(top_boundary_result.feasible_chars, [&](const icts::HTreeTopologyChar& entry) -> bool {
     return entry.get_input_slew_idx() >= top_covering_idx;
   }));
-  ASSERT_TRUE(top_boundary_result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_DOUBLE_EQ(top_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), baseline_result.min_leaf_driven_cap_pf.value_or(0.0));
-  ASSERT_TRUE(top_boundary_result.leaf_driven_cap_covering_idx.has_value());
-  EXPECT_EQ(top_boundary_result.leaf_driven_cap_covering_idx.value_or(0U), baseline_result.leaf_driven_cap_covering_idx.value_or(0U));
-
-  auto leaf_boundary_result
-      = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_leaf_driven_cap_pf = leaf_driven_cap_pf});
-  ASSERT_TRUE(leaf_boundary_result.success);
-  ASSERT_TRUE(leaf_boundary_result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_DOUBLE_EQ(leaf_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), leaf_driven_cap_pf);
-  ASSERT_TRUE(leaf_boundary_result.leaf_driven_cap_covering_idx.has_value());
-  EXPECT_EQ(leaf_boundary_result.leaf_driven_cap_covering_idx.value_or(0U), leaf_covering_idx);
-  ASSERT_FALSE(leaf_boundary_result.feasible_chars.empty());
-  EXPECT_TRUE(std::ranges::all_of(leaf_boundary_result.feasible_chars, [&](const icts::HTreeTopologyChar& entry) -> bool {
-    return entry.get_leaf_driven_cap_idx() >= leaf_covering_idx;
-  }));
-  EXPECT_FALSE(leaf_boundary_result.min_top_input_slew_ns.has_value());
-  EXPECT_FALSE(leaf_boundary_result.top_input_slew_covering_idx.has_value());
 
   const double impossible_top_input_slew_ns
       = baseline_result.char_max_slew_ns + (baseline_result.char_max_slew_ns / static_cast<double>(baseline_result.char_slew_steps));
@@ -969,39 +811,9 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBoundaryBuildOptionsPropagateWhe
   const unsigned impossible_top_covering_idx = impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U);
   ASSERT_GT(impossible_top_covering_idx, 0U);
   EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_covering_idx);
-  double expected_top_boundary_fallback_score
+  const double expected_top_boundary_fallback_score
       = static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps);
-  if (impossible_top_boundary_result.leaf_driven_cap_covering_idx.has_value() && baseline_result.char_cap_steps > 0U) {
-    expected_top_boundary_fallback_score
-        += static_cast<double>(impossible_top_best_char.get_leaf_driven_cap_idx()) / static_cast<double>(baseline_result.char_cap_steps);
-  }
   EXPECT_DOUBLE_EQ(impossible_top_boundary_result.boundary_fallback_score.value_or(0.0), expected_top_boundary_fallback_score);
-
-  const double impossible_leaf_driven_cap_pf
-      = baseline_result.char_max_cap_pf + (baseline_result.char_max_cap_pf / static_cast<double>(baseline_result.char_cap_steps));
-  auto impossible_leaf_boundary_result = icts::HTreeBuilder::build(
-      selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_leaf_driven_cap_pf = impossible_leaf_driven_cap_pf});
-  ASSERT_TRUE(impossible_leaf_boundary_result.success);
-  ASSERT_TRUE(impossible_leaf_boundary_result.min_leaf_driven_cap_pf.has_value());
-  EXPECT_DOUBLE_EQ(impossible_leaf_boundary_result.min_leaf_driven_cap_pf.value_or(0.0), impossible_leaf_driven_cap_pf);
-  ASSERT_TRUE(impossible_leaf_boundary_result.leaf_driven_cap_covering_idx.has_value());
-  EXPECT_EQ(impossible_leaf_boundary_result.leaf_driven_cap_covering_idx.value_or(0U), baseline_result.char_cap_steps + 1U);
-  EXPECT_TRUE(impossible_leaf_boundary_result.used_boundary_fallback);
-  EXPECT_FALSE(impossible_leaf_boundary_result.boundary_fallback_reason.empty());
-  ASSERT_TRUE(impossible_leaf_boundary_result.boundary_fallback_score.has_value());
-  EXPECT_TRUE(impossible_leaf_boundary_result.feasible_chars.empty());
-  ASSERT_FALSE(impossible_leaf_boundary_result.candidate_chars.empty());
-  ASSERT_FALSE(impossible_leaf_boundary_result.candidate_frontier_entries.empty());
-  EXPECT_LE(impossible_leaf_boundary_result.candidate_frontier_entries.size(), impossible_leaf_boundary_result.candidate_chars.size());
-  ASSERT_TRUE(impossible_leaf_boundary_result.best_char.has_value());
-  const auto impossible_leaf_best_char = impossible_leaf_boundary_result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(impossible_leaf_boundary_result.candidate_frontier_entries, impossible_leaf_best_char));
-  const unsigned impossible_leaf_covering_idx = impossible_leaf_boundary_result.leaf_driven_cap_covering_idx.value_or(0U);
-  ASSERT_GT(impossible_leaf_covering_idx, 0U);
-  EXPECT_LT(impossible_leaf_best_char.get_leaf_driven_cap_idx(), impossible_leaf_covering_idx);
-  EXPECT_DOUBLE_EQ(
-      impossible_leaf_boundary_result.boundary_fallback_score.value_or(0.0),
-      static_cast<double>(impossible_leaf_best_char.get_leaf_driven_cap_idx()) / static_cast<double>(baseline_result.char_cap_steps));
 }
 #endif
 

@@ -97,7 +97,7 @@ struct HTreeFrontierStateKey
 {
   unsigned input_slew_idx = 0U;
   unsigned driven_cap_idx = 0U;
-  unsigned leaf_driven_cap_idx = 0U;
+  unsigned leaf_load_cap_idx = 0U;
   unsigned output_slew_idx = 0U;
   unsigned load_cap_idx = 0U;
   double source_boundary_net_switch_power_w = 0.0;
@@ -113,7 +113,7 @@ struct HTreeFrontierStateKeyHash
   {
     std::size_t seed = std::hash<unsigned>{}(key.input_slew_idx);
     seed ^= std::hash<unsigned>{}(key.driven_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-    seed ^= std::hash<unsigned>{}(key.leaf_driven_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<unsigned>{}(key.leaf_load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<double>{}(key.source_boundary_net_switch_power_w) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
@@ -160,8 +160,8 @@ inline auto SortHTreeFrontierEntries(std::vector<HTreeTopologyChar>& chars) -> v
     if (lhs.get_driven_cap_idx() != rhs.get_driven_cap_idx()) {
       return lhs.get_driven_cap_idx() < rhs.get_driven_cap_idx();
     }
-    if (lhs.get_leaf_driven_cap_idx() != rhs.get_leaf_driven_cap_idx()) {
-      return lhs.get_leaf_driven_cap_idx() < rhs.get_leaf_driven_cap_idx();
+    if (lhs.get_leaf_load_cap_idx() != rhs.get_leaf_load_cap_idx()) {
+      return lhs.get_leaf_load_cap_idx() < rhs.get_leaf_load_cap_idx();
     }
     if (lhs.get_output_slew_idx() != rhs.get_output_slew_idx()) {
       return lhs.get_output_slew_idx() < rhs.get_output_slew_idx();
@@ -240,7 +240,7 @@ inline auto MakeHTreeStateFrontierPruner(StateResolverT state_resolver)
     return HTreeFrontierStateKey{
         .input_slew_idx = entry.get_input_slew_idx(),
         .driven_cap_idx = entry.get_driven_cap_idx(),
-        .leaf_driven_cap_idx = entry.get_leaf_driven_cap_idx(),
+        .leaf_load_cap_idx = entry.get_leaf_load_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
         .source_boundary_net_switch_power_w = entry.get_source_boundary_net_switch_power(),

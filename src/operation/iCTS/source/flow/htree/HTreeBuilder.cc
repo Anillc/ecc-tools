@@ -99,25 +99,8 @@ struct CharacterizationGridPlan
 struct ResolvedBuildOptions
 {
   bool force_branch_buffer = false;
-  bool force_leaf_unbuffered = false;
   std::optional<double> min_top_input_slew_ns = std::nullopt;
   std::optional<unsigned> top_input_slew_covering_idx = std::nullopt;
-  std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
-  std::optional<unsigned> leaf_driven_cap_covering_idx = std::nullopt;
-};
-
-struct LeafDrivenCapResolution
-{
-  std::optional<double> cap_pf = std::nullopt;
-  bool used_explicit_value = false;
-  std::string source = "unconstrained";
-  bool depth_infeasible = false;
-  std::string failure_reason;
-  std::size_t evaluated_leaf_count = 0U;
-  double leaf_cap_min_pf = 0.0;
-  double leaf_cap_max_pf = 0.0;
-  double leaf_cap_mean_pf = 0.0;
-  double leaf_cap_median_pf = 0.0;
 };
 
 struct CapDistributionStats
@@ -176,8 +159,8 @@ struct ActualLoadLegalityResult
   ActualLoadViolation violation = ActualLoadViolation::kMissingTopologyRoot;
   std::string failure_reason;
   CapDistributionStats cap_distribution;
-  double required_leaf_driven_cap_pf = 0.0;
-  std::optional<unsigned> required_leaf_driven_cap_covering_idx = std::nullopt;
+  double required_leaf_load_cap_pf = 0.0;
+  std::optional<unsigned> required_leaf_load_cap_covering_idx = std::nullopt;
   int bottom_most_buffered_level = -1;
   PatternId segment_pattern_id = PatternId::segment(0);
 };
@@ -920,22 +903,11 @@ auto CoveringBoundaryIndex(double value, const UniformValueLattice& lattice) -> 
 auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBuilder& char_builder) -> ResolvedBuildOptions
 {
   ResolvedBuildOptions resolved;
-  resolved.force_leaf_unbuffered = options.force_leaf_unbuffered.value_or(false);
   resolved.force_branch_buffer = options.force_branch_buffer.value_or(CONFIG_INST.is_force_branch_buffer());
-  if (resolved.force_leaf_unbuffered && !options.force_branch_buffer.has_value()) {
-    resolved.force_branch_buffer = false;
-  }
-  LOG_FATAL_IF(resolved.force_branch_buffer && resolved.force_leaf_unbuffered)
-      << "HTreeBuilder: force_branch_buffer and force_leaf_unbuffered cannot be enabled at the same time.";
 
   if (options.min_top_input_slew_ns.has_value() && *options.min_top_input_slew_ns > 0.0) {
     resolved.min_top_input_slew_ns = options.min_top_input_slew_ns;
     resolved.top_input_slew_covering_idx = CoveringBoundaryIndex(*options.min_top_input_slew_ns, char_builder.get_slew_lattice());
-  }
-
-  if (options.min_leaf_driven_cap_pf.has_value() && *options.min_leaf_driven_cap_pf > 0.0) {
-    resolved.min_leaf_driven_cap_pf = options.min_leaf_driven_cap_pf;
-    resolved.leaf_driven_cap_covering_idx = CoveringBoundaryIndex(*options.min_leaf_driven_cap_pf, char_builder.get_cap_lattice());
   }
 
   return resolved;
@@ -943,7 +915,7 @@ auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBu
 
 auto HasBoundaryConstraints(const ResolvedBuildOptions& options) -> bool
 {
-  return options.top_input_slew_covering_idx.has_value() || options.leaf_driven_cap_covering_idx.has_value();
+  return options.top_input_slew_covering_idx.has_value();
 }
 
 auto CountSegmentFrontierEntries(const SegmentFrontierSet& entry_set) -> std::size_t
@@ -1336,20 +1308,6 @@ auto ResolveDepthCandidates(unsigned max_depth, const HTreeBuilder::BuildOptions
   return candidates;
 }
 
-auto ExceedsLeafFanoutCapacity(std::size_t load_count, std::size_t leaf_count, std::size_t max_fanout) -> bool
-{
-  if (max_fanout == 0U) {
-    return false;
-  }
-  if (leaf_count == 0U) {
-    return load_count > 0U;
-  }
-  if (leaf_count > std::numeric_limits<std::size_t>::max() / max_fanout) {
-    return false;
-  }
-  return load_count > leaf_count * max_fanout;
-}
-
 auto CalcMedianCapPf(std::vector<double> caps_pf) -> double
 {
   if (caps_pf.empty()) {
@@ -1392,13 +1350,6 @@ auto BuildLeafElectricalConfig() -> LinearClusteringConfig
   config.always_build_exact_cap = true;
   config.scoring_strategy = LinearScoringStrategy::kTotalWirelength;
   return config;
-}
-
-auto BuildLeafFeasibilityReason(std::size_t node_id, const Point<int>& anchor, const std::string& detail) -> std::string
-{
-  std::ostringstream stream;
-  stream << "leaf_node_" << node_id << " anchor=(" << anchor.get_x() << "," << anchor.get_y() << ") " << detail;
-  return stream.str();
 }
 
 auto ResolveBottomMostBufferedLevel(const HTreeTopologyPattern& topology_pattern, const BufferPatternRegistry& segment_pattern_registry)
@@ -1608,8 +1559,8 @@ auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySi
   }
 
   result.cap_distribution = BuildCapDistributionStats(total_caps_pf);
-  result.required_leaf_driven_cap_pf = result.cap_distribution.cap_max_pf;
-  result.required_leaf_driven_cap_covering_idx = CoveringBoundaryIndex(result.required_leaf_driven_cap_pf, cap_lattice);
+  result.required_leaf_load_cap_pf = result.cap_distribution.cap_max_pf;
+  result.required_leaf_load_cap_covering_idx = CoveringBoundaryIndex(result.required_leaf_load_cap_pf, cap_lattice);
   result.violation = ActualLoadViolation::kNone;
   result.legal = true;
   return result;
@@ -1690,13 +1641,13 @@ auto FilterGlobalEntriesByActualBoundaryCoverage(const std::vector<CandidateChar
       continue;
     }
 
-    if (legality.required_leaf_driven_cap_covering_idx.has_value()
-        && entry_ref.entry->get_leaf_driven_cap_idx() < *legality.required_leaf_driven_cap_covering_idx) {
+    if (legality.required_leaf_load_cap_covering_idx.has_value()
+        && entry_ref.entry->get_leaf_load_cap_idx() < *legality.required_leaf_load_cap_covering_idx) {
       if (result.first_failure_reason.empty()) {
         std::ostringstream detail;
-        detail << "actual_boundary_load_coverage_violation required_leaf_driven_cap_idx=" << *legality.required_leaf_driven_cap_covering_idx
-               << ", entry_leaf_driven_cap_idx=" << entry_ref.entry->get_leaf_driven_cap_idx()
-               << ", max_real_load_pf=" << legality.required_leaf_driven_cap_pf;
+        detail << "actual_boundary_load_coverage_violation required_leaf_load_cap_idx=" << *legality.required_leaf_load_cap_covering_idx
+               << ", entry_leaf_load_cap_idx=" << entry_ref.entry->get_leaf_load_cap_idx()
+               << ", max_real_load_cap_pf=" << legality.required_leaf_load_cap_pf;
         result.first_failure_reason = detail.str();
       }
       continue;
@@ -1707,132 +1658,10 @@ auto FilterGlobalEntriesByActualBoundaryCoverage(const std::vector<CandidateChar
   return result;
 }
 
-auto EstimateLeafDrivenCapResolution(const Tree& topology, unsigned depth, const HTreeBuilder::BuildOptions& build_options)
-    -> LeafDrivenCapResolution
-{
-  LeafDrivenCapResolution resolution;
-  if (build_options.min_leaf_driven_cap_pf.has_value() && *build_options.min_leaf_driven_cap_pf > 0.0) {
-    resolution.cap_pf = build_options.min_leaf_driven_cap_pf;
-    resolution.used_explicit_value = true;
-    resolution.source = "explicit_build_option";
-  }
-
-  const auto* root = topology.get_node(topology.get_root());
-  if (root == nullptr) {
-    resolution.depth_infeasible = true;
-    resolution.failure_reason = "missing_topology_root";
-    return resolution;
-  }
-
-  const auto topology_levels = topology.levels();
-  if (depth == 0U || depth >= topology_levels.size()) {
-    resolution.depth_infeasible = true;
-    resolution.failure_reason = "invalid_candidate_depth";
-    return resolution;
-  }
-
-  const auto& leaf_node_ids = topology_levels.at(depth);
-  const std::size_t leaf_count = leaf_node_ids.size();
-  const std::size_t load_count = root->get_loads().size();
-  const std::size_t max_fanout = CONFIG_INST.get_max_fanout();
-  if (ExceedsLeafFanoutCapacity(load_count, leaf_count, max_fanout)) {
-    resolution.depth_infeasible = true;
-    std::ostringstream reason;
-    reason << "max_fanout_precheck_failed load_count=" << load_count << ", leaf_count=" << leaf_count << ", max_fanout=" << max_fanout;
-    resolution.failure_reason = reason.str();
-    return resolution;
-  }
-
-  const auto electrical_config = BuildLeafElectricalConfig();
-  std::vector<double> leaf_caps_pf;
-  leaf_caps_pf.reserve(leaf_node_ids.size());
-  for (const auto node_id : leaf_node_ids) {
-    const auto* node = topology.get_node(node_id);
-    if (node == nullptr) {
-      resolution.depth_infeasible = true;
-      resolution.failure_reason = "missing_leaf_node";
-      return resolution;
-    }
-
-    const auto& leaf_loads = node->get_loads();
-    if (leaf_loads.empty()) {
-      continue;
-    }
-    if (max_fanout > 0U && leaf_loads.size() > max_fanout) {
-      resolution.depth_infeasible = true;
-      std::ostringstream detail;
-      detail << "fanout_violation load_count=" << leaf_loads.size() << ", max_fanout=" << max_fanout;
-      resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), detail.str());
-      return resolution;
-    }
-
-    const auto electrical = Clustering::evaluateClusterElectrical(leaf_loads, node->get_position(), electrical_config);
-    if (!electrical.legal) {
-      resolution.depth_infeasible = true;
-      if (electrical.violation == ClusterElectricalViolation::kRoutingFailed) {
-        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), "routing_failed");
-      } else if (electrical.violation == ClusterElectricalViolation::kCapacitance) {
-        std::ostringstream detail;
-        detail << "cap_violation total_cap_pf=" << electrical.summary.total_cap_pf;
-        if (CONFIG_INST.has_max_cap()) {
-          detail << ", max_cap_pf=" << CONFIG_INST.get_max_cap();
-        }
-        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), detail.str());
-      } else if (electrical.violation == ClusterElectricalViolation::kFanout) {
-        std::ostringstream detail;
-        detail << "fanout_violation load_count=" << leaf_loads.size() << ", max_fanout=" << max_fanout;
-        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), detail.str());
-      } else {
-        resolution.failure_reason = BuildLeafFeasibilityReason(node_id, node->get_position(), "electrical_evaluation_failed");
-      }
-      return resolution;
-    }
-
-    leaf_caps_pf.push_back(electrical.summary.total_cap_pf);
-  }
-
-  if (load_count > 0U && leaf_caps_pf.empty()) {
-    resolution.depth_infeasible = true;
-    resolution.failure_reason = "empty_leaf_cap_distribution";
-    return resolution;
-  }
-
-  if (!leaf_caps_pf.empty()) {
-    const auto stats = BuildCapDistributionStats(leaf_caps_pf);
-    resolution.evaluated_leaf_count = stats.group_count;
-    resolution.leaf_cap_min_pf = stats.cap_min_pf;
-    resolution.leaf_cap_max_pf = stats.cap_max_pf;
-    resolution.leaf_cap_mean_pf = stats.cap_mean_pf;
-    resolution.leaf_cap_median_pf = stats.cap_median_pf;
-  }
-
-  if (!resolution.used_explicit_value && resolution.evaluated_leaf_count > 0U) {
-    resolution.cap_pf = resolution.leaf_cap_max_pf;
-    resolution.source = "leaf_total_cap_max";
-  }
-  return resolution;
-}
-
-auto ApplyLeafDrivenCapResolution(const ResolvedBuildOptions& base_options, const LeafDrivenCapResolution& cap_resolution,
-                                  const CharBuilder& char_builder) -> ResolvedBuildOptions
-{
-  ResolvedBuildOptions resolved = base_options;
-  resolved.min_leaf_driven_cap_pf = std::nullopt;
-  resolved.leaf_driven_cap_covering_idx = std::nullopt;
-  if (cap_resolution.cap_pf.has_value() && *cap_resolution.cap_pf > 0.0) {
-    resolved.min_leaf_driven_cap_pf = cap_resolution.cap_pf;
-    resolved.leaf_driven_cap_covering_idx = CoveringBoundaryIndex(*cap_resolution.cap_pf, char_builder.get_cap_lattice());
-  }
-  return resolved;
-}
-
-auto ResolveSegmentEntrySelection(bool is_leaf_level, const ResolvedBuildOptions& resolved_options) -> SegmentEntrySelection
+auto ResolveSegmentEntrySelection(const ResolvedBuildOptions& resolved_options) -> SegmentEntrySelection
 {
   if (resolved_options.force_branch_buffer) {
     return SegmentEntrySelection::kBranchBuffered;
-  }
-  if (is_leaf_level && resolved_options.force_leaf_unbuffered) {
-    return SegmentEntrySelection::kLeafUnbuffered;
   }
   return SegmentEntrySelection::kAllFrontier;
 }
@@ -1875,7 +1704,7 @@ auto MakeHTreeSeedEntries(const std::vector<SegmentChar>& segment_frontier, cons
     const CharCore core(segment_entry.get_input_slew_idx(), segment_entry.get_output_slew_idx(), segment_entry.get_driven_cap_idx(),
                         segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id,
                         segment_entry.get_source_boundary_net_switch_power());
-    seed_entries.emplace_back(core, 1U, segment_entry.get_driven_cap_idx());
+    seed_entries.emplace_back(core, 1U);
   }
   return seed_entries;
 }
@@ -1919,7 +1748,7 @@ auto BuildHTreeComposition(const std::vector<HTreeBuilder::LevelPlan>& levels,
     }
 
     const auto& entry_set = entry_set_it->second;
-    const SegmentEntrySelection entry_selection = ResolveSegmentEntrySelection(level.is_leaf_level, resolved_options);
+    const SegmentEntrySelection entry_selection = ResolveSegmentEntrySelection(resolved_options);
     const auto& base_segment_frontier = SelectSegmentEntriesForLevel(entry_set, entry_selection);
     if (base_segment_frontier.empty()) {
       result.failure_reason = DescribeMissingSegmentEntries(entry_selection);
@@ -1962,27 +1791,18 @@ auto FilterBoundaryFeasibleHTreeChars(const std::vector<HTreeTopologyChar>& entr
         && entry.get_input_slew_idx() < *resolved_options.top_input_slew_covering_idx) {
       continue;
     }
-    if (resolved_options.leaf_driven_cap_covering_idx.has_value()
-        && entry.get_leaf_driven_cap_idx() < *resolved_options.leaf_driven_cap_covering_idx) {
-      continue;
-    }
     filtered_entries.push_back(entry);
   }
   return filtered_entries;
 }
 
-auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps,
-                               unsigned cap_steps) -> double;
+auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps) -> double;
 
-auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps,
-                               unsigned cap_steps) -> double
+auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps) -> double
 {
   double score = 0.0;
   if (resolved_options.top_input_slew_covering_idx.has_value() && slew_steps > 0U) {
     score += static_cast<double>(entry.get_input_slew_idx()) / static_cast<double>(slew_steps);
-  }
-  if (resolved_options.leaf_driven_cap_covering_idx.has_value() && cap_steps > 0U) {
-    score += static_cast<double>(entry.get_leaf_driven_cap_idx()) / static_cast<double>(cap_steps);
   }
   return score;
 }
@@ -2059,8 +1879,7 @@ auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
                             const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,
                             const BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& resolved_options,
                             const Tree& topology, ActualLoadLegalityContext& actual_load_legality_context, std::size_t leaf_count,
-                            unsigned depth, double char_max_cap_pf, unsigned char_slew_steps, unsigned char_cap_steps)
-    -> CandidateBuildEvaluation
+                            unsigned depth, unsigned char_slew_steps) -> CandidateBuildEvaluation
 {
   CandidateBuildEvaluation result;
   result.depth = depth;
@@ -2111,7 +1930,7 @@ auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
     if (result.best_char.has_value()) {
       result.used_boundary_fallback = true;
       result.boundary_fallback_reason = "no_strict_boundary_feasible_solution";
-      result.boundary_fallback_score = CalcBoundaryFallbackScore(*result.best_char, resolved_options, char_slew_steps, char_cap_steps);
+      result.boundary_fallback_score = CalcBoundaryFallbackScore(*result.best_char, resolved_options, char_slew_steps);
     }
   }
 
@@ -2119,7 +1938,6 @@ auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
   if (!result.success && result.failure_reason.empty()) {
     result.failure_reason = "no_actual_load_legal_frontier_entries";
   }
-  (void) char_max_cap_pf;
   return result;
 }
 
@@ -2592,7 +2410,6 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
 
   const auto base_resolved_options = ResolveBuildOptions(options, char_builder);
   result.force_branch_buffer = base_resolved_options.force_branch_buffer;
-  result.force_leaf_unbuffered = base_resolved_options.force_leaf_unbuffered;
   result.target_depth = options.target_depth;
 
   const auto full_level_plans = BuildLevelPlans(result.topology, length_step_um, dbu_per_um);
@@ -2639,40 +2456,17 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   for (const unsigned depth : depth_candidates) {
     auto candidate_levels = MakeCandidateLevelPlans(full_level_plans, depth);
     const std::size_t leaf_count = CountCandidateLeafNodes(result.topology, depth);
-    const auto cap_resolution = EstimateLeafDrivenCapResolution(result.topology, depth, options);
-    const auto candidate_options = ApplyLeafDrivenCapResolution(base_resolved_options, cap_resolution, char_builder);
+    const auto candidate_options = base_resolved_options;
     CandidateBuildEvaluation evaluation;
-    if (cap_resolution.depth_infeasible) {
-      evaluation.depth = depth;
-      evaluation.leaf_count = leaf_count;
-      evaluation.resolved_options = candidate_options;
-      evaluation.levels = candidate_levels;
-      evaluation.success = false;
-      evaluation.failure_reason = cap_resolution.failure_reason;
-      LOG_WARNING << "HTreeBuilder: skip depth " << depth << " before characterization because " << cap_resolution.failure_reason << ".";
-    } else {
-      evaluation = EvaluateCandidateBuild(candidate_levels, entry_sets_by_length, segment_pattern_registry, candidate_options,
-                                          result.topology, actual_load_legality_context, leaf_count, depth, result.char_max_cap_pf,
-                                          result.char_slew_steps, result.char_cap_steps);
-    }
-
-    const std::string candidate_failure_reason
-        = cap_resolution.depth_infeasible ? cap_resolution.failure_reason : evaluation.failure_reason;
+    evaluation = EvaluateCandidateBuild(candidate_levels, entry_sets_by_length, segment_pattern_registry, candidate_options,
+                                        result.topology, actual_load_legality_context, leaf_count, depth, result.char_slew_steps);
     result.depth_candidates.push_back(BuildResult::DepthCandidateSummary{
         .depth = depth,
         .leaf_count = leaf_count,
         .success = evaluation.success,
         .selected = false,
         .used_explicit_target_depth = options.target_depth.has_value(),
-        .used_explicit_leaf_driven_cap = cap_resolution.used_explicit_value,
-        .requested_leaf_driven_cap_pf = cap_resolution.cap_pf.value_or(0.0),
-        .leaf_driven_cap_source = cap_resolution.source,
-        .failure_reason = candidate_failure_reason,
-        .evaluated_leaf_count = cap_resolution.evaluated_leaf_count,
-        .leaf_cap_min_pf = cap_resolution.leaf_cap_min_pf,
-        .leaf_cap_max_pf = cap_resolution.leaf_cap_max_pf,
-        .leaf_cap_mean_pf = cap_resolution.leaf_cap_mean_pf,
-        .leaf_cap_median_pf = cap_resolution.leaf_cap_median_pf,
+        .failure_reason = evaluation.failure_reason,
         .final_frontier_count = evaluation.final_frontier_count,
         .candidate_solution_count = evaluation.candidate_chars.size(),
         .feasible_solution_count = evaluation.feasible_chars.size(),
@@ -2743,14 +2537,12 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   result.feasible_frontier_entries = std::move(selected_evaluation.feasible_frontier_entries);
   result.min_top_input_slew_ns = selected_evaluation.resolved_options.min_top_input_slew_ns;
   result.top_input_slew_covering_idx = selected_evaluation.resolved_options.top_input_slew_covering_idx;
-  result.min_leaf_driven_cap_pf = selected_evaluation.resolved_options.min_leaf_driven_cap_pf;
-  result.leaf_driven_cap_covering_idx = selected_evaluation.resolved_options.leaf_driven_cap_covering_idx;
 
   if (!selected_feasible_ref.has_value()) {
     result.used_boundary_fallback = true;
     result.boundary_fallback_reason = "no_strict_boundary_feasible_solution_any_depth";
     result.boundary_fallback_score
-        = CalcBoundaryFallbackScore(*result.best_char, selected_evaluation.resolved_options, result.char_slew_steps, result.char_cap_steps);
+        = CalcBoundaryFallbackScore(*result.best_char, selected_evaluation.resolved_options, result.char_slew_steps);
 
     schema::EmitDiagnostic(
         schema::DiagnosticLevel::kFallback, "HTreeBuilder",
@@ -2760,7 +2552,7 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
             {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
             {"fallback_score", std::to_string(result.boundary_fallback_score.value_or(0.0))},
             {"selected_top_input_slew_idx", std::to_string(result.best_char->get_input_slew_idx())},
-            {"selected_leaf_driven_cap_idx", std::to_string(result.best_char->get_leaf_driven_cap_idx())},
+            {"selected_leaf_load_cap_idx", std::to_string(result.best_char->get_leaf_load_cap_idx())},
         });
   }
 
@@ -2825,15 +2617,12 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
       {"power", logformat::FormatPowerW(result.best_char->get_power()), "selected pattern metric (total power)"},
       {"delay", logformat::FormatWithUnit(result.best_char->get_delay(), "ns"), "selected pattern metric"},
       {"root_driven_cap_idx", std::to_string(result.best_char->get_driven_cap_idx()), "selected pattern metric"},
-      {"leaf_driven_cap_idx", std::to_string(result.best_char->get_leaf_driven_cap_idx()), "selected pattern metric"},
+      {"leaf_load_cap_idx", std::to_string(result.best_char->get_leaf_load_cap_idx()), "selected pattern metric"},
       {"leaf_output_slew_idx", std::to_string(result.best_char->get_output_slew_idx()), "selected pattern metric"},
       {"root_load_cap_idx", std::to_string(result.best_char->get_load_cap_idx()), "selected pattern metric"},
       {"force_branch_buffer", logformat::FormatBool(selected_evaluation.resolved_options.force_branch_buffer),
        selected_evaluation.resolved_options.force_branch_buffer ? "every H-tree level requires terminal-buffered segment frontier"
                                                                 : "disabled"},
-      {"force_leaf_unbuffered", logformat::FormatBool(selected_evaluation.resolved_options.force_leaf_unbuffered),
-       selected_evaluation.resolved_options.force_leaf_unbuffered ? "leaf H-tree level requires terminal-unbuffered segment frontier"
-                                                                  : "disabled"},
       {"top_input_slew_covering_idx",
        selected_evaluation.resolved_options.top_input_slew_covering_idx.has_value()
            ? std::to_string(*selected_evaluation.resolved_options.top_input_slew_covering_idx)
@@ -2841,23 +2630,6 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
        selected_evaluation.resolved_options.min_top_input_slew_ns.has_value()
            ? logformat::FormatWithUnit(*selected_evaluation.resolved_options.min_top_input_slew_ns, "ns")
            : "unconstrained"},
-      {"leaf_driven_cap_covering_idx",
-       selected_evaluation.resolved_options.leaf_driven_cap_covering_idx.has_value()
-           ? std::to_string(*selected_evaluation.resolved_options.leaf_driven_cap_covering_idx)
-           : "none",
-       selected_evaluation.resolved_options.min_leaf_driven_cap_pf.has_value()
-           ? logformat::FormatWithUnit(*selected_evaluation.resolved_options.min_leaf_driven_cap_pf, "pF")
-           : "unconstrained"},
-      {"leaf_load_count", std::to_string(selected_summary.evaluated_leaf_count),
-       "selected depth topology leaf groups with exact routing-cap evaluation for driven-cap resolution"},
-      {"leaf_load_cap_min", logformat::FormatWithUnit(selected_summary.leaf_cap_min_pf, "pF"),
-       "selected depth topology leaf total-cap minimum across precheck groups"},
-      {"leaf_load_cap_max", logformat::FormatWithUnit(selected_summary.leaf_cap_max_pf, "pF"),
-       "selected depth topology leaf total-cap maximum across precheck groups; auto-driven-cap source uses this value"},
-      {"leaf_load_cap_mean", logformat::FormatWithUnit(selected_summary.leaf_cap_mean_pf, "pF"),
-       "selected depth topology leaf total-cap mean across precheck groups"},
-      {"leaf_load_cap_median", logformat::FormatWithUnit(selected_summary.leaf_cap_median_pf, "pF"),
-       "selected depth topology leaf total-cap median across precheck groups"},
       {"htree_load_group_count", std::to_string(selected_summary.htree_load_group_count),
        "selected H-tree external-load groups driven by the bottom-most buffered segments"},
       {"htree_load_cap_min", logformat::FormatWithUnit(selected_summary.htree_load_cap_min_pf, "pF"),

@@ -57,9 +57,9 @@ inline constexpr double kExactLeafLevelLengthUm = 25.0;
 inline constexpr double kExactMidLevelLengthUm = 50.0;
 inline constexpr double kExactRootLevelLengthUm = 100.0;
 inline constexpr double kRealTechCharWireLengthUnitUm = 25.0;
-inline constexpr unsigned kRealTechCharWireLengthIterations = 5U;
-inline constexpr unsigned kRealTechCharSlewSteps = 10U;
-inline constexpr unsigned kRealTechCharCapSteps = 10U;
+inline constexpr unsigned kRealTechCharWireLengthIterations = 3U;
+inline constexpr unsigned kRealTechCharSlewSteps = 15U;
+inline constexpr unsigned kRealTechCharCapSteps = 15U;
 
 struct ConfigState
 {

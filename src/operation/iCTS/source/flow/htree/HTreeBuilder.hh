@@ -45,9 +45,7 @@ class HTreeBuilder
   struct BuildOptions
   {
     std::optional<bool> force_branch_buffer = std::nullopt;
-    std::optional<bool> force_leaf_unbuffered = std::nullopt;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
-    std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
     std::optional<unsigned> target_depth = std::nullopt;
     std::optional<unsigned> depth_explore_window = std::nullopt;
   };
@@ -75,15 +73,7 @@ class HTreeBuilder
       bool success = false;
       bool selected = false;
       bool used_explicit_target_depth = false;
-      bool used_explicit_leaf_driven_cap = false;
-      double requested_leaf_driven_cap_pf = 0.0;
-      std::string leaf_driven_cap_source;
       std::string failure_reason;
-      std::size_t evaluated_leaf_count = 0U;
-      double leaf_cap_min_pf = 0.0;
-      double leaf_cap_max_pf = 0.0;
-      double leaf_cap_mean_pf = 0.0;
-      double leaf_cap_median_pf = 0.0;
       std::size_t htree_load_group_count = 0U;
       double htree_load_cap_min_pf = 0.0;
       double htree_load_cap_max_pf = 0.0;
@@ -119,14 +109,11 @@ class HTreeBuilder
     unsigned char_slew_steps = 0U;
     unsigned char_cap_steps = 0U;
     bool force_branch_buffer = false;
-    bool force_leaf_unbuffered = false;
     std::optional<unsigned> target_depth = std::nullopt;
     unsigned depth_explore_window = 0U;
     std::optional<unsigned> selected_depth = std::nullopt;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<unsigned> top_input_slew_covering_idx = std::nullopt;
-    std::optional<double> min_leaf_driven_cap_pf = std::nullopt;
-    std::optional<unsigned> leaf_driven_cap_covering_idx = std::nullopt;
     std::vector<DepthCandidateSummary> depth_candidates;
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;

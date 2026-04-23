@@ -66,11 +66,11 @@ class Config
     _max_length = 300;
     // Active wire-length lattice controls used by characterization.
     _wire_length_unit_um = 0.0;
-    _wire_length_iterations = 5;
+    _wire_length_iterations = 3;
     _routing_layers.clear();
     _buffer_types.clear();
-    _slew_steps = 10;
-    _cap_steps = 10;
+    _slew_steps = 15;
+    _cap_steps = 15;
     _wire_width = 0.0;
     _char_buf_redundancy_pct = 0.0;
     _force_branch_buffer = false;
@@ -166,9 +166,9 @@ class Config
   bool _has_max_cap = false;
   double _max_length = 0.0;              // Placeholder knob (not step-based slicing).
   double _wire_length_unit_um = 0.0;     // Active base unit for wire-length lattice.
-  unsigned _wire_length_iterations = 5;  // Active iteration count for wire-length lattice.
-  unsigned _slew_steps = 10;
-  unsigned _cap_steps = 10;
+  unsigned _wire_length_iterations = 3;  // Active iteration count for wire-length lattice.
+  unsigned _slew_steps = 15;
+  unsigned _cap_steps = 15;
   double _wire_width = 0.0;
   unsigned _max_fanout = 32;
   std::vector<unsigned> _routing_layers;

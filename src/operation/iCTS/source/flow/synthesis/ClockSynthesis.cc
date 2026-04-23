@@ -412,13 +412,9 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
       {"cluster_index", "sink_count", "cluster_center", "htree_leaf_location", "manhattan_distance_dbu"}, detail_rows);
 }
 
-auto buildHtreeOptions(const bool enable_sink_clustering) -> HTreeBuilder::BuildOptions
+auto buildHtreeOptions() -> HTreeBuilder::BuildOptions
 {
   HTreeBuilder::BuildOptions htree_options;
-  if (!enable_sink_clustering) {
-    htree_options.force_leaf_unbuffered = true;
-  }
-
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
   if (max_buf_tran > 0.0) {
     htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
@@ -567,7 +563,7 @@ auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, co
     htree_sinks = sinks;
   }
 
-  auto htree_options = buildHtreeOptions(enable_sink_clustering);
+  auto htree_options = buildHtreeOptions();
   result.htree_result = HTreeBuilder::build(htree_sinks, htree_options);
   appendHtreeInsertedObjects(result);
   if (!result.htree_result.success) {

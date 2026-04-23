@@ -43,15 +43,7 @@ class HTreeTopologyChar
  public:
   HTreeTopologyChar() = default;
 
-  HTreeTopologyChar(CharCore core, unsigned levels)
-      : _core(std::move(core)), _levels(levels), _leaf_driven_cap_idx(_core.get_driven_cap_idx())
-  {
-  }
-
-  HTreeTopologyChar(CharCore core, unsigned levels, unsigned leaf_driven_cap_idx)
-      : _core(std::move(core)), _levels(levels), _leaf_driven_cap_idx(leaf_driven_cap_idx)
-  {
-  }
+  HTreeTopologyChar(CharCore core, unsigned levels) : _core(std::move(core)), _levels(levels) {}
 
   // Forwarded getters from CharCore
   auto get_input_slew_idx() const -> unsigned { return _core.get_input_slew_idx(); }
@@ -61,7 +53,8 @@ class HTreeTopologyChar
   auto get_delay() const -> double { return _core.get_delay(); }
   auto get_power() const -> double { return _core.get_power(); }
   auto get_pattern_id() const -> PatternId { return _core.get_pattern_id(); }
-  auto get_leaf_driven_cap_idx() const -> unsigned { return _leaf_driven_cap_idx; }
+  // The leaf-side boundary capability is the downstream-most load-cap bin already stored in CharCore.
+  auto get_leaf_load_cap_idx() const -> unsigned { return _core.get_load_cap_idx(); }
   auto get_source_boundary_net_switch_power() const -> double { return _core.get_source_boundary_net_switch_power(); }
 
   // H-tree specific getter
@@ -98,13 +91,12 @@ class HTreeTopologyChar
                          // Binary fan-out: downstream source-boundary switching is owned by the upstream branch point.
                          upstream.get_power() + 2.0 * (downstream.get_power() - downstream.get_source_boundary_net_switch_power()),
                          merged_topo_pid, upstream.get_source_boundary_net_switch_power());
-    return HTreeTopologyChar(std::move(merged_core), upstream._levels + downstream._levels, downstream.get_leaf_driven_cap_idx());
+    return HTreeTopologyChar(std::move(merged_core), upstream._levels + downstream._levels);
   }
 
  private:
   CharCore _core;
   unsigned _levels = 0;
-  unsigned _leaf_driven_cap_idx = 0U;
 };
 
 }  // namespace icts

@@ -356,7 +356,6 @@ auto AssertUnrestrictedFrontierHTree(const icts::HTreeBuilder::BuildResult& htre
 {
   ASSERT_TRUE(htree_result.success);
   EXPECT_FALSE(htree_result.force_branch_buffer);
-  EXPECT_FALSE(htree_result.force_leaf_unbuffered);
   ASSERT_FALSE(htree_result.levels.empty());
 }
 
@@ -364,31 +363,12 @@ auto AssertBranchBufferedHTree(const icts::HTreeBuilder::BuildResult& htree_resu
 {
   ASSERT_TRUE(htree_result.success);
   EXPECT_TRUE(htree_result.force_branch_buffer);
-  EXPECT_FALSE(htree_result.force_leaf_unbuffered);
   ASSERT_FALSE(htree_result.levels.empty());
 
   const auto* leaf_level = FindLeafLevelPlan(htree_result);
   ASSERT_NE(leaf_level, nullptr);
   EXPECT_TRUE(leaf_level->selected_has_terminal_branch_buffer);
   EXPECT_FALSE(leaf_level->selected_terminal_cell_master.empty());
-}
-
-auto AssertLeafUnbufferedHTree(const icts::HTreeBuilder::BuildResult& htree_result) -> void
-{
-  ASSERT_TRUE(htree_result.success);
-  EXPECT_TRUE(htree_result.force_leaf_unbuffered);
-  EXPECT_FALSE(htree_result.force_branch_buffer);
-  ASSERT_FALSE(htree_result.levels.empty());
-
-  bool exercised_leaf = false;
-  for (const auto& level : htree_result.levels) {
-    if (!level.is_leaf_level) {
-      continue;
-    }
-    exercised_leaf = true;
-    EXPECT_FALSE(level.selected_has_terminal_branch_buffer);
-  }
-  EXPECT_TRUE(exercised_leaf);
 }
 
 auto WriteAndAssertSynthesisArtifacts(const std::string& case_name, const std::string& scenario_name, const std::string& clock_name,
@@ -497,20 +477,6 @@ auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result)
   EXPECT_TRUE(selected_summary->success);
 }
 
-auto AssertSelectedLeafCapDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
-{
-  const auto* selected_summary = FindSelectedDepthSummary(result);
-  ASSERT_NE(selected_summary, nullptr);
-  ASSERT_GT(selected_summary->evaluated_leaf_count, 0U);
-  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_mean_pf);
-  EXPECT_LE(selected_summary->leaf_cap_min_pf, selected_summary->leaf_cap_median_pf);
-  EXPECT_LE(selected_summary->leaf_cap_mean_pf, selected_summary->leaf_cap_max_pf);
-  EXPECT_LE(selected_summary->leaf_cap_median_pf, selected_summary->leaf_cap_max_pf);
-  if (!selected_summary->used_explicit_leaf_driven_cap) {
-    EXPECT_DOUBLE_EQ(selected_summary->requested_leaf_driven_cap_pf, selected_summary->leaf_cap_max_pf);
-  }
-}
-
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
 {
   const auto* selected_summary = FindSelectedDepthSummary(result);
@@ -597,15 +563,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
   AssertUnrestrictedFrontierHTree(result.htree_result);
   AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
   AssertDepthCandidateCoverage(result.htree_result);
-  AssertSelectedLeafCapDistribution(result.htree_result);
   AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), kSynthesisSmokeMaxSlewNs * 0.5);
-  EXPECT_TRUE(result.htree_result.min_leaf_driven_cap_pf.has_value());
-  const auto* clustered_depth_summary = FindSelectedDepthSummary(result.htree_result);
-  ASSERT_NE(clustered_depth_summary, nullptr);
-  EXPECT_DOUBLE_EQ(clustered_depth_summary->requested_leaf_driven_cap_pf, result.htree_result.min_leaf_driven_cap_pf.value_or(0.0));
-  EXPECT_FALSE(clustered_depth_summary->leaf_driven_cap_source.empty());
 
   AssertClusterBufferMastersFollowLeafSemantics(result, expected_cluster_master_name);
   const auto cluster_buffer_insts = CollectClusterBufferInsts(result);
@@ -692,7 +652,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
   AssertClusteredArtifacts(artifact_paths);
 }
 
-TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUsesLeafUnbufferedHTree)
+TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUsesUnrestrictedHTreeFrontier)
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
   if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -745,18 +705,12 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
   ASSERT_EQ(source_to_root_net->get_loads().size(), 1U);
   EXPECT_EQ(source_to_root_net->get_loads().front(), result.htree_result.root_input_pin);
 
-  AssertLeafUnbufferedHTree(result.htree_result);
+  AssertUnrestrictedFrontierHTree(result.htree_result);
   AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
   AssertDepthCandidateCoverage(result.htree_result);
-  AssertSelectedLeafCapDistribution(result.htree_result);
   AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), kSynthesisSmokeMaxSlewNs * 0.5);
-  EXPECT_TRUE(result.htree_result.min_leaf_driven_cap_pf.has_value());
-  const auto* non_clustered_depth_summary = FindSelectedDepthSummary(result.htree_result);
-  ASSERT_NE(non_clustered_depth_summary, nullptr);
-  EXPECT_DOUBLE_EQ(non_clustered_depth_summary->requested_leaf_driven_cap_pf, result.htree_result.min_leaf_driven_cap_pf.value_or(0.0));
-  EXPECT_FALSE(non_clustered_depth_summary->leaf_driven_cap_source.empty());
   EXPECT_TRUE(result.cluster_buffers.empty());
   EXPECT_EQ(CountTopologyLeafNodes(result.htree_result.topology), CalcFloorPowerOfTwo(selected_clock_data.sinks.size()));
 
