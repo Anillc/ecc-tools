@@ -1108,7 +1108,7 @@ class LibCell : public LibObject
   void set_is_macro() { _is_macro_cell = 1; }
   [[nodiscard]] unsigned isMacroCell() const { return _is_macro_cell; }
 
-  double convertTablePowerToMw(double query_table_power);
+  double convertInternalPowerTableToMwNs(double query_table_power);
 
  private:
   std::string _cell_name;                                             //!< The liberty cell name.

@@ -39,14 +39,15 @@ class CharCore
   CharCore() = default;
 
   CharCore(unsigned input_slew_idx, unsigned output_slew_idx, unsigned driven_cap_idx, unsigned load_cap_idx, double delay, double power,
-           PatternId pattern_id)
+           PatternId pattern_id, double source_boundary_net_switch_power = 0.0)
       : _input_slew_idx(input_slew_idx),
         _output_slew_idx(output_slew_idx),
         _driven_cap_idx(driven_cap_idx),
         _load_cap_idx(load_cap_idx),
         _delay(delay),
         _power(power),
-        _pattern_id(pattern_id)
+        _pattern_id(pattern_id),
+        _source_boundary_net_switch_power(source_boundary_net_switch_power)
   {
   }
 
@@ -58,6 +59,7 @@ class CharCore
   auto get_delay() const -> double { return _delay; }
   auto get_power() const -> double { return _power; }
   auto get_pattern_id() const -> PatternId { return _pattern_id; }
+  auto get_source_boundary_net_switch_power() const -> double { return _source_boundary_net_switch_power; }
 
  private:
   unsigned _input_slew_idx = 0;
@@ -67,6 +69,7 @@ class CharCore
   double _delay = 0.0;
   double _power = 0.0;
   PatternId _pattern_id{PatternDomain::kSegmentPattern, 0};
+  double _source_boundary_net_switch_power = 0.0;
 };
 
 }  // namespace icts

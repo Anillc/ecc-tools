@@ -52,6 +52,7 @@ class SegmentChar
   auto get_delay() const -> double { return _core.get_delay(); }
   auto get_power() const -> double { return _core.get_power(); }
   auto get_pattern_id() const -> PatternId { return _core.get_pattern_id(); }
+  auto get_source_boundary_net_switch_power() const -> double { return _core.get_source_boundary_net_switch_power(); }
 
   // Segment-specific getter
   auto get_length_idx() const -> unsigned { return _length_idx; }
@@ -66,7 +67,8 @@ class SegmentChar
    * - driven_cap_idx = upstream.driven_cap_idx (unchanged from source)
    * - load_cap_idx = downstream.load_cap_idx
    * - delay = upstream.delay + downstream.delay
-   * - power = upstream.power + downstream.power
+   * - power = upstream.power + downstream.power - downstream.source_boundary_net_switch_power
+   * - source_boundary_net_switch_power = upstream.source_boundary_net_switch_power
    *
    * @param upstream Upstream segment (closer to source)
    * @param downstream Downstream segment (closer to sink)
@@ -79,8 +81,8 @@ class SegmentChar
                          upstream.get_driven_cap_idx(),                  // driven_cap from upstream (source side)
                          downstream.get_load_cap_idx(),                  // load_cap from downstream (sink side)
                          upstream.get_delay() + downstream.get_delay(),  // additive delay
-                         upstream.get_power() + downstream.get_power(),  // additive power
-                         merged_pid);
+                         upstream.get_power() + downstream.get_power() - downstream.get_source_boundary_net_switch_power(), merged_pid,
+                         upstream.get_source_boundary_net_switch_power());
     return SegmentChar(std::move(merged_core), upstream._length_idx + downstream._length_idx);
   }
 

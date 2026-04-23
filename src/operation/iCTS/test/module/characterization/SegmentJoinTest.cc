@@ -216,5 +216,25 @@ TEST(SegmentJoinTest, SegmentStateFrontierKeepsDistinctMonotonicBoundaryStates)
   EXPECT_EQ(pattern_ids, (std::vector<unsigned>{support::kPattern1, support::kPattern2}));
 }
 
+TEST(SegmentJoinTest, JoinSubtractsDownstreamSourceBoundarySwitchPower)
+{
+  icts::SegmentCharTable upstream;
+  icts::SegmentCharTable downstream;
+
+  upstream.addChar(support::MakeSegmentChar(
+      support::kSlew80, support::kSlew100, support::kCap40, support::kCap50, support::kDelay1p0, support::kPower0p5,
+      support::SegmentShape{.pattern_id = support::kPattern1, .length_idx = support::kLength1000}, 0.05));
+  downstream.addChar(support::MakeSegmentChar(
+      support::kSlew100, support::kSlew120, support::kCap50, support::kCap60, support::kDelay2p0, support::kPower0p3,
+      support::SegmentShape{.pattern_id = support::kPattern2, .length_idx = support::kLength2000}, 0.10));
+
+  const icts::SegmentPatternCombiner combiner(support::kBoundaryKey);
+  auto result = upstream.concatWith(downstream, combiner);
+
+  ASSERT_EQ(result.size(), 1U);
+  EXPECT_DOUBLE_EQ(result.get_chars().front().get_power(), 0.7);
+  EXPECT_DOUBLE_EQ(result.get_chars().front().get_source_boundary_net_switch_power(), 0.05);
+}
+
 }  // namespace
 }  // namespace icts_test

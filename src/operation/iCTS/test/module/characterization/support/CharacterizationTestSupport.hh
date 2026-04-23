@@ -88,9 +88,10 @@ struct SegmentShape
 };
 
 inline auto MakeSegmentChar(unsigned input_slew, unsigned output_slew, unsigned driven_cap, unsigned load_cap, double delay, double power,
-                            SegmentShape shape) -> icts::SegmentChar
+                            SegmentShape shape, double source_boundary_net_switch_power = 0.0) -> icts::SegmentChar
 {
-  const icts::CharCore core(input_slew, output_slew, driven_cap, load_cap, delay, power, icts::PatternId::segment(shape.pattern_id));
+  const icts::CharCore core(input_slew, output_slew, driven_cap, load_cap, delay, power, icts::PatternId::segment(shape.pattern_id),
+                            source_boundary_net_switch_power);
   return {core, shape.length_idx};
 }
 
@@ -101,9 +102,10 @@ struct HTreeShape
 };
 
 inline auto MakeHTreeChar(unsigned input_slew, unsigned output_slew, unsigned driven_cap, unsigned load_cap, double delay, double power,
-                          HTreeShape shape) -> icts::HTreeTopologyChar
+                          HTreeShape shape, double source_boundary_net_switch_power = 0.0) -> icts::HTreeTopologyChar
 {
-  const icts::CharCore core(input_slew, output_slew, driven_cap, load_cap, delay, power, icts::PatternId::topology(shape.pattern_id));
+  const icts::CharCore core(input_slew, output_slew, driven_cap, load_cap, delay, power, icts::PatternId::topology(shape.pattern_id),
+                            source_boundary_net_switch_power);
   return {core, shape.levels};
 }
 

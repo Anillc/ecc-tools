@@ -176,6 +176,8 @@ struct ActualLoadLegalityResult
   ActualLoadViolation violation = ActualLoadViolation::kMissingTopologyRoot;
   std::string failure_reason;
   CapDistributionStats cap_distribution;
+  double required_leaf_driven_cap_pf = 0.0;
+  std::optional<unsigned> required_leaf_driven_cap_covering_idx = std::nullopt;
   int bottom_most_buffered_level = -1;
   PatternId segment_pattern_id = PatternId::segment(0);
 };
@@ -184,6 +186,7 @@ struct ActualLoadLegalityContext
 {
   std::unordered_map<ActualLoadLegalitySignature, ActualLoadLegalityResult, ActualLoadLegalitySignatureHash> result_by_signature;
   int max_monotone_failed_level = std::numeric_limits<int>::min();
+  UniformValueLattice cap_lattice;
 };
 
 enum class SegmentEntrySelection
@@ -664,6 +667,12 @@ struct CandidateCharRef
 {
   std::size_t candidate_index = 0U;
   const HTreeTopologyChar* entry = nullptr;
+};
+
+struct CandidateCharRefFilterResult
+{
+  std::vector<CandidateCharRef> entries;
+  std::string first_failure_reason;
 };
 
 auto resolveSegmentCompositionState(const BufferPatternRegistry& pattern_registry, PatternId pattern_id) -> PatternCompositionState
@@ -1494,7 +1503,8 @@ auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegal
 }
 
 auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySignature& signature,
-                                const BufferPatternRegistry& segment_pattern_registry) -> ActualLoadLegalityResult
+                                const BufferPatternRegistry& segment_pattern_registry, const UniformValueLattice& cap_lattice)
+    -> ActualLoadLegalityResult
 {
   ActualLoadLegalityResult result;
   result.bottom_most_buffered_level = signature.bottom_most_buffered_level;
@@ -1598,6 +1608,8 @@ auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySi
   }
 
   result.cap_distribution = BuildCapDistributionStats(total_caps_pf);
+  result.required_leaf_driven_cap_pf = result.cap_distribution.cap_max_pf;
+  result.required_leaf_driven_cap_covering_idx = CoveringBoundaryIndex(result.required_leaf_driven_cap_pf, cap_lattice);
   result.violation = ActualLoadViolation::kNone;
   result.legal = true;
   return result;
@@ -1626,7 +1638,7 @@ auto ResolveActualLoadLegality(const Tree& topology, PatternId topology_pattern_
     return cache_it->second;
   }
 
-  auto evaluated = EvaluateActualLoadLegality(topology, signature, segment_pattern_registry);
+  auto evaluated = EvaluateActualLoadLegality(topology, signature, segment_pattern_registry, legality_context.cap_lattice);
   if (!evaluated.legal && evaluated.monotone_hard_fail) {
     legality_context.max_monotone_failed_level = std::max(legality_context.max_monotone_failed_level, signature.bottom_most_buffered_level);
   }
@@ -1649,6 +1661,48 @@ auto FilterActualLoadLegalEntries(const std::vector<HTreeTopologyChar>& entries,
       continue;
     }
     result.entries.push_back(entry);
+  }
+  return result;
+}
+
+auto FilterGlobalEntriesByActualBoundaryCoverage(const std::vector<CandidateCharRef>& entries,
+                                                 const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
+                                                 const BufferPatternRegistry& segment_pattern_registry,
+                                                 ActualLoadLegalityContext& legality_context) -> CandidateCharRefFilterResult
+{
+  CandidateCharRefFilterResult result;
+  result.entries.reserve(entries.size());
+  for (const auto& entry_ref : entries) {
+    if (entry_ref.entry == nullptr || entry_ref.candidate_index >= evaluations.size()) {
+      if (result.first_failure_reason.empty()) {
+        result.first_failure_reason = "invalid_global_candidate_ref";
+      }
+      continue;
+    }
+
+    const auto& evaluation = evaluations[entry_ref.candidate_index];
+    const auto legality = ResolveActualLoadLegality(topology, entry_ref.entry->get_pattern_id(), evaluation.topology_pattern_registry,
+                                                    segment_pattern_registry, legality_context);
+    if (!legality.legal) {
+      if (result.first_failure_reason.empty()) {
+        result.first_failure_reason = legality.failure_reason;
+      }
+      continue;
+    }
+
+    if (legality.required_leaf_driven_cap_covering_idx.has_value()
+        && entry_ref.entry->get_leaf_driven_cap_idx() < *legality.required_leaf_driven_cap_covering_idx) {
+      if (result.first_failure_reason.empty()) {
+        std::ostringstream detail;
+        detail << "actual_boundary_load_coverage_violation required_leaf_driven_cap_idx=" << *legality.required_leaf_driven_cap_covering_idx
+               << ", entry_leaf_driven_cap_idx=" << entry_ref.entry->get_leaf_driven_cap_idx()
+               << ", max_real_load_pf=" << legality.required_leaf_driven_cap_pf;
+        result.first_failure_reason = detail.str();
+      }
+      continue;
+    }
+
+    result.entries.push_back(entry_ref);
   }
   return result;
 }
@@ -1819,7 +1873,8 @@ auto MakeHTreeSeedEntries(const std::vector<SegmentChar>& segment_frontier, cons
     topology_registry.addSeed(topology_pattern_id, segment_entry.get_pattern_id(),
                               segment_pattern_registry.getCompositionState(segment_entry.get_pattern_id()));
     const CharCore core(segment_entry.get_input_slew_idx(), segment_entry.get_output_slew_idx(), segment_entry.get_driven_cap_idx(),
-                        segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id);
+                        segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id,
+                        segment_entry.get_source_boundary_net_switch_power());
     seed_entries.emplace_back(core, 1U, segment_entry.get_driven_cap_idx());
   }
   return seed_entries;
@@ -2575,7 +2630,11 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
 
   std::vector<CandidateCharRef> global_feasible_pool;
   std::vector<CandidateCharRef> global_candidate_pool;
-  ActualLoadLegalityContext actual_load_legality_context;
+  ActualLoadLegalityContext actual_load_legality_context{
+      .result_by_signature = {},
+      .max_monotone_failed_level = std::numeric_limits<int>::min(),
+      .cap_lattice = char_builder.get_cap_lattice(),
+  };
 
   for (const unsigned depth : depth_candidates) {
     auto candidate_levels = MakeCandidateLevelPlans(full_level_plans, depth);
@@ -2639,12 +2698,21 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
     }
   }
 
-  const auto selected_feasible_ref = SelectBestGlobalEntry(global_feasible_pool);
-  const auto selected_fallback_ref
-      = selected_feasible_ref.has_value() ? std::optional<CandidateCharRef>{} : SelectBestGlobalEntry(global_candidate_pool);
+  const auto covered_global_feasible_pool = FilterGlobalEntriesByActualBoundaryCoverage(
+      global_feasible_pool, candidate_evaluations, result.topology, segment_pattern_registry, actual_load_legality_context);
+  const auto covered_global_candidate_pool = FilterGlobalEntriesByActualBoundaryCoverage(
+      global_candidate_pool, candidate_evaluations, result.topology, segment_pattern_registry, actual_load_legality_context);
+
+  const auto selected_feasible_ref = SelectBestGlobalEntry(covered_global_feasible_pool.entries);
+  const auto selected_fallback_ref = selected_feasible_ref.has_value() ? std::optional<CandidateCharRef>{}
+                                                                       : SelectBestGlobalEntry(covered_global_candidate_pool.entries);
   const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
-    result.failure_reason = global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
+    if (!covered_global_candidate_pool.first_failure_reason.empty()) {
+      result.failure_reason = covered_global_candidate_pool.first_failure_reason;
+    } else {
+      result.failure_reason = global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
+    }
     LOG_WARNING << "HTreeBuilder: failed to select a best H-tree characterization entry across depth candidates.";
     build_stage.skip({{"reason", result.failure_reason}, {"depth_candidates", std::to_string(depth_candidates.size())}});
     return result;

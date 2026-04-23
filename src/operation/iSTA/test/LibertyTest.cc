@@ -319,7 +319,8 @@ TEST_F(LibertyTest, parser_converts_wireload_resistance_and_power_units) {
   auto* cell = lib_library->findCell("TESTX1");
   ASSERT_NE(cell, nullptr);
   EXPECT_DOUBLE_EQ(cell->get_cell_leakage_power(), 7e-9);
-  EXPECT_DOUBLE_EQ(cell->convertTablePowerToMw(2.0), 2e-9);
+  EXPECT_DOUBLE_EQ(lib_library->convert_power_unit_to_mw(2.0), 2e-9);
+  EXPECT_DOUBLE_EQ(cell->convertInternalPowerTableToMwNs(2.0), 2.0);
 
   auto leakage_powers = cell->getLeakagePowerList();
   ASSERT_EQ(leakage_powers.size(), 1U);

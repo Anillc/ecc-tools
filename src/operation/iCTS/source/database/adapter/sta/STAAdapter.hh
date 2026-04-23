@@ -113,6 +113,7 @@ class STAAdapter
   static auto refreshCharPowerLoad() -> bool;
   static auto updateCharPower() -> bool;
   static auto queryCharPower() -> double;
+  static auto queryCharNetSwitchPower(const std::string& net_name) -> double;
   static auto destroyCharPower() -> void;
   static auto finishCharOnly() -> void;
   static auto updateTiming() -> void;

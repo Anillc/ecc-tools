@@ -1809,15 +1809,18 @@ bool LibCell::isICG()
 }
 
 /**
- * @brief convert table power to mw unit.
+ * @brief convert internal_power table value to mW*ns.
+ *
+ * Liberty internal_power LUT entries model per-transition internal energy.
+ * iPA consumes toggle as transitions/ns, so preserving the table value in
+ * mW*ns lets `energy * toggle` produce averaged power in mW directly.
  *
  * @param query_table_power
  * @return double
  */
-double LibCell::convertTablePowerToMw(double query_table_power)
+double LibCell::convertInternalPowerTableToMwNs(double query_table_power)
 {
-  auto* the_lib = get_owner_lib();
-  return the_lib->convert_power_unit_to_mw(query_table_power);
+  return query_table_power;
 }
 
 LibWireLoad::LibWireLoad(const char* wire_load_name) : _wire_load_name(wire_load_name)

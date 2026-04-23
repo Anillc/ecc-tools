@@ -1382,6 +1382,21 @@ auto STAAdapter::queryCharPower() -> double
   return getInst()._char_power_state.last_total_power_w;
 }
 
+auto STAAdapter::queryCharNetSwitchPower(const std::string& net_name) -> double
+{
+  if (net_name.empty()) {
+    return 0.0;
+  }
+
+  auto& runtime = getInst()._char_power_state;
+  auto* power = runtime.char_power.get();
+  if (!runtime.is_runtime_ready || !PrimeCharPower(power)) {
+    return 0.0;
+  }
+
+  return CalcSelectedNetSwitchPower(power, std::unordered_set<std::string>{net_name});
+}
+
 auto STAAdapter::destroyCharPower() -> void
 {
   auto& adapter = getInst();

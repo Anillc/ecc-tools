@@ -106,5 +106,23 @@ TEST(HTreeJoinTest, PowerDoubling)
   EXPECT_DOUBLE_EQ(result.get_chars().front().get_power(), support::kMergedPower20p0);
 }
 
+TEST(HTreeJoinTest, PowerDoublingSubtractsDownstreamSourceBoundarySwitchPower)
+{
+  icts::HTreeTopologyCharTable upstream;
+  icts::HTreeTopologyCharTable downstream;
+
+  upstream.addChar(support::MakeHTreeChar(support::kSlew80, support::kSlew100, support::kCap40, support::kCap100, support::kDelay1p0,
+                                          support::kPower10p0, support::HTreeShape{.pattern_id = support::kPattern1, .levels = 1}, 0.20));
+  downstream.addChar(support::MakeHTreeChar(support::kSlew100, support::kSlew120, support::kCap50, support::kCap60, support::kDelay2p0,
+                                            support::kPower5p0, support::HTreeShape{.pattern_id = support::kPattern2, .levels = 1}, 1.50));
+
+  const icts::TopologyPatternCombiner combiner(support::kBoundaryKey);
+  auto result = upstream.concatWith(downstream, combiner);
+
+  ASSERT_EQ(result.size(), 1U);
+  EXPECT_DOUBLE_EQ(result.get_chars().front().get_power(), 17.0);
+  EXPECT_DOUBLE_EQ(result.get_chars().front().get_source_boundary_net_switch_power(), 0.20);
+}
+
 }  // namespace
 }  // namespace icts_test

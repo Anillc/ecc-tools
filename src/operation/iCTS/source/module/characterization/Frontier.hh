@@ -68,6 +68,7 @@ struct SegmentFrontierStateKey
   unsigned driven_cap_idx = 0U;
   unsigned output_slew_idx = 0U;
   unsigned load_cap_idx = 0U;
+  double source_boundary_net_switch_power_w = 0.0;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
   MonotonicBoundaryState monotonic_boundary_state{};
 
@@ -82,6 +83,7 @@ struct SegmentFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.driven_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<double>{}(key.source_boundary_net_switch_power_w) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.terminal_semantic)) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<bool>{}(key.monotonic_boundary_state.source.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
@@ -98,6 +100,7 @@ struct HTreeFrontierStateKey
   unsigned leaf_driven_cap_idx = 0U;
   unsigned output_slew_idx = 0U;
   unsigned load_cap_idx = 0U;
+  double source_boundary_net_switch_power_w = 0.0;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
   MonotonicBoundaryState monotonic_boundary_state{};
 
@@ -113,6 +116,7 @@ struct HTreeFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.leaf_driven_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.output_slew_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.load_cap_idx) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<double>{}(key.source_boundary_net_switch_power_w) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.terminal_semantic)) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<bool>{}(key.monotonic_boundary_state.source.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
@@ -219,6 +223,7 @@ inline auto MakeSegmentStateFrontierPruner(StateResolverT state_resolver)
         .driven_cap_idx = entry.get_driven_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
+        .source_boundary_net_switch_power_w = entry.get_source_boundary_net_switch_power(),
         .terminal_semantic = state.terminal_semantic,
         .monotonic_boundary_state = state.monotonic_boundary_state,
     };
@@ -238,6 +243,7 @@ inline auto MakeHTreeStateFrontierPruner(StateResolverT state_resolver)
         .leaf_driven_cap_idx = entry.get_leaf_driven_cap_idx(),
         .output_slew_idx = entry.get_output_slew_idx(),
         .load_cap_idx = entry.get_load_cap_idx(),
+        .source_boundary_net_switch_power_w = entry.get_source_boundary_net_switch_power(),
         .terminal_semantic = state.terminal_semantic,
         .monotonic_boundary_state = state.monotonic_boundary_state,
     };

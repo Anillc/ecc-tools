@@ -729,7 +729,8 @@ auto MakeHTreeSeedEntries(const std::vector<icts::SegmentChar>& segment_frontier
     const auto topology_pattern_id = icts::PatternId::topology(htree_context.next_pattern_id++);
     htree_context.composition_states[topology_pattern_id] = LookupSegmentState(segment_context, segment_entry.get_pattern_id());
     const icts::CharCore core(segment_entry.get_input_slew_idx(), segment_entry.get_output_slew_idx(), segment_entry.get_driven_cap_idx(),
-                              segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id);
+                              segment_entry.get_load_cap_idx(), segment_entry.get_delay(), segment_entry.get_power(), topology_pattern_id,
+                              segment_entry.get_source_boundary_net_switch_power());
     seed_entries.emplace_back(core, 1U);
   }
   SortCharsForReport(seed_entries);

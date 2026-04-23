@@ -1040,10 +1040,14 @@ auto CharBuilder::characterizeTopology(unsigned length_idx, const TopologyDesc& 
       const double output_slew_ns = STA_ADAPTER_INST.queryCharSlew();
 
       double power_w = 0.0;
+      double source_boundary_net_switch_power_w = 0.0;
       if (kEnableCharPowerSampling && power_context_ready) {
         const bool power_updated = STA_ADAPTER_INST.updateCharPower();
         if (power_updated) {
           power_w = STA_ADAPTER_INST.queryCharPower();
+          if (!_temp_net_names.empty()) {
+            source_boundary_net_switch_power_w = STA_ADAPTER_INST.queryCharNetSwitchPower(_temp_net_names.front());
+          }
         } else {
           LOG_WARNING << "CharBuilder: iPA characterization update failed, remaining samples for this topology use zero power.";
           power_context_ready = false;
@@ -1059,7 +1063,8 @@ auto CharBuilder::characterizeTopology(unsigned length_idx, const TopologyDesc& 
       }
 
       const CharCore core(stored_sample_indices->input_slew_idx, stored_sample_indices->output_slew_idx,
-                          stored_sample_indices->driven_cap_idx, stored_sample_indices->load_cap_idx, delay_ns, power_w, pid);
+                          stored_sample_indices->driven_cap_idx, stored_sample_indices->load_cap_idx, delay_ns, power_w, pid,
+                          source_boundary_net_switch_power_w);
       const SegmentChar seg_char(core, length_idx);
       _segment_chars.push_back(seg_char);
     }
