@@ -1378,3 +1378,41 @@ Migrated from the mistakenly initialized `codex-agent` workspace so the session 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Complete Trellis v0.5.0-beta.11 migration
+
+**Date**: 2026-04-23
+**Task**: Complete Trellis v0.5.0-beta.11 migration
+**Branch**: `cts_refactor`
+
+### Summary
+
+Completed the beta.11 migration task by turning the task into an executable PRD, initializing Codex task context, verifying Trellis/Codex migration state, and archiving the finished task.
+
+### Main Changes
+
+- Reworked the migration task into an execution-ready PRD and set it as the active task.
+- Initialized `implement.jsonl` and `check.jsonl` for Codex, then validated both context files.
+- Verified the migrated Trellis/Codex setup with `trellis update --migrate`, `trellis update`, JSON validation, and Python syntax checks.
+- Confirmed user-level Codex hooks were enabled and recorded that no additional `.trellis/spec/` update was needed.
+- Archived the completed migration task after the user commit.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7202ca3bd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
