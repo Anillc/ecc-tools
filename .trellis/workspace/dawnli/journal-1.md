@@ -1416,3 +1416,36 @@ Completed the beta.11 migration task by turning the task into an executable PRD,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: Align iCTS leaf load semantics and non-clustered leaf policy
+
+**Date**: 2026-04-24
+**Task**: Align iCTS leaf load semantics and non-clustered leaf policy
+**Branch**: `cts_refactor`
+
+### Summary
+
+Corrected H-tree leaf cap semantics from driven-cap to load-cap, removed obsolete leaf-driven-cap/force-leaf-unbuffered constraints, kept default/source config at (3,15), reran realtech synthesis coverage, and archived the completed 04-23 synthesis arm9 matrix task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `03e15b4dcec3e25474e80b1780af6c6afa0093c3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
