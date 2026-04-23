@@ -16,6 +16,7 @@ target_include_directories(ircx_headers
     ${HOME_UTILITY}/stdBase/include
     ${HOME_OPERATION}/iRCX
     ${HOME_OPERATION}/iRCX/api
+    ${HOME_OPERATION}/iRCX/source/config
     ${HOME_OPERATION}/iRCX/source/module
     ${HOME_OPERATION}/iRCX/source/module/database
     ${HOME_OPERATION}/iRCX/source/module/environment
@@ -39,6 +40,7 @@ target_include_directories(ircx_headers
     ${HOME_THIRDPARTY}
 )
 
+add_subdirectory(source/config)
 add_subdirectory(api)
 add_subdirectory(source/module/topology)
 add_subdirectory(source/module/environment)

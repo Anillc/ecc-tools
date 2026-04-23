@@ -37,7 +37,7 @@ void register_ircx(py::module& m)
   m.def("build_rcx_process_variation", build_rcx_process_variation);
   m.def("extract_rcx_parasitics", extract_rcx_parasitics);
 
-  m.def("run_rcx", run_rcx);
+  m.def("run_rcx", run_rcx, py::arg("config"));
   m.def("report_rcx", report_rcx, py::arg("output_dir") = ".");
 }
 

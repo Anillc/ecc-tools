@@ -16,6 +16,8 @@
 // ***************************************************************************************
 #pragma once
 
+#include <string>
+
 namespace ircx {
 
 class RCX;
@@ -35,7 +37,9 @@ class ParasiticXEngine {
   [[nodiscard]] ParasiticXDBAdapter* get_db_adapter() const { return _db_adapter; }
 
   // setter
-  void set_rcx(RCX* rcx) { _rcx = rcx; }
+  void set_rcx(RCX* rcx = nullptr);
+  bool run_rcx(const std::string& config);
+  bool report_rcx(const std::string& output_dir);
   void set_db_adapter(ParasiticXDBAdapter* db_adapter) { _db_adapter = db_adapter; }
 
   // Disallow copy and move

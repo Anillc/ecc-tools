@@ -19,8 +19,7 @@
 #include <filesystem>
 #include <stdexcept>
 
-#include <omp.h>
-
+#include "ParasiticXEngine.hpp"
 #include "RCX.hpp"
 
 namespace python_interface {
@@ -112,26 +111,18 @@ bool extract_rcx_parasitics()
   return rcx().extractParasitics();
 }
 
-bool run_rcx()
+bool run_rcx(const std::string& config)
 {
-  auto& rcx_inst = rcx();
-  omp_set_num_threads(rcx_inst.num_threads());
+  require_file_exists(config, "config");
 
-  unsigned result = 1;
-  result &= rcx_inst.adaptDB();
-  result &= rcx_inst.buildTopology();
-  result &= rcx_inst.buildEnvironment();
-  result &= rcx_inst.buildProcessVariation();
-  result &= rcx_inst.extractParasitics();
-
-  return result;
+  auto* parasitic_x_engine = ircx::ParasiticXEngine::get_or_create_parasitic_x_engine();
+  return parasitic_x_engine != nullptr && parasitic_x_engine->run_rcx(config);
 }
 
 bool report_rcx(const std::string& output_dir)
 {
-  const std::string resolved_output_dir = output_dir.empty() ? "." : output_dir;
-  fs::create_directories(resolved_output_dir);
-  return rcx().reportSpef(resolved_output_dir);
+  auto* parasitic_x_engine = ircx::ParasiticXEngine::get_or_create_parasitic_x_engine();
+  return parasitic_x_engine != nullptr && parasitic_x_engine->report_rcx(output_dir);
 }
 
 }  // namespace python_interface

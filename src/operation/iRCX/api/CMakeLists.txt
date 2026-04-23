@@ -12,8 +12,10 @@ target_link_libraries(ircx_engine
   PRIVATE
     def_service
     idb
+    ircx_config
     lef_service
     log
+    OpenMP::OpenMP_CXX
 )
 
 target_include_directories(ircx_engine

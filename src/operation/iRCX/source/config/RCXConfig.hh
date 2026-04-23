@@ -17,24 +17,36 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
-namespace python_interface {
+namespace ircx {
 
-bool init_rcx(unsigned thread_number);
-bool read_rcx_corner(const std::string& corner_name,
-                     const std::string& itf_file,
-                     const std::string& captab_file);
-bool read_rcx_itf(const std::vector<std::string>& itf_files);
-bool read_rcx_mapping(const std::string& mapping_file);
+class RCXConfig
+{
+ public:
+  struct CornerConfig
+  {
+    std::string name;
+    std::string itf_file;
+    std::string captab_file;
+  };
 
-bool adapt_rcx_db();
-bool build_rcx_topology();
-bool build_rcx_environment();
-bool build_rcx_process_variation();
-bool extract_rcx_parasitics();
+  RCXConfig() = default;
+  ~RCXConfig() = default;
 
-bool run_rcx(const std::string& config);
-bool report_rcx(const std::string& output_dir);
+  [[nodiscard]] bool loadFromFile(const std::string& config_path);
 
-}  // namespace python_interface
+  [[nodiscard]] const std::string& get_config_path() const { return _config_path; }
+  [[nodiscard]] unsigned get_thread_num() const { return _thread_num; }
+  [[nodiscard]] const std::string& get_output_dir() const { return _output_dir; }
+  [[nodiscard]] const std::string& get_mapping_file() const { return _mapping_file; }
+  [[nodiscard]] const CornerConfig& get_corner() const { return _corner; }
+
+ private:
+  std::string _config_path;
+  unsigned _thread_num = 64U;
+  std::string _output_dir;
+  std::string _mapping_file;
+  CornerConfig _corner;
+};
+
+}  // namespace ircx
