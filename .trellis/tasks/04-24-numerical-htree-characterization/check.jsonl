@@ -1,0 +1,8 @@
+{"file": ".agents/skills/trellis-finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/trellis-check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "iCTS final validation and no default ecc_dev_tools loop constraints"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "verify new module/flow/test CMake placement"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "verify C++ includes, dependencies, target links, and tests"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "verify comparison reports/logging follow project conventions"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "review reuse and avoid duplicated private logic"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "review cross-layer consistency across module/flow/test/adapters"}

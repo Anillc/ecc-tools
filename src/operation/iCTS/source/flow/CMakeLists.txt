@@ -1,7 +1,9 @@
 set(ICTS_FLOW_HTREE ${ICTS_FLOW}/htree)
+set(ICTS_FLOW_NUMERICAL_HTREE ${ICTS_FLOW}/numerical_htree)
 set(ICTS_FLOW_SYNTHESIS ${ICTS_FLOW}/synthesis)
 
 add_subdirectory(${ICTS_FLOW_HTREE})
+add_subdirectory(${ICTS_FLOW_NUMERICAL_HTREE})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS})
 
 add_library(icts_source_flow ${ICTS_FLOW}/FlowManager.cc)
@@ -11,6 +13,7 @@ target_link_libraries(
   PRIVATE
   icts_source_module
   icts_source_flow_htree
+  icts_source_flow_numerical_htree
   icts_source_flow_synthesis
 )
 

@@ -1,0 +1,39 @@
+icts_add_test_executable(
+  icts_test_flow_numerical_htree
+  SOURCES
+    ${ICTS_TEST}/flow/numerical_htree/NumericalHTreeBuilderTest.cc
+  LIBS
+    icts_source_flow_numerical_htree
+)
+
+icts_add_test_executable(
+  icts_test_flow_numerical_htree_arm9_comparison
+  REALTECH
+  SOURCES
+    ${ICTS_TEST}/flow/numerical_htree/NumericalHTreeComparisonReport.cc
+    ${ICTS_TEST}/flow/numerical_htree/NumericalHTreeArm9ComparisonTest.cc
+  LIBS
+    icts_test_common_logging_support
+    icts_test_common_io
+    icts_test_common_realtech_support
+    icts_test_module_characterization_support
+)
+
+if(TARGET icts_source_flow_numerical_htree)
+  target_link_libraries(
+    icts_test_flow_numerical_htree_arm9_comparison
+    PRIVATE
+      icts_source_flow_numerical_htree
+  )
+  target_compile_definitions(
+    icts_test_flow_numerical_htree_arm9_comparison
+    PRIVATE
+      ICTS_NUMERICAL_HTREE_API_AVAILABLE=1
+  )
+else()
+  target_compile_definitions(
+    icts_test_flow_numerical_htree_arm9_comparison
+    PRIVATE
+      ICTS_NUMERICAL_HTREE_API_AVAILABLE=0
+  )
+endif()

@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "iCTS logging, naming, validation, and no default ecc_dev_tools loop constraints"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "new iCTS module/flow directories and CMake target placement"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "C++ include, dependency visibility, target linkage, and validation expectations"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "avoid copying existing HTreeBuilder/CharBuilder private logic unnecessarily"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "structured logs/reports for numerical comparison artifacts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "change crosses module, flow, tests, STA/Wrapper adapters"}

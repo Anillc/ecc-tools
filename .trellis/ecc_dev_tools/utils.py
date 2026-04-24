@@ -43,7 +43,7 @@ def run_command(
     cwd: Path,
     check: bool = False,
     capture_output: bool = True,
-    timeout: int = 300,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     try:
         result = subprocess.run(

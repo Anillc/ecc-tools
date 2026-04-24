@@ -833,7 +833,7 @@ def run_iwyu_check(
         iwyu_cmd = tokens[:1] + ["-Xiwyu", "--no_comments", "-Xiwyu", "--max_line_length=200"] + tokens[1:]
 
         try:
-            proc = run_command(iwyu_cmd, cwd=cmd.directory, check=False, timeout=120)
+            proc = run_command(iwyu_cmd, cwd=cmd.directory, check=False)
         except RuntimeError:
             return findings, RuntimeEntry(
                 label=relative_to_repo(cmd.file, scope.repo_root),
@@ -986,7 +986,7 @@ def _optional_tool_executable(snapshot: EnvironmentSnapshot, name: str) -> str |
     return status.executable
 
 
-def _scan_deps_for_file(compile_command: CompileCommand, scanner_binary: str, compiler_binary: str, timeout: int = 60) -> list[Path]:
+def _scan_deps_for_file(compile_command: CompileCommand, scanner_binary: str, compiler_binary: str) -> list[Path]:
     """Use clang-scan-deps to get the complete include dependency list for a source file.
 
     Returns a list of absolute paths to all transitively included headers.
@@ -998,7 +998,7 @@ def _scan_deps_for_file(compile_command: CompileCommand, scanner_binary: str, co
 
     scan_cmd = [scanner_binary, "--", *cmd_tokens]
     try:
-        result = run_command(scan_cmd, cwd=compile_command.directory, check=False, timeout=timeout)
+        result = run_command(scan_cmd, cwd=compile_command.directory, check=False)
     except RuntimeError:
         return []
 
