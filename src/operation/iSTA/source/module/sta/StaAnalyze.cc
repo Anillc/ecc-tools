@@ -411,9 +411,21 @@ unsigned StaAnalyze::analyzeSetupHold(StaVertex* end_vertex, StaArc* check_arc,
           StaClockData* launch_clock_data =
               (dynamic_cast<StaPathDelayData*>(delay_data))
                   ->get_launch_clock_data();
+          if (!launch_clock_data) {
+            DLOG_INFO_FIRST_N(10)
+                << "skip setup/hold analysis without launch clock data at "
+                << end_vertex->getName();
+            continue;
+          }
 
           auto* launch_clock = (dynamic_cast<StaClockData*>(launch_clock_data))
                                    ->get_prop_clock();
+          if (!launch_clock || !capture_clock) {
+            DLOG_INFO_FIRST_N(10)
+                << "skip setup/hold analysis with incomplete clock binding at "
+                << end_vertex->getName();
+            continue;
+          }
 
           std::optional<int> cppr;
           if (launch_clock == capture_clock) {

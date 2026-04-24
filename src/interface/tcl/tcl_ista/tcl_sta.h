@@ -91,4 +91,18 @@ class CmdSTAReport : public TclCmd
   // private data
 };
 
+class CmdUpdateTiming : public TclCmd
+{
+ public:
+  explicit CmdUpdateTiming(const char* cmd_name);
+  ~CmdUpdateTiming() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
 }  // namespace tcl

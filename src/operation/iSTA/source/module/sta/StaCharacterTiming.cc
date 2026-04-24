@@ -718,8 +718,69 @@ unsigned StaCharacterTiming::init(StaGraph* the_graph) {
     }
 
     auto io_delays = ista->getIODelayConstrain(the_vertex);
-    bool created = false;
+    auto synthesize_default_input_arrival = [this, ista,
+                                             the_vertex]() -> bool {
+      if (!the_vertex || the_vertex->is_clock() || the_vertex->is_sdc_clock_pin()) {
+        return false;
+      }
 
+      auto clocks = ista->getClocks();
+      if (clocks.size() != 1) {
+        return false;
+      }
+
+      auto* launch_clock = clocks.front();
+      if (!launch_clock) {
+        return false;
+      }
+
+      auto ensure_launch_clock_data =
+          [this, the_vertex, launch_clock](AnalysisMode analysis_mode)
+          -> StaClockData* {
+        auto clock_datas = the_vertex->getClockData(analysis_mode, TransType::kRise);
+        for (auto* clock_data : clock_datas) {
+          auto* candidate_clock_data = dynamic_cast<StaClockData*>(clock_data);
+          if (candidate_clock_data &&
+              candidate_clock_data->get_prop_clock() == launch_clock) {
+            return candidate_clock_data;
+          }
+        }
+
+        auto* launch_clock_data = new StaClockData(
+            analysis_mode, TransType::kRise, 0, the_vertex, launch_clock);
+        launch_clock_data->set_data_epoch(_characterization_epoch);
+        launch_clock_data->set_clock_wave_type(TransType::kRise);
+        the_vertex->addData(launch_clock_data);
+        return launch_clock_data;
+      };
+
+      auto add_default_delay_data =
+          [this, the_vertex, &ensure_launch_clock_data](AnalysisMode analysis_mode) {
+        auto* launch_clock_data = ensure_launch_clock_data(analysis_mode);
+        if (!launch_clock_data) {
+          return false;
+        }
+
+        for (auto data_trans_type : {TransType::kRise, TransType::kFall}) {
+          auto* path_delay_data = new StaPathDelayData(
+              analysis_mode, data_trans_type, 0, launch_clock_data, the_vertex);
+          path_delay_data->set_data_epoch(_characterization_epoch);
+          path_delay_data->set_launch_delay_data(path_delay_data);
+          the_vertex->addData(path_delay_data);
+        }
+
+        return true;
+      };
+
+      return add_default_delay_data(AnalysisMode::kMax) |
+             add_default_delay_data(AnalysisMode::kMin);
+    };
+
+    if (io_delays.empty()) {
+      return synthesize_default_input_arrival();
+    }
+
+    bool created = false;
     for (auto* io_delay : io_delays) {
       if (!io_delay) {
         continue;

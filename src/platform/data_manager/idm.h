@@ -84,6 +84,7 @@ class DataManager
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /// iDB init
   bool init(string config_path);
+  void reset();
   bool readLef(string config_path);
   bool readLef(vector<string> lef_paths, bool b_techlef = false);
   bool readDef(string path);
@@ -95,7 +96,7 @@ class DataManager
   bool saveLef(string lef_path);
   bool saveMacroTCL(string tcl_path);
   void saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names = {}, bool is_add_space_for_escape_name = false);
-  bool saveGDSII(string path);
+  bool saveGDSII(string path, bool is_hardened = false);
   bool saveJSON(string path, string options);
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

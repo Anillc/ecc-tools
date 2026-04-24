@@ -66,9 +66,9 @@ bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_
   return true;
 }
 
-bool saveGDSII(const std::string& gds_name)
+bool saveGDSII(const std::string& gds_name, bool is_hardened /* = false */)
 {
-  return dmInst->saveGDSII(gds_name);
+  return dmInst->saveGDSII(gds_name, is_hardened);
 }
 
 bool saveJson(const std::string& path)
@@ -76,6 +76,14 @@ bool saveJson(const std::string& path)
   std::string options = "";
 
   return dmInst->saveJSON(path, options);
+}
+
+
+bool writeAbstractLef(const std::string& output_lef_path)
+{
+  namespace fs = std::filesystem;
+
+  return dmInst->saveLef(output_lef_path);
 }
 
 }  // namespace python_interface

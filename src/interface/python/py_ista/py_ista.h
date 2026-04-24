@@ -76,7 +76,6 @@ std::string makeRCTreeObjNode(const std::string& pin_port_name, float cap);
 bool makeRCTreeEdge(const std::string& net_name, std::string& node1, std::string& node2, float res);
 bool updateRCTreeInfo(const std::string& net_name);
 bool updateTiming();
-bool writeAbstractLef(const std::string& output_lef_path);
 bool writeTimingModel(const std::string& output_lib_path,
                       const std::string& analysis_mode = "max");
 bool reportSta();
