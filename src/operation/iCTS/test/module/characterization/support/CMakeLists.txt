@@ -1,6 +1,7 @@
 add_library(
   icts_test_module_characterization_support
   STATIC
+  ${ICTS_TEST}/module/characterization/support/CharacterizationRealTechFrontierSupport.cc
   ${ICTS_TEST}/module/characterization/support/CharacterizationRealTechTestSupport.cc
 )
 

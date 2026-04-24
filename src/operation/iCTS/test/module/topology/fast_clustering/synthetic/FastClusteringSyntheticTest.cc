@@ -28,6 +28,7 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "common/data/pin_factory/PinFactory.hh"

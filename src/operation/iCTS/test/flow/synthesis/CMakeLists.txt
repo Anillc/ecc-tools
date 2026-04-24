@@ -9,6 +9,14 @@ icts_add_test_executable(
   REALTECH
   SOURCES
     ${ICTS_TEST}/flow/synthesis/ClockSynthesisVisualizationSupport.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisNonClusteredRealTechSmokeTest.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechMatrixSupport.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechMatrixTest.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechArtifactAssertions.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechClusterAssertions.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechClusterValidation.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechHTreeAssertions.cc
+    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechSelectionSupport.cc
     ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechSmokeTest.cc
   LIBS
     icts_test_common_io

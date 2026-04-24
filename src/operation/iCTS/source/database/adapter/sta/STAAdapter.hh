@@ -34,7 +34,6 @@ namespace icts {
 
 enum class InstType;
 class Pin;
-class STAAdapter;
 
 }  // namespace icts
 

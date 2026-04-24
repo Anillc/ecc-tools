@@ -1,16 +1,25 @@
 add_library(
   icts_source_module_topology_fast_clustering
   ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClustering.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringBoundaryCandidates.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringBoundaryPolish.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringBoundarySearch.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringFinalize.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringGeometry.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringMergePolish.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringPartition.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringPolish.cc
+  ${ICTS_MODULE_TOPOLOGY}/fast_clustering/FastClusteringPolishShared.cc
 )
 
 target_link_libraries(
   icts_source_module_topology_fast_clustering
   PUBLIC
   icts_source_database_spatial
+  icts_source_module_topology_linear_clustering
   icts_source_module_topology_config
   PRIVATE
   icts_source_database_design
-  icts_source_module_topology_linear_clustering
   icts_source_utils
   icts_source_utils_geometry
   icts_source_utils_logger

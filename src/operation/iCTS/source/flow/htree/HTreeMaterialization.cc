@@ -1,0 +1,396 @@
+// ***************************************************************************************
+// Copyright (c) 2023-2025 Peng Cheng Laboratory
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+//
+// iEDA is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+// http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+//
+// See the Mulan PSL v2 for more details.
+// ***************************************************************************************
+/**
+ * @file HTreeMaterialization.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-04-24
+ * @brief Materializes selected H-tree segment patterns into CTS insts, pins, and nets.
+ */
+
+#include <glog/logging.h>
+#include <stdlib.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "BufferingPattern.hh"
+#include "HTreeTopologyChar.hh"
+#include "HTreeTopologyPattern.hh"
+#include "Inst.hh"
+#include "Log.hh"
+#include "Net.hh"
+#include "PatternId.hh"
+#include "Pin.hh"
+#include "Point.hh"
+#include "Tree.hh"
+#include "htree/HTreeBuilder.hh"
+#include "htree/HTreeBuilderInternal.hh"
+
+namespace icts::htree_builder {
+namespace {
+
+auto MakePinName(const std::string& inst_name, const std::string& port_name) -> std::string
+{
+  return inst_name + "/" + port_name;
+}
+
+auto CreateBufferInstance(HTreeBuilder::BuildResult& result, const std::string& inst_name, const std::string& cell_master,
+                          const Point<int>& location, const BufferPortInfo& ports) -> BufferInstancePins
+{
+  auto inst = std::make_unique<Inst>(inst_name, cell_master, InstType::kBuffer, location);
+  auto* inst_ptr = inst.get();
+
+  auto input_pin = std::make_unique<Pin>(MakePinName(inst_name, ports.input_pin), PinType::kIn, location, inst_ptr, nullptr, false);
+  auto output_pin = std::make_unique<Pin>(MakePinName(inst_name, ports.output_pin), PinType::kOut, location, inst_ptr, nullptr, false);
+
+  auto* input_pin_ptr = input_pin.get();
+  auto* output_pin_ptr = output_pin.get();
+
+  inst_ptr->insertDriverPin(output_pin_ptr);
+  inst_ptr->add_pin(input_pin_ptr);
+
+  result.inserted_insts.push_back(inst_ptr);
+  result.inserted_pins.push_back(output_pin_ptr);
+  result.inserted_pins.push_back(input_pin_ptr);
+
+  result.inst_storage.push_back(std::move(inst));
+  result.pin_storage.push_back(std::move(output_pin));
+  result.pin_storage.push_back(std::move(input_pin));
+
+  return BufferInstancePins{
+      .inst = inst_ptr,
+      .input_pin = input_pin_ptr,
+      .output_pin = output_pin_ptr,
+  };
+}
+
+auto CreateStandalonePin(HTreeBuilder::BuildResult& result, const std::string& pin_name, PinType pin_type, const Point<int>& location,
+                         bool is_io) -> Pin*
+{
+  auto pin = std::make_unique<Pin>(pin_name, pin_type, location, nullptr, nullptr, is_io);
+  auto* pin_ptr = pin.get();
+  result.inserted_pins.push_back(pin_ptr);
+  result.pin_storage.push_back(std::move(pin));
+  return pin_ptr;
+}
+
+auto CreateNet(HTreeBuilder::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
+{
+  auto net = std::make_unique<Net>(net_name);
+  auto* net_ptr = net.get();
+
+  if (driver != nullptr) {
+    net_ptr->set_driver(driver);
+    driver->set_net(net_ptr);
+  }
+
+  for (auto* load : loads) {
+    if (load == nullptr) {
+      continue;
+    }
+    net_ptr->add_load(load);
+    load->set_net(net_ptr);
+  }
+
+  result.inserted_nets.push_back(net_ptr);
+  result.net_storage.push_back(std::move(net));
+  return net_ptr;
+}
+
+template <typename T>
+auto EraseRawPointer(std::vector<T*>& objects, T* target) -> void
+{
+  objects.erase(std::remove(objects.begin(), objects.end(), target), objects.end());
+}
+
+template <typename T>
+auto EraseOwnedPointer(std::vector<std::unique_ptr<T>>& objects, T* target) -> void
+{
+  objects.erase(
+      std::remove_if(objects.begin(), objects.end(), [target](const std::unique_ptr<T>& object) -> bool { return object.get() == target; }),
+      objects.end());
+}
+
+auto FindSingleBufferInputPin(Inst* inst) -> Pin*
+{
+  if (inst == nullptr) {
+    return nullptr;
+  }
+
+  const auto* driver_pin = inst->findDriverPin();
+  for (auto* pin : inst->get_pins()) {
+    if (pin == nullptr || pin == driver_pin) {
+      continue;
+    }
+    if (pin->get_type() == PinType::kIn || pin->get_type() == PinType::kClock) {
+      return pin;
+    }
+  }
+
+  for (auto* pin : inst->get_pins()) {
+    if (pin != nullptr && pin != driver_pin) {
+      return pin;
+    }
+  }
+  return nullptr;
+}
+
+auto ReplaceNetLoad(Net* net, Pin* old_load, Pin* new_load) -> bool
+{
+  if (net == nullptr || old_load == nullptr || new_load == nullptr) {
+    return false;
+  }
+
+  auto updated_loads = net->get_loads();
+  const auto load_it = std::ranges::find(updated_loads, old_load);
+  if (load_it == updated_loads.end()) {
+    return false;
+  }
+
+  *load_it = new_load;
+  net->set_loads(updated_loads);
+  return true;
+}
+
+auto PruneLeafSingleLoadBuffers(HTreeBuilder::BuildResult& result) -> std::size_t
+{
+  const std::unordered_set<Inst*> inserted_inst_set(result.inserted_insts.begin(), result.inserted_insts.end());
+  const std::vector<Inst*> candidate_insts = result.inserted_insts;
+  std::size_t pruned_count = 0U;
+
+  for (auto* inst : candidate_insts) {
+    if (inst == nullptr || !inst->is_buffer()) {
+      continue;
+    }
+
+    auto* output_pin = inst->findDriverPin();
+    if (output_pin == nullptr) {
+      continue;
+    }
+    auto* output_net = output_pin->get_net();
+    if (output_net == nullptr || output_net->get_loads().size() != 1U || output_net->get_loads().front() == nullptr) {
+      continue;
+    }
+
+    auto* downstream_load = output_net->get_loads().front();
+    auto* downstream_inst = downstream_load->get_inst();
+    if (downstream_inst != nullptr && inserted_inst_set.contains(downstream_inst)) {
+      continue;
+    }
+
+    auto* input_pin = FindSingleBufferInputPin(inst);
+    if (input_pin == nullptr) {
+      continue;
+    }
+    auto* upstream_net = input_pin->get_net();
+    if (upstream_net == nullptr || !ReplaceNetLoad(upstream_net, input_pin, downstream_load)) {
+      continue;
+    }
+
+    downstream_load->set_net(upstream_net);
+    input_pin->set_net(nullptr);
+    output_pin->set_net(nullptr);
+    output_net->set_driver(nullptr);
+    output_net->set_loads({});
+
+    const auto inst_pins = inst->get_pins();
+    for (auto* pin : inst_pins) {
+      if (pin == nullptr) {
+        continue;
+      }
+      pin->set_inst(nullptr);
+      pin->set_net(nullptr);
+      EraseRawPointer(result.inserted_pins, pin);
+      EraseOwnedPointer(result.pin_storage, pin);
+    }
+
+    EraseRawPointer(result.inserted_nets, output_net);
+    EraseOwnedPointer(result.net_storage, output_net);
+    EraseRawPointer(result.inserted_insts, inst);
+    EraseOwnedPointer(result.inst_storage, inst);
+    ++pruned_count;
+  }
+
+  return pruned_count;
+}
+
+auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const TreeNode& parent_node, const TreeNode& child_node,
+                                        const BufferingPattern& segment_pattern, const std::vector<Pin*>& child_entry_loads)
+    -> std::vector<Pin*>
+{
+  if (child_node.get_loads().empty()) {
+    return {};
+  }
+
+  const auto& cell_masters = segment_pattern.get_cell_masters();
+  const auto& positions = segment_pattern.get_buffer_positions();
+  const auto buffer_count = std::min(cell_masters.size(), positions.size());
+
+  std::vector<Pin*> terminal_loads = child_entry_loads;
+  if (terminal_loads.empty()) {
+    terminal_loads = child_node.get_loads();
+  }
+  LOG_FATAL_IF(terminal_loads.empty()) << "HTreeBuilder: segment terminal loads are empty for child node " << child_node.get_id();
+
+  const std::size_t materialized_buffer_count = buffer_count;
+  if (materialized_buffer_count == 0U) {
+    return terminal_loads;
+  }
+
+  std::vector<BufferInstancePins> segment_buffers;
+  segment_buffers.reserve(materialized_buffer_count);
+  for (std::size_t buffer_index = 0; buffer_index < materialized_buffer_count; ++buffer_index) {
+    const auto* ports = context.port_cache->get(cell_masters.at(buffer_index));
+    LOG_FATAL_IF(ports == nullptr) << "HTreeBuilder: unresolved ports for edge buffer master " << cell_masters.at(buffer_index);
+
+    const auto buffer_location
+        = InterpolateManhattanPoint(parent_node.get_position(), child_node.get_position(), positions.at(buffer_index));
+    segment_buffers.push_back(
+        CreateBufferInstance(*context.result, context.nextBufferName(), cell_masters.at(buffer_index), buffer_location, *ports));
+  }
+
+  for (std::size_t buffer_index = 0; buffer_index + 1U < segment_buffers.size(); ++buffer_index) {
+    CreateNet(*context.result, context.nextNetName(), segment_buffers.at(buffer_index).output_pin,
+              std::vector<Pin*>{segment_buffers.at(buffer_index + 1U).input_pin});
+  }
+
+  CreateNet(*context.result, context.nextNetName(), segment_buffers.back().output_pin, terminal_loads);
+  return std::vector<Pin*>{segment_buffers.front().input_pin};
+}
+
+}  // namespace
+
+auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>
+{
+  const double clamped_position = std::clamp(normalized_position, 0.0, 1.0);
+  const int dx = sink.get_x() - source.get_x();
+  const int dy = sink.get_y() - source.get_y();
+  const int total_distance = std::abs(dx) + std::abs(dy);
+  if (total_distance == 0) {
+    return source;
+  }
+
+  const int target_distance = static_cast<int>(std::lround(clamped_position * static_cast<double>(total_distance)));
+  const int x_step = std::min(std::abs(dx), target_distance);
+  const int y_step = std::max(0, target_distance - x_step);
+  const int x = source.get_x() + ((dx >= 0) ? x_step : -x_step);
+  const int y = source.get_y() + ((dy >= 0) ? y_step : -y_step);
+  return Point<int>(x, y);
+}
+
+auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatternRegistry& segment_pattern_registry) -> void
+{
+  if (!result.best_pattern.has_value()) {
+    return;
+  }
+
+  const auto topology_levels = result.topology.levels();
+  const std::size_t candidate_level_count = result.levels.size();
+  if (topology_levels.size() <= 1U || candidate_level_count == 0U || candidate_level_count >= topology_levels.size()) {
+    result.success = result.success && result.best_char.has_value();
+    return;
+  }
+
+  BufferPortCache port_cache;
+  std::vector<PatternId> level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
+  LOG_FATAL_IF(level_segment_pattern_ids.size() != result.levels.size())
+      << "HTreeBuilder: best topology pattern levels do not match planned H-tree levels.";
+
+  std::vector<const BufferingPattern*> level_patterns;
+  level_patterns.reserve(level_segment_pattern_ids.size());
+  for (const auto pattern_id : level_segment_pattern_ids) {
+    const auto* level_pattern = segment_pattern_registry.find(pattern_id);
+    LOG_FATAL_IF(level_pattern == nullptr) << "HTreeBuilder: selected segment pattern metadata is missing.";
+    level_patterns.push_back(level_pattern);
+  }
+
+  const auto* root_node = result.topology.get_node(result.topology.get_root());
+  LOG_FATAL_IF(root_node == nullptr) << "HTreeBuilder: topology root is missing during materialization.";
+
+  result.root_inst = nullptr;
+  result.root_input_pin = CreateStandalonePin(result, "cts_htree_root_in", PinType::kIn, root_node->get_position(), true);
+  result.root_output_pin = CreateStandalonePin(result, "cts_htree_root_out", PinType::kOut, root_node->get_position(), true);
+
+  MaterializationContext context{
+      .result = &result,
+      .port_cache = &port_cache,
+  };
+
+  std::unordered_map<std::size_t, std::vector<Pin*>> entry_loads_by_node;
+  entry_loads_by_node.reserve(result.topology.get_size());
+
+  for (const auto node_id : topology_levels.at(candidate_level_count)) {
+    const auto* node = result.topology.get_node(node_id);
+    if (node == nullptr || node->get_loads().empty()) {
+      continue;
+    }
+    entry_loads_by_node[node_id] = node->get_loads();
+  }
+
+  for (std::size_t reverse_depth = candidate_level_count; reverse_depth > 0U; --reverse_depth) {
+    const std::size_t depth = reverse_depth - 1U;
+    const auto* segment_pattern = level_patterns.at(depth);
+    LOG_FATAL_IF(segment_pattern == nullptr) << "HTreeBuilder: missing selected segment pattern metadata during materialization.";
+
+    for (const auto node_id : topology_levels.at(depth)) {
+      const auto* node = result.topology.get_node(node_id);
+      if (node == nullptr || node->get_loads().empty()) {
+        continue;
+      }
+
+      std::vector<Pin*> node_entry_loads;
+      for (const auto child_id : node->get_children()) {
+        if (child_id == std::numeric_limits<std::size_t>::max()) {
+          continue;
+        }
+
+        const auto* child_node = result.topology.get_node(child_id);
+        if (child_node == nullptr || child_node->get_loads().empty()) {
+          continue;
+        }
+
+        const auto child_it = entry_loads_by_node.find(child_id);
+        const auto& child_entry_loads = (child_it != entry_loads_by_node.end()) ? child_it->second : child_node->get_loads();
+        auto segment_entry_loads = MaterializeSegmentAndGetEntryLoads(context, *node, *child_node, *segment_pattern, child_entry_loads);
+        node_entry_loads.insert(node_entry_loads.end(), segment_entry_loads.begin(), segment_entry_loads.end());
+      }
+
+      if (node_entry_loads.empty()) {
+        node_entry_loads = node->get_loads();
+      }
+      entry_loads_by_node[node_id] = std::move(node_entry_loads);
+    }
+  }
+
+  const auto root_it = entry_loads_by_node.find(result.topology.get_root());
+  auto root_entry_loads = (root_it != entry_loads_by_node.end()) ? root_it->second : root_node->get_loads();
+  LOG_FATAL_IF(root_entry_loads.empty()) << "HTreeBuilder: root entry loads are empty during materialization.";
+  CreateNet(result, context.nextNetName(), result.root_output_pin, root_entry_loads);
+  result.pruned_leaf_single_load_buffers = PruneLeafSingleLoadBuffers(result);
+}
+
+}  // namespace icts::htree_builder

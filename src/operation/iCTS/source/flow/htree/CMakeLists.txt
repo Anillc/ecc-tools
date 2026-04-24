@@ -1,6 +1,17 @@
 add_library(
   icts_source_flow_htree
   ${ICTS_FLOW_HTREE}/HTreeBuilder.cc
+  ${ICTS_FLOW_HTREE}/HTreeActualLoad.cc
+  ${ICTS_FLOW_HTREE}/HTreeBuildOptions.cc
+  ${ICTS_FLOW_HTREE}/HTreeBuildSummary.cc
+  ${ICTS_FLOW_HTREE}/HTreeCharacterizationFlow.cc
+  ${ICTS_FLOW_HTREE}/HTreeComposition.cc
+  ${ICTS_FLOW_HTREE}/HTreeDepthCandidateEvaluation.cc
+  ${ICTS_FLOW_HTREE}/HTreeDepthExploration.cc
+  ${ICTS_FLOW_HTREE}/HTreeLevelPlan.cc
+  ${ICTS_FLOW_HTREE}/HTreeLogging.cc
+  ${ICTS_FLOW_HTREE}/HTreeMaterialization.cc
+  ${ICTS_FLOW_HTREE}/HTreeSegmentFrontier.cc
 )
 
 target_link_libraries(
@@ -16,4 +27,3 @@ target_include_directories(
   PUBLIC
   ${ICTS_FLOW}
 )
-

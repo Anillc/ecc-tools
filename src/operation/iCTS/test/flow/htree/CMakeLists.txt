@@ -10,7 +10,12 @@ icts_add_test_executable(
   icts_test_flow_htree_realtech
   REALTECH
   SOURCES
+    ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechSmokeSupport.cc
+    ${ICTS_TEST}/flow/htree/HTreeVisualizationDelayPower.cc
+    ${ICTS_TEST}/flow/htree/HTreeVisualizationRendering.cc
     ${ICTS_TEST}/flow/htree/HTreeVisualizationSupport.cc
+    ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechMatrixSupport.cc
+    ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechMatrixTest.cc
     ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechSmokeTest.cc
   LIBS
     icts_test_common_data_pin_factory
@@ -32,8 +37,11 @@ if(ICTS_BUILD_SLOW_REALTECH_TESTS)
     icts_test_flow_htree_realtech_regression
     REALTECH
     SOURCES
+      ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechSmokeSupport.cc
+      ${ICTS_TEST}/flow/htree/HTreeVisualizationDelayPower.cc
+      ${ICTS_TEST}/flow/htree/HTreeVisualizationRendering.cc
       ${ICTS_TEST}/flow/htree/HTreeVisualizationSupport.cc
-      ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechSmokeTest.cc
+      ${ICTS_TEST}/flow/htree/HTreeBuilderRealTechBranchBufferRegressionTest.cc
     LIBS
       icts_test_common_data_pin_factory
       icts_test_common_logging_support

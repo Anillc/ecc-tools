@@ -1,5 +1,16 @@
 set(ICTS_MODULE_CHAR_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilder.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderBuild.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderCircuit.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderConfig.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderFeasibility.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderPatternEnumeration.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderPatternStorage.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderSampleStorage.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderSampling.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderSlewSampling.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderStaSampling.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/CharBuilderTopology.cc
 )
 
 add_library(icts_source_module_characterization ${ICTS_MODULE_CHAR_SRC})

@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
+#include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "ValueLattice.hh"
 
@@ -93,6 +94,8 @@ class CharBuilder
   auto get_max_observed_driven_cap_idx() const -> unsigned { return _max_observed_driven_cap_idx; }
 
  private:
+  static constexpr double kCapFeasibilityEpsilonPf = 1e-6;
+
   struct BuildProgress
   {
     double wire_length_um = 0.0;
@@ -152,6 +155,13 @@ class CharBuilder
   auto analyzePatternFeasibility(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) const -> PatternFeasibility;
   auto tryMakeStoredSampleIndices(unsigned input_slew_idx, unsigned load_cap_idx, double output_slew_ns, double driven_cap_pf,
                                   BuildProgress& build_progress) const -> std::optional<StoredSampleIndices>;
+  auto storeBufferingPattern(unsigned length_idx, const TopologyDesc& topo, const std::vector<std::string>& buf_masters,
+                             double total_length_um) -> PatternId;
+  auto sampleFeasibleTopology(unsigned length_idx, const PatternId& pid, const TopologyDesc& topo,
+                              const std::vector<std::string>& buf_masters, const PatternFeasibility& feasibility,
+                              BuildProgress& build_progress) -> void;
+  auto sampleLoadSlews(unsigned length_idx, const PatternId& pid, const TopologyDesc& topo, double effective_load_pf, double load_pf,
+                       double driven_cap_pf, bool& power_context_ready, BuildProgress& build_progress) -> void;
   auto characterizeTopology(unsigned length_idx, const TopologyDesc& topo, const std::vector<std::string>& buf_masters,
                             BuildProgress& build_progress) -> void;
   auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
