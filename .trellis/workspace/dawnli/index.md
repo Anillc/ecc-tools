@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 31
+- **Total Sessions**: 32
 - **Last Active**: 2026-04-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1551 | Active |
+| `journal-1.md` | ~1585 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 32 | 2026-04-24 | CTS source/test boundary cleanup | `41c872d09`, `51325be39` | `cts_refactor` |
 | 31 | 2026-04-24 | CTS dev check scalability refactor | `9c2c05664`, `10e37ad27` | `cts_refactor` |
 | 30 | 2026-04-24 | Fast Clustering CTS Benchmark | `4bf4eb85d` | `cts_refactor` |
 | 29 | 2026-04-24 | Numerical H-tree characterization | `d8def3995` | `cts_refactor` |

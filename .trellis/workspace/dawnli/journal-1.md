@@ -1549,3 +1549,37 @@ Decomposed overweight iCTS source and test translation units, added the no-NOLIN
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: CTS source/test boundary cleanup
+
+**Date**: 2026-04-24
+**Task**: CTS source/test boundary cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+Removed unnecessary linear clustering source and tests, kept fast-only benchmark, moved generic clustering test helpers to neutral support, and archived the completed Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `41c872d09` | (see git log) |
+| `51325be39` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
