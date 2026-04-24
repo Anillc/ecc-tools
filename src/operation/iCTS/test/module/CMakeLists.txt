@@ -1,4 +1,3 @@
 add_subdirectory(characterization)
-add_subdirectory(numerical_characterization)
 add_subdirectory(routing)
 add_subdirectory(topology)

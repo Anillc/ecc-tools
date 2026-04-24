@@ -6,7 +6,6 @@ set(ICTS_MODULE_ROUTING ${ICTS_MODULE}/routing)
 set(ICTS_MODULE_TIMING ${ICTS_MODULE}/timing)
 set(ICTS_MODULE_TOPOLOGY ${ICTS_MODULE}/topology)
 set(ICTS_MODULE_CHARACTERIZATION ${ICTS_MODULE}/characterization)
-set(ICTS_MODULE_NUMERICAL_CHARACTERIZATION ${ICTS_MODULE}/numerical_characterization)
 
 # add_subdirectory(${ICTS_MODULE_BUFFERING})
 # add_subdirectory(${ICTS_MODULE_DRV})
@@ -16,7 +15,6 @@ add_subdirectory(${ICTS_MODULE_ROUTING})
 add_subdirectory(${ICTS_MODULE_TIMING})
 add_subdirectory(${ICTS_MODULE_TOPOLOGY})
 add_subdirectory(${ICTS_MODULE_CHARACTERIZATION})
-add_subdirectory(${ICTS_MODULE_NUMERICAL_CHARACTERIZATION})
 
 add_library(icts_source_module INTERFACE)
 
@@ -32,7 +30,6 @@ target_link_libraries(
   icts_source_module_timing
   icts_source_module_topology
   icts_source_module_characterization
-  icts_source_module_numerical_characterization
 )
 
 target_include_directories(icts_source_module INTERFACE ${ICTS_MODULE})
