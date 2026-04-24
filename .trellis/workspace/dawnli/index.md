@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-04-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1451 | Active |
+| `journal-1.md` | ~1484 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-04-24 | Numerical H-tree characterization | `d8def3995` | `cts_refactor` |
 | 28 | 2026-04-24 | Align iCTS leaf load semantics and non-clustered leaf policy | `03e15b4dcec3e25474e80b1780af6c6afa0093c3` | `cts_refactor` |
 | 27 | 2026-04-23 | Complete Trellis v0.5.0-beta.11 migration | `7202ca3bd` | `cts_refactor` |
 | 26 | 2026-04-22 | CTS char/htree semantic refactor archived | `21e4a7855` | `cts_refactor` |

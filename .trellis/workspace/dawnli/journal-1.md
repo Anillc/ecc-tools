@@ -1449,3 +1449,36 @@ Corrected H-tree leaf cap semantics from driven-cap to load-cap, removed obsolet
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: Numerical H-tree characterization
+
+**Date**: 2026-04-24
+**Task**: Numerical H-tree characterization
+**Branch**: `cts_refactor`
+
+### Summary
+
+Implemented numerical characterization and numerical H-tree builder, added ARM9 comparison coverage and algorithm documentation, and validated focused tests plus iCTS checks with noted clang-tidy slow-TU behavior.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d8def3995` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
