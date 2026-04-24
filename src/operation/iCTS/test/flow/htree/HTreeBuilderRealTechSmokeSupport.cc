@@ -26,7 +26,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -35,11 +34,10 @@
 #include <utility>
 
 #include "Clock.hh"
-#include "HTreeTopologyChar.hh"
 #include "Inst.hh"
 #include "Net.hh"
-#include "PatternId.hh"
 #include "Tree.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
 #include "htree/HTreeBuilder.hh"
 #if defined(ICTS_ENABLE_SLOW_REALTECH_REGRESSION) && ICTS_ENABLE_SLOW_REALTECH_REGRESSION
@@ -202,57 +200,31 @@ auto ReadTextFile(const std::filesystem::path& path) -> std::string
   return content_stream.str();
 }
 
-auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
-{
-  constexpr double metric_tolerance = 1e-12;
-  return lhs.get_pattern_id() == rhs.get_pattern_id() && lhs.get_input_slew_idx() == rhs.get_input_slew_idx()
-         && lhs.get_output_slew_idx() == rhs.get_output_slew_idx() && lhs.get_driven_cap_idx() == rhs.get_driven_cap_idx()
-         && lhs.get_leaf_load_cap_idx() == rhs.get_leaf_load_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
-         && std::abs(lhs.get_delay() - rhs.get_delay()) <= metric_tolerance
-         && std::abs(lhs.get_power() - rhs.get_power()) <= metric_tolerance;
-}
-
-auto ContainsCharEntry(const std::vector<icts::HTreeTopologyChar>& entries, const icts::HTreeTopologyChar& target) -> bool
-{
-  return std::ranges::any_of(entries, [&target](const icts::HTreeTopologyChar& entry) -> bool { return IsSameCharEntry(entry, target); });
-}
-
-auto FindSelectedDepthSummary(const icts::HTreeBuilder::BuildResult& result)
-    -> const icts::HTreeBuilder::BuildResult::DepthCandidateSummary*
-{
-  const auto summary_it = std::ranges::find_if(result.depth_candidates, [](const auto& summary) -> bool { return summary.selected; });
-  if (summary_it == result.depth_candidates.end()) {
-    return nullptr;
-  }
-  return &(*summary_it);
-}
-
 auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void
 {
-  ASSERT_FALSE(result.depth_candidates.empty());
-  ASSERT_TRUE(result.selected_depth.has_value());
+  const auto observation = htree::ObserveHTreeBuild(result);
+  ASSERT_GT(observation.depth_candidate_count, 0U);
+  ASSERT_TRUE(observation.has_selected_depth);
 
   const auto topology_levels = result.topology.levels();
   ASSERT_GT(topology_levels.size(), 1U);
   const auto max_depth = static_cast<unsigned>(topology_levels.size() - 1U);
-  EXPECT_EQ(result.depth_candidates.size(), std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
+  EXPECT_EQ(observation.depth_candidate_count, std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
 
-  const auto* selected_summary = FindSelectedDepthSummary(result);
-  ASSERT_NE(selected_summary, nullptr);
-  EXPECT_EQ(selected_summary->depth, result.selected_depth.value_or(0U));
-  EXPECT_EQ(selected_summary->depth, result.levels.size());
-  EXPECT_TRUE(selected_summary->success);
+  EXPECT_EQ(observation.selected_depth, result.selected_depth.value_or(0U));
+  EXPECT_EQ(observation.selected_depth, observation.selected_level_count);
+  EXPECT_TRUE(observation.success);
+  EXPECT_GT(observation.selected_final_frontier_count, 0U);
 }
 
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
 {
-  const auto* selected_summary = FindSelectedDepthSummary(result);
-  ASSERT_NE(selected_summary, nullptr);
-  ASSERT_GT(selected_summary->htree_load_group_count, 0U);
-  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_mean_pf);
-  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_median_pf);
-  EXPECT_LE(selected_summary->htree_load_cap_mean_pf, selected_summary->htree_load_cap_max_pf);
-  EXPECT_LE(selected_summary->htree_load_cap_median_pf, selected_summary->htree_load_cap_max_pf);
+  const auto observation = htree::ObserveHTreeBuild(result);
+  ASSERT_GT(observation.htree_load_group_count, 0U);
+  EXPECT_LE(observation.htree_load_cap_min_pf, observation.htree_load_cap_mean_pf);
+  EXPECT_LE(observation.htree_load_cap_min_pf, observation.htree_load_cap_median_pf);
+  EXPECT_LE(observation.htree_load_cap_mean_pf, observation.htree_load_cap_max_pf);
+  EXPECT_LE(observation.htree_load_cap_median_pf, observation.htree_load_cap_max_pf);
 }
 
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,

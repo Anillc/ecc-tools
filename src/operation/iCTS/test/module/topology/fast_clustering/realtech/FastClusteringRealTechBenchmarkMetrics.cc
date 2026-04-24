@@ -116,12 +116,12 @@ auto CalcClusterMedian(const std::vector<icts::Pin*>& cluster) -> icts::Point<in
   return {*x_middle, *y_middle};
 }
 
-auto ResolveClusterRoot(const std::vector<icts::Pin*>& cluster, const icts::LinearClusteringConfig& config) -> icts::Point<int>
+auto ResolveClusterRoot(const std::vector<icts::Pin*>& cluster, const icts::ClusterConfig& config) -> icts::Point<int>
 {
-  return config.root_policy == icts::LinearRootPolicy::kCenter ? CalcClusterCenter(cluster) : CalcClusterMedian(cluster);
+  return config.root_policy == icts::ClusterRootPolicy::kCenter ? CalcClusterCenter(cluster) : CalcClusterMedian(cluster);
 }
 
-auto CalcRoutingCapProxy(const std::vector<icts::Pin*>& cluster, const icts::LinearClusteringConfig& config) -> double
+auto CalcRoutingCapProxy(const std::vector<icts::Pin*>& cluster, const icts::ClusterConfig& config) -> double
 {
   if (cluster.size() <= 1U) {
     return 0.0;
@@ -152,11 +152,11 @@ auto CalcPopulationVariance(const std::vector<double>& values, double mean) -> d
   return variance / static_cast<double>(values.size());
 }
 
-auto ScoreCluster(const std::vector<icts::Pin*>& cluster, const icts::ClusterElectricalSummary* summary,
-                  const icts::LinearClusteringConfig& config) -> double
+auto ScoreCluster(const std::vector<icts::Pin*>& cluster, const icts::ClusterElectricalSummary* summary, const icts::ClusterConfig& config)
+    -> double
 {
   const auto diameter = CalcClusterDiameter(cluster);
-  if (config.scoring_strategy == icts::LinearScoringStrategy::kTotalWirelength) {
+  if (config.scoring_strategy == icts::ClusterScoringStrategy::kTotalWirelength) {
     if (summary != nullptr && summary->wirelength_dbu > 0.0) {
       return config.wirelength_weight * summary->wirelength_dbu;
     }
@@ -170,9 +170,9 @@ auto ScoreCluster(const std::vector<icts::Pin*>& cluster, const icts::ClusterEle
 
 }  // namespace
 
-auto BuildBenchmarkConfig() -> icts::LinearClusteringConfig
+auto BuildBenchmarkConfig() -> icts::ClusterConfig
 {
-  auto config = icts::TopologyGen::buildLinearClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), CONFIG_INST.get_max_cap());
+  auto config = icts::TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), CONFIG_INST.get_max_cap());
   config.routing_layer = CONFIG_INST.get_routing_layers().empty() ? 0 : static_cast<int>(CONFIG_INST.get_routing_layers().back());
   config.wire_width = CONFIG_INST.get_wire_width();
   config.enable_exact_cap = false;
@@ -180,7 +180,7 @@ auto BuildBenchmarkConfig() -> icts::LinearClusteringConfig
   return config;
 }
 
-auto EvaluateResult(const std::string& algorithm, const icts::ClusterResult& result, const icts::LinearClusteringConfig& config,
+auto EvaluateResult(const std::string& algorithm, const icts::ClusterResult& result, const icts::ClusterConfig& config,
                     std::size_t expected_load_count, double runtime_ms) -> ResultMetrics
 {
   ResultMetrics metrics;

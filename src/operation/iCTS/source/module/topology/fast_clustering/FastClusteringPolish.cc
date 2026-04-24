@@ -30,13 +30,12 @@
 #include "FastClusteringInternal.hh"
 
 namespace icts {
-struct LinearClusteringConfig;
+struct ClusterConfig;
 }  // namespace icts
 
 namespace icts::fast_clustering {
 
-auto PolishSmallClusters(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
-    -> void
+auto PolishSmallClusters(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void
 {
   for (std::size_t round = 0; round < kMergeRoundCount; ++round) {
     bool changed = false;

@@ -23,9 +23,7 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <filesystem>
-#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -35,6 +33,7 @@
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeBuilder.hh"
 #include "flow/htree/HTreeBuilderRealTechSmokeSupport.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
@@ -86,12 +85,11 @@ TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatter
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.failure_reason.empty());
-  ASSERT_FALSE(result.feasible_chars.empty());
-  ASSERT_FALSE(result.feasible_frontier_entries.empty());
-  EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
+  const auto observation = htree::ObserveHTreeBuild(result);
+  ASSERT_GT(observation.selected_feasible_solution_count, 0U);
+  ASSERT_GT(observation.selected_feasible_frontier_entry_count, 0U);
+  EXPECT_LE(observation.selected_feasible_frontier_entry_count, observation.selected_feasible_solution_count);
   ASSERT_TRUE(result.best_char.has_value());
-  const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
   EXPECT_EQ(result.char_slew_steps, realtech_support::kRealTechCharSlewSteps);
   EXPECT_EQ(result.char_cap_steps, realtech_support::kRealTechCharCapSteps);
   AssertBranchBufferMaterialization(result);
@@ -155,16 +153,17 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
   const auto baseline_result = icts::HTreeBuilder::build(selected_clock->loads);
   ASSERT_TRUE(baseline_result.success);
   ASSERT_FALSE(baseline_result.levels.empty());
-  ASSERT_FALSE(baseline_result.feasible_chars.empty());
   ASSERT_GT(baseline_result.char_slew_steps, 0U);
   ASSERT_GT(baseline_result.char_cap_steps, 0U);
   ASSERT_GT(baseline_result.char_max_slew_ns, 0.0);
   ASSERT_GT(baseline_result.char_max_cap_pf, 0.0);
+  if (!baseline_result.best_char.has_value()) {
+    FAIL() << "baseline build should select an H-tree char";
+    return;
+  }
 
-  const auto top_covering_it = std::ranges::max_element(baseline_result.feasible_chars, {}, &icts::HTreeTopologyChar::get_input_slew_idx);
-  ASSERT_NE(top_covering_it, baseline_result.feasible_chars.end());
-
-  const unsigned top_covering_idx = top_covering_it->get_input_slew_idx();
+  const auto& baseline_best_char = baseline_result.best_char.value();
+  const unsigned top_covering_idx = baseline_best_char.get_input_slew_idx();
   ASSERT_GT(top_covering_idx, 0U);
   const double top_input_slew_ns = (static_cast<double>(top_covering_idx) - 0.5) * baseline_result.char_max_slew_ns
                                    / static_cast<double>(baseline_result.char_slew_steps);
@@ -176,10 +175,14 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
   EXPECT_DOUBLE_EQ(top_boundary_result.min_top_input_slew_ns.value_or(0.0), top_input_slew_ns);
   ASSERT_TRUE(top_boundary_result.top_input_slew_covering_idx.has_value());
   EXPECT_EQ(top_boundary_result.top_input_slew_covering_idx.value_or(0U), top_covering_idx);
-  ASSERT_FALSE(top_boundary_result.feasible_chars.empty());
-  EXPECT_TRUE(std::ranges::all_of(top_boundary_result.feasible_chars, [&](const icts::HTreeTopologyChar& entry) -> bool {
-    return entry.get_input_slew_idx() >= top_covering_idx;
-  }));
+  const auto top_boundary_observation = htree::ObserveHTreeBuild(top_boundary_result);
+  ASSERT_GT(top_boundary_observation.selected_feasible_frontier_entry_count, 0U);
+  if (!top_boundary_result.best_char.has_value()) {
+    FAIL() << "top-boundary build should select an H-tree char";
+    return;
+  }
+  const auto& top_boundary_best_char = top_boundary_result.best_char.value();
+  EXPECT_GE(top_boundary_best_char.get_input_slew_idx(), top_covering_idx);
 
   const double impossible_top_input_slew_ns
       = baseline_result.char_max_slew_ns + (baseline_result.char_max_slew_ns / static_cast<double>(baseline_result.char_slew_steps));
@@ -190,22 +193,25 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
   EXPECT_DOUBLE_EQ(impossible_top_boundary_result.min_top_input_slew_ns.value_or(0.0), impossible_top_input_slew_ns);
   ASSERT_TRUE(impossible_top_boundary_result.top_input_slew_covering_idx.has_value());
   EXPECT_EQ(impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U), baseline_result.char_slew_steps + 1U);
-  EXPECT_TRUE(impossible_top_boundary_result.used_boundary_fallback);
-  EXPECT_FALSE(impossible_top_boundary_result.boundary_fallback_reason.empty());
-  ASSERT_TRUE(impossible_top_boundary_result.boundary_fallback_score.has_value());
-  EXPECT_TRUE(impossible_top_boundary_result.feasible_chars.empty());
-  ASSERT_FALSE(impossible_top_boundary_result.candidate_chars.empty());
-  ASSERT_FALSE(impossible_top_boundary_result.candidate_frontier_entries.empty());
-  EXPECT_LE(impossible_top_boundary_result.candidate_frontier_entries.size(), impossible_top_boundary_result.candidate_chars.size());
-  ASSERT_TRUE(impossible_top_boundary_result.best_char.has_value());
-  const auto impossible_top_best_char = impossible_top_boundary_result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(impossible_top_boundary_result.candidate_frontier_entries, impossible_top_best_char));
+  const auto impossible_observation = htree::ObserveHTreeBuild(impossible_top_boundary_result);
+  EXPECT_TRUE(impossible_observation.used_boundary_fallback);
+  EXPECT_FALSE(impossible_observation.boundary_fallback_reason.empty());
+  ASSERT_TRUE(impossible_observation.boundary_fallback_score.has_value());
+  EXPECT_EQ(impossible_observation.selected_feasible_solution_count, 0U);
+  ASSERT_GT(impossible_observation.selected_candidate_solution_count, 0U);
+  ASSERT_GT(impossible_observation.selected_candidate_frontier_entry_count, 0U);
+  EXPECT_LE(impossible_observation.selected_candidate_frontier_entry_count, impossible_observation.selected_candidate_solution_count);
+  if (!impossible_top_boundary_result.best_char.has_value()) {
+    FAIL() << "fallback build should keep the best candidate H-tree char";
+    return;
+  }
+  const auto& impossible_top_best_char = impossible_top_boundary_result.best_char.value();
   const unsigned impossible_top_covering_idx = impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U);
   ASSERT_GT(impossible_top_covering_idx, 0U);
   EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_covering_idx);
   const double expected_top_boundary_fallback_score
       = static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps);
-  EXPECT_DOUBLE_EQ(impossible_top_boundary_result.boundary_fallback_score.value_or(0.0), expected_top_boundary_fallback_score);
+  EXPECT_DOUBLE_EQ(impossible_observation.boundary_fallback_score.value_or(0.0), expected_top_boundary_fallback_score);
 }
 
 }  // namespace

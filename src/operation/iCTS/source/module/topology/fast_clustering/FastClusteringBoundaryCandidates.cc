@@ -31,13 +31,13 @@
 #include "Point.hh"
 
 namespace icts {
-struct LinearClusteringConfig;
+struct ClusterConfig;
 }  // namespace icts
 
 namespace icts::fast_clustering {
 
 auto TryBuildDraftAfterMove(const ClusterDraft& source, const ClusterDraft& target, std::size_t moved_entry_id,
-                            const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config, ClusterDraft& source_after,
+                            const std::vector<LoadEntry>& entries, const ClusterConfig& config, ClusterDraft& source_after,
                             ClusterDraft& target_after) -> bool
 {
   if (source.entry_ids.size() <= 1U) {
@@ -66,7 +66,7 @@ auto TryBuildDraftAfterMove(const ClusterDraft& source, const ClusterDraft& targ
 }
 
 auto BuildBoundaryEntryCandidates(const ClusterDraft& source, const ClusterDraft& target, const std::vector<LoadEntry>& entries,
-                                  const LinearClusteringConfig& config) -> std::vector<std::size_t>
+                                  const ClusterConfig& config) -> std::vector<std::size_t>
 {
   struct EntryCandidate
   {

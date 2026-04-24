@@ -31,8 +31,8 @@
 #include <vector>
 
 #include "FastClusteringRealTechBenchmarkInternal.hh"
+#include "common/clustering/artifact/ClusterArtifactSupport.hh"
 #include "common/io/TestArtifactIO.hh"
-#include "common/linear_clustering/artifact/ClusterArtifactSupport.hh"
 #include "common/visualization/TestVisualization.hh"
 
 namespace icts {
@@ -74,18 +74,10 @@ auto BuildClusterSvgName(const BenchmarkCase& benchmark_case) -> std::string
   return "case_" + FormatCaseIndex(benchmark_case.index) + "_" + SanitizeOutputName(benchmark_case.case_name) + "_clusters.svg";
 }
 
-auto BuildClusterSvgArtifacts(const icts::ClusterResult& result, const std::vector<icts::Pin*>& loads, ClusterSvgArtifacts& artifacts,
-                              std::string& error) -> bool
-{
-  return common::linear_clustering::BuildClusterArtifacts(result, loads, artifacts.cluster_map, artifacts.centers, artifacts.cluster_sizes,
-                                                          error);
-}
-
 }  // namespace
 
 auto WriteCaseClusterSvg(const std::filesystem::path& svg_dir, const BenchmarkCase& benchmark_case, const std::vector<icts::Pin*>& loads,
-                         const icts::ClusterResult& linear_result, const icts::ClusterResult& fast_result, std::string& error)
-    -> std::filesystem::path
+                         const icts::ClusterResult& fast_result, std::string& error) -> std::filesystem::path
 {
   std::error_code error_code;
   std::filesystem::create_directories(svg_dir, error_code);
@@ -94,23 +86,18 @@ auto WriteCaseClusterSvg(const std::filesystem::path& svg_dir, const BenchmarkCa
     return {};
   }
 
-  ClusterSvgArtifacts linear_artifacts;
-  if (!BuildClusterSvgArtifacts(linear_result, loads, linear_artifacts, error)) {
-    error = "linear artifacts: " + error;
-    return {};
-  }
   ClusterSvgArtifacts fast_artifacts;
-  if (!BuildClusterSvgArtifacts(fast_result, loads, fast_artifacts, error)) {
+  if (!common::clustering::BuildClusterArtifacts(fast_result, loads, fast_artifacts.cluster_map, fast_artifacts.centers,
+                                                 fast_artifacts.cluster_sizes, error)) {
     error = "fast artifacts: " + error;
     return {};
   }
 
   auto svg_path = svg_dir / BuildClusterSvgName(benchmark_case);
-  const bool wrote_svg = common::visualization::WriteClusterComparisonSvg(
-      svg_path.string(), loads, "linear clustering", linear_artifacts.cluster_map, linear_artifacts.centers, "fast clustering",
-      fast_artifacts.cluster_map, fast_artifacts.centers);
+  const bool wrote_svg
+      = common::visualization::WriteClusterSvg(svg_path.string(), loads, fast_artifacts.cluster_map, fast_artifacts.centers);
   if (!wrote_svg) {
-    error = "failed to write cluster comparison svg: " + svg_path.string();
+    error = "failed to write fast cluster svg: " + svg_path.string();
     return {};
   }
   return svg_path;
@@ -148,7 +135,7 @@ auto AppendMetricsCsvRow(std::ostringstream& stream, const BenchmarkCase& benchm
 
 }  // namespace
 
-auto BuildComparisonCsv(const std::vector<CaseResult>& results) -> std::string
+auto BuildMetricsCsv(const std::vector<CaseResult>& results) -> std::string
 {
   std::ostringstream stream;
   stream << "index,case,algorithm,runtime_ms,total_score,legal,expected_load_count,load_count,missing_load_count,"
@@ -156,7 +143,6 @@ auto BuildComparisonCsv(const std::vector<CaseResult>& results) -> std::string
             "fanout_violations,diameter_violations,cap_violations,route_failures,total_wirelength,"
             "total_routing_cap_proxy,avg_routing_cap_proxy,routing_cap_proxy_variance,routing_cap_proxy_stddev\n";
   for (const auto& result : results) {
-    AppendMetricsCsvRow(stream, result.benchmark_case, result.linear);
     AppendMetricsCsvRow(stream, result.benchmark_case, result.fast);
   }
   return stream.str();
@@ -169,21 +155,6 @@ auto BuildVisualizationCsv(const std::vector<CaseResult>& results) -> std::strin
   for (const auto& result : results) {
     stream << result.benchmark_case.index << "," << CsvEscape(result.benchmark_case.case_name) << "," << CsvEscape(result.cluster_svg)
            << "\n";
-  }
-  return stream.str();
-}
-
-auto BuildRankingCsv(double linear_runtime_ms, double fast_runtime_ms, double linear_score, double fast_score,
-                     double linear_routing_cap_proxy_variance, double fast_routing_cap_proxy_variance) -> std::string
-{
-  std::ostringstream stream;
-  stream << "rank,algorithm,total_runtime_ms,total_score,routing_cap_proxy_variance_sum\n";
-  if (fast_runtime_ms < linear_runtime_ms) {
-    stream << "1,fast," << fast_runtime_ms << "," << fast_score << "," << fast_routing_cap_proxy_variance << "\n";
-    stream << "2,linear," << linear_runtime_ms << "," << linear_score << "," << linear_routing_cap_proxy_variance << "\n";
-  } else {
-    stream << "1,linear," << linear_runtime_ms << "," << linear_score << "," << linear_routing_cap_proxy_variance << "\n";
-    stream << "2,fast," << fast_runtime_ms << "," << fast_score << "," << fast_routing_cap_proxy_variance << "\n";
   }
   return stream.str();
 }
@@ -223,15 +194,6 @@ auto BuildLoadedCaseReport(const BenchmarkCase& benchmark_case, const LoadedCase
   return stream.str();
 }
 
-auto SumLinearRoutingCapProxyVariance(const std::vector<CaseResult>& results) -> double
-{
-  double total = 0.0;
-  for (const auto& result : results) {
-    total += result.linear.routing_cap_proxy_variance;
-  }
-  return total;
-}
-
 auto SumFastRoutingCapProxyVariance(const std::vector<CaseResult>& results) -> double
 {
   double total = 0.0;
@@ -241,51 +203,37 @@ auto SumFastRoutingCapProxyVariance(const std::vector<CaseResult>& results) -> d
   return total;
 }
 
-auto BuildSummaryReport(const std::vector<CaseResult>& results, double linear_runtime_ms, double fast_runtime_ms, double linear_score,
-                        double fast_score) -> std::string
+auto BuildSummaryReport(const std::vector<CaseResult>& results, double fast_runtime_ms, double fast_score) -> std::string
 {
-  std::size_t fast_runtime_wins = 0;
-  std::size_t fast_score_wins = 0;
-  std::size_t fast_routing_cap_variance_wins = 0;
   std::size_t legal_cases = 0;
-  const auto linear_routing_cap_variance = SumLinearRoutingCapProxyVariance(results);
+  std::size_t missing_load_count = 0;
+  std::size_t fanout_violations = 0;
+  std::size_t diameter_violations = 0;
+  std::size_t cap_violations = 0;
+  std::size_t route_failures = 0;
   const auto fast_routing_cap_variance = SumFastRoutingCapProxyVariance(results);
   for (const auto& result : results) {
-    if (result.linear.legal && result.fast.legal) {
+    if (result.fast.legal) {
       ++legal_cases;
     }
-    if (result.fast.runtime_ms < result.linear.runtime_ms) {
-      ++fast_runtime_wins;
-    }
-    if (result.fast.total_score < result.linear.total_score) {
-      ++fast_score_wins;
-    }
-    if (result.fast.routing_cap_proxy_variance < result.linear.routing_cap_proxy_variance) {
-      ++fast_routing_cap_variance_wins;
-    }
+    missing_load_count += result.fast.missing_load_count;
+    fanout_violations += result.fast.fanout_violations;
+    diameter_violations += result.fast.diameter_violations;
+    cap_violations += result.fast.cap_violations;
+    route_failures += result.fast.route_failures;
   }
 
   std::ostringstream stream;
   stream << "case_count=" << results.size() << "\n";
   stream << "legal_case_count=" << legal_cases << "\n";
-  stream << "linear_total_runtime_ms=" << linear_runtime_ms << "\n";
   stream << "fast_total_runtime_ms=" << fast_runtime_ms << "\n";
-  stream << "runtime_speedup=" << (fast_runtime_ms > 0.0 ? linear_runtime_ms / fast_runtime_ms : 0.0) << "\n";
-  stream << "linear_total_score=" << linear_score << "\n";
   stream << "fast_total_score=" << fast_score << "\n";
-  stream << "score_improvement_ratio=" << (linear_score > 0.0 ? (linear_score - fast_score) / linear_score : 0.0) << "\n";
-  stream << "linear_routing_cap_proxy_variance_sum=" << linear_routing_cap_variance << "\n";
   stream << "fast_routing_cap_proxy_variance_sum=" << fast_routing_cap_variance << "\n";
-  stream << "routing_cap_proxy_variance_improvement_ratio="
-         << (linear_routing_cap_variance > 0.0 ? (linear_routing_cap_variance - fast_routing_cap_variance) / linear_routing_cap_variance
-                                               : 0.0)
-         << "\n";
-  stream << "fast_runtime_case_wins=" << fast_runtime_wins << "\n";
-  stream << "fast_score_case_wins=" << fast_score_wins << "\n";
-  stream << "fast_routing_cap_variance_case_wins=" << fast_routing_cap_variance_wins << "\n";
-  stream << "acceptance_runtime=" << (fast_runtime_ms < linear_runtime_ms ? "pass" : "fail") << "\n";
-  stream << "acceptance_score=" << (fast_score < linear_score ? "pass" : "fail") << "\n";
-  stream << "acceptance_routing_cap_variance=" << (fast_routing_cap_variance < linear_routing_cap_variance ? "pass" : "fail") << "\n";
+  stream << "fast_missing_load_count=" << missing_load_count << "\n";
+  stream << "fast_fanout_violations=" << fanout_violations << "\n";
+  stream << "fast_diameter_violations=" << diameter_violations << "\n";
+  stream << "fast_cap_violations=" << cap_violations << "\n";
+  stream << "fast_route_failures=" << route_failures << "\n";
   return stream.str();
 }
 

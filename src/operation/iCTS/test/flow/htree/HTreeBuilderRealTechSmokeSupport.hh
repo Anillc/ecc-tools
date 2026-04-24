@@ -36,7 +36,6 @@
 #include "flow/htree/HTreeBuilder.hh"
 
 namespace icts {
-class HTreeTopologyChar;
 class Tree;
 }  // namespace icts
 
@@ -105,10 +104,6 @@ auto CountPinsWithRealContext(const std::vector<icts::Pin*>& loads) -> std::size
 auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pin*>;
 auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto ReadTextFile(const std::filesystem::path& path) -> std::string;
-auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool;
-auto ContainsCharEntry(const std::vector<icts::HTreeTopologyChar>& entries, const icts::HTreeTopologyChar& target) -> bool;
-auto FindSelectedDepthSummary(const icts::HTreeBuilder::BuildResult& result)
-    -> const icts::HTreeBuilder::BuildResult::DepthCandidateSummary*;
 auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,

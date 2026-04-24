@@ -40,11 +40,12 @@ auto ExploreDepthCandidates(const Tree& topology, const std::vector<HTreeBuilder
                             const std::vector<unsigned>& depth_candidates,
                             const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,
                             BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& base_resolved_options,
-                            const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
-                            HTreeBuilder::BuildResult& result) -> HTreeDepthExplorationResult
+                            const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth)
+    -> HTreeDepthExplorationResult
 {
   HTreeDepthExplorationResult exploration;
   exploration.candidate_evaluations.reserve(depth_candidates.size());
+  exploration.depth_summaries.reserve(depth_candidates.size());
   exploration.actual_load_legality_context = ActualLoadLegalityContext{
       .result_by_signature = {},
       .max_monotone_failed_level = std::numeric_limits<int>::min(),
@@ -54,7 +55,7 @@ auto ExploreDepthCandidates(const Tree& topology, const std::vector<HTreeBuilder
   for (const unsigned depth : depth_candidates) {
     auto candidate_result = EvaluateDepthCandidate(topology, full_level_plans, depth, entry_sets_by_length, segment_pattern_registry,
                                                    base_resolved_options, exploration.actual_load_legality_context, char_slew_steps);
-    RecordDepthCandidateResult(depth, used_explicit_target_depth, candidate_result, result);
+    RecordDepthCandidateResult(depth, used_explicit_target_depth, candidate_result, exploration.depth_summaries);
     exploration.candidate_evaluations.push_back(std::move(candidate_result.evaluation));
     const auto candidate_index = exploration.candidate_evaluations.size() - 1U;
     AppendGlobalCandidateRefs(candidate_index, exploration.candidate_evaluations.back(), exploration.global_feasible_pool,

@@ -32,7 +32,7 @@ namespace icts {
 
 class Pin;
 struct BiPartitionConfig;
-struct LinearClusteringConfig;
+struct ClusterConfig;
 
 struct ClusterElectricalSummary
 {
@@ -78,15 +78,12 @@ class Clustering
 
   static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> ClusterResult;
   static auto biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterResult;
-  static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
-  static auto defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
-  static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
   static auto fastClustering(const std::vector<Pin*>& loads) -> ClusterResult;
-  static auto defaultFastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
-  static auto fastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
-  static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config)
+  static auto defaultFastClustering(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterResult;
+  static auto fastClustering(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterResult;
+  static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const ClusterConfig& config)
       -> ClusterElectricalEvaluation;
-  static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config,
+  static auto evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const ClusterConfig& config,
                                         bool need_exact_cap) -> ClusterElectricalEvaluation;
 };
 

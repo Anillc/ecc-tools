@@ -6,6 +6,8 @@ add_library(
 
 target_link_libraries(
   icts_test_common_logging_support
+  PRIVATE
+  icts_test_common_io
   PUBLIC
   icts_test_base
 )

@@ -1,7 +1,7 @@
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/config)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/kmeans)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/mcf)
-add_subdirectory(${ICTS_MODULE_TOPOLOGY}/linear_clustering)
+add_subdirectory(${ICTS_MODULE_TOPOLOGY}/cluster_constraints)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/fast_clustering)
 add_subdirectory(${ICTS_MODULE_TOPOLOGY}/clustering)
 
@@ -19,7 +19,6 @@ target_link_libraries(
   PRIVATE
   icts_source_database_design
   icts_source_module_topology_fast_clustering
-  icts_source_module_topology_linear_clustering
   icts_source_utils
   icts_source_utils_geometry
   icts_source_utils_logger

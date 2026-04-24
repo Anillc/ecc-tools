@@ -29,8 +29,6 @@
 #include <vector>
 
 #include "Clustering.hh"
-#include "ConstraintEvaluator.hh"
-#include "LinearClusteringTypes.hh"
 #include "Point.hh"
 #include "TopologyConfig.hh"
 
@@ -91,47 +89,43 @@ auto CalcDiameter(const Bounds& bounds) -> int;
 auto CalcClusterBounds(const std::vector<Pin*>& cluster) -> Bounds;
 auto CalcClusterBounds(const std::vector<std::size_t>& entry_ids, const std::vector<LoadEntry>& entries) -> Bounds;
 auto CalcManhattanDistance(const Point<int>& lhs, const Point<int>& rhs) -> double;
-auto ResolveDraftRoot(const std::vector<std::size_t>& entry_ids, const std::vector<LoadEntry>& entries,
-                      const LinearClusteringConfig& config) -> Point<int>;
-auto BuildDraft(std::vector<std::size_t> entry_ids, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
-    -> ClusterDraft;
+auto ResolveDraftRoot(const std::vector<std::size_t>& entry_ids, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
+    -> Point<int>;
+auto BuildDraft(std::vector<std::size_t> entry_ids, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> ClusterDraft;
 auto CalcCenter(const std::vector<Pin*>& cluster) -> Point<int>;
-auto ResolveEvaluationRoot(const std::vector<Pin*>& cluster, const LinearClusteringConfig& config) -> Point<int>;
-auto ResolvePackingFanoutLimit(const LinearClusteringConfig& config, std::size_t load_count) -> std::size_t;
-auto IsFanoutLegal(std::size_t fanout, const LinearClusteringConfig& config) -> bool;
-auto IsDiameterLegal(const Bounds& bounds, const LinearClusteringConfig& config) -> bool;
-auto IsDraftGeometryLegal(const ClusterDraft& draft, const LinearClusteringConfig& config) -> bool;
-auto ClusterScoreProxy(const ClusterDraft& draft, const LinearClusteringConfig& config) -> double;
+auto ResolveEvaluationRoot(const std::vector<Pin*>& cluster, const ClusterConfig& config) -> Point<int>;
+auto ResolvePackingFanoutLimit(const ClusterConfig& config, std::size_t load_count) -> std::size_t;
+auto IsFanoutLegal(std::size_t fanout, const ClusterConfig& config) -> bool;
+auto IsDiameterLegal(const Bounds& bounds, const ClusterConfig& config) -> bool;
+auto IsDraftGeometryLegal(const ClusterDraft& draft, const ClusterConfig& config) -> bool;
+auto ClusterScoreProxy(const ClusterDraft& draft, const ClusterConfig& config) -> double;
 auto CalcRoutingCapVariancePenalty(double routing_cap_proxy, double target_routing_cap_proxy) -> double;
-auto DraftObjective(const ClusterDraft& draft, const LinearClusteringConfig& config, double target_routing_cap_proxy,
+auto DraftObjective(const ClusterDraft& draft, const ClusterConfig& config, double target_routing_cap_proxy,
                     double routing_cap_balance_weight) -> double;
 auto CalcDraftAggregate(const std::vector<ClusterDraft>& drafts) -> DraftAggregate;
 auto CalcMeanRoutingCapProxy(const DraftAggregate& aggregate) -> double;
 auto CalcBoundsDistance(const Bounds& lhs, const Bounds& rhs) -> long long;
 auto DistanceToBounds(const Point<int>& point, const Bounds& bounds) -> long long;
-auto BuildMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const std::vector<LoadEntry>& entries,
-                      const LinearClusteringConfig& config) -> ClusterDraft;
+auto BuildMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
+    -> ClusterDraft;
 auto SelectNearestActiveNeighbors(std::size_t cluster_id, const std::vector<ClusterDraft>& clusters, std::size_t max_candidate_count)
     -> std::vector<std::size_t>;
-auto PairObjective(const ClusterDraft& lhs, const ClusterDraft& rhs, const LinearClusteringConfig& config, double target_routing_cap_proxy,
+auto PairObjective(const ClusterDraft& lhs, const ClusterDraft& rhs, const ClusterConfig& config, double target_routing_cap_proxy,
                    double routing_cap_balance_weight) -> double;
 auto CollectEntries(const std::vector<Pin*>& loads) -> std::vector<LoadEntry>;
-auto BuildSpatialRecursiveClusters(const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
-    -> std::vector<ClusterDraft>;
+auto BuildSpatialRecursiveClusters(const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> std::vector<ClusterDraft>;
 auto TryBuildDraftAfterMove(const ClusterDraft& source, const ClusterDraft& target, std::size_t moved_entry_id,
-                            const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config, ClusterDraft& source_after,
+                            const std::vector<LoadEntry>& entries, const ClusterConfig& config, ClusterDraft& source_after,
                             ClusterDraft& target_after) -> bool;
 auto BuildBoundaryEntryCandidates(const ClusterDraft& source, const ClusterDraft& target, const std::vector<LoadEntry>& entries,
-                                  const LinearClusteringConfig& config) -> std::vector<std::size_t>;
+                                  const ClusterConfig& config) -> std::vector<std::size_t>;
 auto FindBestBoundaryMove(std::size_t source_id, const std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                          const LinearClusteringConfig& config, const DraftAggregate& aggregate) -> std::optional<BoundaryMove>;
+                          const ClusterConfig& config, const DraftAggregate& aggregate) -> std::optional<BoundaryMove>;
 auto MergeDraftsIfUseful(std::size_t cluster_id, std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                         const LinearClusteringConfig& config) -> bool;
-auto PolishBoundaryLoads(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
-    -> void;
-auto PolishSmallClusters(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
-    -> void;
-auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
+                         const ClusterConfig& config) -> bool;
+auto PolishBoundaryLoads(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void;
+auto PolishSmallClusters(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void;
+auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
     -> std::optional<ClusterResult>;
 auto CountAssignedLoads(const ClusterResult& result) -> std::size_t;
 

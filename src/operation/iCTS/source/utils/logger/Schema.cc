@@ -18,7 +18,7 @@
  * @file Schema.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-16
- * @brief Structured report schema writer for iCTS runtime and test artifacts.
+ * @brief Structured report schema writer for iCTS runtime reports and generated artifact references.
  */
 
 #include "Schema.hh"
@@ -361,32 +361,6 @@ auto SchemaWriter::appendStandaloneArtifact(const std::filesystem::path& path, c
     fields.emplace_back("detail", detail);
   }
   appendStandaloneKeyValueTable(path, run_title, "Generated Artifact", fields);
-}
-
-auto SchemaWriter::emitOrAppendKeyValueTable(const std::filesystem::path& path, const std::string& run_title, const std::string& title,
-                                             const KeyValueFields& fields) -> void
-{
-  auto& schema_writer = SCHEMA_WRITER_INST;
-  const std::scoped_lock lock(schema_writer._mutex);
-  const auto block = logformat::MakeKeyValueTable(title, fields);
-  if (schema_writer._stream.is_open() && schema_writer._path == path) {
-    schema_writer.writeBlockLocked(block);
-    return;
-  }
-  AppendBlockToPath(path, run_title, block);
-}
-
-auto SchemaWriter::emitOrAppendDetailBlock(const std::filesystem::path& path, const std::string& run_title, const std::string& title,
-                                           const std::vector<std::string>& lines) -> void
-{
-  auto& schema_writer = SCHEMA_WRITER_INST;
-  const std::scoped_lock lock(schema_writer._mutex);
-  const auto block = BuildDetailBlock(title, lines);
-  if (schema_writer._stream.is_open() && schema_writer._path == path) {
-    schema_writer.writeBlockLocked(block);
-    return;
-  }
-  AppendBlockToPath(path, run_title, block);
 }
 
 auto SchemaWriter::appendStandaloneBlock(const std::filesystem::path& path, const std::string& run_title, const std::string& block) -> void

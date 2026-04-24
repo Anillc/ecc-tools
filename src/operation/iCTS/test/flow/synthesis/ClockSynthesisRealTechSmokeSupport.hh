@@ -118,8 +118,6 @@ auto AssertClusteredArtifacts(const synthesis::ClockSynthesisArtifactPaths& arti
 auto AssertNonClusteredArtifacts(const synthesis::ClockSynthesisArtifactPaths& artifact_paths) -> void;
 auto CalcFloorPowerOfTwo(std::size_t value) -> std::size_t;
 auto CountTopologyLeafNodes(const icts::Tree& topology) -> std::size_t;
-auto FindSelectedDepthSummary(const icts::HTreeBuilder::BuildResult& result)
-    -> const icts::HTreeBuilder::BuildResult::DepthCandidateSummary*;
 auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixRunResult;

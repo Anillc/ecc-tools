@@ -25,13 +25,13 @@
 
 #include <glog/logging.h>
 
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <vector>
 
 #include "Clustering.hh"
 #include "FastClusteringInternal.hh"
-#include "LinearClustering.hh"
 #include "Log.hh"
 #include "TopologyConfig.hh"
 
@@ -39,17 +39,21 @@ namespace icts {
 
 namespace detail = fast_clustering;
 
-auto FastClustering::buildElectricalBaseConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig
+auto FastClustering::buildElectricalBaseConfig(std::size_t max_fanout, double max_cap) -> ClusterConfig
 {
-  return LinearClustering::buildElectricalBaseConfig(max_fanout, max_cap);
+  ClusterConfig config;
+  config.max_fanout = max_fanout;
+  config.max_diameter = std::numeric_limits<int>::max();
+  config.max_cap = max_cap;
+  return config;
 }
 
-auto FastClustering::runDefault(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
+auto FastClustering::runDefault(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterResult
 {
   return run(loads, base_config);
 }
 
-auto FastClustering::run(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
+auto FastClustering::run(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterResult
 {
   ClusterResult result;
   if (loads.empty()) {
@@ -67,8 +71,8 @@ auto FastClustering::run(const std::vector<Pin*>& loads, const LinearClusteringC
 
   auto finalized = detail::FinalizeClusters(drafts, entries, config);
   if (!finalized.has_value() || detail::CountAssignedLoads(*finalized) != entries.size()) {
-    LOG_WARNING << "Fast clustering failed to produce a legal complete partition. Falling back to linear clustering.";
-    return LinearClustering::run(loads, config);
+    LOG_WARNING << "Fast clustering failed to produce a legal complete partition.";
+    return result;
   }
 
   LOG_INFO << "Fast clustering done: loads=" << entries.size() << ", clusters=" << finalized->clusters.size()

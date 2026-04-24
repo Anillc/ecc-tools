@@ -33,6 +33,7 @@
 #include "Pin.hh"
 #include "Point.hh"
 #include "Tree.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeBuilder.hh"
 
 namespace icts_test {
@@ -41,14 +42,15 @@ namespace {
 TEST(HTreeBuilderTest, EmptyLoadsReturnsEmptyResult)
 {
   const auto result = icts::HTreeBuilder::build({});
+  const auto observation = htree::ObserveHTreeBuild(result);
 
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.topology.get_size(), 0U);
   EXPECT_TRUE(result.levels.empty());
   EXPECT_FALSE(result.best_char.has_value());
   EXPECT_FALSE(result.best_pattern.has_value());
-  EXPECT_TRUE(result.candidate_chars.empty());
-  EXPECT_TRUE(result.feasible_chars.empty());
+  EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
+  EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
   EXPECT_TRUE(result.inserted_insts.empty());
   EXPECT_TRUE(result.inserted_nets.empty());
 }
@@ -59,14 +61,15 @@ TEST(HTreeBuilderTest, EmptyLoadsAcceptExplicitBuildOptions)
                                                         .force_branch_buffer = true,
                                                         .min_top_input_slew_ns = 0.05,
                                                     });
+  const auto observation = htree::ObserveHTreeBuild(result);
 
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.topology.get_size(), 0U);
   EXPECT_TRUE(result.levels.empty());
   EXPECT_FALSE(result.best_char.has_value());
   EXPECT_FALSE(result.best_pattern.has_value());
-  EXPECT_TRUE(result.candidate_chars.empty());
-  EXPECT_TRUE(result.feasible_chars.empty());
+  EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
+  EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
   EXPECT_TRUE(result.inserted_insts.empty());
   EXPECT_TRUE(result.inserted_nets.empty());
 }
@@ -77,14 +80,15 @@ TEST(HTreeBuilderTest, SingleLoadStopsBeforeCharacterization)
   std::vector<icts::Pin*> loads{load.get()};
 
   const auto result = icts::HTreeBuilder::build(loads);
+  const auto observation = htree::ObserveHTreeBuild(result);
 
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.topology.get_size(), 1U);
   EXPECT_TRUE(result.levels.empty());
   EXPECT_FALSE(result.best_char.has_value());
   EXPECT_FALSE(result.best_pattern.has_value());
-  EXPECT_TRUE(result.candidate_chars.empty());
-  EXPECT_TRUE(result.feasible_chars.empty());
+  EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
+  EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
   EXPECT_TRUE(result.inserted_insts.empty());
   EXPECT_TRUE(result.inserted_nets.empty());
   EXPECT_EQ(load->get_net(), nullptr);

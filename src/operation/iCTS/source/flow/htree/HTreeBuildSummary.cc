@@ -38,7 +38,7 @@
 namespace icts::htree_builder {
 
 auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const CandidateBuildEvaluation& selected_evaluation,
-                          const HTreeBuilder::BuildResult::DepthCandidateSummary& selected_summary) -> void
+                          const HTreeDepthCandidateSummary& selected_summary) -> void
 {
   const bool selected_has_boundary_constraints = HasBoundaryConstraints(selected_evaluation.resolved_options);
   if (!result.best_char.has_value()) {
@@ -49,7 +49,7 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
 
   const logformat::TableRows build_summary_rows = {
       {"levels", std::to_string(result.levels.size()), "selected H-tree levels"},
-      {"depth_candidates", std::to_string(result.depth_candidates.size()), "evaluated descending depth candidates"},
+      {"depth_candidates", std::to_string(result.depth_candidate_count), "evaluated descending depth candidates"},
       {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
        "global winner across all evaluated depth candidates"},
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
@@ -62,15 +62,15 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
            : "the global feasible frontier pool is Pareto filtered and the lower power-ordered median entry is selected"},
       {"final_frontier_count", std::to_string(selected_summary.final_frontier_count),
        "selected-depth root frontier size before boundary filtering and actual-load legality filtering"},
-      {"candidate_solutions", std::to_string(result.candidate_chars.size()),
+      {"candidate_solutions", std::to_string(selected_summary.candidate_solution_count),
        selected_has_boundary_constraints ? "selected-depth frontier entries after full composition"
                                          : "not materialized on unrestricted builds"},
-      {"candidate_frontier_entry_count", std::to_string(result.candidate_frontier_entries.size()),
+      {"candidate_frontier_entry_count", std::to_string(selected_summary.candidate_frontier_entry_count),
        selected_has_boundary_constraints ? "selected-depth actual-load-legal candidate frontier entries before feasible filtering"
                                          : "not materialized on unrestricted builds"},
-      {"feasible_solutions", std::to_string(result.feasible_chars.size()),
+      {"feasible_solutions", std::to_string(selected_summary.feasible_solution_count),
        selected_has_boundary_constraints ? "selected-depth strict-feasible entries after boundary filtering" : "same as composed frontier"},
-      {"feasible_frontier_entry_count", std::to_string(result.feasible_frontier_entries.size()),
+      {"feasible_frontier_entry_count", std::to_string(selected_summary.feasible_frontier_entry_count),
        "selected-depth actual-load-legal frontier entries after feasible filtering"},
       {"inserted_insts", std::to_string(result.inserted_insts.size()), "materialized CTS buffer instances"},
       {"inserted_nets", std::to_string(result.inserted_nets.size()), "materialized CTS nets"},

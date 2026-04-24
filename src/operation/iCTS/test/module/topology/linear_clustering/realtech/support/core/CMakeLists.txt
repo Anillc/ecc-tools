@@ -1,9 +1,0 @@
-add_library(icts_test_module_topology_linear_clustering_realtech_core_support INTERFACE)
-
-target_link_libraries(
-  icts_test_module_topology_linear_clustering_realtech_core_support
-  INTERFACE
-  icts_test_module_topology_linear_clustering_realtech_runtime_support
-  icts_test_module_topology_linear_clustering_realtech_cluster_support
-  icts_test_module_topology_linear_clustering_realtech_electrical_support
-)

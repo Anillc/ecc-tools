@@ -11,7 +11,7 @@ target_link_libraries(
   icts_source_database_design
   icts_source_module_topology_fast_clustering
   icts_source_module_topology_config
-  icts_source_module_topology_linear_clustering
+  icts_source_module_topology_cluster_constraints
   icts_source_module_topology_kmeans
   icts_source_module_topology_mcf
   icts_source_utils_geometry

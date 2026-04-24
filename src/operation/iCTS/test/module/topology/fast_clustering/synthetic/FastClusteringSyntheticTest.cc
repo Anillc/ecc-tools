@@ -89,7 +89,7 @@ auto CountAssignedLoads(const icts::ClusterResult& result) -> std::size_t
 TEST(FastClusteringSyntheticTest, FacadeProducesCompleteLegalClusters)
 {
   auto generated = common::data::pin_factory::BuildPinsFromPoints(BuildClusteredPoints(), {.width = 5000, .height = 4000}, "fast_pin_");
-  icts::LinearClusteringConfig config;
+  icts::ClusterConfig config;
   config.max_fanout = 6;
   config.max_diameter = 160;
   config.max_cap = std::numeric_limits<double>::infinity();
@@ -116,7 +116,7 @@ TEST(FastClusteringSyntheticTest, FacadeProducesCompleteLegalClusters)
 TEST(FastClusteringSyntheticTest, ClusteringFacadeMatchesTopologyGenFacade)
 {
   auto generated = common::data::pin_factory::BuildPinsFromPoints(BuildClusteredPoints(), {.width = 5000, .height = 4000}, "facade_pin_");
-  icts::LinearClusteringConfig config;
+  icts::ClusterConfig config;
   config.max_fanout = 8;
   config.max_cap = std::numeric_limits<double>::infinity();
   config.enable_exact_cap = false;

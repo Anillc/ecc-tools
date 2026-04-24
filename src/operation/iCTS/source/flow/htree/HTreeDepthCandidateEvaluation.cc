@@ -55,10 +55,11 @@ auto EvaluateDepthCandidate(const Tree& topology, const std::vector<HTreeBuilder
 }
 
 auto RecordDepthCandidateResult(unsigned depth, bool used_explicit_target_depth,
-                                const HTreeDepthCandidateEvaluationResult& candidate_result, HTreeBuilder::BuildResult& result) -> void
+                                const HTreeDepthCandidateEvaluationResult& candidate_result,
+                                std::vector<HTreeDepthCandidateSummary>& depth_summaries) -> void
 {
   const auto& evaluation = candidate_result.evaluation;
-  result.depth_candidates.push_back(HTreeBuilder::BuildResult::DepthCandidateSummary{
+  depth_summaries.push_back(HTreeDepthCandidateSummary{
       .depth = depth,
       .leaf_count = candidate_result.leaf_count,
       .success = evaluation.success,
@@ -67,6 +68,7 @@ auto RecordDepthCandidateResult(unsigned depth, bool used_explicit_target_depth,
       .failure_reason = evaluation.failure_reason,
       .final_frontier_count = evaluation.final_frontier_count,
       .candidate_solution_count = evaluation.candidate_chars.size(),
+      .candidate_frontier_entry_count = evaluation.candidate_frontier_entries.size(),
       .feasible_solution_count = evaluation.feasible_chars.size(),
       .feasible_frontier_entry_count = evaluation.feasible_frontier_entries.size(),
       .used_boundary_fallback = evaluation.used_boundary_fallback,

@@ -36,6 +36,7 @@
 #include "Tree.hh"
 #include "database/config/Config.hh"
 #include "database/design/Net.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "htree/HTreeBuilder.hh"
 
 namespace icts_test::synthesis_realtech_smoke {
@@ -97,30 +98,29 @@ auto AssertBranchBufferedHTree(const icts::HTreeBuilder::BuildResult& htree_resu
 
 auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void
 {
-  ASSERT_FALSE(result.depth_candidates.empty());
-  ASSERT_TRUE(result.selected_depth.has_value());
+  const auto observation = htree::ObserveHTreeBuild(result);
+  ASSERT_GT(observation.depth_candidate_count, 0U);
+  ASSERT_TRUE(observation.has_selected_depth);
 
   const auto topology_levels = result.topology.levels();
   ASSERT_GT(topology_levels.size(), 1U);
   const auto max_depth = static_cast<unsigned>(topology_levels.size() - 1U);
-  EXPECT_EQ(result.depth_candidates.size(), std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
+  EXPECT_EQ(observation.depth_candidate_count, std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
 
-  const auto* selected_summary = FindSelectedDepthSummary(result);
-  ASSERT_NE(selected_summary, nullptr);
-  EXPECT_EQ(selected_summary->depth, result.selected_depth.value_or(0U));
-  EXPECT_EQ(selected_summary->depth, result.levels.size());
-  EXPECT_TRUE(selected_summary->success);
+  EXPECT_EQ(observation.selected_depth, result.selected_depth.value_or(0U));
+  EXPECT_EQ(observation.selected_depth, observation.selected_level_count);
+  EXPECT_TRUE(observation.success);
+  EXPECT_GT(observation.selected_final_frontier_count, 0U);
 }
 
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void
 {
-  const auto* selected_summary = FindSelectedDepthSummary(result);
-  ASSERT_NE(selected_summary, nullptr);
-  ASSERT_GT(selected_summary->htree_load_group_count, 0U);
-  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_mean_pf);
-  EXPECT_LE(selected_summary->htree_load_cap_min_pf, selected_summary->htree_load_cap_median_pf);
-  EXPECT_LE(selected_summary->htree_load_cap_mean_pf, selected_summary->htree_load_cap_max_pf);
-  EXPECT_LE(selected_summary->htree_load_cap_median_pf, selected_summary->htree_load_cap_max_pf);
+  const auto observation = htree::ObserveHTreeBuild(result);
+  ASSERT_GT(observation.htree_load_group_count, 0U);
+  EXPECT_LE(observation.htree_load_cap_min_pf, observation.htree_load_cap_mean_pf);
+  EXPECT_LE(observation.htree_load_cap_min_pf, observation.htree_load_cap_median_pf);
+  EXPECT_LE(observation.htree_load_cap_mean_pf, observation.htree_load_cap_max_pf);
+  EXPECT_LE(observation.htree_load_cap_median_pf, observation.htree_load_cap_max_pf);
 }
 
 }  // namespace icts_test::synthesis_realtech_smoke

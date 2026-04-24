@@ -18,7 +18,7 @@
  * @file Schema.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-16
- * @brief Structured report schema writer for iCTS runtime and test artifacts.
+ * @brief Structured report schema writer for iCTS runtime reports and generated artifact references.
  */
 
 #pragma once
@@ -76,10 +76,6 @@ class SchemaWriter
                                           const std::vector<std::string>& lines) -> void;
   static auto appendStandaloneArtifact(const std::filesystem::path& path, const std::string& run_title, const std::string& label,
                                        const std::filesystem::path& artifact_path, const std::string& detail = {}) -> void;
-  static auto emitOrAppendKeyValueTable(const std::filesystem::path& path, const std::string& run_title, const std::string& title,
-                                        const KeyValueFields& fields) -> void;
-  static auto emitOrAppendDetailBlock(const std::filesystem::path& path, const std::string& run_title, const std::string& title,
-                                      const std::vector<std::string>& lines) -> void;
 
  private:
   struct SuspendedWriter

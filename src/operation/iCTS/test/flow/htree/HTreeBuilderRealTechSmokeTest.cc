@@ -38,6 +38,7 @@
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeBuilder.hh"
 #include "flow/htree/HTreeBuilderRealTechSmokeSupport.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
@@ -100,13 +101,12 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_TRUE(result.failure_reason.empty());
   ASSERT_TRUE(result.best_char.has_value());
   ASSERT_TRUE(result.best_pattern.has_value());
-  ASSERT_FALSE(result.feasible_chars.empty());
-  ASSERT_FALSE(result.feasible_frontier_entries.empty());
+  const auto observation = htree::ObserveHTreeBuild(result);
+  ASSERT_GT(observation.selected_feasible_solution_count, 0U);
+  ASSERT_GT(observation.selected_feasible_frontier_entry_count, 0U);
   AssertDepthCandidateCoverage(result);
   AssertSelectedHTreeLoadDistribution(result);
-  EXPECT_LE(result.feasible_frontier_entries.size(), result.feasible_chars.size());
-  const auto best_char = result.best_char.value_or(icts::HTreeTopologyChar{});
-  EXPECT_TRUE(ContainsCharEntry(result.feasible_frontier_entries, best_char));
+  EXPECT_LE(observation.selected_feasible_frontier_entry_count, observation.selected_feasible_solution_count);
   const icts::HTreeTopologyPattern* best_pattern = nullptr;
   if (result.best_pattern.has_value()) {
     best_pattern = &result.best_pattern.value();

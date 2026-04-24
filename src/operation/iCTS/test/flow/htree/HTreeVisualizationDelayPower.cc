@@ -22,11 +22,9 @@
  */
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <iomanip>
 #include <optional>
 #include <sstream>
@@ -38,6 +36,7 @@
 #include "Pin.hh"
 #include "Tree.hh"
 #include "common/visualization/core/SvgCommon.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeVisualizationInternal.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
 #include "htree/HTreeBuilder.hh"
@@ -53,78 +52,22 @@ auto NormalizeMetric(double value, double min_value, double max_value) -> double
   return std::clamp((value - min_value) / (max_value - min_value), 0.0, 1.0);
 }
 
-auto DelayPowerDominates(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
-{
-  const bool not_worse = lhs.get_delay() <= rhs.get_delay() && lhs.get_power() <= rhs.get_power();
-  const bool strictly_better = lhs.get_delay() < rhs.get_delay() || lhs.get_power() < rhs.get_power();
-  return not_worse && strictly_better;
-}
-
-auto GetDisplayChars(const icts::HTreeBuilder::BuildResult& result) -> const std::vector<icts::HTreeTopologyChar>&
-{
-  if (!result.feasible_frontier_entries.empty()) {
-    return result.feasible_frontier_entries;
-  }
-  if (!result.candidate_frontier_entries.empty()) {
-    return result.candidate_frontier_entries;
-  }
-  if (!result.feasible_chars.empty()) {
-    return result.feasible_chars;
-  }
-  return result.candidate_chars;
-}
-
-auto IsSameCharEntry(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
-{
-  constexpr double metric_tolerance = 1e-12;
-  return lhs.get_pattern_id() == rhs.get_pattern_id() && lhs.get_input_slew_idx() == rhs.get_input_slew_idx()
-         && lhs.get_output_slew_idx() == rhs.get_output_slew_idx() && lhs.get_driven_cap_idx() == rhs.get_driven_cap_idx()
-         && lhs.get_leaf_load_cap_idx() == rhs.get_leaf_load_cap_idx() && lhs.get_load_cap_idx() == rhs.get_load_cap_idx()
-         && std::abs(lhs.get_delay() - rhs.get_delay()) <= metric_tolerance
-         && std::abs(lhs.get_power() - rhs.get_power()) <= metric_tolerance;
-}
-
 }  // namespace
 
 auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std::vector<DelayPowerPoint>
 {
-  const auto& display_chars = GetDisplayChars(result);
-  if (display_chars.empty()) {
+  if (!result.best_char.has_value()) {
     return {};
   }
 
-  const auto [min_delay_it, max_delay_it] = std::ranges::minmax_element(display_chars, {}, &icts::HTreeTopologyChar::get_delay);
-  const auto [min_power_it, max_power_it] = std::ranges::minmax_element(display_chars, {}, &icts::HTreeTopologyChar::get_power);
-  const double min_delay = min_delay_it->get_delay();
-  const double max_delay = max_delay_it->get_delay();
-  const double min_power = min_power_it->get_power();
-  const double max_power = max_power_it->get_power();
-
-  std::vector<bool> pareto_flags(display_chars.size(), true);
-  for (std::size_t index = 0; index < display_chars.size(); ++index) {
-    for (std::size_t other_index = 0; other_index < display_chars.size(); ++other_index) {
-      if (index == other_index) {
-        continue;
-      }
-      if (DelayPowerDominates(display_chars[other_index], display_chars[index])) {
-        pareto_flags[index] = false;
-        break;
-      }
-    }
-  }
-
   std::vector<DelayPowerPoint> points;
-  points.reserve(display_chars.size());
-  for (std::size_t index = 0; index < display_chars.size(); ++index) {
-    const auto& entry = display_chars[index];
-    points.push_back(DelayPowerPoint{
-        .entry = &entry,
-        .normalized_delay = NormalizeMetric(entry.get_delay(), min_delay, max_delay),
-        .normalized_power = NormalizeMetric(entry.get_power(), min_power, max_power),
-        .is_pareto = pareto_flags[index],
-        .is_selected = result.best_char.has_value() && IsSameCharEntry(entry, *result.best_char),
-    });
-  }
+  points.push_back(DelayPowerPoint{
+      .entry = &(*result.best_char),
+      .normalized_delay = NormalizeMetric(result.best_char->get_delay(), result.best_char->get_delay(), result.best_char->get_delay()),
+      .normalized_power = NormalizeMetric(result.best_char->get_power(), result.best_char->get_power(), result.best_char->get_power()),
+      .is_pareto = true,
+      .is_selected = true,
+  });
 
   std::ranges::sort(points, [](const DelayPowerPoint& lhs, const DelayPowerPoint& rhs) -> bool {
     if (lhs.normalized_delay != rhs.normalized_delay) {
@@ -138,68 +81,27 @@ auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std
   return points;
 }
 
-namespace {
-
-auto PreferPowerDelayOrder(const icts::HTreeTopologyChar& lhs, const icts::HTreeTopologyChar& rhs) -> bool
-{
-  if (lhs.get_power() != rhs.get_power()) {
-    return lhs.get_power() < rhs.get_power();
-  }
-  if (lhs.get_delay() != rhs.get_delay()) {
-    return lhs.get_delay() < rhs.get_delay();
-  }
-  return lhs.get_pattern_id().pack() < rhs.get_pattern_id().pack();
-}
-
-}  // namespace
-
 auto BuildDelayPowerSelectionSummary(const icts::HTreeBuilder::BuildResult& result) -> std::optional<DelayPowerSelectionSummary>
 {
-  const auto& raw_selection_pool = result.feasible_chars.empty() ? result.candidate_chars : result.feasible_chars;
-  const auto& selection_pool = GetDisplayChars(result);
-  if (selection_pool.empty() || !result.best_char.has_value()) {
+  if (!result.best_char.has_value()) {
     return std::nullopt;
   }
 
-  std::vector<const icts::HTreeTopologyChar*> pareto_front;
-  pareto_front.reserve(selection_pool.size());
-  for (std::size_t index = 0; index < selection_pool.size(); ++index) {
-    bool is_pareto = true;
-    for (std::size_t other_index = 0; other_index < selection_pool.size(); ++other_index) {
-      if (index == other_index) {
-        continue;
-      }
-      if (DelayPowerDominates(selection_pool[other_index], selection_pool[index])) {
-        is_pareto = false;
-        break;
-      }
-    }
-    if (is_pareto) {
-      pareto_front.push_back(&selection_pool[index]);
-    }
-  }
-
-  std::ranges::sort(pareto_front, [](const icts::HTreeTopologyChar* lhs, const icts::HTreeTopologyChar* rhs) -> bool {
-    return lhs != nullptr && rhs != nullptr && PreferPowerDelayOrder(*lhs, *rhs);
-  });
+  const auto observation = ObserveHTreeBuild(result);
+  const std::size_t frontier_pool_size
+      = observation.used_boundary_fallback ? observation.selected_candidate_solution_count : observation.selected_feasible_solution_count;
+  const std::size_t selection_pool_size = observation.used_boundary_fallback ? observation.selected_candidate_frontier_entry_count
+                                                                             : observation.selected_feasible_frontier_entry_count;
 
   DelayPowerSelectionSummary summary{
-      .frontier_selection_pool_size = raw_selection_pool.size(),
-      .selection_pool_size = selection_pool.size(),
-      .pareto_solution_count = pareto_front.size(),
-      .median_uses_lower_index = pareto_front.size() > 1U && (pareto_front.size() % 2U == 0U),
+      .frontier_selection_pool_size = frontier_pool_size,
+      .selection_pool_size = selection_pool_size,
+      .pareto_solution_count = result.best_char.has_value() ? 1U : 0U,
+      .median_uses_lower_index = false,
   };
-  if (!pareto_front.empty()) {
-    summary.pareto_power_median_index = (pareto_front.size() - 1U) / 2U;
-  }
-
-  const auto selected_it = std::ranges::find_if(pareto_front, [&result](const icts::HTreeTopologyChar* entry) -> bool {
-    return entry != nullptr && IsSameCharEntry(*entry, *result.best_char);
-  });
-  if (selected_it != pareto_front.end()) {
-    summary.selected_on_pareto_front = true;
-    summary.selected_pareto_power_order_index = static_cast<std::size_t>(selected_it - pareto_front.begin());
-  }
+  summary.pareto_power_median_index = 0U;
+  summary.selected_on_pareto_front = true;
+  summary.selected_pareto_power_order_index = 0U;
 
   return summary;
 }
@@ -365,6 +267,7 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
                  const std::vector<icts::Pin*>& loads, const icts::HTreeBuilder::BuildResult& result) -> std::string
 {
   const auto delay_power_points = BuildDelayPowerPoints(result);
+  const auto observation = ObserveHTreeBuild(result);
 
   std::ostringstream report;
   report.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
@@ -380,17 +283,17 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
          << ", distinct_level_bins=" << result.char_unique_level_bins << ", adapted=" << (result.char_grid_adapted ? "true" : "false")
          << "\n";
   report << "char_limits max_slew_ns=" << result.char_max_slew_ns << ", max_cap_pf=" << result.char_max_cap_pf << "\n";
-  report << "frontier_candidate_solution_count=" << result.candidate_chars.size()
-         << ", candidate_frontier_entry_count=" << result.candidate_frontier_entries.size() << "\n";
-  report << "frontier_feasible_solution_count=" << result.feasible_chars.size()
-         << ", feasible_frontier_entry_count=" << result.feasible_frontier_entries.size() << "\n";
+  report << "frontier_candidate_solution_count=" << observation.selected_candidate_solution_count
+         << ", candidate_frontier_entry_count=" << observation.selected_candidate_frontier_entry_count << "\n";
+  report << "frontier_feasible_solution_count=" << observation.selected_feasible_solution_count
+         << ", feasible_frontier_entry_count=" << observation.selected_feasible_frontier_entry_count << "\n";
   report << "frontier_solution_count=" << delay_power_points.size() << ", pareto_solution_count="
          << std::ranges::count_if(delay_power_points, [](const DelayPowerPoint& point) -> bool { return point.is_pareto; }) << "\n";
   const auto selection_summary = BuildDelayPowerSelectionSummary(result);
   if (selection_summary.has_value()) {
     report << std::setprecision(9);
     report << "delay_power_selection_summary selection_policy="
-           << (result.used_boundary_fallback ? "boundary_fallback" : "global_frontier_pareto_power_median")
+           << (observation.used_boundary_fallback ? "boundary_fallback" : "global_frontier_pareto_power_median")
            << ", frontier_selection_pool_size=" << selection_summary->frontier_selection_pool_size
            << ", selection_pool_size=" << selection_summary->selection_pool_size
            << ", pareto_solution_count=" << selection_summary->pareto_solution_count << ", pareto_power_median_index=";

@@ -34,7 +34,7 @@
 #include "Point.hh"
 
 namespace icts {
-struct LinearClusteringConfig;
+struct ClusterConfig;
 }  // namespace icts
 
 namespace icts::fast_clustering {
@@ -81,8 +81,8 @@ auto ResolveTargetClusterCount(std::size_t entry_count, std::size_t fanout_limit
   return (entry_count + safe_fanout - 1U) / safe_fanout;
 }
 
-auto ResolveRecursiveChildClusterCount(std::size_t entry_count, std::size_t fanout_limit, const Bounds& bounds,
-                                       const LinearClusteringConfig& config) -> std::size_t
+auto ResolveRecursiveChildClusterCount(std::size_t entry_count, std::size_t fanout_limit, const Bounds& bounds, const ClusterConfig& config)
+    -> std::size_t
 {
   auto target_cluster_count = ResolveTargetClusterCount(entry_count, fanout_limit);
   if (target_cluster_count <= 1U && !IsDiameterLegal(bounds, config)) {
@@ -97,7 +97,7 @@ auto CalcSizeDistance(std::size_t lhs, std::size_t rhs) -> std::size_t
 }
 
 auto ResolveRecursiveSplitSize(const std::vector<std::size_t>& entry_ids, const std::vector<LoadEntry>& entries, std::size_t fanout_limit,
-                               const Bounds& bounds, const LinearClusteringConfig& config) -> std::size_t
+                               const Bounds& bounds, const ClusterConfig& config) -> std::size_t
 {
   const auto entry_count = entry_ids.size();
   auto target_cluster_count = ResolveRecursiveChildClusterCount(entry_count, fanout_limit, bounds, config);
@@ -137,9 +137,8 @@ auto ResolveRecursiveSplitSize(const std::vector<std::size_t>& entry_ids, const 
   return best_split_size;
 }
 
-auto BuildSpatialRecursiveClusters(std::vector<std::size_t> entry_ids, const std::vector<LoadEntry>& entries,
-                                   const LinearClusteringConfig& config, std::size_t fanout_limit, std::vector<ClusterDraft>& clusters)
-    -> void
+auto BuildSpatialRecursiveClusters(std::vector<std::size_t> entry_ids, const std::vector<LoadEntry>& entries, const ClusterConfig& config,
+                                   std::size_t fanout_limit, std::vector<ClusterDraft>& clusters) -> void
 {
   std::vector<std::vector<std::size_t>> pending;
   pending.push_back(std::move(entry_ids));
@@ -167,7 +166,7 @@ auto BuildSpatialRecursiveClusters(std::vector<std::size_t> entry_ids, const std
 
 }  // namespace
 
-auto BuildSpatialRecursiveClusters(const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config) -> std::vector<ClusterDraft>
+auto BuildSpatialRecursiveClusters(const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> std::vector<ClusterDraft>
 {
   const auto fanout_limit = ResolvePackingFanoutLimit(config, entries.size());
   std::vector<std::size_t> entry_ids(entries.size());

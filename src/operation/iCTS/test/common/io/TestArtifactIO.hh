@@ -18,7 +18,7 @@
  * @file TestArtifactIO.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Shared artifact IO and logging helpers for iCTS tests.
+ * @brief Shared artifact IO and per-test report helpers for iCTS tests.
  */
 
 #pragma once
@@ -32,14 +32,18 @@ struct InfoReport;
 
 namespace icts_test::common::io {
 
+constexpr const char* kDefaultTestReportTitle = "iCTS Test Report";
+
 auto WriteRawTextLog(const std::filesystem::path& path, const std::string& content) -> bool;
 auto WriteTextLog(const std::filesystem::path& path, const std::string& content) -> bool;
 auto EmitInfoReport(const InfoReport& report) -> void;
+auto OpenTestReport(const std::filesystem::path& path, const std::string& run_title = kDefaultTestReportTitle) -> void;
+auto CloseTestReport() -> void;
 auto SanitizeOutputName(const std::string& raw_name) -> std::string;
 auto PrepareCleanOutputDir(const std::filesystem::path& path) -> std::filesystem::path;
 
 auto ResolveOutputDir() -> std::filesystem::path;
 auto ResolveTopologyGenOutputDir() -> std::filesystem::path;
-auto ResolveLinearClusteringOutputDir() -> std::filesystem::path;
+auto ResolveClusteringOutputDir() -> std::filesystem::path;
 
 }  // namespace icts_test::common::io

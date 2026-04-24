@@ -32,10 +32,10 @@
 #include <utility>
 #include <vector>
 
+#include "ClusterConstraintEvaluator.hh"
+#include "ClusterConstraintTypes.hh"
 #include "Clustering.hh"
-#include "ConstraintEvaluator.hh"
 #include "FastClusteringInternal.hh"
-#include "LinearClusteringTypes.hh"
 #include "Log.hh"
 #include "Pin.hh"
 #include "Point.hh"
@@ -63,7 +63,7 @@ auto MaterializeCluster(const ClusterDraft& draft, const std::vector<LoadEntry>&
   return cluster;
 }
 
-auto NeedExactCap(const LinearClusteringConfig& config) -> bool
+auto NeedExactCap(const ClusterConfig& config) -> bool
 {
   return config.enable_exact_cap;
 }
@@ -109,7 +109,7 @@ auto SplitClusterByLongestAxis(std::vector<Pin*> cluster) -> std::pair<std::vect
   return {std::move(lhs), std::move(rhs)};
 }
 
-auto AppendFinalCluster(const std::vector<Pin*>& cluster, const LinearClusteringConfig& config, ConstraintEvaluator& evaluator,
+auto AppendFinalCluster(const std::vector<Pin*>& cluster, const ClusterConfig& config, ClusterConstraintEvaluator& evaluator,
                         ClusterResult& result) -> bool
 {
   std::vector<std::vector<Pin*>> pending;
@@ -148,7 +148,7 @@ auto AppendFinalCluster(const std::vector<Pin*>& cluster, const LinearClustering
 
 }  // namespace
 
-auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
+auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
     -> std::optional<ClusterResult>
 {
   ClusterResult result;
@@ -156,7 +156,7 @@ auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector
   result.centers.reserve(drafts.size());
   result.electrical_summaries.reserve(drafts.size());
 
-  ConstraintEvaluator evaluator;
+  ClusterConstraintEvaluator evaluator;
   for (const auto& draft : drafts) {
     auto cluster = MaterializeCluster(draft, entries);
     if (!AppendFinalCluster(cluster, config, evaluator, result)) {

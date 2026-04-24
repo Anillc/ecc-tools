@@ -25,23 +25,19 @@
 
 #include <filesystem>
 #include <string>
-#include <utility>
 
-#include "utils/logger/Schema.hh"
+#include "common/io/TestArtifactIO.hh"
 
 namespace icts_test::common::logging {
 
 ScopedLogFile::ScopedLogFile(const std::filesystem::path& path, const std::string& run_title)
 {
-  SCHEMA_WRITER_INST.open(path, run_title,
-                          {
-                              {"cts_log", path.string()},
-                          });
+  icts_test::common::io::OpenTestReport(path, run_title);
 }
 
 ScopedLogFile::~ScopedLogFile()
 {
-  SCHEMA_WRITER_INST.close();
+  icts_test::common::io::CloseTestReport();
 }
 
 }  // namespace icts_test::common::logging

@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Required for broad CTS source/test layering cleanup"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Required for broad CTS source/test layering cleanup"}

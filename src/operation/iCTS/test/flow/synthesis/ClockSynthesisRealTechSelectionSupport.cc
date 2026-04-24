@@ -21,7 +21,6 @@
  * @brief Real-tech clock selection and matrix report helpers for ClockSynthesis tests.
  */
 
-#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <filesystem>
@@ -43,7 +42,6 @@
 #include "database/design/Clock.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
-#include "htree/HTreeBuilder.hh"
 #include "synthesis/ClockSynthesis.hh"
 
 namespace icts {
@@ -204,16 +202,6 @@ auto CountTopologyLeafNodes(const icts::Tree& topology) -> std::size_t
     return 0U;
   }
   return levels.back().size();
-}
-
-auto FindSelectedDepthSummary(const icts::HTreeBuilder::BuildResult& result)
-    -> const icts::HTreeBuilder::BuildResult::DepthCandidateSummary*
-{
-  const auto summary_it = std::ranges::find_if(result.depth_candidates, [](const auto& summary) -> bool { return summary.selected; });
-  if (summary_it == result.depth_candidates.end()) {
-    return nullptr;
-  }
-  return &(*summary_it);
 }
 
 }  // namespace icts_test::synthesis_realtech_smoke

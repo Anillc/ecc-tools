@@ -12,8 +12,8 @@ so feature-specific tests can link only the pieces they need.
 - `test/common/topology/`: tree and cluster analysis helpers
 - `test/common/visualization/`: SVG writers
 - `test/common/logging/`: scoped logging redirection helpers
-- `test/common/linear_clustering/metrics/`: cluster geometry and metrics helpers
-- `test/common/linear_clustering/artifact/`: cluster-to-artifact materialization helpers
+- `test/common/clustering/metrics/`: cluster geometry and metrics helpers
+- `test/common/clustering/artifact/`: cluster-to-artifact materialization helpers
 - `test/common/realtech/asset/`: repo-local ICS55 workspace probing and environment bootstrap
 - `test/common/realtech/load/`: real-design load extraction and synthetic fallback generation
 - `test/common/realtech/support/`: cached real-tech setup state and shared load-selection helpers
@@ -24,8 +24,8 @@ so feature-specific tests can link only the pieces they need.
 - `test/module/characterization/`: split translation units for segment join, H-tree join, pruner, and pattern hash, plus header-only `support/`
 - `test/module/routing/`: routing and legalization regressions
 - `test/module/topology/topology_gen/`: topology-generation regression, with support split into `support/{case,analysis,artifact,core}`
-- `test/module/topology/linear_clustering/synthetic/`: synthetic regressions, with support split into `support/{config,dataset,runtime,reference,core,distribution,order,constraint,sweep}`
-- `test/module/topology/linear_clustering/realtech/`: real-tech regressions, with support split into `support/{cluster,runtime,electrical,core,strategy}` and `scenario/{setup,sweep,electrical}`
+- `test/module/topology/fast_clustering/synthetic/`: synthetic fast-clustering regressions
+- `test/module/topology/fast_clustering/realtech/`: fast-only real-tech clustering benchmark
 
 ## Executable Targets
 
@@ -33,15 +33,13 @@ so feature-specific tests can link only the pieces they need.
 - `icts_test_module_characterization`
 - `icts_test_module_routing`
 - `icts_test_module_topology_gen`
-- `icts_test_module_topology_linear_clustering`
-- `icts_test_module_topology_linear_clustering_realtech`
+- `icts_test_module_topology_fast_clustering`
+- `icts_test_module_topology_fast_clustering_realtech_benchmark`
 
 ## Support Targets
 
 - `icts_test_common_*`: reusable test helpers grouped by common capability
 - `icts_test_module_topology_gen_*`: topology-gen support targets grouped by case generation, analysis, artifact emission, and scenario orchestration
-- `icts_test_module_topology_linear_clustering_synthetic_*`: synthetic linear-clustering support targets
-- `icts_test_module_topology_linear_clustering_realtech_*`: real-tech linear-clustering shared/scenario support targets
 
 The real-tech test helpers probe repo-local ICS55 workspaces under
 `scripts/design/` and resolve the ICS55 PDK root from
@@ -66,5 +64,4 @@ That per-test root always contains:
 - `test.log`: captured stdout/stderr for the individual test case
 
 - topology generation: `icts_test_output/topology_gen/`
-- linear clustering: `icts_test_output/linear_clustering/`
-- real-tech linear clustering: `icts_test_output/linear_clustering/realtech/`
+- clustering and real-tech clustering benchmark: `icts_test_output/clustering/`

@@ -18,7 +18,7 @@
  * @file FastClusteringRealTechBenchmarkTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-24
- * @brief Real-tech CTS clustering benchmark entry point for fast and linear clustering.
+ * @brief Real-tech CTS clustering benchmark entry point for fast clustering.
  */
 
 #include <gtest/gtest.h>
@@ -34,12 +34,10 @@
 #include "common/logging/ScopedLogFile.hh"
 #include "common/types/TestDataTypes.hh"
 #include "module/topology/fast_clustering/FastClustering.hh"
-#include "module/topology/linear_clustering/LinearClustering.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts {
 class Pin;
-struct LinearClusteringConfig;
 }  // namespace icts
 
 namespace icts_test::fast_clustering::realtech {
@@ -50,7 +48,7 @@ using common::io::ResolveOutputDir;
 using common::io::WriteRawTextLog;
 using common::logging::ScopedLogFile;
 
-TEST(FastClusteringRealTechBenchmarkTest, CompareTwentyPlacementCases)
+TEST(FastClusteringRealTechBenchmarkTest, BenchmarkTwentyPlacementCases)
 {
   const auto output_dir = PrepareCleanOutputDir(ResolveOutputDir() / "fast_clustering" / "realtech_benchmark" / "current_run");
   const auto cts_log_path = output_dir / "cts.log";
@@ -70,9 +68,7 @@ TEST(FastClusteringRealTechBenchmarkTest, CompareTwentyPlacementCases)
 
   std::vector<CaseResult> results;
   results.reserve(cases.size());
-  double linear_runtime_ms = 0.0;
   double fast_runtime_ms = 0.0;
-  double linear_score = 0.0;
   double fast_score = 0.0;
   const auto svg_dir = output_dir / std::string(kClusterSvgDirName);
 
@@ -83,24 +79,16 @@ TEST(FastClusteringRealTechBenchmarkTest, CompareTwentyPlacementCases)
         InfoReport{.title = "CTS Clustering Case Statistics", .content = BuildLoadedCaseReport(benchmark_case, loaded)});
 
     auto config = BuildBenchmarkConfig();
-    auto linear_run
-        = RunAndMeasure("linear", loaded.loads, config,
-                        [](const std::vector<icts::Pin*>& loads, const icts::LinearClusteringConfig& run_config) -> icts::ClusterResult {
-                          return icts::LinearClustering::runDefault(loads, run_config);
-                        });
-    auto fast_run
-        = RunAndMeasure("fast", loaded.loads, config,
-                        [](const std::vector<icts::Pin*>& loads, const icts::LinearClusteringConfig& run_config) -> icts::ClusterResult {
-                          return icts::FastClustering::runDefault(loads, run_config);
-                        });
+    auto fast_run = RunAndMeasure("fast", loaded.loads, config,
+                                  [](const std::vector<icts::Pin*>& loads, const auto& run_config) -> icts::ClusterResult {
+                                    return icts::FastClustering::runDefault(loads, run_config);
+                                  });
 
-    linear_runtime_ms += linear_run.metrics.runtime_ms;
     fast_runtime_ms += fast_run.metrics.runtime_ms;
-    linear_score += linear_run.metrics.total_score;
     fast_score += fast_run.metrics.total_score;
 
     std::string svg_error;
-    const auto svg_path = WriteCaseClusterSvg(svg_dir, benchmark_case, loaded.loads, linear_run.result, fast_run.result, svg_error);
+    const auto svg_path = WriteCaseClusterSvg(svg_dir, benchmark_case, loaded.loads, fast_run.result, svg_error);
     EXPECT_FALSE(svg_path.empty()) << benchmark_case.case_name << ": " << svg_error;
     std::string cluster_svg;
     if (!svg_path.empty()) {
@@ -111,30 +99,26 @@ TEST(FastClusteringRealTechBenchmarkTest, CompareTwentyPlacementCases)
     loaded.loads.clear();
     results.push_back(CaseResult{.benchmark_case = benchmark_case,
                                  .loaded = std::move(loaded),
-                                 .linear = std::move(linear_run.metrics),
                                  .fast = std::move(fast_run.metrics),
                                  .cluster_svg = std::move(cluster_svg)});
   }
 
-  const auto linear_routing_cap_variance = SumLinearRoutingCapProxyVariance(results);
-  const auto fast_routing_cap_variance = SumFastRoutingCapProxyVariance(results);
-  auto summary = BuildSummaryReport(results, linear_runtime_ms, fast_runtime_ms, linear_score, fast_score);
+  auto summary = BuildSummaryReport(results, fast_runtime_ms, fast_score);
   summary += "visualization_svg_dir=" + std::string(kClusterSvgDirName) + "\n";
   summary += "visualization_svg_count=" + std::to_string(results.size()) + "\n";
   WriteRawTextLog(output_dir / "cts_clustering_cases.csv", BuildCasesCsv(results));
-  WriteRawTextLog(output_dir / "cts_clustering_comparison.csv", BuildComparisonCsv(results));
+  WriteRawTextLog(output_dir / "cts_clustering_metrics.csv", BuildMetricsCsv(results));
   WriteRawTextLog(output_dir / "cts_clustering_visualizations.csv", BuildVisualizationCsv(results));
-  WriteRawTextLog(output_dir / "cts_clustering_ranking.csv", BuildRankingCsv(linear_runtime_ms, fast_runtime_ms, linear_score, fast_score,
-                                                                             linear_routing_cap_variance, fast_routing_cap_variance));
   WriteRawTextLog(output_dir / "report.log", summary);
   common::io::EmitInfoReport(InfoReport{.title = "CTS Clustering Benchmark Summary", .content = summary});
 
-  ASSERT_LT(fast_runtime_ms, linear_runtime_ms);
-  ASSERT_LT(fast_score, linear_score);
-  ASSERT_LT(fast_routing_cap_variance, linear_routing_cap_variance);
   for (const auto& result : results) {
-    EXPECT_TRUE(result.linear.legal) << result.benchmark_case.case_name << " linear illegal";
     EXPECT_TRUE(result.fast.legal) << result.benchmark_case.case_name << " fast illegal";
+    EXPECT_EQ(result.fast.missing_load_count, 0U) << result.benchmark_case.case_name;
+    EXPECT_EQ(result.fast.fanout_violations, 0U) << result.benchmark_case.case_name;
+    EXPECT_EQ(result.fast.diameter_violations, 0U) << result.benchmark_case.case_name;
+    EXPECT_EQ(result.fast.cap_violations, 0U) << result.benchmark_case.case_name;
+    EXPECT_EQ(result.fast.route_failures, 0U) << result.benchmark_case.case_name;
   }
 }
 

@@ -32,9 +32,9 @@
 #include <vector>
 
 #include "HTreeTopologyChar.hh"
-#include "PatternId.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeBuilder.hh"
 #include "flow/htree/HTreeBuilderRealTechSmokeSupport.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
@@ -82,30 +82,25 @@ auto MakeArm9CaseScenarioName(bool omit_wire_length_unit, unsigned wire_length_i
 auto MakeArm9ExperimentRecord(unsigned wire_length_iterations, unsigned slew_cap_steps, double runtime_s,
                               const icts::HTreeBuilder::BuildResult& result, std::size_t load_count) -> Arm9ExperimentRecord
 {
+  const auto observation = htree::ObserveHTreeBuild(result);
   Arm9ExperimentRecord record{
       .wire_length_iterations = wire_length_iterations,
       .slew_cap_steps = slew_cap_steps,
       .runtime_s = runtime_s,
       .success = result.success,
       .load_count = load_count,
+      .final_frontier_count = observation.selected_final_frontier_count,
+      .selected_depth = observation.selected_depth,
+      .best_pattern_id = observation.best_pattern_id,
+      .best_delay_ns = observation.best_delay_ns,
+      .best_power_w = observation.best_power_w,
       .char_wire_length_unit_um = result.char_wire_length_unit_um,
       .char_wire_length_iterations = result.char_wire_length_iterations,
       .char_grid_adapted = result.char_grid_adapted,
-      .used_boundary_fallback = result.used_boundary_fallback,
+      .used_boundary_fallback = observation.used_boundary_fallback,
       .failure_reason = result.failure_reason,
   };
 
-  if (const auto* selected_summary = FindSelectedDepthSummary(result); selected_summary != nullptr) {
-    record.final_frontier_count = selected_summary->final_frontier_count;
-  }
-  if (result.selected_depth.has_value()) {
-    record.selected_depth = *result.selected_depth;
-  }
-  if (result.best_char.has_value()) {
-    record.best_pattern_id = result.best_char->get_pattern_id().local_id;
-    record.best_delay_ns = result.best_char->get_delay();
-    record.best_power_w = result.best_char->get_power();
-  }
   return record;
 }
 

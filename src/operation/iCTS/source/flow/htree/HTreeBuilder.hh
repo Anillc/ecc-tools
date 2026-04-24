@@ -66,28 +66,6 @@ class HTreeBuilder
 
   struct BuildResult
   {
-    struct DepthCandidateSummary
-    {
-      unsigned depth = 0U;
-      std::size_t leaf_count = 0U;
-      bool success = false;
-      bool selected = false;
-      bool used_explicit_target_depth = false;
-      std::string failure_reason;
-      std::size_t htree_load_group_count = 0U;
-      double htree_load_cap_min_pf = 0.0;
-      double htree_load_cap_max_pf = 0.0;
-      double htree_load_cap_mean_pf = 0.0;
-      double htree_load_cap_median_pf = 0.0;
-      std::size_t final_frontier_count = 0U;
-      std::size_t candidate_solution_count = 0U;
-      std::size_t feasible_solution_count = 0U;
-      std::size_t feasible_frontier_entry_count = 0U;
-      bool used_boundary_fallback = false;
-      double selected_power_w = 0.0;
-      double selected_delay_ns = 0.0;
-    };
-
     bool success = false;
     std::string failure_reason;
     std::optional<unsigned> failure_level = std::nullopt;
@@ -96,10 +74,6 @@ class HTreeBuilder
     std::vector<LevelPlan> levels;
     std::optional<HTreeTopologyChar> best_char = std::nullopt;
     std::optional<HTreeTopologyPattern> best_pattern = std::nullopt;
-    std::vector<HTreeTopologyChar> candidate_chars;
-    std::vector<HTreeTopologyChar> candidate_frontier_entries;
-    std::vector<HTreeTopologyChar> feasible_chars;
-    std::vector<HTreeTopologyChar> feasible_frontier_entries;
     double char_wire_length_unit_um = 0.0;
     unsigned char_wire_length_iterations = 0U;
     unsigned char_unique_level_bins = 0U;
@@ -112,9 +86,19 @@ class HTreeBuilder
     std::optional<unsigned> target_depth = std::nullopt;
     unsigned depth_explore_window = 0U;
     std::optional<unsigned> selected_depth = std::nullopt;
+    std::size_t depth_candidate_count = 0U;
+    std::size_t selected_final_frontier_count = 0U;
+    std::size_t selected_candidate_solution_count = 0U;
+    std::size_t selected_candidate_frontier_entry_count = 0U;
+    std::size_t selected_feasible_solution_count = 0U;
+    std::size_t selected_feasible_frontier_entry_count = 0U;
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<unsigned> top_input_slew_covering_idx = std::nullopt;
-    std::vector<DepthCandidateSummary> depth_candidates;
+    std::size_t htree_load_group_count = 0U;
+    double htree_load_cap_min_pf = 0.0;
+    double htree_load_cap_max_pf = 0.0;
+    double htree_load_cap_mean_pf = 0.0;
+    double htree_load_cap_median_pf = 0.0;
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;

@@ -30,20 +30,18 @@
 #include "FastClusteringInternal.hh"
 
 namespace icts {
-struct LinearClusteringConfig;
+struct ClusterConfig;
 }  // namespace icts
 
 namespace icts::fast_clustering {
 namespace {
 
-auto CanUseMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const ClusterDraft& merged, const LinearClusteringConfig& config)
-    -> bool
+auto CanUseMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const ClusterDraft& merged, const ClusterConfig& config) -> bool
 {
   return lhs.active && rhs.active && !lhs.entry_ids.empty() && !rhs.entry_ids.empty() && IsDraftGeometryLegal(merged, config);
 }
 
-auto MergeDrafts(ClusterDraft& target, ClusterDraft& source, const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config)
-    -> void
+auto MergeDrafts(ClusterDraft& target, ClusterDraft& source, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void
 {
   auto merged = BuildMergedDraft(target, source, entries, config);
   target.entry_ids = std::move(merged.entry_ids);
@@ -58,7 +56,7 @@ auto MergeDrafts(ClusterDraft& target, ClusterDraft& source, const std::vector<L
 }  // namespace
 
 auto MergeDraftsIfUseful(std::size_t cluster_id, std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                         const LinearClusteringConfig& config) -> bool
+                         const ClusterConfig& config) -> bool
 {
   const auto aggregate = CalcDraftAggregate(clusters);
   const auto before_target_proxy = CalcMeanRoutingCapProxy(aggregate);

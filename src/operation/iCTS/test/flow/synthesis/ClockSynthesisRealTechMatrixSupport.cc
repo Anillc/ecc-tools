@@ -32,9 +32,9 @@
 
 #include "ClockSynthesisRealTechSmokeSupport.hh"
 #include "HTreeTopologyChar.hh"
-#include "PatternId.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
+#include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/ClockSynthesis.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
 
@@ -130,6 +130,7 @@ auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixR
       const auto result = icts::ClockSynthesis::build(selected_clock_data.source, selected_clock_data.sinks, options);
       const auto runtime_end = std::chrono::steady_clock::now();
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
+      const auto htree_observation = htree::ObserveHTreeBuild(result.htree_result);
 
       ClockSynthesisExperimentRecord record{
           .wire_length_iterations = wire_length_iterations,
@@ -140,22 +141,15 @@ auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixR
           .char_wire_length_unit_um = result.htree_result.char_wire_length_unit_um,
           .char_wire_length_iterations = result.htree_result.char_wire_length_iterations,
           .char_grid_adapted = result.htree_result.char_grid_adapted,
-          .used_boundary_fallback = result.htree_result.used_boundary_fallback,
+          .used_boundary_fallback = htree_observation.used_boundary_fallback,
           .failure_reason = result.htree_result.failure_reason,
       };
 
-      const auto* selected_summary = FindSelectedDepthSummary(result.htree_result);
-      if (selected_summary != nullptr) {
-        record.final_frontier_count = selected_summary->final_frontier_count;
-      }
-      if (result.htree_result.selected_depth.has_value()) {
-        record.selected_depth = *result.htree_result.selected_depth;
-      }
-      if (result.htree_result.best_char.has_value()) {
-        record.best_pattern_id = result.htree_result.best_char->get_pattern_id().local_id;
-        record.best_delay_ns = result.htree_result.best_char->get_delay();
-        record.best_power_w = result.htree_result.best_char->get_power();
-      }
+      record.final_frontier_count = htree_observation.selected_final_frontier_count;
+      record.selected_depth = htree_observation.selected_depth;
+      record.best_pattern_id = htree_observation.best_pattern_id;
+      record.best_delay_ns = htree_observation.best_delay_ns;
+      record.best_power_w = htree_observation.best_power_w;
       matrix_result.records.push_back(record);
       AppendCaseFailures(wire_length_iterations, slew_cap_steps, result, runtime_s, record, matrix_result.failure_messages);
     }

@@ -36,49 +36,7 @@ struct BiPartitionConfig
   std::size_t kmeans_iter_count = 5;
 };
 
-enum class LinearOrderStrategy
-{
-  kContinuousHilbert,
-  kDiscreteHilbert,
-  kDensityScaledContinuousHilbert,
-  kDensityScaledDiscreteHilbert,
-};
-
-enum class DiscreteHilbertEncoding
-{
-  kSinkThetaCell,
-  kSinkThetaCellTangent,
-  kClassicIndex,
-  kClassicIndexTangent,
-};
-
-enum class HilbertTransform
-{
-  kIdentity,
-  kMirrorX,
-  kMirrorY,
-  kMirrorXY,
-  kSwapXY,
-  kSwapMirrorX,
-  kSwapMirrorY,
-  kSwapMirrorXY,
-};
-
-enum class LinearSplitStrategy
-{
-  kForwardGreedy,
-  kReverseGreedy,
-  kBidirectionalGreedy,
-};
-
-enum class LinearSweepMode
-{
-  kPrefixSweep,
-  kStridedSweep,
-  kPrefixAndStridedSweep,
-};
-
-enum class LinearRouterKind
+enum class ClusterRouterKind
 {
   kFlute,
   kSalt,
@@ -86,42 +44,30 @@ enum class LinearRouterKind
   kCbs,
 };
 
-enum class LinearRootPolicy
+enum class ClusterRootPolicy
 {
   kMedian,
   kCenter,
 };
 
-enum class LinearScoringStrategy
+enum class ClusterScoringStrategy
 {
   kMaxDiameter,      // Sum of per-cluster max internal diameter (default)
   kTotalWirelength,  // Sum of per-cluster routed wirelength
 };
 
-struct LinearClusteringConfig
+struct ClusterConfig
 {
   std::size_t max_fanout = 32;
   int max_diameter = std::numeric_limits<int>::max();
   double max_cap = std::numeric_limits<double>::infinity();
 
-  LinearOrderStrategy order_strategy = LinearOrderStrategy::kContinuousHilbert;
-  LinearSplitStrategy split_strategy = LinearSplitStrategy::kBidirectionalGreedy;
-  LinearRouterKind router_kind = LinearRouterKind::kFlute;
-  LinearRootPolicy root_policy = LinearRootPolicy::kMedian;
-  LinearScoringStrategy scoring_strategy = LinearScoringStrategy::kMaxDiameter;
-  LinearSweepMode sweep_mode = LinearSweepMode::kPrefixSweep;
+  ClusterRouterKind router_kind = ClusterRouterKind::kFlute;
+  ClusterRootPolicy root_policy = ClusterRootPolicy::kMedian;
+  ClusterScoringStrategy scoring_strategy = ClusterScoringStrategy::kMaxDiameter;
 
   bool enable_exact_cap = true;
   bool always_build_exact_cap = false;
-  // Strided sweep samples this many distinct cyclic start offsets over the full ring.
-  // Prefix sweep count is derived from max_fanout and clamped to load_count.
-  std::size_t strided_sweep_count = 2;
-
-  DiscreteHilbertEncoding discrete_hilbert_encoding = DiscreteHilbertEncoding::kSinkThetaCell;
-  HilbertTransform hilbert_transform = HilbertTransform::kIdentity;
-  int order_bits = 16;
-  std::size_t density_grid_size = 8;
-  double density_scale_power = 0.5;
 
   double wirelength_weight = 1.0;
 

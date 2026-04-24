@@ -122,7 +122,8 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
 
   auto exploration = ExploreDepthCandidates(result.topology, full_level_plans, depth_candidates, entry_sets_by_length,
                                             segment_pattern_registry, base_resolved_options, char_builder.get_cap_lattice(),
-                                            result.char_slew_steps, options.target_depth.has_value(), result);
+                                            result.char_slew_steps, options.target_depth.has_value());
+  result.depth_candidate_count = exploration.depth_summaries.size();
 
   const auto covered_global_feasible_pool
       = FilterGlobalEntriesByActualBoundaryCoverage(exploration.global_feasible_pool, exploration.candidate_evaluations, result.topology,
@@ -148,7 +149,7 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
 
   const std::size_t selected_candidate_index = selected_ref->candidate_index;
   auto& selected_evaluation = exploration.candidate_evaluations.at(selected_candidate_index);
-  auto& selected_summary = result.depth_candidates.at(selected_candidate_index);
+  auto& selected_summary = exploration.depth_summaries.at(selected_candidate_index);
   selected_summary.selected = true;
   selected_summary.selected_power_w = selected_ref->entry->get_power();
   selected_summary.selected_delay_ns = selected_ref->entry->get_delay();
@@ -165,12 +166,18 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   result.selected_depth = selected_evaluation.depth;
   result.best_char = *selected_ref->entry;
   result.levels = selected_evaluation.levels;
-  result.candidate_chars = std::move(selected_evaluation.candidate_chars);
-  result.candidate_frontier_entries = std::move(selected_evaluation.candidate_frontier_entries);
-  result.feasible_chars = std::move(selected_evaluation.feasible_chars);
-  result.feasible_frontier_entries = std::move(selected_evaluation.feasible_frontier_entries);
+  result.selected_final_frontier_count = selected_summary.final_frontier_count;
+  result.selected_candidate_solution_count = selected_summary.candidate_solution_count;
+  result.selected_candidate_frontier_entry_count = selected_summary.candidate_frontier_entry_count;
+  result.selected_feasible_solution_count = selected_summary.feasible_solution_count;
+  result.selected_feasible_frontier_entry_count = selected_summary.feasible_frontier_entry_count;
   result.min_top_input_slew_ns = selected_evaluation.resolved_options.min_top_input_slew_ns;
   result.top_input_slew_covering_idx = selected_evaluation.resolved_options.top_input_slew_covering_idx;
+  result.htree_load_group_count = selected_summary.htree_load_group_count;
+  result.htree_load_cap_min_pf = selected_summary.htree_load_cap_min_pf;
+  result.htree_load_cap_max_pf = selected_summary.htree_load_cap_max_pf;
+  result.htree_load_cap_mean_pf = selected_summary.htree_load_cap_mean_pf;
+  result.htree_load_cap_median_pf = selected_summary.htree_load_cap_median_pf;
 
   if (!selected_feasible_ref.has_value()) {
     result.used_boundary_fallback = true;

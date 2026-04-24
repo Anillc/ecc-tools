@@ -10,7 +10,7 @@ if(ICTS_BUILD_SLOW_REALTECH_TESTS)
       ${ICTS_TEST}/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkTest.cc
     LIBS
       icts_source_module_topology
-      icts_test_common_linear_clustering_artifact
+      icts_test_common_clustering_artifact
       icts_test_common_logging_support
       icts_test_common_realtech_support
       icts_test_common_visualization

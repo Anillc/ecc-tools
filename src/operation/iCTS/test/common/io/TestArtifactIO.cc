@@ -18,7 +18,7 @@
  * @file TestArtifactIO.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Shared artifact IO and logging helpers for iCTS tests.
+ * @brief Shared artifact IO and per-test report helpers for iCTS tests.
  */
 
 #include "common/io/TestArtifactIO.hh"
@@ -197,6 +197,31 @@ auto EmitParsedInfoReport(const ParsedInfoReport& report) -> void
   }
 }
 
+auto IsActiveReportPath(const std::filesystem::path& path) -> bool
+{
+  auto& schema_writer = SCHEMA_WRITER_INST;
+  return schema_writer.isOpen() && schema_writer.getActivePath() == path;
+}
+
+auto EmitOrAppendTestKeyValueTable(const std::filesystem::path& path, const std::string& title, const icts::schema::KeyValueFields& fields)
+    -> void
+{
+  if (IsActiveReportPath(path)) {
+    SCHEMA_WRITER_INST.emitKeyValueTable(title, fields);
+    return;
+  }
+  icts::schema::SchemaWriter::appendStandaloneKeyValueTable(path, kDefaultTestReportTitle, title, fields);
+}
+
+auto EmitOrAppendTestDetailBlock(const std::filesystem::path& path, const std::string& title, const std::vector<std::string>& lines) -> void
+{
+  if (IsActiveReportPath(path)) {
+    SCHEMA_WRITER_INST.emitDetailBlock(title, lines);
+    return;
+  }
+  icts::schema::SchemaWriter::appendStandaloneDetailBlock(path, kDefaultTestReportTitle, title, lines);
+}
+
 auto MirrorStandaloneTextLog(const std::filesystem::path& path, const std::string& content) -> void
 {
   if (path.filename() == "cts.log") {
@@ -207,18 +232,17 @@ auto MirrorStandaloneTextLog(const std::filesystem::path& path, const std::strin
   const auto parsed_report = ParseInfoReport(report);
   const auto cts_log_path = path.parent_path() / "cts.log";
   if (!parsed_report.key_value_lines.empty()) {
-    icts::schema::SchemaWriter::emitOrAppendKeyValueTable(cts_log_path, "iCTS Test Report", parsed_report.title,
-                                                          parsed_report.key_value_lines);
+    EmitOrAppendTestKeyValueTable(cts_log_path, parsed_report.title, parsed_report.key_value_lines);
   }
   if (!parsed_report.detail_lines.empty()) {
     const std::vector<std::string> detail_summary = {
         "detail_lines=" + std::to_string(parsed_report.detail_lines.size()),
         "details omitted from cts.log; see artifact file: " + path.string(),
     };
-    icts::schema::SchemaWriter::emitOrAppendDetailBlock(cts_log_path, "iCTS Test Report", parsed_report.title + " Details", detail_summary);
+    EmitOrAppendTestDetailBlock(cts_log_path, parsed_report.title + " Details", detail_summary);
   }
   if (parsed_report.key_value_lines.empty() && parsed_report.detail_lines.empty()) {
-    icts::schema::SchemaWriter::emitOrAppendDetailBlock(cts_log_path, "iCTS Test Report", parsed_report.title, {"(empty report)"});
+    EmitOrAppendTestDetailBlock(cts_log_path, parsed_report.title, {"(empty report)"});
   }
 }
 
@@ -257,6 +281,19 @@ auto EmitInfoReport(const InfoReport& report) -> void
   const auto parsed_report = ParseInfoReport(report);
   LOG_INFO << BuildInfoReportBlock(BuildConsoleDisplayReport(parsed_report));
   EmitParsedInfoReport(parsed_report);
+}
+
+auto OpenTestReport(const std::filesystem::path& path, const std::string& run_title) -> void
+{
+  SCHEMA_WRITER_INST.open(path, run_title,
+                          {
+                              {"cts_log", path.string()},
+                          });
+}
+
+auto CloseTestReport() -> void
+{
+  SCHEMA_WRITER_INST.close();
 }
 
 auto SanitizeOutputName(const std::string& raw_name) -> std::string
@@ -323,9 +360,9 @@ auto ResolveTopologyGenOutputDir() -> std::filesystem::path
   return ResolveOutputDir() / "topology_gen";
 }
 
-auto ResolveLinearClusteringOutputDir() -> std::filesystem::path
+auto ResolveClusteringOutputDir() -> std::filesystem::path
 {
-  return ResolveOutputDir() / "linear_clustering";
+  return ResolveOutputDir() / "clustering";
 }
 
 }  // namespace icts_test::common::io

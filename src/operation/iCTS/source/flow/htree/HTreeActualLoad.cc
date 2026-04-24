@@ -87,13 +87,13 @@ auto BuildCapDistributionStats(const std::vector<double>& caps_pf) -> CapDistrib
   return stats;
 }
 
-auto BuildLeafElectricalConfig() -> LinearClusteringConfig
+auto BuildLeafElectricalConfig() -> ClusterConfig
 {
   const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
-  auto config = TopologyGen::buildLinearClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
+  auto config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
   config.enable_exact_cap = true;
   config.always_build_exact_cap = true;
-  config.scoring_strategy = LinearScoringStrategy::kTotalWirelength;
+  config.scoring_strategy = ClusterScoringStrategy::kTotalWirelength;
   return config;
 }
 

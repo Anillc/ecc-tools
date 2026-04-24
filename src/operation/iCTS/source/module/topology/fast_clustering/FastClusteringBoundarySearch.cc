@@ -29,7 +29,7 @@
 #include "FastClusteringInternal.hh"
 
 namespace icts {
-struct LinearClusteringConfig;
+struct ClusterConfig;
 }  // namespace icts
 
 namespace icts::fast_clustering {
@@ -49,8 +49,8 @@ auto CalcAfterTargetRoutingCapProxy(const DraftAggregate& aggregate, const Clust
 }
 
 auto BuildBoundaryMoveIfImproves(std::size_t target_id, const ClusterDraft& source, const ClusterDraft& target, std::size_t moved_entry_id,
-                                 const std::vector<LoadEntry>& entries, const LinearClusteringConfig& config,
-                                 const DraftAggregate& aggregate, double target_routing_cap_proxy) -> std::optional<BoundaryMove>
+                                 const std::vector<LoadEntry>& entries, const ClusterConfig& config, const DraftAggregate& aggregate,
+                                 double target_routing_cap_proxy) -> std::optional<BoundaryMove>
 {
   ClusterDraft source_after;
   ClusterDraft target_after;
@@ -86,7 +86,7 @@ auto SelectBetterBoundaryMove(std::optional<BoundaryMove> best_move, BoundaryMov
 }  // namespace
 
 auto FindBestBoundaryMove(std::size_t source_id, const std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                          const LinearClusteringConfig& config, const DraftAggregate& aggregate) -> std::optional<BoundaryMove>
+                          const ClusterConfig& config, const DraftAggregate& aggregate) -> std::optional<BoundaryMove>
 {
   const auto& source = clusters.at(source_id);
   const auto target_routing_cap_proxy = CalcMeanRoutingCapProxy(aggregate);

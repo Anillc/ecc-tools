@@ -123,7 +123,6 @@ struct CaseResult
 {
   BenchmarkCase benchmark_case;
   LoadedCase loaded;
-  ResultMetrics linear;
   ResultMetrics fast;
   std::string cluster_svg;
 };
@@ -148,27 +147,22 @@ auto ValidateTechAssets(const TechAssets& assets, std::string& error) -> bool;
 auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& assets, const std::filesystem::path& output_dir)
     -> LoadedCase;
 auto CalcClusterDiameter(const std::vector<icts::Pin*>& loads) -> int;
-auto BuildBenchmarkConfig() -> icts::LinearClusteringConfig;
-auto EvaluateResult(const std::string& algorithm, const icts::ClusterResult& result, const icts::LinearClusteringConfig& config,
+auto BuildBenchmarkConfig() -> icts::ClusterConfig;
+auto EvaluateResult(const std::string& algorithm, const icts::ClusterResult& result, const icts::ClusterConfig& config,
                     std::size_t expected_load_count, double runtime_ms) -> ResultMetrics;
 auto WriteCaseClusterSvg(const std::filesystem::path& svg_dir, const BenchmarkCase& benchmark_case, const std::vector<icts::Pin*>& loads,
-                         const icts::ClusterResult& linear_result, const icts::ClusterResult& fast_result, std::string& error)
-    -> std::filesystem::path;
+                         const icts::ClusterResult& fast_result, std::string& error) -> std::filesystem::path;
 auto BuildCasesCsv(const std::vector<CaseResult>& results) -> std::string;
-auto BuildComparisonCsv(const std::vector<CaseResult>& results) -> std::string;
+auto BuildMetricsCsv(const std::vector<CaseResult>& results) -> std::string;
 auto BuildVisualizationCsv(const std::vector<CaseResult>& results) -> std::string;
-auto BuildRankingCsv(double linear_runtime_ms, double fast_runtime_ms, double linear_score, double fast_score,
-                     double linear_routing_cap_proxy_variance, double fast_routing_cap_proxy_variance) -> std::string;
 auto BuildInventoryReport(const std::vector<BenchmarkCase>& cases, const TechAssets& assets) -> std::string;
 auto BuildLoadedCaseReport(const BenchmarkCase& benchmark_case, const LoadedCase& loaded) -> std::string;
-auto SumLinearRoutingCapProxyVariance(const std::vector<CaseResult>& results) -> double;
 auto SumFastRoutingCapProxyVariance(const std::vector<CaseResult>& results) -> double;
-auto BuildSummaryReport(const std::vector<CaseResult>& results, double linear_runtime_ms, double fast_runtime_ms, double linear_score,
-                        double fast_score) -> std::string;
+auto BuildSummaryReport(const std::vector<CaseResult>& results, double fast_runtime_ms, double fast_score) -> std::string;
 
 template <typename Runner>
-auto RunAndMeasure(const std::string& algorithm, const std::vector<icts::Pin*>& loads, const icts::LinearClusteringConfig& config,
-                   Runner runner) -> ClusterRunResult
+auto RunAndMeasure(const std::string& algorithm, const std::vector<icts::Pin*>& loads, const icts::ClusterConfig& config, Runner runner)
+    -> ClusterRunResult
 {
   const auto start = std::chrono::steady_clock::now();
   auto result = runner(loads, config);

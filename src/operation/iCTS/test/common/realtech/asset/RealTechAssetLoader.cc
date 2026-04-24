@@ -491,7 +491,7 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
   dm_config.set_lib_paths(lib_paths);
   dm_config.set_sdc_path(assets.sdc_path.string());
 
-  const auto work_dir = io::ResolveLinearClusteringOutputDir() / "real_tech_workspace";
+  const auto work_dir = io::ResolveClusteringOutputDir() / "real_tech_workspace";
   std::error_code error_code;
   std::filesystem::create_directories(work_dir, error_code);
   if (error_code) {
@@ -499,7 +499,7 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
     return false;
   }
   CONFIG_INST.set_work_dir(work_dir.string());
-  dm_config.set_output_path((io::ResolveLinearClusteringOutputDir() / "real_tech_output").string());
+  dm_config.set_output_path((io::ResolveClusteringOutputDir() / "real_tech_output").string());
 
   auto* idb_builder = dmInst->get_idb_builder();
   if (idb_builder == nullptr) {
@@ -519,7 +519,7 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
 auto BuildRealTechSetupState() -> RealTechSetupState
 {
   RealTechSetupState state;
-  state.output_dir = io::ResolveLinearClusteringOutputDir();
+  state.output_dir = io::ResolveClusteringOutputDir();
   std::error_code error_code;
   std::filesystem::create_directories(state.output_dir, error_code);
 

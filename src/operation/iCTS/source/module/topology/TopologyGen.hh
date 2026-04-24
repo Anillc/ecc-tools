@@ -50,14 +50,10 @@ class TopologyGen
   static auto build(const std::vector<Pin*>& loads) -> Tree;
   static auto build(const std::vector<Pin*>& loads, const BuildOptions& options) -> Tree;
   static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree;
-  static auto buildLinearClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig;
-  static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
-  static auto defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
-  static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
-  static auto buildFastClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig;
+  static auto buildFastClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> ClusterConfig;
   static auto fastClustering(const std::vector<Pin*>& loads) -> ClusterResult;
-  static auto defaultFastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
-  static auto fastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
+  static auto defaultFastClustering(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterResult;
+  static auto fastClustering(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterResult;
 
  private:
   struct BuildCursor

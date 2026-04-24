@@ -29,13 +29,13 @@
 #include "FastClusteringInternal.hh"
 
 namespace icts {
-struct LinearClusteringConfig;
+struct ClusterConfig;
 }  // namespace icts
 
 namespace icts::fast_clustering {
 
-auto BuildMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const std::vector<LoadEntry>& entries,
-                      const LinearClusteringConfig& config) -> ClusterDraft
+auto BuildMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
+    -> ClusterDraft
 {
   std::vector<std::size_t> merged_entry_ids;
   merged_entry_ids.reserve(lhs.entry_ids.size() + rhs.entry_ids.size());
@@ -84,7 +84,7 @@ auto SelectNearestActiveNeighbors(std::size_t cluster_id, const std::vector<Clus
   return neighbor_ids;
 }
 
-auto PairObjective(const ClusterDraft& lhs, const ClusterDraft& rhs, const LinearClusteringConfig& config, double target_routing_cap_proxy,
+auto PairObjective(const ClusterDraft& lhs, const ClusterDraft& rhs, const ClusterConfig& config, double target_routing_cap_proxy,
                    double routing_cap_balance_weight) -> double
 {
   return DraftObjective(lhs, config, target_routing_cap_proxy, routing_cap_balance_weight)

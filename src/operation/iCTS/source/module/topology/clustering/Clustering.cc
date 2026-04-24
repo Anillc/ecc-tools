@@ -30,12 +30,11 @@
 #include <utility>
 #include <vector>
 
-#include "ConstraintEvaluator.hh"
+#include "ClusterConstraintEvaluator.hh"
+#include "ClusterConstraintTypes.hh"
 #include "FastClustering.hh"
 #include "Geometry.hh"
 #include "KMeans.hh"
-#include "LinearClustering.hh"
-#include "LinearClusteringTypes.hh"
 #include "MinCostFlow.hh"
 #include "Pin.hh"
 #include "Point.hh"
@@ -198,47 +197,32 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   return result;
 }
 
-auto Clustering::linearClustering(const std::vector<Pin*>& loads) -> ClusterResult
-{
-  return defaultLinearClustering(loads, LinearClusteringConfig{});
-}
-
-auto Clustering::defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
-{
-  return LinearClustering::runDefault(loads, base_config);
-}
-
-auto Clustering::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
-{
-  return LinearClustering::run(loads, config);
-}
-
 auto Clustering::fastClustering(const std::vector<Pin*>& loads) -> ClusterResult
 {
-  return defaultFastClustering(loads, LinearClusteringConfig{});
+  return defaultFastClustering(loads, ClusterConfig{});
 }
 
-auto Clustering::defaultFastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
+auto Clustering::defaultFastClustering(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterResult
 {
   return FastClustering::runDefault(loads, base_config);
 }
 
-auto Clustering::fastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
+auto Clustering::fastClustering(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterResult
 {
   return FastClustering::run(loads, config);
 }
 
-auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config)
+auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const ClusterConfig& config)
     -> ClusterElectricalEvaluation
 {
   const bool need_exact_cap = config.enable_exact_cap || config.always_build_exact_cap || IsFiniteCapLimit(config.max_cap);
   return evaluateClusterElectrical(loads, anchor, config, need_exact_cap);
 }
 
-auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config,
+auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const ClusterConfig& config,
                                            bool need_exact_cap) -> ClusterElectricalEvaluation
 {
-  ConstraintEvaluator evaluator;
+  ClusterConstraintEvaluator evaluator;
   const auto evaluation = evaluator.evaluateLoads(loads, anchor, config, need_exact_cap);
   const auto& metrics = evaluation.metrics;
   return ClusterElectricalEvaluation{
