@@ -46,4 +46,4 @@ Remove the numerical H-tree implementation and its support surface from iCTS so 
 
 ## Technical Notes
 
-* Current task directory: `.trellis/tasks/04-25-04-25-remove-numerical-htree/`.
+* Current task directory: `.trellis/tasks/archive/2026-04/04-25-remove-numerical-htree/`.

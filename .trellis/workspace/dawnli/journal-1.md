@@ -1583,3 +1583,36 @@ Removed unnecessary linear clustering source and tests, kept fast-only benchmark
 ### Next Steps
 
 - None - task complete
+
+
+## Session 33: Remove numerical H-tree
+
+**Date**: 2026-04-25
+**Task**: Remove numerical H-tree
+**Branch**: `cts_refactor`
+
+### Summary
+
+Removed the numerical H-tree implementation, numerical characterization support module, related CMake wiring, and tests; verified remaining iCTS build and checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f5a0e45a2768b9d7e1d3308aad11b7a4e0dd971` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
