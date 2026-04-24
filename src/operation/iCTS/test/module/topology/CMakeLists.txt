@@ -1,2 +1,3 @@
 add_subdirectory(topology_gen)
 add_subdirectory(linear_clustering)
+add_subdirectory(fast_clustering)

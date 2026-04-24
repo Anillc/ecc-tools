@@ -35,7 +35,6 @@
 #include "common/types/TestDataTypes.hh"
 #include "module/topology/config/TopologyConfig.hh"
 #include "module/topology/linear_clustering/realtech/support/LinearClusteringRealTechInternal.hh"
-#include "module/topology/linear_clustering/realtech/support/LinearClusteringRealTechShared.hh"
 
 namespace icts_test::linear_clustering::realtech {
 
@@ -124,6 +123,7 @@ auto BuildActualLoadCountReport(const RealClockLoads& real_clock_loads, std::siz
 }
 }  // namespace
 
+// NOLINTNEXTLINE(misc-use-internal-linkage): public scenario entry point declared in LinearClusteringRealTechShared.hh.
 auto RunSetupStateIsStable() -> void
 {
   const auto& state = EnsureRealTechSetup();
@@ -137,6 +137,7 @@ auto RunSetupStateIsStable() -> void
   PersistScenarioReport(output_dir, kSetupStateCaseName, BuildSetupStateReport(state));
 }
 
+// NOLINTNEXTLINE(misc-use-internal-linkage): public scenario entry point declared in LinearClusteringRealTechShared.hh.
 auto RunRealTechUsesActualAvailableLoadCount() -> void
 {
   const auto& setup_state = EnsureRealTechSetup();

@@ -547,8 +547,8 @@ auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, co
 
   if (enable_sink_clustering) {
     const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
-    auto clustering_config = TopologyGen::buildLinearClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
-    auto cluster_result = TopologyGen::defaultLinearClustering(sinks, clustering_config);
+    auto clustering_config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
+    auto cluster_result = TopologyGen::defaultFastClustering(sinks, clustering_config);
     result.cluster_result = std::move(cluster_result);
     const auto cluster_buffer_master = resolveMinLegalClusterBufferMaster();
     if (!cluster_buffer_master.has_value()) {

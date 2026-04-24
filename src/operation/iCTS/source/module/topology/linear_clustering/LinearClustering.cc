@@ -182,17 +182,24 @@ auto CalcClusterCenter(const std::vector<Pin*>& cluster) -> Point<int>
   return {static_cast<int>(std::lround(center.get_x())), static_cast<int>(std::lround(center.get_y()))};
 }
 
-auto MaterializeClusterResult(const std::vector<OrderedLoad>& ordered_loads, const std::vector<SegmentRange>& segments) -> ClusterResult
+auto MaterializeClusterResult(const std::vector<OrderedLoad>& ordered_loads, const std::vector<SegmentRange>& segments,
+                              std::size_t rotation_offset) -> ClusterResult
 {
   ClusterResult result;
   result.clusters.reserve(segments.size());
   result.centers.reserve(segments.size());
+  const auto load_count = ordered_loads.size();
+  if (load_count == 0U) {
+    return result;
+  }
+
+  const auto normalized_offset = rotation_offset % load_count;
 
   for (const auto& segment : segments) {
     std::vector<Pin*> cluster;
     cluster.reserve(segment.size());
     for (std::size_t i = segment.begin; i < segment.end; ++i) {
-      auto* pin = ordered_loads.at(i).pin;
+      auto* pin = ordered_loads.at((i + normalized_offset) % load_count).pin;
       if (pin != nullptr) {
         cluster.push_back(pin);
       }
@@ -225,24 +232,6 @@ auto BuildElectricalSummaries(const PartitionScore& partition) -> std::vector<Cl
     });
   }
   return summaries;
-}
-
-auto RotateOrderedLoads(const std::vector<OrderedLoad>& ordered_loads, std::size_t rotation_offset) -> std::vector<OrderedLoad>
-{
-  if (ordered_loads.empty()) {
-    return {};
-  }
-
-  const auto normalized_offset = rotation_offset % ordered_loads.size();
-  if (normalized_offset == 0U) {
-    return ordered_loads;
-  }
-
-  std::vector<OrderedLoad> rotated_loads;
-  rotated_loads.reserve(ordered_loads.size());
-  rotated_loads.insert(rotated_loads.end(), ordered_loads.begin() + static_cast<std::ptrdiff_t>(normalized_offset), ordered_loads.end());
-  rotated_loads.insert(rotated_loads.end(), ordered_loads.begin(), ordered_loads.begin() + static_cast<std::ptrdiff_t>(normalized_offset));
-  return rotated_loads;
 }
 
 constexpr std::size_t kDefaultRetainedStridedSweepCount = 4U;
@@ -317,8 +306,7 @@ auto ExecuteLinearClustering(const std::vector<Pin*>& loads, const LinearCluster
   }
 
   execution.sweep_resolution = SequenceSplitter::resolveSweepOffsets(execution.ordered_loads.size(), config);
-  const auto materialized_loads = RotateOrderedLoads(execution.ordered_loads, execution.partition.rotation_offset);
-  execution.result = MaterializeClusterResult(materialized_loads, execution.partition.segments);
+  execution.result = MaterializeClusterResult(execution.ordered_loads, execution.partition.segments, execution.partition.rotation_offset);
   execution.result.electrical_summaries = BuildElectricalSummaries(execution.partition);
   execution.status = LinearClusteringRunStatus::kSuccess;
   return execution;

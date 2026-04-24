@@ -34,7 +34,6 @@
 
 #include "module/topology/config/TopologyConfig.hh"
 #include "module/topology/linear_clustering/LinearClusteringTypes.hh"
-#include "module/topology/linear_clustering/synthetic/LinearClusteringSyntheticShared.hh"
 
 namespace icts {
 class Pin;
@@ -46,6 +45,10 @@ struct ClusterResult;
 namespace icts_test {
 struct GeneratedPins;
 }  // namespace icts_test
+
+namespace icts_test::linear_clustering::synthetic {
+struct SyntheticSweepCase;
+}  // namespace icts_test::linear_clustering::synthetic
 
 namespace icts_test::linear_clustering::synthetic::detail {
 

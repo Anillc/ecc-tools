@@ -54,6 +54,10 @@ class TopologyGen
   static auto linearClustering(const std::vector<Pin*>& loads) -> ClusterResult;
   static auto defaultLinearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
   static auto linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
+  static auto buildFastClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> LinearClusteringConfig;
+  static auto fastClustering(const std::vector<Pin*>& loads) -> ClusterResult;
+  static auto defaultFastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult;
+  static auto fastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult;
 
  private:
   struct BuildCursor

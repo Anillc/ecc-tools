@@ -62,17 +62,20 @@ auto BuildInvalidPartition() -> PartitionScore
 
 auto BuildRotatedLoads(const std::vector<OrderedLoad>& ordered_loads, std::size_t offset) -> std::vector<OrderedLoad>
 {
-  std::vector<OrderedLoad> rotated_loads;
   if (ordered_loads.empty()) {
-    return rotated_loads;
+    return {};
   }
 
   const auto load_count = ordered_loads.size();
   const auto normalized_offset = offset % load_count;
-  rotated_loads.reserve(load_count);
-  for (std::size_t index = 0; index < load_count; ++index) {
-    rotated_loads.push_back(ordered_loads.at((index + normalized_offset) % load_count));
+  if (normalized_offset == 0U) {
+    return ordered_loads;
   }
+
+  std::vector<OrderedLoad> rotated_loads;
+  rotated_loads.reserve(load_count);
+  rotated_loads.insert(rotated_loads.end(), ordered_loads.begin() + static_cast<std::ptrdiff_t>(normalized_offset), ordered_loads.end());
+  rotated_loads.insert(rotated_loads.end(), ordered_loads.begin(), ordered_loads.begin() + static_cast<std::ptrdiff_t>(normalized_offset));
   return rotated_loads;
 }
 

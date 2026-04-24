@@ -40,6 +40,16 @@ auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loa
   return cluster::WriteClusterSvg(path, loads, cluster_map, centers);
 }
 
+auto WriteClusterComparisonSvg(const std::string& path, const std::vector<icts::Pin*>& loads, const std::string& left_title,
+                               const std::unordered_map<const icts::Pin*, std::size_t>& left_cluster_map,
+                               const std::vector<icts::Point<int>>& left_centers, const std::string& right_title,
+                               const std::unordered_map<const icts::Pin*, std::size_t>& right_cluster_map,
+                               const std::vector<icts::Point<int>>& right_centers) -> bool
+{
+  return cluster::WriteClusterComparisonSvg(path, loads, left_title, left_cluster_map, left_centers, right_title, right_cluster_map,
+                                            right_centers);
+}
+
 auto WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads) -> bool
 {
   return topology::WriteTopologySvg(path, tree, loads);

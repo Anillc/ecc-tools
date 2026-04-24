@@ -30,7 +30,6 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "Point.hh"
@@ -48,6 +47,17 @@ using detail::MapX;
 using detail::MapY;
 
 constexpr int kSvgPrecision = 2;
+constexpr int kComparisonOuterMargin = 24;
+constexpr int kComparisonHeaderHeight = 58;
+constexpr int kComparisonPanelGap = 44;
+
+struct ClusterRenderData
+{
+  std::size_t cluster_count = 0;
+  std::vector<std::vector<icts::Pin*>> cluster_loads;
+  std::vector<icts::Point<int>> cluster_roots;
+  std::vector<std::string> colors;
+};
 
 auto FormatSvgNumber(double value) -> std::string
 {
@@ -55,6 +65,46 @@ auto FormatSvgNumber(double value) -> std::string
   stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
   stream << std::setprecision(kSvgPrecision) << value;
   return stream.str();
+}
+
+auto EscapeXml(const std::string& text) -> std::string
+{
+  std::string escaped;
+  escaped.reserve(text.size());
+  for (const char ch : text) {
+    switch (ch) {
+      case '&':
+        escaped += "&amp;";
+        break;
+      case '<':
+        escaped += "&lt;";
+        break;
+      case '>':
+        escaped += "&gt;";
+        break;
+      case '"':
+        escaped += "&quot;";
+        break;
+      case '\'':
+        escaped += "&apos;";
+        break;
+      default:
+        escaped += ch;
+        break;
+    }
+  }
+  return escaped;
+}
+
+auto CalcClusterCount(const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers)
+    -> std::size_t
+{
+  std::size_t cluster_count = 1;
+  for (const auto& [pin, cluster_id] : cluster_map) {
+    (void) pin;
+    cluster_count = std::max(cluster_count, cluster_id + 1U);
+  }
+  return std::max(cluster_count, centers.size());
 }
 
 auto BuildClusterLoads(std::size_t cluster_count, const std::vector<icts::Pin*>& loads,
@@ -87,6 +137,17 @@ auto BuildClusterRoots(std::size_t cluster_count, const std::vector<icts::Point<
     }
   }
   return cluster_roots;
+}
+
+auto BuildClusterRenderData(const std::vector<icts::Pin*>& loads, const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map,
+                            const std::vector<icts::Point<int>>& centers) -> ClusterRenderData
+{
+  ClusterRenderData render_data;
+  render_data.cluster_count = CalcClusterCount(cluster_map, centers);
+  render_data.cluster_loads = BuildClusterLoads(render_data.cluster_count, loads, cluster_map);
+  render_data.cluster_roots = BuildClusterRoots(render_data.cluster_count, centers, render_data.cluster_loads, loads);
+  render_data.colors = BuildClusterColors(render_data.cluster_count, render_data.cluster_roots);
+  return render_data;
 }
 
 auto WriteClusterSpokes(std::ofstream& output_stream, const detail::SvgTransform& transform,
@@ -167,6 +228,36 @@ auto WriteClusterRootOutlines(std::ofstream& output_stream, const detail::SvgTra
   }
 }
 
+auto WriteClusterDrawing(std::ofstream& output_stream, const detail::SvgTransform& transform, const std::vector<icts::Pin*>& loads,
+                         const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers,
+                         const ClusterRenderData& render_data) -> void
+{
+  WriteClusterSpokes(output_stream, transform, render_data.cluster_roots, render_data.cluster_loads, render_data.colors);
+  WriteClusterLoadMarkers(output_stream, transform, loads, cluster_map, render_data.colors);
+  WriteClusterCenters(output_stream, transform, centers, render_data.colors);
+  WriteClusterRootOutlines(output_stream, transform, render_data.cluster_roots, render_data.colors);
+}
+
+auto WriteClusterPanel(std::ofstream& output_stream, const detail::SvgTransform& transform, double origin_x, double origin_y,
+                       const std::string& title, const std::vector<icts::Pin*>& loads,
+                       const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers,
+                       const ClusterRenderData& render_data) -> void
+{
+  output_stream << R"(<text x=")" << FormatSvgNumber(origin_x) << R"(" y=")" << FormatSvgNumber(origin_y - 26.0)
+                << R"(" font-size="16" font-weight="700">)" << EscapeXml(title) << R"(</text>
+)";
+  output_stream << R"(<text x=")" << FormatSvgNumber(origin_x) << R"(" y=")" << FormatSvgNumber(origin_y - 8.0)
+                << R"(" font-size="12" fill="#4a5568">loads=)" << loads.size() << ", clusters=" << render_data.cluster_count << R"(</text>
+)";
+  output_stream << "<g transform=\"translate(" << FormatSvgNumber(origin_x) << " " << FormatSvgNumber(origin_y) << ")\">\n";
+  output_stream << R"(<rect x="0" y="0" width=")" << FormatSvgNumber(transform.width) << R"(" height=")"
+                << FormatSvgNumber(transform.height) << R"(" fill="#ffffff" stroke="#d0d7de" />
+)";
+  WriteClusterDrawing(output_stream, transform, loads, cluster_map, centers, render_data);
+  output_stream << R"(</g>
+)";
+}
+
 }  // namespace
 
 auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loads,
@@ -177,18 +268,9 @@ auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loa
     return false;
   }
 
-  std::size_t max_cluster_id = 0;
-  for (const auto& [pin, cluster_id] : cluster_map) {
-    (void) pin;
-    max_cluster_id = std::max(max_cluster_id, cluster_id);
-  }
-  const std::size_t cluster_count = std::max<std::size_t>(centers.size(), max_cluster_id + 1);
-
-  const auto cluster_loads = BuildClusterLoads(cluster_count, loads, cluster_map);
-  const auto cluster_roots = BuildClusterRoots(cluster_count, centers, cluster_loads, loads);
-  const auto bounds = ComputeBounds(loads, cluster_roots);
+  const auto render_data = BuildClusterRenderData(loads, cluster_map, centers);
+  const auto bounds = ComputeBounds(loads, render_data.cluster_roots);
   const auto transform = MakeTransform(bounds);
-  const auto colors = BuildClusterColors(cluster_count, cluster_roots);
 
   std::ofstream output_stream(path);
   if (!output_stream.is_open()) {
@@ -201,11 +283,51 @@ auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loa
                 << height << detail::kSvgOpenTagSuffix;
   output_stream << detail::kSvgBackgroundRect;
 
-  WriteClusterSpokes(output_stream, transform, cluster_roots, cluster_loads, colors);
-  WriteClusterLoadMarkers(output_stream, transform, loads, cluster_map, colors);
-  WriteClusterCenters(output_stream, transform, centers, colors);
-  WriteClusterRootOutlines(output_stream, transform, cluster_roots, colors);
+  WriteClusterDrawing(output_stream, transform, loads, cluster_map, centers, render_data);
 
+  output_stream << detail::kSvgClosingTag;
+  return true;
+}
+
+auto WriteClusterComparisonSvg(const std::string& path, const std::vector<icts::Pin*>& loads, const std::string& left_title,
+                               const std::unordered_map<const icts::Pin*, std::size_t>& left_cluster_map,
+                               const std::vector<icts::Point<int>>& left_centers, const std::string& right_title,
+                               const std::unordered_map<const icts::Pin*, std::size_t>& right_cluster_map,
+                               const std::vector<icts::Point<int>>& right_centers) -> bool
+{
+  if (loads.empty()) {
+    return false;
+  }
+
+  const auto left_render_data = BuildClusterRenderData(loads, left_cluster_map, left_centers);
+  const auto right_render_data = BuildClusterRenderData(loads, right_cluster_map, right_centers);
+  auto bounds_extras = left_render_data.cluster_roots;
+  bounds_extras.insert(bounds_extras.end(), right_render_data.cluster_roots.begin(), right_render_data.cluster_roots.end());
+  const auto transform = MakeTransform(ComputeBounds(loads, bounds_extras));
+
+  std::ofstream output_stream(path);
+  if (!output_stream.is_open()) {
+    return false;
+  }
+
+  const auto canvas_width = (2 * transform.width) + kComparisonPanelGap + (2 * kComparisonOuterMargin);
+  const auto canvas_height = transform.height + kComparisonHeaderHeight + kComparisonOuterMargin;
+  const auto width = FormatSvgNumber(canvas_width);
+  const auto height = FormatSvgNumber(canvas_height);
+  output_stream << detail::kSvgOpenTagPrefix << width << detail::kSvgHeightTag << height << detail::kSvgViewBoxPrefix << width << ' '
+                << height << detail::kSvgOpenTagSuffix;
+  output_stream << detail::kSvgBackgroundRect;
+  output_stream << R"(<g font-family="monospace" fill="#1f2933">
+)";
+
+  const double left_x = kComparisonOuterMargin;
+  const double right_x = left_x + static_cast<double>(transform.width) + kComparisonPanelGap;
+  constexpr double panel_y = kComparisonHeaderHeight;
+  WriteClusterPanel(output_stream, transform, left_x, panel_y, left_title, loads, left_cluster_map, left_centers, left_render_data);
+  WriteClusterPanel(output_stream, transform, right_x, panel_y, right_title, loads, right_cluster_map, right_centers, right_render_data);
+
+  output_stream << R"(</g>
+)";
   output_stream << detail::kSvgClosingTag;
   return true;
 }

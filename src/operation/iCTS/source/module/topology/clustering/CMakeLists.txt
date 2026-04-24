@@ -9,6 +9,7 @@ target_link_libraries(
   icts_source_database_spatial
   PRIVATE
   icts_source_database_design
+  icts_source_module_topology_fast_clustering
   icts_source_module_topology_config
   icts_source_module_topology_linear_clustering
   icts_source_module_topology_kmeans

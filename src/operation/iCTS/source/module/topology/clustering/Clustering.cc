@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "ConstraintEvaluator.hh"
+#include "FastClustering.hh"
 #include "Geometry.hh"
 #include "KMeans.hh"
 #include "LinearClustering.hh"
@@ -210,6 +211,21 @@ auto Clustering::defaultLinearClustering(const std::vector<Pin*>& loads, const L
 auto Clustering::linearClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
 {
   return LinearClustering::run(loads, config);
+}
+
+auto Clustering::fastClustering(const std::vector<Pin*>& loads) -> ClusterResult
+{
+  return defaultFastClustering(loads, LinearClusteringConfig{});
+}
+
+auto Clustering::defaultFastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& base_config) -> ClusterResult
+{
+  return FastClustering::runDefault(loads, base_config);
+}
+
+auto Clustering::fastClustering(const std::vector<Pin*>& loads, const LinearClusteringConfig& config) -> ClusterResult
+{
+  return FastClustering::run(loads, config);
 }
 
 auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const LinearClusteringConfig& config)
