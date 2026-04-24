@@ -1,0 +1,33 @@
+{
+  "id": "icts-architecture-refactor",
+  "name": "icts-architecture-refactor",
+  "title": "brainstorm: iCTS architecture refactor",
+  "description": "",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-04-15",
+  "completedAt": "2026-04-16",
+  "branch": null,
+  "base_branch": "cts_fix",
+  "worktree_path": null,
+  "current_phase": 5,
+  "next_action": [
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Implementation, validation, and spec sync completed on 2026-04-15. Pending human commit and record-session.",
+  "meta": {}
+}

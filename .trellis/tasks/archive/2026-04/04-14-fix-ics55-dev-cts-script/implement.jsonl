@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Keep the Tcl-side flow small and consistent with existing interface patterns."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Prefer readable wrapper logic and surface initialization failures clearly in the script flow."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse the existing DB-init flow shape instead of introducing another divergent CTS startup path."}
