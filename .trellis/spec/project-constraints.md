@@ -12,7 +12,7 @@ Repository-wide hard constraints for work under `src/operation/iCTS/`.
 
 ### Process
 
-- AI agents must not run `git commit` or `git push`.
+- AI agents must not run `git push`.
 - Use read-only Git commands unless the human explicitly asks for more.
 
 ### Files and Naming
