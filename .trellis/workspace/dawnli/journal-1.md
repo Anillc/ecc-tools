@@ -1515,3 +1515,37 @@ Implemented fast_clustering for iCTS, integrated it as the default CTS sink-clus
 ### Next Steps
 
 - None - task complete
+
+
+## Session 31: CTS dev check scalability refactor
+
+**Date**: 2026-04-24
+**Task**: CTS dev check scalability refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Decomposed overweight iCTS source and test translation units, added the no-NOLINT checker convention, validated focused builds/tests, and archived the completed CTS dev-check scalability task after the full iCTS ecc_dev_tools pass reported zero in-scope findings.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9c2c05664` | (see git log) |
+| `10e37ad27` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 30
+- **Total Sessions**: 31
 - **Last Active**: 2026-04-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1517 | Active |
+| `journal-1.md` | ~1551 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 31 | 2026-04-24 | CTS dev check scalability refactor | `9c2c05664`, `10e37ad27` | `cts_refactor` |
 | 30 | 2026-04-24 | Fast Clustering CTS Benchmark | `4bf4eb85d` | `cts_refactor` |
 | 29 | 2026-04-24 | Numerical H-tree characterization | `d8def3995` | `cts_refactor` |
 | 28 | 2026-04-24 | Align iCTS leaf load semantics and non-clustered leaf policy | `03e15b4dcec3e25474e80b1780af6c6afa0093c3` | `cts_refactor` |
