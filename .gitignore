@@ -20,6 +20,7 @@ catboost_info
 *.def
 *.log
 *.pwr
+*.codex
 
 rpt*/
 target/
