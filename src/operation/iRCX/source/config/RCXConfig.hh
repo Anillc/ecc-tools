@@ -17,6 +17,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace ircx {
 
@@ -26,6 +27,7 @@ class RCXConfig
   struct CornerConfig
   {
     std::string name;
+    std::string ecc_tf;
     std::string itf_file;
     std::string captab_file;
   };
@@ -39,14 +41,14 @@ class RCXConfig
   [[nodiscard]] unsigned get_thread_num() const { return _thread_num; }
   [[nodiscard]] const std::string& get_output_dir() const { return _output_dir; }
   [[nodiscard]] const std::string& get_mapping_file() const { return _mapping_file; }
-  [[nodiscard]] const CornerConfig& get_corner() const { return _corner; }
+  [[nodiscard]] const std::vector<CornerConfig>& get_corners() const { return _corners; }
 
  private:
   std::string _config_path;
   unsigned _thread_num = 64U;
   std::string _output_dir;
   std::string _mapping_file;
-  CornerConfig _corner;
+  std::vector<CornerConfig> _corners;
 };
 
 }  // namespace ircx

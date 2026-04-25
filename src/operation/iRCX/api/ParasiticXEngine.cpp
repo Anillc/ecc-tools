@@ -73,12 +73,14 @@ bool ParasiticXEngine::run_rcx(const std::string& config)
     return false;
   }
 
-  const auto& corner = rcx_config.get_corner();
+  const auto& corners = rcx_config.get_corners();
   _rcx->set_num_threads(rcx_config.get_thread_num());
   omp_set_num_threads(_rcx->num_threads());
 
   unsigned result = 1;
-  result &= _rcx->readCorner(corner.name, corner.itf_file.c_str(), corner.captab_file.c_str());
+  for (const auto& corner : corners) {
+    result &= _rcx->readCorner(corner.name, corner.itf_file.c_str(), corner.captab_file.c_str());
+  }
   result &= _rcx->readMapping(rcx_config.get_mapping_file().c_str());
   if (!result) {
     return false;
