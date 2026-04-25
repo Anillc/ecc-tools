@@ -90,16 +90,12 @@ constexpr std::array<std::string_view, 2> kFlowScriptRelPaths = {
 };
 constexpr std::string_view kRunScriptRelPath = "run_iEDA.sh";
 constexpr std::string_view kCtsConfigRelPath = "iEDA_config/cts_default_config.json";
-constexpr std::array<std::string_view, 3> kArm9DefRelPaths = {
-    "result/arm9_place.def.gz",
-    "result/arm9_place.def",
-    "result/iPL_result.def",
+constexpr std::array<std::string_view, 5> kRealTechDefRelPaths = {
+    "result/bp_be_top_place.def.gz", "result/bp_be_top_place.def", "result/arm9_place.def.gz",
+    "result/arm9_place.def",         "result/iPL_result.def",
 };
-constexpr std::array<std::string_view, 4> kArm9VerilogRelPaths = {
-    "result/arm9_place.v",
-    "result/iCTS_result.v",
-    "result/iPL_result.v",
-    "result/verilog/gcd_nl.v",
+constexpr std::array<std::string_view, 5> kRealTechVerilogRelPaths = {
+    "result/bp_be_top_place.v", "result/arm9_place.v", "result/iCTS_result.v", "result/iPL_result.v", "result/verilog/gcd_nl.v",
 };
 
 auto TrimAscii(const std::string& text) -> std::string
@@ -335,8 +331,8 @@ auto BuildAssetsFromWorkspace(const std::filesystem::path& workspace_path) -> st
       assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef",
       assets.pdk_root_path / "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef",
   };
-  assets.def_path = ResolveExistingPath(workspace_path, kArm9DefRelPaths);
-  assets.verilog_path = ResolveExistingPath(workspace_path, kArm9VerilogRelPaths);
+  assets.def_path = ResolveExistingPath(workspace_path, kRealTechDefRelPaths);
+  assets.verilog_path = ResolveExistingPath(workspace_path, kRealTechVerilogRelPaths);
   if (!assets.verilog_path.empty() && std::filesystem::exists(assets.verilog_path)) {
     assets.top_module = TryParseVerilogTopModule(assets.verilog_path);
   }

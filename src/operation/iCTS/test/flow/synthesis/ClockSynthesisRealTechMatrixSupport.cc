@@ -18,7 +18,7 @@
  * @file ClockSynthesisRealTechMatrixSupport.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-24
- * @brief ARM9 real-tech matrix support for ClockSynthesis smoke tests.
+ * @brief BP placement real-tech matrix support for ClockSynthesis smoke tests.
  */
 
 #include <array>
@@ -70,7 +70,7 @@ auto AppendCaseFailures(unsigned wire_length_iterations, unsigned slew_cap_steps
   if (!result.cluster_buffers.empty()) {
     failure_messages.push_back(prefix + "cluster buffers should be empty");
   }
-  if (runtime_s > kArm9SynthesisRuntimeBudgetS) {
+  if (runtime_s > kBpBeTopSynthesisRuntimeBudgetS) {
     failure_messages.push_back(prefix + "runtime_s=" + std::to_string(runtime_s) + " exceeds budget");
   }
   if (record.final_frontier_count == 0U) {
@@ -89,7 +89,7 @@ auto AppendCaseFailures(unsigned wire_length_iterations, unsigned slew_cap_steps
 
 }  // namespace
 
-auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixRunResult
+auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixRunResult
 {
   const auto& setup_state = common_realtech::EnsureRealTechSetup();
   if (setup_state.mode != common_realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -104,12 +104,12 @@ auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixR
 
   ClockSynthesisMatrixRunResult matrix_result;
   matrix_result.selection = selected_clock_data;
-  matrix_result.records.reserve(kArm9ExperimentIterations.size() * kArm9ExperimentSteps.size());
+  matrix_result.records.reserve(kBpBeTopExperimentIterations.size() * kBpBeTopExperimentSteps.size());
 
-  for (const unsigned wire_length_iterations : kArm9ExperimentIterations) {
-    for (const unsigned slew_cap_steps : kArm9ExperimentSteps) {
+  for (const unsigned wire_length_iterations : kBpBeTopExperimentIterations) {
+    for (const unsigned slew_cap_steps : kBpBeTopExperimentSteps) {
       std::ostringstream scenario_name_stream;
-      scenario_name_stream << "clock_synthesis_arm9_full_sink_iter" << wire_length_iterations << "_step" << slew_cap_steps;
+      scenario_name_stream << "clock_synthesis_bp_be_top_full_sink_iter" << wire_length_iterations << "_step" << slew_cap_steps;
       const std::string scenario_name = scenario_name_stream.str();
 
       realtech_support::RealTechCharSession char_session;
@@ -156,8 +156,8 @@ auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixR
   }
 
   matrix_result.report_written = WriteClockSynthesisMatrixReport(
-      kArm9ClockSynthesisScenario, "matrix_report.txt",
-      FormatClockSynthesisExperimentReport(kArm9ClockSynthesisScenario, selected_clock_data, true, matrix_result.records));
+      kBpBeTopClockSynthesisScenario, "matrix_report.txt",
+      FormatClockSynthesisExperimentReport(kBpBeTopClockSynthesisScenario, selected_clock_data, true, matrix_result.records));
   return matrix_result;
 }
 

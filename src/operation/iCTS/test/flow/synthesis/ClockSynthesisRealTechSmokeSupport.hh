@@ -31,6 +31,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"
 #include "flow/htree/HTreeBuilder.hh"
@@ -44,18 +45,12 @@ inline constexpr std::size_t kClusteredMinLoadCount = 5U;
 inline constexpr double kSynthesisSmokeMaxSlewNs = 0.05;
 inline constexpr double kSynthesisSmokeMaxCapPf = 0.15;
 inline constexpr unsigned kSynthesisTestDefaultMaxFanout = 32U;
-inline constexpr double kArm9SynthesisRuntimeBudgetS = 600.0;
-inline constexpr std::string_view kArm9ClockSynthesisScenario = "clock_synthesis_arm9_full_sink_matrix";
-inline constexpr std::array<unsigned, 4> kArm9ExperimentIterations = {2U, 3U, 4U, 5U};
-inline constexpr std::array<unsigned, 2> kArm9ExperimentSteps = {10U, 15U};
+inline constexpr double kBpBeTopSynthesisRuntimeBudgetS = 600.0;
+inline constexpr std::string_view kBpBeTopClockSynthesisScenario = "clock_synthesis_bp_be_top_full_sink_matrix";
+inline constexpr std::array<unsigned, 4> kBpBeTopExperimentIterations = {2U, 3U, 4U, 5U};
+inline constexpr std::array<unsigned, 2> kBpBeTopExperimentSteps = {10U, 15U};
 
-struct RealClockSelection
-{
-  std::string clock_name;
-  std::string net_name;
-  icts::Pin* source = nullptr;
-  std::vector<icts::Pin*> sinks;
-};
+using RealClockSelection = common::realtech::RealClockNetSelection;
 
 struct ClockSynthesisExperimentRecord
 {
@@ -120,6 +115,6 @@ auto CalcFloorPowerOfTwo(std::size_t value) -> std::size_t;
 auto CountTopologyLeafNodes(const icts::Tree& topology) -> std::size_t;
 auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void;
-auto EvaluateArm9FullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixRunResult;
+auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixRunResult;
 
 }  // namespace icts_test::synthesis_realtech_smoke

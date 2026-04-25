@@ -28,8 +28,13 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "common/types/TestDataTypes.hh"
+
+namespace icts {
+class Pin;
+}
 
 namespace icts_test::common::realtech {
 
@@ -61,8 +66,20 @@ struct RealPinCapProbe
   double pre_timing_cap_pf = 0.0;
 };
 
+struct RealClockNetSelection
+{
+  std::string clock_name;
+  std::string net_name;
+  icts::Pin* source = nullptr;
+  std::vector<icts::Pin*> sinks;
+  std::size_t source_net_load_count = 0U;
+  bool is_def_clock_net = false;
+  std::size_t clock_like_load_pin_count = 0U;
+};
+
 auto EnsureRealTechSetup() -> const RealTechSetupState&;
 auto MakeRealTechOrSyntheticLoads(std::size_t target_count, unsigned seed, std::string& source_label) -> GeneratedPins;
 auto TryFindRepresentativeRealPinCapProbe() -> std::optional<RealPinCapProbe>;
+auto SelectLargestDefClock(std::size_t max_count, std::size_t min_required_load_count) -> std::optional<RealClockNetSelection>;
 
 }  // namespace icts_test::common::realtech

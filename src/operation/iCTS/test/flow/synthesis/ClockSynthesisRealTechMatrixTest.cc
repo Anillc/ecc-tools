@@ -18,7 +18,7 @@
  * @file ClockSynthesisRealTechMatrixTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-24
- * @brief Real-tech ARM9 matrix coverage for ClockSynthesis flow.
+ * @brief Real-tech BP placement matrix coverage for ClockSynthesis flow.
  */
 
 #include <gtest/gtest.h>
@@ -33,9 +33,9 @@ namespace {
 
 using namespace synthesis_realtech_smoke;
 
-TEST(ClockSynthesisRealTechSmokeTest, Arm9FullSinkNonClusteredExperimentMatrix)
+TEST(ClockSynthesisRealTechSmokeTest, BpBeTopFullSinkNonClusteredExperimentMatrix)
 {
-  const auto matrix_result = EvaluateArm9FullSinkNonClusteredExperimentMatrix();
+  const auto matrix_result = EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix();
   if (matrix_result.skipped) {
     GTEST_SKIP() << matrix_result.skip_reason;
     return;

@@ -26,7 +26,6 @@
 #include <filesystem>
 #include <iomanip>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -37,34 +36,13 @@
 #include "ClockSynthesisRealTechSmokeSupport.hh"
 #include "Tree.hh"
 #include "common/io/TestArtifactIO.hh"
+#include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
-#include "database/design/Clock.hh"
-#include "database/design/Design.hh"
-#include "database/io/Wrapper.hh"
 #include "synthesis/ClockSynthesis.hh"
-
-namespace icts {
-class Pin;
-}  // namespace icts
 
 namespace icts_test::synthesis_realtech_smoke {
 namespace {
-
-auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_count) -> std::vector<icts::Pin*>
-{
-  if (loads.size() <= max_count) {
-    return loads;
-  }
-
-  std::vector<icts::Pin*> sampled_loads;
-  sampled_loads.reserve(max_count);
-  for (std::size_t sample_index = 0; sample_index < max_count; ++sample_index) {
-    const std::size_t source_index = sample_index * loads.size() / max_count;
-    sampled_loads.push_back(loads.at(source_index));
-  }
-  return sampled_loads;
-}
 
 auto ResolveBufferDriveCap(const std::string& cell_master) -> double
 {
@@ -87,9 +65,12 @@ auto FormatClockSynthesisExperimentReport(std::string_view scenario_name, const 
   report_stream << "clock_name=" << selection.clock_name << "\n";
   report_stream << "clock_net=" << selection.net_name << "\n";
   report_stream << "sink_count=" << selection.sinks.size() << "\n";
+  report_stream << "source_net_load_count=" << selection.source_net_load_count << "\n";
+  report_stream << "def_clock_net=" << (selection.is_def_clock_net ? "true" : "false") << "\n";
+  report_stream << "clock_like_load_pin_count=" << selection.clock_like_load_pin_count << "\n";
   report_stream << "sink_clustering_enabled=false\n";
   report_stream << "omit_wire_length_unit=" << (omit_wire_length_unit ? "true" : "false") << "\n";
-  report_stream << "runtime_budget_s=" << kArm9SynthesisRuntimeBudgetS << "\n";
+  report_stream << "runtime_budget_s=" << kBpBeTopSynthesisRuntimeBudgetS << "\n";
   report_stream << "columns=iter,step,runtime_s,success,frontier_count,selected_depth,best_pattern_id,best_delay_ns,best_power_w,"
                    "char_wire_length_unit_um,char_wire_length_iterations,char_grid_adapted,used_boundary_fallback,failure_reason\n";
   for (const auto& record : records) {
@@ -115,37 +96,7 @@ auto WriteClockSynthesisMatrixReport(std::string_view scenario_name, const std::
 
 auto SelectLargestRealClock(std::size_t max_count, std::size_t min_required_load_count) -> std::optional<RealClockSelection>
 {
-  DESIGN_INST.reset();
-  STA_ADAPTER_INST.updateTiming();
-
-  for (const auto& [clock_name, net_name] : STA_ADAPTER_INST.collectClockNetPairs()) {
-    auto clock = std::make_unique<icts::Clock>(clock_name, net_name);
-    DESIGN_INST.add_clock(std::move(clock));
-  }
-
-  WRAPPER_INST.read();
-
-  RealClockSelection best_selection;
-  std::size_t best_source_load_count = 0U;
-  for (auto* clock : DESIGN_INST.get_clocks()) {
-    if (clock == nullptr || clock->get_clock_source() == nullptr || clock->get_loads().size() < min_required_load_count) {
-      continue;
-    }
-    if (clock->get_loads().size() <= best_source_load_count) {
-      continue;
-    }
-
-    best_selection.clock_name = clock->get_clock_name();
-    best_selection.net_name = clock->get_clock_net_name();
-    best_selection.source = clock->get_clock_source();
-    best_selection.sinks = SampleLoadsForSmoke(clock->get_loads(), max_count);
-    best_source_load_count = clock->get_loads().size();
-  }
-
-  if (best_selection.source == nullptr || best_selection.sinks.size() < min_required_load_count) {
-    return std::nullopt;
-  }
-  return best_selection;
+  return common::realtech::SelectLargestDefClock(max_count, min_required_load_count);
 }
 
 auto SetEnableSinkClustering(icts::ClockSynthesis::BuildOptions& options, bool enabled) -> void
