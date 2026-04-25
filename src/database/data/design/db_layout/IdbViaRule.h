@@ -138,7 +138,16 @@ class IdbViaRuleList
   IdbViaRuleGenerate* add_via_rule_generate(IdbViaRuleGenerate* via_rule = nullptr);
   IdbViaRuleGenerate* add_via_rule_generate(string name);
 
-  void reset();
+  void reset(){
+    for (IdbViaRuleGenerate* via_rule : _via_rule_generate_list) {
+      if (via_rule != nullptr) {
+        delete via_rule;
+        via_rule = nullptr;
+      }
+    }
+    _via_rule_generate_list.clear();
+    _num_rule_generate = 0;
+  }
 
   // operator
   void init_via_rule_list(int32_t size) { _via_rule_generate_list.reserve(size); }

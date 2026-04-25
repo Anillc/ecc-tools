@@ -14,23 +14,36 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
+#pragma once
 
-#include "layout_write.h"
+#include <ctime>
+#include <string>
+
+#include "header.h"
 
 namespace idb {
 
-LayoutWrite::LayoutWrite(IdbLayout* layout) : _layout(layout)
+class DesignRead
 {
-}
+ public:
+  explicit DesignRead(IdbLayout* layout = nullptr);
+  ~DesignRead() = default;
 
-bool LayoutWrite::writeLayout(const char* folder)
-{
-  return folder != nullptr && writeLayout(std::string(folder), true);
-}
+  IdbDesign* readDesign(const char* folder);
+  IdbDesign* readDesign(const std::string& folder, bool parallel = true);
+  bool readDesign(IdbDesign* design, const std::string& folder, bool parallel = true);
 
-bool LayoutWrite::writeLayout(const std::string& folder, bool parallel)
-{
-  return data_binary::write_layout(folder, _layout, parallel);
-}
+  void set_layout(IdbLayout* layout) { _layout = layout; }
+  IdbLayout* get_layout() { return _layout; }
+
+  void set_start_time(clock_t time) { _start_time = time; }
+  void set_end_time(clock_t time) { _end_time = time; }
+  float time_eclips() { return (float(_end_time - _start_time)) / CLOCKS_PER_MS; }
+
+ private:
+  IdbLayout* _layout = nullptr;
+  clock_t _start_time = 0;
+  clock_t _end_time = 0;
+};
 
 }  // namespace idb

@@ -79,6 +79,16 @@ bool saveJson(const std::string& path)
   return dmInst->saveJSON(path, options);
 }
 
+bool saveData(const std::string& path)
+{
+  return dmInst->saveData(path);
+}
+
+bool loadData(const std::string& path)
+{
+  return dmInst->loadData(path);
+}
+
 bool writeSocJson(const std::string& path, const std::vector<std::string>& harden_cores /* = {} */)
 {
   idb::JsonSoc soc_file(path, harden_cores);

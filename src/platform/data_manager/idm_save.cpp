@@ -119,4 +119,31 @@ bool DataManager::saveJSON(string path, string options)
   return _idb_builder->saveJSON(path, options);
 }
 
+bool DataManager::saveData(string data_path)
+{
+  if (_idb_builder == nullptr) {
+    return false;
+  }
+
+  return _idb_builder->saveData(data_path);
+}
+
+bool DataManager::loadData(string data_path)
+{
+  if (_idb_builder == nullptr) {
+    _idb_builder = new IdbBuilder();
+  }
+
+  if (!_idb_builder->loadData(data_path)) {
+    return false;
+  }
+
+  _idb_lef_service = _idb_builder->get_lef_service();
+  _idb_def_service = _idb_builder->get_def_service();
+  _layout = get_idb_layout();
+  _design = get_idb_design();
+
+  return _idb_lef_service != nullptr && _idb_def_service != nullptr && _layout != nullptr && _design != nullptr;
+}
+
 }  // namespace idm

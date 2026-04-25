@@ -47,6 +47,8 @@ int registerCmdDB()
   registerTclCmd(CmdSaveLef, "lef_save");
   registerTclCmd(CmdSaveNetlist, "netlist_save");
   registerTclCmd(CmdSaveJSON, "json_save");
+  registerTclCmd(CmdSaveData, "save_data");
+  registerTclCmd(CmdLoadData, "load_data");
   registerTclCmd(CmdWriteSocJson, "write_soc_json");
   registerTclCmd(CmdSaveGDS, "gds_save");
   registerTclCmd(CmdGenerateMPScript, "aimp_random");

@@ -15,22 +15,28 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 
-#include "layout_write.h"
+#include "design_read.h"
 
 namespace idb {
 
-LayoutWrite::LayoutWrite(IdbLayout* layout) : _layout(layout)
+DesignRead::DesignRead(IdbLayout* layout) : _layout(layout)
 {
 }
 
-bool LayoutWrite::writeLayout(const char* folder)
+IdbDesign* DesignRead::readDesign(const char* folder)
 {
-  return folder != nullptr && writeLayout(std::string(folder), true);
+  return folder == nullptr ? nullptr : readDesign(std::string(folder), true);
 }
 
-bool LayoutWrite::writeLayout(const std::string& folder, bool parallel)
+IdbDesign* DesignRead::readDesign(const std::string& folder, bool parallel)
 {
-  return data_binary::write_layout(folder, _layout, parallel);
+  auto design = data_binary::read_design(folder, _layout, parallel);
+  return design.release();
+}
+
+bool DesignRead::readDesign(IdbDesign* design, const std::string& folder, bool parallel)
+{
+  return data_binary::read_design_into(folder, design, _layout, parallel);
 }
 
 }  // namespace idb

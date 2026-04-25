@@ -84,6 +84,11 @@ class IdbBuilder
   void saveLayout(string folder);
   // Read layout
   void loadLayout(string folder);
+  // Write/read design binary data. Layout must be available before loading design.
+  bool saveDesign(string folder);
+  bool loadDesign(string folder);
+  bool saveData(string folder);
+  bool loadData(string folder);
 
   IdbLefService* get_lef_service() { return _lef_service; }
   IdbDefService* get_def_service() { return _def_service; }

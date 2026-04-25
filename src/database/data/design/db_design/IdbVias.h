@@ -107,7 +107,16 @@ class IdbVias
   IdbVia* add_via(IdbVia* via = nullptr);
   IdbVia* add_via(string name);
 
-  void reset();
+  void reset(){
+    for (IdbVia* via : _via_list) {
+      if (via != nullptr) {
+        delete via;
+        via = nullptr;
+      }
+    }
+    _via_list.clear();
+    _num_vias = 0;
+  }
   void init_via_list(int32_t size) { _via_list.reserve(size); }
 
   // operator
