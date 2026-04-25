@@ -1649,3 +1649,37 @@ Implemented htree topology tolerance config plumbing, tolerant topology balancin
 ### Next Steps
 
 - None - task complete
+
+
+## Session 35: CTS flow API integration
+
+**Date**: 2026-04-26
+**Task**: CTS flow API integration
+**Branch**: `cts_refactor`
+
+### Summary
+
+Completed CTS main flow API integration: FlowManager orchestration, macro/regular branch handling, branch root buffer sizing/fallback, CTSAPI void flow entry, STAAdapter macro classification, tests, full iCTS check, and task archive.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `adf7019a6` | (see git log) |
+| `540ea7e1c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
