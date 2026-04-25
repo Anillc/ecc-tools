@@ -1,7 +1,0 @@
-{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
-{"file": ".trellis/spec/backend/directory-structure.md", "reason": "new post-synthesis operator ownership and file placement"}
-{"file": ".trellis/spec/backend/error-handling.md", "reason": "fatal guards and actionable logs for optimizer invariants"}
-{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "stage logs and optimizer summaries"}
-{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "new files, tests, build wiring and smoke flow"}
-{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "reuse level sizing timing reevaluation and avoid duplicated flow logic"}

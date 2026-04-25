@@ -22,6 +22,10 @@ catboost_info
 *.pwr
 *.codex
 
+.agents 
+.codex 
+.trellis
+
 rpt*/
 target/
 *-stamp/

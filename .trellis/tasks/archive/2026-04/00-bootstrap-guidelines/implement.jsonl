@@ -1,5 +1,0 @@
-{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend entrypoint for concise CTS-oriented guidelines"}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend/interface entrypoint for concise CTS-oriented guidelines"}
-{"file": "src/operation/iCTS/api/CTSAPI.cc", "reason": "Canonical CTS API lifecycle and logging pattern"}
-{"file": "src/interface/tcl/tcl_icts/tcl_cts.cpp", "reason": "Canonical Tcl wrapper pattern around CTS"}
