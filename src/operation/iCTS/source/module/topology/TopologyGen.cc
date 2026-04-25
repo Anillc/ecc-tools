@@ -167,7 +167,7 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   build_stage.markRunning("Embed coordinates and balance topology");
   buildFullTree(tree, BuildCursor{.node_id = root, .depth = 0}, height);
   embedPositions(tree, root, loads, leaf_count, config);
-  balanceTopology(tree, bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y);
+  balanceTopology(tree, bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y, config.htree_topology_tolerance);
   reportRootToLeafLengths(tree);
   build_stage.finish({
       {"nodes", std::to_string(tree.get_size())},
@@ -389,12 +389,14 @@ auto TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector
   }
 }
 
-auto TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y) -> void
+auto TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y, double topology_tolerance) -> void
 {
   auto levels = tree.levels();
   if (levels.size() <= 1) {
     return;
   }
+
+  topology_tolerance = std::max(0.0, topology_tolerance);
 
   for (std::size_t level = 1; level < levels.size(); ++level) {
     int sum_dist = 0;
@@ -415,6 +417,8 @@ auto TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, i
       continue;
     }
     const double avg_dist = static_cast<double>(sum_dist) / static_cast<double>(count);
+    const double min_allowed_dist = avg_dist * std::max(0.0, 1.0 - topology_tolerance);
+    const double max_allowed_dist = avg_dist * (1.0 + topology_tolerance);
     for (const auto node_id : levels.at(level)) {
       auto* node = tree.get_node(node_id);
       if (node == nullptr || node->get_parent() == std::numeric_limits<std::size_t>::max()) {
@@ -424,8 +428,13 @@ auto TopologyGen::balanceTopology(Tree& tree, int min_x, int min_y, int max_x, i
       if (parent == nullptr) {
         continue;
       }
+      const auto current_dist = static_cast<double>(geometry::Manhattan(node->get_position(), parent->get_position()));
+      if (current_dist >= min_allowed_dist && current_dist <= max_allowed_dist) {
+        continue;
+      }
+      const double target_dist = current_dist < min_allowed_dist ? min_allowed_dist : max_allowed_dist;
       node->get_position()
-          = geometry::ProjectToL1Circle(parent->get_position(), node->get_position(), avg_dist, min_x, min_y, max_x, max_y);
+          = geometry::ProjectToL1Circle(parent->get_position(), node->get_position(), target_dist, min_x, min_y, max_x, max_y);
     }
   }
 }

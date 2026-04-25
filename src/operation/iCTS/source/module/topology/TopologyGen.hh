@@ -70,7 +70,7 @@ class TopologyGen
   static auto buildFullTree(Tree& tree, const BuildCursor& cursor, int height) -> void;
   static auto embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
                              const BiPartitionConfig& config) -> void;
-  static auto balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y) -> void;
+  static auto balanceTopology(Tree& tree, int min_x, int min_y, int max_x, int max_y, double topology_tolerance) -> void;
 };
 
 }  // namespace icts

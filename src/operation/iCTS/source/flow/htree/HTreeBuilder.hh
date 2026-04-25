@@ -48,6 +48,7 @@ class HTreeBuilder
     std::optional<double> min_top_input_slew_ns = std::nullopt;
     std::optional<unsigned> target_depth = std::nullopt;
     std::optional<unsigned> depth_explore_window = std::nullopt;
+    std::optional<double> htree_topology_tolerance = std::nullopt;
   };
 
   struct LevelPlan

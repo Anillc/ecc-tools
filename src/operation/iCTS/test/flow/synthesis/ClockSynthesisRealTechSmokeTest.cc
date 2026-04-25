@@ -75,7 +75,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
   }
 
   CONFIG_INST.set_max_fanout(kSynthesisTestDefaultMaxFanout);
+  CONFIG_INST.set_htree_topology_tolerance(0.1);
   ASSERT_EQ(CONFIG_INST.get_max_fanout(), kSynthesisTestDefaultMaxFanout);
+  ASSERT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
 
   const auto artifact_paths = synthesis::PrepareClockSynthesisArtifactPaths("clustered_mode_realtech_smoke");
   ASSERT_FALSE(artifact_paths.output_dir.empty());
@@ -168,7 +170,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
   }
 
   CONFIG_INST.set_max_fanout(kSynthesisTestDefaultMaxFanout);
+  CONFIG_INST.set_htree_topology_tolerance(0.1);
   ASSERT_EQ(CONFIG_INST.get_max_fanout(), kSynthesisTestDefaultMaxFanout);
+  ASSERT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
   ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
 
   const auto artifact_paths = synthesis::PrepareClockSynthesisArtifactPaths("clustered_mode_force_branch_buffered_realtech_smoke");

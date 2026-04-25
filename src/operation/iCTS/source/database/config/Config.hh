@@ -75,6 +75,7 @@ class Config
     _char_buf_redundancy_pct = 0.0;
     _force_branch_buffer = false;
     _htree_depth_explore_window = 4;
+    _htree_topology_tolerance = 0.1;
     _enable_sink_clustering = true;
     _work_dir = "./result/cts";
     _output_def_path = "./result/cts/output";
@@ -103,6 +104,7 @@ class Config
   auto get_char_buf_redundancy_pct() const -> double { return _char_buf_redundancy_pct; }
   auto is_force_branch_buffer() const -> bool { return _force_branch_buffer; }
   auto get_htree_depth_explore_window() const -> unsigned { return _htree_depth_explore_window; }
+  auto get_htree_topology_tolerance() const -> double { return _htree_topology_tolerance; }
   auto is_enable_sink_clustering() const -> bool { return _enable_sink_clustering; }
 
   // file
@@ -138,6 +140,7 @@ class Config
   auto set_char_buf_redundancy_pct(double pct) -> void { _char_buf_redundancy_pct = pct; }
   auto set_force_branch_buffer(bool force_branch_buffer) -> void { _force_branch_buffer = force_branch_buffer; }
   auto set_htree_depth_explore_window(unsigned window) -> void { _htree_depth_explore_window = std::max(1U, window); }
+  auto set_htree_topology_tolerance(double tolerance) -> void { _htree_topology_tolerance = std::max(0.0, tolerance); }
   auto set_enable_sink_clustering(bool enable_sink_clustering) -> void { _enable_sink_clustering = enable_sink_clustering; }
 
   // file
@@ -176,6 +179,7 @@ class Config
   double _char_buf_redundancy_pct = 0.0;
   bool _force_branch_buffer = false;
   unsigned _htree_depth_explore_window = 4;
+  double _htree_topology_tolerance = 0.1;
   bool _enable_sink_clustering = true;
 
   // file

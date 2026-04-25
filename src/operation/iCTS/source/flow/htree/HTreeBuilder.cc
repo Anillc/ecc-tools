@@ -40,6 +40,7 @@
 #include "HTreeTopologyPattern.hh"
 #include "Log.hh"
 #include "PatternId.hh"
+#include "TopologyConfig.hh"
 #include "Tree.hh"
 #include "characterization/CharBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
@@ -69,7 +70,11 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
   }
   schema::ScopedStage build_stage("HTreeBuilder", "build");
 
-  result.topology = TopologyGen::build(loads);
+  BiPartitionConfig topology_config;
+  if (options.htree_topology_tolerance.has_value()) {
+    topology_config.htree_topology_tolerance = std::max(0.0, *options.htree_topology_tolerance);
+  }
+  result.topology = TopologyGen::build(loads, topology_config);
   const auto levels = result.topology.levels();
   if (levels.size() <= 1U) {
     LOG_WARNING << "HTreeBuilder: topology has no H-tree levels after generation.";

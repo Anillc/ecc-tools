@@ -84,6 +84,36 @@ auto FormatClockSynthesisExperimentReport(std::string_view scenario_name, const 
   return report_stream.str();
 }
 
+auto FormatClockSynthesisToleranceComparisonReport(std::string_view scenario_name, const RealClockSelection& selection,
+                                                   const ClockSynthesisToleranceComparisonResult& comparison) -> std::string
+{
+  std::ostringstream report_stream;
+  report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
+  report_stream << std::setprecision(6);
+  report_stream << "scenario=" << scenario_name << "\n";
+  report_stream << "clock_name=" << selection.clock_name << "\n";
+  report_stream << "clock_net=" << selection.net_name << "\n";
+  report_stream << "sink_count=" << selection.sinks.size() << "\n";
+  report_stream << "sink_clustering_enabled=false\n";
+  report_stream << "char_policy=per_level_baseline_segment_length\n";
+  report_stream << "sta_skew_method=routed_rc_tree_arrival_max_minus_min\n";
+  report_stream << "wirelength_skew_method=routed_path_wirelength_max_minus_min\n";
+  report_stream << "paired_delta_mean_dbu=" << comparison.mean_distance_delta_dbu << "\n";
+  report_stream << "paired_delta_max_abs_dbu=" << comparison.max_abs_distance_delta_dbu << "\n";
+  report_stream << "improved_load_count=" << comparison.improved_load_count << "\n";
+  report_stream << "worsened_load_count=" << comparison.worsened_load_count << "\n";
+  report_stream << "unchanged_load_count=" << comparison.unchanged_load_count << "\n";
+  report_stream << "columns=tolerance,runtime_s,success,sink_count,leaf_load_distance_mean_dbu,leaf_load_distance_max_dbu,"
+                   "sta_arrival_skew_ns,wirelength_skew_dbu,sta_sink_count,selected_char_delay_ns,failure_reason\n";
+  for (const auto& record : comparison.records) {
+    report_stream << record.htree_topology_tolerance << "," << record.runtime_s << "," << (record.success ? "true" : "false") << ","
+                  << record.sink_count << "," << record.leaf_load_distance_mean_dbu << "," << record.leaf_load_distance_max_dbu << ","
+                  << record.sta_arrival_skew_ns << "," << record.wirelength_skew_dbu << "," << record.sta_sink_count << ","
+                  << record.selected_char_delay_ns << "," << record.failure_reason << "\n";
+  }
+  return report_stream.str();
+}
+
 auto WriteClockSynthesisMatrixReport(std::string_view scenario_name, const std::string& file_name, const std::string& content) -> bool
 {
   const auto output_dir = common::io::PrepareCleanOutputDir(common::io::ResolveOutputDir() / "flow" / "synthesis"

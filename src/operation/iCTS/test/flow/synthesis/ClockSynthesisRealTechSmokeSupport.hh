@@ -81,6 +81,36 @@ struct ClockSynthesisMatrixRunResult
   bool report_written = false;
 };
 
+struct ClockSynthesisToleranceComparisonRecord
+{
+  double htree_topology_tolerance = 0.0;
+  double runtime_s = 0.0;
+  bool success = false;
+  std::size_t sink_count = 0U;
+  double leaf_load_distance_mean_dbu = 0.0;
+  double leaf_load_distance_max_dbu = 0.0;
+  double sta_arrival_skew_ns = 0.0;
+  double wirelength_skew_dbu = 0.0;
+  std::size_t sta_sink_count = 0U;
+  double selected_char_delay_ns = 0.0;
+  std::string failure_reason;
+};
+
+struct ClockSynthesisToleranceComparisonResult
+{
+  bool skipped = false;
+  std::string skip_reason;
+  RealClockSelection selection;
+  std::vector<ClockSynthesisToleranceComparisonRecord> records;
+  std::size_t improved_load_count = 0U;
+  std::size_t worsened_load_count = 0U;
+  std::size_t unchanged_load_count = 0U;
+  double mean_distance_delta_dbu = 0.0;
+  double max_abs_distance_delta_dbu = 0.0;
+  std::vector<std::string> failure_messages;
+  bool report_written = false;
+};
+
 struct ClockSynthesisValidationResult
 {
   std::vector<std::string> failure_messages;
@@ -88,6 +118,8 @@ struct ClockSynthesisValidationResult
 
 auto FormatClockSynthesisExperimentReport(std::string_view scenario_name, const RealClockSelection& selection, bool omit_wire_length_unit,
                                           const std::vector<ClockSynthesisExperimentRecord>& records) -> std::string;
+auto FormatClockSynthesisToleranceComparisonReport(std::string_view scenario_name, const RealClockSelection& selection,
+                                                   const ClockSynthesisToleranceComparisonResult& comparison) -> std::string;
 auto WriteClockSynthesisMatrixReport(std::string_view scenario_name, const std::string& file_name, const std::string& content) -> bool;
 auto SelectLargestRealClock(std::size_t max_count, std::size_t min_required_load_count) -> std::optional<RealClockSelection>;
 auto SetEnableSinkClustering(icts::ClockSynthesis::BuildOptions& options, bool enabled) -> void;
@@ -116,5 +148,6 @@ auto CountTopologyLeafNodes(const icts::Tree& topology) -> std::size_t;
 auto AssertDepthCandidateCoverage(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& result) -> void;
 auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatrixRunResult;
+auto EvaluateArm9FullSinkTopologyToleranceComparison() -> ClockSynthesisToleranceComparisonResult;
 
 }  // namespace icts_test::synthesis_realtech_smoke

@@ -415,6 +415,7 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
 auto buildHtreeOptions() -> HTreeBuilder::BuildOptions
 {
   HTreeBuilder::BuildOptions htree_options;
+  htree_options.htree_topology_tolerance = CONFIG_INST.get_htree_topology_tolerance();
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
   if (max_buf_tran > 0.0) {
     htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;

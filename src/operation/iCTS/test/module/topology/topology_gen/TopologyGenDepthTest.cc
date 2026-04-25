@@ -23,15 +23,18 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
+#include "TopologyConfig.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
 #include "database/spatial/Tree.hh"
+#include "geometry/Geometry.hh"
 #include "module/topology/TopologyGen.hh"
 
 namespace icts_test::topology_gen {
@@ -59,6 +62,38 @@ auto BorrowLoads(const std::vector<std::unique_ptr<icts::Pin>>& storage) -> std:
     loads.push_back(pin.get());
   }
   return loads;
+}
+
+auto BuildTwoLoadStorage() -> std::vector<std::unique_ptr<icts::Pin>>
+{
+  std::vector<std::unique_ptr<icts::Pin>> storage;
+  storage.emplace_back(std::make_unique<icts::Pin>("load0", icts::PinType::kClock, icts::Point<int>(0, 0)));
+  storage.emplace_back(std::make_unique<icts::Pin>("load1", icts::PinType::kClock, icts::Point<int>(1000, 0)));
+  return storage;
+}
+
+auto CollectFirstLevelDistances(const icts::Tree& tree) -> std::vector<int>
+{
+  std::vector<int> distances;
+  const auto levels = tree.levels();
+  if (levels.size() <= 1U) {
+    return distances;
+  }
+
+  const auto* root_node = tree.get_node(tree.get_root());
+  if (root_node == nullptr) {
+    return distances;
+  }
+
+  distances.reserve(levels.at(1).size());
+  for (const auto node_id : levels.at(1)) {
+    const auto* node = tree.get_node(node_id);
+    if (node == nullptr) {
+      continue;
+    }
+    distances.push_back(icts::geometry::Manhattan(root_node->get_position(), node->get_position()));
+  }
+  return distances;
 }
 
 TEST(TopologyGenDepthTest, DefaultBuildUsesDeepestPowerOfTwoDepth)
@@ -113,6 +148,27 @@ TEST(TopologyGenDepthTest, ExplicitTargetDepthClampsToMaxDepth)
 
   ASSERT_EQ(levels.size(), 4U);
   EXPECT_EQ(levels.back().size(), 8U);
+}
+
+TEST(TopologyGenDepthTest, TopologyToleranceKeepsEdgesInsideBaselineWindow)
+{
+  const auto storage = BuildTwoLoadStorage();
+  const auto loads = BorrowLoads(storage);
+
+  icts::BiPartitionConfig exact_config;
+  exact_config.htree_topology_tolerance = 0.0;
+  const auto exact_tree = icts::TopologyGen::build(loads, exact_config);
+  const auto exact_distances = CollectFirstLevelDistances(exact_tree);
+  ASSERT_EQ(exact_distances.size(), 2U);
+  EXPECT_NEAR(exact_distances.at(0), exact_distances.at(1), 1);
+
+  icts::BiPartitionConfig tolerant_config;
+  tolerant_config.htree_topology_tolerance = 1.0;
+  const auto tolerant_tree = icts::TopologyGen::build(loads, tolerant_config);
+  const auto tolerant_distances = CollectFirstLevelDistances(tolerant_tree);
+  ASSERT_EQ(tolerant_distances.size(), 2U);
+  EXPECT_TRUE(std::ranges::any_of(tolerant_distances, [](int distance) -> bool { return distance == 0; }));
+  EXPECT_TRUE(std::ranges::any_of(tolerant_distances, [](int distance) -> bool { return distance == 1000; }));
 }
 
 }  // namespace

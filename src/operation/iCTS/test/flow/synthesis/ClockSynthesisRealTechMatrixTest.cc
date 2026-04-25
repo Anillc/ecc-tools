@@ -47,5 +47,22 @@ TEST(ClockSynthesisRealTechSmokeTest, BpBeTopFullSinkNonClusteredExperimentMatri
   EXPECT_TRUE(matrix_result.report_written);
 }
 
+TEST(ClockSynthesisRealTechSmokeTest, Arm9FullSinkTopologyToleranceComparison)
+{
+  const auto comparison_result = EvaluateArm9FullSinkTopologyToleranceComparison();
+  if (comparison_result.skipped) {
+    GTEST_SKIP() << comparison_result.skip_reason;
+    return;
+  }
+
+  ASSERT_EQ(comparison_result.records.size(), 2U);
+  EXPECT_DOUBLE_EQ(comparison_result.records.at(0).htree_topology_tolerance, 0.1);
+  EXPECT_DOUBLE_EQ(comparison_result.records.at(1).htree_topology_tolerance, 0.0);
+  for (const auto& failure_message : comparison_result.failure_messages) {
+    ADD_FAILURE() << failure_message;
+  }
+  EXPECT_TRUE(comparison_result.report_written);
+}
+
 }  // namespace
 }  // namespace icts_test

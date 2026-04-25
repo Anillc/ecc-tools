@@ -36,6 +36,7 @@
 #include "Net.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
+#include "database/config/Config.hh"
 #include "flow/synthesis/ClockSynthesis.hh"
 #include "flow/synthesis/ClockSynthesisVisualizationSupport.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
@@ -70,6 +71,9 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
     GTEST_SKIP() << *prepare_error;
     return;
   }
+
+  CONFIG_INST.set_htree_topology_tolerance(0.1);
+  ASSERT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
 
   const auto artifact_paths = synthesis::PrepareClockSynthesisArtifactPaths("non_clustered_mode_realtech_smoke");
   ASSERT_FALSE(artifact_paths.output_dir.empty());

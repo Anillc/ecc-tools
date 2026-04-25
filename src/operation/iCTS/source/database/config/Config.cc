@@ -260,6 +260,8 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyBoolIfPresent(json, "force_branch_buffer", is_force_branch_buffer(), *this, &Config::set_force_branch_buffer);
   ApplyUnsignedIfPresent(json, "htree_depth_explore_window", *this, &Config::get_htree_depth_explore_window,
                          &Config::set_htree_depth_explore_window);
+  ApplyDoubleIfPresent(json, "htree_topology_tolerance", *this, &Config::get_htree_topology_tolerance,
+                       &Config::set_htree_topology_tolerance);
   ApplyBoolIfPresent(json, "enable_sink_clustering", is_enable_sink_clustering(), *this, &Config::set_enable_sink_clustering);
   ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist);
   ApplyNetListIfPresent(json, *this);
@@ -298,6 +300,8 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
        is_force_branch_buffer() ? "require terminal-buffered segment frontiers on every H-tree level" : "disabled"},
       {"htree_depth_explore_window", std::to_string(get_htree_depth_explore_window()),
        "flow-level H-tree explores up to this many descending depth candidates from the deepest topology"},
+      {"htree_topology_tolerance", logformat::FormatPercent(get_htree_topology_tolerance()),
+       "per-level H-tree topology segment length deviation allowed around the baseline"},
       {"enable_sink_clustering", logformat::FormatBool(is_enable_sink_clustering()),
        is_enable_sink_clustering() ? "run sink linear clustering before H-tree synthesis" : "build H-tree directly on original sinks"},
       {"use_netlist", logformat::FormatBool(is_use_netlist()),

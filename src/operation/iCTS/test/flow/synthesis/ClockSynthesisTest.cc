@@ -172,6 +172,7 @@ TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigRe
 {
   const ScopedConfigReset scoped_config_reset;
   EXPECT_TRUE(CONFIG_INST.is_enable_sink_clustering());
+  EXPECT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
 
   const auto json_path = MakeUniqueTempPath("config.json");
   const auto cts_log_path = MakeUniqueTempPath("cts.log");
@@ -179,11 +180,12 @@ TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigRe
   {
     std::ofstream output_stream(json_path);
     ASSERT_TRUE(output_stream.is_open());
-    output_stream << R"({"enable_sink_clustering": false})";
+    output_stream << R"({"enable_sink_clustering": false, "htree_topology_tolerance": 0.25})";
   }
 
   CONFIG_INST.parse(json_path.string());
   EXPECT_FALSE(CONFIG_INST.is_enable_sink_clustering());
+  EXPECT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.25);
 
   SCHEMA_WRITER_INST.open(cts_log_path, "Clock Synthesis Unit Test");
   CONFIG_INST.emitRuntimeConfigReport("ClockSynthesis Config");
@@ -192,6 +194,8 @@ TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigRe
   const auto cts_log_content = ReadTextFile(cts_log_path);
   EXPECT_NE(cts_log_content.find("enable_sink_clustering"), std::string::npos);
   EXPECT_NE(cts_log_content.find("false"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("htree_topology_tolerance"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("25.00 %"), std::string::npos);
 
   std::error_code error_code;
   std::filesystem::remove(json_path, error_code);
