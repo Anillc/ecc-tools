@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "tcl_db_file.h"
 
+#include "db_fm/file_soc.h"
 #include "idm.h"
 #include "report_manager.h"
 #include "tool_manager.h"
@@ -455,6 +456,51 @@ unsigned CmdSaveJSON::exec()
   }
 
   return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdWriteSocJson::CmdWriteSocJson(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+
+  auto* harden_cores = new TclStringListOption("-harden_cores", 1);
+  addOption(harden_cores);
+}
+
+unsigned CmdWriteSocJson::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  TclOption* harden_cores = getOptionOrArg("-harden_cores");
+  LOG_FATAL_IF(!harden_cores);
+
+  return 1;
+}
+
+unsigned CmdWriteSocJson::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  TclOption* harden_cores = getOptionOrArg("-harden_cores");
+  std::vector<std::string> harden_core_list;
+  if (harden_cores) {
+    harden_core_list = harden_cores->getStringList();
+  }
+
+  idb::JsonSoc soc_file(str_path, harden_core_list);
+  return soc_file.saveFileData() ? 1 : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

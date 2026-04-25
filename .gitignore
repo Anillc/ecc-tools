@@ -20,6 +20,11 @@ catboost_info
 *.def
 *.log
 *.pwr
+*.codex
+
+.agents 
+.codex 
+.trellis
 
 rpt*/
 target/
@@ -35,3 +40,6 @@ mcp_iEDA.egg-info/
 
 # Prevent accidental re-addition of removed submodules
 src/third_party/mt-kahypar/
+
+# ics55 dev
+ics55_dev

@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "py_db.h"
 
+#include "db_fm/file_soc.h"
 #include <idm.h>
 
 namespace python_interface {
@@ -78,6 +79,11 @@ bool saveJson(const std::string& path)
   return dmInst->saveJSON(path, options);
 }
 
+bool writeSocJson(const std::string& path, const std::vector<std::string>& harden_cores /* = {} */)
+{
+  idb::JsonSoc soc_file(path, harden_cores);
+  return soc_file.saveFileData();
+}
 
 bool writeAbstractLef(const std::string& output_lef_path)
 {
