@@ -23,17 +23,18 @@
 
 #include <glog/logging.h>
 
-#include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "IdbCellMaster.h"
 #include "IdbEnum.h"
 #include "IdbInstance.h"
+#include "IdbNet.h"
 #include "IdbPins.h"
+#include "IdbTerm.h"
 #include "Log.hh"
 #include "STAAdapter.hh"
 #include "STAAdapterInternal.hh"
@@ -48,19 +49,60 @@ namespace icts {
 
 using namespace sta_adapter_internal;
 
+namespace {
+
+auto CountClockInputPins(idb::IdbPins* pin_list) -> std::size_t
+{
+  std::size_t clock_input_pins = 0U;
+  if (pin_list == nullptr) {
+    return clock_input_pins;
+  }
+
+  for (auto* idb_pin : pin_list->get_pin_list()) {
+    if (idb_pin == nullptr || idb_pin->get_term() == nullptr) {
+      continue;
+    }
+    auto* term = idb_pin->get_term();
+    auto direction = term->get_direction();
+    if (direction != idb::IdbConnectDirection::kInput && direction != idb::IdbConnectDirection::kInOut) {
+      continue;
+    }
+    auto* idb_net = idb_pin->get_net();
+    if (idb_net != nullptr && idb_net->is_clock()) {
+      ++clock_input_pins;
+    }
+  }
+  return clock_input_pins;
+}
+
+}  // namespace
+
 auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 {
   auto inst_type = icts::InstType::kUnknown;
   const auto name = NormalizeInstName(inst_name);
-  std::string cell_master = "unknown";
+
   auto* idb_inst = FindIdbInstance(name);
   LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " is not found in iDB when querying instance type.";
   auto* pin_list = idb_inst->get_pin_list();
-  LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is " << cell_master;
+  LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is unknown";
+  auto* cell_master = idb_inst->get_cell_master();
+  LOG_FATAL_IF(cell_master == nullptr) << "Instance " << name << " has no iDB cell master when querying instance type.";
+  const std::string cell_master_name = cell_master->get_name();
 
-  auto* lib_cell = FindLibertyCellForInstName(name, cell_master);
+  if (!idb_inst->is_clock_instance()) {
+    LOG_WARNING << "Instance " << name << " type is unknown because iDB does not mark it as a clock instance.";
+    return inst_type;
+  }
+
+  if (cell_master->is_block()) {
+    return icts::InstType::kMacroBlock;
+  }
+
+  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master_name.c_str());
   if (lib_cell == nullptr) {
-    LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master << "\" is not found; fallback to iDB-only type heuristics.";
+    LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master_name
+                << "\" is not found; fallback to iDB-only type heuristics.";
   } else if (lib_cell->isSequentialCell()) {
     inst_type = icts::InstType::kFlipFlop;
   } else if (lib_cell->isBuffer()) {
@@ -74,33 +116,13 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
     return inst_type;
   }
 
-  constexpr std::ptrdiff_t clock_input_pin_limit = 1;
-  const auto clock_input_pins = std::ranges::count_if(pin_list->get_pin_list(), [&](auto* idb_pin) -> bool {
-    if (idb_pin == nullptr || idb_pin->get_term() == nullptr) {
-      return false;
-    }
-    auto* term = idb_pin->get_term();
-    auto direction = term->get_direction();
-    if (direction != idb::IdbConnectDirection::kInput && direction != idb::IdbConnectDirection::kInOut) {
-      return false;
-    }
-    auto* idb_net = idb_pin->get_net();
-    LOG_FATAL_IF(idb_net == nullptr) << "Instance " << name << " pin " << idb_pin->get_pin_name()
-                                     << " is not connected to any net, error in inst type judgement, which cell is " << cell_master;
-
-    if (idb_net->is_clock() == 0U) {
-      LOG_WARNING << "Instance " << name << " pin " << idb_pin->get_pin_name() << " connected net " << idb_net->get_net_name()
-                  << " is not clock net, warning in inst type judgement, which cell is " << cell_master;
-      return false;
-    }
-    return true;
-  });
-  if (clock_input_pins > clock_input_pin_limit) {
+  constexpr std::size_t clock_input_pin_limit = 1U;
+  if (CountClockInputPins(pin_list) > clock_input_pin_limit) {
     inst_type = icts::InstType::kMux;
     return inst_type;
   }
 
-  LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master;
+  LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master_name;
   return inst_type;
 }
 

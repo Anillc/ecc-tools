@@ -9,9 +9,11 @@ add_library(icts_source_flow ${ICTS_FLOW}/FlowManager.cc)
 target_link_libraries(
   icts_source_flow
   PRIVATE
+  icts_source_database
   icts_source_module
   icts_source_flow_htree
   icts_source_flow_synthesis
+  icts_source_utils
 )
 
 target_include_directories(icts_source_flow PUBLIC ${ICTS_FLOW})

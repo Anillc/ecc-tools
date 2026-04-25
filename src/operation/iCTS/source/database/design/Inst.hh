@@ -32,11 +32,12 @@ class Pin;
 
 enum class InstType
 {
-  kBuffer,     // up level buffer
-  kFlipFlop,   // flip flop
-  kInverter,   // inverter (like buffer but different polarity)
-  kClockGate,  // clock gate (with enable pin)
-  kMux,        // with multiple input pins
+  kBuffer,      // up level buffer
+  kFlipFlop,    // flip flop
+  kInverter,    // inverter (like buffer but different polarity)
+  kClockGate,   // clock gate (with enable pin)
+  kMux,         // with multiple input pins
+  kMacroBlock,  // hard macro / block-class cell
   kUnknown
 };
 
@@ -88,6 +89,7 @@ class Inst
   auto is_inverter() const -> bool { return _type == InstType::kInverter; }
   auto is_clock_gate() const -> bool { return _type == InstType::kClockGate; }
   auto is_mux() const -> bool { return _type == InstType::kMux; }
+  auto is_macro_block() const -> bool { return _type == InstType::kMacroBlock; }
 
  private:
   std::string _name = "";

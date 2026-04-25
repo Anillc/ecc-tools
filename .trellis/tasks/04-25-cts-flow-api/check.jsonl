@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide constraints to verify against."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation for check scope."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify CMake, source, and test placement."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify Clock/Design/Wrapper ownership and data-model behavior."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify failure handling and logs are appropriate."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify flow summaries use expected logging/schema style."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify code style, includes, dependencies, and tests."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify API-to-flow-to-database consistency."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify no avoidable duplicate materialization logic."}

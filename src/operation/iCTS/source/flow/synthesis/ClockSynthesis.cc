@@ -137,6 +137,14 @@ auto makePinName(const std::string& inst_name, const std::string& port_name) -> 
   return inst_name + "/" + port_name;
 }
 
+auto makeObjectName(const std::string& prefix, const std::string& suffix) -> std::string
+{
+  if (prefix.empty()) {
+    return "cts_" + suffix;
+  }
+  return prefix + "_" + suffix;
+}
+
 auto hasValidLocation(const Point<int>& location) -> bool
 {
   return location.get_x() >= 0 && location.get_y() >= 0;
@@ -455,7 +463,8 @@ auto absorbHtreeOwnedObjects(ClockSynthesis::BuildResult& result) -> void
 }
 
 auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const ClusterResult& cluster_result,
-                               const ResolvedClusterBufferMaster& cluster_buffer_master, std::vector<Pin*>& htree_sinks) -> bool
+                               const ResolvedClusterBufferMaster& cluster_buffer_master, const std::string& object_name_prefix,
+                               std::vector<Pin*>& htree_sinks) -> bool
 {
   const auto& clusters = cluster_result.clusters;
   result.cluster_buffers.reserve(clusters.size());
@@ -468,9 +477,10 @@ auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const Cluste
     }
 
     const auto center = resolveClusterCenter(cluster_result.centers, cluster, cluster_index);
-    auto buffer_instance = createBufferInstance(result, "cts_cluster_buf_" + std::to_string(cluster_index),
+    auto buffer_instance = createBufferInstance(result, makeObjectName(object_name_prefix, "cluster_buf_" + std::to_string(cluster_index)),
                                                 cluster_buffer_master.cell_master, cluster_buffer_master.buffer_ports, center);
-    auto* sink_net = createNet(result, "cts_cluster_sink_net_" + std::to_string(cluster_index), buffer_instance.output_pin, cluster);
+    auto* sink_net = createNet(result, makeObjectName(object_name_prefix, "cluster_sink_net_" + std::to_string(cluster_index)),
+                               buffer_instance.output_pin, cluster);
     result.cluster_buffers.push_back(ClockSynthesis::ClusterBufferMeta{
         .cluster_index = cluster_index,
         .location = center,
@@ -557,7 +567,7 @@ auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, co
       result.failure_reason = "failed to resolve clustered center buffer master";
       return result;
     }
-    if (!materializeClusterBuffers(result, *result.cluster_result, *cluster_buffer_master, htree_sinks)) {
+    if (!materializeClusterBuffers(result, *result.cluster_result, *cluster_buffer_master, options.object_name_prefix, htree_sinks)) {
       return result;
     }
   } else {
@@ -574,6 +584,7 @@ auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, co
     result.failure_reason = "H-tree build failed: " + htree_failure;
     return result;
   }
+  result.recommended_root_driver_cell_master = result.htree_result.recommended_root_driver_cell_master;
   absorbHtreeOwnedObjects(result);
 
   if (result.htree_result.root_input_pin == nullptr) {
@@ -582,8 +593,8 @@ auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, co
     return result;
   }
 
-  result.source_to_root_net
-      = createNet(result, "cts_clock_source_to_htree_root", clock_source, std::vector<Pin*>{result.htree_result.root_input_pin});
+  result.source_to_root_net = createNet(result, makeObjectName(options.object_name_prefix, "clock_source_to_htree_root"), clock_source,
+                                        std::vector<Pin*>{result.htree_result.root_input_pin});
   if (enable_sink_clustering) {
     emitClusterLeafDistanceTables(result);
   }

@@ -18,11 +18,11 @@ target_link_libraries(
   icts_source_module_routing_database
   icts_source_module_routing_local_legalization
   PRIVATE
-  icts_source_module_routing_helper
   icts_source_module_routing_flute
   icts_source_module_routing_bst
   icts_source_module_routing_cbs
   icts_source_module_routing_salt
+  icts_source_module_routing_helper
   icts_source_utils
   lemon
 )

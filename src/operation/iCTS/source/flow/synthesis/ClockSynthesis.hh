@@ -46,6 +46,7 @@ class ClockSynthesis
   struct BuildOptions
   {
     std::optional<bool> enable_sink_clustering = std::nullopt;
+    std::string object_name_prefix;
   };
 
   struct ClusterBufferMeta
@@ -66,6 +67,7 @@ class ClockSynthesis
     bool sink_clustering_enabled = false;
 
     HTreeBuilder::BuildResult htree_result;
+    std::string recommended_root_driver_cell_master;
     std::optional<ClusterResult> cluster_result = std::nullopt;
     std::vector<ClusterBufferMeta> cluster_buffers;
 

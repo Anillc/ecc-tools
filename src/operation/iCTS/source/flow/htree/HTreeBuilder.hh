@@ -100,6 +100,7 @@ class HTreeBuilder
     double htree_load_cap_max_pf = 0.0;
     double htree_load_cap_mean_pf = 0.0;
     double htree_load_cap_median_pf = 0.0;
+    std::string recommended_root_driver_cell_master;
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;

@@ -40,6 +40,7 @@
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
 #include "feature_icts.h"
+#include "flow/FlowManager.hh"
 #include "idm.h"
 #include "time/Time.hh"
 #include "usage/usage.hh"
@@ -51,16 +52,13 @@ auto CTSAPI::runCTS() -> void
   const ieda::Stats stats;
   schema::ScopedStage run_stage("CTS", "Clock tree synthesis API flow");
   readData();
-  // ctsFlow();
+  ctsFlow();
   // evaluate();
 
-  run_stage.markRunning("Main CTS flow is not enabled yet (ctsFlow/evaluate TODO)");
-  schema::EmitKeyValueTable("CTS Flow Summary", {
-                                                    {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-                                                    {"memory_delta_mb", std::to_string(stats.memoryDelta())},
-                                                });
+  run_stage.markRunning("Main CTS flow finished");
   run_stage.finish({
-      {"main_flow", "not_enabled"},
+      {"main_flow", "finished"},
+      {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
       {"memory_delta_mb", std::to_string(stats.memoryDelta())},
   });
 }
@@ -111,6 +109,24 @@ auto CTSAPI::readData() -> void
       {"clock_source", clock_source},
       {"added_clock_nets", std::to_string(added_clock_nets)},
       {"total_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
+  });
+}
+
+auto CTSAPI::ctsFlow() -> void
+{
+  const ieda::Stats stats;
+  schema::ScopedStage flow_stage("CTSFlow", "Run CTS synthesis flow");
+  const auto summary = FlowManager::run();
+  schema::EmitKeyValueTable("CTS API Flow Runtime", {
+                                                        {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
+                                                        {"memory_delta_mb", std::to_string(stats.memoryDelta())},
+                                                    });
+  flow_stage.finish({
+      {"success", summary.success ? "true" : "false"},
+      {"total_clocks", std::to_string(summary.total_clocks)},
+      {"successful_clocks", std::to_string(summary.successful_clocks)},
+      {"skipped_clocks", std::to_string(summary.skipped_clocks)},
+      {"failed_clocks", std::to_string(summary.failed_clocks)},
   });
 }
 

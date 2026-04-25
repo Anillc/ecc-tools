@@ -56,6 +56,23 @@ namespace icts {
 
 using namespace htree_builder;
 
+namespace {
+
+auto ResolveRecommendedRootDriverCellMaster(const std::vector<HTreeBuilder::LevelPlan>& levels) -> std::string
+{
+  for (const auto& level : levels) {
+    if (!level.selected_leaf_buffer_cell_master.empty()) {
+      return level.selected_leaf_buffer_cell_master;
+    }
+    if (!level.selected_terminal_cell_master.empty()) {
+      return level.selected_terminal_cell_master;
+    }
+  }
+  return {};
+}
+
+}  // namespace
+
 auto HTreeBuilder::build(const std::vector<Pin*>& loads) -> BuildResult
 {
   return build(loads, BuildOptions{});
@@ -224,6 +241,7 @@ auto HTreeBuilder::build(const std::vector<Pin*>& loads, const BuildOptions& opt
       result.levels.at(level_index).selected_terminal_cell_master.clear();
     }
   }
+  result.recommended_root_driver_cell_master = ResolveRecommendedRootDriverCellMaster(result.levels);
 
   MaterializeCTSObjects(result, segment_pattern_registry);
   result.success = result.best_char.has_value() && result.best_pattern.has_value() && result.root_input_pin != nullptr

@@ -58,6 +58,7 @@ class CTSAPI
   static auto resetAPI() -> void;
   static auto init(const std::string& config_file, const InitOptions& options = {}) -> void;
   static auto readData() -> void;
+  static auto ctsFlow() -> void;
 
   // Feature API
   static auto outputSummary() -> ieda_feature::CTSSummary;

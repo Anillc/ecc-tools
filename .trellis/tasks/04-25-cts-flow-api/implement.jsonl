@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide hard constraints for C++ edits and generated docs."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation for iCTS work."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Flow/API/database/test placement and CMake target boundaries."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Design, Wrapper, Clock ownership, singleton, and data-model rules."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Return/log/fatal behavior for flow orchestration failures."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime flow summaries and schema/log output conventions."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, includes, dependency visibility, and C++ quality rules."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This change crosses API, flow, database, and synthesis boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Root buffer and net materialization should reuse existing CTS patterns."}
