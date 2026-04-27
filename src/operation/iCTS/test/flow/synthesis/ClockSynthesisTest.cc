@@ -34,6 +34,7 @@
 
 #include "database/config/Config.hh"
 #include "database/design/Clock.hh"
+#include "database/design/Design.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Net.hh"
 #include "database/design/Pin.hh"
@@ -47,8 +48,16 @@ namespace {
 class ScopedConfigReset
 {
  public:
-  ScopedConfigReset() { CONFIG_INST.reset(); }
-  ~ScopedConfigReset() { CONFIG_INST.reset(); }
+  ScopedConfigReset()
+  {
+    CONFIG_INST.reset();
+    DESIGN_INST.reset();
+  }
+  ~ScopedConfigReset()
+  {
+    CONFIG_INST.reset();
+    DESIGN_INST.reset();
+  }
 };
 
 auto ReadTextFile(const std::filesystem::path& path) -> std::string
@@ -64,108 +73,214 @@ auto MakeUniqueTempPath(const std::string& file_name) -> std::filesystem::path
   return std::filesystem::temp_directory_path() / ("icts_clock_synthesis_test_" + file_name);
 }
 
-TEST(ClockSynthesisTest, NullClockSourceFailsWithoutInsertedObjects)
+auto makeDesignInst(const std::string& name, const std::string& cell_master, icts::InstType type, const icts::Point<int>& location)
+    -> icts::Inst*
+{
+  auto* inst = DESIGN_INST.makeInst(name);
+  if (inst == nullptr) {
+    return nullptr;
+  }
+  inst->set_name(name);
+  inst->set_cell_master(cell_master);
+  inst->set_type(type);
+  inst->set_location(location);
+  return inst;
+}
+
+auto makeDesignPin(icts::Inst* inst, const std::string& name, icts::PinType type, const icts::Point<int>& location) -> icts::Pin*
+{
+  auto* pin = DESIGN_INST.makePin(name);
+  if (pin == nullptr) {
+    return nullptr;
+  }
+  pin->set_name(name);
+  pin->set_type(type);
+  pin->set_location(location);
+  pin->set_inst(inst);
+  pin->set_net(nullptr);
+  pin->set_io(false);
+  if (inst != nullptr) {
+    inst->add_pin(pin);
+  }
+  (void) DESIGN_INST.indexPin(pin);
+  return pin;
+}
+
+auto makeDesignNet(const std::string& name, icts::Pin* driver = nullptr, const std::vector<icts::Pin*>& loads = {}) -> icts::Net*
+{
+  auto* net = DESIGN_INST.makeNet(name);
+  if (net == nullptr) {
+    return nullptr;
+  }
+  net->set_name(name);
+  net->set_driver(driver);
+  if (driver != nullptr) {
+    driver->set_net(net);
+  }
+  net->set_loads({});
+  for (auto* load : loads) {
+    if (load == nullptr) {
+      continue;
+    }
+    net->add_load(load);
+    load->set_net(net);
+  }
+  return net;
+}
+
+TEST(ClockSynthesisTest, RootNetWithNullDriverFailsWithoutInsertedObjects)
 {
   icts::Pin sink("sink_0", icts::PinType::kClock);
-  std::vector<icts::Pin*> sinks{&sink};
+  icts::Net root_net("root_net");
+  root_net.add_load(&sink);
+  sink.set_net(&root_net);
 
-  const auto result = icts::ClockSynthesis::build(nullptr, sinks);
+  const auto result = icts::ClockSynthesis::build(root_net);
 
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.inserted_insts.size(), 0U);
   EXPECT_EQ(result.inserted_nets.size(), 0U);
   EXPECT_TRUE(result.cluster_buffers.empty());
-  EXPECT_EQ(result.source_to_root_net, nullptr);
   EXPECT_FALSE(result.failure_reason.empty());
 }
 
-TEST(ClockSynthesisTest, EmptySinkListFailsWithoutInsertedObjects)
+TEST(ClockSynthesisTest, RootNetWithEmptyLoadListFailsWithoutInsertedObjects)
 {
   icts::Pin source("clk_src", icts::PinType::kClock);
-  const std::vector<icts::Pin*> sinks;
+  icts::Net root_net("root_net");
+  root_net.set_driver(&source);
+  source.set_net(&root_net);
 
-  const auto result = icts::ClockSynthesis::build(&source, sinks);
-
-  EXPECT_FALSE(result.success);
-  EXPECT_EQ(result.inserted_insts.size(), 0U);
-  EXPECT_EQ(result.inserted_nets.size(), 0U);
-  EXPECT_TRUE(result.cluster_buffers.empty());
-  EXPECT_EQ(result.source_to_root_net, nullptr);
-  EXPECT_FALSE(result.failure_reason.empty());
-}
-
-TEST(ClockSynthesisTest, ClockFacadeWithMissingSourceAndLoadsFailsSafely)
-{
-  icts::Clock invalid_clock("clk", "clk_net");
-  const auto result = icts::ClockSynthesis::build(invalid_clock);
+  const auto result = icts::ClockSynthesis::build(root_net);
 
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.inserted_insts.size(), 0U);
   EXPECT_EQ(result.inserted_nets.size(), 0U);
   EXPECT_TRUE(result.cluster_buffers.empty());
-  EXPECT_EQ(result.source_to_root_net, nullptr);
   EXPECT_FALSE(result.failure_reason.empty());
 }
 
-TEST(ClockSynthesisTest, ClockFacadeClearsBorrowedInsertedObjectsBeforeFailingRebuild)
+TEST(ClockSynthesisTest, RootNetWithMissingDriverAndLoadsFailsSafely)
 {
+  icts::Net root_net("root_net");
+  const auto result = icts::ClockSynthesis::build(root_net);
+
+  EXPECT_FALSE(result.success);
+  EXPECT_EQ(result.inserted_insts.size(), 0U);
+  EXPECT_EQ(result.inserted_nets.size(), 0U);
+  EXPECT_TRUE(result.cluster_buffers.empty());
+  EXPECT_FALSE(result.failure_reason.empty());
+}
+
+TEST(ClockSynthesisTest, BuildFailurePreservesBorrowedMembership)
+{
+  const ScopedConfigReset scoped_config_reset;
   icts::Clock invalid_clock("clk", "clk_net");
-  icts::Inst stale_inst("cts_buf_0", "BUF_X1", icts::InstType::kBuffer, icts::Point<int>(0, 0));
-  icts::Net stale_net("cts_net_0");
+  auto* stale_inst = makeDesignInst("cts_buf_0", "BUF_X1", icts::InstType::kBuffer, icts::Point<int>(0, 0));
+  auto* stale_net = makeDesignNet("cts_net_0");
+  icts::Net invalid_root_net("invalid_root_net");
 
-  invalid_clock.add_inserted_inst(&stale_inst);
-  invalid_clock.add_inserted_net(&stale_net);
-  ASSERT_EQ(invalid_clock.get_inserted_insts().size(), 1U);
-  ASSERT_EQ(invalid_clock.get_inserted_nets().size(), 1U);
+  invalid_clock.add_inst(stale_inst);
+  invalid_clock.add_net(stale_net);
+  ASSERT_EQ(invalid_clock.get_insts().size(), 1U);
+  ASSERT_EQ(invalid_clock.get_nets().size(), 1U);
 
-  const auto result = icts::ClockSynthesis::build(invalid_clock);
+  const auto result = icts::ClockSynthesis::build(invalid_root_net);
 
   EXPECT_FALSE(result.success);
   EXPECT_FALSE(result.failure_reason.empty());
-  EXPECT_TRUE(invalid_clock.get_inserted_insts().empty());
-  EXPECT_TRUE(invalid_clock.get_inserted_nets().empty());
+  ASSERT_EQ(invalid_clock.get_insts().size(), 1U);
+  ASSERT_EQ(invalid_clock.get_nets().size(), 1U);
+  EXPECT_EQ(invalid_clock.get_insts().front(), stale_inst);
+  EXPECT_EQ(invalid_clock.get_nets().front(), stale_net);
+  EXPECT_EQ(DESIGN_INST.findInst("cts_buf_0"), stale_inst);
+  EXPECT_EQ(DESIGN_INST.findNet("cts_net_0"), stale_net);
 }
 
-TEST(ClockSynthesisTest, ClockRetainsAdoptedInsertedObjectOwnership)
+TEST(ClockSynthesisTest, DesignCommitRejectsFinalNameCollisions)
 {
+  const ScopedConfigReset scoped_config_reset;
+
+  auto* existing_inst = makeDesignInst("u0", "REG_X1", icts::InstType::kFlipFlop, icts::Point<int>(10, 20));
+  auto* existing_pin = makeDesignPin(existing_inst, "CLK", icts::PinType::kClock, existing_inst->get_location());
+  auto* existing_net = makeDesignNet("clk_net");
+  ASSERT_NE(existing_inst, nullptr);
+  ASSERT_NE(existing_pin, nullptr);
+  ASSERT_NE(existing_net, nullptr);
+
+  auto colliding_inst = std::make_unique<icts::Inst>("u0", "BUF_X1", icts::InstType::kBuffer, icts::Point<int>(0, 0));
+  auto colliding_pin
+      = std::make_unique<icts::Pin>("CLK", icts::PinType::kClock, existing_inst->get_location(), existing_inst, nullptr, false);
+  auto colliding_net = std::make_unique<icts::Net>("clk_net");
+
+  EXPECT_EQ(DESIGN_INST.commitInst(std::move(colliding_inst)), nullptr);
+  EXPECT_EQ(DESIGN_INST.commitPin(std::move(colliding_pin)), nullptr);
+  EXPECT_EQ(DESIGN_INST.commitNet(std::move(colliding_net)), nullptr);
+
+  EXPECT_EQ(DESIGN_INST.findInst("u0"), existing_inst);
+  EXPECT_EQ(DESIGN_INST.findPin(icts::Design::getPinFullName(existing_pin)), existing_pin);
+  EXPECT_EQ(DESIGN_INST.findNet("clk_net"), existing_net);
+  EXPECT_EQ(existing_inst->get_cell_master(), "REG_X1");
+  EXPECT_EQ(existing_inst->get_type(), icts::InstType::kFlipFlop);
+  EXPECT_EQ(DESIGN_INST.get_insts().size(), 1U);
+  EXPECT_EQ(DESIGN_INST.get_pins().size(), 1U);
+  EXPECT_EQ(DESIGN_INST.get_nets().size(), 1U);
+}
+
+TEST(ClockSynthesisTest, DesignOwnsFinalObjectsAndClockKeepsMembershipOnly)
+{
+  const ScopedConfigReset scoped_config_reset;
   icts::Clock clock("clk", "clk_net");
 
-  auto inst = std::make_unique<icts::Inst>("cts_buf_0", "BUF_X1", icts::InstType::kBuffer, icts::Point<int>(10, 20));
-  auto* inst_ptr = inst.get();
-  auto input_pin = std::make_unique<icts::Pin>("cts_buf_0/A", icts::PinType::kIn, inst_ptr->get_location(), inst_ptr, nullptr, false);
-  auto output_pin = std::make_unique<icts::Pin>("cts_buf_0/Y", icts::PinType::kOut, inst_ptr->get_location(), inst_ptr, nullptr, false);
-  auto* input_pin_ptr = input_pin.get();
-  auto* output_pin_ptr = output_pin.get();
-  inst_ptr->add_pin(input_pin_ptr);
-  inst_ptr->insertDriverPin(output_pin_ptr);
+  auto* inst = makeDesignInst("cts_buf_0", "BUF_X1", icts::InstType::kBuffer, icts::Point<int>(10, 20));
+  ASSERT_NE(inst, nullptr);
+  auto* input_pin = makeDesignPin(inst, "A", icts::PinType::kIn, inst->get_location());
+  auto* output_pin = makeDesignPin(inst, "Y", icts::PinType::kOut, inst->get_location());
+  ASSERT_NE(input_pin, nullptr);
+  ASSERT_NE(output_pin, nullptr);
+  inst->insertDriverPin(output_pin);
 
-  auto net = std::make_unique<icts::Net>("cts_net_0");
-  auto* net_ptr = net.get();
-  net_ptr->set_driver(output_pin_ptr);
-  output_pin_ptr->set_net(net_ptr);
-  net_ptr->add_load(input_pin_ptr);
-  input_pin_ptr->set_net(net_ptr);
+  auto* net = makeDesignNet("cts_net_0", output_pin, std::vector<icts::Pin*>{input_pin});
+  ASSERT_NE(net, nullptr);
+  clock.add_inst(inst);
+  clock.add_net(net);
 
-  std::vector<std::unique_ptr<icts::Inst>> inst_storage;
-  std::vector<std::unique_ptr<icts::Pin>> pin_storage;
-  std::vector<std::unique_ptr<icts::Net>> net_storage;
-  inst_storage.push_back(std::move(inst));
-  pin_storage.push_back(std::move(output_pin));
-  pin_storage.push_back(std::move(input_pin));
-  net_storage.push_back(std::move(net));
+  ASSERT_EQ(clock.get_insts().size(), 1U);
+  ASSERT_EQ(clock.get_nets().size(), 1U);
+  EXPECT_EQ(clock.get_insts().front()->get_name(), "cts_buf_0");
+  EXPECT_EQ(clock.get_nets().front()->get_name(), "cts_net_0");
+  EXPECT_EQ(DESIGN_INST.get_insts().size(), 1U);
+  EXPECT_EQ(DESIGN_INST.get_pins().size(), 2U);
+  EXPECT_EQ(DESIGN_INST.get_nets().size(), 1U);
+  EXPECT_EQ(net->get_driver(), output_pin);
+  EXPECT_EQ(output_pin->get_net(), net);
+  ASSERT_EQ(net->get_loads().size(), 1U);
+  EXPECT_EQ(net->get_loads().front(), input_pin);
+  EXPECT_EQ(input_pin->get_net(), net);
 
-  clock.adoptInsertedCtsOwnership(std::move(inst_storage), std::move(pin_storage), std::move(net_storage));
-  clock.add_inserted_inst(inst_ptr);
-  clock.add_inserted_net(net_ptr);
+  DESIGN_INST.removeClockMembershipObjects(clock);
+  clock.clearMembership();
+  EXPECT_TRUE(clock.get_insts().empty());
+  EXPECT_TRUE(clock.get_nets().empty());
+  EXPECT_TRUE(DESIGN_INST.get_insts().empty());
+  EXPECT_TRUE(DESIGN_INST.get_pins().empty());
+  EXPECT_TRUE(DESIGN_INST.get_nets().empty());
+}
 
-  ASSERT_EQ(clock.get_inserted_insts().size(), 1U);
-  ASSERT_EQ(clock.get_inserted_nets().size(), 1U);
-  EXPECT_EQ(clock.get_inserted_insts().front()->get_name(), "cts_buf_0");
-  EXPECT_EQ(clock.get_inserted_nets().front()->get_name(), "cts_net_0");
+TEST(ClockSynthesisTest, InstInsertDriverPinHandlesEmptyPinList)
+{
+  icts::Inst inst("cts_buf_0", "BUF_X1", icts::InstType::kBuffer, icts::Point<int>(0, 0));
+  icts::Pin driver_pin("Y", icts::PinType::kOut);
 
-  clock.clearInsertedCtsObjects();
-  EXPECT_TRUE(clock.get_inserted_insts().empty());
-  EXPECT_TRUE(clock.get_inserted_nets().empty());
+  inst.insertDriverPin(&driver_pin);
+
+  ASSERT_EQ(inst.get_pins().size(), 1U);
+  EXPECT_EQ(inst.findDriverPin(), &driver_pin);
+
+  inst.insertDriverPin(&driver_pin);
+
+  ASSERT_EQ(inst.get_pins().size(), 1U);
+  EXPECT_EQ(inst.findDriverPin(), &driver_pin);
 }
 
 TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigReport)

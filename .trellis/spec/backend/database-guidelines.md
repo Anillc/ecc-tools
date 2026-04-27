@@ -4,8 +4,7 @@ Ownership, singleton boundaries, and data-model rules for iCTS.
 
 ## Scope
 
-This document covers singleton roles, ownership, lifetime, database-layer placement, and new data classes.
-
+This document covers singleton roles, ownership, lifetime, database-layer placement, and external adapter boundaries.
 Naming and generic accessor style live in `quality-guidelines.md`.
 
 ## Rules
@@ -25,15 +24,20 @@ Use the existing singleton boundaries:
 
 Rules:
 - External callers enter through `CTS_API_INST`.
-- Module code should use narrowed singletons such as `CONFIG_INST`, `DESIGN_INST`, `WRAPPER_INST`, and `STA_ADAPTER_INST`.
+- API, flow, database, and adapter boundaries may read `CONFIG_INST` when they own initialization or external-tool setup.
+- Algorithm code under `source/module/` should receive runtime configuration through existing Options/Config parameters instead of reading `CONFIG_INST` directly.
 - Do not introduce new singleton boundaries without a clear cross-module need.
 
 ### Ownership
 
 - Use `std::unique_ptr` for ownership.
-- Use raw pointers only for non-owning cross-references.
-- `Design` owns `Clock` objects.
-- `Wrapper` owns CTS-side `Pin`, `Inst`, and `Net` objects created from iDB.
+- Use raw pointers only for non-owning cross-references and topology edges.
+- `Design` owns final CTS `Clock`, `Inst`, `Pin`, and `Net` objects.
+- `Clock` owns no final `Inst`, `Pin`, or `Net` objects. It stores only borrowed pointers for per-clock anchors and final membership views, such as the clock source pin, clock source net, original sinks, clock insts, and clock nets.
+- `Inst` owns no pins. Pin accessors expose only borrowed pointer views and ordering/query helpers.
+- Algorithm-local result objects may own temporary `Inst`, `Pin`, and `Net` objects while an operation is in progress. Commit temporary objects into `Design` only after success; failed temporary results must destruct without changing final `Design` or `Clock` state.
+- `Net` driver/load pointers and `Pin` inst/net pointers are non-owning topology edges. Do not turn them into ownership links.
+- `Wrapper` may keep cross-reference maps between iDB objects and CTS objects, but those maps borrow CTS pointers; `Wrapper` does not own per-clock topology objects.
 - `Tree` owns `TreeNode` objects.
 - Borrowed pointers must not outlive the owner.
 - Do not cache borrowed pointers across owner reset boundaries.
@@ -58,64 +62,6 @@ If a type is shared across modules and is part of the stable data model, prefer 
 - Keep iDB access inside `Wrapper`.
 - Keep iSTA access inside `STAAdapter`.
 - Module code should operate on CTS types, not external-tool types.
-
-### Scenario: Multi-Design Real-Tech Placement Benchmarks
-
-#### 1. Scope / Trigger
-
-- Trigger: a test or benchmark repeatedly loads placement-stage DEF/Verilog designs and compares CTS module behavior across many cases.
-- This is cross-layer because it touches `dmInst`, `CONFIG_INST`, `DESIGN_INST`, `WRAPPER_INST`, and optionally `STA_ADAPTER_INST`.
-
-#### 2. Signatures
-
-- Case input contract: `place_dreamplace/output/*_place.def` or `*_place.def.gz` plus matching `*_place.v`.
-- CTS-side load contract: create a `Clock` in `DESIGN_INST`, call `WRAPPER_INST.read()`, then consume `Clock::get_loads()`.
-- Slow benchmark targets should be gated by `ICTS_BUILD_SLOW_REALTECH_TESTS`.
-
-#### 3. Contracts
-
-- Benchmark design inputs must come only from placement DEF/Verilog paths selected by the test.
-- Technology/config inputs may come from the allowed PDK/workspace paths or env overrides such as `ICTS_REALTECH_PDK_DIR`, `PDK_DIR`, and `ICTS_TEST_OUTPUT_DIR`.
-- Do not read stage-local benchmark configs when the test is intended to isolate placement data.
-- For heterogeneous top modules, derive clock/load net candidates from loaded iDB net metadata, net names, flip-flop clock pins, and fanout. Do not require a generic SDC clock name to match every design.
-
-#### 4. Validation & Error Matrix
-
-- Benchmark root missing -> write a skip reason and `GTEST_SKIP()`.
-- DEF/Verilog top mismatch -> fail the case with the mismatched names.
-- Required PDK/config file missing -> fail before running module comparisons.
-- No candidate clock/load net -> fail the case with the selection reason.
-- Algorithm output load count differs from input load count -> mark the result illegal.
-
-#### 5. Good/Base/Bad Cases
-
-- Good: load Verilog + placement DEF, verify DEF design equals Verilog top, add the selected clock net to `DESIGN_INST`, call `WRAPPER_INST.read()`, then compare algorithms on the same `std::vector<Pin*>`.
-- Base: use `STA_ADAPTER_INST.init()` only for adapter setup when needed, without calling timing updates for clock discovery.
-- Bad: call `STA_ADAPTER_INST.updateTiming()` with a generic SDC such as `get_ports clk` across unrelated designs; many tops do not expose that port name.
-
-#### 6. Tests Required
-
-- Assert the selected case count when the external root exists.
-- Log per-case DBU, inst count, net count, selected clock net, load count, and span diameter before algorithm comparison.
-- CSV output must include expected load count, actual load count, missing load count, legality, runtime, score, and violation counts.
-- Aggregate acceptance must require both runtime and score wins when that is the benchmark's stated goal.
-
-#### 7. Wrong vs Correct
-
-Wrong:
-
-```cpp
-STA_ADAPTER_INST.updateTiming();
-auto clocks = STA_ADAPTER_INST.collectClockNetPairs();
-```
-
-Correct:
-
-```cpp
-DESIGN_INST.add_clock(std::make_unique<Clock>(clock_name, idb_net_name));
-WRAPPER_INST.read();
-auto loads = DESIGN_INST.get_clocks().front()->get_loads();
-```
 
 ### Adding New Data Classes
 

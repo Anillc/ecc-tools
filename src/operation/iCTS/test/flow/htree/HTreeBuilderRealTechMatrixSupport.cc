@@ -32,6 +32,8 @@
 #include <vector>
 
 #include "HTreeTopologyChar.hh"
+#include "Net.hh"
+#include "Pin.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
 #include "flow/htree/HTreeBuildObservation.hh"
@@ -185,8 +187,12 @@ auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wire_length_unit) -> Arm9Exp
       CONFIG_INST.set_slew_steps(slew_cap_steps);
       CONFIG_INST.set_cap_steps(slew_cap_steps);
 
+      icts::Pin root_driver("htree_arm9_matrix_root_out", icts::PinType::kOut);
+      icts::Net root_net("htree_arm9_matrix_root_net");
+      ConnectRootNetForHTreeTest(root_net, root_driver, matrix_result.selection.loads);
+
       const auto runtime_start = std::chrono::steady_clock::now();
-      const auto result = icts::HTreeBuilder::build(matrix_result.selection.loads);
+      const auto result = icts::HTreeBuilder::build(root_net);
       const auto runtime_end = std::chrono::steady_clock::now();
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
 

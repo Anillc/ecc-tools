@@ -24,21 +24,18 @@
 
 #include <glog/logging.h>
 
-#include <cstddef>
 #include <filesystem>
-#include <memory>
 #include <ostream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "Log.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
-#include "database/design/Clock.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
+#include "evaluation/ClockTreeEvaluator.hh"
 #include "feature_icts.h"
 #include "flow/FlowManager.hh"
 #include "idm.h"
@@ -47,13 +44,41 @@
 #include "utils/logger/Schema.hh"
 
 namespace icts {
+namespace {
+
+auto buildFeatureSummary(const ClockTreeSummary& flow_summary) -> ieda_feature::CTSSummary
+{
+  ieda_feature::CTSSummary summary{};
+  summary.buffer_num = flow_summary.buffer_num;
+  summary.buffer_area = flow_summary.buffer_area;
+  summary.clock_path_min_buffer = flow_summary.clock_path_min_buffer;
+  summary.clock_path_max_buffer = flow_summary.clock_path_max_buffer;
+  summary.max_level_of_clock_tree = flow_summary.max_level_of_clock_tree;
+  summary.max_clock_wirelength = flow_summary.max_clock_wirelength;
+  summary.total_clock_wirelength = flow_summary.total_clock_wirelength;
+  summary.clocks_timing.reserve(flow_summary.clocks_timing.size());
+  for (const auto& clock_timing : flow_summary.clocks_timing) {
+    summary.clocks_timing.push_back(ieda_feature::ClockTiming{
+        .clock_name = clock_timing.clock_name,
+        .setup_tns = clock_timing.setup_tns,
+        .setup_wns = clock_timing.setup_wns,
+        .hold_tns = clock_timing.hold_tns,
+        .hold_wns = clock_timing.hold_wns,
+        .suggest_freq = clock_timing.suggest_freq,
+    });
+  }
+  return summary;
+}
+
+}  // namespace
+
 auto CTSAPI::runCTS() -> void
 {
   const ieda::Stats stats;
   schema::ScopedStage run_stage("CTS", "Clock tree synthesis API flow");
   readData();
   ctsFlow();
-  // evaluate();
+  evaluate();
 
   run_stage.markRunning("Main CTS flow finished");
   run_stage.finish({
@@ -66,49 +91,14 @@ auto CTSAPI::runCTS() -> void
 auto CTSAPI::readData() -> void
 {
   const ieda::Stats stats;
-  schema::ScopedStage read_stage("ReadData", "Load clocks from config/STA and sync DB wrapper");
-  std::size_t added_clock_nets = 0U;
-  std::string clock_source = "Config::net_list";
-
-  // Get clock netlist from Config / STA
-  if (CONFIG_INST.is_use_netlist()) {
-    const auto& net_list = CONFIG_INST.get_net_list();
-    for (const auto& [clock_name, net_name] : net_list) {
-      auto clock = std::make_unique<icts::Clock>(clock_name, net_name);
-      DESIGN_INST.add_clock(std::move(clock));
-      ++added_clock_nets;
-    }
-  } else {
-    clock_source = "STAAdapter::collectClockNetPairs";
-    STA_ADAPTER_INST.updateTiming();
-    for (const auto& [clock_name, net_name] : STA_ADAPTER_INST.collectClockNetPairs()) {
-      auto clock = std::make_unique<icts::Clock>(clock_name, net_name);
-      DESIGN_INST.add_clock(std::move(clock));
-      ++added_clock_nets;
-    }
-  }
-  // Get clock instance from DB
-  WRAPPER_INST.read();
-  // Summary clock distribution
-  DESIGN_INST.emitClockDistributionSummary();
-
-  std::unordered_map<std::string, std::size_t> clock_domain_counter;
-  for (const auto* clock : DESIGN_INST.get_clocks()) {
-    ++clock_domain_counter[clock->get_clock_name()];
-  }
-
-  schema::EmitKeyValueTable("ReadData Summary", {
-                                                    {"clock_source", clock_source},
-                                                    {"added_clock_nets", std::to_string(added_clock_nets)},
-                                                    {"unique_clock_domains", std::to_string(clock_domain_counter.size())},
-                                                    {"total_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
-                                                    {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-                                                    {"memory_delta_mb", std::to_string(stats.memoryDelta())},
-                                                });
+  schema::ScopedStage read_stage("CTSReadData", "Read CTS clock data");
+  FlowManager::readData();
+  schema::EmitKeyValueTable("CTS API ReadData Runtime", {
+                                                            {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
+                                                            {"memory_delta_mb", std::to_string(stats.memoryDelta())},
+                                                        });
   read_stage.finish({
-      {"clock_source", clock_source},
-      {"added_clock_nets", std::to_string(added_clock_nets)},
-      {"total_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
+      {"status", "finished"},
   });
 }
 
@@ -116,17 +106,27 @@ auto CTSAPI::ctsFlow() -> void
 {
   const ieda::Stats stats;
   schema::ScopedStage flow_stage("CTSFlow", "Run CTS synthesis flow");
-  const auto summary = FlowManager::run();
+  FlowManager::run();
   schema::EmitKeyValueTable("CTS API Flow Runtime", {
                                                         {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
                                                         {"memory_delta_mb", std::to_string(stats.memoryDelta())},
                                                     });
   flow_stage.finish({
-      {"success", summary.success ? "true" : "false"},
-      {"total_clocks", std::to_string(summary.total_clocks)},
-      {"successful_clocks", std::to_string(summary.successful_clocks)},
-      {"skipped_clocks", std::to_string(summary.skipped_clocks)},
-      {"failed_clocks", std::to_string(summary.failed_clocks)},
+      {"status", "finished"},
+  });
+}
+
+auto CTSAPI::evaluate() -> void
+{
+  const ieda::Stats stats;
+  schema::ScopedStage evaluation_stage("CTSEvaluation", "Evaluate CTS clock tree");
+  FlowManager::evaluate();
+  schema::EmitKeyValueTable("CTS API Evaluation Runtime", {
+                                                              {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
+                                                              {"memory_delta_mb", std::to_string(stats.memoryDelta())},
+                                                          });
+  evaluation_stage.finish({
+      {"status", "finished"},
   });
 }
 
@@ -140,16 +140,17 @@ auto CTSAPI::resetAPI() -> void
   CONFIG_INST.reset();
   DESIGN_INST.reset();
   WRAPPER_INST.reset();
+  FlowManager::reset();
   SCHEMA_WRITER_INST.close();
 }
 
-auto CTSAPI::init(const std::string& config_file, const InitOptions& options) -> void
+auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
 {
   resetAPI();
   const std::string generated_on = ieda::Time::getNowWallTime();
   // Config
   CONFIG_INST.init(config_file);
-  auto dir_str = options.work_dir.path.empty() ? CONFIG_INST.get_work_dir() : options.work_dir.path;
+  auto dir_str = work_dir.empty() ? CONFIG_INST.get_work_dir() : work_dir;
   auto dir = std::filesystem::path(dir_str);
   if (!std::filesystem::exists(dir)) {
     std::filesystem::create_directories(dir);
@@ -193,8 +194,7 @@ auto CTSAPI::init(const std::string& config_file, const InitOptions& options) ->
 
 auto CTSAPI::outputSummary() -> ieda_feature::CTSSummary
 {
-  // TBD(clw): Summary export is not implemented yet.
-  return ieda_feature::CTSSummary{};
+  return buildFeatureSummary(FlowManager::outputSummary());
 }
 
 }  // namespace icts

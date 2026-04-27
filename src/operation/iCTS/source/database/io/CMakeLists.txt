@@ -17,9 +17,8 @@ target_link_libraries(
   PRIVATE
   idm
   icts_source_database_adapter_sta
-  icts_source_utils
-  PUBLIC
   icts_source_database_design
+  icts_source_utils
 )
 
 if(DEBUG_ICTS_SOURCE_DATABASE_IO)

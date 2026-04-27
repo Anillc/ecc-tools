@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -32,9 +33,7 @@ class Pin;
 class Net
 {
  public:
-  Net() = default;
   Net(const std::string& name) : _name(name) {}
-  Net(const std::string& name, Pin* driver, const std::vector<Pin*>& loads) : _name(name), _driver(driver), _loads(loads) {}
   ~Net() = default;
 
   // Getter
@@ -48,7 +47,13 @@ class Net
   auto set_loads(const std::vector<Pin*>& loads) -> void { _loads = loads; }
 
   // Adder
-  auto add_load(Pin* load) -> void { _loads.push_back(load); }
+  auto add_load(Pin* load) -> void
+  {
+    if (load == nullptr || std::ranges::find(_loads, load) != _loads.end()) {
+      return;
+    }
+    _loads.push_back(load);
+  }
 
  private:
   std::string _name = "";

@@ -42,8 +42,6 @@
 
 namespace icts {
 
-using namespace sta_adapter_internal;
-
 auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
                                   std::optional<std::string> source_input_pin_full_name) -> bool
 {
@@ -61,7 +59,7 @@ auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, co
     return false;
   }
 
-  auto clocks = GetStaEngine()->get_ista()->getClocks();
+  auto clocks = sta_adapter_internal::GetStaEngine()->get_ista()->getClocks();
   if (clocks.empty()) {
     LOG_WARNING << "Characterization power setup skipped: char-only STA has no clock objects.";
     return false;
@@ -80,12 +78,12 @@ auto STAAdapter::refreshCharPowerLoad() -> bool
   }
 
   auto* power = runtime.char_power.get();
-  if (!PrimeCharPower(power)) {
+  if (!sta_adapter_internal::PrimeCharPower(power)) {
     LOG_WARNING << "Characterization power load refresh skipped: iPA graph is not ready.";
     return false;
   }
 
-  runtime.cached_switch_power_w = CalcSelectedNetSwitchPower(power, runtime.net_name_set);
+  runtime.cached_switch_power_w = sta_adapter_internal::CalcSelectedNetSwitchPower(power, runtime.net_name_set);
   runtime.is_switch_power_cached = true;
   return true;
 }
@@ -96,30 +94,30 @@ auto STAAdapter::updateCharPower() -> bool
   auto& runtime = adapter._char_power_state;
   auto* power = runtime.char_power.get();
   if (!runtime.is_runtime_ready) {
-    runtime.char_power = BuildCharPower();
+    runtime.char_power = sta_adapter_internal::BuildCharPower();
     power = runtime.char_power.get();
-    if (!PrimeCharPower(power)) {
+    if (!sta_adapter_internal::PrimeCharPower(power)) {
       LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
       return false;
     }
 
-    AnnotateCharSourceInputPower(power, runtime.source_input_pin_full_name);
-    FilterPowerCells(power, runtime.inst_name_set);
+    sta_adapter_internal::AnnotateCharSourceInputPower(power, runtime.source_input_pin_full_name);
+    sta_adapter_internal::FilterPowerCells(power, runtime.inst_name_set);
     if (power->calcLeakagePower() == 0U) {
       LOG_WARNING << "Characterization power update skipped: leakage calculation failed.";
       return false;
     }
 
-    runtime.cached_leakage_power_w = SumInstPowerData(power->get_leakage_powers(), runtime.inst_name_set);
+    runtime.cached_leakage_power_w = sta_adapter_internal::SumInstPowerData(power->get_leakage_powers(), runtime.inst_name_set);
     runtime.is_runtime_ready = true;
     runtime.is_switch_power_cached = false;
-  } else if (!PrimeCharPower(power)) {
+  } else if (!sta_adapter_internal::PrimeCharPower(power)) {
     LOG_WARNING << "Characterization power update skipped: iPA graph is not ready.";
     return false;
   }
 
   if (!runtime.is_switch_power_cached) {
-    runtime.cached_switch_power_w = CalcSelectedNetSwitchPower(power, runtime.net_name_set);
+    runtime.cached_switch_power_w = sta_adapter_internal::CalcSelectedNetSwitchPower(power, runtime.net_name_set);
     runtime.is_switch_power_cached = true;
   }
 
@@ -127,7 +125,7 @@ auto STAAdapter::updateCharPower() -> bool
     LOG_WARNING << "Characterization power update skipped: internal-power calculation failed.";
     return false;
   }
-  const double internal_power_w = SumInstPowerData(power->get_internal_powers(), runtime.inst_name_set);
+  const double internal_power_w = sta_adapter_internal::SumInstPowerData(power->get_internal_powers(), runtime.inst_name_set);
 
   runtime.last_total_power_w = runtime.cached_leakage_power_w + internal_power_w + runtime.cached_switch_power_w;
   return true;
@@ -146,11 +144,11 @@ auto STAAdapter::queryCharNetSwitchPower(const std::string& net_name) -> double
 
   auto& runtime = getInst()._char_power_state;
   auto* power = runtime.char_power.get();
-  if (!runtime.is_runtime_ready || !PrimeCharPower(power)) {
+  if (!runtime.is_runtime_ready || !sta_adapter_internal::PrimeCharPower(power)) {
     return 0.0;
   }
 
-  return CalcSelectedNetSwitchPower(power, std::unordered_set<std::string>{net_name});
+  return sta_adapter_internal::CalcSelectedNetSwitchPower(power, std::unordered_set<std::string>{net_name});
 }
 
 auto STAAdapter::destroyCharPower() -> void
@@ -168,9 +166,9 @@ auto STAAdapter::finishCharOnly() -> void
 
   resetCharContext();
   adapter._is_char_only_active = false;
-  auto* timing_engine = GetStaEngine();
-  timing_engine->set_num_threads(kStaThreadCount);
-  ConfigureStaWorkspace(timing_engine, "sta");
+  auto* timing_engine = sta_adapter_internal::GetStaEngine();
+  timing_engine->set_num_threads(sta_adapter_internal::kStaThreadCount);
+  sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta");
 }
 
 }  // namespace icts

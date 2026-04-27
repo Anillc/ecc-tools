@@ -67,7 +67,7 @@ auto CharBuilder::build() -> void
   _max_observed_driven_cap_idx = 0U;
 
   if (_sorted_buffers.empty()) {
-    LOG_WARNING << "CharBuilder: no usable buffers remain after Config/liberty filtering, skip characterization build";
+    LOG_WARNING << "CharBuilder: no usable buffers remain after InitOptions/liberty filtering, skip characterization build";
     build_stage.skip({{"reason", "no_usable_buffers"}});
     return;
   }

@@ -34,11 +34,13 @@
 #include <vector>
 
 #include "ClockSynthesisRealTechSmokeSupport.hh"
+#include "Pin.hh"
 #include "Tree.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
+#include "database/design/Net.hh"
 #include "synthesis/ClockSynthesis.hh"
 
 namespace icts_test::synthesis_realtech_smoke {
@@ -132,6 +134,23 @@ auto SelectLargestRealClock(std::size_t max_count, std::size_t min_required_load
 auto SetEnableSinkClustering(icts::ClockSynthesis::BuildOptions& options, bool enabled) -> void
 {
   options.enable_sink_clustering = enabled;
+}
+
+auto ConnectRootNet(icts::Net& root_net, icts::Pin* source, const std::vector<icts::Pin*>& sinks) -> void
+{
+  root_net.set_driver(source);
+  if (source != nullptr) {
+    source->set_net(&root_net);
+  }
+
+  root_net.set_loads({});
+  for (auto* sink : sinks) {
+    if (sink == nullptr) {
+      continue;
+    }
+    root_net.add_load(sink);
+    sink->set_net(&root_net);
+  }
 }
 
 auto ResolveExpectedMinClusterBufferMaster() -> std::optional<std::string>

@@ -442,7 +442,10 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatr
       SetEnableSinkClustering(options, false);
 
       const auto runtime_start = std::chrono::steady_clock::now();
-      const auto result = icts::ClockSynthesis::build(selected_clock_data.source, selected_clock_data.sinks, options);
+      icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_iter" + std::to_string(wire_length_iterations) + "_step"
+                         + std::to_string(slew_cap_steps));
+      ConnectRootNet(root_net, selected_clock_data.source, selected_clock_data.sinks);
+      const auto result = icts::ClockSynthesis::build(root_net, options);
       const auto runtime_end = std::chrono::steady_clock::now();
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
       const auto htree_observation = htree::ObserveHTreeBuild(result.htree_result);
@@ -512,7 +515,9 @@ auto EvaluateArm9FullSinkTopologyToleranceComparison() -> ClockSynthesisToleranc
     SetEnableSinkClustering(options, false);
 
     const auto runtime_start = std::chrono::steady_clock::now();
-    const auto result = icts::ClockSynthesis::build(selected_clock_data.source, selected_clock_data.sinks, options);
+    icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_tol" + std::to_string(topology_tolerance));
+    ConnectRootNet(root_net, selected_clock_data.source, selected_clock_data.sinks);
+    const auto result = icts::ClockSynthesis::build(root_net, options);
     const auto runtime_end = std::chrono::steady_clock::now();
     const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
     const auto leaf_load_distances = CalcLeafLoadDistances(result.htree_result, selected_clock_data.sinks);

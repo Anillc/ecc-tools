@@ -31,6 +31,7 @@
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -150,14 +151,16 @@ auto CollectExtraPoints(const icts::HTreeBuilder::BuildResult& result) -> std::v
     extra_points.push_back(node->get_position());
   }
 
-  for (const auto* inst : result.inserted_insts) {
+  for (const auto& inst_owner : result.inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || !HasValidLocation(inst->get_location())) {
       continue;
     }
     extra_points.push_back(inst->get_location());
   }
 
-  for (const auto* pin : result.inserted_pins) {
+  for (const auto& pin_owner : result.inserted_pins) {
+    const auto* pin = pin_owner.get();
     const auto location = FindRenderableLocation(pin);
     if (!HasValidLocation(location)) {
       continue;
@@ -206,10 +209,11 @@ auto ResolveNetStrokeWidth(bool is_root_net, bool reaches_sink) -> double
 
 }  // namespace
 
-auto CollectBufferMasterSummaries(const std::vector<icts::Inst*>& inserted_insts) -> std::vector<BufferMasterSummary>
+auto CollectBufferMasterSummaries(const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts) -> std::vector<BufferMasterSummary>
 {
   std::map<std::string, std::size_t> master_counts;
-  for (const auto* inst : inserted_insts) {
+  for (const auto& inst_owner : inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || inst->get_cell_master().empty()) {
       continue;
     }
@@ -384,7 +388,8 @@ auto WriteMaterializedNets(std::ofstream& output_stream, const common::visualiza
                            const std::unordered_set<const icts::Pin*>& original_loads, const icts::HTreeBuilder::BuildResult& result)
     -> void
 {
-  for (const auto* net : result.inserted_nets) {
+  for (const auto& net_owner : result.inserted_nets) {
+    const auto* net = net_owner.get();
     if (net == nullptr || net->get_driver() == nullptr) {
       continue;
     }
@@ -442,10 +447,11 @@ auto WriteTopologyNodes(std::ofstream& output_stream, const common::visualizatio
 }
 
 auto WriteBuffers(std::ofstream& output_stream, const common::visualization::detail::SvgTransform& transform,
-                  const std::vector<icts::Inst*>& inserted_insts, const std::unordered_map<std::string, BufferRenderStyle>& buffer_styles)
-    -> void
+                  const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts,
+                  const std::unordered_map<std::string, BufferRenderStyle>& buffer_styles) -> void
 {
-  for (const auto* inst : inserted_insts) {
+  for (const auto& inst_owner : inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || !HasValidLocation(inst->get_location())) {
       continue;
     }

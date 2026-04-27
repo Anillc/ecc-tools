@@ -49,13 +49,11 @@
 
 namespace icts {
 
-using namespace sta_adapter_internal;
-
 auto STAAdapter::createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string
 {
   auto& adapter = getInst();
   LOG_FATAL_IF(!adapter._is_char_only_active) << "Characterization instance creation requires initCharOnly() first.";
-  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
+  auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
   LOG_FATAL_IF(lib_cell == nullptr) << "Failed to create characterization instance " << inst_name << ": liberty cell " << cell_master
                                     << " is not found.";
 
@@ -68,9 +66,9 @@ auto STAAdapter::createCharInstance(const std::string& cell_master, const std::s
     char_inst.addPin(lib_port->get_port_name(), lib_port);
   }
 
-  auto& created_inst = GetStaEngine()->get_netlist()->addInstance(std::move(char_inst));
+  auto& created_inst = sta_adapter_internal::GetStaEngine()->get_netlist()->addInstance(std::move(char_inst));
   ista::StaBuildGraph build_graph;
-  build_graph.buildInst(&(GetStaEngine()->get_ista()->get_graph()), &created_inst);
+  build_graph.buildInst(&(sta_adapter_internal::GetStaEngine()->get_ista()->get_graph()), &created_inst);
   return inst_name;
 }
 
@@ -78,14 +76,14 @@ auto STAAdapter::createCharNet(const std::string& net_name) -> std::string
 {
   auto& adapter = getInst();
   LOG_FATAL_IF(!adapter._is_char_only_active) << "Characterization net creation requires initCharOnly() first.";
-  auto& created_net = GetStaEngine()->get_netlist()->addNet(ista::Net(net_name.c_str()));
+  auto& created_net = sta_adapter_internal::GetStaEngine()->get_netlist()->addNet(ista::Net(net_name.c_str()));
   (void) created_net;
   return net_name;
 }
 
 auto STAAdapter::attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void
 {
-  auto* netlist = GetStaEngine()->get_netlist();
+  auto* netlist = sta_adapter_internal::GetStaEngine()->get_netlist();
   auto* inst = netlist->findInstance(inst_name.c_str());
   LOG_FATAL_IF(inst == nullptr) << "Cannot attach characterization pin because instance is not found: " << inst_name;
   auto* net = netlist->findNet(net_name.c_str());
@@ -98,15 +96,15 @@ auto STAAdapter::attachCharPin(const std::string& inst_name, const std::string& 
 
 auto STAAdapter::buildCharNetGraph(const std::string& net_name) -> void
 {
-  auto* net = GetStaEngine()->get_netlist()->findNet(net_name.c_str());
+  auto* net = sta_adapter_internal::GetStaEngine()->get_netlist()->findNet(net_name.c_str());
   LOG_FATAL_IF(net == nullptr) << "Cannot build characterization graph because net is not found: " << net_name;
   ista::StaBuildGraph build_graph;
-  build_graph.buildNet(&(GetStaEngine()->get_ista()->get_graph()), net);
+  build_graph.buildNet(&(sta_adapter_internal::GetStaEngine()->get_ista()->get_graph()), net);
 }
 
-auto STAAdapter::buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void
+auto STAAdapter::buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap) -> void
 {
-  auto* timing_engine = GetStaEngine();
+  auto* timing_engine = sta_adapter_internal::GetStaEngine();
   auto* net = timing_engine->get_netlist()->findNet(net_name.c_str());
   LOG_FATAL_IF(net == nullptr) << "Characterization net " << net_name << " is not found for RC tree.";
 
@@ -120,21 +118,21 @@ auto STAAdapter::buildCharRcTree(const std::string& net_name, const CharRcTreeCo
   auto load_pins = net->getLoads();
   for (auto* load_pin : load_pins) {
     auto* load_node = timing_engine->makeOrFindRCTreeNode(load_pin);
-    timing_engine->makeResistor(net, driver_node, load_node, rc_tree_config.wire_res);
-    timing_engine->incrCap(driver_node, rc_tree_config.wire_cap / 2.0, true);
-    timing_engine->incrCap(load_node, (rc_tree_config.wire_cap / 2.0) + rc_tree_config.load_cap, true);
+    timing_engine->makeResistor(net, driver_node, load_node, wire_res);
+    timing_engine->incrCap(driver_node, wire_cap / 2.0, true);
+    timing_engine->incrCap(load_node, (wire_cap / 2.0) + load_cap, true);
   }
   timing_engine->updateRCTreeInfo(net);
 }
 
 auto STAAdapter::createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void
 {
-  const auto source_pin_objs = GetStaEngine()->get_netlist()->findPin(source_pin_full_name.c_str(), false, false);
+  const auto source_pin_objs = sta_adapter_internal::GetStaEngine()->get_netlist()->findPin(source_pin_full_name.c_str(), false, false);
   LOG_FATAL_IF(source_pin_objs.empty()) << "Cannot create characterization clock because source pin is not found: " << source_pin_full_name;
   auto* source_pin = dynamic_cast<ista::Pin*>(source_pin_objs.front());
   LOG_FATAL_IF(source_pin == nullptr) << "Cannot create characterization clock because source object is not a pin: "
                                       << source_pin_full_name;
-  auto source_vertex = GetStaEngine()->get_ista()->get_graph().findVertex(source_pin);
+  auto source_vertex = sta_adapter_internal::GetStaEngine()->get_ista()->get_graph().findVertex(source_pin);
   LOG_FATAL_IF(!source_vertex) << "Cannot create characterization clock because source vertex is not found: " << source_pin_full_name;
 
   const int period_ps = static_cast<int>(period_ns * ista::g_ns2ps);
@@ -145,12 +143,12 @@ auto STAAdapter::createCharClock(const std::string& source_pin_full_name, const 
   sta_clock->set_wave_form(std::move(wave_form));
   sta_clock->addVertex(*source_vertex);
 
-  GetStaEngine()->get_ista()->addClock(std::move(sta_clock));
+  sta_adapter_internal::GetStaEngine()->get_ista()->addClock(std::move(sta_clock));
 }
 
 auto STAAdapter::destroyCharClock() -> void
 {
-  GetStaEngine()->get_ista()->clearClocks();
+  sta_adapter_internal::GetStaEngine()->get_ista()->clearClocks();
   getInst().resetCharTimingState();
 }
 
@@ -158,9 +156,10 @@ auto STAAdapter::resetCharContext() -> void
 {
   auto& adapter = getInst();
   adapter.resetStaTransientState();
-  auto* timing_engine = GetStaEngine();
-  timing_engine->set_num_threads(adapter._is_char_only_active ? kCharStaThreadCount : kStaThreadCount);
-  ConfigureStaWorkspace(timing_engine, adapter._is_char_only_active ? "sta_char" : "sta");
+  auto* timing_engine = sta_adapter_internal::GetStaEngine();
+  timing_engine->set_num_threads(adapter._is_char_only_active ? sta_adapter_internal::kCharStaThreadCount
+                                                              : sta_adapter_internal::kStaThreadCount);
+  sta_adapter_internal::ConfigureStaWorkspace(timing_engine, adapter._is_char_only_active ? "sta_char" : "sta");
 }
 
 }  // namespace icts

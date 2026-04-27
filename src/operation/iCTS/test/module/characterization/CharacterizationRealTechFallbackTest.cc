@@ -42,6 +42,7 @@
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"
+#include "database/io/Wrapper.hh"
 #include "module/characterization/CharBuilder.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
 
@@ -125,7 +126,7 @@ TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBuf
   EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
 }
 
-TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAcrossLazyAndPreparedTimingContexts)
+TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAfterExplicitFullTimingRefresh)
 {
   const auto& setup_state = common::realtech::EnsureRealTechSetup();
   if (setup_state.mode != common::realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -149,10 +150,11 @@ TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAcro
   icts::Inst probe_inst(probe->inst_name, probe->cell_master, icts::InstType::kUnknown, icts::Point<int>(-1, -1));
   icts::Pin probe_pin(probe->pin_name, icts::PinType::kIn, icts::Point<int>(-1, -1), &probe_inst);
 
-  STA_ADAPTER_INST.updateTiming();
-  const auto clock_net_pairs = STA_ADAPTER_INST.collectClockNetPairs();
-  ASSERT_FALSE(clock_net_pairs.empty()) << "Real-tech setup should expose at least one clock net after full timing preparation.";
+  const auto clock_net_pairs = WRAPPER_INST.collectClockNetPairs();
+  ASSERT_FALSE(clock_net_pairs.empty()) << "Real-tech setup should expose at least one iDB clock net.";
 
+  STA_ADAPTER_INST.refreshFullDesignTimingContext();
+  STA_ADAPTER_INST.updateTiming();
   const double post_timing_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(&probe_pin);
   EXPECT_GT(post_timing_cap_pf, 0.0);
   const double cap_tolerance_pf = probe->pre_timing_cap_pf * 1e-6 + 1e-6;
@@ -161,7 +163,7 @@ TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAcro
   std::ostringstream report_stream;
   report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
   report_stream << std::setprecision(6);
-  report_stream << "scenario=lazy_pin_cap_probe\n";
+  report_stream << "scenario=explicit_pin_cap_probe\n";
   report_stream << "net_name=" << probe->net_name << "\n";
   report_stream << "is_clock_net=" << (probe->is_clock_net ? "true" : "false") << "\n";
   report_stream << "inst_name=" << probe->inst_name << "\n";
@@ -170,7 +172,7 @@ TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAcro
   report_stream << "pre_timing_cap_pf=" << probe->pre_timing_cap_pf << "\n";
   report_stream << "post_timing_cap_pf=" << post_timing_cap_pf << "\n";
   report_stream << "clock_net_pair_count=" << clock_net_pairs.size() << "\n";
-  ASSERT_TRUE(realtech_support::WriteScenarioLog("lazy_pin_cap_probe", "lazy_pin_cap_probe_report.txt", report_stream.str()));
+  ASSERT_TRUE(realtech_support::WriteScenarioLog("explicit_pin_cap_probe", "explicit_pin_cap_probe_report.txt", report_stream.str()));
 }
 
 TEST(CharacterizationRealTechFallbackTest, TableAxisFallbackMatchesAvailableAssetCoverage)
@@ -393,8 +395,9 @@ TEST(CharacterizationRealTechFallbackTest, RepeatedReducedBuildsRemainUsableWith
   EXPECT_EQ(first_summary.total_entries, second_summary.total_entries);
   EXPECT_EQ(first_summary.max_length_idx, second_summary.max_length_idx);
   EXPECT_EQ(first_summary.max_input_slew_idx, second_summary.max_input_slew_idx);
+  STA_ADAPTER_INST.refreshFullDesignTimingContext();
   STA_ADAPTER_INST.updateTiming();
-  const auto clock_net_pairs = STA_ADAPTER_INST.collectClockNetPairs();
+  const auto clock_net_pairs = WRAPPER_INST.collectClockNetPairs();
   EXPECT_FALSE(clock_net_pairs.empty()) << "Full-design STA should remain usable after repeated char-only builds.";
   EXPECT_EQ(first_summary.max_output_slew_idx, second_summary.max_output_slew_idx);
   EXPECT_EQ(first_summary.max_driven_cap_idx, second_summary.max_driven_cap_idx);

@@ -37,58 +37,22 @@
 #include <utility>
 #include <vector>
 
-#include "Clock.hh"
 #include "Clustering.hh"
 #include "Inst.hh"
 #include "Log.hh"
 #include "Net.hh"
 #include "Pin.hh"
+#include "TopologyConfig.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
+#include "design/Design.hh"
 #include "logger/Schema.hh"
 #include "topology/TopologyGen.hh"
 
 namespace icts {
 namespace {
 
-struct BufferPorts
-{
-  std::string input_pin;
-  std::string output_pin;
-};
-
-struct BufferInstancePins
-{
-  Inst* inst = nullptr;
-  Pin* input_pin = nullptr;
-  Pin* output_pin = nullptr;
-};
-
-struct ResolvedClusterBufferMaster
-{
-  std::string cell_master;
-  BufferPorts buffer_ports;
-};
-
-struct ClusterLeafDistanceSample
-{
-  std::size_t cluster_index = 0;
-  std::size_t sink_count = 0;
-  Point<int> cluster_center = Point<int>(-1, -1);
-  Point<int> leaf_location = Point<int>(-1, -1);
-  int manhattan_distance_dbu = 0;
-};
-
-struct ClusterLeafDistanceSummary
-{
-  std::size_t count = 0;
-  int min_distance_dbu = 0;
-  int max_distance_dbu = 0;
-  double mean_distance_dbu = 0.0;
-  double median_distance_dbu = 0.0;
-};
-
-auto resolveBufferPorts(const std::string& cell_master) -> std::optional<BufferPorts>
+auto resolveBufferPinNames(const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
 {
   if (cell_master.empty()) {
     return std::nullopt;
@@ -100,10 +64,7 @@ auto resolveBufferPorts(const std::string& cell_master) -> std::optional<BufferP
     return std::nullopt;
   }
 
-  return BufferPorts{
-      .input_pin = std::move(input_pin),
-      .output_pin = std::move(output_pin),
-  };
+  return std::make_pair(std::move(input_pin), std::move(output_pin));
 }
 
 auto resolveClusterCenter(const std::vector<Point<int>>& centers, const std::vector<Pin*>& cluster, std::size_t index) -> Point<int>
@@ -130,11 +91,6 @@ auto resolveClusterCenter(const std::vector<Point<int>>& centers, const std::vec
     return Point<int>(0, 0);
   }
   return Point<int>(sum_x / count, sum_y / count);
-}
-
-auto makePinName(const std::string& inst_name, const std::string& port_name) -> std::string
-{
-  return inst_name + "/" + port_name;
 }
 
 auto makeObjectName(const std::string& prefix, const std::string& suffix) -> std::string
@@ -198,151 +154,85 @@ auto resolveBufferDriveCap(const std::string& cell_master) -> double
   return drive_cap_pf;
 }
 
-auto resolveMinLegalClusterBufferMaster() -> std::optional<ResolvedClusterBufferMaster>
+auto resolveMinLegalClusterBufferCell(std::string& cell_master, std::string& input_pin_name, std::string& output_pin_name) -> bool
 {
-  std::optional<ResolvedClusterBufferMaster> resolved_master = std::nullopt;
+  bool has_resolved_master = false;
   double best_drive_cap_pf = std::numeric_limits<double>::infinity();
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
-    if (cell_master.empty()) {
+  for (const auto& candidate_cell_master : CONFIG_INST.get_buffer_types()) {
+    if (candidate_cell_master.empty()) {
       continue;
     }
 
-    const double drive_cap_pf = resolveBufferDriveCap(cell_master);
+    const double drive_cap_pf = resolveBufferDriveCap(candidate_cell_master);
     if (drive_cap_pf <= 0.0) {
-      LOG_WARNING << "ClockSynthesis: skip clustered center buffer master \"" << cell_master
+      LOG_WARNING << "ClockSynthesis: skip clustered center buffer master \"" << candidate_cell_master
                   << "\" because output drive cap is unresolved.";
       continue;
     }
 
-    const auto buffer_ports = resolveBufferPorts(cell_master);
-    if (!buffer_ports.has_value()) {
+    const auto buffer_pin_names = resolveBufferPinNames(candidate_cell_master);
+    if (!buffer_pin_names.has_value()) {
       continue;
     }
 
-    if (!resolved_master.has_value() || drive_cap_pf < best_drive_cap_pf
-        || (drive_cap_pf == best_drive_cap_pf && cell_master < resolved_master->cell_master)) {
-      resolved_master = ResolvedClusterBufferMaster{
-          .cell_master = cell_master,
-          .buffer_ports = *buffer_ports,
-      };
+    if (!has_resolved_master || drive_cap_pf < best_drive_cap_pf
+        || (drive_cap_pf == best_drive_cap_pf && candidate_cell_master < cell_master)) {
+      cell_master = candidate_cell_master;
+      input_pin_name = buffer_pin_names->first;
+      output_pin_name = buffer_pin_names->second;
       best_drive_cap_pf = drive_cap_pf;
+      has_resolved_master = true;
     }
   }
 
-  return resolved_master;
+  return has_resolved_master;
 }
 
 auto createBufferInstance(ClockSynthesis::BuildResult& result, const std::string& inst_name, const std::string& cell_master,
-                          const BufferPorts& buffer_ports, const Point<int>& location) -> BufferInstancePins
+                          const std::string& input_pin_name, const std::string& output_pin_name, const Point<int>& location,
+                          Inst*& inst_ptr, Pin*& input_pin_ptr, Pin*& output_pin_ptr) -> void
 {
   auto inst = std::make_unique<Inst>(inst_name, cell_master, InstType::kBuffer, location);
-  auto* inst_ptr = inst.get();
+  inst_ptr = inst.get();
 
-  auto input_pin = std::make_unique<Pin>(makePinName(inst_name, buffer_ports.input_pin), PinType::kIn, location, inst_ptr, nullptr, false);
-  auto output_pin
-      = std::make_unique<Pin>(makePinName(inst_name, buffer_ports.output_pin), PinType::kOut, location, inst_ptr, nullptr, false);
+  auto input_pin = std::make_unique<Pin>(input_pin_name, PinType::kIn, location, inst_ptr, nullptr, false);
+  input_pin_ptr = input_pin.get();
+  result.inserted_pins.push_back(std::move(input_pin));
 
-  auto* input_pin_ptr = input_pin.get();
-  auto* output_pin_ptr = output_pin.get();
-  inst_ptr->insertDriverPin(output_pin_ptr);
+  auto output_pin = std::make_unique<Pin>(output_pin_name, PinType::kOut, location, inst_ptr, nullptr, false);
+  output_pin_ptr = output_pin.get();
+  result.inserted_pins.push_back(std::move(output_pin));
+
   inst_ptr->add_pin(input_pin_ptr);
+  inst_ptr->insertDriverPin(output_pin_ptr);
 
-  result.inserted_insts.push_back(inst_ptr);
-  result.inserted_pins.push_back(output_pin_ptr);
-  result.inserted_pins.push_back(input_pin_ptr);
+  result.inserted_insts.push_back(std::move(inst));
+}
 
-  result.inst_storage.push_back(std::move(inst));
-  result.pin_storage.push_back(std::move(output_pin));
-  result.pin_storage.push_back(std::move(input_pin));
+auto connectNet(Net& net, Pin* driver, const std::vector<Pin*>& sinks) -> void
+{
+  net.set_driver(driver);
+  if (driver != nullptr) {
+    driver->set_net(&net);
+  }
 
-  return BufferInstancePins{
-      .inst = inst_ptr,
-      .input_pin = input_pin_ptr,
-      .output_pin = output_pin_ptr,
-  };
+  net.set_loads({});
+  for (auto* sink : sinks) {
+    if (sink == nullptr) {
+      continue;
+    }
+    net.add_load(sink);
+    sink->set_net(&net);
+  }
 }
 
 auto createNet(ClockSynthesis::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& sinks) -> Net*
 {
   auto net = std::make_unique<Net>(net_name);
   auto* net_ptr = net.get();
-  net_ptr->set_driver(driver);
-  if (driver != nullptr) {
-    driver->set_net(net_ptr);
-  }
-
-  for (auto* sink : sinks) {
-    if (sink == nullptr) {
-      continue;
-    }
-    net_ptr->add_load(sink);
-    sink->set_net(net_ptr);
-  }
-
-  result.inserted_nets.push_back(net_ptr);
-  result.net_storage.push_back(std::move(net));
+  connectNet(*net_ptr, driver, sinks);
+  result.inserted_nets.push_back(std::move(net));
   return net_ptr;
-}
-
-auto collectClusterLeafDistanceSamples(const ClockSynthesis::BuildResult& result) -> std::vector<ClusterLeafDistanceSample>
-{
-  std::vector<ClusterLeafDistanceSample> samples;
-  samples.reserve(result.cluster_buffers.size());
-  for (const auto& cluster_buffer : result.cluster_buffers) {
-    if (!hasValidLocation(cluster_buffer.location) || cluster_buffer.input_pin == nullptr) {
-      continue;
-    }
-
-    const auto* leaf_net = cluster_buffer.input_pin->get_net();
-    if (leaf_net == nullptr || leaf_net->get_driver() == nullptr) {
-      continue;
-    }
-    const auto leaf_location = findRenderableLocation(leaf_net->get_driver());
-    if (!hasValidLocation(leaf_location)) {
-      continue;
-    }
-
-    samples.push_back(ClusterLeafDistanceSample{
-        .cluster_index = cluster_buffer.cluster_index,
-        .sink_count = cluster_buffer.sink_count,
-        .cluster_center = cluster_buffer.location,
-        .leaf_location = leaf_location,
-        .manhattan_distance_dbu = calcManhattanDistance(cluster_buffer.location, leaf_location),
-    });
-  }
-  return samples;
-}
-
-auto buildClusterLeafDistanceSummary(const std::vector<ClusterLeafDistanceSample>& samples) -> ClusterLeafDistanceSummary
-{
-  ClusterLeafDistanceSummary summary;
-  summary.count = samples.size();
-  if (samples.empty()) {
-    return summary;
-  }
-
-  std::vector<int> distances;
-  distances.reserve(samples.size());
-
-  long long total_distance = 0;
-  for (const auto& sample : samples) {
-    distances.push_back(sample.manhattan_distance_dbu);
-    total_distance += sample.manhattan_distance_dbu;
-  }
-
-  std::ranges::sort(distances);
-  summary.min_distance_dbu = distances.front();
-  summary.max_distance_dbu = distances.back();
-  summary.mean_distance_dbu = static_cast<double>(total_distance) / static_cast<double>(distances.size());
-
-  const std::size_t median_index = distances.size() / 2U;
-  if ((distances.size() % 2U) == 0U) {
-    summary.median_distance_dbu = (static_cast<double>(distances[median_index - 1U]) + static_cast<double>(distances[median_index])) / 2.0;
-  } else {
-    summary.median_distance_dbu = static_cast<double>(distances[median_index]);
-  }
-
-  return summary;
 }
 
 auto resolveDistanceReportPath() -> std::filesystem::path
@@ -370,11 +260,41 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
   constexpr const char* run_title = "iCTS Report";
   constexpr const char* summary_title = "Cluster Center vs H-Tree Leaf Distance Summary";
   constexpr const char* detail_title = "Cluster Center vs H-Tree Leaf Distance Details";
-  const auto samples = collectClusterLeafDistanceSamples(result);
+  std::vector<int> distances;
+  schema::TableRows detail_rows;
+  distances.reserve(result.cluster_buffers.size());
+  detail_rows.reserve(result.cluster_buffers.size());
+
+  long long total_distance = 0;
+  for (const auto& cluster_buffer : result.cluster_buffers) {
+    if (!hasValidLocation(cluster_buffer.location) || cluster_buffer.input_pin == nullptr) {
+      continue;
+    }
+
+    const auto* leaf_net = cluster_buffer.input_pin->get_net();
+    if (leaf_net == nullptr || leaf_net->get_driver() == nullptr) {
+      continue;
+    }
+    const auto leaf_location = findRenderableLocation(leaf_net->get_driver());
+    if (!hasValidLocation(leaf_location)) {
+      continue;
+    }
+
+    const int distance = calcManhattanDistance(cluster_buffer.location, leaf_location);
+    distances.push_back(distance);
+    total_distance += distance;
+    detail_rows.push_back({
+        std::to_string(cluster_buffer.cluster_index),
+        std::to_string(cluster_buffer.sink_count),
+        formatPoint(cluster_buffer.location),
+        formatPoint(leaf_location),
+        std::to_string(distance),
+    });
+  }
 
   auto& schema_writer = SCHEMA_WRITER_INST;
   const bool emit_to_active_writer = schema_writer.isOpen() && schema_writer.getActivePath() == report_path;
-  if (samples.empty()) {
+  if (detail_rows.empty()) {
     const std::vector<std::string> summary_lines = {
         "clustered flow emitted no renderable H-tree leaf locations for distance reporting",
     };
@@ -386,26 +306,19 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
     return;
   }
 
-  const auto summary = buildClusterLeafDistanceSummary(samples);
+  std::ranges::sort(distances);
+  const std::size_t median_index = distances.size() / 2U;
+  const double median_distance
+      = (distances.size() % 2U) == 0U
+            ? (static_cast<double>(distances.at(median_index - 1U)) + static_cast<double>(distances.at(median_index))) / 2.0
+            : static_cast<double>(distances.at(median_index));
   const schema::KeyValueFields summary_fields = {
-      {"count", std::to_string(summary.count)},
-      {"min_distance_dbu", std::to_string(summary.min_distance_dbu)},
-      {"max_distance_dbu", std::to_string(summary.max_distance_dbu)},
-      {"mean_distance_dbu", formatDecimal(summary.mean_distance_dbu)},
-      {"median_distance_dbu", formatDecimal(summary.median_distance_dbu)},
+      {"count", std::to_string(distances.size())},
+      {"min_distance_dbu", std::to_string(distances.front())},
+      {"max_distance_dbu", std::to_string(distances.back())},
+      {"mean_distance_dbu", formatDecimal(static_cast<double>(total_distance) / static_cast<double>(distances.size()))},
+      {"median_distance_dbu", formatDecimal(median_distance)},
   };
-
-  schema::TableRows detail_rows;
-  detail_rows.reserve(samples.size());
-  for (const auto& sample : samples) {
-    detail_rows.push_back({
-        std::to_string(sample.cluster_index),
-        std::to_string(sample.sink_count),
-        formatPoint(sample.cluster_center),
-        formatPoint(sample.leaf_location),
-        std::to_string(sample.manhattan_distance_dbu),
-    });
-  }
 
   if (emit_to_active_writer) {
     schema_writer.emitKeyValueTable(summary_title, summary_fields);
@@ -423,7 +336,6 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
 auto buildHtreeOptions() -> HTreeBuilder::BuildOptions
 {
   HTreeBuilder::BuildOptions htree_options;
-  htree_options.htree_topology_tolerance = CONFIG_INST.get_htree_topology_tolerance();
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
   if (max_buf_tran > 0.0) {
     htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
@@ -431,40 +343,59 @@ auto buildHtreeOptions() -> HTreeBuilder::BuildOptions
   return htree_options;
 }
 
-auto appendHtreeInsertedObjects(ClockSynthesis::BuildResult& result) -> void
+auto buildClusteringConfigFromRuntimeConfig() -> ClusterConfig
 {
-  result.inserted_insts.insert(result.inserted_insts.end(), result.htree_result.inserted_insts.begin(),
-                               result.htree_result.inserted_insts.end());
-  result.inserted_pins.insert(result.inserted_pins.end(), result.htree_result.inserted_pins.begin(),
-                              result.htree_result.inserted_pins.end());
-  result.inserted_nets.insert(result.inserted_nets.end(), result.htree_result.inserted_nets.begin(),
-                              result.htree_result.inserted_nets.end());
+  const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
+  auto clustering_config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
+  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  clustering_config.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  clustering_config.wire_width = CONFIG_INST.get_wire_width();
+  return clustering_config;
 }
 
-auto absorbHtreeOwnedObjects(ClockSynthesis::BuildResult& result) -> void
+auto collectValidLoads(const Net& root_net) -> std::vector<Pin*>
 {
-  result.inst_storage.reserve(result.inst_storage.size() + result.htree_result.inst_storage.size());
-  for (auto& inst : result.htree_result.inst_storage) {
-    result.inst_storage.push_back(std::move(inst));
+  std::vector<Pin*> loads;
+  loads.reserve(root_net.get_loads().size());
+  for (auto* load : root_net.get_loads()) {
+    if (load != nullptr) {
+      loads.push_back(load);
+    }
   }
-  result.htree_result.inst_storage.clear();
+  return loads;
+}
 
-  result.pin_storage.reserve(result.pin_storage.size() + result.htree_result.pin_storage.size());
-  for (auto& pin : result.htree_result.pin_storage) {
-    result.pin_storage.push_back(std::move(pin));
+auto isDesignPin(const Pin* pin) -> bool
+{
+  if (pin == nullptr) {
+    return false;
   }
-  result.htree_result.pin_storage.clear();
 
-  result.net_storage.reserve(result.net_storage.size() + result.htree_result.net_storage.size());
-  for (auto& net : result.htree_result.net_storage) {
-    result.net_storage.push_back(std::move(net));
+  const auto pins = DESIGN_INST.get_pins();
+  return std::ranges::find_if(pins, [pin](const auto* candidate) -> bool { return candidate == pin; }) != pins.end();
+}
+
+template <typename T>
+auto absorbOwnedObjects(std::vector<std::unique_ptr<T>>& target, std::vector<std::unique_ptr<T>>& source) -> void
+{
+  target.reserve(target.size() + source.size());
+  for (auto& object : source) {
+    target.push_back(std::move(object));
   }
-  result.htree_result.net_storage.clear();
+  source.clear();
+}
+
+auto absorbHtreeInsertedObjects(ClockSynthesis::BuildResult& result) -> void
+{
+  absorbOwnedObjects(result.inserted_insts, result.htree_result.inserted_insts);
+  absorbOwnedObjects(result.inserted_pins, result.htree_result.inserted_pins);
+  absorbOwnedObjects(result.inserted_nets, result.htree_result.inserted_nets);
 }
 
 auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const ClusterResult& cluster_result,
-                               const ResolvedClusterBufferMaster& cluster_buffer_master, const std::string& object_name_prefix,
-                               std::vector<Pin*>& htree_sinks) -> bool
+                               const std::string& cluster_buffer_cell_master, const std::string& input_pin_name,
+                               const std::string& output_pin_name, const std::string& object_name_prefix, std::vector<Pin*>& htree_sinks)
+    -> bool
 {
   const auto& clusters = cluster_result.clusters;
   result.cluster_buffers.reserve(clusters.size());
@@ -477,20 +408,24 @@ auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const Cluste
     }
 
     const auto center = resolveClusterCenter(cluster_result.centers, cluster, cluster_index);
-    auto buffer_instance = createBufferInstance(result, makeObjectName(object_name_prefix, "cluster_buf_" + std::to_string(cluster_index)),
-                                                cluster_buffer_master.cell_master, cluster_buffer_master.buffer_ports, center);
+    Inst* cluster_inst = nullptr;
+    Pin* cluster_input_pin = nullptr;
+    Pin* cluster_output_pin = nullptr;
+    createBufferInstance(result, makeObjectName(object_name_prefix, "cluster_buf_" + std::to_string(cluster_index)),
+                         cluster_buffer_cell_master, input_pin_name, output_pin_name, center, cluster_inst, cluster_input_pin,
+                         cluster_output_pin);
     auto* sink_net = createNet(result, makeObjectName(object_name_prefix, "cluster_sink_net_" + std::to_string(cluster_index)),
-                               buffer_instance.output_pin, cluster);
+                               cluster_output_pin, cluster);
     result.cluster_buffers.push_back(ClockSynthesis::ClusterBufferMeta{
         .cluster_index = cluster_index,
         .location = center,
         .sink_count = cluster.size(),
-        .inst = buffer_instance.inst,
-        .input_pin = buffer_instance.input_pin,
-        .output_pin = buffer_instance.output_pin,
+        .inst = cluster_inst,
+        .input_pin = cluster_input_pin,
+        .output_pin = cluster_output_pin,
         .sink_net = sink_net,
     });
-    htree_sinks.push_back(buffer_instance.input_pin);
+    htree_sinks.push_back(cluster_input_pin);
   }
 
   if (!htree_sinks.empty()) {
@@ -504,97 +439,133 @@ auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const Cluste
 
 }  // namespace
 
-auto ClockSynthesis::build(Clock& clock) -> BuildResult
+auto ClockSynthesis::build(Net& root_net) -> BuildResult
 {
-  return build(clock, BuildOptions{});
+  return build(root_net, BuildOptions{});
 }
 
-auto ClockSynthesis::build(Clock& clock, const BuildOptions& options) -> BuildResult
-{
-  clock.clearInsertedCtsObjects();
-  BuildResult result = build(clock.get_clock_source(), clock.get_loads(), options);
-  if (!result.success) {
-    return result;
-  }
-
-  clock.adoptInsertedCtsOwnership(std::move(result.inst_storage), std::move(result.pin_storage), std::move(result.net_storage));
-  for (auto* inst : result.inserted_insts) {
-    if (inst != nullptr) {
-      clock.add_inserted_inst(inst);
-    }
-  }
-  for (auto* net : result.inserted_nets) {
-    if (net != nullptr) {
-      clock.add_inserted_net(net);
-    }
-  }
-  return result;
-}
-
-auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks) -> BuildResult
-{
-  return build(clock_source, sinks, BuildOptions{});
-}
-
-auto ClockSynthesis::build(Pin* clock_source, const std::vector<Pin*>& sinks, const BuildOptions& options) -> BuildResult
+auto ClockSynthesis::build(Net& root_net, const BuildOptions& options) -> BuildResult
 {
   BuildResult result;
-  if (clock_source == nullptr) {
-    LOG_ERROR << "ClockSynthesis: clock source is null.";
-    result.failure_reason = "clock source is null";
+  auto* root_driver = root_net.get_driver();
+  if (root_driver == nullptr) {
+    LOG_ERROR << "ClockSynthesis: root net \"" << root_net.get_name() << "\" driver is null.";
+    result.failure_reason = "root net driver is null";
     return result;
   }
-  if (sinks.empty()) {
-    LOG_WARNING << "ClockSynthesis: sink list is empty.";
-    result.failure_reason = "sink list is empty";
+
+  const auto root_loads = collectValidLoads(root_net);
+  if (root_loads.empty()) {
+    LOG_WARNING << "ClockSynthesis: root net \"" << root_net.get_name() << "\" has no loads.";
+    result.failure_reason = "root net load list is empty";
     return result;
   }
+
+  const auto original_root_loads = root_net.get_loads();
+  std::vector<std::pair<Pin*, Net*>> pin_nets;
+  auto append_pin_net = [&pin_nets](Pin* pin) -> void {
+    if (pin == nullptr) {
+      return;
+    }
+    const auto iter = std::ranges::find_if(pin_nets, [pin](const auto& pin_net) -> bool { return pin_net.first == pin; });
+    if (iter == pin_nets.end()) {
+      pin_nets.emplace_back(pin, pin->get_net());
+    }
+  };
+  append_pin_net(root_driver);
+  for (auto* sink : original_root_loads) {
+    append_pin_net(sink);
+  }
+
+  auto* root_driver_inst = root_driver->get_inst();
+  std::string root_driver_cell_master;
+  std::vector<std::pair<Pin*, std::string>> root_pin_names;
+  if (root_driver_inst != nullptr) {
+    root_driver_cell_master = root_driver_inst->get_cell_master();
+    for (auto* pin : root_driver_inst->get_pins()) {
+      if (pin == nullptr) {
+        continue;
+      }
+      root_pin_names.emplace_back(pin, pin->get_name());
+      append_pin_net(pin);
+    }
+  } else {
+    root_pin_names.emplace_back(root_driver, root_driver->get_name());
+  }
+
+  auto restore_algorithm_side_effects = [&]() -> void {
+    if (root_driver_inst != nullptr) {
+      root_driver_inst->set_cell_master(root_driver_cell_master);
+    }
+    for (const auto& [pin, name] : root_pin_names) {
+      if (pin == nullptr || pin->get_name() == name) {
+        continue;
+      }
+      if (isDesignPin(pin)) {
+        (void) DESIGN_INST.renamePin(pin, name);
+      } else {
+        pin->set_name(name);
+      }
+    }
+
+    connectNet(root_net, root_driver, original_root_loads);
+    for (const auto& [pin, net] : pin_nets) {
+      if (pin != nullptr) {
+        pin->set_net(net);
+      }
+    }
+  };
+
+  connectNet(root_net, root_driver, root_loads);
 
   const bool enable_sink_clustering = options.enable_sink_clustering.value_or(CONFIG_INST.is_enable_sink_clustering());
   result.sink_clustering_enabled = enable_sink_clustering;
 
   std::vector<Pin*> htree_sinks;
-  htree_sinks.reserve(sinks.size());
+  htree_sinks.reserve(root_loads.size());
 
   if (enable_sink_clustering) {
-    const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
-    auto clustering_config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
-    auto cluster_result = TopologyGen::defaultFastClustering(sinks, clustering_config);
+    auto clustering_config = buildClusteringConfigFromRuntimeConfig();
+    auto cluster_result = TopologyGen::defaultFastClustering(root_loads, clustering_config);
     result.cluster_result = std::move(cluster_result);
-    const auto cluster_buffer_master = resolveMinLegalClusterBufferMaster();
-    if (!cluster_buffer_master.has_value()) {
+    std::string cluster_buffer_cell_master;
+    std::string cluster_buffer_input_pin;
+    std::string cluster_buffer_output_pin;
+    if (!resolveMinLegalClusterBufferCell(cluster_buffer_cell_master, cluster_buffer_input_pin, cluster_buffer_output_pin)) {
       LOG_ERROR << "ClockSynthesis: failed to resolve a legal clustered center buffer master from configured buffer_types.";
       result.failure_reason = "failed to resolve clustered center buffer master";
+      restore_algorithm_side_effects();
       return result;
     }
-    if (!materializeClusterBuffers(result, *result.cluster_result, *cluster_buffer_master, options.object_name_prefix, htree_sinks)) {
+    if (!materializeClusterBuffers(result, *result.cluster_result, cluster_buffer_cell_master, cluster_buffer_input_pin,
+                                   cluster_buffer_output_pin, options.object_name_prefix, htree_sinks)) {
+      restore_algorithm_side_effects();
       return result;
     }
+    connectNet(root_net, root_driver, htree_sinks);
   } else {
-    htree_sinks = sinks;
+    htree_sinks = root_loads;
   }
 
   auto htree_options = buildHtreeOptions();
-  result.htree_result = HTreeBuilder::build(htree_sinks, htree_options);
-  appendHtreeInsertedObjects(result);
+  result.htree_result = HTreeBuilder::build(root_net, htree_options);
   if (!result.htree_result.success) {
     const std::string htree_failure
         = result.htree_result.failure_reason.empty() ? "unknown H-tree failure" : result.htree_result.failure_reason;
     LOG_ERROR << "ClockSynthesis: H-tree build failed: " << htree_failure;
     result.failure_reason = "H-tree build failed: " + htree_failure;
+    restore_algorithm_side_effects();
     return result;
   }
-  result.recommended_root_driver_cell_master = result.htree_result.recommended_root_driver_cell_master;
-  absorbHtreeOwnedObjects(result);
+  absorbHtreeInsertedObjects(result);
 
-  if (result.htree_result.root_input_pin == nullptr) {
-    LOG_ERROR << "ClockSynthesis: H-tree root input pin is null after successful build.";
-    result.failure_reason = "H-tree root input pin is null";
+  if (result.htree_result.root_net != &root_net) {
+    LOG_ERROR << "ClockSynthesis: H-tree result root net does not match input root net \"" << root_net.get_name() << "\".";
+    result.failure_reason = "H-tree result root net mismatch";
+    restore_algorithm_side_effects();
     return result;
   }
 
-  result.source_to_root_net = createNet(result, makeObjectName(options.object_name_prefix, "clock_source_to_htree_root"), clock_source,
-                                        std::vector<Pin*>{result.htree_result.root_input_pin});
   if (enable_sink_clustering) {
     emitClusterLeafDistanceTables(result);
   }

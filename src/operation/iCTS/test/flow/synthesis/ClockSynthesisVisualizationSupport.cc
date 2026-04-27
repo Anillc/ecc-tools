@@ -31,6 +31,7 @@
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -173,14 +174,16 @@ auto CollectExtraPoints(const icts::ClockSynthesis::BuildResult& result) -> std:
     extra_points.push_back(node->get_position());
   }
 
-  for (const auto* inst : result.inserted_insts) {
+  for (const auto& inst_owner : result.inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || !HasValidLocation(inst->get_location())) {
       continue;
     }
     extra_points.push_back(inst->get_location());
   }
 
-  for (const auto* pin : result.inserted_pins) {
+  for (const auto& pin_owner : result.inserted_pins) {
+    const auto* pin = pin_owner.get();
     const auto location = FindRenderableLocation(pin);
     if (!HasValidLocation(location)) {
       continue;
@@ -223,10 +226,11 @@ auto ResolveNetStrokeWidth(bool is_root_net, bool reaches_sink) -> double
   return 1.6;
 }
 
-auto CollectBufferMasterSummaries(const std::vector<icts::Inst*>& inserted_insts) -> std::vector<BufferMasterSummary>
+auto CollectBufferMasterSummaries(const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts) -> std::vector<BufferMasterSummary>
 {
   std::map<std::string, std::size_t> master_counts;
-  for (const auto* inst : inserted_insts) {
+  for (const auto& inst_owner : inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || inst->get_cell_master().empty()) {
       continue;
     }
@@ -447,10 +451,18 @@ auto WriteTopologyOverlay(std::ofstream& output_stream, const common::visualizat
 
 auto WriteHtreeMaterializedNets(std::ofstream& output_stream, const common::visualization::detail::SvgTransform& transform,
                                 const std::unordered_set<const icts::Pin*>& terminal_loads,
-                                const icts::HTreeBuilder::BuildResult& htree_result) -> void
+                                const icts::ClockSynthesis::BuildResult& result) -> void
 {
-  for (const auto* net : htree_result.inserted_nets) {
+  const auto& htree_result = result.htree_result;
+  for (const auto& net_owner : result.inserted_nets) {
+    const auto* net = net_owner.get();
     if (net == nullptr || net->get_driver() == nullptr) {
+      continue;
+    }
+    const bool is_cluster_sink_net = std::ranges::any_of(result.cluster_buffers, [net](const auto& cluster_buffer) -> bool {
+      return cluster_buffer.sink_net == net;
+    });
+    if (is_cluster_sink_net) {
       continue;
     }
 
@@ -536,10 +548,11 @@ auto WriteTopologyNodes(std::ofstream& output_stream, const common::visualizatio
 }
 
 auto WriteBuffers(std::ofstream& output_stream, const common::visualization::detail::SvgTransform& transform,
-                  const std::vector<icts::Inst*>& inserted_insts, const std::unordered_map<std::string, BufferRenderStyle>& buffer_styles)
-    -> void
+                  const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts,
+                  const std::unordered_map<std::string, BufferRenderStyle>& buffer_styles) -> void
 {
-  for (const auto* inst : inserted_insts) {
+  for (const auto& inst_owner : inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || !HasValidLocation(inst->get_location())) {
       continue;
     }
@@ -617,7 +630,7 @@ auto WriteSynthesisSvg(const std::filesystem::path& path, const std::vector<icts
   output_stream << common::visualization::detail::kSvgBackgroundRect;
 
   WriteTopologyOverlay(output_stream, transform, result.htree_result.topology);
-  WriteHtreeMaterializedNets(output_stream, transform, htree_terminal_loads, result.htree_result);
+  WriteHtreeMaterializedNets(output_stream, transform, htree_terminal_loads, result);
   WriteSinkLevelNets(output_stream, transform, result);
   WriteTopologyNodes(output_stream, transform, result.htree_result.topology);
   WriteBuffers(output_stream, transform, result.inserted_insts, buffer_styles);
@@ -646,7 +659,7 @@ auto BuildReport(const std::string& scenario_name, const std::string& clock_name
   report << "cluster_buffer_count=" << result.cluster_buffers.size() << "\n";
   report << "sink_level_edge_count=" << sink_level_segments.size() << "\n";
   report << "source_pin=" << (source != nullptr ? source->get_name() : "<null>") << "\n";
-  report << "source_to_root_net=" << (result.source_to_root_net != nullptr ? result.source_to_root_net->get_name() : "<null>") << "\n";
+  report << "root_net=" << (result.htree_result.root_net != nullptr ? result.htree_result.root_net->get_name() : "<null>") << "\n";
   report << "artifacts=cts.log,synthesis_topology.svg,report.log\n";
   report << "output_dir=" << paths.output_dir.string() << "\n";
   return report.str();

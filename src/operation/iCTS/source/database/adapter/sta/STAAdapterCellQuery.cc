@@ -41,13 +41,11 @@
 
 namespace icts {
 
-using namespace sta_adapter_internal;
-
 auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> double
 {
-  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
+  auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    LOG_WARNING << MakeCharQueryContext("output pin cap limit", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("output pin cap limit", cell_master)
                 << " failed: liberty cell not found; caller may fallback to table-axis max.";
     return 0.0;
   }
@@ -56,32 +54,32 @@ auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> doub
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
   if (output == nullptr) {
-    LOG_WARNING << MakeCharQueryContext("output pin cap limit", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("output pin cap limit", cell_master)
                 << " failed: output pin is unavailable; caller may fallback to table-axis max.";
     return 0.0;
   }
 
   auto cap_limit = output->get_port_cap_limit(ista::AnalysisMode::kMax);
   if (!cap_limit.has_value()) {
-    LOG_WARNING << MakeCharQueryContext("output pin cap limit", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("output pin cap limit", cell_master)
                 << " failed: max cap limit is not defined on output pin; caller may fallback to table-axis max.";
     return 0.0;
   }
-  return ConvertLibCapToPf(lib_cell, *cap_limit);
+  return sta_adapter_internal::ConvertLibCapToPf(lib_cell, *cap_limit);
 }
 
 auto STAAdapter::queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double
 {
-  return QueryBufferTableAxisMax(cell_master, "output pin cap table-axis max",
-                                 {ista::LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE,
-                                  ista::LibLutTableTemplate::Variable::EQUAL_OR_OPPOSITE_OUTPUT_NET_CAPACITANCE});
+  return sta_adapter_internal::QueryBufferTableAxisMax(cell_master, "output pin cap table-axis max",
+                                                       {ista::LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE,
+                                                        ista::LibLutTableTemplate::Variable::EQUAL_OR_OPPOSITE_OUTPUT_NET_CAPACITANCE});
 }
 
 auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> double
 {
-  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master.c_str());
+  auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
-    LOG_WARNING << MakeCharQueryContext("input pin slew limit", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("input pin slew limit", cell_master)
                 << " failed: liberty cell not found; caller may fallback to table-axis max.";
     return 0.0;
   }
@@ -90,23 +88,23 @@ auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> doub
   ista::LibPort* output = nullptr;
   lib_cell->bufferPorts(input, output);
   if (input == nullptr) {
-    LOG_WARNING << MakeCharQueryContext("input pin slew limit", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("input pin slew limit", cell_master)
                 << " failed: input pin is unavailable; caller may fallback to table-axis max.";
     return 0.0;
   }
 
   auto slew_limit = input->get_port_slew_limit(ista::AnalysisMode::kMax);
   if (!slew_limit.has_value()) {
-    LOG_WARNING << MakeCharQueryContext("input pin slew limit", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("input pin slew limit", cell_master)
                 << " failed: max slew limit is not defined on input pin; caller may fallback to table-axis max.";
     return 0.0;
   }
-  return ConvertLibTimeToNs(lib_cell, *slew_limit);
+  return sta_adapter_internal::ConvertLibTimeToNs(lib_cell, *slew_limit);
 }
 
 auto STAAdapter::queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double
 {
-  return QueryBufferTableAxisMax(
+  return sta_adapter_internal::QueryBufferTableAxisMax(
       cell_master, "input pin slew table-axis max",
       {ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION, ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION,
        ista::LibLutTableTemplate::Variable::INPUT_TRANSITION_TIME, ista::LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION});
@@ -116,26 +114,51 @@ auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
 {
   auto* idb_layout = dmInst->get_idb_layout();
   if (idb_layout == nullptr || idb_layout->get_cell_master_list() == nullptr || idb_layout->get_units() == nullptr) {
-    LOG_WARNING << MakeCharQueryContext("cell height", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("cell height", cell_master)
                 << " failed: iDB layout metadata is not ready; auto-derived characterization unit may be unavailable.";
     return 0.0;
   }
 
   auto* idb_master = idb_layout->get_cell_master_list()->find_cell_master(cell_master);
   if (idb_master == nullptr) {
-    LOG_WARNING << MakeCharQueryContext("cell height", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("cell height", cell_master)
                 << " failed: iDB cell master is not found; auto-derived characterization unit may be unavailable.";
     return 0.0;
   }
 
   const int dbu_per_micron = idb_layout->get_units()->get_micron_dbu();
   if (dbu_per_micron <= 0) {
-    LOG_WARNING << MakeCharQueryContext("cell height", cell_master)
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("cell height", cell_master)
                 << " failed: invalid DBU-per-micron in iDB units; auto-derived characterization unit may be unavailable.";
     return 0.0;
   }
 
   return static_cast<double>(idb_master->get_height()) / static_cast<double>(dbu_per_micron);
+}
+
+auto STAAdapter::queryCellAreaUm2(const std::string& cell_master) -> double
+{
+  auto* idb_layout = dmInst->get_idb_layout();
+  if (idb_layout == nullptr || idb_layout->get_cell_master_list() == nullptr || idb_layout->get_units() == nullptr) {
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("cell area", cell_master) << " failed: iDB layout metadata is not ready.";
+    return 0.0;
+  }
+
+  auto* idb_master = idb_layout->get_cell_master_list()->find_cell_master(cell_master);
+  if (idb_master == nullptr) {
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("cell area", cell_master) << " failed: iDB cell master is not found.";
+    return 0.0;
+  }
+
+  const int dbu_per_micron = idb_layout->get_units()->get_micron_dbu();
+  if (dbu_per_micron <= 0) {
+    LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("cell area", cell_master) << " failed: invalid DBU-per-micron in iDB units.";
+    return 0.0;
+  }
+
+  const auto dbu_per_micron_double = static_cast<double>(dbu_per_micron);
+  return (static_cast<double>(idb_master->get_width()) * static_cast<double>(idb_master->get_height()))
+         / (dbu_per_micron_double * dbu_per_micron_double);
 }
 
 }  // namespace icts

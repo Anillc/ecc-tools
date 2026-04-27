@@ -39,6 +39,10 @@
 #include "flow/synthesis/ClockSynthesisVisualizationSupport.hh"
 #include "spatial/Tree.hh"
 
+namespace icts {
+class Net;
+}  // namespace icts
+
 namespace icts_test::synthesis_realtech_smoke {
 
 inline constexpr std::size_t kClusteredMinLoadCount = 5U;
@@ -123,6 +127,7 @@ auto FormatClockSynthesisToleranceComparisonReport(std::string_view scenario_nam
 auto WriteClockSynthesisMatrixReport(std::string_view scenario_name, const std::string& file_name, const std::string& content) -> bool;
 auto SelectLargestRealClock(std::size_t max_count, std::size_t min_required_load_count) -> std::optional<RealClockSelection>;
 auto SetEnableSinkClustering(icts::ClockSynthesis::BuildOptions& options, bool enabled) -> void;
+auto ConnectRootNet(icts::Net& root_net, icts::Pin* source, const std::vector<icts::Pin*>& sinks) -> void;
 auto ResolveExpectedMinClusterBufferMaster() -> std::optional<std::string>;
 auto CountNonEmptyClusters(const icts::ClusterResult& cluster_result) -> std::size_t;
 auto CollectClusterBufferInsts(const icts::ClockSynthesis::BuildResult& result) -> std::unordered_set<icts::Inst*>;

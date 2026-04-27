@@ -18,78 +18,70 @@
  * @file Clock.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-01-07
- * @brief Main inputs of CTS
+ * @brief Main inputs and final membership view of one CTS clock
  */
 
 #pragma once
 
-#include <memory>
+#include <algorithm>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "Inst.hh"
-#include "Net.hh"
-#include "Pin.hh"
 namespace icts {
+
+class Inst;
+class Net;
+class Pin;
 
 class Clock
 {
  public:
-  Clock() = default;
   Clock(const std::string& clock_name, const std::string& clock_net_name) : _clock_name(clock_name), _clock_net_name(clock_net_name) {}
-  Clock(const std::string& clock_name, const std::string& clock_net_name, Pin* clock_source, const std::vector<Pin*>& loads)
-      : _clock_name(clock_name), _clock_net_name(clock_net_name), _clock_source(clock_source), _loads(loads)
-  {
-  }
   ~Clock() = default;
 
   // Getter
   auto get_clock_name() const -> const std::string& { return _clock_name; }
   auto get_clock_net_name() const -> const std::string& { return _clock_net_name; }
   auto get_clock_source() const -> Pin* { return _clock_source; }
+  auto get_clock_source_net() const -> Net* { return _clock_source_net; }
   auto get_loads() const -> const std::vector<Pin*>& { return _loads; }
-  auto get_inserted_insts() const -> const std::vector<Inst*>& { return _inserted_insts; }
-  auto get_inserted_nets() const -> const std::vector<Net*>& { return _inserted_nets; }
+  auto get_insts() const -> const std::vector<Inst*>& { return _insts; }
+  auto get_nets() const -> const std::vector<Net*>& { return _nets; }
 
   // Setter
   auto set_clock_name(const std::string& clock_name) -> void { _clock_name = clock_name; }
   auto set_clock_net_name(const std::string& clock_net_name) -> void { _clock_net_name = clock_net_name; }
   auto set_clock_source(Pin* clock_source) -> void { _clock_source = clock_source; }
-  auto set_loads(const std::vector<Pin*>& loads) -> void { _loads = loads; }
+  auto set_clock_source_net(Net* clock_source_net) -> void { _clock_source_net = clock_source_net; }
 
-  // Adder
-  auto add_load(Pin* load) -> void { _loads.push_back(load); }
-  auto add_inserted_inst(Inst* inst) -> void { _inserted_insts.push_back(inst); }
-  auto add_inserted_net(Net* net) -> void { _inserted_nets.push_back(net); }
-  auto adoptInsertedCtsOwnership(std::vector<std::unique_ptr<Inst>> inserted_inst_storage,
-                                 std::vector<std::unique_ptr<Pin>> inserted_pin_storage,
-                                 std::vector<std::unique_ptr<Net>> inserted_net_storage) -> void
+  // Membership helpers.
+  auto add_load(Pin* load) -> void { appendUnique(_loads, load); }
+  auto clear_loads() -> void { _loads.clear(); }
+  auto add_inst(Inst* inst) -> void { appendUnique(_insts, inst); }
+  auto add_net(Net* net) -> void { appendUnique(_nets, net); }
+  auto clearMembership() -> void
   {
-    _inserted_inst_storage = std::move(inserted_inst_storage);
-    _inserted_pin_storage = std::move(inserted_pin_storage);
-    _inserted_net_storage = std::move(inserted_net_storage);
-  }
-  auto clearInsertedCtsObjects() -> void
-  {
-    _inserted_insts.clear();
-    _inserted_nets.clear();
-    _inserted_inst_storage.clear();
-    _inserted_pin_storage.clear();
-    _inserted_net_storage.clear();
+    _insts.clear();
+    _nets.clear();
   }
 
  private:
+  template <typename T>
+  static auto appendUnique(std::vector<T*>& objects, T* object) -> void
+  {
+    if (object == nullptr || std::ranges::find(objects, object) != objects.end()) {
+      return;
+    }
+    objects.push_back(object);
+  }
+
   std::string _clock_name = "";
   std::string _clock_net_name = "";
   Pin* _clock_source = nullptr;
+  Net* _clock_source_net = nullptr;
   std::vector<Pin*> _loads;
-  // CTS Result
-  std::vector<Inst*> _inserted_insts;
-  std::vector<Net*> _inserted_nets;
-  std::vector<std::unique_ptr<Inst>> _inserted_inst_storage;
-  std::vector<std::unique_ptr<Pin>> _inserted_pin_storage;
-  std::vector<std::unique_ptr<Net>> _inserted_net_storage;
+  std::vector<Inst*> _insts;
+  std::vector<Net*> _nets;
 };
 
 }  // namespace icts

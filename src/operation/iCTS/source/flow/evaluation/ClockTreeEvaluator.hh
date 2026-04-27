@@ -15,28 +15,50 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FlowManager.hh
+ * @file ClockTreeEvaluator.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-04-25
- * @brief CTS flow orchestration manager
+ * @date 2026-04-26
+ * @brief CTS clock-tree writeback and evaluation stage.
  */
 
 #pragma once
 
-#include "evaluation/ClockTreeEvaluator.hh"
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace icts {
 
-class FlowManager
+struct ClockTreeSummary
+{
+  struct ClockTiming
+  {
+    std::string clock_name;
+    double setup_tns = 0.0;
+    double setup_wns = 0.0;
+    double hold_tns = 0.0;
+    double hold_wns = 0.0;
+    double suggest_freq = 0.0;
+  };
+
+  int32_t buffer_num = 0;
+  double buffer_area = 0.0;
+  int32_t clock_path_min_buffer = 0;
+  int32_t clock_path_max_buffer = 0;
+  int32_t max_level_of_clock_tree = 0;
+  int32_t max_clock_wirelength = 0;
+  double total_clock_wirelength = 0.0;
+  std::vector<ClockTiming> clocks_timing;
+};
+
+class ClockTreeEvaluator
 {
  public:
-  FlowManager() = delete;
+  ClockTreeEvaluator() = delete;
 
-  static auto readData() -> void;
-  static auto run() -> void;
   static auto evaluate() -> void;
   static auto outputSummary() -> ClockTreeSummary;
-  static auto reset() -> void;
+  static auto resetSummary() -> void;
 };
 
 }  // namespace icts

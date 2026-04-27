@@ -31,6 +31,7 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "Inst.hh"
@@ -41,7 +42,6 @@
 #include "adapter/sta/STAAdapter.hh"
 #include "bound_skew_tree/BSTRouter.hh"
 #include "concurrent_bst_salt/CBSRouter.hh"
-#include "config/Config.hh"
 #include "flute/FLUTERouter.hh"
 #include "io/Wrapper.hh"
 #include "local_legalization/LocalLegalization.hh"
@@ -58,11 +58,7 @@ auto ResolveRoutingLayer(const Router::RCTreeBuildOptions& options) -> int
     return options.routing_layer.value();
   }
 
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  if (routing_layers.empty()) {
-    return 1;
-  }
-  return static_cast<int>(routing_layers.front());
+  return 1;
 }
 
 auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optional<double>
@@ -71,29 +67,22 @@ auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optiona
     return options.wire_width;
   }
 
-  const auto wire_width = CONFIG_INST.get_wire_width();
-  return wire_width > 0.0 ? std::optional<double>{wire_width} : std::nullopt;
+  return std::nullopt;
 }
 
-struct ArcElectrical
-{
-  double resistance = 0.0;
-  double capacitance = 0.0;
-};
-
-auto QueryArcElectrical(int wire_distance_dbu, const Router::RCTreeBuildOptions& options) -> ArcElectrical
+auto QueryArcParasitics(int wire_distance_dbu, const Router::RCTreeBuildOptions& options) -> std::pair<double, double>
 {
   const auto db_unit = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
   const auto wire_length = static_cast<double>(std::max(wire_distance_dbu, 0)) / db_unit;
   if (wire_length <= 0.0) {
-    return {};
+    return {0.0, 0.0};
   }
 
   const auto routing_layer = ResolveRoutingLayer(options);
   const auto wire_width = ResolveWireWidth(options);
   const auto resistance = STA_ADAPTER_INST.queryWireResistance(routing_layer, wire_length, wire_width) / kMilliOhmPerOhm;
   const auto capacitance = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, wire_length, wire_width);
-  return {.resistance = resistance, .capacitance = capacitance};
+  return {resistance, capacitance};
 }
 
 auto ResolveVertexName(const Router::ClockSteinerTreeType::NodeType& node, const Router::RCTreeType& rc_tree) -> std::string
@@ -161,8 +150,8 @@ auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RC
     LOG_FATAL_IF(source_vertex_id == Router::RCTreeType::kInvalidId || sink_vertex_id == Router::RCTreeType::kInvalidId)
         << "Routing edge endpoint is missing during RCTree conversion.";
 
-    auto arc_electrical = QueryArcElectrical(GetWireDistance(edge), options);
-    auto arc_id = rc_tree.addArc(source_vertex_id, sink_vertex_id, arc_electrical.resistance, arc_electrical.capacitance);
+    const auto [arc_resistance, arc_capacitance] = QueryArcParasitics(GetWireDistance(edge), options);
+    auto arc_id = rc_tree.addArc(source_vertex_id, sink_vertex_id, arc_resistance, arc_capacitance);
     LOG_FATAL_IF(arc_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree arc when converting routing tree edge " << edge.id;
   }
 

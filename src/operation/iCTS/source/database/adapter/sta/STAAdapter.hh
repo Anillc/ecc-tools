@@ -33,7 +33,10 @@
 namespace icts {
 
 enum class InstType;
+class Net;
 class Pin;
+template <typename T>
+class ClockSteinerTree;
 
 }  // namespace icts
 
@@ -59,11 +62,13 @@ using IctsCharPowerPtr = std::shared_ptr<ipower::Power>;
 class STAAdapter
 {
  public:
-  struct CharRcTreeConfig
+  struct ClockTimingMetrics
   {
-    double wire_res = 0.0;
-    double wire_cap = 0.0;
-    double load_cap = 0.0;
+    double setup_tns = 0.0;
+    double setup_wns = 0.0;
+    double hold_tns = 0.0;
+    double hold_wns = 0.0;
+    double suggest_freq = 0.0;
   };
   static auto getInst() -> STAAdapter&
   {
@@ -80,8 +85,6 @@ class STAAdapter
   static auto initCharOnly() -> void;
   static auto queryInstType(const std::string& inst_name) -> icts::InstType;
   static auto isFlipFlop(const std::string& inst_name) -> bool;
-  static auto isClockNet(const std::string& net_name) -> bool;
-  static auto collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>;
   static auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
   static auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
   static auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
@@ -89,12 +92,13 @@ class STAAdapter
   static auto queryCellInPinSlewLimit(const std::string& cell_master) -> double;
   static auto queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double;
   static auto queryCellHeightUm(const std::string& cell_master) -> double;
+  static auto queryCellAreaUm2(const std::string& cell_master) -> double;
 
   static auto createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string;
   static auto createCharNet(const std::string& net_name) -> std::string;
   static auto attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void;
   static auto buildCharNetGraph(const std::string& net_name) -> void;
-  static auto buildCharRcTree(const std::string& net_name, const CharRcTreeConfig& rc_tree_config) -> void;
+  static auto buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap) -> void;
   static auto createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void;
   static auto destroyCharClock() -> void;
   static auto resetCharContext() -> void;
@@ -116,6 +120,9 @@ class STAAdapter
   static auto destroyCharPower() -> void;
   static auto finishCharOnly() -> void;
   static auto updateTiming() -> void;
+  static auto refreshFullDesignTimingContext() -> void;
+  static auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
+  static auto installClockNetRcTree(const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
   static auto queryCharClockAT(const std::string& clock_name) -> double;
   static auto queryCharSlew() -> double;
   static auto queryCharInputPinCap(const std::string& cell_master) -> double;
@@ -168,7 +175,6 @@ class STAAdapter
   auto resetCharTimingState() -> void;
   auto resetCharPowerState() -> void;
   auto resetStaTransientState() -> void;
-  auto prepareFullDesignTiming() -> void;
 
   bool _is_char_only_active = false;
   CharTimingState _char_timing_state;

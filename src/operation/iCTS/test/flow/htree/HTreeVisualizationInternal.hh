@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -78,7 +79,7 @@ struct DelayPowerSelectionSummary
 auto FormatSvgNumber(double value) -> std::string;
 auto EscapeXml(const std::string& text) -> std::string;
 auto WriteTooltip(std::ofstream& output_stream, const std::string& text) -> void;
-auto CollectBufferMasterSummaries(const std::vector<icts::Inst*>& inserted_insts) -> std::vector<BufferMasterSummary>;
+auto CollectBufferMasterSummaries(const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts) -> std::vector<BufferMasterSummary>;
 auto BuildDelayPowerPoints(const icts::HTreeBuilder::BuildResult& result) -> std::vector<DelayPowerPoint>;
 auto BuildDelayPowerSelectionSummary(const icts::HTreeBuilder::BuildResult& result) -> std::optional<DelayPowerSelectionSummary>;
 

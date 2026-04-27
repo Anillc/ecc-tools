@@ -99,11 +99,7 @@ auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) ->
     const double wire_cap = STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
 
     const double seg_load = (i == _temp_net_names.size() - 1) ? load_pf : 0.0;
-    STAAdapter::CharRcTreeConfig rc_tree_config;
-    rc_tree_config.wire_res = wire_res;
-    rc_tree_config.wire_cap = wire_cap;
-    rc_tree_config.load_cap = seg_load;
-    STA_ADAPTER_INST.buildCharRcTree(_temp_net_names.at(i), rc_tree_config);
+    STA_ADAPTER_INST.buildCharRcTree(_temp_net_names.at(i), wire_res, wire_cap, seg_load);
   }
 }
 

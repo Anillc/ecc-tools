@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -56,8 +57,14 @@ auto FindLeafLevelPlan(const icts::HTreeBuilder::BuildResult& htree_result) -> c
 
 auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTreeBuilder::BuildResult& htree_result) -> void
 {
-  const std::unordered_set<const icts::Inst*> inserted_insts(htree_result.inserted_insts.begin(), htree_result.inserted_insts.end());
-  for (const auto* inst : htree_result.inserted_insts) {
+  std::unordered_set<const icts::Inst*> inserted_insts;
+  inserted_insts.reserve(htree_result.inserted_insts.size());
+  for (const auto& inst_owner : htree_result.inserted_insts) {
+    inserted_insts.insert(inst_owner.get());
+  }
+
+  for (const auto& inst_owner : htree_result.inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || !inst->is_buffer()) {
       continue;
     }

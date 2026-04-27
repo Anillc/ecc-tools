@@ -18,341 +18,298 @@
  * @file FlowManagerTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-25
- * @brief Lightweight interface and branch-wiring tests for FlowManager.
+ * @brief Lightweight interface and sink-group wiring tests for FlowManager.
  */
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <memory>
-#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "CTSAPI.hh"
+#include "database/config/Config.hh"
 #include "database/design/Clock.hh"
 #include "database/design/Design.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Net.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
+#include "feature_icts.h"
 #include "flow/FlowManager.hh"
+#include "flow/netlist/ClockNetManager.hh"
 
 namespace icts_test {
 namespace {
 
-class ScopedDesignReset
+class ScopedFlowReset
 {
  public:
-  ScopedDesignReset() { DESIGN_INST.reset(); }
-  ~ScopedDesignReset() { DESIGN_INST.reset(); }
+  ScopedFlowReset()
+  {
+    CONFIG_INST.reset();
+    DESIGN_INST.reset();
+    icts::FlowManager::reset();
+  }
+  ~ScopedFlowReset()
+  {
+    CONFIG_INST.reset();
+    DESIGN_INST.reset();
+    icts::FlowManager::reset();
+  }
 };
 
-auto MakeTestOptions() -> icts::FlowManager::RunOptions
+struct TestClockPins
 {
-  icts::FlowManager::RunOptions options;
-  options.branch_root_buffer = icts::FlowManager::BranchRootBufferSpec{
-      .cell_master = "CTS_TEST_BUF",
-      .input_pin = "A",
-      .output_pin = "Y",
-      .output_drive_cap_pf = 1.0,
-  };
-  return options;
+  icts::Clock* clock = nullptr;
+  icts::Net* clock_net = nullptr;
+  icts::Pin* clock_source = nullptr;
+  icts::Pin* macro_sink = nullptr;
+  icts::Pin* regular_sink = nullptr;
+};
+
+auto findInstByNamePart(const std::vector<icts::Inst*>& insts, const std::string& name_part) -> icts::Inst*
+{
+  const auto iter = std::ranges::find_if(
+      insts, [&name_part](const auto* inst) -> bool { return inst != nullptr && inst->get_name().find(name_part) != std::string::npos; });
+  return iter == insts.end() ? nullptr : *iter;
 }
 
-auto MakeFallbackCandidateOptions() -> icts::FlowManager::RunOptions
+auto findNetByNamePart(const std::vector<icts::Net*>& nets, const std::string& name_part) -> icts::Net*
 {
-  icts::FlowManager::RunOptions options;
-  options.branch_root_buffer = icts::FlowManager::BranchRootBufferSpec{
-      .cell_master = "CTS_TEST_SEED_BUF",
-      .input_pin = "I",
-      .output_pin = "Z",
-      .output_drive_cap_pf = std::nullopt,
-  };
-  options.branch_root_buffer_candidates = {
-      icts::FlowManager::BranchRootBufferSpec{
-          .cell_master = "CTS_TEST_BUF_X4",
-          .input_pin = "A4",
-          .output_pin = "Y4",
-          .output_drive_cap_pf = 4.0,
-      },
-      icts::FlowManager::BranchRootBufferSpec{
-          .cell_master = "CTS_TEST_BUF_X1",
-          .input_pin = "A1",
-          .output_pin = "Y1",
-          .output_drive_cap_pf = 1.0,
-      },
-  };
-  return options;
+  const auto iter = std::ranges::find_if(
+      nets, [&name_part](const auto* net) -> bool { return net != nullptr && net->get_name().find(name_part) != std::string::npos; });
+  return iter == nets.end() ? nullptr : *iter;
 }
 
-auto FindBranch(const icts::FlowManager::ClockSummary& clock_summary, icts::FlowManager::BranchKind kind)
-    -> const icts::FlowManager::BranchSummary*
+auto findInputPin(const icts::Inst* inst) -> icts::Pin*
 {
-  const auto iter = std::ranges::find_if(clock_summary.branches, [kind](const auto& branch) -> bool { return branch.kind == kind; });
-  return iter == clock_summary.branches.end() ? nullptr : &(*iter);
+  if (inst == nullptr) {
+    return nullptr;
+  }
+  const auto& pins = inst->get_pins();
+  const auto iter
+      = std::ranges::find_if(pins, [](const auto* pin) -> bool { return pin != nullptr && pin->get_type() == icts::PinType::kIn; });
+  return iter == pins.end() ? nullptr : *iter;
 }
 
-auto ContainsPin(const std::vector<icts::Pin*>& pins, const icts::Pin* pin) -> bool
+auto containsPin(const std::vector<icts::Pin*>& pins, const icts::Pin* pin) -> bool
 {
   return std::ranges::find(pins, pin) != pins.end();
 }
 
+auto makeDesignInst(const std::string& name, const std::string& cell_master, icts::InstType type, const icts::Point<int>& location)
+    -> icts::Inst*
+{
+  auto* inst = DESIGN_INST.makeInst(name);
+  if (inst == nullptr) {
+    return nullptr;
+  }
+  inst->set_name(name);
+  inst->set_cell_master(cell_master);
+  inst->set_type(type);
+  inst->set_location(location);
+  return inst;
+}
+
+auto addOwnedLoad(icts::Clock& clock, icts::Net* clock_net, icts::Inst& inst, const std::string& pin_name) -> icts::Pin*
+{
+  auto* pin = DESIGN_INST.makePin(pin_name);
+  if (pin == nullptr) {
+    return nullptr;
+  }
+  pin->set_name(pin_name);
+  pin->set_type(icts::PinType::kClock);
+  pin->set_location(inst.get_location());
+  pin->set_inst(&inst);
+  pin->set_net(clock_net);
+  pin->set_io(false);
+  clock.add_load(pin);
+  if (clock_net != nullptr) {
+    clock_net->add_load(pin);
+  }
+  inst.add_pin(pin);
+  (void) DESIGN_INST.indexPin(pin);
+  return pin;
+}
+
+auto addClockToDesign(icts::Inst* macro_inst, icts::Inst* regular_inst) -> TestClockPins
+{
+  auto* clock_ptr = DESIGN_INST.makeClock("clk", "clk_net");
+  clock_ptr->set_clock_name("clk");
+  clock_ptr->set_clock_net_name("clk_net");
+  auto* clock_net = DESIGN_INST.makeNet("clk_net");
+  clock_net->set_name("clk_net");
+  clock_net->set_loads({});
+  auto* source = DESIGN_INST.makePin("clk");
+  source->set_name("clk");
+  source->set_type(icts::PinType::kOut);
+  source->set_location(icts::Point<int>(0, 0));
+  source->set_inst(nullptr);
+  source->set_net(clock_net);
+  source->set_io(false);
+  (void) DESIGN_INST.indexPin(source);
+  clock_ptr->set_clock_source_net(clock_net);
+  clock_ptr->set_clock_source(source);
+  clock_net->set_driver(source);
+
+  TestClockPins pins{
+      .clock = clock_ptr,
+      .clock_net = clock_net,
+      .clock_source = source,
+      .macro_sink = nullptr,
+      .regular_sink = nullptr,
+  };
+  if (macro_inst != nullptr) {
+    pins.macro_sink = addOwnedLoad(*clock_ptr, clock_net, *macro_inst, "CLK");
+  }
+  if (regular_inst != nullptr) {
+    pins.regular_sink = addOwnedLoad(*clock_ptr, clock_net, *regular_inst, "CLK");
+  }
+
+  return pins;
+}
+
+auto prepareDirectRootBufferNets(icts::Clock& clock, const std::string& cell_master, const std::string& input_pin_name,
+                                 const std::string& output_pin_name) -> void
+{
+  icts::ClockNetManager::restoreClockSourceNetToClockLoads(clock);
+  DESIGN_INST.removeClockMembershipObjects(clock);
+  clock.clearMembership();
+
+  std::vector<icts::Pin*> macro_sinks;
+  std::vector<icts::Pin*> regular_sinks;
+  icts::ClockNetManager::partitionClockSinks(clock.get_loads(), macro_sinks, regular_sinks);
+
+  std::vector<icts::Pin*> root_inputs;
+
+  auto build_group = [&](const std::string& sink_group, const std::vector<icts::Pin*>& sinks) -> bool {
+    if (sinks.empty()) {
+      return true;
+    }
+    const auto group_prefix = icts::ClockNetManager::makeSinkGroupPrefix(clock, 0U, sink_group);
+    icts::Inst* root_buffer = nullptr;
+    icts::Pin* root_input = nullptr;
+    icts::Pin* root_output = nullptr;
+    if (!icts::ClockNetManager::addRootBufferForSinkGroup(clock, group_prefix, cell_master, input_pin_name, output_pin_name, sinks,
+                                                          root_buffer, root_input, root_output)) {
+      return false;
+    }
+    if (root_input != nullptr) {
+      root_inputs.push_back(root_input);
+    }
+    return icts::ClockNetManager::connectSinkGroupDownstreamNet(clock, group_prefix, root_output, sinks) != nullptr;
+  };
+
+  ASSERT_TRUE(build_group("hard_macro", macro_sinks));
+  ASSERT_TRUE(build_group("regular", regular_sinks));
+  icts::ClockNetManager::reuseClockSourceNetAsSourceToRootBuffers(clock, clock.get_clock_source(), root_inputs);
+}
+
 TEST(FlowManagerTest, EmptyAPIFlowEntryIsCallable)
 {
-  const ScopedDesignReset scoped_design_reset;
+  const ScopedFlowReset scoped_flow_reset;
 
   icts::CTSAPI::ctsFlow();
 }
 
-TEST(FlowManagerTest, MixedMacroAndRegularSingleSinkBranchesUseSeparateDirectNets)
+TEST(FlowManagerTest, MixedMacroAndRegularSingleSinkGroupsUseSeparateDownstreamNets)
 {
-  const ScopedDesignReset scoped_design_reset;
+  const ScopedFlowReset scoped_flow_reset;
 
-  icts::Pin source("top/clk", icts::PinType::kOut, icts::Point<int>(0, 0));
-  icts::Inst macro_inst("macro0", "MACRO_CELL", icts::InstType::kMacroBlock, icts::Point<int>(100, 0));
-  icts::Pin macro_sink("macro0/CLK", icts::PinType::kClock, icts::Point<int>(100, 0), &macro_inst);
-  macro_inst.add_pin(&macro_sink);
+  auto* macro_inst = makeDesignInst("macro0", "MACRO_CELL", icts::InstType::kMacroBlock, icts::Point<int>(100, 0));
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(200, 0));
+  auto pins = addClockToDesign(macro_inst, reg_inst);
 
-  icts::Inst reg_inst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(200, 0));
-  icts::Pin regular_sink("reg0/CLK", icts::PinType::kClock, icts::Point<int>(200, 0), &reg_inst);
-  reg_inst.add_pin(&regular_sink);
+  prepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
-  icts::Net original_net("clk_net");
-  original_net.set_driver(&source);
-  original_net.add_load(&macro_sink);
-  original_net.add_load(&regular_sink);
-  source.set_net(&original_net);
-  macro_sink.set_net(&original_net);
-  regular_sink.set_net(&original_net);
+  ASSERT_NE(pins.clock, nullptr);
+  auto* macro_root = findInstByNamePart(pins.clock->get_insts(), "hard_macro_root_buf");
+  auto* regular_root = findInstByNamePart(pins.clock->get_insts(), "regular_root_buf");
+  ASSERT_NE(macro_root, nullptr);
+  ASSERT_NE(regular_root, nullptr);
+  auto* macro_root_input = findInputPin(macro_root);
+  auto* regular_root_input = findInputPin(regular_root);
+  auto* macro_root_output = macro_root->findDriverPin();
+  auto* regular_root_output = regular_root->findDriverPin();
+  ASSERT_NE(macro_root_input, nullptr);
+  ASSERT_NE(regular_root_input, nullptr);
+  ASSERT_NE(macro_root_output, nullptr);
+  ASSERT_NE(regular_root_output, nullptr);
 
-  auto clock = std::make_unique<icts::Clock>("clk", "clk_net", &source, std::vector<icts::Pin*>{&macro_sink, &regular_sink});
-  auto* clock_ptr = DESIGN_INST.add_clock(std::move(clock));
+  EXPECT_EQ(pins.clock->get_clock_source_net(), pins.clock_net);
+  EXPECT_EQ(pins.clock_net->get_driver(), pins.clock_source);
+  EXPECT_EQ(pins.clock_source->get_net(), pins.clock_net);
+  EXPECT_EQ(pins.clock_net->get_loads().size(), 2U);
+  EXPECT_TRUE(containsPin(pins.clock_net->get_loads(), macro_root_input));
+  EXPECT_TRUE(containsPin(pins.clock_net->get_loads(), regular_root_input));
 
-  const auto summary = icts::FlowManager::run(MakeTestOptions());
-
-  ASSERT_TRUE(summary.success);
-  ASSERT_EQ(summary.total_clocks, 1U);
-  ASSERT_EQ(summary.successful_clocks, 1U);
-  ASSERT_EQ(summary.failed_clocks, 0U);
-  ASSERT_EQ(summary.clocks.size(), 1U);
-  const auto& clock_summary = summary.clocks.front();
-  EXPECT_TRUE(clock_summary.success);
-  EXPECT_EQ(clock_summary.hard_macro_sinks, 1U);
-  EXPECT_EQ(clock_summary.regular_sinks, 1U);
-  ASSERT_EQ(clock_summary.branches.size(), 2U);
-
-  const auto* macro_branch = FindBranch(clock_summary, icts::FlowManager::BranchKind::kHardMacro);
-  const auto* regular_branch = FindBranch(clock_summary, icts::FlowManager::BranchKind::kRegular);
-  ASSERT_NE(macro_branch, nullptr);
-  ASSERT_NE(regular_branch, nullptr);
-
-  EXPECT_TRUE(macro_branch->used_direct_connection);
-  EXPECT_TRUE(regular_branch->used_direct_connection);
-  ASSERT_NE(clock_summary.source_to_branch_roots_net, nullptr);
-  EXPECT_EQ(clock_summary.source_to_branch_roots_net->get_driver(), &source);
-  EXPECT_EQ(source.get_net(), clock_summary.source_to_branch_roots_net);
-  EXPECT_EQ(clock_summary.source_to_branch_roots_net->get_loads().size(), 2U);
-  EXPECT_TRUE(ContainsPin(clock_summary.source_to_branch_roots_net->get_loads(), macro_branch->root_buffer_input_pin));
-  EXPECT_TRUE(ContainsPin(clock_summary.source_to_branch_roots_net->get_loads(), regular_branch->root_buffer_input_pin));
-  EXPECT_EQ(original_net.get_driver(), nullptr);
-  EXPECT_TRUE(original_net.get_loads().empty());
-
-  ASSERT_NE(macro_branch->direct_sink_net, nullptr);
-  ASSERT_NE(regular_branch->direct_sink_net, nullptr);
-  EXPECT_NE(macro_branch->direct_sink_net, regular_branch->direct_sink_net);
-  EXPECT_EQ(macro_sink.get_net(), macro_branch->direct_sink_net);
-  EXPECT_EQ(regular_sink.get_net(), regular_branch->direct_sink_net);
-  EXPECT_EQ(macro_branch->direct_sink_net->get_driver(), macro_branch->root_buffer_output_pin);
-  EXPECT_EQ(regular_branch->direct_sink_net->get_driver(), regular_branch->root_buffer_output_pin);
-  ASSERT_EQ(macro_branch->direct_sink_net->get_loads().size(), 1U);
-  ASSERT_EQ(regular_branch->direct_sink_net->get_loads().size(), 1U);
-  EXPECT_EQ(macro_branch->direct_sink_net->get_loads().front(), &macro_sink);
-  EXPECT_EQ(regular_branch->direct_sink_net->get_loads().front(), &regular_sink);
-
-  ASSERT_NE(clock_ptr, nullptr);
-  EXPECT_EQ(clock_ptr->get_inserted_insts().size(), 2U);
-  EXPECT_EQ(clock_ptr->get_inserted_nets().size(), 3U);
-  EXPECT_NE(clock_ptr->get_inserted_insts().front()->get_name().find("root_buf"), std::string::npos);
+  auto* macro_sink_net = pins.macro_sink->get_net();
+  auto* regular_sink_net = pins.regular_sink->get_net();
+  ASSERT_NE(macro_sink_net, nullptr);
+  ASSERT_NE(regular_sink_net, nullptr);
+  EXPECT_NE(macro_sink_net, regular_sink_net);
+  EXPECT_EQ(macro_sink_net, findNetByNamePart(pins.clock->get_nets(), "hard_macro_downstream_net"));
+  EXPECT_EQ(regular_sink_net, findNetByNamePart(pins.clock->get_nets(), "regular_downstream_net"));
+  EXPECT_EQ(macro_sink_net->get_driver(), macro_root_output);
+  EXPECT_EQ(regular_sink_net->get_driver(), regular_root_output);
+  ASSERT_EQ(macro_sink_net->get_loads().size(), 1U);
+  ASSERT_EQ(regular_sink_net->get_loads().size(), 1U);
+  EXPECT_EQ(macro_sink_net->get_loads().front(), pins.macro_sink);
+  EXPECT_EQ(regular_sink_net->get_loads().front(), pins.regular_sink);
 }
 
-TEST(FlowManagerTest, DirectBranchUsesMinimumDriveFallbackAndKeepsConnectionsAfterResize)
+TEST(FlowManagerTest, RepeatedNetPreparationRestoresClockSourceNetBeforeRebuildingInsertedNets)
 {
-  const ScopedDesignReset scoped_design_reset;
+  const ScopedFlowReset scoped_flow_reset;
 
-  icts::Pin source("top/clk", icts::PinType::kOut, icts::Point<int>(0, 0));
-  icts::Inst reg_inst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
-  icts::Pin regular_sink("reg0/CLK", icts::PinType::kClock, icts::Point<int>(100, 0), &reg_inst);
-  reg_inst.add_pin(&regular_sink);
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  auto pins = addClockToDesign(nullptr, reg_inst);
 
-  icts::Net original_net("clk_net");
-  original_net.set_driver(&source);
-  original_net.add_load(&regular_sink);
-  source.set_net(&original_net);
-  regular_sink.set_net(&original_net);
+  prepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
+  ASSERT_NE(pins.clock, nullptr);
+  EXPECT_NE(pins.regular_sink->get_net(), pins.clock_net);
+  ASSERT_EQ(pins.clock->get_nets().size(), 1U);
+  const auto first_design_inst_count = DESIGN_INST.get_insts().size();
+  const auto first_design_pin_count = DESIGN_INST.get_pins().size();
+  const auto first_design_net_count = DESIGN_INST.get_nets().size();
 
-  auto clock = std::make_unique<icts::Clock>("clk", "clk_net", &source, std::vector<icts::Pin*>{&regular_sink});
-  DESIGN_INST.add_clock(std::move(clock));
+  prepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
+  EXPECT_EQ(DESIGN_INST.get_insts().size(), first_design_inst_count);
+  EXPECT_EQ(DESIGN_INST.get_pins().size(), first_design_pin_count);
+  EXPECT_EQ(DESIGN_INST.get_nets().size(), first_design_net_count);
+  ASSERT_EQ(pins.clock->get_insts().size(), 1U);
+  ASSERT_EQ(pins.clock->get_nets().size(), 1U);
+  auto* root_buffer = pins.clock->get_insts().front();
+  auto* root_input = findInputPin(root_buffer);
+  ASSERT_NE(root_input, nullptr);
 
-  const auto summary = icts::FlowManager::run(MakeFallbackCandidateOptions());
-
-  ASSERT_TRUE(summary.success);
-  ASSERT_EQ(summary.clocks.size(), 1U);
-  const auto& clock_summary = summary.clocks.front();
-  ASSERT_TRUE(clock_summary.success);
-  ASSERT_EQ(clock_summary.branches.size(), 1U);
-  const auto& branch = clock_summary.branches.front();
-
-  ASSERT_TRUE(branch.used_direct_connection);
-  EXPECT_FALSE(branch.used_synthesis);
-  EXPECT_TRUE(branch.used_minimum_drive_root_driver);
-  EXPECT_FALSE(branch.used_recommended_root_driver);
-  ASSERT_NE(branch.root_buffer_inst, nullptr);
-  ASSERT_NE(branch.root_buffer_input_pin, nullptr);
-  ASSERT_NE(branch.root_buffer_output_pin, nullptr);
-  ASSERT_NE(branch.direct_sink_net, nullptr);
-
-  EXPECT_EQ(branch.root_buffer_cell_master, "CTS_TEST_BUF_X1");
-  EXPECT_EQ(branch.root_buffer_inst->get_cell_master(), "CTS_TEST_BUF_X1");
-  EXPECT_EQ(branch.root_buffer_input_pin->get_name(), branch.root_buffer_inst->get_name() + "/A1");
-  EXPECT_EQ(branch.root_buffer_output_pin->get_name(), branch.root_buffer_inst->get_name() + "/Y1");
-  EXPECT_EQ(branch.direct_sink_net->get_driver(), branch.root_buffer_output_pin);
-  EXPECT_EQ(branch.root_buffer_output_pin->get_net(), branch.direct_sink_net);
-  EXPECT_EQ(regular_sink.get_net(), branch.direct_sink_net);
-
-  ASSERT_NE(clock_summary.source_to_branch_roots_net, nullptr);
-  EXPECT_EQ(clock_summary.source_to_branch_roots_net->get_driver(), &source);
-  EXPECT_EQ(branch.root_buffer_input_pin->get_net(), clock_summary.source_to_branch_roots_net);
-  EXPECT_TRUE(ContainsPin(clock_summary.source_to_branch_roots_net->get_loads(), branch.root_buffer_input_pin));
+  ASSERT_NE(pins.clock->get_clock_source_net(), nullptr);
+  EXPECT_EQ(pins.clock->get_clock_source_net(), pins.clock_net);
+  EXPECT_EQ(pins.clock_net->get_driver(), pins.clock_source);
+  ASSERT_EQ(pins.clock_net->get_loads().size(), 1U);
+  EXPECT_EQ(pins.clock_net->get_loads().front(), root_input);
+  ASSERT_NE(pins.regular_sink->get_net(), nullptr);
+  EXPECT_EQ(pins.regular_sink->get_net(), pins.clock->get_nets().front());
+  EXPECT_EQ(pins.regular_sink->get_net()->get_loads().front(), pins.regular_sink);
 }
 
-TEST(FlowManagerTest, SyntheticSynthesisRecommendationResizesBranchRootBuffer)
+TEST(FlowManagerTest, ResetAPIClearsEvaluationSummary)
 {
-  const ScopedDesignReset scoped_design_reset;
+  const ScopedFlowReset scoped_flow_reset;
 
-  icts::Pin source("top/clk", icts::PinType::kOut, icts::Point<int>(0, 0));
-  icts::Inst reg_inst0("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
-  icts::Pin sink0("reg0/CLK", icts::PinType::kClock, icts::Point<int>(100, 0), &reg_inst0);
-  reg_inst0.add_pin(&sink0);
-  icts::Inst reg_inst1("reg1", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(200, 0));
-  icts::Pin sink1("reg1/CLK", icts::PinType::kClock, icts::Point<int>(200, 0), &reg_inst1);
-  reg_inst1.add_pin(&sink1);
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  auto pins = addClockToDesign(nullptr, reg_inst);
+  prepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
-  icts::Net original_net("clk_net");
-  original_net.set_driver(&source);
-  original_net.add_load(&sink0);
-  original_net.add_load(&sink1);
-  source.set_net(&original_net);
-  sink0.set_net(&original_net);
-  sink1.set_net(&original_net);
+  icts::FlowManager::evaluate();
+  EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 1);
 
-  auto clock = std::make_unique<icts::Clock>("clk", "clk_net", &source, std::vector<icts::Pin*>{&sink0, &sink1});
-  DESIGN_INST.add_clock(std::move(clock));
-
-  auto options = MakeFallbackCandidateOptions();
-  options.branch_synthesis_override = icts::FlowManager::BranchSynthesisOverride{
-      .success = true,
-      .failure_reason = "",
-      .recommended_root_driver = icts::FlowManager::BranchRootBufferSpec{
-          .cell_master = "CTS_TEST_HTREE_REC_BUF",
-          .input_pin = "REC_A",
-          .output_pin = "REC_Y",
-          .output_drive_cap_pf = 8.0,
-      },
-  };
-
-  const auto summary = icts::FlowManager::run(options);
-
-  ASSERT_TRUE(summary.success);
-  ASSERT_EQ(summary.clocks.size(), 1U);
-  const auto& clock_summary = summary.clocks.front();
-  ASSERT_TRUE(clock_summary.success);
-  ASSERT_EQ(clock_summary.branches.size(), 1U);
-  const auto& branch = clock_summary.branches.front();
-
-  EXPECT_TRUE(branch.used_synthesis);
-  EXPECT_FALSE(branch.used_direct_connection);
-  EXPECT_TRUE(branch.used_recommended_root_driver);
-  EXPECT_FALSE(branch.used_minimum_drive_root_driver);
-  ASSERT_NE(branch.root_buffer_inst, nullptr);
-  ASSERT_NE(branch.root_buffer_input_pin, nullptr);
-  ASSERT_NE(branch.root_buffer_output_pin, nullptr);
-  ASSERT_NE(branch.synthesis_source_to_root_net, nullptr);
-
-  EXPECT_EQ(branch.root_buffer_cell_master, "CTS_TEST_HTREE_REC_BUF");
-  EXPECT_EQ(branch.root_buffer_inst->get_cell_master(), "CTS_TEST_HTREE_REC_BUF");
-  EXPECT_EQ(branch.root_buffer_input_pin->get_name(), branch.root_buffer_inst->get_name() + "/REC_A");
-  EXPECT_EQ(branch.root_buffer_output_pin->get_name(), branch.root_buffer_inst->get_name() + "/REC_Y");
-  EXPECT_EQ(branch.synthesis_source_to_root_net->get_driver(), branch.root_buffer_output_pin);
-  EXPECT_EQ(branch.root_buffer_output_pin->get_net(), branch.synthesis_source_to_root_net);
-  EXPECT_NE(sink0.get_net(), &original_net);
-  EXPECT_NE(sink1.get_net(), &original_net);
-  EXPECT_EQ(sink0.get_net(), sink1.get_net());
-
-  ASSERT_NE(clock_summary.source_to_branch_roots_net, nullptr);
-  EXPECT_EQ(clock_summary.source_to_branch_roots_net->get_driver(), &source);
-  EXPECT_EQ(branch.root_buffer_input_pin->get_net(), clock_summary.source_to_branch_roots_net);
-  EXPECT_TRUE(ContainsPin(clock_summary.source_to_branch_roots_net->get_loads(), branch.root_buffer_input_pin));
-}
-
-TEST(FlowManagerTest, SyntheticSynthesisWithoutUsableRecommendationUsesMinimumDriveFallback)
-{
-  const ScopedDesignReset scoped_design_reset;
-
-  icts::Pin source("top/clk", icts::PinType::kOut, icts::Point<int>(0, 0));
-  icts::Inst reg_inst0("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
-  icts::Pin sink0("reg0/CLK", icts::PinType::kClock, icts::Point<int>(100, 0), &reg_inst0);
-  reg_inst0.add_pin(&sink0);
-  icts::Inst reg_inst1("reg1", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(200, 0));
-  icts::Pin sink1("reg1/CLK", icts::PinType::kClock, icts::Point<int>(200, 0), &reg_inst1);
-  reg_inst1.add_pin(&sink1);
-
-  icts::Net original_net("clk_net");
-  original_net.set_driver(&source);
-  original_net.add_load(&sink0);
-  original_net.add_load(&sink1);
-  source.set_net(&original_net);
-  sink0.set_net(&original_net);
-  sink1.set_net(&original_net);
-
-  auto clock = std::make_unique<icts::Clock>("clk", "clk_net", &source, std::vector<icts::Pin*>{&sink0, &sink1});
-  DESIGN_INST.add_clock(std::move(clock));
-
-  auto options = MakeFallbackCandidateOptions();
-  options.branch_synthesis_override = icts::FlowManager::BranchSynthesisOverride{
-      .success = true,
-      .failure_reason = "",
-      .recommended_root_driver = std::nullopt,
-  };
-
-  const auto summary = icts::FlowManager::run(options);
-
-  ASSERT_TRUE(summary.success);
-  ASSERT_EQ(summary.clocks.size(), 1U);
-  const auto& clock_summary = summary.clocks.front();
-  ASSERT_TRUE(clock_summary.success);
-  ASSERT_EQ(clock_summary.branches.size(), 1U);
-  const auto& branch = clock_summary.branches.front();
-
-  EXPECT_TRUE(branch.used_synthesis);
-  EXPECT_FALSE(branch.used_direct_connection);
-  EXPECT_FALSE(branch.used_recommended_root_driver);
-  EXPECT_TRUE(branch.used_minimum_drive_root_driver);
-  ASSERT_NE(branch.root_buffer_inst, nullptr);
-  ASSERT_NE(branch.root_buffer_input_pin, nullptr);
-  ASSERT_NE(branch.root_buffer_output_pin, nullptr);
-  ASSERT_NE(branch.synthesis_source_to_root_net, nullptr);
-
-  EXPECT_EQ(branch.root_buffer_cell_master, "CTS_TEST_BUF_X1");
-  EXPECT_EQ(branch.root_buffer_inst->get_cell_master(), "CTS_TEST_BUF_X1");
-  EXPECT_EQ(branch.root_buffer_input_pin->get_name(), branch.root_buffer_inst->get_name() + "/A1");
-  EXPECT_EQ(branch.root_buffer_output_pin->get_name(), branch.root_buffer_inst->get_name() + "/Y1");
-  EXPECT_EQ(branch.synthesis_source_to_root_net->get_driver(), branch.root_buffer_output_pin);
-  EXPECT_EQ(branch.root_buffer_output_pin->get_net(), branch.synthesis_source_to_root_net);
-  EXPECT_NE(sink0.get_net(), &original_net);
-  EXPECT_NE(sink1.get_net(), &original_net);
-  EXPECT_EQ(sink0.get_net(), sink1.get_net());
+  icts::CTSAPI::resetAPI();
+  const auto summary = icts::CTSAPI::outputSummary();
+  EXPECT_EQ(summary.buffer_num, 0);
+  EXPECT_EQ(summary.clock_path_max_buffer, 0);
+  EXPECT_TRUE(summary.clocks_timing.empty());
 }
 
 }  // namespace

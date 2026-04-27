@@ -24,7 +24,6 @@
 #include <algorithm>
 #include <compare>
 #include <filesystem>
-#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -209,7 +208,11 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
     loaded.error = "no CTS load net candidate found";
     return loaded;
   }
-  DESIGN_INST.add_clock(std::make_unique<icts::Clock>("benchmark_" + clock_candidate->net_name, clock_candidate->net_name));
+  auto* clock = DESIGN_INST.makeClock("benchmark_" + clock_candidate->net_name, clock_candidate->net_name);
+  if (clock != nullptr) {
+    clock->set_clock_name("benchmark_" + clock_candidate->net_name);
+    clock->set_clock_net_name(clock_candidate->net_name);
+  }
   WRAPPER_INST.reset();
   WRAPPER_INST.init(idb_builder);
   WRAPPER_INST.read();

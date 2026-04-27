@@ -43,8 +43,6 @@
 
 namespace icts {
 
-using namespace sta_adapter_internal;
-
 auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name, const std::string& output_pin_full_name,
                                           const std::string& sink_pin_full_name) -> void
 {
@@ -52,14 +50,14 @@ auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name
   adapter.resetCharTimingState();
 
   auto& runtime = adapter._char_timing_state;
-  auto* netlist = GetStaEngine()->get_netlist();
+  auto* netlist = sta_adapter_internal::GetStaEngine()->get_netlist();
   auto source_input_match = netlist->findPin(input_pin_full_name.c_str(), false, false);
   auto source_output_match = netlist->findPin(output_pin_full_name.c_str(), false, false);
   runtime.source_input_pin = source_input_match.empty() ? nullptr : dynamic_cast<ista::Pin*>(source_input_match.front());
   runtime.source_output_pin = source_output_match.empty() ? nullptr : dynamic_cast<ista::Pin*>(source_output_match.front());
-  runtime.source_input_vertex = FindStaVertex(input_pin_full_name);
-  runtime.source_output_vertex = FindStaVertex(output_pin_full_name);
-  runtime.sink_vertex = FindStaVertex(sink_pin_full_name);
+  runtime.source_input_vertex = sta_adapter_internal::FindStaVertex(input_pin_full_name);
+  runtime.source_output_vertex = sta_adapter_internal::FindStaVertex(output_pin_full_name);
+  runtime.sink_vertex = sta_adapter_internal::FindStaVertex(sink_pin_full_name);
 
   LOG_FATAL_IF(runtime.source_input_pin == nullptr) << "Cannot find source input pin: " << input_pin_full_name;
   LOG_FATAL_IF(runtime.source_output_pin == nullptr) << "Cannot find source output pin: " << output_pin_full_name;
@@ -75,7 +73,7 @@ auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name
   runtime.source_lib_cell = runtime.source_inst->get_inst_cell();
   LOG_FATAL_IF(runtime.source_lib_cell == nullptr) << "Source instance has no liberty cell: " << runtime.source_inst->get_name();
 
-  auto timing_arc_set = FindBufferArcSet(runtime.source_lib_cell);
+  auto timing_arc_set = sta_adapter_internal::FindBufferArcSet(runtime.source_lib_cell);
   runtime.source_arc_set = timing_arc_set.value_or(nullptr);
   LOG_FATAL_IF(runtime.source_arc_set == nullptr || runtime.source_arc_set->get_arcs().empty())
       << "Cannot resolve buffer timing arc for source instance " << runtime.source_inst->get_name();
@@ -88,7 +86,7 @@ auto STAAdapter::prepareCharTimingContext(const std::string& input_pin_full_name
 
 auto STAAdapter::prepareCharTimingSample() -> void
 {
-  GetStaEngine()->prepareCharTiming();
+  sta_adapter_internal::GetStaEngine()->prepareCharTiming();
 }
 
 auto STAAdapter::setCharBufferInputSlew(double slew_ns) -> void
@@ -106,8 +104,9 @@ auto STAAdapter::setCharBufferInputSlew(double slew_ns) -> void
   runtime.source_input_vertex->resetClockBucket();
   runtime.source_input_vertex->resetPathDelayBucket();
   runtime.source_output_vertex->resetSlewBucket();
-  ApplyCharBufferInputSlew(runtime.source_input_vertex, runtime.source_output_pin, runtime.source_output_vertex, runtime.source_inst,
-                           runtime.source_lib_cell, runtime.source_arc_set, runtime.source_lib_arc, slew_ns);
+  sta_adapter_internal::ApplyCharBufferInputSlew(runtime.source_input_vertex, runtime.source_output_pin, runtime.source_output_vertex,
+                                                 runtime.source_inst, runtime.source_lib_cell, runtime.source_arc_set,
+                                                 runtime.source_lib_arc, slew_ns);
 }
 
 auto STAAdapter::setCharBufferInputSlewIncremental(double slew_ns) -> void
@@ -115,20 +114,20 @@ auto STAAdapter::setCharBufferInputSlewIncremental(double slew_ns) -> void
   auto& adapter = getInst();
   auto& runtime = adapter._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental slew injection.";
-  GetStaEngine()->prepareCharTiming();
+  sta_adapter_internal::GetStaEngine()->prepareCharTiming();
   setCharBufferInputSlew(slew_ns);
 }
 
 auto STAAdapter::updateCharTimingSample() -> void
 {
-  GetStaEngine()->updateCharTiming();
+  sta_adapter_internal::GetStaEngine()->updateCharTiming();
 }
 
 auto STAAdapter::updateCharTimingIncrementalSample() -> void
 {
   auto& runtime = getInst()._char_timing_state;
   LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before incremental propagation.";
-  GetStaEngine()->updateCharTiming();
+  sta_adapter_internal::GetStaEngine()->updateCharTiming();
 }
 
 }  // namespace icts

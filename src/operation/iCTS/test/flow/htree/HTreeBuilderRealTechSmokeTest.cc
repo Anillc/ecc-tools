@@ -33,6 +33,7 @@
 
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
+#include "Net.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "common/logging/ScopedLogFile.hh"
@@ -95,7 +96,11 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
                                                                    {"load_count", std::to_string(real_loads.size())},
                                                                });
 
-  auto result = icts::HTreeBuilder::build(real_loads);
+  icts::Pin root_driver("htree_smoke_root_out", icts::PinType::kOut);
+  icts::Net root_net("htree_smoke_root_net");
+  ConnectRootNetForHTreeTest(root_net, root_driver, real_loads);
+
+  auto result = icts::HTreeBuilder::build(root_net);
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.failure_reason.empty());
@@ -114,9 +119,9 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   ASSERT_NE(best_pattern, nullptr);
   ASSERT_EQ(best_pattern->get_levels(), result.levels.size());
   ASSERT_EQ(best_pattern->get_level_segment_pattern_ids().size(), result.levels.size());
-  ASSERT_NE(result.root_input_pin, nullptr);
+  ASSERT_EQ(result.root_net, &root_net);
   ASSERT_NE(result.root_output_pin, nullptr);
-  EXPECT_NE(result.root_input_pin, result.root_output_pin);
+  EXPECT_EQ(result.root_output_pin, &root_driver);
   EXPECT_FALSE(result.inserted_pins.empty());
   EXPECT_FALSE(result.inserted_nets.empty());
   AssertNoSingleLoadExternalLeafBuffer(result);

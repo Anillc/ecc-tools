@@ -36,6 +36,7 @@
 #include "flow/htree/HTreeBuilder.hh"
 
 namespace icts {
+class Net;
 class Tree;
 }  // namespace icts
 
@@ -99,6 +100,7 @@ auto ReadEnvFlag(std::string_view env_name) -> bool;
 auto FormatArm9ExperimentReport(std::string_view scenario_name, const std::string& clock_name, std::size_t load_count,
                                 bool omit_wire_length_unit, const std::vector<Arm9ExperimentRecord>& records) -> std::string;
 auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_count) -> std::vector<icts::Pin*>;
+auto ConnectRootNetForHTreeTest(icts::Net& root_net, icts::Pin& root_driver, const std::vector<icts::Pin*>& loads) -> void;
 auto SelectLargestRealClockLoads(std::size_t max_count) -> std::optional<RealClockLoadSelection>;
 auto CountPinsWithRealContext(const std::vector<icts::Pin*>& loads) -> std::size_t;
 auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pin*>;

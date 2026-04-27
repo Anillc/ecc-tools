@@ -38,8 +38,6 @@
 
 namespace icts {
 
-class Clock;
-
 class ClockSynthesis
 {
  public:
@@ -67,27 +65,18 @@ class ClockSynthesis
     bool sink_clustering_enabled = false;
 
     HTreeBuilder::BuildResult htree_result;
-    std::string recommended_root_driver_cell_master;
     std::optional<ClusterResult> cluster_result = std::nullopt;
     std::vector<ClusterBufferMeta> cluster_buffers;
 
-    std::vector<std::unique_ptr<Inst>> inst_storage;
-    std::vector<std::unique_ptr<Pin>> pin_storage;
-    std::vector<std::unique_ptr<Net>> net_storage;
-
-    std::vector<Inst*> inserted_insts;
-    std::vector<Pin*> inserted_pins;
-    std::vector<Net*> inserted_nets;
-    Net* source_to_root_net = nullptr;
+    std::vector<std::unique_ptr<Inst>> inserted_insts;
+    std::vector<std::unique_ptr<Pin>> inserted_pins;
+    std::vector<std::unique_ptr<Net>> inserted_nets;
   };
 
-  ClockSynthesis() = default;
-  ~ClockSynthesis() = default;
+  ClockSynthesis() = delete;
 
-  static auto build(Clock& clock) -> BuildResult;
-  static auto build(Clock& clock, const BuildOptions& options) -> BuildResult;
-  static auto build(Pin* clock_source, const std::vector<Pin*>& sinks) -> BuildResult;
-  static auto build(Pin* clock_source, const std::vector<Pin*>& sinks, const BuildOptions& options) -> BuildResult;
+  static auto build(Net& root_net) -> BuildResult;
+  static auto build(Net& root_net, const BuildOptions& options) -> BuildResult;
 };
 
 }  // namespace icts

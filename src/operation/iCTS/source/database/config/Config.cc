@@ -305,7 +305,7 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
       {"enable_sink_clustering", logformat::FormatBool(is_enable_sink_clustering()),
        is_enable_sink_clustering() ? "run sink linear clustering before H-tree synthesis" : "build H-tree directly on original sinks"},
       {"use_netlist", logformat::FormatBool(is_use_netlist()),
-       is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs collected from STA"},
+       is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs collected from iDB"},
   };
 }
 

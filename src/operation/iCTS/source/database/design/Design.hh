@@ -25,7 +25,12 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include "Inst.hh"
+#include "Net.hh"
+#include "Pin.hh"
 
 namespace icts {
 
@@ -53,19 +58,45 @@ class Design
 
   // Getter
   auto get_clocks() const -> std::vector<Clock*>;
-
-  // Setter
-  auto set_clocks(std::vector<std::unique_ptr<Clock>> clocks) -> void;
+  auto get_insts() const -> std::vector<Inst*>;
+  auto get_pins() const -> std::vector<Pin*>;
+  auto get_nets() const -> std::vector<Net*>;
 
   // Adder
-  auto add_clock(std::unique_ptr<Clock> clock) -> Clock*;
+  auto makeClock(const std::string& clock_name, const std::string& clock_net_name) -> Clock*;
+  auto findClock(const std::string& clock_name, const std::string& clock_net_name) const -> Clock*;
+  auto makeInst(const std::string& name) -> Inst*;
+  auto commitInst(std::unique_ptr<Inst> inst) -> Inst*;
+  auto findInst(const std::string& name) const -> Inst*;
+  auto makePin(const std::string& name) -> Pin*;
+  auto commitPin(std::unique_ptr<Pin> pin) -> Pin*;
+  auto indexPin(Pin* pin) -> bool;
+  auto findPin(const std::string& pin_full_name) const -> Pin*;
+  auto renamePin(Pin* pin, const std::string& name) -> bool;
+  auto makeNet(const std::string& name) -> Net*;
+  auto commitNet(std::unique_ptr<Net> net) -> Net*;
+  auto findNet(const std::string& name) const -> Net*;
+  auto clearClocks() -> void;
+  auto clearTopologyObjects() -> void;
+  auto removeClockMembershipObjects(Clock& clock) -> void;
   auto emitClockDistributionSummary(const std::string& title = "Clock Distribution Summary") const -> void;
+  static auto getPinFullName(const Pin* pin) -> std::string;
 
  private:
   Design();
   ~Design();
 
+  auto removeInst(Inst* inst) -> void;
+  auto removePin(Pin* pin) -> void;
+  auto removeNet(Net* net) -> void;
+
   std::vector<std::unique_ptr<Clock>> _clocks;
+  std::vector<std::unique_ptr<Inst>> _insts;
+  std::vector<std::unique_ptr<Pin>> _pins;
+  std::vector<std::unique_ptr<Net>> _nets;
+  std::unordered_map<std::string, Inst*> _inst_by_name;
+  std::unordered_map<std::string, Pin*> _pin_by_full_name;
+  std::unordered_map<std::string, Net*> _net_by_name;
 };
 
 }  // namespace icts

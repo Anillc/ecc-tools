@@ -47,7 +47,7 @@ namespace {
 
 namespace common_realtech = common::realtech;
 namespace realtech_support = characterization::realtech;
-using namespace synthesis_realtech_smoke;
+namespace smoke = synthesis_realtech_smoke;
 
 TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUsesUnrestrictedHTreeFrontier)
 {
@@ -57,7 +57,7 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
     return;
   }
 
-  const auto selected_clock = SelectLargestRealClock(std::numeric_limits<std::size_t>::max(), 2U);
+  const auto selected_clock = smoke::SelectLargestRealClock(std::numeric_limits<std::size_t>::max(), 2U);
   if (!selected_clock.has_value()) {
     GTEST_SKIP() << "No DEF-derived clock net exposes source plus at least two sinks.";
     return;
@@ -65,8 +65,8 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
   const auto& selected_clock_data = selected_clock.value();
 
   realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error
-      = char_session.prepare("clock_synthesis_non_clustered_smoke", std::nullopt, kSynthesisSmokeMaxSlewNs, kSynthesisSmokeMaxCapPf, true);
+  if (const auto prepare_error = char_session.prepare("clock_synthesis_non_clustered_smoke", std::nullopt, smoke::kSynthesisSmokeMaxSlewNs,
+                                                      smoke::kSynthesisSmokeMaxCapPf, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -89,8 +89,10 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
                                        });
 
   icts::ClockSynthesis::BuildOptions options;
-  SetEnableSinkClustering(options, false);
-  const auto result = icts::ClockSynthesis::build(selected_clock_data.source, selected_clock_data.sinks, options);
+  smoke::SetEnableSinkClustering(options, false);
+  icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_non_clustered");
+  smoke::ConnectRootNet(root_net, selected_clock_data.source, selected_clock_data.sinks);
+  const auto result = icts::ClockSynthesis::build(root_net, options);
 
   ASSERT_TRUE(result.success);
   EXPECT_FALSE(result.sink_clustering_enabled);
@@ -99,24 +101,22 @@ TEST(ClockSynthesisRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUses
   EXPECT_TRUE(result.htree_result.char_grid_adapted
               || result.htree_result.char_wire_length_iterations == result.htree_result.char_unique_level_bins);
 
-  auto* source_to_root_net = result.source_to_root_net;
-  ASSERT_NE(source_to_root_net, nullptr);
-  EXPECT_EQ(source_to_root_net->get_driver(), selected_clock_data.source);
-  ASSERT_EQ(source_to_root_net->get_loads().size(), 1U);
-  EXPECT_EQ(source_to_root_net->get_loads().front(), result.htree_result.root_input_pin);
+  ASSERT_EQ(result.htree_result.root_net, &root_net);
+  EXPECT_EQ(root_net.get_driver(), selected_clock_data.source);
+  EXPECT_FALSE(root_net.get_loads().empty());
 
-  AssertUnrestrictedFrontierHTree(result.htree_result);
-  AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
-  AssertDepthCandidateCoverage(result.htree_result);
-  AssertSelectedHTreeLoadDistribution(result.htree_result);
+  smoke::AssertUnrestrictedFrontierHTree(result.htree_result);
+  smoke::AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
+  smoke::AssertDepthCandidateCoverage(result.htree_result);
+  smoke::AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
-  EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), kSynthesisSmokeMaxSlewNs * 0.5);
+  EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), smoke::kSynthesisSmokeMaxSlewNs * 0.5);
   EXPECT_TRUE(result.cluster_buffers.empty());
-  EXPECT_EQ(CountTopologyLeafNodes(result.htree_result.topology), CalcFloorPowerOfTwo(selected_clock_data.sinks.size()));
+  EXPECT_EQ(smoke::CountTopologyLeafNodes(result.htree_result.topology), smoke::CalcFloorPowerOfTwo(selected_clock_data.sinks.size()));
 
-  WriteAndAssertSynthesisArtifacts("non_clustered_mode_realtech_smoke", "non_clustered_mode", selected_clock_data.clock_name,
-                                   artifact_paths, selected_clock_data.source, selected_clock_data.sinks, result);
-  AssertNonClusteredArtifacts(artifact_paths);
+  smoke::WriteAndAssertSynthesisArtifacts("non_clustered_mode_realtech_smoke", "non_clustered_mode", selected_clock_data.clock_name,
+                                          artifact_paths, selected_clock_data.source, selected_clock_data.sinks, result);
+  smoke::AssertNonClusteredArtifacts(artifact_paths);
 }
 
 }  // namespace

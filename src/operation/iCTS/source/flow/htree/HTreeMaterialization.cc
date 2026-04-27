@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
-#include "HTreeTopologyChar.hh"
+#include "Design.hh"
 #include "HTreeTopologyPattern.hh"
 #include "Inst.hh"
 #include "Log.hh"
@@ -46,6 +46,7 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
+#include "STAAdapter.hh"
 #include "Tree.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
@@ -53,78 +54,58 @@
 namespace icts::htree_builder {
 namespace {
 
-auto MakePinName(const std::string& inst_name, const std::string& port_name) -> std::string
-{
-  return inst_name + "/" + port_name;
-}
-
 auto CreateBufferInstance(HTreeBuilder::BuildResult& result, const std::string& inst_name, const std::string& cell_master,
-                          const Point<int>& location, const BufferPortInfo& ports) -> BufferInstancePins
+                          const Point<int>& location, const std::string& input_pin_name, const std::string& output_pin_name)
+    -> std::pair<Pin*, Pin*>
 {
   auto inst = std::make_unique<Inst>(inst_name, cell_master, InstType::kBuffer, location);
   auto* inst_ptr = inst.get();
 
-  auto input_pin = std::make_unique<Pin>(MakePinName(inst_name, ports.input_pin), PinType::kIn, location, inst_ptr, nullptr, false);
-  auto output_pin = std::make_unique<Pin>(MakePinName(inst_name, ports.output_pin), PinType::kOut, location, inst_ptr, nullptr, false);
-
+  auto input_pin = std::make_unique<Pin>(input_pin_name, PinType::kIn, location, inst_ptr, nullptr, false);
   auto* input_pin_ptr = input_pin.get();
+  result.inserted_pins.push_back(std::move(input_pin));
+
+  auto output_pin = std::make_unique<Pin>(output_pin_name, PinType::kOut, location, inst_ptr, nullptr, false);
   auto* output_pin_ptr = output_pin.get();
+  result.inserted_pins.push_back(std::move(output_pin));
 
-  inst_ptr->insertDriverPin(output_pin_ptr);
   inst_ptr->add_pin(input_pin_ptr);
+  inst_ptr->insertDriverPin(output_pin_ptr);
 
-  result.inserted_insts.push_back(inst_ptr);
-  result.inserted_pins.push_back(output_pin_ptr);
-  result.inserted_pins.push_back(input_pin_ptr);
+  result.inserted_insts.push_back(std::move(inst));
 
-  result.inst_storage.push_back(std::move(inst));
-  result.pin_storage.push_back(std::move(output_pin));
-  result.pin_storage.push_back(std::move(input_pin));
-
-  return BufferInstancePins{
-      .inst = inst_ptr,
-      .input_pin = input_pin_ptr,
-      .output_pin = output_pin_ptr,
-  };
+  return {input_pin_ptr, output_pin_ptr};
 }
 
-auto CreateStandalonePin(HTreeBuilder::BuildResult& result, const std::string& pin_name, PinType pin_type, const Point<int>& location,
-                         bool is_io) -> Pin*
+auto ConnectNet(Net* net, Pin* driver, const std::vector<Pin*>& loads) -> void
 {
-  auto pin = std::make_unique<Pin>(pin_name, pin_type, location, nullptr, nullptr, is_io);
-  auto* pin_ptr = pin.get();
-  result.inserted_pins.push_back(pin_ptr);
-  result.pin_storage.push_back(std::move(pin));
-  return pin_ptr;
+  if (net == nullptr) {
+    return;
+  }
+
+  net->set_driver(driver);
+  if (driver != nullptr) {
+    driver->set_net(net);
+  }
+
+  net->set_loads({});
+  for (auto* load : loads) {
+    if (load == nullptr) {
+      continue;
+    }
+    net->add_load(load);
+    load->set_net(net);
+  }
 }
 
 auto CreateNet(HTreeBuilder::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
 {
   auto net = std::make_unique<Net>(net_name);
   auto* net_ptr = net.get();
+  ConnectNet(net_ptr, driver, loads);
 
-  if (driver != nullptr) {
-    net_ptr->set_driver(driver);
-    driver->set_net(net_ptr);
-  }
-
-  for (auto* load : loads) {
-    if (load == nullptr) {
-      continue;
-    }
-    net_ptr->add_load(load);
-    load->set_net(net_ptr);
-  }
-
-  result.inserted_nets.push_back(net_ptr);
-  result.net_storage.push_back(std::move(net));
+  result.inserted_nets.push_back(std::move(net));
   return net_ptr;
-}
-
-template <typename T>
-auto EraseRawPointer(std::vector<T*>& objects, T* target) -> void
-{
-  objects.erase(std::remove(objects.begin(), objects.end(), target), objects.end());
 }
 
 template <typename T>
@@ -133,6 +114,19 @@ auto EraseOwnedPointer(std::vector<std::unique_ptr<T>>& objects, T* target) -> v
   objects.erase(
       std::remove_if(objects.begin(), objects.end(), [target](const std::unique_ptr<T>& object) -> bool { return object.get() == target; }),
       objects.end());
+}
+
+template <typename T>
+auto CollectBorrowedPointers(const std::vector<std::unique_ptr<T>>& objects) -> std::vector<T*>
+{
+  std::vector<T*> borrowed;
+  borrowed.reserve(objects.size());
+  for (const auto& object : objects) {
+    if (object != nullptr) {
+      borrowed.push_back(object.get());
+    }
+  }
+  return borrowed;
 }
 
 auto FindSingleBufferInputPin(Inst* inst) -> Pin*
@@ -159,6 +153,67 @@ auto FindSingleBufferInputPin(Inst* inst) -> Pin*
   return nullptr;
 }
 
+auto IsDesignOwnedPin(const Pin* pin) -> bool
+{
+  const auto design_pins = DESIGN_INST.get_pins();
+  return std::ranges::any_of(design_pins, [pin](const Pin* design_pin) -> bool { return design_pin == pin; });
+}
+
+auto MakePinFullNameWithLocalName(const Pin* pin, const std::string& local_name) -> std::string
+{
+  if (pin == nullptr) {
+    return {};
+  }
+
+  const auto* inst = pin->get_inst();
+  return inst == nullptr ? local_name : inst->get_name() + "/" + local_name;
+}
+
+auto CanRenameRootDriverPin(Pin* pin, const std::string& local_name) -> bool
+{
+  if (pin == nullptr || local_name.empty()) {
+    return false;
+  }
+  if (pin->get_name() == local_name) {
+    return true;
+  }
+  if (!IsDesignOwnedPin(pin)) {
+    return true;
+  }
+
+  auto* existing_pin = DESIGN_INST.findPin(MakePinFullNameWithLocalName(pin, local_name));
+  return existing_pin == nullptr || existing_pin == pin;
+}
+
+auto RenameRootDriverPin(Pin* pin, const std::string& local_name) -> bool
+{
+  if (pin == nullptr || local_name.empty()) {
+    return false;
+  }
+  if (pin->get_name() == local_name) {
+    return true;
+  }
+  if (IsDesignOwnedPin(pin)) {
+    return DESIGN_INST.renamePin(pin, local_name);
+  }
+
+  pin->set_name(local_name);
+  return true;
+}
+
+auto ResolveBufferPorts(const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
+{
+  if (cell_master.empty()) {
+    return std::nullopt;
+  }
+
+  auto [input_pin_name, output_pin_name] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
+  if (input_pin_name.empty() || output_pin_name.empty()) {
+    return std::nullopt;
+  }
+  return std::make_pair(std::move(input_pin_name), std::move(output_pin_name));
+}
+
 auto ReplaceNetLoad(Net* net, Pin* old_load, Pin* new_load) -> bool
 {
   if (net == nullptr || old_load == nullptr || new_load == nullptr) {
@@ -178,8 +233,8 @@ auto ReplaceNetLoad(Net* net, Pin* old_load, Pin* new_load) -> bool
 
 auto PruneLeafSingleLoadBuffers(HTreeBuilder::BuildResult& result) -> std::size_t
 {
-  const std::unordered_set<Inst*> inserted_inst_set(result.inserted_insts.begin(), result.inserted_insts.end());
-  const std::vector<Inst*> candidate_insts = result.inserted_insts;
+  const auto candidate_insts = CollectBorrowedPointers(result.inserted_insts);
+  const std::unordered_set<Inst*> inserted_inst_set(candidate_insts.begin(), candidate_insts.end());
   std::size_t pruned_count = 0U;
 
   for (auto* inst : candidate_insts) {
@@ -224,14 +279,11 @@ auto PruneLeafSingleLoadBuffers(HTreeBuilder::BuildResult& result) -> std::size_
       }
       pin->set_inst(nullptr);
       pin->set_net(nullptr);
-      EraseRawPointer(result.inserted_pins, pin);
-      EraseOwnedPointer(result.pin_storage, pin);
+      EraseOwnedPointer(result.inserted_pins, pin);
     }
 
-    EraseRawPointer(result.inserted_nets, output_net);
-    EraseOwnedPointer(result.net_storage, output_net);
-    EraseRawPointer(result.inserted_insts, inst);
-    EraseOwnedPointer(result.inst_storage, inst);
+    EraseOwnedPointer(result.inserted_nets, output_net);
+    EraseOwnedPointer(result.inserted_insts, inst);
     ++pruned_count;
   }
 
@@ -261,7 +313,7 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
     return terminal_loads;
   }
 
-  std::vector<BufferInstancePins> segment_buffers;
+  std::vector<std::pair<Pin*, Pin*>> segment_buffers;
   segment_buffers.reserve(materialized_buffer_count);
   for (std::size_t buffer_index = 0; buffer_index < materialized_buffer_count; ++buffer_index) {
     const auto* ports = context.port_cache->get(cell_masters.at(buffer_index));
@@ -269,17 +321,17 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
 
     const auto buffer_location
         = InterpolateManhattanPoint(parent_node.get_position(), child_node.get_position(), positions.at(buffer_index));
-    segment_buffers.push_back(
-        CreateBufferInstance(*context.result, context.nextBufferName(), cell_masters.at(buffer_index), buffer_location, *ports));
+    segment_buffers.push_back(CreateBufferInstance(*context.result, context.nextBufferName(), cell_masters.at(buffer_index),
+                                                   buffer_location, ports->first, ports->second));
   }
 
   for (std::size_t buffer_index = 0; buffer_index + 1U < segment_buffers.size(); ++buffer_index) {
-    CreateNet(*context.result, context.nextNetName(), segment_buffers.at(buffer_index).output_pin,
-              std::vector<Pin*>{segment_buffers.at(buffer_index + 1U).input_pin});
+    CreateNet(*context.result, context.nextNetName(), segment_buffers.at(buffer_index).second,
+              std::vector<Pin*>{segment_buffers.at(buffer_index + 1U).first});
   }
 
-  CreateNet(*context.result, context.nextNetName(), segment_buffers.back().output_pin, terminal_loads);
-  return std::vector<Pin*>{segment_buffers.front().input_pin};
+  CreateNet(*context.result, context.nextNetName(), segment_buffers.back().second, terminal_loads);
+  return std::vector<Pin*>{segment_buffers.front().first};
 }
 
 }  // namespace
@@ -302,6 +354,70 @@ auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink,
   return Point<int>(x, y);
 }
 
+auto ValidateRootDriverSizing(const HTreeBuilder::BuildResult& result, const std::string& cell_master) -> bool
+{
+  if (cell_master.empty() || result.root_inst == nullptr) {
+    return true;
+  }
+
+  auto* output_pin = result.root_output_pin;
+  auto* input_pin = FindSingleBufferInputPin(result.root_inst);
+  if (output_pin == nullptr || output_pin->get_inst() != result.root_inst || input_pin == nullptr) {
+    LOG_WARNING << "HTreeBuilder: cannot apply selected root driver master " << cell_master
+                << " because the input root net driver inst does not expose a complete buffer pin pair.";
+    return false;
+  }
+
+  const auto ports = ResolveBufferPorts(cell_master);
+  if (!ports.has_value()) {
+    LOG_WARNING << "HTreeBuilder: cannot apply selected root driver master " << cell_master
+                << " because its buffer ports could not be resolved.";
+    return false;
+  }
+
+  if (!CanRenameRootDriverPin(input_pin, ports->first) || !CanRenameRootDriverPin(output_pin, ports->second)) {
+    LOG_WARNING << "HTreeBuilder: cannot apply selected root driver master " << cell_master
+                << " because renamed root driver pins would conflict with the Design pin index.";
+    return false;
+  }
+
+  return true;
+}
+
+auto ApplyRootDriverSizing(HTreeBuilder::BuildResult& result, const std::string& cell_master) -> bool
+{
+  if (cell_master.empty() || result.root_inst == nullptr) {
+    return true;
+  }
+
+  auto* output_pin = result.root_output_pin;
+  auto* input_pin = FindSingleBufferInputPin(result.root_inst);
+  const auto ports = ResolveBufferPorts(cell_master);
+  if (output_pin == nullptr || output_pin->get_inst() != result.root_inst || input_pin == nullptr || !ports.has_value()) {
+    return false;
+  }
+
+  const std::string old_input_pin_name = input_pin->get_name();
+  if (!RenameRootDriverPin(input_pin, ports->first)) {
+    return false;
+  }
+
+  if (!RenameRootDriverPin(output_pin, ports->second)) {
+    LOG_FATAL_IF(!RenameRootDriverPin(input_pin, old_input_pin_name)) << "HTreeBuilder: failed to roll back root driver input-pin rename.";
+    return false;
+  }
+
+  result.root_inst->set_cell_master(cell_master);
+  result.root_inst->set_type(InstType::kBuffer);
+  input_pin->set_type(PinType::kIn);
+  output_pin->set_type(PinType::kOut);
+  result.root_inst->insertDriverPin(output_pin);
+  result.root_input_pin = input_pin;
+  result.root_output_pin = output_pin;
+  result.selected_root_driver_cell_master = result.root_inst->get_cell_master();
+  return true;
+}
+
 auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatternRegistry& segment_pattern_registry) -> void
 {
   if (!result.best_pattern.has_value()) {
@@ -311,7 +427,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   const auto topology_levels = result.topology.levels();
   const std::size_t candidate_level_count = result.levels.size();
   if (topology_levels.size() <= 1U || candidate_level_count == 0U || candidate_level_count >= topology_levels.size()) {
-    result.success = result.success && result.best_char.has_value();
+    result.failure_reason = "invalid_materialization_depth";
     return;
   }
 
@@ -331,9 +447,10 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   const auto* root_node = result.topology.get_node(result.topology.get_root());
   LOG_FATAL_IF(root_node == nullptr) << "HTreeBuilder: topology root is missing during materialization.";
 
-  result.root_inst = nullptr;
-  result.root_input_pin = CreateStandalonePin(result, "cts_htree_root_in", PinType::kIn, root_node->get_position(), true);
-  result.root_output_pin = CreateStandalonePin(result, "cts_htree_root_out", PinType::kOut, root_node->get_position(), true);
+  LOG_FATAL_IF(result.root_net == nullptr) << "HTreeBuilder: input root net is missing during materialization.";
+  LOG_FATAL_IF(result.root_output_pin == nullptr) << "HTreeBuilder: input root net driver pin is missing during materialization.";
+  result.root_inst = result.root_output_pin->get_inst();
+  result.root_input_pin = FindSingleBufferInputPin(result.root_inst);
 
   MaterializationContext context{
       .result = &result,
@@ -389,7 +506,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   const auto root_it = entry_loads_by_node.find(result.topology.get_root());
   auto root_entry_loads = (root_it != entry_loads_by_node.end()) ? root_it->second : root_node->get_loads();
   LOG_FATAL_IF(root_entry_loads.empty()) << "HTreeBuilder: root entry loads are empty during materialization.";
-  CreateNet(result, context.nextNetName(), result.root_output_pin, root_entry_loads);
+  ConnectNet(result.root_net, result.root_output_pin, root_entry_loads);
   result.pruned_leaf_single_load_buffers = PruneLeafSingleLoadBuffers(result);
 }
 

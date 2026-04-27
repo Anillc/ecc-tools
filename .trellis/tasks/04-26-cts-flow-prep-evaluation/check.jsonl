@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Final iCTS validation policy and repository-wide constraints."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index and authority map for review."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Check new flow module placement and CMake target wiring."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check ownership, Wrapper/iDB, STAAdapter/iSTA, and CTS flow branch contracts."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check naming, includes, dependency visibility, and validation expectations."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check stage logging and schema output behavior."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check fatal/recoverable error handling decisions."}

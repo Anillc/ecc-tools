@@ -44,7 +44,6 @@
 #include "TopologyConfig.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "bound_skew_tree/BSTTypes.hh"
-#include "config/Config.hh"
 #include "io/Wrapper.hh"
 #include "local_legalization/LocalLegalization.hh"
 
@@ -58,17 +57,10 @@ auto BuildRcOptions(const ClusterConfig& config) -> Router::RCTreeBuildOptions
   Router::RCTreeBuildOptions options;
   if (config.routing_layer > 0) {
     options.routing_layer = config.routing_layer;
-  } else {
-    const auto& routing_layers = CONFIG_INST.get_routing_layers();
-    if (!routing_layers.empty()) {
-      options.routing_layer = static_cast<int>(routing_layers.front());
-    }
   }
 
   if (config.wire_width > 0.0) {
     options.wire_width = config.wire_width;
-  } else if (CONFIG_INST.get_wire_width() > 0.0) {
-    options.wire_width = CONFIG_INST.get_wire_width();
   }
 
   return options;
@@ -85,15 +77,12 @@ auto BuildBstParameters(const ClusterConfig& config, const Point<int>& routing_r
 
   auto routing_layer = config.routing_layer;
   if (routing_layer <= 0) {
-    const auto& routing_layers = CONFIG_INST.get_routing_layers();
-    routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+    routing_layer = 1;
   }
 
   std::optional<double> wire_width = std::nullopt;
   if (config.wire_width > 0.0) {
     wire_width = config.wire_width;
-  } else if (CONFIG_INST.get_wire_width() > 0.0) {
-    wire_width = CONFIG_INST.get_wire_width();
   }
 
   parameters.unit_h_cap = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, 1.0, wire_width);

@@ -35,6 +35,7 @@
 #include "Log.hh"
 #include "LogFormat.hh"
 #include "SegmentChar.hh"
+#include "config/Config.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
 
@@ -43,6 +44,35 @@ class Tree;
 }  // namespace icts
 
 namespace icts::htree_builder {
+namespace {
+
+auto BuildCharOptionsFromRuntimeConfig() -> CharBuilder::InitOptions
+{
+  CharBuilder::InitOptions options;
+  if (CONFIG_INST.has_max_buf_tran() && CONFIG_INST.get_max_buf_tran() > 0.0) {
+    options.max_slew_ns = CONFIG_INST.get_max_buf_tran();
+  }
+  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
+    options.max_cap_pf = CONFIG_INST.get_max_cap();
+  }
+  if (CONFIG_INST.get_wire_length_unit_um() > 0.0) {
+    options.wire_length_unit_um = CONFIG_INST.get_wire_length_unit_um();
+  }
+  options.wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
+  options.slew_steps = CONFIG_INST.get_slew_steps();
+  options.cap_steps = CONFIG_INST.get_cap_steps();
+  options.buffer_types = CONFIG_INST.get_buffer_types();
+  options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
+
+  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  if (CONFIG_INST.get_wire_width() > 0.0) {
+    options.wire_width = CONFIG_INST.get_wire_width();
+  }
+  return options;
+}
+
+}  // namespace
 
 auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, HTreeBuilder::BuildResult& result, CharBuilder& char_builder)
     -> HTreeCharacterizationFlowResult
@@ -90,7 +120,7 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, HTreeBuil
   };
   LogInfoTable("HTreeBuilder Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
 
-  CharBuilder::InitOptions char_options;
+  auto char_options = BuildCharOptionsFromRuntimeConfig();
   if (char_grid_plan.adapted) {
     char_options.wire_length_unit_um = char_grid_plan.wire_length_unit_um;
     char_options.wire_length_iterations = char_grid_plan.wire_length_iterations;

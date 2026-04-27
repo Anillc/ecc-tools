@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -44,12 +45,16 @@ enum class InstType
 class Inst
 {
  public:
-  Inst() = default;
   Inst(const std::string& _name, const std::string& cell_master, InstType type, const Point<int>& location)
       : _name(_name), _cell_master(cell_master), _type(type), _location(location)
   {
   }
+  Inst(const Inst& rhs) = delete;
+  Inst(Inst&& rhs) = delete;
   ~Inst() = default;
+
+  auto operator=(const Inst& rhs) -> Inst& = delete;
+  auto operator=(Inst&& rhs) -> Inst& = delete;
 
   // Getter
   auto get_name() const -> const std::string& { return _name; }
@@ -67,19 +72,22 @@ class Inst
   auto get_pins() -> std::vector<Pin*>& { return _pins; }
   auto findDriverPin() const -> Pin* { return _pins.empty() ? nullptr : _pins.front(); }
   auto set_pins(const std::vector<Pin*>& pins) -> void { _pins = pins; }
-  auto add_pin(Pin* pin) -> void { _pins.push_back(pin); }
+  auto add_pin(Pin* pin) -> void
+  {
+    if (pin == nullptr || std::ranges::find(_pins, pin) != _pins.end()) {
+      return;
+    }
+    _pins.push_back(pin);
+  }
   auto insertDriverPin(Pin* pin) -> void
   {
     if (pin == nullptr) {
       return;
     }
-    if (_pins.empty()) {
-      _pins.push_back(pin);
+    if (!_pins.empty() && _pins.front() == pin) {
       return;
     }
-    if (_pins.front() == pin) {
-      return;
-    }
+    std::erase(_pins, pin);
     _pins.insert(_pins.begin(), pin);
   }
 

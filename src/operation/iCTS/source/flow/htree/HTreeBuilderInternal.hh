@@ -168,19 +168,6 @@ enum class SegmentEntrySelection
   kLeafUnbuffered,
 };
 
-struct BufferPortInfo
-{
-  std::string input_pin;
-  std::string output_pin;
-};
-
-struct BufferInstancePins
-{
-  Inst* inst = nullptr;
-  Pin* input_pin = nullptr;
-  Pin* output_pin = nullptr;
-};
-
 class BufferStrengthCache
 {
  public:
@@ -558,7 +545,7 @@ class TopologyPatternRegistryCombiner
 class BufferPortCache
 {
  public:
-  auto get(const std::string& cell_master) -> const BufferPortInfo*
+  auto get(const std::string& cell_master) -> const std::pair<std::string, std::string>*
   {
     auto it = _cache.find(cell_master);
     if (it != _cache.end()) {
@@ -570,14 +557,13 @@ class BufferPortCache
       return nullptr;
     }
 
-    auto [inserted_it, inserted]
-        = _cache.emplace(cell_master, BufferPortInfo{.input_pin = std::move(input_pin), .output_pin = std::move(output_pin)});
+    auto [inserted_it, inserted] = _cache.emplace(cell_master, std::make_pair(std::move(input_pin), std::move(output_pin)));
     (void) inserted;
     return &inserted_it->second;
   }
 
  private:
-  std::unordered_map<std::string, BufferPortInfo> _cache;
+  std::unordered_map<std::string, std::pair<std::string, std::string>> _cache;
 };
 
 struct CandidateBuildEvaluation
@@ -734,6 +720,8 @@ auto FilterActualLoadLegalEntries(const std::vector<HTreeTopologyChar>& entries,
 auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>;
 auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps) -> double;
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
+auto ValidateRootDriverSizing(const HTreeBuilder::BuildResult& result, const std::string& cell_master) -> bool;
+auto ApplyRootDriverSizing(HTreeBuilder::BuildResult& result, const std::string& cell_master) -> bool;
 auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatternRegistry& segment_pattern_registry) -> void;
 
 }  // namespace icts::htree_builder

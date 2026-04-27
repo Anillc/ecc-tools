@@ -7,6 +7,7 @@ add_library(
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterCharTiming.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterClockLookup.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterInternal.cc
+  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterRcTree.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterTimingUpdate.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterWireRc.cc
 )

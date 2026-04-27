@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>

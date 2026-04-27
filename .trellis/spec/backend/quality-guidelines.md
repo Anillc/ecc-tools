@@ -28,6 +28,13 @@ Repository-wide constraints such as file extensions, copyright headers, and `#pr
 Rule of thumb:
 - if the body is more than a direct read, write, or simple comparison, use `camelBack`
 
+### Namespaces
+
+- In `.cc` files, define top-level iCTS implementations in `namespace icts {}` and internal submodules in qualified namespaces such as `namespace icts::htree_builder {}`.
+- Keep anonymous namespaces inside the active named namespace.
+- Avoid mixing `namespace icts {}` and `namespace icts::submodule {}` in one `.cc` unless a minimal outer forward declaration is necessary.
+- Do not import whole namespaces with `using namespace`; use explicit qualification or narrow symbol-level `using` declarations in the smallest practical scope.
+
 ### Modern C++
 
 - Prefer consistent modern C++ style in touched iCTS code.

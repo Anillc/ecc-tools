@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints, validation policy, file/header rules, and terminology."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index and authority map for iCTS implementation work."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Required placement and CMake target structure for new flow submodules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Ownership, singleton, Wrapper/STAAdapter boundaries, and CTS flow branch contracts."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include, dependency visibility, and final validation rules."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime logging and schema summary output conventions for flow stages."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Fatal vs recoverable error behavior for flow, wrapper, and adapter code."}

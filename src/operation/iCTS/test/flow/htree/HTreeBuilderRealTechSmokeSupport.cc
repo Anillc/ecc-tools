@@ -43,7 +43,6 @@
 #if defined(ICTS_ENABLE_SLOW_REALTECH_REGRESSION) && ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 #include "Point.hh"
 #endif
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
@@ -100,14 +99,28 @@ auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_c
   return sampled_loads;
 }
 
+auto ConnectRootNetForHTreeTest(icts::Net& root_net, icts::Pin& root_driver, const std::vector<icts::Pin*>& loads) -> void
+{
+  root_net.set_driver(&root_driver);
+  root_driver.set_net(&root_net);
+  root_net.set_loads(loads);
+  for (auto* load : loads) {
+    if (load != nullptr) {
+      load->set_net(&root_net);
+    }
+  }
+}
+
 auto SelectLargestRealClockLoads(std::size_t max_count) -> std::optional<RealClockLoadSelection>
 {
   DESIGN_INST.reset();
-  STA_ADAPTER_INST.updateTiming();
 
-  for (const auto& [clock_name, net_name] : STA_ADAPTER_INST.collectClockNetPairs()) {
-    auto clock = std::make_unique<icts::Clock>(clock_name, net_name);
-    DESIGN_INST.add_clock(std::move(clock));
+  for (const auto& [clock_name, net_name] : WRAPPER_INST.collectClockNetPairs()) {
+    auto* clock = DESIGN_INST.makeClock(clock_name, net_name);
+    if (clock != nullptr) {
+      clock->set_clock_name(clock_name);
+      clock->set_clock_net_name(net_name);
+    }
   }
 
   WRAPPER_INST.read();
@@ -167,8 +180,14 @@ auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pi
 
 auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTreeBuilder::BuildResult& result) -> void
 {
-  const std::unordered_set<const icts::Inst*> inserted_insts(result.inserted_insts.begin(), result.inserted_insts.end());
-  for (const auto* inst : result.inserted_insts) {
+  std::unordered_set<const icts::Inst*> inserted_insts;
+  inserted_insts.reserve(result.inserted_insts.size());
+  for (const auto& inst_owner : result.inserted_insts) {
+    inserted_insts.insert(inst_owner.get());
+  }
+
+  for (const auto& inst_owner : result.inserted_insts) {
+    const auto* inst = inst_owner.get();
     if (inst == nullptr || !inst->is_buffer()) {
       continue;
     }
@@ -266,7 +285,8 @@ auto AssertBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult& re
   }
 
   for (const auto& expected_position : required_terminal_positions) {
-    const bool has_terminal_inst = std::ranges::any_of(result.inserted_insts, [&expected_position](const icts::Inst* inst) -> bool {
+    const bool has_terminal_inst = std::ranges::any_of(result.inserted_insts, [&expected_position](const auto& inst_owner) -> bool {
+      const auto* inst = inst_owner.get();
       return inst != nullptr && inst->get_location() == expected_position;
     });
     EXPECT_TRUE(has_terminal_inst);

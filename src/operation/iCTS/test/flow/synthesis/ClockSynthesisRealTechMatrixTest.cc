@@ -31,11 +31,11 @@
 namespace icts_test {
 namespace {
 
-using namespace synthesis_realtech_smoke;
+namespace smoke = synthesis_realtech_smoke;
 
 TEST(ClockSynthesisRealTechSmokeTest, BpBeTopFullSinkNonClusteredExperimentMatrix)
 {
-  const auto matrix_result = EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix();
+  const auto matrix_result = smoke::EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix();
   if (matrix_result.skipped) {
     GTEST_SKIP() << matrix_result.skip_reason;
     return;
@@ -49,7 +49,7 @@ TEST(ClockSynthesisRealTechSmokeTest, BpBeTopFullSinkNonClusteredExperimentMatri
 
 TEST(ClockSynthesisRealTechSmokeTest, Arm9FullSinkTopologyToleranceComparison)
 {
-  const auto comparison_result = EvaluateArm9FullSinkTopologyToleranceComparison();
+  const auto comparison_result = smoke::EvaluateArm9FullSinkTopologyToleranceComparison();
   if (comparison_result.skipped) {
     GTEST_SKIP() << comparison_result.skip_reason;
     return;

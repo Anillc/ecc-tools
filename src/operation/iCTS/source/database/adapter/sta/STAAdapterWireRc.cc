@@ -38,11 +38,9 @@
 
 namespace icts {
 
-using namespace sta_adapter_internal;
-
 auto STAAdapter::queryWireResistance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
-  auto* idb_adapter = GetStaEngine()->getIDBAdapter();
+  auto* idb_adapter = sta_adapter_internal::GetStaEngine()->getIDBAdapter();
   if (idb_adapter == nullptr) {
     LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
@@ -52,7 +50,7 @@ auto STAAdapter::queryWireResistance(int routing_layer, double length, std::opti
 
 auto STAAdapter::queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
-  auto* idb_adapter = GetStaEngine()->getIDBAdapter();
+  auto* idb_adapter = sta_adapter_internal::GetStaEngine()->getIDBAdapter();
   if (idb_adapter == nullptr) {
     LOG_ERROR << "STA IDB adapter is not ready.";
     return 0.0;
@@ -62,14 +60,14 @@ auto STAAdapter::queryWireCapacitance(int routing_layer, double length, std::opt
 
 auto STAAdapter::emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width) -> void
 {
-  const WireRcProbe probe = QueryWireRcProbe(routing_layer, wire_width);
-  EmitWireRcProbeDiagnostic(probe);
-  schema::EmitTable(title, {"Item", "Value", "Detail"}, BuildWireRcRows(probe));
+  const sta_adapter_internal::WireRcProbe probe = sta_adapter_internal::QueryWireRcProbe(routing_layer, wire_width);
+  sta_adapter_internal::EmitWireRcProbeDiagnostic(probe);
+  schema::EmitTable(title, {"Item", "Value", "Detail"}, sta_adapter_internal::BuildWireRcRows(probe));
 }
 
 auto STAAdapter::emitConfiguredUnitWireRcReport(const std::string& title) -> void
 {
-  emitUnitWireRcReport(title, ResolveConfiguredRoutingLayer(), ResolveConfiguredWireWidth());
+  emitUnitWireRcReport(title, sta_adapter_internal::ResolveConfiguredRoutingLayer(), sta_adapter_internal::ResolveConfiguredWireWidth());
 }
 
 }  // namespace icts

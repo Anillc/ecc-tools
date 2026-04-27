@@ -39,7 +39,6 @@
 #include "SegmentChar.hh"
 #include "ValueLattice.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "config/Config.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
 
@@ -47,6 +46,7 @@ namespace icts {
 namespace {
 
 constexpr double kPercentFactor = 100.0;
+constexpr unsigned kDefaultWireLengthIterations = 3U;
 
 enum class ResolutionSource
 {
@@ -129,19 +129,14 @@ auto makeWireLengths(double unit_um, const std::vector<unsigned>& indices) -> st
   return wire_lengths_um;
 }
 
-auto resolveRoutingLayer() -> int
+auto resolveRoutingLayer(const CharBuilder::InitOptions& options) -> int
 {
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  if (routing_layers.empty()) {
-    return 1;
-  }
-  return static_cast<int>(routing_layers.front());
+  return options.routing_layer > 0 ? options.routing_layer : 1;
 }
 
-auto resolveWireWidth() -> std::optional<double>
+auto resolveWireWidth(const CharBuilder::InitOptions& options) -> std::optional<double>
 {
-  const double wire_width = CONFIG_INST.get_wire_width();
-  return wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
+  return options.wire_width.has_value() && *options.wire_width > 0.0 ? options.wire_width : std::nullopt;
 }
 
 auto resolveBufferDriveCap(const std::string& cell_master) -> double
@@ -153,20 +148,19 @@ auto resolveBufferDriveCap(const std::string& cell_master) -> double
   return max_cap;
 }
 
-auto resolveMaxSlew() -> ResolvedValue
+auto resolveMaxSlew(const CharBuilder::InitOptions& options) -> ResolvedValue
 {
-  const double configured_max_slew_ns = CONFIG_INST.get_max_buf_tran();
-  if (CONFIG_INST.has_max_buf_tran() && configured_max_slew_ns > 0.0) {
+  if (options.max_slew_ns.has_value() && *options.max_slew_ns > 0.0) {
     return ResolvedValue{
-        .value = configured_max_slew_ns,
+        .value = *options.max_slew_ns,
         .source = ResolutionSource::kRuntimeConfig,
-        .detail = "Config.max_buf_tran",
+        .detail = "CharBuilder::InitOptions.max_slew_ns",
     };
   }
 
   double liberty_port_min_slew = std::numeric_limits<double>::infinity();
   bool found_port_limit = false;
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  for (const auto& cell_master : options.buffer_types) {
     const double slew_limit = STA_ADAPTER_INST.queryCellInPinSlewLimit(cell_master);
     if (slew_limit > 0.0) {
       liberty_port_min_slew = std::min(liberty_port_min_slew, slew_limit);
@@ -183,7 +177,7 @@ auto resolveMaxSlew() -> ResolvedValue
 
   double liberty_table_min_slew = std::numeric_limits<double>::infinity();
   bool found_table_limit = false;
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  for (const auto& cell_master : options.buffer_types) {
     const double table_axis_max = STA_ADAPTER_INST.queryCellInPinSlewTableAxisMax(cell_master);
     if (table_axis_max > 0.0) {
       liberty_table_min_slew = std::min(liberty_table_min_slew, table_axis_max);
@@ -198,28 +192,27 @@ auto resolveMaxSlew() -> ResolvedValue
     };
   }
 
-  LOG_WARNING << "CharBuilder: failed to resolve max_slew from Config/liberty limits/liberty tables";
+  LOG_WARNING << "CharBuilder: failed to resolve max_slew from InitOptions/liberty limits/liberty tables";
   return ResolvedValue{
       .value = 0.0,
       .source = ResolutionSource::kUnresolved,
-      .detail = "missing Config/liberty slew limits",
+      .detail = "missing InitOptions/liberty slew limits",
   };
 }
 
-auto resolveMaxCap() -> ResolvedValue
+auto resolveMaxCap(const CharBuilder::InitOptions& options) -> ResolvedValue
 {
-  const double configured_max_cap_pf = CONFIG_INST.get_max_cap();
-  if (CONFIG_INST.has_max_cap() && configured_max_cap_pf > 0.0) {
+  if (options.max_cap_pf.has_value() && *options.max_cap_pf > 0.0) {
     return ResolvedValue{
-        .value = configured_max_cap_pf,
+        .value = *options.max_cap_pf,
         .source = ResolutionSource::kRuntimeConfig,
-        .detail = "Config.max_cap",
+        .detail = "CharBuilder::InitOptions.max_cap_pf",
     };
   }
 
   double liberty_port_min_cap = std::numeric_limits<double>::infinity();
   bool found_port_limit = false;
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  for (const auto& cell_master : options.buffer_types) {
     const double cap_limit = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
     if (cap_limit > 0.0) {
       liberty_port_min_cap = std::min(liberty_port_min_cap, cap_limit);
@@ -236,7 +229,7 @@ auto resolveMaxCap() -> ResolvedValue
 
   double liberty_table_min_cap = std::numeric_limits<double>::infinity();
   bool found_table_limit = false;
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  for (const auto& cell_master : options.buffer_types) {
     const double table_axis_max = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
     if (table_axis_max > 0.0) {
       liberty_table_min_cap = std::min(liberty_table_min_cap, table_axis_max);
@@ -251,20 +244,20 @@ auto resolveMaxCap() -> ResolvedValue
     };
   }
 
-  LOG_WARNING << "CharBuilder: failed to resolve max_cap from Config/liberty limits/liberty tables";
+  LOG_WARNING << "CharBuilder: failed to resolve max_cap from InitOptions/liberty limits/liberty tables";
   return ResolvedValue{
       .value = 0.0,
       .source = ResolutionSource::kUnresolved,
-      .detail = "missing Config/liberty cap limits",
+      .detail = "missing InitOptions/liberty cap limits",
   };
 }
 
-auto collectSortedBuffers() -> std::vector<CharBufferInfo>
+auto collectSortedBuffers(const CharBuilder::InitOptions& options) -> std::vector<CharBufferInfo>
 {
   std::vector<CharBufferInfo> sorted_buffers;
-  const auto& buffer_types = CONFIG_INST.get_buffer_types();
+  const auto& buffer_types = options.buffer_types;
   if (buffer_types.empty()) {
-    LOG_WARNING << "CharBuilder: no buffer types configured in Config";
+    LOG_WARNING << "CharBuilder: no buffer types configured in InitOptions";
     return sorted_buffers;
   }
 
@@ -295,7 +288,7 @@ auto collectSortedBuffers() -> std::vector<CharBufferInfo>
     return lhs_buffer_info.max_cap_pf < rhs_buffer_info.max_cap_pf;
   });
 
-  const double buffer_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
+  const double buffer_redundancy_pct = options.char_buf_redundancy_pct;
   if (buffer_redundancy_pct > 0.0 && sorted_buffers.size() > 1U) {
     std::vector<CharBufferInfo> filtered_buffers;
     filtered_buffers.push_back(sorted_buffers.front());
@@ -317,15 +310,6 @@ auto collectSortedBuffers() -> std::vector<CharBufferInfo>
 
 auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) -> ResolvedValue
 {
-  const double configured_unit_um = CONFIG_INST.get_wire_length_unit_um();
-  if (configured_unit_um > 0.0) {
-    return ResolvedValue{
-        .value = configured_unit_um,
-        .source = ResolutionSource::kRuntimeConfig,
-        .detail = "active runtime wire_length_unit_um",
-    };
-  }
-
   double strongest_cap_pf = -1.0;
   double strongest_height_um = 0.0;
   std::string strongest_master;
@@ -345,9 +329,9 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
   }
 
   if (strongest_height_um <= 0.0) {
-    LOG_WARNING << "CharBuilder: failed to resolve wire_length_unit from Config or strongest buffer height";
+    LOG_WARNING << "CharBuilder: failed to resolve wire_length_unit from InitOptions or strongest buffer height";
     schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
-                           "wire_length_unit_um is absent in active runtime config and auto-derivation failed.",
+                           "wire_length_unit_um is absent in CharBuilder options and auto-derivation failed.",
                            {{"reason", "no_valid_strongest_buffer_height"}});
     return ResolvedValue{
         .value = 0.0,
@@ -358,7 +342,7 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
 
   const double fallback_unit_um = strongest_height_um * 10.0;
   schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "CharBuilder",
-                         "wire_length_unit_um is absent in active runtime config, fallback to auto-derived strongest-buffer height.",
+                         "wire_length_unit_um is absent in CharBuilder options, fallback to auto-derived strongest-buffer height.",
                          {{"strongest_buffer", strongest_master},
                           {"buffer_height_um", logformat::FormatWithUnit(strongest_height_um, "um")},
                           {"derived_wire_length_unit_um", logformat::FormatWithUnit(fallback_unit_um, "um")}});
@@ -367,6 +351,38 @@ auto resolveWireLengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
       .source = ResolutionSource::kAutoDerived,
       .detail = "strongest buffer " + strongest_master + " height=" + logformat::FormatWithUnit(strongest_height_um, "um") + " x10",
   };
+}
+
+auto resolveWireLengthUnitUm(const CharBuilder::InitOptions& options, const std::vector<CharBufferInfo>& sorted_buffers) -> ResolvedValue
+{
+  if (options.wire_length_unit_um.has_value() && *options.wire_length_unit_um > 0.0) {
+    return ResolvedValue{
+        .value = *options.wire_length_unit_um,
+        .source = ResolutionSource::kRuntimeConfig,
+        .detail = "CharBuilder::InitOptions.wire_length_unit_um",
+    };
+  }
+
+  return resolveWireLengthUnitUm(sorted_buffers);
+}
+
+auto emitRuntimeOptionsReport(const CharBuilder::InitOptions& options, int routing_layer, std::optional<double> wire_width) -> void
+{
+  schema::EmitKeyValueTable(
+      "CharBuilder Runtime Configuration",
+      {
+          {"max_slew_ns", options.max_slew_ns.has_value() ? logformat::FormatWithUnit(*options.max_slew_ns, "ns") : "auto"},
+          {"max_cap_pf", options.max_cap_pf.has_value() ? logformat::FormatWithUnit(*options.max_cap_pf, "pF") : "auto"},
+          {"wire_length_unit_um",
+           options.wire_length_unit_um.has_value() ? logformat::FormatWithUnit(*options.wire_length_unit_um, "um") : "auto"},
+          {"wire_length_iterations", std::to_string(options.wire_length_iterations.value_or(kDefaultWireLengthIterations))},
+          {"slew_steps", std::to_string(options.slew_steps)},
+          {"cap_steps", std::to_string(options.cap_steps)},
+          {"buffer_count", std::to_string(options.buffer_types.size())},
+          {"char_buf_redundancy_pct", std::to_string(options.char_buf_redundancy_pct)},
+          {"routing_layer", std::to_string(routing_layer)},
+          {"wire_width_um", formatOptionalWireWidth(wire_width)},
+      });
 }
 
 }  // namespace
@@ -401,23 +417,18 @@ auto CharBuilder::init(const InitOptions& options) -> void
   _max_observed_driven_cap_pf = 0.0;
   _max_observed_driven_cap_idx = 0U;
 
-  _sorted_buffers = collectSortedBuffers();
-  const ResolvedValue max_slew_resolution = resolveMaxSlew();
-  const ResolvedValue max_cap_resolution = resolveMaxCap();
-  const ResolvedValue wire_length_unit_resolution = resolveWireLengthUnitUm(_sorted_buffers);
+  _sorted_buffers = collectSortedBuffers(options);
+  const ResolvedValue max_slew_resolution = resolveMaxSlew(options);
+  const ResolvedValue max_cap_resolution = resolveMaxCap(options);
+  const ResolvedValue wire_length_unit_resolution = resolveWireLengthUnitUm(options, _sorted_buffers);
   _max_slew = max_slew_resolution.value;
   _max_cap = max_cap_resolution.value;
-  _length_unit_um = options.wire_length_unit_um.value_or(wire_length_unit_resolution.value);
-  if (options.wire_length_unit_um.has_value()) {
-    _wire_length_unit_source = "caller_override";
-    _wire_length_unit_detail = "CharBuilder::InitOptions.wire_length_unit_um";
-  } else {
-    _wire_length_unit_source = toResolutionSourceName(wire_length_unit_resolution.source);
-    _wire_length_unit_detail = wire_length_unit_resolution.detail;
-  }
-  _wire_length_iterations = std::max(1U, options.wire_length_iterations.value_or(CONFIG_INST.get_wire_length_iterations()));
-  _slew_steps = CONFIG_INST.get_slew_steps();
-  _cap_steps = CONFIG_INST.get_cap_steps();
+  _length_unit_um = wire_length_unit_resolution.value;
+  _wire_length_unit_source = toResolutionSourceName(wire_length_unit_resolution.source);
+  _wire_length_unit_detail = wire_length_unit_resolution.detail;
+  _wire_length_iterations = std::max(1U, options.wire_length_iterations.value_or(kDefaultWireLengthIterations));
+  _slew_steps = options.slew_steps;
+  _cap_steps = options.cap_steps;
   bool wire_length_indices_truncated = false;
   if (options.wire_length_indices.has_value()) {
     auto [clamped_indices, truncated] = clampWireLengthIndices(*options.wire_length_indices, _wire_length_iterations);
@@ -431,11 +442,11 @@ auto CharBuilder::init(const InitOptions& options) -> void
   _max_length = _wire_lengths_um.empty() ? 0.0 : _wire_lengths_um.back();
   _slews_to_test = get_slew_lattice().sampleValues();
   _loads_to_test = get_cap_lattice().sampleValues();
-  _routing_layer = resolveRoutingLayer();
-  _wire_width = resolveWireWidth();
+  _routing_layer = resolveRoutingLayer(options);
+  _wire_width = resolveWireWidth(options);
   _sink_input_cap_pf = _sorted_buffers.empty() ? 0.0 : _sorted_buffers.front().input_cap_pf;
 
-  CONFIG_INST.emitRuntimeConfigReport("CharBuilder Runtime Configuration");
+  emitRuntimeOptionsReport(options, _routing_layer, _wire_width);
 
   if (wire_length_indices_truncated) {
     schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "CharBuilder",
@@ -451,18 +462,17 @@ auto CharBuilder::init(const InitOptions& options) -> void
        max_slew_resolution.detail},
       {"max_cap_pf", logformat::FormatWithUnit(_max_cap, "pF"), toResolutionSourceName(max_cap_resolution.source),
        max_cap_resolution.detail},
-      {"wire_length_unit_um", logformat::FormatWithUnit(_length_unit_um, "um"),
-       options.wire_length_unit_um.has_value() ? "caller_override" : toResolutionSourceName(wire_length_unit_resolution.source),
-       options.wire_length_unit_um.has_value() ? "CharBuilder::InitOptions.wire_length_unit_um" : wire_length_unit_resolution.detail},
+      {"wire_length_unit_um", logformat::FormatWithUnit(_length_unit_um, "um"), toResolutionSourceName(wire_length_unit_resolution.source),
+       wire_length_unit_resolution.detail},
       {"wire_length_iterations", std::to_string(_wire_length_iterations),
-       options.wire_length_iterations.has_value() ? "caller_override" : "runtime_config",
-       options.wire_length_iterations.has_value() ? "CharBuilder::InitOptions.wire_length_iterations" : "Config.wire_length_iterations"},
+       options.wire_length_iterations.has_value() ? "caller_override" : "init_default",
+       options.wire_length_iterations.has_value() ? "CharBuilder::InitOptions.wire_length_iterations" : "default=3"},
       {"wire_length_points", std::to_string(_wire_length_indices.size()),
        options.wire_length_indices.has_value() ? "caller_override" : "dense_prefix",
        options.wire_length_indices.has_value() ? "CharBuilder::InitOptions.wire_length_indices"
                                                : "characterize every length_idx in [1, iterations]"},
-      {"routing_layer", std::to_string(_routing_layer), "runtime_config", "first routing layer or fallback=1"},
-      {"wire_width_um", formatOptionalWireWidth(_wire_width), "runtime_config", "explicit width override or technology default"},
+      {"routing_layer", std::to_string(_routing_layer), "init_options", "explicit routing layer or fallback=1"},
+      {"wire_width_um", formatOptionalWireWidth(_wire_width), "init_options", "explicit width override or technology default"},
   };
   logInfoTable("CharBuilder Initialization Parameters", {"Parameter", "Value", "Source", "Detail"}, parameter_rows);
 

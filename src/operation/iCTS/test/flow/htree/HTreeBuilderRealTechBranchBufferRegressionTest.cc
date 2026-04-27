@@ -30,6 +30,8 @@
 #include <vector>
 
 #include "HTreeTopologyChar.hh"
+#include "Net.hh"
+#include "Pin.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
@@ -81,7 +83,11 @@ TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatter
                                                                    {"load_count", std::to_string(selected_clock->loads.size())},
                                                                });
 
-  auto result = icts::HTreeBuilder::build(selected_clock->loads);
+  icts::Pin root_driver("htree_branch_buffer_root_out", icts::PinType::kOut);
+  icts::Net root_net("htree_branch_buffer_root_net");
+  ConnectRootNetForHTreeTest(root_net, root_driver, selected_clock->loads);
+
+  auto result = icts::HTreeBuilder::build(root_net);
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.failure_reason.empty());
@@ -123,7 +129,11 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfi
 
   ASSERT_FALSE(CONFIG_INST.is_force_branch_buffer());
 
-  const auto result = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.force_branch_buffer = true});
+  icts::Pin root_driver("htree_branch_buffer_override_root_out", icts::PinType::kOut);
+  icts::Net root_net("htree_branch_buffer_override_root_net");
+  ConnectRootNetForHTreeTest(root_net, root_driver, selected_clock->loads);
+
+  const auto result = icts::HTreeBuilder::build(root_net, icts::HTreeBuilder::BuildOptions{.force_branch_buffer = true});
 
   AssertBranchBufferMaterialization(result);
 }
@@ -150,7 +160,10 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
     return;
   }
 
-  const auto baseline_result = icts::HTreeBuilder::build(selected_clock->loads);
+  icts::Pin baseline_root_driver("htree_boundary_baseline_root_out", icts::PinType::kOut);
+  icts::Net baseline_root_net("htree_boundary_baseline_root_net");
+  ConnectRootNetForHTreeTest(baseline_root_net, baseline_root_driver, selected_clock->loads);
+  const auto baseline_result = icts::HTreeBuilder::build(baseline_root_net);
   ASSERT_TRUE(baseline_result.success);
   ASSERT_FALSE(baseline_result.levels.empty());
   ASSERT_GT(baseline_result.char_slew_steps, 0U);
@@ -168,8 +181,11 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
   const double top_input_slew_ns = (static_cast<double>(top_covering_idx) - 0.5) * baseline_result.char_max_slew_ns
                                    / static_cast<double>(baseline_result.char_slew_steps);
 
+  icts::Pin top_boundary_root_driver("htree_boundary_root_out", icts::PinType::kOut);
+  icts::Net top_boundary_root_net("htree_boundary_root_net");
+  ConnectRootNetForHTreeTest(top_boundary_root_net, top_boundary_root_driver, selected_clock->loads);
   auto top_boundary_result
-      = icts::HTreeBuilder::build(selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = top_input_slew_ns});
+      = icts::HTreeBuilder::build(top_boundary_root_net, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = top_input_slew_ns});
   ASSERT_TRUE(top_boundary_result.success);
   ASSERT_TRUE(top_boundary_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(top_boundary_result.min_top_input_slew_ns.value_or(0.0), top_input_slew_ns);
@@ -186,8 +202,11 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
 
   const double impossible_top_input_slew_ns
       = baseline_result.char_max_slew_ns + (baseline_result.char_max_slew_ns / static_cast<double>(baseline_result.char_slew_steps));
+  icts::Pin impossible_root_driver("htree_boundary_impossible_root_out", icts::PinType::kOut);
+  icts::Net impossible_root_net("htree_boundary_impossible_root_net");
+  ConnectRootNetForHTreeTest(impossible_root_net, impossible_root_driver, selected_clock->loads);
   auto impossible_top_boundary_result = icts::HTreeBuilder::build(
-      selected_clock->loads, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = impossible_top_input_slew_ns});
+      impossible_root_net, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = impossible_top_input_slew_ns});
   ASSERT_TRUE(impossible_top_boundary_result.success);
   ASSERT_TRUE(impossible_top_boundary_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(impossible_top_boundary_result.min_top_input_slew_ns.value_or(0.0), impossible_top_input_slew_ns);

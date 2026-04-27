@@ -29,7 +29,6 @@
 #include <cctype>
 #include <compare>
 #include <cstddef>
-#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -164,7 +163,11 @@ auto TryMaterializeClockCandidate(const DefClockCandidate& candidate, std::size_
     -> std::optional<RealClockNetSelection>
 {
   DESIGN_INST.reset();
-  DESIGN_INST.add_clock(std::make_unique<icts::Clock>("def_clock:" + candidate.net_name, candidate.net_name));
+  auto* requested_clock = DESIGN_INST.makeClock("def_clock:" + candidate.net_name, candidate.net_name);
+  if (requested_clock != nullptr) {
+    requested_clock->set_clock_name("def_clock:" + candidate.net_name);
+    requested_clock->set_clock_net_name(candidate.net_name);
+  }
   WRAPPER_INST.read();
 
   const auto clocks = DESIGN_INST.get_clocks();
@@ -172,22 +175,22 @@ auto TryMaterializeClockCandidate(const DefClockCandidate& candidate, std::size_
     return std::nullopt;
   }
 
-  auto* clock = clocks.front();
-  if (clock->get_clock_source() == nullptr || clock->get_loads().size() < min_required_load_count) {
+  auto* selected_clock = clocks.front();
+  if (selected_clock->get_clock_source() == nullptr || selected_clock->get_loads().size() < min_required_load_count) {
     return std::nullopt;
   }
 
-  auto sampled_sinks = SampleLoadsForRealTechClock(clock->get_loads(), max_count);
+  auto sampled_sinks = SampleLoadsForRealTechClock(selected_clock->get_loads(), max_count);
   if (sampled_sinks.size() < min_required_load_count) {
     return std::nullopt;
   }
 
   return RealClockNetSelection{
-      .clock_name = clock->get_clock_name(),
-      .net_name = clock->get_clock_net_name(),
-      .source = clock->get_clock_source(),
+      .clock_name = selected_clock->get_clock_name(),
+      .net_name = selected_clock->get_clock_net_name(),
+      .source = selected_clock->get_clock_source(),
       .sinks = std::move(sampled_sinks),
-      .source_net_load_count = clock->get_loads().size(),
+      .source_net_load_count = selected_clock->get_loads().size(),
       .is_def_clock_net = candidate.is_def_clock_net,
       .clock_like_load_pin_count = candidate.clock_like_load_pin_count,
   };

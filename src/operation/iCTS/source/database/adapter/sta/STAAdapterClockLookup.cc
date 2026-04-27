@@ -26,7 +26,6 @@
 #include <cstddef>
 #include <ostream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "IdbCellMaster.h"
@@ -41,13 +40,8 @@
 #include "api/TimingEngine.hh"
 #include "design/Inst.hh"
 #include "liberty/Lib.hh"
-#include "netlist/Net.hh"
-#include "netlist/Netlist.hh"
-#include "sta/StaClock.hh"
 
 namespace icts {
-
-using namespace sta_adapter_internal;
 
 namespace {
 
@@ -80,9 +74,9 @@ auto CountClockInputPins(idb::IdbPins* pin_list) -> std::size_t
 auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 {
   auto inst_type = icts::InstType::kUnknown;
-  const auto name = NormalizeInstName(inst_name);
+  const auto name = sta_adapter_internal::NormalizeInstName(inst_name);
 
-  auto* idb_inst = FindIdbInstance(name);
+  auto* idb_inst = sta_adapter_internal::FindIdbInstance(name);
   LOG_FATAL_IF(idb_inst == nullptr) << "Instance " << name << " is not found in iDB when querying instance type.";
   auto* pin_list = idb_inst->get_pin_list();
   LOG_FATAL_IF(pin_list == nullptr) << "Instance " << name << " type is unknown (none pin in iDB) which cell is unknown";
@@ -99,7 +93,7 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
     return icts::InstType::kMacroBlock;
   }
 
-  auto* lib_cell = GetStaEngine()->findLibertyCell(cell_master_name.c_str());
+  auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master_name.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master_name
                 << "\" is not found; fallback to iDB-only type heuristics.";
@@ -129,48 +123,6 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 auto STAAdapter::isFlipFlop(const std::string& inst_name) -> bool
 {
   return queryInstType(inst_name) == icts::InstType::kFlipFlop;
-}
-
-auto STAAdapter::isClockNet(const std::string& net_name) -> bool
-{
-  getInst().prepareFullDesignTiming();
-  auto* sta_netlist = GetStaEngine()->get_netlist();
-  if (sta_netlist == nullptr) {
-    LOG_ERROR << "STA netlist is not ready.";
-    return false;
-  }
-  auto* sta_net = sta_netlist->findNet(net_name.c_str());
-  if (sta_net == nullptr) {
-    LOG_ERROR << "Net " << net_name << " is not found in the STA netlist.";
-    return false;
-  }
-  return sta_net->isClockNet();
-}
-
-auto STAAdapter::collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>
-{
-  getInst().prepareFullDesignTiming();
-  std::vector<std::pair<std::string, std::string>> clock_net_pairs;
-  auto* sta_netlist = GetStaEngine()->get_netlist();
-  if (sta_netlist == nullptr) {
-    LOG_ERROR << "STA netlist is null when collecting clock nets.";
-    return clock_net_pairs;
-  }
-
-  ista::Net* sta_net = nullptr;
-  FOREACH_NET(sta_netlist, sta_net)
-  {
-    if (!sta_net->isClockNet()) {
-      continue;
-    }
-    auto* sta_clock = GetStaEngine()->getPropClockOfNet(sta_net);
-    if (sta_clock == nullptr) {
-      LOG_WARNING << "Clock net \"" << sta_net->get_name() << "\" has no propagated clock in STA.";
-      continue;
-    }
-    clock_net_pairs.emplace_back(sta_clock->get_clock_name(), sta_net->get_name());
-  }
-  return clock_net_pairs;
 }
 
 }  // namespace icts

@@ -61,6 +61,14 @@ class CharBuilder
     std::optional<double> wire_length_unit_um = std::nullopt;
     std::optional<unsigned> wire_length_iterations = std::nullopt;
     std::optional<std::vector<unsigned>> wire_length_indices = std::nullopt;
+    std::optional<double> max_slew_ns = std::nullopt;
+    std::optional<double> max_cap_pf = std::nullopt;
+    std::vector<std::string> buffer_types;
+    double char_buf_redundancy_pct = 0.0;
+    unsigned slew_steps = 15U;
+    unsigned cap_steps = 15U;
+    int routing_layer = 1;
+    std::optional<double> wire_width = std::nullopt;
   };
 
   CharBuilder() = default;
@@ -184,9 +192,9 @@ class CharBuilder
   double _length_unit_um = 0.0;
   std::string _wire_length_unit_source;
   std::string _wire_length_unit_detail;
-  unsigned _slew_steps = 10;
-  unsigned _cap_steps = 10;
-  unsigned _wire_length_iterations = 5;
+  unsigned _slew_steps = 15;
+  unsigned _cap_steps = 15;
+  unsigned _wire_length_iterations = 3;
 
   std::string _source_inst_name;
   std::string _source_in_pin;

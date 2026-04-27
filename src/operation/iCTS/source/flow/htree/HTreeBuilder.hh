@@ -100,30 +100,26 @@ class HTreeBuilder
     double htree_load_cap_max_pf = 0.0;
     double htree_load_cap_mean_pf = 0.0;
     double htree_load_cap_median_pf = 0.0;
-    std::string recommended_root_driver_cell_master;
+    std::string selected_root_driver_cell_master;
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;
     std::size_t pruned_leaf_single_load_buffers = 0U;
 
-    std::vector<std::unique_ptr<Inst>> inst_storage;
-    std::vector<std::unique_ptr<Pin>> pin_storage;
-    std::vector<std::unique_ptr<Net>> net_storage;
-
-    std::vector<Inst*> inserted_insts;
-    std::vector<Pin*> inserted_pins;
-    std::vector<Net*> inserted_nets;
+    std::vector<std::unique_ptr<Inst>> inserted_insts;
+    std::vector<std::unique_ptr<Pin>> inserted_pins;
+    std::vector<std::unique_ptr<Net>> inserted_nets;
 
     Inst* root_inst = nullptr;
     Pin* root_input_pin = nullptr;
     Pin* root_output_pin = nullptr;
+    Net* root_net = nullptr;
   };
 
-  HTreeBuilder() = default;
-  ~HTreeBuilder() = default;
+  HTreeBuilder() = delete;
 
-  static auto build(const std::vector<Pin*>& loads) -> BuildResult;
-  static auto build(const std::vector<Pin*>& loads, const BuildOptions& options) -> BuildResult;
+  static auto build(Net& root_net) -> BuildResult;
+  static auto build(Net& root_net, const BuildOptions& options) -> BuildResult;
 };
 
 }  // namespace icts

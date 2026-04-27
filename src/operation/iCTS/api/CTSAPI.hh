@@ -35,15 +35,6 @@ namespace icts {
 class CTSAPI
 {
  public:
-  struct WorkDir
-  {
-    std::string path;
-  };
-
-  struct InitOptions
-  {
-    WorkDir work_dir;
-  };
   static auto getInst() -> CTSAPI&
   {
     static CTSAPI inst;
@@ -56,9 +47,10 @@ class CTSAPI
 
   // Flow API
   static auto resetAPI() -> void;
-  static auto init(const std::string& config_file, const InitOptions& options = {}) -> void;
+  static auto init(const std::string& config_file, const std::string& work_dir = "") -> void;
   static auto readData() -> void;
   static auto ctsFlow() -> void;
+  static auto evaluate() -> void;
 
   // Feature API
   static auto outputSummary() -> ieda_feature::CTSSummary;

@@ -41,7 +41,7 @@ bool CtsIO::runCTS(std::string config, std::string work_dir)
 
   ieda::Stats stats;
 
-  CTS_API_INST.init(config, {{work_dir}});
+  CTS_API_INST.init(config, work_dir);
   CTS_API_INST.runCTS();
 
   flowConfigInst->add_status_runtime(stats.elapsedRunTime());

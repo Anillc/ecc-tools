@@ -37,8 +37,6 @@
 
 namespace icts {
 
-using namespace sta_adapter_internal;
-
 STAAdapter::~STAAdapter() = default;
 
 STAAdapter::CharPowerState::~CharPowerState() = default;
@@ -49,19 +47,19 @@ auto STAAdapter::init() -> void
   adapter.resetCharTimingState();
   adapter.resetCharPowerState();
   adapter._is_char_only_active = false;
-  auto* timing_engine = GetStaEngine();
-  if (!HasStaBaseContext()) {
+  auto* timing_engine = sta_adapter_internal::GetStaEngine();
+  if (!sta_adapter_internal::HasStaBaseContext()) {
     ipower::Power::destroyPower();
     ista::TimingEngine::destroyTimingEngine();
-    timing_engine = GetStaEngine();
-    InstallTimingIDBAdapter(timing_engine);
-    LoadConfiguredLiberty(timing_engine);
+    timing_engine = sta_adapter_internal::GetStaEngine();
+    sta_adapter_internal::InstallTimingIDBAdapter(timing_engine);
+    sta_adapter_internal::LoadConfiguredLiberty(timing_engine);
   }
 
-  timing_engine->set_num_threads(kStaThreadCount);
-  ConfigureStaWorkspace(timing_engine, "sta");
+  timing_engine->set_num_threads(sta_adapter_internal::kStaThreadCount);
+  sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta");
   adapter.resetStaTransientState();
-  timing_engine->get_ista()->set_n_worst_path_per_clock(kWorstPathPerClock);
+  timing_engine->get_ista()->set_n_worst_path_per_clock(sta_adapter_internal::kWorstPathPerClock);
 }
 
 auto STAAdapter::initCharOnly() -> void
@@ -73,14 +71,14 @@ auto STAAdapter::initCharOnly() -> void
     finishCharOnly();
   }
 
-  if (!HasStaBaseContext()) {
+  if (!sta_adapter_internal::HasStaBaseContext()) {
     init();
   }
 
   adapter._is_char_only_active = true;
-  auto* timing_engine = GetStaEngine();
-  timing_engine->set_num_threads(kCharStaThreadCount);
-  ConfigureStaWorkspace(timing_engine, "sta_char");
+  auto* timing_engine = sta_adapter_internal::GetStaEngine();
+  timing_engine->set_num_threads(sta_adapter_internal::kCharStaThreadCount);
+  sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta_char");
   adapter.resetStaTransientState();
 }
 
