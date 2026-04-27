@@ -1683,3 +1683,36 @@ Completed CTS main flow API integration: FlowManager orchestration, macro/regula
 ### Next Steps
 
 - None - task complete
+
+
+## Session 36: CTS Flow Prep Evaluation
+
+**Date**: 2026-04-27
+**Task**: CTS Flow Prep Evaluation
+**Branch**: `cts_refactor`
+
+### Summary
+
+Completed CTS flow preparation/evaluation refactor, namespace and config-boundary cleanup, tests, and full iCTS ecc validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0dcb787ae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
