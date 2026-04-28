@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -93,6 +94,37 @@ auto FormatPoint(double x, double y) -> std::string
   return "(" + FormatFixed(x, 2) + ", " + FormatFixed(y, 2) + ")";
 }
 
+auto NormalizeDbuPerUm(int32_t dbu_per_um) -> double
+{
+  return static_cast<double>(std::max(dbu_per_um, int32_t{1}));
+}
+
+auto DbuToUm(double value_dbu, int32_t dbu_per_um) -> double
+{
+  return value_dbu / NormalizeDbuPerUm(dbu_per_um);
+}
+
+auto FormatUm(double value_um) -> std::string
+{
+  return FormatFixed(value_um, 3) + " um";
+}
+
+auto FormatUm2(double value_um2) -> std::string
+{
+  return FormatFixed(value_um2, 3) + " um^2";
+}
+
+auto ToLoadCountLabel(TopologyGen::LoadCountKind load_count_kind) -> const char*
+{
+  switch (load_count_kind) {
+    case TopologyGen::LoadCountKind::kSink:
+      return "load_count (sink)";
+    case TopologyGen::LoadCountKind::kLocalBuffer:
+      return "load_count (local buffer)";
+  }
+  return "load_count (sink)";
+}
+
 }  // namespace
 
 auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
@@ -102,7 +134,7 @@ auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
 
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BuildOptions& options) -> Tree
 {
-  return build(loads, options.partition_config, options.target_depth);
+  return build(loads, options.partition_config, options.target_depth, options.load_count_kind, options.dbu_per_um);
 }
 
 auto TopologyGen::buildFastClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> ClusterConfig
@@ -130,18 +162,16 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   return build(loads, BuildOptions{.partition_config = config});
 }
 
-auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth) -> Tree
+auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth,
+                        LoadCountKind load_count_kind, int32_t dbu_per_um) -> Tree
 {
   Tree tree;
-  schema::ScopedStage build_stage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads");
+  auto build_stage = SCHEMA_WRITER_INST.beginStage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads");
   if (loads.empty()) {
     LOG_WARNING << "Topology generation skipped: no loads.";
     build_stage.skip({{"load_count", "0"}});
     return tree;
   }
-
-  reportLoadDistribution(loads);
-  const auto bounds = CalcLoadBounds(loads);
 
   std::size_t leaf_count = calcLeafCount(loads.size());
   const unsigned max_depth = calcMaxDepth(loads.size());
@@ -154,6 +184,10 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
     build_stage.skip({{"leaf_count", "0"}});
     return tree;
   }
+
+  SCHEMA_WRITER_INST.emitSection("### Topology Generation");
+  reportLoadDistribution(loads, load_count_kind, dbu_per_um);
+  const auto bounds = CalcLoadBounds(loads);
 
   const auto root = tree.create_node();
   tree.set_root(root);
@@ -168,8 +202,8 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   buildFullTree(tree, BuildCursor{.node_id = root, .depth = 0}, height);
   embedPositions(tree, root, loads, leaf_count, config);
   balanceTopology(tree, bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y, config.htree_topology_tolerance);
-  reportRootToLeafLengths(tree);
-  build_stage.finish({
+  reportRootToLeafLengths(tree, dbu_per_um);
+  build_stage.finished({
       {"nodes", std::to_string(tree.get_size())},
       {"depth", std::to_string(height)},
       {"leaf_count", std::to_string(leaf_count)},
@@ -178,7 +212,7 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   return tree;
 }
 
-auto TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) -> void
+auto TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads, LoadCountKind load_count_kind, int32_t dbu_per_um) -> void
 {
   if (loads.empty()) {
     LOG_WARNING << "Load distribution: empty load list.";
@@ -202,26 +236,31 @@ auto TopologyGen::reportLoadDistribution(const std::vector<Pin*>& loads) -> void
   const int height = max_y - min_y;
   const double core_area = static_cast<double>(width) * height;
   const double core_length = std::sqrt(std::max(0.0, core_area));
-  const int half_perimeter = (width + height) / 2;
+  const double half_perimeter = (static_cast<double>(width) + static_cast<double>(height)) / 2.0;
+  const double dbu_per_um_value = NormalizeDbuPerUm(dbu_per_um);
+  const double width_um = static_cast<double>(width) / dbu_per_um_value;
+  const double height_um = static_cast<double>(height) / dbu_per_um_value;
+  const double core_area_um2 = width_um * height_um;
+  const std::string load_count_label = ToLoadCountLabel(load_count_kind);
 
   const auto center = geometry::CalcCenter(loads, [](Pin* pin) -> auto { return pin->get_location(); });
   const auto median = geometry::CalcMedian(loads, [](Pin* pin) -> auto { return pin->get_location(); });
 
   schema::EmitKeyValueTable("TopologyGen Load Distribution Summary",
                             {
-                                {"load_count", std::to_string(loads.size())},
+                                {load_count_label, std::to_string(loads.size())},
                                 {"bbox_min", FormatPoint(min_x, min_y)},
                                 {"bbox_max", FormatPoint(max_x, max_y)},
-                                {"span_width_height", std::to_string(width) + " x " + std::to_string(height) + " DBU"},
-                                {"area", FormatFixed(core_area, 2) + " DBU^2"},
-                                {"sqrt_area", FormatFixed(core_length, 2) + " DBU"},
-                                {"half_perimeter", std::to_string(half_perimeter) + " DBU"},
+                                {"span_width_height", FormatFixed(width_um, 3) + " x " + FormatFixed(height_um, 3) + " um"},
+                                {"area", FormatUm2(core_area_um2)},
+                                {"sqrt_area", FormatUm(DbuToUm(core_length, dbu_per_um))},
+                                {"half_perimeter", FormatUm(DbuToUm(half_perimeter, dbu_per_um))},
                                 {"center", FormatPoint(center.get_x(), center.get_y())},
                                 {"median", FormatPoint(median.get_x(), median.get_y())},
                             });
 }
 
-auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
+auto TopologyGen::reportRootToLeafLengths(const Tree& tree, int32_t dbu_per_um) -> void
 {
   if (tree.get_size() == 0 || tree.get_root() == std::numeric_limits<std::size_t>::max()) {
     LOG_WARNING << "Topology length report skipped: invalid tree.";
@@ -230,7 +269,7 @@ auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
 
   int min_len = std::numeric_limits<int>::max();
   int max_len = 0;
-  int sum_len = 0;
+  double sum_len = 0.0;
   std::size_t leaf_count = 0;
   std::size_t invalid_count = 0;
 
@@ -278,11 +317,11 @@ auto TopologyGen::reportRootToLeafLengths(const Tree& tree) -> void
     return;
   }
 
-  const double avg_len = static_cast<double>(sum_len) / static_cast<double>(leaf_count);
+  const double avg_len = sum_len / static_cast<double>(leaf_count);
   schema::EmitKeyValueTable("TopologyGen Root-To-Leaf Path Summary", {
-                                                                         {"min_path_length", std::to_string(min_len) + " DBU"},
-                                                                         {"max_path_length", std::to_string(max_len) + " DBU"},
-                                                                         {"avg_path_length", FormatFixed(avg_len, 2) + " DBU"},
+                                                                         {"min_path_length", FormatUm(DbuToUm(min_len, dbu_per_um))},
+                                                                         {"max_path_length", FormatUm(DbuToUm(max_len, dbu_per_um))},
+                                                                         {"avg_path_length", FormatUm(DbuToUm(avg_len, dbu_per_um))},
                                                                          {"valid_leaf_paths", std::to_string(leaf_count)},
                                                                          {"invalid_leaf_paths", std::to_string(invalid_count)},
                                                                      });

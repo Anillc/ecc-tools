@@ -55,38 +55,38 @@ auto MakeSkipResult(const std::string& reason) -> Arm9ExperimentMatrixRunResult
   return result;
 }
 
-auto MakeCasePrefix(unsigned wire_length_iterations, unsigned slew_cap_steps) -> std::string
+auto MakeCasePrefix(unsigned wirelength_iterations, unsigned slew_cap_steps) -> std::string
 {
-  return "iter=" + std::to_string(wire_length_iterations) + ", step=" + std::to_string(slew_cap_steps) + ": ";
+  return "iter=" + std::to_string(wirelength_iterations) + ", step=" + std::to_string(slew_cap_steps) + ": ";
 }
 
-auto ResolveArm9MatrixEnvName(bool omit_wire_length_unit) -> std::string_view
+auto ResolveArm9MatrixEnvName(bool omit_wirelength_unit) -> std::string_view
 {
-  return omit_wire_length_unit ? kRunArm9ExperimentAutoUnitEnv : kRunArm9ExperimentEnv;
+  return omit_wirelength_unit ? kRunArm9ExperimentAutoUnitEnv : kRunArm9ExperimentEnv;
 }
 
-auto ResolveArm9MatrixScenarioName(bool omit_wire_length_unit) -> std::string_view
+auto ResolveArm9MatrixScenarioName(bool omit_wirelength_unit) -> std::string_view
 {
-  return omit_wire_length_unit ? kArm9ExperimentAutoUnitScenario : kArm9ExperimentScenario;
+  return omit_wirelength_unit ? kArm9ExperimentAutoUnitScenario : kArm9ExperimentScenario;
 }
 
-auto MakeArm9CaseScenarioName(bool omit_wire_length_unit, unsigned wire_length_iterations, unsigned slew_cap_steps) -> std::string
+auto MakeArm9CaseScenarioName(bool omit_wirelength_unit, unsigned wirelength_iterations, unsigned slew_cap_steps) -> std::string
 {
   std::ostringstream scenario_name_stream;
   scenario_name_stream << "htree_builder_arm9_full_sink";
-  if (omit_wire_length_unit) {
+  if (omit_wirelength_unit) {
     scenario_name_stream << "_auto_unit";
   }
-  scenario_name_stream << "_iter" << wire_length_iterations << "_step" << slew_cap_steps;
+  scenario_name_stream << "_iter" << wirelength_iterations << "_step" << slew_cap_steps;
   return scenario_name_stream.str();
 }
 
-auto MakeArm9ExperimentRecord(unsigned wire_length_iterations, unsigned slew_cap_steps, double runtime_s,
+auto MakeArm9ExperimentRecord(unsigned wirelength_iterations, unsigned slew_cap_steps, double runtime_s,
                               const icts::HTreeBuilder::BuildResult& result, std::size_t load_count) -> Arm9ExperimentRecord
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   Arm9ExperimentRecord record{
-      .wire_length_iterations = wire_length_iterations,
+      .wirelength_iterations = wirelength_iterations,
       .slew_cap_steps = slew_cap_steps,
       .runtime_s = runtime_s,
       .success = result.success,
@@ -96,8 +96,8 @@ auto MakeArm9ExperimentRecord(unsigned wire_length_iterations, unsigned slew_cap
       .best_pattern_id = observation.best_pattern_id,
       .best_delay_ns = observation.best_delay_ns,
       .best_power_w = observation.best_power_w,
-      .char_wire_length_unit_um = result.char_wire_length_unit_um,
-      .char_wire_length_iterations = result.char_wire_length_iterations,
+      .char_wirelength_unit_um = result.char_wirelength_unit_um,
+      .char_wirelength_iterations = result.char_wirelength_iterations,
       .char_grid_adapted = result.char_grid_adapted,
       .used_boundary_fallback = observation.used_boundary_fallback,
       .failure_reason = result.failure_reason,
@@ -106,11 +106,11 @@ auto MakeArm9ExperimentRecord(unsigned wire_length_iterations, unsigned slew_cap
   return record;
 }
 
-auto AppendArm9CaseFailures(unsigned wire_length_iterations, unsigned slew_cap_steps, bool omit_wire_length_unit, double runtime_s,
+auto AppendArm9CaseFailures(unsigned wirelength_iterations, unsigned slew_cap_steps, bool omit_wirelength_unit, double runtime_s,
                             const icts::HTreeBuilder::BuildResult& result, const Arm9ExperimentRecord& record,
                             std::vector<std::string>& failure_messages) -> void
 {
-  const std::string prefix = MakeCasePrefix(wire_length_iterations, slew_cap_steps);
+  const std::string prefix = MakeCasePrefix(wirelength_iterations, slew_cap_steps);
   if (!result.success) {
     failure_messages.push_back(prefix + "failure_reason=" + result.failure_reason);
   }
@@ -123,11 +123,11 @@ auto AppendArm9CaseFailures(unsigned wire_length_iterations, unsigned slew_cap_s
   if (!result.best_char.has_value()) {
     failure_messages.push_back(prefix + "best htree char is missing");
   }
-  if (omit_wire_length_unit && record.char_wire_length_unit_um <= 0.0) {
-    failure_messages.push_back(prefix + "auto-derived char wire length unit is not positive");
+  if (omit_wirelength_unit && record.char_wirelength_unit_um <= 0.0) {
+    failure_messages.push_back(prefix + "auto-derived char wirelength unit is not positive");
   }
-  if (omit_wire_length_unit && record.char_wire_length_iterations > wire_length_iterations) {
-    failure_messages.push_back(prefix + "char wire length iterations exceed requested iteration count");
+  if (omit_wirelength_unit && record.char_wirelength_iterations > wirelength_iterations) {
+    failure_messages.push_back(prefix + "char wirelength iterations exceed requested iteration count");
   }
 }
 
@@ -148,9 +148,9 @@ auto ValidateSelectedClock(const RealClockLoadSelection& selected_clock, std::ve
 
 }  // namespace
 
-auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wire_length_unit) -> Arm9ExperimentMatrixRunResult
+auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wirelength_unit) -> Arm9ExperimentMatrixRunResult
 {
-  const std::string_view env_name = ResolveArm9MatrixEnvName(omit_wire_length_unit);
+  const std::string_view env_name = ResolveArm9MatrixEnvName(omit_wirelength_unit);
   if (!ReadEnvFlag(env_name)) {
     return MakeSkipResult("Set " + std::string(env_name) + "=1 to run the ARM9 full-sink H-tree experiment matrix.");
   }
@@ -172,18 +172,18 @@ auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wire_length_unit) -> Arm9Exp
   }
 
   matrix_result.records.reserve(kArm9ExperimentIterations.size() * kArm9ExperimentSteps.size());
-  for (const unsigned wire_length_iterations : kArm9ExperimentIterations) {
+  for (const unsigned wirelength_iterations : kArm9ExperimentIterations) {
     for (const unsigned slew_cap_steps : kArm9ExperimentSteps) {
-      const std::string scenario_name = MakeArm9CaseScenarioName(omit_wire_length_unit, wire_length_iterations, slew_cap_steps);
+      const std::string scenario_name = MakeArm9CaseScenarioName(omit_wirelength_unit, wirelength_iterations, slew_cap_steps);
 
       realtech_support::RealTechCharSession char_session;
       if (const auto prepare_error
-          = char_session.prepare(scenario_name, std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, omit_wire_length_unit);
+          = char_session.prepare(scenario_name, std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, omit_wirelength_unit);
           prepare_error.has_value()) {
         return MakeSkipResult(*prepare_error);
       }
 
-      CONFIG_INST.set_wire_length_iterations(wire_length_iterations);
+      CONFIG_INST.set_wirelength_iterations(wirelength_iterations);
       CONFIG_INST.set_slew_steps(slew_cap_steps);
       CONFIG_INST.set_cap_steps(slew_cap_steps);
 
@@ -197,18 +197,18 @@ auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wire_length_unit) -> Arm9Exp
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
 
       const Arm9ExperimentRecord record
-          = MakeArm9ExperimentRecord(wire_length_iterations, slew_cap_steps, runtime_s, result, matrix_result.selection.loads.size());
+          = MakeArm9ExperimentRecord(wirelength_iterations, slew_cap_steps, runtime_s, result, matrix_result.selection.loads.size());
       matrix_result.records.push_back(record);
-      AppendArm9CaseFailures(wire_length_iterations, slew_cap_steps, omit_wire_length_unit, runtime_s, result, record,
+      AppendArm9CaseFailures(wirelength_iterations, slew_cap_steps, omit_wirelength_unit, runtime_s, result, record,
                              matrix_result.failure_messages);
     }
   }
 
-  const std::string_view scenario_name = ResolveArm9MatrixScenarioName(omit_wire_length_unit);
+  const std::string_view scenario_name = ResolveArm9MatrixScenarioName(omit_wirelength_unit);
   matrix_result.report_written = realtech_support::WriteScenarioLog(
       std::string(scenario_name), "matrix_report.txt",
       FormatArm9ExperimentReport(scenario_name, matrix_result.selection.clock_name, matrix_result.selection.loads.size(),
-                                 omit_wire_length_unit, matrix_result.records));
+                                 omit_wirelength_unit, matrix_result.records));
   return matrix_result;
 }
 

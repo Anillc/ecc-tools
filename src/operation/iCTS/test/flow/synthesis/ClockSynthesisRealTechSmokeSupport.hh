@@ -58,7 +58,7 @@ using RealClockSelection = common::realtech::RealClockNetSelection;
 
 struct ClockSynthesisExperimentRecord
 {
-  unsigned wire_length_iterations = 0U;
+  unsigned wirelength_iterations = 0U;
   unsigned slew_cap_steps = 0U;
   double runtime_s = 0.0;
   bool success = false;
@@ -68,8 +68,8 @@ struct ClockSynthesisExperimentRecord
   unsigned best_pattern_id = 0U;
   double best_delay_ns = 0.0;
   double best_power_w = 0.0;
-  double char_wire_length_unit_um = 0.0;
-  unsigned char_wire_length_iterations = 0U;
+  double char_wirelength_unit_um = 0.0;
+  unsigned char_wirelength_iterations = 0U;
   bool char_grid_adapted = false;
   bool used_boundary_fallback = false;
   std::string failure_reason;
@@ -120,7 +120,7 @@ struct ClockSynthesisValidationResult
   std::vector<std::string> failure_messages;
 };
 
-auto FormatClockSynthesisExperimentReport(std::string_view scenario_name, const RealClockSelection& selection, bool omit_wire_length_unit,
+auto FormatClockSynthesisExperimentReport(std::string_view scenario_name, const RealClockSelection& selection, bool omit_wirelength_unit,
                                           const std::vector<ClockSynthesisExperimentRecord>& records) -> std::string;
 auto FormatClockSynthesisToleranceComparisonReport(std::string_view scenario_name, const RealClockSelection& selection,
                                                    const ClockSynthesisToleranceComparisonResult& comparison) -> std::string;

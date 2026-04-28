@@ -58,6 +58,15 @@ class ClockSynthesis
     Net* sink_net = nullptr;
   };
 
+  struct ClusterLeafDistanceSummary
+  {
+    std::size_t count = 0;
+    double min_distance_um = 0.0;
+    double max_distance_um = 0.0;
+    double mean_distance_um = 0.0;
+    double median_distance_um = 0.0;
+  };
+
   struct BuildResult
   {
     bool success = false;
@@ -67,6 +76,11 @@ class ClockSynthesis
     HTreeBuilder::BuildResult htree_result;
     std::optional<ClusterResult> cluster_result = std::nullopt;
     std::vector<ClusterBufferMeta> cluster_buffers;
+    std::optional<ClusterLeafDistanceSummary> cluster_leaf_distance_summary = std::nullopt;
+    std::size_t selected_htree_level_count = 0;
+    std::optional<unsigned> selected_htree_depth = std::nullopt;
+    std::size_t htree_inserted_buffer_count = 0;
+    std::size_t htree_inserted_net_count = 0;
 
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;

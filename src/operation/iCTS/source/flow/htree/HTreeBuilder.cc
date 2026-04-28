@@ -68,6 +68,32 @@ auto ResolveSelectedRootDriverCellMaster(const std::vector<HTreeBuilder::LevelPl
   return {};
 }
 
+auto buildCharBuilderInitOptionsFromRuntimeConfig() -> CharBuilder::InitOptions
+{
+  CharBuilder::InitOptions options;
+  if (CONFIG_INST.has_max_buf_tran() && CONFIG_INST.get_max_buf_tran() > 0.0) {
+    options.max_slew_ns = CONFIG_INST.get_max_buf_tran();
+  }
+  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
+    options.max_cap_pf = CONFIG_INST.get_max_cap();
+  }
+  if (CONFIG_INST.get_wirelength_unit_um() > 0.0) {
+    options.wirelength_unit_um = CONFIG_INST.get_wirelength_unit_um();
+  }
+  options.wirelength_iterations = CONFIG_INST.get_wirelength_iterations();
+  options.slew_steps = CONFIG_INST.get_slew_steps();
+  options.cap_steps = CONFIG_INST.get_cap_steps();
+  options.buffer_types = CONFIG_INST.get_buffer_types();
+  options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
+
+  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  if (CONFIG_INST.get_wire_width() > 0.0) {
+    options.wire_width = CONFIG_INST.get_wire_width();
+  }
+  return options;
+}
+
 }  // namespace
 
 auto HTreeBuilder::build(Net& root_net) -> BuildResult
@@ -93,12 +119,19 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
     LOG_WARNING << "HTreeBuilder: build skipped because root net " << root_net.get_name() << " has no loads.";
     return result;
   }
-  schema::ScopedStage build_stage("HTreeBuilder", "build");
+  auto build_stage = SCHEMA_WRITER_INST.beginStage("HTreeBuilder", "build");
+  const int32_t dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
 
   BiPartitionConfig topology_config;
   topology_config.htree_topology_tolerance
       = std::max(0.0, options.htree_topology_tolerance.value_or(CONFIG_INST.get_htree_topology_tolerance()));
-  result.topology = TopologyGen::build(loads, topology_config);
+  result.topology
+      = TopologyGen::build(loads, TopologyGen::BuildOptions{
+                                      .partition_config = topology_config,
+                                      .dbu_per_um = dbu_per_um,
+                                      .load_count_kind = options.topology_loads_are_local_buffers ? TopologyGen::LoadCountKind::kLocalBuffer
+                                                                                                  : TopologyGen::LoadCountKind::kSink,
+                                  });
   const auto levels = result.topology.levels();
   if (levels.size() <= 1U) {
     LOG_WARNING << "HTreeBuilder: topology has no H-tree levels after generation.";
@@ -106,12 +139,12 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
     return result;
   }
 
-  const int32_t dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
   build_stage.markRunning("characterization");
   CharBuilder char_builder;
-  const auto char_flow = htree_builder::RunCharacterizationFlow(result.topology, dbu_per_um, result, char_builder);
+  const auto char_options = buildCharBuilderInitOptionsFromRuntimeConfig();
+  const auto char_flow = htree_builder::RunCharacterizationFlow(result.topology, dbu_per_um, char_options, result, char_builder);
   if (!char_flow.success) {
-    build_stage.skip({{"reason", char_flow.failure_reason}});
+    build_stage.failed({{"reason", char_flow.failure_reason}});
     return result;
   }
 
@@ -122,7 +155,7 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   const auto full_level_plans = htree_builder::BuildLevelPlans(result.topology, char_flow.length_step_um, dbu_per_um);
   if (full_level_plans.empty()) {
     LOG_WARNING << "HTreeBuilder: failed to derive H-tree level plans from topology.";
-    build_stage.skip({{"reason", "empty_level_plans"}});
+    build_stage.failed({{"reason", "empty_level_plans"}});
     return result;
   }
 
@@ -130,7 +163,7 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   const auto depth_candidates = htree_builder::ResolveDepthCandidates(max_depth, options);
   if (depth_candidates.empty()) {
     LOG_WARNING << "HTreeBuilder: no depth candidates were resolved from topology.";
-    build_stage.skip({{"reason", "empty_depth_candidates"}});
+    build_stage.failed({{"reason", "empty_depth_candidates"}});
     return result;
   }
   result.depth_explore_window = static_cast<unsigned>(depth_candidates.size());
@@ -145,7 +178,7 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
       = htree_builder::SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_registry, required_length_indices);
   if (entry_sets_by_length.empty()) {
     LOG_WARNING << "HTreeBuilder: segment frontier synthesis failed for the required aligned lengths.";
-    build_stage.skip({{"reason", "missing_required_segment_frontiers"}});
+    build_stage.failed({{"reason", "missing_required_segment_frontiers"}});
     return result;
   }
 
@@ -173,7 +206,7 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
       result.failure_reason = exploration.global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
     }
     LOG_WARNING << "HTreeBuilder: failed to select a best H-tree characterization entry across depth candidates.";
-    build_stage.skip({{"reason", result.failure_reason}, {"depth_candidates", std::to_string(depth_candidates.size())}});
+    build_stage.failed({{"reason", result.failure_reason}, {"depth_candidates", std::to_string(depth_candidates.size())}});
     return result;
   }
 
@@ -252,7 +285,7 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   const std::string selected_root_driver_cell_master = ResolveSelectedRootDriverCellMaster(result.levels);
   if (!htree_builder::ValidateRootDriverSizing(result, selected_root_driver_cell_master)) {
     result.failure_reason = "root_driver_sizing_precheck_failed";
-    build_stage.skip({{"reason", result.failure_reason}});
+    build_stage.failed({{"reason", result.failure_reason}});
     return result;
   }
 
@@ -265,12 +298,11 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   }
 
   htree_builder::LogHTreeBuildSummary(result, selected_evaluation, selected_summary);
-  build_stage.finish({{"success", result.success ? "true" : "false"},
-                      {"levels", std::to_string(result.levels.size())},
-                      {"inserted_insts", std::to_string(result.inserted_insts.size())},
-                      {"inserted_nets", std::to_string(result.inserted_nets.size())},
-                      {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers)}},
-                     result.success ? "success" : "incomplete");
+  if (result.success) {
+    build_stage.finished();
+  } else {
+    build_stage.failed({{"reason", result.failure_reason.empty() ? "incomplete_materialization" : result.failure_reason}});
+  }
   return result;
 }
 

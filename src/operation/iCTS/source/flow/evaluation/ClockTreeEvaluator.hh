@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -40,7 +41,34 @@ struct ClockTreeSummary
     double hold_wns = 0.0;
     double suggest_freq = 0.0;
   };
+  struct ClockLatencySkew
+  {
+    std::string clock_name;
+    std::string analysis_mode;
+    std::string launch_pin;
+    std::string capture_pin;
+    double launch_latency_ns = 0.0;
+    double capture_latency_ns = 0.0;
+    double worst_skew_ns = 0.0;
+    double average_worst_skew_ns = 0.0;
+    std::size_t path_count = 0U;
+    std::size_t average_sample_count = 0U;
+  };
 
+  bool has_evaluation_result = false;
+  bool sta_clocks_propagated = false;
+  std::size_t propagated_clock_count = 0U;
+  int32_t final_clock_buffer_count = 0;
+  double final_buffer_area_um2 = 0.0;
+  int32_t clock_member_buffer_count = 0;
+  double max_clock_net_wirelength_um = 0.0;
+  double total_clock_tree_wirelength_um = 0.0;
+  int32_t max_clock_net_wirelength_dbu = 0;
+  double total_clock_tree_wirelength_dbu = 0.0;
+  int32_t design_dbu_per_um = 0;
+
+  // Compatibility aliases for existing feature consumers. Do not use these
+  // names in cts.log unless real path/depth traversal is implemented.
   int32_t buffer_num = 0;
   double buffer_area = 0.0;
   int32_t clock_path_min_buffer = 0;
@@ -49,6 +77,7 @@ struct ClockTreeSummary
   int32_t max_clock_wirelength = 0;
   double total_clock_wirelength = 0.0;
   std::vector<ClockTiming> clocks_timing;
+  std::vector<ClockLatencySkew> clocks_latency_skew;
 };
 
 class ClockTreeEvaluator
@@ -58,6 +87,8 @@ class ClockTreeEvaluator
 
   static auto evaluate() -> void;
   static auto outputSummary() -> ClockTreeSummary;
+  static auto hasEvaluationResult() -> bool;
+  static auto writeStatistics(const std::string& save_dir, bool emit_log_tables = true) -> bool;
   static auto resetSummary() -> void;
 };
 

@@ -68,12 +68,12 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   ASSERT_GT(expected_max_cap, 0.0);
 
   icts::CharBuilder builder;
-  builder.init();
+  builder.init(realtech_support::MakeRuntimeCharBuilderInitOptions());
 
   EXPECT_DOUBLE_EQ(builder.get_max_slew(), expected_max_slew);
   EXPECT_DOUBLE_EQ(builder.get_max_cap(), expected_max_cap);
-  EXPECT_DOUBLE_EQ(builder.get_wire_length_unit_um(), realtech_support::kRealTechCharWireLengthUnitUm);
-  EXPECT_EQ(builder.get_wire_length_iterations(), realtech_support::kRealTechCharWireLengthIterations);
+  EXPECT_DOUBLE_EQ(builder.get_wirelength_unit_um(), realtech_support::kRealTechCharWirelengthUnitUm);
+  EXPECT_EQ(builder.get_wirelength_iterations(), realtech_support::kRealTechCharWirelengthIterations);
 
   builder.build();
 
@@ -82,7 +82,7 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   EXPECT_GT(realtech_support::CountPositivePower(builder.get_segment_chars()), 0U);
   const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
   EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
-  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
+  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wirelength_iterations());
   EXPECT_LE(lattice_summary.max_input_slew_idx, builder.get_slew_steps());
   EXPECT_LE(lattice_summary.max_output_slew_idx, builder.get_slew_steps());
   EXPECT_LE(lattice_summary.max_driven_cap_idx, builder.get_cap_steps());
@@ -176,8 +176,8 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectabl
   report_stream << "usable_buffers=" << realtech_support::JoinStrings(usable_buffers) << "\n";
   report_stream << "resolved_max_slew_ns=" << builder.get_max_slew() << "\n";
   report_stream << "resolved_max_cap_pf=" << builder.get_max_cap() << "\n";
-  report_stream << "wire_length_unit_um=" << builder.get_wire_length_unit_um() << "\n";
-  report_stream << "wire_length_iterations=" << builder.get_wire_length_iterations() << "\n";
+  report_stream << "wirelength_unit_um=" << builder.get_wirelength_unit_um() << "\n";
+  report_stream << "wirelength_iterations=" << builder.get_wirelength_iterations() << "\n";
   report_stream << "segment_char_lattice=" << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder) << "\n";
   report_stream << "observed_sample_bounds{output_slew_overflow_samples=" << builder.get_output_slew_overflow_samples()
                 << ",max_observed_output_slew_ns=" << builder.get_max_observed_output_slew_ns()
@@ -233,7 +233,7 @@ TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvai
     }
 
     icts::CharBuilder builder;
-    builder.init();
+    builder.init(realtech_support::MakeRuntimeCharBuilderInitOptions());
     builder.build();
     if (builder.get_segment_chars().empty()) {
       return std::nullopt;
@@ -244,7 +244,7 @@ TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvai
       return std::nullopt;
     }
 
-    const unsigned target_length_idx = builder.get_wire_length_iterations();
+    const unsigned target_length_idx = builder.get_wirelength_iterations();
     unsigned terminal_pattern_count = 0U;
     for (const auto& pattern : builder.get_buffering_patterns()) {
       if (pattern.get_length_idx() != target_length_idx || !pattern.hasTerminalBranchBuffer()) {

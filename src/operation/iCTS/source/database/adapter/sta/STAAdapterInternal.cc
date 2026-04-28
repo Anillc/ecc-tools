@@ -503,9 +503,8 @@ auto EmitWireRcProbeDiagnostic(const WireRcProbe& probe) -> void
   schema::EmitDiagnostic(
       probe.diagnostic_level, kStaAdapterOwner, probe.diagnostic_summary,
       {
-          {"routing_layer", std::to_string(probe.routing_layer)},
-          {"wire_width_um", FormatOptionalWireWidth(probe.wire_width_um)},
-          {"query_length_um", logformat::FormatWithUnit(probe.query_length_um, "um")},
+          {"routing_setup_source", "Runtime Configuration"},
+          {"query_length", logformat::FormatWithUnit(probe.query_length_um, "um")},
           {"unit_resistance", probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"}},
           {"unit_capacitance", probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"}},
           {"status", probe.status},
@@ -515,9 +514,8 @@ auto EmitWireRcProbeDiagnostic(const WireRcProbe& probe) -> void
 auto BuildWireRcRows(const WireRcProbe& probe) -> logformat::TableRows
 {
   return {
-      {"routing_layer", std::to_string(probe.routing_layer), "effective routing layer for unit RC probe"},
-      {"wire_width_um", FormatOptionalWireWidth(probe.wire_width_um), "explicit width override or technology default"},
-      {"query_length_um", logformat::FormatWithUnit(probe.query_length_um, "um"), "single-unit probe length"},
+      {"routing_setup_source", "Runtime Configuration", "routing layer and wire width are reported once there"},
+      {"query_length", logformat::FormatWithUnit(probe.query_length_um, "um"), "single-unit probe length"},
       {"unit_resistance", probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"},
        "derived from STAAdapter::queryWireResistance"},
       {"unit_capacitance", probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"},

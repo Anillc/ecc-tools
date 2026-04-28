@@ -71,15 +71,15 @@ enum class CharGridSource
 
 struct CharacterizationGridPlan
 {
-  double wire_length_unit_um = 0.0;
-  unsigned wire_length_iterations = 0U;
-  unsigned configured_wire_length_iterations = 0U;
+  double wirelength_unit_um = 0.0;
+  unsigned wirelength_iterations = 0U;
+  unsigned configured_wirelength_iterations = 0U;
   unsigned required_covering_iterations = 0U;
   unsigned unique_level_bins = 0U;
-  double configured_wire_length_unit_um = 0.0;
-  double auto_derived_wire_length_unit_um = 0.0;
+  double configured_wirelength_unit_um = 0.0;
+  double auto_derived_wirelength_unit_um = 0.0;
   unsigned requested_level_lengths = 0U;
-  bool configured_wire_length_missing = false;
+  bool configured_wirelength_missing = false;
   bool configured_grid_collapsed = false;
   bool adapted = false;
   CharGridSource source = CharGridSource::kNone;
@@ -676,8 +676,8 @@ auto MakeCandidateLevelPlans(const std::vector<HTreeBuilder::LevelPlan>& full_le
 auto CountCandidateLeafNodes(const Tree& topology, unsigned depth) -> std::size_t;
 auto ResolveDepthCandidates(unsigned max_depth, const HTreeBuilder::BuildOptions& options) -> std::vector<unsigned>;
 auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBuilder& char_builder) -> ResolvedBuildOptions;
-auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, HTreeBuilder::BuildResult& result, CharBuilder& char_builder)
-    -> HTreeCharacterizationFlowResult;
+auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
+                             HTreeBuilder::BuildResult& result, CharBuilder& char_builder) -> HTreeCharacterizationFlowResult;
 auto ExploreDepthCandidates(const Tree& topology, const std::vector<HTreeBuilder::LevelPlan>& full_level_plans,
                             const std::vector<unsigned>& depth_candidates,
                             const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,

@@ -48,6 +48,9 @@ Examples:
 - shared DB type -> `source/database/...`
 - module test -> `test/module/...`
 
+- Keep `api/CTSAPI` focused on external entry points; internal CTS flow lifecycle steps belong under `source/flow`.
+- Keep runtime config access at API/flow/database/test boundaries; code under  `source/module/` should receive explicit options instead of reading `CONFIG_INST`.
+
 ### CMake Target Naming
 
 Use hierarchical target names:

@@ -31,9 +31,9 @@
 namespace icts_test {
 namespace {
 
-auto RunArm9ExperimentMatrix(bool omit_wire_length_unit) -> void
+auto RunArm9ExperimentMatrix(bool omit_wirelength_unit) -> void
 {
-  const auto matrix_result = EvaluateArm9FullSinkExperimentMatrix(omit_wire_length_unit);
+  const auto matrix_result = EvaluateArm9FullSinkExperimentMatrix(omit_wirelength_unit);
   if (matrix_result.skipped) {
     GTEST_SKIP() << matrix_result.skip_reason;
     return;
@@ -50,7 +50,7 @@ TEST(HTreeBuilderRealTechSmokeTest, Arm9FullSinkExperimentMatrix)
   RunArm9ExperimentMatrix(false);
 }
 
-TEST(HTreeBuilderRealTechSmokeTest, Arm9FullSinkExperimentMatrixAutoWireLengthUnit)
+TEST(HTreeBuilderRealTechSmokeTest, Arm9FullSinkExperimentMatrixAutoWirelengthUnit)
 {
   RunArm9ExperimentMatrix(true);
 }

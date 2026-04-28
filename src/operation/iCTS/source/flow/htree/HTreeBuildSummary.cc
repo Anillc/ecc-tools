@@ -23,9 +23,12 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -35,6 +38,7 @@
 #include "PatternId.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
+#include "logger/Schema.hh"
 
 namespace icts::htree_builder {
 
@@ -47,8 +51,11 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
     return;
   }
   const auto& best_char = *result.best_char;
+  const auto selected_terminal_branch_buffered_levels = static_cast<std::size_t>(std::ranges::count_if(
+      result.levels, [](const HTreeBuilder::LevelPlan& level) -> bool { return level.selected_has_terminal_branch_buffer; }));
 
-  const logformat::TableRows build_summary_rows = {
+  SCHEMA_WRITER_INST.emitSection("### H-Tree Selection");
+  logformat::TableRows build_summary_rows = {
       {"levels", std::to_string(result.levels.size()), "selected H-tree levels"},
       {"depth_candidates", std::to_string(result.depth_candidate_count), "evaluated descending depth candidates"},
       {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
@@ -83,9 +90,9 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
       {"leaf_load_cap_idx", std::to_string(best_char.get_leaf_load_cap_idx()), "selected pattern metric"},
       {"leaf_output_slew_idx", std::to_string(best_char.get_output_slew_idx()), "selected pattern metric"},
       {"root_load_cap_idx", std::to_string(best_char.get_load_cap_idx()), "selected pattern metric"},
-      {"force_branch_buffer", logformat::FormatBool(selected_evaluation.resolved_options.force_branch_buffer),
-       selected_evaluation.resolved_options.force_branch_buffer ? "every H-tree level requires terminal-buffered segment frontier"
-                                                                : "disabled"},
+      {"selected_terminal_branch_buffered_levels",
+       std::to_string(selected_terminal_branch_buffered_levels) + "/" + std::to_string(result.levels.size()),
+       "actual selected H-tree levels whose segment pattern includes a terminal branch buffer"},
       {"top_input_slew_covering_idx",
        selected_evaluation.resolved_options.top_input_slew_covering_idx.has_value()
            ? std::to_string(*selected_evaluation.resolved_options.top_input_slew_covering_idx)
@@ -111,6 +118,36 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
       {"boundary_fallback_score", result.boundary_fallback_score.has_value() ? std::to_string(*result.boundary_fallback_score) : "none",
        result.used_boundary_fallback ? "diagnostic normalized active-boundary score of the selected fallback" : "not used"},
   };
+  {
+    const auto is_duplicate_frontier_row = [&](const auto& row) -> bool {
+      if (row.empty()) {
+        return false;
+      }
+      const auto& field = row.front();
+      if (!selected_has_boundary_constraints
+          && (field == "candidate_solutions" || field == "candidate_frontier_entry_count" || field == "feasible_frontier_entry_count")) {
+        return true;
+      }
+      if (!selected_has_boundary_constraints && field == "feasible_solutions"
+          && selected_summary.feasible_solution_count == selected_summary.final_frontier_count) {
+        return true;
+      }
+      if (field == "candidate_solutions" && selected_summary.candidate_solution_count == selected_summary.final_frontier_count) {
+        return true;
+      }
+      if (field == "candidate_frontier_entry_count"
+          && selected_summary.candidate_frontier_entry_count == selected_summary.candidate_solution_count) {
+        return true;
+      }
+      if (field == "feasible_frontier_entry_count"
+          && selected_summary.feasible_frontier_entry_count == selected_summary.feasible_solution_count) {
+        return true;
+      }
+      return false;
+    };
+    auto duplicate_rows = std::ranges::remove_if(build_summary_rows, is_duplicate_frontier_row);
+    build_summary_rows.erase(duplicate_rows.begin(), duplicate_rows.end());
+  }
   LogInfoTable("HTreeBuilder Build Summary", {"Item", "Value", "Detail"}, build_summary_rows);
 }
 

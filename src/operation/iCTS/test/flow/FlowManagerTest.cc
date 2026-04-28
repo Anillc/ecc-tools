@@ -24,10 +24,15 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <regex>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "CTSAPI.hh"
+#include "common/logging/LogText.hh"
 #include "database/config/Config.hh"
 #include "database/design/Clock.hh"
 #include "database/design/Design.hh"
@@ -35,9 +40,11 @@
 #include "database/design/Net.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
+#include "evaluation/ClockTreeEvaluator.hh"
 #include "feature_icts.h"
 #include "flow/FlowManager.hh"
 #include "flow/netlist/ClockNetManager.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts_test {
 namespace {
@@ -49,13 +56,13 @@ class ScopedFlowReset
   {
     CONFIG_INST.reset();
     DESIGN_INST.reset();
-    icts::FlowManager::reset();
+    FLOW_MANAGER_INST.reset();
   }
   ~ScopedFlowReset()
   {
     CONFIG_INST.reset();
     DESIGN_INST.reset();
-    icts::FlowManager::reset();
+    FLOW_MANAGER_INST.reset();
   }
 };
 
@@ -96,6 +103,14 @@ auto findInputPin(const icts::Inst* inst) -> icts::Pin*
 auto containsPin(const std::vector<icts::Pin*>& pins, const icts::Pin* pin) -> bool
 {
   return std::ranges::find(pins, pin) != pins.end();
+}
+
+auto readTextFile(const std::filesystem::path& path) -> std::string
+{
+  std::ifstream input_stream(path);
+  std::ostringstream buffer;
+  buffer << input_stream.rdbuf();
+  return buffer.str();
 }
 
 auto makeDesignInst(const std::string& name, const std::string& cell_master, icts::InstType type, const icts::Point<int>& location)
@@ -206,11 +221,105 @@ auto prepareDirectRootBufferNets(icts::Clock& clock, const std::string& cell_mas
   icts::ClockNetManager::reuseClockSourceNetAsSourceToRootBuffers(clock, clock.get_clock_source(), root_inputs);
 }
 
-TEST(FlowManagerTest, EmptyAPIFlowEntryIsCallable)
+TEST(FlowManagerTest, EmptyFlowManagerRunIsCallable)
 {
   const ScopedFlowReset scoped_flow_reset;
 
-  icts::CTSAPI::ctsFlow();
+  FLOW_MANAGER_INST.run();
+}
+
+TEST(FlowManagerTest, EmptyAPIRunEmitsConciseMainLogContract)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  const auto cts_log_path = SCHEMA_WRITER_INST.getActivePath();
+  ASSERT_FALSE(cts_log_path.empty());
+  icts::CTSAPI::runCTS();
+
+  const auto cts_log_content = readTextFile(cts_log_path);
+  ASSERT_FALSE(cts_log_content.empty());
+  EXPECT_NE(cts_log_content.find("## Input Summary"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("## Synthesis Summary"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("### Synthesis Flow"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("## Evaluation Summary"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("## Runtime Summary"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("## Run Results"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CTS Runtime Summary"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CTS Key Results"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CTS Evaluation Summary"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Outcome"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("outcome"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Runtime rows are consolidated here"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("This section collects the final user-facing outcome"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Evaluation writes the final CTS clock tree back to iDB"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("memory_delta_mb"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("elapsed_time_s"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("final_buffer_area_um2"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("max_clock_net_wirelength_um"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("total_clock_tree_wirelength_um"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("max_clock_net_wirelength_dbu"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("total_clock_tree_wirelength_dbu"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("design_dbu_per_um"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("unique_clock_domains"), std::string::npos);
+  EXPECT_TRUE(std::regex_search(cts_log_content, std::regex(R"(\|\s*max_clock_net_wirelength\s*\|\s*[^|\n]*um\s*\|)")));
+  EXPECT_TRUE(std::regex_search(cts_log_content, std::regex(R"(\|\s*total_clock_tree_wirelength\s*\|\s*[^|\n]*um\s*\|)")));
+  EXPECT_EQ(cts_log_content.find("clock_path_min_buffer"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("clock_path_max_buffer"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("max_level_of_clock_tree"), std::string::npos);
+
+  const auto runtime_read_data_summary = common::logging::ExtractTextBlock(cts_log_content, "ReadData Summary");
+  const auto read_data_summary = common::logging::ExtractTextBlock(cts_log_content, "CTSReadData Read CTS clock data Summary");
+  const auto flow_summary = common::logging::ExtractTextBlock(cts_log_content, "CTSFlow Run CTS synthesis flow Summary");
+  const auto evaluation_summary = common::logging::ExtractTextBlock(cts_log_content, "CTSEvaluation Evaluate CTS clock tree Summary");
+  const auto main_flow_summary = common::logging::ExtractTextBlock(cts_log_content, "CTS Clock tree synthesis API flow Summary");
+  ASSERT_FALSE(runtime_read_data_summary.empty());
+  ASSERT_FALSE(read_data_summary.empty());
+  ASSERT_FALSE(flow_summary.empty());
+  ASSERT_FALSE(evaluation_summary.empty());
+  ASSERT_FALSE(main_flow_summary.empty());
+  EXPECT_NE(runtime_read_data_summary.find("clock_source"), std::string::npos);
+  EXPECT_NE(runtime_read_data_summary.find("added_clock_nets"), std::string::npos);
+  EXPECT_NE(runtime_read_data_summary.find("total_clock_nets"), std::string::npos);
+  EXPECT_EQ(runtime_read_data_summary.find("unique_clock_domains"), std::string::npos);
+  EXPECT_NE(read_data_summary.find("status"), std::string::npos);
+  EXPECT_NE(flow_summary.find("status"), std::string::npos);
+  EXPECT_NE(evaluation_summary.find("status"), std::string::npos);
+  EXPECT_NE(main_flow_summary.find("status"), std::string::npos);
+  EXPECT_EQ(main_flow_summary.find("main_flow"), std::string::npos);
+  EXPECT_EQ(read_data_summary.find("outcome"), std::string::npos);
+  EXPECT_EQ(flow_summary.find("outcome"), std::string::npos);
+  EXPECT_EQ(evaluation_summary.find("outcome"), std::string::npos);
+  EXPECT_EQ(main_flow_summary.find("outcome"), std::string::npos);
+  EXPECT_EQ(read_data_summary.find("elapsed_time"), std::string::npos);
+  EXPECT_EQ(flow_summary.find("elapsed_time"), std::string::npos);
+  EXPECT_EQ(evaluation_summary.find("elapsed_time"), std::string::npos);
+  EXPECT_EQ(main_flow_summary.find("elapsed_time"), std::string::npos);
+}
+
+TEST(FlowManagerTest, ClockDistributionSummaryUsesMacroSinkTerminology)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  const auto cts_log_path = SCHEMA_WRITER_INST.getActivePath();
+  ASSERT_FALSE(cts_log_path.empty());
+
+  auto* macro_inst = makeDesignInst("macro0", "MACRO_CELL", icts::InstType::kMacroBlock, icts::Point<int>(100, 0));
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(200, 0));
+  auto pins = addClockToDesign(macro_inst, reg_inst);
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.macro_sink, nullptr);
+  ASSERT_NE(pins.regular_sink, nullptr);
+
+  DESIGN_INST.emitClockDistributionSummary();
+
+  const auto cts_log_content = readTextFile(cts_log_path);
+  ASSERT_FALSE(cts_log_content.empty());
+  const auto distribution_summary = common::logging::ExtractTextBlock(cts_log_content, "Clock Distribution Summary");
+  ASSERT_FALSE(distribution_summary.empty());
+  EXPECT_NE(distribution_summary.find("Macro Sinks"), std::string::npos);
+  EXPECT_EQ(distribution_summary.find("Buffer Sinks"), std::string::npos);
+  EXPECT_TRUE(std::regex_search(distribution_summary, std::regex(R"(\|\s*clk\s*\|\s*1\s*\|\s*2\s*\|\s*1\s*\|\s*1\s*\|\s*0\s*\|)")));
 }
 
 TEST(FlowManagerTest, MixedMacroAndRegularSingleSinkGroupsUseSeparateDownstreamNets)
@@ -302,13 +411,14 @@ TEST(FlowManagerTest, ResetAPIClearsEvaluationSummary)
   auto pins = addClockToDesign(nullptr, reg_inst);
   prepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
-  icts::FlowManager::evaluate();
+  FLOW_MANAGER_INST.evaluate();
+  EXPECT_EQ(FLOW_MANAGER_INST.outputSummary().final_clock_buffer_count, 1);
   EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 1);
 
   icts::CTSAPI::resetAPI();
   const auto summary = icts::CTSAPI::outputSummary();
   EXPECT_EQ(summary.buffer_num, 0);
-  EXPECT_EQ(summary.clock_path_max_buffer, 0);
+  EXPECT_EQ(summary.clock_path_min_buffer, 0);
   EXPECT_TRUE(summary.clocks_timing.empty());
 }
 

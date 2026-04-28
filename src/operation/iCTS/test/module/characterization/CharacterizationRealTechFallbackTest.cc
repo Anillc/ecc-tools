@@ -38,6 +38,7 @@
 #include "Point.hh"
 #include "SegmentChar.hh"
 #include "common/io/TestArtifactIO.hh"
+#include "common/logging/LogText.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/design/Inst.hh"
@@ -87,10 +88,10 @@ auto ReadSchemaUnsignedFieldValue(const std::string& content, const std::string&
   }
 }
 
-TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBufferHeight)
+TEST(CharacterizationRealTechFallbackTest, WirelengthUnitFallsBackToStrongestBufferHeight)
 {
   realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("fallback_wire_length_unit", std::nullopt, 0.0, 0.0, true);
+  if (const auto prepare_error = char_session.prepare("fallback_wirelength_unit", std::nullopt, 0.0, 0.0, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -102,28 +103,40 @@ TEST(CharacterizationRealTechFallbackTest, WireLengthUnitFallsBackToStrongestBuf
     GTEST_SKIP() << "No configured buffer has both drive-cap data and physical height in real-tech assets.";
   }
 
-  const double expected_unit_um = realtech_support::ResolveDefaultWireLengthUnitUm(buffer_infos, usable_buffers);
+  const double expected_unit_um = realtech_support::ResolveDefaultWirelengthUnitUm(buffer_infos, usable_buffers);
   ASSERT_GT(expected_unit_um, 0.0);
 
   icts::CharBuilder builder;
-  builder.init();
-  EXPECT_DOUBLE_EQ(builder.get_wire_length_unit_um(), expected_unit_um);
-  EXPECT_EQ(builder.get_wire_length_iterations(), realtech_support::kRealTechCharWireLengthIterations);
+  builder.init(realtech_support::MakeRuntimeCharBuilderInitOptions());
+  EXPECT_DOUBLE_EQ(builder.get_wirelength_unit_um(), expected_unit_um);
+  EXPECT_EQ(builder.get_wirelength_iterations(), realtech_support::kRealTechCharWirelengthIterations);
 
-  const auto cts_log_path = common::io::ResolveOutputDir() / "characterization" / "realtech" / "fallback_wire_length_unit" / "cts.log";
+  const auto cts_log_path = common::io::ResolveOutputDir() / "characterization" / "realtech" / "fallback_wirelength_unit" / "cts.log";
   const auto cts_log_content = ReadTextFile(cts_log_path);
   ASSERT_FALSE(cts_log_content.empty());
   const auto first_line_break = cts_log_content.find('\n');
   ASSERT_NE(first_line_break, std::string::npos);
   EXPECT_EQ(cts_log_content.find("Generate the report at "), first_line_break + 1U);
-  EXPECT_NE(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("CharBuilder Initialization Parameters"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("wire_length_unit_um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CharBuilder Setup"), std::string::npos);
+  const auto char_builder_setup = common::logging::ExtractTextBlock(cts_log_content, "CharBuilder Setup");
+  ASSERT_FALSE(char_builder_setup.empty());
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_layer\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wire_width\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*max_slew\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*max_cap\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_iterations\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_points\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*slew_steps\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*cap_steps\s*\|)")));
+  EXPECT_EQ(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("CharBuilder Initialization Parameters"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Characterization setup lists the resolved limits"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("wirelength_setup_source"), std::string::npos);
   EXPECT_NE(cts_log_content.find("auto_derived"), std::string::npos);
   EXPECT_NE(cts_log_content.find("strongest buffer"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
+  EXPECT_TRUE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_rc_source\s*\|\s*Runtime Routing / Wire RC\s*\|)")));
 }
 
 TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAfterExplicitFullTimingRefresh)
@@ -218,7 +231,7 @@ TEST(CharacterizationRealTechFallbackTest, TableAxisFallbackMatchesAvailableAsse
     ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
 
     icts::CharBuilder builder;
-    builder.init();
+    builder.init(realtech_support::MakeRuntimeCharBuilderInitOptions());
     const double expected_cap = realtech_support::MinPositiveResolvedLimit(buffer_infos, cap_table_only_buffers, false);
     ASSERT_GT(expected_cap, 0.0);
     EXPECT_DOUBLE_EQ(builder.get_max_cap(), expected_cap);
@@ -240,7 +253,7 @@ TEST(CharacterizationRealTechFallbackTest, TableAxisFallbackMatchesAvailableAsse
     ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
 
     icts::CharBuilder builder;
-    builder.init();
+    builder.init(realtech_support::MakeRuntimeCharBuilderInitOptions());
     const double expected_slew = realtech_support::MinPositiveResolvedLimit(buffer_infos, slew_table_only_buffers, true);
     ASSERT_GT(expected_slew, 0.0);
     EXPECT_DOUBLE_EQ(builder.get_max_slew(), expected_slew);
@@ -298,7 +311,7 @@ TEST(CharacterizationRealTechFallbackTest, OverflowSamplesAreSkippedAndReportedW
   ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
 
   icts::CharBuilder builder;
-  builder.init();
+  builder.init(realtech_support::MakeRuntimeCharBuilderInitOptions());
   EXPECT_DOUBLE_EQ(builder.get_max_slew(), constrained_max_slew);
   EXPECT_DOUBLE_EQ(builder.get_max_cap(), constrained_max_cap);
   builder.build();
@@ -306,7 +319,7 @@ TEST(CharacterizationRealTechFallbackTest, OverflowSamplesAreSkippedAndReportedW
   ASSERT_FALSE(builder.get_segment_chars().empty());
   const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
   EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
-  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
+  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wirelength_iterations());
   EXPECT_LE(lattice_summary.max_input_slew_idx, builder.get_slew_steps());
   EXPECT_LE(lattice_summary.max_output_slew_idx, builder.get_slew_steps());
   EXPECT_LE(lattice_summary.max_driven_cap_idx, builder.get_cap_steps());
@@ -325,11 +338,17 @@ TEST(CharacterizationRealTechFallbackTest, OverflowSamplesAreSkippedAndReportedW
   const auto cts_log_path = common::io::ResolveOutputDir() / "characterization" / "realtech" / "overflow_skip_reporting" / "cts.log";
   const auto cts_log_content = ReadTextFile(cts_log_path);
   ASSERT_FALSE(cts_log_content.empty());
-  EXPECT_NE(cts_log_content.find("CharBuilder Observed Sample Bounds"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CharBuilder Results"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Characterization results summarize generated entries"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("executed_sta_samples"), std::string::npos);
   EXPECT_NE(cts_log_content.find("output_slew_overflow_samples"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("output_slew_overflow_ratio"), std::string::npos);
   EXPECT_NE(cts_log_content.find("driven_cap_overflow_samples"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("driven_cap_overflow_ratio"), std::string::npos);
   EXPECT_NE(cts_log_content.find("max_observed_output_slew_idx"), std::string::npos);
   EXPECT_NE(cts_log_content.find("max_observed_driven_cap_idx"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("max_configured_slew"), std::string::npos);
 
   const auto logged_output_overflow_samples = ReadSchemaUnsignedFieldValue(cts_log_content, "output_slew_overflow_samples");
   const auto logged_driven_cap_overflow_samples = ReadSchemaUnsignedFieldValue(cts_log_content, "driven_cap_overflow_samples");
@@ -371,8 +390,8 @@ TEST(CharacterizationRealTechFallbackTest, RepeatedReducedBuildsRemainUsableWith
     return;
   }
 
-  icts::CharBuilder::InitOptions reduced_options;
-  reduced_options.wire_length_iterations = 2U;
+  auto reduced_options = realtech_support::MakeRuntimeCharBuilderInitOptions();
+  reduced_options.wirelength_iterations = 2U;
 
   icts::CharBuilder first_builder;
   first_builder.init(reduced_options);
@@ -388,8 +407,8 @@ TEST(CharacterizationRealTechFallbackTest, RepeatedReducedBuildsRemainUsableWith
   const auto second_summary = realtech_support::SummarizeSegmentCharLattice(second_builder.get_segment_chars(), second_builder);
   EXPECT_EQ(second_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(second_summary, second_builder);
 
-  EXPECT_EQ(first_builder.get_wire_length_iterations(), reduced_options.wire_length_iterations.value_or(0U));
-  EXPECT_EQ(second_builder.get_wire_length_iterations(), reduced_options.wire_length_iterations.value_or(0U));
+  EXPECT_EQ(first_builder.get_wirelength_iterations(), reduced_options.wirelength_iterations.value_or(0U));
+  EXPECT_EQ(second_builder.get_wirelength_iterations(), reduced_options.wirelength_iterations.value_or(0U));
   EXPECT_EQ(first_builder.get_segment_chars().size(), second_builder.get_segment_chars().size());
   EXPECT_EQ(first_builder.get_buffering_patterns().size(), second_builder.get_buffering_patterns().size());
   EXPECT_EQ(first_summary.total_entries, second_summary.total_entries);
@@ -406,7 +425,7 @@ TEST(CharacterizationRealTechFallbackTest, RepeatedReducedBuildsRemainUsableWith
   std::ostringstream report_stream;
   report_stream << "scenario=repeat_reduced_builds\n";
   report_stream << "selected_buffer=" << usable_buffers.front() << "\n";
-  report_stream << "wire_length_iterations=" << reduced_options.wire_length_iterations.value_or(0U) << "\n";
+  report_stream << "wirelength_iterations=" << reduced_options.wirelength_iterations.value_or(0U) << "\n";
   report_stream << "first_segment_chars=" << first_builder.get_segment_chars().size() << "\n";
   report_stream << "second_segment_chars=" << second_builder.get_segment_chars().size() << "\n";
   report_stream << "first_patterns=" << first_builder.get_buffering_patterns().size() << "\n";

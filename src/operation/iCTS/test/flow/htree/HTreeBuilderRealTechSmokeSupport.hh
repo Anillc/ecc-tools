@@ -69,7 +69,7 @@ struct RealClockLoadSelection
 
 struct Arm9ExperimentRecord
 {
-  unsigned wire_length_iterations = 0U;
+  unsigned wirelength_iterations = 0U;
   unsigned slew_cap_steps = 0U;
   double runtime_s = 0.0;
   bool success = false;
@@ -79,8 +79,8 @@ struct Arm9ExperimentRecord
   unsigned best_pattern_id = 0U;
   double best_delay_ns = 0.0;
   double best_power_w = 0.0;
-  double char_wire_length_unit_um = 0.0;
-  unsigned char_wire_length_iterations = 0U;
+  double char_wirelength_unit_um = 0.0;
+  unsigned char_wirelength_iterations = 0U;
   bool char_grid_adapted = false;
   bool used_boundary_fallback = false;
   std::string failure_reason;
@@ -98,7 +98,7 @@ struct Arm9ExperimentMatrixRunResult
 
 auto ReadEnvFlag(std::string_view env_name) -> bool;
 auto FormatArm9ExperimentReport(std::string_view scenario_name, const std::string& clock_name, std::size_t load_count,
-                                bool omit_wire_length_unit, const std::vector<Arm9ExperimentRecord>& records) -> std::string;
+                                bool omit_wirelength_unit, const std::vector<Arm9ExperimentRecord>& records) -> std::string;
 auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_count) -> std::vector<icts::Pin*>;
 auto ConnectRootNetForHTreeTest(icts::Net& root_net, icts::Pin& root_driver, const std::vector<icts::Pin*>& loads) -> void;
 auto SelectLargestRealClockLoads(std::size_t max_count) -> std::optional<RealClockLoadSelection>;
@@ -111,7 +111,7 @@ auto AssertSelectedHTreeLoadDistribution(const icts::HTreeBuilder::BuildResult& 
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
                                   const icts::HTreeBuilder::BuildResult& result) -> void;
-auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wire_length_unit) -> Arm9ExperimentMatrixRunResult;
+auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wirelength_unit) -> Arm9ExperimentMatrixRunResult;
 
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
 auto AssertBranchBufferMaterialization(const icts::HTreeBuilder::BuildResult& result) -> void;

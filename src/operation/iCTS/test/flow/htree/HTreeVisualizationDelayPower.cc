@@ -280,7 +280,7 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
   report << "htree_levels=" << result.levels.size() << "\n";
   report << "inserted_buffers=" << result.inserted_insts.size() << "\n";
   report << "inserted_nets=" << result.inserted_nets.size() << "\n";
-  report << "char_grid_unit_um=" << result.char_wire_length_unit_um << ", iterations=" << result.char_wire_length_iterations
+  report << "char_grid_unit_um=" << result.char_wirelength_unit_um << ", iterations=" << result.char_wirelength_iterations
          << ", distinct_level_bins=" << result.char_unique_level_bins << ", adapted=" << (result.char_grid_adapted ? "true" : "false")
          << "\n";
   report << "char_limits max_slew_ns=" << result.char_max_slew_ns << ", max_cap_pf=" << result.char_max_cap_pf << "\n";

@@ -30,6 +30,7 @@
 #include <sstream>
 #include <system_error>
 
+#include "CharBuilder.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
@@ -49,8 +50,8 @@ auto CaptureConfigState() -> ConfigState
   state.has_max_buf_tran = CONFIG_INST.has_max_buf_tran();
   state.has_max_cap = CONFIG_INST.has_max_cap();
   state.max_length = CONFIG_INST.get_max_length();
-  state.wire_length_unit_um = CONFIG_INST.get_wire_length_unit_um();
-  state.wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
+  state.wirelength_unit_um = CONFIG_INST.get_wirelength_unit_um();
+  state.wirelength_iterations = CONFIG_INST.get_wirelength_iterations();
   state.slew_steps = CONFIG_INST.get_slew_steps();
   state.cap_steps = CONFIG_INST.get_cap_steps();
   state.wire_width = CONFIG_INST.get_wire_width();
@@ -82,8 +83,8 @@ auto ApplyConfigState(const ConfigState& state) -> void
     CONFIG_INST.set_max_cap(state.max_cap);
   }
   CONFIG_INST.set_max_length(state.max_length);
-  CONFIG_INST.set_wire_length_unit_um(state.wire_length_unit_um);
-  CONFIG_INST.set_wire_length_iterations(state.wire_length_iterations);
+  CONFIG_INST.set_wirelength_unit_um(state.wirelength_unit_um);
+  CONFIG_INST.set_wirelength_iterations(state.wirelength_iterations);
   CONFIG_INST.set_slew_steps(state.slew_steps);
   CONFIG_INST.set_cap_steps(state.cap_steps);
   CONFIG_INST.set_wire_width(state.wire_width);
@@ -102,8 +103,34 @@ auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_net_list(state.net_list);
 }
 
+auto MakeRuntimeCharBuilderInitOptions() -> icts::CharBuilder::InitOptions
+{
+  icts::CharBuilder::InitOptions options;
+  if (CONFIG_INST.has_max_buf_tran() && CONFIG_INST.get_max_buf_tran() > 0.0) {
+    options.max_slew_ns = CONFIG_INST.get_max_buf_tran();
+  }
+  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
+    options.max_cap_pf = CONFIG_INST.get_max_cap();
+  }
+  if (CONFIG_INST.get_wirelength_unit_um() > 0.0) {
+    options.wirelength_unit_um = CONFIG_INST.get_wirelength_unit_um();
+  }
+  options.wirelength_iterations = CONFIG_INST.get_wirelength_iterations();
+  options.slew_steps = CONFIG_INST.get_slew_steps();
+  options.cap_steps = CONFIG_INST.get_cap_steps();
+  options.buffer_types = CONFIG_INST.get_buffer_types();
+  options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
+
+  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  if (CONFIG_INST.get_wire_width() > 0.0) {
+    options.wire_width = CONFIG_INST.get_wire_width();
+  }
+  return options;
+}
+
 auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::optional<std::vector<std::string>> buffer_types,
-                                 double max_buf_tran_ns, double max_cap_pf, bool omit_wire_length_unit, bool force_branch_buffer)
+                                 double max_buf_tran_ns, double max_cap_pf, bool omit_wirelength_unit, bool force_branch_buffer)
     -> ConfigState
 {
   auto configured_state = baseline_state;
@@ -111,8 +138,8 @@ auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::optiona
   configured_state.max_buf_tran = max_buf_tran_ns;
   configured_state.has_max_cap = max_cap_pf > 0.0;
   configured_state.max_cap = max_cap_pf;
-  configured_state.wire_length_unit_um = omit_wire_length_unit ? 0.0 : kRealTechCharWireLengthUnitUm;
-  configured_state.wire_length_iterations = kRealTechCharWireLengthIterations;
+  configured_state.wirelength_unit_um = omit_wirelength_unit ? 0.0 : kRealTechCharWirelengthUnitUm;
+  configured_state.wirelength_iterations = kRealTechCharWirelengthIterations;
   configured_state.slew_steps = kRealTechCharSlewSteps;
   configured_state.cap_steps = kRealTechCharCapSteps;
   configured_state.char_buf_redundancy_pct = 0.0;
@@ -131,7 +158,7 @@ RealTechCharSession::~RealTechCharSession()
 }
 
 auto RealTechCharSession::prepare(const std::string& scenario_name, std::optional<std::vector<std::string>> buffer_types,
-                                  double max_buf_tran_ns, double max_cap_pf, bool omit_wire_length_unit, bool force_branch_buffer)
+                                  double max_buf_tran_ns, double max_cap_pf, bool omit_wirelength_unit, bool force_branch_buffer)
     -> std::optional<std::string>
 {
   if (_is_prepared) {
@@ -150,7 +177,7 @@ auto RealTechCharSession::prepare(const std::string& scenario_name, std::optiona
 
   const auto original_config_state = CaptureConfigState();
   auto configured_state = MakeRealTechCharConfigState(original_config_state, std::move(buffer_types), max_buf_tran_ns, max_cap_pf,
-                                                      omit_wire_length_unit, force_branch_buffer);
+                                                      omit_wirelength_unit, force_branch_buffer);
   _original_config_state = original_config_state;
   ApplyConfigState(configured_state);
 
@@ -164,7 +191,7 @@ auto RealTechCharSession::prepare(const std::string& scenario_name, std::optiona
   _cts_log_guard = std::make_unique<icts_test::common::logging::ScopedLogFile>(output_dir / "cts.log", "Characterization Test Report");
   SCHEMA_WRITER_INST.emitKeyValueTable("Characterization Scenario", {
                                                                         {"scenario", scenario_name},
-                                                                        {"omit_wire_length_unit", omit_wire_length_unit ? "true" : "false"},
+                                                                        {"omit_wirelength_unit", omit_wirelength_unit ? "true" : "false"},
                                                                         {"force_branch_buffer", force_branch_buffer ? "true" : "false"},
                                                                     });
   _is_prepared = true;
@@ -286,7 +313,7 @@ auto MinPositiveResolvedLimit(const std::vector<BufferLimitInfo>& infos, const s
   return 0.0;
 }
 
-auto ResolveDefaultWireLengthUnitUm(const std::vector<BufferLimitInfo>& infos, const std::vector<std::string>& selected_masters) -> double
+auto ResolveDefaultWirelengthUnitUm(const std::vector<BufferLimitInfo>& infos, const std::vector<std::string>& selected_masters) -> double
 {
   double strongest_drive_cap_pf = -1.0;
   double resolved_unit_um = 0.0;

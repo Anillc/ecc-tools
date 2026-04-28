@@ -58,41 +58,42 @@ class CharBuilder
  public:
   struct InitOptions
   {
-    std::optional<double> wire_length_unit_um = std::nullopt;
-    std::optional<unsigned> wire_length_iterations = std::nullopt;
-    std::optional<std::vector<unsigned>> wire_length_indices = std::nullopt;
+    std::optional<double> wirelength_unit_um = std::nullopt;
+    std::optional<unsigned> wirelength_iterations = std::nullopt;
+    std::optional<std::vector<unsigned>> wirelength_indices = std::nullopt;
     std::optional<double> max_slew_ns = std::nullopt;
     std::optional<double> max_cap_pf = std::nullopt;
     std::vector<std::string> buffer_types;
-    double char_buf_redundancy_pct = 0.0;
-    unsigned slew_steps = 15U;
-    unsigned cap_steps = 15U;
-    int routing_layer = 1;
+    std::optional<double> char_buf_redundancy_pct = std::nullopt;
+    std::optional<unsigned> slew_steps = std::nullopt;
+    std::optional<unsigned> cap_steps = std::nullopt;
+    std::optional<int> routing_layer = std::nullopt;
     std::optional<double> wire_width = std::nullopt;
   };
 
   CharBuilder() = default;
   ~CharBuilder() = default;
 
-  auto init() -> void;
   auto init(const InitOptions& options) -> void;
   auto build() -> void;
 
   auto get_segment_chars() const -> const std::vector<SegmentChar>& { return _segment_chars; }
   auto get_buffering_patterns() const -> const std::vector<BufferingPattern>& { return _buffering_patterns; }
-  auto get_wire_lengths_um() const -> const std::vector<double>& { return _wire_lengths_um; }
-  auto get_wire_length_indices() const -> const std::vector<unsigned>& { return _wire_length_indices; }
-  auto get_wire_length_unit_um() const -> double { return _length_unit_um; }
-  auto get_wire_length_unit_source() const -> const std::string& { return _wire_length_unit_source; }
-  auto get_wire_length_unit_detail() const -> const std::string& { return _wire_length_unit_detail; }
-  auto get_wire_length_iterations() const -> unsigned { return _wire_length_iterations; }
+  auto get_wirelengths_um() const -> const std::vector<double>& { return _wirelengths_um; }
+  auto get_wirelength_indices() const -> const std::vector<unsigned>& { return _wirelength_indices; }
+  auto get_wirelength_unit_um() const -> double { return _length_unit_um; }
+  auto get_wirelength_unit_source() const -> const std::string& { return _wirelength_unit_source; }
+  auto get_wirelength_unit_detail() const -> const std::string& { return _wirelength_unit_detail; }
+  auto get_wirelength_iterations() const -> unsigned { return _wirelength_iterations; }
   auto get_max_slew() const -> double { return _max_slew; }
   auto get_max_cap() const -> double { return _max_cap; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
-  auto get_length_lattice() const -> UniformValueLattice { return UniformValueLattice(_length_unit_um, _wire_length_iterations); }
+  auto get_length_lattice() const -> UniformValueLattice { return UniformValueLattice(_length_unit_um, _wirelength_iterations); }
   auto get_slew_lattice() const -> UniformValueLattice { return UniformValueLattice::buildFromMax(_max_slew, _slew_steps); }
   auto get_cap_lattice() const -> UniformValueLattice { return UniformValueLattice::buildFromMax(_max_cap, _cap_steps); }
+  auto get_executed_sta_samples() const -> std::size_t { return _executed_sta_samples; }
+  auto get_skipped_sta_samples() const -> std::size_t { return _skipped_sta_samples; }
   auto get_output_slew_overflow_samples() const -> std::size_t { return _output_slew_overflow_samples; }
   auto get_driven_cap_overflow_samples() const -> std::size_t { return _driven_cap_overflow_samples; }
   auto get_driven_cap_overflow_load_points() const -> std::size_t { return _driven_cap_overflow_load_points; }
@@ -106,7 +107,7 @@ class CharBuilder
 
   struct BuildProgress
   {
-    double wire_length_um = 0.0;
+    double wirelength_um = 0.0;
     std::size_t estimated_patterns = 0;
     std::size_t estimated_sta_samples = 0;
     std::size_t evaluated_patterns = 0;
@@ -129,11 +130,11 @@ class CharBuilder
     std::uint64_t value = 0U;
   };
 
-  auto calcTopologySlotCount(double wire_length_um) const -> unsigned;
+  auto calcTopologySlotCount(double wirelength_um) const -> unsigned;
   static auto countSelectedSlots(TopologyBits topology_bits) -> unsigned;
-  auto estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t;
-  auto enumerateWireLength(unsigned length_idx, double wire_length_um, BuildProgress& build_progress) -> void;
-  auto enumerateTopology(unsigned length_idx, double wire_length_um, unsigned num_slots, TopologyBits topology_bits,
+  auto estimatePatternCountPerWirelength(double wirelength_um) const -> std::size_t;
+  auto enumerateWirelength(unsigned length_idx, double wirelength_um, BuildProgress& build_progress) -> void;
+  auto enumerateTopology(unsigned length_idx, double wirelength_um, unsigned num_slots, TopologyBits topology_bits,
                          BuildProgress& build_progress) -> void;
   static auto getMonotonicComboCount(std::size_t num_buf_types, std::size_t num_positions) -> std::size_t;
   static auto advanceToNextMonotonic(std::vector<std::size_t>& buf_indices, std::size_t num_buf_types) -> bool;
@@ -159,7 +160,7 @@ class CharBuilder
     double max_load_pf = 0.0;
   };
 
-  auto buildTopologyDesc(double wire_length_um, unsigned num_slots, TopologyBits topology_bits) const -> TopologyDesc;
+  auto buildTopologyDesc(double wirelength_um, unsigned num_slots, TopologyBits topology_bits) const -> TopologyDesc;
   auto analyzePatternFeasibility(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) const -> PatternFeasibility;
   auto tryMakeStoredSampleIndices(unsigned input_slew_idx, unsigned load_cap_idx, double output_slew_ns, double driven_cap_pf,
                                   BuildProgress& build_progress) const -> std::optional<StoredSampleIndices>;
@@ -180,8 +181,8 @@ class CharBuilder
   std::vector<CharBufferInfo> _sorted_buffers;
 
   // Physical sweep grids kept in user units before discretization.
-  std::vector<unsigned> _wire_length_indices;
-  std::vector<double> _wire_lengths_um;
+  std::vector<unsigned> _wirelength_indices;
+  std::vector<double> _wirelengths_um;
   std::vector<double> _slews_to_test;
   std::vector<double> _loads_to_test;
   int _routing_layer = 1;
@@ -190,11 +191,11 @@ class CharBuilder
   double _max_cap = 0.0;
   double _max_length = 0.0;
   double _length_unit_um = 0.0;
-  std::string _wire_length_unit_source;
-  std::string _wire_length_unit_detail;
+  std::string _wirelength_unit_source;
+  std::string _wirelength_unit_detail;
   unsigned _slew_steps = 15;
   unsigned _cap_steps = 15;
-  unsigned _wire_length_iterations = 3;
+  unsigned _wirelength_iterations = 3;
 
   std::string _source_inst_name;
   std::string _source_in_pin;
@@ -210,6 +211,8 @@ class CharBuilder
   std::vector<SegmentChar> _segment_chars;
   std::vector<BufferingPattern> _buffering_patterns;
   unsigned _next_pattern_id = 0;
+  std::size_t _executed_sta_samples = 0;
+  std::size_t _skipped_sta_samples = 0;
   std::size_t _output_slew_overflow_samples = 0;
   std::size_t _driven_cap_overflow_samples = 0;
   std::size_t _driven_cap_overflow_load_points = 0;

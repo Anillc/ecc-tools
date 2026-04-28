@@ -138,20 +138,20 @@ auto getWireDistance(const ClockSteinerTree<int>::EdgeType& edge) -> int
 
 auto queryWireResistanceOhm(int wire_distance_dbu) -> double
 {
-  const auto wire_length_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(resolveDbUnit());
-  if (wire_length_um <= 0.0) {
+  const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(resolveDbUnit());
+  if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryWireResistance(resolveRoutingLayer(), wire_length_um, resolveWireWidth()) / kMilliOhmPerOhm;
+  return STA_ADAPTER_INST.queryWireResistance(resolveRoutingLayer(), wirelength_um, resolveWireWidth()) / kMilliOhmPerOhm;
 }
 
 auto queryWireCapacitancePf(int wire_distance_dbu) -> double
 {
-  const auto wire_length_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(resolveDbUnit());
-  if (wire_length_um <= 0.0) {
+  const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(resolveDbUnit());
+  if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryWireCapacitance(resolveRoutingLayer(), wire_length_um, resolveWireWidth());
+  return STA_ADAPTER_INST.queryWireCapacitance(resolveRoutingLayer(), wirelength_um, resolveWireWidth());
 }
 
 }  // namespace

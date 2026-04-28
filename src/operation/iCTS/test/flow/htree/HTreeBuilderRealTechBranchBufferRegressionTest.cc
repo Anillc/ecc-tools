@@ -101,8 +101,8 @@ TEST(HTreeBuilderRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatter
   AssertBranchBufferMaterialization(result);
   WriteAndAssertHTreeArtifacts(artifact_paths, "htree_builder_branch_buffer", selected_clock->clock_name, selected_clock->loads, result);
   const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
-  EXPECT_NE(cts_log_content.find("force_branch_buffer"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("true"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("force_branch_buffer"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("selected_terminal_branch_buffered_levels"), std::string::npos);
 }
 
 TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfigDefault)

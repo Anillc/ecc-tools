@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -295,12 +296,15 @@ TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigRe
   {
     std::ofstream output_stream(json_path);
     ASSERT_TRUE(output_stream.is_open());
-    output_stream << R"({"enable_sink_clustering": false, "htree_topology_tolerance": 0.25})";
+    output_stream
+        << R"({"enable_sink_clustering": false, "htree_topology_tolerance": 0.25, "routing_layer": [5, 6], "wire_width": 0.12, "wirelength_unit_um": 12.5, "wirelength_iterations": 7})";
   }
 
   CONFIG_INST.parse(json_path.string());
   EXPECT_FALSE(CONFIG_INST.is_enable_sink_clustering());
   EXPECT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.25);
+  EXPECT_DOUBLE_EQ(CONFIG_INST.get_wirelength_unit_um(), 12.5);
+  EXPECT_EQ(CONFIG_INST.get_wirelength_iterations(), 7U);
 
   SCHEMA_WRITER_INST.open(cts_log_path, "Clock Synthesis Unit Test");
   CONFIG_INST.emitRuntimeConfigReport("ClockSynthesis Config");
@@ -311,6 +315,14 @@ TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigRe
   EXPECT_NE(cts_log_content.find("false"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_topology_tolerance"), std::string::npos);
   EXPECT_NE(cts_log_content.find("25.00 %"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("routing_layers"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("configured order: 5, 6"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("wire_width"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("0.1200 um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("wirelength_unit"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("12.5000 um"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("wirelength_iterations"), std::string::npos);
+  EXPECT_FALSE(std::regex_search(cts_log_content, std::regex(R"(\|\s*routing_layer\s*\|)")));
 
   std::error_code error_code;
   std::filesystem::remove(json_path, error_code);

@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -69,6 +70,24 @@ class STAAdapter
     double hold_tns = 0.0;
     double hold_wns = 0.0;
     double suggest_freq = 0.0;
+  };
+  struct ClockTimingRecord
+  {
+    std::string clock_name;
+    ClockTimingMetrics metrics;
+  };
+  struct ClockLatencySkewMetrics
+  {
+    std::string clock_name;
+    std::string analysis_mode;
+    std::string launch_pin;
+    std::string capture_pin;
+    double launch_latency_ns = 0.0;
+    double capture_latency_ns = 0.0;
+    double worst_skew_ns = 0.0;
+    double average_worst_skew_ns = 0.0;
+    std::size_t path_count = 0U;
+    std::size_t average_sample_count = 0U;
   };
   static auto getInst() -> STAAdapter&
   {
@@ -119,9 +138,13 @@ class STAAdapter
   static auto queryCharNetSwitchPower(const std::string& net_name) -> double;
   static auto destroyCharPower() -> void;
   static auto finishCharOnly() -> void;
+  static auto setPropagatedClocks() -> std::size_t;
   static auto updateTiming() -> void;
+  static auto reportTiming() -> bool;
   static auto refreshFullDesignTimingContext() -> void;
   static auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
+  static auto queryClockTimings() -> std::vector<ClockTimingRecord>;
+  static auto queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>;
   static auto installClockNetRcTree(const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
   static auto queryCharClockAT(const std::string& clock_name) -> double;
   static auto queryCharSlew() -> double;

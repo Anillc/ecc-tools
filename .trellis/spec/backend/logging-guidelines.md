@@ -37,9 +37,11 @@ Conditional forms are allowed:
 - Use `ERROR` when the function must return a safe fallback.
 - Use `FATAL` when continuing would mean corrupted or invalid execution.
 - Do not repeat file paths or line numbers in the message body; the logger prefix already provides call-site context.
-- Prefer titled schema tables or detail blocks for dense summaries such as config, RC, and unit metadata.
+- Prefer titled schema tables for dense summaries such as config, RC, and unit metadata.
 - If a value comes from fallback or auto-derivation, warn at the decision point and label the source explicitly in the emitted summary/report.
 - Build schema fields near the data owner. API/flow entry layers coordinate stage boundaries and output timing; they should not own low-level field assembly for config, design, or adapter data.
+- Structured runtime and stage report state belongs in `SchemaWriter` / `SCHEMA_WRITER_INST`, not in ad-hoc API state or local stateful reporter objects.
+- Acquire runtime and stage scopes through `SCHEMA_WRITER_INST` helpers such as `beginRuntimeMetric(...)` and `beginStage(...)`; do not construct standalone scope helpers directly at call sites.
 
 Example:
 

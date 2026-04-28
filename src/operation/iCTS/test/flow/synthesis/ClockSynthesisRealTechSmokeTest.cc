@@ -74,8 +74,10 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
   }
 
   CONFIG_INST.set_max_fanout(smoke::kSynthesisTestDefaultMaxFanout);
+  CONFIG_INST.set_enable_sink_clustering(true);
   CONFIG_INST.set_htree_topology_tolerance(0.1);
   ASSERT_EQ(CONFIG_INST.get_max_fanout(), smoke::kSynthesisTestDefaultMaxFanout);
+  ASSERT_TRUE(CONFIG_INST.is_enable_sink_clustering());
   ASSERT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
 
   const auto artifact_paths = synthesis::PrepareClockSynthesisArtifactPaths("clustered_mode_realtech_smoke");
@@ -88,7 +90,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
                                            {"clock_net", selected_clock_data.net_name},
                                            {"load_count", std::to_string(selected_clock_data.sinks.size())},
                                            {"enable_sink_clustering", "true"},
-                                           {"omit_wire_length_unit", "true"},
+                                           {"omit_wirelength_unit", "true"},
                                        });
 
   const auto expected_cluster_master = smoke::ResolveExpectedMinClusterBufferMaster();
@@ -106,9 +108,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesU
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.sink_clustering_enabled);
-  EXPECT_GT(result.htree_result.char_wire_length_unit_um, 0.0);
+  EXPECT_GT(result.htree_result.char_wirelength_unit_um, 0.0);
   EXPECT_TRUE(result.htree_result.char_grid_adapted
-              || result.htree_result.char_wire_length_iterations == result.htree_result.char_unique_level_bins);
+              || result.htree_result.char_wirelength_iterations == result.htree_result.char_unique_level_bins);
   if (!result.cluster_result.has_value()) {
     FAIL() << "Expected clustered synthesis result to include cluster metadata.";
     return;
@@ -164,8 +166,10 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
   }
 
   CONFIG_INST.set_max_fanout(smoke::kSynthesisTestDefaultMaxFanout);
+  CONFIG_INST.set_enable_sink_clustering(true);
   CONFIG_INST.set_htree_topology_tolerance(0.1);
   ASSERT_EQ(CONFIG_INST.get_max_fanout(), smoke::kSynthesisTestDefaultMaxFanout);
+  ASSERT_TRUE(CONFIG_INST.is_enable_sink_clustering());
   ASSERT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
   ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
 
@@ -179,7 +183,7 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
                                            {"clock_net", selected_clock_data.net_name},
                                            {"load_count", std::to_string(selected_clock_data.sinks.size())},
                                            {"enable_sink_clustering", "true"},
-                                           {"omit_wire_length_unit", "true"},
+                                           {"omit_wirelength_unit", "true"},
                                            {"force_branch_buffer", "true"},
                                        });
 
@@ -197,9 +201,9 @@ TEST(ClockSynthesisRealTechSmokeTest, ClusteredModeForceBranchBufferedRealtechSm
 
   ASSERT_TRUE(result.success);
   EXPECT_TRUE(result.sink_clustering_enabled);
-  EXPECT_GT(result.htree_result.char_wire_length_unit_um, 0.0);
+  EXPECT_GT(result.htree_result.char_wirelength_unit_um, 0.0);
   EXPECT_TRUE(result.htree_result.char_grid_adapted
-              || result.htree_result.char_wire_length_iterations == result.htree_result.char_unique_level_bins);
+              || result.htree_result.char_wirelength_iterations == result.htree_result.char_unique_level_bins);
   smoke::AssertBranchBufferedHTree(result.htree_result);
   smoke::AssertNoSingleLoadExternalLeafBuffer(result.htree_result);
   smoke::AssertClusterBufferMastersFollowLeafSemantics(result, *expected_cluster_master);

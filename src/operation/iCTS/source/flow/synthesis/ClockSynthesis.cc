@@ -46,6 +46,7 @@
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "design/Design.hh"
+#include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "topology/TopologyGen.hh"
 
@@ -129,13 +130,6 @@ auto calcManhattanDistance(const Point<int>& lhs, const Point<int>& rhs) -> int
   return delta_x + delta_y;
 }
 
-auto formatPoint(const Point<int>& point) -> std::string
-{
-  std::ostringstream stream;
-  stream << "(" << point.get_x() << ", " << point.get_y() << ")";
-  return stream.str();
-}
-
 auto formatDecimal(double value) -> std::string
 {
   std::ostringstream stream;
@@ -143,6 +137,16 @@ auto formatDecimal(double value) -> std::string
   stream.precision(2);
   stream << value;
   return stream.str();
+}
+
+auto resolveDbuPerUm() -> double
+{
+  return static_cast<double>(std::max(WRAPPER_INST.queryDbUnit(), 1));
+}
+
+auto dbuToUm(double value_dbu) -> double
+{
+  return value_dbu / resolveDbuPerUm();
 }
 
 auto resolveBufferDriveCap(const std::string& cell_master) -> double
@@ -246,26 +250,23 @@ auto resolveDistanceReportPath() -> std::filesystem::path
   return log_file.empty() ? std::filesystem::path{} : std::filesystem::path(log_file);
 }
 
-auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) -> void
+auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) -> std::optional<ClockSynthesis::ClusterLeafDistanceSummary>
 {
   if (result.cluster_buffers.empty()) {
-    return;
+    return std::nullopt;
   }
 
   const auto report_path = resolveDistanceReportPath();
   if (report_path.empty()) {
-    return;
+    return std::nullopt;
   }
 
   constexpr const char* run_title = "iCTS Report";
   constexpr const char* summary_title = "Cluster Center vs H-Tree Leaf Distance Summary";
-  constexpr const char* detail_title = "Cluster Center vs H-Tree Leaf Distance Details";
-  std::vector<int> distances;
-  schema::TableRows detail_rows;
+  std::vector<double> distances;
   distances.reserve(result.cluster_buffers.size());
-  detail_rows.reserve(result.cluster_buffers.size());
 
-  long long total_distance = 0;
+  double total_distance = 0.0;
   for (const auto& cluster_buffer : result.cluster_buffers) {
     if (!hasValidLocation(cluster_buffer.location) || cluster_buffer.input_pin == nullptr) {
       continue;
@@ -280,30 +281,26 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
       continue;
     }
 
-    const int distance = calcManhattanDistance(cluster_buffer.location, leaf_location);
-    distances.push_back(distance);
-    total_distance += distance;
-    detail_rows.push_back({
-        std::to_string(cluster_buffer.cluster_index),
-        std::to_string(cluster_buffer.sink_count),
-        formatPoint(cluster_buffer.location),
-        formatPoint(leaf_location),
-        std::to_string(distance),
-    });
+    const int distance_dbu = calcManhattanDistance(cluster_buffer.location, leaf_location);
+    const double distance_um = dbuToUm(distance_dbu);
+    distances.push_back(distance_um);
+    total_distance += distance_um;
   }
 
   auto& schema_writer = SCHEMA_WRITER_INST;
   const bool emit_to_active_writer = schema_writer.isOpen() && schema_writer.getActivePath() == report_path;
-  if (detail_rows.empty()) {
-    const std::vector<std::string> summary_lines = {
-        "clustered flow emitted no renderable H-tree leaf locations for distance reporting",
+  if (distances.empty()) {
+    const schema::KeyValueFields summary_fields = {
+        {"count", "0"},
+        {"status", "no_renderable_htree_leaf_locations"},
     };
     if (emit_to_active_writer) {
-      schema_writer.emitDetailBlock(summary_title, summary_lines);
+      schema_writer.emitSection("### Cluster Distance Summary");
+      schema_writer.emitKeyValueTable(summary_title, summary_fields);
     } else {
-      schema::SchemaWriter::appendStandaloneDetailBlock(report_path, run_title, summary_title, summary_lines);
+      schema::SchemaWriter::appendStandaloneKeyValueTable(report_path, run_title, summary_title, summary_fields);
     }
-    return;
+    return std::nullopt;
   }
 
   std::ranges::sort(distances);
@@ -312,34 +309,39 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
       = (distances.size() % 2U) == 0U
             ? (static_cast<double>(distances.at(median_index - 1U)) + static_cast<double>(distances.at(median_index))) / 2.0
             : static_cast<double>(distances.at(median_index));
+  ClockSynthesis::ClusterLeafDistanceSummary summary{
+      .count = distances.size(),
+      .min_distance_um = distances.front(),
+      .max_distance_um = distances.back(),
+      .mean_distance_um = total_distance / static_cast<double>(distances.size()),
+      .median_distance_um = median_distance,
+  };
   const schema::KeyValueFields summary_fields = {
-      {"count", std::to_string(distances.size())},
-      {"min_distance_dbu", std::to_string(distances.front())},
-      {"max_distance_dbu", std::to_string(distances.back())},
-      {"mean_distance_dbu", formatDecimal(static_cast<double>(total_distance) / static_cast<double>(distances.size()))},
-      {"median_distance_dbu", formatDecimal(median_distance)},
+      {"count", std::to_string(summary.count)},
+      {"min_distance", formatDecimal(summary.min_distance_um) + " um"},
+      {"max_distance", formatDecimal(summary.max_distance_um) + " um"},
+      {"mean_distance", formatDecimal(summary.mean_distance_um) + " um"},
+      {"median_distance", formatDecimal(summary.median_distance_um) + " um"},
   };
 
   if (emit_to_active_writer) {
+    schema_writer.emitSection("### Cluster Distance Summary");
     schema_writer.emitKeyValueTable(summary_title, summary_fields);
-    schema_writer.emitTable(
-        detail_title, {"cluster_index", "sink_count", "cluster_center", "htree_leaf_location", "manhattan_distance_dbu"}, detail_rows);
-    return;
+    return summary;
   }
 
   schema::SchemaWriter::appendStandaloneKeyValueTable(report_path, run_title, summary_title, summary_fields);
-  schema::SchemaWriter::appendStandaloneTable(
-      report_path, run_title, detail_title,
-      {"cluster_index", "sink_count", "cluster_center", "htree_leaf_location", "manhattan_distance_dbu"}, detail_rows);
+  return summary;
 }
 
-auto buildHtreeOptions() -> HTreeBuilder::BuildOptions
+auto buildHtreeOptions(bool enable_sink_clustering) -> HTreeBuilder::BuildOptions
 {
   HTreeBuilder::BuildOptions htree_options;
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
   if (max_buf_tran > 0.0) {
     htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
   }
+  htree_options.topology_loads_are_local_buffers = enable_sink_clustering;
   return htree_options;
 }
 
@@ -547,7 +549,7 @@ auto ClockSynthesis::build(Net& root_net, const BuildOptions& options) -> BuildR
     htree_sinks = root_loads;
   }
 
-  auto htree_options = buildHtreeOptions();
+  auto htree_options = buildHtreeOptions(enable_sink_clustering);
   result.htree_result = HTreeBuilder::build(root_net, htree_options);
   if (!result.htree_result.success) {
     const std::string htree_failure
@@ -557,6 +559,10 @@ auto ClockSynthesis::build(Net& root_net, const BuildOptions& options) -> BuildR
     restore_algorithm_side_effects();
     return result;
   }
+  result.selected_htree_level_count = result.htree_result.levels.size();
+  result.selected_htree_depth = result.htree_result.selected_depth;
+  result.htree_inserted_buffer_count = result.htree_result.inserted_insts.size();
+  result.htree_inserted_net_count = result.htree_result.inserted_nets.size();
   absorbHtreeInsertedObjects(result);
 
   if (result.htree_result.root_net != &root_net) {
@@ -567,7 +573,7 @@ auto ClockSynthesis::build(Net& root_net, const BuildOptions& options) -> BuildR
   }
 
   if (enable_sink_clustering) {
-    emitClusterLeafDistanceTables(result);
+    result.cluster_leaf_distance_summary = emitClusterLeafDistanceTables(result);
   }
   result.success = true;
   return result;

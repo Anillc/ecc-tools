@@ -30,6 +30,7 @@
 #include <utility>
 
 #include "common/io/TestArtifactIO.hh"
+#include "common/logging/LogText.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "utils/logger/Schema.hh"
 
@@ -80,6 +81,28 @@ TEST(ScopedLogFileTest, NestedScopedLogFilesRestoreOuterDestination)
   EXPECT_EQ(outer_content.find("Inner Body"), std::string::npos);
   EXPECT_NE(inner_content.find("Inner Body"), std::string::npos);
   EXPECT_EQ(inner_content.find("Outer After"), std::string::npos);
+}
+
+TEST(ScopedLogFileTest, StageScopeSummaryOmitsElapsedTimeFromSchemaFile)
+{
+  const auto output_dir = common::io::PrepareCleanOutputDir(common::io::ResolveOutputDir() / "common" / "logging" / "scoped_stage");
+  ASSERT_FALSE(output_dir.empty());
+
+  const auto log_path = output_dir / "cts.log";
+  {
+    const common::logging::ScopedLogFile log_guard(log_path, "Scoped Stage CTS Report");
+    auto stage = SCHEMA_WRITER_INST.beginStage("UnitStage", "exercise schema finish");
+    stage.finished();
+  }
+
+  const auto log_content = ReadTextFile(log_path);
+  ASSERT_FALSE(log_content.empty());
+  const auto stage_summary = common::logging::ExtractTextBlock(log_content, "UnitStage exercise schema finish Summary");
+  ASSERT_FALSE(stage_summary.empty());
+  EXPECT_NE(stage_summary.find("status"), std::string::npos);
+  EXPECT_NE(stage_summary.find("finished"), std::string::npos);
+  EXPECT_EQ(stage_summary.find("outcome"), std::string::npos);
+  EXPECT_EQ(stage_summary.find("elapsed_time"), std::string::npos);
 }
 
 }  // namespace

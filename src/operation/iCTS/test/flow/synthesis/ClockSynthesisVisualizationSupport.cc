@@ -450,8 +450,8 @@ auto WriteTopologyOverlay(std::ofstream& output_stream, const common::visualizat
 }
 
 auto WriteHtreeMaterializedNets(std::ofstream& output_stream, const common::visualization::detail::SvgTransform& transform,
-                                const std::unordered_set<const icts::Pin*>& terminal_loads,
-                                const icts::ClockSynthesis::BuildResult& result) -> void
+                                const std::unordered_set<const icts::Pin*>& terminal_loads, const icts::ClockSynthesis::BuildResult& result)
+    -> void
 {
   const auto& htree_result = result.htree_result;
   for (const auto& net_owner : result.inserted_nets) {
@@ -459,9 +459,8 @@ auto WriteHtreeMaterializedNets(std::ofstream& output_stream, const common::visu
     if (net == nullptr || net->get_driver() == nullptr) {
       continue;
     }
-    const bool is_cluster_sink_net = std::ranges::any_of(result.cluster_buffers, [net](const auto& cluster_buffer) -> bool {
-      return cluster_buffer.sink_net == net;
-    });
+    const bool is_cluster_sink_net
+        = std::ranges::any_of(result.cluster_buffers, [net](const auto& cluster_buffer) -> bool { return cluster_buffer.sink_net == net; });
     if (is_cluster_sink_net) {
       continue;
     }

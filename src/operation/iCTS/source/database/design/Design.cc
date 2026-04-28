@@ -61,7 +61,7 @@ struct ClockDistributionStats
   std::size_t nets = 0U;
   std::size_t total_sinks = 0U;
   std::size_t flipflop_sinks = 0U;
-  std::size_t buffer_sinks = 0U;
+  std::size_t macro_sinks = 0U;
   std::size_t no_inst_sinks = 0U;
 };
 
@@ -83,7 +83,8 @@ auto summarizeClockGroup(const std::vector<Clock*>& clocks) -> ClockDistribution
       } else if (inst->is_flipflop()) {
         ++stats.flipflop_sinks;
       } else {
-        ++stats.buffer_sinks;
+        // TBD: maybe mux but not macro block
+        ++stats.macro_sinks;
       }
     }
   }
@@ -473,7 +474,7 @@ auto Design::emitClockDistributionSummary(const std::string& title) const -> voi
     total_stats.nets += stats.nets;
     total_stats.total_sinks += stats.total_sinks;
     total_stats.flipflop_sinks += stats.flipflop_sinks;
-    total_stats.buffer_sinks += stats.buffer_sinks;
+    total_stats.macro_sinks += stats.macro_sinks;
     total_stats.no_inst_sinks += stats.no_inst_sinks;
 
     rows.push_back({
@@ -481,7 +482,7 @@ auto Design::emitClockDistributionSummary(const std::string& title) const -> voi
         std::to_string(stats.nets),
         std::to_string(stats.total_sinks),
         std::to_string(stats.flipflop_sinks),
-        std::to_string(stats.buffer_sinks),
+        std::to_string(stats.macro_sinks),
         std::to_string(stats.no_inst_sinks),
     });
   }
@@ -491,11 +492,11 @@ auto Design::emitClockDistributionSummary(const std::string& title) const -> voi
       std::to_string(total_stats.nets),
       std::to_string(total_stats.total_sinks),
       std::to_string(total_stats.flipflop_sinks),
-      std::to_string(total_stats.buffer_sinks),
+      std::to_string(total_stats.macro_sinks),
       std::to_string(total_stats.no_inst_sinks),
   });
 
-  schema::EmitTable(title, {"Clock", "Nets", "Total Sinks", "FlipFlop Sinks", "Buffer Sinks", "No-Inst Sinks"}, rows);
+  schema::EmitTable(title, {"Clock", "Nets", "Total Sinks", "FlipFlop Sinks", "Macro Sinks", "No-Inst Sinks"}, rows);
 }
 
 }  // namespace icts

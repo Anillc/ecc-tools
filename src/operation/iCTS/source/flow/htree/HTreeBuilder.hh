@@ -49,6 +49,7 @@ class HTreeBuilder
     std::optional<unsigned> target_depth = std::nullopt;
     std::optional<unsigned> depth_explore_window = std::nullopt;
     std::optional<double> htree_topology_tolerance = std::nullopt;
+    bool topology_loads_are_local_buffers = false;
   };
 
   struct LevelPlan
@@ -75,8 +76,8 @@ class HTreeBuilder
     std::vector<LevelPlan> levels;
     std::optional<HTreeTopologyChar> best_char = std::nullopt;
     std::optional<HTreeTopologyPattern> best_pattern = std::nullopt;
-    double char_wire_length_unit_um = 0.0;
-    unsigned char_wire_length_iterations = 0U;
+    double char_wirelength_unit_um = 0.0;
+    unsigned char_wirelength_iterations = 0U;
     unsigned char_unique_level_bins = 0U;
     bool char_grid_adapted = false;
     double char_max_slew_ns = 0.0;

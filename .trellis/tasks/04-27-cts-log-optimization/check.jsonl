@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for verification context."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify cts.log/schema output follows project logging policy."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify tests, maintainability, and regression coverage for logging changes."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Verify project-level logging/report constraints are preserved."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/log-analysis.md", "reason": "Verify implementation addresses observed log issues and suspicious metrics."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/flow-log-architecture.md", "reason": "Verify report hierarchy and ownership changes match architecture research."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/evaluation-units-metrics.md", "reason": "Verify evaluation fields and units are corrected or explicitly relabeled."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/htree-char-debug-output.md", "reason": "Verify large debug details are summarized or moved to artifacts with updated tests."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/schema-logging-policy.md", "reason": "Verify deduplication, narrative, artifact, and table-type policy compliance."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/superseded-notes.md", "reason": "Verify the implementation follows the superseding no-CSV/no-top-worst/no-scoped-elapsed contract."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/cts-fix-evaluation-report-reference.md", "reason": "Verify CTS evaluation/report/statistics behavior aligns with origin/cts_fix while keeping external feature files untouched."}

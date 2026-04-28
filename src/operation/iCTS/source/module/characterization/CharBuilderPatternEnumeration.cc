@@ -44,10 +44,10 @@ constexpr unsigned kMaxTopologySlots = std::numeric_limits<std::uint64_t>::digit
 
 }  // namespace
 
-auto CharBuilder::calcTopologySlotCount(double wire_length_um) const -> unsigned
+auto CharBuilder::calcTopologySlotCount(double wirelength_um) const -> unsigned
 {
-  const auto length_idx = get_length_lattice().tryObservedIndex(wire_length_um);
-  auto slot_count = length_idx.value_or(get_length_lattice().coveringIndex(wire_length_um));
+  const auto length_idx = get_length_lattice().tryObservedIndex(wirelength_um);
+  auto slot_count = length_idx.value_or(get_length_lattice().coveringIndex(wirelength_um));
   if (slot_count > kMaxTopologySlots) {
     static bool has_logged_slot_clamp = false;
     if (!has_logged_slot_clamp) {
@@ -70,9 +70,9 @@ auto CharBuilder::countSelectedSlots(TopologyBits topology_bits) -> unsigned
   return slot_count;
 }
 
-auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const -> std::size_t
+auto CharBuilder::estimatePatternCountPerWirelength(double wirelength_um) const -> std::size_t
 {
-  const unsigned num_slots = calcTopologySlotCount(wire_length_um);
+  const unsigned num_slots = calcTopologySlotCount(wirelength_um);
   LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
       << "CharBuilder: buffer slot count " << num_slots << " exceeds topology bit capacity.";
 
@@ -85,22 +85,22 @@ auto CharBuilder::estimatePatternCountPerWireLength(double wire_length_um) const
   return total_patterns;
 }
 
-auto CharBuilder::enumerateWireLength(unsigned length_idx, double wire_length_um, BuildProgress& build_progress) -> void
+auto CharBuilder::enumerateWirelength(unsigned length_idx, double wirelength_um, BuildProgress& build_progress) -> void
 {
-  const unsigned num_slots = calcTopologySlotCount(wire_length_um);
+  const unsigned num_slots = calcTopologySlotCount(wirelength_um);
   LOG_FATAL_IF(num_slots >= std::numeric_limits<std::uint64_t>::digits)
       << "CharBuilder: buffer slot count " << num_slots << " exceeds topology bit capacity.";
 
   const std::uint64_t num_topologies = std::uint64_t{1} << num_slots;
   for (std::uint64_t topology_bits_value = 0; topology_bits_value < num_topologies; ++topology_bits_value) {
-    enumerateTopology(length_idx, wire_length_um, num_slots, TopologyBits{topology_bits_value}, build_progress);
+    enumerateTopology(length_idx, wirelength_um, num_slots, TopologyBits{topology_bits_value}, build_progress);
   }
 }
 
-auto CharBuilder::enumerateTopology(unsigned length_idx, double wire_length_um, unsigned num_slots, TopologyBits topology_bits,
+auto CharBuilder::enumerateTopology(unsigned length_idx, double wirelength_um, unsigned num_slots, TopologyBits topology_bits,
                                     BuildProgress& build_progress) -> void
 {
-  const TopologyDesc topo = buildTopologyDesc(wire_length_um, num_slots, topology_bits);
+  const TopologyDesc topo = buildTopologyDesc(wirelength_um, num_slots, topology_bits);
   const std::size_t num_buf_positions = topo.buffer_positions.size();
 
   if (num_buf_positions == 0) {

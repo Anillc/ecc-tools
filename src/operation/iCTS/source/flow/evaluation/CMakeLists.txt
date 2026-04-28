@@ -1,4 +1,8 @@
-add_library(icts_source_flow_evaluation ${ICTS_FLOW}/evaluation/ClockTreeEvaluator.cc)
+add_library(
+  icts_source_flow_evaluation
+  ${ICTS_FLOW}/evaluation/ClockTreeEvaluator.cc
+  ${ICTS_FLOW}/evaluation/CTSStatisticsWriter.cc
+)
 
 target_link_libraries(
   icts_source_flow_evaluation

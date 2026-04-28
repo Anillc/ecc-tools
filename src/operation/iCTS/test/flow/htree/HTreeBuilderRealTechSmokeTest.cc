@@ -36,6 +36,7 @@
 #include "Net.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
+#include "common/logging/LogText.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
@@ -73,7 +74,7 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
     return;
   }
 
-  EXPECT_EQ(CONFIG_INST.get_wire_length_iterations(), realtech_support::kRealTechCharWireLengthIterations);
+  EXPECT_EQ(CONFIG_INST.get_wirelength_iterations(), realtech_support::kRealTechCharWirelengthIterations);
   EXPECT_EQ(CONFIG_INST.get_slew_steps(), realtech_support::kRealTechCharSlewSteps);
   EXPECT_EQ(CONFIG_INST.get_cap_steps(), realtech_support::kRealTechCharCapSteps);
   EXPECT_TRUE(CONFIG_INST.has_max_buf_tran());
@@ -144,11 +145,41 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   const auto first_line_break = cts_log_content.find('\n');
   ASSERT_NE(first_line_break, std::string::npos);
   EXPECT_EQ(cts_log_content.find("Generate the report at "), first_line_break + 1U);
-  EXPECT_NE(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("CharBuilder Setup"), std::string::npos);
+  const auto char_builder_setup = common::logging::ExtractTextBlock(cts_log_content, "CharBuilder Setup");
+  ASSERT_FALSE(char_builder_setup.empty());
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_layer\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wire_width\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*max_slew\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*max_cap\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_iterations\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_points\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*slew_steps\s*\|)")));
+  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*cap_steps\s*\|)")));
+  EXPECT_TRUE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_rc_source\s*\|\s*Runtime Routing / Wire RC\s*\|)")));
+  const auto htree_grid_plan = common::logging::ExtractTextBlock(cts_log_content, "HTreeBuilder Characterization Grid Plan");
+  ASSERT_FALSE(htree_grid_plan.empty());
+  EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*source\s*\|)")));
+  EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*requested_level_lengths\s*\|)")));
+  EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*required_covering_iterations\s*\|)")));
+  EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*direct_characterization_bins\s*\|)")));
+  EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*distinct_level_bins\s*\|)")));
+  EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*decision_flags\s*\|)")));
+  EXPECT_EQ(cts_log_content.find("characterization grid was capped below direct topology coverage"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("wirelength unit is absent in runtime config; fallback to auto-derived topology grid unit"),
+            std::string::npos);
+  EXPECT_EQ(cts_log_content.find("configured wirelength unit collapses level bins to <=1"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("Characterization setup lists the resolved limits"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("This section records the selected H-tree depth"), std::string::npos);
   EXPECT_NE(cts_log_content.find("HTreeBuilder Build Summary"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("Ohm/um"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("pF/um"), std::string::npos);
+  const auto htree_build_summary = common::logging::ExtractTextBlock(cts_log_content, "HTreeBuilder Build Summary");
+  ASSERT_FALSE(htree_build_summary.empty());
+  EXPECT_EQ(htree_build_summary.find("force_branch_buffer"), std::string::npos);
+  EXPECT_NE(htree_build_summary.find("selected_terminal_branch_buffered_levels"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("routing_rc_source"), std::string::npos);
   EXPECT_NE(cts_log_content.find("leaf_load_cap_idx"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_load_group_count"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_load_cap_min"), std::string::npos);

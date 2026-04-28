@@ -54,7 +54,7 @@ auto CharBuilder::characterizeTopology(unsigned length_idx, const TopologyDesc& 
   if (!feasibility.is_pattern_feasible) {
     ++build_progress.skipped_patterns_infeasible;
     if ((build_progress.evaluated_patterns % kCharProgressLogStride) == 0U) {
-      LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
+      LOG_INFO << "CharBuilder: wirelength=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
                << build_progress.estimated_patterns << " patterns"
                << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
                << ", executed_sta_samples=" << build_progress.executed_sta_samples << ")";
@@ -66,7 +66,7 @@ auto CharBuilder::characterizeTopology(unsigned length_idx, const TopologyDesc& 
 
   sampleFeasibleTopology(length_idx, pid, topo, buf_masters, feasibility, build_progress);
   if ((build_progress.evaluated_patterns % kCharProgressLogStride) == 0U) {
-    LOG_INFO << "CharBuilder: wire_length=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
+    LOG_INFO << "CharBuilder: wirelength=" << total_length_um << " um progress " << build_progress.evaluated_patterns << "/"
              << build_progress.estimated_patterns << " patterns"
              << " (feasible=" << build_progress.feasible_patterns << ", skipped=" << build_progress.skipped_patterns_infeasible
              << ", executed_sta_samples=" << build_progress.executed_sta_samples

@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for iCTS implementation conventions and required guideline discovery."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Primary guidance for structured iCTS cts.log/schema output and logging ownership."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality expectations for code changes, regression tests, and maintainability."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Project-level constraints including repository logging and report helper usage."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/log-analysis.md", "reason": "Observed cts.log content analysis and suspicious metric findings."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/flow-log-architecture.md", "reason": "CTS report generation path, current flat schema behavior, and hierarchy ownership research."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/evaluation-units-metrics.md", "reason": "Evaluation metric semantics and unit normalization plan."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/htree-char-debug-output.md", "reason": "HTree/CharBuilder/detail-table classification and artifact migration plan."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/schema-logging-policy.md", "reason": "Reusable CTS logging policy for narrative, table types, units, deduplication, and debug artifacts."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/superseded-notes.md", "reason": "Supersedes earlier CSV/top-worst/scoped-elapsed research ideas with the accepted implementation contract."}
+{"file": ".trellis/tasks/04-27-cts-log-optimization/research/cts-fix-evaluation-report-reference.md", "reason": "Reference behavior for CTS evaluation STA order, propagated clocks, statistics reports, and CTSAPI::report parity with origin/cts_fix."}

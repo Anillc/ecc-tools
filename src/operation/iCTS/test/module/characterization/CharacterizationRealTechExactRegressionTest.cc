@@ -47,6 +47,19 @@ namespace {
 
 namespace realtech_support = characterization::realtech;
 
+auto MakeExactRegressionCharBuilderInitOptions() -> icts::CharBuilder::InitOptions
+{
+  auto options = realtech_support::MakeRuntimeCharBuilderInitOptions();
+  const double length_step_um = options.wirelength_unit_um.value_or(realtech_support::kRealTechCharWirelengthUnitUm);
+  if (length_step_um <= 0.0) {
+    return options;
+  }
+
+  const unsigned required_iterations = realtech_support::MakeLengthIndex(realtech_support::kExactRootLevelLengthUm, length_step_um);
+  options.wirelength_iterations = std::max(options.wirelength_iterations.value_or(1U), required_iterations);
+  return options;
+}
+
 TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemainUsable)
 {
   realtech_support::RealTechCharSession char_session;
@@ -61,14 +74,14 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposeAndExactJoinRemain
   }
 
   icts::CharBuilder builder;
-  builder.init();
+  builder.init(MakeExactRegressionCharBuilderInitOptions());
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
   auto segment_context = realtech_support::BuildSegmentFrontierContext(builder.get_buffering_patterns());
   const auto lattice_summary = realtech_support::SummarizeSegmentCharLattice(builder.get_segment_chars(), builder);
   EXPECT_EQ(lattice_summary.out_of_range_entries, 0U) << realtech_support::FormatSegmentCharLatticeSummary(lattice_summary, builder);
-  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wire_length_iterations());
+  EXPECT_LE(lattice_summary.max_length_idx, builder.get_wirelength_iterations());
   EXPECT_LE(lattice_summary.max_input_slew_idx, builder.get_slew_steps());
   EXPECT_LE(lattice_summary.max_output_slew_idx, builder.get_slew_steps());
   EXPECT_LE(lattice_summary.max_driven_cap_idx, builder.get_cap_steps());
@@ -174,7 +187,7 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingPro
   }
 
   icts::CharBuilder builder;
-  builder.init();
+  builder.init(MakeExactRegressionCharBuilderInitOptions());
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());

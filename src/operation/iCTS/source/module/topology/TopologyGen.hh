@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -38,10 +39,18 @@ class Pin;
 class TopologyGen
 {
  public:
+  enum class LoadCountKind
+  {
+    kSink,
+    kLocalBuffer
+  };
+
   struct BuildOptions
   {
     BiPartitionConfig partition_config;
     std::optional<unsigned> target_depth = std::nullopt;
+    int32_t dbu_per_um = 1;
+    LoadCountKind load_count_kind = LoadCountKind::kSink;
   };
 
   TopologyGen() = delete;
@@ -62,11 +71,12 @@ class TopologyGen
     int depth = 0;
   };
 
-  static auto reportLoadDistribution(const std::vector<Pin*>& loads) -> void;
-  static auto reportRootToLeafLengths(const Tree& tree) -> void;
+  static auto reportLoadDistribution(const std::vector<Pin*>& loads, LoadCountKind load_count_kind, int32_t dbu_per_um) -> void;
+  static auto reportRootToLeafLengths(const Tree& tree, int32_t dbu_per_um) -> void;
   static auto calcMaxDepth(std::size_t load_count) -> unsigned;
   static auto calcLeafCount(std::size_t load_count) -> std::size_t;
-  static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth) -> Tree;
+  static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth,
+                    LoadCountKind load_count_kind, int32_t dbu_per_um) -> Tree;
   static auto buildFullTree(Tree& tree, const BuildCursor& cursor, int height) -> void;
   static auto embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
                              const BiPartitionConfig& config) -> void;

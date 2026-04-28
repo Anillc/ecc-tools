@@ -61,7 +61,7 @@ auto ReadEnvFlag(std::string_view env_name) -> bool
 }
 
 auto FormatArm9ExperimentReport(std::string_view scenario_name, const std::string& clock_name, std::size_t load_count,
-                                bool omit_wire_length_unit, const std::vector<Arm9ExperimentRecord>& records) -> std::string
+                                bool omit_wirelength_unit, const std::vector<Arm9ExperimentRecord>& records) -> std::string
 {
   std::ostringstream report_stream;
   report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
@@ -69,15 +69,15 @@ auto FormatArm9ExperimentReport(std::string_view scenario_name, const std::strin
   report_stream << "scenario=" << scenario_name << "\n";
   report_stream << "clock_name=" << clock_name << "\n";
   report_stream << "load_count=" << load_count << "\n";
-  report_stream << "omit_wire_length_unit=" << (omit_wire_length_unit ? "true" : "false") << "\n";
+  report_stream << "omit_wirelength_unit=" << (omit_wirelength_unit ? "true" : "false") << "\n";
   report_stream << "runtime_budget_s=" << kArm9ExperimentRuntimeBudgetS << "\n";
   report_stream << "columns=iter,step,runtime_s,success,frontier_count,selected_depth,best_pattern_id,best_delay_ns,best_power_w,"
-                   "char_wire_length_unit_um,char_wire_length_iterations,char_grid_adapted,used_boundary_fallback,failure_reason\n";
+                   "char_wirelength_unit_um,char_wirelength_iterations,char_grid_adapted,used_boundary_fallback,failure_reason\n";
   for (const auto& record : records) {
-    report_stream << record.wire_length_iterations << "," << record.slew_cap_steps << "," << record.runtime_s << ","
+    report_stream << record.wirelength_iterations << "," << record.slew_cap_steps << "," << record.runtime_s << ","
                   << (record.success ? "true" : "false") << "," << record.final_frontier_count << "," << record.selected_depth << ","
                   << record.best_pattern_id << "," << record.best_delay_ns << "," << record.best_power_w << ","
-                  << record.char_wire_length_unit_um << "," << record.char_wire_length_iterations << ","
+                  << record.char_wirelength_unit_um << "," << record.char_wirelength_iterations << ","
                   << (record.char_grid_adapted ? "true" : "false") << "," << (record.used_boundary_fallback ? "true" : "false") << ","
                   << record.failure_reason << "\n";
   }

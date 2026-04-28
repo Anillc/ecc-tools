@@ -73,15 +73,15 @@ auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optiona
 auto QueryArcParasitics(int wire_distance_dbu, const Router::RCTreeBuildOptions& options) -> std::pair<double, double>
 {
   const auto db_unit = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
-  const auto wire_length = static_cast<double>(std::max(wire_distance_dbu, 0)) / db_unit;
-  if (wire_length <= 0.0) {
+  const auto wirelength = static_cast<double>(std::max(wire_distance_dbu, 0)) / db_unit;
+  if (wirelength <= 0.0) {
     return {0.0, 0.0};
   }
 
   const auto routing_layer = ResolveRoutingLayer(options);
   const auto wire_width = ResolveWireWidth(options);
-  const auto resistance = STA_ADAPTER_INST.queryWireResistance(routing_layer, wire_length, wire_width) / kMilliOhmPerOhm;
-  const auto capacitance = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, wire_length, wire_width);
+  const auto resistance = STA_ADAPTER_INST.queryWireResistance(routing_layer, wirelength, wire_width) / kMilliOhmPerOhm;
+  const auto capacitance = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, wirelength, wire_width);
   return {resistance, capacitance};
 }
 

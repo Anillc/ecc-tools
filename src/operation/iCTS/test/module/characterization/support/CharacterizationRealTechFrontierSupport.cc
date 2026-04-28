@@ -319,7 +319,7 @@ auto MakeLengthIndex(double length_um, double length_step_um) -> unsigned
 auto CalcCharGrid(const icts::CharBuilder& builder) -> CharGrid
 {
   return CharGrid{
-      .length_step_um = builder.get_wire_length_unit_um(),
+      .length_step_um = builder.get_wirelength_unit_um(),
       .slew_step_ns = builder.get_slew_steps() == 0U ? 0.0 : builder.get_max_slew() / static_cast<double>(builder.get_slew_steps()),
       .cap_step_pf = builder.get_cap_steps() == 0U ? 0.0 : builder.get_max_cap() / static_cast<double>(builder.get_cap_steps()),
   };
@@ -338,7 +338,7 @@ auto SummarizeSegmentCharLattice(const std::vector<icts::SegmentChar>& chars, co
     summary.max_load_cap_idx = std::max(summary.max_load_cap_idx, entry.get_load_cap_idx());
 
     bool entry_out_of_range = false;
-    if (entry.get_length_idx() > builder.get_wire_length_iterations()) {
+    if (entry.get_length_idx() > builder.get_wirelength_iterations()) {
       ++summary.length_overflow_entries;
       entry_out_of_range = true;
     }
@@ -370,7 +370,7 @@ auto FormatSegmentCharLatticeSummary(const SegmentCharLatticeSummary& summary, c
 {
   std::ostringstream output_stream;
   output_stream << "total=" << summary.total_entries << ", out_of_range=" << summary.out_of_range_entries
-                << ", max_length_idx=" << summary.max_length_idx << "/" << builder.get_wire_length_iterations()
+                << ", max_length_idx=" << summary.max_length_idx << "/" << builder.get_wirelength_iterations()
                 << ", max_input_slew_idx=" << summary.max_input_slew_idx << "/" << builder.get_slew_steps()
                 << ", max_output_slew_idx=" << summary.max_output_slew_idx << "/" << builder.get_slew_steps()
                 << ", max_driven_cap_idx=" << summary.max_driven_cap_idx << "/" << builder.get_cap_steps()

@@ -64,9 +64,9 @@ class Config
     _max_fanout = 32;
     // Kept as a config placeholder for compatibility with existing JSONs.
     _max_length = 300;
-    // Active wire-length lattice controls used by characterization.
-    _wire_length_unit_um = 0.0;
-    _wire_length_iterations = 3;
+    // Active wirelength lattice controls used by characterization.
+    _wirelength_unit_um = 0.0;
+    _wirelength_iterations = 3;
     _routing_layers.clear();
     _buffer_types.clear();
     _slew_steps = 15;
@@ -93,8 +93,8 @@ class Config
   auto has_max_buf_tran() const -> bool { return _has_max_buf_tran; }
   auto has_max_cap() const -> bool { return _has_max_cap; }
   auto get_max_length() const -> double { return _max_length; }
-  auto get_wire_length_unit_um() const -> double { return _wire_length_unit_um; }
-  auto get_wire_length_iterations() const -> unsigned { return _wire_length_iterations; }
+  auto get_wirelength_unit_um() const -> double { return _wirelength_unit_um; }
+  auto get_wirelength_iterations() const -> unsigned { return _wirelength_iterations; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
   auto get_wire_width() const -> double { return _wire_width; }
@@ -129,8 +129,8 @@ class Config
     _has_max_cap = true;
   }
   auto set_max_length(double max_length) -> void { _max_length = max_length; }
-  auto set_wire_length_unit_um(double wire_length_unit_um) -> void { _wire_length_unit_um = wire_length_unit_um; }
-  auto set_wire_length_iterations(unsigned wire_length_iterations) -> void { _wire_length_iterations = wire_length_iterations; }
+  auto set_wirelength_unit_um(double wirelength_unit_um) -> void { _wirelength_unit_um = wirelength_unit_um; }
+  auto set_wirelength_iterations(unsigned wirelength_iterations) -> void { _wirelength_iterations = wirelength_iterations; }
   auto set_slew_steps(unsigned steps) -> void { _slew_steps = steps; }
   auto set_cap_steps(unsigned steps) -> void { _cap_steps = steps; }
   auto set_wire_width(double wire_width) -> void { _wire_width = wire_width; }
@@ -167,9 +167,9 @@ class Config
   double _max_cap = 0.0;
   bool _has_max_buf_tran = false;
   bool _has_max_cap = false;
-  double _max_length = 0.0;              // Placeholder knob (not step-based slicing).
-  double _wire_length_unit_um = 0.0;     // Active base unit for wire-length lattice.
-  unsigned _wire_length_iterations = 3;  // Active iteration count for wire-length lattice.
+  double _max_length = 0.0;             // Placeholder knob (not step-based slicing).
+  double _wirelength_unit_um = 0.0;     // Active base unit for wirelength lattice.
+  unsigned _wirelength_iterations = 3;  // Active iteration count for wirelength lattice.
   unsigned _slew_steps = 15;
   unsigned _cap_steps = 15;
   double _wire_width = 0.0;

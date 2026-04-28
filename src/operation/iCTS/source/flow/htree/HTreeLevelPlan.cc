@@ -39,8 +39,6 @@
 #include "geometry/Geometry.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
-#include "logger/LogFormat.hh"
-#include "logger/Schema.hh"
 
 namespace icts::htree_builder {
 namespace {
@@ -139,10 +137,10 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   }
   plan.requested_level_lengths = static_cast<unsigned>(requested_lengths_um.size());
 
-  const double configured_unit_um = CONFIG_INST.get_wire_length_unit_um();
-  plan.configured_wire_length_iterations = std::max(1U, CONFIG_INST.get_wire_length_iterations());
-  plan.configured_wire_length_unit_um = configured_unit_um;
-  plan.configured_wire_length_missing = configured_unit_um <= 0.0;
+  const double configured_unit_um = CONFIG_INST.get_wirelength_unit_um();
+  plan.configured_wirelength_iterations = std::max(1U, CONFIG_INST.get_wirelength_iterations());
+  plan.configured_wirelength_unit_um = configured_unit_um;
+  plan.configured_wirelength_missing = configured_unit_um <= 0.0;
 
   double effective_unit_um = configured_unit_um;
   if (effective_unit_um > 0.0) {
@@ -154,29 +152,11 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   const double fallback_unit_um = max_requested_length_um / static_cast<double>(requested_lengths_um.size());
   const bool grid_collapsed = configured_unit_um > 0.0 && requested_lengths_um.size() > 1U && plan.unique_level_bins <= 1U;
   plan.configured_grid_collapsed = grid_collapsed;
-  if (plan.configured_wire_length_missing || grid_collapsed) {
-    if (plan.configured_wire_length_missing) {
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "HTreeBuilder",
-                             "wire_length_unit_um is absent in runtime config; fallback to auto-derived topology grid unit.",
-                             {
-                                 {"effective_wire_length_unit_um", logformat::FormatWithUnit(fallback_unit_um, "um")},
-                                 {"reason", "missing_runtime_config"},
-                             });
-    }
-    if (grid_collapsed) {
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "HTreeBuilder",
-                             "configured wire_length_unit_um collapses level bins to <=1; fallback to auto-derived topology grid unit.",
-                             {
-                                 {"configured_wire_length_unit_um", logformat::FormatWithUnit(configured_unit_um, "um")},
-                                 {"effective_wire_length_unit_um", logformat::FormatWithUnit(fallback_unit_um, "um")},
-                                 {"reason", "collapsed_bins"},
-                             });
-    }
-
+  if (plan.configured_wirelength_missing || grid_collapsed) {
     effective_unit_um = fallback_unit_um;
     plan.adapted = effective_unit_um > 0.0;
     plan.source = plan.adapted ? CharGridSource::kAutoDerived : CharGridSource::kNone;
-    plan.auto_derived_wire_length_unit_um = effective_unit_um;
+    plan.auto_derived_wirelength_unit_um = effective_unit_um;
     plan.unique_level_bins = CountUniqueAlignedLengthBins(requested_lengths_um, effective_unit_um);
   }
 
@@ -184,9 +164,9 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
     return plan;
   }
 
-  plan.wire_length_unit_um = effective_unit_um;
+  plan.wirelength_unit_um = effective_unit_um;
   plan.required_covering_iterations = std::max(1U, static_cast<unsigned>(std::ceil(max_requested_length_um / effective_unit_um)));
-  plan.wire_length_iterations = std::min(plan.configured_wire_length_iterations, plan.required_covering_iterations);
+  plan.wirelength_iterations = std::min(plan.configured_wirelength_iterations, plan.required_covering_iterations);
   return plan;
 }
 
@@ -247,16 +227,16 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
 auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const CharacterizationGridPlan& char_grid_plan, int32_t dbu_per_um)
     -> std::vector<unsigned>
 {
-  if (!char_grid_plan.adapted || char_grid_plan.wire_length_iterations == 0U) {
+  if (!char_grid_plan.adapted || char_grid_plan.wirelength_iterations == 0U) {
     return {};
   }
 
-  if (char_grid_plan.required_covering_iterations > char_grid_plan.wire_length_iterations) {
-    return MakeDenseLengthIndices(char_grid_plan.wire_length_iterations);
+  if (char_grid_plan.required_covering_iterations > char_grid_plan.wirelength_iterations) {
+    return MakeDenseLengthIndices(char_grid_plan.wirelength_iterations);
   }
 
-  auto required_length_indices = CollectRequiredLengthIndices(BuildLevelPlans(topology, char_grid_plan.wire_length_unit_um, dbu_per_um));
-  std::erase_if(required_length_indices, [&](unsigned length_idx) -> bool { return length_idx > char_grid_plan.wire_length_iterations; });
+  auto required_length_indices = CollectRequiredLengthIndices(BuildLevelPlans(topology, char_grid_plan.wirelength_unit_um, dbu_per_um));
+  std::erase_if(required_length_indices, [&](unsigned length_idx) -> bool { return length_idx > char_grid_plan.wirelength_iterations; });
   return required_length_indices;
 }
 

@@ -37,10 +37,10 @@
 #include "database/io/Wrapper.hh"
 #include "evaluation/ClockTreeEvaluator.hh"
 #include "feature_icts.h"
+#include "feature_ista.h"
 #include "flow/FlowManager.hh"
 #include "idm.h"
 #include "time/Time.hh"
-#include "usage/usage.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts {
@@ -74,65 +74,12 @@ auto buildFeatureSummary(const ClockTreeSummary& flow_summary) -> ieda_feature::
 
 auto CTSAPI::runCTS() -> void
 {
-  const ieda::Stats stats;
-  schema::ScopedStage run_stage("CTS", "Clock tree synthesis API flow");
-  readData();
-  ctsFlow();
-  evaluate();
-
-  run_stage.markRunning("Main CTS flow finished");
-  run_stage.finish({
-      {"main_flow", "finished"},
-      {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-      {"memory_delta_mb", std::to_string(stats.memoryDelta())},
-  });
+  FLOW_MANAGER_INST.runCTS();
 }
 
-auto CTSAPI::readData() -> void
+auto CTSAPI::report(const std::string& save_dir) -> void
 {
-  const ieda::Stats stats;
-  schema::ScopedStage read_stage("CTSReadData", "Read CTS clock data");
-  FlowManager::readData();
-  schema::EmitKeyValueTable("CTS API ReadData Runtime", {
-                                                            {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-                                                            {"memory_delta_mb", std::to_string(stats.memoryDelta())},
-                                                        });
-  read_stage.finish({
-      {"status", "finished"},
-  });
-}
-
-auto CTSAPI::ctsFlow() -> void
-{
-  const ieda::Stats stats;
-  schema::ScopedStage flow_stage("CTSFlow", "Run CTS synthesis flow");
-  FlowManager::run();
-  schema::EmitKeyValueTable("CTS API Flow Runtime", {
-                                                        {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-                                                        {"memory_delta_mb", std::to_string(stats.memoryDelta())},
-                                                    });
-  flow_stage.finish({
-      {"status", "finished"},
-  });
-}
-
-auto CTSAPI::evaluate() -> void
-{
-  const ieda::Stats stats;
-  schema::ScopedStage evaluation_stage("CTSEvaluation", "Evaluate CTS clock tree");
-  FlowManager::evaluate();
-  schema::EmitKeyValueTable("CTS API Evaluation Runtime", {
-                                                              {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-                                                              {"memory_delta_mb", std::to_string(stats.memoryDelta())},
-                                                          });
-  evaluation_stage.finish({
-      {"status", "finished"},
-  });
-}
-
-auto CTSAPI::report(const std::string& /*save_dir*/) -> void
-{
-  // TBD(clw): Reporting flow is not implemented yet.
+  FLOW_MANAGER_INST.report(save_dir);
 }
 
 auto CTSAPI::resetAPI() -> void
@@ -140,8 +87,8 @@ auto CTSAPI::resetAPI() -> void
   CONFIG_INST.reset();
   DESIGN_INST.reset();
   WRAPPER_INST.reset();
-  FlowManager::reset();
-  SCHEMA_WRITER_INST.close();
+  FLOW_MANAGER_INST.reset();
+  SCHEMA_WRITER_INST.reset();
 }
 
 auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
@@ -173,12 +120,6 @@ auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -
                               {"work_dir", dir.string()},
                           });
   LOG_INFO << "Generate the report at " << generated_on;
-  schema::EmitKeyValueTable("Runtime Paths", {
-                                                 {"cts_log", CONFIG_INST.get_log_file()},
-                                                 {"work_dir", CONFIG_INST.get_work_dir()},
-                                                 {"output_def_dir", CONFIG_INST.get_output_def_path()},
-                                                 {"gds_file", CONFIG_INST.get_gds_file()},
-                                             });
 
   // DB Wrapper
   auto* idb_builder = dmInst->get_idb_builder();
@@ -188,13 +129,13 @@ auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -
   // STA
   STA_ADAPTER_INST.init();
 
-  CONFIG_INST.emitRuntimeConfigReport("Runtime Configuration");
-  STA_ADAPTER_INST.emitConfiguredUnitWireRcReport("Runtime Routing / Wire RC");
+  // Flow Manager
+  FLOW_MANAGER_INST.outputRuntimeSetup();
 }
 
 auto CTSAPI::outputSummary() -> ieda_feature::CTSSummary
 {
-  return buildFeatureSummary(FlowManager::outputSummary());
+  return buildFeatureSummary(FLOW_MANAGER_INST.outputSummary());
 }
 
 }  // namespace icts

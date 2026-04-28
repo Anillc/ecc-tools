@@ -246,10 +246,10 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyDoubleIfPresent(json, "max_sink_tran", *this, &Config::get_max_sink_tran, &Config::set_max_sink_tran);
   ApplyDoubleIfPresent(json, "max_cap", *this, &Config::get_max_cap, &Config::set_max_cap);
   // max_length remains parseable as a placeholder knob; active lattice comes
-  // from wire_length_unit_um + wire_length_iterations.
+  // from wirelength_unit_um + wirelength_iterations.
   ApplyDoubleIfPresent(json, "max_length", *this, &Config::get_max_length, &Config::set_max_length);
-  ApplyDoubleIfPresent(json, "wire_length_unit_um", *this, &Config::get_wire_length_unit_um, &Config::set_wire_length_unit_um);
-  ApplyUnsignedIfPresent(json, "wire_length_iterations", *this, &Config::get_wire_length_iterations, &Config::set_wire_length_iterations);
+  ApplyDoubleIfPresent(json, "wirelength_unit_um", *this, &Config::get_wirelength_unit_um, &Config::set_wirelength_unit_um);
+  ApplyUnsignedIfPresent(json, "wirelength_iterations", *this, &Config::get_wirelength_iterations, &Config::set_wirelength_iterations);
   ApplyUnsignedIfPresent(json, "slew_steps", *this, &Config::get_slew_steps, &Config::set_slew_steps);
   ApplyUnsignedIfPresent(json, "cap_steps", *this, &Config::get_cap_steps, &Config::set_cap_steps);
   ApplyDoubleIfPresent(json, "wire_width", *this, &Config::get_wire_width, &Config::set_wire_width);
@@ -271,30 +271,30 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
 {
   const auto& routing_layers = get_routing_layers();
   const auto& buffer_types = get_buffer_types();
-  const bool has_wire_length_unit = get_wire_length_unit_um() > 0.0;
+  const bool has_wirelength_unit = get_wirelength_unit_um() > 0.0;
   const bool has_wire_width = get_wire_width() > 0.0;
 
   return {
-      {"skew_bound_ns", logformat::FormatWithUnit(get_skew_bound(), "ns"), "clock skew target"},
-      {"max_buf_tran_ns", has_max_buf_tran() ? logformat::FormatWithUnit(get_max_buf_tran(), "ns") : "auto",
+      {"skew_bound", logformat::FormatWithUnit(get_skew_bound(), "ns"), "clock skew target"},
+      {"max_buf_tran", has_max_buf_tran() ? logformat::FormatWithUnit(get_max_buf_tran(), "ns") : "auto",
        has_max_buf_tran() ? "explicit runtime config" : "resolve from liberty slew limit/table-axis during characterization"},
-      {"max_sink_tran_ns", logformat::FormatWithUnit(get_max_sink_tran(), "ns"), "sink transition target"},
-      {"max_cap_pf", has_max_cap() ? logformat::FormatWithUnit(get_max_cap(), "pF") : "auto",
+      {"max_sink_tran", logformat::FormatWithUnit(get_max_sink_tran(), "ns"), "sink transition target"},
+      {"max_cap", has_max_cap() ? logformat::FormatWithUnit(get_max_cap(), "pF") : "auto",
        has_max_cap() ? "explicit runtime config" : "resolve from liberty cap limit/table-axis during characterization"},
-      {"max_length_um", logformat::FormatWithUnit(get_max_length(), "um"), "legacy compatibility knob; not the active step lattice"},
-      {"wire_length_unit_um", has_wire_length_unit ? logformat::FormatWithUnit(get_wire_length_unit_um(), "um") : "auto",
-       has_wire_length_unit ? "active characterization lattice unit" : "fallback/override resolves later in flow"},
-      {"wire_length_iterations", std::to_string(get_wire_length_iterations()), "characterization length bins"},
+      {"max_length", logformat::FormatWithUnit(get_max_length(), "um"), "legacy compatibility knob; not the active step lattice"},
+      {"wirelength_unit", has_wirelength_unit ? logformat::FormatWithUnit(get_wirelength_unit_um(), "um") : "auto",
+       has_wirelength_unit ? "active characterization lattice unit" : "fallback/override resolves later in flow"},
+      {"wirelength_iterations", std::to_string(get_wirelength_iterations()), "characterization length bins"},
       {"slew_steps", std::to_string(get_slew_steps()), "characterization slew bins"},
       {"cap_steps", std::to_string(get_cap_steps()), "characterization load-cap bins"},
-      {"wire_width_um", has_wire_width ? logformat::FormatWithUnit(get_wire_width(), "um") : "library_default",
+      {"wire_width", has_wire_width ? logformat::FormatWithUnit(get_wire_width(), "um") : "library_default",
        has_wire_width ? "explicit RC width override" : "use technology default width in RC query"},
-      {"max_fanout", std::to_string(get_max_fanout()), "fanout constraint"},
       {"routing_layers", routing_layers.empty() ? "default(1)" : std::to_string(routing_layers.front()),
        routing_layers.empty() ? "effective routing layer falls back to 1" : "configured order: " + logformat::JoinUnsigned(routing_layers)},
+      {"max_fanout", std::to_string(get_max_fanout()), "fanout constraint"},
       {"buffer_types", std::to_string(buffer_types.size()),
        buffer_types.empty() ? "no configured buffers" : logformat::JoinStrings(buffer_types)},
-      {"char_buf_redundancy_pct", logformat::FormatPercent(get_char_buf_redundancy_pct()),
+      {"char_buf_redundancy", logformat::FormatPercent(get_char_buf_redundancy_pct()),
        get_char_buf_redundancy_pct() > 0.0 ? "near-neighbor max-cap pruning threshold" : "disabled"},
       {"force_branch_buffer", logformat::FormatBool(is_force_branch_buffer()),
        is_force_branch_buffer() ? "require terminal-buffered segment frontiers on every H-tree level" : "disabled"},

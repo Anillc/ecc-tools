@@ -37,11 +37,8 @@
 #include "database/characterization/HTreeTopologyChar.hh"
 #include "database/characterization/PatternId.hh"
 #include "database/characterization/SegmentChar.hh"
+#include "module/characterization/CharBuilder.hh"
 #include "module/characterization/Frontier.hh"
-
-namespace icts {
-class CharBuilder;
-}  // namespace icts
 
 namespace icts_test::common::logging {
 class ScopedLogFile;
@@ -56,8 +53,8 @@ inline constexpr double kRootLevelLengthUm = 200.0;
 inline constexpr double kExactLeafLevelLengthUm = 25.0;
 inline constexpr double kExactMidLevelLengthUm = 50.0;
 inline constexpr double kExactRootLevelLengthUm = 100.0;
-inline constexpr double kRealTechCharWireLengthUnitUm = 25.0;
-inline constexpr unsigned kRealTechCharWireLengthIterations = 3U;
+inline constexpr double kRealTechCharWirelengthUnitUm = 25.0;
+inline constexpr unsigned kRealTechCharWirelengthIterations = 3U;
 inline constexpr unsigned kRealTechCharSlewSteps = 15U;
 inline constexpr unsigned kRealTechCharCapSteps = 15U;
 
@@ -70,8 +67,8 @@ struct ConfigState
   bool has_max_buf_tran = false;
   bool has_max_cap = false;
   double max_length = 0.0;
-  double wire_length_unit_um = 0.0;
-  unsigned wire_length_iterations = 0U;
+  double wirelength_unit_um = 0.0;
+  unsigned wirelength_iterations = 0U;
   unsigned slew_steps = 0U;
   unsigned cap_steps = 0U;
   double wire_width = 0.0;
@@ -92,8 +89,9 @@ struct ConfigState
 
 auto CaptureConfigState() -> ConfigState;
 auto ApplyConfigState(const ConfigState& state) -> void;
+auto MakeRuntimeCharBuilderInitOptions() -> icts::CharBuilder::InitOptions;
 auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::optional<std::vector<std::string>> buffer_types,
-                                 double max_buf_tran_ns, double max_cap_pf, bool omit_wire_length_unit, bool force_branch_buffer = false)
+                                 double max_buf_tran_ns, double max_cap_pf, bool omit_wirelength_unit, bool force_branch_buffer = false)
     -> ConfigState;
 
 struct RealTechCharSession
@@ -107,7 +105,7 @@ struct RealTechCharSession
   auto operator=(RealTechCharSession&&) -> RealTechCharSession& = delete;
 
   auto prepare(const std::string& scenario_name, std::optional<std::vector<std::string>> buffer_types, double max_buf_tran_ns,
-               double max_cap_pf, bool omit_wire_length_unit = false, bool force_branch_buffer = false) -> std::optional<std::string>;
+               double max_cap_pf, bool omit_wirelength_unit = false, bool force_branch_buffer = false) -> std::optional<std::string>;
 
  private:
   auto restore() -> void;
@@ -178,7 +176,7 @@ auto CollectUsableBufferMasters(const std::vector<BufferLimitInfo>& infos) -> st
 auto LookupBufferInfo(const std::vector<BufferLimitInfo>& infos, const std::string& cell_master) -> const BufferLimitInfo*;
 auto MinPositiveResolvedLimit(const std::vector<BufferLimitInfo>& infos, const std::vector<std::string>& selected_masters, bool for_slew)
     -> double;
-auto ResolveDefaultWireLengthUnitUm(const std::vector<BufferLimitInfo>& infos, const std::vector<std::string>& selected_masters) -> double;
+auto ResolveDefaultWirelengthUnitUm(const std::vector<BufferLimitInfo>& infos, const std::vector<std::string>& selected_masters) -> double;
 
 template <class PredicateT>
 inline auto CollectMastersByPredicate(const std::vector<BufferLimitInfo>& infos, const PredicateT& predicate) -> std::vector<std::string>

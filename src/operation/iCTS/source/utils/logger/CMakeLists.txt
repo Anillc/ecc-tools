@@ -2,7 +2,7 @@ add_library(icts_source_utils_logger ${ICTS_LOGGER}/Schema.cc)
 
 target_include_directories(icts_source_utils_logger PUBLIC ${ICTS_LOGGER})
 
-target_link_libraries(icts_source_utils_logger PRIVATE log)
+target_link_libraries(icts_source_utils_logger PRIVATE log usage)
 
 if(DEBUG_ICTS_SOURCE_UTILS_LOGGER)
   if(MSVC)

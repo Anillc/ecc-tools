@@ -349,15 +349,15 @@ auto CalcClockTreeTimingSummary(const icts::ClockSynthesis::BuildResult& result,
   return summary;
 }
 
-auto MakeCasePrefix(unsigned wire_length_iterations, unsigned slew_cap_steps) -> std::string
+auto MakeCasePrefix(unsigned wirelength_iterations, unsigned slew_cap_steps) -> std::string
 {
-  return "iter=" + std::to_string(wire_length_iterations) + ", step=" + std::to_string(slew_cap_steps) + ": ";
+  return "iter=" + std::to_string(wirelength_iterations) + ", step=" + std::to_string(slew_cap_steps) + ": ";
 }
 
-auto AppendCaseFailures(unsigned wire_length_iterations, unsigned slew_cap_steps, const icts::ClockSynthesis::BuildResult& result,
+auto AppendCaseFailures(unsigned wirelength_iterations, unsigned slew_cap_steps, const icts::ClockSynthesis::BuildResult& result,
                         double runtime_s, const ClockSynthesisExperimentRecord& record, std::vector<std::string>& failure_messages) -> void
 {
-  const std::string prefix = MakeCasePrefix(wire_length_iterations, slew_cap_steps);
+  const std::string prefix = MakeCasePrefix(wirelength_iterations, slew_cap_steps);
   if (!result.success) {
     failure_messages.push_back(prefix + "failure_reason=" + result.htree_result.failure_reason);
   }
@@ -376,11 +376,11 @@ auto AppendCaseFailures(unsigned wire_length_iterations, unsigned slew_cap_steps
   if (!result.htree_result.best_char.has_value()) {
     failure_messages.push_back(prefix + "best htree char is missing");
   }
-  if (record.char_wire_length_unit_um <= 0.0) {
-    failure_messages.push_back(prefix + "char wire length unit is not positive");
+  if (record.char_wirelength_unit_um <= 0.0) {
+    failure_messages.push_back(prefix + "char wirelength unit is not positive");
   }
-  if (record.char_wire_length_iterations > wire_length_iterations) {
-    failure_messages.push_back(prefix + "char wire length iterations exceed requested iteration count");
+  if (record.char_wirelength_iterations > wirelength_iterations) {
+    failure_messages.push_back(prefix + "char wirelength iterations exceed requested iteration count");
   }
 }
 
@@ -421,10 +421,10 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatr
   matrix_result.selection = selected_clock_data;
   matrix_result.records.reserve(kBpBeTopExperimentIterations.size() * kBpBeTopExperimentSteps.size());
 
-  for (const unsigned wire_length_iterations : kBpBeTopExperimentIterations) {
+  for (const unsigned wirelength_iterations : kBpBeTopExperimentIterations) {
     for (const unsigned slew_cap_steps : kBpBeTopExperimentSteps) {
       std::ostringstream scenario_name_stream;
-      scenario_name_stream << "clock_synthesis_bp_be_top_full_sink_iter" << wire_length_iterations << "_step" << slew_cap_steps;
+      scenario_name_stream << "clock_synthesis_bp_be_top_full_sink_iter" << wirelength_iterations << "_step" << slew_cap_steps;
       const std::string scenario_name = scenario_name_stream.str();
 
       realtech_support::RealTechCharSession char_session;
@@ -434,7 +434,7 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatr
         return MakeSkipResult(*prepare_error);
       }
 
-      CONFIG_INST.set_wire_length_iterations(wire_length_iterations);
+      CONFIG_INST.set_wirelength_iterations(wirelength_iterations);
       CONFIG_INST.set_slew_steps(slew_cap_steps);
       CONFIG_INST.set_cap_steps(slew_cap_steps);
 
@@ -442,7 +442,7 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatr
       SetEnableSinkClustering(options, false);
 
       const auto runtime_start = std::chrono::steady_clock::now();
-      icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_iter" + std::to_string(wire_length_iterations) + "_step"
+      icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_iter" + std::to_string(wirelength_iterations) + "_step"
                          + std::to_string(slew_cap_steps));
       ConnectRootNet(root_net, selected_clock_data.source, selected_clock_data.sinks);
       const auto result = icts::ClockSynthesis::build(root_net, options);
@@ -451,13 +451,13 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatr
       const auto htree_observation = htree::ObserveHTreeBuild(result.htree_result);
 
       ClockSynthesisExperimentRecord record{
-          .wire_length_iterations = wire_length_iterations,
+          .wirelength_iterations = wirelength_iterations,
           .slew_cap_steps = slew_cap_steps,
           .runtime_s = runtime_s,
           .success = result.success,
           .sink_count = selected_clock_data.sinks.size(),
-          .char_wire_length_unit_um = result.htree_result.char_wire_length_unit_um,
-          .char_wire_length_iterations = result.htree_result.char_wire_length_iterations,
+          .char_wirelength_unit_um = result.htree_result.char_wirelength_unit_um,
+          .char_wirelength_iterations = result.htree_result.char_wirelength_iterations,
           .char_grid_adapted = result.htree_result.char_grid_adapted,
           .used_boundary_fallback = htree_observation.used_boundary_fallback,
           .failure_reason = result.htree_result.failure_reason,
@@ -469,7 +469,7 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> ClockSynthesisMatr
       record.best_delay_ns = htree_observation.best_delay_ns;
       record.best_power_w = htree_observation.best_power_w;
       matrix_result.records.push_back(record);
-      AppendCaseFailures(wire_length_iterations, slew_cap_steps, result, runtime_s, record, matrix_result.failure_messages);
+      AppendCaseFailures(wirelength_iterations, slew_cap_steps, result, runtime_s, record, matrix_result.failure_messages);
     }
   }
 
@@ -505,7 +505,7 @@ auto EvaluateArm9FullSinkTopologyToleranceComparison() -> ClockSynthesisToleranc
   std::vector<std::vector<double>> distance_sets;
   distance_sets.reserve(2U);
 
-  CONFIG_INST.set_wire_length_iterations(3U);
+  CONFIG_INST.set_wirelength_iterations(3U);
   CONFIG_INST.set_slew_steps(15U);
   CONFIG_INST.set_cap_steps(15U);
 

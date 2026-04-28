@@ -30,116 +30,82 @@
 #include <utility>
 #include <vector>
 
-#include "BufferingPattern.hh"
 #include "CharBuilder.hh"
 #include "Log.hh"
 #include "LogFormat.hh"
-#include "SegmentChar.hh"
-#include "config/Config.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
+#include "logger/Schema.hh"
 
 namespace icts {
 class Tree;
 }  // namespace icts
 
 namespace icts::htree_builder {
-namespace {
 
-auto BuildCharOptionsFromRuntimeConfig() -> CharBuilder::InitOptions
-{
-  CharBuilder::InitOptions options;
-  if (CONFIG_INST.has_max_buf_tran() && CONFIG_INST.get_max_buf_tran() > 0.0) {
-    options.max_slew_ns = CONFIG_INST.get_max_buf_tran();
-  }
-  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
-    options.max_cap_pf = CONFIG_INST.get_max_cap();
-  }
-  if (CONFIG_INST.get_wire_length_unit_um() > 0.0) {
-    options.wire_length_unit_um = CONFIG_INST.get_wire_length_unit_um();
-  }
-  options.wire_length_iterations = CONFIG_INST.get_wire_length_iterations();
-  options.slew_steps = CONFIG_INST.get_slew_steps();
-  options.cap_steps = CONFIG_INST.get_cap_steps();
-  options.buffer_types = CONFIG_INST.get_buffer_types();
-  options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
-
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
-  if (CONFIG_INST.get_wire_width() > 0.0) {
-    options.wire_width = CONFIG_INST.get_wire_width();
-  }
-  return options;
-}
-
-}  // namespace
-
-auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, HTreeBuilder::BuildResult& result, CharBuilder& char_builder)
-    -> HTreeCharacterizationFlowResult
+auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
+                             HTreeBuilder::BuildResult& result, CharBuilder& char_builder) -> HTreeCharacterizationFlowResult
 {
   const auto char_grid_plan = ResolveCharacterizationGridPlan(topology, dbu_per_um);
   std::string grid_source = ToCharGridSourceName(CharGridSource::kNone);
   if (char_grid_plan.adapted) {
     grid_source = ToCharGridSourceName(char_grid_plan.source);
-  } else if (char_grid_plan.configured_wire_length_unit_um > 0.0) {
+  } else if (char_grid_plan.configured_wirelength_unit_um > 0.0) {
     grid_source = ToCharGridSourceName(CharGridSource::kRuntimeConfig);
   }
 
-  std::string grid_effective_unit = "unresolved";
-  if (char_grid_plan.adapted) {
-    grid_effective_unit = logformat::FormatWithUnit(char_grid_plan.wire_length_unit_um, "um");
-  } else if (char_grid_plan.configured_wire_length_unit_um > 0.0) {
-    grid_effective_unit = logformat::FormatWithUnit(char_grid_plan.configured_wire_length_unit_um, "um");
-  }
-  std::string decision_flags = "none";
-  if (char_grid_plan.configured_wire_length_missing && char_grid_plan.configured_grid_collapsed) {
-    decision_flags = "missing_config+collapsed_bins";
-  } else if (char_grid_plan.configured_wire_length_missing) {
-    decision_flags = "missing_config";
+  std::vector<std::string> decision_flag_values;
+  if (char_grid_plan.configured_wirelength_missing && char_grid_plan.configured_grid_collapsed) {
+    decision_flag_values.emplace_back("missing_config");
+    decision_flag_values.emplace_back("collapsed_bins");
+  } else if (char_grid_plan.configured_wirelength_missing) {
+    decision_flag_values.emplace_back("missing_config");
   } else if (char_grid_plan.configured_grid_collapsed) {
-    decision_flags = "collapsed_bins";
+    decision_flag_values.emplace_back("collapsed_bins");
   }
-  const logformat::TableRows grid_plan_rows = {
+  if (char_grid_plan.adapted && char_grid_plan.wirelength_iterations < char_grid_plan.required_covering_iterations) {
+    decision_flag_values.emplace_back("direct_bins_capped");
+  }
+  const std::string decision_flags = decision_flag_values.empty() ? std::string{"none"} : logformat::JoinStrings(decision_flag_values, "+");
+  logformat::TableRows grid_plan_rows = {
       {"source", grid_source, char_grid_plan.adapted ? "fallback derived from topology level lengths" : "use runtime-configured grid"},
       {"requested_level_lengths", std::to_string(char_grid_plan.requested_level_lengths),
        "average parent-child segment length per topology level"},
-      {"configured_wire_length_unit_um",
-       char_grid_plan.configured_wire_length_unit_um > 0.0 ? logformat::FormatWithUnit(char_grid_plan.configured_wire_length_unit_um, "um")
-                                                           : std::string{"auto"},
-       char_grid_plan.configured_wire_length_missing ? "missing" : "present"},
-      {"configured_wire_length_iterations", std::to_string(char_grid_plan.configured_wire_length_iterations),
-       "hard cap for direct characterization length bins"},
-      {"effective_wire_length_unit_um", grid_effective_unit,
-       char_grid_plan.adapted ? "caller override for characterization" : "no override"},
       {"required_covering_iterations", std::to_string(char_grid_plan.required_covering_iterations),
-       char_grid_plan.adapted ? "cover all topology level lengths under effective unit" : "0 (disabled)"},
-      {"wire_length_iterations_override", std::to_string(char_grid_plan.wire_length_iterations),
-       char_grid_plan.adapted ? "effective direct-char upper bound after cap" : "0 (disabled)"},
-      {"distinct_level_bins", std::to_string(char_grid_plan.unique_level_bins), "aligned-length bins under effective unit"},
-      {"decision_flags", decision_flags, "fallback trigger diagnostics"},
+       char_grid_plan.adapted ? "cover all topology level lengths under the resolved CharBuilder unit" : "0 (disabled)"},
+      {"direct_characterization_bins", std::to_string(char_grid_plan.wirelength_iterations),
+       char_grid_plan.adapted ? "direct-char bins after runtime cap" : "0 (disabled)"},
+      {"distinct_level_bins", std::to_string(char_grid_plan.unique_level_bins), "aligned-length bins under resolved setup"},
+      {"decision_flags", decision_flags, "fallback/adaptation trigger flags"},
   };
+  if (char_grid_plan.adapted) {
+    grid_plan_rows.insert(grid_plan_rows.begin() + 2,
+                          {"resolved_wirelength_unit", logformat::FormatWithUnit(char_grid_plan.wirelength_unit_um, "um"),
+                           "effective unit for the adapted characterization grid"});
+  }
+  SCHEMA_WRITER_INST.emitSection("### H-Tree Characterization");
   LogInfoTable("HTreeBuilder Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
 
-  auto char_options = BuildCharOptionsFromRuntimeConfig();
+  auto char_options = base_char_options;
   if (char_grid_plan.adapted) {
-    char_options.wire_length_unit_um = char_grid_plan.wire_length_unit_um;
-    char_options.wire_length_iterations = char_grid_plan.wire_length_iterations;
+    char_options.wirelength_unit_um = char_grid_plan.wirelength_unit_um;
+    char_options.wirelength_iterations = char_grid_plan.wirelength_iterations;
     auto direct_length_indices = ResolveDirectCharacterizationLengthIndices(topology, char_grid_plan, dbu_per_um);
     if (!direct_length_indices.empty()) {
-      char_options.wire_length_indices = std::move(direct_length_indices);
+      char_options.wirelength_indices = std::move(direct_length_indices);
     }
   }
   char_builder.init(char_options);
   char_builder.build();
 
-  const double length_step_um = char_builder.get_wire_length_unit_um();
+  const double length_step_um = char_builder.get_wirelength_unit_um();
   if (length_step_um <= 0.0 || char_builder.get_segment_chars().empty()) {
     LOG_WARNING << "HTreeBuilder: characterization did not produce usable segment chars.";
     return HTreeCharacterizationFlowResult{.success = false, .failure_reason = "no_usable_segment_chars", .length_step_um = length_step_um};
   }
 
-  result.char_wire_length_unit_um = length_step_um;
-  result.char_wire_length_iterations = char_builder.get_wire_length_iterations();
+  result.char_wirelength_unit_um = length_step_um;
+  result.char_wirelength_iterations = char_builder.get_wirelength_iterations();
   result.char_unique_level_bins = char_grid_plan.adapted
                                       ? char_grid_plan.unique_level_bins
                                       : CountUniqueAlignedLengthBins(CollectRequestedLevelLengthsUm(topology, dbu_per_um), length_step_um);
@@ -148,21 +114,14 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, HTreeBuil
   result.char_max_cap_pf = char_builder.get_max_cap();
   result.char_slew_steps = char_builder.get_slew_steps();
   result.char_cap_steps = char_builder.get_cap_steps();
-  const std::string char_wire_length_source
-      = char_builder.get_wire_length_unit_source().empty() ? std::string{"unresolved"} : char_builder.get_wire_length_unit_source();
-  const std::string char_wire_length_detail = char_builder.get_wire_length_unit_detail().empty()
-                                                  ? std::string{"no resolution detail"}
-                                                  : char_builder.get_wire_length_unit_detail();
   const logformat::TableRows char_summary_rows = {
-      {"wire_length_unit_um", logformat::FormatWithUnit(result.char_wire_length_unit_um, "um"), char_wire_length_source},
-      {"wire_length_unit_detail", char_wire_length_detail,
-       char_grid_plan.adapted ? "effective value under HTree build override" : "direct CharBuilder resolution"},
+      {"characterization_setup_source", "CharBuilder Setup", "resolved limits, wirelength lattice, buffers, and routing source"},
+      {"characterization_results_source", "CharBuilder Results",
+       "sample counts and overflow ratios are logged by the characterization owner"},
+      {"wirelength_setup_source", char_grid_plan.adapted ? "HTreeBuilder Characterization Grid Plan" : "runtime_setup",
+       char_grid_plan.adapted ? "effective wirelength lattice came from topology-grid adaptation"
+                              : "runtime config supplied the characterization lattice"},
       {"grid_plan_source", grid_source, char_grid_plan.adapted ? "HTreeBuilder adapted characterization grid" : "no HTree override"},
-      {"wire_length_iterations", std::to_string(result.char_wire_length_iterations), "characterization sweep length bins"},
-      {"max_slew_ns", logformat::FormatWithUnit(result.char_max_slew_ns, "ns"), "characterization upper bound"},
-      {"max_cap_pf", logformat::FormatWithUnit(result.char_max_cap_pf, "pF"), "characterization upper bound"},
-      {"segment_chars", std::to_string(char_builder.get_segment_chars().size()), "raw segment characterization entries"},
-      {"buffer_patterns", std::to_string(char_builder.get_buffering_patterns().size()), "raw segment pattern count"},
   };
   LogInfoTable("HTreeBuilder Characterization Summary", {"Item", "Value", "Detail"}, char_summary_rows);
 

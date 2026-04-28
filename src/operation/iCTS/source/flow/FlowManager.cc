@@ -25,17 +25,24 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <cstddef>
+#include <filesystem>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "Log.hh"
+#include "adapter/sta/STAAdapter.hh"
+#include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "evaluation/ClockTreeEvaluator.hh"
+#include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
 #include "netlist/ClockNetManager.hh"
 #include "synthesis/ClockSynthesis.hh"
@@ -50,11 +57,30 @@ constexpr std::size_t kMinSynthesisSinkCount = 2U;
 constexpr const char* kHardMacroSinkGroup = "hard_macro";
 constexpr const char* kRegularSinkGroup = "regular";
 
+auto resolveReportRootDir(const std::string& save_dir) -> std::filesystem::path
+{
+  if (!save_dir.empty()) {
+    return std::filesystem::path(save_dir);
+  }
+  return std::filesystem::path(CONFIG_INST.get_work_dir());
+}
+
+auto recordSynthesisResult(CTSFlowRunSummary& summary, const ClockSynthesis::BuildResult& result) -> void
+{
+  summary.selected_htree_level_count = std::max(summary.selected_htree_level_count, result.selected_htree_level_count);
+  if (result.selected_htree_depth.has_value()) {
+    summary.selected_htree_depth = std::max(summary.selected_htree_depth, *result.selected_htree_depth);
+  }
+  summary.htree_inserted_buffer_count += result.htree_inserted_buffer_count;
+  summary.htree_inserted_net_count += result.htree_inserted_net_count;
+}
+
 auto synthesizeSinkGroup(Clock& clock, const std::string& group_prefix, Net& downstream_net, const std::vector<Pin*>& sinks,
-                         std::string& failure_reason) -> bool
+                         CTSFlowRunSummary& summary, std::string& failure_reason) -> bool
 {
   ClockSynthesis::BuildOptions synthesis_options;
   synthesis_options.object_name_prefix = group_prefix;
+  synthesis_options.enable_sink_clustering = CONFIG_INST.is_enable_sink_clustering();
   auto synthesis_result = ClockSynthesis::build(downstream_net, synthesis_options);
   if (!synthesis_result.success) {
     failure_reason = synthesis_result.failure_reason.empty() ? "sink-group synthesis failed" : synthesis_result.failure_reason;
@@ -66,6 +92,7 @@ auto synthesizeSinkGroup(Clock& clock, const std::string& group_prefix, Net& dow
     failure_reason = "failed to commit inserted synthesis objects";
     return false;
   }
+  recordSynthesisResult(summary, synthesis_result);
   return true;
 }
 
@@ -89,8 +116,26 @@ auto clearClockCtsMembership(Clock& clock) -> void
   clock.clearMembership();
 }
 
+auto formatValueWithUnit(const std::string& value, const std::string& unit) -> std::string
+{
+  if (value == "n/a" || unit.empty()) {
+    return value;
+  }
+  return value + " " + unit;
+}
+
+auto formatOptionalCount(std::size_t value) -> std::string
+{
+  return value == 0U ? std::string{"n/a"} : std::to_string(value);
+}
+
+auto formatOptionalUnsigned(unsigned value) -> std::string
+{
+  return value == 0U ? std::string{"n/a"} : std::to_string(value);
+}
+
 auto buildSinkGroup(Clock& clock, std::size_t clock_index, const std::string& sink_group, const std::vector<Pin*>& sinks,
-                    std::vector<Pin*>& root_inputs, std::size_t valid_sinks, schema::TableRows& rows) -> bool
+                    std::vector<Pin*>& root_inputs, std::size_t valid_sinks, CTSFlowRunSummary& summary, schema::TableRows& rows) -> bool
 {
   if (sinks.empty()) {
     return true;
@@ -119,18 +164,18 @@ auto buildSinkGroup(Clock& clock, std::size_t clock_index, const std::string& si
   }
 
   if (sinks.size() < kMinSynthesisSinkCount) {
-    appendFlowRow(rows, clock, "success", sink_group, valid_sinks, sinks.size(), "direct");
+    appendFlowRow(rows, clock, "finished", sink_group, valid_sinks, sinks.size(), "direct");
     return true;
   }
 
   std::string failure_reason;
-  if (!synthesizeSinkGroup(clock, group_prefix, *downstream_net, sinks, failure_reason)) {
+  if (!synthesizeSinkGroup(clock, group_prefix, *downstream_net, sinks, summary, failure_reason)) {
     appendFlowRow(rows, clock, "failed", sink_group, valid_sinks, sinks.size(), failure_reason);
     LOG_ERROR << "FlowManager: clock \"" << clock.get_clock_name() << "\" sink group " << sink_group << " failed: " << failure_reason;
     return false;
   }
 
-  appendFlowRow(rows, clock, "success", sink_group, valid_sinks, sinks.size(), "synthesis");
+  appendFlowRow(rows, clock, "finished", sink_group, valid_sinks, sinks.size(), "synthesis");
   return true;
 }
 
@@ -138,10 +183,11 @@ auto emitFlowSummary(bool success, std::size_t total_clocks, std::size_t success
                      std::size_t failed_clocks, std::size_t total_sink_groups, std::size_t hard_macro_sinks, std::size_t regular_sinks,
                      const schema::TableRows& rows) -> void
 {
+  SCHEMA_WRITER_INST.emitSection("### Flow Status");
   schema::EmitKeyValueTable("CTS Flow Summary", {
-                                                    {"success", success ? "true" : "false"},
+                                                    {"status", success ? "finished" : "failed"},
                                                     {"total_clocks", std::to_string(total_clocks)},
-                                                    {"successful_clocks", std::to_string(successful_clocks)},
+                                                    {"finished_clocks", std::to_string(successful_clocks)},
                                                     {"skipped_clocks", std::to_string(skipped_clocks)},
                                                     {"failed_clocks", std::to_string(failed_clocks)},
                                                     {"total_sink_groups", std::to_string(total_sink_groups)},
@@ -154,7 +200,7 @@ auto emitFlowSummary(bool success, std::size_t total_clocks, std::size_t success
   }
 }
 
-auto runClock(Clock& clock, std::size_t clock_index, schema::TableRows& rows, std::size_t& total_sink_groups,
+auto runClock(Clock& clock, std::size_t clock_index, CTSFlowRunSummary& summary, schema::TableRows& rows, std::size_t& total_sink_groups,
               std::size_t& hard_macro_sink_count, std::size_t& regular_sink_count, bool& skipped) -> bool
 {
   skipped = false;
@@ -200,7 +246,7 @@ auto runClock(Clock& clock, std::size_t clock_index, schema::TableRows& rows, st
       return true;
     }
     ++total_sink_groups;
-    if (!buildSinkGroup(clock, clock_index, sink_group, sinks, root_inputs, valid_sinks, rows)) {
+    if (!buildSinkGroup(clock, clock_index, sink_group, sinks, root_inputs, valid_sinks, summary, rows)) {
       ClockNetManager::restoreClockSourceNetToClockLoads(clock);
       clearClockCtsMembership(clock);
       return false;
@@ -221,15 +267,53 @@ auto runClock(Clock& clock, std::size_t clock_index, schema::TableRows& rows, st
 
 }  // namespace
 
+auto FlowManager::runCTS() -> void
+{
+  SCHEMA_WRITER_INST.resetRuntimeMetrics();
+  auto total_runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("total");
+  auto run_stage = SCHEMA_WRITER_INST.beginStage("CTS", "Clock tree synthesis API flow");
+
+  readData();
+  run();
+  evaluate();
+
+  const bool run_success = _run_summary.success;
+  const auto total_metric = run_success ? total_runtime.finished() : total_runtime.failed();
+  run_stage.markRunning("Main CTS flow finished");
+  if (run_success) {
+    run_stage.finished();
+  } else {
+    run_stage.failed();
+  }
+
+  SCHEMA_WRITER_INST.emitSection("## Runtime Summary");
+  SCHEMA_WRITER_INST.emitRuntimeSummary("CTS Runtime Summary");
+  emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
+}
+
 auto FlowManager::readData() -> void
 {
+  auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("read_data");
+  auto read_stage = SCHEMA_WRITER_INST.beginStage("CTSReadData", "Read CTS clock data");
+  SCHEMA_WRITER_INST.emitSection("## Input Summary");
+  SCHEMA_WRITER_INST.emitSection("### Clock Data");
+  _run_summary = CTSFlowRunSummary{};
+  _evaluation_ready = false;
   ClockTreeEvaluator::resetSummary();
   ClockNetManager::readClockData();
+  (void) runtime.finished();
+  read_stage.finished();
 }
 
 auto FlowManager::run() -> void
 {
+  auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("synthesis");
+  auto flow_stage = SCHEMA_WRITER_INST.beginStage("CTSFlow", "Run CTS synthesis flow");
+  SCHEMA_WRITER_INST.emitSection("## Synthesis Summary");
+
   ClockTreeEvaluator::resetSummary();
+  _run_summary = CTSFlowRunSummary{};
+  _evaluation_ready = false;
   auto clocks = DESIGN_INST.get_clocks();
   const std::size_t total_clocks = clocks.size();
   std::size_t successful_clocks = 0U;
@@ -249,7 +333,7 @@ auto FlowManager::run() -> void
     }
 
     bool skipped = false;
-    if (runClock(*clock, clock_index, rows, total_sink_groups, hard_macro_sinks, regular_sinks, skipped)) {
+    if (runClock(*clock, clock_index, _run_summary, rows, total_sink_groups, hard_macro_sinks, regular_sinks, skipped)) {
       ++successful_clocks;
     } else if (skipped) {
       ++skipped_clocks;
@@ -261,23 +345,140 @@ auto FlowManager::run() -> void
   const bool success = failed_clocks == 0U;
   LOG_INFO << "CTS flow finished with " << successful_clocks << " successful, " << skipped_clocks << " skipped, " << failed_clocks
            << " failed clocks.";
+  _run_summary.success = success;
+  _run_summary.total_clocks = total_clocks;
+  _run_summary.successful_clocks = successful_clocks;
+  _run_summary.skipped_clocks = skipped_clocks;
+  _run_summary.failed_clocks = failed_clocks;
+  _run_summary.total_sink_groups = total_sink_groups;
+  _run_summary.hard_macro_sinks = hard_macro_sinks;
+  _run_summary.regular_sinks = regular_sinks;
   emitFlowSummary(success, total_clocks, successful_clocks, skipped_clocks, failed_clocks, total_sink_groups, hard_macro_sinks,
                   regular_sinks, rows);
+
+  if (success) {
+    (void) runtime.finished();
+    flow_stage.finished();
+  } else {
+    (void) runtime.failed();
+    flow_stage.failed();
+  }
 }
 
 auto FlowManager::evaluate() -> void
 {
+  auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("evaluation");
+  auto evaluation_stage = SCHEMA_WRITER_INST.beginStage("CTSEvaluation", "Evaluate CTS clock tree");
+  SCHEMA_WRITER_INST.emitSection("## Evaluation Summary");
+  SCHEMA_WRITER_INST.emitSection("### Final Evaluation");
   ClockTreeEvaluator::evaluate();
+  _evaluation_ready = ClockTreeEvaluator::hasEvaluationResult();
+  if (_evaluation_ready) {
+    (void) runtime.finished();
+    evaluation_stage.finished();
+  } else {
+    (void) runtime.failed();
+    evaluation_stage.failed();
+  }
 }
 
-auto FlowManager::outputSummary() -> ClockTreeSummary
+auto FlowManager::report(const std::string& save_dir) -> void
 {
+  LOG_FATAL_IF(CONFIG_INST.get_work_dir().empty()) << "CTS report requires an initialized CTS session.";
+
+  auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("report");
+  auto report_stage = SCHEMA_WRITER_INST.beginStage("CTSReport", "Emit CTS statistics reports");
+  const auto report_root_dir = resolveReportRootDir(save_dir);
+  const bool reused_evaluation_state = _evaluation_ready && ClockTreeEvaluator::hasEvaluationResult();
+
+  SCHEMA_WRITER_INST.emitSection("## Report Summary");
+  schema::EmitKeyValueTable("CTS Report Mode",
+                            {
+                                {"mode", reused_evaluation_state ? "reuse_evaluation_state" : "rebuild_evaluation_state"},
+                                {"save_dir", report_root_dir.string()},
+                                {"statistics_dir", (report_root_dir / "statistics").string()},
+                            });
+
+  if (!reused_evaluation_state) {
+    SCHEMA_WRITER_INST.emitSection("### Report Evaluation");
+    evaluate();
+  }
+
+  const bool report_success = _evaluation_ready && ClockTreeEvaluator::writeStatistics(report_root_dir.string(), false);
+  const auto report_metric = report_success ? runtime.finished() : runtime.failed();
+  SCHEMA_WRITER_INST.emitRuntimeMetricTable("CTS Report Runtime", "report", report_success ? "finished" : "failed", report_metric);
+  if (report_success) {
+    report_stage.finished();
+  } else {
+    report_stage.failed();
+  }
+}
+
+auto FlowManager::outputRuntimeSetup() -> void
+{
+  if (_runtime_setup_emitted) {
+    return;
+  }
+  _runtime_setup_emitted = true;
+
+  SCHEMA_WRITER_INST.emitSection("## Runtime Setup");
+  schema::EmitKeyValueTable("Runtime Paths", {
+                                                 {"cts_log", CONFIG_INST.get_log_file()},
+                                                 {"work_dir", CONFIG_INST.get_work_dir()},
+                                                 {"output_def_dir", CONFIG_INST.get_output_def_path()},
+                                                 {"gds_file", CONFIG_INST.get_gds_file()},
+                                             });
+  SCHEMA_WRITER_INST.emitSection("### Runtime Configuration");
+  CONFIG_INST.emitRuntimeConfigReport("Runtime Configuration");
+  SCHEMA_WRITER_INST.emitSection("### Runtime Routing / Wire RC");
+  STA_ADAPTER_INST.emitConfiguredUnitWireRcReport("Runtime Routing / Wire RC");
+}
+
+auto FlowManager::emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void
+{
+  const auto evaluation_summary = outputSummary();
+  const std::size_t sink_count = _run_summary.hard_macro_sinks + _run_summary.regular_sinks;
+
+  schema::KeyValueFields fields = {
+      {"status", _run_summary.success ? "finished" : "failed"},
+      {"clock_count", std::to_string(_run_summary.total_clocks)},
+      {"sink_count", std::to_string(sink_count)},
+      {"sink_group_count", std::to_string(_run_summary.total_sink_groups)},
+      {"selected_htree_level_count", formatOptionalCount(_run_summary.selected_htree_level_count)},
+      {"selected_htree_depth", formatOptionalUnsigned(_run_summary.selected_htree_depth)},
+      {"htree_inserted_buffer_count", std::to_string(_run_summary.htree_inserted_buffer_count)},
+      {"final_clock_buffer_count", std::to_string(evaluation_summary.final_clock_buffer_count)},
+      {"final_buffer_area", formatValueWithUnit(logformat::FormatFixed(evaluation_summary.final_buffer_area_um2, 3), "um^2")},
+      {"max_clock_net_wirelength", formatValueWithUnit(logformat::FormatFixed(evaluation_summary.max_clock_net_wirelength_um, 3), "um")},
+      {"total_clock_tree_wirelength",
+       formatValueWithUnit(logformat::FormatFixed(evaluation_summary.total_clock_tree_wirelength_um, 3), "um")},
+      {"elapsed_time", formatValueWithUnit(logformat::FormatFixed(elapsed_time_s, 3), "s")},
+      {"peak_vmem_delta", formatValueWithUnit(logformat::FormatFixed(peak_vmem_delta_mb, 3), "MB")},
+  };
+
+  SCHEMA_WRITER_INST.emitSection("## Run Results");
+  schema::EmitKeyValueTable("CTS Key Results", fields);
+}
+
+auto FlowManager::outputSummary() const -> ClockTreeSummary
+{
+  if (!_evaluation_ready) {
+    return {};
+  }
   return ClockTreeEvaluator::outputSummary();
+}
+
+auto FlowManager::outputRunSummary() const -> CTSFlowRunSummary
+{
+  return _run_summary;
 }
 
 auto FlowManager::reset() -> void
 {
   ClockTreeEvaluator::resetSummary();
+  _run_summary = CTSFlowRunSummary{};
+  _runtime_setup_emitted = false;
+  _evaluation_ready = false;
 }
 
 }  // namespace icts

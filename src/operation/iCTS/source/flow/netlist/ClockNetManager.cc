@@ -34,7 +34,6 @@
 #include <ostream>
 #include <ranges>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -50,7 +49,6 @@
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "spatial/Point.hh"
-#include "usage/usage.hh"
 
 namespace icts {
 namespace {
@@ -285,7 +283,6 @@ auto createInsertedNet(Clock& clock, const std::string& net_name, Pin* driver, c
 
 auto ClockNetManager::readClockData() -> void
 {
-  const ieda::Stats stats;
   std::string clock_source = "Config::net_list";
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
 
@@ -304,21 +301,10 @@ auto ClockNetManager::readClockData() -> void
   WRAPPER_INST.readClocks(clock_net_pairs);
   DESIGN_INST.emitClockDistributionSummary();
 
-  std::unordered_map<std::string, std::size_t> clock_domain_counter;
-  for (const auto* clock : DESIGN_INST.get_clocks()) {
-    if (clock == nullptr) {
-      continue;
-    }
-    ++clock_domain_counter[clock->get_clock_name()];
-  }
-
   schema::EmitKeyValueTable("ReadData Summary", {
                                                     {"clock_source", clock_source},
                                                     {"added_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
-                                                    {"unique_clock_domains", std::to_string(clock_domain_counter.size())},
                                                     {"total_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
-                                                    {"elapsed_time_s", std::to_string(stats.elapsedRunTime())},
-                                                    {"memory_delta_mb", std::to_string(stats.memoryDelta())},
                                                 });
 }
 
