@@ -1749,3 +1749,36 @@ Completed CTS log/schema cleanup: simplified CTSAPI and FlowManager lifecycle ow
 ### Next Steps
 
 - None - task complete
+
+
+## Session 38: CTS top-level buffering and SVG report
+
+**Date**: 2026-04-28
+**Task**: CTS top-level buffering and SVG report
+**Branch**: `cts_refactor`
+
+### Summary
+
+Implemented CTS top-level source-to-root buffering, kept report visualization SVG-only, removed GDS-related report scope, and validated build/tests/iEDA script without running ecc dev by request.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `41c92a6af` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
