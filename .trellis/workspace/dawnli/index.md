@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 36
-- **Last Active**: 2026-04-27
+- **Total Sessions**: 37
+- **Last Active**: 2026-04-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1718 | Active |
+| `journal-1.md` | ~1751 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 37 | 2026-04-28 | CTS log and reporting cleanup | `7d561ce92` | `cts_refactor` |
 | 36 | 2026-04-27 | CTS Flow Prep Evaluation | `0dcb787ae` | `cts_refactor` |
 | 35 | 2026-04-26 | CTS flow API integration | `adf7019a6`, `540ea7e1c` | `cts_refactor` |
 | 34 | 2026-04-25 | Finish htree topology tolerance | `037a798ee` | `cts_refactor` |

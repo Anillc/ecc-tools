@@ -1716,3 +1716,36 @@ Completed CTS flow preparation/evaluation refactor, namespace and config-boundar
 ### Next Steps
 
 - None - task complete
+
+
+## Session 37: CTS log and reporting cleanup
+
+**Date**: 2026-04-28
+**Task**: CTS log and reporting cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+Completed CTS log/schema cleanup: simplified CTSAPI and FlowManager lifecycle ownership, unified schema runtime/status semantics, aligned STA evaluation/reporting, generated CTS statistics reports, removed redundant log fields/artifacts, and cleaned module config dependencies through explicit options.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7d561ce92` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
