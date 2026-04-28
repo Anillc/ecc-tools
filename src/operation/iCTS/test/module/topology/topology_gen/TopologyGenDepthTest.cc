@@ -108,6 +108,30 @@ TEST(TopologyGenDepthTest, DefaultBuildUsesDeepestPowerOfTwoDepth)
   EXPECT_EQ(levels.back().size(), 8U);
 }
 
+TEST(TopologyGenDepthTest, FixedRootLocationOverridesLoadMedian)
+{
+  const auto storage = BuildLoads();
+  const auto loads = BorrowLoads(storage);
+  const icts::Point<int> fixed_root(500, 700);
+
+  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::BuildOptions{
+                                                        .partition_config = {},
+                                                        .target_depth = std::nullopt,
+                                                        .fixed_root_location = fixed_root,
+                                                        .dbu_per_um = 1,
+                                                        .load_count_kind = icts::TopologyGen::LoadCountKind::kSink,
+                                                        .clock_name = "",
+                                                        .clock_net_name = "",
+                                                        .sink_domain = "",
+                                                        .stage = "",
+                                                    });
+
+  const auto* root_node = tree.get_node(tree.get_root());
+  ASSERT_NE(root_node, nullptr);
+  EXPECT_EQ(root_node->get_position().get_x(), fixed_root.get_x());
+  EXPECT_EQ(root_node->get_position().get_y(), fixed_root.get_y());
+}
+
 TEST(TopologyGenDepthTest, ExplicitTargetDepthBuildsRequestedLeafCount)
 {
   const auto storage = BuildLoads();
@@ -116,6 +140,13 @@ TEST(TopologyGenDepthTest, ExplicitTargetDepthBuildsRequestedLeafCount)
   const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::BuildOptions{
                                                         .partition_config = {},
                                                         .target_depth = 2U,
+                                                        .fixed_root_location = std::nullopt,
+                                                        .dbu_per_um = 1,
+                                                        .load_count_kind = icts::TopologyGen::LoadCountKind::kSink,
+                                                        .clock_name = "",
+                                                        .clock_net_name = "",
+                                                        .sink_domain = "",
+                                                        .stage = "",
                                                     });
   const auto levels = tree.levels();
 
@@ -143,6 +174,13 @@ TEST(TopologyGenDepthTest, ExplicitTargetDepthClampsToMaxDepth)
   const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::BuildOptions{
                                                         .partition_config = {},
                                                         .target_depth = 8U,
+                                                        .fixed_root_location = std::nullopt,
+                                                        .dbu_per_um = 1,
+                                                        .load_count_kind = icts::TopologyGen::LoadCountKind::kSink,
+                                                        .clock_name = "",
+                                                        .clock_net_name = "",
+                                                        .sink_domain = "",
+                                                        .stage = "",
                                                     });
   const auto levels = tree.levels();
 

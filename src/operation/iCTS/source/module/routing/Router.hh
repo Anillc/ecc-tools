@@ -34,6 +34,7 @@
 namespace icts {
 
 struct BSTParameters;
+class Net;
 class Pin;
 
 class Router
@@ -60,6 +61,7 @@ class Router
   static auto buildSaltTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals) -> ClockSteinerTreeType;
   static auto buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> ClockSteinerTreeType;
   static auto buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> ClockSteinerTreeType;
+  static auto buildClockNetTree(const Net& net) -> ClockSteinerTreeType;
 
   static auto legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
                            const LegalizationRegion& block_region) -> LegalizationResult;

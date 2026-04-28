@@ -23,10 +23,13 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <string>
+#include <vector>
 
 #include "IdbCellMaster.h"
 #include "IdbLayout.h"
@@ -36,10 +39,124 @@
 #include "STAAdapterInternal.hh"
 #include "Type.hh"
 #include "api/TimingEngine.hh"
+#include "config/Config.hh"
+#include "design/Design.hh"
+#include "design/Inst.hh"
+#include "design/Pin.hh"
 #include "idm.h"
 #include "liberty/Lib.hh"
+#include "sta/Sta.hh"
 
 namespace icts {
+namespace {
+
+auto ResolvePositiveMin(const std::vector<std::optional<double>>& values) -> double
+{
+  double min_value = std::numeric_limits<double>::infinity();
+  bool found_value = false;
+  for (const auto& value : values) {
+    if (!value.has_value() || *value <= 0.0) {
+      continue;
+    }
+    min_value = std::min(min_value, *value);
+    found_value = true;
+  }
+  return found_value ? min_value : 0.0;
+}
+
+auto queryLibOutputPinCapLimitPf(const Pin* pin) -> double
+{
+  if (pin == nullptr || pin->get_inst() == nullptr) {
+    return 0.0;
+  }
+
+  const auto* inst = pin->get_inst();
+  const auto& cell_master = inst->get_cell_master();
+  const auto pin_full_name = Design::getPinFullName(pin);
+  if (cell_master.empty()) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: CTS inst has no cell master for " << pin_full_name << ".";
+    return 0.0;
+  }
+
+  auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
+  if (lib_cell == nullptr) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: liberty cell \"" << cell_master << "\" is not found for " << pin_full_name << ".";
+    return 0.0;
+  }
+
+  const auto port_name = sta_adapter_internal::NormalizePortName(pin->get_name());
+  auto* lib_port = lib_cell->get_cell_port_or_port_bus(port_name.c_str());
+  if (lib_port == nullptr) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: liberty port \"" << port_name << "\" is not found on cell " << cell_master << ".";
+    return 0.0;
+  }
+  if (lib_port->isOutput() == 0U) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: liberty port \"" << port_name << "\" on cell " << cell_master
+                << " is not an output/inout port.";
+    return 0.0;
+  }
+
+  const auto cap_limit = lib_port->get_port_cap_limit(ista::AnalysisMode::kMax);
+  if (!cap_limit.has_value() || *cap_limit <= 0.0) {
+    LOG_WARNING << "Clock-source drive-cap query found no max-cap limit on liberty port \"" << port_name << "\" of cell " << cell_master
+                << "; caller may use a configured fallback.";
+    return 0.0;
+  }
+  return sta_adapter_internal::ConvertLibCapToPf(lib_cell, *cap_limit);
+}
+
+auto queryBufferOutputTableAxisMaxPf(const Pin* pin) -> double
+{
+  const auto* inst = pin != nullptr ? pin->get_inst() : nullptr;
+  if (inst == nullptr || inst->get_cell_master().empty()) {
+    return 0.0;
+  }
+  return STAAdapter::queryCellOutPinCapTableAxisMax(inst->get_cell_master());
+}
+
+auto queryStaVertexCapLimitPf(const std::string& pin_full_name, bool allow_refresh_full_context) -> double
+{
+  if (pin_full_name.empty()) {
+    return 0.0;
+  }
+
+  if (!sta_adapter_internal::HasFullDesignTimingContext() && allow_refresh_full_context && sta_adapter_internal::HasStaBaseContext()) {
+    STA_ADAPTER_INST.refreshFullDesignTimingContext();
+  }
+  if (!sta_adapter_internal::HasFullDesignTimingContext()) {
+    return 0.0;
+  }
+
+  auto* vertex = sta_adapter_internal::FindStaVertex(pin_full_name);
+  if (vertex == nullptr) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: STA vertex \"" << pin_full_name << "\" is not found.";
+    return 0.0;
+  }
+
+  auto* ista = sta_adapter_internal::GetStaEngine()->get_ista();
+  if (ista == nullptr) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: iSTA context is null.";
+    return 0.0;
+  }
+
+  return ResolvePositiveMin({
+      ista->getVertexCapacitanceLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kRise),
+      ista->getVertexCapacitanceLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kFall),
+  });
+}
+
+auto queryConfiguredMaxCapFallbackPf(const Pin* clock_source) -> double
+{
+  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
+    LOG_WARNING << "Clock-source drive-cap query uses runtime max_cap=" << CONFIG_INST.get_max_cap()
+                << " pF as the hard source boundary for " << Design::getPinFullName(clock_source)
+                << " because source-specific STA/liberty cap limit is unavailable.";
+    return CONFIG_INST.get_max_cap();
+  }
+  return 0.0;
+}
+
+}  // namespace
 
 auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> double
 {
@@ -73,6 +190,59 @@ auto STAAdapter::queryCellOutPinCapTableAxisMax(const std::string& cell_master) 
   return sta_adapter_internal::QueryBufferTableAxisMax(cell_master, "output pin cap table-axis max",
                                                        {ista::LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE,
                                                         ista::LibLutTableTemplate::Variable::EQUAL_OR_OPPOSITE_OUTPUT_NET_CAPACITANCE});
+}
+
+auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> double
+{
+  if (clock_source == nullptr) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: clock source pin is null.";
+    return 0.0;
+  }
+
+  const auto pin_full_name = Design::getPinFullName(clock_source);
+  if (clock_source->get_inst() != nullptr) {
+    const double lib_cap_limit_pf = queryLibOutputPinCapLimitPf(clock_source);
+    if (lib_cap_limit_pf > 0.0) {
+      return lib_cap_limit_pf;
+    }
+
+    const double table_axis_cap_limit_pf = queryBufferOutputTableAxisMaxPf(clock_source);
+    if (table_axis_cap_limit_pf > 0.0) {
+      return table_axis_cap_limit_pf;
+    }
+
+    double sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, false);
+    if (sta_cap_limit_pf > 0.0) {
+      return sta_cap_limit_pf;
+    }
+    const double configured_cap_limit_pf = queryConfiguredMaxCapFallbackPf(clock_source);
+    if (configured_cap_limit_pf > 0.0) {
+      return configured_cap_limit_pf;
+    }
+    sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, !getInst()._is_char_only_active);
+    return sta_cap_limit_pf > 0.0 ? sta_cap_limit_pf : 0.0;
+  }
+
+  double sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, false);
+  if (sta_cap_limit_pf > 0.0) {
+    return sta_cap_limit_pf;
+  }
+
+  const double configured_cap_limit_pf = queryConfiguredMaxCapFallbackPf(clock_source);
+  if (configured_cap_limit_pf > 0.0) {
+    return configured_cap_limit_pf;
+  }
+
+  sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, !getInst()._is_char_only_active);
+  if (sta_cap_limit_pf > 0.0) {
+    return sta_cap_limit_pf;
+  }
+
+  if (!clock_source->is_io()) {
+    LOG_WARNING << "Clock-source drive-cap query skipped: CTS pin \"" << pin_full_name
+                << "\" has no owning inst and is not marked as top-level IO.";
+  }
+  return 0.0;
 }
 
 auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> double

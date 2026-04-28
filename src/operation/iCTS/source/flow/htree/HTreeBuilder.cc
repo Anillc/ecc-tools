@@ -36,16 +36,19 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
+#include "CharBuilder.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
+#include "Inst.hh"
 #include "Log.hh"
 #include "Net.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
+#include "Point.hh"
 #include "TopologyConfig.hh"
 #include "Tree.hh"
-#include "characterization/CharBuilder.hh"
 #include "config/Config.hh"
+#include "htree/CharacterizationLibrary.hh"
 #include "htree/HTreeBuilderInternal.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
@@ -68,32 +71,6 @@ auto ResolveSelectedRootDriverCellMaster(const std::vector<HTreeBuilder::LevelPl
   return {};
 }
 
-auto buildCharBuilderInitOptionsFromRuntimeConfig() -> CharBuilder::InitOptions
-{
-  CharBuilder::InitOptions options;
-  if (CONFIG_INST.has_max_buf_tran() && CONFIG_INST.get_max_buf_tran() > 0.0) {
-    options.max_slew_ns = CONFIG_INST.get_max_buf_tran();
-  }
-  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
-    options.max_cap_pf = CONFIG_INST.get_max_cap();
-  }
-  if (CONFIG_INST.get_wirelength_unit_um() > 0.0) {
-    options.wirelength_unit_um = CONFIG_INST.get_wirelength_unit_um();
-  }
-  options.wirelength_iterations = CONFIG_INST.get_wirelength_iterations();
-  options.slew_steps = CONFIG_INST.get_slew_steps();
-  options.cap_steps = CONFIG_INST.get_cap_steps();
-  options.buffer_types = CONFIG_INST.get_buffer_types();
-  options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
-
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
-  if (CONFIG_INST.get_wire_width() > 0.0) {
-    options.wire_width = CONFIG_INST.get_wire_width();
-  }
-  return options;
-}
-
 }  // namespace
 
 auto HTreeBuilder::build(Net& root_net) -> BuildResult
@@ -104,6 +81,8 @@ auto HTreeBuilder::build(Net& root_net) -> BuildResult
 auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildResult
 {
   BuildResult result;
+  result.log_context = options.log_context;
+  result.object_name_prefix = options.object_name_prefix;
   result.root_net = &root_net;
   result.root_output_pin = root_net.get_driver();
   result.root_inst = result.root_output_pin == nullptr ? nullptr : result.root_output_pin->get_inst();
@@ -128,9 +107,15 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   result.topology
       = TopologyGen::build(loads, TopologyGen::BuildOptions{
                                       .partition_config = topology_config,
+                                      .target_depth = std::nullopt,
+                                      .fixed_root_location = options.fixed_topology_root_location,
                                       .dbu_per_um = dbu_per_um,
                                       .load_count_kind = options.topology_loads_are_local_buffers ? TopologyGen::LoadCountKind::kLocalBuffer
                                                                                                   : TopologyGen::LoadCountKind::kSink,
+                                      .clock_name = options.log_context.clock_name,
+                                      .clock_net_name = options.log_context.clock_net_name,
+                                      .sink_domain = options.log_context.sink_domain,
+                                      .stage = options.log_context.stage,
                                   });
   const auto levels = result.topology.levels();
   if (levels.size() <= 1U) {
@@ -140,16 +125,19 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   }
 
   build_stage.markRunning("characterization");
-  CharBuilder char_builder;
-  const auto char_options = buildCharBuilderInitOptionsFromRuntimeConfig();
-  const auto char_flow = htree_builder::RunCharacterizationFlow(result.topology, dbu_per_um, char_options, result, char_builder);
+  CharacterizationLibrary local_char_library;
+  auto* char_library = options.characterization_library == nullptr ? &local_char_library : options.characterization_library;
+  const auto char_options = CharacterizationLibrary::buildRuntimeOptions();
+  const auto char_flow = htree_builder::RunCharacterizationFlow(result.topology, dbu_per_um, char_options, result, *char_library, options);
   if (!char_flow.success) {
     build_stage.failed({{"reason", char_flow.failure_reason}});
     return result;
   }
+  const auto& char_builder = char_library->getCharBuilder();
 
   const auto base_resolved_options = htree_builder::ResolveBuildOptions(options, char_builder);
   result.force_branch_buffer = base_resolved_options.force_branch_buffer;
+  result.root_driver_sizing_enabled = options.enable_root_driver_sizing;
   result.target_depth = options.target_depth;
 
   const auto full_level_plans = htree_builder::BuildLevelPlans(result.topology, char_flow.length_step_um, dbu_per_um);
@@ -283,7 +271,7 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
     }
   }
   const std::string selected_root_driver_cell_master = ResolveSelectedRootDriverCellMaster(result.levels);
-  if (!htree_builder::ValidateRootDriverSizing(result, selected_root_driver_cell_master)) {
+  if (options.enable_root_driver_sizing && !htree_builder::ValidateRootDriverSizing(result, selected_root_driver_cell_master)) {
     result.failure_reason = "root_driver_sizing_precheck_failed";
     build_stage.failed({{"reason", result.failure_reason}});
     return result;
@@ -292,9 +280,11 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   htree_builder::MaterializeCTSObjects(result, segment_pattern_registry);
   result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
                    && result.root_output_pin != nullptr && result.root_net != nullptr;
-  if (result.success) {
+  if (result.success && options.enable_root_driver_sizing) {
     LOG_FATAL_IF(!htree_builder::ApplyRootDriverSizing(result, selected_root_driver_cell_master))
         << "HTreeBuilder: prevalidated root-driver sizing failed during materialization.";
+  } else if (result.success && result.root_inst != nullptr) {
+    result.selected_root_driver_cell_master = result.root_inst->get_cell_master();
   }
 
   htree_builder::LogHTreeBuildSummary(result, selected_evaluation, selected_summary);

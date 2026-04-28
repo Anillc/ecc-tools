@@ -18,12 +18,10 @@
  * @file SvgCommon.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Shared SVG rendering helpers for iCTS test visualizations.
+ * @brief Shared SVG rendering helpers for iCTS visualization utilities.
  */
 
 #pragma once
-
-#include <stdlib.h>
 
 #include <algorithm>
 #include <array>
@@ -36,10 +34,10 @@
 #include <vector>
 
 #include "Point.hh"
-#include "database/design/Pin.hh"
-#include "database/spatial/Tree.hh"
+#include "design/Pin.hh"
+#include "spatial/Tree.hh"
 
-namespace icts_test::common::visualization::detail {
+namespace icts::visualization::detail {
 
 constexpr int kCanvasMax = 1000;
 constexpr int kSvgMargin = 20;
@@ -53,6 +51,12 @@ constexpr int kNeighborCountForAdjacency = 3;
 constexpr int kSameColorPenalty = 1000;
 constexpr int kColorDistancePenaltyBase = 9;
 constexpr std::size_t kInvalidNodeId = std::numeric_limits<std::size_t>::max();
+constexpr double kSvgLegendX = 18.0;
+constexpr double kSvgLegendRowHeight = 18.0;
+constexpr double kSvgLegendFrameOpacity = 0.88;
+constexpr double kReportSinkLoadRadius = 2.0;
+constexpr double kReportDriverRadius = 3.0;
+constexpr double kReportCtsBufferSize = 4.5;
 constexpr const char* kSvgOpenTagPrefix = R"(<svg xmlns="http://www.w3.org/2000/svg" width=")";
 constexpr const char* kSvgHeightTag = R"(" height=")";
 constexpr const char* kSvgViewBoxPrefix = R"(" viewBox="0 0 )";
@@ -62,6 +66,27 @@ constexpr const char* kSvgBackgroundRect = R"(<rect width="100%" height="100%" f
 )";
 constexpr const char* kSvgClosingTag = R"(</svg>
 )";
+constexpr const char* kSvgColorSinkLoad = "#1f77b4";
+constexpr const char* kSvgColorDriverRoot = "#d62728";
+constexpr const char* kSvgColorRoutedSinkNet = "#2ca25f";
+constexpr const char* kSvgColorFlylineRootNet = "#6a3d9a";
+constexpr const char* kSvgColorFallbackInternalNet = "#ff8c42";
+constexpr const char* kSvgColorSinkLevelNet = "#0f766e";
+constexpr const char* kSvgColorTopologyEdge = "#9aa0a6";
+constexpr const char* kSvgColorTopologyNode = "#3d3d3d";
+constexpr const char* kSvgColorLoadStroke = "#0c4068";
+constexpr const char* kSvgColorNodeStroke = "#ffffff";
+constexpr const char* kSvgColorLegendText = "#222222";
+constexpr const char* kSvgColorLegendFill = "#ffffff";
+constexpr const char* kSvgColorLegendStroke = "#d0d0d0";
+constexpr const char* kSvgColorBufferFillDefault = "#ffbf69";
+constexpr const char* kSvgColorBufferStrokeDefault = "#8c4f00";
+inline constexpr std::array<const char*, 6> kSvgBufferFillPalette = {
+    "#ffe0b2", "#ffbf69", "#f4a261", "#e76f51", "#d1495b", "#9c6644",
+};
+inline constexpr std::array<const char*, 6> kSvgBufferStrokePalette = {
+    "#b36a00", "#8c4f00", "#9a4d1f", "#91361f", "#7a1f30", "#5d4037",
+};
 
 struct Bounds
 {
@@ -295,4 +320,4 @@ inline auto BuildClusterColors(std::size_t cluster_count, const std::vector<icts
   return color_table;
 }
 
-}  // namespace icts_test::common::visualization::detail
+}  // namespace icts::visualization::detail

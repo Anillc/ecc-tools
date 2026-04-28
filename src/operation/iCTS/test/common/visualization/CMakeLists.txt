@@ -1,7 +1,3 @@
-add_subdirectory(core)
-add_subdirectory(cluster)
-add_subdirectory(topology)
-
 add_library(
   icts_test_common_visualization
   STATIC
@@ -12,6 +8,5 @@ target_link_libraries(
   icts_test_common_visualization
   PRIVATE
   icts_test_base
-  icts_test_common_cluster_visualization
-  icts_test_common_topology_visualization
+  icts_source_utils_visualization
 )

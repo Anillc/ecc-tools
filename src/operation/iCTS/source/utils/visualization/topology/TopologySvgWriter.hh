@@ -18,7 +18,7 @@
  * @file TopologySvgWriter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Topology-specific SVG writer for iCTS tests.
+ * @brief Topology-specific SVG writer for iCTS visualization utilities.
  */
 
 #pragma once
@@ -31,8 +31,8 @@ class Pin;
 class Tree;
 }  // namespace icts
 
-namespace icts_test::common::visualization::topology {
+namespace icts::visualization::topology {
 
 auto WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads) -> bool;
 
-}  // namespace icts_test::common::visualization::topology
+}  // namespace icts::visualization::topology

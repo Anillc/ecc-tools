@@ -84,6 +84,16 @@ TEST(HTreeBuilderTest, EmptyLoadsAcceptExplicitBuildOptions)
   const auto result = icts::HTreeBuilder::build(root_net, icts::HTreeBuilder::BuildOptions{
                                                               .force_branch_buffer = true,
                                                               .min_top_input_slew_ns = 0.05,
+                                                              .target_depth = std::nullopt,
+                                                              .depth_explore_window = std::nullopt,
+                                                              .htree_topology_tolerance = std::nullopt,
+                                                              .fixed_topology_root_location = std::nullopt,
+                                                              .characterization_library = nullptr,
+                                                              .additional_characterization_lengths_um = {},
+                                                              .enable_root_driver_sizing = true,
+                                                              .topology_loads_are_local_buffers = false,
+                                                              .log_context = {},
+                                                              .object_name_prefix = "",
                                                           });
   const auto observation = htree::ObserveHTreeBuild(result);
 

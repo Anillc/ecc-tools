@@ -33,6 +33,7 @@
 #include "CharBuilder.hh"
 #include "Log.hh"
 #include "LogFormat.hh"
+#include "htree/CharacterizationLibrary.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
 #include "logger/Schema.hh"
@@ -43,10 +44,42 @@ class Tree;
 
 namespace icts::htree_builder {
 
-auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
-                             HTreeBuilder::BuildResult& result, CharBuilder& char_builder) -> HTreeCharacterizationFlowResult
+namespace {
+
+auto AppendPositiveLengths(std::vector<double>& target, const std::vector<double>& values) -> void
 {
-  const auto char_grid_plan = ResolveCharacterizationGridPlan(topology, dbu_per_um);
+  for (const double value : values) {
+    if (value > 0.0) {
+      target.push_back(value);
+    }
+  }
+}
+
+auto FormatLogValue(const std::string& value) -> std::string
+{
+  return value.empty() ? "n/a" : value;
+}
+
+auto MakeContextRows(const HTreeBuilder::LogContext& context, const std::string& object_name_prefix) -> logformat::TableRows
+{
+  return {
+      {"clock_name", FormatLogValue(context.clock_name), "log context"},
+      {"clock_net_name", FormatLogValue(context.clock_net_name), "log context"},
+      {"sink_domain", FormatLogValue(context.sink_domain), "log context"},
+      {"stage", FormatLogValue(context.stage), "log context"},
+      {"object_name_prefix", FormatLogValue(object_name_prefix.empty() ? context.object_name_prefix : object_name_prefix), "log context"},
+  };
+}
+
+}  // namespace
+
+auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
+                             HTreeBuilder::BuildResult& result, CharacterizationLibrary& char_library,
+                             const HTreeBuilder::BuildOptions& options) -> HTreeCharacterizationFlowResult
+{
+  auto requested_lengths_um = CollectRequestedLevelLengthsUm(topology, dbu_per_um);
+  AppendPositiveLengths(requested_lengths_um, options.additional_characterization_lengths_um);
+  const auto char_grid_plan = ResolveCharacterizationGridPlan(requested_lengths_um);
   std::string grid_source = ToCharGridSourceName(CharGridSource::kNone);
   if (char_grid_plan.adapted) {
     grid_source = ToCharGridSourceName(char_grid_plan.source);
@@ -68,9 +101,14 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
   }
   const std::string decision_flags = decision_flag_values.empty() ? std::string{"none"} : logformat::JoinStrings(decision_flag_values, "+");
   logformat::TableRows grid_plan_rows = {
+      {"clock_name", FormatLogValue(options.log_context.clock_name), "context for repeated H-tree/top-level sections"},
+      {"clock_net_name", FormatLogValue(options.log_context.clock_net_name), "context for repeated H-tree/top-level sections"},
+      {"sink_domain", FormatLogValue(options.log_context.sink_domain), "context for repeated H-tree/top-level sections"},
+      {"stage", FormatLogValue(options.log_context.stage), "context for repeated H-tree/top-level sections"},
+      {"object_name_prefix", FormatLogValue(options.object_name_prefix), "context for inserted object names"},
       {"source", grid_source, char_grid_plan.adapted ? "fallback derived from topology level lengths" : "use runtime-configured grid"},
       {"requested_level_lengths", std::to_string(char_grid_plan.requested_level_lengths),
-       "average parent-child segment length per topology level"},
+       "average parent-child segment length per topology level plus caller-supplied source-to-root lengths"},
       {"required_covering_iterations", std::to_string(char_grid_plan.required_covering_iterations),
        char_grid_plan.adapted ? "cover all topology level lengths under the resolved CharBuilder unit" : "0 (disabled)"},
       {"direct_characterization_bins", std::to_string(char_grid_plan.wirelength_iterations),
@@ -90,13 +128,20 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
   if (char_grid_plan.adapted) {
     char_options.wirelength_unit_um = char_grid_plan.wirelength_unit_um;
     char_options.wirelength_iterations = char_grid_plan.wirelength_iterations;
-    auto direct_length_indices = ResolveDirectCharacterizationLengthIndices(topology, char_grid_plan, dbu_per_um);
+    auto direct_length_indices = ResolveDirectCharacterizationLengthIndices(requested_lengths_um, char_grid_plan);
     if (!direct_length_indices.empty()) {
       char_options.wirelength_indices = std::move(direct_length_indices);
     }
   }
-  char_builder.init(char_options);
-  char_builder.build();
+  const auto ensure_result = char_library.ensure(char_options);
+  if (!ensure_result.success) {
+    return HTreeCharacterizationFlowResult{
+        .success = false,
+        .failure_reason = ensure_result.failure_reason.empty() ? "characterization_library_failed" : ensure_result.failure_reason,
+        .length_step_um = 0.0};
+  }
+
+  const auto& char_builder = char_library.getCharBuilder();
 
   const double length_step_um = char_builder.get_wirelength_unit_um();
   if (length_step_um <= 0.0 || char_builder.get_segment_chars().empty()) {
@@ -114,7 +159,7 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
   result.char_max_cap_pf = char_builder.get_max_cap();
   result.char_slew_steps = char_builder.get_slew_steps();
   result.char_cap_steps = char_builder.get_cap_steps();
-  const logformat::TableRows char_summary_rows = {
+  logformat::TableRows char_summary_rows = {
       {"characterization_setup_source", "CharBuilder Setup", "resolved limits, wirelength lattice, buffers, and routing source"},
       {"characterization_results_source", "CharBuilder Results",
        "sample counts and overflow ratios are logged by the characterization owner"},
@@ -122,7 +167,10 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
        char_grid_plan.adapted ? "effective wirelength lattice came from topology-grid adaptation"
                               : "runtime config supplied the characterization lattice"},
       {"grid_plan_source", grid_source, char_grid_plan.adapted ? "HTreeBuilder adapted characterization grid" : "no HTree override"},
+      {"characterization_library", ensure_result.reused ? "reused" : "built", "shared characterization cache state"},
   };
+  auto context_rows = MakeContextRows(options.log_context, options.object_name_prefix);
+  char_summary_rows.insert(char_summary_rows.begin(), context_rows.begin(), context_rows.end());
   LogInfoTable("HTreeBuilder Characterization Summary", {"Item", "Value", "Detail"}, char_summary_rows);
 
   return HTreeCharacterizationFlowResult{.success = true, .failure_reason = {}, .length_step_um = length_step_um};

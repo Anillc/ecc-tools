@@ -18,10 +18,10 @@
  * @file ClusterSvgWriter.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Cluster-specific SVG writer for iCTS tests.
+ * @brief Cluster-specific SVG writer for iCTS visualization utilities.
  */
 
-#include "common/visualization/cluster/ClusterSvgWriter.hh"
+#include "visualization/cluster/ClusterSvgWriter.hh"
 
 #include <algorithm>
 #include <cstddef>
@@ -33,11 +33,11 @@
 #include <utility>
 #include <vector>
 
-#include "Point.hh"
-#include "common/visualization/core/SvgCommon.hh"
-#include "database/design/Pin.hh"
+#include "design/Pin.hh"
+#include "spatial/Point.hh"
+#include "visualization/core/SvgCommon.hh"
 
-namespace icts_test::common::visualization::cluster {
+namespace icts::visualization::cluster {
 namespace {
 
 using detail::BuildClusterColors;
@@ -333,4 +333,4 @@ auto WriteClusterComparisonSvg(const std::string& path, const std::vector<icts::
   return true;
 }
 
-}  // namespace icts_test::common::visualization::cluster
+}  // namespace icts::visualization::cluster

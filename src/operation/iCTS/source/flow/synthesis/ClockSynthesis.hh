@@ -38,6 +38,8 @@
 
 namespace icts {
 
+class CharacterizationLibrary;
+
 class ClockSynthesis
 {
  public:
@@ -45,6 +47,16 @@ class ClockSynthesis
   {
     std::optional<bool> enable_sink_clustering = std::nullopt;
     std::string object_name_prefix;
+    CharacterizationLibrary* characterization_library = nullptr;
+    std::vector<double> additional_characterization_lengths_um;
+    HTreeBuilder::LogContext log_context;
+  };
+
+  struct SourceToRootBuildOptions
+  {
+    std::string object_name_prefix;
+    CharacterizationLibrary* characterization_library = nullptr;
+    HTreeBuilder::LogContext log_context;
   };
 
   struct ClusterBufferMeta
@@ -87,10 +99,27 @@ class ClockSynthesis
     std::vector<std::unique_ptr<Net>> inserted_nets;
   };
 
+  struct SourceToRootBuildResult
+  {
+    bool success = false;
+    std::string failure_reason;
+    std::string stage;
+    HTreeBuilder::BuildResult htree_result;
+    std::size_t inserted_buffer_count = 0U;
+    std::size_t inserted_net_count = 0U;
+    bool used_boundary_fallback = false;
+
+    std::vector<std::unique_ptr<Inst>> inserted_insts;
+    std::vector<std::unique_ptr<Pin>> inserted_pins;
+    std::vector<std::unique_ptr<Net>> inserted_nets;
+  };
+
   ClockSynthesis() = delete;
 
   static auto build(Net& root_net) -> BuildResult;
   static auto build(Net& root_net, const BuildOptions& options) -> BuildResult;
+  static auto buildSourceToRoot(Net& source_net, Pin* clock_source, const std::vector<Pin*>& root_inputs,
+                                const SourceToRootBuildOptions& options) -> SourceToRootBuildResult;
 };
 
 }  // namespace icts

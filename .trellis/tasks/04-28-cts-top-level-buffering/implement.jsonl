@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide implementation constraints for backend changes."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Navigation and authority map for iCTS backend rules."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Place new top-level synthesis helpers and CMake targets consistently."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Work touches Design, Clock, Net, Pin, Config, Wrapper, and STAAdapter boundaries."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Task requires context-rich clock/domain/stage logging and schema output."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Define fail/fallback/rollback behavior without exceptions."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include, dependency, and review expectations for backend code."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Change crosses flow, topology, characterization, netlist, STA adapter, and logging boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Task should reuse existing H-tree/segment frontier/materialization logic rather than duplicate it."}
+{"file": ".trellis/spec/backend/cts-flow-guidelines.md", "reason": "Flow-level source-to-root buffering contract captured during implementation."}
+{"file": ".trellis/tasks/04-28-cts-top-level-buffering/research/cts-report-visualization.md", "reason": "Reference notes for SVG-only CTS report visualization artifacts."}

@@ -46,6 +46,7 @@
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "design/Design.hh"
+#include "htree/SegmentBuilder.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "topology/TopologyGen.hh"
@@ -158,6 +159,11 @@ auto resolveBufferDriveCap(const std::string& cell_master) -> double
   return drive_cap_pf;
 }
 
+auto resolveSourceDriveCap(Pin* clock_source) -> double
+{
+  return STA_ADAPTER_INST.queryClockSourceDriveCapLimit(clock_source);
+}
+
 auto resolveMinLegalClusterBufferCell(std::string& cell_master, std::string& input_pin_name, std::string& output_pin_name) -> bool
 {
   bool has_resolved_master = false;
@@ -228,6 +234,20 @@ auto connectNet(Net& net, Pin* driver, const std::vector<Pin*>& sinks) -> void
     net.add_load(sink);
     sink->set_net(&net);
   }
+}
+
+auto reconnectExistingNet(Net& net, Pin* driver, const std::vector<Pin*>& sinks) -> void
+{
+  auto* old_driver = net.get_driver();
+  if (old_driver != nullptr && old_driver != driver && old_driver->get_net() == &net) {
+    old_driver->set_net(nullptr);
+  }
+  for (auto* old_sink : net.get_loads()) {
+    if (old_sink != nullptr && old_sink->get_net() == &net) {
+      old_sink->set_net(nullptr);
+    }
+  }
+  connectNet(net, driver, sinks);
 }
 
 auto createNet(ClockSynthesis::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& sinks) -> Net*
@@ -334,7 +354,7 @@ auto emitClusterLeafDistanceTables(const ClockSynthesis::BuildResult& result) ->
   return summary;
 }
 
-auto buildHtreeOptions(bool enable_sink_clustering) -> HTreeBuilder::BuildOptions
+auto buildHtreeOptions(bool enable_sink_clustering, const ClockSynthesis::BuildOptions& options) -> HTreeBuilder::BuildOptions
 {
   HTreeBuilder::BuildOptions htree_options;
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
@@ -342,6 +362,10 @@ auto buildHtreeOptions(bool enable_sink_clustering) -> HTreeBuilder::BuildOption
     htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
   }
   htree_options.topology_loads_are_local_buffers = enable_sink_clustering;
+  htree_options.characterization_library = options.characterization_library;
+  htree_options.additional_characterization_lengths_um = options.additional_characterization_lengths_um;
+  htree_options.log_context = options.log_context;
+  htree_options.object_name_prefix = options.object_name_prefix;
   return htree_options;
 }
 
@@ -394,6 +418,20 @@ auto absorbHtreeInsertedObjects(ClockSynthesis::BuildResult& result) -> void
   absorbOwnedObjects(result.inserted_nets, result.htree_result.inserted_nets);
 }
 
+auto absorbHtreeInsertedObjects(ClockSynthesis::SourceToRootBuildResult& result) -> void
+{
+  absorbOwnedObjects(result.inserted_insts, result.htree_result.inserted_insts);
+  absorbOwnedObjects(result.inserted_pins, result.htree_result.inserted_pins);
+  absorbOwnedObjects(result.inserted_nets, result.htree_result.inserted_nets);
+}
+
+auto absorbSegmentInsertedObjects(ClockSynthesis::SourceToRootBuildResult& result, SegmentBuilder::BuildResult& segment_result) -> void
+{
+  absorbOwnedObjects(result.inserted_insts, segment_result.inserted_insts);
+  absorbOwnedObjects(result.inserted_pins, segment_result.inserted_pins);
+  absorbOwnedObjects(result.inserted_nets, segment_result.inserted_nets);
+}
+
 auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const ClusterResult& cluster_result,
                                const std::string& cluster_buffer_cell_master, const std::string& input_pin_name,
                                const std::string& output_pin_name, const std::string& object_name_prefix, std::vector<Pin*>& htree_sinks)
@@ -413,11 +451,11 @@ auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const Cluste
     Inst* cluster_inst = nullptr;
     Pin* cluster_input_pin = nullptr;
     Pin* cluster_output_pin = nullptr;
-    createBufferInstance(result, makeObjectName(object_name_prefix, "cluster_buf_" + std::to_string(cluster_index)),
-                         cluster_buffer_cell_master, input_pin_name, output_pin_name, center, cluster_inst, cluster_input_pin,
-                         cluster_output_pin);
-    auto* sink_net = createNet(result, makeObjectName(object_name_prefix, "cluster_sink_net_" + std::to_string(cluster_index)),
-                               cluster_output_pin, cluster);
+    const auto cluster_inst_name = makeObjectName(object_name_prefix, "cluster_buf_" + std::to_string(cluster_index));
+    createBufferInstance(result, cluster_inst_name, cluster_buffer_cell_master, input_pin_name, output_pin_name, center, cluster_inst,
+                         cluster_input_pin, cluster_output_pin);
+    const auto sink_net_name = makeObjectName(object_name_prefix, "cluster_sink_net_" + std::to_string(cluster_index));
+    auto* sink_net = createNet(result, sink_net_name, cluster_output_pin, cluster);
     result.cluster_buffers.push_back(ClockSynthesis::ClusterBufferMeta{
         .cluster_index = cluster_index,
         .location = center,
@@ -549,7 +587,7 @@ auto ClockSynthesis::build(Net& root_net, const BuildOptions& options) -> BuildR
     htree_sinks = root_loads;
   }
 
-  auto htree_options = buildHtreeOptions(enable_sink_clustering);
+  auto htree_options = buildHtreeOptions(enable_sink_clustering, options);
   result.htree_result = HTreeBuilder::build(root_net, htree_options);
   if (!result.htree_result.success) {
     const std::string htree_failure
@@ -575,6 +613,117 @@ auto ClockSynthesis::build(Net& root_net, const BuildOptions& options) -> BuildR
   if (enable_sink_clustering) {
     result.cluster_leaf_distance_summary = emitClusterLeafDistanceTables(result);
   }
+  result.success = true;
+  return result;
+}
+
+auto ClockSynthesis::buildSourceToRoot(Net& source_net, Pin* clock_source, const std::vector<Pin*>& root_inputs,
+                                       const SourceToRootBuildOptions& options) -> SourceToRootBuildResult
+{
+  SourceToRootBuildResult result;
+  if (clock_source == nullptr) {
+    result.failure_reason = "clock_source_is_null";
+    LOG_ERROR << "ClockSynthesis: top-level source-to-root synthesis failed because clock source is null.";
+    return result;
+  }
+
+  std::vector<Pin*> valid_root_inputs;
+  valid_root_inputs.reserve(root_inputs.size());
+  for (auto* root_input : root_inputs) {
+    if (root_input != nullptr) {
+      valid_root_inputs.push_back(root_input);
+    }
+  }
+  if (valid_root_inputs.empty()) {
+    result.failure_reason = "empty_root_inputs";
+    LOG_ERROR << "ClockSynthesis: top-level source-to-root synthesis failed because no root inputs are available.";
+    return result;
+  }
+
+  auto* const original_driver = source_net.get_driver();
+  const auto original_loads = source_net.get_loads();
+  std::vector<std::pair<Pin*, Net*>> pin_nets;
+  auto append_pin_net = [&pin_nets](Pin* pin) -> void {
+    if (pin == nullptr) {
+      return;
+    }
+    const auto iter = std::ranges::find_if(pin_nets, [pin](const auto& pin_net) -> bool { return pin_net.first == pin; });
+    if (iter == pin_nets.end()) {
+      pin_nets.emplace_back(pin, pin->get_net());
+    }
+  };
+  append_pin_net(clock_source);
+  for (auto* load : original_loads) {
+    append_pin_net(load);
+  }
+  for (auto* root_input : valid_root_inputs) {
+    append_pin_net(root_input);
+  }
+  auto restore_source_net = [&]() -> void {
+    reconnectExistingNet(source_net, original_driver, original_loads);
+    for (const auto& [pin, net] : pin_nets) {
+      if (pin != nullptr) {
+        pin->set_net(net);
+      }
+    }
+  };
+
+  reconnectExistingNet(source_net, clock_source, valid_root_inputs);
+  if (valid_root_inputs.size() == 1U) {
+    result.stage = "top_segment";
+    HTreeBuilder::LogContext log_context = options.log_context;
+    log_context.stage = "top_segment";
+    SegmentBuilder::BuildOptions segment_options{
+        .characterization_library = options.characterization_library,
+        .required_load_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(valid_root_inputs.front()),
+        .source_drive_cap_pf = resolveSourceDriveCap(clock_source),
+        .object_name_prefix = options.object_name_prefix,
+        .log_context = log_context,
+    };
+    const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
+    if (max_buf_tran > 0.0) {
+      segment_options.min_input_slew_ns = max_buf_tran * 0.5;
+    }
+
+    auto segment_result = SegmentBuilder::build(source_net, clock_source, valid_root_inputs.front(), segment_options);
+    if (!segment_result.success) {
+      result.failure_reason = segment_result.failure_reason.empty() ? "top_segment_failed" : segment_result.failure_reason;
+      result.used_boundary_fallback = segment_result.used_boundary_fallback;
+      restore_source_net();
+      return result;
+    }
+    result.used_boundary_fallback = segment_result.used_boundary_fallback;
+    result.inserted_buffer_count = segment_result.inserted_insts.size();
+    result.inserted_net_count = segment_result.inserted_nets.size();
+    absorbSegmentInsertedObjects(result, segment_result);
+    result.success = true;
+    return result;
+  }
+
+  result.stage = "top_htree";
+  HTreeBuilder::LogContext log_context = options.log_context;
+  log_context.stage = "top_htree";
+  HTreeBuilder::BuildOptions htree_options;
+  const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
+  if (max_buf_tran > 0.0) {
+    htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
+  }
+  htree_options.fixed_topology_root_location = findRenderableLocation(clock_source);
+  htree_options.characterization_library = options.characterization_library;
+  htree_options.enable_root_driver_sizing = false;
+  htree_options.object_name_prefix = options.object_name_prefix;
+  htree_options.log_context = log_context;
+  result.htree_result = HTreeBuilder::build(source_net, htree_options);
+  if (!result.htree_result.success) {
+    result.failure_reason = result.htree_result.failure_reason.empty() ? "top_htree_failed" : result.htree_result.failure_reason;
+    restore_source_net();
+    return result;
+  }
+
+  result.used_boundary_fallback = result.htree_result.used_boundary_fallback;
+  result.inserted_buffer_count = result.htree_result.inserted_insts.size();
+  result.inserted_net_count = result.htree_result.inserted_nets.size();
+  absorbHtreeInsertedObjects(result);
   result.success = true;
   return result;
 }

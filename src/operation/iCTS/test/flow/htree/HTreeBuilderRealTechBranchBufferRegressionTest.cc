@@ -32,6 +32,7 @@
 #include "HTreeTopologyChar.hh"
 #include "Net.hh"
 #include "Pin.hh"
+#include "Point.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/config/Config.hh"
@@ -133,7 +134,20 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfi
   icts::Net root_net("htree_branch_buffer_override_root_net");
   ConnectRootNetForHTreeTest(root_net, root_driver, selected_clock->loads);
 
-  const auto result = icts::HTreeBuilder::build(root_net, icts::HTreeBuilder::BuildOptions{.force_branch_buffer = true});
+  const auto result = icts::HTreeBuilder::build(root_net, icts::HTreeBuilder::BuildOptions{
+                                                              .force_branch_buffer = true,
+                                                              .min_top_input_slew_ns = std::nullopt,
+                                                              .target_depth = std::nullopt,
+                                                              .depth_explore_window = std::nullopt,
+                                                              .htree_topology_tolerance = std::nullopt,
+                                                              .fixed_topology_root_location = std::nullopt,
+                                                              .characterization_library = nullptr,
+                                                              .additional_characterization_lengths_um = {},
+                                                              .enable_root_driver_sizing = true,
+                                                              .topology_loads_are_local_buffers = false,
+                                                              .log_context = {},
+                                                              .object_name_prefix = "",
+                                                          });
 
   AssertBranchBufferMaterialization(result);
 }
@@ -184,8 +198,20 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
   icts::Pin top_boundary_root_driver("htree_boundary_root_out", icts::PinType::kOut);
   icts::Net top_boundary_root_net("htree_boundary_root_net");
   ConnectRootNetForHTreeTest(top_boundary_root_net, top_boundary_root_driver, selected_clock->loads);
-  auto top_boundary_result
-      = icts::HTreeBuilder::build(top_boundary_root_net, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = top_input_slew_ns});
+  auto top_boundary_result = icts::HTreeBuilder::build(top_boundary_root_net, icts::HTreeBuilder::BuildOptions{
+                                                                                  .force_branch_buffer = std::nullopt,
+                                                                                  .min_top_input_slew_ns = top_input_slew_ns,
+                                                                                  .target_depth = std::nullopt,
+                                                                                  .depth_explore_window = std::nullopt,
+                                                                                  .htree_topology_tolerance = std::nullopt,
+                                                                                  .fixed_topology_root_location = std::nullopt,
+                                                                                  .characterization_library = nullptr,
+                                                                                  .additional_characterization_lengths_um = {},
+                                                                                  .enable_root_driver_sizing = true,
+                                                                                  .topology_loads_are_local_buffers = false,
+                                                                                  .log_context = {},
+                                                                                  .object_name_prefix = "",
+                                                                              });
   ASSERT_TRUE(top_boundary_result.success);
   ASSERT_TRUE(top_boundary_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(top_boundary_result.min_top_input_slew_ns.value_or(0.0), top_input_slew_ns);
@@ -205,8 +231,21 @@ TEST(HTreeBuilderRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagate
   icts::Pin impossible_root_driver("htree_boundary_impossible_root_out", icts::PinType::kOut);
   icts::Net impossible_root_net("htree_boundary_impossible_root_net");
   ConnectRootNetForHTreeTest(impossible_root_net, impossible_root_driver, selected_clock->loads);
-  auto impossible_top_boundary_result = icts::HTreeBuilder::build(
-      impossible_root_net, icts::HTreeBuilder::BuildOptions{.min_top_input_slew_ns = impossible_top_input_slew_ns});
+  auto impossible_top_boundary_result
+      = icts::HTreeBuilder::build(impossible_root_net, icts::HTreeBuilder::BuildOptions{
+                                                           .force_branch_buffer = std::nullopt,
+                                                           .min_top_input_slew_ns = impossible_top_input_slew_ns,
+                                                           .target_depth = std::nullopt,
+                                                           .depth_explore_window = std::nullopt,
+                                                           .htree_topology_tolerance = std::nullopt,
+                                                           .fixed_topology_root_location = std::nullopt,
+                                                           .characterization_library = nullptr,
+                                                           .additional_characterization_lengths_um = {},
+                                                           .enable_root_driver_sizing = true,
+                                                           .topology_loads_are_local_buffers = false,
+                                                           .log_context = {},
+                                                           .object_name_prefix = "",
+                                                       });
   ASSERT_TRUE(impossible_top_boundary_result.success);
   ASSERT_TRUE(impossible_top_boundary_result.min_top_input_slew_ns.has_value());
   EXPECT_DOUBLE_EQ(impossible_top_boundary_result.min_top_input_slew_ns.value_or(0.0), impossible_top_input_slew_ns);

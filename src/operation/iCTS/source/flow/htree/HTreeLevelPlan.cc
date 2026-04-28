@@ -128,10 +128,9 @@ auto CollectRequestedLevelLengthsUm(const Tree& topology, int32_t dbu_per_um) ->
   return requested_lengths_um;
 }
 
-auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan
+auto ResolveCharacterizationGridPlan(const std::vector<double>& requested_lengths_um) -> CharacterizationGridPlan
 {
   CharacterizationGridPlan plan;
-  const auto requested_lengths_um = CollectRequestedLevelLengthsUm(topology, dbu_per_um);
   if (requested_lengths_um.empty()) {
     return plan;
   }
@@ -168,6 +167,11 @@ auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -
   plan.required_covering_iterations = std::max(1U, static_cast<unsigned>(std::ceil(max_requested_length_um / effective_unit_um)));
   plan.wirelength_iterations = std::min(plan.configured_wirelength_iterations, plan.required_covering_iterations);
   return plan;
+}
+
+auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan
+{
+  return ResolveCharacterizationGridPlan(CollectRequestedLevelLengthsUm(topology, dbu_per_um));
 }
 
 auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_per_um) -> std::vector<HTreeBuilder::LevelPlan>
@@ -227,6 +231,12 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
 auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const CharacterizationGridPlan& char_grid_plan, int32_t dbu_per_um)
     -> std::vector<unsigned>
 {
+  return ResolveDirectCharacterizationLengthIndices(CollectRequestedLevelLengthsUm(topology, dbu_per_um), char_grid_plan);
+}
+
+auto ResolveDirectCharacterizationLengthIndices(const std::vector<double>& requested_lengths_um,
+                                                const CharacterizationGridPlan& char_grid_plan) -> std::vector<unsigned>
+{
   if (!char_grid_plan.adapted || char_grid_plan.wirelength_iterations == 0U) {
     return {};
   }
@@ -235,7 +245,17 @@ auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const Char
     return MakeDenseLengthIndices(char_grid_plan.wirelength_iterations);
   }
 
-  auto required_length_indices = CollectRequiredLengthIndices(BuildLevelPlans(topology, char_grid_plan.wirelength_unit_um, dbu_per_um));
+  std::vector<unsigned> required_length_indices;
+  required_length_indices.reserve(requested_lengths_um.size());
+  for (const double requested_length_um : requested_lengths_um) {
+    const unsigned length_idx = MakeCoveringLengthIndex(requested_length_um, char_grid_plan.wirelength_unit_um);
+    if (length_idx > 0U) {
+      required_length_indices.push_back(length_idx);
+    }
+  }
+  std::ranges::sort(required_length_indices);
+  const auto unique_tail = std::ranges::unique(required_length_indices);
+  required_length_indices.erase(unique_tail.begin(), unique_tail.end());
   std::erase_if(required_length_indices, [&](unsigned length_idx) -> bool { return length_idx > char_grid_plan.wirelength_iterations; });
   return required_length_indices;
 }

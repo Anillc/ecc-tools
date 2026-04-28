@@ -26,8 +26,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
+#include "Point.hh"
 #include "Tree.hh"
 #include "clustering/Clustering.hh"
 #include "config/TopologyConfig.hh"
@@ -49,8 +51,13 @@ class TopologyGen
   {
     BiPartitionConfig partition_config;
     std::optional<unsigned> target_depth = std::nullopt;
+    std::optional<Point<int>> fixed_root_location = std::nullopt;
     int32_t dbu_per_um = 1;
     LoadCountKind load_count_kind = LoadCountKind::kSink;
+    std::string clock_name;
+    std::string clock_net_name;
+    std::string sink_domain;
+    std::string stage;
   };
 
   TopologyGen() = delete;
@@ -76,7 +83,8 @@ class TopologyGen
   static auto calcMaxDepth(std::size_t load_count) -> unsigned;
   static auto calcLeafCount(std::size_t load_count) -> std::size_t;
   static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth,
-                    LoadCountKind load_count_kind, int32_t dbu_per_um) -> Tree;
+                    std::optional<Point<int>> fixed_root_location, LoadCountKind load_count_kind, int32_t dbu_per_um,
+                    const BuildOptions& options) -> Tree;
   static auto buildFullTree(Tree& tree, const BuildCursor& cursor, int height) -> void;
   static auto embedPositions(Tree& tree, std::size_t node, const std::vector<Pin*>& loads, std::size_t leaf_need,
                              const BiPartitionConfig& config) -> void;

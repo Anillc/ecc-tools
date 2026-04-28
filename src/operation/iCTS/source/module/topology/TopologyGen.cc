@@ -134,7 +134,8 @@ auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
 
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BuildOptions& options) -> Tree
 {
-  return build(loads, options.partition_config, options.target_depth, options.load_count_kind, options.dbu_per_um);
+  return build(loads, options.partition_config, options.target_depth, options.fixed_root_location, options.load_count_kind,
+               options.dbu_per_um, options);
 }
 
 auto TopologyGen::buildFastClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> ClusterConfig
@@ -159,11 +160,22 @@ auto TopologyGen::fastClustering(const std::vector<Pin*>& loads, const ClusterCo
 
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree
 {
-  return build(loads, BuildOptions{.partition_config = config});
+  return build(loads, BuildOptions{
+                          .partition_config = config,
+                          .target_depth = std::nullopt,
+                          .fixed_root_location = std::nullopt,
+                          .dbu_per_um = 1,
+                          .load_count_kind = LoadCountKind::kSink,
+                          .clock_name = "",
+                          .clock_net_name = "",
+                          .sink_domain = "",
+                          .stage = "",
+                      });
 }
 
 auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig& config, std::optional<unsigned> target_depth,
-                        LoadCountKind load_count_kind, int32_t dbu_per_um) -> Tree
+                        std::optional<Point<int>> fixed_root_location, LoadCountKind load_count_kind, int32_t dbu_per_um,
+                        const BuildOptions& options) -> Tree
 {
   Tree tree;
   auto build_stage = SCHEMA_WRITER_INST.beginStage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads");
@@ -191,7 +203,8 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
 
   const auto root = tree.create_node();
   tree.set_root(root);
-  tree.get_node(root)->get_position() = geometry::CalcMedian(loads, [](Pin* pin) -> auto { return pin->get_location(); });
+  tree.get_node(root)->get_position()
+      = fixed_root_location.value_or(geometry::CalcMedian(loads, [](Pin* pin) -> auto { return pin->get_location(); }));
 
   int height = 0;
   for (std::size_t count = leaf_count; count > 1; count >>= 1) {
@@ -207,6 +220,11 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
       {"nodes", std::to_string(tree.get_size())},
       {"depth", std::to_string(height)},
       {"leaf_count", std::to_string(leaf_count)},
+      {"clock_name", options.clock_name},
+      {"clock_net_name", options.clock_net_name},
+      {"sink_domain", options.sink_domain},
+      {"stage", options.stage},
+      {"root_policy", fixed_root_location.has_value() ? "fixed" : "median"},
   });
 
   return tree;

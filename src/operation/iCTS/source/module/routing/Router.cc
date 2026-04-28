@@ -36,6 +36,7 @@
 
 #include "Inst.hh"
 #include "Log.hh"
+#include "Net.hh"
 #include "Pin.hh"
 #include "PinLocationHelper.hh"
 #include "Point.hh"
@@ -43,6 +44,7 @@
 #include "bound_skew_tree/BSTRouter.hh"
 #include "concurrent_bst_salt/CBSRouter.hh"
 #include "flute/FLUTERouter.hh"
+#include "geometry/Geometry.hh"
 #include "io/Wrapper.hh"
 #include "local_legalization/LocalLegalization.hh"
 #include "salt/SALTRouter.hh"
@@ -122,6 +124,20 @@ auto WriteBackPinLocations(const std::vector<Pin*>& pins, const std::vector<Poin
   }
 }
 
+auto MakeTerminal(Pin* pin) -> Router::ClockTerminal
+{
+  Router::ClockTerminal terminal;
+  if (pin == nullptr) {
+    return terminal;
+  }
+  auto* inst = pin->get_inst();
+  terminal.name = inst != nullptr ? (inst->get_name() + "/" + pin->get_name()) : pin->get_name();
+  terminal.location = pin->get_location();
+  terminal.pin_cap = 0.0;
+  terminal.insertion_delay = 0.0;
+  return terminal;
+}
+
 auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RCTreeBuildOptions& options) -> Router::RCTreeType
 {
   Router::RCTreeType rc_tree;
@@ -181,6 +197,52 @@ auto Router::buildBstTree(const std::vector<ClockTerminal>& load_terminals, cons
 auto Router::buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
 {
   return CBSRouter::buildTree(load_terminals, parameters);
+}
+
+auto Router::buildClockNetTree(const Net& net) -> Router::ClockSteinerTreeType
+{
+  if (net.get_driver() == nullptr || net.get_loads().empty()) {
+    return {};
+  }
+
+  std::vector<Router::ClockTerminal> load_terminals;
+  load_terminals.reserve(net.get_loads().size());
+  for (auto* load : net.get_loads()) {
+    if (load == nullptr) {
+      continue;
+    }
+    load_terminals.push_back(MakeTerminal(load));
+  }
+  if (load_terminals.empty()) {
+    return {};
+  }
+
+  const auto driver_terminal = MakeTerminal(net.get_driver());
+  if (load_terminals.size() == 1U) {
+    Router::ClockSteinerTreeType route_tree;
+    const auto root_id = route_tree.addNode(driver_terminal.name, driver_terminal.location, true, driver_terminal.pin_cap,
+                                            driver_terminal.insertion_delay);
+    if (root_id == Router::ClockSteinerTreeType::kInvalidId) {
+      return {};
+    }
+    route_tree.setRoot(root_id);
+
+    const auto& load_terminal = load_terminals.front();
+    const auto load_id
+        = route_tree.addNode(load_terminal.name, load_terminal.location, true, load_terminal.pin_cap, load_terminal.insertion_delay);
+    if (load_id == Router::ClockSteinerTreeType::kInvalidId) {
+      return {};
+    }
+
+    const auto distance = geometry::Manhattan(driver_terminal.location, load_terminal.location);
+    const auto edge_id = route_tree.addEdge(root_id, load_id, distance, distance);
+    if (edge_id == Router::ClockSteinerTreeType::kInvalidId || !route_tree.validate()) {
+      return {};
+    }
+    return route_tree;
+  }
+
+  return buildFluteTree(driver_terminal, load_terminals);
 }
 
 auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,

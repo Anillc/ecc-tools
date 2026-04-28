@@ -57,6 +57,7 @@
 #include "characterization/HTreeTraits.hh"
 #include "characterization/HashJoinEngine.hh"
 #include "characterization/SegmentTraits.hh"
+#include "htree/CharacterizationLibrary.hh"
 #include "htree/HTreeBuilder.hh"
 #include "log/Log.hh"
 
@@ -657,10 +658,19 @@ struct MaterializationContext
   BufferPortCache* port_cache = nullptr;
   std::size_t edge_buffer_counter = 0U;
   std::size_t net_counter = 0U;
+  std::string object_name_prefix;
 
-  auto nextBufferName() -> std::string { return "cts_htree_edge_buf_" + std::to_string(edge_buffer_counter++); }
+  auto nextBufferName() -> std::string
+  {
+    const auto suffix = "htree_edge_buf_" + std::to_string(edge_buffer_counter++);
+    return object_name_prefix.empty() ? "cts_" + suffix : object_name_prefix + "_" + suffix;
+  }
 
-  auto nextNetName() -> std::string { return "cts_htree_net_" + std::to_string(net_counter++); }
+  auto nextNetName() -> std::string
+  {
+    const auto suffix = "htree_net_" + std::to_string(net_counter++);
+    return object_name_prefix.empty() ? "cts_" + suffix : object_name_prefix + "_" + suffix;
+  }
 };
 
 auto ToCharGridSourceName(CharGridSource source) -> const char*;
@@ -668,16 +678,20 @@ auto LogInfoTable(const std::string& title, const std::vector<std::string>& head
 auto CountUniqueAlignedLengthBins(const std::vector<double>& requested_lengths_um, double length_step_um) -> unsigned;
 auto CollectRequestedLevelLengthsUm(const Tree& topology, int32_t dbu_per_um) -> std::vector<double>;
 auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan;
+auto ResolveCharacterizationGridPlan(const std::vector<double>& requested_lengths_um) -> CharacterizationGridPlan;
 auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_per_um) -> std::vector<HTreeBuilder::LevelPlan>;
 auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const CharacterizationGridPlan& char_grid_plan, int32_t dbu_per_um)
     -> std::vector<unsigned>;
+auto ResolveDirectCharacterizationLengthIndices(const std::vector<double>& requested_lengths_um,
+                                                const CharacterizationGridPlan& char_grid_plan) -> std::vector<unsigned>;
 auto MakeCandidateLevelPlans(const std::vector<HTreeBuilder::LevelPlan>& full_level_plans, unsigned depth)
     -> std::vector<HTreeBuilder::LevelPlan>;
 auto CountCandidateLeafNodes(const Tree& topology, unsigned depth) -> std::size_t;
 auto ResolveDepthCandidates(unsigned max_depth, const HTreeBuilder::BuildOptions& options) -> std::vector<unsigned>;
 auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBuilder& char_builder) -> ResolvedBuildOptions;
 auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
-                             HTreeBuilder::BuildResult& result, CharBuilder& char_builder) -> HTreeCharacterizationFlowResult;
+                             HTreeBuilder::BuildResult& result, CharacterizationLibrary& char_library,
+                             const HTreeBuilder::BuildOptions& options) -> HTreeCharacterizationFlowResult;
 auto ExploreDepthCandidates(const Tree& topology, const std::vector<HTreeBuilder::LevelPlan>& full_level_plans,
                             const std::vector<unsigned>& depth_candidates,
                             const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,

@@ -18,7 +18,7 @@
  * @file ClusterSvgWriter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Cluster-specific SVG writer for iCTS tests.
+ * @brief Cluster-specific SVG writer for iCTS visualization utilities.
  */
 
 #pragma once
@@ -34,7 +34,7 @@ template <typename T>
 class Point;
 }  // namespace icts
 
-namespace icts_test::common::visualization::cluster {
+namespace icts::visualization::cluster {
 
 auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loads,
                      const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers)
@@ -45,4 +45,4 @@ auto WriteClusterComparisonSvg(const std::string& path, const std::vector<icts::
                                const std::unordered_map<const icts::Pin*, std::size_t>& right_cluster_map,
                                const std::vector<icts::Point<int>>& right_centers) -> bool;
 
-}  // namespace icts_test::common::visualization::cluster
+}  // namespace icts::visualization::cluster

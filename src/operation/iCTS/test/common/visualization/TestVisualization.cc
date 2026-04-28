@@ -28,8 +28,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/visualization/cluster/ClusterSvgWriter.hh"
-#include "common/visualization/topology/TopologySvgWriter.hh"
+#include "visualization/cluster/ClusterSvgWriter.hh"
+#include "visualization/topology/TopologySvgWriter.hh"
 
 namespace icts_test::common::visualization {
 
@@ -37,7 +37,7 @@ auto WriteClusterSvg(const std::string& path, const std::vector<icts::Pin*>& loa
                      const std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, const std::vector<icts::Point<int>>& centers)
     -> bool
 {
-  return cluster::WriteClusterSvg(path, loads, cluster_map, centers);
+  return icts::visualization::cluster::WriteClusterSvg(path, loads, cluster_map, centers);
 }
 
 auto WriteClusterComparisonSvg(const std::string& path, const std::vector<icts::Pin*>& loads, const std::string& left_title,
@@ -46,13 +46,13 @@ auto WriteClusterComparisonSvg(const std::string& path, const std::vector<icts::
                                const std::unordered_map<const icts::Pin*, std::size_t>& right_cluster_map,
                                const std::vector<icts::Point<int>>& right_centers) -> bool
 {
-  return cluster::WriteClusterComparisonSvg(path, loads, left_title, left_cluster_map, left_centers, right_title, right_cluster_map,
-                                            right_centers);
+  return icts::visualization::cluster::WriteClusterComparisonSvg(path, loads, left_title, left_cluster_map, left_centers, right_title,
+                                                                 right_cluster_map, right_centers);
 }
 
 auto WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std::vector<icts::Pin*>& loads) -> bool
 {
-  return topology::WriteTopologySvg(path, tree, loads);
+  return icts::visualization::topology::WriteTopologySvg(path, tree, loads);
 }
 
 }  // namespace icts_test::common::visualization

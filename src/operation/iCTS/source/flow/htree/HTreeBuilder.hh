@@ -35,13 +35,25 @@
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "spatial/Point.hh"
 #include "spatial/Tree.hh"
 
 namespace icts {
 
+class CharacterizationLibrary;
+
 class HTreeBuilder
 {
  public:
+  struct LogContext
+  {
+    std::string clock_name;
+    std::string clock_net_name;
+    std::string sink_domain;
+    std::string stage;
+    std::string object_name_prefix;
+  };
+
   struct BuildOptions
   {
     std::optional<bool> force_branch_buffer = std::nullopt;
@@ -49,7 +61,13 @@ class HTreeBuilder
     std::optional<unsigned> target_depth = std::nullopt;
     std::optional<unsigned> depth_explore_window = std::nullopt;
     std::optional<double> htree_topology_tolerance = std::nullopt;
+    std::optional<Point<int>> fixed_topology_root_location = std::nullopt;
+    CharacterizationLibrary* characterization_library = nullptr;
+    std::vector<double> additional_characterization_lengths_um;
+    bool enable_root_driver_sizing = true;
     bool topology_loads_are_local_buffers = false;
+    LogContext log_context;
+    std::string object_name_prefix;
   };
 
   struct LevelPlan
@@ -85,6 +103,7 @@ class HTreeBuilder
     unsigned char_slew_steps = 0U;
     unsigned char_cap_steps = 0U;
     bool force_branch_buffer = false;
+    bool root_driver_sizing_enabled = true;
     std::optional<unsigned> target_depth = std::nullopt;
     unsigned depth_explore_window = 0U;
     std::optional<unsigned> selected_depth = std::nullopt;
@@ -106,6 +125,8 @@ class HTreeBuilder
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;
     std::size_t pruned_leaf_single_load_buffers = 0U;
+    LogContext log_context;
+    std::string object_name_prefix;
 
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;

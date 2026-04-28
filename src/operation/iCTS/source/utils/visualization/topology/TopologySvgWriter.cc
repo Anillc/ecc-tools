@@ -18,10 +18,10 @@
  * @file TopologySvgWriter.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Topology-specific SVG writer for iCTS tests.
+ * @brief Topology-specific SVG writer for iCTS visualization utilities.
  */
 
-#include "common/visualization/topology/TopologySvgWriter.hh"
+#include "visualization/topology/TopologySvgWriter.hh"
 
 #include <cstddef>
 #include <fstream>
@@ -30,12 +30,12 @@
 #include <string>
 #include <vector>
 
-#include "Pin.hh"
-#include "Point.hh"
-#include "Tree.hh"
-#include "common/visualization/core/SvgCommon.hh"
+#include "design/Pin.hh"
+#include "spatial/Point.hh"
+#include "spatial/Tree.hh"
+#include "visualization/core/SvgCommon.hh"
 
-namespace icts_test::common::visualization::topology {
+namespace icts::visualization::topology {
 namespace {
 
 using detail::ComputeBounds;
@@ -151,4 +151,4 @@ auto WriteTopologySvg(const std::string& path, const icts::Tree& tree, const std
   return true;
 }
 
-}  // namespace icts_test::common::visualization::topology
+}  // namespace icts::visualization::topology

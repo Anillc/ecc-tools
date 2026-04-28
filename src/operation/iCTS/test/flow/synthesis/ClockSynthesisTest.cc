@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Clock.hh"
 #include "database/design/Design.hh"
@@ -328,6 +329,60 @@ TEST(ClockSynthesisTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigRe
   std::filesystem::remove(json_path, error_code);
   error_code.clear();
   std::filesystem::remove(cts_log_path, error_code);
+}
+
+TEST(ClockSynthesisTest, SourceToRootWithEmptyRootsFailsWithoutChangingSourceNet)
+{
+  icts::Pin source("clk_src", icts::PinType::kOut, icts::Point<int>(0, 0));
+  icts::Pin original_load("sink", icts::PinType::kClock, icts::Point<int>(100, 0));
+  icts::Net source_net("clk_net");
+  source_net.set_driver(&source);
+  source.set_net(&source_net);
+  source_net.add_load(&original_load);
+  original_load.set_net(&source_net);
+
+  const auto result = icts::ClockSynthesis::buildSourceToRoot(source_net, &source, {}, icts::ClockSynthesis::SourceToRootBuildOptions{});
+
+  EXPECT_FALSE(result.success);
+  EXPECT_FALSE(result.failure_reason.empty());
+  EXPECT_EQ(result.inserted_insts.size(), 0U);
+  EXPECT_EQ(result.inserted_nets.size(), 0U);
+  EXPECT_EQ(source_net.get_driver(), &source);
+  ASSERT_EQ(source_net.get_loads().size(), 1U);
+  EXPECT_EQ(source_net.get_loads().front(), &original_load);
+  EXPECT_EQ(original_load.get_net(), &source_net);
+}
+
+TEST(ClockSynthesisTest, SourceToRootSingleRootSameLocationDirectConnectsWithoutInsertedObjects)
+{
+  icts::Pin source("clk_src", icts::PinType::kOut, icts::Point<int>(100, 200));
+  icts::Pin root_input("A", icts::PinType::kIn, icts::Point<int>(100, 200));
+  icts::Net source_net("clk_net");
+  source_net.set_driver(&source);
+  source.set_net(&source_net);
+
+  const auto result
+      = icts::ClockSynthesis::buildSourceToRoot(source_net, &source, {&root_input}, icts::ClockSynthesis::SourceToRootBuildOptions{});
+
+  EXPECT_TRUE(result.success);
+  EXPECT_EQ(result.stage, "top_segment");
+  EXPECT_EQ(result.inserted_insts.size(), 0U);
+  EXPECT_EQ(result.inserted_nets.size(), 0U);
+  EXPECT_EQ(source_net.get_driver(), &source);
+  ASSERT_EQ(source_net.get_loads().size(), 1U);
+  EXPECT_EQ(source_net.get_loads().front(), &root_input);
+  EXPECT_EQ(root_input.get_net(), &source_net);
+  EXPECT_EQ(source.get_net(), &source_net);
+}
+
+TEST(ClockSynthesisTest, ClockSourceDriveCapUsesRuntimeMaxCapForTopLevelIoPort)
+{
+  const ScopedConfigReset scoped_config_reset;
+  CONFIG_INST.set_max_cap(0.23);
+
+  icts::Pin source("clk_i", icts::PinType::kOut, icts::Point<int>(100, 200), nullptr, nullptr, true);
+
+  EXPECT_DOUBLE_EQ(STA_ADAPTER_INST.queryClockSourceDriveCapLimit(&source), 0.23);
 }
 
 }  // namespace

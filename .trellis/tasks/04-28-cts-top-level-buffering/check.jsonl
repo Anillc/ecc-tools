@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide constraints for final review."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation for check agent."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify module placement, CMake wiring, and ownership boundaries."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify Design/Clock/Net/Pin/STAAdapter usage and ownership contracts."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify clock/domain/stage logging context and schema output quality."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify fallback/failure behavior and no-exception contracts."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify includes, naming, dependency visibility, tests, and quality bar."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer data flow from source-to-root synthesis through final netlist commit."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check reuse of existing H-tree/segment char/frontier helpers."}
+{"file": ".trellis/spec/backend/cts-flow-guidelines.md", "reason": "Final review contract for source-to-root buffering and log context."}
+{"file": ".trellis/tasks/04-28-cts-top-level-buffering/research/cts-report-visualization.md", "reason": "Check expected SVG-only CTS report visualization artifacts and log behavior."}

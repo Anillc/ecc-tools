@@ -455,6 +455,7 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
   MaterializationContext context{
       .result = &result,
       .port_cache = &port_cache,
+      .object_name_prefix = result.object_name_prefix,
   };
 
   std::unordered_map<std::size_t, std::vector<Pin*>> entry_loads_by_node;

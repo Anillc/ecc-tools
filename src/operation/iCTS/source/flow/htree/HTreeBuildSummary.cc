@@ -56,6 +56,14 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
 
   SCHEMA_WRITER_INST.emitSection("### H-Tree Selection");
   logformat::TableRows build_summary_rows = {
+      {"clock_name", result.log_context.clock_name.empty() ? "n/a" : result.log_context.clock_name,
+       "context for repeated H-tree/top-level sections"},
+      {"clock_net_name", result.log_context.clock_net_name.empty() ? "n/a" : result.log_context.clock_net_name,
+       "context for repeated H-tree/top-level sections"},
+      {"sink_domain", result.log_context.sink_domain.empty() ? "n/a" : result.log_context.sink_domain,
+       "context for repeated H-tree/top-level sections"},
+      {"stage", result.log_context.stage.empty() ? "n/a" : result.log_context.stage, "context for repeated H-tree/top-level sections"},
+      {"object_name_prefix", result.object_name_prefix.empty() ? "n/a" : result.object_name_prefix, "context for inserted object names"},
       {"levels", std::to_string(result.levels.size()), "selected H-tree levels"},
       {"depth_candidates", std::to_string(result.depth_candidate_count), "evaluated descending depth candidates"},
       {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
@@ -113,6 +121,9 @@ auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const Candida
       {"selected_root_driver_cell_master",
        result.selected_root_driver_cell_master.empty() ? "none" : result.selected_root_driver_cell_master,
        "root driver master applied to the input root-net driver inst"},
+      {"root_driver_sizing_enabled", logformat::FormatBool(result.root_driver_sizing_enabled),
+       result.root_driver_sizing_enabled ? "root driver may be resized when the root is a CTS-owned buffer"
+                                         : "root driver sizing is disabled for immutable top-level clock source"},
       {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback),
        result.used_boundary_fallback ? result.boundary_fallback_reason : "constraints satisfied without fallback"},
       {"boundary_fallback_score", result.boundary_fallback_score.has_value() ? std::to_string(*result.boundary_fallback_score) : "none",

@@ -1,5 +1,6 @@
 add_library(
   icts_source_flow_htree
+  ${ICTS_FLOW_HTREE}/CharacterizationLibrary.cc
   ${ICTS_FLOW_HTREE}/HTreeBuilder.cc
   ${ICTS_FLOW_HTREE}/HTreeActualLoad.cc
   ${ICTS_FLOW_HTREE}/HTreeBuildOptions.cc
@@ -12,6 +13,7 @@ add_library(
   ${ICTS_FLOW_HTREE}/HTreeLogging.cc
   ${ICTS_FLOW_HTREE}/HTreeMaterialization.cc
   ${ICTS_FLOW_HTREE}/HTreeSegmentFrontier.cc
+  ${ICTS_FLOW_HTREE}/SegmentBuilder.cc
 )
 
 target_link_libraries(

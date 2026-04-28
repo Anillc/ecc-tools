@@ -36,11 +36,11 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Tree.hh"
-#include "common/visualization/core/SvgCommon.hh"
 #include "flow/htree/HTreeBuildObservation.hh"
 #include "flow/htree/HTreeVisualizationInternal.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
 #include "htree/HTreeBuilder.hh"
+#include "visualization/core/SvgCommon.hh"
 
 namespace icts_test::htree {
 namespace {
@@ -163,11 +163,10 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
     return false;
   }
 
-  output_stream << common::visualization::detail::kSvgOpenTagPrefix << FormatSvgNumber(width)
-                << common::visualization::detail::kSvgHeightTag << FormatSvgNumber(height)
-                << common::visualization::detail::kSvgViewBoxPrefix << FormatSvgNumber(width) << ' ' << FormatSvgNumber(height)
-                << common::visualization::detail::kSvgOpenTagSuffix;
-  output_stream << common::visualization::detail::kSvgBackgroundRect;
+  output_stream << icts::visualization::detail::kSvgOpenTagPrefix << FormatSvgNumber(width) << icts::visualization::detail::kSvgHeightTag
+                << FormatSvgNumber(height) << icts::visualization::detail::kSvgViewBoxPrefix << FormatSvgNumber(width) << ' '
+                << FormatSvgNumber(height) << icts::visualization::detail::kSvgOpenTagSuffix;
+  output_stream << icts::visualization::detail::kSvgBackgroundRect;
 
   output_stream << R"(<g font-family="monospace" fill="#1f2933">)";
   output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Actual-Load-Legal Delay-Power Frontier</text>)";
@@ -260,7 +259,7 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
   output_stream << R"(</g>)";
   output_stream << R"(</g>)";
 
-  output_stream << common::visualization::detail::kSvgClosingTag;
+  output_stream << icts::visualization::detail::kSvgClosingTag;
   return true;
 }
 

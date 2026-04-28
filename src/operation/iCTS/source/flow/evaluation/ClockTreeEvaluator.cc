@@ -38,7 +38,6 @@
 
 #include "Log.hh"
 #include "Point.hh"
-#include "RoutingTerminal.hh"
 #include "SteinerTree.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
@@ -48,7 +47,6 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "evaluation/CTSStatisticsWriter.hh"
-#include "geometry/Geometry.hh"
 #include "io/Wrapper.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
@@ -122,62 +120,6 @@ auto syncCompatibilityAliases(ClockTreeSummary& summary) -> void
   summary.max_level_of_clock_tree = summary.clock_member_buffer_count;
   summary.max_clock_wirelength = summary.max_clock_net_wirelength_dbu;
   summary.total_clock_wirelength = summary.total_clock_tree_wirelength_dbu;
-}
-
-auto makeTerminal(Pin* pin) -> Router::ClockTerminal
-{
-  Router::ClockTerminal terminal;
-  if (pin == nullptr) {
-    return terminal;
-  }
-  auto* inst = pin->get_inst();
-  terminal.name = inst != nullptr ? (inst->get_name() + "/" + pin->get_name()) : pin->get_name();
-  terminal.location = pin->get_location();
-  terminal.pin_cap = 0.0;
-  terminal.insertion_delay = 0.0;
-  return terminal;
-}
-
-auto buildRouteTree(Net* net) -> Router::ClockSteinerTreeType
-{
-  if (net == nullptr || net->get_driver() == nullptr || net->get_loads().empty()) {
-    return {};
-  }
-
-  std::vector<Router::ClockTerminal> load_terminals;
-  load_terminals.reserve(net->get_loads().size());
-  for (auto* load : net->get_loads()) {
-    if (load == nullptr) {
-      continue;
-    }
-    load_terminals.push_back(makeTerminal(load));
-  }
-  if (load_terminals.empty()) {
-    return {};
-  }
-  if (load_terminals.size() == 1U) {
-    Router::ClockSteinerTreeType route_tree;
-    const auto driver_terminal = makeTerminal(net->get_driver());
-    const auto root_id = route_tree.addNode(driver_terminal.name, driver_terminal.location, true, driver_terminal.pin_cap,
-                                            driver_terminal.insertion_delay);
-    if (root_id == Router::ClockSteinerTreeType::kInvalidId) {
-      return {};
-    }
-    route_tree.setRoot(root_id);
-    const auto& load_terminal = load_terminals.front();
-    const auto load_id
-        = route_tree.addNode(load_terminal.name, load_terminal.location, true, load_terminal.pin_cap, load_terminal.insertion_delay);
-    if (load_id == Router::ClockSteinerTreeType::kInvalidId) {
-      return {};
-    }
-    const auto distance = geometry::Manhattan(driver_terminal.location, load_terminal.location);
-    const auto edge_id = route_tree.addEdge(root_id, load_id, distance, distance);
-    if (edge_id == Router::ClockSteinerTreeType::kInvalidId || !route_tree.validate()) {
-      return {};
-    }
-    return route_tree;
-  }
-  return Router::buildFluteTree(makeTerminal(net->get_driver()), load_terminals);
 }
 
 auto calcRouteWirelength(const Router::ClockSteinerTreeType& route_tree) -> int64_t
@@ -357,7 +299,7 @@ auto accumulateInstStatistics(const Inst& inst, CTSStatistics& statistics) -> vo
 
 auto installClockNetRcTreeAndMeasure(Net* net, ClockNetRole role, bool install_sta_rc_tree) -> std::optional<ClockNetMeasurement>
 {
-  auto route_tree = buildRouteTree(net);
+  auto route_tree = net == nullptr ? Router::ClockSteinerTreeType{} : Router::buildClockNetTree(*net);
   if (route_tree.node_count() == 0 || route_tree.edge_count() == 0) {
     return std::nullopt;
   }

@@ -35,6 +35,7 @@
 #include "HTreeTopologyChar.hh"
 #include "Inst.hh"
 #include "flow/htree/HTreeVisualizationSupport.hh"
+#include "visualization/core/SvgCommon.hh"
 
 namespace icts {
 class Pin;
@@ -51,8 +52,8 @@ struct BufferMasterSummary
 
 struct BufferRenderStyle
 {
-  std::string fill_color = "#ffbf69";
-  std::string stroke_color = "#8c4f00";
+  std::string fill_color = icts::visualization::detail::kSvgColorBufferFillDefault;
+  std::string stroke_color = icts::visualization::detail::kSvgColorBufferStrokeDefault;
   double half_size = 6.0;
 };
 
