@@ -1782,3 +1782,37 @@ Implemented CTS top-level source-to-root buffering, kept report visualization SV
 ### Next Steps
 
 - None - task complete
+
+
+## Session 39: CTS engineering refactor
+
+**Date**: 2026-04-29
+**Task**: CTS engineering refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Completed and archived the CTS engineering refactor: typed clock-tree stages, readonly evaluation/report boundaries, typed report data, visualization/statistics output contract, GDS/SVG report generation, backend spec cleanup, focused CTS tests and binary validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6c3928f0c` | (see git log) |
+| `778b2da07` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
