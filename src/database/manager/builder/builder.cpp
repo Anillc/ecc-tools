@@ -437,7 +437,16 @@ bool IdbBuilder::saveData(string folder)
 
 bool IdbBuilder::loadData(string folder)
 {
-  loadLayout(folder);
+  if (_lef_service == nullptr) {
+    _lef_service = new IdbLefService();
+  }
+
+  LayoutRead layout_read;
+  if (!layout_read.readLayout(_lef_service->get_layout(), folder)) {
+    std::cout << "Read binary layout failed: " << folder << endl;
+    return false;
+  }
+
   return loadDesign(folder);
 }
 

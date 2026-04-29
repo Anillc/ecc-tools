@@ -165,9 +165,14 @@ class BinaryReader
  private:
   void read_raw(char* data, std::streamsize size)
   {
+    const auto offset = _in.tellg();
     _in.read(data, size);
     if (!_in) {
-      throw std::runtime_error("read file failed: " + _path.string());
+      const auto actual = _in.gcount();
+      const auto file_size = std::filesystem::exists(_path) ? std::filesystem::file_size(_path) : uintmax_t{0};
+      throw std::runtime_error("read file failed: " + _path.string() + " offset=" + std::to_string(static_cast<long long>(offset))
+                               + " requested=" + std::to_string(size) + " actual=" + std::to_string(actual)
+                               + " file_size=" + std::to_string(file_size));
     }
   }
 
@@ -1593,37 +1598,53 @@ void read_layout_cell_masters(const std::string& folder, IdbLayout* layout)
   uint64_t master_count = 0;
   reader.read(master_count);
   for (uint64_t i = 0; i < master_count; ++i) {
-    auto* master = masters->set_cell_master(reader.read_string());
-    master->set_type(reader.read_enum<CellMasterType>());
-    master->set_symmetry_x(reader.read_bool());
-    master->set_symmetry_y(reader.read_bool());
-    master->set_symmetry_R90(reader.read_bool());
-    master->set_site(layout->get_sites()->find_site(reader.read_string()));
-    int64_t origin = 0;
-    reader.read(origin);
-    master->set_origin_x(origin);
-    reader.read(origin);
-    master->set_origin_y(origin);
-    uint32_t size = 0;
-    reader.read(size);
-    master->set_width(size);
-    reader.read(size);
-    master->set_height(size);
+    std::string master_name;
+    try {
+      master_name = reader.read_string();
+      auto* master = masters->set_cell_master(master_name);
+      master->set_type(reader.read_enum<CellMasterType>());
+      master->set_symmetry_x(reader.read_bool());
+      master->set_symmetry_y(reader.read_bool());
+      master->set_symmetry_R90(reader.read_bool());
+      master->set_site(layout->get_sites()->find_site(reader.read_string()));
+      int64_t origin = 0;
+      reader.read(origin);
+      master->set_origin_x(origin);
+      reader.read(origin);
+      master->set_origin_y(origin);
+      uint32_t size = 0;
+      reader.read(size);
+      master->set_width(size);
+      reader.read(size);
+      master->set_height(size);
 
-    uint64_t term_count = 0;
-    reader.read(term_count);
-    for (uint64_t j = 0; j < term_count; ++j) {
-      if (auto* term = read_term(reader, master, layout->get_layers(), layout->get_via_list())) {
-        master->add_term(term);
+      uint64_t term_count = 0;
+      reader.read(term_count);
+      for (uint64_t j = 0; j < term_count; ++j) {
+        try {
+          if (auto* term = read_term(reader, master, layout->get_layers(), layout->get_via_list())) {
+            master->add_term(term);
+          }
+        } catch (const std::exception& e) {
+          throw std::runtime_error("master=" + master_name + " term_index=" + std::to_string(j) + "/" + std::to_string(term_count)
+                                   + ": " + e.what());
+        }
       }
-    }
 
-    uint64_t obs_count = 0;
-    reader.read(obs_count);
-    for (uint64_t j = 0; j < obs_count; ++j) {
-      if (auto* obs = read_obs(reader, layout->get_layers())) {
-        master->add_obs(obs);
+      uint64_t obs_count = 0;
+      reader.read(obs_count);
+      for (uint64_t j = 0; j < obs_count; ++j) {
+        try {
+          if (auto* obs = read_obs(reader, layout->get_layers())) {
+            master->add_obs(obs);
+          }
+        } catch (const std::exception& e) {
+          throw std::runtime_error("master=" + master_name + " obs_index=" + std::to_string(j) + "/" + std::to_string(obs_count)
+                                   + ": " + e.what());
+        }
       }
+    } catch (const std::exception& e) {
+      throw std::runtime_error("cell_master_index=" + std::to_string(i) + "/" + std::to_string(master_count) + ": " + e.what());
     }
   }
 }
@@ -1987,44 +2008,55 @@ void read_design_nets(const std::string& folder, IdbDesign* design, IdbLayout* l
   reader.read(net_count);
   nets->init(static_cast<int32_t>(net_count));
   for (uint64_t i = 0; i < net_count; ++i) {
-    auto* net = nets->add_net(reader.read_string());
-    net->set_connect_type(reader.read_enum<IdbConnectType>());
-    net->set_source_type(IdbEnum::GetInstance()->get_instance_property()->get_type_str(reader.read_enum<IdbInstanceType>()));
-    int32_t value = 0;
-    reader.read(value);
-    net->set_weight(value);
-    net->set_original_net_name(reader.read_string());
-    reader.read(value);
-    net->set_xtalk(value);
-    net->set_fix_bump(reader.read_bool());
-    double frequency = 0.0;
-    reader.read(frequency);
-    net->set_frequency(frequency);
-    net->set_average_coordinate(read_coord(reader));
+    std::string net_name_value;
+    try {
+      net_name_value = reader.read_string();
+      auto* net = nets->add_net(net_name_value);
+      net->set_connect_type(reader.read_enum<IdbConnectType>());
+      net->set_source_type(IdbEnum::GetInstance()->get_instance_property()->get_type_str(reader.read_enum<IdbInstanceType>()));
+      int32_t value = 0;
+      reader.read(value);
+      net->set_weight(value);
+      net->set_original_net_name(reader.read_string());
+      reader.read(value);
+      net->set_xtalk(value);
+      net->set_fix_bump(reader.read_bool());
+      double frequency = 0.0;
+      reader.read(frequency);
+      net->set_frequency(frequency);
+      net->set_average_coordinate(read_coord(reader));
 
-    uint64_t pin_count = 0;
-    reader.read(pin_count);
-    for (uint64_t j = 0; j < pin_count; ++j) {
-      if (auto* pin = read_pin_ref(reader, design)) {
-        net->add_io_pin(pin);
-        pin->set_net(net);
-        pin->set_net_name(net->get_net_name());
+      uint64_t pin_count = 0;
+      reader.read(pin_count);
+      for (uint64_t j = 0; j < pin_count; ++j) {
+        if (auto* pin = read_pin_ref(reader, design)) {
+          net->add_io_pin(pin);
+          pin->set_net(net);
+          pin->set_net_name(net->get_net_name());
+        }
       }
-    }
-    reader.read(pin_count);
-    for (uint64_t j = 0; j < pin_count; ++j) {
-      if (auto* pin = read_pin_ref(reader, design)) {
-        net->add_instance_pin(pin);
-        pin->set_net(net);
-        pin->set_net_name(net->get_net_name());
+      reader.read(pin_count);
+      for (uint64_t j = 0; j < pin_count; ++j) {
+        if (auto* pin = read_pin_ref(reader, design)) {
+          net->add_instance_pin(pin);
+          pin->set_net(net);
+          pin->set_net_name(net->get_net_name());
+        }
       }
-    }
-    uint64_t wire_count = 0;
-    reader.read(wire_count);
-    for (uint64_t j = 0; j < wire_count; ++j) {
-      if (auto* wire = read_regular_wire(reader, layout->get_layers(), layout->get_via_rule_list())) {
-        net->get_wire_list()->add_wire(wire);
+      uint64_t wire_count = 0;
+      reader.read(wire_count);
+      for (uint64_t j = 0; j < wire_count; ++j) {
+        try {
+          if (auto* wire = read_regular_wire(reader, layout->get_layers(), layout->get_via_rule_list())) {
+            net->get_wire_list()->add_wire(wire);
+          }
+        } catch (const std::exception& e) {
+          throw std::runtime_error("net=" + net_name_value + " wire_index=" + std::to_string(j) + "/" + std::to_string(wire_count)
+                                   + ": " + e.what());
+        }
       }
+    } catch (const std::exception& e) {
+      throw std::runtime_error("net_index=" + std::to_string(i) + "/" + std::to_string(net_count) + ": " + e.what());
     }
   }
 }

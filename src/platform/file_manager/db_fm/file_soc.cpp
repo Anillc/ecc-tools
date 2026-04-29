@@ -176,6 +176,7 @@ bool JsonSoc::saveJson()
   }
 
   cores_json["number"] = core_list_json.size();
+  cores_json["seleted"] = -1; //default id
   cores_json["list"] = core_list_json;
   soc_json["cores"] = cores_json;
 
