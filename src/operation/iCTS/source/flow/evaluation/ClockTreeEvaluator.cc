@@ -18,7 +18,7 @@
  * @file ClockTreeEvaluator.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-26
- * @brief CTS clock-tree writeback and evaluation stage implementation.
+ * @brief CTS clock-tree evaluation stage implementation.
  */
 
 #include "evaluation/ClockTreeEvaluator.hh"
@@ -50,7 +50,7 @@
 #include "io/Wrapper.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "routing/Router.hh"
+#include "routing/router/Router.hh"
 #include "timing/TimingEngine.hh"
 
 namespace icts {
@@ -64,7 +64,7 @@ auto latestSummary() -> ClockTreeSummary&
 
 enum class ClockNetRole
 {
-  kTop,
+  kSourceToRoot,
   kTrunk,
   kLeaf
 };
@@ -199,7 +199,7 @@ auto classifyClockNet(const Clock& clock, const Net* net) -> ClockNetRole
     return ClockNetRole::kTrunk;
   }
   if (net == clock.get_clock_source_net()) {
-    return ClockNetRole::kTop;
+    return ClockNetRole::kSourceToRoot;
   }
 
   for (const auto* load : net->get_loads()) {
@@ -217,7 +217,7 @@ auto classifyClockNet(const Clock& clock, const Net* net) -> ClockNetRole
 auto addWirelengthByRole(CTSStatistics& statistics, ClockNetRole role, double wirelength_um, double hpwl_um) -> void
 {
   switch (role) {
-    case ClockNetRole::kTop:
+    case ClockNetRole::kSourceToRoot:
       statistics.top_wirelength_um += wirelength_um;
       statistics.hpwl_top_wirelength_um += hpwl_um;
       break;
@@ -430,10 +430,9 @@ auto emitClockTimingTables(const ClockTreeSummary& summary) -> void
   }
 }
 
-auto emitEvaluationSummary(const ClockTreeSummary& summary, bool wrote_idb, bool refreshed_sta) -> void
+auto emitEvaluationSummary(const ClockTreeSummary& summary, bool refreshed_sta) -> void
 {
   schema::EmitKeyValueTable("CTS Evaluation Summary", {
-                                                          {"idb_writeback_done", wrote_idb ? "true" : "false"},
                                                           {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
                                                           {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
                                                           {"propagated_clock_count", std::to_string(summary.propagated_clock_count)},
@@ -450,6 +449,11 @@ auto emitEvaluationSummary(const ClockTreeSummary& summary, bool wrote_idb, bool
 
 auto ClockTreeEvaluator::evaluate() -> void
 {
+  evaluate(ClockTreeEvaluationOptions{});
+}
+
+auto ClockTreeEvaluator::evaluate(const ClockTreeEvaluationOptions& options) -> void
+{
   auto& summary = latestSummary();
   auto& statistics = latestStatistics();
   clearSummary(summary);
@@ -457,8 +461,7 @@ auto ClockTreeEvaluator::evaluate() -> void
 
   auto clocks = DESIGN_INST.get_clocks();
   summary.design_dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
-  const bool wrote_idb = WRAPPER_INST.writeClocks(clocks);
-  const bool should_refresh_sta = WRAPPER_INST.is_design_ready() && wrote_idb;
+  const bool should_refresh_sta = WRAPPER_INST.is_design_ready() && options.refresh_sta_timing;
   if (should_refresh_sta) {
     STA_ADAPTER_INST.refreshFullDesignTimingContext();
     summary.propagated_clock_count = STA_ADAPTER_INST.setPropagatedClocks();
@@ -517,8 +520,8 @@ auto ClockTreeEvaluator::evaluate() -> void
   syncCompatibilityAliases(summary);
   statistics.valid = true;
   summary.has_evaluation_result = true;
-  emitEvaluationSummary(summary, wrote_idb, timing_updated);
-  (void) writeStatistics(CONFIG_INST.get_work_dir(), true);
+  emitEvaluationSummary(summary, timing_updated);
+  (void) writeStatistics(CONFIG_INST.get_statistics_dir(), true);
 }
 
 auto ClockTreeEvaluator::outputSummary() -> ClockTreeSummary
@@ -531,7 +534,7 @@ auto ClockTreeEvaluator::hasEvaluationResult() -> bool
   return latestSummary().has_evaluation_result && latestStatistics().valid;
 }
 
-auto ClockTreeEvaluator::writeStatistics(const std::string& save_dir, bool emit_log_tables) -> bool
+auto ClockTreeEvaluator::writeStatistics(const std::string& statistics_dir, bool emit_log_tables) -> bool
 {
   const auto& statistics = latestStatistics();
   if (!statistics.valid) {
@@ -539,8 +542,9 @@ auto ClockTreeEvaluator::writeStatistics(const std::string& save_dir, bool emit_
     return false;
   }
 
-  const auto root_dir = save_dir.empty() ? std::filesystem::path(CONFIG_INST.get_work_dir()) : std::filesystem::path(save_dir);
-  const bool success = CTSStatisticsWriter::writeReports(root_dir, statistics);
+  const auto report_dir
+      = statistics_dir.empty() ? std::filesystem::path(CONFIG_INST.get_statistics_dir()) : std::filesystem::path(statistics_dir);
+  const bool success = CTSStatisticsWriter::writeReports(report_dir, statistics);
   if (emit_log_tables) {
     CTSStatisticsWriter::emitLogTables(statistics);
   }

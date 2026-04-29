@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -99,6 +100,32 @@ auto appendIdbPinToNet(idb::IdbNet* idb_net, idb::IdbPin* idb_pin) -> void
       idb_net->add_instance_pin(idb_pin);
     }
   }
+}
+
+auto BuildCellGeometry(idb::IdbInstance* idb_inst) -> WrapperCellGeometry
+{
+  WrapperCellGeometry geometry;
+  if (idb_inst == nullptr) {
+    return geometry;
+  }
+
+  auto* cell_master = idb_inst->get_cell_master();
+  auto* bbox = idb_inst->get_bounding_box();
+  auto* coordinate = idb_inst->get_coordinate();
+  geometry.name = idb_inst->get_name();
+  geometry.cell_master = cell_master == nullptr ? std::string{} : cell_master->get_name();
+  if (bbox != nullptr) {
+    geometry.origin = Point<int>(bbox->get_low_x(), bbox->get_low_y());
+    geometry.width_dbu = bbox->get_width();
+    geometry.height_dbu = bbox->get_height();
+  } else if (coordinate != nullptr) {
+    geometry.origin = Point<int>(coordinate->get_x(), coordinate->get_y());
+    if (cell_master != nullptr) {
+      geometry.width_dbu = static_cast<int32_t>(cell_master->get_width());
+      geometry.height_dbu = static_cast<int32_t>(cell_master->get_height());
+    }
+  }
+  return geometry;
 }
 
 auto clearIdbNetPins(idb::IdbNet* idb_net) -> void
@@ -652,6 +679,48 @@ auto Wrapper::writeClocks(const std::vector<Clock*>& clocks) -> bool
     success = writeClock(*clock) && success;
   }
   return success;
+}
+
+auto Wrapper::collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>
+{
+  std::vector<WrapperCellGeometry> geometries;
+  if (_idb_design == nullptr || _idb_design->get_instance_list() == nullptr) {
+    LOG_WARNING << "Cannot collect iDB logic-cell geometry: iDB design or instance list is not ready.";
+    return geometries;
+  }
+
+  const auto& idb_insts = _idb_design->get_instance_list()->get_instance_list();
+  geometries.reserve(idb_insts.size());
+  for (auto* idb_inst : idb_insts) {
+    if (idb_inst == nullptr || idb_inst->is_clock_instance() || idb_inst->is_physical()) {
+      continue;
+    }
+    auto* cell_master = idb_inst->get_cell_master();
+    if (cell_master == nullptr || !cell_master->is_logic()) {
+      continue;
+    }
+    geometries.push_back(BuildCellGeometry(idb_inst));
+  }
+  return geometries;
+}
+
+auto Wrapper::queryInstGeometry(const std::string& inst_name) const -> std::optional<WrapperCellGeometry>
+{
+  if (inst_name.empty()) {
+    return std::nullopt;
+  }
+  if (_idb_design == nullptr || _idb_design->get_instance_list() == nullptr) {
+    LOG_WARNING << "Cannot query iDB inst geometry: iDB design or instance list is not ready.";
+    return std::nullopt;
+  }
+
+  const auto& idb_insts = _idb_design->get_instance_list()->get_instance_list();
+  auto iter = std::ranges::find_if(
+      idb_insts, [&inst_name](idb::IdbInstance* idb_inst) -> bool { return idb_inst != nullptr && idb_inst->get_name() == inst_name; });
+  if (iter == idb_insts.end()) {
+    return std::nullopt;
+  }
+  return BuildCellGeometry(*iter);
 }
 
 }  // namespace icts

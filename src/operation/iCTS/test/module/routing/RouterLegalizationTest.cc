@@ -32,7 +32,7 @@
 #include "database/spatial/Point.hh"
 #include "database/spatial/Rect.hh"
 #include "database/spatial/Region.hh"
-#include "module/routing/Router.hh"
+#include "module/routing/router/Router.hh"
 
 namespace icts_test {
 namespace {

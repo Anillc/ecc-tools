@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Validate iCTS hard constraints, no iterative ecc_dev_tools use, and final full-module validation requirement."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec authority map for final review."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Review layer placement, CMake target structure, and API/source/test dependency direction."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review naming, include minimality, CMake dependency visibility, and checker expectations."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Review singleton boundaries, ownership, adapter access, and borrowed pointer lifetime after refactor."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review logging-based recoverable/fatal error handling and no-exception compliance."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review report/log schema preservation and correct structured output ownership."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review cross-layer data flow and adapter/writeback/timing ordering."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review helper extraction, duplication, and CMake/link reuse decisions."}
+{"file": ".trellis/tasks/04-28-cts-engineering-refactor/research/api-flow-orchestration.md", "reason": "Check public API/caller compatibility and flow orchestration decomposition against research findings."}
+{"file": ".trellis/tasks/04-28-cts-engineering-refactor/research/synthesis-htree-characterization.md", "reason": "Check synthesis/HTree/characterization behavior, hidden cache coverage, and data ownership constraints."}
+{"file": ".trellis/tasks/04-28-cts-engineering-refactor/research/database-netlist-build.md", "reason": "Check database/netlist/adapter ordering, CMake/test risks, and validation-command caveats."}

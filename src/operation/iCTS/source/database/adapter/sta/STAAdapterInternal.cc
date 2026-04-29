@@ -263,75 +263,6 @@ auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_
   return GetStaEngine()->findLibertyCell(cell_master.c_str());
 }
 
-auto CalcSelectedNetSwitchPower(ipower::Power* power, const std::unordered_set<std::string>& net_names) -> double
-{
-  if (power == nullptr || net_names.empty()) {
-    return 0.0;
-  }
-
-  auto& power_graph = power->get_power_graph();
-  auto* sta_graph = power_graph.get_sta_graph();
-  if (sta_graph == nullptr) {
-    return 0.0;
-  }
-
-  auto* netlist = sta_graph->get_nl();
-  if (netlist == nullptr) {
-    return 0.0;
-  }
-
-  double switch_power_w = 0.0;
-  for (const auto& net_name : net_names) {
-    auto* net = netlist->findNet(net_name.c_str());
-    if (net == nullptr || net->getLoads().empty()) {
-      continue;
-    }
-
-    auto* driver_obj = net->getDriver();
-    if (driver_obj == nullptr) {
-      continue;
-    }
-    if (driver_obj->isPort() != 0U && net->getLoads().size() == 1U && net->getLoads().front()->isPort() != 0U) {
-      continue;
-    }
-
-    auto driver_sta_vertex = sta_graph->findVertex(driver_obj);
-    if (!driver_sta_vertex.has_value()) {
-      continue;
-    }
-
-    auto* driver_pwr_vertex = power_graph.staToPwrVertex(*driver_sta_vertex);
-    if (driver_pwr_vertex == nullptr) {
-      continue;
-    }
-
-    const auto driver_voltage = driver_pwr_vertex->getDriveVoltage();
-    if (!driver_voltage.has_value()) {
-      continue;
-    }
-
-    const double toggle = driver_pwr_vertex->getToggleData(std::nullopt);
-    const double net_cap = (*driver_sta_vertex)->getNetLoad();
-    const double switch_power_mw = c_switch_power_K * toggle * net_cap * driver_voltage.value() * driver_voltage.value();
-    switch_power_w += switch_power_mw / static_cast<double>(ipower::g_mw2w);
-  }
-
-  return switch_power_w;
-}
-
-auto FilterPowerCells(ipower::Power* power, const std::unordered_set<std::string>& inst_names) -> void
-{
-  if (power == nullptr || inst_names.empty()) {
-    return;
-  }
-
-  auto& power_cells = power->get_power_graph().get_cells();
-  auto erase_result = std::ranges::remove_if(power_cells, [&inst_names](const std::unique_ptr<ipower::PwrCell>& cell) -> bool {
-    return cell == nullptr || !inst_names.contains(cell->get_design_inst()->get_name());
-  });
-  power_cells.erase(erase_result.begin(), erase_result.end());
-}
-
 auto AnnotateCharSourceInputPower(ipower::Power* power, const std::optional<std::string>& source_input_pin_full_name) -> void
 {
   if (power == nullptr || !source_input_pin_full_name.has_value() || source_input_pin_full_name->empty()) {
@@ -593,8 +524,10 @@ auto QueryLibPortCapacitancePf(ista::LibCell* lib_cell, ista::LibPort* lib_port)
   return ConvertLibCapToPf(lib_cell, cap_value);
 }
 
+namespace {
+
 auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
-                     std::unique_ptr<ista::LibCurrentData> output_current_data) -> void
+                     std::unique_ptr<ista::LibCurrentData> output_current_data = nullptr) -> void
 {
   LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when installing characterization slew data.";
   const int slew_fs = static_cast<int>(NS_TO_FS(slew_ns));
@@ -602,6 +535,8 @@ auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double
   slew_data->set_output_current_data(std::move(output_current_data));
   vertex->addData(slew_data.release());
 }
+
+}  // namespace
 
 auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_pin, ista::StaVertex* output_vertex,
                               ista::Instance* source_inst, ista::LibCell* lib_cell, ista::LibArcSet* source_arc_set, ista::LibArc* lib_arc,

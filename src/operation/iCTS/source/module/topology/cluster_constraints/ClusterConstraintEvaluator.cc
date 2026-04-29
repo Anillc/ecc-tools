@@ -38,7 +38,6 @@
 #include "PinLocationHelper.hh"
 #include "Point.hh"
 #include "RCTree.hh"
-#include "Router.hh"
 #include "SteinerTree.hh"
 #include "TimingEngine.hh"
 #include "TopologyConfig.hh"
@@ -46,6 +45,7 @@
 #include "bound_skew_tree/BSTTypes.hh"
 #include "io/Wrapper.hh"
 #include "local_legalization/LocalLegalization.hh"
+#include "router/Router.hh"
 
 namespace icts {
 namespace {

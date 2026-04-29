@@ -59,6 +59,13 @@ class ClockSynthesis
     HTreeBuilder::LogContext log_context;
   };
 
+  enum class SourceToRootStage
+  {
+    kUnknown,
+    kSegment,
+    kHTree
+  };
+
   struct ClusterBufferMeta
   {
     std::size_t cluster_index = 0;
@@ -97,13 +104,15 @@ class ClockSynthesis
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;
     std::vector<std::unique_ptr<Net>> inserted_nets;
+    std::vector<HTreeBuilder::InsertedInstLevel> inserted_inst_levels;
+    std::vector<HTreeBuilder::InsertedNetLevel> inserted_net_levels;
   };
 
   struct SourceToRootBuildResult
   {
     bool success = false;
     std::string failure_reason;
-    std::string stage;
+    SourceToRootStage stage = SourceToRootStage::kUnknown;
     HTreeBuilder::BuildResult htree_result;
     std::size_t inserted_buffer_count = 0U;
     std::size_t inserted_net_count = 0U;
@@ -112,6 +121,8 @@ class ClockSynthesis
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;
     std::vector<std::unique_ptr<Net>> inserted_nets;
+    std::vector<HTreeBuilder::InsertedInstLevel> inserted_inst_levels;
+    std::vector<HTreeBuilder::InsertedNetLevel> inserted_net_levels;
   };
 
   ClockSynthesis() = delete;
@@ -121,5 +132,7 @@ class ClockSynthesis
   static auto buildSourceToRoot(Net& source_net, Pin* clock_source, const std::vector<Pin*>& root_inputs,
                                 const SourceToRootBuildOptions& options) -> SourceToRootBuildResult;
 };
+
+auto ToString(ClockSynthesis::SourceToRootStage stage) -> const char*;
 
 }  // namespace icts

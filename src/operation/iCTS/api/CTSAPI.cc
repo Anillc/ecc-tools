@@ -22,16 +22,9 @@
  */
 #include "CTSAPI.hh"
 
-#include <glog/logging.h>
-
-#include <filesystem>
-#include <ostream>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "Log.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
@@ -39,8 +32,7 @@
 #include "feature_icts.h"
 #include "feature_ista.h"
 #include "flow/FlowManager.hh"
-#include "idm.h"
-#include "time/Time.hh"
+#include "flow/session/CTSRunEnvironment.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts {
@@ -94,42 +86,7 @@ auto CTSAPI::resetAPI() -> void
 auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
 {
   resetAPI();
-  const std::string generated_on = ieda::Time::getNowWallTime();
-  // Config
-  CONFIG_INST.init(config_file);
-  auto dir_str = work_dir.empty() ? CONFIG_INST.get_work_dir() : work_dir;
-  auto dir = std::filesystem::path(dir_str);
-  if (!std::filesystem::exists(dir)) {
-    std::filesystem::create_directories(dir);
-  }
-  CONFIG_INST.set_work_dir(dir.string());
-
-  const auto log_path = (dir / "cts.log").string();
-  const auto gds_path = (dir / "cts.gds").string();
-  const auto def_path = dir / "output";
-  if (!std::filesystem::exists(def_path)) {
-    std::filesystem::create_directories(def_path);
-  }
-  CONFIG_INST.set_log_file(log_path);
-  CONFIG_INST.set_gds_file(gds_path);
-  CONFIG_INST.set_output_def_path(def_path.string());
-
-  SCHEMA_WRITER_INST.open(CONFIG_INST.get_log_file(), "iCTS Run",
-                          {
-                              {"config_file", config_file},
-                              {"work_dir", dir.string()},
-                          });
-  LOG_INFO << "Generate the report at " << generated_on;
-
-  // DB Wrapper
-  auto* idb_builder = dmInst->get_idb_builder();
-  LOG_FATAL_IF(idb_builder == nullptr) << "idb builder is null";
-  WRAPPER_INST.init(idb_builder);
-
-  // STA
-  STA_ADAPTER_INST.init();
-
-  // Flow Manager
+  CTSRunEnvironment::initialize(config_file, work_dir);
   FLOW_MANAGER_INST.outputRuntimeSetup();
 }
 

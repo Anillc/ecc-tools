@@ -1,6 +1,13 @@
 add_library(
   icts_source_flow_synthesis
+  ${ICTS_FLOW_SYNTHESIS}/ClockSinkTreeSynthesizer.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSourceRootSynthesizer.cc
   ${ICTS_FLOW_SYNTHESIS}/ClockSynthesis.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisHtreeOptions.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisNetEditor.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisReporter.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisResultAccounting.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisSinkClustering.cc
 )
 
 target_link_libraries(

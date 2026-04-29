@@ -128,14 +128,13 @@ auto writeReportFile(const std::filesystem::path& path, const std::string& title
 
 }  // namespace
 
-auto CTSStatisticsWriter::writeReports(const std::filesystem::path& root_dir, const CTSStatistics& statistics) -> bool
+auto CTSStatisticsWriter::writeReports(const std::filesystem::path& statistics_dir, const CTSStatistics& statistics) -> bool
 {
-  if (root_dir.empty()) {
-    LOG_WARNING << "CTSStatisticsWriter: statistics report root directory is empty.";
+  if (statistics_dir.empty()) {
+    LOG_WARNING << "CTSStatisticsWriter: statistics report directory is empty.";
     return false;
   }
 
-  const auto statistics_dir = root_dir / "statistics";
   std::error_code error_code;
   std::filesystem::create_directories(statistics_dir, error_code);
   if (error_code) {

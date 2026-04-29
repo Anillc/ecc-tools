@@ -25,6 +25,7 @@ Backend rules for `src/operation/iCTS/`.
 
 - Adding or moving modules/targets -> [Directory Structure](./directory-structure.md)
 - Working with `Design`, `Config`, `Wrapper`, or `STAAdapter` -> [Database Guidelines](./database-guidelines.md)
+- Refactoring CTS flow, synthesis, evaluation, or report code -> [Directory Structure](./directory-structure.md), [Database Guidelines](./database-guidelines.md), and [Quality Guidelines](./quality-guidelines.md)
 - Choosing log level or logging style -> [Logging Guidelines](./logging-guidelines.md)
 - Deciding whether to return, warn, or terminate -> [Error Handling](./error-handling.md)
 - Naming, include cleanup, CMake visibility, or validation flow -> [Quality Guidelines](./quality-guidelines.md)

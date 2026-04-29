@@ -70,6 +70,8 @@ class SegmentBuilder
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;
     std::vector<std::unique_ptr<Net>> inserted_nets;
+    std::vector<HTreeBuilder::InsertedInstLevel> inserted_inst_levels;
+    std::vector<HTreeBuilder::InsertedNetLevel> inserted_net_levels;
   };
 
   SegmentBuilder() = delete;

@@ -365,7 +365,7 @@ TEST(ClockSynthesisTest, SourceToRootSingleRootSameLocationDirectConnectsWithout
       = icts::ClockSynthesis::buildSourceToRoot(source_net, &source, {&root_input}, icts::ClockSynthesis::SourceToRootBuildOptions{});
 
   EXPECT_TRUE(result.success);
-  EXPECT_EQ(result.stage, "top_segment");
+  EXPECT_EQ(result.stage, icts::ClockSynthesis::SourceToRootStage::kSegment);
   EXPECT_EQ(result.inserted_insts.size(), 0U);
   EXPECT_EQ(result.inserted_nets.size(), 0U);
   EXPECT_EQ(source_net.get_driver(), &source);

@@ -18,12 +18,16 @@
  * @file CTSVisualizationReport.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-28
- * @brief Report-stage CTS visualization artifact generation.
+ * @brief Report-stage CTS visualization report generation.
  */
 
 #pragma once
 
 #include <filesystem>
+
+namespace icts {
+class ClockTreeReportData;
+}
 
 namespace icts::report {
 
@@ -32,6 +36,7 @@ struct CTSVisualizationReportResult
   bool success = false;
 };
 
-auto EmitCTSVisualizationArtifacts(const std::filesystem::path& report_root_dir) -> CTSVisualizationReportResult;
+auto EmitCTSVisualizationReports(const std::filesystem::path& visualization_dir, const ClockTreeReportData& report_data)
+    -> CTSVisualizationReportResult;
 
 }  // namespace icts::report

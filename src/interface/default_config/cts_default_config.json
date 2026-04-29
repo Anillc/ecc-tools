@@ -4,8 +4,7 @@
         "write_cts_data": "ON",
         "cts_data_file": "<path>",
         "sta_work_dir": "<path>",
-        "log_file": "<path>",
-        "gds_file": "<path>"
+        "log_file": "<path>"
     },
     "router_type": "ZST",
     "delay_type": "elmore",

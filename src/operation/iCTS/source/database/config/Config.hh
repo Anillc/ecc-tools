@@ -78,9 +78,9 @@ class Config
     _htree_topology_tolerance = 0.1;
     _enable_sink_clustering = true;
     _work_dir = "./result/cts";
-    _output_def_path = "./result/cts/output";
     _log_file = "./result/cts/cts.log";
-    _gds_file = "./result/cts/output/cts.gds";
+    _visualization_dir = "./result/cts/visualization";
+    _statistics_dir = "./result/cts/statistics";
     _use_netlist = false;
     _net_list.clear();
   }
@@ -109,9 +109,9 @@ class Config
 
   // file
   auto get_work_dir() const -> const std::string& { return _work_dir; }
-  auto get_output_def_path() const -> const std::string& { return _output_def_path; }
   auto get_log_file() const -> const std::string& { return _log_file; }
-  auto get_gds_file() const -> const std::string& { return _gds_file; }
+  auto get_visualization_dir() const -> const std::string& { return _visualization_dir; }
+  auto get_statistics_dir() const -> const std::string& { return _statistics_dir; }
   auto is_use_netlist() const -> bool { return _use_netlist; }
   auto get_net_list() const -> const std::vector<std::pair<std::string, std::string>> { return _net_list; }
 
@@ -145,9 +145,9 @@ class Config
 
   // file
   auto set_work_dir(const std::string& work_dir) -> void { _work_dir = work_dir; }
-  auto set_output_def_path(const std::string& output_def_path) -> void { _output_def_path = output_def_path; }
   auto set_log_file(const std::string& file) -> void { _log_file = file; }
-  auto set_gds_file(const std::string& file) -> void { _gds_file = file; }
+  auto set_visualization_dir(const std::string& dir) -> void { _visualization_dir = dir; }
+  auto set_statistics_dir(const std::string& dir) -> void { _statistics_dir = dir; }
   auto set_use_netlist(bool use_netlist) -> void { _use_netlist = use_netlist; }
   auto set_net_list(const std::vector<std::pair<std::string, std::string>>& net_list) -> void { _net_list = net_list; }
 
@@ -184,9 +184,9 @@ class Config
 
   // file
   std::string _work_dir = "./result/cts";
-  std::string _output_def_path = "./result/cts/output";
   std::string _log_file = "./result/cts/cts.log";
-  std::string _gds_file = "./result/cts/output/cts.gds";
+  std::string _visualization_dir = "./result/cts/visualization";
+  std::string _statistics_dir = "./result/cts/statistics";
 
   bool _use_netlist = false;
   std::vector<std::pair<std::string, std::string>> _net_list;

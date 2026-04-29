@@ -32,27 +32,107 @@
 #include <vector>
 
 #include "Log.hh"
+#include "PwrConfig.hh"
+#include "PwrType.hh"
 #include "STAAdapter.hh"
 #include "STAAdapterInternal.hh"
 #include "Vector.hh"
 #include "api/Power.hh"
 #include "api/TimingEngine.hh"
 #include "core/PwrAnalysisData.hh"
+#include "core/PwrCell.hh"
+#include "core/PwrGraph.hh"
+#include "core/PwrVertex.hh"
+#include "netlist/Net.hh"
+#include "netlist/Pin.hh"
 #include "sta/Sta.hh"
+#include "sta/StaGraph.hh"
+#include "sta/StaVertex.hh"
 
 namespace icts {
+namespace {
+
+auto calcSelectedNetSwitchPower(ipower::Power* power, const std::unordered_set<std::string>& net_names) -> double
+{
+  if (power == nullptr || net_names.empty()) {
+    return 0.0;
+  }
+
+  auto& power_graph = power->get_power_graph();
+  auto* sta_graph = power_graph.get_sta_graph();
+  if (sta_graph == nullptr) {
+    return 0.0;
+  }
+
+  auto* netlist = sta_graph->get_nl();
+  if (netlist == nullptr) {
+    return 0.0;
+  }
+
+  double switch_power_w = 0.0;
+  for (const auto& net_name : net_names) {
+    auto* net = netlist->findNet(net_name.c_str());
+    if (net == nullptr || net->getLoads().empty()) {
+      continue;
+    }
+
+    auto* driver_obj = net->getDriver();
+    if (driver_obj == nullptr) {
+      continue;
+    }
+    if (driver_obj->isPort() != 0U && net->getLoads().size() == 1U && net->getLoads().front()->isPort() != 0U) {
+      continue;
+    }
+
+    auto driver_sta_vertex = sta_graph->findVertex(driver_obj);
+    if (!driver_sta_vertex.has_value()) {
+      continue;
+    }
+
+    auto* driver_pwr_vertex = power_graph.staToPwrVertex(*driver_sta_vertex);
+    if (driver_pwr_vertex == nullptr) {
+      continue;
+    }
+
+    const auto driver_voltage = driver_pwr_vertex->getDriveVoltage();
+    if (!driver_voltage.has_value()) {
+      continue;
+    }
+
+    const double toggle = driver_pwr_vertex->getToggleData(std::nullopt);
+    const double net_cap = (*driver_sta_vertex)->getNetLoad();
+    const double switch_power_mw = c_switch_power_K * toggle * net_cap * driver_voltage.value() * driver_voltage.value();
+    switch_power_w += switch_power_mw / static_cast<double>(ipower::g_mw2w);
+  }
+
+  return switch_power_w;
+}
+
+auto filterPowerCells(ipower::Power* power, const std::unordered_set<std::string>& inst_names) -> void
+{
+  if (power == nullptr || inst_names.empty()) {
+    return;
+  }
+
+  auto& power_cells = power->get_power_graph().get_cells();
+  auto erase_result = std::ranges::remove_if(power_cells, [&inst_names](const std::unique_ptr<ipower::PwrCell>& cell) -> bool {
+    return cell == nullptr || !inst_names.contains(cell->get_design_inst()->get_name());
+  });
+  power_cells.erase(erase_result.begin(), erase_result.end());
+}
+
+}  // namespace
 
 auto STAAdapter::prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
-                                  std::optional<std::string> source_input_pin_full_name) -> bool
+                                  const std::optional<std::string>& source_input_pin_full_name) -> bool
 {
-  auto& adapter = getInst();
-  adapter.resetCharPowerState();
-  auto& runtime = adapter._char_power_state;
+  resetCharPowerState();
+  auto& runtime = _char_power_state;
   runtime.inst_names = inst_names;
   runtime.net_names = net_names;
   runtime.inst_name_set = std::unordered_set<std::string>(inst_names.begin(), inst_names.end());
   runtime.net_name_set = std::unordered_set<std::string>(net_names.begin(), net_names.end());
-  runtime.source_input_pin_full_name = std::move(source_input_pin_full_name);
+  runtime.source_input_pin_full_name = source_input_pin_full_name;
 
   if (runtime.inst_names.empty()) {
     LOG_WARNING << "Characterization power setup skipped: no selected instances are provided.";
@@ -83,7 +163,7 @@ auto STAAdapter::refreshCharPowerLoad() -> bool
     return false;
   }
 
-  runtime.cached_switch_power_w = sta_adapter_internal::CalcSelectedNetSwitchPower(power, runtime.net_name_set);
+  runtime.cached_switch_power_w = calcSelectedNetSwitchPower(power, runtime.net_name_set);
   runtime.is_switch_power_cached = true;
   return true;
 }
@@ -102,7 +182,7 @@ auto STAAdapter::updateCharPower() -> bool
     }
 
     sta_adapter_internal::AnnotateCharSourceInputPower(power, runtime.source_input_pin_full_name);
-    sta_adapter_internal::FilterPowerCells(power, runtime.inst_name_set);
+    filterPowerCells(power, runtime.inst_name_set);
     if (power->calcLeakagePower() == 0U) {
       LOG_WARNING << "Characterization power update skipped: leakage calculation failed.";
       return false;
@@ -117,7 +197,7 @@ auto STAAdapter::updateCharPower() -> bool
   }
 
   if (!runtime.is_switch_power_cached) {
-    runtime.cached_switch_power_w = sta_adapter_internal::CalcSelectedNetSwitchPower(power, runtime.net_name_set);
+    runtime.cached_switch_power_w = calcSelectedNetSwitchPower(power, runtime.net_name_set);
     runtime.is_switch_power_cached = true;
   }
 
@@ -148,7 +228,7 @@ auto STAAdapter::queryCharNetSwitchPower(const std::string& net_name) -> double
     return 0.0;
   }
 
-  return sta_adapter_internal::CalcSelectedNetSwitchPower(power, std::unordered_set<std::string>{net_name});
+  return calcSelectedNetSwitchPower(power, std::unordered_set<std::string>{net_name});
 }
 
 auto STAAdapter::destroyCharPower() -> void

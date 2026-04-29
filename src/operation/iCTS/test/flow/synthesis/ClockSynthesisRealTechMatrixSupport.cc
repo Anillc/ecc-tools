@@ -52,7 +52,7 @@
 #include "geometry/Geometry.hh"
 #include "htree/HTreeBuilder.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
-#include "routing/Router.hh"
+#include "routing/router/Router.hh"
 #include "timing/TimingEngine.hh"
 
 namespace icts_test::synthesis_realtech_smoke {

@@ -10,6 +10,7 @@ target_link_libraries(
   icts_source_database
   icts_source_module_routing_database
   PRIVATE
+  icts_source_database_design
   salt
 )
 

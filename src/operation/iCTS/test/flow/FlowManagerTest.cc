@@ -18,7 +18,7 @@
  * @file FlowManagerTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-25
- * @brief Lightweight interface and sink-group wiring tests for FlowManager.
+ * @brief Lightweight interface and sink-domain wiring tests for FlowManager.
  */
 
 #include <gtest/gtest.h>
@@ -43,7 +43,8 @@
 #include "evaluation/ClockTreeEvaluator.hh"
 #include "feature_icts.h"
 #include "flow/FlowManager.hh"
-#include "flow/netlist/ClockNetManager.hh"
+#include "flow/netlist/ClockNetEditor.hh"
+#include "flow/report_data/ClockTreeReportData.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
@@ -188,37 +189,37 @@ auto addClockToDesign(icts::Inst* macro_inst, icts::Inst* regular_inst) -> TestC
 auto prepareDirectRootBufferNets(icts::Clock& clock, const std::string& cell_master, const std::string& input_pin_name,
                                  const std::string& output_pin_name) -> void
 {
-  icts::ClockNetManager::restoreClockSourceNetToClockLoads(clock);
+  icts::ClockNetEditor::restoreClockSourceNetToClockLoads(clock);
   DESIGN_INST.removeClockMembershipObjects(clock);
   clock.clearMembership();
 
   std::vector<icts::Pin*> macro_sinks;
   std::vector<icts::Pin*> regular_sinks;
-  icts::ClockNetManager::partitionClockSinks(clock.get_loads(), macro_sinks, regular_sinks);
+  icts::ClockNetEditor::partitionClockSinks(clock.get_loads(), macro_sinks, regular_sinks);
 
   std::vector<icts::Pin*> root_inputs;
 
-  auto build_group = [&](const std::string& sink_group, const std::vector<icts::Pin*>& sinks) -> bool {
+  auto build_domain = [&](icts::CTSSinkDomain sink_domain, const std::vector<icts::Pin*>& sinks) -> bool {
     if (sinks.empty()) {
       return true;
     }
-    const auto group_prefix = icts::ClockNetManager::makeSinkGroupPrefix(clock, 0U, sink_group);
+    const auto domain_prefix = icts::ClockNetEditor::makeSinkDomainPrefix(clock, 0U, sink_domain);
     icts::Inst* root_buffer = nullptr;
     icts::Pin* root_input = nullptr;
     icts::Pin* root_output = nullptr;
-    if (!icts::ClockNetManager::addRootBufferForSinkGroup(clock, group_prefix, cell_master, input_pin_name, output_pin_name, sinks,
+    if (!icts::ClockNetEditor::addRootBufferForSinkDomain(clock, domain_prefix, cell_master, input_pin_name, output_pin_name, sinks,
                                                           root_buffer, root_input, root_output)) {
       return false;
     }
     if (root_input != nullptr) {
       root_inputs.push_back(root_input);
     }
-    return icts::ClockNetManager::connectSinkGroupDownstreamNet(clock, group_prefix, root_output, sinks) != nullptr;
+    return icts::ClockNetEditor::connectSinkDomainDownstreamNet(clock, domain_prefix, root_output, sinks) != nullptr;
   };
 
-  ASSERT_TRUE(build_group("hard_macro", macro_sinks));
-  ASSERT_TRUE(build_group("regular", regular_sinks));
-  icts::ClockNetManager::reuseClockSourceNetAsSourceToRootBuffers(clock, clock.get_clock_source(), root_inputs);
+  ASSERT_TRUE(build_domain(icts::CTSSinkDomain::kHardMacro, macro_sinks));
+  ASSERT_TRUE(build_domain(icts::CTSSinkDomain::kRegular, regular_sinks));
+  icts::ClockNetEditor::reuseClockSourceNetAsSourceToRootBuffers(clock, clock.get_clock_source(), root_inputs);
 }
 
 TEST(FlowManagerTest, EmptyFlowManagerRunIsCallable)
@@ -322,7 +323,7 @@ TEST(FlowManagerTest, ClockDistributionSummaryUsesMacroSinkTerminology)
   EXPECT_TRUE(std::regex_search(distribution_summary, std::regex(R"(\|\s*clk\s*\|\s*1\s*\|\s*2\s*\|\s*1\s*\|\s*1\s*\|\s*0\s*\|)")));
 }
 
-TEST(FlowManagerTest, MixedMacroAndRegularSingleSinkGroupsUseSeparateDownstreamNets)
+TEST(FlowManagerTest, MixedMacroAndRegularSingleSinkDomainsUseSeparateDownstreamNets)
 {
   const ScopedFlowReset scoped_flow_reset;
 

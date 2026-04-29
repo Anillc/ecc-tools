@@ -308,10 +308,10 @@ auto STAAdapter::queryClockTiming(const std::string& clock_name) -> std::optiona
   return buildClockTimingMetrics(timing_engine, sta_clock);
 }
 
-auto STAAdapter::queryClockTimings() -> std::vector<ClockTimingRecord>
+auto STAAdapter::queryClockTimings() const -> std::vector<ClockTimingRecord>
 {
   std::vector<ClockTimingRecord> records;
-  if (getInst()._is_char_only_active) {
+  if (_is_char_only_active) {
     LOG_WARNING << "Clock timing query skipped: char-only characterization runtime is active.";
     return records;
   }
@@ -339,10 +339,10 @@ auto STAAdapter::queryClockTimings() -> std::vector<ClockTimingRecord>
   return records;
 }
 
-auto STAAdapter::queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>
+auto STAAdapter::queryClockLatencySkew() const -> std::vector<ClockLatencySkewMetrics>
 {
   std::vector<ClockLatencySkewMetrics> metrics;
-  if (getInst()._is_char_only_active) {
+  if (_is_char_only_active) {
     LOG_WARNING << "Clock latency/skew query skipped: char-only characterization runtime is active.";
     return metrics;
   }

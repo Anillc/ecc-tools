@@ -18,7 +18,7 @@
  * @file ClockTreeEvaluator.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-26
- * @brief CTS clock-tree writeback and evaluation stage.
+ * @brief CTS clock-tree evaluation stage.
  */
 
 #pragma once
@@ -80,15 +80,21 @@ struct ClockTreeSummary
   std::vector<ClockLatencySkew> clocks_latency_skew;
 };
 
+struct ClockTreeEvaluationOptions
+{
+  bool refresh_sta_timing = false;
+};
+
 class ClockTreeEvaluator
 {
  public:
   ClockTreeEvaluator() = delete;
 
   static auto evaluate() -> void;
+  static auto evaluate(const ClockTreeEvaluationOptions& options) -> void;
   static auto outputSummary() -> ClockTreeSummary;
   static auto hasEvaluationResult() -> bool;
-  static auto writeStatistics(const std::string& save_dir, bool emit_log_tables = true) -> bool;
+  static auto writeStatistics(const std::string& statistics_dir, bool emit_log_tables = true) -> bool;
   static auto resetSummary() -> void;
 };
 

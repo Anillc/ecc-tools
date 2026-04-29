@@ -135,41 +135,60 @@ auto BuildActualLoadFeasibilityReason(std::size_t node_id, const Point<int>& anc
   return stream.str();
 }
 
+struct ActualLoadBoundaryCollection
+{
+  std::vector<ActualLoadBoundaryGroup> groups;
+  ActualLoadViolation violation = ActualLoadViolation::kNone;
+  std::string failure_reason;
+};
+
+auto MakeBoundaryCollectionFailure(std::vector<ActualLoadBoundaryGroup> groups, ActualLoadViolation violation, std::string reason)
+    -> ActualLoadBoundaryCollection
+{
+  return ActualLoadBoundaryCollection{
+      .groups = std::move(groups),
+      .violation = violation,
+      .failure_reason = std::move(reason),
+  };
+}
+
 auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegalitySignature& signature,
-                                     const BufferPatternRegistry& segment_pattern_registry)
-    -> std::pair<std::vector<ActualLoadBoundaryGroup>, std::string>
+                                     const BufferPatternRegistry& segment_pattern_registry) -> ActualLoadBoundaryCollection
 {
   std::vector<ActualLoadBoundaryGroup> groups;
 
   const auto* root_node = topology.get_node(topology.get_root());
   if (root_node == nullptr) {
-    return {std::move(groups), "missing_topology_root"};
+    return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kMissingTopologyRoot, "missing_topology_root");
   }
 
   if (signature.bottom_most_buffered_level < 0) {
     if (root_node->get_loads().empty()) {
-      return {std::move(groups), "empty_root_load_group"};
+      return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kEmptyLoadGroup, "empty_root_load_group");
     }
     groups.push_back(ActualLoadBoundaryGroup{
         .node_id = root_node->get_id(),
         .anchor = root_node->get_position(),
         .loads = &root_node->get_loads(),
     });
-    return {std::move(groups), {}};
+    return ActualLoadBoundaryCollection{.groups = std::move(groups)};
   }
 
   const auto topology_levels = topology.levels();
   const std::size_t boundary_level = static_cast<std::size_t>(signature.bottom_most_buffered_level) + 1U;
   if (boundary_level >= topology_levels.size()) {
-    return {std::move(groups), "missing_actual_load_boundary_level"};
+    return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kMissingTopologyLevel,
+                                         "missing_actual_load_boundary_level");
   }
 
   const auto* segment_pattern = segment_pattern_registry.find(signature.segment_pattern_id);
   if (segment_pattern == nullptr) {
-    return {std::move(groups), "missing_boundary_segment_pattern"};
+    return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kMissingSegmentPattern,
+                                         "missing_boundary_segment_pattern");
   }
   if (segment_pattern->get_buffer_positions().empty()) {
-    return {std::move(groups), "missing_boundary_buffer_position"};
+    return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kMissingBufferPosition,
+                                         "missing_boundary_buffer_position");
   }
 
   const double last_buffer_position = segment_pattern->get_buffer_positions().back();
@@ -177,7 +196,7 @@ auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegal
   for (const auto node_id : topology_levels.at(boundary_level)) {
     const auto* node = topology.get_node(node_id);
     if (node == nullptr) {
-      return {std::move(groups), "missing_boundary_topology_node"};
+      return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kMissingTopologyNode, "missing_boundary_topology_node");
     }
     if (node->get_loads().empty()) {
       continue;
@@ -185,7 +204,7 @@ auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegal
 
     const auto* parent_node = topology.get_node(node->get_parent());
     if (parent_node == nullptr) {
-      return {std::move(groups), "missing_boundary_parent_node"};
+      return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kMissingTopologyNode, "missing_boundary_parent_node");
     }
 
     groups.push_back(ActualLoadBoundaryGroup{
@@ -196,9 +215,9 @@ auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegal
   }
 
   if (groups.empty()) {
-    return {std::move(groups), "empty_actual_load_groups"};
+    return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kEmptyLoadGroup, "empty_actual_load_groups");
   }
-  return {std::move(groups), {}};
+  return ActualLoadBoundaryCollection{.groups = std::move(groups)};
 }
 
 auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySignature& signature,
@@ -209,28 +228,16 @@ auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySi
   result.bottom_most_buffered_level = signature.bottom_most_buffered_level;
   result.segment_pattern_id = signature.segment_pattern_id;
 
-  const auto [groups, collection_error] = CollectActualLoadBoundaryGroups(topology, signature, segment_pattern_registry);
-  if (!collection_error.empty()) {
-    result.failure_reason = collection_error;
-    if (collection_error == "missing_topology_root") {
-      result.violation = ActualLoadViolation::kMissingTopologyRoot;
-    } else if (collection_error == "missing_actual_load_boundary_level") {
-      result.violation = ActualLoadViolation::kMissingTopologyLevel;
-    } else if (collection_error == "missing_boundary_segment_pattern") {
-      result.violation = ActualLoadViolation::kMissingSegmentPattern;
-    } else if (collection_error == "missing_boundary_buffer_position") {
-      result.violation = ActualLoadViolation::kMissingBufferPosition;
-    } else if (collection_error == "empty_root_load_group" || collection_error == "empty_actual_load_groups") {
-      result.violation = ActualLoadViolation::kEmptyLoadGroup;
-    } else {
-      result.violation = ActualLoadViolation::kMissingTopologyNode;
-    }
+  const auto collection = CollectActualLoadBoundaryGroups(topology, signature, segment_pattern_registry);
+  if (collection.violation != ActualLoadViolation::kNone) {
+    result.failure_reason = collection.failure_reason;
+    result.violation = collection.violation;
     return result;
   }
 
   const auto electrical_config = BuildLeafElectricalConfig();
   const std::size_t max_fanout = CONFIG_INST.get_max_fanout();
-  for (const auto& group : groups) {
+  for (const auto& group : collection.groups) {
     const auto* loads = group.loads;
     if (loads == nullptr || loads->empty()) {
       result.violation = ActualLoadViolation::kEmptyLoadGroup;
@@ -272,8 +279,8 @@ auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySi
   }
 
   std::vector<double> total_caps_pf;
-  total_caps_pf.reserve(groups.size());
-  for (const auto& group : groups) {
+  total_caps_pf.reserve(collection.groups.size());
+  for (const auto& group : collection.groups) {
     const auto* loads = group.loads;
     LOG_FATAL_IF(loads == nullptr || loads->empty()) << "HTreeBuilder: actual-load boundary group lost its load set.";
 

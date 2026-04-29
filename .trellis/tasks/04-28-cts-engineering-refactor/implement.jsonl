@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints, file/header rules, no-exception policy, logging requirements, and final validation order."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index and authority map for iCTS implementation work."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "API/source/test layer boundaries, source/flow placement, and CMake target structure for new split files."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, includes, dependency visibility, and final checker expectations for touched iCTS code."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Singleton roles, ownership rules, borrowed pointer lifetime, and Wrapper/STAAdapter access boundaries."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "No-exception policy and recoverable/fatal error handling decisions for flow refactor code."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "LOG_* and schema/report ownership rules; preserve existing report contracts."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This refactor crosses API, flow, database, Wrapper, STAAdapter, Design, and module boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Required before extracting helpers, reusing netlist/materialization logic, or changing CMake wiring."}
+{"file": ".trellis/tasks/04-28-cts-engineering-refactor/research/api-flow-orchestration.md", "reason": "Current CTS public API, flow orchestration, compatibility risks, and class/file decomposition plan."}
+{"file": ".trellis/tasks/04-28-cts-engineering-refactor/research/synthesis-htree-characterization.md", "reason": "Synthesis/HTree/characterization lifecycle, ownership, cache coverage contract, and behavior-preserving refactor boundaries."}
+{"file": ".trellis/tasks/04-28-cts-engineering-refactor/research/database-netlist-build.md", "reason": "Database/netlist/adapter contracts, reset ordering, CMake risks, test commands, and final binary validation caveat."}

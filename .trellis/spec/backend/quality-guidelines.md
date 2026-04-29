@@ -28,6 +28,16 @@ Repository-wide constraints such as file extensions, copyright headers, and `#pr
 Rule of thumb:
 - if the body is more than a direct read, write, or simple comparison, use `camelBack`
 
+### CTS Semantic Boundaries
+
+Names and types in iCTS should reflect EDA/CTS concepts:
+
+- Prefer CTS/physical-design terms such as `clock tree`, `sink domain`, `source-to-root`, `downstream tree`, `root buffer`, `topology level`, `routing segment`, `flyline segment`, and `committed design object`.
+- Avoid generic backend/service terms for CTS flow code unless the code is truly generic infrastructure.
+- Use `enum class` or narrow value types for behavioral concepts such as instance role, net role, sink domain, synthesis phase, route role, violation type, and topology level.
+- Strings are allowed for object names, logs, diagnostics, file paths, and display labels.
+- Do not use object-name substrings to decide CTS behavior.
+
 ### Namespaces
 
 - In `.cc` files, define top-level iCTS implementations in `namespace icts {}` and internal submodules in qualified namespaces such as `namespace icts::htree_builder {}`.
@@ -69,6 +79,8 @@ Use this include order, with blank lines between groups:
 - `throw`, `try`, or `catch` outside the narrow exception documented in `error-handling.md`
 - duplicated include-path wiring when a CMake target already exists
 - adding heavy includes to headers when a forward declaration is enough
+- behavioral branching based on CTS object-name substrings
+- broad snapshots that duplicate queryable CTS/iDB state without a clear stage contract
 
 ### Validation
 

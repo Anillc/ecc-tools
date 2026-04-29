@@ -66,7 +66,7 @@ class CTSStatisticsWriter
  public:
   CTSStatisticsWriter() = delete;
 
-  static auto writeReports(const std::filesystem::path& root_dir, const CTSStatistics& statistics) -> bool;
+  static auto writeReports(const std::filesystem::path& statistics_dir, const CTSStatistics& statistics) -> bool;
   static auto emitLogTables(const CTSStatistics& statistics) -> void;
 };
 

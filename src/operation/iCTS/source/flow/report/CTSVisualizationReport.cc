@@ -18,7 +18,7 @@
  * @file CTSVisualizationReport.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-28
- * @brief Report-stage CTS SVG visualization artifact generation implementation.
+ * @brief Report-stage CTS SVG visualization report generation implementation.
  */
 
 #include "report/CTSVisualizationReport.hh"
@@ -37,7 +37,6 @@
 #include <vector>
 
 #include "Log.hh"
-#include "Router.hh"
 #include "SteinerTree.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
@@ -46,6 +45,8 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "logger/Schema.hh"
+#include "report_data/ClockTreeReportData.hh"
+#include "router/Router.hh"
 #include "spatial/Point.hh"
 #include "visualization/core/SvgCommon.hh"
 
@@ -58,7 +59,7 @@ constexpr const char* kFlylineSvgLabel = "cts_flyline.svg";
 enum class WireKind
 {
   kRouted,
-  kTop,
+  kSourceToRoot,
   kFlyline,
   kFallback
 };
@@ -79,21 +80,21 @@ struct SegmentCollection
   std::size_t skipped_net_count = 0U;
 };
 
-struct VisualizationArtifactStatus
+struct VisualizationReportStatus
 {
   std::string label;
   std::filesystem::path path;
-  std::string type_view;
+  std::string view_label;
   bool success = false;
   std::string reason;
 };
 
-auto ResolveReportRootDir(const std::filesystem::path& report_root_dir) -> std::filesystem::path
+auto ResolveVisualizationDir(const std::filesystem::path& visualization_dir) -> std::filesystem::path
 {
-  if (!report_root_dir.empty()) {
-    return report_root_dir;
+  if (!visualization_dir.empty()) {
+    return visualization_dir;
   }
-  return std::filesystem::path(CONFIG_INST.get_work_dir());
+  return std::filesystem::path(CONFIG_INST.get_visualization_dir());
 }
 
 auto HasValidLocation(const Point<int>& point) -> bool
@@ -101,26 +102,15 @@ auto HasValidLocation(const Point<int>& point) -> bool
   return point.get_x() >= 0 && point.get_y() >= 0;
 }
 
-auto ContainsToken(const std::string& value, const std::string& token) -> bool
+auto wireKindFromRole(CTSNetRole role, bool flyline) -> WireKind
 {
-  return value.find(token) != std::string::npos;
-}
-
-auto IsClockSourceNet(const Net& net) -> bool
-{
-  for (const auto* clock : DESIGN_INST.get_clocks()) {
-    if (clock != nullptr && clock->get_clock_source_net() == &net) {
-      return true;
-    }
+  if (flyline) {
+    return WireKind::kFlyline;
   }
-  return false;
-}
-
-auto IsTopNet(const Net& net) -> bool
-{
-  const auto& name = net.get_name();
-  return IsClockSourceNet(net) || ContainsToken(name, "_top_") || ContainsToken(name, "top_segment")
-         || ContainsToken(name, "source_to_root");
+  if (role == CTSNetRole::kSourceToRoot || role == CTSNetRole::kClockSource) {
+    return WireKind::kSourceToRoot;
+  }
+  return WireKind::kRouted;
 }
 
 auto EnsureParentDirectory(const std::filesystem::path& path, std::string& detail) -> bool
@@ -133,25 +123,25 @@ auto EnsureParentDirectory(const std::filesystem::path& path, std::string& detai
   std::error_code error;
   std::filesystem::create_directories(parent_path, error);
   if (error) {
-    detail = "failed to create artifact directory " + parent_path.string() + ": " + error.message();
+    detail = "failed to create report directory " + parent_path.string() + ": " + error.message();
     return false;
   }
   return true;
 }
 
-auto MakeFailure(std::string label, const std::filesystem::path& path, std::string type_view, std::string reason)
-    -> VisualizationArtifactStatus
+auto MakeFailure(std::string label, const std::filesystem::path& path, std::string view_label, std::string reason)
+    -> VisualizationReportStatus
 {
-  LOG_WARNING << "CTS report visualization artifact " << label << " failed: " << reason;
-  return VisualizationArtifactStatus{
-      .label = std::move(label), .path = path, .type_view = std::move(type_view), .success = false, .reason = std::move(reason)};
+  LOG_WARNING << "CTS visualization report " << label << " failed: " << reason;
+  return VisualizationReportStatus{
+      .label = std::move(label), .path = path, .view_label = std::move(view_label), .success = false, .reason = std::move(reason)};
 }
 
-auto MakeSuccess(std::string label, const std::filesystem::path& path, std::string type_view, std::string reason)
-    -> VisualizationArtifactStatus
+auto MakeSuccess(std::string label, const std::filesystem::path& path, std::string view_label, std::string reason)
+    -> VisualizationReportStatus
 {
-  return VisualizationArtifactStatus{
-      .label = std::move(label), .path = path, .type_view = std::move(type_view), .success = true, .reason = std::move(reason)};
+  return VisualizationReportStatus{
+      .label = std::move(label), .path = path, .view_label = std::move(view_label), .success = true, .reason = std::move(reason)};
 }
 
 auto CollectClockNets() -> std::vector<Net*>
@@ -253,17 +243,61 @@ auto AppendRouteTreeSegmentsForNet(const Net& net, std::vector<VisualizationSegm
   }
 
   bool appended = false;
-  const auto kind = IsTopNet(net) ? WireKind::kTop : WireKind::kRouted;
   for (const auto& edge : route_tree.get_edges()) {
     const auto* source = route_tree.get_node(edge.source_node_id);
     const auto* target = route_tree.get_node(edge.target_node_id);
     if (source == nullptr || target == nullptr || !HasValidLocation(source->location) || !HasValidLocation(target->location)) {
       continue;
     }
-    segments.push_back(MakeSegment(source->location, target->location, kind, false));
+    segments.push_back(MakeSegment(source->location, target->location, WireKind::kRouted, false));
     appended = true;
   }
   return appended;
+}
+
+auto AppendReportSegments(const std::vector<ClockTreeReportSegment>& report_segments, std::vector<VisualizationSegment>& segments,
+                          bool flyline) -> void
+{
+  for (const auto& segment : report_segments) {
+    if (!HasValidLocation(segment.begin) || !HasValidLocation(segment.end)) {
+      continue;
+    }
+    segments.push_back(MakeSegment(segment.begin, segment.end, wireKindFromRole(segment.net_role, flyline), segment.fallback));
+  }
+}
+
+auto CollectDesignReportSegments(const ClockTreeReportData& report_data) -> SegmentCollection
+{
+  SegmentCollection collection;
+  for (const auto& clock : report_data.get_clocks()) {
+    for (const auto& net : clock.nets) {
+      const auto before_count = collection.segments.size();
+      AppendReportSegments(net.routed_segments, collection.segments, false);
+      if (collection.segments.size() > before_count) {
+        ++collection.routed_net_count;
+      } else {
+        ++collection.skipped_net_count;
+      }
+    }
+  }
+  return collection;
+}
+
+auto CollectFlylineReportSegments(const ClockTreeReportData& report_data) -> SegmentCollection
+{
+  SegmentCollection collection;
+  for (const auto& clock : report_data.get_clocks()) {
+    for (const auto& net : clock.nets) {
+      const auto before_count = collection.segments.size();
+      AppendReportSegments(net.flyline_segments, collection.segments, true);
+      if (collection.segments.size() > before_count) {
+        ++collection.routed_net_count;
+      } else {
+        ++collection.skipped_net_count;
+      }
+    }
+  }
+  return collection;
 }
 
 auto CollectDesignSegments(const std::vector<Net*>& nets) -> SegmentCollection
@@ -395,7 +429,7 @@ auto ResolveSegmentStyle(WireKind kind, bool fallback, bool flyline_view) -> std
     stroke_width = 1.4;
     stroke_opacity = 0.74;
     dash_array = "5,3";
-  } else if (kind == WireKind::kTop) {
+  } else if (kind == WireKind::kSourceToRoot) {
     stroke_color = visualization::detail::kSvgColorFlylineRootNet;
     stroke_width = 1.9;
     stroke_opacity = 0.82;
@@ -544,29 +578,29 @@ auto WriteSvgLegend(std::ofstream& output_stream, const visualization::detail::S
 )";
 }
 
-auto WriteSvgFile(const std::filesystem::path& path, const std::string& label, const std::string& type_view,
+auto WriteSvgFile(const std::filesystem::path& path, const std::string& label, const std::string& view_label,
                   const std::vector<VisualizationSegment>& segments, const std::vector<Net*>& nets, const std::vector<Inst*>& insts,
-                  bool flyline_view) -> VisualizationArtifactStatus
+                  bool flyline_view) -> VisualizationReportStatus
 {
   if (segments.empty()) {
-    return MakeFailure(label, path, type_view, "no drawable CTS net segments are available");
+    return MakeFailure(label, path, view_label, "no drawable CTS net segments are available");
   }
 
   const auto points = CollectDrawablePoints(segments, nets, insts);
   const auto bounds = visualization::detail::ComputeBounds({}, points);
   if (!bounds.valid) {
-    return MakeFailure(label, path, type_view, "no valid CTS locations are available for SVG bounds");
+    return MakeFailure(label, path, view_label, "no valid CTS locations are available for SVG bounds");
   }
   const auto transform = visualization::detail::MakeTransform(bounds);
 
   std::string detail;
   if (!EnsureParentDirectory(path, detail)) {
-    return MakeFailure(label, path, type_view, detail);
+    return MakeFailure(label, path, view_label, detail);
   }
 
   std::ofstream output_stream(path);
   if (!output_stream.is_open()) {
-    return MakeFailure(label, path, type_view, "failed to open artifact for writing");
+    return MakeFailure(label, path, view_label, "failed to open report file for writing");
   }
 
   output_stream << visualization::detail::kSvgOpenTagPrefix << FormatSvgNumber(transform.width) << visualization::detail::kSvgHeightTag
@@ -582,13 +616,12 @@ auto WriteSvgFile(const std::filesystem::path& path, const std::string& label, c
   output_stream << visualization::detail::kSvgClosingTag;
   output_stream.close();
   if (!output_stream) {
-    return MakeFailure(label, path, type_view, "failed while flushing artifact to disk");
+    return MakeFailure(label, path, view_label, "failed while flushing report file to disk");
   }
-  return MakeSuccess(label, path, type_view, "generated");
+  return MakeSuccess(label, path, view_label, "generated");
 }
 
-auto BuildUnavailableStatuses(const std::filesystem::path& output_dir, const std::string& reason)
-    -> std::vector<VisualizationArtifactStatus>
+auto BuildUnavailableStatuses(const std::filesystem::path& output_dir, const std::string& reason) -> std::vector<VisualizationReportStatus>
 {
   return {
       MakeFailure(kDesignSvgLabel, output_dir / kDesignSvgLabel, "svg/design", reason),
@@ -596,7 +629,7 @@ auto BuildUnavailableStatuses(const std::filesystem::path& output_dir, const std
   };
 }
 
-auto EmitArtifactStatusTable(const std::vector<VisualizationArtifactStatus>& statuses) -> void
+auto EmitReportStatusTable(const std::vector<VisualizationReportStatus>& statuses) -> void
 {
   schema::TableRows rows;
   rows.reserve(statuses.size());
@@ -604,49 +637,56 @@ auto EmitArtifactStatusTable(const std::vector<VisualizationArtifactStatus>& sta
     rows.push_back({
         status.label,
         status.path.string(),
-        status.type_view,
+        status.view_label,
         status.success ? "generated" : "failed",
         status.reason,
     });
     if (!status.success) {
       schema::EmitDiagnostic(
-          schema::DiagnosticLevel::kWarning, "CTS Report Visualization", "visualization artifact generation failed",
-          {{"artifact", status.label}, {"path", status.path.string()}, {"type_view", status.type_view}, {"reason", status.reason}});
+          schema::DiagnosticLevel::kWarning, "CTS Report Visualization", "visualization report generation failed",
+          {{"report", status.label}, {"path", status.path.string()}, {"view", status.view_label}, {"reason", status.reason}});
     }
   }
-  schema::EmitTable("CTS Report Visualization Artifacts", {"Artifact", "Path", "Type/View", "Status", "Detail/Reason"}, rows);
+  schema::EmitTable("CTS Visualization Reports", {"Report", "Path", "View", "Status", "Detail"}, rows);
 }
 
 }  // namespace
 
-auto EmitCTSVisualizationArtifacts(const std::filesystem::path& report_root_dir) -> CTSVisualizationReportResult
+auto EmitCTSVisualizationReports(const std::filesystem::path& visualization_dir, const ClockTreeReportData& report_data)
+    -> CTSVisualizationReportResult
 {
-  const auto output_dir = ResolveReportRootDir(report_root_dir) / "output";
+  const auto output_dir = ResolveVisualizationDir(visualization_dir) / "svg";
   auto nets = CollectClockNets();
   auto insts = CollectClockInsts();
 
-  std::vector<VisualizationArtifactStatus> statuses;
+  std::vector<VisualizationReportStatus> statuses;
   if (DESIGN_INST.get_clocks().empty()) {
     statuses = BuildUnavailableStatuses(output_dir, "CTS design contains no clocks; run CTS or initialize clock data before report");
-    EmitArtifactStatusTable(statuses);
+    EmitReportStatusTable(statuses);
     return CTSVisualizationReportResult{.success = false};
   }
   if (nets.empty()) {
     statuses = BuildUnavailableStatuses(output_dir, "CTS design contains no clock nets to visualize");
-    EmitArtifactStatusTable(statuses);
+    EmitReportStatusTable(statuses);
     return CTSVisualizationReportResult{.success = false};
   }
 
-  const auto design_collection = CollectDesignSegments(nets);
-  const auto flyline_collection = CollectFlylineSegments(nets);
+  auto design_collection = CollectDesignReportSegments(report_data);
+  auto flyline_collection = CollectFlylineReportSegments(report_data);
+  if (design_collection.segments.empty()) {
+    design_collection = CollectDesignSegments(nets);
+  }
+  if (flyline_collection.segments.empty()) {
+    flyline_collection = CollectFlylineSegments(nets);
+  }
 
   statuses.push_back(
       WriteSvgFile(output_dir / kDesignSvgLabel, kDesignSvgLabel, "svg/design", design_collection.segments, nets, insts, false));
   statuses.push_back(
       WriteSvgFile(output_dir / kFlylineSvgLabel, kFlylineSvgLabel, "svg/flyline", flyline_collection.segments, nets, insts, true));
 
-  EmitArtifactStatusTable(statuses);
-  const bool success = std::all_of(statuses.begin(), statuses.end(), [](const auto& status) -> bool { return status.success; });
+  EmitReportStatusTable(statuses);
+  const bool success = std::ranges::all_of(statuses, [](const auto& status) -> bool { return status.success; });
   return CTSVisualizationReportResult{.success = success};
 }
 

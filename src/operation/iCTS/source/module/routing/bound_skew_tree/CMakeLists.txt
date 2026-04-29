@@ -21,6 +21,7 @@ target_link_libraries(
   PRIVATE
   icts_source_module_routing_database
   icts_source_utils
+  log
 )
 
 target_include_directories(

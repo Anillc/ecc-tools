@@ -15,13 +15,13 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file ClockNetManager.cc
+ * @file ClockNetEditor.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-26
  * @brief CTS final clock-netlist mutation helper implementation.
  */
 
-#include "netlist/ClockNetManager.hh"
+#include "netlist/ClockNetEditor.hh"
 
 #include <glog/logging.h>
 
@@ -48,6 +48,7 @@
 #include "design/Pin.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
+#include "report_data/ClockTreeReportData.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -81,6 +82,21 @@ auto makeClockPrefix(const Clock& clock, std::size_t clock_index) -> std::string
   return "cts_flow_clk_" + std::to_string(clock_index) + "_" + makeSafeNameToken(clock.get_clock_name(), "clock");
 }
 
+auto makeSinkDomainName(CTSSinkDomain sink_domain) -> std::string
+{
+  switch (sink_domain) {
+    case CTSSinkDomain::kHardMacro:
+      return "hard_macro";
+    case CTSSinkDomain::kRegular:
+      return "regular";
+    case CTSSinkDomain::kSourceToRoot:
+      return "source_to_root";
+    case CTSSinkDomain::kUnknown:
+      return "unknown";
+  }
+  return "unknown";
+}
+
 auto resolveBufferDriveCap(const std::string& cell_master) -> double
 {
   double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
@@ -102,14 +118,14 @@ auto resolveBufferPortsAndDrive(const std::string& cell_master, bool require_out
 
   auto [input_pin, output_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
   if (input_pin.empty() || output_pin.empty()) {
-    LOG_WARNING << "ClockNetManager: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
+    LOG_WARNING << "ClockNetEditor: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
     return false;
   }
 
   if (require_output_drive) {
     output_drive_cap_pf = resolveBufferDriveCap(cell_master);
     if (output_drive_cap_pf <= 0.0) {
-      LOG_WARNING << "ClockNetManager: skip buffer master \"" << cell_master << "\" because output drive cap is unresolved.";
+      LOG_WARNING << "ClockNetEditor: skip buffer master \"" << cell_master << "\" because output drive cap is unresolved.";
       return false;
     }
   }
@@ -127,7 +143,7 @@ auto resolveMinimumDriveRootBuffer(std::string& cell_master, std::string& input_
 
   const auto& buffer_types = CONFIG_INST.get_buffer_types();
   if (buffer_types.empty()) {
-    LOG_ERROR << "ClockNetManager: no configured buffer types are available for root-buffer insertion.";
+    LOG_ERROR << "ClockNetEditor: no configured buffer types are available for root-buffer insertion.";
     return false;
   }
 
@@ -153,7 +169,7 @@ auto resolveMinimumDriveRootBuffer(std::string& cell_master, std::string& input_
   }
 
   if (best_cell_master.empty()) {
-    LOG_ERROR << "ClockNetManager: failed to resolve a minimum-drive root buffer from configured buffer types.";
+    LOG_ERROR << "ClockNetEditor: failed to resolve a minimum-drive root buffer from configured buffer types.";
     return false;
   }
 
@@ -163,7 +179,7 @@ auto resolveMinimumDriveRootBuffer(std::string& cell_master, std::string& input_
   return true;
 }
 
-auto resolveSinkGroupLocation(Pin* clock_source, const std::vector<Pin*>& sinks) -> Point<int>
+auto resolveSinkDomainLocation(Pin* clock_source, const std::vector<Pin*>& sinks) -> Point<int>
 {
   long long sum_x = 0;
   long long sum_y = 0;
@@ -198,22 +214,22 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
   input_pin = nullptr;
   output_pin = nullptr;
   if (inst_name.empty() || cell_master.empty() || input_pin_name.empty() || output_pin_name.empty()) {
-    LOG_ERROR << "ClockNetManager: reject root-buffer insertion because the inst, master, or pin name is empty.";
+    LOG_ERROR << "ClockNetEditor: reject root-buffer insertion because the inst, master, or pin name is empty.";
     return false;
   }
   if (input_pin_name == output_pin_name) {
-    LOG_ERROR << "ClockNetManager: reject root-buffer insertion for \"" << inst_name
+    LOG_ERROR << "ClockNetEditor: reject root-buffer insertion for \"" << inst_name
               << "\" because input and output pin names both resolve to \"" << input_pin_name << "\".";
     return false;
   }
   if (DESIGN_INST.findInst(inst_name) != nullptr) {
-    LOG_ERROR << "ClockNetManager: reject root-buffer insertion because inst \"" << inst_name << "\" already exists.";
+    LOG_ERROR << "ClockNetEditor: reject root-buffer insertion because inst \"" << inst_name << "\" already exists.";
     return false;
   }
 
   buffer = DESIGN_INST.makeInst(inst_name);
   if (buffer == nullptr) {
-    LOG_ERROR << "ClockNetManager: failed to create root-buffer inst \"" << inst_name << "\".";
+    LOG_ERROR << "ClockNetEditor: failed to create root-buffer inst \"" << inst_name << "\".";
     return false;
   }
   buffer->set_name(inst_name);
@@ -224,7 +240,7 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
 
   input_pin = DESIGN_INST.makePin(input_pin_name);
   if (input_pin == nullptr) {
-    LOG_ERROR << "ClockNetManager: failed to create root-buffer input pin \"" << input_pin_name << "\".";
+    LOG_ERROR << "ClockNetEditor: failed to create root-buffer input pin \"" << input_pin_name << "\".";
     return false;
   }
   input_pin->set_name(input_pin_name);
@@ -240,7 +256,7 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
 
   output_pin = DESIGN_INST.makePin(output_pin_name);
   if (output_pin == nullptr) {
-    LOG_ERROR << "ClockNetManager: failed to create root-buffer output pin \"" << output_pin_name << "\".";
+    LOG_ERROR << "ClockNetEditor: failed to create root-buffer output pin \"" << output_pin_name << "\".";
     return false;
   }
   output_pin->set_name(output_pin_name);
@@ -261,27 +277,27 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
 auto createInsertedNet(Clock& clock, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
 {
   if (net_name.empty()) {
-    LOG_ERROR << "ClockNetManager: reject inserted net creation because the net name is empty.";
+    LOG_ERROR << "ClockNetEditor: reject inserted net creation because the net name is empty.";
     return nullptr;
   }
   if (DESIGN_INST.findNet(net_name) != nullptr) {
-    LOG_ERROR << "ClockNetManager: reject inserted net creation because net \"" << net_name << "\" already exists.";
+    LOG_ERROR << "ClockNetEditor: reject inserted net creation because net \"" << net_name << "\" already exists.";
     return nullptr;
   }
 
   auto* net_ptr = DESIGN_INST.makeNet(net_name);
   if (net_ptr == nullptr) {
-    LOG_ERROR << "ClockNetManager: failed to create inserted net \"" << net_name << "\".";
+    LOG_ERROR << "ClockNetEditor: failed to create inserted net \"" << net_name << "\".";
     return nullptr;
   }
-  ClockNetManager::reconnectNet(*net_ptr, driver, loads);
+  ClockNetEditor::reconnectNet(*net_ptr, driver, loads);
   clock.add_net(net_ptr);
   return net_ptr;
 }
 
 }  // namespace
 
-auto ClockNetManager::readClockData() -> void
+auto ClockNetEditor::readClockData() -> void
 {
   std::string clock_source = "Config::net_list";
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
@@ -308,7 +324,7 @@ auto ClockNetManager::readClockData() -> void
                                                 });
 }
 
-auto ClockNetManager::partitionClockSinks(const std::vector<Pin*>& sinks, std::vector<Pin*>& macro_sinks, std::vector<Pin*>& regular_sinks)
+auto ClockNetEditor::partitionClockSinks(const std::vector<Pin*>& sinks, std::vector<Pin*>& macro_sinks, std::vector<Pin*>& regular_sinks)
     -> void
 {
   macro_sinks.clear();
@@ -330,12 +346,12 @@ auto ClockNetManager::partitionClockSinks(const std::vector<Pin*>& sinks, std::v
   }
 }
 
-auto ClockNetManager::makeSinkGroupPrefix(const Clock& clock, std::size_t clock_index, const std::string& sink_group) -> std::string
+auto ClockNetEditor::makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, CTSSinkDomain sink_domain) -> std::string
 {
-  return makeClockPrefix(clock, clock_index) + "_" + sink_group;
+  return makeClockPrefix(clock, clock_index) + "_" + makeSinkDomainName(sink_domain);
 }
 
-auto ClockNetManager::addRootBufferForSinkGroup(Clock& clock, const std::string& group_prefix, const std::vector<Pin*>& sinks,
+auto ClockNetEditor::addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::vector<Pin*>& sinks,
                                                 Inst*& root_buffer, Pin*& root_input, Pin*& root_output) -> bool
 {
   std::string cell_master;
@@ -347,20 +363,20 @@ auto ClockNetManager::addRootBufferForSinkGroup(Clock& clock, const std::string&
     root_output = nullptr;
     return false;
   }
-  return addRootBufferForSinkGroup(clock, group_prefix, cell_master, input_pin_name, output_pin_name, sinks, root_buffer, root_input,
-                                   root_output);
+  return addRootBufferForSinkDomain(clock, domain_prefix, cell_master, input_pin_name, output_pin_name, sinks, root_buffer, root_input,
+                                    root_output);
 }
 
-auto ClockNetManager::addRootBufferForSinkGroup(Clock& clock, const std::string& group_prefix, const std::string& cell_master,
+auto ClockNetEditor::addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::string& cell_master,
                                                 const std::string& input_pin_name, const std::string& output_pin_name,
                                                 const std::vector<Pin*>& sinks, Inst*& root_buffer, Pin*& root_input, Pin*& root_output)
     -> bool
 {
-  return createInsertedBuffer(clock, group_prefix + "_root_buf", cell_master, input_pin_name, output_pin_name,
-                              resolveSinkGroupLocation(clock.get_clock_source(), sinks), root_buffer, root_input, root_output);
+  return createInsertedBuffer(clock, domain_prefix + "_root_buf", cell_master, input_pin_name, output_pin_name,
+                              resolveSinkDomainLocation(clock.get_clock_source(), sinks), root_buffer, root_input, root_output);
 }
 
-auto ClockNetManager::reconnectNet(Net& net, Pin* driver, const std::vector<Pin*>& loads) -> void
+auto ClockNetEditor::reconnectNet(Net& net, Pin* driver, const std::vector<Pin*>& loads) -> void
 {
   auto* old_driver = net.get_driver();
   if (old_driver != nullptr && old_driver != driver && old_driver->get_net() == &net) {
@@ -392,13 +408,13 @@ auto ClockNetManager::reconnectNet(Net& net, Pin* driver, const std::vector<Pin*
   }
 }
 
-auto ClockNetManager::connectSinkGroupDownstreamNet(Clock& clock, const std::string& group_prefix, Pin* root_output,
+auto ClockNetEditor::connectSinkDomainDownstreamNet(Clock& clock, const std::string& domain_prefix, Pin* root_output,
                                                     const std::vector<Pin*>& sinks) -> Net*
 {
-  return createInsertedNet(clock, group_prefix + "_downstream_net", root_output, sinks);
+  return createInsertedNet(clock, domain_prefix + "_downstream_net", root_output, sinks);
 }
 
-auto ClockNetManager::restoreClockSourceNetToClockLoads(Clock& clock) -> void
+auto ClockNetEditor::restoreClockSourceNetToClockLoads(Clock& clock) -> void
 {
   auto* clock_source = clock.get_clock_source();
   auto* clock_source_net = clock.get_clock_source_net();
@@ -411,7 +427,7 @@ auto ClockNetManager::restoreClockSourceNetToClockLoads(Clock& clock) -> void
   }
 }
 
-auto ClockNetManager::reuseClockSourceNetAsSourceToRootBuffers(Clock& clock, Pin* clock_source, const std::vector<Pin*>& root_buffer_inputs)
+auto ClockNetEditor::reuseClockSourceNetAsSourceToRootBuffers(Clock& clock, Pin* clock_source, const std::vector<Pin*>& root_buffer_inputs)
     -> Net*
 {
   auto* clock_source_net = clock.get_clock_source_net();
@@ -425,9 +441,9 @@ auto ClockNetManager::reuseClockSourceNetAsSourceToRootBuffers(Clock& clock, Pin
   return clock_source_net;
 }
 
-auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::unique_ptr<Inst>>& inserted_insts,
-                                            std::vector<std::unique_ptr<Pin>>& inserted_pins,
-                                            std::vector<std::unique_ptr<Net>>& inserted_nets) -> bool
+auto ClockNetEditor::commitInsertedObjects(Clock& clock, std::vector<std::unique_ptr<Inst>>& inserted_insts,
+                                           std::vector<std::unique_ptr<Pin>>& inserted_pins,
+                                           std::vector<std::unique_ptr<Net>>& inserted_nets) -> bool
 {
   std::unordered_set<std::string> inst_names;
   for (const auto& inst : inserted_insts) {
@@ -435,11 +451,11 @@ auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::uniqu
       continue;
     }
     if (!inst_names.insert(inst->get_name()).second) {
-      LOG_ERROR << "ClockNetManager: reject committing duplicate algorithm inst \"" << inst->get_name() << "\".";
+      LOG_ERROR << "ClockNetEditor: reject committing duplicate algorithm inst \"" << inst->get_name() << "\".";
       return false;
     }
     if (DESIGN_INST.findInst(inst->get_name()) != nullptr) {
-      LOG_ERROR << "ClockNetManager: reject committing algorithm inst \"" << inst->get_name()
+      LOG_ERROR << "ClockNetEditor: reject committing algorithm inst \"" << inst->get_name()
                 << "\" because a final inst with the same name already exists.";
       return false;
     }
@@ -452,16 +468,16 @@ auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::uniqu
     }
     const auto pin_full_name = Design::getPinFullName(pin.get());
     if (pin_full_name.empty()) {
-      LOG_ERROR << "ClockNetManager: reject committing algorithm pin because its full name is empty.";
+      LOG_ERROR << "ClockNetEditor: reject committing algorithm pin because its full name is empty.";
       return false;
     }
     if (!pin_full_names.insert(pin_full_name).second) {
-      LOG_ERROR << "ClockNetManager: reject committing duplicate algorithm pin \"" << pin_full_name << "\".";
+      LOG_ERROR << "ClockNetEditor: reject committing duplicate algorithm pin \"" << pin_full_name << "\".";
       return false;
     }
     auto* existing_pin = DESIGN_INST.findPin(pin_full_name);
     if (existing_pin != nullptr && existing_pin != pin.get()) {
-      LOG_ERROR << "ClockNetManager: reject committing algorithm pin \"" << pin_full_name
+      LOG_ERROR << "ClockNetEditor: reject committing algorithm pin \"" << pin_full_name
                 << "\" because a final pin with the same full name already exists.";
       return false;
     }
@@ -473,11 +489,11 @@ auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::uniqu
       continue;
     }
     if (!net_names.insert(net->get_name()).second) {
-      LOG_ERROR << "ClockNetManager: reject committing duplicate algorithm net \"" << net->get_name() << "\".";
+      LOG_ERROR << "ClockNetEditor: reject committing duplicate algorithm net \"" << net->get_name() << "\".";
       return false;
     }
     if (DESIGN_INST.findNet(net->get_name()) != nullptr) {
-      LOG_ERROR << "ClockNetManager: reject committing algorithm net \"" << net->get_name()
+      LOG_ERROR << "ClockNetEditor: reject committing algorithm net \"" << net->get_name()
                 << "\" because a final net with the same name already exists.";
       return false;
     }
@@ -489,7 +505,7 @@ auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::uniqu
     }
     auto* committed_inst = DESIGN_INST.commitInst(std::move(inst));
     if (committed_inst == nullptr) {
-      LOG_ERROR << "ClockNetManager: failed to commit algorithm inst.";
+      LOG_ERROR << "ClockNetEditor: failed to commit algorithm inst.";
       return false;
     }
     clock.add_inst(committed_inst);
@@ -501,7 +517,7 @@ auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::uniqu
       continue;
     }
     if (DESIGN_INST.commitPin(std::move(pin)) == nullptr) {
-      LOG_ERROR << "ClockNetManager: failed to commit algorithm pin.";
+      LOG_ERROR << "ClockNetEditor: failed to commit algorithm pin.";
       return false;
     }
   }
@@ -513,7 +529,7 @@ auto ClockNetManager::commitInsertedObjects(Clock& clock, std::vector<std::uniqu
     }
     auto* committed_net = DESIGN_INST.commitNet(std::move(net));
     if (committed_net == nullptr) {
-      LOG_ERROR << "ClockNetManager: failed to commit algorithm net.";
+      LOG_ERROR << "ClockNetEditor: failed to commit algorithm net.";
       return false;
     }
     clock.add_net(committed_net);

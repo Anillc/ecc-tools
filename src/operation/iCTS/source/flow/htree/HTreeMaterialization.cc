@@ -50,6 +50,7 @@
 #include "Tree.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeBuilderInternal.hh"
+#include "htree/HTreeMaterializationContext.hh"
 
 namespace icts::htree_builder {
 namespace {
@@ -77,6 +78,49 @@ auto CreateBufferInstance(HTreeBuilder::BuildResult& result, const std::string& 
   return {input_pin_ptr, output_pin_ptr};
 }
 
+auto RecordInsertedInstLevel(HTreeBuilder::BuildResult& result, Inst* inst, int topology_level, std::size_t index_in_level) -> void
+{
+  if (inst == nullptr) {
+    return;
+  }
+  result.inserted_inst_levels.push_back(HTreeBuilder::InsertedInstLevel{
+      .inst = inst,
+      .topology_level = topology_level,
+      .index_in_level = index_in_level,
+  });
+}
+
+auto RecordInsertedNetLevel(HTreeBuilder::BuildResult& result, Net* net, int topology_level) -> void
+{
+  if (net == nullptr) {
+    return;
+  }
+  const auto index_in_level = static_cast<std::size_t>(std::ranges::count_if(
+      result.inserted_net_levels,
+      [topology_level](const HTreeBuilder::InsertedNetLevel& level) -> bool { return level.topology_level == topology_level; }));
+  result.inserted_net_levels.push_back(HTreeBuilder::InsertedNetLevel{
+      .net = net,
+      .topology_level = topology_level,
+      .index_in_level = index_in_level,
+  });
+}
+
+auto EraseInsertedInstLevel(HTreeBuilder::BuildResult& result, const Inst* inst) -> void
+{
+  if (inst == nullptr) {
+    return;
+  }
+  std::erase_if(result.inserted_inst_levels, [inst](const HTreeBuilder::InsertedInstLevel& level) -> bool { return level.inst == inst; });
+}
+
+auto EraseInsertedNetLevel(HTreeBuilder::BuildResult& result, const Net* net) -> void
+{
+  if (net == nullptr) {
+    return;
+  }
+  std::erase_if(result.inserted_net_levels, [net](const HTreeBuilder::InsertedNetLevel& level) -> bool { return level.net == net; });
+}
+
 auto ConnectNet(Net* net, Pin* driver, const std::vector<Pin*>& loads) -> void
 {
   if (net == nullptr) {
@@ -98,11 +142,13 @@ auto ConnectNet(Net* net, Pin* driver, const std::vector<Pin*>& loads) -> void
   }
 }
 
-auto CreateNet(HTreeBuilder::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
+auto CreateNet(HTreeBuilder::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads,
+               int topology_level) -> Net*
 {
   auto net = std::make_unique<Net>(net_name);
   auto* net_ptr = net.get();
   ConnectNet(net_ptr, driver, loads);
+  RecordInsertedNetLevel(result, net_ptr, topology_level);
 
   result.inserted_nets.push_back(std::move(net));
   return net_ptr;
@@ -282,7 +328,9 @@ auto PruneLeafSingleLoadBuffers(HTreeBuilder::BuildResult& result) -> std::size_
       EraseOwnedPointer(result.inserted_pins, pin);
     }
 
+    EraseInsertedNetLevel(result, output_net);
     EraseOwnedPointer(result.inserted_nets, output_net);
+    EraseInsertedInstLevel(result, inst);
     EraseOwnedPointer(result.inserted_insts, inst);
     ++pruned_count;
   }
@@ -291,8 +339,8 @@ auto PruneLeafSingleLoadBuffers(HTreeBuilder::BuildResult& result) -> std::size_
 }
 
 auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const TreeNode& parent_node, const TreeNode& child_node,
-                                        const BufferingPattern& segment_pattern, const std::vector<Pin*>& child_entry_loads)
-    -> std::vector<Pin*>
+                                        const BufferingPattern& segment_pattern, const std::vector<Pin*>& child_entry_loads,
+                                        int topology_level) -> std::vector<Pin*>
 {
   if (child_node.get_loads().empty()) {
     return {};
@@ -321,16 +369,19 @@ auto MaterializeSegmentAndGetEntryLoads(MaterializationContext& context, const T
 
     const auto buffer_location
         = InterpolateManhattanPoint(parent_node.get_position(), child_node.get_position(), positions.at(buffer_index));
-    segment_buffers.push_back(CreateBufferInstance(*context.result, context.nextBufferName(), cell_masters.at(buffer_index),
-                                                   buffer_location, ports->first, ports->second));
+    auto created_buffer = CreateBufferInstance(*context.result, context.nextBufferName(), cell_masters.at(buffer_index), buffer_location,
+                                               ports->first, ports->second);
+    RecordInsertedInstLevel(*context.result, created_buffer.first == nullptr ? nullptr : created_buffer.first->get_inst(), topology_level,
+                            buffer_index);
+    segment_buffers.push_back(created_buffer);
   }
 
   for (std::size_t buffer_index = 0; buffer_index + 1U < segment_buffers.size(); ++buffer_index) {
     CreateNet(*context.result, context.nextNetName(), segment_buffers.at(buffer_index).second,
-              std::vector<Pin*>{segment_buffers.at(buffer_index + 1U).first});
+              std::vector<Pin*>{segment_buffers.at(buffer_index + 1U).first}, topology_level);
   }
 
-  CreateNet(*context.result, context.nextNetName(), segment_buffers.back().second, terminal_loads);
+  CreateNet(*context.result, context.nextNetName(), segment_buffers.back().second, terminal_loads, topology_level);
   return std::vector<Pin*>{segment_buffers.front().first};
 }
 
@@ -493,7 +544,8 @@ auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatter
 
         const auto child_it = entry_loads_by_node.find(child_id);
         const auto& child_entry_loads = (child_it != entry_loads_by_node.end()) ? child_it->second : child_node->get_loads();
-        auto segment_entry_loads = MaterializeSegmentAndGetEntryLoads(context, *node, *child_node, *segment_pattern, child_entry_loads);
+        auto segment_entry_loads
+            = MaterializeSegmentAndGetEntryLoads(context, *node, *child_node, *segment_pattern, child_entry_loads, static_cast<int>(depth));
         node_entry_loads.insert(node_entry_loads.end(), segment_entry_loads.begin(), segment_entry_loads.end());
       }
 

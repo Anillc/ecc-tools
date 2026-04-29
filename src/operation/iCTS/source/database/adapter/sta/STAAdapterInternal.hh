@@ -86,8 +86,6 @@ auto NormalizeInstName(std::string inst_name) -> std::string;
 auto NormalizePortName(const std::string& pin_name) -> std::string;
 auto FindIdbInstance(const std::string& inst_name) -> idb::IdbInstance*;
 auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_master) -> ista::LibCell*;
-auto CalcSelectedNetSwitchPower(ipower::Power* power, const std::unordered_set<std::string>& net_names) -> double;
-auto FilterPowerCells(ipower::Power* power, const std::unordered_set<std::string>& inst_names) -> void;
 auto AnnotateCharSourceInputPower(ipower::Power* power, const std::optional<std::string>& source_input_pin_full_name) -> void;
 auto FindBufferArcSet(ista::LibCell* lib_cell) -> std::optional<ista::LibArcSet*>;
 auto ConvertAxisValue(ista::LibLibrary* owner_lib, ista::LibLutTableTemplate::Variable variable, double axis_value) -> double;
@@ -102,8 +100,6 @@ auto ConvertLibTimeToNs(ista::LibCell* lib_cell, double time_value) -> double;
 auto ConvertPfLoadToLibUnit(ista::LibCell* lib_cell, double load_pf) -> double;
 auto QueryOutputNetLoadPf(ista::Pin* output_pin, ista::TransType trans_type) -> double;
 auto QueryLibPortCapacitancePf(ista::LibCell* lib_cell, ista::LibPort* lib_port) -> double;
-auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
-                     std::unique_ptr<ista::LibCurrentData> output_current_data = nullptr) -> void;
 auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_pin, ista::StaVertex* output_vertex,
                               ista::Instance* source_inst, ista::LibCell* lib_cell, ista::LibArcSet* source_arc_set, ista::LibArc* lib_arc,
                               double slew_ns) -> void;

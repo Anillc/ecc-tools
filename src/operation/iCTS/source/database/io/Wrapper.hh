@@ -23,6 +23,7 @@
 
 #pragma once
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -49,6 +50,15 @@ class Clock;
 class Inst;
 class Net;
 class Pin;
+
+struct WrapperCellGeometry
+{
+  std::string name;
+  std::string cell_master;
+  Point<int> origin = Point<int>(-1, -1);
+  int32_t width_dbu = 0;
+  int32_t height_dbu = 0;
+};
 
 class Wrapper
 {
@@ -98,6 +108,8 @@ class Wrapper
   auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> void;
   auto writeClock(Clock& clock) -> bool;
   auto writeClocks(const std::vector<Clock*>& clocks) -> bool;
+  auto collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>;
+  auto queryInstGeometry(const std::string& inst_name) const -> std::optional<WrapperCellGeometry>;
   auto withinCore(int32_t point_x, int32_t point_y) const -> bool;
 
  private:

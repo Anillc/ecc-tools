@@ -133,11 +133,37 @@ auto CreateBufferInstance(SegmentBuilder::BuildResult& result, const std::string
   return {input_pin_ptr, output_pin_ptr};
 }
 
-auto CreateNet(SegmentBuilder::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
+auto RecordInsertedInstLevel(SegmentBuilder::BuildResult& result, Inst* inst, int topology_level, std::size_t index_in_level) -> void
+{
+  if (inst == nullptr) {
+    return;
+  }
+  result.inserted_inst_levels.push_back(HTreeBuilder::InsertedInstLevel{
+      .inst = inst,
+      .topology_level = topology_level,
+      .index_in_level = index_in_level,
+  });
+}
+
+auto RecordInsertedNetLevel(SegmentBuilder::BuildResult& result, Net* net, int topology_level, std::size_t index_in_level) -> void
+{
+  if (net == nullptr) {
+    return;
+  }
+  result.inserted_net_levels.push_back(HTreeBuilder::InsertedNetLevel{
+      .net = net,
+      .topology_level = topology_level,
+      .index_in_level = index_in_level,
+  });
+}
+
+auto CreateNet(SegmentBuilder::BuildResult& result, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads,
+               int topology_level, std::size_t index_in_level) -> Net*
 {
   auto net = std::make_unique<Net>(net_name);
   auto* net_ptr = net.get();
   ConnectOwnedNet(*net_ptr, driver, loads);
+  RecordInsertedNetLevel(result, net_ptr, topology_level, index_in_level);
   result.inserted_nets.push_back(std::move(net));
   return net_ptr;
 }
@@ -253,18 +279,22 @@ auto MaterializeSegment(SegmentBuilder::BuildResult& result, Net& source_net, Pi
 
     const auto location
         = htree_builder::InterpolateManhattanPoint(source->get_location(), sink->get_location(), positions.at(buffer_index));
-    segment_buffers.push_back(
-        CreateBufferInstance(result, MakeObjectName(options.object_name_prefix, "top_segment_buf_" + std::to_string(buffer_index)),
-                             cell_masters.at(buffer_index), location, ports->first, ports->second));
+    auto created_buffer
+        = CreateBufferInstance(result, MakeObjectName(options.object_name_prefix, "top_segment_buf_" + std::to_string(buffer_index)),
+                               cell_masters.at(buffer_index), location, ports->first, ports->second);
+    RecordInsertedInstLevel(result, created_buffer.first == nullptr ? nullptr : created_buffer.first->get_inst(),
+                            static_cast<int>(buffer_index), buffer_index);
+    segment_buffers.push_back(created_buffer);
   }
 
   ConnectNet(source_net, source, {segment_buffers.front().first});
   for (std::size_t buffer_index = 0; buffer_index + 1U < segment_buffers.size(); ++buffer_index) {
     CreateNet(result, MakeObjectName(options.object_name_prefix, "top_segment_net_" + std::to_string(buffer_index)),
-              segment_buffers.at(buffer_index).second, {segment_buffers.at(buffer_index + 1U).first});
+              segment_buffers.at(buffer_index).second, {segment_buffers.at(buffer_index + 1U).first}, static_cast<int>(buffer_index),
+              buffer_index);
   }
   CreateNet(result, MakeObjectName(options.object_name_prefix, "top_segment_net_" + std::to_string(segment_buffers.size() - 1U)),
-            segment_buffers.back().second, {sink});
+            segment_buffers.back().second, {sink}, static_cast<int>(segment_buffers.size() - 1U), segment_buffers.size() - 1U);
   return true;
 }
 

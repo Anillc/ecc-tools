@@ -63,9 +63,9 @@ auto CaptureConfigState() -> ConfigState
   state.htree_depth_explore_window = CONFIG_INST.get_htree_depth_explore_window();
   state.enable_sink_clustering = CONFIG_INST.is_enable_sink_clustering();
   state.work_dir = CONFIG_INST.get_work_dir();
-  state.output_def_path = CONFIG_INST.get_output_def_path();
   state.log_file = CONFIG_INST.get_log_file();
-  state.gds_file = CONFIG_INST.get_gds_file();
+  state.visualization_dir = CONFIG_INST.get_visualization_dir();
+  state.statistics_dir = CONFIG_INST.get_statistics_dir();
   state.use_netlist = CONFIG_INST.is_use_netlist();
   state.net_list = CONFIG_INST.get_net_list();
   return state;
@@ -96,9 +96,9 @@ auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_htree_depth_explore_window(state.htree_depth_explore_window);
   CONFIG_INST.set_enable_sink_clustering(state.enable_sink_clustering);
   CONFIG_INST.set_work_dir(state.work_dir);
-  CONFIG_INST.set_output_def_path(state.output_def_path);
   CONFIG_INST.set_log_file(state.log_file);
-  CONFIG_INST.set_gds_file(state.gds_file);
+  CONFIG_INST.set_visualization_dir(state.visualization_dir);
+  CONFIG_INST.set_statistics_dir(state.statistics_dir);
   CONFIG_INST.set_use_netlist(state.use_netlist);
   CONFIG_INST.set_net_list(state.net_list);
 }

@@ -26,10 +26,10 @@
 #include <optional>
 #include <vector>
 
-#include "RCTree.hh"
-#include "RoutingTerminal.hh"
-#include "SteinerTree.hh"
 #include "local_legalization/LocalLegalization.hh"
+#include "routing/RoutingTerminal.hh"
+#include "routing/SteinerTree.hh"
+#include "timing/RCTree.hh"
 
 namespace icts {
 

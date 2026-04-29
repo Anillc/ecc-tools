@@ -80,9 +80,9 @@ struct ConfigState
   unsigned htree_depth_explore_window = 4U;
   bool enable_sink_clustering = true;
   std::string work_dir;
-  std::string output_def_path;
   std::string log_file;
-  std::string gds_file;
+  std::string visualization_dir;
+  std::string statistics_dir;
   bool use_netlist = false;
   std::vector<std::pair<std::string, std::string>> net_list;
 };

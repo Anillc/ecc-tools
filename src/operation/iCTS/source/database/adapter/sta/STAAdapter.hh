@@ -131,8 +131,8 @@ class STAAdapter
   static auto setCharBufferInputSlewIncremental(double slew_ns) -> void;
   static auto updateCharTimingSample() -> void;
   static auto updateCharTimingIncrementalSample() -> void;
-  static auto prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
-                               std::optional<std::string> source_input_pin_full_name = std::nullopt) -> bool;
+  auto prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
+                        const std::optional<std::string>& source_input_pin_full_name = std::nullopt) -> bool;
   static auto refreshCharPowerLoad() -> bool;
   static auto updateCharPower() -> bool;
   static auto queryCharPower() -> double;
@@ -144,8 +144,8 @@ class STAAdapter
   static auto reportTiming() -> bool;
   static auto refreshFullDesignTimingContext() -> void;
   static auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
-  static auto queryClockTimings() -> std::vector<ClockTimingRecord>;
-  static auto queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>;
+  auto queryClockTimings() const -> std::vector<ClockTimingRecord>;
+  auto queryClockLatencySkew() const -> std::vector<ClockLatencySkewMetrics>;
   static auto installClockNetRcTree(const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
   static auto queryCharClockAT(const std::string& clock_name) -> double;
   static auto queryCharSlew() -> double;

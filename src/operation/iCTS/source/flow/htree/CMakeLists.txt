@@ -1,5 +1,11 @@
 add_library(
   icts_source_flow_htree
+  ${ICTS_FLOW_HTREE}/HTreeActualLoadTypes.hh
+  ${ICTS_FLOW_HTREE}/HTreeAdapterCaches.hh
+  ${ICTS_FLOW_HTREE}/HTreeCandidateTypes.hh
+  ${ICTS_FLOW_HTREE}/HTreeCharacterizationTypes.hh
+  ${ICTS_FLOW_HTREE}/HTreeMaterializationContext.hh
+  ${ICTS_FLOW_HTREE}/HTreePatternRegistry.hh
   ${ICTS_FLOW_HTREE}/CharacterizationLibrary.cc
   ${ICTS_FLOW_HTREE}/HTreeBuilder.cc
   ${ICTS_FLOW_HTREE}/HTreeActualLoad.cc
@@ -21,6 +27,8 @@ target_link_libraries(
   PRIVATE
   icts_source_database
   icts_source_module
+  icts_source_module_topology
+  icts_source_module_topology_clustering
   icts_source_utils
 )
 

@@ -28,7 +28,7 @@
 
 #include "SteinerTree.hh"
 #include "database/spatial/Point.hh"
-#include "module/routing/Router.hh"
+#include "module/routing/router/Router.hh"
 
 namespace icts_test {
 namespace {

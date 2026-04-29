@@ -84,6 +84,20 @@ class HTreeBuilder
     PatternId segment_pattern_id = PatternId::segment(0);
   };
 
+  struct InsertedInstLevel
+  {
+    Inst* inst = nullptr;
+    int topology_level = -1;
+    std::size_t index_in_level = 0U;
+  };
+
+  struct InsertedNetLevel
+  {
+    Net* net = nullptr;
+    int topology_level = -1;
+    std::size_t index_in_level = 0U;
+  };
+
   struct BuildResult
   {
     bool success = false;
@@ -131,6 +145,8 @@ class HTreeBuilder
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;
     std::vector<std::unique_ptr<Net>> inserted_nets;
+    std::vector<InsertedInstLevel> inserted_inst_levels;
+    std::vector<InsertedNetLevel> inserted_net_levels;
 
     Inst* root_inst = nullptr;
     Pin* root_input_pin = nullptr;
