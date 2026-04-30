@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 40
+- **Total Sessions**: 41
 - **Last Active**: 2026-04-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1852 | Active |
+| `journal-1.md` | ~1886 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 41 | 2026-04-30 | CTS flow semantic naming alignment | `2450b1c16`, `097356812` | `cts_refactor` |
 | 40 | 2026-04-30 | CTS synthesis transaction and report model cleanup | `f60f91d74`, `abb7cc768` | `cts_refactor` |
 | 39 | 2026-04-29 | CTS engineering refactor | `6c3928f0c`, `778b2da07` | `cts_refactor` |
 | 38 | 2026-04-28 | CTS top-level buffering and SVG report | `41c92a6af` | `cts_refactor` |

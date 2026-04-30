@@ -1850,3 +1850,37 @@ Refactored CTS synthesis transaction boundaries, report/visualization models, ev
 ### Next Steps
 
 - None - task complete
+
+
+## Session 41: CTS flow semantic naming alignment
+
+**Date**: 2026-04-30
+**Task**: CTS flow semantic naming alignment
+**Branch**: `cts_refactor`
+
+### Summary
+
+Renamed iCTS flow directories and CTS/H-tree/report files to EDA/CTS semantic names, validated focused builds/tests, iEDA binary, and full iCTS ecc_dev_tools, then archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2450b1c16` | (see git log) |
+| `097356812` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
