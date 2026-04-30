@@ -20,15 +20,26 @@
 
 namespace idrc {
 
-class AdjacentCutSpacingRule
+class CornerSpacingRule
 {
  public:
-  AdjacentCutSpacingRule() = default;
-  ~AdjacentCutSpacingRule() = default;
+  CornerSpacingRule() = default;
+  ~CornerSpacingRule() = default;
+  int32_t get_width_spacing(int32_t width)
+  {
+    for (int32_t i = width_spacing_list.size() - 1; i >= 0; i--) {
+      if (width > width_spacing_list[i].first) {
+        return width_spacing_list[i].second;
+      }
+    }
+    return width_spacing_list[0].second;
+  }
 
-  int32_t cut_spacing;
-  int32_t adjacnet_cuts;
-  int32_t cut_within;
+  bool has_convex_corner = false;
+  bool has_concave_corner = false;
+  bool has_except_eol = false;
+  int32_t except_eol = -1;
+  std::vector<std::pair<int32_t, int32_t>> width_spacing_list;
 };
 
 }  // namespace idrc
