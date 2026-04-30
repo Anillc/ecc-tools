@@ -1816,3 +1816,37 @@ Completed and archived the CTS engineering refactor: typed clock-tree stages, re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 40: CTS synthesis transaction and report model cleanup
+
+**Date**: 2026-04-30
+**Task**: CTS synthesis transaction and report model cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+Refactored CTS synthesis transaction boundaries, report/visualization models, evaluation state handling, GDS LYP output contract, and archived the completed Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f60f91d74` | (see git log) |
+| `abb7cc768` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
