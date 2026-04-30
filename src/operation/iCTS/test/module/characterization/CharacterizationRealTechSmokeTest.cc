@@ -18,7 +18,7 @@
  * @file CharacterizationRealTechSmokeTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-18
- * @brief Smoke coverage for manual H-tree composition on real-tech assets.
+ * @brief Smoke coverage for manual H-tree topology assembly on real-tech assets.
  */
 
 #include <gtest/gtest.h>
@@ -48,7 +48,7 @@ namespace {
 
 namespace realtech_support = characterization::realtech;
 
-TEST(CharacterizationRealTechSmokeTest, ManualHTreeCompositionProducesInspectableReport)
+TEST(CharacterizationRealTechSmokeTest, ManualHTreeTopologyAssemblyProducesInspectableReport)
 {
   realtech_support::RealTechCharSession char_session;
   if (const auto prepare_error = char_session.prepare("smoke_manual_htree", std::nullopt, 0.0, 0.0); prepare_error.has_value()) {

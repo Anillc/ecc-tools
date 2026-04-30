@@ -27,14 +27,14 @@
 
 namespace icts {
 
-class ClockTreeReportData;
+class ClockTreeView;
 
 class CTSClockTreeSynthesisStep
 {
  public:
   CTSClockTreeSynthesisStep() = delete;
 
-  static auto run(ClockTreeReportData& report_data) -> CTSClockTreeRunSummary;
+  static auto run(ClockTreeView& clock_tree_view) -> CTSClockTreeRunSummary;
 };
 
 }  // namespace icts

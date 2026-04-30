@@ -29,8 +29,8 @@
 #include "synthesis/ClockSynthesisHtreeOptions.hh"
 #include "synthesis/ClockSynthesisNetEditor.hh"
 #include "synthesis/ClockSynthesisReporter.hh"
-#include "synthesis/ClockSynthesisResultAccounting.hh"
 #include "synthesis/ClockSynthesisSinkClustering.hh"
+#include "synthesis/ClockTreeSynthesisMetrics.hh"
 
 namespace icts::clock_synthesis {
 

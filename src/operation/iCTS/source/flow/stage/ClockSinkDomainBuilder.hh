@@ -27,8 +27,8 @@
 #include <string>
 #include <vector>
 
-#include "report_data/ClockTreeReportData.hh"
-#include "report_data/ClockTreeReportDataBuilder.hh"
+#include "clock_tree_view/ClockTreeView.hh"
+#include "clock_tree_view/ClockTreeViewBuilder.hh"
 #include "stage/ClockTreeSynthesisStatusTable.hh"
 
 namespace icts {
@@ -62,9 +62,9 @@ struct ClockSinkDomainContext
   Pin* root_output = nullptr;
   Net* downstream_net = nullptr;
 
-  auto makeReportTopology() const -> ClockSinkDomainReportTopology
+  auto makeViewTopology() const -> ClockSinkDomainViewTopology
   {
-    return ClockSinkDomainReportTopology{
+    return ClockSinkDomainViewTopology{
         .sink_domain = sink_domain,
         .root_buffer = root_buffer,
         .downstream_net = downstream_net,

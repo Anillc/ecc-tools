@@ -169,8 +169,9 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
   output_stream << icts::visualization::detail::kSvgBackgroundRect;
 
   output_stream << R"(<g font-family="monospace" fill="#1f2933">)";
-  output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Actual-Load-Legal Delay-Power Frontier</text>)";
-  output_stream << R"(<text x="36" y="46" font-size="12">Each point is one actual-load-legal frontier entry. Lower-left is better.</text>)";
+  output_stream << R"(<text x="36" y="28" font-size="16" font-weight="700">Sink-Load-Profile-Legal Delay-Power Frontier</text>)";
+  output_stream
+      << R"(<text x="36" y="46" font-size="12">Each point is one sink-load-profile-legal frontier entry. Lower-left is better.</text>)";
   output_stream << R"(<rect x=")" << FormatSvgNumber(plot_left) << R"(" y=")" << FormatSvgNumber(plot_top) << R"(" width=")"
                 << FormatSvgNumber(plot_width) << R"(" height=")" << FormatSvgNumber(plot_height)
                 << R"(" fill="#ffffff" fill-opacity="0.85" stroke="#d0d7de" />)";

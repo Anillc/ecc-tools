@@ -26,8 +26,8 @@
 #include <cstddef>
 #include <string>
 
+#include "clock_tree_view/ClockTreeView.hh"
 #include "logger/Schema.hh"
-#include "report_data/ClockTreeReportData.hh"
 
 namespace icts {
 

@@ -40,6 +40,7 @@
 
 #include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
+#include "clock_tree_view/ClockTreeView.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
@@ -48,7 +49,6 @@
 #include "design/Pin.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
-#include "report_data/ClockTreeReportData.hh"
 #include "spatial/Point.hh"
 
 namespace icts {

@@ -18,7 +18,7 @@
  * @file HTreeCandidateTypes.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-28
- * @brief H-tree depth exploration and candidate selection data types.
+ * @brief H-tree topology depth search and candidate selection data types.
  */
 
 #pragma once
@@ -29,10 +29,10 @@
 #include <vector>
 
 #include "HTreeTopologyChar.hh"
-#include "htree/HTreeActualLoadTypes.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeCharacterizationTypes.hh"
 #include "htree/HTreePatternRegistry.hh"
+#include "htree/HTreeSinkLoadProfileTypes.hh"
 
 namespace icts::htree_builder {
 
@@ -58,7 +58,7 @@ struct CandidateBuildEvaluation
   TopologyPatternRegistry topology_pattern_registry;
 };
 
-struct HTreeDepthCandidateSummary
+struct HTreeTopologyDepthSummary
 {
   unsigned depth = 0U;
   std::size_t leaf_count = 0U;
@@ -81,7 +81,7 @@ struct HTreeDepthCandidateSummary
   double selected_delay_ns = 0.0;
 };
 
-struct ActualLoadEntryFilterResult
+struct SinkLoadProfileEntryFilterResult
 {
   std::vector<HTreeTopologyChar> entries;
   std::string first_failure_reason;
@@ -99,16 +99,16 @@ struct CandidateCharRefFilterResult
   std::string first_failure_reason;
 };
 
-struct HTreeDepthExplorationResult
+struct HTreeTopologyDepthSearchResult
 {
   std::vector<CandidateBuildEvaluation> candidate_evaluations;
-  std::vector<HTreeDepthCandidateSummary> depth_summaries;
+  std::vector<HTreeTopologyDepthSummary> depth_summaries;
   std::vector<CandidateCharRef> global_feasible_pool;
   std::vector<CandidateCharRef> global_candidate_pool;
-  ActualLoadLegalityContext actual_load_legality_context;
+  SinkLoadProfileLegalityContext sink_load_profile_legality_context;
 };
 
-struct HTreeDepthCandidateEvaluationResult
+struct HTreeTopologyDepthEvaluationResult
 {
   CandidateBuildEvaluation evaluation;
   std::size_t leaf_count = 0U;

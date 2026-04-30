@@ -31,7 +31,7 @@
 namespace icts {
 
 class Clock;
-class ClockTreeReportData;
+class ClockTreeView;
 
 struct ClockTreeSynthesisResult
 {
@@ -44,7 +44,7 @@ class ClockTreeSynthesisDriver
  public:
   ClockTreeSynthesisDriver() = delete;
 
-  static auto run(Clock& clock, std::size_t clock_index, ClockTreeReportData& report_data, CTSClockTreeRunSummary& summary,
+  static auto run(Clock& clock, std::size_t clock_index, ClockTreeView& clock_tree_view, CTSClockTreeRunSummary& summary,
                   schema::TableRows& rows, std::size_t& total_sink_domains, std::size_t& hard_macro_sink_count,
                   std::size_t& regular_sink_count) -> ClockTreeSynthesisResult;
 };

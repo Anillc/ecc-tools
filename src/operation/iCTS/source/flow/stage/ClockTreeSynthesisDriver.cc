@@ -29,26 +29,26 @@
 #include <vector>
 
 #include "Log.hh"
+#include "clock_tree_view/ClockTreeViewBuilder.hh"
 #include "design/Clock.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "htree/CharacterizationLibrary.hh"
-#include "report_data/ClockTreeReportDataBuilder.hh"
 #include "stage/ClockSinkDomainBuilder.hh"
 #include "stage/ClockTreeSynthesisStatusTable.hh"
 #include "stage/ClockTreeSynthesisTransaction.hh"
 
 namespace icts {
 
-auto ClockTreeSynthesisDriver::run(Clock& clock, std::size_t clock_index, ClockTreeReportData& report_data, CTSClockTreeRunSummary& summary,
+auto ClockTreeSynthesisDriver::run(Clock& clock, std::size_t clock_index, ClockTreeView& clock_tree_view, CTSClockTreeRunSummary& summary,
                                    schema::TableRows& rows, std::size_t& total_sink_domains, std::size_t& hard_macro_sink_count,
                                    std::size_t& regular_sink_count) -> ClockTreeSynthesisResult
 {
   ClockTreeSynthesisStatusTable status_table(rows);
   ClockTreeSynthesisTransaction::rollbackClock(clock);
-  ClockTreeReportData clock_report_data;
-  clock_report_data.ensureClock(clock.get_clock_name(), clock.get_clock_net_name(), clock_index);
+  ClockTreeView per_clock_view;
+  per_clock_view.ensureClock(clock.get_clock_name(), clock.get_clock_net_name(), clock_index);
 
   auto* clock_source = clock.get_clock_source();
   auto* clock_source_net = clock.get_clock_source_net();
@@ -76,11 +76,11 @@ auto ClockTreeSynthesisDriver::run(Clock& clock, std::size_t clock_index, ClockT
     LOG_WARNING << "ClockTreeSynthesisDriver: skip clock \"" << clock.get_clock_name() << "\" because no valid sinks are available.";
     return ClockTreeSynthesisResult{.success = false, .skipped = true};
   }
-  ClockTreeReportDataBuilder::appendSinkInsts(clock_report_data, clock, clock_index, sink_partition.macro_sinks, CTSSinkDomain::kHardMacro);
-  ClockTreeReportDataBuilder::appendSinkInsts(clock_report_data, clock, clock_index, sink_partition.regular_sinks, CTSSinkDomain::kRegular);
+  ClockTreeViewBuilder::appendSinkInsts(per_clock_view, clock, clock_index, sink_partition.macro_sinks, CTSSinkDomain::kHardMacro);
+  ClockTreeViewBuilder::appendSinkInsts(per_clock_view, clock, clock_index, sink_partition.regular_sinks, CTSSinkDomain::kRegular);
 
   CharacterizationLibrary char_library;
-  ClockTreeSynthesisTransaction transaction(clock, clock_index, clock_report_data, summary, status_table, char_library, valid_sinks);
+  ClockTreeSynthesisTransaction transaction(clock, clock_index, per_clock_view, summary, status_table, char_library, valid_sinks);
   std::vector<ClockSinkDomainContext> sink_domain_contexts;
   sink_domain_contexts.reserve(2U);
 
@@ -116,7 +116,7 @@ auto ClockTreeSynthesisDriver::run(Clock& clock, std::size_t clock_index, ClockT
   if (!transaction.synthesizeSourceToRoot(root_inputs)) {
     return ClockTreeSynthesisResult{.success = false, .skipped = false};
   }
-  ClockTreeReportDataBuilder::merge(report_data, clock_report_data);
+  ClockTreeViewBuilder::merge(clock_tree_view, per_clock_view);
   return ClockTreeSynthesisResult{.success = true, .skipped = false};
 }
 

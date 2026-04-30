@@ -133,7 +133,7 @@ auto buildClusteringConfigFromRuntimeConfig() -> ClusterConfig
   return clustering_config;
 }
 
-auto materializeClusterBuffers(ClockSynthesis::BuildResult& result, const ClusterResult& cluster_result,
+auto buildClusterBufferObjects(ClockSynthesis::BuildResult& result, const ClusterResult& cluster_result,
                                const std::string& cluster_buffer_cell_master, const std::string& input_pin_name,
                                const std::string& output_pin_name, const std::string& object_name_prefix, std::vector<Pin*>& htree_sinks)
     -> bool
@@ -202,7 +202,7 @@ auto PrepareSinkTreeLoads(ClockSynthesis::BuildResult& result, const std::vector
     result.failure_reason = "failed to resolve clustered center buffer master";
     return preparation;
   }
-  preparation.success = materializeClusterBuffers(result, *result.cluster_result, cluster_buffer_cell_master, cluster_buffer_input_pin,
+  preparation.success = buildClusterBufferObjects(result, *result.cluster_result, cluster_buffer_cell_master, cluster_buffer_input_pin,
                                                   cluster_buffer_output_pin, options.object_name_prefix, preparation.htree_sinks);
   return preparation;
 }

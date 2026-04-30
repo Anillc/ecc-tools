@@ -25,8 +25,8 @@
 
 #include <string>
 
+#include "clock_tree_view/ClockTreeView.hh"
 #include "evaluation/ClockTreeEvaluator.hh"
-#include "report_data/ClockTreeReportData.hh"
 #include "stage/CTSClockTreeRunSummary.hh"
 #include "stage/CTSClockTreeWritebackStep.hh"
 
@@ -66,7 +66,7 @@ class FlowManager
   auto emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void;
 
   CTSClockTreeRunSummary _run_summary;
-  ClockTreeReportData _report_data;
+  ClockTreeView _clock_tree_view;
   ClockTreeEvaluationState _evaluation_state;
   CTSClockTreeWritebackResult _writeback_result;
   bool _runtime_setup_emitted = false;

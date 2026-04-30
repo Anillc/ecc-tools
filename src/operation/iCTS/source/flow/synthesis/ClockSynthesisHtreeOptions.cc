@@ -43,7 +43,7 @@ auto applyMinTopInputSlew(HTreeBuilder::BuildOptions& htree_options) -> void
   }
 }
 
-auto applyMinInputSlew(SegmentBuilder::BuildOptions& segment_options) -> void
+auto applyMinInputSlew(SourceToRootSegmentBuilder::BuildOptions& segment_options) -> void
 {
   const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
   if (max_buf_tran > 0.0) {
@@ -66,11 +66,11 @@ auto BuildSinkHtreeOptions(bool enable_sink_clustering, const ClockSynthesis::Bu
 }
 
 auto BuildTopSegmentOptions(Pin* clock_source, Pin* root_input, const ClockSynthesis::SourceToRootBuildOptions& options)
-    -> SegmentBuilder::BuildOptions
+    -> SourceToRootSegmentBuilder::BuildOptions
 {
   HTreeBuilder::LogContext log_context = options.log_context;
   log_context.stage = "top_segment";
-  SegmentBuilder::BuildOptions segment_options{
+  SourceToRootSegmentBuilder::BuildOptions segment_options{
       .characterization_library = options.characterization_library,
       .required_load_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(root_input),
       .source_drive_cap_pf = resolveSourceDriveCap(clock_source),

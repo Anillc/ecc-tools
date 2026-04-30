@@ -27,10 +27,10 @@
 
 #include "Log.hh"
 #include "htree/HTreeBuilder.hh"
-#include "htree/SegmentBuilder.hh"
+#include "htree/SourceToRootSegmentBuilder.hh"
 #include "synthesis/ClockSynthesisHtreeOptions.hh"
 #include "synthesis/ClockSynthesisNetEditor.hh"
-#include "synthesis/ClockSynthesisResultAccounting.hh"
+#include "synthesis/ClockTreeSynthesisMetrics.hh"
 
 namespace icts::clock_synthesis {
 
@@ -62,7 +62,7 @@ auto BuildSourceToRootTree(Net& source_net, Pin* clock_source, const std::vector
   if (valid_root_inputs.size() == 1U) {
     result.stage = ClockSynthesis::SourceToRootStage::kSegment;
     auto segment_options = BuildTopSegmentOptions(clock_source, valid_root_inputs.front(), options);
-    auto segment_result = SegmentBuilder::build(source_net, clock_source, valid_root_inputs.front(), segment_options);
+    auto segment_result = SourceToRootSegmentBuilder::build(source_net, clock_source, valid_root_inputs.front(), segment_options);
     if (!segment_result.success) {
       result.failure_reason = segment_result.failure_reason.empty() ? "top_segment_failed" : segment_result.failure_reason;
       result.used_boundary_fallback = segment_result.used_boundary_fallback;

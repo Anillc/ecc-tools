@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation and required read order for iCTS work."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Hard iCTS constraints for file naming, headers, public process, and validation."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Authoritative source/flow placement rules and current semantic naming guidance."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "CTS semantic naming, include, dependency, and forbidden-pattern rules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Ownership and writeback boundaries to preserve while renaming view/report code."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "No-exception and severity rules; implementation should not change error behavior."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime/schema logging contracts to preserve while moving run setup and visualization files."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Directory and file renames cross API, flow, CMake, tests, and adapters."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Needed if renaming reveals duplicated view/report/visualization helpers."}
+{"file": ".trellis/tasks/archive/2026-04/04-29-cts-synthesis-transaction-report-model-cleanup/prd.md", "reason": "Previous task output and deferral context for subflow semantic naming."}
+{"file": ".trellis/tasks/04-30-cts-flow-semantic-naming-alignment/prd.md", "reason": "Current task scope, proposed migration plan, and acceptance criteria."}
+{"file": ".trellis/tasks/04-30-cts-flow-semantic-naming-alignment/research/industry-cts-terminology.md", "reason": "Industrial/open-source CTS vocabulary research for naming decisions."}
+{"file": ".trellis/tasks/04-30-cts-flow-semantic-naming-alignment/research/current-flow-naming-audit.md", "reason": "Current iCTS flow directory/file naming audit and candidate rename list."}

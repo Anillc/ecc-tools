@@ -33,9 +33,9 @@
 #include "config/Config.hh"
 #include "evaluation/ClockTreeEvaluator.hh"
 #include "logger/Schema.hh"
-#include "report/CTSGdsReport.hh"
-#include "report/CTSVisualizationReport.hh"
 #include "stage/CTSClockTreeEvaluationStep.hh"
+#include "visualization/ClockTreeGdsVisualization.hh"
+#include "visualization/ClockTreeSvgVisualization.hh"
 
 namespace icts {
 namespace {
@@ -73,10 +73,10 @@ auto resolveStatisticsDir(const std::string& save_dir, const std::filesystem::pa
 }  // namespace
 
 auto CTSClockTreeReportStep::run(const std::string& save_dir, bool evaluation_ready, bool refresh_sta_timing,
-                                 const ClockTreeReportData& report_data, ClockTreeEvaluationState& evaluation_state)
+                                 const ClockTreeView& clock_tree_view, ClockTreeEvaluationState& evaluation_state)
     -> CTSClockTreeReportResult
 {
-  LOG_FATAL_IF(CONFIG_INST.get_work_dir().empty()) << "CTS report requires an initialized CTS session.";
+  LOG_FATAL_IF(CONFIG_INST.get_work_dir().empty()) << "CTS report requires initialized CTS run setup.";
 
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("report");
   auto report_stage = SCHEMA_WRITER_INST.beginStage("CTSReport", "Emit CTS statistics and visualization reports");
@@ -102,8 +102,8 @@ auto CTSClockTreeReportStep::run(const std::string& save_dir, bool evaluation_re
 
   const bool statistics_success
       = current_evaluation_ready && ClockTreeEvaluator::writeStatistics(evaluation_state, statistics_dir.string(), false);
-  const auto visualization_result = report::EmitCTSVisualizationReports(visualization_dir, report_data);
-  const auto gds_result = report::EmitCTSGdsReports(visualization_dir, report_data);
+  const auto visualization_result = visualization::EmitClockTreeSvgVisualizations(visualization_dir, clock_tree_view);
+  const auto gds_result = visualization::EmitClockTreeGdsVisualizations(visualization_dir, clock_tree_view);
   const bool report_success = statistics_success && visualization_result.success && gds_result.success;
   const auto report_metric = report_success ? runtime.finished() : runtime.failed();
   SCHEMA_WRITER_INST.emitRuntimeMetricTable("CTS Report Runtime", "report", report_success ? "finished" : "failed", report_metric);

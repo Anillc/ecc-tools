@@ -32,7 +32,7 @@
 #include "feature_icts.h"
 #include "feature_ista.h"
 #include "flow/FlowManager.hh"
-#include "flow/session/CTSRunEnvironment.hh"
+#include "flow/run_setup/CTSRunSetup.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts {
@@ -86,7 +86,7 @@ auto CTSAPI::resetAPI() -> void
 auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
 {
   resetAPI();
-  CTSRunEnvironment::initialize(config_file, work_dir);
+  CTSRunSetup::initialize(config_file, work_dir);
   FLOW_MANAGER_INST.outputRuntimeSetup();
 }
 

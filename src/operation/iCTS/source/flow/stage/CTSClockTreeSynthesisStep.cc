@@ -28,11 +28,11 @@
 #include <string>
 
 #include "Log.hh"
+#include "clock_tree_view/ClockTreeView.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
-#include "report_data/ClockTreeReportData.hh"
 #include "stage/ClockTreeSynthesisDriver.hh"
 
 namespace icts {
@@ -60,14 +60,14 @@ auto emitClockTreeSynthesisSummary(const CTSClockTreeRunSummary& summary, const 
 
 }  // namespace
 
-auto CTSClockTreeSynthesisStep::run(ClockTreeReportData& report_data) -> CTSClockTreeRunSummary
+auto CTSClockTreeSynthesisStep::run(ClockTreeView& clock_tree_view) -> CTSClockTreeRunSummary
 {
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("synthesis");
   auto flow_stage = SCHEMA_WRITER_INST.beginStage("CTSFlow", "Run CTS synthesis flow");
   SCHEMA_WRITER_INST.emitSection("## Synthesis Summary");
 
-  report_data.reset();
-  report_data.set_design_dbu_per_um(WRAPPER_INST.queryDbUnit());
+  clock_tree_view.reset();
+  clock_tree_view.set_design_dbu_per_um(WRAPPER_INST.queryDbUnit());
   CTSClockTreeRunSummary summary;
   auto clocks = DESIGN_INST.get_clocks();
   const std::size_t total_clocks = clocks.size();
@@ -87,7 +87,7 @@ auto CTSClockTreeSynthesisStep::run(ClockTreeReportData& report_data) -> CTSCloc
       continue;
     }
 
-    const auto clock_result = ClockTreeSynthesisDriver::run(*clock, clock_index, report_data, summary, rows, total_sink_domains,
+    const auto clock_result = ClockTreeSynthesisDriver::run(*clock, clock_index, clock_tree_view, summary, rows, total_sink_domains,
                                                             hard_macro_sinks, regular_sinks);
     if (clock_result.success) {
       ++successful_clocks;
@@ -106,7 +106,7 @@ auto CTSClockTreeSynthesisStep::run(ClockTreeReportData& report_data) -> CTSCloc
   summary.total_sink_domains = total_sink_domains;
   summary.hard_macro_sinks = hard_macro_sinks;
   summary.regular_sinks = regular_sinks;
-  report_data.markSynthesisComplete(summary.success);
+  clock_tree_view.markSynthesisComplete(summary.success);
 
   LOG_INFO << "CTS clock-tree synthesis finished with " << successful_clocks << " successful, " << skipped_clocks << " skipped, "
            << failed_clocks << " failed clocks.";

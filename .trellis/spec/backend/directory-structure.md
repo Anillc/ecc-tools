@@ -44,12 +44,12 @@ read data -> synthesis/writeback -> evaluation -> report
 
 Use these placement boundaries:
 - `api/`: stable external `CTSAPI` entry points only.
-- `source/flow/session/`: run setup such as config, work directory, logging, and adapter initialization.
+- `source/flow/run_setup/`: run setup such as config, work directory, logging, and adapter initialization.
 - `source/flow/stage/`: stage sequencing and per-clock flow coordination.
 - `source/flow/synthesis/` and `source/flow/htree/`: clock-tree synthesis and H-tree implementation.
-- `source/flow/report_data/`: typed report metadata shared by report/visualization.
+- `source/flow/clock_tree_view/`: typed readonly clock-tree view metadata shared by report and visualization.
 - `source/flow/evaluation/`: readonly evaluation over committed CTS results.
-- `source/flow/report/`: readonly report file writers.
+- `source/flow/visualization/`: readonly clock-tree visualization file writers.
 
 ### Placement
 
@@ -59,8 +59,8 @@ Use these placement boundaries:
 - Put reusable helper code in `source/utils/`.
 - Put tests under `test/`, mirroring the source layout as closely as practical.
 - Keep `api/CTSAPI` focused on external entry points; internal CTS flow lifecycle steps belong under `source/flow`.
-- Keep runtime config access at API/flow/database/test boundaries; code under  `source/module/` should receive explicit options instead of reading `CONFIG_INST`.
-- Put report-only format writers under `source/flow/report/`.
+- Keep runtime config access at API/flow/database/test boundaries; code under `source/module/` should receive explicit options instead of reading `CONFIG_INST`.
+- Put visualization-only format writers under `source/flow/visualization/`.
 - Put stable shared routing database types under `source/database/routing/`; keep routing algorithms under `source/module/routing/`.
 
 ### CMake Target Naming

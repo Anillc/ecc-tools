@@ -33,7 +33,7 @@ namespace icts {
 
 class CharacterizationLibrary;
 class Clock;
-class ClockTreeReportData;
+class ClockTreeView;
 class Pin;
 struct ClockSinkDomainContext;
 struct CTSClockTreeRunSummary;
@@ -42,7 +42,7 @@ class ClockTreeSynthesisStatusTable;
 class ClockTreeSynthesisTransaction
 {
  public:
-  ClockTreeSynthesisTransaction(Clock& clock, std::size_t clock_index, ClockTreeReportData& report_data, CTSClockTreeRunSummary& summary,
+  ClockTreeSynthesisTransaction(Clock& clock, std::size_t clock_index, ClockTreeView& clock_tree_view, CTSClockTreeRunSummary& summary,
                                 ClockTreeSynthesisStatusTable& status_table, CharacterizationLibrary& characterization_library,
                                 std::size_t valid_sinks);
 
@@ -58,7 +58,7 @@ class ClockTreeSynthesisTransaction
  private:
   Clock* _clock = nullptr;
   std::size_t _clock_index = 0U;
-  ClockTreeReportData* _report_data = nullptr;
+  ClockTreeView* _clock_tree_view = nullptr;
   CTSClockTreeRunSummary* _summary = nullptr;
   ClockTreeSynthesisStatusTable* _status_table = nullptr;
   CharacterizationLibrary* _characterization_library = nullptr;

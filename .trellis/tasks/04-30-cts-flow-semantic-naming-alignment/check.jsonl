@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation for check phase."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Verify iCTS file naming, header, process, and validation constraints."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify moved files, CMake targets, tests, and flow placement boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify CTS semantic naming, dependency visibility, include hygiene, and forbidden patterns."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify ownership/writeback boundaries are unchanged by naming migration."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify no behavior/error handling changed during rename."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify runtime/schema output contracts survive file moves."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer rename impact."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check that any reorganized helpers are reused rather than duplicated."}
+{"file": ".trellis/tasks/archive/2026-04/04-29-cts-synthesis-transaction-report-model-cleanup/prd.md", "reason": "Verify new task preserves previous refactor contracts."}
+{"file": ".trellis/tasks/04-30-cts-flow-semantic-naming-alignment/prd.md", "reason": "Current task acceptance checklist and approved scope."}
+{"file": ".trellis/tasks/04-30-cts-flow-semantic-naming-alignment/research/industry-cts-terminology.md", "reason": "Check final names against researched CTS vocabulary."}
+{"file": ".trellis/tasks/04-30-cts-flow-semantic-naming-alignment/research/current-flow-naming-audit.md", "reason": "Check implementation against the approved naming audit."}

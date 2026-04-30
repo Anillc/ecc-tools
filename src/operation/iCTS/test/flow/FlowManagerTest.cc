@@ -44,10 +44,10 @@
 #include "evaluation/ClockTreeEvaluator.hh"
 #include "feature_icts.h"
 #include "flow/FlowManager.hh"
+#include "flow/clock_tree_view/ClockTreeView.hh"
 #include "flow/htree/CharacterizationLibrary.hh"
 #include "flow/htree/HTreeBuilder.hh"
 #include "flow/netlist/ClockNetEditor.hh"
-#include "flow/report_data/ClockTreeReportData.hh"
 #include "flow/stage/CTSClockTreeRunSummary.hh"
 #include "flow/stage/ClockSinkDomainBuilder.hh"
 #include "flow/stage/ClockTreeSynthesisDriver.hh"
@@ -456,21 +456,21 @@ TEST(FlowManagerTest, RootBufferInsertionFailureRollsBackClockAndRecordsSinkDoma
   ASSERT_NE(pins.clock, nullptr);
   ASSERT_NE(pins.regular_sink, nullptr);
 
-  icts::ClockTreeReportData report_data;
+  icts::ClockTreeView clock_tree_view;
   icts::CTSClockTreeRunSummary summary;
   icts::schema::TableRows rows;
   std::size_t total_sink_domains = 0U;
   std::size_t hard_macro_sink_count = 0U;
   std::size_t regular_sink_count = 0U;
 
-  const auto result = icts::ClockTreeSynthesisDriver::run(*pins.clock, 0U, report_data, summary, rows, total_sink_domains,
+  const auto result = icts::ClockTreeSynthesisDriver::run(*pins.clock, 0U, clock_tree_view, summary, rows, total_sink_domains,
                                                           hard_macro_sink_count, regular_sink_count);
 
   EXPECT_FALSE(result.success);
   EXPECT_FALSE(result.skipped);
   EXPECT_TRUE(statusRowsContain(rows, "failed", "regular", "failed to insert root buffer"));
   expectClockRestoredToOriginalLoads(pins);
-  EXPECT_TRUE(report_data.get_clocks().empty());
+  EXPECT_TRUE(clock_tree_view.get_clocks().empty());
 }
 
 TEST(FlowManagerTest, DownstreamNetCreationFailureRollsBackClockAndRecordsSinkDomainStatus)
@@ -499,7 +499,7 @@ TEST(FlowManagerTest, DownstreamNetCreationFailureRollsBackClockAndRecordsSinkDo
   expectClockRestoredToOriginalLoads(pins);
 }
 
-TEST(FlowManagerTest, InsertedObjectCommitFailureRollsBackClockAndDoesNotMergePendingReportData)
+TEST(FlowManagerTest, InsertedObjectCommitFailureRollsBackClockAndDoesNotMergePendingClockTreeView)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -515,10 +515,10 @@ TEST(FlowManagerTest, InsertedObjectCommitFailureRollsBackClockAndDoesNotMergePe
   ASSERT_TRUE(icts::ClockSinkDomainBuilder::prepare(*pins.clock, 0U, icts::CTSSinkDomain::kRegular,
                                                     std::vector<icts::Pin*>{pins.regular_sink}, 1U, status_table, context, &root_spec));
 
-  icts::ClockTreeReportData report_data;
+  icts::ClockTreeView clock_tree_view;
   icts::CTSClockTreeRunSummary summary;
   icts::CharacterizationLibrary char_library;
-  icts::ClockTreeSynthesisTransaction transaction(*pins.clock, 0U, report_data, summary, status_table, char_library, 1U);
+  icts::ClockTreeSynthesisTransaction transaction(*pins.clock, 0U, clock_tree_view, summary, status_table, char_library, 1U);
   icts::ClockSynthesis::BuildResult synthesis_result;
   synthesis_result.success = true;
   synthesis_result.selected_htree_depth = 0U;
@@ -539,7 +539,7 @@ TEST(FlowManagerTest, InsertedObjectCommitFailureRollsBackClockAndDoesNotMergePe
   EXPECT_FALSE(transaction.commitSinkDomain(context, synthesis_result, failure_reason));
   EXPECT_EQ(failure_reason, "failed to commit inserted synthesis objects");
   expectClockRestoredToOriginalLoads(pins);
-  EXPECT_TRUE(report_data.get_clocks().empty());
+  EXPECT_TRUE(clock_tree_view.get_clocks().empty());
   EXPECT_EQ(summary.htree_inserted_buffer_count, 0U);
 }
 
@@ -561,10 +561,10 @@ TEST(FlowManagerTest, SourceToRootFailureRollsBackPreparedSinkDomainsAndRecordsS
   ASSERT_FALSE(pins.clock->get_insts().empty());
   ASSERT_FALSE(pins.clock->get_nets().empty());
 
-  icts::ClockTreeReportData report_data;
+  icts::ClockTreeView clock_tree_view;
   icts::CTSClockTreeRunSummary summary;
   icts::CharacterizationLibrary char_library;
-  icts::ClockTreeSynthesisTransaction transaction(*pins.clock, 0U, report_data, summary, status_table, char_library, 1U);
+  icts::ClockTreeSynthesisTransaction transaction(*pins.clock, 0U, clock_tree_view, summary, status_table, char_library, 1U);
 
   EXPECT_FALSE(transaction.synthesizeSourceToRoot({}));
   EXPECT_TRUE(statusRowsContain(rows, "failed", "source_to_root", "empty_root_inputs"));

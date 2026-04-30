@@ -39,11 +39,11 @@
 #include "ValueLattice.hh"
 #include "characterization/CharBuilder.hh"
 #include "htree/CharacterizationLibrary.hh"
-#include "htree/HTreeActualLoadTypes.hh"
 #include "htree/HTreeBuilder.hh"
 #include "htree/HTreeCandidateTypes.hh"
 #include "htree/HTreeCharacterizationTypes.hh"
 #include "htree/HTreePatternRegistry.hh"
+#include "htree/HTreeSinkLoadProfileTypes.hh"
 
 namespace icts::htree_builder {
 
@@ -66,50 +66,52 @@ auto ResolveBuildOptions(const HTreeBuilder::BuildOptions& options, const CharBu
 auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
                              HTreeBuilder::BuildResult& result, CharacterizationLibrary& char_library,
                              const HTreeBuilder::BuildOptions& options) -> HTreeCharacterizationFlowResult;
-auto ExploreDepthCandidates(const Tree& topology, const std::vector<HTreeBuilder::LevelPlan>& full_level_plans,
-                            const std::vector<unsigned>& depth_candidates,
-                            const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,
-                            BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& base_resolved_options,
-                            const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth)
-    -> HTreeDepthExplorationResult;
-auto EvaluateDepthCandidate(const Tree& topology, const std::vector<HTreeBuilder::LevelPlan>& full_level_plans, unsigned depth,
-                            const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,
-                            BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& base_resolved_options,
-                            ActualLoadLegalityContext& actual_load_legality_context, unsigned char_slew_steps)
-    -> HTreeDepthCandidateEvaluationResult;
-auto RecordDepthCandidateResult(unsigned depth, bool used_explicit_target_depth,
-                                const HTreeDepthCandidateEvaluationResult& candidate_result,
-                                std::vector<HTreeDepthCandidateSummary>& depth_summaries) -> void;
+auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTreeBuilder::LevelPlan>& full_level_plans,
+                                   const std::vector<unsigned>& depth_candidates,
+                                   const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+                                   BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& base_resolved_options,
+                                   const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth)
+    -> HTreeTopologyDepthSearchResult;
+auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTreeBuilder::LevelPlan>& full_level_plans, unsigned depth,
+                                    const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+                                    BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& base_resolved_options,
+                                    SinkLoadProfileLegalityContext& sink_load_profile_legality_context, unsigned char_slew_steps)
+    -> HTreeTopologyDepthEvaluationResult;
+auto RecordTopologyDepthCandidateResult(unsigned depth, bool used_explicit_target_depth,
+                                        const HTreeTopologyDepthEvaluationResult& candidate_result,
+                                        std::vector<HTreeTopologyDepthSummary>& depth_summaries) -> void;
 auto AppendGlobalCandidateRefs(std::size_t candidate_index, const CandidateBuildEvaluation& evaluation,
                                std::vector<CandidateCharRef>& global_feasible_pool, std::vector<CandidateCharRef>& global_candidate_pool)
     -> void;
-auto LogHTreeBuildSummary(const HTreeBuilder::BuildResult& result, const CandidateBuildEvaluation& selected_evaluation,
-                          const HTreeDepthCandidateSummary& selected_summary) -> void;
+auto LogHTreeSynthesisSummary(const HTreeBuilder::BuildResult& result, const CandidateBuildEvaluation& selected_evaluation,
+                              const HTreeTopologyDepthSummary& selected_summary) -> void;
 auto HasBoundaryConstraints(const ResolvedBuildOptions& options) -> bool;
 auto CoveringBoundaryIndex(double value, const UniformValueLattice& lattice) -> std::optional<unsigned>;
 auto SynthesizeSegmentEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternRegistry& pattern_registry,
-                                const std::vector<unsigned>& required_length_indices) -> std::unordered_map<unsigned, SegmentFrontierSet>;
+                                const std::vector<unsigned>& required_length_indices)
+    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>;
 auto CollectRequiredLengthIndices(const std::vector<HTreeBuilder::LevelPlan>& levels) -> std::vector<unsigned>;
 auto EvaluateCandidateBuild(const std::vector<HTreeBuilder::LevelPlan>& levels,
-                            const std::unordered_map<unsigned, SegmentFrontierSet>& entry_sets_by_length,
+                            const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                             const BufferPatternRegistry& segment_pattern_registry, const ResolvedBuildOptions& resolved_options,
-                            const Tree& topology, ActualLoadLegalityContext& actual_load_legality_context, std::size_t leaf_count,
-                            unsigned depth, unsigned char_slew_steps) -> CandidateBuildEvaluation;
-auto FilterGlobalEntriesByActualBoundaryCoverage(const std::vector<CandidateCharRef>& entries,
-                                                 const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
-                                                 const BufferPatternRegistry& segment_pattern_registry,
-                                                 ActualLoadLegalityContext& legality_context) -> CandidateCharRefFilterResult;
-auto ResolveActualLoadLegality(const Tree& topology, PatternId topology_pattern_id, const TopologyPatternRegistry& topology_registry,
-                               const BufferPatternRegistry& segment_pattern_registry, ActualLoadLegalityContext& legality_context)
-    -> ActualLoadLegalityResult;
-auto FilterActualLoadLegalEntries(const std::vector<HTreeTopologyChar>& entries, const Tree& topology,
-                                  const TopologyPatternRegistry& topology_registry, const BufferPatternRegistry& segment_pattern_registry,
-                                  ActualLoadLegalityContext& legality_context) -> ActualLoadEntryFilterResult;
+                            const Tree& topology, SinkLoadProfileLegalityContext& sink_load_profile_legality_context,
+                            std::size_t leaf_count, unsigned depth, unsigned char_slew_steps) -> CandidateBuildEvaluation;
+auto FilterGlobalEntriesBySinkLoadProfileCoverage(const std::vector<CandidateCharRef>& entries,
+                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
+                                                  const BufferPatternRegistry& segment_pattern_registry,
+                                                  SinkLoadProfileLegalityContext& legality_context) -> CandidateCharRefFilterResult;
+auto ResolveSinkLoadProfileLegality(const Tree& topology, PatternId topology_pattern_id, const TopologyPatternRegistry& topology_registry,
+                                    const BufferPatternRegistry& segment_pattern_registry, SinkLoadProfileLegalityContext& legality_context)
+    -> SinkLoadProfileLegalityResult;
+auto FilterSinkLoadProfileLegalEntries(const std::vector<HTreeTopologyChar>& entries, const Tree& topology,
+                                       const TopologyPatternRegistry& topology_registry,
+                                       const BufferPatternRegistry& segment_pattern_registry,
+                                       SinkLoadProfileLegalityContext& legality_context) -> SinkLoadProfileEntryFilterResult;
 auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>;
 auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const ResolvedBuildOptions& resolved_options, unsigned slew_steps) -> double;
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
 auto ValidateRootDriverSizing(const HTreeBuilder::BuildResult& result, const std::string& cell_master) -> bool;
 auto ApplyRootDriverSizing(HTreeBuilder::BuildResult& result, const std::string& cell_master) -> bool;
-auto MaterializeCTSObjects(HTreeBuilder::BuildResult& result, const BufferPatternRegistry& segment_pattern_registry) -> void;
+auto BuildClockTreeObjects(HTreeBuilder::BuildResult& result, const BufferPatternRegistry& segment_pattern_registry) -> void;
 
 }  // namespace icts::htree_builder

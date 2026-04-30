@@ -21,7 +21,7 @@ target_link_libraries(
   icts_source_module
   icts_source_flow_evaluation
   icts_source_flow_netlist
-  icts_source_flow_report
+  icts_source_flow_visualization
 )
 
 target_include_directories(

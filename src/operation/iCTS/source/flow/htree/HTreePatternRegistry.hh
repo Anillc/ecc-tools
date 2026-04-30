@@ -36,7 +36,7 @@
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "characterization/Frontier.hh"
-#include "htree/HTreeAdapterCaches.hh"
+#include "htree/HTreeCharacterizationCache.hh"
 #include "log/Log.hh"
 
 namespace icts::htree_builder {
@@ -126,7 +126,7 @@ struct BufferPatternRegistry
   BufferStrengthCache _strength_cache;
 };
 
-struct SegmentFrontierSet
+struct SegmentCandidateFrontierSet
 {
   std::vector<SegmentChar> all_frontier_entries;
   std::vector<SegmentChar> branch_buffered_entries;
@@ -156,7 +156,7 @@ struct SegmentClosureSolution
 {
   bool feasible = false;
   unsigned total_cost = 0U;
-  std::unordered_map<unsigned, SegmentFrontierSet> synthesized_entry_sets;
+  std::unordered_map<unsigned, SegmentCandidateFrontierSet> synthesized_entry_sets;
 };
 
 enum class TopologyPatternNodeKind
@@ -265,7 +265,7 @@ struct TopologyPatternRegistry
   std::vector<TopologyPatternNode> nodes;
 };
 
-struct HTreeCompositionResult
+struct HTreeTopologyAssemblyResult
 {
   bool success = false;
   std::string failure_reason;

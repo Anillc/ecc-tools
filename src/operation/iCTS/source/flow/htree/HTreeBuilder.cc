@@ -170,17 +170,17 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
     return result;
   }
 
-  auto exploration = htree_builder::ExploreDepthCandidates(result.topology, full_level_plans, depth_candidates, entry_sets_by_length,
-                                                           segment_pattern_registry, base_resolved_options, char_builder.get_cap_lattice(),
-                                                           result.char_slew_steps, options.target_depth.has_value());
+  auto exploration = htree_builder::SearchTopologyDepthCandidates(
+      result.topology, full_level_plans, depth_candidates, entry_sets_by_length, segment_pattern_registry, base_resolved_options,
+      char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value());
   result.depth_candidate_count = exploration.depth_summaries.size();
 
-  const auto covered_global_feasible_pool = htree_builder::FilterGlobalEntriesByActualBoundaryCoverage(
+  const auto covered_global_feasible_pool = htree_builder::FilterGlobalEntriesBySinkLoadProfileCoverage(
       exploration.global_feasible_pool, exploration.candidate_evaluations, result.topology, segment_pattern_registry,
-      exploration.actual_load_legality_context);
-  const auto covered_global_candidate_pool = htree_builder::FilterGlobalEntriesByActualBoundaryCoverage(
+      exploration.sink_load_profile_legality_context);
+  const auto covered_global_candidate_pool = htree_builder::FilterGlobalEntriesBySinkLoadProfileCoverage(
       exploration.global_candidate_pool, exploration.candidate_evaluations, result.topology, segment_pattern_registry,
-      exploration.actual_load_legality_context);
+      exploration.sink_load_profile_legality_context);
 
   const auto selected_feasible_ref = htree_builder::SelectBestGlobalEntry(covered_global_feasible_pool.entries);
   const auto selected_fallback_ref = selected_feasible_ref.has_value()
@@ -204,15 +204,16 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
   selected_summary.selected = true;
   selected_summary.selected_power_w = selected_ref->entry->get_power();
   selected_summary.selected_delay_ns = selected_ref->entry->get_delay();
-  const auto selected_actual_legality = htree_builder::ResolveActualLoadLegality(
+  const auto selected_sink_load_profile_legality = htree_builder::ResolveSinkLoadProfileLegality(
       result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_registry, segment_pattern_registry,
-      exploration.actual_load_legality_context);
-  LOG_FATAL_IF(!selected_actual_legality.legal) << "HTreeBuilder: selected global frontier entry is missing actual-load legality coverage.";
-  selected_summary.htree_load_group_count = selected_actual_legality.cap_distribution.group_count;
-  selected_summary.htree_load_cap_min_pf = selected_actual_legality.cap_distribution.cap_min_pf;
-  selected_summary.htree_load_cap_max_pf = selected_actual_legality.cap_distribution.cap_max_pf;
-  selected_summary.htree_load_cap_mean_pf = selected_actual_legality.cap_distribution.cap_mean_pf;
-  selected_summary.htree_load_cap_median_pf = selected_actual_legality.cap_distribution.cap_median_pf;
+      exploration.sink_load_profile_legality_context);
+  LOG_FATAL_IF(!selected_sink_load_profile_legality.legal)
+      << "HTreeBuilder: selected global frontier entry is missing sink-load-profile legality coverage.";
+  selected_summary.htree_load_group_count = selected_sink_load_profile_legality.cap_distribution.group_count;
+  selected_summary.htree_load_cap_min_pf = selected_sink_load_profile_legality.cap_distribution.cap_min_pf;
+  selected_summary.htree_load_cap_max_pf = selected_sink_load_profile_legality.cap_distribution.cap_max_pf;
+  selected_summary.htree_load_cap_mean_pf = selected_sink_load_profile_legality.cap_distribution.cap_mean_pf;
+  selected_summary.htree_load_cap_median_pf = selected_sink_load_profile_legality.cap_distribution.cap_median_pf;
 
   result.selected_depth = selected_evaluation.depth;
   result.best_char = *selected_ref->entry;
@@ -277,21 +278,21 @@ auto HTreeBuilder::build(Net& root_net, const BuildOptions& options) -> BuildRes
     return result;
   }
 
-  htree_builder::MaterializeCTSObjects(result, segment_pattern_registry);
+  htree_builder::BuildClockTreeObjects(result, segment_pattern_registry);
   result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
                    && result.root_output_pin != nullptr && result.root_net != nullptr;
   if (result.success && options.enable_root_driver_sizing) {
     LOG_FATAL_IF(!htree_builder::ApplyRootDriverSizing(result, selected_root_driver_cell_master))
-        << "HTreeBuilder: prevalidated root-driver sizing failed during materialization.";
+        << "HTreeBuilder: prevalidated root-driver sizing failed during clock-tree object construction.";
   } else if (result.success && result.root_inst != nullptr) {
     result.selected_root_driver_cell_master = result.root_inst->get_cell_master();
   }
 
-  htree_builder::LogHTreeBuildSummary(result, selected_evaluation, selected_summary);
+  htree_builder::LogHTreeSynthesisSummary(result, selected_evaluation, selected_summary);
   if (result.success) {
     build_stage.finished();
   } else {
-    build_stage.failed({{"reason", result.failure_reason.empty() ? "incomplete_materialization" : result.failure_reason}});
+    build_stage.failed({{"reason", result.failure_reason.empty() ? "incomplete_clock_tree_object_build" : result.failure_reason}});
   }
   return result;
 }

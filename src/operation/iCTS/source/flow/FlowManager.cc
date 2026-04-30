@@ -29,7 +29,7 @@
 #include "evaluation/ClockTreeEvaluator.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "session/CTSRunEnvironment.hh"
+#include "run_setup/CTSRunSetup.hh"
 #include "stage/CTSClockDataLoadStep.hh"
 #include "stage/CTSClockTreeEvaluationStep.hh"
 #include "stage/CTSClockTreeReportStep.hh"
@@ -87,7 +87,7 @@ auto FlowManager::runCTS() -> void
 auto FlowManager::readData() -> void
 {
   _run_summary = CTSClockTreeRunSummary{};
-  _report_data.reset();
+  _clock_tree_view.reset();
   ClockTreeEvaluator::reset(_evaluation_state);
   _writeback_result = CTSClockTreeWritebackResult{};
   _evaluation_ready = false;
@@ -99,7 +99,7 @@ auto FlowManager::run() -> void
   ClockTreeEvaluator::reset(_evaluation_state);
   _evaluation_ready = false;
   _writeback_result = CTSClockTreeWritebackResult{};
-  _run_summary = CTSClockTreeSynthesisStep::run(_report_data);
+  _run_summary = CTSClockTreeSynthesisStep::run(_clock_tree_view);
 }
 
 auto FlowManager::writeback() -> void
@@ -107,7 +107,7 @@ auto FlowManager::writeback() -> void
   _writeback_result = CTSClockTreeWritebackResult{};
   if (_run_summary.success) {
     _writeback_result = CTSClockTreeWritebackStep::run();
-    _report_data.markWritebackDone(_writeback_result.writeback_done);
+    _clock_tree_view.markWritebackDone(_writeback_result.writeback_done);
     _run_summary.success = _writeback_result.writeback_done;
   }
 }
@@ -120,7 +120,7 @@ auto FlowManager::evaluate() -> void
 auto FlowManager::report(const std::string& save_dir) -> void
 {
   const auto report_result
-      = CTSClockTreeReportStep::run(save_dir, _evaluation_ready, _writeback_result.writeback_done, _report_data, _evaluation_state);
+      = CTSClockTreeReportStep::run(save_dir, _evaluation_ready, _writeback_result.writeback_done, _clock_tree_view, _evaluation_state);
   _evaluation_ready = report_result.evaluation_ready;
 }
 
@@ -131,7 +131,7 @@ auto FlowManager::outputRuntimeSetup() -> void
   }
   _runtime_setup_emitted = true;
 
-  CTSRunEnvironment::emitRuntimeSetup();
+  CTSRunSetup::emitRuntimeSetup();
 }
 
 auto FlowManager::emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void
@@ -177,7 +177,7 @@ auto FlowManager::reset() -> void
 {
   ClockTreeEvaluator::reset(_evaluation_state);
   _run_summary = CTSClockTreeRunSummary{};
-  _report_data.reset();
+  _clock_tree_view.reset();
   _writeback_result = CTSClockTreeWritebackResult{};
   _runtime_setup_emitted = false;
   _evaluation_ready = false;

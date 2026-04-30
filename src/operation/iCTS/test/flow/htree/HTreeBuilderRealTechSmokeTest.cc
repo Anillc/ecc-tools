@@ -174,8 +174,8 @@ TEST(HTreeBuilderRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoa
   EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("Characterization setup lists the resolved limits"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("This section records the selected H-tree depth"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("HTreeBuilder Build Summary"), std::string::npos);
-  const auto htree_build_summary = common::logging::ExtractTextBlock(cts_log_content, "HTreeBuilder Build Summary");
+  EXPECT_NE(cts_log_content.find("HTreeBuilder Synthesis Summary"), std::string::npos);
+  const auto htree_build_summary = common::logging::ExtractTextBlock(cts_log_content, "HTreeBuilder Synthesis Summary");
   ASSERT_FALSE(htree_build_summary.empty());
   EXPECT_EQ(htree_build_summary.find("force_branch_buffer"), std::string::npos);
   EXPECT_NE(htree_build_summary.find("selected_terminal_branch_buffered_levels"), std::string::npos);

@@ -28,6 +28,8 @@
 #include <ostream>
 
 #include "Log.hh"
+#include "clock_tree_view/ClockTreeView.hh"
+#include "clock_tree_view/ClockTreeViewBuilder.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
@@ -38,12 +40,10 @@
 #include "htree/HTreeBuilder.hh"
 #include "io/Wrapper.hh"
 #include "netlist/ClockNetEditor.hh"
-#include "report_data/ClockTreeReportData.hh"
-#include "report_data/ClockTreeReportDataBuilder.hh"
 #include "stage/CTSClockTreeRunSummary.hh"
 #include "stage/ClockSinkDomainBuilder.hh"
 #include "stage/ClockTreeSynthesisStatusTable.hh"
-#include "synthesis/ClockSynthesisReportAdapter.hh"
+#include "synthesis/ClockTreeViewAdapter.hh"
 
 namespace icts {
 namespace {
@@ -103,12 +103,12 @@ auto clearClockCtsMembership(Clock& clock) -> void
 
 }  // namespace
 
-ClockTreeSynthesisTransaction::ClockTreeSynthesisTransaction(Clock& clock, std::size_t clock_index, ClockTreeReportData& report_data,
+ClockTreeSynthesisTransaction::ClockTreeSynthesisTransaction(Clock& clock, std::size_t clock_index, ClockTreeView& clock_tree_view,
                                                              CTSClockTreeRunSummary& summary, ClockTreeSynthesisStatusTable& status_table,
                                                              CharacterizationLibrary& characterization_library, std::size_t valid_sinks)
     : _clock(&clock),
       _clock_index(clock_index),
-      _report_data(&report_data),
+      _clock_tree_view(&clock_tree_view),
       _summary(&summary),
       _status_table(&status_table),
       _characterization_library(&characterization_library),
@@ -160,8 +160,8 @@ auto ClockTreeSynthesisTransaction::collectSourceToRootLengthsUm(Pin* clock_sour
 auto ClockTreeSynthesisTransaction::commitSinkDomain(const ClockSinkDomainContext& context, ClockSynthesis::BuildResult& synthesis_result,
                                                      std::string& failure_reason) -> bool
 {
-  auto pending_report_data = ClockTreeReportDataBuilder::makeSinkDomainReportData(
-      *_clock, _clock_index, context.makeReportTopology(), ClockSynthesisReportAdapter::makeSinkDomainReportInput(synthesis_result));
+  auto pending_clock_tree_view = ClockTreeViewBuilder::makeSinkDomainView(*_clock, _clock_index, context.makeViewTopology(),
+                                                                          ClockTreeViewAdapter::makeSinkDomainViewInput(synthesis_result));
   if (!ClockNetEditor::commitInsertedObjects(*_clock, synthesis_result.inserted_insts, synthesis_result.inserted_pins,
                                              synthesis_result.inserted_nets)) {
     ClockNetEditor::reconnectNet(*context.downstream_net, context.downstream_net->get_driver(), context.sinks);
@@ -170,7 +170,7 @@ auto ClockTreeSynthesisTransaction::commitSinkDomain(const ClockSinkDomainContex
     return false;
   }
 
-  ClockTreeReportDataBuilder::merge(*_report_data, pending_report_data);
+  ClockTreeViewBuilder::merge(*_clock_tree_view, pending_clock_tree_view);
   recordSynthesisResult(*_summary, synthesis_result);
   return true;
 }
@@ -180,7 +180,7 @@ auto ClockTreeSynthesisTransaction::synthesizeSinkDomain(const ClockSinkDomainCo
 {
   const auto* const sink_domain_label = ToString(context.sink_domain);
   if (context.sinks.size() < kMinSynthesisSinkCount) {
-    ClockTreeReportDataBuilder::appendDirectSinkDomain(*_report_data, *_clock, _clock_index, context.makeReportTopology());
+    ClockTreeViewBuilder::appendDirectSinkDomain(*_clock_tree_view, *_clock, _clock_index, context.makeViewTopology());
     _status_table->append(*_clock, ClockTreeSynthesisStatus::kFinished, context.sink_domain, _valid_sinks, context.sinks.size(), "direct");
     return true;
   }
@@ -251,9 +251,9 @@ auto ClockTreeSynthesisTransaction::synthesizeSourceToRoot(const std::vector<Pin
     return false;
   }
 
-  auto pending_report_data = ClockTreeReportDataBuilder::makeSourceToRootReportData(
+  auto pending_clock_tree_view = ClockTreeViewBuilder::makeSourceToRootView(
       *_clock, _clock_index, *clock_source_net,
-      ClockSynthesisReportAdapter::makeSourceToRootReportInput(source_to_root_result, source_to_root_phase), source_to_root_phase);
+      ClockTreeViewAdapter::makeSourceToRootViewInput(source_to_root_result, source_to_root_phase), source_to_root_phase);
   if (!ClockNetEditor::commitInsertedObjects(*_clock, source_to_root_result.inserted_insts, source_to_root_result.inserted_pins,
                                              source_to_root_result.inserted_nets)) {
     _status_table->append(*_clock, ClockTreeSynthesisStatus::kFailed, source_to_root_domain, _valid_sinks, root_inputs.size(),
@@ -264,7 +264,7 @@ auto ClockTreeSynthesisTransaction::synthesizeSourceToRoot(const std::vector<Pin
     return false;
   }
 
-  ClockTreeReportDataBuilder::merge(*_report_data, pending_report_data);
+  ClockTreeViewBuilder::merge(*_clock_tree_view, pending_clock_tree_view);
   recordSourceToRootResult(*_summary, source_to_root_result);
   _status_table->append(*_clock, ClockTreeSynthesisStatus::kFinished, source_to_root_domain, _valid_sinks, root_inputs.size(),
                         ToString(source_to_root_result.stage));

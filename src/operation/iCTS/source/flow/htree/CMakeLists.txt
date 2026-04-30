@@ -1,25 +1,25 @@
 add_library(
   icts_source_flow_htree
-  ${ICTS_FLOW_HTREE}/HTreeActualLoadTypes.hh
-  ${ICTS_FLOW_HTREE}/HTreeAdapterCaches.hh
+  ${ICTS_FLOW_HTREE}/HTreeSinkLoadProfileTypes.hh
+  ${ICTS_FLOW_HTREE}/HTreeCharacterizationCache.hh
   ${ICTS_FLOW_HTREE}/HTreeCandidateTypes.hh
   ${ICTS_FLOW_HTREE}/HTreeCharacterizationTypes.hh
-  ${ICTS_FLOW_HTREE}/HTreeMaterializationContext.hh
+  ${ICTS_FLOW_HTREE}/HTreeClockTopologyBuildContext.hh
   ${ICTS_FLOW_HTREE}/HTreePatternRegistry.hh
   ${ICTS_FLOW_HTREE}/CharacterizationLibrary.cc
   ${ICTS_FLOW_HTREE}/HTreeBuilder.cc
-  ${ICTS_FLOW_HTREE}/HTreeActualLoad.cc
+  ${ICTS_FLOW_HTREE}/HTreeSinkLoadProfile.cc
   ${ICTS_FLOW_HTREE}/HTreeBuildOptions.cc
-  ${ICTS_FLOW_HTREE}/HTreeBuildSummary.cc
+  ${ICTS_FLOW_HTREE}/HTreeSynthesisSummary.cc
   ${ICTS_FLOW_HTREE}/HTreeCharacterizationFlow.cc
-  ${ICTS_FLOW_HTREE}/HTreeComposition.cc
-  ${ICTS_FLOW_HTREE}/HTreeDepthCandidateEvaluation.cc
-  ${ICTS_FLOW_HTREE}/HTreeDepthExploration.cc
+  ${ICTS_FLOW_HTREE}/HTreeTopologyAssembly.cc
+  ${ICTS_FLOW_HTREE}/HTreeTopologyDepthEvaluation.cc
+  ${ICTS_FLOW_HTREE}/HTreeTopologyDepthSearch.cc
   ${ICTS_FLOW_HTREE}/HTreeLevelPlan.cc
   ${ICTS_FLOW_HTREE}/HTreeLogging.cc
-  ${ICTS_FLOW_HTREE}/HTreeMaterialization.cc
-  ${ICTS_FLOW_HTREE}/HTreeSegmentFrontier.cc
-  ${ICTS_FLOW_HTREE}/SegmentBuilder.cc
+  ${ICTS_FLOW_HTREE}/HTreeClockTreeObjectBuilder.cc
+  ${ICTS_FLOW_HTREE}/HTreeSegmentCandidateFrontier.cc
+  ${ICTS_FLOW_HTREE}/SourceToRootSegmentBuilder.cc
 )
 
 target_link_libraries(

@@ -23,14 +23,14 @@
 
 #pragma once
 
-#include "htree/SegmentBuilder.hh"
+#include "htree/SourceToRootSegmentBuilder.hh"
 #include "synthesis/ClockSynthesis.hh"
 
 namespace icts::clock_synthesis {
 
 auto BuildSinkHtreeOptions(bool enable_sink_clustering, const ClockSynthesis::BuildOptions& options) -> HTreeBuilder::BuildOptions;
 auto BuildTopSegmentOptions(Pin* clock_source, Pin* root_input, const ClockSynthesis::SourceToRootBuildOptions& options)
-    -> SegmentBuilder::BuildOptions;
+    -> SourceToRootSegmentBuilder::BuildOptions;
 auto BuildTopHtreeOptions(Pin* clock_source, const ClockSynthesis::SourceToRootBuildOptions& options) -> HTreeBuilder::BuildOptions;
 
 }  // namespace icts::clock_synthesis
