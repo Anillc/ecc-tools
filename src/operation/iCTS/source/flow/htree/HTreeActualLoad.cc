@@ -171,7 +171,11 @@ auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegal
         .anchor = root_node->get_position(),
         .loads = &root_node->get_loads(),
     });
-    return ActualLoadBoundaryCollection{.groups = std::move(groups)};
+    return ActualLoadBoundaryCollection{
+        .groups = std::move(groups),
+        .violation = ActualLoadViolation::kNone,
+        .failure_reason = {},
+    };
   }
 
   const auto topology_levels = topology.levels();
@@ -217,7 +221,11 @@ auto CollectActualLoadBoundaryGroups(const Tree& topology, const ActualLoadLegal
   if (groups.empty()) {
     return MakeBoundaryCollectionFailure(std::move(groups), ActualLoadViolation::kEmptyLoadGroup, "empty_actual_load_groups");
   }
-  return ActualLoadBoundaryCollection{.groups = std::move(groups)};
+  return ActualLoadBoundaryCollection{
+      .groups = std::move(groups),
+      .violation = ActualLoadViolation::kNone,
+      .failure_reason = {},
+  };
 }
 
 auto EvaluateActualLoadLegality(const Tree& topology, const ActualLoadLegalitySignature& signature,

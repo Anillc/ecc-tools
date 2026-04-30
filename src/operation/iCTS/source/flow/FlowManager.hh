@@ -67,6 +67,7 @@ class FlowManager
 
   CTSClockTreeRunSummary _run_summary;
   ClockTreeReportData _report_data;
+  ClockTreeEvaluationState _evaluation_state;
   CTSClockTreeWritebackResult _writeback_result;
   bool _runtime_setup_emitted = false;
   bool _evaluation_ready = false;

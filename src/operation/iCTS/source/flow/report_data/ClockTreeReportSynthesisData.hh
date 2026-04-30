@@ -10,34 +10,52 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CTSClockTreeEvaluationStep.hh
+ * @file ClockTreeReportSynthesisData.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-04-28
- * @brief CTS clock-tree evaluation step orchestration.
+ * @date 2026-04-29
+ * @brief Narrow synthesis metadata consumed by clock-tree report-data construction.
  */
 
 #pragma once
 
+#include <vector>
+
 namespace icts {
 
-struct ClockTreeEvaluationState;
+class Inst;
+class Net;
 
-struct CTSClockTreeEvaluationResult
+struct ClockTreeReportInstTopology
 {
-  bool evaluation_ready = false;
+  const Inst* inst = nullptr;
+  int topology_level = -1;
 };
 
-class CTSClockTreeEvaluationStep
+struct ClockTreeReportNetTopology
 {
- public:
-  CTSClockTreeEvaluationStep() = delete;
+  const Net* net = nullptr;
+  int topology_level = -1;
+};
 
-  static auto run(ClockTreeEvaluationState& evaluation_state, bool refresh_sta_timing) -> CTSClockTreeEvaluationResult;
+struct ClockSinkDomainReportInput
+{
+  int selected_depth = -1;
+  int topology_level_count = 0;
+  std::vector<ClockTreeReportInstTopology> inserted_insts;
+  std::vector<ClockTreeReportNetTopology> inserted_nets;
+};
+
+struct ClockSourceToRootReportInput
+{
+  int selected_depth = -1;
+  int topology_level_count = 0;
+  std::vector<ClockTreeReportInstTopology> inserted_insts;
+  std::vector<ClockTreeReportNetTopology> inserted_nets;
 };
 
 }  // namespace icts

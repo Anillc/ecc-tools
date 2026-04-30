@@ -28,6 +28,7 @@
 namespace icts {
 
 class ClockTreeReportData;
+struct ClockTreeEvaluationState;
 
 struct CTSClockTreeReportResult
 {
@@ -40,8 +41,8 @@ class CTSClockTreeReportStep
  public:
   CTSClockTreeReportStep() = delete;
 
-  static auto run(const std::string& save_dir, bool evaluation_ready, bool refresh_sta_timing, const ClockTreeReportData& report_data)
-      -> CTSClockTreeReportResult;
+  static auto run(const std::string& save_dir, bool evaluation_ready, bool refresh_sta_timing, const ClockTreeReportData& report_data,
+                  ClockTreeEvaluationState& evaluation_state) -> CTSClockTreeReportResult;
 };
 
 }  // namespace icts

@@ -32,21 +32,14 @@
 #include <string>
 #include <system_error>
 #include <tuple>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "Log.hh"
-#include "SteinerTree.hh"
 #include "config/Config.hh"
-#include "design/Clock.hh"
-#include "design/Design.hh"
-#include "design/Inst.hh"
-#include "design/Net.hh"
-#include "design/Pin.hh"
 #include "logger/Schema.hh"
 #include "report_data/ClockTreeReportData.hh"
-#include "router/Router.hh"
+#include "report_data/ClockTreeVisualizationModel.hh"
 #include "spatial/Point.hh"
 #include "visualization/core/SvgCommon.hh"
 
@@ -62,22 +55,6 @@ enum class WireKind
   kSourceToRoot,
   kFlyline,
   kFallback
-};
-
-struct VisualizationSegment
-{
-  Point<int> begin;
-  Point<int> end;
-  WireKind kind = WireKind::kRouted;
-  bool fallback = false;
-};
-
-struct SegmentCollection
-{
-  std::vector<VisualizationSegment> segments;
-  std::size_t routed_net_count = 0U;
-  std::size_t fallback_net_count = 0U;
-  std::size_t skipped_net_count = 0U;
 };
 
 struct VisualizationReportStatus
@@ -144,209 +121,12 @@ auto MakeSuccess(std::string label, const std::filesystem::path& path, std::stri
       .label = std::move(label), .path = path, .view_label = std::move(view_label), .success = true, .reason = std::move(reason)};
 }
 
-auto CollectClockNets() -> std::vector<Net*>
-{
-  std::vector<Net*> nets;
-  std::unordered_set<Net*> seen_nets;
-  auto append_net = [&nets, &seen_nets](Net* net) -> void {
-    if (net == nullptr || seen_nets.contains(net)) {
-      return;
-    }
-    seen_nets.insert(net);
-    nets.push_back(net);
-  };
-
-  for (auto* clock : DESIGN_INST.get_clocks()) {
-    if (clock == nullptr) {
-      continue;
-    }
-    append_net(clock->get_clock_source_net());
-    for (auto* net : clock->get_nets()) {
-      append_net(net);
-    }
-  }
-  return nets;
-}
-
-auto CollectClockInsts() -> std::vector<Inst*>
-{
-  std::vector<Inst*> insts;
-  std::unordered_set<Inst*> seen_insts;
-  for (auto* clock : DESIGN_INST.get_clocks()) {
-    if (clock == nullptr) {
-      continue;
-    }
-    for (auto* inst : clock->get_insts()) {
-      if (inst == nullptr || seen_insts.contains(inst)) {
-        continue;
-      }
-      seen_insts.insert(inst);
-      insts.push_back(inst);
-    }
-  }
-  return insts;
-}
-
-auto MakeSegment(const Point<int>& begin, const Point<int>& end, WireKind kind, bool fallback) -> VisualizationSegment
-{
-  return VisualizationSegment{
-      .begin = begin,
-      .end = end,
-      .kind = kind,
-      .fallback = fallback,
-  };
-}
-
-auto AppendFlylineSegmentsForNet(const Net& net, std::vector<VisualizationSegment>& segments) -> bool
-{
-  auto* driver = net.get_driver();
-  if (driver == nullptr || !HasValidLocation(driver->get_location())) {
-    return false;
-  }
-
-  bool appended = false;
-  const auto driver_location = driver->get_location();
-  for (auto* load : net.get_loads()) {
-    if (load == nullptr || !HasValidLocation(load->get_location())) {
-      continue;
-    }
-    segments.push_back(MakeSegment(driver_location, load->get_location(), WireKind::kFlyline, false));
-    appended = true;
-  }
-  return appended;
-}
-
-auto AppendFallbackSegmentsForNet(const Net& net, std::vector<VisualizationSegment>& segments) -> bool
-{
-  auto* driver = net.get_driver();
-  if (driver == nullptr || !HasValidLocation(driver->get_location())) {
-    return false;
-  }
-
-  bool appended = false;
-  const auto driver_location = driver->get_location();
-  for (auto* load : net.get_loads()) {
-    if (load == nullptr || !HasValidLocation(load->get_location())) {
-      continue;
-    }
-    segments.push_back(MakeSegment(driver_location, load->get_location(), WireKind::kFallback, true));
-    appended = true;
-  }
-  return appended;
-}
-
-auto AppendRouteTreeSegmentsForNet(const Net& net, std::vector<VisualizationSegment>& segments) -> bool
-{
-  auto route_tree = Router::buildClockNetTree(net);
-  if (route_tree.node_count() == 0U || route_tree.edge_count() == 0U) {
-    return false;
-  }
-
-  bool appended = false;
-  for (const auto& edge : route_tree.get_edges()) {
-    const auto* source = route_tree.get_node(edge.source_node_id);
-    const auto* target = route_tree.get_node(edge.target_node_id);
-    if (source == nullptr || target == nullptr || !HasValidLocation(source->location) || !HasValidLocation(target->location)) {
-      continue;
-    }
-    segments.push_back(MakeSegment(source->location, target->location, WireKind::kRouted, false));
-    appended = true;
-  }
-  return appended;
-}
-
-auto AppendReportSegments(const std::vector<ClockTreeReportSegment>& report_segments, std::vector<VisualizationSegment>& segments,
-                          bool flyline) -> void
-{
-  for (const auto& segment : report_segments) {
-    if (!HasValidLocation(segment.begin) || !HasValidLocation(segment.end)) {
-      continue;
-    }
-    segments.push_back(MakeSegment(segment.begin, segment.end, wireKindFromRole(segment.net_role, flyline), segment.fallback));
-  }
-}
-
-auto CollectDesignReportSegments(const ClockTreeReportData& report_data) -> SegmentCollection
-{
-  SegmentCollection collection;
-  for (const auto& clock : report_data.get_clocks()) {
-    for (const auto& net : clock.nets) {
-      const auto before_count = collection.segments.size();
-      AppendReportSegments(net.routed_segments, collection.segments, false);
-      if (collection.segments.size() > before_count) {
-        ++collection.routed_net_count;
-      } else {
-        ++collection.skipped_net_count;
-      }
-    }
-  }
-  return collection;
-}
-
-auto CollectFlylineReportSegments(const ClockTreeReportData& report_data) -> SegmentCollection
-{
-  SegmentCollection collection;
-  for (const auto& clock : report_data.get_clocks()) {
-    for (const auto& net : clock.nets) {
-      const auto before_count = collection.segments.size();
-      AppendReportSegments(net.flyline_segments, collection.segments, true);
-      if (collection.segments.size() > before_count) {
-        ++collection.routed_net_count;
-      } else {
-        ++collection.skipped_net_count;
-      }
-    }
-  }
-  return collection;
-}
-
-auto CollectDesignSegments(const std::vector<Net*>& nets) -> SegmentCollection
-{
-  SegmentCollection collection;
-  for (auto* net : nets) {
-    if (net == nullptr) {
-      ++collection.skipped_net_count;
-      continue;
-    }
-
-    if (AppendRouteTreeSegmentsForNet(*net, collection.segments)) {
-      ++collection.routed_net_count;
-      continue;
-    }
-
-    if (AppendFallbackSegmentsForNet(*net, collection.segments)) {
-      ++collection.fallback_net_count;
-      LOG_WARNING << "CTS report visualization: design view falls back to driver-to-load segments for net " << net->get_name();
-      continue;
-    }
-
-    ++collection.skipped_net_count;
-  }
-  return collection;
-}
-
-auto CollectFlylineSegments(const std::vector<Net*>& nets) -> SegmentCollection
-{
-  SegmentCollection collection;
-  for (auto* net : nets) {
-    if (net == nullptr) {
-      ++collection.skipped_net_count;
-      continue;
-    }
-    if (AppendFlylineSegmentsForNet(*net, collection.segments)) {
-      ++collection.routed_net_count;
-      continue;
-    }
-    ++collection.skipped_net_count;
-  }
-  return collection;
-}
-
-auto CollectDrawablePoints(const std::vector<VisualizationSegment>& segments, const std::vector<Net*>& nets,
-                           const std::vector<Inst*>& insts) -> std::vector<Point<int>>
+auto CollectDrawablePoints(const std::vector<ClockTreeVisualizationSegment>& segments, const std::vector<ClockTreeVisualizationPin>& pins,
+                           const std::vector<ClockTreeVisualizationInst>& insts,
+                           const std::vector<ClockTreeVisualizationLogicCell>& logic_cells) -> std::vector<Point<int>>
 {
   std::vector<Point<int>> points;
-  points.reserve((segments.size() * 2U) + nets.size() + insts.size());
+  points.reserve((segments.size() * 2U) + pins.size() + insts.size() + logic_cells.size());
   for (const auto& segment : segments) {
     if (HasValidLocation(segment.begin)) {
       points.push_back(segment.begin);
@@ -355,22 +135,19 @@ auto CollectDrawablePoints(const std::vector<VisualizationSegment>& segments, co
       points.push_back(segment.end);
     }
   }
-  for (const auto* net : nets) {
-    if (net == nullptr) {
-      continue;
-    }
-    if (net->get_driver() != nullptr && HasValidLocation(net->get_driver()->get_location())) {
-      points.push_back(net->get_driver()->get_location());
-    }
-    for (const auto* load : net->get_loads()) {
-      if (load != nullptr && HasValidLocation(load->get_location())) {
-        points.push_back(load->get_location());
-      }
+  for (const auto& pin : pins) {
+    if (HasValidLocation(pin.location)) {
+      points.push_back(pin.location);
     }
   }
-  for (const auto* inst : insts) {
-    if (inst != nullptr && HasValidLocation(inst->get_location())) {
-      points.push_back(inst->get_location());
+  for (const auto& inst : insts) {
+    if (HasValidLocation(inst.origin)) {
+      points.push_back(inst.origin);
+    }
+  }
+  for (const auto& logic_cell : logic_cells) {
+    if (HasValidLocation(logic_cell.origin)) {
+      points.push_back(logic_cell.origin);
     }
   }
   return points;
@@ -438,7 +215,7 @@ auto ResolveSegmentStyle(WireKind kind, bool fallback, bool flyline_view) -> std
 }
 
 auto WriteSvgSegments(std::ofstream& output_stream, const visualization::detail::SvgTransform& transform,
-                      const std::vector<VisualizationSegment>& segments, bool flyline_view) -> void
+                      const std::vector<ClockTreeVisualizationSegment>& segments, bool flyline_view) -> void
 {
   output_stream << R"(<g fill="none" stroke-linecap="round">
 )";
@@ -447,7 +224,8 @@ auto WriteSvgSegments(std::ofstream& output_stream, const visualization::detail:
     const auto begin_y = FormatSvgNumber(visualization::detail::MapY(transform, segment.begin.get_y()));
     const auto end_x = FormatSvgNumber(visualization::detail::MapX(transform, segment.end.get_x()));
     const auto end_y = FormatSvgNumber(visualization::detail::MapY(transform, segment.end.get_y()));
-    const auto [stroke_color, stroke_width, stroke_opacity, dash_array] = ResolveSegmentStyle(segment.kind, segment.fallback, flyline_view);
+    const auto wire_kind = wireKindFromRole(segment.net_role, flyline_view);
+    const auto [stroke_color, stroke_width, stroke_opacity, dash_array] = ResolveSegmentStyle(wire_kind, segment.fallback, flyline_view);
     output_stream << R"(<line x1=")" << begin_x << R"(" y1=")" << begin_y << R"(" x2=")" << end_x << R"(" y2=")" << end_y << R"(" stroke=")"
                   << stroke_color << R"(" stroke-width=")" << FormatSvgNumber(stroke_width) << R"(" stroke-opacity=")"
                   << FormatSvgNumber(stroke_opacity) << '"';
@@ -461,30 +239,24 @@ auto WriteSvgSegments(std::ofstream& output_stream, const visualization::detail:
 )";
 }
 
-auto WriteSvgPins(std::ofstream& output_stream, const visualization::detail::SvgTransform& transform, const std::vector<Net*>& nets) -> void
+auto WriteSvgPins(std::ofstream& output_stream, const visualization::detail::SvgTransform& transform,
+                  const std::vector<ClockTreeVisualizationPin>& pins) -> void
 {
   output_stream << R"(<g stroke-width="0.7">
 )";
-  std::unordered_set<const Pin*> seen_loads;
-  for (const auto* net : nets) {
-    if (net == nullptr) {
+  for (const auto& pin : pins) {
+    if (!HasValidLocation(pin.location)) {
       continue;
     }
-    if (const auto* driver = net->get_driver(); driver != nullptr && HasValidLocation(driver->get_location())) {
-      const auto location = driver->get_location();
+    const auto location = pin.location;
+    if (pin.driver) {
       output_stream << R"(<circle cx=")" << FormatSvgNumber(visualization::detail::MapX(transform, location.get_x())) << R"(" cy=")"
                     << FormatSvgNumber(visualization::detail::MapY(transform, location.get_y())) << R"(" r=")"
                     << FormatSvgNumber(visualization::detail::kReportDriverRadius) << R"(" fill=")"
                     << visualization::detail::kSvgColorDriverRoot << R"(" stroke=")" << visualization::detail::kSvgColorNodeStroke
                     << R"(" />
 )";
-    }
-    for (const auto* load : net->get_loads()) {
-      if (load == nullptr || !HasValidLocation(load->get_location()) || seen_loads.contains(load)) {
-        continue;
-      }
-      seen_loads.insert(load);
-      const auto location = load->get_location();
+    } else {
       output_stream << R"(<circle cx=")" << FormatSvgNumber(visualization::detail::MapX(transform, location.get_x())) << R"(" cy=")"
                     << FormatSvgNumber(visualization::detail::MapY(transform, location.get_y())) << R"(" r=")"
                     << FormatSvgNumber(visualization::detail::kReportSinkLoadRadius) << R"(" fill=")"
@@ -497,17 +269,17 @@ auto WriteSvgPins(std::ofstream& output_stream, const visualization::detail::Svg
 )";
 }
 
-auto WriteSvgInsts(std::ofstream& output_stream, const visualization::detail::SvgTransform& transform, const std::vector<Inst*>& insts)
-    -> void
+auto WriteSvgInsts(std::ofstream& output_stream, const visualization::detail::SvgTransform& transform,
+                   const std::vector<ClockTreeVisualizationInst>& insts) -> void
 {
   output_stream << R"(<g fill=")" << visualization::detail::kSvgColorBufferFillDefault << R"(" fill-opacity="0.86" stroke=")"
                 << visualization::detail::kSvgColorBufferStrokeDefault << R"(" stroke-width="0.8">
 )";
-  for (const auto* inst : insts) {
-    if (inst == nullptr || !HasValidLocation(inst->get_location())) {
+  for (const auto& inst : insts) {
+    if (!HasValidLocation(inst.origin)) {
       continue;
     }
-    const auto location = inst->get_location();
+    const auto location = inst.origin;
     const auto center_x = visualization::detail::MapX(transform, location.get_x());
     const auto center_y = visualization::detail::MapY(transform, location.get_y());
     const double marker_size = visualization::detail::kReportCtsBufferSize;
@@ -579,14 +351,14 @@ auto WriteSvgLegend(std::ofstream& output_stream, const visualization::detail::S
 }
 
 auto WriteSvgFile(const std::filesystem::path& path, const std::string& label, const std::string& view_label,
-                  const std::vector<VisualizationSegment>& segments, const std::vector<Net*>& nets, const std::vector<Inst*>& insts,
-                  bool flyline_view) -> VisualizationReportStatus
+                  const ClockTreeVisualizationModel& model, const std::vector<ClockTreeVisualizationSegment>& segments, bool flyline_view)
+    -> VisualizationReportStatus
 {
   if (segments.empty()) {
     return MakeFailure(label, path, view_label, "no drawable CTS net segments are available");
   }
 
-  const auto points = CollectDrawablePoints(segments, nets, insts);
+  const auto points = CollectDrawablePoints(segments, model.pins, model.insts, model.logic_cells);
   const auto bounds = visualization::detail::ComputeBounds({}, points);
   if (!bounds.valid) {
     return MakeFailure(label, path, view_label, "no valid CTS locations are available for SVG bounds");
@@ -610,8 +382,8 @@ auto WriteSvgFile(const std::filesystem::path& path, const std::string& label, c
   output_stream << R"(<title>)" << EscapeXml(label) << R"(</title>
 )";
   WriteSvgSegments(output_stream, transform, segments, flyline_view);
-  WriteSvgInsts(output_stream, transform, insts);
-  WriteSvgPins(output_stream, transform, nets);
+  WriteSvgInsts(output_stream, transform, model.insts);
+  WriteSvgPins(output_stream, transform, model.pins);
   WriteSvgLegend(output_stream, transform);
   output_stream << visualization::detail::kSvgClosingTag;
   output_stream.close();
@@ -656,34 +428,22 @@ auto EmitCTSVisualizationReports(const std::filesystem::path& visualization_dir,
     -> CTSVisualizationReportResult
 {
   const auto output_dir = ResolveVisualizationDir(visualization_dir) / "svg";
-  auto nets = CollectClockNets();
-  auto insts = CollectClockInsts();
+  const auto model = ClockTreeVisualizationModelBuilder::build(report_data);
 
   std::vector<VisualizationReportStatus> statuses;
-  if (DESIGN_INST.get_clocks().empty()) {
+  if (!model.has_clocks) {
     statuses = BuildUnavailableStatuses(output_dir, "CTS design contains no clocks; run CTS or initialize clock data before report");
     EmitReportStatusTable(statuses);
     return CTSVisualizationReportResult{.success = false};
   }
-  if (nets.empty()) {
+  if (model.design_segments.empty() && model.flyline_segments.empty()) {
     statuses = BuildUnavailableStatuses(output_dir, "CTS design contains no clock nets to visualize");
     EmitReportStatusTable(statuses);
     return CTSVisualizationReportResult{.success = false};
   }
 
-  auto design_collection = CollectDesignReportSegments(report_data);
-  auto flyline_collection = CollectFlylineReportSegments(report_data);
-  if (design_collection.segments.empty()) {
-    design_collection = CollectDesignSegments(nets);
-  }
-  if (flyline_collection.segments.empty()) {
-    flyline_collection = CollectFlylineSegments(nets);
-  }
-
-  statuses.push_back(
-      WriteSvgFile(output_dir / kDesignSvgLabel, kDesignSvgLabel, "svg/design", design_collection.segments, nets, insts, false));
-  statuses.push_back(
-      WriteSvgFile(output_dir / kFlylineSvgLabel, kFlylineSvgLabel, "svg/flyline", flyline_collection.segments, nets, insts, true));
+  statuses.push_back(WriteSvgFile(output_dir / kDesignSvgLabel, kDesignSvgLabel, "svg/design", model, model.design_segments, false));
+  statuses.push_back(WriteSvgFile(output_dir / kFlylineSvgLabel, kFlylineSvgLabel, "svg/flyline", model, model.flyline_segments, true));
 
   EmitReportStatusTable(statuses);
   const bool success = std::ranges::all_of(statuses, [](const auto& status) -> bool { return status.success; });

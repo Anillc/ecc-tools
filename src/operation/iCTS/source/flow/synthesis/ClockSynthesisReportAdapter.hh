@@ -10,34 +10,33 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CTSClockTreeEvaluationStep.hh
+ * @file ClockSynthesisReportAdapter.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-04-28
- * @brief CTS clock-tree evaluation step orchestration.
+ * @date 2026-04-29
+ * @brief Converts synthesis build results into narrow clock-tree report inputs.
  */
 
 #pragma once
 
+#include "report_data/ClockTreeReportData.hh"
+#include "report_data/ClockTreeReportSynthesisData.hh"
+#include "synthesis/ClockSynthesis.hh"
+
 namespace icts {
 
-struct ClockTreeEvaluationState;
-
-struct CTSClockTreeEvaluationResult
-{
-  bool evaluation_ready = false;
-};
-
-class CTSClockTreeEvaluationStep
+class ClockSynthesisReportAdapter
 {
  public:
-  CTSClockTreeEvaluationStep() = delete;
+  ClockSynthesisReportAdapter() = delete;
 
-  static auto run(ClockTreeEvaluationState& evaluation_state, bool refresh_sta_timing) -> CTSClockTreeEvaluationResult;
+  static auto makeSinkDomainReportInput(const ClockSynthesis::BuildResult& result) -> ClockSinkDomainReportInput;
+  static auto makeSourceToRootReportInput(const ClockSynthesis::SourceToRootBuildResult& result, ClockTreeSynthesisPhase synthesis_phase)
+      -> ClockSourceToRootReportInput;
 };
 
 }  // namespace icts

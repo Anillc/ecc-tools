@@ -2,16 +2,17 @@ add_library(
   icts_source_flow_report_data
   ${ICTS_FLOW}/report_data/ClockTreeReportDataBuilder.cc
   ${ICTS_FLOW}/report_data/ClockTreeReportData.cc
+  ${ICTS_FLOW}/report_data/ClockTreeVisualizationModel.cc
 )
 
 target_link_libraries(
   icts_source_flow_report_data
   PUBLIC
   icts_source_database_spatial
-  icts_source_flow_synthesis
   PRIVATE
   icts_source_database
   icts_source_module_routing
+  icts_source_utils
 )
 
 target_include_directories(

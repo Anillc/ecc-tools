@@ -30,7 +30,6 @@
 #include "Log.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
-#include "evaluation/ClockTreeEvaluator.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "report_data/ClockTreeReportData.hh"
@@ -67,7 +66,6 @@ auto CTSClockTreeSynthesisStep::run(ClockTreeReportData& report_data) -> CTSCloc
   auto flow_stage = SCHEMA_WRITER_INST.beginStage("CTSFlow", "Run CTS synthesis flow");
   SCHEMA_WRITER_INST.emitSection("## Synthesis Summary");
 
-  ClockTreeEvaluator::resetSummary();
   report_data.reset();
   report_data.set_design_dbu_per_um(WRAPPER_INST.queryDbUnit());
   CTSClockTreeRunSummary summary;

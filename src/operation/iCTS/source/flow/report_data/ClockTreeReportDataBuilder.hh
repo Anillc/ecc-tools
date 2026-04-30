@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "report_data/ClockTreeReportData.hh"
-#include "synthesis/ClockSynthesis.hh"
+#include "report_data/ClockTreeReportSynthesisData.hh"
 
 namespace icts {
 
@@ -53,10 +53,10 @@ class ClockTreeReportDataBuilder
   static auto appendDirectSinkDomain(ClockTreeReportData& report_data, const Clock& clock, std::size_t clock_index,
                                      const ClockSinkDomainReportTopology& sink_domain_topology) -> void;
   static auto makeSinkDomainReportData(const Clock& clock, std::size_t clock_index,
-                                       const ClockSinkDomainReportTopology& sink_domain_topology, const ClockSynthesis::BuildResult& result)
-      -> ClockTreeReportData;
+                                       const ClockSinkDomainReportTopology& sink_domain_topology,
+                                       const ClockSinkDomainReportInput& report_input) -> ClockTreeReportData;
   static auto makeSourceToRootReportData(const Clock& clock, std::size_t clock_index, const Net& source_net,
-                                         const ClockSynthesis::SourceToRootBuildResult& result, ClockTreeSynthesisPhase synthesis_phase)
+                                         const ClockSourceToRootReportInput& report_input, ClockTreeSynthesisPhase synthesis_phase)
       -> ClockTreeReportData;
   static auto merge(ClockTreeReportData& target, const ClockTreeReportData& source) -> void;
 };

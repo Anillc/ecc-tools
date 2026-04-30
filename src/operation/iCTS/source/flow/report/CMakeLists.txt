@@ -3,14 +3,16 @@ add_library(
   STATIC
   ${ICTS_FLOW_REPORT}/CTSGdsReport.cc
   ${ICTS_FLOW_REPORT}/CTSGdsWriter.cc
+  ${ICTS_FLOW_REPORT}/ClockTreeVisualizationLayerPolicy.cc
   ${ICTS_FLOW_REPORT}/CTSVisualizationReport.cc
 )
 
 target_link_libraries(
   icts_source_flow_report
+  PUBLIC
+  icts_source_flow_report_data
   PRIVATE
   icts_source_database
-  icts_source_flow_report_data
   icts_source_module_routing
   icts_source_utils
 )

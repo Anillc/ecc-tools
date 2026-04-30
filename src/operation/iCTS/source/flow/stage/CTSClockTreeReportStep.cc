@@ -73,7 +73,8 @@ auto resolveStatisticsDir(const std::string& save_dir, const std::filesystem::pa
 }  // namespace
 
 auto CTSClockTreeReportStep::run(const std::string& save_dir, bool evaluation_ready, bool refresh_sta_timing,
-                                 const ClockTreeReportData& report_data) -> CTSClockTreeReportResult
+                                 const ClockTreeReportData& report_data, ClockTreeEvaluationState& evaluation_state)
+    -> CTSClockTreeReportResult
 {
   LOG_FATAL_IF(CONFIG_INST.get_work_dir().empty()) << "CTS report requires an initialized CTS session.";
 
@@ -82,7 +83,7 @@ auto CTSClockTreeReportStep::run(const std::string& save_dir, bool evaluation_re
   const auto report_root_dir = resolveReportRootDir(save_dir);
   const auto visualization_dir = resolveVisualizationDir(save_dir, report_root_dir);
   const auto statistics_dir = resolveStatisticsDir(save_dir, report_root_dir);
-  const bool reused_evaluation_state = evaluation_ready && ClockTreeEvaluator::hasEvaluationResult();
+  const bool reused_evaluation_state = evaluation_ready && ClockTreeEvaluator::hasEvaluationResult(evaluation_state);
 
   SCHEMA_WRITER_INST.emitSection("## Report Summary");
   schema::EmitKeyValueTable("CTS Report Mode",
@@ -96,10 +97,11 @@ auto CTSClockTreeReportStep::run(const std::string& save_dir, bool evaluation_re
   bool current_evaluation_ready = evaluation_ready;
   if (!reused_evaluation_state) {
     SCHEMA_WRITER_INST.emitSection("### Report Evaluation");
-    current_evaluation_ready = CTSClockTreeEvaluationStep::run(refresh_sta_timing).evaluation_ready;
+    current_evaluation_ready = CTSClockTreeEvaluationStep::run(evaluation_state, refresh_sta_timing).evaluation_ready;
   }
 
-  const bool statistics_success = current_evaluation_ready && ClockTreeEvaluator::writeStatistics(statistics_dir.string(), false);
+  const bool statistics_success
+      = current_evaluation_ready && ClockTreeEvaluator::writeStatistics(evaluation_state, statistics_dir.string(), false);
   const auto visualization_result = report::EmitCTSVisualizationReports(visualization_dir, report_data);
   const auto gds_result = report::EmitCTSGdsReports(visualization_dir, report_data);
   const bool report_success = statistics_success && visualization_result.success && gds_result.success;

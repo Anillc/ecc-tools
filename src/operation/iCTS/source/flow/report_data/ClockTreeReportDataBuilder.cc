@@ -24,8 +24,6 @@
 #include "report_data/ClockTreeReportDataBuilder.hh"
 
 #include <algorithm>
-#include <optional>
-#include <ranges>
 #include <unordered_set>
 #include <utility>
 
@@ -33,7 +31,7 @@
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
-#include "routing/router/Router.hh"
+#include "router/Router.hh"
 
 namespace icts {
 namespace {
@@ -188,32 +186,6 @@ auto makeSinkReportInst(const Clock& clock, std::size_t clock_index, const Pin& 
   return report_inst;
 }
 
-auto selectedDepthToInt(const std::optional<unsigned>& selected_depth) -> int
-{
-  return selected_depth.has_value() ? static_cast<int>(*selected_depth) : -1;
-}
-
-auto findInsertedInstLevel(const std::vector<HTreeBuilder::InsertedInstLevel>& levels, const Inst* inst) -> int
-{
-  if (inst == nullptr) {
-    return -1;
-  }
-  auto iter = std::ranges::find_if(levels, [inst](const HTreeBuilder::InsertedInstLevel& level) -> bool { return level.inst == inst; });
-  return iter == levels.end() ? -1 : iter->topology_level;
-}
-
-auto findInsertedNetLevel(const std::vector<HTreeBuilder::InsertedNetLevel>& levels, const Net* net) -> std::optional<int>
-{
-  if (net == nullptr) {
-    return std::nullopt;
-  }
-  auto iter = std::ranges::find_if(levels, [net](const HTreeBuilder::InsertedNetLevel& level) -> bool { return level.net == net; });
-  if (iter == levels.end()) {
-    return std::nullopt;
-  }
-  return iter->topology_level;
-}
-
 auto fallbackNetTopologyLevel(CTSNetRole role, ClockTreeSynthesisPhase synthesis_phase, int selected_depth) -> int
 {
   if (role == CTSNetRole::kSinkTree) {
@@ -223,16 +195,6 @@ auto fallbackNetTopologyLevel(CTSNetRole role, ClockTreeSynthesisPhase synthesis
     return selected_depth >= 0 ? selected_depth : 0;
   }
   return 0;
-}
-
-auto resolveNetTopologyLevel(const std::vector<HTreeBuilder::InsertedNetLevel>& levels, const Net* net, CTSNetRole role,
-                             ClockTreeSynthesisPhase synthesis_phase, int selected_depth) -> int
-{
-  const auto inserted_level = findInsertedNetLevel(levels, net);
-  if (inserted_level.has_value()) {
-    return *inserted_level;
-  }
-  return fallbackNetTopologyLevel(role, synthesis_phase, selected_depth);
 }
 
 }  // namespace
@@ -270,61 +232,54 @@ auto ClockTreeReportDataBuilder::appendDirectSinkDomain(ClockTreeReportData& rep
 
 auto ClockTreeReportDataBuilder::makeSinkDomainReportData(const Clock& clock, std::size_t clock_index,
                                                           const ClockSinkDomainReportTopology& sink_domain_topology,
-                                                          const ClockSynthesis::BuildResult& result) -> ClockTreeReportData
+                                                          const ClockSinkDomainReportInput& report_input) -> ClockTreeReportData
 {
   ClockTreeReportData report_data;
-  const int selected_depth = selectedDepthToInt(result.selected_htree_depth);
-  const int level_count = static_cast<int>(result.selected_htree_level_count);
   if (sink_domain_topology.root_buffer != nullptr) {
     report_data.addInst(makeReportInst(clock, clock_index, *sink_domain_topology.root_buffer, CTSInstRole::kRootBuffer,
-                                       sink_domain_topology.sink_domain, ClockTreeSynthesisPhase::kDownstreamHTree, selected_depth, -1));
+                                       sink_domain_topology.sink_domain, ClockTreeSynthesisPhase::kDownstreamHTree,
+                                       report_input.selected_depth, -1));
   }
   if (sink_domain_topology.downstream_net != nullptr) {
-    report_data.addNet(
-        makeReportNet(clock, clock_index, *sink_domain_topology.downstream_net, CTSNetRole::kDownstream, sink_domain_topology.sink_domain,
-                      ClockTreeSynthesisPhase::kDownstreamHTree, selected_depth, level_count,
-                      fallbackNetTopologyLevel(CTSNetRole::kDownstream, ClockTreeSynthesisPhase::kDownstreamHTree, selected_depth)));
+    report_data.addNet(makeReportNet(
+        clock, clock_index, *sink_domain_topology.downstream_net, CTSNetRole::kDownstream, sink_domain_topology.sink_domain,
+        ClockTreeSynthesisPhase::kDownstreamHTree, report_input.selected_depth, report_input.topology_level_count,
+        fallbackNetTopologyLevel(CTSNetRole::kDownstream, ClockTreeSynthesisPhase::kDownstreamHTree, report_input.selected_depth)));
   }
-  for (const auto& inst : result.inserted_insts) {
-    if (inst != nullptr) {
-      const int topology_level = findInsertedInstLevel(result.inserted_inst_levels, inst.get());
-      report_data.addInst(makeReportInst(clock, clock_index, *inst, CTSInstRole::kHTreeBuffer, sink_domain_topology.sink_domain,
-                                         ClockTreeSynthesisPhase::kDownstreamHTree, selected_depth, topology_level));
+  for (const auto& inst : report_input.inserted_insts) {
+    if (inst.inst != nullptr) {
+      report_data.addInst(makeReportInst(clock, clock_index, *inst.inst, CTSInstRole::kHTreeBuffer, sink_domain_topology.sink_domain,
+                                         ClockTreeSynthesisPhase::kDownstreamHTree, report_input.selected_depth, inst.topology_level));
     }
   }
-  for (const auto& net : result.inserted_nets) {
-    if (net != nullptr) {
-      const int topology_level = resolveNetTopologyLevel(result.inserted_net_levels, net.get(), CTSNetRole::kSinkTree,
-                                                         ClockTreeSynthesisPhase::kDownstreamHTree, selected_depth);
-      report_data.addNet(makeReportNet(clock, clock_index, *net, CTSNetRole::kSinkTree, sink_domain_topology.sink_domain,
-                                       ClockTreeSynthesisPhase::kDownstreamHTree, selected_depth, level_count, topology_level));
+  for (const auto& net : report_input.inserted_nets) {
+    if (net.net != nullptr) {
+      report_data.addNet(makeReportNet(clock, clock_index, *net.net, CTSNetRole::kSinkTree, sink_domain_topology.sink_domain,
+                                       ClockTreeSynthesisPhase::kDownstreamHTree, report_input.selected_depth,
+                                       report_input.topology_level_count, net.topology_level));
     }
   }
   return report_data;
 }
 
 auto ClockTreeReportDataBuilder::makeSourceToRootReportData(const Clock& clock, std::size_t clock_index, const Net& source_net,
-                                                            const ClockSynthesis::SourceToRootBuildResult& result,
+                                                            const ClockSourceToRootReportInput& report_input,
                                                             ClockTreeSynthesisPhase synthesis_phase) -> ClockTreeReportData
 {
   ClockTreeReportData report_data;
-  const int selected_depth = selectedDepthToInt(result.htree_result.selected_depth);
-  const int level_count = static_cast<int>(result.htree_result.levels.size());
   report_data.addNet(makeReportNet(clock, clock_index, source_net, CTSNetRole::kSourceToRoot, CTSSinkDomain::kSourceToRoot, synthesis_phase,
-                                   selected_depth, level_count, 0));
-  for (const auto& inst : result.inserted_insts) {
-    if (inst != nullptr) {
-      const int topology_level = findInsertedInstLevel(result.inserted_inst_levels, inst.get());
-      report_data.addInst(makeReportInst(clock, clock_index, *inst, CTSInstRole::kSourceRootBuffer, CTSSinkDomain::kSourceToRoot,
-                                         synthesis_phase, selected_depth, topology_level));
+                                   report_input.selected_depth, report_input.topology_level_count, 0));
+  for (const auto& inst : report_input.inserted_insts) {
+    if (inst.inst != nullptr) {
+      report_data.addInst(makeReportInst(clock, clock_index, *inst.inst, CTSInstRole::kSourceRootBuffer, CTSSinkDomain::kSourceToRoot,
+                                         synthesis_phase, report_input.selected_depth, inst.topology_level));
     }
   }
-  for (const auto& net : result.inserted_nets) {
-    if (net != nullptr) {
-      const int topology_level
-          = resolveNetTopologyLevel(result.inserted_net_levels, net.get(), CTSNetRole::kSourceToRoot, synthesis_phase, selected_depth);
-      report_data.addNet(makeReportNet(clock, clock_index, *net, CTSNetRole::kSourceToRoot, CTSSinkDomain::kSourceToRoot, synthesis_phase,
-                                       selected_depth, level_count, topology_level));
+  for (const auto& net : report_input.inserted_nets) {
+    if (net.net != nullptr) {
+      report_data.addNet(makeReportNet(clock, clock_index, *net.net, CTSNetRole::kSourceToRoot, CTSSinkDomain::kSourceToRoot,
+                                       synthesis_phase, report_input.selected_depth, report_input.topology_level_count,
+                                       net.topology_level));
     }
   }
   return report_data;

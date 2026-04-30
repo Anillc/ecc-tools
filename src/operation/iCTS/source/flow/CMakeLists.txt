@@ -21,17 +21,14 @@ add_library(icts_source_flow ${ICTS_FLOW}/FlowManager.cc)
 target_link_libraries(
   icts_source_flow
   PUBLIC
-  icts_source_flow_report_data
   icts_source_flow_evaluation
   icts_source_flow_stage
   PRIVATE
   icts_source_database
   icts_source_module
-  icts_source_flow_htree
   icts_source_flow_netlist
   icts_source_flow_report
   icts_source_flow_session
-  icts_source_flow_synthesis
   icts_source_utils
 )
 

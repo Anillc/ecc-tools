@@ -23,7 +23,6 @@
 
 #include "stage/CTSClockDataLoadStep.hh"
 
-#include "evaluation/ClockTreeEvaluator.hh"
 #include "logger/Schema.hh"
 #include "netlist/ClockNetEditor.hh"
 
@@ -35,7 +34,6 @@ auto CTSClockDataLoadStep::run() -> void
   auto read_stage = SCHEMA_WRITER_INST.beginStage("CTSReadData", "Read CTS clock data");
   SCHEMA_WRITER_INST.emitSection("## Input Summary");
   SCHEMA_WRITER_INST.emitSection("### Clock Data");
-  ClockTreeEvaluator::resetSummary();
   ClockNetEditor::readClockData();
   (void) runtime.finished();
   read_stage.finished();

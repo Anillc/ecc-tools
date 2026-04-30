@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation for check phase."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Hard constraints and final validation policy to verify at handoff."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify new files, CMake wiring, tests, and flow-stage boundaries."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify ownership, Wrapper/iDB containment, writeback-only synthesis, and report-only data shape."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify CTS semantic naming, dependency visibility, include hygiene, and forbidden patterns."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify transaction failure paths log and recover with the correct severity."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify runtime logs/schema rows/statistics report output stay in the right mechanisms."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify cross-layer ownership, units, and initialization assumptions."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify shared model/fallback/table logic is not duplicated."}
+{"file": ".trellis/tasks/archive/2026-04/04-28-cts-engineering-refactor/prd.md", "reason": "Verify this phase preserves previous output and API contracts."}
+{"file": ".trellis/tasks/archive/2026-04/04-28-cts-engineering-refactor/research/cts-naming-audit.md", "reason": "Verify previously deferred naming cleanup is either completed or consciously deferred."}
+{"file": ".trellis/tasks/04-29-cts-synthesis-transaction-report-model-cleanup/prd.md", "reason": "Current task acceptance checklist and validation plan."}
+{"file": ".trellis/tasks/04-29-cts-synthesis-transaction-report-model-cleanup/research/current-code-map.md", "reason": "Check implementation against the initial hotspot map and intended extraction targets."}

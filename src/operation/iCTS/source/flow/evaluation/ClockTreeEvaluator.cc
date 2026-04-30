@@ -56,12 +56,6 @@
 namespace icts {
 namespace {
 
-auto latestSummary() -> ClockTreeSummary&
-{
-  static ClockTreeSummary summary;
-  return summary;
-}
-
 enum class ClockNetRole
 {
   kSourceToRoot,
@@ -75,12 +69,6 @@ struct ClockNetMeasurement
   int64_t wirelength_dbu = 0;
   int64_t hpwl_dbu = 0;
 };
-
-auto latestStatistics() -> CTSStatistics&
-{
-  static CTSStatistics statistics;
-  return statistics;
-}
 
 auto clearStatistics(CTSStatistics& statistics) -> void
 {
@@ -447,15 +435,15 @@ auto emitEvaluationSummary(const ClockTreeSummary& summary, bool refreshed_sta) 
 
 }  // namespace
 
-auto ClockTreeEvaluator::evaluate() -> void
+auto ClockTreeEvaluator::evaluate(ClockTreeEvaluationState& state) -> void
 {
-  evaluate(ClockTreeEvaluationOptions{});
+  evaluate(state, ClockTreeEvaluationOptions{});
 }
 
-auto ClockTreeEvaluator::evaluate(const ClockTreeEvaluationOptions& options) -> void
+auto ClockTreeEvaluator::evaluate(ClockTreeEvaluationState& state, const ClockTreeEvaluationOptions& options) -> void
 {
-  auto& summary = latestSummary();
-  auto& statistics = latestStatistics();
+  auto& summary = state.summary;
+  auto& statistics = state.statistics;
   clearSummary(summary);
   clearStatistics(statistics);
 
@@ -521,40 +509,40 @@ auto ClockTreeEvaluator::evaluate(const ClockTreeEvaluationOptions& options) -> 
   statistics.valid = true;
   summary.has_evaluation_result = true;
   emitEvaluationSummary(summary, timing_updated);
-  (void) writeStatistics(CONFIG_INST.get_statistics_dir(), true);
+  (void) writeStatistics(state, CONFIG_INST.get_statistics_dir(), true);
 }
 
-auto ClockTreeEvaluator::outputSummary() -> ClockTreeSummary
+auto ClockTreeEvaluator::outputSummary(const ClockTreeEvaluationState& state) -> ClockTreeSummary
 {
-  return latestSummary();
+  return state.summary;
 }
 
-auto ClockTreeEvaluator::hasEvaluationResult() -> bool
+auto ClockTreeEvaluator::hasEvaluationResult(const ClockTreeEvaluationState& state) -> bool
 {
-  return latestSummary().has_evaluation_result && latestStatistics().valid;
+  return state.summary.has_evaluation_result && state.statistics.valid;
 }
 
-auto ClockTreeEvaluator::writeStatistics(const std::string& statistics_dir, bool emit_log_tables) -> bool
+auto ClockTreeEvaluator::writeStatistics(const ClockTreeEvaluationState& state, const std::string& statistics_dir, bool emit_log_tables)
+    -> bool
 {
-  const auto& statistics = latestStatistics();
-  if (!statistics.valid) {
+  if (!state.statistics.valid) {
     LOG_WARNING << "ClockTreeEvaluator: statistics report skipped because evaluation statistics are not ready.";
     return false;
   }
 
   const auto report_dir
       = statistics_dir.empty() ? std::filesystem::path(CONFIG_INST.get_statistics_dir()) : std::filesystem::path(statistics_dir);
-  const bool success = CTSStatisticsWriter::writeReports(report_dir, statistics);
+  const bool success = CTSStatisticsWriter::writeReports(report_dir, state.statistics);
   if (emit_log_tables) {
-    CTSStatisticsWriter::emitLogTables(statistics);
+    CTSStatisticsWriter::emitLogTables(state.statistics);
   }
   return success;
 }
 
-auto ClockTreeEvaluator::resetSummary() -> void
+auto ClockTreeEvaluator::reset(ClockTreeEvaluationState& state) -> void
 {
-  clearSummary(latestSummary());
-  clearStatistics(latestStatistics());
+  clearSummary(state.summary);
+  clearStatistics(state.statistics);
 }
 
 }  // namespace icts

@@ -88,6 +88,7 @@ auto FlowManager::readData() -> void
 {
   _run_summary = CTSClockTreeRunSummary{};
   _report_data.reset();
+  ClockTreeEvaluator::reset(_evaluation_state);
   _writeback_result = CTSClockTreeWritebackResult{};
   _evaluation_ready = false;
   CTSClockDataLoadStep::run();
@@ -95,6 +96,7 @@ auto FlowManager::readData() -> void
 
 auto FlowManager::run() -> void
 {
+  ClockTreeEvaluator::reset(_evaluation_state);
   _evaluation_ready = false;
   _writeback_result = CTSClockTreeWritebackResult{};
   _run_summary = CTSClockTreeSynthesisStep::run(_report_data);
@@ -112,12 +114,13 @@ auto FlowManager::writeback() -> void
 
 auto FlowManager::evaluate() -> void
 {
-  _evaluation_ready = CTSClockTreeEvaluationStep::run(_writeback_result.writeback_done).evaluation_ready;
+  _evaluation_ready = CTSClockTreeEvaluationStep::run(_evaluation_state, _writeback_result.writeback_done).evaluation_ready;
 }
 
 auto FlowManager::report(const std::string& save_dir) -> void
 {
-  const auto report_result = CTSClockTreeReportStep::run(save_dir, _evaluation_ready, _writeback_result.writeback_done, _report_data);
+  const auto report_result
+      = CTSClockTreeReportStep::run(save_dir, _evaluation_ready, _writeback_result.writeback_done, _report_data, _evaluation_state);
   _evaluation_ready = report_result.evaluation_ready;
 }
 
@@ -162,7 +165,7 @@ auto FlowManager::outputSummary() const -> ClockTreeSummary
   if (!_evaluation_ready) {
     return {};
   }
-  return ClockTreeEvaluator::outputSummary();
+  return ClockTreeEvaluator::outputSummary(_evaluation_state);
 }
 
 auto FlowManager::outputRunSummary() const -> CTSClockTreeRunSummary
@@ -172,7 +175,7 @@ auto FlowManager::outputRunSummary() const -> CTSClockTreeRunSummary
 
 auto FlowManager::reset() -> void
 {
-  ClockTreeEvaluator::resetSummary();
+  ClockTreeEvaluator::reset(_evaluation_state);
   _run_summary = CTSClockTreeRunSummary{};
   _report_data.reset();
   _writeback_result = CTSClockTreeWritebackResult{};

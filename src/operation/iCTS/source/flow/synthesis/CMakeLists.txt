@@ -6,6 +6,7 @@ add_library(
   ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisHtreeOptions.cc
   ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisNetEditor.cc
   ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisReporter.cc
+  ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisReportAdapter.cc
   ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisResultAccounting.cc
   ${ICTS_FLOW_SYNTHESIS}/ClockSynthesisSinkClustering.cc
 )
@@ -14,6 +15,7 @@ target_link_libraries(
   icts_source_flow_synthesis
   PUBLIC
   icts_source_database
+  icts_source_flow_report_data
   icts_source_module
   icts_source_flow_htree
   PRIVATE

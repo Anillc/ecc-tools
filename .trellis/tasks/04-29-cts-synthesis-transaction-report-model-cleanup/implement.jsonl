@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec navigation and required read order for iCTS work."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Hard iCTS constraints: public process, naming, file headers, no exceptions, validation policy."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Authoritative source/test placement and flow-stage boundaries."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Ownership, singleton, Wrapper/iDB, writeback, and report-only data boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "CTS semantic naming, include, dependency, and no string-behavior rules."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Failure severity and no-exception policy for synthesis transaction failure paths."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime logging and schema/report output rules for flow rows and diagnostics."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Required thinking guide because the task crosses API, database, flow, Wrapper, evaluation, and report boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Required thinking guide before extracting shared fallback/model/table helpers."}
+{"file": ".trellis/tasks/archive/2026-04/04-28-cts-engineering-refactor/prd.md", "reason": "Previous phase contracts, output directory contract, and completed P0/P1/P2 context."}
+{"file": ".trellis/tasks/archive/2026-04/04-28-cts-engineering-refactor/research/cts-naming-audit.md", "reason": "Previous naming audit, accepted mechanics, and deferred cleanup list."}
+{"file": ".trellis/tasks/04-29-cts-synthesis-transaction-report-model-cleanup/prd.md", "reason": "Current task scope, implementation order, and acceptance criteria."}
+{"file": ".trellis/tasks/04-29-cts-synthesis-transaction-report-model-cleanup/research/current-code-map.md", "reason": "Starting code hotspots and intended extraction targets for this cleanup."}

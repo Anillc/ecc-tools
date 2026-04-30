@@ -28,14 +28,14 @@
 
 namespace icts {
 
-auto CTSClockTreeEvaluationStep::run(bool refresh_sta_timing) -> CTSClockTreeEvaluationResult
+auto CTSClockTreeEvaluationStep::run(ClockTreeEvaluationState& evaluation_state, bool refresh_sta_timing) -> CTSClockTreeEvaluationResult
 {
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("evaluation");
   auto evaluation_stage = SCHEMA_WRITER_INST.beginStage("CTSEvaluation", "Evaluate CTS clock tree");
   SCHEMA_WRITER_INST.emitSection("## Evaluation Summary");
   SCHEMA_WRITER_INST.emitSection("### Final Evaluation");
-  ClockTreeEvaluator::evaluate(ClockTreeEvaluationOptions{.refresh_sta_timing = refresh_sta_timing});
-  const bool evaluation_ready = ClockTreeEvaluator::hasEvaluationResult();
+  ClockTreeEvaluator::evaluate(evaluation_state, ClockTreeEvaluationOptions{.refresh_sta_timing = refresh_sta_timing});
+  const bool evaluation_ready = ClockTreeEvaluator::hasEvaluationResult(evaluation_state);
   if (evaluation_ready) {
     (void) runtime.finished();
     evaluation_stage.finished();

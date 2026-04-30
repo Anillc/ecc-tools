@@ -28,6 +28,8 @@
 #include <string>
 #include <vector>
 
+#include "evaluation/CTSStatisticsWriter.hh"
+
 namespace icts {
 
 struct ClockTreeSummary
@@ -85,17 +87,24 @@ struct ClockTreeEvaluationOptions
   bool refresh_sta_timing = false;
 };
 
+struct ClockTreeEvaluationState
+{
+  ClockTreeSummary summary;
+  CTSStatistics statistics;
+};
+
 class ClockTreeEvaluator
 {
  public:
   ClockTreeEvaluator() = delete;
 
-  static auto evaluate() -> void;
-  static auto evaluate(const ClockTreeEvaluationOptions& options) -> void;
-  static auto outputSummary() -> ClockTreeSummary;
-  static auto hasEvaluationResult() -> bool;
-  static auto writeStatistics(const std::string& statistics_dir, bool emit_log_tables = true) -> bool;
-  static auto resetSummary() -> void;
+  static auto evaluate(ClockTreeEvaluationState& state) -> void;
+  static auto evaluate(ClockTreeEvaluationState& state, const ClockTreeEvaluationOptions& options) -> void;
+  static auto outputSummary(const ClockTreeEvaluationState& state) -> ClockTreeSummary;
+  static auto hasEvaluationResult(const ClockTreeEvaluationState& state) -> bool;
+  static auto writeStatistics(const ClockTreeEvaluationState& state, const std::string& statistics_dir, bool emit_log_tables = true)
+      -> bool;
+  static auto reset(ClockTreeEvaluationState& state) -> void;
 };
 
 }  // namespace icts

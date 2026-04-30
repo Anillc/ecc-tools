@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -43,8 +44,16 @@
 #include "evaluation/ClockTreeEvaluator.hh"
 #include "feature_icts.h"
 #include "flow/FlowManager.hh"
+#include "flow/htree/CharacterizationLibrary.hh"
+#include "flow/htree/HTreeBuilder.hh"
 #include "flow/netlist/ClockNetEditor.hh"
 #include "flow/report_data/ClockTreeReportData.hh"
+#include "flow/stage/CTSClockTreeRunSummary.hh"
+#include "flow/stage/ClockSinkDomainBuilder.hh"
+#include "flow/stage/ClockTreeSynthesisDriver.hh"
+#include "flow/stage/ClockTreeSynthesisStatusTable.hh"
+#include "flow/stage/ClockTreeSynthesisTransaction.hh"
+#include "flow/synthesis/ClockSynthesis.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
@@ -220,6 +229,40 @@ auto prepareDirectRootBufferNets(icts::Clock& clock, const std::string& cell_mas
   ASSERT_TRUE(build_domain(icts::CTSSinkDomain::kHardMacro, macro_sinks));
   ASSERT_TRUE(build_domain(icts::CTSSinkDomain::kRegular, regular_sinks));
   icts::ClockNetEditor::reuseClockSourceNetAsSourceToRootBuffers(clock, clock.get_clock_source(), root_inputs);
+}
+
+auto statusRowsContain(const icts::schema::TableRows& rows, const std::string& status, const std::string& sink_domain,
+                       const std::string& detail) -> bool
+{
+  return std::ranges::any_of(rows, [&](const auto& row) -> bool {
+    return row.size() >= 7U && row.at(2) == status && row.at(3) == sink_domain && row.at(6) == detail;
+  });
+}
+
+auto makeRootBufferSpec() -> icts::ClockSinkDomainRootBufferSpec
+{
+  return icts::ClockSinkDomainRootBufferSpec{
+      .cell_master = "CTS_TEST_BUF",
+      .input_pin_name = "A",
+      .output_pin_name = "Y",
+  };
+}
+
+auto expectClockRestoredToOriginalLoads(const TestClockPins& pins) -> void
+{
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.clock_net, nullptr);
+  EXPECT_TRUE(pins.clock->get_insts().empty());
+  EXPECT_TRUE(pins.clock->get_nets().empty());
+  EXPECT_EQ(pins.clock->get_clock_source_net(), pins.clock_net);
+  EXPECT_EQ(pins.clock_net->get_driver(), pins.clock_source);
+  ASSERT_EQ(pins.clock_net->get_loads().size(), pins.macro_sink == nullptr ? 1U : 2U);
+  if (pins.macro_sink != nullptr) {
+    EXPECT_TRUE(containsPin(pins.clock_net->get_loads(), pins.macro_sink));
+  }
+  if (pins.regular_sink != nullptr) {
+    EXPECT_TRUE(containsPin(pins.clock_net->get_loads(), pins.regular_sink));
+  }
 }
 
 TEST(FlowManagerTest, EmptyFlowManagerRunIsCallable)
@@ -402,6 +445,130 @@ TEST(FlowManagerTest, RepeatedNetPreparationRestoresClockSourceNetBeforeRebuildi
   ASSERT_NE(pins.regular_sink->get_net(), nullptr);
   EXPECT_EQ(pins.regular_sink->get_net(), pins.clock->get_nets().front());
   EXPECT_EQ(pins.regular_sink->get_net()->get_loads().front(), pins.regular_sink);
+}
+
+TEST(FlowManagerTest, RootBufferInsertionFailureRollsBackClockAndRecordsSinkDomainStatus)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  auto pins = addClockToDesign(nullptr, reg_inst);
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.regular_sink, nullptr);
+
+  icts::ClockTreeReportData report_data;
+  icts::CTSClockTreeRunSummary summary;
+  icts::schema::TableRows rows;
+  std::size_t total_sink_domains = 0U;
+  std::size_t hard_macro_sink_count = 0U;
+  std::size_t regular_sink_count = 0U;
+
+  const auto result = icts::ClockTreeSynthesisDriver::run(*pins.clock, 0U, report_data, summary, rows, total_sink_domains,
+                                                          hard_macro_sink_count, regular_sink_count);
+
+  EXPECT_FALSE(result.success);
+  EXPECT_FALSE(result.skipped);
+  EXPECT_TRUE(statusRowsContain(rows, "failed", "regular", "failed to insert root buffer"));
+  expectClockRestoredToOriginalLoads(pins);
+  EXPECT_TRUE(report_data.get_clocks().empty());
+}
+
+TEST(FlowManagerTest, DownstreamNetCreationFailureRollsBackClockAndRecordsSinkDomainStatus)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  auto pins = addClockToDesign(nullptr, reg_inst);
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.regular_sink, nullptr);
+
+  const auto domain_prefix = icts::ClockNetEditor::makeSinkDomainPrefix(*pins.clock, 0U, icts::CTSSinkDomain::kRegular);
+  auto* existing_downstream_net = DESIGN_INST.makeNet(domain_prefix + "_downstream_net");
+  ASSERT_NE(existing_downstream_net, nullptr);
+
+  icts::schema::TableRows rows;
+  icts::ClockTreeSynthesisStatusTable status_table(rows);
+  icts::ClockSinkDomainContext context;
+  const auto root_spec = makeRootBufferSpec();
+  const bool prepared = icts::ClockSinkDomainBuilder::prepare(
+      *pins.clock, 0U, icts::CTSSinkDomain::kRegular, std::vector<icts::Pin*>{pins.regular_sink}, 1U, status_table, context, &root_spec);
+
+  EXPECT_FALSE(prepared);
+  EXPECT_TRUE(statusRowsContain(rows, "failed", "regular", "failed to create downstream net"));
+  icts::ClockTreeSynthesisTransaction::rollbackClock(*pins.clock);
+  expectClockRestoredToOriginalLoads(pins);
+}
+
+TEST(FlowManagerTest, InsertedObjectCommitFailureRollsBackClockAndDoesNotMergePendingReportData)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  auto pins = addClockToDesign(nullptr, reg_inst);
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.regular_sink, nullptr);
+
+  icts::schema::TableRows rows;
+  icts::ClockTreeSynthesisStatusTable status_table(rows);
+  icts::ClockSinkDomainContext context;
+  const auto root_spec = makeRootBufferSpec();
+  ASSERT_TRUE(icts::ClockSinkDomainBuilder::prepare(*pins.clock, 0U, icts::CTSSinkDomain::kRegular,
+                                                    std::vector<icts::Pin*>{pins.regular_sink}, 1U, status_table, context, &root_spec));
+
+  icts::ClockTreeReportData report_data;
+  icts::CTSClockTreeRunSummary summary;
+  icts::CharacterizationLibrary char_library;
+  icts::ClockTreeSynthesisTransaction transaction(*pins.clock, 0U, report_data, summary, status_table, char_library, 1U);
+  icts::ClockSynthesis::BuildResult synthesis_result;
+  synthesis_result.success = true;
+  synthesis_result.selected_htree_depth = 0U;
+  synthesis_result.selected_htree_level_count = 1U;
+  auto duplicate_inst = std::make_unique<icts::Inst>("reg0", "CTS_TEST_BUF", icts::InstType::kBuffer, icts::Point<int>(50, 0));
+  duplicate_inst->set_name("reg0");
+  duplicate_inst->set_cell_master("CTS_TEST_BUF");
+  duplicate_inst->set_type(icts::InstType::kBuffer);
+  duplicate_inst->set_location(icts::Point<int>(50, 0));
+  synthesis_result.inserted_inst_levels.push_back(icts::HTreeBuilder::InsertedInstLevel{
+      .inst = duplicate_inst.get(),
+      .topology_level = 0,
+      .index_in_level = 0U,
+  });
+  synthesis_result.inserted_insts.push_back(std::move(duplicate_inst));
+
+  std::string failure_reason;
+  EXPECT_FALSE(transaction.commitSinkDomain(context, synthesis_result, failure_reason));
+  EXPECT_EQ(failure_reason, "failed to commit inserted synthesis objects");
+  expectClockRestoredToOriginalLoads(pins);
+  EXPECT_TRUE(report_data.get_clocks().empty());
+  EXPECT_EQ(summary.htree_inserted_buffer_count, 0U);
+}
+
+TEST(FlowManagerTest, SourceToRootFailureRollsBackPreparedSinkDomainsAndRecordsStatus)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  auto* reg_inst = makeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  auto pins = addClockToDesign(nullptr, reg_inst);
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.regular_sink, nullptr);
+
+  icts::schema::TableRows rows;
+  icts::ClockTreeSynthesisStatusTable status_table(rows);
+  icts::ClockSinkDomainContext context;
+  const auto root_spec = makeRootBufferSpec();
+  ASSERT_TRUE(icts::ClockSinkDomainBuilder::prepare(*pins.clock, 0U, icts::CTSSinkDomain::kRegular,
+                                                    std::vector<icts::Pin*>{pins.regular_sink}, 1U, status_table, context, &root_spec));
+  ASSERT_FALSE(pins.clock->get_insts().empty());
+  ASSERT_FALSE(pins.clock->get_nets().empty());
+
+  icts::ClockTreeReportData report_data;
+  icts::CTSClockTreeRunSummary summary;
+  icts::CharacterizationLibrary char_library;
+  icts::ClockTreeSynthesisTransaction transaction(*pins.clock, 0U, report_data, summary, status_table, char_library, 1U);
+
+  EXPECT_FALSE(transaction.synthesizeSourceToRoot({}));
+  EXPECT_TRUE(statusRowsContain(rows, "failed", "source_to_root", "empty_root_inputs"));
+  expectClockRestoredToOriginalLoads(pins);
 }
 
 TEST(FlowManagerTest, ResetAPIClearsEvaluationSummary)
