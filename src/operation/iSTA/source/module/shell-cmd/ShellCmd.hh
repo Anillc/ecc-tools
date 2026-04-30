@@ -159,6 +159,19 @@ class CmdReportTiming : public TclCmd {
 };
 
 /**
+ * @brief write_timing_model command exports timing model to liberty file.
+ *
+ */
+class CmdWriteTimingModel : public TclCmd {
+ public:
+  explicit CmdWriteTimingModel(const char* cmd_name);
+  ~CmdWriteTimingModel() override = default;
+
+  unsigned check();
+  unsigned exec();
+};
+
+/**
  * @brief report_check_types command reports the slack for each type of timing
  * and design rule constraint. The keyword options allow a subset of the
  * constraint types to be reported.

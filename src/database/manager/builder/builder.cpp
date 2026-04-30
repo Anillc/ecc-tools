@@ -36,8 +36,13 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <future>
 
 #include "IdbInstance.h"
+#include "design_read.h"
+#include "design_write.h"
+#include "layout_read.h"
+#include "layout_write.h"
 #include "log/Log.hh"
 
 using std::cout;
@@ -51,6 +56,11 @@ IdbBuilder::IdbBuilder()
 
 IdbBuilder::~IdbBuilder()
 {
+  delete _def_service;
+  _def_service = nullptr;
+
+  delete _lef_service;
+  _lef_service = nullptr;
 }
 
 void IdbBuilder::log()
@@ -327,7 +337,7 @@ void IdbBuilder::saveVerilog(std::string verilog_file_name, std::set<std::string
   writer.writeModule();
 }
 
-bool IdbBuilder::saveGDSII(string file)
+bool IdbBuilder::saveGDSII(string file, bool is_hardened /* = false */)
 {
   if (IdbDefServiceResult::kServiceFailed == _def_service->DefFileWriteInit(file.c_str())) {
     std::cout << "Create GDSII file failed..." << endl;
@@ -335,7 +345,11 @@ bool IdbBuilder::saveGDSII(string file)
   }
 
   std::shared_ptr<Def2GdsWrite> gds_write = std::make_shared<Def2GdsWrite>(_def_service);
-  return gds_write->writeDb(file.c_str());
+  if(is_hardened) {
+    return gds_write->writeHardenedDb(file.c_str());
+  }else{
+    return gds_write->writeDb(file.c_str());
+  }
 }
 
 bool IdbBuilder::saveJSON(string file, string options)
@@ -349,29 +363,91 @@ bool IdbBuilder::saveJSON(string file, string options)
   return json_write->writeDb(file.c_str(), options);
 }
 
-// void IdbBuilder::saveLayout(string folder)
-// {
-//   if (IdbDataServiceResult::kServiceFailed == _data_service->LayoutFileWriteInit(folder.c_str())) {
-//     std::cout << "Write layout failed..." << endl;
-//   }
+void IdbBuilder::saveLayout(string folder)
+{
+  IdbLayout* layout = _lef_service != nullptr ? _lef_service->get_layout() : (_def_service != nullptr ? _def_service->get_layout() : nullptr);
+  if (layout == nullptr) {
+    std::cout << "Write binary layout failed: layout is null." << endl;
+    return;
+  }
 
-//   std::shared_ptr<LayoutWrite> layout_write = std::make_shared<LayoutWrite>(_data_service->get_def_service()->get_layout());
+  LayoutWrite layout_write(layout);
+  if (!layout_write.writeLayout(folder)) {
+    std::cout << "Write binary layout failed: " << folder << endl;
+  }
+}
 
-//   layout_write->writeLayout(folder.c_str());
-// }
+void IdbBuilder::loadLayout(string folder)
+{
+  if (_lef_service == nullptr) {
+    _lef_service = new IdbLefService();
+  }
 
-// void IdbBuilder::loadLayout(string folder)
-// {
-//   if (IdbDataServiceResult::kServiceFailed == _data_service->LayoutFileReadInit(folder.c_str())) {
-//     std::cout << "Read layout failed..." << endl;
-//   }
+  LayoutRead layout_read;
+  if (!layout_read.readLayout(_lef_service->get_layout(), folder)) {
+    std::cout << "Read binary layout failed: " << folder << endl;
+  }
+}
 
-//   LayoutRead* layout_read = new LayoutRead();
+bool IdbBuilder::saveDesign(string folder)
+{
+  IdbDesign* design = _def_service != nullptr ? _def_service->get_design() : nullptr;
+  if (design == nullptr) {
+    std::cout << "Write binary design failed: design is null." << endl;
+    return false;
+  }
 
-//   IdbLayout* layout = layout_read->readLayout(folder.c_str());
+  DesignWrite design_write(design);
+  return design_write.writeDesign(folder);
+}
 
-//   IdbDefService* def_service = new IdbDefService(layout);
-//   _data_service->set_def_service(def_service);
-// }
+bool IdbBuilder::loadDesign(string folder)
+{
+  IdbLayout* layout = _lef_service != nullptr ? _lef_service->get_layout() : nullptr;
+  if (layout == nullptr) {
+    std::cout << "Read binary design failed: layout must be loaded first." << endl;
+    return false;
+  }
+
+  if (_def_service != nullptr) {
+    delete _def_service;
+    _def_service = nullptr;
+  }
+  _def_service = new IdbDefService(layout);
+
+  DesignRead design_read(layout);
+  return design_read.readDesign(_def_service->get_design(), folder);
+}
+
+bool IdbBuilder::saveData(string folder)
+{
+  IdbLayout* layout = _lef_service != nullptr ? _lef_service->get_layout() : (_def_service != nullptr ? _def_service->get_layout() : nullptr);
+  IdbDesign* design = _def_service != nullptr ? _def_service->get_design() : nullptr;
+  if (layout == nullptr || design == nullptr) {
+    std::cout << "Write binary data failed: layout or design is null." << endl;
+    return false;
+  }
+
+  LayoutWrite layout_write(layout);
+  DesignWrite design_write(design);
+  auto layout_future = std::async(std::launch::async, [&]() { return layout_write.writeLayout(folder); });
+  auto design_future = std::async(std::launch::async, [&]() { return design_write.writeDesign(folder); });
+  return layout_future.get() && design_future.get();
+}
+
+bool IdbBuilder::loadData(string folder)
+{
+  if (_lef_service == nullptr) {
+    _lef_service = new IdbLefService();
+  }
+
+  LayoutRead layout_read;
+  if (!layout_read.readLayout(_lef_service->get_layout(), folder)) {
+    std::cout << "Read binary layout failed: " << folder << endl;
+    return false;
+  }
+
+  return loadDesign(folder);
+}
 
 }  // namespace idb

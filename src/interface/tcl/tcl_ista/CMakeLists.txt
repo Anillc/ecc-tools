@@ -10,6 +10,7 @@ target_link_libraries(tcl_ista
         tcl
         shell-cmd
         str
+        sta
 )
 
 target_include_directories(tcl_ista

@@ -13,5 +13,5 @@ target_include_directories(gds_builder
         ${HOME_DATABASE}/manager/parser/gdsii
 )
 
-target_link_libraries(gds_builder PRIVATE gdsii-parser idb)
+target_link_libraries(gds_builder PRIVATE gdsii-parser idb solver_geometry_boost)
 # SET(CMAKE_BUILD_TYPE "Debug")

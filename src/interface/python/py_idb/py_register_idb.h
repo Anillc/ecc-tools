@@ -40,8 +40,12 @@ void register_idb(py::module& m)
   m.def("tcl_save", saveMacroTCL, py::arg("tcl_name"));
   m.def("netlist_save", saveNetList, py::arg("netlist_path"), py::arg("exclude_cell_names") = std::set<std::string>{},
         py::arg("is_add_space_for_escape_name") = false);
-  m.def("gds_save", saveGDSII, py::arg("gds_name"));
+  m.def("gds_save", saveGDSII, py::arg("gds_name"), py::arg("is_harden") = false);
   m.def("json_save", saveJson, py::arg("path"));
+  m.def("save_data", saveData, py::arg("path"));
+  m.def("load_data", loadData, py::arg("path"));
+  m.def("write_soc_json", writeSocJson, py::arg("path"), py::arg("harden_cores") = std::vector<std::string>{});
+  m.def("write_abstract_lef", writeAbstractLef, py::arg("output_lef_path"));
 }
 
 void register_idb_op(pybind11::module& m)

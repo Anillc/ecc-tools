@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "py_db.h"
 
+#include "db_fm/file_soc.h"
 #include <idm.h>
 
 namespace python_interface {
@@ -66,9 +67,9 @@ bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_
   return true;
 }
 
-bool saveGDSII(const std::string& gds_name)
+bool saveGDSII(const std::string& gds_name, bool is_hardened /* = false */)
 {
-  return dmInst->saveGDSII(gds_name);
+  return dmInst->saveGDSII(gds_name, is_hardened);
 }
 
 bool saveJson(const std::string& path)
@@ -76,6 +77,29 @@ bool saveJson(const std::string& path)
   std::string options = "";
 
   return dmInst->saveJSON(path, options);
+}
+
+bool saveData(const std::string& path)
+{
+  return dmInst->saveData(path);
+}
+
+bool loadData(const std::string& path)
+{
+  return dmInst->loadData(path);
+}
+
+bool writeSocJson(const std::string& path, const std::vector<std::string>& harden_cores /* = {} */)
+{
+  idb::JsonSoc soc_file(path, harden_cores);
+  return soc_file.saveFileData();
+}
+
+bool writeAbstractLef(const std::string& output_lef_path)
+{
+  namespace fs = std::filesystem;
+
+  return dmInst->saveLef(output_lef_path);
 }
 
 }  // namespace python_interface

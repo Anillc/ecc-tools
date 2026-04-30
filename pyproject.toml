@@ -1,0 +1,30 @@
+[build-system]
+requires = ["uv_build>=0.8.5,<0.12"]
+build-backend = "uv_build"
+
+[project]
+name = "ecc-tools"
+version = "0.1.0-alpha.2"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+build-backend.module-name = ["ecc_tools_bin"]
+build-backend.module-root = ""
+build-backend.source-exclude = [
+  "src/**",
+  "build/**",
+  "scripts/**",
+  ".github/**",
+  ".gitee/**",
+]
+build-backend.wheel-exclude = [
+  "src/**",
+  "build/**",
+  "scripts/**",
+  ".github/**",
+  ".gitee/**",
+]
+
+[dependency-groups]
+dev = ["auditwheel"]

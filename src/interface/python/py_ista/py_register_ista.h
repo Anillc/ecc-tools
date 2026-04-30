@@ -46,7 +46,6 @@ void register_ista(py::module& m)
   m.def("make_rc_tree_edge", makeRCTreeEdge, py::arg("net_name"), py::arg("node1"), py::arg("node2"), py::arg("res"));
   m.def("update_rc_tree_info", updateRCTreeInfo, py::arg("net_name"));
   m.def("update_timing", updateTiming);
-  m.def("write_abstract_lef", writeAbstractLef, py::arg("output_lef_path"));
   m.def("write_timing_model", writeTimingModel, py::arg("output_lib_path"),
         py::arg("analysis_mode") = "max");
   m.def("report_sta", reportSta);
