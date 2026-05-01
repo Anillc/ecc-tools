@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for CTS implementation context."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Authoritative iCTS source/API/test placement and flow framework rules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Database/writeback ownership boundaries for CTS-created topology."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "CTS semantic naming and quality conventions for the architecture refactor."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Report/log naming contracts may be touched by flow naming changes."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The migration crosses API, flow, CMake, tests, reports, and database boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "The migration changes shared helpers, include boundaries, and CMake target structure."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/industry-cts-flow-terminology.md", "reason": "Industry CTS terminology and naming constraints for the redesign."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/current-cts-flow-code-map.md", "reason": "Local CTS flow responsibilities, entry points, and dependency boundaries."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/open-source-cts-comparison.md", "reason": "OpenROAD/TritonCTS comparison and public CTS naming implications."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-setup-architecture.md", "reason": "Setup subflow boundaries and folder-depth decision."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-synthesis-architecture.md", "reason": "Synthesis subflow second-level architecture and current-code mapping."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-instantiation-architecture.md", "reason": "Instantiation materialization boundary for Design and iDB."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-evaluation-architecture.md", "reason": "Evaluation result/statistics boundary and folder-depth decision."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-report-architecture.md", "reason": "Report second-level architecture for summary, statistics, result export, and clock-tree visualization."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/database-clocktree-boundary.md", "reason": "database/design/ClockTree semantic model boundary."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/refactor-plan.md", "reason": "Final CTS flow refactor plan with responsibilities, red lines, migration phases, and verification gates."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/implementation-checklist.md", "reason": "Phase-by-phase implementation ledger that must be updated after each completed phase."}

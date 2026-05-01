@@ -1,15 +1,14 @@
-add_library(
-  icts_source_flow_evaluation
-  ${ICTS_FLOW}/evaluation/ClockTreeEvaluator.cc
-  ${ICTS_FLOW}/evaluation/CTSStatisticsWriter.cc
-)
+set(ICTS_FLOW_EVALUATION_QOR ${ICTS_FLOW_EVALUATION}/qor)
+
+add_subdirectory(${ICTS_FLOW_EVALUATION_QOR})
+
+add_library(icts_source_flow_evaluation ${ICTS_FLOW_EVALUATION}/Evaluation.cc)
 
 target_link_libraries(
   icts_source_flow_evaluation
+  PUBLIC
+  icts_source_flow_evaluation_qor
   PRIVATE
-  icts_source_database
-  icts_source_module
-  icts_source_module_timing
   icts_source_utils
 )
 

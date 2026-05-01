@@ -1,0 +1,28 @@
+{
+  "id": "cts-topology-htree-architecture-readability-analysis",
+  "name": "cts-topology-htree-architecture-readability-analysis",
+  "title": "brainstorm: CTS topology and H-tree architecture readability analysis",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-01-cts-cmake-target-file-granularity-analysis"
+  ],
+  "parent": "04-30-cts-flow-architecture-naming-redesign",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

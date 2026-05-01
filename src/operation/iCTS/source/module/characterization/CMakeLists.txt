@@ -29,6 +29,7 @@ target_link_libraries(
 target_include_directories(
   icts_source_module_characterization
   PUBLIC
+  ${ICTS_MODULE}
   ${ICTS_MODULE_CHARACTERIZATION}
   PRIVATE
   ${ICTS_DATABASE}

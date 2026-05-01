@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for verification scope."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify final file/module layout against iCTS structure rules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify writeback/evaluation/report ownership boundaries are preserved."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify CTS semantic naming and readability goals."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify report/log outputs remain coherent if naming changes affect them."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review cross-layer risks from API, flow, CMake, tests, reports, and adapters."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review include/CMake/helper reuse and avoid duplicated migration patterns."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/industry-cts-flow-terminology.md", "reason": "Check final names against industry CTS terminology constraints."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/current-cts-flow-code-map.md", "reason": "Check final architecture against researched local responsibilities."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/open-source-cts-comparison.md", "reason": "Check final names against open-source CTS conventions."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-setup-architecture.md", "reason": "Verify setup stays narrow and avoids unjustified subfolders."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-synthesis-architecture.md", "reason": "Verify synthesis folder names and responsibilities match the researched algorithm boundaries."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-instantiation-architecture.md", "reason": "Verify Design/iDB materialization is isolated under instantiation."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-evaluation-architecture.md", "reason": "Verify evaluation/report/statistics responsibilities remain separated."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/subflow-report-architecture.md", "reason": "Verify report is not visualization-only and uses business-readable summary/statistics/export/visualization names."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/research/database-clocktree-boundary.md", "reason": "Verify ClockTree remains a stable semantic design model, not a process-state bag."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/refactor-plan.md", "reason": "Verify implementation follows the final responsibilities, red lines, staged migration, and verification gates."}
+{"file": ".trellis/tasks/04-30-cts-flow-architecture-naming-redesign/implementation-checklist.md", "reason": "Verify each phase updated its checklist status, notes, and acceptance criteria before final reporting."}

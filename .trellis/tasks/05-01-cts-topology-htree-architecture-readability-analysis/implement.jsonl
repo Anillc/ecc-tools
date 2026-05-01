@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "CTS synthesis directory placement rules and flow architecture boundaries"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "CTS database, ownership, instantiation, evaluation, and report boundary rules"}
+{"file": ".trellis/tasks/05-01-cts-topology-htree-architecture-readability-analysis/research/current-topology-htree-code-map.md", "reason": "Local code map and recommended topology/H-tree readability architecture"}

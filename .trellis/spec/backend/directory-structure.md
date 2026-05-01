@@ -36,20 +36,25 @@ Use these top-level categories under `source/`:
 
 ### CTS Flow Framework
 
-Keep CTS flow code aligned with physical-design stages:
+Keep CTS flow code aligned with the current CTS architecture:
 
 ```text
-read data -> synthesis/writeback -> evaluation -> report
+setup -> synthesis -> instantiation -> evaluation -> report
 ```
 
 Use these placement boundaries:
 - `api/`: stable external `CTSAPI` entry points only.
-- `source/flow/run_setup/`: run setup such as config, work directory, logging, and adapter initialization.
-- `source/flow/stage/`: stage sequencing and per-clock flow coordination.
-- `source/flow/synthesis/` and `source/flow/htree/`: clock-tree synthesis and H-tree implementation.
-- `source/flow/clock_tree_view/`: typed readonly clock-tree view metadata shared by report and visualization.
-- `source/flow/evaluation/`: readonly evaluation over committed CTS results.
-- `source/flow/visualization/`: readonly clock-tree visualization file writers.
+- `source/flow/`: root CTS lifecycle ownership. The root exposes only `Flow.hh`, `Flow.cc`, and build metadata; `Flow` owns flow state and delegates stage work to the subflow entries.
+- `source/flow/setup/`: config readiness, work/log/statistics/visualization directories, schema/log initialization, and adapter initialization.
+- `source/flow/synthesis/`: CTS algorithm orchestration. The root contains only `Synthesis.hh`, `Synthesis.cc`, and build metadata; helpers live under `distribution/`, `topology/`, `htree/`, or `trace/`.
+- `source/flow/synthesis/topology/`: CTS topology formation boundary. The root exposes `Topology.hh/.cc`; sink-side branch code lives under `sink/`, source-trunk code under `trunk/`, and temporary buffer/net insertion under `buffer/`.
+- `source/flow/synthesis/htree/`: H-tree topology implementation. The root exposes `HTree.hh/.cc`; internals live under `characterization/`, `pattern/`, and `embedding/`.
+  - Keep `htree/characterization/` limited to characterization grid, library, and flow concepts. Topology-side H-tree option assembly belongs with the topology callers, pattern-search boundary constraints belong under `htree/pattern/`, and buffer port/object lookup tables belong under `htree/embedding/`.
+- `source/flow/instantiation/`: materialization of synthesized CTS topology into committed design/iDB state, split into `design_conversion/DesignConversion` and `idb_conversion/IdbConversion` when needed.
+- `source/flow/evaluation/`: readonly metric computation over committed CTS results. The root exposes `Evaluation.hh/.cc`; metric helpers live under responsibility subfolders.
+- `source/flow/report/`: final output generation. The root exposes `Report.hh/.cc`; output responsibilities live under `summary/`, `statistics/`, `export/`, and `visualization/`.
+
+Do not reintroduce top-level peer architecture directories under `source/flow/` named `run_setup`, `stage`, `htree`, `clock_tree_view`, `netlist`, or `visualization`.
 
 ### Placement
 
@@ -60,7 +65,7 @@ Use these placement boundaries:
 - Put tests under `test/`, mirroring the source layout as closely as practical.
 - Keep `api/CTSAPI` focused on external entry points; internal CTS flow lifecycle steps belong under `source/flow`.
 - Keep runtime config access at API/flow/database/test boundaries; code under `source/module/` should receive explicit options instead of reading `CONFIG_INST`.
-- Put visualization-only format writers under `source/flow/visualization/`.
+- Put visualization-only format writers under `source/flow/report/visualization/`.
 - Put stable shared routing database types under `source/database/routing/`; keep routing algorithms under `source/module/routing/`.
 
 ### CMake Target Naming
@@ -102,7 +107,7 @@ Before handoff, verify:
 - [ ] Parent `CMakeLists.txt` files include the new subdirectory or target
 - [ ] Dependencies are expressed through target links, not duplicated include paths
 - [ ] Tests mirror the source layout where needed
-- [ ] Flow changes preserve `read data -> synthesis/writeback -> evaluation -> report`
+- [ ] Flow changes preserve `setup -> synthesis -> instantiation -> evaluation -> report`
 - [ ] The affected build targets still compile
 
 ## Related Docs

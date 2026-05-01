@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS source and validation constraints."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify CMake target-per-folder and CTS flow placement rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify naming, include hygiene, and dependency visibility."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify logging/schema output placement after cleanup."}
+{"file": ".trellis/tasks/05-01-cts-cmake-target-file-granularity-analysis/prd.md", "reason": "Phase acceptance criteria and completion log."}
+{"file": ".trellis/tasks/05-01-cts-cmake-target-file-granularity-analysis/research/current-cmake-target-and-file-granularity-map.md", "reason": "Research baseline for checking target/file granularity convergence."}
+{"file": ".trellis/tasks/05-01-cts-cmake-target-file-granularity-analysis/research/expected-complete-architecture.md", "reason": "Expected architecture baseline for final conformance checks."}

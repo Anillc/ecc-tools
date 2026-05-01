@@ -523,7 +523,7 @@ auto Wrapper::ctsToIdb(Inst* inst) -> idb::IdbInstance*
     idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
   } else if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
     const std::string actual_master = idb_inst->get_cell_master() == nullptr ? "<null>" : idb_inst->get_cell_master()->get_name();
-    LOG_WARNING << "Cannot reuse iDB inst \"" << inst->get_name() << "\" for CTS writeback: expected cell master "
+    LOG_WARNING << "Cannot reuse iDB inst \"" << inst->get_name() << "\" for CTS instantiation: expected cell master "
                 << inst->get_cell_master() << ", found " << actual_master << ".";
     return nullptr;
   } else {
@@ -633,7 +633,7 @@ auto Wrapper::rewriteIdbNetPins(idb::IdbNet* idb_net, Net* cts_net) -> bool
 auto Wrapper::writeClock(Clock& clock) -> bool
 {
   if (!is_design_ready()) {
-    LOG_WARNING << "Skip CTS writeback for clock \"" << clock.get_clock_name() << "\": iDB design is not ready.";
+    LOG_WARNING << "Skip CTS iDB projection for clock \"" << clock.get_clock_name() << "\": iDB design is not ready.";
     return false;
   }
 
@@ -653,7 +653,7 @@ auto Wrapper::writeClock(Clock& clock) -> bool
     }
     auto* idb_net = ensureIdbNet(cts_net, clock.get_clock_net_name());
     if (idb_net == nullptr || !rewriteIdbNetPins(idb_net, cts_net)) {
-      LOG_WARNING << "CTS writeback skipped or failed for clock net \"" << cts_net->get_name() << "\".";
+      LOG_WARNING << "CTS iDB projection skipped or failed for clock net \"" << cts_net->get_name() << "\".";
       success = false;
     }
   };

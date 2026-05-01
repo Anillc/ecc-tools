@@ -62,7 +62,7 @@ If a type is shared across modules and is part of the stable data model, prefer 
 - Keep iDB access inside `Wrapper`.
 - Keep iSTA access inside `STAAdapter`.
 - Module code should operate on CTS types, not external-tool types.
-- Only synthesis/writeback may commit CTS-created topology into `Design` or write final CTS objects back through `Wrapper`/iDB.
+- Only synthesis/instantiation boundaries may commit CTS-created topology into `Design` or project final CTS objects through `Wrapper`/iDB.
 - Evaluation, report, and visualization are readonly consumers of committed CTS results.
 - Report-only data should be narrow and typed. Do not add broad snapshots that duplicate data already available from `Design`, `Clock`, `Inst`, `Net`, report metadata, or narrow `Wrapper` queries.
 - Raw iDB pointers must not escape `Wrapper`.
@@ -102,7 +102,7 @@ Before handoff, verify:
 - [ ] Borrowed pointers do not outlive their owners
 - [ ] New data types live in the correct database subdirectory
 - [ ] External-tool access stays inside adapter layers
-- [ ] Evaluation/report code is readonly with respect to iDB writeback
+- [ ] Evaluation/report code is readonly with respect to iDB projection
 - [ ] Report-only data is narrow, typed, and not a broad snapshot of database state
 - [ ] Header-only database types use `INTERFACE` targets when appropriate
 - [ ] New singleton usage is truly cross-module and justified

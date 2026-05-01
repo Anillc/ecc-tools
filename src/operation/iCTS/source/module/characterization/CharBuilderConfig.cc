@@ -443,7 +443,7 @@ auto CharBuilder::init(const InitOptions& options) -> void
        max_cap_resolution.source == ResolutionSource::kRuntimeConfig ? "configured limit is reported in Runtime Configuration"
                                                                      : max_cap_resolution.detail},
       {"wirelength_setup_source",
-       effective_options.wirelength_indices.has_value() ? "HTreeBuilder Characterization Grid Plan"
+       effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan"
                                                         : toResolutionSourceName(wirelength_unit_resolution.source),
        "deduplicated",
        effective_options.wirelength_indices.has_value() ? "wirelength iteration/bin decisions are reported in H-tree grid plan"

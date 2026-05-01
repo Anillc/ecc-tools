@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS source and validation constraints."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Authoritative CTS flow placement and CMake target structure rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include, dependency visibility, and ECC guidance for the refactor."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Logging and schema-output ownership rules relevant to removing generic Logging.cc."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Checklist for avoiding duplicated helper/CMake wiring while splitting targets."}
+{"file": ".trellis/tasks/05-01-cts-cmake-target-file-granularity-analysis/prd.md", "reason": "Current phased requirements, target architecture, and acceptance criteria."}
+{"file": ".trellis/tasks/05-01-cts-cmake-target-file-granularity-analysis/research/current-cmake-target-and-file-granularity-map.md", "reason": "Current CMake coverage and pattern file-granularity diagnosis."}
+{"file": ".trellis/tasks/05-01-cts-cmake-target-file-granularity-analysis/research/expected-complete-architecture.md", "reason": "Expected complete CTS flow folder, file, target, and responsibility architecture."}

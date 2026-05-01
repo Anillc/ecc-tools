@@ -79,7 +79,7 @@ class Design
   auto clearClocks() -> void;
   auto clearTopologyObjects() -> void;
   auto removeClockMembershipObjects(Clock& clock) -> void;
-  auto emitClockDistributionSummary(const std::string& title = "Clock Distribution Summary") const -> void;
+  auto emitClockDistributionSummary(const std::string& title = "Clock Distribution Overview") const -> void;
   static auto getPinFullName(const Pin* pin) -> std::string;
 
  private:

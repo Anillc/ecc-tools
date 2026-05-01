@@ -201,7 +201,7 @@ auto STAAdapter::updateTiming() -> void
   LOG_FATAL_IF(getInst()._is_char_only_active)
       << "STA timing update requires a full-design context; char-only characterization runtime is active.";
   LOG_FATAL_IF(!sta_adapter_internal::HasFullDesignTimingContext()) << "STA full-design context is not ready before timing update; call "
-                                                                       "STAAdapter::refreshFullDesignTimingContext() after iDB writeback.";
+                                                                       "STAAdapter::refreshFullDesignTimingContext() after iDB projection.";
   sta_adapter_internal::GetStaEngine()->updateTiming();
 }
 

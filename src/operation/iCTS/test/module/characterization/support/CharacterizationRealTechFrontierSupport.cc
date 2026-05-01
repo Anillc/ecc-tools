@@ -53,7 +53,7 @@
 namespace icts_test::characterization::realtech {
 namespace {
 
-class BufferStrengthCache
+class BufferStrengthTable
 {
  public:
   auto getStrengthRank(const std::string& cell_master) -> unsigned
@@ -124,7 +124,7 @@ class BufferStrengthCache
 };
 
 auto ResolveBoundaryBufferState(const icts::BoundaryBufferState& explicit_state, const std::string& cell_master,
-                                BufferStrengthCache& strength_cache) -> icts::BoundaryBufferState
+                                BufferStrengthTable& strength_table) -> icts::BoundaryBufferState
 {
   if (explicit_state.has_buffer) {
     return explicit_state;
@@ -132,10 +132,10 @@ auto ResolveBoundaryBufferState(const icts::BoundaryBufferState& explicit_state,
   if (cell_master.empty()) {
     return explicit_state;
   }
-  return icts::BoundaryBufferState{.has_buffer = true, .strength_rank = strength_cache.getStrengthRank(cell_master)};
+  return icts::BoundaryBufferState{.has_buffer = true, .strength_rank = strength_table.getStrengthRank(cell_master)};
 }
 
-auto ResolvePatternBoundaryState(const icts::BufferingPattern& pattern, BufferStrengthCache& strength_cache) -> icts::MonotonicBoundaryState
+auto ResolvePatternBoundaryState(const icts::BufferingPattern& pattern, BufferStrengthTable& strength_table) -> icts::MonotonicBoundaryState
 {
   const auto explicit_state = pattern.get_monotonic_boundary_state();
   if (!pattern.isBufferPattern()) {
@@ -148,14 +148,14 @@ auto ResolvePatternBoundaryState(const icts::BufferingPattern& pattern, BufferSt
   }
 
   return icts::MonotonicBoundaryState{
-      .source = ResolveBoundaryBufferState(explicit_state.source, cell_masters.front(), strength_cache),
-      .sink = ResolveBoundaryBufferState(explicit_state.sink, cell_masters.back(), strength_cache),
+      .source = ResolveBoundaryBufferState(explicit_state.source, cell_masters.front(), strength_table),
+      .sink = ResolveBoundaryBufferState(explicit_state.sink, cell_masters.back(), strength_table),
   };
 }
 
-auto EnrichPatternBoundaryState(const icts::BufferingPattern& pattern, BufferStrengthCache& strength_cache) -> icts::BufferingPattern
+auto EnrichPatternBoundaryState(const icts::BufferingPattern& pattern, BufferStrengthTable& strength_table) -> icts::BufferingPattern
 {
-  const auto boundary_state = ResolvePatternBoundaryState(pattern, strength_cache);
+  const auto boundary_state = ResolvePatternBoundaryState(pattern, strength_table);
   if (boundary_state == pattern.get_monotonic_boundary_state()) {
     return pattern;
   }
@@ -279,11 +279,11 @@ auto MakeHTreeCharTable(const std::vector<icts::HTreeTopologyChar>& chars) -> ic
 auto BuildSegmentFrontierContext(const std::vector<icts::BufferingPattern>& patterns) -> SegmentFrontierContext
 {
   SegmentFrontierContext context;
-  BufferStrengthCache strength_cache;
+  BufferStrengthTable strength_table;
   context.patterns.reserve(patterns.size());
   context.composition_states.reserve(patterns.size());
   for (const auto& pattern : patterns) {
-    const auto enriched_pattern = EnrichPatternBoundaryState(pattern, strength_cache);
+    const auto enriched_pattern = EnrichPatternBoundaryState(pattern, strength_table);
     const auto pattern_id = enriched_pattern.get_pattern_id();
     context.next_pattern_id = std::max(context.next_pattern_id, pattern_id.local_id + 1U);
     context.patterns[pattern_id] = enriched_pattern;

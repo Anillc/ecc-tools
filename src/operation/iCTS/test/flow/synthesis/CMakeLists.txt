@@ -1,23 +1,25 @@
+add_subdirectory(htree)
+
 icts_add_test_executable(
   icts_test_flow_synthesis
   SOURCES
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisTest.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyTest.cc
 )
 
 icts_add_test_executable(
   icts_test_flow_synthesis_realtech
   REALTECH
   SOURCES
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisVisualizationSupport.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisNonClusteredRealTechSmokeTest.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechMatrixSupport.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechMatrixTest.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechArtifactAssertions.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechClusterAssertions.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechClusterValidation.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechHTreeAssertions.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechSelectionSupport.cc
-    ${ICTS_TEST}/flow/synthesis/ClockSynthesisRealTechSmokeTest.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyVisualizationSupport.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyNonClusteredRealTechSmokeTest.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechMatrixSupport.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechMatrixTest.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechArtifactAssertions.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechClusterAssertions.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechClusterValidation.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechHTreeAssertions.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechSelectionSupport.cc
+    ${ICTS_TEST}/flow/synthesis/TopologyRealTechSmokeTest.cc
   LIBS
     icts_test_common_io
     icts_test_common_logging_support

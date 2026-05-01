@@ -7,7 +7,7 @@
 - `FastClustering.cc`
 - `FastClusteringInternal.hh`
 - facade: `clustering/Clustering.*`, `TopologyGen.*`
-- default source flow: `flow/synthesis/ClockSynthesis.cc`
+- default source flow: `flow/synthesis/topology/Topology.cc`
 - benchmark: `test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkTest.cc`
 
 ## 目标

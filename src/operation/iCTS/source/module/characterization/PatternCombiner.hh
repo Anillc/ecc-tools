@@ -32,7 +32,7 @@ namespace icts {
  *
  * Generates new pattern IDs for composed segments.
  * In a full implementation, this would register the composed pattern
- * in a pattern registry and return the assigned ID.
+ * in a pattern library and return the assigned ID.
  */
 class SegmentPatternCombiner
 {

@@ -6,6 +6,7 @@ set(ICTS_DATABASE_SPATIAL ${ICTS_DATABASE}/spatial)
 set(ICTS_DATABASE_ROUTING ${ICTS_DATABASE}/routing)
 set(ICTS_DATABASE_TIMING ${ICTS_DATABASE}/timing)
 set(ICTS_DATABASE_CHARACTERIZATION ${ICTS_DATABASE}/characterization)
+set(ICTS_DATABASE_QOR ${ICTS_DATABASE}/qor)
 
 # build
 add_subdirectory(${ICTS_DATABASE_ADAPTER})
@@ -16,6 +17,7 @@ add_subdirectory(${ICTS_DATABASE_SPATIAL})
 add_subdirectory(${ICTS_DATABASE_ROUTING})
 add_subdirectory(${ICTS_DATABASE_TIMING})
 add_subdirectory(${ICTS_DATABASE_CHARACTERIZATION})
+add_subdirectory(${ICTS_DATABASE_QOR})
 
 add_library(icts_source_database INTERFACE)
 
@@ -30,6 +32,7 @@ target_link_libraries(
   icts_source_database_routing
   icts_source_database_timing
   icts_source_database_characterization
+  icts_source_database_qor
 )
 
 target_include_directories(
@@ -43,6 +46,7 @@ target_include_directories(
   ${ICTS_DATABASE_ROUTING}
   ${ICTS_DATABASE_TIMING}
   ${ICTS_DATABASE_CHARACTERIZATION}
+  ${ICTS_DATABASE_QOR}
 )
 
 if(DEBUG_ICTS_SOURCE_DATABASE)

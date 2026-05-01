@@ -95,6 +95,7 @@ python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS
 Guidance:
 - Do not run `ecc_dev_tools` during the normal edit/build/test loop unless you are explicitly debugging the checker itself.
 - Reserve `ecc_dev_tools` for the final `finish-work` pass.
+- Run only one `ecc_dev_tools` invocation per build directory at a time. Concurrent checker runs that share `build/` can race during CMake metadata refresh or static archive generation.
 - Treat the final full-module pass as the source of truth; if it reports in-scope findings, fix them and rerun the same full pass until they are clean.
 - Do not use `NOLINTNEXTLINE`, broad suppressions, or similar local checker bypasses to make `ecc_dev_tools` pass. Fix the code structure, types, includes, or target wiring instead.
 - When splitting a large translation unit, rebuild each new `.cc` with the minimal include list for the symbols it directly uses; do not copy the original broad include block into every split file.

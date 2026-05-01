@@ -28,24 +28,24 @@
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
-#include "evaluation/ClockTreeEvaluator.hh"
+#include "evaluation/qor/QorEvaluation.hh"
 #include "feature_icts.h"
 #include "feature_ista.h"
-#include "flow/FlowManager.hh"
-#include "flow/run_setup/CTSRunSetup.hh"
+#include "flow/Flow.hh"
+#include "flow/setup/Setup.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts {
 namespace {
 
-auto buildFeatureSummary(const ClockTreeSummary& flow_summary) -> ieda_feature::CTSSummary
+auto buildFeatureSummary(const QorSummary& flow_summary) -> ieda_feature::CTSSummary
 {
   ieda_feature::CTSSummary summary{};
   summary.buffer_num = flow_summary.buffer_num;
   summary.buffer_area = flow_summary.buffer_area;
   summary.clock_path_min_buffer = flow_summary.clock_path_min_buffer;
   summary.clock_path_max_buffer = flow_summary.clock_path_max_buffer;
-  summary.max_level_of_clock_tree = flow_summary.max_level_of_clock_tree;
+  summary.max_level_of_clock_tree = flow_summary.feature_max_clock_network_level;
   summary.max_clock_wirelength = flow_summary.max_clock_wirelength;
   summary.total_clock_wirelength = flow_summary.total_clock_wirelength;
   summary.clocks_timing.reserve(flow_summary.clocks_timing.size());
@@ -66,12 +66,12 @@ auto buildFeatureSummary(const ClockTreeSummary& flow_summary) -> ieda_feature::
 
 auto CTSAPI::runCTS() -> void
 {
-  FLOW_MANAGER_INST.runCTS();
+  FLOW_INST.runCTS();
 }
 
 auto CTSAPI::report(const std::string& save_dir) -> void
 {
-  FLOW_MANAGER_INST.report(save_dir);
+  FLOW_INST.report(save_dir);
 }
 
 auto CTSAPI::resetAPI() -> void
@@ -79,20 +79,20 @@ auto CTSAPI::resetAPI() -> void
   CONFIG_INST.reset();
   DESIGN_INST.reset();
   WRAPPER_INST.reset();
-  FLOW_MANAGER_INST.reset();
+  FLOW_INST.reset();
   SCHEMA_WRITER_INST.reset();
 }
 
 auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
 {
   resetAPI();
-  CTSRunSetup::initialize(config_file, work_dir);
-  FLOW_MANAGER_INST.outputRuntimeSetup();
+  Setup::initialize(config_file, work_dir);
+  FLOW_INST.outputRuntimeSetup();
 }
 
 auto CTSAPI::outputSummary() -> ieda_feature::CTSSummary
 {
-  return buildFeatureSummary(FLOW_MANAGER_INST.outputSummary());
+  return buildFeatureSummary(FLOW_INST.outputSummary());
 }
 
 }  // namespace icts

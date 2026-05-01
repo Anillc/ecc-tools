@@ -1,4 +1,9 @@
-add_library(icts_source_database_design ${ICTS_DATABASE_DESIGN}/Design.cc)
+add_library(
+  icts_source_database_design
+  ${ICTS_DATABASE_DESIGN}/ClockNetwork.cc
+  ${ICTS_DATABASE_DESIGN}/ClockLayout.cc
+  ${ICTS_DATABASE_DESIGN}/Design.cc
+)
 
 target_link_libraries(
   icts_source_database_design
