@@ -18,9 +18,7 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-01-cts-topology-htree-architecture-readability-analysis"
-  ],
+  "children": [],
   "parent": null,
   "relatedFiles": [],
   "notes": "",
