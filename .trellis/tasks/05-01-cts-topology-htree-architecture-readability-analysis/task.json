@@ -18,9 +18,7 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-01-cts-cmake-target-file-granularity-analysis"
-  ],
+  "children": [],
   "parent": "04-30-cts-flow-architecture-naming-redesign",
   "relatedFiles": [],
   "notes": "",
