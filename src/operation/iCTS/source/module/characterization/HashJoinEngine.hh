@@ -27,13 +27,12 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "PatternId.hh"
 
 namespace icts {
 namespace detail {
@@ -135,7 +134,7 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
           if (!CanCompose(combiner, up, down)) {
             continue;
           }
-          PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
+          auto merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
           CharT result = Traits::compose(up, down, merged_pid);
           const auto group = pruner->groupKey(result);
 
@@ -197,81 +196,8 @@ inline auto HashJoinConcat(const std::vector<CharT>& upstream, const std::vector
       if (!CanCompose(combiner, up, down)) {
         continue;
       }
-      PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
+      auto merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
       out.push_back(Traits::compose(up, down, merged_pid));
-    }
-  }
-}
-
-template <class CharT, class Traits, class CombinerT, class PrunerT>
-inline auto HashJoinConcatRawAndFrontier(const std::vector<CharT>& upstream, const std::vector<CharT>& downstream,
-                                         const CombinerT& combiner, std::vector<CharT>& raw_out, std::vector<CharT>& frontier_out,
-                                         const PrunerT& pruner) -> void
-{
-  if (upstream.empty() || downstream.empty()) {
-    return;
-  }
-
-  std::unordered_map<unsigned, std::vector<std::size_t>> index;
-  index.reserve(downstream.size());
-  for (std::size_t i = 0; i < downstream.size(); ++i) {
-    index[Traits::buildKey(downstream[i])].push_back(i);
-  }
-
-  std::unordered_map<PrunerGroupKeyT<PrunerT>, std::size_t, PrunerGroupKeyHashT<PrunerT>> group_to_index;
-  std::vector<std::vector<CharT>> grouped_frontier;
-  raw_out.reserve(raw_out.size() + upstream.size());
-  grouped_frontier.reserve(upstream.size());
-
-  for (const auto& up : upstream) {
-    const unsigned key = Traits::probeKey(up);
-    auto it = index.find(key);
-    if (it == index.end()) {
-      continue;
-    }
-
-    for (const std::size_t di : it->second) {
-      const auto& down = downstream[di];
-      if (!CanCompose(combiner, up, down)) {
-        continue;
-      }
-      const PatternId merged_pid = combiner.combine(up.get_pattern_id(), down.get_pattern_id());
-      CharT result = Traits::compose(up, down, merged_pid);
-      raw_out.push_back(result);
-
-      const auto group_key = pruner.groupKey(result);
-      auto [group_it, inserted] = group_to_index.emplace(group_key, grouped_frontier.size());
-      if (inserted) {
-        grouped_frontier.emplace_back();
-      }
-      auto& frontier_group = grouped_frontier[group_it->second];
-
-      bool dominated = false;
-      for (const auto& existing : frontier_group) {
-        if (pruner.dominates(existing, result)) {
-          dominated = true;
-          break;
-        }
-      }
-      if (dominated) {
-        continue;
-      }
-
-      const auto new_end = std::remove_if(frontier_group.begin(), frontier_group.end(),
-                                          [&](const CharT& existing) -> bool { return pruner.dominates(result, existing); });
-      frontier_group.erase(new_end, frontier_group.end());
-      frontier_group.push_back(std::move(result));
-    }
-  }
-
-  std::size_t total_frontier_size = 0U;
-  for (const auto& frontier_group : grouped_frontier) {
-    total_frontier_size += frontier_group.size();
-  }
-  frontier_out.reserve(frontier_out.size() + total_frontier_size);
-  for (auto& frontier_group : grouped_frontier) {
-    for (auto& entry : frontier_group) {
-      frontier_out.push_back(std::move(entry));
     }
   }
 }

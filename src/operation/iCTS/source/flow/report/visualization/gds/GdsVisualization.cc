@@ -23,13 +23,18 @@
 
 #include "report/visualization/gds/GdsVisualization.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
+#include <ostream>
 #include <string>
 #include <vector>
 
 #include "Log.hh"
+#include "Point.hh"
 #include "config/Config.hh"
 #include "design/ClockLayout.hh"
 #include "logger/Schema.hh"

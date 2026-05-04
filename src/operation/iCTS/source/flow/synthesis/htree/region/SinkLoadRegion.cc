@@ -24,6 +24,7 @@
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 
 #include <glog/logging.h>
+#include <stdlib.h>
 
 #include <algorithm>
 #include <cmath>
@@ -47,11 +48,8 @@
 #include "clustering/Clustering.hh"
 #include "config/Config.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
+#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 #include "topology/TopologyGen.hh"
-
-namespace icts {
-class UniformValueLattice;
-}  // namespace icts
 
 namespace icts::htree {
 namespace {

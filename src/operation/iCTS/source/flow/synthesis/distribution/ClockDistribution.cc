@@ -23,8 +23,11 @@
 
 #include "synthesis/distribution/ClockDistribution.hh"
 
+#include <glog/logging.h>
+
 #include <ostream>
 
+#include "ClockLayout.hh"
 #include "Log.hh"
 #include "design/Clock.hh"
 #include "instantiation/design_conversion/DesignConversion.hh"

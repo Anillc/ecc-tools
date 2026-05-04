@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend iCTS navigation and required pre-development checklist for synthesis refactor."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Module boundaries and CMake target placement for htree compensation/topology pruning changes."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "STAAdapter/Design/Wrapper singleton boundary rules used by root-load and Liberty cost queries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include hygiene, dependency visibility, and validation expectations for backend refactor."}

@@ -24,14 +24,17 @@
 #include "synthesis/trace/distance/TopologyDistanceReport.hh"
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "Net.hh"
+#include "Pin.hh"
+#include "Point.hh"
 #include "config/Config.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"

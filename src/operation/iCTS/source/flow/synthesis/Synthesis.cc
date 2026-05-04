@@ -23,8 +23,9 @@
 
 #include "synthesis/Synthesis.hh"
 
+#include <glog/logging.h>
+
 #include <cstddef>
-#include <ostream>
 #include <sstream>
 #include <string>
 #include <utility>

@@ -23,7 +23,12 @@
 
 #include "report/overview/Overview.hh"
 
+#include <filesystem>
+#include <string>
+#include <utility>
+
 #include "logger/Schema.hh"
+#include "report/export/ResultExport.hh"
 
 namespace icts {
 

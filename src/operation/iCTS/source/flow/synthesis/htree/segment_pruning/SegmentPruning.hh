@@ -26,9 +26,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "SegmentChar.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+
+namespace icts {
+class SegmentChar;
+}  // namespace icts
 
 namespace icts::htree {
 

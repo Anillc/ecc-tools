@@ -23,6 +23,8 @@
 
 #include "evaluation/Evaluation.hh"
 
+#include <string>
+
 #include "logger/Schema.hh"
 
 namespace icts {

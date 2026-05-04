@@ -26,12 +26,12 @@
 #include <cstddef>
 #include <string>
 
-#include "design/ClockLayout.hh"
 #include "logger/Schema.hh"
 
 namespace icts {
 
 class Clock;
+enum class SinkDomainKind;
 
 enum class DomainStatus
 {

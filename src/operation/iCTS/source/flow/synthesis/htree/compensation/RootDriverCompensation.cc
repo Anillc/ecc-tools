@@ -30,11 +30,13 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <ratio>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -43,11 +45,13 @@
 
 #include "BufferingPattern.hh"
 #include "HTreeTopologyChar.hh"
+#include "HTreeTopologyPattern.hh"
 #include "Log.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
 #include "STAAdapter.hh"
+#include "SteinerTree.hh"
 #include "Tree.hh"
 #include "config/Config.hh"
 #include "design/Design.hh"
@@ -110,9 +114,10 @@ struct RootClosureLoadEstimate
 struct RootDriverCompensationState
 {
   RootDriverCompensationOptions options;
-  std::unordered_map<RootDriverCompensationCacheKey, HTreeRootDriverCompensation, RootDriverCompensationCacheKeyHash> cost_by_key;
+  std::unordered_map<RootDriverCompensationCacheKey, RootDriverCompensationDetail, RootDriverCompensationCacheKeyHash> cost_by_key;
   std::unordered_map<PatternId, RootClosureLoadEstimate> root_load_by_pattern;
   RootDriverCompensationStats stats;
+  bool warned_invalid_options = false;
 };
 
 auto HashCombine(std::size_t seed, std::size_t value) -> std::size_t
@@ -404,33 +409,33 @@ auto ResolveRootDriverCellMaster(PatternId topology_pattern_id, const TopologyPa
   return fallback_cell_master;
 }
 
-auto MakeRootDriverCompensation(const STAAdapter::RootDriverCost& cost, double input_slew_ns, const RootClosureLoadEstimate& load_estimate,
-                                double clock_period_ns) -> HTreeRootDriverCompensation
+auto MakeRootDriverCompensationDetail(const STAAdapter::RootDriverCost& cost, double input_slew_ns,
+                                      const RootClosureLoadEstimate& load_estimate, double clock_period_ns) -> RootDriverCompensationDetail
 {
-  HTreeRootDriverCompensation compensation;
-  compensation.enabled = true;
-  compensation.valid = cost.valid;
-  compensation.method = kRootDriverCompensationMethod;
-  compensation.cell_master = cost.cell_master;
-  compensation.load_source = load_estimate.source;
-  compensation.route_estimator = load_estimate.route_estimator;
-  compensation.input_slew_ns = input_slew_ns;
-  compensation.load_bucket_idx = load_estimate.bucket_idx;
-  compensation.load_cap_pf = load_estimate.total_load_cap_pf;
-  compensation.terminal_pin_cap_pf = load_estimate.terminal_pin_cap_pf;
-  compensation.wire_cap_pf = load_estimate.wire_cap_pf;
-  compensation.routed_wirelength_um = load_estimate.routed_wirelength_um;
-  compensation.terminal_count = load_estimate.terminal_count;
-  compensation.clock_period_ns = clock_period_ns;
-  compensation.cell_delay_ns = cost.cell_delay_ns;
-  compensation.internal_power_w = cost.internal_power_w;
-  compensation.leakage_power_w = cost.leakage_power_w;
-  compensation.cell_power_w = cost.cell_power_w;
-  return compensation;
+  RootDriverCompensationDetail detail;
+  detail.enabled = true;
+  detail.valid = cost.valid;
+  detail.method = kRootDriverCompensationMethod;
+  detail.cell_master = cost.cell_master;
+  detail.load_source = load_estimate.source;
+  detail.route_estimator = load_estimate.route_estimator;
+  detail.input_slew_ns = input_slew_ns;
+  detail.load_bucket_idx = load_estimate.bucket_idx;
+  detail.load_cap_pf = load_estimate.total_load_cap_pf;
+  detail.terminal_pin_cap_pf = load_estimate.terminal_pin_cap_pf;
+  detail.wire_cap_pf = load_estimate.wire_cap_pf;
+  detail.routed_wirelength_um = load_estimate.routed_wirelength_um;
+  detail.terminal_count = load_estimate.terminal_count;
+  detail.clock_period_ns = clock_period_ns;
+  detail.cell_delay_ns = cost.cell_delay_ns;
+  detail.internal_power_w = cost.internal_power_w;
+  detail.leakage_power_w = cost.leakage_power_w;
+  detail.cell_power_w = cost.cell_power_w;
+  return detail;
 }
 
 auto QueryRootDriverCompensation(const RootDriverCompensationCacheKey& key, const RootClosureLoadEstimate& load_estimate,
-                                 RootDriverCompensationState& state) -> HTreeRootDriverCompensation
+                                 RootDriverCompensationState& state) -> RootDriverCompensationDetail
 {
   auto& stats = state.stats;
   const auto cache_it = state.cost_by_key.find(key);
@@ -452,7 +457,7 @@ auto QueryRootDriverCompensation(const RootDriverCompensationCacheKey& key, cons
   const auto cost = STA_ADAPTER_INST.queryRootDriverCostDirect(key.cell_master, key.input_slew_ns, key.load_cap_pf, key.clock_period_ns);
   stats.total_runtime_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - lookup_start).count();
   ++stats.unique_direct_lookup_count;
-  auto compensation = MakeRootDriverCompensation(cost, key.input_slew_ns, load_estimate, key.clock_period_ns);
+  auto compensation = MakeRootDriverCompensationDetail(cost, key.input_slew_ns, load_estimate, key.clock_period_ns);
   return state.cost_by_key.emplace(key, std::move(compensation)).first->second;
 }
 
@@ -472,6 +477,59 @@ auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLib
   state.stats.load_resolution_runtime_ms
       += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - resolution_start).count();
   return state.root_load_by_pattern.emplace(pattern_id, std::move(estimate)).first->second;
+}
+
+auto RefreshCompensationStats(RootDriverCompensationState& state) -> void
+{
+  auto& stats = state.stats;
+  stats.enabled = state.options.enabled;
+  stats.method = state.options.enabled ? kRootDriverCompensationMethod : "disabled";
+  stats.input_slew_ns = state.options.input_slew_ns;
+  stats.clock_period_ns = state.options.clock_period_ns;
+  stats.load_source = state.options.enabled ? kRootDriverCompensationLoadSource : "none";
+}
+
+auto CompensationOptionsAreValid(RootDriverCompensationState& state) -> bool
+{
+  if (state.options.input_slew_ns > 0.0 && state.options.clock_period_ns > 0.0 && state.options.cap_lattice.isValid()) {
+    return true;
+  }
+
+  if (!state.warned_invalid_options) {
+    LOG_WARNING << "HTree: root-driver direct compensation skipped because slew/period/cap lattice is invalid.";
+    state.warned_invalid_options = true;
+  }
+  return false;
+}
+
+auto EvaluateRootDriverCompensation(PatternId pattern_id, const TopologyPatternLibrary& topology_library,
+                                    const BufferPatternLibrary& segment_pattern_library, const Tree& topology,
+                                    RootDriverCompensationState& compensation_state) -> RootDriverCompensationDetail
+{
+  if (!compensation_state.options.enabled || !CompensationOptionsAreValid(compensation_state)) {
+    return {};
+  }
+
+  const auto cell_master
+      = ResolveRootDriverCellMaster(pattern_id, topology_library, segment_pattern_library, compensation_state.options.fallback_cell_master);
+  if (cell_master.empty()) {
+    return {};
+  }
+
+  const auto load_estimate
+      = QueryRootClosureLoadEstimate(pattern_id, topology_library, segment_pattern_library, topology, compensation_state);
+  if (!load_estimate.valid) {
+    return {};
+  }
+
+  const RootDriverCompensationCacheKey key{
+      .cell_master = cell_master,
+      .input_slew_ns = compensation_state.options.input_slew_ns,
+      .load_bucket_idx = load_estimate.bucket_idx,
+      .load_cap_pf = load_estimate.total_load_cap_pf,
+      .clock_period_ns = compensation_state.options.clock_period_ns,
+  };
+  return QueryRootDriverCompensation(key, load_estimate, compensation_state);
 }
 
 auto RootDriverCompensationCacheKeyHash::operator()(const RootDriverCompensationCacheKey& key) const noexcept -> std::size_t
@@ -516,60 +574,39 @@ auto RootDriverCompensationPass::beginCandidateBuild() -> void
 {
   // Topology pattern ids are local to one candidate build's pattern library.
   _impl->state.root_load_by_pattern.clear();
+  _impl->state.warned_invalid_options = false;
 }
 
 auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, const TopologyPatternLibrary& topology_library,
                                        const BufferPatternLibrary& segment_pattern_library, const Tree& topology) -> void
 {
   auto& compensation_state = _impl->state;
-  auto& stats = compensation_state.stats;
-  stats.enabled = compensation_state.options.enabled;
-  stats.method = compensation_state.options.enabled ? kRootDriverCompensationMethod : "disabled";
-  stats.input_slew_ns = compensation_state.options.input_slew_ns;
-  stats.clock_period_ns = compensation_state.options.clock_period_ns;
-  stats.load_source = compensation_state.options.enabled ? kRootDriverCompensationLoadSource : "none";
+  RefreshCompensationStats(compensation_state);
   if (!compensation_state.options.enabled || entries.empty()) {
     return;
   }
-  if (compensation_state.options.input_slew_ns <= 0.0 || compensation_state.options.clock_period_ns <= 0.0
-      || !compensation_state.options.cap_lattice.isValid()) {
-    LOG_WARNING << "HTree: root-driver direct compensation skipped because slew/period/cap lattice is invalid.";
+  if (!CompensationOptionsAreValid(compensation_state)) {
     return;
   }
 
-  std::unordered_map<PatternId, std::string> cell_master_by_pattern;
-  cell_master_by_pattern.reserve(entries.size());
   for (auto& entry : entries) {
-    const auto pattern_id = entry.get_pattern_id();
-    const auto cell_cache_it = cell_master_by_pattern.find(pattern_id);
-    const std::string cell_master = cell_cache_it == cell_master_by_pattern.end()
-                                        ? ResolveRootDriverCellMaster(pattern_id, topology_library, segment_pattern_library,
-                                                                      compensation_state.options.fallback_cell_master)
-                                        : cell_cache_it->second;
-    if (cell_cache_it == cell_master_by_pattern.end()) {
-      cell_master_by_pattern.emplace(pattern_id, cell_master);
-    }
-    if (cell_master.empty()) {
+    const auto compensation
+        = EvaluateRootDriverCompensation(entry.get_pattern_id(), topology_library, segment_pattern_library, topology, compensation_state);
+    if (!compensation.enabled) {
       continue;
     }
-
-    const auto load_estimate
-        = QueryRootClosureLoadEstimate(pattern_id, topology_library, segment_pattern_library, topology, compensation_state);
-    if (!load_estimate.valid) {
-      continue;
-    }
-
-    RootDriverCompensationCacheKey key{
-        .cell_master = cell_master,
-        .input_slew_ns = compensation_state.options.input_slew_ns,
-        .load_bucket_idx = load_estimate.bucket_idx,
-        .load_cap_pf = load_estimate.total_load_cap_pf,
-        .clock_period_ns = compensation_state.options.clock_period_ns,
-    };
-    auto compensation = QueryRootDriverCompensation(key, load_estimate, compensation_state);
-    entry.set_root_driver_compensation(std::move(compensation));
-    ++stats.compensated_candidate_count;
+    entry.set_root_driver_compensation(compensation.cell_delay_ns, compensation.cell_power_w);
+    ++compensation_state.stats.compensated_candidate_count;
   }
+}
+
+auto RootDriverCompensationPass::evaluate(PatternId pattern_id, const TopologyPatternLibrary& topology_library,
+                                          const BufferPatternLibrary& segment_pattern_library, const Tree& topology)
+    -> RootDriverCompensationDetail
+{
+  auto& compensation_state = _impl->state;
+  RefreshCompensationStats(compensation_state);
+  return EvaluateRootDriverCompensation(pattern_id, topology_library, segment_pattern_library, topology, compensation_state);
 }
 
 auto RootDriverCompensationPass::get_stats() const -> const RootDriverCompensationStats&

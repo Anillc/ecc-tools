@@ -24,9 +24,11 @@
 #pragma once
 
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/plan/DepthPlan.hh"
 
 namespace icts::htree {
+
+struct CandidateBuildEvaluation;
+struct DepthSummary;
 
 auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildEvaluation& selected_evaluation,
                          const DepthSummary& selected_summary) -> void;

@@ -23,23 +23,19 @@
 
 #include "evaluation/qor/QorEvaluation.hh"
 
-#include <glog/logging.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <iterator>
-#include <limits>
 #include <map>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include "Log.hh"
 #include "Point.hh"
+#include "Qor.hh"
 #include "SteinerTree.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"

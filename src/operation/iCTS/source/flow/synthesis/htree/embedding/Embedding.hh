@@ -27,9 +27,10 @@
 
 #include "Point.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 
 namespace icts::htree {
+
+struct BufferPatternLibrary;
 
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
 auto ValidateRootDriverSizing(const HTree::BuildResult& result, const std::string& cell_master) -> bool;

@@ -26,7 +26,7 @@
 #include <string>
 
 #include "design/ClockLayout.hh"
-#include "evaluation/Evaluation.hh"
+#include "evaluation/qor/QorEvaluation.hh"
 #include "instantiation/Instantiation.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 

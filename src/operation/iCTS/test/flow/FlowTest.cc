@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <memory>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -48,7 +47,6 @@
 #include "flow/instantiation/design_conversion/DesignConversion.hh"
 #include "flow/synthesis/Synthesis.hh"
 #include "flow/synthesis/distribution/ClockDistribution.hh"
-#include "flow/synthesis/htree/HTree.hh"
 #include "flow/synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "flow/synthesis/topology/Topology.hh"
 #include "flow/synthesis/trace/SynthesisTrace.hh"

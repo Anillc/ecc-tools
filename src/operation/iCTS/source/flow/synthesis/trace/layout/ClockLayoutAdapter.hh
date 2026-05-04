@@ -23,11 +23,12 @@
 
 #pragma once
 
-#include "design/ClockLayout.hh"
 #include "synthesis/topology/Topology.hh"
 #include "synthesis/trace/layout/ClockLayoutSynthesisInput.hh"
 
 namespace icts {
+
+enum class ClockLayoutPhase;
 
 class ClockLayoutAdapter
 {

@@ -23,15 +23,20 @@
 
 #include "synthesis/trace/layout/ClockLayoutBuilder.hh"
 
-#include <algorithm>
+#include <optional>
+#include <string>
 #include <unordered_set>
 #include <utility>
 
+#include "ClockLayout.hh"
+#include "Point.hh"
+#include "SteinerTree.hh"
 #include "design/Clock.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "router/Router.hh"
+#include "synthesis/trace/layout/ClockLayoutSynthesisInput.hh"
 
 namespace icts {
 namespace {

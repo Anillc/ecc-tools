@@ -29,6 +29,7 @@
 #include <ostream>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"

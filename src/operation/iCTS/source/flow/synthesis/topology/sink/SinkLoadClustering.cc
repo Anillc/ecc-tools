@@ -23,13 +23,21 @@
 
 #include "synthesis/topology/sink/SinkLoadClustering.hh"
 
+#include <glog/logging.h>
+
+#include <compare>
+#include <cstddef>
 #include <limits>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "Clustering.hh"
 #include "Log.hh"
+#include "Pin.hh"
+#include "Point.hh"
 #include "TopologyConfig.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"

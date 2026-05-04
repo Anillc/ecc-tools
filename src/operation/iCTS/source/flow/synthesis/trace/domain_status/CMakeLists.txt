@@ -2,9 +2,8 @@ add_library(icts_source_flow_synthesis_trace_domain_status ${ICTS_FLOW_SYNTHESIS
 
 target_link_libraries(
   icts_source_flow_synthesis_trace_domain_status
-  PUBLIC
-  icts_source_database_design
   PRIVATE
+  icts_source_database_design
   icts_source_database
   icts_source_utils
 )

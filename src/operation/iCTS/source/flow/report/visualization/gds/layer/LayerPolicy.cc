@@ -23,11 +23,14 @@
 
 #include "report/visualization/gds/layer/LayerPolicy.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <limits>
 #include <ostream>
 
 #include "Log.hh"
+#include "report/visualization/drawing/Drawing.hh"
 
 namespace icts::visualization {
 namespace {

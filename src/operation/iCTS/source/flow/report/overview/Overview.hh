@@ -23,9 +23,9 @@
 
 #pragma once
 
-#include "report/export/ResultExport.hh"
-
 namespace icts {
+
+struct ResultExportPaths;
 
 class Overview
 {

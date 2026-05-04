@@ -23,14 +23,19 @@
 
 #include "synthesis/trace/layout/ClockLayoutAdapter.hh"
 
+#include <algorithm>
+#include <memory>
 #include <optional>
-#include <ranges>
+#include <vector>
 
-#include "design/Inst.hh"
-#include "design/Net.hh"
+#include "ClockLayout.hh"
 #include "synthesis/htree/HTree.hh"
 
 namespace icts {
+
+class Inst;
+class Net;
+
 namespace {
 
 auto selectedDepthToInt(const std::optional<unsigned>& selected_depth) -> int

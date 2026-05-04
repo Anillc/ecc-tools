@@ -23,10 +23,17 @@
 
 #include "synthesis/topology/sink/SinkBranch.hh"
 
+#include <glog/logging.h>
+
+#include <optional>
+#include <ostream>
 #include <string>
+#include <vector>
 
 #include "Log.hh"
+#include "Net.hh"
 #include "config/Config.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "synthesis/topology/sink/SinkLoadClustering.hh"
 #include "synthesis/trace/distance/TopologyDistanceReport.hh"

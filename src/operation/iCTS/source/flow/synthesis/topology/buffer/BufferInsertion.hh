@@ -27,7 +27,14 @@
 #include <utility>
 #include <vector>
 
+#include "Net.hh"
+#include "Pin.hh"
+#include "Point.hh"
 #include "synthesis/topology/Topology.hh"
+
+namespace icts {
+class Inst;
+}
 
 namespace icts::topology {
 

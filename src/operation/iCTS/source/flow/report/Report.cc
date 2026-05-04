@@ -25,9 +25,14 @@
 
 #include <glog/logging.h>
 
+#include <filesystem>
+#include <ostream>
+#include <utility>
+
 #include "Log.hh"
 #include "config/Config.hh"
 #include "evaluation/Evaluation.hh"
+#include "evaluation/qor/QorEvaluation.hh"
 #include "logger/Schema.hh"
 #include "report/export/ResultExport.hh"
 #include "report/overview/Overview.hh"

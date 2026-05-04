@@ -28,7 +28,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ValueLattice.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
@@ -36,11 +35,14 @@
 
 namespace icts {
 class Tree;
+class UniformValueLattice;
 }  // namespace icts
 
 namespace icts::htree {
 
-class RootDriverCompensationPass;
+struct BoundaryConstraints;
+struct BufferPatternLibrary;
+struct SegmentCandidateFrontierSet;
 
 struct DepthSummary
 {

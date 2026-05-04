@@ -25,12 +25,16 @@
 
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "HTreeTopologyChar.hh"
+#include "ValueLattice.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
+#include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/plan/Plan.hh"
 
 namespace icts::htree {
@@ -65,9 +69,9 @@ auto RecordTopologyDepthCandidateResult(unsigned depth, bool used_explicit_targe
       .used_explicit_target_depth = used_explicit_target_depth,
       .failure_reason = evaluation.failure_reason,
       .final_frontier_count = evaluation.final_frontier_count,
-      .candidate_solution_count = evaluation.candidate_chars.size(),
+      .candidate_solution_count = evaluation.candidate_solution_count,
       .candidate_frontier_entry_count = evaluation.candidate_frontier_entries.size(),
-      .feasible_solution_count = evaluation.feasible_chars.size(),
+      .feasible_solution_count = evaluation.feasible_solution_count,
       .feasible_frontier_entry_count = evaluation.feasible_frontier_entries.size(),
       .used_boundary_fallback = evaluation.used_boundary_fallback,
       .selected_power_w = evaluation.best_char.has_value() ? evaluation.best_char->get_power() : 0.0,

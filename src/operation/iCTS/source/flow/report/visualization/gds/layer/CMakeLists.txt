@@ -3,9 +3,9 @@ add_library(icts_source_flow_report_visualization_gds_layer ${ICTS_FLOW_REPORT_V
 target_link_libraries(
   icts_source_flow_report_visualization_gds_layer
   PUBLIC
-  icts_source_flow_report_visualization_drawing
   icts_source_flow_report_visualization_gds_writer
   PRIVATE
+  icts_source_flow_report_visualization_drawing
   icts_source_utils
 )
 

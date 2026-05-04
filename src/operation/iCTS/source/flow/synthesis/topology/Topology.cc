@@ -23,6 +23,8 @@
 
 #include "synthesis/topology/Topology.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <ostream>
@@ -40,7 +42,6 @@
 #include "instantiation/design_conversion/DesignConversion.hh"
 #include "io/Wrapper.hh"
 #include "synthesis/distribution/ClockDistribution.hh"
-#include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/topology/sink/SinkBranch.hh"
 #include "synthesis/topology/trunk/SourceTrunk.hh"
 #include "synthesis/trace/SynthesisTrace.hh"

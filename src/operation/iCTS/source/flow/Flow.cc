@@ -25,7 +25,10 @@
 
 #include <cstddef>
 #include <string>
+#include <utility>
+#include <vector>
 
+#include "ClockLayout.hh"
 #include "evaluation/Evaluation.hh"
 #include "instantiation/Instantiation.hh"
 #include "instantiation/design_conversion/DesignConversion.hh"

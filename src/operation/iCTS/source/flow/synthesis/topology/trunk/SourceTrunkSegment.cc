@@ -50,11 +50,13 @@
 #include "geometry/Geometry.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
+#include "synthesis/htree/characterization/Characterization.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/htree/characterization/wirelength/WirelengthGrid.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/embedding/BufferPortTable.hh"
 #include "synthesis/htree/embedding/Embedding.hh"
+#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 #include "synthesis/htree/segment_pruning/SegmentPruning.hh"
 
 namespace icts {

@@ -40,6 +40,8 @@
 #include "Pin.hh"
 #include "PinLocationHelper.hh"
 #include "Point.hh"
+#include "RoutingTerminal.hh"
+#include "SteinerTree.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "bound_skew_tree/BSTRouter.hh"
 #include "concurrent_bst_salt/CBSRouter.hh"

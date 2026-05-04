@@ -52,11 +52,13 @@
 #include "logger/Schema.hh"
 #include "synthesis/htree/characterization/Characterization.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
+#include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/embedding/Embedding.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/plan/Plan.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
+#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 #include "synthesis/htree/segment_pruning/SegmentPruning.hh"
 #include "synthesis/htree/solution/SolutionReport.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
@@ -87,15 +89,31 @@ auto ResolveRootDriverCompensationInputSlewNs(double max_slew_ns) -> double
 }
 
 auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::DepthSearchResult& exploration,
+                                       const htree::RootDriverCompensationDetail& compensation_detail,
                                        const HTreeTopologyChar& selected_entry) -> void
 {
   auto& report = result.root_driver_compensation;
   report.enabled = exploration.root_driver_compensation_stats.enabled;
-  report.method = exploration.root_driver_compensation_stats.method;
-  report.load_source = exploration.root_driver_compensation_stats.load_source;
-  report.input_slew_ns = exploration.root_driver_compensation_stats.input_slew_ns;
-  report.clock_period_ns = exploration.root_driver_compensation_stats.clock_period_ns;
-  report.selected = selected_entry.get_root_driver_compensation();
+  report.valid = compensation_detail.valid;
+  report.method = compensation_detail.method.empty() ? exploration.root_driver_compensation_stats.method : compensation_detail.method;
+  report.cell_master = compensation_detail.cell_master;
+  report.load_source
+      = compensation_detail.load_source.empty() ? exploration.root_driver_compensation_stats.load_source : compensation_detail.load_source;
+  report.route_estimator = compensation_detail.route_estimator;
+  report.input_slew_ns = compensation_detail.input_slew_ns > 0.0 ? compensation_detail.input_slew_ns
+                                                                 : exploration.root_driver_compensation_stats.input_slew_ns;
+  report.load_bucket_idx = compensation_detail.load_bucket_idx;
+  report.load_cap_pf = compensation_detail.load_cap_pf;
+  report.terminal_pin_cap_pf = compensation_detail.terminal_pin_cap_pf;
+  report.wire_cap_pf = compensation_detail.wire_cap_pf;
+  report.routed_wirelength_um = compensation_detail.routed_wirelength_um;
+  report.terminal_count = compensation_detail.terminal_count;
+  report.clock_period_ns = compensation_detail.clock_period_ns > 0.0 ? compensation_detail.clock_period_ns
+                                                                     : exploration.root_driver_compensation_stats.clock_period_ns;
+  report.cell_delay_ns = compensation_detail.cell_delay_ns;
+  report.internal_power_w = compensation_detail.internal_power_w;
+  report.leakage_power_w = compensation_detail.leakage_power_w;
+  report.cell_power_w = compensation_detail.cell_power_w;
   report.raw_delay_ns = selected_entry.get_raw_delay();
   report.raw_power_w = selected_entry.get_raw_power();
   report.compensated_delay_ns = selected_entry.get_delay();
@@ -255,7 +273,10 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
 
   result.selected_depth = selected_evaluation.depth;
   result.best_char = *selected_ref->entry;
-  ApplyRootDriverCompensationResult(result, exploration, *selected_ref->entry);
+  htree::RootDriverCompensationPass selected_compensation_pass(root_driver_compensation_options);
+  const auto selected_compensation_detail = selected_compensation_pass.evaluate(
+      selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library, result.topology);
+  ApplyRootDriverCompensationResult(result, exploration, selected_compensation_detail, *selected_ref->entry);
   result.levels = selected_evaluation.levels;
   result.selected_final_frontier_count = selected_summary.final_frontier_count;
   result.selected_candidate_solution_count = selected_summary.candidate_solution_count;

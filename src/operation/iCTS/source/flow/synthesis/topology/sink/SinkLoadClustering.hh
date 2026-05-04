@@ -27,6 +27,10 @@
 
 #include "synthesis/topology/Topology.hh"
 
+namespace icts {
+class Pin;
+}
+
 namespace icts::topology {
 
 struct SinkTreeLoadPreparation

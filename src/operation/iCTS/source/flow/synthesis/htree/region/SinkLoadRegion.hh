@@ -35,7 +35,6 @@
 #include "PatternId.hh"
 #include "Point.hh"
 #include "ValueLattice.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 
 namespace icts {
 
@@ -43,6 +42,9 @@ class Pin;
 class Tree;
 
 namespace htree {
+
+struct BufferPatternLibrary;
+struct TopologyPatternLibrary;
 
 struct CapDistributionStats
 {

@@ -29,8 +29,13 @@
 #include <string>
 #include <vector>
 
-#include "report/visualization/drawing/Drawing.hh"
+#include "ClockLayout.hh"
 #include "report/visualization/gds/writer/GdsStream.hh"
+
+namespace icts {
+struct DrawingInst;
+struct DrawingSegment;
+}  // namespace icts
 
 namespace icts::visualization {
 

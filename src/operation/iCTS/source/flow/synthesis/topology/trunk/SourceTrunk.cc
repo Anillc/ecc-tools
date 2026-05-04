@@ -23,9 +23,15 @@
 
 #include "synthesis/topology/trunk/SourceTrunk.hh"
 
+#include <glog/logging.h>
+
+#include <optional>
+#include <ostream>
+#include <string>
 #include <vector>
 
 #include "Log.hh"
+#include "Point.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "synthesis/htree/HTree.hh"
@@ -33,7 +39,13 @@
 #include "synthesis/topology/trunk/SourceTrunkSegment.hh"
 #include "synthesis/trace/topology_result/TopologyResult.hh"
 
+namespace icts {
+class Net;
+class Pin;
+}  // namespace icts
+
 namespace icts::topology {
+
 namespace {
 
 auto ResolveSourceDriveCap(Pin* clock_source) -> double

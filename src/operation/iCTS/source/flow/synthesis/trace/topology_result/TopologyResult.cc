@@ -23,8 +23,13 @@
 
 #include "synthesis/trace/topology_result/TopologyResult.hh"
 
+#include <cstddef>
 #include <memory>
+#include <optional>
+#include <utility>
 #include <vector>
+
+#include "synthesis/htree/HTree.hh"
 
 namespace icts::topology {
 namespace {

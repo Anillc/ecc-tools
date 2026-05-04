@@ -101,11 +101,23 @@ class HTree
   struct RootDriverCompensationReport
   {
     bool enabled = false;
+    bool valid = false;
     std::string method;
+    std::string cell_master;
     std::string load_source;
+    std::string route_estimator;
     double input_slew_ns = 0.0;
+    unsigned load_bucket_idx = 0U;
+    double load_cap_pf = 0.0;
+    double terminal_pin_cap_pf = 0.0;
+    double wire_cap_pf = 0.0;
+    double routed_wirelength_um = 0.0;
+    std::size_t terminal_count = 0U;
     double clock_period_ns = 0.0;
-    HTreeRootDriverCompensation selected;
+    double cell_delay_ns = 0.0;
+    double internal_power_w = 0.0;
+    double leakage_power_w = 0.0;
+    double cell_power_w = 0.0;
     double raw_delay_ns = 0.0;
     double raw_power_w = 0.0;
     double compensated_delay_ns = 0.0;

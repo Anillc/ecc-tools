@@ -24,7 +24,9 @@
 #include "synthesis/trace/domain_status/DomainStatus.hh"
 
 #include <string>
+#include <vector>
 
+#include "ClockLayout.hh"
 #include "design/Clock.hh"
 
 namespace icts {

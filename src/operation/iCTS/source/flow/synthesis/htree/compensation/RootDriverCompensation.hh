@@ -32,6 +32,7 @@
 
 namespace icts {
 class HTreeTopologyChar;
+struct PatternId;
 class Tree;
 }  // namespace icts
 
@@ -39,6 +40,28 @@ namespace icts::htree {
 
 struct BufferPatternLibrary;
 struct TopologyPatternLibrary;
+
+struct RootDriverCompensationDetail
+{
+  bool enabled = false;
+  bool valid = false;
+  std::string method;
+  std::string cell_master;
+  std::string load_source;
+  std::string route_estimator;
+  double input_slew_ns = 0.0;
+  unsigned load_bucket_idx = 0U;
+  double load_cap_pf = 0.0;
+  double terminal_pin_cap_pf = 0.0;
+  double wire_cap_pf = 0.0;
+  double routed_wirelength_um = 0.0;
+  std::size_t terminal_count = 0U;
+  double clock_period_ns = 0.0;
+  double cell_delay_ns = 0.0;
+  double internal_power_w = 0.0;
+  double leakage_power_w = 0.0;
+  double cell_power_w = 0.0;
+};
 
 struct RootDriverCompensationOptions
 {
@@ -82,6 +105,8 @@ class RootDriverCompensationPass
   auto beginCandidateBuild() -> void;
   auto apply(std::vector<HTreeTopologyChar>& entries, const TopologyPatternLibrary& topology_library,
              const BufferPatternLibrary& segment_pattern_library, const Tree& topology) -> void;
+  auto evaluate(PatternId pattern_id, const TopologyPatternLibrary& topology_library, const BufferPatternLibrary& segment_pattern_library,
+                const Tree& topology) -> RootDriverCompensationDetail;
   auto get_stats() const -> const RootDriverCompensationStats&;
 
  private:

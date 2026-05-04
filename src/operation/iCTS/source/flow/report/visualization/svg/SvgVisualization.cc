@@ -23,6 +23,8 @@
 
 #include "report/visualization/svg/SvgVisualization.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>

@@ -23,13 +23,20 @@
 
 #include "report/visualization/drawing/Drawing.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <ostream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "ClockLayout.hh"
 #include "Log.hh"
+#include "Point.hh"
+#include "SteinerTree.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"

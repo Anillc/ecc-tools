@@ -23,12 +23,14 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <cmath>
+#include <memory>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 #include "Log.hh"
@@ -43,8 +45,10 @@
 #include "core/PwrCell.hh"
 #include "core/PwrGraph.hh"
 #include "core/PwrVertex.hh"
+#include "netlist/DesignObject.hh"
+#include "netlist/Instance.hh"
 #include "netlist/Net.hh"
-#include "netlist/Pin.hh"
+#include "netlist/Netlist.hh"
 #include "sta/Sta.hh"
 #include "sta/StaGraph.hh"
 #include "sta/StaVertex.hh"

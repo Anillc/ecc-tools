@@ -25,6 +25,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -36,15 +38,16 @@
 #include "STAAdapter.hh"
 #include "STAAdapterInternal.hh"
 #include "Type.hh"
+#include "Vector.hh"
 #include "api/TimingEngine.hh"
 #include "design/Design.hh"
-#include "design/Pin.hh"
 #include "liberty/Lib.hh"
-#include "netlist/Netlist.hh"
-#include "netlist/Pin.hh"
 #include "sta/StaVertex.hh"
 
 namespace icts {
+
+class Pin;
+
 namespace {
 
 constexpr double kMilliwattToWatt = 1.0 / 1000.0;
@@ -156,7 +159,7 @@ auto maxArrivalNs(ista::StaVertex* vertex, const std::string& clock_name) -> std
       clock_arrival = vertex->getClockArriveTime(ista::AnalysisMode::kMax, trans);
     }
     if (clock_arrival.has_value()) {
-      arrivals_ns.push_back(FS_TO_NS(*clock_arrival));
+      arrivals_ns.push_back(FS_TO_NS(static_cast<double>(*clock_arrival)));
       continue;
     }
     auto data_arrival = vertex->getArriveTimeNs(ista::AnalysisMode::kMax, trans);

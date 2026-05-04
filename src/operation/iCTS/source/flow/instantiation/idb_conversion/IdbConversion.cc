@@ -24,6 +24,8 @@
 #include "instantiation/idb_conversion/IdbConversion.hh"
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "design/Design.hh"
 #include "io/Wrapper.hh"

@@ -54,9 +54,9 @@ struct CandidateBuildEvaluation
   std::optional<unsigned> failure_level = std::nullopt;
   std::optional<unsigned> failure_length_idx = std::nullopt;
   std::size_t final_frontier_count = 0U;
-  std::vector<HTreeTopologyChar> candidate_chars;
+  std::size_t candidate_solution_count = 0U;
   std::vector<HTreeTopologyChar> candidate_frontier_entries;
-  std::vector<HTreeTopologyChar> feasible_chars;
+  std::size_t feasible_solution_count = 0U;
   std::vector<HTreeTopologyChar> feasible_frontier_entries;
   std::optional<HTreeTopologyChar> best_char = std::nullopt;
   bool used_boundary_fallback = false;

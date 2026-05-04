@@ -25,9 +25,9 @@
 
 #include <filesystem>
 
-#include "qor/Qor.hh"
-
 namespace icts {
+
+struct Qor;
 
 class QorFiles
 {

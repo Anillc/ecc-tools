@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "design/ClockLayout.hh"
-#include "synthesis/trace/layout/ClockLayoutSynthesisInput.hh"
 
 namespace icts {
 
@@ -35,6 +34,8 @@ class Clock;
 class Inst;
 class Net;
 class Pin;
+struct SinkDomainLayoutInput;
+struct SourceToRootLayoutInput;
 
 struct SinkDomainLayoutTopology
 {

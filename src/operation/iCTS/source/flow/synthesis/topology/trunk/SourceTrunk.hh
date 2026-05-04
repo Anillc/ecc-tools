@@ -27,6 +27,11 @@
 
 #include "synthesis/topology/Topology.hh"
 
+namespace icts {
+class Net;
+class Pin;
+}  // namespace icts
+
 namespace icts::topology {
 
 auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<Pin*>& root_inputs,

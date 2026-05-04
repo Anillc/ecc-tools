@@ -23,9 +23,13 @@
 
 #include "report/qor/QorReport.hh"
 
+#include <glog/logging.h>
+
 #include <filesystem>
+#include <ostream>
 
 #include "Log.hh"
+#include "Qor.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "report/qor/QorFiles.hh"
 

@@ -36,9 +36,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
-#include <ranges>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -56,7 +54,6 @@
 #include "api/TimingIDBAdapter.hh"
 #include "builder.h"
 #include "config/Config.hh"
-#include "core/PwrCell.hh"
 #include "core/PwrClock.hh"
 #include "core/PwrGraph.hh"
 #include "core/PwrVertex.hh"
@@ -67,15 +64,11 @@
 #include "liberty/Lib.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "netlist/DesignObject.hh"
-#include "netlist/Instance.hh"
 #include "netlist/Net.hh"
-#include "netlist/Netlist.hh"
 #include "netlist/Pin.hh"
 #include "sta/Sta.hh"
 #include "sta/StaClock.hh"
 #include "sta/StaData.hh"
-#include "sta/StaGraph.hh"
 #include "sta/StaVertex.hh"
 
 namespace icts::sta_adapter_internal {

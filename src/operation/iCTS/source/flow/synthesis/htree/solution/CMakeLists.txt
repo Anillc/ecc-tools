@@ -6,9 +6,8 @@ add_library(
 
 target_link_libraries(
   icts_source_flow_synthesis_htree_solution
-  PUBLIC
-  icts_source_flow_synthesis_htree_plan
   PRIVATE
+  icts_source_flow_synthesis_htree_plan
   icts_source_utils
 )
 

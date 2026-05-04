@@ -30,6 +30,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <map>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -37,6 +38,7 @@
 #include <vector>
 
 #include "Log.hh"
+#include "Qor.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
 

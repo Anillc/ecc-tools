@@ -40,6 +40,8 @@
 #include "PatternId.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
+#include "synthesis/htree/plan/DepthPlan.hh"
+#include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts::htree {
 
@@ -50,7 +52,7 @@ auto FormatDelayPower(double delay_ns, double power_w) -> std::string
   return logformat::FormatWithUnit(delay_ns, "ns") + " / " + logformat::FormatPowerW(power_w);
 }
 
-auto FormatRootLoadDetail(const HTreeRootDriverCompensation& compensation) -> std::string
+auto FormatRootLoadDetail(const HTree::RootDriverCompensationReport& compensation) -> std::string
 {
   if (compensation.load_cap_pf <= 0.0) {
     return "physical root-closure load unavailable";
@@ -79,7 +81,6 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
   const auto selected_terminal_branch_buffered_levels = static_cast<std::size_t>(std::ranges::count_if(
       result.levels, [](const HTree::LevelPlan& level) -> bool { return level.selected_has_terminal_branch_buffer; }));
   const auto& root_compensation_report = result.root_driver_compensation;
-  const auto& selected_root_compensation = root_compensation_report.selected;
   std::string selected_level_segment_pattern_ids;
   for (const auto& level : result.levels) {
     if (!selected_level_segment_pattern_ids.empty()) {
@@ -110,18 +111,19 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_frontier_pareto_power_median",
        result.used_boundary_fallback
            ? "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global candidate "
-             "frontier pool with delay-power Pareto power-median ordering"
-           : "the global feasible frontier pool is Pareto filtered and the lower power-ordered median entry is selected"},
+             "post-compensation frontier pool with delay-power Pareto power-median ordering"
+           : "the global feasible post-compensation frontier pool is Pareto filtered and the lower power-ordered median entry is selected"},
       {"final_frontier_count", std::to_string(selected_summary.final_frontier_count),
-       "selected-depth root frontier size before boundary filtering and sink-load-region legality filtering"},
+       "selected-depth post-compensation frontier size before boundary filtering and sink-load-region legality filtering"},
       {"candidate_solutions", std::to_string(selected_summary.candidate_solution_count),
-       selected_has_boundary_constraints ? "selected-depth frontier entries after full topology assembly"
+       selected_has_boundary_constraints ? "selected-depth post-compensation frontier entries after full topology assembly"
                                          : "not assembled on unrestricted builds"},
       {"candidate_frontier_entry_count", std::to_string(selected_summary.candidate_frontier_entry_count),
        selected_has_boundary_constraints ? "selected-depth sink-load-region-legal candidate frontier entries before feasible filtering"
                                          : "not assembled on unrestricted builds"},
       {"feasible_solutions", std::to_string(selected_summary.feasible_solution_count),
-       selected_has_boundary_constraints ? "selected-depth strict-feasible entries after boundary filtering" : "same as composed frontier"},
+       selected_has_boundary_constraints ? "selected-depth strict-feasible post-compensation frontier entries after boundary filtering"
+                                         : "same as post-compensation frontier"},
       {"feasible_frontier_entry_count", std::to_string(selected_summary.feasible_frontier_entry_count),
        "selected-depth sink-load-region-legal frontier entries after feasible filtering"},
       {"inserted_insts", std::to_string(result.inserted_insts.size()), "built CTS buffer instances"},
@@ -132,13 +134,13 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"delay", logformat::FormatWithUnit(best_char.get_delay(), "ns"), "selected pattern metric"},
       {"raw_htree_char_metric", FormatDelayPower(root_compensation_report.raw_delay_ns, root_compensation_report.raw_power_w),
        "characterization-only H-tree delay / power before root-driver compensation"},
-      {"root_driver_compensation", FormatDelayPower(selected_root_compensation.cell_delay_ns, selected_root_compensation.cell_power_w),
+      {"root_driver_compensation", FormatDelayPower(root_compensation_report.cell_delay_ns, root_compensation_report.cell_power_w),
        "direct Liberty root cell delay / internal+leakage power; root output net switching power is not added"},
       {"compensated_htree_metric",
        FormatDelayPower(root_compensation_report.compensated_delay_ns, root_compensation_report.compensated_power_w),
        root_compensation_report.enabled ? "selected H-tree metric after root-driver compensation" : "root driver compensation disabled"},
-      {"selected_physical_root_load", logformat::FormatWithUnit(selected_root_compensation.load_cap_pf, "pF"),
-       FormatRootLoadDetail(selected_root_compensation)},
+      {"selected_physical_root_load", logformat::FormatWithUnit(root_compensation_report.load_cap_pf, "pF"),
+       FormatRootLoadDetail(root_compensation_report)},
       {"root_driven_cap_idx", std::to_string(best_char.get_driven_cap_idx()), "selected pattern metric"},
       {"leaf_load_cap_idx", std::to_string(best_char.get_leaf_load_cap_idx()), "selected pattern metric"},
       {"leaf_output_slew_idx", std::to_string(best_char.get_output_slew_idx()), "selected pattern metric"},

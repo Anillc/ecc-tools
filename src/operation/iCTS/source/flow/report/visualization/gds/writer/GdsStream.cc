@@ -23,6 +23,8 @@
 
 #include "report/visualization/gds/writer/GdsStream.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -36,6 +38,7 @@
 #include <vector>
 
 #include "Log.hh"
+#include "Point.hh"
 
 namespace icts::visualization {
 namespace {
