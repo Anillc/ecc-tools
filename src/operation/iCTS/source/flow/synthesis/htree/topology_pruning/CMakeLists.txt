@@ -9,6 +9,7 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_constraint
   icts_source_flow_synthesis_htree_segment_pruning
   PRIVATE
+  icts_source_flow_synthesis_htree_compensation
   icts_source_flow_synthesis_htree_region
   icts_source_utils
 )

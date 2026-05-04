@@ -40,6 +40,7 @@ class Tree;
 
 namespace icts::htree {
 
+class RootDriverCompensationPass;
 struct SinkLoadRegionLegalityContext;
 
 struct CandidateBuildEvaluation
@@ -80,7 +81,8 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
                             const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                             const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                             const Tree& topology, SinkLoadRegionLegalityContext& sink_load_region_legality_context, std::size_t leaf_count,
-                            unsigned depth, unsigned char_slew_steps) -> CandidateBuildEvaluation;
+                            unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass)
+    -> CandidateBuildEvaluation;
 auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateCharRef>& entries,
                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
                                                  const BufferPatternLibrary& segment_pattern_library,

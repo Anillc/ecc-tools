@@ -23,10 +23,36 @@
 
 #pragma once
 
+#include <cstddef>
+#include <string>
+#include <utility>
+
 #include "CharCore.hh"
 #include "PatternId.hh"
 
 namespace icts {
+
+struct HTreeRootDriverCompensation
+{
+  bool enabled = false;
+  bool valid = false;
+  std::string method;
+  std::string cell_master;
+  std::string load_source;
+  std::string route_estimator;
+  double input_slew_ns = 0.0;
+  unsigned load_bucket_idx = 0U;
+  double load_cap_pf = 0.0;
+  double terminal_pin_cap_pf = 0.0;
+  double wire_cap_pf = 0.0;
+  double routed_wirelength_um = 0.0;
+  std::size_t terminal_count = 0U;
+  double clock_period_ns = 0.0;
+  double cell_delay_ns = 0.0;
+  double internal_power_w = 0.0;
+  double leakage_power_w = 0.0;
+  double cell_power_w = 0.0;
+};
 
 /**
  * @brief H-tree topology characterization entry.
@@ -50,12 +76,19 @@ class HTreeTopologyChar
   auto get_output_slew_idx() const -> unsigned { return _core.get_output_slew_idx(); }
   auto get_driven_cap_idx() const -> unsigned { return _core.get_driven_cap_idx(); }
   auto get_load_cap_idx() const -> unsigned { return _core.get_load_cap_idx(); }
-  auto get_delay() const -> double { return _core.get_delay(); }
-  auto get_power() const -> double { return _core.get_power(); }
+  auto get_delay() const -> double { return _core.get_delay() + _root_driver_compensation.cell_delay_ns; }
+  auto get_power() const -> double { return _core.get_power() + _root_driver_compensation.cell_power_w; }
+  auto get_raw_delay() const -> double { return _core.get_delay(); }
+  auto get_raw_power() const -> double { return _core.get_power(); }
   auto get_pattern_id() const -> PatternId { return _core.get_pattern_id(); }
   // The leaf-side boundary capability is the downstream-most load-cap bin already stored in CharCore.
   auto get_leaf_load_cap_idx() const -> unsigned { return _core.get_load_cap_idx(); }
   auto get_source_boundary_net_switch_power() const -> double { return _core.get_source_boundary_net_switch_power(); }
+  auto get_root_driver_compensation() const -> const HTreeRootDriverCompensation& { return _root_driver_compensation; }
+  auto set_root_driver_compensation(HTreeRootDriverCompensation compensation) -> void
+  {
+    _root_driver_compensation = std::move(compensation);
+  }
 
   // H-tree specific getter
   auto get_levels() const -> unsigned { return _levels; }
@@ -83,13 +116,13 @@ class HTreeTopologyChar
   static auto compose(const HTreeTopologyChar& upstream, const HTreeTopologyChar& downstream, PatternId merged_topo_pid)
       -> HTreeTopologyChar
   {
-    CharCore merged_core(upstream.get_input_slew_idx(),                  // input from upstream
-                         downstream.get_output_slew_idx(),               // output from downstream
-                         upstream.get_driven_cap_idx(),                  // driven_cap from upstream
-                         downstream.get_load_cap_idx(),                  // load_cap from downstream
-                         upstream.get_delay() + downstream.get_delay(),  // additive delay
+    CharCore merged_core(upstream.get_input_slew_idx(),                          // input from upstream
+                         downstream.get_output_slew_idx(),                       // output from downstream
+                         upstream.get_driven_cap_idx(),                          // driven_cap from upstream
+                         downstream.get_load_cap_idx(),                          // load_cap from downstream
+                         upstream.get_raw_delay() + downstream.get_raw_delay(),  // additive delay
                          // Binary fan-out: downstream source-boundary switching is owned by the upstream branch point.
-                         upstream.get_power() + 2.0 * (downstream.get_power() - downstream.get_source_boundary_net_switch_power()),
+                         upstream.get_raw_power() + 2.0 * (downstream.get_raw_power() - downstream.get_source_boundary_net_switch_power()),
                          merged_topo_pid, upstream.get_source_boundary_net_switch_power());
     return HTreeTopologyChar(std::move(merged_core), upstream._levels + downstream._levels);
   }
@@ -97,6 +130,7 @@ class HTreeTopologyChar
  private:
   CharCore _core;
   unsigned _levels = 0;
+  HTreeRootDriverCompensation _root_driver_compensation;
 };
 
 }  // namespace icts

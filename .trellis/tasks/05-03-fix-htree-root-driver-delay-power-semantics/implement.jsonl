@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints, validation limits, and external-module touch rules."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Flow/evaluation placement and CMake structure rules for iCTS changes."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Design graph ownership and readonly evaluation/adapter boundary rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include, dependency, and no name-substring behavior guidance."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime diagnostic and report-output conventions."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Safe fallback and logging severity rules for missing graph data."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The probe crosses synthesis metadata/design graph/evaluation/STA boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Search-before-helper guidance for structural graph traversal and CMake touches."}
+{"file": ".trellis/tasks/05-03-fix-htree-root-driver-delay-power-semantics/research/root-driver-delay-power-compensation.md", "reason": "Existing root-driver compensation research and temporary probe experiment context."}
+{"file": ".trellis/tasks/05-03-fix-htree-root-driver-delay-power-semantics/research/root-driver-flow-runtime-delay-analysis.md", "reason": "Root-load mismatch root cause, routing geometry analysis, and selection-aware root-closure fix direction."}

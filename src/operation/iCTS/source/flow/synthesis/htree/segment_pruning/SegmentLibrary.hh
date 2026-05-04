@@ -269,6 +269,7 @@ struct PatternSearchResult
   std::string failure_reason;
   unsigned failure_level = 0U;
   unsigned failure_length_idx = 0U;
+  std::vector<HTreeTopologyChar> candidates;
   std::vector<HTreeTopologyChar> frontier;
   TopologyPatternLibrary topology_pattern_library;
 };

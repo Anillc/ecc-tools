@@ -1,0 +1,30 @@
+{
+  "id": "refactor-htree-compensation-pipeline",
+  "name": "refactor-htree-compensation-pipeline",
+  "title": "Refactor H-tree compensation pipeline before final full-depth frontier pruning",
+  "description": "Refactor src/operation/iCTS/source/flow/synthesis/htree so root-driver compensation is a high-cohesion scoring pass applied before final full-depth H-tree candidate frontier pruning, then compare release binary behavior against the pre-change baseline.",
+  "status": "in_progress",
+  "dev_type": "backend",
+  "scope": "src/operation/iCTS/source/flow/synthesis/htree",
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-04",
+  "completedAt": null,
+  "branch": "cts_refactor",
+  "base_branch": "cts_refactor",
+  "worktree_path": "/home/liweiguo/project/ecc-tools",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "fix-htree-root-driver-delay-power-semantics",
+  "relatedFiles": [
+    "src/operation/iCTS/source/flow/synthesis/htree",
+    "src/operation/iCTS/source/database/adapter/sta",
+    "src/operation/iCTS/source/database/characterization/HTreeTopologyChar.hh"
+  ],
+  "notes": "Do not update .trellis/spec. Do not run ecc_dev_tools. No temporary instrumentation. Release binary comparison required against pre-change git HEAD baseline.",
+  "meta": {}
+}

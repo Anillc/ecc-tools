@@ -38,6 +38,7 @@ class Evaluation
   Evaluation() = delete;
 
   static auto run(EvaluationState& evaluation_state, bool refresh_sta_timing) -> EvaluationResult;
+  static auto run(EvaluationState& evaluation_state, const EvaluationOptions& options) -> EvaluationResult;
   static auto evaluate(EvaluationState& state, const EvaluationOptions& options) -> void;
   static auto outputSummary(const EvaluationState& state) -> QorSummary;
   static auto hasEvaluationResult(const EvaluationState& state) -> bool;

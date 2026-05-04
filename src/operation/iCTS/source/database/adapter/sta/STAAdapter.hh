@@ -89,6 +89,18 @@ class STAAdapter
     std::size_t path_count = 0U;
     std::size_t average_sample_count = 0U;
   };
+  struct RootDriverCost
+  {
+    bool valid = false;
+    std::string method;
+    std::string cell_master;
+    double input_slew_ns = 0.0;
+    double output_load_pf = 0.0;
+    double cell_delay_ns = 0.0;
+    double internal_power_w = 0.0;
+    double leakage_power_w = 0.0;
+    double cell_power_w = 0.0;
+  };
   static auto getInst() -> STAAdapter&
   {
     static STAAdapter inst;
@@ -151,6 +163,9 @@ class STAAdapter
   static auto queryCharSlew() -> double;
   static auto queryCharInputPinCap(const std::string& cell_master) -> double;
   static auto queryPinCapacitance(const Pin* pin) -> double;
+  static auto queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>;
+  static auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns)
+      -> RootDriverCost;
   static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
   static auto emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width = std::nullopt) -> void;
   static auto emitConfiguredUnitWireRcReport(const std::string& title) -> void;

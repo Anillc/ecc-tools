@@ -66,6 +66,8 @@ namespace icts {
 
 namespace {
 
+constexpr double kRootDriverCompensationClockPeriodNs = 10.0;
+
 auto ResolveSelectedRootDriverCellMaster(const std::vector<HTree::LevelPlan>& levels) -> std::string
 {
   for (const auto& level : levels) {
@@ -77,6 +79,27 @@ auto ResolveSelectedRootDriverCellMaster(const std::vector<HTree::LevelPlan>& le
     }
   }
   return {};
+}
+
+auto ResolveRootDriverCompensationInputSlewNs(double max_slew_ns) -> double
+{
+  return max_slew_ns > 0.0 ? max_slew_ns * 0.5 : 0.0;
+}
+
+auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::DepthSearchResult& exploration,
+                                       const HTreeTopologyChar& selected_entry) -> void
+{
+  auto& report = result.root_driver_compensation;
+  report.enabled = exploration.root_driver_compensation_stats.enabled;
+  report.method = exploration.root_driver_compensation_stats.method;
+  report.load_source = exploration.root_driver_compensation_stats.load_source;
+  report.input_slew_ns = exploration.root_driver_compensation_stats.input_slew_ns;
+  report.clock_period_ns = exploration.root_driver_compensation_stats.clock_period_ns;
+  report.selected = selected_entry.get_root_driver_compensation();
+  report.raw_delay_ns = selected_entry.get_raw_delay();
+  report.raw_power_w = selected_entry.get_raw_power();
+  report.compensated_delay_ns = selected_entry.get_delay();
+  report.compensated_power_w = selected_entry.get_power();
 }
 
 }  // namespace
@@ -178,9 +201,16 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     return result;
   }
 
+  const htree::RootDriverCompensationOptions root_driver_compensation_options{
+      .enabled = options.enable_root_driver_sizing,
+      .input_slew_ns = ResolveRootDriverCompensationInputSlewNs(char_builder.get_max_slew()),
+      .clock_period_ns = kRootDriverCompensationClockPeriodNs,
+      .cap_lattice = char_builder.get_cap_lattice(),
+      .fallback_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
+  };
   auto exploration = htree::SearchTopologyDepthCandidates(
       result.topology, full_level_plans, depth_candidates, entry_sets_by_length, segment_pattern_library, base_boundary_constraints,
-      char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value());
+      char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value(), root_driver_compensation_options);
   result.depth_candidate_count = exploration.depth_summaries.size();
 
   const auto covered_global_feasible_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
@@ -225,6 +255,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
 
   result.selected_depth = selected_evaluation.depth;
   result.best_char = *selected_ref->entry;
+  ApplyRootDriverCompensationResult(result, exploration, *selected_ref->entry);
   result.levels = selected_evaluation.levels;
   result.selected_final_frontier_count = selected_summary.final_frontier_count;
   result.selected_candidate_solution_count = selected_summary.candidate_solution_count;

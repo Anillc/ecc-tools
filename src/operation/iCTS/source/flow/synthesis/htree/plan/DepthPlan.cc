@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/plan/Plan.hh"
 
 namespace icts::htree {
@@ -37,8 +38,8 @@ namespace icts::htree {
 auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans, unsigned depth,
                                     const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                                     BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
-                                    SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps)
-    -> DepthCandidateResult
+                                    SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps,
+                                    RootDriverCompensationPass& compensation_pass) -> DepthCandidateResult
 {
   auto candidate_levels = MakeCandidateLevelPlans(full_level_plans, depth);
   const std::size_t leaf_count = CountCandidateLeafNodes(topology, depth);
@@ -48,7 +49,7 @@ auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTre
   candidate_result.leaf_count = leaf_count;
   candidate_result.evaluation
       = EvaluateCandidateBuild(candidate_levels, entry_sets_by_length, segment_pattern_library, candidate_constraints, topology,
-                               sink_load_region_legality_context, leaf_count, depth, char_slew_steps);
+                               sink_load_region_legality_context, leaf_count, depth, char_slew_steps, compensation_pass);
   return candidate_result;
 }
 
@@ -96,8 +97,8 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
                                    const std::vector<unsigned>& depth_candidates,
                                    const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
-                                   const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth)
-    -> DepthSearchResult
+                                   const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
+                                   const RootDriverCompensationOptions& compensation_options) -> DepthSearchResult
 {
   DepthSearchResult exploration;
   exploration.candidate_evaluations.reserve(depth_candidates.size());
@@ -107,17 +108,19 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
       .max_monotone_failed_level = std::numeric_limits<int>::min(),
       .cap_lattice = cap_lattice,
   };
+  RootDriverCompensationPass compensation_pass(compensation_options);
 
   for (const unsigned depth : depth_candidates) {
-    auto candidate_result
-        = EvaluateTopologyDepthCandidate(topology, full_level_plans, depth, entry_sets_by_length, segment_pattern_library,
-                                         base_boundary_constraints, exploration.sink_load_region_legality_context, char_slew_steps);
+    auto candidate_result = EvaluateTopologyDepthCandidate(topology, full_level_plans, depth, entry_sets_by_length, segment_pattern_library,
+                                                           base_boundary_constraints, exploration.sink_load_region_legality_context,
+                                                           char_slew_steps, compensation_pass);
     RecordTopologyDepthCandidateResult(depth, used_explicit_target_depth, candidate_result, exploration.depth_summaries);
     exploration.candidate_evaluations.push_back(std::move(candidate_result.evaluation));
     const auto candidate_index = exploration.candidate_evaluations.size() - 1U;
     AppendGlobalCandidateRefs(candidate_index, exploration.candidate_evaluations.back(), exploration.global_feasible_pool,
                               exploration.global_candidate_pool);
   }
+  exploration.root_driver_compensation_stats = compensation_pass.get_stats();
 
   return exploration;
 }

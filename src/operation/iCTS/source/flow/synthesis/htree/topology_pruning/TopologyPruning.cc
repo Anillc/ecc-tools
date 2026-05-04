@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CandidateSelection.cc
+ * @file TopologyPruning.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-01
  * @brief H-tree topology frontier composition and candidate selection.
@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <sstream>
@@ -43,6 +44,8 @@
 #include "Log.hh"
 #include "PatternId.hh"
 #include "SegmentChar.hh"
+#include "Tree.hh"
+#include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 
 namespace icts::htree {
@@ -188,10 +191,34 @@ auto ComposeHTreeFrontierEntries(const std::vector<HTreeTopologyChar>& upstream,
   return {std::move(frontier_entries), combiner.get_next_id()};
 }
 
+auto ComposeHTreeRawEntries(const std::vector<HTreeTopologyChar>& upstream, const std::vector<HTreeTopologyChar>& downstream,
+                            TopologyPatternLibrary& topology_library, unsigned start_pattern_id)
+    -> std::pair<std::vector<HTreeTopologyChar>, unsigned>
+{
+  if (upstream.empty() || downstream.empty()) {
+    return {{}, start_pattern_id};
+  }
+
+  TopologyPatternLibraryCombiner combiner(topology_library, start_pattern_id);
+  std::vector<HTreeTopologyChar> raw_entries;
+  detail::HashJoinConcat<HTreeTopologyChar, HTreeTraits, TopologyPatternLibraryCombiner, detail::NullPruner>(upstream, downstream, combiner,
+                                                                                                             raw_entries);
+  SortHTreeFrontierEntries(raw_entries);
+  return {std::move(raw_entries), combiner.get_next_id()};
+}
+
+auto BuildCompensatedFinalFrontier(const std::vector<HTreeTopologyChar>& entries, const TopologyPatternLibrary& topology_library)
+    -> std::vector<HTreeTopologyChar>
+{
+  return BuildHTreeStateFrontier(entries, [&](const HTreeTopologyChar& entry) -> PatternCompositionState {
+    return topology_library.getCompositionState(entry.get_pattern_id());
+  });
+}
+
 auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
                         const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
-                        const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints)
-    -> PatternSearchResult
+                        const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
+                        const Tree& topology, RootDriverCompensationPass& compensation_pass) -> PatternSearchResult
 {
   PatternSearchResult result;
   unsigned next_topology_pattern_id = 0U;
@@ -223,10 +250,20 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
       continue;
     }
 
-    auto [composed_frontier_entries, updated_next_pattern_id]
-        = ComposeHTreeFrontierEntries(seed_entries, current_frontier_entries, result.topology_pattern_library, next_topology_pattern_id);
+    const bool is_final_full_depth_join = (reverse_level == 1U);
+    auto [composed_entries, updated_next_pattern_id]
+        = is_final_full_depth_join
+              ? ComposeHTreeRawEntries(seed_entries, current_frontier_entries, result.topology_pattern_library, next_topology_pattern_id)
+              : ComposeHTreeFrontierEntries(seed_entries, current_frontier_entries, result.topology_pattern_library,
+                                            next_topology_pattern_id);
     next_topology_pattern_id = updated_next_pattern_id;
-    current_frontier_entries = std::move(composed_frontier_entries);
+    if (is_final_full_depth_join) {
+      compensation_pass.apply(composed_entries, result.topology_pattern_library, segment_pattern_library, topology);
+      result.candidates = std::move(composed_entries);
+      current_frontier_entries = BuildCompensatedFinalFrontier(result.candidates, result.topology_pattern_library);
+    } else {
+      current_frontier_entries = std::move(composed_entries);
+    }
     if (current_frontier_entries.empty()) {
       result.failure_reason = "empty_frontier";
       return result;
@@ -234,6 +271,12 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
   }
 
   result.success = !current_frontier_entries.empty();
+  if (result.candidates.empty()) {
+    compensation_pass.apply(current_frontier_entries, result.topology_pattern_library, segment_pattern_library, topology);
+    result.candidates = current_frontier_entries;
+    current_frontier_entries = BuildCompensatedFinalFrontier(result.candidates, result.topology_pattern_library);
+    result.success = !current_frontier_entries.empty();
+  }
   result.frontier = std::move(current_frontier_entries);
   return result;
 }
@@ -341,16 +384,19 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
                             const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                             const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                             const Tree& topology, SinkLoadRegionLegalityContext& sink_load_region_legality_context, std::size_t leaf_count,
-                            unsigned depth, unsigned char_slew_steps) -> CandidateBuildEvaluation
+                            unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass)
+    -> CandidateBuildEvaluation
 {
   CandidateBuildEvaluation result;
   result.depth = depth;
   result.leaf_count = leaf_count;
   result.boundary_constraints = boundary_constraints;
   result.levels = levels;
+  compensation_pass.beginCandidateBuild();
 
   const bool has_boundary_constraints = HasBoundaryConstraints(boundary_constraints);
-  const auto topology_assembly = BuildPatternSearch(levels, entry_sets_by_length, segment_pattern_library, boundary_constraints);
+  const auto topology_assembly
+      = BuildPatternSearch(levels, entry_sets_by_length, segment_pattern_library, boundary_constraints, topology, compensation_pass);
   if (!topology_assembly.success) {
     result.failure_reason = topology_assembly.failure_reason.empty() ? std::string{"empty_frontier"} : topology_assembly.failure_reason;
     result.failure_level = topology_assembly.failure_level;
@@ -360,14 +406,18 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
 
   result.topology_pattern_library = topology_assembly.topology_pattern_library;
   result.final_frontier_count = topology_assembly.frontier.size();
-  if (has_boundary_constraints) {
+  result.candidate_chars = topology_assembly.candidates;
+  if (result.candidate_chars.empty()) {
     result.candidate_chars = topology_assembly.frontier;
+  }
+  if (has_boundary_constraints) {
     auto candidate_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(
-        result.candidate_chars, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
+        topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
     result.candidate_frontier_entries = std::move(candidate_sink_load_region_filter.entries);
     result.feasible_chars = FilterBoundaryFeasibleHTreeChars(result.candidate_chars, boundary_constraints);
+    const auto feasible_raw_frontier = FilterBoundaryFeasibleHTreeChars(topology_assembly.frontier, boundary_constraints);
     auto feasible_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(
-        result.feasible_chars, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
+        feasible_raw_frontier, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
     result.feasible_frontier_entries = std::move(feasible_sink_load_region_filter.entries);
     if (result.candidate_frontier_entries.empty() && !candidate_sink_load_region_filter.first_failure_reason.empty()) {
       result.failure_reason = candidate_sink_load_region_filter.first_failure_reason;
@@ -377,15 +427,14 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
       result.failure_reason = feasible_sink_load_region_filter.first_failure_reason;
     }
   } else {
-    result.feasible_chars = topology_assembly.frontier;
+    result.feasible_chars = result.candidate_chars;
     auto feasible_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(
-        result.feasible_chars, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
+        topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
     result.feasible_frontier_entries = std::move(feasible_sink_load_region_filter.entries);
     if (result.feasible_frontier_entries.empty() && !feasible_sink_load_region_filter.first_failure_reason.empty()) {
       result.failure_reason = feasible_sink_load_region_filter.first_failure_reason;
     }
   }
-
   if (!result.feasible_frontier_entries.empty()) {
     result.best_char = SelectBestHTreeChar(result.feasible_frontier_entries);
   } else if (has_boundary_constraints) {

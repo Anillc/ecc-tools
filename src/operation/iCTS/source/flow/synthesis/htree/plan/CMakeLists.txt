@@ -9,6 +9,7 @@ target_link_libraries(
   PUBLIC
   icts_source_flow_synthesis_htree_region
   icts_source_flow_synthesis_htree_topology_pruning
+  icts_source_flow_synthesis_htree_compensation
   PRIVATE
   icts_source_database
   icts_source_utils

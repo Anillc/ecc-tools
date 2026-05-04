@@ -1,4 +1,5 @@
 set(ICTS_FLOW_SYNTHESIS_HTREE_CHARACTERIZATION ${ICTS_FLOW_SYNTHESIS_HTREE}/characterization)
+set(ICTS_FLOW_SYNTHESIS_HTREE_COMPENSATION ${ICTS_FLOW_SYNTHESIS_HTREE}/compensation)
 set(ICTS_FLOW_SYNTHESIS_HTREE_CONSTRAINT ${ICTS_FLOW_SYNTHESIS_HTREE}/constraint)
 set(ICTS_FLOW_SYNTHESIS_HTREE_EMBEDDING ${ICTS_FLOW_SYNTHESIS_HTREE}/embedding)
 set(ICTS_FLOW_SYNTHESIS_HTREE_PLAN ${ICTS_FLOW_SYNTHESIS_HTREE}/plan)
@@ -8,6 +9,7 @@ set(ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION ${ICTS_FLOW_SYNTHESIS_HTREE}/solution)
 set(ICTS_FLOW_SYNTHESIS_HTREE_TOPOLOGY_PRUNING ${ICTS_FLOW_SYNTHESIS_HTREE}/topology_pruning)
 
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_CHARACTERIZATION})
+add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_COMPENSATION})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_CONSTRAINT})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_EMBEDDING})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_PLAN})
@@ -34,6 +36,7 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_segment_pruning
   icts_source_flow_synthesis_htree_solution
   icts_source_flow_synthesis_htree_topology_pruning
+  icts_source_flow_synthesis_htree_compensation
   icts_source_module_topology
   icts_source_module_topology_clustering
 )

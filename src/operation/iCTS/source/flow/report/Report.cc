@@ -52,7 +52,9 @@ auto Report::run(const std::string& save_dir, bool evaluation_ready, bool refres
   bool current_evaluation_ready = evaluation_ready;
   if (!reused_evaluation_state) {
     SCHEMA_WRITER_INST.emitSection("### Report Evaluation");
-    current_evaluation_ready = Evaluation::run(evaluation_state, refresh_sta_timing).evaluation_ready;
+    current_evaluation_ready
+        = Evaluation::run(evaluation_state, EvaluationOptions{.refresh_sta_timing = refresh_sta_timing, .clock_layout = &clock_layout})
+              .evaluation_ready;
   }
 
   const bool statistics_success = current_evaluation_ready && QorReport::write(evaluation_state, paths.statistics_dir.string(), false);

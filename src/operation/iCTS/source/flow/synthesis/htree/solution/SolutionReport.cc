@@ -43,6 +43,30 @@
 
 namespace icts::htree {
 
+namespace {
+
+auto FormatDelayPower(double delay_ns, double power_w) -> std::string
+{
+  return logformat::FormatWithUnit(delay_ns, "ns") + " / " + logformat::FormatPowerW(power_w);
+}
+
+auto FormatRootLoadDetail(const HTreeRootDriverCompensation& compensation) -> std::string
+{
+  if (compensation.load_cap_pf <= 0.0) {
+    return "physical root-closure load unavailable";
+  }
+
+  std::string detail = "source=" + (compensation.load_source.empty() ? std::string{"none"} : compensation.load_source);
+  detail += ", route=" + (compensation.route_estimator.empty() ? std::string{"none"} : compensation.route_estimator);
+  detail += ", bucket=" + std::to_string(compensation.load_bucket_idx);
+  detail += ", terminals=" + std::to_string(compensation.terminal_count);
+  detail += ", pin_cap=" + logformat::FormatWithUnit(compensation.terminal_pin_cap_pf, "pF");
+  detail += ", wire_cap=" + logformat::FormatWithUnit(compensation.wire_cap_pf, "pF");
+  return detail;
+}
+
+}  // namespace
+
 auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildEvaluation& selected_evaluation,
                          const DepthSummary& selected_summary) -> void
 {
@@ -54,6 +78,15 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
   const auto& best_char = *result.best_char;
   const auto selected_terminal_branch_buffered_levels = static_cast<std::size_t>(std::ranges::count_if(
       result.levels, [](const HTree::LevelPlan& level) -> bool { return level.selected_has_terminal_branch_buffer; }));
+  const auto& root_compensation_report = result.root_driver_compensation;
+  const auto& selected_root_compensation = root_compensation_report.selected;
+  std::string selected_level_segment_pattern_ids;
+  for (const auto& level : result.levels) {
+    if (!selected_level_segment_pattern_ids.empty()) {
+      selected_level_segment_pattern_ids += ",";
+    }
+    selected_level_segment_pattern_ids += std::to_string(level.segment_pattern_id.local_id);
+  }
 
   SCHEMA_WRITER_INST.emitSection("### H-Tree Selection");
   logformat::TableRows synthesis_summary_rows = {
@@ -72,6 +105,8 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
        result.used_boundary_fallback ? "selected fallback topology pattern from candidate frontier selection entries"
                                      : "selected strict-feasible topology pattern from the global feasible frontier pool"},
+      {"selected_level_segment_pattern_ids", selected_level_segment_pattern_ids.empty() ? "none" : selected_level_segment_pattern_ids,
+       "root-to-leaf selected segment pattern ids for the chosen topology pattern"},
       {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_frontier_pareto_power_median",
        result.used_boundary_fallback
            ? "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global candidate "
@@ -95,6 +130,15 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
        "post-clock-tree object construction redundant leaf buffers removed when a leaf buffer directly drove one external load"},
       {"power", logformat::FormatPowerW(best_char.get_power()), "selected pattern metric (total power)"},
       {"delay", logformat::FormatWithUnit(best_char.get_delay(), "ns"), "selected pattern metric"},
+      {"raw_htree_char_metric", FormatDelayPower(root_compensation_report.raw_delay_ns, root_compensation_report.raw_power_w),
+       "characterization-only H-tree delay / power before root-driver compensation"},
+      {"root_driver_compensation", FormatDelayPower(selected_root_compensation.cell_delay_ns, selected_root_compensation.cell_power_w),
+       "direct Liberty root cell delay / internal+leakage power; root output net switching power is not added"},
+      {"compensated_htree_metric",
+       FormatDelayPower(root_compensation_report.compensated_delay_ns, root_compensation_report.compensated_power_w),
+       root_compensation_report.enabled ? "selected H-tree metric after root-driver compensation" : "root driver compensation disabled"},
+      {"selected_physical_root_load", logformat::FormatWithUnit(selected_root_compensation.load_cap_pf, "pF"),
+       FormatRootLoadDetail(selected_root_compensation)},
       {"root_driven_cap_idx", std::to_string(best_char.get_driven_cap_idx()), "selected pattern metric"},
       {"leaf_load_cap_idx", std::to_string(best_char.get_leaf_load_cap_idx()), "selected pattern metric"},
       {"leaf_output_slew_idx", std::to_string(best_char.get_output_slew_idx()), "selected pattern metric"},

@@ -98,6 +98,20 @@ class HTree
     std::size_t index_in_level = 0U;
   };
 
+  struct RootDriverCompensationReport
+  {
+    bool enabled = false;
+    std::string method;
+    std::string load_source;
+    double input_slew_ns = 0.0;
+    double clock_period_ns = 0.0;
+    HTreeRootDriverCompensation selected;
+    double raw_delay_ns = 0.0;
+    double raw_power_w = 0.0;
+    double compensated_delay_ns = 0.0;
+    double compensated_power_w = 0.0;
+  };
+
   struct BuildResult
   {
     bool success = false;
@@ -135,6 +149,7 @@ class HTree
     double htree_load_cap_mean_pf = 0.0;
     double htree_load_cap_median_pf = 0.0;
     std::string selected_root_driver_cell_master;
+    RootDriverCompensationReport root_driver_compensation;
     bool used_boundary_fallback = false;
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;

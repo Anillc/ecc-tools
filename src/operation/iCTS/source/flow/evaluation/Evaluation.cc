@@ -29,11 +29,16 @@ namespace icts {
 
 auto Evaluation::run(EvaluationState& evaluation_state, bool refresh_sta_timing) -> EvaluationResult
 {
+  return run(evaluation_state, EvaluationOptions{.refresh_sta_timing = refresh_sta_timing});
+}
+
+auto Evaluation::run(EvaluationState& evaluation_state, const EvaluationOptions& options) -> EvaluationResult
+{
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("evaluation");
   auto evaluation_stage = SCHEMA_WRITER_INST.beginStage("Evaluation", "Evaluate CTS clock tree");
   SCHEMA_WRITER_INST.emitSection("## Evaluation Overview");
   SCHEMA_WRITER_INST.emitSection("### Final Evaluation");
-  evaluate(evaluation_state, EvaluationOptions{.refresh_sta_timing = refresh_sta_timing});
+  evaluate(evaluation_state, options);
   const bool evaluation_ready = hasEvaluationResult(evaluation_state);
   if (evaluation_ready) {
     (void) runtime.finished();

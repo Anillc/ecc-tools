@@ -120,7 +120,9 @@ auto Flow::instantiate() -> void
 
 auto Flow::evaluate() -> void
 {
-  _evaluation_ready = Evaluation::run(_evaluation_state, _instantiation_result.instantiation_done).evaluation_ready;
+  _evaluation_ready = Evaluation::run(_evaluation_state, EvaluationOptions{.refresh_sta_timing = _instantiation_result.instantiation_done,
+                                                                           .clock_layout = &_clock_layout})
+                          .evaluation_ready;
 }
 
 auto Flow::report(const std::string& save_dir) -> void

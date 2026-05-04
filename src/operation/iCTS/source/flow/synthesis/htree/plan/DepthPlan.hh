@@ -30,6 +30,7 @@
 
 #include "ValueLattice.hh"
 #include "synthesis/htree/HTree.hh"
+#include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
@@ -38,6 +39,8 @@ class Tree;
 }  // namespace icts
 
 namespace icts::htree {
+
+class RootDriverCompensationPass;
 
 struct DepthSummary
 {
@@ -69,6 +72,7 @@ struct DepthSearchResult
   std::vector<CandidateCharRef> global_feasible_pool;
   std::vector<CandidateCharRef> global_candidate_pool;
   SinkLoadRegionLegalityContext sink_load_region_legality_context;
+  RootDriverCompensationStats root_driver_compensation_stats;
 };
 
 struct DepthCandidateResult
@@ -80,8 +84,8 @@ struct DepthCandidateResult
 auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans, unsigned depth,
                                     const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                                     BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
-                                    SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps)
-    -> DepthCandidateResult;
+                                    SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps,
+                                    RootDriverCompensationPass& compensation_pass) -> DepthCandidateResult;
 auto RecordTopologyDepthCandidateResult(unsigned depth, bool used_explicit_target_depth, const DepthCandidateResult& candidate_result,
                                         std::vector<DepthSummary>& depth_summaries) -> void;
 auto AppendGlobalCandidateRefs(std::size_t candidate_index, const CandidateBuildEvaluation& evaluation,
@@ -91,7 +95,7 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
                                    const std::vector<unsigned>& depth_candidates,
                                    const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
-                                   const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth)
-    -> DepthSearchResult;
+                                   const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
+                                   const RootDriverCompensationOptions& compensation_options) -> DepthSearchResult;
 
 }  // namespace icts::htree

@@ -32,6 +32,8 @@
 
 namespace icts {
 
+class ClockLayout;
+
 struct QorSummary
 {
   struct ClockTiming
@@ -85,6 +87,7 @@ struct QorSummary
 struct EvaluationOptions
 {
   bool refresh_sta_timing = false;
+  const ClockLayout* clock_layout = nullptr;
 };
 
 struct EvaluationState
