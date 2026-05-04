@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 43
+- **Total Sessions**: 44
 - **Last Active**: 2026-05-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1956 | Active |
+| `journal-1.md` | ~1991 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 44 | 2026-05-04 | Archive root-driver delay power semantics task | `705c182ca`, `6020d8b4e`, `367584397` | `cts_refactor` |
 | 43 | 2026-05-04 | Archive H-tree compensation pipeline refactor | `6020d8b4e`, `d5dcc2b9b` | `cts_refactor` |
 | 42 | 2026-05-01 | CTS flow architecture convergence | `cc8cfe91e`, `e578a1976`, `1ed836450`, `f07f32435` | `cts_refactor` |
 | 41 | 2026-04-30 | CTS flow semantic naming alignment | `2450b1c16`, `097356812` | `cts_refactor` |
