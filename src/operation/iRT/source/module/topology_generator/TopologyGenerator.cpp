@@ -255,58 +255,82 @@ void TopologyGenerator::initSingleTask(TGModel& tg_model, TGNet* tg_task)
 
 std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGModel& tg_model)
 {
-  std::vector<TGCandidate> tg_candidate_list = getTGCandidateList(tg_model);
+  std::vector<Segment<PlanarCoord>> planar_topo_list = getPlanarTopoList(tg_model);
+  std::vector<TGCandidate> tg_candidate_list = getTGCandidateList(tg_model, planar_topo_list);
 #pragma omp parallel for
   for (TGCandidate& tg_candidate : tg_candidate_list) {
     updateTGCandidate(tg_model, tg_candidate);
   }
-  std::map<int32_t, TGCandidate*> topo_candidate_map;
+  auto isBetterCandidate = [](TGCandidate& candidate, TGCandidate& current_best) {
+    if (!candidate.get_is_path_blocked() && current_best.get_is_path_blocked()) {
+      return true;
+    } else if (!candidate.get_is_path_blocked() && !current_best.get_is_path_blocked()) {
+      if (candidate.get_total_wire_length() < current_best.get_total_wire_length()) {
+        return true;
+      } else if (candidate.get_total_wire_length() == current_best.get_total_wire_length()) {
+        return candidate.get_total_corner_num() < current_best.get_total_corner_num();
+      }
+    } else if (candidate.get_is_path_blocked() && current_best.get_is_path_blocked()) {
+      return candidate.get_total_overflow_cost() < current_best.get_total_overflow_cost();
+    }
+    return false;
+  };
+  std::map<int32_t, TGCandidate> topo_candidate_map;
   for (TGCandidate& tg_candidate : tg_candidate_list) {
     int32_t topo_idx = tg_candidate.get_topo_idx();
     if (!RTUTIL.exist(topo_candidate_map, topo_idx)) {
-      topo_candidate_map[topo_idx] = &tg_candidate;
+      topo_candidate_map[topo_idx] = tg_candidate;
       continue;
     }
-    TGCandidate* current_best = topo_candidate_map[topo_idx];
-    if (!tg_candidate.get_is_path_blocked() && current_best->get_is_path_blocked()) {
-      topo_candidate_map[topo_idx] = &tg_candidate;
-    } else if (!tg_candidate.get_is_path_blocked() && !current_best->get_is_path_blocked()) {
-      if (tg_candidate.get_total_wire_length() < current_best->get_total_wire_length()) {
-        topo_candidate_map[topo_idx] = &tg_candidate;
-      } else if (tg_candidate.get_total_wire_length() == current_best->get_total_wire_length()) {
-        if (tg_candidate.get_total_corner_num() < current_best->get_total_corner_num()) {
-          topo_candidate_map[topo_idx] = &tg_candidate;
-        }
-      }
-    } else if (tg_candidate.get_is_path_blocked() && current_best->get_is_path_blocked()) {
-      if (tg_candidate.get_total_overflow_cost() < current_best->get_total_overflow_cost()) {
-        topo_candidate_map[topo_idx] = &tg_candidate;
+    TGCandidate& current_best = topo_candidate_map[topo_idx];
+    if (isBetterCandidate(tg_candidate, current_best)) {
+      topo_candidate_map[topo_idx] = tg_candidate;
+    }
+  }
+  for (auto& [topo_idx, current_best] : topo_candidate_map) {
+    if (!isLongObliqueTopo(tg_model, planar_topo_list[topo_idx]) || !current_best.get_is_path_blocked()) {
+      continue;
+    }
+    for (std::vector<Segment<PlanarCoord>>& routing_segment_list :
+         getRoutingSegmentListByLongCorridorWaypointPattern(tg_model, planar_topo_list[topo_idx])) {
+      TGCandidate corridor_candidate(topo_idx, routing_segment_list, 6, 0, false, 0);
+      updateTGCandidate(tg_model, corridor_candidate);
+      if (isBetterCandidate(corridor_candidate, current_best)) {
+        current_best = corridor_candidate;
       }
     }
   }
   std::vector<Segment<PlanarCoord>> routing_segment_list;
   for (auto& [topo_idx, min_candidate] : topo_candidate_map) {
-    for (Segment<PlanarCoord>& routing_segment : min_candidate->get_routing_segment_list()) {
+    for (Segment<PlanarCoord>& routing_segment : min_candidate.get_routing_segment_list()) {
       routing_segment_list.push_back(routing_segment);
     }
   }
   return routing_segment_list;
 }
 
-std::vector<TGCandidate> TopologyGenerator::getTGCandidateList(TGModel& tg_model)
+std::vector<TGCandidate> TopologyGenerator::getTGCandidateList(TGModel& tg_model, std::vector<Segment<PlanarCoord>>& planar_topo_list)
 {
-  std::vector<Segment<PlanarCoord>> planar_topo_list = getPlanarTopoList(tg_model);
   std::vector<std::pair<int32_t, std::vector<std::vector<Segment<PlanarCoord>>> (TopologyGenerator::*)(TGModel&, Segment<PlanarCoord>&)>> strategy_list;
   strategy_list.emplace_back(0, &TopologyGenerator::getRoutingSegmentListByStraight);
   strategy_list.emplace_back(1, &TopologyGenerator::getRoutingSegmentListByLPattern);
   strategy_list.emplace_back(2, &TopologyGenerator::getRoutingSegmentListByZPattern);
-  strategy_list.emplace_back(2, &TopologyGenerator::getRoutingSegmentListByUPattern);
   strategy_list.emplace_back(3, &TopologyGenerator::getRoutingSegmentListByInner3Bends);
-  strategy_list.emplace_back(3, &TopologyGenerator::getRoutingSegmentListByOuter3Bends);
+  strategy_list.emplace_back(4, &TopologyGenerator::getRoutingSegmentListByUPattern);
+  strategy_list.emplace_back(5, &TopologyGenerator::getRoutingSegmentListByOuter3Bends);
+
+  std::vector<std::pair<int32_t, std::vector<std::vector<Segment<PlanarCoord>>> (TopologyGenerator::*)(TGModel&, Segment<PlanarCoord>&)>>
+      long_oblique_strategy_list;
+  long_oblique_strategy_list.emplace_back(1, &TopologyGenerator::getRoutingSegmentListByLPattern);
+  long_oblique_strategy_list.emplace_back(2, &TopologyGenerator::getRoutingSegmentListByLongZPattern);
+  long_oblique_strategy_list.emplace_back(3, &TopologyGenerator::getRoutingSegmentListByLongInner3Bends);
+  long_oblique_strategy_list.emplace_back(4, &TopologyGenerator::getRoutingSegmentListByLongUPattern);
+  long_oblique_strategy_list.emplace_back(5, &TopologyGenerator::getRoutingSegmentListByLongOuter3Bends);
 
   std::vector<TGCandidate> tg_candidate_list;
   for (size_t i = 0; i < planar_topo_list.size(); i++) {
-    for (const auto& [corner_num, getRoutingSegmentList] : strategy_list) {
+    auto& curr_strategy_list = isLongObliqueTopo(tg_model, planar_topo_list[i]) ? long_oblique_strategy_list : strategy_list;
+    for (const auto& [corner_num, getRoutingSegmentList] : curr_strategy_list) {
       for (const std::vector<Segment<PlanarCoord>>& routing_segment_list : (this->*getRoutingSegmentList)(tg_model, planar_topo_list[i])) {
         tg_candidate_list.emplace_back(i, routing_segment_list, corner_num, 0, false, 0);
       }
@@ -317,8 +341,6 @@ std::vector<TGCandidate> TopologyGenerator::getTGCandidateList(TGModel& tg_model
 
 std::vector<Segment<PlanarCoord>> TopologyGenerator::getPlanarTopoList(TGModel& tg_model)
 {
-  int32_t topo_spilt_length = tg_model.get_tg_com_param().get_topo_spilt_length();
-
   std::vector<PlanarCoord> planar_coord_list;
   {
     for (TGPin& tg_pin : tg_model.get_curr_tg_task()->get_tg_pin_list()) {
@@ -329,41 +351,19 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getPlanarTopoList(TGModel& 
   }
   std::vector<Segment<PlanarCoord>> planar_topo_list;
   for (Segment<PlanarCoord>& planar_topo : RTI.getPlanarTopoList(planar_coord_list)) {
-    PlanarCoord& first_coord = planar_topo.get_first();
-    PlanarCoord& second_coord = planar_topo.get_second();
-    int32_t span_x = std::abs(first_coord.get_x() - second_coord.get_x());
-    int32_t span_y = std::abs(first_coord.get_y() - second_coord.get_y());
-    if (span_x > 1 && span_y > 1 && (span_x > topo_spilt_length || span_y > topo_spilt_length)) {
-      int32_t stick_num_x;
-      if (span_x % topo_spilt_length == 0) {
-        stick_num_x = (span_x / topo_spilt_length - 1);
-      } else {
-        stick_num_x = (span_x < topo_spilt_length) ? (span_x - 1) : (span_x / topo_spilt_length);
-      }
-      int32_t stick_num_y;
-      if (span_y % topo_spilt_length == 0) {
-        stick_num_y = (span_y / topo_spilt_length - 1);
-      } else {
-        stick_num_y = (span_y < topo_spilt_length) ? (span_y - 1) : (span_y / topo_spilt_length);
-      }
-      int32_t stick_num = std::min(stick_num_x, stick_num_y);
-
-      std::vector<PlanarCoord> coord_list;
-      coord_list.push_back(first_coord);
-      double delta_x = static_cast<double>(second_coord.get_x() - first_coord.get_x()) / (stick_num + 1);
-      double delta_y = static_cast<double>(second_coord.get_y() - first_coord.get_y()) / (stick_num + 1);
-      for (int32_t i = 1; i <= stick_num; i++) {
-        coord_list.emplace_back(std::round(first_coord.get_x() + i * delta_x), std::round(first_coord.get_y() + i * delta_y));
-      }
-      coord_list.push_back(second_coord);
-      for (size_t i = 1; i < coord_list.size(); i++) {
-        planar_topo_list.emplace_back(coord_list[i - 1], coord_list[i]);
-      }
-    } else {
-      planar_topo_list.emplace_back(first_coord, second_coord);
-    }
+    planar_topo_list.push_back(planar_topo);
   }
   return planar_topo_list;
+}
+
+bool TopologyGenerator::isLongObliqueTopo(TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
+{
+  int32_t topo_spilt_length = tg_model.get_tg_com_param().get_topo_spilt_length();
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  int32_t span_x = std::abs(first_coord.get_x() - second_coord.get_x());
+  int32_t span_y = std::abs(first_coord.get_y() - second_coord.get_y());
+  return (span_x > 1 && span_y > 1 && (span_x > topo_spilt_length || span_y > topo_spilt_length));
 }
 
 std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByStraight(TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
@@ -455,6 +455,28 @@ std::vector<int32_t> TopologyGenerator::getMidIndexList(int32_t first_idx, int32
   return mid_index_list;
 }
 
+std::vector<int32_t> TopologyGenerator::getSampledMidIndexList(int32_t first_idx, int32_t second_idx, int32_t max_mid_num)
+{
+  RTUTIL.swapByASC(first_idx, second_idx);
+  if (second_idx - first_idx <= 1 || max_mid_num <= 0) {
+    return {};
+  }
+
+  std::set<int32_t> mid_index_set;
+  std::vector<double> ratio_list = {0.5, 1.0 / 3.0, 2.0 / 3.0, 0.25, 0.75, 0.125, 0.875};
+  for (double ratio : ratio_list) {
+    int32_t mid_idx = static_cast<int32_t>(std::round(first_idx + (second_idx - first_idx) * ratio));
+    if (first_idx < mid_idx && mid_idx < second_idx) {
+      mid_index_set.insert(mid_idx);
+    }
+    if (static_cast<int32_t>(mid_index_set.size()) >= max_mid_num) {
+      break;
+    }
+  }
+
+  return {mid_index_set.begin(), mid_index_set.end()};
+}
+
 std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByUPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
 {
   Die& die = RTDM.getDatabase().get_die();
@@ -519,6 +541,131 @@ std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegm
   return routing_segment_list_list;
 }
 
+std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByLongZPattern(TGModel& tg_model,
+                                                                                                       Segment<PlanarCoord>& planar_topo)
+{
+  constexpr int32_t max_long_z_mid_num = 7;
+
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  if (RTUTIL.isRightAngled(first_coord, second_coord)) {
+    return {};
+  }
+  std::vector<int32_t> x_mid_index_list = getSampledMidIndexList(first_coord.get_x(), second_coord.get_x(), max_long_z_mid_num);
+  std::vector<int32_t> y_mid_index_list = getSampledMidIndexList(first_coord.get_y(), second_coord.get_y(), max_long_z_mid_num);
+  if (x_mid_index_list.empty() && y_mid_index_list.empty()) {
+    return {};
+  }
+  std::vector<std::vector<PlanarCoord>> inflection_list_list;
+  for (int32_t x_mid_index : x_mid_index_list) {
+    PlanarCoord inflection_coord1(x_mid_index, first_coord.get_y());
+    PlanarCoord inflection_coord2(x_mid_index, second_coord.get_y());
+    inflection_list_list.push_back({inflection_coord1, inflection_coord2});
+  }
+  for (int32_t y_mid_index : y_mid_index_list) {
+    PlanarCoord inflection_coord1(first_coord.get_x(), y_mid_index);
+    PlanarCoord inflection_coord2(second_coord.get_x(), y_mid_index);
+    inflection_list_list.push_back({inflection_coord1, inflection_coord2});
+  }
+  std::vector<std::vector<Segment<PlanarCoord>>> routing_segment_list_list;
+  for (std::vector<PlanarCoord>& inflection_list : inflection_list_list) {
+    std::vector<Segment<PlanarCoord>> routing_segment_list;
+    routing_segment_list.emplace_back(planar_topo.get_first(), inflection_list.front());
+    for (size_t i = 1; i < inflection_list.size(); i++) {
+      routing_segment_list.emplace_back(inflection_list[i - 1], inflection_list[i]);
+    }
+    routing_segment_list.emplace_back(inflection_list.back(), planar_topo.get_second());
+    routing_segment_list_list.push_back(routing_segment_list);
+  }
+  return routing_segment_list_list;
+}
+
+std::vector<int32_t> TopologyGenerator::getSampledExpandStepList(int32_t expand_step_num, int32_t max_step_num)
+{
+  if (expand_step_num <= 0 || max_step_num <= 0) {
+    return {};
+  }
+  std::set<int32_t> expand_step_set;
+  std::vector<int32_t> preferred_step_list = {1, 2, 4, 8, 16, expand_step_num};
+  for (int32_t step : preferred_step_list) {
+    if (1 <= step && step <= expand_step_num) {
+      expand_step_set.insert(step);
+    }
+    if (static_cast<int32_t>(expand_step_set.size()) >= max_step_num) {
+      break;
+    }
+  }
+  return {expand_step_set.begin(), expand_step_set.end()};
+}
+
+std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByLongUPattern(TGModel& tg_model,
+                                                                                                       Segment<PlanarCoord>& planar_topo)
+{
+  constexpr int32_t max_long_outer_step_num = 6;
+
+  Die& die = RTDM.getDatabase().get_die();
+  int32_t expand_step_num = tg_model.get_tg_com_param().get_expand_step_num();
+  int32_t expand_step_length = tg_model.get_tg_com_param().get_expand_step_length();
+
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  if (RTUTIL.getManhattanDistance(first_coord, second_coord) <= 1) {
+    return {};
+  }
+
+  int32_t first_x = first_coord.get_x();
+  int32_t second_x = second_coord.get_x();
+  int32_t first_y = first_coord.get_y();
+  int32_t second_y = second_coord.get_y();
+  RTUTIL.swapByASC(first_x, second_x);
+  RTUTIL.swapByASC(first_y, second_y);
+
+  std::vector<std::vector<PlanarCoord>> inflection_list_list;
+  for (int32_t step : getSampledExpandStepList(expand_step_num, max_long_outer_step_num)) {
+    int32_t offset = step * expand_step_length;
+    if (!RTUTIL.isHorizontal(first_coord, second_coord)) {
+      int32_t left_x = first_x - offset;
+      if (left_x >= die.get_grid_ll_x()) {
+        PlanarCoord inflection_coord1(left_x, first_coord.get_y());
+        PlanarCoord inflection_coord2(left_x, second_coord.get_y());
+        inflection_list_list.push_back({inflection_coord1, inflection_coord2});
+      }
+      int32_t right_x = second_x + offset;
+      if (right_x <= die.get_grid_ur_x()) {
+        PlanarCoord inflection_coord1(right_x, first_coord.get_y());
+        PlanarCoord inflection_coord2(right_x, second_coord.get_y());
+        inflection_list_list.push_back({inflection_coord1, inflection_coord2});
+      }
+    }
+    if (!RTUTIL.isVertical(first_coord, second_coord)) {
+      int32_t bottom_y = first_y - offset;
+      if (bottom_y >= die.get_grid_ll_y()) {
+        PlanarCoord inflection_coord1(first_coord.get_x(), bottom_y);
+        PlanarCoord inflection_coord2(second_coord.get_x(), bottom_y);
+        inflection_list_list.push_back({inflection_coord1, inflection_coord2});
+      }
+      int32_t top_y = second_y + offset;
+      if (top_y <= die.get_grid_ur_y()) {
+        PlanarCoord inflection_coord1(first_coord.get_x(), top_y);
+        PlanarCoord inflection_coord2(second_coord.get_x(), top_y);
+        inflection_list_list.push_back({inflection_coord1, inflection_coord2});
+      }
+    }
+  }
+
+  std::vector<std::vector<Segment<PlanarCoord>>> routing_segment_list_list;
+  for (std::vector<PlanarCoord>& inflection_list : inflection_list_list) {
+    std::vector<Segment<PlanarCoord>> routing_segment_list;
+    routing_segment_list.emplace_back(planar_topo.get_first(), inflection_list.front());
+    for (size_t i = 1; i < inflection_list.size(); i++) {
+      routing_segment_list.emplace_back(inflection_list[i - 1], inflection_list[i]);
+    }
+    routing_segment_list.emplace_back(inflection_list.back(), planar_topo.get_second());
+    routing_segment_list_list.push_back(routing_segment_list);
+  }
+  return routing_segment_list_list;
+}
+
 std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByInner3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
 {
   PlanarCoord& first_coord = planar_topo.get_first();
@@ -546,6 +693,52 @@ std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegm
       PlanarCoord inflection_coord1(first_coord.get_x(), y_mid_index_list[j]);
       PlanarCoord inflection_coord2(x_mid_index_list[i], y_mid_index_list[j]);
       PlanarCoord inflection_coord3(x_mid_index_list[i], second_coord.get_y());
+      inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+    }
+  }
+  std::vector<std::vector<Segment<PlanarCoord>>> routing_segment_list_list;
+  for (std::vector<PlanarCoord>& inflection_list : inflection_list_list) {
+    std::vector<Segment<PlanarCoord>> routing_segment_list;
+    routing_segment_list.emplace_back(planar_topo.get_first(), inflection_list.front());
+    for (size_t i = 1; i < inflection_list.size(); i++) {
+      routing_segment_list.emplace_back(inflection_list[i - 1], inflection_list[i]);
+    }
+    routing_segment_list.emplace_back(inflection_list.back(), planar_topo.get_second());
+    routing_segment_list_list.push_back(routing_segment_list);
+  }
+  return routing_segment_list_list;
+}
+
+std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByLongInner3Bends(TGModel& tg_model,
+                                                                                                          Segment<PlanarCoord>& planar_topo)
+{
+  constexpr int32_t max_long_inner_mid_num = 3;
+
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  if (RTUTIL.isRightAngled(first_coord, second_coord)) {
+    return {};
+  }
+  std::vector<int32_t> x_mid_index_list = getSampledMidIndexList(first_coord.get_x(), second_coord.get_x(), max_long_inner_mid_num);
+  std::vector<int32_t> y_mid_index_list = getSampledMidIndexList(first_coord.get_y(), second_coord.get_y(), max_long_inner_mid_num);
+  if (x_mid_index_list.empty() || y_mid_index_list.empty()) {
+    return {};
+  }
+  std::vector<std::vector<PlanarCoord>> inflection_list_list;
+  for (int32_t x_mid_index : x_mid_index_list) {
+    for (int32_t y_mid_index : y_mid_index_list) {
+      PlanarCoord inflection_coord1(x_mid_index, first_coord.get_y());
+      PlanarCoord inflection_coord2(x_mid_index, y_mid_index);
+      PlanarCoord inflection_coord3(second_coord.get_x(), y_mid_index);
+      inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+    }
+  }
+
+  for (int32_t x_mid_index : x_mid_index_list) {
+    for (int32_t y_mid_index : y_mid_index_list) {
+      PlanarCoord inflection_coord1(first_coord.get_x(), y_mid_index);
+      PlanarCoord inflection_coord2(x_mid_index, y_mid_index);
+      PlanarCoord inflection_coord3(x_mid_index, second_coord.get_y());
       inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
     }
   }
@@ -697,6 +890,297 @@ std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegm
   return routing_segment_list_list;
 }
 
+std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByLongOuter3Bends(TGModel& tg_model,
+                                                                                                          Segment<PlanarCoord>& planar_topo)
+{
+  constexpr int32_t max_long_outer_step_num = 6;
+
+  Die& die = RTDM.getDatabase().get_die();
+  int32_t expand_step_num = tg_model.get_tg_com_param().get_expand_step_num();
+  int32_t expand_step_length = tg_model.get_tg_com_param().get_expand_step_length();
+
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  if (RTUTIL.isRightAngled(first_coord, second_coord)) {
+    return {};
+  }
+  int32_t start_x = first_coord.get_x();
+  int32_t end_x = second_coord.get_x();
+  int32_t start_y = first_coord.get_y();
+  int32_t end_y = second_coord.get_y();
+
+  int32_t base_box_lb_x = std::min(start_x, end_x);
+  int32_t base_box_rt_x = std::max(start_x, end_x);
+  int32_t base_box_lb_y = std::min(start_y, end_y);
+  int32_t base_box_rt_y = std::max(start_y, end_y);
+
+  std::vector<std::vector<PlanarCoord>> inflection_list_list;
+  for (int32_t step : getSampledExpandStepList(expand_step_num, max_long_outer_step_num)) {
+    int32_t offset = step * expand_step_length;
+    int32_t box_lb_x = base_box_lb_x - offset;
+    int32_t box_rt_x = base_box_rt_x + offset;
+    int32_t box_lb_y = base_box_lb_y - offset;
+    int32_t box_rt_y = base_box_rt_y + offset;
+    if (start_x < end_x) {
+      if (start_y < end_y) {
+        if (die.get_grid_ll_y() <= box_lb_y && box_rt_x <= die.get_grid_ur_x()) {
+          PlanarCoord inflection_coord1(start_x, box_lb_y);
+          PlanarCoord inflection_coord2(box_rt_x, box_lb_y);
+          PlanarCoord inflection_coord3(box_rt_x, end_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+        if (die.get_grid_ll_x() <= box_lb_x && box_rt_y <= die.get_grid_ur_y()) {
+          PlanarCoord inflection_coord1(box_lb_x, start_y);
+          PlanarCoord inflection_coord2(box_lb_x, box_rt_y);
+          PlanarCoord inflection_coord3(end_x, box_rt_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+      } else {
+        if (box_rt_x <= die.get_grid_ur_x() && box_rt_y <= die.get_grid_ur_y()) {
+          PlanarCoord inflection_coord1(start_x, box_rt_y);
+          PlanarCoord inflection_coord2(box_rt_x, box_rt_y);
+          PlanarCoord inflection_coord3(box_rt_x, end_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+        if (die.get_grid_ll_x() <= box_lb_x && die.get_grid_ll_y() <= box_lb_y) {
+          PlanarCoord inflection_coord1(box_lb_x, start_y);
+          PlanarCoord inflection_coord2(box_lb_x, box_lb_y);
+          PlanarCoord inflection_coord3(end_x, box_lb_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+      }
+
+    } else {
+      if (start_y < end_y) {
+        if (box_rt_x <= die.get_grid_ur_x() && box_rt_y <= die.get_grid_ur_y()) {
+          PlanarCoord inflection_coord1(box_rt_x, start_y);
+          PlanarCoord inflection_coord2(box_rt_x, box_rt_y);
+          PlanarCoord inflection_coord3(end_x, box_rt_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+        if (die.get_grid_ll_x() <= box_lb_x && die.get_grid_ll_y() <= box_lb_y) {
+          PlanarCoord inflection_coord1(start_x, box_lb_y);
+          PlanarCoord inflection_coord2(box_lb_x, box_lb_y);
+          PlanarCoord inflection_coord3(box_lb_x, end_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+      } else {
+        if (die.get_grid_ll_y() <= box_lb_y && box_rt_x <= die.get_grid_ur_x()) {
+          PlanarCoord inflection_coord1(box_rt_x, start_y);
+          PlanarCoord inflection_coord2(box_rt_x, box_lb_y);
+          PlanarCoord inflection_coord3(end_x, box_lb_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+        if (die.get_grid_ll_x() <= box_lb_x && box_rt_y <= die.get_grid_ur_y()) {
+          PlanarCoord inflection_coord1(start_x, box_rt_y);
+          PlanarCoord inflection_coord2(box_lb_x, box_rt_y);
+          PlanarCoord inflection_coord3(box_lb_x, end_y);
+          inflection_list_list.push_back({inflection_coord1, inflection_coord2, inflection_coord3});
+        }
+      }
+    }
+  }
+  std::vector<std::vector<Segment<PlanarCoord>>> routing_segment_list_list;
+  for (std::vector<PlanarCoord>& inflection_list : inflection_list_list) {
+    std::vector<Segment<PlanarCoord>> routing_segment_list;
+    routing_segment_list.emplace_back(planar_topo.get_first(), inflection_list.front());
+    for (size_t i = 1; i < inflection_list.size(); i++) {
+      routing_segment_list.emplace_back(inflection_list[i - 1], inflection_list[i]);
+    }
+    routing_segment_list.emplace_back(inflection_list.back(), planar_topo.get_second());
+    routing_segment_list_list.push_back(routing_segment_list);
+  }
+  return routing_segment_list_list;
+}
+
+std::vector<std::vector<Segment<PlanarCoord>>> TopologyGenerator::getRoutingSegmentListByLongCorridorWaypointPattern(
+    TGModel& tg_model, Segment<PlanarCoord>& planar_topo)
+{
+  constexpr int32_t max_corridor_num = 4;
+  constexpr int32_t max_path_num = 64;
+
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  if (RTUTIL.isRightAngled(first_coord, second_coord)) {
+    return {};
+  }
+
+  int32_t span_x = std::abs(first_coord.get_x() - second_coord.get_x());
+  int32_t span_y = std::abs(first_coord.get_y() - second_coord.get_y());
+  int32_t min_major_segment_length = std::max(5, std::min(span_x, span_y) / 8);
+
+  std::vector<int32_t> x_corridor_list = getLowCostCorridorIndexList(tg_model, planar_topo, Direction::kVertical, max_corridor_num);
+  std::vector<int32_t> y_corridor_list = getLowCostCorridorIndexList(tg_model, planar_topo, Direction::kHorizontal, max_corridor_num);
+  auto sortByPathOrder = [](std::vector<int32_t>& index_list, int32_t first_idx, int32_t second_idx) {
+    std::sort(index_list.begin(), index_list.end());
+    index_list.erase(std::unique(index_list.begin(), index_list.end()), index_list.end());
+    if (first_idx > second_idx) {
+      std::reverse(index_list.begin(), index_list.end());
+    }
+  };
+  sortByPathOrder(x_corridor_list, first_coord.get_x(), second_coord.get_x());
+  sortByPathOrder(y_corridor_list, first_coord.get_y(), second_coord.get_y());
+
+  auto buildRoutingSegmentList = [&](std::vector<PlanarCoord>& point_list) {
+    std::vector<Segment<PlanarCoord>> routing_segment_list;
+    for (size_t i = 1; i < point_list.size(); i++) {
+      PlanarCoord& first_point = point_list[i - 1];
+      PlanarCoord& second_point = point_list[i];
+      if (first_point == second_point) {
+        continue;
+      }
+      if (!RTUTIL.isRightAngled(first_point, second_point)) {
+        return std::vector<Segment<PlanarCoord>>();
+      }
+      if (RTUTIL.getManhattanDistance(first_point, second_point) < min_major_segment_length) {
+        return std::vector<Segment<PlanarCoord>>();
+      }
+      routing_segment_list.emplace_back(first_point, second_point);
+    }
+    return routing_segment_list;
+  };
+
+  std::vector<std::vector<Segment<PlanarCoord>>> routing_segment_list_list;
+  auto pushRoutingSegmentList = [&](std::vector<PlanarCoord> point_list) {
+    if (static_cast<int32_t>(routing_segment_list_list.size()) >= max_path_num) {
+      return;
+    }
+    std::vector<Segment<PlanarCoord>> routing_segment_list = buildRoutingSegmentList(point_list);
+    if (!routing_segment_list.empty()) {
+      routing_segment_list_list.push_back(routing_segment_list);
+    }
+  };
+
+  for (size_t x1 = 0; x1 < x_corridor_list.size(); x1++) {
+    for (size_t x2 = x1 + 1; x2 < x_corridor_list.size(); x2++) {
+      for (int32_t y : y_corridor_list) {
+        pushRoutingSegmentList({first_coord, {x_corridor_list[x1], first_coord.get_y()}, {x_corridor_list[x1], y},
+                                {x_corridor_list[x2], y}, {x_corridor_list[x2], second_coord.get_y()}, second_coord});
+      }
+    }
+  }
+  for (size_t y1 = 0; y1 < y_corridor_list.size(); y1++) {
+    for (size_t y2 = y1 + 1; y2 < y_corridor_list.size(); y2++) {
+      for (int32_t x : x_corridor_list) {
+        pushRoutingSegmentList({first_coord, {first_coord.get_x(), y_corridor_list[y1]}, {x, y_corridor_list[y1]},
+                                {x, y_corridor_list[y2]}, {second_coord.get_x(), y_corridor_list[y2]}, second_coord});
+      }
+    }
+  }
+  for (size_t x1 = 0; x1 < x_corridor_list.size(); x1++) {
+    for (size_t x2 = x1 + 1; x2 < x_corridor_list.size(); x2++) {
+      for (size_t x3 = x2 + 1; x3 < x_corridor_list.size(); x3++) {
+        for (size_t y1 = 0; y1 < y_corridor_list.size(); y1++) {
+          for (size_t y2 = y1 + 1; y2 < y_corridor_list.size(); y2++) {
+            pushRoutingSegmentList({first_coord, {x_corridor_list[x1], first_coord.get_y()}, {x_corridor_list[x1], y_corridor_list[y1]},
+                                    {x_corridor_list[x2], y_corridor_list[y1]}, {x_corridor_list[x2], y_corridor_list[y2]},
+                                    {x_corridor_list[x3], y_corridor_list[y2]}, {x_corridor_list[x3], second_coord.get_y()}, second_coord});
+          }
+        }
+      }
+    }
+  }
+  for (size_t y1 = 0; y1 < y_corridor_list.size(); y1++) {
+    for (size_t y2 = y1 + 1; y2 < y_corridor_list.size(); y2++) {
+      for (size_t y3 = y2 + 1; y3 < y_corridor_list.size(); y3++) {
+        for (size_t x1 = 0; x1 < x_corridor_list.size(); x1++) {
+          for (size_t x2 = x1 + 1; x2 < x_corridor_list.size(); x2++) {
+            pushRoutingSegmentList({first_coord, {first_coord.get_x(), y_corridor_list[y1]}, {x_corridor_list[x1], y_corridor_list[y1]},
+                                    {x_corridor_list[x1], y_corridor_list[y2]}, {x_corridor_list[x2], y_corridor_list[y2]},
+                                    {x_corridor_list[x2], y_corridor_list[y3]}, {second_coord.get_x(), y_corridor_list[y3]}, second_coord});
+          }
+        }
+      }
+    }
+  }
+  return routing_segment_list_list;
+}
+
+std::vector<int32_t> TopologyGenerator::getLowCostCorridorIndexList(TGModel& tg_model, Segment<PlanarCoord>& planar_topo, Direction direction,
+                                                                    int32_t max_num)
+{
+  PlanarCoord& first_coord = planar_topo.get_first();
+  PlanarCoord& second_coord = planar_topo.get_second();
+  int32_t first_x = first_coord.get_x();
+  int32_t second_x = second_coord.get_x();
+  int32_t first_y = first_coord.get_y();
+  int32_t second_y = second_coord.get_y();
+  RTUTIL.swapByASC(first_x, second_x);
+  RTUTIL.swapByASC(first_y, second_y);
+
+  std::set<int32_t> corridor_index_set;
+  if (direction == Direction::kVertical) {
+    corridor_index_set.insert(first_coord.get_x());
+    corridor_index_set.insert(second_coord.get_x());
+    for (int32_t index : getSampledMidIndexList(first_coord.get_x(), second_coord.get_x(), 7)) {
+      corridor_index_set.insert(index);
+    }
+  } else if (direction == Direction::kHorizontal) {
+    corridor_index_set.insert(first_coord.get_y());
+    corridor_index_set.insert(second_coord.get_y());
+    for (int32_t index : getSampledMidIndexList(first_coord.get_y(), second_coord.get_y(), 7)) {
+      corridor_index_set.insert(index);
+    }
+  } else {
+    RTLOG.error(Loc::current(), "The direction is error!");
+  }
+
+  std::vector<std::pair<double, int32_t>> cost_index_pair_list;
+  for (int32_t corridor_index : corridor_index_set) {
+    Segment<PlanarCoord> corridor_segment;
+    if (direction == Direction::kVertical) {
+      if (corridor_index < first_x || second_x < corridor_index) {
+        continue;
+      }
+      corridor_segment = Segment<PlanarCoord>({corridor_index, first_y}, {corridor_index, second_y});
+    } else {
+      if (corridor_index < first_y || second_y < corridor_index) {
+        continue;
+      }
+      corridor_segment = Segment<PlanarCoord>({first_x, corridor_index}, {second_x, corridor_index});
+    }
+    cost_index_pair_list.emplace_back(getSegmentOverflowCost(tg_model, corridor_segment), corridor_index);
+  }
+  std::sort(cost_index_pair_list.begin(), cost_index_pair_list.end());
+
+  std::vector<int32_t> corridor_index_list;
+  for (auto& [cost, index] : cost_index_pair_list) {
+    corridor_index_list.push_back(index);
+    if (static_cast<int32_t>(corridor_index_list.size()) >= max_num) {
+      break;
+    }
+  }
+  return corridor_index_list;
+}
+
+double TopologyGenerator::getSegmentOverflowCost(TGModel& tg_model, Segment<PlanarCoord>& segment)
+{
+  double overflow_unit = tg_model.get_tg_com_param().get_overflow_unit();
+  GridMap<TGNode>& tg_node_map = tg_model.get_tg_node_map();
+  int32_t curr_net_idx = tg_model.get_curr_tg_task()->get_net_idx();
+
+  PlanarCoord& first_coord = segment.get_first();
+  PlanarCoord& second_coord = segment.get_second();
+  if (!RTUTIL.isRightAngled(first_coord, second_coord)) {
+    RTLOG.error(Loc::current(), "The direction is error!");
+  }
+  int32_t first_x = first_coord.get_x();
+  int32_t second_x = second_coord.get_x();
+  int32_t first_y = first_coord.get_y();
+  int32_t second_y = second_coord.get_y();
+  RTUTIL.swapByASC(first_x, second_x);
+  RTUTIL.swapByASC(first_y, second_y);
+  Direction direction = RTUTIL.getDirection(first_coord, second_coord);
+
+  double overflow_cost = 0;
+  for (int32_t x = first_x; x <= second_x; x++) {
+    for (int32_t y = first_y; y <= second_y; y++) {
+      overflow_cost += tg_node_map[x][y].getOverflowCost(curr_net_idx, direction, overflow_unit);
+    }
+  }
+  return overflow_cost;
+}
+
 void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_candidate)
 {
   double overflow_unit = tg_model.get_tg_com_param().get_overflow_unit();
@@ -704,6 +1188,8 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
   int32_t curr_net_idx = tg_model.get_curr_tg_task()->get_net_idx();
 
   int32_t total_wire_length = 0;
+  int32_t total_corner_num = 0;
+  Direction pre_direction = Direction::kNone;
   bool is_path_blocked = false;
   double total_overflow_cost = 0;
   for (Segment<PlanarCoord>& coord_segment : tg_candidate.get_routing_segment_list()) {
@@ -721,6 +1207,10 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
     RTUTIL.swapByASC(first_x, second_x);
     RTUTIL.swapByASC(first_y, second_y);
     Direction direction = RTUTIL.getDirection(first_coord, second_coord);
+    if (pre_direction != Direction::kNone && pre_direction != direction) {
+      total_corner_num++;
+    }
+    pre_direction = direction;
     for (int32_t x = first_x; x <= second_x; x++) {
       for (int32_t y = first_y; y <= second_y; y++) {
         double overflow_cost = tg_node_map[x][y].getOverflowCost(curr_net_idx, direction, overflow_unit);
@@ -731,6 +1221,8 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
       }
     }
   }
+
+  tg_candidate.set_total_corner_num(total_corner_num);
   tg_candidate.set_total_wire_length(total_wire_length);
   tg_candidate.set_is_path_blocked(is_path_blocked);
   tg_candidate.set_total_overflow_cost(total_overflow_cost);

@@ -59,15 +59,26 @@ class TopologyGenerator
   void routeTGTask(TGModel& tg_model, TGNet* tg_net);
   void initSingleTask(TGModel& tg_model, TGNet* tg_net);
   std::vector<Segment<PlanarCoord>> getRoutingSegmentList(TGModel& tg_model);
-  std::vector<TGCandidate> getTGCandidateList(TGModel& tg_model);
+  std::vector<TGCandidate> getTGCandidateList(TGModel& tg_model, std::vector<Segment<PlanarCoord>>& planar_topo_list);
   std::vector<Segment<PlanarCoord>> getPlanarTopoList(TGModel& tg_model);
+  bool isLongObliqueTopo(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByStraight(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByZPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<int32_t> getMidIndexList(int32_t first_idx, int32_t second_idx);
+  std::vector<int32_t> getSampledMidIndexList(int32_t first_idx, int32_t second_idx, int32_t max_mid_num);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByUPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByInner3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByOuter3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
+  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongZPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
+  std::vector<int32_t> getSampledExpandStepList(int32_t expand_step_num, int32_t max_step_num);
+  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongUPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
+  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongInner3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
+  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongOuter3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
+  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongCorridorWaypointPattern(TGModel& tg_model,
+                                                                                                     Segment<PlanarCoord>& planar_topo);
+  std::vector<int32_t> getLowCostCorridorIndexList(TGModel& tg_model, Segment<PlanarCoord>& planar_topo, Direction direction, int32_t max_num);
+  double getSegmentOverflowCost(TGModel& tg_model, Segment<PlanarCoord>& segment);
   void updateTGCandidate(TGModel& tg_model, TGCandidate& tg_candidate);
   MTree<PlanarCoord> getCoordTree(TGModel& tg_model, std::vector<Segment<PlanarCoord>>& routing_segment_list);
   void uploadNetResult(TGModel& tg_model, MTree<PlanarCoord>& coord_tree);
