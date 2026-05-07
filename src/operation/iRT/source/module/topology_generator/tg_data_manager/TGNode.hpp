@@ -56,13 +56,20 @@ class TGNode : public PlanarCoord
     }
     return neighbor_node;
   }
-  double getOverflowCost(int32_t net_idx, Direction direction, double overflow_unit)
+  double getOverflowCost(int32_t net_idx, Direction direction, double overflow_unit,
+                         const std::set<Orientation>* extra_orient_set = nullptr)
   {
     if (!validDemandUnit()) {
       RTLOG.error(Loc::current(), "The demand unit is error!");
     }
     std::map<Orientation, std::set<int32_t>> orient_net_map = _orient_net_map;
     std::map<int32_t, std::set<Orientation>> net_orient_map = _net_orient_map;
+    if (extra_orient_set) {
+      for (Orientation orient : *extra_orient_set) {
+        orient_net_map[orient].insert(net_idx);
+        net_orient_map[net_idx].insert(orient);
+      }
+    }
     if (direction == Direction::kHorizontal) {
       for (Orientation orient : {Orientation::kEast, Orientation::kWest}) {
         orient_net_map[orient].insert(net_idx);

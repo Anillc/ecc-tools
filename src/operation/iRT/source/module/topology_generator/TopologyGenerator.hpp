@@ -79,13 +79,16 @@ class TopologyGenerator
                                                                                                      Segment<PlanarCoord>& planar_topo);
   std::vector<int32_t> getLowCostCorridorIndexList(TGModel& tg_model, Segment<PlanarCoord>& planar_topo, Direction direction, int32_t max_num);
   double getSegmentOverflowCost(TGModel& tg_model, Segment<PlanarCoord>& segment);
-  void updateTGCandidate(TGModel& tg_model, TGCandidate& tg_candidate);
+  using TGShadowDemandMap = std::map<PlanarCoord, std::set<Orientation>, CmpPlanarCoordByXASC>;
+  void updateTGCandidate(TGModel& tg_model, TGCandidate& tg_candidate,
+                         const TGShadowDemandMap* shadow_demand_map = nullptr);
   MTree<PlanarCoord> getCoordTree(TGModel& tg_model, std::vector<Segment<PlanarCoord>>& routing_segment_list);
   void uploadNetResult(TGModel& tg_model, MTree<PlanarCoord>& coord_tree);
   void resetSingleTask(TGModel& tg_model);
 
 #if 1  // update env
   void updateDemandToGraph(TGModel& tg_model, ChangeType change_type, MTree<PlanarCoord>& coord_tree);
+  void addCandidateToShadow(TGShadowDemandMap& shadow_map, TGCandidate& tg_candidate);
 #endif
 
 #if 1  // exhibit
