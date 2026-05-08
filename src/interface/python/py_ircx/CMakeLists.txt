@@ -5,7 +5,6 @@ add_library(py_ircx ${PY_IRCX_SRC})
 target_link_libraries(py_ircx
     PUBLIC
         ircx
-        OpenMP::OpenMP_CXX
         pybind11::pybind11
 )
 target_include_directories(py_ircx

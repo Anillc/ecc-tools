@@ -34,6 +34,7 @@ class MappingBuilder
     return process_to_design_layer_names_;
   }
 
+  void clear();
   void read(const std::string& mappingPath);
 
  private:

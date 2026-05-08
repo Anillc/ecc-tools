@@ -14,7 +14,6 @@ target_link_libraries(rcx_shell_cmd
   PRIVATE
     ircx
     log
-    OpenMP::OpenMP_CXX
 )
 
 target_include_directories(rcx_shell_cmd

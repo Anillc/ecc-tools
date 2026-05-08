@@ -22,7 +22,6 @@
  * @date 2025-12-09
  */
 #include <memory>
-#include <omp.h>
 
 #include "RCX.hpp"
 #include "rcxShellCmd.hh"
@@ -45,16 +44,7 @@ unsigned CmdRCXRun::exec() {
 
   RCX& rcx = RCX::getOrCreateInst();
 
-  LOG_INFO << "RCX run begin...";
-  omp_set_num_threads(rcx.num_threads());
-
-  ret &= rcx.adaptDB();
-  ret &= rcx.buildTopology();
-  ret &= rcx.buildEnvironment();
-  ret &= rcx.buildProcessVariation();
-  // ret &= rcx.checkShortOpen();
-  ret &= rcx.extractParasitics();
-  LOG_INFO << "RCX run end.";
+  ret &= rcx.run();
   
   return ret;
 }

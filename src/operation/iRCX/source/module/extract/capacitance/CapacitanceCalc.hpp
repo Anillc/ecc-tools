@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #pragma once
 
+#include <span>
 #include <vector>
 
 #include "LayoutData.hpp"
@@ -28,7 +29,9 @@ class CapTable;
 }
 
 class LayoutData;
+class EtchPool;
 class LayerTable;
+class TopoEdge;
 class TopoPool;
 }
 
@@ -54,7 +57,6 @@ class CapacitanceCalc {
 
   void set_layout_data(const LayoutData* v) {
     layout_data_ = v;
-    net_num_ = v->regular_net_count();
     dbu_to_micron_ = Micron(1.0) / v->micron_to_dbu;
   }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
@@ -62,10 +64,7 @@ class CapacitanceCalc {
   void set_cap_tables(const std::vector<const parser::CapTable*>& v) {
     cap_tables_ = v;
   }
-  void set_corners(const std::vector<itf::ProcessCorner*>& v) {
-    corners_ = v;
-    corner_num_ = v.size();
-  }
+  void set_corners(const std::vector<itf::ProcessCorner*>& v) { corners_ = v; }
   void set_rc_table(RCTable* v) { rc_table_ = v; }
 
   void calc();
@@ -74,14 +73,23 @@ class CapacitanceCalc {
   CapacitanceCalc() = default;
   ~CapacitanceCalc() = default;
 
-  // Determine below/above process layer names from cross-layer segments.
-  void resolveCrossLayers(
-      const CrossOverlapSub* crossSeg,
-      Str& belowLayer,
-      Str& aboveLayer) const;
+  void validateInputs() const;
+  void calcNet(
+      Size corner_idx,
+      Size net_idx,
+      const parser::CapTable& cap_table,
+      const EtchPool& corner_net_etch_pool,
+      const EnvPool& net_env_pool);
+  void calcEdge(
+      Size corner_idx,
+      Size net_idx,
+      Size edge_idx,
+      const TopoEdge& edge,
+      const parser::CapTable& cap_table,
+      std::span<F64> edge_ground_caps,
+      const EnvPool& net_env_pool,
+      const EtchPool& corner_net_etch_pool);
 
-  Size net_num_{0};
-  Size corner_num_{0};
   Micron dbu_to_micron_{1};
 
   const LayoutData* layout_data_{nullptr};

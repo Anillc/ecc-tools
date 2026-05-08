@@ -17,7 +17,6 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 namespace python_interface {
 
@@ -25,7 +24,6 @@ bool init_rcx(unsigned thread_number);
 bool read_rcx_corner(const std::string& corner_name,
                      const std::string& itf_file,
                      const std::string& captab_file);
-bool read_rcx_itf(const std::vector<std::string>& itf_files);
 bool read_rcx_mapping(const std::string& mapping_file);
 
 bool adapt_rcx_db();

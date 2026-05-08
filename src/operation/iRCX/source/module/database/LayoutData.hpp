@@ -98,6 +98,15 @@ struct Net {
 };
 
 struct LayoutData {
+  void clear() {
+    design_name.clear();
+    die_shape = {};
+    micron_to_dbu = 1;
+    routing_layers.clear();
+    net_vec.clear();
+    special_net = {};
+  }
+
   // Design metadata
   Str design_name;
   GtlRectI die_shape;

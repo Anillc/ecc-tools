@@ -35,6 +35,26 @@ namespace ircx {
 class LayerTable {
  public:
   // Registration
+  void clear() {
+    clearDesignLayers();
+    clearProcessLayers();
+    clearMappings();
+  }
+
+  void clearDesignLayers() {
+    design_id_to_name_.clear();
+    design_name_to_id_.clear();
+  }
+
+  void clearProcessLayers() {
+    process_id_to_name_.clear();
+    process_name_to_id_.clear();
+  }
+
+  void clearMappings() {
+    design_to_process_name_.clear();
+    process_to_design_name_.clear();
+  }
 
   void registerDesignLayer(Size id, Str name) {
     design_id_to_name_[id] = name;
