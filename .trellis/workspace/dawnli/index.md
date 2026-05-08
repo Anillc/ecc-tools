@@ -7,9 +7,9 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-1.md`
-- **Total Sessions**: 44
-- **Last Active**: 2026-05-04
+- **Active File**: `journal-2.md`
+- **Total Sessions**: 45
+- **Last Active**: 2026-05-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1991 | Active |
+| `journal-2.md` | ~42 | Active |
+| `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 45 | 2026-05-08 | CTS SDC clock semantics and writeback hardening | `1cf71a890`, `31e81ae05`, `2cd82603` | `cts_refactor` |
 | 44 | 2026-05-04 | Archive root-driver delay power semantics task | `705c182ca`, `6020d8b4e`, `367584397` | `cts_refactor` |
 | 43 | 2026-05-04 | Archive H-tree compensation pipeline refactor | `6020d8b4e`, `d5dcc2b9b` | `cts_refactor` |
 | 42 | 2026-05-01 | CTS flow architecture convergence | `cc8cfe91e`, `e578a1976`, `1ed836450`, `f07f32435` | `cts_refactor` |
