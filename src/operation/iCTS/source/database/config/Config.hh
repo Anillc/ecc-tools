@@ -50,7 +50,7 @@ class Config
   auto operator=(Config&& rhs) -> Config& = delete;
 
   // Initialize from config file
-  auto init(const std::string& config_file) -> void;
+  auto init(const std::string& config_file) -> bool;
 
   // Reset to default values
   auto reset() -> void
@@ -83,6 +83,7 @@ class Config
     _statistics_dir = "./result/cts/statistics";
     _use_netlist = false;
     _net_list.clear();
+    _last_error.clear();
   }
 
   // algorithm
@@ -114,6 +115,8 @@ class Config
   auto get_statistics_dir() const -> const std::string& { return _statistics_dir; }
   auto is_use_netlist() const -> bool { return _use_netlist; }
   auto get_net_list() const -> const std::vector<std::pair<std::string, std::string>> { return _net_list; }
+  auto get_last_error() const -> const std::string& { return _last_error; }
+  auto set_last_error(const std::string& error) -> void { _last_error = error; }
 
   // algorithm
   auto set_skew_bound(double skew_bound) -> void { _skew_bound = skew_bound; }
@@ -152,7 +155,7 @@ class Config
   auto set_net_list(const std::vector<std::pair<std::string, std::string>>& net_list) -> void { _net_list = net_list; }
 
   // parse from json file
-  auto parse(const std::string& json_file) -> void;
+  auto parse(const std::string& json_file) -> bool;
   auto emitRuntimeConfigReport(const std::string& title) const -> void;
 
  private:
@@ -190,6 +193,7 @@ class Config
 
   bool _use_netlist = false;
   std::vector<std::pair<std::string, std::string>> _net_list;
+  std::string _last_error;
 };
 
 }  // namespace icts

@@ -136,6 +136,8 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
        "characterization-only H-tree delay / power before root-driver compensation"},
       {"root_driver_compensation", FormatDelayPower(root_compensation_report.cell_delay_ns, root_compensation_report.cell_power_w),
        "direct Liberty root cell delay / internal+leakage power; root output net switching power is not added"},
+      {"root_driver_clock_period", logformat::FormatWithUnit(root_compensation_report.clock_period_ns, "ns"),
+       root_compensation_report.clock_period_source.empty() ? "source=unknown" : "source=" + root_compensation_report.clock_period_source},
       {"compensated_htree_metric",
        FormatDelayPower(root_compensation_report.compensated_delay_ns, root_compensation_report.compensated_power_w),
        root_compensation_report.enabled ? "selected H-tree metric after root-driver compensation" : "root driver compensation disabled"},

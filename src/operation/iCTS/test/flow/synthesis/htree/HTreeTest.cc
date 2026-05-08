@@ -92,6 +92,8 @@ TEST(HTreeTest, EmptyLoadsAcceptExplicitBuildOptions)
                                                        .additional_characterization_lengths_um = {},
                                                        .enable_root_driver_sizing = true,
                                                        .topology_loads_are_local_buffers = false,
+                                                       .clock_period_ns = 0.0,
+                                                       .clock_period_source = "",
                                                        .log_context = {},
                                                        .object_name_prefix = "",
                                                    });

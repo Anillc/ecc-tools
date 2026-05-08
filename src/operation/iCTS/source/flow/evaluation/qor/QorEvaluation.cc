@@ -25,7 +25,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <deque>
 #include <iterator>
 #include <map>
 #include <optional>
@@ -40,6 +39,7 @@
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
+#include "design/ClockDAG.hh"
 #include "design/ClockLayout.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
@@ -117,6 +117,10 @@ auto clearStatistics(Qor& statistics) -> void
 auto clearSummary(QorSummary& summary) -> void
 {
   summary.has_evaluation_result = false;
+  summary.qor_metric_status = "unavailable";
+  summary.timing_metric_source = "unavailable";
+  summary.physical_metric_source = "unavailable";
+  summary.path_depth_metric_status = "unavailable";
   summary.sta_clocks_propagated = false;
   summary.propagated_clock_count = 0U;
   summary.final_clock_buffer_count = 0;
@@ -142,11 +146,22 @@ auto syncCompatibilityAliases(QorSummary& summary) -> void
 {
   summary.buffer_num = summary.final_clock_buffer_count;
   summary.buffer_area = summary.final_buffer_area_um2;
-  summary.clock_path_min_buffer = summary.clock_member_buffer_count;
-  summary.clock_path_max_buffer = summary.clock_member_buffer_count;
-  summary.feature_max_clock_network_level = summary.clock_member_buffer_count;
   summary.max_clock_wirelength = summary.max_clock_net_wirelength_dbu;
   summary.total_clock_wirelength = summary.total_clock_network_wirelength_dbu;
+}
+
+auto appendPathDepthStats(const ClockDAG::PathBufferStats& path_stats, QorSummary& summary) -> void
+{
+  summary.path_depth_metric_status = path_stats.status;
+  summary.clock_path_min_buffer = 0;
+  summary.clock_path_max_buffer = 0;
+  summary.feature_max_clock_network_level = 0;
+  if (!path_stats.available) {
+    return;
+  }
+  summary.clock_path_min_buffer = path_stats.min_buffer_count;
+  summary.clock_path_max_buffer = path_stats.max_buffer_count;
+  summary.feature_max_clock_network_level = path_stats.max_buffer_count;
 }
 
 auto calcRouteWirelength(const Router::ClockSteinerTreeType& route_tree) -> int64_t
@@ -408,7 +423,7 @@ auto hasDownstreamStructuredHTreeBufferInputLoad(const Net* net, const HTreeBuff
   return false;
 }
 
-auto collectLeafBufferOutputs(Pin* root_output_pin, const HTreeBufferRoleIndex& role_index) -> LeafOutputCollection
+auto collectLeafBufferOutputs(const Clock& clock, Pin* root_output_pin, const HTreeBufferRoleIndex& role_index) -> LeafOutputCollection
 {
   LeafOutputCollection collection;
   if (!role_index.metadata_available) {
@@ -428,37 +443,15 @@ auto collectLeafBufferOutputs(Pin* root_output_pin, const HTreeBufferRoleIndex& 
     return collection;
   }
 
-  std::deque<Net*> pending_nets;
-  std::unordered_set<const Net*> visited_nets;
   std::unordered_set<const Pin*> visited_leaf_outputs;
-  pending_nets.push_back(root_output_pin->get_net());
-
-  while (!pending_nets.empty()) {
-    auto* net = pending_nets.front();
-    pending_nets.pop_front();
-    if (net == nullptr || !visited_nets.insert(net).second) {
+  const auto reachable_pins = DESIGN_INST.get_clock_dag().reachablePinsFrom(&clock, root_output_pin);
+  for (auto* pin : reachable_pins) {
+    if (pin == nullptr || pin == root_output_pin || !isStructuredHTreeBufferOutputPin(pin, role_index)) {
       continue;
     }
-
-    auto* driver = net->get_driver();
-    const bool driver_is_htree_leaf_buffer_output = isStructuredHTreeBufferOutputPin(driver, role_index) && driver != root_output_pin;
-    if (driver_is_htree_leaf_buffer_output && !hasDownstreamStructuredHTreeBufferInputLoad(net, role_index)) {
-      if (visited_leaf_outputs.insert(driver).second) {
-        collection.output_pins.push_back(driver);
-      }
-      continue;
-    }
-
-    for (auto* load : net->get_loads()) {
-      if (!isStructuredHTreeBufferInputPin(load, role_index)) {
-        continue;
-      }
-      auto* inst = load->get_inst();
-      auto* output_pin = inst != nullptr ? inst->findDriverPin() : nullptr;
-      auto* output_net = output_pin != nullptr ? output_pin->get_net() : nullptr;
-      if (output_net != nullptr) {
-        pending_nets.push_back(output_net);
-      }
+    auto* net = pin->get_net();
+    if (net != nullptr && !hasDownstreamStructuredHTreeBufferInputLoad(net, role_index) && visited_leaf_outputs.insert(pin).second) {
+      collection.output_pins.push_back(pin);
     }
   }
 
@@ -504,7 +497,7 @@ auto makeRootDriverProbe(const Clock& clock, Pin* root_input, const HTreeBufferR
   probe.root_input_pin = root_input;
   probe.root_output_pin = root_output;
   probe.root_output_net = root_output_net;
-  const auto leaf_outputs = collectLeafBufferOutputs(root_output, role_index);
+  const auto leaf_outputs = collectLeafBufferOutputs(clock, root_output, role_index);
   probe.leaf_output_pins = leaf_outputs.output_pins;
   probe.leaf_output_collection_rule = leaf_outputs.rule;
   probe.leaf_output_role_summary = leaf_outputs.role_summary;
@@ -841,16 +834,24 @@ auto emitClockTimingTables(const QorSummary& summary) -> void
 
 auto emitEvaluationSummary(const QorSummary& summary, bool refreshed_sta) -> void
 {
-  schema::EmitKeyValueTable("CTS Evaluation Overview", {
-                                                           {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
-                                                           {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
-                                                           {"propagated_clock_count", std::to_string(summary.propagated_clock_count)},
-                                                           {"final_metrics_source", "CTS Key Results"},
-                                                           {"clock_member_buffer_count", std::to_string(summary.clock_member_buffer_count)},
-                                                           {"path_depth_metric_status", "not_reported_no_source_to_sink_traversal"},
-                                                           {"design_units", std::to_string(summary.design_dbu_per_um) + " DBU/um"},
-                                                           {"statistics_reports", "wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt"},
-                                                       });
+  const bool path_depth_available = summary.path_depth_metric_status == "available";
+  schema::EmitKeyValueTable(
+      "CTS Evaluation Overview",
+      {
+          {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
+          {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
+          {"propagated_clock_count", std::to_string(summary.propagated_clock_count)},
+          {"qor_metric_status", summary.qor_metric_status},
+          {"timing_metric_source", summary.timing_metric_source},
+          {"physical_metric_source", summary.physical_metric_source},
+          {"clock_member_buffer_count", std::to_string(summary.clock_member_buffer_count)},
+          {"path_depth_metric_status", summary.path_depth_metric_status},
+          {"clock_path_min_buffer", path_depth_available ? std::to_string(summary.clock_path_min_buffer) : "n/a"},
+          {"clock_path_max_buffer", path_depth_available ? std::to_string(summary.clock_path_max_buffer) : "n/a"},
+          {"max_level_of_clock_tree", path_depth_available ? std::to_string(summary.feature_max_clock_network_level) : "n/a"},
+          {"design_units", std::to_string(summary.design_dbu_per_um) + " DBU/um"},
+          {"statistics_reports", "wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt"},
+      });
   emitClockTimingTables(summary);
 }
 
@@ -870,6 +871,18 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
 
   auto clocks = DESIGN_INST.get_clocks();
   summary.design_dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
+  const bool clock_dag_valid = DESIGN_INST.rebuildClockDAG();
+  const auto& clock_dag = DESIGN_INST.get_clock_dag();
+  appendPathDepthStats(clock_dag.pathBufferStats(), summary);
+  if (!clock_dag_valid) {
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CTS Evaluation",
+                           "CTS evaluation skipped because committed topology is not a valid clock DAG.",
+                           {{"path_depth_metric_status", summary.path_depth_metric_status}, {"reason", clock_dag.get_status()}});
+    syncCompatibilityAliases(summary);
+    emitEvaluationSummary(summary, false);
+    return;
+  }
+
   const bool should_refresh_sta = WRAPPER_INST.is_design_ready() && options.refresh_sta_timing;
   if (should_refresh_sta) {
     STA_ADAPTER_INST.refreshFullDesignTimingContext();
@@ -901,13 +914,8 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
     }
     summary.clock_member_buffer_count += clock_member_buffer_count;
 
-    if (auto measurement = installClockNetRcTreeAndMeasure(clock->get_clock_source_net(),
-                                                           classifyClockNet(*clock, clock->get_clock_source_net()), should_refresh_sta);
-        measurement.has_value()) {
-      clock_net_measurements.push_back(*measurement);
-    }
-    for (auto* net : clock->get_nets()) {
-      if (net == clock->get_clock_source_net()) {
+    for (auto* net : clock_dag.reachableNets(clock)) {
+      if (net == nullptr) {
         continue;
       }
       if (auto measurement = installClockNetRcTreeAndMeasure(net, classifyClockNet(*clock, net), should_refresh_sta);
@@ -943,8 +951,23 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
   }
   appendClockNetStatistics(clock_net_measurements, summary, statistics);
   syncCompatibilityAliases(summary);
-  statistics.valid = true;
-  summary.has_evaluation_result = true;
+  summary.timing_metric_source = timing_updated ? "final_sta" : "unavailable";
+  if (should_refresh_sta) {
+    summary.physical_metric_source = "final_idb";
+  } else if (clock_net_measurements.empty()) {
+    summary.physical_metric_source = "unavailable";
+  } else {
+    summary.physical_metric_source = "estimated_cts";
+  }
+  if (timing_updated) {
+    summary.qor_metric_status = "final";
+  } else if (clock_net_measurements.empty()) {
+    summary.qor_metric_status = "unavailable";
+  } else {
+    summary.qor_metric_status = "estimated_only";
+  }
+  statistics.valid = timing_updated;
+  summary.has_evaluation_result = timing_updated;
   emitEvaluationSummary(summary, timing_updated);
 }
 

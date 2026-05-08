@@ -86,7 +86,11 @@ auto CTSAPI::resetAPI() -> void
 auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
 {
   resetAPI();
-  Setup::initialize(config_file, work_dir);
+  const bool setup_ready = Setup::initialize(config_file, work_dir);
+  FLOW_INST.setSetupReady(setup_ready);
+  if (!setup_ready) {
+    return;
+  }
   FLOW_INST.outputRuntimeSetup();
 }
 

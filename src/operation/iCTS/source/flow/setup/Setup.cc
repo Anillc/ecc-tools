@@ -51,11 +51,11 @@ auto ensureDirectory(const std::filesystem::path& dir) -> void
 
 }  // namespace
 
-auto Setup::initialize(const std::string& config_file, const std::string& work_dir) -> void
+auto Setup::initialize(const std::string& config_file, const std::string& work_dir) -> bool
 {
   const std::string generated_on = ieda::Time::getNowWallTime();
 
-  CONFIG_INST.init(config_file);
+  const bool config_loaded = CONFIG_INST.init(config_file);
   const auto dir_str = work_dir.empty() ? CONFIG_INST.get_work_dir() : work_dir;
   auto dir = std::filesystem::path(dir_str);
   ensureDirectory(dir);
@@ -76,20 +76,31 @@ auto Setup::initialize(const std::string& config_file, const std::string& work_d
                               {"work_dir", dir.string()},
                           });
   LOG_INFO << "Generate the report at " << generated_on;
+  if (!config_loaded) {
+    SCHEMA_WRITER_INST.emitSection("## Runtime Setup");
+    schema::EmitKeyValueTable("CTS Setup Overview", {
+                                                        {"status", "failed"},
+                                                        {"config_file", config_file},
+                                                        {"reason", CONFIG_INST.get_last_error()},
+                                                    });
+    LOG_ERROR << "CTS setup failed for config file " << config_file << ": " << CONFIG_INST.get_last_error();
+    return false;
+  }
 
   auto* idb_builder = dmInst->get_idb_builder();
   LOG_FATAL_IF(idb_builder == nullptr) << "idb builder is null";
   WRAPPER_INST.init(idb_builder);
 
   STA_ADAPTER_INST.init();
+  return true;
 }
 
 auto Setup::emitRuntimeSetup() -> void
 {
   SCHEMA_WRITER_INST.emitSection("## Runtime Setup");
   schema::EmitKeyValueTable("Runtime Paths", {
-                                                 {"cts_log", CONFIG_INST.get_log_file()},
                                                  {"work_dir", CONFIG_INST.get_work_dir()},
+                                                 {"cts_log", CONFIG_INST.get_log_file()},
                                                  {"visualization_dir", CONFIG_INST.get_visualization_dir()},
                                                  {"statistics_dir", CONFIG_INST.get_statistics_dir()},
                                              });

@@ -27,6 +27,7 @@
 #include <cctype>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -39,7 +40,7 @@
 namespace icts {
 namespace {
 
-auto parse_bool(const nlohmann::json& value, bool default_value) -> bool
+auto parse_bool(const nlohmann::json& value, bool default_value) -> std::optional<bool>
 {
   if (value.is_boolean()) {
     return value.get<bool>();
@@ -52,9 +53,18 @@ auto parse_bool(const nlohmann::json& value, bool default_value) -> bool
     for (auto& character : str) {
       character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
     }
-    return str == "true" || str == "on" || str == "yes" || str == "1";
+    if (str == "true" || str == "on" || str == "yes" || str == "1") {
+      return true;
+    }
+    if (str == "false" || str == "off" || str == "no" || str == "0") {
+      return false;
+    }
+    return std::nullopt;
   }
-  return default_value;
+  if (value.is_null()) {
+    return default_value;
+  }
+  return std::nullopt;
 }
 
 auto parse_double(const nlohmann::json& value, double default_value) -> double
@@ -165,12 +175,19 @@ auto ApplyUnsignedIfPresent(const nlohmann::json& json, const char* key, Config&
   }
 }
 
-auto ApplyBoolIfPresent(const nlohmann::json& json, const char* key, bool default_value, Config& config, void (Config::*setter)(bool))
-    -> void
+auto ApplyBoolIfPresent(const nlohmann::json& json, const char* key, bool default_value, Config& config, void (Config::*setter)(bool),
+                        const std::string& json_file) -> bool
 {
   if (json.contains(key)) {
-    (config.*setter)(parse_bool(json.at(key), default_value));
+    const auto parsed = parse_bool(json.at(key), default_value);
+    if (!parsed.has_value()) {
+      config.set_last_error("invalid boolean value for key \"" + std::string(key) + "\" in " + json_file + ": " + json.at(key).dump());
+      LOG_ERROR << "CTS config parse failed: " << config.get_last_error();
+      return false;
+    }
+    (config.*setter)(*parsed);
   }
+  return true;
 }
 
 auto ApplyRoutingLayersIfPresent(const nlohmann::json& json, Config& config) -> void
@@ -224,22 +241,29 @@ auto ApplyNetListIfPresent(const nlohmann::json& json, Config& config) -> void
 
 }  // namespace
 
-auto Config::init(const std::string& config_file) -> void
+auto Config::init(const std::string& config_file) -> bool
 {
   reset();
-  parse(config_file);
+  return parse(config_file);
 }
 
-auto Config::parse(const std::string& json_file) -> void
+auto Config::parse(const std::string& json_file) -> bool
 {
   std::ifstream ifs(json_file);
   if (!ifs) {
-    LOG_ERROR << "Failed to open iCTS config file: " << json_file;
-    return;
+    set_last_error("failed to open iCTS config file: " + json_file);
+    LOG_ERROR << get_last_error();
+    return false;
   }
 
   nlohmann::json json;
-  ifs >> json;
+  try {
+    ifs >> json;
+  } catch (const nlohmann::json::exception& error) {
+    set_last_error("failed to parse iCTS config file " + json_file + ": " + std::string(error.what()));
+    LOG_ERROR << get_last_error();
+    return false;
+  }
 
   ApplyDoubleIfPresent(json, "skew_bound", *this, &Config::get_skew_bound, &Config::set_skew_bound);
   ApplyDoubleIfPresent(json, "max_buf_tran", *this, &Config::get_max_buf_tran, &Config::set_max_buf_tran);
@@ -257,14 +281,22 @@ auto Config::parse(const std::string& json_file) -> void
   ApplyRoutingLayersIfPresent(json, *this);
   ApplyBufferTypesIfPresent(json, *this);
   ApplyDoubleIfPresent(json, "char_buf_redundancy_pct", *this, &Config::get_char_buf_redundancy_pct, &Config::set_char_buf_redundancy_pct);
-  ApplyBoolIfPresent(json, "force_branch_buffer", is_force_branch_buffer(), *this, &Config::set_force_branch_buffer);
+  if (!ApplyBoolIfPresent(json, "force_branch_buffer", is_force_branch_buffer(), *this, &Config::set_force_branch_buffer, json_file)) {
+    return false;
+  }
   ApplyUnsignedIfPresent(json, "htree_depth_explore_window", *this, &Config::get_htree_depth_explore_window,
                          &Config::set_htree_depth_explore_window);
   ApplyDoubleIfPresent(json, "htree_topology_tolerance", *this, &Config::get_htree_topology_tolerance,
                        &Config::set_htree_topology_tolerance);
-  ApplyBoolIfPresent(json, "enable_sink_clustering", is_enable_sink_clustering(), *this, &Config::set_enable_sink_clustering);
-  ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist);
+  if (!ApplyBoolIfPresent(json, "enable_sink_clustering", is_enable_sink_clustering(), *this, &Config::set_enable_sink_clustering,
+                          json_file)) {
+    return false;
+  }
+  if (!ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist, json_file)) {
+    return false;
+  }
   ApplyNetListIfPresent(json, *this);
+  return true;
 }
 
 auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
@@ -305,7 +337,7 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
       {"enable_sink_clustering", logformat::FormatBool(is_enable_sink_clustering()),
        is_enable_sink_clustering() ? "run sink linear clustering before H-tree synthesis" : "build H-tree directly on original sinks"},
       {"use_netlist", logformat::FormatBool(is_use_netlist()),
-       is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs collected from iDB"},
+       is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs resolved from SDC"},
   };
 }
 

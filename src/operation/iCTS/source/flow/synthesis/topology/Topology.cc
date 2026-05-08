@@ -199,6 +199,8 @@ class ClockTopologyFormation
     synthesis_options.enable_sink_clustering = CONFIG_INST.is_enable_sink_clustering();
     synthesis_options.characterization_library = _characterization_library;
     synthesis_options.additional_characterization_lengths_um = source_trunk_lengths_um;
+    synthesis_options.clock_period_ns = _clock->get_clock_period_ns();
+    synthesis_options.clock_period_source = _clock->get_clock_period_source();
     synthesis_options.log_context = makeLogContext(*_clock, sink_domain_label, "downstream_htree", context.domain_prefix);
 
     std::string failure_reason;
@@ -244,6 +246,8 @@ class ClockTopologyFormation
     Topology::SourceTrunkBuildOptions options{
         .object_name_prefix = source_trunk_prefix,
         .characterization_library = _characterization_library,
+        .clock_period_ns = _clock->get_clock_period_ns(),
+        .clock_period_source = _clock->get_clock_period_source(),
         .log_context = makeLogContext(*_clock, source_trunk_label, "source_to_root", source_trunk_prefix),
     };
     auto source_trunk_result = Topology::buildSourceTrunk(*clock_source_net, clock_source, root_inputs, options);

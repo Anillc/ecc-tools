@@ -30,10 +30,13 @@
 #include <compare>
 #include <cstddef>
 #include <limits>
+#include <map>
 #include <memory>
 #include <ostream>
 #include <ranges>
+#include <set>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -297,31 +300,106 @@ auto createInsertedNet(Clock& clock, const std::string& net_name, Pin* driver, c
 
 }  // namespace
 
-auto DesignConversion::readClockData() -> void
+auto DesignConversion::readClockData() -> bool
 {
-  std::string clock_source = "Config::net_list";
+  std::string clock_source = "sdc";
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
 
-  if (CONFIG_INST.is_use_netlist()) {
-    const auto& net_list = CONFIG_INST.get_net_list();
-    for (const auto& [clock_name, net_name] : net_list) {
-      clock_net_pairs.emplace_back(clock_name, net_name);
+  const auto sdc_clock_declarations = STA_ADAPTER_INST.readConfiguredSdcClockDeclarationsOnly();
+  std::set<std::string> sdc_clock_names;
+  std::map<std::string, double> sdc_period_by_clock;
+  std::map<std::string, std::string> sdc_source_by_clock;
+  std::map<std::string, bool> sdc_resolved_by_clock;
+  for (const auto& [clock_name, source_expression, period_ns, period_resolved] : sdc_clock_declarations) {
+    if (clock_name.empty()) {
+      continue;
     }
-  } else {
-    clock_source = "Wrapper::collectClockNetPairs";
-    for (const auto& [clock_name, net_name] : WRAPPER_INST.collectClockNetPairs()) {
-      clock_net_pairs.emplace_back(clock_name, net_name);
+    sdc_clock_names.insert(clock_name);
+    sdc_period_by_clock[clock_name] = period_ns;
+    sdc_source_by_clock[clock_name] = source_expression;
+    sdc_resolved_by_clock[clock_name] = period_resolved;
+  }
+
+  if (sdc_clock_names.empty()) {
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "DesignConversion",
+                           "no SDC clocks were declared; CTS clock read will be an explicit no-op.", {{"clock_source", "sdc"}});
+  }
+
+  std::map<std::string, std::string> configured_net_by_clock;
+  bool preflight_failed = false;
+  std::string failure_reason = "n/a";
+  if (CONFIG_INST.is_use_netlist()) {
+    for (const auto& [clock_name, net_name] : CONFIG_INST.get_net_list()) {
+      if (!sdc_clock_names.contains(clock_name)) {
+        preflight_failed = true;
+        failure_reason = "configured_clock_not_declared_in_sdc";
+        schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "DesignConversion",
+                               "configured CTS clock net mapping is rejected because the clock is not declared in SDC.",
+                               {{"clock", clock_name}, {"net", net_name}, {"clock_source", "sdc"}});
+        LOG_ERROR << "DesignConversion: reject configured clock mapping for \"" << clock_name << "\" because it is not declared in SDC.";
+        continue;
+      }
+      configured_net_by_clock[clock_name] = net_name;
     }
   }
 
-  WRAPPER_INST.readClocks(clock_net_pairs);
-  DESIGN_INST.emitClockDistributionSummary();
+  for (const auto& clock_name : sdc_clock_names) {
+    if (const auto configured_iter = configured_net_by_clock.find(clock_name); configured_iter != configured_net_by_clock.end()) {
+      clock_net_pairs.emplace_back(clock_name, configured_iter->second);
+      continue;
+    }
+    const auto source_iter = sdc_source_by_clock.find(clock_name);
+    const auto source_expression = source_iter == sdc_source_by_clock.end() ? std::string{} : source_iter->second;
+    if (source_expression.empty()) {
+      preflight_failed = true;
+      if (failure_reason == "n/a") {
+        failure_reason = "empty_sdc_clock_source";
+      }
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "DesignConversion",
+                             "SDC clock source is empty and no config net mapping is available.",
+                             {{"clock", clock_name}, {"clock_source", "sdc"}});
+      LOG_ERROR << "DesignConversion: SDC clock \"" << clock_name << "\" has no source expression and no configured net mapping.";
+      continue;
+    }
+    clock_net_pairs.emplace_back(clock_name, source_expression);
+  }
 
+  if (!preflight_failed && !clock_net_pairs.empty() && !WRAPPER_INST.readClocks(clock_net_pairs)) {
+    preflight_failed = true;
+    failure_reason = "clock_materialization_failed";
+  }
+
+  for (auto* clock : DESIGN_INST.get_clocks()) {
+    if (clock == nullptr) {
+      continue;
+    }
+    const auto period_iter = sdc_period_by_clock.find(clock->get_clock_name());
+    const auto resolved_iter = sdc_resolved_by_clock.find(clock->get_clock_name());
+    const bool period_resolved = resolved_iter == sdc_resolved_by_clock.end() || resolved_iter->second;
+    if (period_iter != sdc_period_by_clock.end() && period_iter->second > 0.0 && period_resolved) {
+      clock->set_clock_period_ns(period_iter->second);
+      clock->set_clock_period_source("sdc");
+    }
+  }
+
+  const auto materialized_clock_count = DESIGN_INST.get_clocks().size();
+  if (!preflight_failed) {
+    DESIGN_INST.emitClockDistributionSummary();
+  }
   schema::EmitKeyValueTable("ReadData Overview", {
                                                      {"clock_source", clock_source},
-                                                     {"added_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
-                                                     {"total_clock_nets", std::to_string(DESIGN_INST.get_clocks().size())},
+                                                     {"status", preflight_failed ? "failed" : "finished"},
+                                                     {"failure_reason", failure_reason},
+                                                     {"sdc_declared_clocks", std::to_string(sdc_clock_names.size())},
+                                                     {"configured_clock_net_mappings", std::to_string(configured_net_by_clock.size())},
+                                                     {"added_clock_nets", std::to_string(materialized_clock_count)},
+                                                     {"total_clock_nets", std::to_string(materialized_clock_count)},
                                                  });
+  if (preflight_failed) {
+    DESIGN_INST.clearClocks();
+    DESIGN_INST.clearTopologyObjects();
+  }
+  return !preflight_failed;
 }
 
 auto DesignConversion::partitionClockSinks(const std::vector<Pin*>& sinks, std::vector<Pin*>& macro_sinks, std::vector<Pin*>& regular_sinks)

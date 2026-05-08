@@ -38,6 +38,7 @@
 #include "Point.hh"
 #include "SteinerTree.hh"
 #include "design/Clock.hh"
+#include "design/ClockDAG.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
@@ -183,6 +184,15 @@ auto appendFallbackPinSegments(const Clock& clock, std::size_t clock_index, cons
 
 auto collectClockNets(const Clock& clock) -> std::vector<Net*>
 {
+  if (!DESIGN_INST.get_clock_dag().is_built()) {
+    (void) DESIGN_INST.rebuildClockDAG();
+  }
+  const auto& clock_dag = DESIGN_INST.get_clock_dag();
+  auto reachable_nets = clock_dag.is_valid() ? clock_dag.reachableNets(&clock) : std::vector<Net*>{};
+  if (!reachable_nets.empty()) {
+    return reachable_nets;
+  }
+
   std::vector<Net*> nets;
   std::unordered_set<Net*> seen_nets;
   auto append_net = [&nets, &seen_nets](Net* net) -> void {

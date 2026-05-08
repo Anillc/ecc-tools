@@ -44,13 +44,14 @@ class Flow
   }
 
   auto runCTS() -> void;
-  auto readData() -> void;
+  auto readData() -> bool;
   auto run() -> void;
   auto evaluate() -> void;
   auto report(const std::string& save_dir) -> void;
   auto outputRuntimeSetup() -> void;
   auto outputSummary() const -> QorSummary;
   auto outputRunSummary() const -> SynthesisTraceSummary;
+  auto setSetupReady(bool setup_ready) -> void { _setup_ready = setup_ready; }
   auto reset() -> void;
 
   Flow(const Flow& other) = delete;
@@ -70,6 +71,7 @@ class Flow
   EvaluationState _evaluation_state;
   InstantiationResult _instantiation_result;
   bool _runtime_setup_emitted = false;
+  bool _setup_ready = false;
   bool _evaluation_ready = false;
 };
 

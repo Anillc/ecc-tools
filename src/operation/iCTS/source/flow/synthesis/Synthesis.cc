@@ -53,19 +53,34 @@ struct ClockSynthesisResult
   bool skipped = false;
 };
 
+auto synthesisOutcomeName(SynthesisOutcome outcome) -> std::string
+{
+  switch (outcome) {
+    case SynthesisOutcome::kFinished:
+      return "finished";
+    case SynthesisOutcome::kFailed:
+      return "failed";
+    case SynthesisOutcome::kNoOp:
+      return "no_op";
+  }
+  return "failed";
+}
+
 auto emitSynthesisOverview(const SynthesisTraceSummary& summary, const schema::TableRows& rows) -> void
 {
   SCHEMA_WRITER_INST.emitSection("### Flow Status");
-  schema::EmitKeyValueTable("CTS Clock Tree Synthesis Overview", {
-                                                                     {"status", summary.success ? "finished" : "failed"},
-                                                                     {"total_clocks", std::to_string(summary.total_clocks)},
-                                                                     {"finished_clocks", std::to_string(summary.successful_clocks)},
-                                                                     {"skipped_clocks", std::to_string(summary.skipped_clocks)},
-                                                                     {"failed_clocks", std::to_string(summary.failed_clocks)},
-                                                                     {"total_sink_domains", std::to_string(summary.total_sink_domains)},
-                                                                     {"hard_macro_sinks", std::to_string(summary.hard_macro_sinks)},
-                                                                     {"regular_sinks", std::to_string(summary.regular_sinks)},
-                                                                 });
+  schema::EmitKeyValueTable("CTS Clock Tree Synthesis Overview",
+                            {
+                                {"status", synthesisOutcomeName(summary.outcome)},
+                                {"no_op_reason", summary.no_op_reason.empty() ? "n/a" : summary.no_op_reason},
+                                {"total_clocks", std::to_string(summary.total_clocks)},
+                                {"finished_clocks", std::to_string(summary.successful_clocks)},
+                                {"skipped_clocks", std::to_string(summary.skipped_clocks)},
+                                {"failed_clocks", std::to_string(summary.failed_clocks)},
+                                {"total_sink_domains", std::to_string(summary.total_sink_domains)},
+                                {"hard_macro_sinks", std::to_string(summary.hard_macro_sinks)},
+                                {"regular_sinks", std::to_string(summary.regular_sinks)},
+                            });
 
   if (!rows.empty()) {
     schema::EmitTable("CTS Clock Tree Sink Domains", {"Clock", "Net", "Status", "Sink Domain", "Valid Sinks", "Domain Sinks", "Detail"},
@@ -209,11 +224,20 @@ auto Synthesis::run(ClockLayout& clock_layout) -> SynthesisTraceSummary
     }
   }
 
-  summary.success = failed_clocks == 0U;
   summary.total_clocks = total_clocks;
   summary.successful_clocks = successful_clocks;
   summary.skipped_clocks = skipped_clocks;
   summary.failed_clocks = failed_clocks;
+  summary.success = successful_clocks > 0U && failed_clocks == 0U;
+  if (total_clocks == 0U) {
+    summary.outcome = SynthesisOutcome::kNoOp;
+    summary.no_op_reason = "no_clocks_discovered";
+  } else if (successful_clocks == 0U && skipped_clocks > 0U && failed_clocks == 0U) {
+    summary.outcome = SynthesisOutcome::kNoOp;
+    summary.no_op_reason = "all_clocks_skipped";
+  } else {
+    summary.outcome = summary.success ? SynthesisOutcome::kFinished : SynthesisOutcome::kFailed;
+  }
   summary.total_sink_domains = total_sink_domains;
   summary.hard_macro_sinks = hard_macro_sinks;
   summary.regular_sinks = regular_sinks;
@@ -224,9 +248,12 @@ auto Synthesis::run(ClockLayout& clock_layout) -> SynthesisTraceSummary
            << failed_clocks << " failed clocks.";
   emitSynthesisOverview(summary, rows);
 
-  if (summary.success) {
+  if (summary.outcome == SynthesisOutcome::kFinished) {
     (void) runtime.finished();
     flow_stage.finished();
+  } else if (summary.outcome == SynthesisOutcome::kNoOp) {
+    (void) runtime.finish("no_op");
+    flow_stage.skip({{"reason", summary.no_op_reason}});
   } else {
     (void) runtime.failed();
     flow_stage.failed();

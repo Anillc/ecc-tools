@@ -31,7 +31,6 @@
 #include <iomanip>
 #include <memory>
 #include <sstream>
-#include <utility>
 
 #include "Clock.hh"
 #include "Inst.hh"
@@ -45,7 +44,7 @@
 #endif
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
-#include "database/io/Wrapper.hh"
+#include "instantiation/design_conversion/DesignConversion.hh"
 
 namespace icts_test {
 
@@ -114,16 +113,9 @@ auto ConnectRootNetForHTreeTest(icts::Net& root_net, icts::Pin& root_driver, con
 auto SelectLargestRealClockLoads(std::size_t max_count) -> std::optional<RealClockLoadSelection>
 {
   DESIGN_INST.reset();
-
-  for (const auto& [clock_name, net_name] : WRAPPER_INST.collectClockNetPairs()) {
-    auto* clock = DESIGN_INST.makeClock(clock_name, net_name);
-    if (clock != nullptr) {
-      clock->set_clock_name(clock_name);
-      clock->set_clock_net_name(net_name);
-    }
+  if (!icts::DesignConversion::readClockData()) {
+    return std::nullopt;
   }
-
-  WRAPPER_INST.read();
 
   RealClockLoadSelection best_selection;
   std::size_t best_source_load_count = 0U;

@@ -27,6 +27,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -155,6 +156,8 @@ class STAAdapter
   static auto updateTiming() -> void;
   static auto reportTiming() -> bool;
   static auto refreshFullDesignTimingContext() -> void;
+  static auto readSdcClockDeclarationsOnly(const std::string& sdc_path) -> std::vector<std::tuple<std::string, std::string, double, bool>>;
+  static auto readConfiguredSdcClockDeclarationsOnly() -> std::vector<std::tuple<std::string, std::string, double, bool>>;
   static auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
   auto queryClockTimings() const -> std::vector<ClockTimingRecord>;
   auto queryClockLatencySkew() const -> std::vector<ClockLatencySkewMetrics>;

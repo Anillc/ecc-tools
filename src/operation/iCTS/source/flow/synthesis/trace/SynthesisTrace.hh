@@ -29,6 +29,13 @@
 
 namespace icts {
 
+enum class SynthesisOutcome
+{
+  kFinished,
+  kFailed,
+  kNoOp
+};
+
 struct SynthesisTraceStatusRecord
 {
   std::string clock_name;
@@ -43,6 +50,8 @@ struct SynthesisTraceStatusRecord
 struct SynthesisTraceSummary
 {
   bool success = true;
+  SynthesisOutcome outcome = SynthesisOutcome::kFinished;
+  std::string no_op_reason;
   std::size_t total_clocks = 0U;
   std::size_t successful_clocks = 0U;
   std::size_t skipped_clocks = 0U;

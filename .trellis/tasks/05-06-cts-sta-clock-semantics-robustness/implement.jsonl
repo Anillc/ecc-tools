@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Project-wide constraints for implementation behavior and compatibility."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index and pre-development checklist for CTS/STA C++ changes."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Required error/status handling patterns for config failures, no-op states, rollback, and recoverable failures."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "CTS reports and diagnostics must remain structured and clear."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "iDB writeback rollback and CTS/iDB materialization touch database boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Implementation quality bar for tests, scope control, and maintainability."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Task crosses CTS flow, iSTA SDC parsing, iDB wrapper, STA adapter, and report layers."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Avoid duplicating SDC parsing, config validation, and report/status helpers."}
+{"file": ".trellis/tasks/05-06-cts-sta-clock-semantics-robustness/research/sta-clock-sdc-no-db.md", "reason": "Research conclusion for minimal STA clock-only SDC interface and no iDB fallback clock judgement."}

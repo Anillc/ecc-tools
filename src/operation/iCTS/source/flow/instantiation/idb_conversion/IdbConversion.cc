@@ -47,17 +47,24 @@ auto IdbConversion::run() -> IdbConversionResult
       .clock_count = clocks.size(),
   };
 
+  WrapperWriteResult write_result;
   if (result.design_ready) {
-    result.idb_conversion_done = WRAPPER_INST.writeClocks(clocks);
+    write_result = WRAPPER_INST.writeClocksDetailed(clocks);
+    result.idb_conversion_done = write_result.success;
   }
 
   const std::string status = result.idb_conversion_done ? "finished" : "failed";
-  schema::EmitKeyValueTable("CTS Instantiation Overview", {
-                                                              {"semantic_owner", "instantiation"},
-                                                              {"status", status},
-                                                              {"design_ready", result.design_ready ? "true" : "false"},
-                                                              {"clock_count", std::to_string(result.clock_count)},
-                                                          });
+  schema::EmitKeyValueTable("CTS Instantiation Overview",
+                            {
+                                {"semantic_owner", "instantiation"},
+                                {"status", status},
+                                {"design_ready", result.design_ready ? "true" : "false"},
+                                {"clock_count", std::to_string(result.clock_count)},
+                                {"failed_clock", write_result.failed_clock.empty() ? "n/a" : write_result.failed_clock},
+                                {"failed_net", write_result.failed_net.empty() ? "n/a" : write_result.failed_net},
+                                {"rollback_done", write_result.rollback_done ? "true" : "false"},
+                                {"failure_reason", write_result.reason.empty() ? "n/a" : write_result.reason},
+                            });
 
   if (result.idb_conversion_done) {
     (void) runtime.finished();

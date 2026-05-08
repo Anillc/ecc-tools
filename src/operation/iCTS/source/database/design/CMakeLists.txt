@@ -1,5 +1,6 @@
 add_library(
   icts_source_database_design
+  ${ICTS_DATABASE_DESIGN}/ClockDAG.cc
   ${ICTS_DATABASE_DESIGN}/ClockNetwork.cc
   ${ICTS_DATABASE_DESIGN}/ClockLayout.cc
   ${ICTS_DATABASE_DESIGN}/Design.cc

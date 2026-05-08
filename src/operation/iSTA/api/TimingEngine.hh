@@ -25,6 +25,9 @@
 #pragma once
 
 #include <optional>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include "TimingDBAdapter.hh"
 #include "TimingIDBAdapter.hh"
@@ -111,6 +114,11 @@ class TimingEngine {
     _ista->resetConstraint();
     _ista->readSdc(sdc_file);
     return *this;
+  }
+
+  std::vector<std::tuple<std::string, std::string, double, bool>>
+  readSdcClockPeriodsOnly(const char* sdc_file) {
+    return _ista->readSdcClockPeriodsOnly(sdc_file);
   }
 
   TimingEngine &readSpef(const char *spef_file) {

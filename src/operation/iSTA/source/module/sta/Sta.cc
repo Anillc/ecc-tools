@@ -84,6 +84,244 @@ static bool IsFileExists(const char *name) {
   return is_exit;
 }
 
+namespace {
+
+const char* kClockPeriodOnlyPrelude = R"(
+set __ista_clock_unit_ns 1.0
+set __ista_clock_period_records {}
+array unset __ista_clock_period_by_name
+array unset __ista_clock_source_by_name
+
+proc __ista_clock_unit_to_ns {unit} {
+  set normalized [string tolower $unit]
+  switch -- $normalized {
+    fs {return 0.000001}
+    ps {return 0.001}
+    ns {return 1.0}
+    us {return 1000.0}
+    ms {return 1000000.0}
+    s {return 1000000000.0}
+    default {
+      if {[regexp {^([0-9.]+)(fs|ps|ns|us|ms|s)$} $normalized -> scale suffix]} {
+        return [expr {double($scale) * [__ista_clock_unit_to_ns $suffix]}]
+      }
+      return 1.0
+    }
+  }
+}
+
+proc set_units {args} {
+  global __ista_clock_unit_ns
+  for {set i 0} {$i < [llength $args]} {incr i} {
+    if {[lindex $args $i] eq "-time" && $i + 1 < [llength $args]} {
+      incr i
+      set __ista_clock_unit_ns [__ista_clock_unit_to_ns [lindex $args $i]]
+    }
+  }
+  return ""
+}
+
+proc get_ports {args} {return [join $args " "]}
+proc get_pins {args} {return [join $args " "]}
+
+proc get_clocks {args} {
+  global __ista_clock_period_by_name
+  set result {}
+  if {[llength $args] == 0} {
+    return [array names __ista_clock_period_by_name]
+  }
+  foreach pattern $args {
+    foreach clock_name [array names __ista_clock_period_by_name] {
+      if {[string match $pattern $clock_name]} {
+        lappend result $clock_name
+      }
+    }
+  }
+  return $result
+}
+
+proc all_clocks {} {
+  global __ista_clock_period_by_name
+  return [array names __ista_clock_period_by_name]
+}
+
+proc create_clock {args} {
+  global __ista_clock_unit_ns __ista_clock_period_records __ista_clock_period_by_name __ista_clock_source_by_name
+  set clock_name ""
+  set period ""
+  set source_expression ""
+  for {set i 0} {$i < [llength $args]} {incr i} {
+    set token [lindex $args $i]
+    switch -- $token {
+      -name {
+        incr i
+        set clock_name [lindex $args $i]
+      }
+      -period {
+        incr i
+        set period [lindex $args $i]
+      }
+      -waveform {
+        incr i
+      }
+      -add {}
+      default {
+        set source_expression $token
+      }
+    }
+  }
+  if {$clock_name eq ""} {
+    set clock_name $source_expression
+  }
+  if {$clock_name eq "" || $period eq ""} {
+    error "clock-only create_clock requires a clock name/source and period"
+  }
+  set period_ns [expr {double($period) * $__ista_clock_unit_ns}]
+  lappend __ista_clock_period_records [list $clock_name $source_expression $period_ns 1]
+  set __ista_clock_period_by_name($clock_name) $period_ns
+  set __ista_clock_source_by_name($clock_name) $source_expression
+  return $clock_name
+}
+
+proc __ista_find_clock_period {clock_or_source resolved_var} {
+  global __ista_clock_period_by_name __ista_clock_source_by_name
+  upvar 1 $resolved_var resolved
+  set resolved 0
+  if {$clock_or_source ne "" && [info exists __ista_clock_period_by_name($clock_or_source)]} {
+    set resolved 1
+    return $__ista_clock_period_by_name($clock_or_source)
+  }
+  foreach clock_name [array names __ista_clock_source_by_name] {
+    if {$__ista_clock_source_by_name($clock_name) eq $clock_or_source} {
+      set resolved 1
+      return $__ista_clock_period_by_name($clock_name)
+    }
+  }
+  return 0.0
+}
+
+proc create_generated_clock {args} {
+  global __ista_clock_period_records __ista_clock_period_by_name __ista_clock_source_by_name
+  set clock_name ""
+  set source_name ""
+  set master_clock_name ""
+  set source_expression ""
+  set divide_by 0
+  set multiply_by 0
+  for {set i 0} {$i < [llength $args]} {incr i} {
+    set token [lindex $args $i]
+    switch -- $token {
+      -name {
+        incr i
+        set clock_name [lindex $args $i]
+      }
+      -source {
+        incr i
+        set source_name [lindex $args $i]
+      }
+      -master_clock {
+        incr i
+        set master_clock_name [lindex $args $i]
+      }
+      -divide_by {
+        incr i
+        set divide_by [lindex $args $i]
+      }
+      -multiply_by {
+        incr i
+        set multiply_by [lindex $args $i]
+      }
+      -edges -
+      -edge_shift {
+        incr i
+      }
+      -invert {}
+      default {
+        set source_expression $token
+      }
+    }
+  }
+  if {$clock_name eq ""} {
+    error "clock-only create_generated_clock requires -name"
+  }
+  if {$source_expression eq ""} {
+    set source_expression $source_name
+  }
+  set lookup_name $master_clock_name
+  if {$lookup_name eq ""} {
+    set lookup_name $source_name
+  }
+  set period_ns [__ista_find_clock_period $lookup_name resolved]
+  if {$resolved} {
+    if {$divide_by > 0} {
+      set period_ns [expr {$period_ns * $divide_by}]
+    }
+    if {$multiply_by > 0} {
+      set period_ns [expr {$period_ns / $multiply_by}]
+    }
+    set __ista_clock_period_by_name($clock_name) $period_ns
+    set __ista_clock_source_by_name($clock_name) $source_expression
+  }
+  lappend __ista_clock_period_records [list $clock_name $source_expression $period_ns $resolved]
+  return $clock_name
+}
+
+foreach ignored_cmd {
+  set_input_transition set_clock_transition set_driving_cell set_load
+  set_ideal_network set_input_delay set_output_delay set_max_fanout
+  set_max_transition set_max_capacitance current_design get_cells get_libs
+  all_inputs all_outputs set_propagated_clock set_clock_groups
+  set_multicycle_path set_false_path set_max_delay set_min_delay
+  set_timing_derate set_clock_uncertainty group_path set_operating_conditions
+  set_wire_load_mode set_disable_timing set_case_analysis
+} {
+  proc $ignored_cmd args {return ""}
+}
+)";
+
+auto getTclString(Tcl_Obj* object) -> std::string
+{
+  const auto* raw_value = Tcl_GetString(object);
+  return raw_value == nullptr ? std::string{} : std::string(raw_value);
+}
+
+auto parseSdcClockPeriodRecords(Tcl_Interp* interp) -> std::vector<std::tuple<std::string, std::string, double, bool>>
+{
+  std::vector<std::tuple<std::string, std::string, double, bool>> records;
+  auto* records_object = Tcl_GetVar2Ex(interp, "__ista_clock_period_records", nullptr, TCL_GLOBAL_ONLY);
+  if (records_object == nullptr) {
+    return records;
+  }
+
+  int record_count = 0;
+  Tcl_Obj** record_objects = nullptr;
+  if (Tcl_ListObjGetElements(interp, records_object, &record_count, &record_objects) != TCL_OK) {
+    return records;
+  }
+
+  records.reserve(static_cast<std::size_t>(record_count));
+  for (int record_index = 0; record_index < record_count; ++record_index) {
+    int field_count = 0;
+    Tcl_Obj** fields = nullptr;
+    if (Tcl_ListObjGetElements(interp, record_objects[record_index], &field_count, &fields) != TCL_OK || field_count < 4) {
+      continue;
+    }
+
+    double period_ns = 0.0;
+    if (Tcl_GetDoubleFromObj(interp, fields[2], &period_ns) != TCL_OK) {
+      period_ns = 0.0;
+    }
+    int resolved = 0;
+    if (Tcl_GetBooleanFromObj(interp, fields[3], &resolved) != TCL_OK) {
+      resolved = 0;
+    }
+    records.emplace_back(getTclString(fields[0]), getTclString(fields[1]), period_ns, resolved != 0);
+  }
+  return records;
+}
+
+}  // namespace
+
 Sta *Sta::_sta = nullptr;
 
 Sta::Sta()
@@ -198,6 +436,31 @@ unsigned Sta::readSdc(const char *sdc_file) {
   LOG_INFO << "read sdc " << sdc_file << " end ";
 
   return 1;
+}
+
+std::vector<std::tuple<std::string, std::string, double, bool>>
+Sta::readSdcClockPeriodsOnly(const char* sdc_file) {
+  LOG_INFO << "read sdc clock periods only " << sdc_file << " start ";
+  if (!IsFileExists(sdc_file)) {
+    return {};
+  }
+
+  auto* interp = Tcl_CreateInterp();
+  if (Tcl_Eval(interp, kClockPeriodOnlyPrelude) != TCL_OK) {
+    LOG_ERROR << "failed to initialize sdc clock period-only parser: " << Tcl_GetStringResult(interp);
+    Tcl_DeleteInterp(interp);
+    return {};
+  }
+
+  const int result = Tcl_EvalFile(interp, sdc_file);
+  if (result != TCL_OK) {
+    LOG_ERROR << "read sdc clock periods only failed for " << sdc_file << ": " << Tcl_GetStringResult(interp);
+  }
+
+  auto clock_period_records = parseSdcClockPeriodRecords(interp);
+  Tcl_DeleteInterp(interp);
+  LOG_INFO << "read sdc clock periods only " << sdc_file << " end ";
+  return clock_period_records;
 }
 
 /**

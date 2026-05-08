@@ -57,6 +57,7 @@
 #include "database/spatial/Point.hh"
 #include "dm_config.h"
 #include "idm.h"
+#include "instantiation/design_conversion/DesignConversion.hh"
 
 namespace icts_test::common::realtech::asset {
 namespace {
@@ -505,7 +506,10 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
 
   WRAPPER_INST.reset();
   WRAPPER_INST.init(idb_builder);
-  WRAPPER_INST.read();
+  if (!icts::DesignConversion::readClockData()) {
+    error = "readClockData failed for SDC-declared clocks";
+    return false;
+  }
   STA_ADAPTER_INST.init();
   return true;
 }

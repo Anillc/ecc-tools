@@ -15,7 +15,12 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #include "gtest/gtest.h"
+#include <array>
+#include <filesystem>
+#include <fstream>
 #include <set>
+#include <string>
+#include <tuple>
 #include <variant>
 
 #include "liberty/Lib.hh"
@@ -363,6 +368,81 @@ TEST_F(SdcCollectionExpansionTest,
   EXPECT_EQ(script_engine->evalString(R"(set_input_delay 0 [all_inputs])"), 0);
   EXPECT_EQ(script_engine->evalString(R"(set_output_delay 0 [all_outputs])"),
             0);
+}
+
+class SdcClockPeriodOnlyTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    std::array<char, 5> config{"test"};
+    std::array<char*, 1> argv{config.data()};
+    if (!Log::isInit()) {
+      Log::init(argv.data());
+    }
+    Sta::getOrCreateSta()->getConstrain();
+  }
+
+  void TearDown() override {
+    Sta::destroySta();
+    ScriptEngine::destroyInstance();
+  }
+};
+
+auto writeClockOnlySdc(const std::string& file_name, const std::string& content)
+    -> std::filesystem::path {
+  const auto path = std::filesystem::temp_directory_path() / file_name;
+  std::ofstream output_stream(path);
+  EXPECT_TRUE(output_stream.is_open());
+  output_stream << content;
+  return path;
+}
+
+TEST_F(SdcClockPeriodOnlyTest,
+       clock_only_reader_handles_units_and_unresolved_generated_clock) {
+  const auto sdc_path =
+      writeClockOnlySdc("ista_clock_period_only_clocks.sdc",
+                        "set_units -time ps\n"
+                        "create_clock -name CLK -period 1000 [get_ports clk]\n"
+                        "create_generated_clock -name GEN_CLK -divide_by 2 "
+                        "-source MISSING_CLK [get_pins u0/CLK]\n");
+  auto* ista = Sta::getOrCreateSta();
+
+  const auto records = ista->readSdcClockPeriodsOnly(sdc_path.c_str());
+
+  ASSERT_EQ(records.size(), 2U);
+  EXPECT_EQ(std::get<0>(records.at(0)), "CLK");
+  EXPECT_EQ(std::get<1>(records.at(0)), "clk");
+  EXPECT_DOUBLE_EQ(std::get<2>(records.at(0)), 1.0);
+  EXPECT_TRUE(std::get<3>(records.at(0)));
+
+  EXPECT_EQ(std::get<0>(records.at(1)), "GEN_CLK");
+  EXPECT_EQ(std::get<1>(records.at(1)), "u0/CLK");
+  EXPECT_DOUBLE_EQ(std::get<2>(records.at(1)), 0.0);
+  EXPECT_FALSE(std::get<3>(records.at(1)));
+
+  std::error_code error_code;
+  std::filesystem::remove(sdc_path, error_code);
+}
+
+TEST_F(SdcClockPeriodOnlyTest, clock_only_reader_restores_sta_state) {
+  auto* ista = Sta::getOrCreateSta();
+  auto* original_constrain = ista->getConstrain();
+  ista->setTimeUnit(TimeUnit::kFS);
+
+  const auto sdc_path =
+      writeClockOnlySdc("ista_clock_period_only_state.sdc",
+                        "create_clock -name CLK -period 2 [get_ports clk]\n");
+
+  const auto records = ista->readSdcClockPeriodsOnly(sdc_path.c_str());
+
+  ASSERT_EQ(records.size(), 1U);
+  EXPECT_EQ(std::get<0>(records.at(0)), "CLK");
+  EXPECT_DOUBLE_EQ(std::get<2>(records.at(0)), 2.0);
+  EXPECT_EQ(ista->getTimeUnit(), TimeUnit::kFS);
+  EXPECT_EQ(ista->getConstrain(), original_constrain);
+  EXPECT_EQ(ista->getConstrain()->findClock("CLK"), nullptr);
+
+  std::error_code error_code;
+  std::filesystem::remove(sdc_path, error_code);
 }
 
 }  // namespace

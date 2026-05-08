@@ -331,6 +331,65 @@ TEST(TopologyTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigReport)
   std::filesystem::remove(cts_log_path, error_code);
 }
 
+TEST(TopologyTest, MissingConfigFileFailsWithPathDiagnostic)
+{
+  const ScopedConfigReset scoped_config_reset;
+  const auto missing_path = MakeUniqueTempPath("missing_config.json");
+  std::error_code error_code;
+  std::filesystem::remove(missing_path, error_code);
+
+  EXPECT_FALSE(CONFIG_INST.init(missing_path.string()));
+
+  EXPECT_NE(CONFIG_INST.get_last_error().find("failed to open iCTS config file"), std::string::npos);
+  EXPECT_NE(CONFIG_INST.get_last_error().find(missing_path.string()), std::string::npos);
+}
+
+TEST(TopologyTest, ConfigBoolParsingAcceptsTypedNumericAndStringTokens)
+{
+  const ScopedConfigReset scoped_config_reset;
+  const auto json_path = MakeUniqueTempPath("bool_config.json");
+  {
+    std::ofstream output_stream(json_path);
+    ASSERT_TRUE(output_stream.is_open());
+    output_stream << R"({
+      "force_branch_buffer": true,
+      "enable_sink_clustering": 0,
+      "use_netlist": "yes"
+    })";
+  }
+
+  EXPECT_TRUE(CONFIG_INST.parse(json_path.string()));
+
+  EXPECT_TRUE(CONFIG_INST.is_force_branch_buffer());
+  EXPECT_FALSE(CONFIG_INST.is_enable_sink_clustering());
+  EXPECT_TRUE(CONFIG_INST.is_use_netlist());
+  EXPECT_TRUE(CONFIG_INST.get_last_error().empty());
+
+  std::error_code error_code;
+  std::filesystem::remove(json_path, error_code);
+}
+
+TEST(TopologyTest, InvalidStringBoolFailsWithoutSilentFalse)
+{
+  const ScopedConfigReset scoped_config_reset;
+  const auto json_path = MakeUniqueTempPath("invalid_bool_config.json");
+  {
+    std::ofstream output_stream(json_path);
+    ASSERT_TRUE(output_stream.is_open());
+    output_stream << R"({"use_netlist": "maybe"})";
+  }
+
+  EXPECT_FALSE(CONFIG_INST.parse(json_path.string()));
+
+  EXPECT_NE(CONFIG_INST.get_last_error().find("invalid boolean value"), std::string::npos);
+  EXPECT_NE(CONFIG_INST.get_last_error().find("use_netlist"), std::string::npos);
+  EXPECT_NE(CONFIG_INST.get_last_error().find("maybe"), std::string::npos);
+  EXPECT_FALSE(CONFIG_INST.is_use_netlist());
+
+  std::error_code error_code;
+  std::filesystem::remove(json_path, error_code);
+}
+
 TEST(TopologyTest, SourceTrunkWithEmptyRootsFailsWithoutChangingSourceNet)
 {
   icts::Pin source("clk_src", icts::PinType::kOut, icts::Point<int>(0, 0));

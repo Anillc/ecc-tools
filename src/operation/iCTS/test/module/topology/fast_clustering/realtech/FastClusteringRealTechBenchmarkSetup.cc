@@ -43,6 +43,7 @@
 #include "database/io/Wrapper.hh"
 #include "dm_config.h"
 #include "idm.h"
+#include "instantiation/design_conversion/DesignConversion.hh"
 
 namespace icts_test::fast_clustering::realtech {
 namespace {
@@ -203,19 +204,12 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
     return loaded;
   }
 
-  const auto clock_candidate = SelectClockNetCandidate(idb_design);
-  if (!clock_candidate.has_value()) {
-    loaded.error = "no CTS load net candidate found";
-    return loaded;
-  }
-  auto* clock = DESIGN_INST.makeClock("benchmark_" + clock_candidate->net_name, clock_candidate->net_name);
-  if (clock != nullptr) {
-    clock->set_clock_name("benchmark_" + clock_candidate->net_name);
-    clock->set_clock_net_name(clock_candidate->net_name);
-  }
   WRAPPER_INST.reset();
   WRAPPER_INST.init(idb_builder);
-  WRAPPER_INST.read();
+  if (!icts::DesignConversion::readClockData()) {
+    loaded.error = "readClockData failed for SDC-declared clocks";
+    return loaded;
+  }
 
   loaded.dbu_per_micron = std::max(1, WRAPPER_INST.queryDbUnit());
   loaded.inst_count = idb_design->get_instance_list() == nullptr ? 0U : idb_design->get_instance_list()->get_instance_list().size();
@@ -229,7 +223,7 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
     loaded.clock_name = clock->get_clock_name();
     loaded.clock_net_name = clock->get_clock_net_name();
     loaded.loads = clock->get_loads();
-    loaded.clock_selection_reason = clock_candidate->reason;
+    loaded.clock_selection_reason = "sdc_declared_clock";
   }
   if (loaded.loads.empty()) {
     loaded.error = "no clock loads extracted";

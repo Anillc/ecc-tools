@@ -31,7 +31,9 @@
 #include <set>
 #include <shared_mutex>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "FlatMap.hh"
 #include "StaClock.hh"
@@ -213,6 +215,8 @@ class Sta {
   unsigned readLiberty(const char* lib_file);
   unsigned readLiberty(std::vector<std::string>& lib_files);
   unsigned readSdc(const char* sdc_file);
+  std::vector<std::tuple<std::string, std::string, double, bool>>
+  readSdcClockPeriodsOnly(const char* sdc_file);
   unsigned readSpef(const char* spef_file);
   unsigned readAocv(const char* aocv_file);
   unsigned readAocv(std::vector<std::string>& aocv_files);

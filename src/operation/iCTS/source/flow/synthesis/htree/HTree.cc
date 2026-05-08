@@ -88,6 +88,14 @@ auto ResolveRootDriverCompensationInputSlewNs(double max_slew_ns) -> double
   return max_slew_ns > 0.0 ? max_slew_ns * 0.5 : 0.0;
 }
 
+auto ResolveRootDriverClockPeriod(const HTree::BuildOptions& options) -> std::pair<double, std::string>
+{
+  if (options.clock_period_ns > 0.0) {
+    return {options.clock_period_ns, options.clock_period_source.empty() ? "caller" : options.clock_period_source};
+  }
+  return {kRootDriverCompensationClockPeriodNs, "default_10ns"};
+}
+
 auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::DepthSearchResult& exploration,
                                        const htree::RootDriverCompensationDetail& compensation_detail,
                                        const HTreeTopologyChar& selected_entry) -> void
@@ -219,10 +227,11 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     return result;
   }
 
+  const auto [root_driver_clock_period_ns, root_driver_clock_period_source] = ResolveRootDriverClockPeriod(options);
   const htree::RootDriverCompensationOptions root_driver_compensation_options{
       .enabled = options.enable_root_driver_sizing,
       .input_slew_ns = ResolveRootDriverCompensationInputSlewNs(char_builder.get_max_slew()),
-      .clock_period_ns = kRootDriverCompensationClockPeriodNs,
+      .clock_period_ns = root_driver_clock_period_ns,
       .cap_lattice = char_builder.get_cap_lattice(),
       .fallback_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
   };
@@ -263,8 +272,12 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   const auto selected_sink_load_region_legality = htree::ResolveSinkLoadRegionLegality(
       result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library,
       exploration.sink_load_region_legality_context);
-  LOG_FATAL_IF(!selected_sink_load_region_legality.legal)
-      << "HTree: selected global frontier entry is missing sink-load-region legality coverage.";
+  if (!selected_sink_load_region_legality.legal) {
+    result.failure_reason = "sink_load_region_legality_missing";
+    LOG_WARNING << "HTree: selected global frontier entry is missing sink-load-region legality coverage.";
+    build_stage.failed({{"reason", result.failure_reason}});
+    return result;
+  }
   selected_summary.htree_load_group_count = selected_sink_load_region_legality.cap_distribution.group_count;
   selected_summary.htree_load_cap_min_pf = selected_sink_load_region_legality.cap_distribution.cap_min_pf;
   selected_summary.htree_load_cap_max_pf = selected_sink_load_region_legality.cap_distribution.cap_max_pf;
@@ -277,6 +290,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   const auto selected_compensation_detail = selected_compensation_pass.evaluate(
       selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library, result.topology);
   ApplyRootDriverCompensationResult(result, exploration, selected_compensation_detail, *selected_ref->entry);
+  result.root_driver_compensation.clock_period_source = root_driver_clock_period_source;
   result.levels = selected_evaluation.levels;
   result.selected_final_frontier_count = selected_summary.final_frontier_count;
   result.selected_candidate_solution_count = selected_summary.candidate_solution_count;

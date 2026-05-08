@@ -66,6 +66,8 @@ class HTree
     std::vector<double> additional_characterization_lengths_um;
     bool enable_root_driver_sizing = true;
     bool topology_loads_are_local_buffers = false;
+    double clock_period_ns = 0.0;
+    std::string clock_period_source;
     LogContext log_context;
     std::string object_name_prefix;
   };
@@ -114,6 +116,7 @@ class HTree
     double routed_wirelength_um = 0.0;
     std::size_t terminal_count = 0U;
     double clock_period_ns = 0.0;
+    std::string clock_period_source;
     double cell_delay_ns = 0.0;
     double internal_power_w = 0.0;
     double leakage_power_w = 0.0;

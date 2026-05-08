@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ClockDAG.hh"
 #include "Inst.hh"
 #include "Net.hh"
 #include "Pin.hh"
@@ -79,6 +80,9 @@ class Design
   auto clearClocks() -> void;
   auto clearTopologyObjects() -> void;
   auto removeClockMembershipObjects(Clock& clock) -> void;
+  auto get_clock_dag() const -> const ClockDAG& { return _clock_dag; }
+  auto rebuildClockDAG() -> bool;
+  auto clearClockDAG() -> void;
   auto emitClockDistributionSummary(const std::string& title = "Clock Distribution Overview") const -> void;
   static auto getPinFullName(const Pin* pin) -> std::string;
 
@@ -97,6 +101,7 @@ class Design
   std::unordered_map<std::string, Inst*> _inst_by_name;
   std::unordered_map<std::string, Pin*> _pin_by_full_name;
   std::unordered_map<std::string, Net*> _net_by_name;
+  ClockDAG _clock_dag;
 };
 
 }  // namespace icts

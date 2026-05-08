@@ -31,7 +31,6 @@
 #include <regex>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "BufferingPattern.hh"
@@ -41,9 +40,9 @@
 #include "common/logging/LogText.hh"
 #include "common/realtech/support/RealTechSetupSupport.hh"
 #include "database/adapter/sta/STAAdapter.hh"
+#include "database/design/Design.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"
-#include "database/io/Wrapper.hh"
 #include "module/characterization/CharBuilder.hh"
 #include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
 
@@ -163,8 +162,7 @@ TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAfte
   icts::Inst probe_inst(probe->inst_name, probe->cell_master, icts::InstType::kUnknown, icts::Point<int>(-1, -1));
   icts::Pin probe_pin(probe->pin_name, icts::PinType::kIn, icts::Point<int>(-1, -1), &probe_inst);
 
-  const auto clock_net_pairs = WRAPPER_INST.collectClockNetPairs();
-  ASSERT_FALSE(clock_net_pairs.empty()) << "Real-tech setup should expose at least one iDB clock net.";
+  ASSERT_FALSE(DESIGN_INST.get_clocks().empty()) << "Real-tech setup should materialize at least one SDC-declared clock.";
 
   STA_ADAPTER_INST.refreshFullDesignTimingContext();
   STA_ADAPTER_INST.updateTiming();
@@ -184,7 +182,7 @@ TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAfte
   report_stream << "pin_name=" << probe->pin_name << "\n";
   report_stream << "pre_timing_cap_pf=" << probe->pre_timing_cap_pf << "\n";
   report_stream << "post_timing_cap_pf=" << post_timing_cap_pf << "\n";
-  report_stream << "clock_net_pair_count=" << clock_net_pairs.size() << "\n";
+  report_stream << "clock_count=" << DESIGN_INST.get_clocks().size() << "\n";
   ASSERT_TRUE(realtech_support::WriteScenarioLog("explicit_pin_cap_probe", "explicit_pin_cap_probe_report.txt", report_stream.str()));
 }
 
@@ -416,8 +414,7 @@ TEST(CharacterizationRealTechFallbackTest, RepeatedReducedBuildsRemainUsableWith
   EXPECT_EQ(first_summary.max_input_slew_idx, second_summary.max_input_slew_idx);
   STA_ADAPTER_INST.refreshFullDesignTimingContext();
   STA_ADAPTER_INST.updateTiming();
-  const auto clock_net_pairs = WRAPPER_INST.collectClockNetPairs();
-  EXPECT_FALSE(clock_net_pairs.empty()) << "Full-design STA should remain usable after repeated char-only builds.";
+  EXPECT_FALSE(DESIGN_INST.get_clocks().empty()) << "Full-design STA should remain usable after repeated char-only builds.";
   EXPECT_EQ(first_summary.max_output_slew_idx, second_summary.max_output_slew_idx);
   EXPECT_EQ(first_summary.max_driven_cap_idx, second_summary.max_driven_cap_idx);
   EXPECT_EQ(first_summary.max_load_cap_idx, second_summary.max_load_cap_idx);

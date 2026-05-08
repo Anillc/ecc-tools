@@ -42,6 +42,8 @@ class Clock
   // Getter
   auto get_clock_name() const -> const std::string& { return _clock_name; }
   auto get_clock_net_name() const -> const std::string& { return _clock_net_name; }
+  auto get_clock_period_ns() const -> double { return _clock_period_ns; }
+  auto get_clock_period_source() const -> const std::string& { return _clock_period_source; }
   auto get_clock_source() const -> Pin* { return _clock_source; }
   auto get_clock_source_net() const -> Net* { return _clock_source_net; }
   auto get_loads() const -> const std::vector<Pin*>& { return _loads; }
@@ -51,6 +53,8 @@ class Clock
   // Setter
   auto set_clock_name(const std::string& clock_name) -> void { _clock_name = clock_name; }
   auto set_clock_net_name(const std::string& clock_net_name) -> void { _clock_net_name = clock_net_name; }
+  auto set_clock_period_ns(double clock_period_ns) -> void { _clock_period_ns = clock_period_ns; }
+  auto set_clock_period_source(const std::string& clock_period_source) -> void { _clock_period_source = clock_period_source; }
   auto set_clock_source(Pin* clock_source) -> void { _clock_source = clock_source; }
   auto set_clock_source_net(Net* clock_source_net) -> void { _clock_source_net = clock_source_net; }
 
@@ -77,6 +81,8 @@ class Clock
 
   std::string _clock_name = "";
   std::string _clock_net_name = "";
+  double _clock_period_ns = 0.0;
+  std::string _clock_period_source = "";
   Pin* _clock_source = nullptr;
   Net* _clock_source_net = nullptr;
   std::vector<Pin*> _loads;

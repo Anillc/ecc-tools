@@ -29,6 +29,7 @@
 #include <iterator>
 #include <optional>
 #include <ostream>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -46,16 +47,16 @@
 #include "IdbTerm.h"
 #include "IdbUnits.h"
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "builder.h"
 #include "def_service.h"
 #include "design/Clock.hh"
+#include "design/ClockDAG.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
-#include "idm.h"
 #include "lef_service.h"
+#include "logger/Schema.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -149,6 +150,158 @@ auto clearIdbNetPins(idb::IdbNet* idb_net) -> void
   }
 }
 
+struct IdbNetPinSnapshot
+{
+  std::vector<idb::IdbPin*> io_pins;
+  std::vector<idb::IdbPin*> inst_pins;
+};
+
+struct IdbClockNetPins
+{
+  idb::IdbPin* driver = nullptr;
+  std::vector<idb::IdbPin*> loads;
+};
+
+struct ClockIdbWriteScope
+{
+  std::set<std::string> touched_net_names;
+  std::set<std::string> clock_tree_inst_names;
+  std::unordered_map<const Clock*, std::vector<Net*>> reachable_nets_by_clock;
+};
+
+struct ClockIdbWriteBackup
+{
+  std::set<std::string> pre_existing_net_names;
+  std::unordered_map<std::string, IdbNetPinSnapshot> net_pin_membership_by_name;
+  std::set<std::string> pre_existing_inst_names;
+};
+
+auto findIdbPinByTermOrPinName(idb::IdbInstance* idb_inst, const std::string& pin_name) -> idb::IdbPin*
+{
+  if (idb_inst == nullptr || idb_inst->get_pin_list() == nullptr || pin_name.empty()) {
+    return nullptr;
+  }
+
+  for (auto* idb_pin : idb_inst->get_pin_list()->get_pin_list()) {
+    if (idb_pin == nullptr) {
+      continue;
+    }
+    if (idb_pin->get_pin_name() == pin_name) {
+      return idb_pin;
+    }
+    auto* idb_term = idb_pin->get_term();
+    if (idb_term != nullptr && idb_term->get_name() == pin_name) {
+      return idb_pin;
+    }
+  }
+  return nullptr;
+}
+
+auto appendUniqueIdbPin(std::vector<idb::IdbPin*>& pins, idb::IdbPin* idb_pin) -> void
+{
+  if (idb_pin == nullptr || std::ranges::find(pins, idb_pin) != pins.end()) {
+    return;
+  }
+  pins.push_back(idb_pin);
+}
+
+auto collectIdbClockNetPins(idb::IdbNet* idb_net) -> IdbClockNetPins
+{
+  IdbClockNetPins net_pins;
+  if (idb_net == nullptr) {
+    return net_pins;
+  }
+
+  std::vector<idb::IdbPin*> all_pins;
+  if (idb_net->get_io_pins() != nullptr) {
+    for (auto* idb_pin : idb_net->get_io_pins()->get_pin_list()) {
+      appendUniqueIdbPin(all_pins, idb_pin);
+    }
+  }
+  if (idb_net->get_instance_pin_list() != nullptr) {
+    for (auto* idb_pin : idb_net->get_instance_pin_list()->get_pin_list()) {
+      appendUniqueIdbPin(all_pins, idb_pin);
+    }
+  }
+
+  for (auto* idb_pin : all_pins) {
+    auto* idb_term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+    if (idb_term == nullptr) {
+      continue;
+    }
+    if (!idb_pin->is_io_pin()
+        && (idb_term->get_direction() == idb::IdbConnectDirection::kOutput
+            || idb_term->get_direction() == idb::IdbConnectDirection::kOutputTriState)) {
+      net_pins.driver = idb_pin;
+      break;
+    }
+  }
+
+  if (net_pins.driver == nullptr) {
+    for (auto* idb_pin : all_pins) {
+      auto* idb_term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+      if (idb_term != nullptr && idb_pin->is_io_pin() && idb_term->get_direction() == idb::IdbConnectDirection::kInput) {
+        net_pins.driver = idb_pin;
+        break;
+      }
+    }
+  }
+
+  if (net_pins.driver == nullptr) {
+    for (auto* idb_pin : all_pins) {
+      auto* idb_term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+      if (idb_term != nullptr && idb_pin->is_io_pin() && idb_term->get_direction() == idb::IdbConnectDirection::kInOut) {
+        net_pins.driver = idb_pin;
+        break;
+      }
+    }
+  }
+
+  if (net_pins.driver == nullptr && !all_pins.empty()) {
+    net_pins.driver = all_pins.front();
+  }
+
+  for (auto* idb_pin : all_pins) {
+    if (idb_pin != net_pins.driver) {
+      net_pins.loads.push_back(idb_pin);
+    }
+  }
+  return net_pins;
+}
+
+auto inferCtsInstTypeFromIdbInst(idb::IdbInstance* idb_inst) -> InstType
+{
+  if (idb_inst == nullptr) {
+    return InstType::kUnknown;
+  }
+  auto* cell_master = idb_inst->get_cell_master();
+  if (cell_master != nullptr && cell_master->is_block()) {
+    return InstType::kMacroBlock;
+  }
+  if (idb_inst->is_flip_flop()) {
+    return InstType::kFlipFlop;
+  }
+  if (idb_inst->is_clock_instance()) {
+    return InstType::kBuffer;
+  }
+  return InstType::kUnknown;
+}
+
+auto snapshotIdbNetPins(idb::IdbNet* idb_net) -> IdbNetPinSnapshot
+{
+  IdbNetPinSnapshot snapshot;
+  if (idb_net == nullptr) {
+    return snapshot;
+  }
+  if (idb_net->get_io_pins() != nullptr) {
+    snapshot.io_pins = idb_net->get_io_pins()->get_pin_list();
+  }
+  if (idb_net->get_instance_pin_list() != nullptr) {
+    snapshot.inst_pins = idb_net->get_instance_pin_list()->get_pin_list();
+  }
+  return snapshot;
+}
+
 }  // namespace
 
 auto Wrapper::init(idb::IdbBuilder* idb) -> void
@@ -183,43 +336,6 @@ auto Wrapper::withinCore(int32_t point_x, int32_t point_y) const -> bool
          && point_y <= core_box->get_high_y();
 }
 
-auto Wrapper::isClockNet(const std::string& net_name) -> bool
-{
-  if (_idb_design == nullptr || _idb_design->get_net_list() == nullptr) {
-    LOG_WARNING << "Cannot query clock net \"" << net_name << "\": iDB net list is not ready.";
-    return false;
-  }
-
-  auto* idb_net = _idb_design->get_net_list()->find_net(net_name);
-  if (idb_net == nullptr) {
-    return false;
-  }
-  return idb_net->is_clock();
-}
-
-auto Wrapper::collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>
-{
-  std::vector<std::pair<std::string, std::string>> clock_net_pairs;
-  if (_idb_design == nullptr || _idb_design->get_net_list() == nullptr) {
-    LOG_WARNING << "Cannot collect iDB clock nets: iDB net list is not ready.";
-    return clock_net_pairs;
-  }
-
-  if (dmInst->get_idb_design() == nullptr || dmInst->get_idb_design()->get_net_list() == nullptr) {
-    LOG_WARNING << "Cannot collect iDB clock nets: idm net list is not ready.";
-    return clock_net_pairs;
-  }
-
-  for (auto* idb_net : dmInst->getClockNetList()) {
-    if (idb_net == nullptr) {
-      continue;
-    }
-    const auto net_name = idb_net->get_net_name();
-    clock_net_pairs.emplace_back(net_name, net_name);
-  }
-  return clock_net_pairs;
-}
-
 auto Wrapper::read() -> void
 {
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
@@ -227,61 +343,10 @@ auto Wrapper::read() -> void
     if (clock == nullptr) {
       continue;
     }
-    // TBD: maybe bug if clock net name is different from clock name; need to query clock name from STA
     clock_net_pairs.emplace_back(clock->get_clock_name(), clock->get_clock_net_name());
   }
-  readClocks(clock_net_pairs);
-}
-
-auto Wrapper::readClocks() -> void
-{
-  readClocks(collectClockNetPairs());
-}
-
-auto Wrapper::readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> void
-{
-  if (_idb == nullptr) {
-    LOG_WARNING << "Skip wrapper read: iDB builder is null.";
-    return;
-  }
-  auto* def_service = _idb->get_def_service();
-  if (def_service == nullptr) {
-    LOG_WARNING << "Skip wrapper read: DEF service is null.";
-    return;
-  }
-  auto* idb_design = def_service->get_design();
-  if (idb_design == nullptr) {
-    LOG_WARNING << "Skip wrapper read: iDB design is null.";
-    return;
-  }
-
-  auto* idb_net_list = idb_design->get_net_list();
-  if (idb_net_list == nullptr) {
-    LOG_WARNING << "Skip wrapper read: iDB net list is null.";
-    return;
-  }
-
-  _cts2idb_inst_map.clear();
-  _idb2cts_inst_map.clear();
-  _cts2idb_net_map.clear();
-  _idb2cts_net_map.clear();
-  _cts2idb_pin_map.clear();
-  _idb2cts_pin_map.clear();
-  DESIGN_INST.clearClocks();
-  DESIGN_INST.clearTopologyObjects();
-
-  for (const auto& [clock_name, clock_net_name] : clock_net_pairs) {
-    auto* idb_net = idb_net_list->find_net(clock_net_name);
-    if (idb_net == nullptr) {
-      LOG_WARNING << "Clock net \"" << clock_net_name << "\" is not found in iDB.";
-      continue;
-    }
-
-    auto* clock = readClock(clock_name, clock_net_name, idb_net);
-    if (clock == nullptr || clock->get_clock_source_net() == nullptr) {
-      LOG_WARNING << "Failed to convert clock net \"" << clock_net_name << "\" from iDB to CTS.";
-      continue;
-    }
+  if (!readClocks(clock_net_pairs)) {
+    LOG_WARNING << "Wrapper read failed while materializing predeclared CTS clocks.";
   }
 }
 
@@ -290,395 +355,703 @@ auto Wrapper::idbToCts(idb::IdbCoordinate<int32_t>& coord) -> Point<int>
   return {coord.get_x(), coord.get_y()};
 }
 
-auto Wrapper::idbToCts(idb::IdbInstance* idb_inst) -> Inst*
-{
-  if (idb_inst == nullptr) {
-    return nullptr;
-  }
-
-  auto* cell_master = idb_inst->get_cell_master();
-  auto* coord = idb_inst->get_coordinate();
-  if (cell_master == nullptr) {
-    LOG_WARNING << "Skip converting instance \"" << idb_inst->get_name() << "\": cell master is null.";
-  }
-  if (coord == nullptr) {
-    LOG_WARNING << "Skip converting instance \"" << idb_inst->get_name() << "\": coordinate is null.";
-  }
-  if (cell_master == nullptr || coord == nullptr) {
-    return nullptr;
-  }
-
-  const auto inst_name = idb_inst->get_name();
-  auto* cts_inst = DESIGN_INST.makeInst(inst_name);
-  if (cts_inst == nullptr) {
-    return nullptr;
-  }
-
-  cts_inst->set_name(inst_name);
-  cts_inst->set_cell_master(cell_master->get_name());
-  cts_inst->set_type(STA_ADAPTER_INST.queryInstType(inst_name));
-  cts_inst->set_location(idbToCts(*coord));
-  crossRef(idb_inst, cts_inst);
-  return cts_inst;
-}
-
-auto Wrapper::idbToCts(idb::IdbPin* idb_pin) -> Pin*
-{
-  if (idb_pin == nullptr) {
-    return nullptr;
-  }
-
-  auto* idb_term = idb_pin->get_term();
-  if (idb_term == nullptr) {
-    LOG_WARNING << "Skip converting pin \"" << idb_pin->get_pin_name() << "\": term is null.";
-    return nullptr;
-  }
-  auto* avg_coord = idb_pin->get_average_coordinate();
-  if (avg_coord == nullptr) {
-    LOG_WARNING << "Skip converting pin \"" << idb_pin->get_pin_name() << "\": average coordinate is null.";
-    return nullptr;
-  }
-
-  auto* cts_pin = DESIGN_INST.makePin(idb_term->get_name());
-  if (cts_pin == nullptr) {
-    return nullptr;
-  }
-
-  cts_pin->set_name(idb_term->get_name());
-  cts_pin->set_type(convertIdbPinType(idb_term->get_type(), idb_term->get_direction()));
-  cts_pin->set_location(idbToCts(*avg_coord));
-  cts_pin->set_io(idb_pin->is_io_pin());
-  crossRef(idb_pin, cts_pin);
-  return cts_pin;
-}
-
-auto Wrapper::idbToCts(idb::IdbNet* idb_net) -> Net*
-{
-  if (idb_net == nullptr) {
-    return nullptr;
-  }
-
-  auto* cts_net_ptr = DESIGN_INST.makeNet(idb_net->get_net_name());
-  if (cts_net_ptr == nullptr) {
-    return nullptr;
-  }
-
-  cts_net_ptr->set_name(idb_net->get_net_name());
-  crossRef(idb_net, cts_net_ptr);
-  return cts_net_ptr;
-}
-
-auto Wrapper::readClock(const std::string& clock_name, const std::string& clock_net_name, idb::IdbNet* idb_net) -> Clock*
-{
-  if (idb_net == nullptr) {
-    return nullptr;
-  }
-
-  auto* clock = DESIGN_INST.makeClock(clock_name, clock_net_name);
-  if (clock == nullptr) {
-    return nullptr;
-  }
-  clock->set_clock_name(clock_name);
-  clock->set_clock_net_name(clock_net_name);
-  clock->set_clock_source(nullptr);
-  clock->set_clock_source_net(nullptr);
-  clock->clear_loads();
-  clock->clearMembership();
-
-  auto* cts_net_ptr = idbToCts(idb_net);
-  if (cts_net_ptr == nullptr) {
-    return nullptr;
-  }
-  cts_net_ptr->set_driver(nullptr);
-  cts_net_ptr->set_loads({});
-  clock->set_clock_source_net(cts_net_ptr);
-
-  auto* idb_driver_pin = idb_net->get_driving_pin();
-  if (idb_driver_pin == nullptr) {
-    LOG_WARNING << "Clock net \"" << idb_net->get_net_name() << "\" has no driving pin in iDB.";
-  }
-
-  auto idb_load_pins = idb_net->get_load_pins();
-  std::vector<idb::IdbPin*> idb_pins;
-  if (idb_driver_pin != nullptr) {
-    idb_pins.push_back(idb_driver_pin);
-  }
-  std::ranges::copy(idb_load_pins, std::back_inserter(idb_pins));
-
-  std::unordered_map<idb::IdbInstance*, Inst*> cts_inst_by_idb;
-  for (auto* idb_pin : idb_pins) {
-    if (idb_pin == nullptr) {
-      continue;
-    }
-
-    Inst* cts_inst = nullptr;
-    if (auto* idb_inst = idb_pin->get_instance(); idb_inst != nullptr) {
-      if (cts_inst_by_idb.contains(idb_inst)) {
-        cts_inst = cts_inst_by_idb.at(idb_inst);
-      } else {
-        cts_inst = idbToCts(idb_inst);
-        if (cts_inst != nullptr) {
-          cts_inst_by_idb[idb_inst] = cts_inst;
-        }
-      }
-    }
-
-    auto* cts_pin = idbToCts(idb_pin);
-    if (cts_pin == nullptr) {
-      continue;
-    }
-    cts_pin->set_inst(cts_inst);
-    if (cts_inst != nullptr) {
-      if (idb_pin == idb_driver_pin) {
-        cts_inst->insertDriverPin(cts_pin);
-      } else {
-        cts_inst->add_pin(cts_pin);
-      }
-    }
-    if (!DESIGN_INST.indexPin(cts_pin)) {
-      continue;
-    }
-
-    if (idb_pin == idb_driver_pin) {
-      clock->set_clock_source(cts_pin);
-      cts_net_ptr->set_driver(cts_pin);
-    } else {
-      clock->add_load(cts_pin);
-      cts_net_ptr->add_load(cts_pin);
-    }
-    cts_pin->set_net(cts_net_ptr);
-  }
-  return clock;
-}
-
 auto Wrapper::ctsToIdb(const Point<int>& loc) -> idb::IdbCoordinate<int32_t>
 {
   return {loc.get_x(), loc.get_y()};
 }
 
-auto Wrapper::ctsToIdb(Pin* pin) -> idb::IdbPin*
+class Wrapper::CtsClockReader
 {
-  if (pin == nullptr) {
-    return nullptr;
-  }
-  if (_cts2idb_pin_map.contains(pin)) {
-    return _cts2idb_pin_map.at(pin);
-  }
-  auto* inst = pin->get_inst();
-  if (inst == nullptr) {
-    return nullptr;
-  }
+ public:
+  explicit CtsClockReader(Wrapper& wrapper) : _wrapper(&wrapper) {}
 
-  auto* idb_inst = ctsToIdb(inst);
-  if (idb_inst == nullptr) {
-    return nullptr;
-  }
-
-  auto* idb_pin = idb_inst->get_pin_by_term(pin->get_name());
-  if (idb_pin == nullptr) {
-    LOG_WARNING << "Failed to find iDB pin for CTS pin \"" << Design::getPinFullName(pin) << "\".";
-    return nullptr;
-  }
-  crossRef(idb_pin, pin);
-  return idb_pin;
-}
-
-auto Wrapper::ctsToIdb(Inst* inst) -> idb::IdbInstance*
-{
-  if (inst == nullptr) {
-    return nullptr;
-  }
-  if (_cts2idb_inst_map.contains(inst)) {
-    return _cts2idb_inst_map.at(inst);
-  }
-
-  if (_idb_design == nullptr || _idb_layout == nullptr || _idb_layout->get_cell_master_list() == nullptr) {
-    LOG_WARNING << "Cannot create iDB inst for CTS inst \"" << inst->get_name() << "\": iDB design/layout is not ready.";
-    return nullptr;
-  }
-
-  auto* inst_list = _idb_design->get_instance_list();
-  if (inst_list == nullptr) {
-    LOG_WARNING << "Cannot create iDB inst for CTS inst \"" << inst->get_name() << "\": iDB inst list is null.";
-    return nullptr;
-  }
-
-  auto* cell_master = _idb_layout->get_cell_master_list()->find_cell_master(inst->get_cell_master());
-  if (cell_master == nullptr) {
-    LOG_WARNING << "Cannot create iDB inst \"" << inst->get_name() << "\": cell master " << inst->get_cell_master() << " is not found.";
-    return nullptr;
-  }
-
-  auto* idb_inst = inst_list->find_instance(inst->get_name());
-  if (idb_inst == nullptr) {
-    idb_inst = inst_list->add_instance(inst->get_name());
-    if (idb_inst == nullptr) {
-      LOG_WARNING << "Failed to allocate iDB inst for CTS inst \"" << inst->get_name() << "\".";
-      return nullptr;
-    }
-    idb_inst->set_cell_master(cell_master);
-    idb_inst->set_type(idb::IdbInstanceType::kTiming);
-    idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
-    idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
-    idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
-  } else if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
-    const std::string actual_master = idb_inst->get_cell_master() == nullptr ? "<null>" : idb_inst->get_cell_master()->get_name();
-    LOG_WARNING << "Cannot reuse iDB inst \"" << inst->get_name() << "\" for CTS instantiation: expected cell master "
-                << inst->get_cell_master() << ", found " << actual_master << ".";
-    return nullptr;
-  } else {
-    idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
-    idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
-    idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
-  }
-
-  crossRef(idb_inst, inst);
-  for (auto* pin : inst->get_pins()) {
-    if (pin == nullptr || _cts2idb_pin_map.contains(pin)) {
-      continue;
-    }
-    auto* idb_pin = idb_inst->get_pin_by_term(pin->get_name());
-    if (idb_pin != nullptr) {
-      crossRef(idb_pin, pin);
-    }
-  }
-  return idb_inst;
-}
-
-auto Wrapper::ctsToIdb(Net* net) -> idb::IdbNet*
-{
-  if (net == nullptr) {
-    return nullptr;
-  }
-  if (_cts2idb_net_map.contains(net)) {
-    return _cts2idb_net_map.at(net);
-  }
-  if (_idb_design != nullptr && _idb_design->get_net_list() != nullptr) {
-    auto* idb_net = _idb_design->get_net_list()->find_net(net->get_name());
-    if (idb_net != nullptr) {
-      crossRef(idb_net, net);
-      return idb_net;
-    }
-  }
-  return nullptr;
-}
-
-auto Wrapper::ensureIdbNet(Net* cts_net, const std::string& default_net_name) -> idb::IdbNet*
-{
-  if (_idb_design == nullptr || _idb_design->get_net_list() == nullptr || cts_net == nullptr) {
-    return nullptr;
-  }
-
-  auto* idb_net = ctsToIdb(cts_net);
-  if (idb_net != nullptr) {
-    return idb_net;
-  }
-
-  const auto net_name = cts_net->get_name().empty() ? default_net_name : cts_net->get_name();
-  idb_net = _idb_design->get_net_list()->find_net(net_name);
-  if (idb_net != nullptr) {
-    crossRef(idb_net, cts_net);
-    return idb_net;
-  }
-
-  idb_net = _idb_design->get_net_list()->add_net(net_name, idb::IdbConnectType::kClock);
-  if (idb_net != nullptr) {
-    crossRef(idb_net, cts_net);
-  }
-  return idb_net;
-}
-
-auto Wrapper::rewriteIdbNetPins(idb::IdbNet* idb_net, Net* cts_net) -> bool
-{
-  if (idb_net == nullptr || cts_net == nullptr) {
-    return false;
-  }
-
-  auto* driver = cts_net->get_driver();
-  if (driver == nullptr) {
-    LOG_WARNING << "Skip iDB net rewrite for \"" << cts_net->get_name() << "\": driver pin is null.";
-    return false;
-  }
-
-  auto* idb_driver = ctsToIdb(driver);
-  if (idb_driver == nullptr) {
-    LOG_WARNING << "Skip iDB net rewrite for \"" << cts_net->get_name() << "\": driver pin " << driver->get_name()
-                << " is not materialized in iDB.";
-    return false;
-  }
-
-  std::vector<idb::IdbPin*> idb_loads;
-  idb_loads.reserve(cts_net->get_loads().size());
-  for (auto* load : cts_net->get_loads()) {
-    if (load == nullptr) {
-      continue;
-    }
-    auto* idb_load = ctsToIdb(load);
-    if (idb_load == nullptr) {
-      LOG_WARNING << "Skip load pin " << load->get_name() << " when rewriting iDB net \"" << cts_net->get_name()
-                  << "\": pin is not materialized in iDB.";
+  auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool
+  {
+    auto* idb_design = findIdbDesign();
+    if (idb_design == nullptr) {
+      LOG_ERROR << "CTS clock read failed: iDB design is null.";
       return false;
     }
-    idb_loads.push_back(idb_load);
+
+    auto* idb_net_list = idb_design->get_net_list();
+    if (idb_net_list == nullptr) {
+      LOG_ERROR << "CTS clock read failed: iDB net list is null.";
+      return false;
+    }
+
+    clearClockReadData();
+    for (const auto& [clock_name, clock_net_name] : clock_net_pairs) {
+      auto* idb_net = findSdcClockNetOrError(clock_name, clock_net_name, idb_net_list);
+      if (idb_net == nullptr || buildClockFromIdbNet(clock_name, clock_net_name, idb_net) == nullptr) {
+        clearClockReadData();
+        return false;
+      }
+    }
+    return true;
   }
 
-  clearIdbNetPins(idb_net);
-  appendIdbPinToNet(idb_net, idb_driver);
-  for (auto* idb_load : idb_loads) {
-    appendIdbPinToNet(idb_net, idb_load);
+ private:
+  auto clearClockReadData() -> void
+  {
+    _wrapper->_cts2idb_inst_map.clear();
+    _wrapper->_idb2cts_inst_map.clear();
+    _wrapper->_cts2idb_net_map.clear();
+    _wrapper->_idb2cts_net_map.clear();
+    _wrapper->_cts2idb_pin_map.clear();
+    _wrapper->_idb2cts_pin_map.clear();
+    DESIGN_INST.clearClocks();
+    DESIGN_INST.clearTopologyObjects();
   }
-  return idb_driver != nullptr || !idb_loads.empty();
+
+  auto findIdbDesign() -> idb::IdbDesign*
+  {
+    auto* idb_design = _wrapper->_idb_design;
+    if (idb_design == nullptr && _wrapper->_idb != nullptr && _wrapper->_idb->get_def_service() != nullptr) {
+      idb_design = _wrapper->_idb->get_def_service()->get_design();
+      _wrapper->_idb_design = idb_design;
+    }
+    return idb_design;
+  }
+
+  static auto findSdcClockNetOrError(const std::string& clock_name, const std::string& clock_net_name, idb::IdbNetList* idb_net_list)
+      -> idb::IdbNet*
+  {
+    auto* idb_net = idb_net_list->find_net(clock_net_name);
+    if (idb_net == nullptr) {
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper", "failed to resolve SDC-declared clock net in iDB.",
+                             {{"clock", clock_name}, {"net", clock_net_name}, {"reason", "unresolved_sdc_clock_source"}});
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": SDC-declared net \"" << clock_net_name
+                << "\" is not found in iDB.";
+      return nullptr;
+    }
+    return idb_net;
+  }
+
+  auto buildClockFromIdbNet(const std::string& clock_name, const std::string& clock_net_name, idb::IdbNet* idb_net) -> Clock*
+  {
+    if (idb_net == nullptr) {
+      return nullptr;
+    }
+
+    auto* clock = DESIGN_INST.makeClock(clock_name, clock_net_name);
+    if (clock == nullptr) {
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": failed to create CTS clock object.";
+      return nullptr;
+    }
+    clock->set_clock_name(clock_name);
+    clock->set_clock_net_name(clock_net_name);
+    clock->set_clock_source(nullptr);
+    clock->set_clock_source_net(nullptr);
+    clock->clear_loads();
+    clock->clearMembership();
+
+    auto* cts_net = buildNetFromIdbNet(idb_net);
+    if (cts_net == nullptr) {
+      return nullptr;
+    }
+    cts_net->set_driver(nullptr);
+    cts_net->set_loads({});
+    clock->set_clock_source_net(cts_net);
+
+    const auto idb_net_pins = collectIdbClockNetPins(idb_net);
+    if (idb_net_pins.driver == nullptr) {
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": iDB net \"" << clock_net_name
+                << "\" has no resolvable driver pin.";
+      return nullptr;
+    }
+
+    std::vector<idb::IdbPin*> idb_pins;
+    idb_pins.push_back(idb_net_pins.driver);
+    std::ranges::copy(idb_net_pins.loads, std::back_inserter(idb_pins));
+
+    std::unordered_map<idb::IdbInstance*, Inst*> cts_inst_by_idb;
+    for (auto* idb_pin : idb_pins) {
+      if (idb_pin == nullptr) {
+        continue;
+      }
+
+      Inst* cts_inst = nullptr;
+      if (auto* idb_inst = idb_pin->get_instance(); idb_inst != nullptr) {
+        if (cts_inst_by_idb.contains(idb_inst)) {
+          cts_inst = cts_inst_by_idb.at(idb_inst);
+        } else {
+          cts_inst = buildInstFromIdbInst(idb_inst);
+          if (cts_inst == nullptr) {
+            return nullptr;
+          }
+          cts_inst_by_idb[idb_inst] = cts_inst;
+        }
+      } else if (!idb_pin->is_io_pin()) {
+        LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": instance pin \"" << idb_pin->get_pin_name()
+                  << "\" has no iDB inst.";
+        return nullptr;
+      }
+
+      auto* cts_pin = buildPinFromIdbPin(idb_pin, cts_inst);
+      if (cts_pin == nullptr) {
+        return nullptr;
+      }
+      cts_pin->set_net(cts_net);
+      if (!DESIGN_INST.indexPin(cts_pin)) {
+        LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": failed to index CTS pin \""
+                  << Design::getPinFullName(cts_pin) << "\".";
+        return nullptr;
+      }
+
+      if (cts_inst != nullptr) {
+        if (idb_pin == idb_net_pins.driver) {
+          cts_inst->insertDriverPin(cts_pin);
+        } else {
+          cts_inst->add_pin(cts_pin);
+        }
+      }
+      if (idb_pin == idb_net_pins.driver) {
+        clock->set_clock_source(cts_pin);
+        cts_net->set_driver(cts_pin);
+      } else {
+        clock->add_load(cts_pin);
+        cts_net->add_load(cts_pin);
+      }
+    }
+    return clock;
+  }
+
+  auto buildInstFromIdbInst(idb::IdbInstance* idb_inst) -> Inst*
+  {
+    if (idb_inst == nullptr) {
+      return nullptr;
+    }
+    auto* cell_master = idb_inst->get_cell_master();
+    auto* coord = idb_inst->get_coordinate();
+    if (cell_master == nullptr || coord == nullptr) {
+      LOG_ERROR << "CTS clock read failed: iDB inst \"" << idb_inst->get_name() << "\" is missing required cell master or coordinate.";
+      return nullptr;
+    }
+
+    const auto inst_name = idb_inst->get_name();
+    auto* cts_inst = DESIGN_INST.makeInst(inst_name);
+    if (cts_inst == nullptr) {
+      LOG_ERROR << "CTS clock read failed: failed to create CTS inst \"" << inst_name << "\".";
+      return nullptr;
+    }
+    cts_inst->set_name(inst_name);
+    cts_inst->set_cell_master(cell_master->get_name());
+    cts_inst->set_type(inferCtsInstTypeFromIdbInst(idb_inst));
+    cts_inst->set_location(Wrapper::idbToCts(*coord));
+    bindIdbInst(idb_inst, cts_inst);
+    return cts_inst;
+  }
+
+  auto buildPinFromIdbPin(idb::IdbPin* idb_pin, Inst* cts_inst) -> Pin*
+  {
+    if (idb_pin == nullptr) {
+      return nullptr;
+    }
+    auto* idb_term = idb_pin->get_term();
+    auto* avg_coord = idb_pin->get_average_coordinate();
+    if (idb_term == nullptr || avg_coord == nullptr) {
+      LOG_ERROR << "CTS clock read failed: iDB pin \"" << idb_pin->get_pin_name() << "\" is missing required term or average coordinate.";
+      return nullptr;
+    }
+
+    const auto pin_name = idb_term->get_name();
+    const auto pin_full_name = cts_inst == nullptr ? pin_name : cts_inst->get_name() + "/" + pin_name;
+    if (DESIGN_INST.findPin(pin_full_name) != nullptr) {
+      LOG_ERROR << "CTS clock read failed: duplicate CTS pin \"" << pin_full_name << "\".";
+      return nullptr;
+    }
+
+    auto* cts_pin = DESIGN_INST.makePin(pin_name);
+    if (cts_pin == nullptr) {
+      LOG_ERROR << "CTS clock read failed: failed to create CTS pin \"" << pin_full_name << "\".";
+      return nullptr;
+    }
+    cts_pin->set_name(pin_name);
+    cts_pin->set_type(convertIdbPinType(idb_term->get_type(), idb_term->get_direction()));
+    cts_pin->set_location(Wrapper::idbToCts(*avg_coord));
+    cts_pin->set_inst(cts_inst);
+    cts_pin->set_io(idb_pin->is_io_pin());
+    bindIdbPin(idb_pin, cts_pin);
+    return cts_pin;
+  }
+
+  auto buildNetFromIdbNet(idb::IdbNet* idb_net) -> Net*
+  {
+    if (idb_net == nullptr) {
+      return nullptr;
+    }
+    auto* cts_net = DESIGN_INST.makeNet(idb_net->get_net_name());
+    if (cts_net == nullptr) {
+      LOG_ERROR << "CTS clock read failed: failed to create CTS net \"" << idb_net->get_net_name() << "\".";
+      return nullptr;
+    }
+    cts_net->set_name(idb_net->get_net_name());
+    bindIdbNet(idb_net, cts_net);
+    return cts_net;
+  }
+
+  auto bindIdbPin(idb::IdbPin* idb_pin, Pin* cts_pin) -> void { _wrapper->crossRef(idb_pin, cts_pin); }
+  auto bindIdbInst(idb::IdbInstance* idb_inst, Inst* cts_inst) -> void { _wrapper->crossRef(idb_inst, cts_inst); }
+  auto bindIdbNet(idb::IdbNet* idb_net, Net* cts_net) -> void { _wrapper->crossRef(idb_net, cts_net); }
+
+  Wrapper* _wrapper = nullptr;
+};
+
+class Wrapper::CtsClockIdbWriter
+{
+ public:
+  explicit CtsClockIdbWriter(Wrapper& wrapper) : _wrapper(&wrapper) {}
+
+  auto writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult
+  {
+    WrapperWriteResult result;
+    if (!validateIdbWriteBoundary(result) || !rebuildAndValidateClockDAG(result)) {
+      return result;
+    }
+
+    auto scope = collectClockIdbWriteScope(clocks);
+    if (scope.touched_net_names.empty() && !clocks.empty()) {
+      result.success = false;
+      result.reason = "invalid_clock_dag";
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper", "CTS iDB writeback preflight found no reachable clock nets.",
+                             {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+      return result;
+    }
+    const auto backup = backupClockIdbWriteScope(scope);
+
+    for (auto* clock : clocks) {
+      if (clock == nullptr) {
+        continue;
+      }
+      if (!writeClockToIdb(*clock, scope)) {
+        result.success = false;
+        result.failed_clock = clock->get_clock_name();
+        result.failed_net = _failed_net_name.empty() ? clock->get_clock_net_name() : _failed_net_name;
+        result.reason = "write_clock_failed";
+        result.rollback_done = rollbackClockIdbWrite(scope, backup);
+        schema::EmitDiagnostic(result.rollback_done ? schema::DiagnosticLevel::kError : schema::DiagnosticLevel::kWarning, "Wrapper",
+                               "CTS iDB writeback failed and rollback was attempted.",
+                               {{"clock", result.failed_clock},
+                                {"net", result.failed_net},
+                                {"reason", _failure_reason.empty() ? result.reason : _failure_reason},
+                                {"rollback_done", result.rollback_done ? "true" : "false"}});
+        return result;
+      }
+    }
+
+    result.success = true;
+    result.rollback_done = false;
+    return result;
+  }
+
+ private:
+  auto validateIdbWriteBoundary(WrapperWriteResult& result) -> bool
+  {
+    if (!_wrapper->is_design_ready() || _wrapper->_idb_design->get_net_list() == nullptr
+        || _wrapper->_idb_design->get_instance_list() == nullptr) {
+      result.success = false;
+      result.reason = "idb_design_not_ready";
+      LOG_ERROR << "CTS iDB writeback failed: iDB design, net list, or inst list is not ready.";
+      return false;
+    }
+    return true;
+  }
+
+  static auto rebuildAndValidateClockDAG(WrapperWriteResult& result) -> bool
+  {
+    if (DESIGN_INST.rebuildClockDAG()) {
+      return true;
+    }
+    result.success = false;
+    result.reason = "invalid_clock_dag";
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper",
+                           "CTS iDB writeback preflight failed because committed CTS topology is not a valid clock DAG.",
+                           {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+    return false;
+  }
+
+  static auto collectClockIdbWriteScope(const std::vector<Clock*>& clocks) -> ClockIdbWriteScope
+  {
+    ClockIdbWriteScope scope;
+    const auto& clock_dag = DESIGN_INST.get_clock_dag();
+    for (auto* clock : clocks) {
+      if (clock == nullptr) {
+        continue;
+      }
+      auto reachable_nets = clock_dag.reachableNets(clock);
+      for (auto* net : reachable_nets) {
+        const auto net_name = getClockTreeNetName(*clock, net);
+        if (!net_name.empty()) {
+          scope.touched_net_names.insert(net_name);
+        }
+      }
+      scope.reachable_nets_by_clock[clock] = std::move(reachable_nets);
+
+      for (auto* inst : clock->get_insts()) {
+        if (inst != nullptr && !inst->get_name().empty()) {
+          scope.clock_tree_inst_names.insert(inst->get_name());
+        }
+      }
+    }
+    return scope;
+  }
+
+  auto backupClockIdbWriteScope(const ClockIdbWriteScope& scope) -> ClockIdbWriteBackup
+  {
+    ClockIdbWriteBackup backup;
+    auto* idb_net_list = _wrapper->_idb_design->get_net_list();
+    auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
+
+    for (const auto& net_name : scope.touched_net_names) {
+      auto* idb_net = idb_net_list->find_net(net_name);
+      if (idb_net == nullptr) {
+        continue;
+      }
+      backup.pre_existing_net_names.insert(net_name);
+      backup.net_pin_membership_by_name[net_name] = snapshotIdbNetPins(idb_net);
+    }
+
+    for (const auto& inst_name : scope.clock_tree_inst_names) {
+      if (idb_inst_list->find_instance(inst_name) != nullptr) {
+        backup.pre_existing_inst_names.insert(inst_name);
+      }
+    }
+    return backup;
+  }
+
+  auto writeClockToIdb(Clock& clock, const ClockIdbWriteScope& scope) -> bool
+  {
+    if (!writeClockTreeInstsToIdb(clock)) {
+      if (_failed_net_name.empty()) {
+        _failed_net_name = clock.get_clock_net_name();
+      }
+      return false;
+    }
+
+    const auto reachable_iter = scope.reachable_nets_by_clock.find(&clock);
+    if (reachable_iter == scope.reachable_nets_by_clock.end() || reachable_iter->second.empty()) {
+      _failed_net_name = clock.get_clock_net_name();
+      _failure_reason = "no_reachable_clock_nets";
+      LOG_ERROR << "CTS iDB writeback failed for clock \"" << clock.get_clock_name() << "\": no reachable ClockDAG nets.";
+      return false;
+    }
+
+    for (auto* net : reachable_iter->second) {
+      if (net == nullptr) {
+        continue;
+      }
+      auto* idb_net = findOrCreateClockTreeIdbNet(net, clock.get_clock_net_name());
+      if (idb_net == nullptr || !rewriteClockTreeIdbNetPins(idb_net, net, scope)) {
+        if (_failed_net_name.empty()) {
+          _failed_net_name = getClockTreeNetName(clock, net);
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  auto writeClockTreeInstsToIdb(Clock& clock) -> bool
+  {
+    for (auto* inst : clock.get_insts()) {
+      if (inst == nullptr) {
+        continue;
+      }
+      if (createOrUpdateClockTreeInst(inst) == nullptr) {
+        _failure_reason = "create_or_update_clock_tree_inst_failed";
+        _failed_net_name = clock.get_clock_net_name();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  auto createOrUpdateClockTreeInst(Inst* inst) -> idb::IdbInstance*
+  {
+    if (inst == nullptr) {
+      return nullptr;
+    }
+    if (_wrapper->_cts2idb_inst_map.contains(inst)) {
+      return _wrapper->_cts2idb_inst_map.at(inst);
+    }
+
+    if (_wrapper->_idb_layout == nullptr || _wrapper->_idb_layout->get_cell_master_list() == nullptr) {
+      LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": iDB layout or cell master list is not ready.";
+      return nullptr;
+    }
+    auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
+    auto* cell_master = _wrapper->_idb_layout->get_cell_master_list()->find_cell_master(inst->get_cell_master());
+    if (cell_master == nullptr) {
+      LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": cell master \"" << inst->get_cell_master()
+                << "\" is not found.";
+      return nullptr;
+    }
+
+    auto* idb_inst = idb_inst_list->find_instance(inst->get_name());
+    if (idb_inst == nullptr) {
+      idb_inst = idb_inst_list->add_instance(inst->get_name());
+      if (idb_inst == nullptr) {
+        LOG_ERROR << "CTS iDB writeback failed: failed to allocate iDB inst \"" << inst->get_name() << "\".";
+        return nullptr;
+      }
+      idb_inst->set_cell_master(cell_master);
+      idb_inst->set_type(idb::IdbInstanceType::kTiming);
+    } else if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
+      const std::string actual_master = idb_inst->get_cell_master() == nullptr ? "<null>" : idb_inst->get_cell_master()->get_name();
+      LOG_ERROR << "CTS iDB writeback failed: cannot reuse iDB inst \"" << inst->get_name() << "\" with cell master \"" << actual_master
+                << "\" for CTS cell master \"" << inst->get_cell_master() << "\".";
+      return nullptr;
+    }
+
+    idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
+    idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
+    idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
+    _wrapper->crossRef(idb_inst, inst);
+    bindClockTreeInstPins(idb_inst, inst);
+    return idb_inst;
+  }
+
+  auto bindClockTreeInstPins(idb::IdbInstance* idb_inst, Inst* inst) -> void
+  {
+    if (idb_inst == nullptr || inst == nullptr) {
+      return;
+    }
+    for (auto* pin : inst->get_pins()) {
+      if (pin == nullptr || _wrapper->_cts2idb_pin_map.contains(pin)) {
+        continue;
+      }
+      auto* idb_pin = findIdbPinByTermOrPinName(idb_inst, pin->get_name());
+      if (idb_pin != nullptr) {
+        _wrapper->crossRef(idb_pin, pin);
+      }
+    }
+  }
+
+  auto findExistingIdbPinForClockNet(Pin* pin) -> idb::IdbPin*
+  {
+    if (pin == nullptr) {
+      return nullptr;
+    }
+    if (_wrapper->_cts2idb_pin_map.contains(pin)) {
+      return _wrapper->_cts2idb_pin_map.at(pin);
+    }
+
+    idb::IdbPin* idb_pin = nullptr;
+    auto* inst = pin->get_inst();
+    if (inst == nullptr) {
+      if (_wrapper->_idb_design->get_io_pin_list() != nullptr) {
+        idb_pin = _wrapper->_idb_design->get_io_pin_list()->find_pin(pin->get_name());
+      }
+    } else {
+      auto* idb_inst = _wrapper->_cts2idb_inst_map.contains(inst) ? _wrapper->_cts2idb_inst_map.at(inst) : nullptr;
+      if (idb_inst == nullptr) {
+        idb_inst = _wrapper->_idb_design->get_instance_list()->find_instance(inst->get_name());
+        if (idb_inst != nullptr) {
+          _wrapper->crossRef(idb_inst, inst);
+        }
+      }
+      idb_pin = findIdbPinByTermOrPinName(idb_inst, pin->get_name());
+    }
+
+    if (idb_pin != nullptr) {
+      _wrapper->crossRef(idb_pin, pin);
+    }
+    return idb_pin;
+  }
+
+  auto findExistingClockTreeIdbNet(Net* net) -> idb::IdbNet*
+  {
+    if (net == nullptr) {
+      return nullptr;
+    }
+    if (_wrapper->_cts2idb_net_map.contains(net)) {
+      return _wrapper->_cts2idb_net_map.at(net);
+    }
+    auto* idb_net = _wrapper->_idb_design->get_net_list()->find_net(net->get_name());
+    if (idb_net != nullptr) {
+      _wrapper->crossRef(idb_net, net);
+    }
+    return idb_net;
+  }
+
+  auto findOrCreateClockTreeIdbNet(Net* net, const std::string& default_net_name) -> idb::IdbNet*
+  {
+    if (net == nullptr) {
+      return nullptr;
+    }
+    if (auto* idb_net = findExistingClockTreeIdbNet(net); idb_net != nullptr) {
+      return idb_net;
+    }
+
+    const auto net_name = net->get_name().empty() ? default_net_name : net->get_name();
+    if (net_name.empty()) {
+      _failure_reason = "empty_clock_tree_net_name";
+      LOG_ERROR << "CTS iDB writeback failed: clock tree net name is empty.";
+      return nullptr;
+    }
+    auto* idb_net = _wrapper->_idb_design->get_net_list()->find_net(net_name);
+    if (idb_net == nullptr) {
+      idb_net = _wrapper->_idb_design->get_net_list()->add_net(net_name, idb::IdbConnectType::kClock);
+    }
+    if (idb_net == nullptr) {
+      _failure_reason = "create_clock_tree_net_failed";
+      LOG_ERROR << "CTS iDB writeback failed: failed to create iDB net \"" << net_name << "\".";
+      return nullptr;
+    }
+    _wrapper->crossRef(idb_net, net);
+    return idb_net;
+  }
+
+  auto validatePinCurrentNetInWriteScope(idb::IdbPin* idb_pin, idb::IdbNet* target_net, const ClockIdbWriteScope& scope,
+                                         const std::string& target_net_name, const std::string& cts_pin_role, Pin* cts_pin) -> bool
+  {
+    auto* current_net = idb_pin == nullptr ? nullptr : idb_pin->get_net();
+    if (current_net == nullptr || current_net == target_net || scope.touched_net_names.contains(current_net->get_net_name())) {
+      return true;
+    }
+
+    _failed_net_name = target_net_name;
+    _failure_reason = "clock_tree_pin_current_net_out_of_scope";
+    LOG_ERROR << "CTS iDB writeback failed for net \"" << target_net_name << "\": existing iDB pin for CTS " << cts_pin_role << " \""
+              << Design::getPinFullName(cts_pin) << "\" is connected to out-of-scope iDB net \"" << current_net->get_net_name() << "\".";
+    return false;
+  }
+
+  auto rewriteClockTreeIdbNetPins(idb::IdbNet* idb_net, Net* cts_net, const ClockIdbWriteScope& scope) -> bool
+  {
+    if (idb_net == nullptr || cts_net == nullptr) {
+      _failure_reason = "null_clock_tree_net";
+      return false;
+    }
+
+    const auto net_name = cts_net->get_name().empty() ? idb_net->get_net_name() : cts_net->get_name();
+    _failed_net_name = net_name;
+    auto* driver = cts_net->get_driver();
+    if (driver == nullptr) {
+      _failure_reason = "clock_tree_net_driver_missing";
+      LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": CTS driver pin is null.";
+      return false;
+    }
+
+    auto* idb_driver = findExistingIdbPinForClockNet(driver);
+    if (idb_driver == nullptr) {
+      _failure_reason = "clock_tree_driver_pin_unresolved";
+      LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": existing iDB pin for CTS driver \""
+                << Design::getPinFullName(driver) << "\" was not found.";
+      return false;
+    }
+    if (!validatePinCurrentNetInWriteScope(idb_driver, idb_net, scope, net_name, "driver", driver)) {
+      return false;
+    }
+
+    std::vector<idb::IdbPin*> idb_loads;
+    idb_loads.reserve(cts_net->get_loads().size());
+    for (auto* load : cts_net->get_loads()) {
+      if (load == nullptr) {
+        _failure_reason = "clock_tree_load_pin_missing";
+        LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": CTS load pin is null.";
+        return false;
+      }
+      auto* idb_load = findExistingIdbPinForClockNet(load);
+      if (idb_load == nullptr) {
+        _failure_reason = "clock_tree_load_pin_unresolved";
+        LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": existing iDB pin for CTS load \""
+                  << Design::getPinFullName(load) << "\" was not found.";
+        return false;
+      }
+      if (!validatePinCurrentNetInWriteScope(idb_load, idb_net, scope, net_name, "load", load)) {
+        return false;
+      }
+      idb_loads.push_back(idb_load);
+    }
+
+    clearIdbNetPins(idb_net);
+    appendIdbPinToNet(idb_net, idb_driver);
+    for (auto* idb_load : idb_loads) {
+      appendIdbPinToNet(idb_net, idb_load);
+    }
+    return true;
+  }
+
+  auto rollbackClockIdbWrite(const ClockIdbWriteScope& scope, const ClockIdbWriteBackup& backup) -> bool
+  {
+    auto* idb_net_list = _wrapper->_idb_design->get_net_list();
+    auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
+    bool rollback_done = true;
+    for (const auto& net_name : scope.touched_net_names) {
+      if (backup.pre_existing_net_names.contains(net_name)) {
+        continue;
+      }
+      auto* created_net = idb_net_list->find_net(net_name);
+      if (created_net == nullptr) {
+        continue;
+      }
+      clearIdbNetPins(created_net);
+      rollback_done = idb_net_list->remove_net(net_name) && rollback_done;
+    }
+
+    for (const auto& [net_name, snapshot] : backup.net_pin_membership_by_name) {
+      auto* idb_net = idb_net_list->find_net(net_name);
+      if (idb_net == nullptr) {
+        rollback_done = false;
+        continue;
+      }
+      clearIdbNetPins(idb_net);
+      for (auto* io_pin : snapshot.io_pins) {
+        appendIdbPinToNet(idb_net, io_pin);
+      }
+      for (auto* inst_pin : snapshot.inst_pins) {
+        appendIdbPinToNet(idb_net, inst_pin);
+      }
+    }
+
+    for (const auto& inst_name : scope.clock_tree_inst_names) {
+      if (backup.pre_existing_inst_names.contains(inst_name) || idb_inst_list->find_instance(inst_name) == nullptr) {
+        continue;
+      }
+      rollback_done = idb_inst_list->remove_instance(inst_name) && rollback_done;
+    }
+
+    _wrapper->_cts2idb_inst_map.clear();
+    _wrapper->_idb2cts_inst_map.clear();
+    _wrapper->_cts2idb_net_map.clear();
+    _wrapper->_idb2cts_net_map.clear();
+    _wrapper->_cts2idb_pin_map.clear();
+    _wrapper->_idb2cts_pin_map.clear();
+    return rollback_done;
+  }
+
+  static auto getClockTreeNetName(const Clock& clock, const Net* net) -> std::string
+  {
+    if (net == nullptr) {
+      return "";
+    }
+    return net->get_name().empty() ? clock.get_clock_net_name() : net->get_name();
+  }
+
+  Wrapper* _wrapper = nullptr;
+  std::string _failed_net_name;
+  std::string _failure_reason;
+};
+
+auto Wrapper::readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool
+{
+  return CtsClockReader(*this).readClocks(clock_net_pairs);
 }
 
 auto Wrapper::writeClock(Clock& clock) -> bool
 {
-  if (!is_design_ready()) {
-    LOG_WARNING << "Skip CTS iDB projection for clock \"" << clock.get_clock_name() << "\": iDB design is not ready.";
-    return false;
-  }
+  return CtsClockIdbWriter(*this).writeClocksDetailed({&clock}).success;
+}
 
-  bool success = true;
-  for (auto* inst : clock.get_insts()) {
-    if (inst == nullptr) {
-      continue;
-    }
-    if (ctsToIdb(inst) == nullptr) {
-      success = false;
-    }
-  }
-
-  auto write_net = [this, &clock, &success](Net* cts_net) -> void {
-    if (cts_net == nullptr) {
-      return;
-    }
-    auto* idb_net = ensureIdbNet(cts_net, clock.get_clock_net_name());
-    if (idb_net == nullptr || !rewriteIdbNetPins(idb_net, cts_net)) {
-      LOG_WARNING << "CTS iDB projection skipped or failed for clock net \"" << cts_net->get_name() << "\".";
-      success = false;
-    }
-  };
-
-  write_net(clock.get_clock_source_net());
-  for (auto* net : clock.get_nets()) {
-    if (net == clock.get_clock_source_net()) {
-      continue;
-    }
-    write_net(net);
-  }
-
-  return success;
+auto Wrapper::writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult
+{
+  return CtsClockIdbWriter(*this).writeClocksDetailed(clocks);
 }
 
 auto Wrapper::writeClocks(const std::vector<Clock*>& clocks) -> bool
 {
-  bool success = true;
-  for (auto* clock : clocks) {
-    if (clock == nullptr) {
-      continue;
-    }
-    success = writeClock(*clock) && success;
-  }
-  return success;
+  return writeClocksDetailed(clocks).success;
 }
 
 auto Wrapper::collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>

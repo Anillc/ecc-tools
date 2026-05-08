@@ -60,6 +60,10 @@ struct QorSummary
   };
 
   bool has_evaluation_result = false;
+  std::string qor_metric_status = "unavailable";
+  std::string timing_metric_source = "unavailable";
+  std::string physical_metric_source = "unavailable";
+  std::string path_depth_metric_status = "unavailable";
   bool sta_clocks_propagated = false;
   std::size_t propagated_clock_count = 0U;
   int32_t final_clock_buffer_count = 0;

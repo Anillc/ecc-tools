@@ -94,6 +94,8 @@ auto BuildTopHtreeOptions(Pin* clock_source, const Topology::SourceTrunkBuildOpt
   htree_options.fixed_topology_root_location = FindRenderableLocation(clock_source);
   htree_options.characterization_library = options.characterization_library;
   htree_options.enable_root_driver_sizing = false;
+  htree_options.clock_period_ns = options.clock_period_ns;
+  htree_options.clock_period_source = options.clock_period_source;
   htree_options.object_name_prefix = options.object_name_prefix;
   htree_options.log_context = log_context;
   return htree_options;

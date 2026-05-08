@@ -35,6 +35,7 @@
 
 #include "Point.hh"
 #include "database/design/Clock.hh"
+#include "database/design/ClockDAG.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"
 #include "log/Log.hh"
@@ -140,6 +141,7 @@ auto Design::makeClock(const std::string& clock_name, const std::string& clock_n
     clock = clock_owner.get();
     _clocks.push_back(std::move(clock_owner));
   }
+  _clock_dag.invalidate("clock_topology_changed");
 
   return clock;
 }
@@ -178,6 +180,7 @@ auto Design::makeInst(const std::string& name) -> Inst*
   }
 
   _inst_by_name[name] = inst;
+  _clock_dag.invalidate("clock_topology_changed");
   return inst;
 }
 
@@ -194,6 +197,7 @@ auto Design::commitInst(std::unique_ptr<Inst> inst) -> Inst*
   auto* inst_ptr = inst.get();
   _inst_by_name[inst_ptr->get_name()] = inst_ptr;
   _insts.push_back(std::move(inst));
+  _clock_dag.invalidate("clock_topology_changed");
   return inst_ptr;
 }
 
@@ -221,6 +225,7 @@ auto Design::makePin(const std::string& name) -> Pin*
   auto pin_owner = std::make_unique<Pin>(name);
   auto* pin = pin_owner.get();
   _pins.push_back(std::move(pin_owner));
+  _clock_dag.invalidate("clock_topology_changed");
   return pin;
 }
 
@@ -253,6 +258,7 @@ auto Design::indexPin(Pin* pin) -> bool
 
   std::erase_if(_pin_by_full_name, [pin](const auto& entry) -> bool { return entry.second == pin; });
   _pin_by_full_name[full_name] = pin;
+  _clock_dag.invalidate("clock_topology_changed");
   return true;
 }
 
@@ -281,6 +287,7 @@ auto Design::commitPin(std::unique_ptr<Pin> pin) -> Pin*
     return nullptr;
   }
   _pins.push_back(std::move(pin));
+  _clock_dag.invalidate("clock_topology_changed");
   return pin_ptr;
 }
 
@@ -312,6 +319,7 @@ auto Design::renamePin(Pin* pin, const std::string& name) -> bool
     (void) indexPin(pin);
     return false;
   }
+  _clock_dag.invalidate("clock_topology_changed");
   return true;
 }
 
@@ -337,6 +345,7 @@ auto Design::makeNet(const std::string& name) -> Net*
   }
 
   _net_by_name[name] = net;
+  _clock_dag.invalidate("clock_topology_changed");
   return net;
 }
 
@@ -361,6 +370,7 @@ auto Design::commitNet(std::unique_ptr<Net> net) -> Net*
   }
   _net_by_name[net_ptr->get_name()] = net_ptr;
   _nets.push_back(std::move(net));
+  _clock_dag.invalidate("clock_topology_changed");
   return net_ptr;
 }
 
@@ -372,11 +382,13 @@ auto Design::clearTopologyObjects() -> void
   _inst_by_name.clear();
   _pin_by_full_name.clear();
   _net_by_name.clear();
+  _clock_dag.invalidate("clock_topology_cleared");
 }
 
 auto Design::clearClocks() -> void
 {
   _clocks.clear();
+  _clock_dag.invalidate("clock_topology_cleared");
 }
 
 auto Design::removePin(Pin* pin) -> void
@@ -401,6 +413,7 @@ auto Design::removePin(Pin* pin) -> void
 
   std::erase_if(_pin_by_full_name, [pin](const auto& entry) -> bool { return entry.second == pin; });
   std::erase_if(_pins, [pin](const auto& object) -> bool { return object.get() == pin; });
+  _clock_dag.invalidate("clock_topology_changed");
 }
 
 auto Design::removeInst(Inst* inst) -> void
@@ -415,6 +428,7 @@ auto Design::removeInst(Inst* inst) -> void
   }
   std::erase_if(_inst_by_name, [inst](const auto& entry) -> bool { return entry.second == inst; });
   std::erase_if(_insts, [inst](const auto& object) -> bool { return object.get() == inst; });
+  _clock_dag.invalidate("clock_topology_changed");
 }
 
 auto Design::removeNet(Net* net) -> void
@@ -433,6 +447,7 @@ auto Design::removeNet(Net* net) -> void
   }
   std::erase_if(_net_by_name, [net](const auto& entry) -> bool { return entry.second == net; });
   std::erase_if(_nets, [net](const auto& object) -> bool { return object.get() == net; });
+  _clock_dag.invalidate("clock_topology_changed");
 }
 
 auto Design::removeClockMembershipObjects(Clock& clock) -> void
@@ -448,6 +463,17 @@ auto Design::removeClockMembershipObjects(Clock& clock) -> void
   for (auto* inst : clock.get_insts()) {
     removeInst(inst);
   }
+  _clock_dag.invalidate("clock_topology_changed");
+}
+
+auto Design::rebuildClockDAG() -> bool
+{
+  return _clock_dag.rebuild(get_clocks());
+}
+
+auto Design::clearClockDAG() -> void
+{
+  _clock_dag.clear();
 }
 
 auto Design::emitClockDistributionSummary(const std::string& title) const -> void

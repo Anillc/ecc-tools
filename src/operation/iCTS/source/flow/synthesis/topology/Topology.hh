@@ -54,6 +54,8 @@ class Topology
     std::string object_name_prefix;
     CharacterizationLibrary* characterization_library = nullptr;
     std::vector<double> additional_characterization_lengths_um;
+    double clock_period_ns = 0.0;
+    std::string clock_period_source;
     HTree::LogContext log_context;
   };
 
@@ -61,6 +63,8 @@ class Topology
   {
     std::string object_name_prefix;
     CharacterizationLibrary* characterization_library = nullptr;
+    double clock_period_ns = 0.0;
+    std::string clock_period_source;
     HTree::LogContext log_context;
   };
 

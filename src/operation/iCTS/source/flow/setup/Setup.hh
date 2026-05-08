@@ -32,7 +32,7 @@ class Setup
  public:
   Setup() = delete;
 
-  static auto initialize(const std::string& config_file, const std::string& work_dir) -> void;
+  static auto initialize(const std::string& config_file, const std::string& work_dir) -> bool;
   static auto emitRuntimeSetup() -> void;
 };
 

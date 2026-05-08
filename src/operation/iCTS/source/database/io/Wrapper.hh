@@ -60,6 +60,15 @@ struct WrapperCellGeometry
   int32_t height_dbu = 0;
 };
 
+struct WrapperWriteResult
+{
+  bool success = false;
+  std::string failed_clock;
+  std::string failed_net;
+  bool rollback_done = false;
+  std::string reason;
+};
+
 class Wrapper
 {
  public:
@@ -93,10 +102,8 @@ class Wrapper
   }
 
   auto queryDbUnit() const -> int32_t;
-  auto is_design_ready() const -> bool { return _idb != nullptr && _idb_design != nullptr; }
+  auto is_design_ready() const -> bool { return _idb_design != nullptr; }
   auto is_layout_ready() const -> bool { return _idb != nullptr && _idb_layout != nullptr; }
-  auto isClockNet(const std::string& net_name) -> bool;
-  auto collectClockNetPairs() -> std::vector<std::pair<std::string, std::string>>;
 
   // Setter
   auto set_idb_design(idb::IdbDesign* design) -> void { _idb_design = design; }
@@ -104,32 +111,28 @@ class Wrapper
 
   // Interface
   auto read() -> void;
-  auto readClocks() -> void;
-  auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> void;
+  auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool;
   auto writeClock(Clock& clock) -> bool;
+  auto writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult;
   auto writeClocks(const std::vector<Clock*>& clocks) -> bool;
   auto collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>;
   auto queryInstGeometry(const std::string& inst_name) const -> std::optional<WrapperCellGeometry>;
   auto withinCore(int32_t point_x, int32_t point_y) const -> bool;
 
  private:
+  class CtsClockReader;
+  class CtsClockIdbWriter;
+  friend class CtsClockReader;
+  friend class CtsClockIdbWriter;
+
   Wrapper() = default;
   ~Wrapper() = default;
 
   // DB to CTS
-  auto idbToCts(idb::IdbInstance* idb_inst) -> Inst*;
-  auto idbToCts(idb::IdbPin* idb_pin) -> Pin*;
-  auto idbToCts(idb::IdbNet* idb_net) -> Net*;
   static auto idbToCts(idb::IdbCoordinate<int32_t>& coord) -> Point<int>;
-  auto readClock(const std::string& clock_name, const std::string& clock_net_name, idb::IdbNet* idb_net) -> Clock*;
 
   // CTS to DB
   static auto ctsToIdb(const Point<int>& loc) -> idb::IdbCoordinate<int32_t>;
-  auto ctsToIdb(Pin* pin) -> idb::IdbPin*;
-  auto ctsToIdb(Inst* inst) -> idb::IdbInstance*;
-  auto ctsToIdb(Net* net) -> idb::IdbNet*;
-  auto ensureIdbNet(Net* cts_net, const std::string& default_net_name) -> idb::IdbNet*;
-  auto rewriteIdbNetPins(idb::IdbNet* idb_net, Net* cts_net) -> bool;
 
   // cross reference
   auto crossRef(idb::IdbPin* idb_pin, Pin* cts_pin) -> void

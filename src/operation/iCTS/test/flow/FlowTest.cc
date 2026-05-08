@@ -22,6 +22,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <stdint.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -29,9 +30,19 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <system_error>
+#include <utility>
 #include <vector>
 
 #include "CTSAPI.hh"
+#include "IdbCellMaster.h"
+#include "IdbDesign.h"
+#include "IdbEnum.h"
+#include "IdbInstance.h"
+#include "IdbLayout.h"
+#include "IdbNet.h"
+#include "IdbPins.h"
+#include "IdbTerm.h"
 #include "common/logging/LogText.hh"
 #include "database/config/Config.hh"
 #include "database/design/Clock.hh"
@@ -39,8 +50,10 @@
 #include "database/design/Inst.hh"
 #include "database/design/Net.hh"
 #include "database/design/Pin.hh"
+#include "database/io/Wrapper.hh"
 #include "database/spatial/Point.hh"
 #include "design/ClockLayout.hh"
+#include "dm_config.h"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "feature_icts.h"
 #include "flow/Flow.hh"
@@ -51,6 +64,7 @@
 #include "flow/synthesis/topology/Topology.hh"
 #include "flow/synthesis/trace/SynthesisTrace.hh"
 #include "flow/synthesis/trace/domain_status/DomainStatus.hh"
+#include "idm.h"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
@@ -63,12 +77,14 @@ class ScopedFlowReset
   {
     CONFIG_INST.reset();
     DESIGN_INST.reset();
+    WRAPPER_INST.reset();
     FLOW_INST.reset();
   }
   ~ScopedFlowReset()
   {
     CONFIG_INST.reset();
     DESIGN_INST.reset();
+    WRAPPER_INST.reset();
     FLOW_INST.reset();
   }
 };
@@ -118,6 +134,16 @@ auto readTextFile(const std::filesystem::path& path) -> std::string
   std::ostringstream buffer;
   buffer << input_stream.rdbuf();
   return buffer.str();
+}
+
+auto writeTempSdc(const std::string& file_name, const std::string& content) -> std::filesystem::path
+{
+  const auto path = std::filesystem::temp_directory_path() / file_name;
+  std::ofstream output_stream(path);
+  EXPECT_TRUE(output_stream.is_open());
+  output_stream << content;
+  dmInst->get_config().set_sdc_path(path.string());
+  return path;
 }
 
 auto makeDesignInst(const std::string& name, const std::string& cell_master, icts::InstType type, const icts::Point<int>& location)
@@ -253,6 +279,101 @@ auto makeRootBufferSpec() -> icts::ClockSinkDomainRootBufferSpec
   };
 }
 
+auto addIdbTerm(idb::IdbCellMaster& cell_master, const std::string& term_name, idb::IdbConnectDirection direction,
+                idb::IdbConnectType type = idb::IdbConnectType::kSignal) -> idb::IdbTerm*
+{
+  auto* term = cell_master.add_term(term_name);
+  if (term == nullptr) {
+    return nullptr;
+  }
+  term->set_direction(direction);
+  term->set_type(type);
+  term->set_average_position(0, 0);
+  return term;
+}
+
+auto addIdbCellMaster(idb::IdbLayout& idb_layout, const std::string& cell_master_name) -> idb::IdbCellMaster*
+{
+  auto* cell_master = idb_layout.get_cell_master_list()->set_cell_master(cell_master_name);
+  if (cell_master == nullptr) {
+    return nullptr;
+  }
+  cell_master->set_type(idb::CellMasterType::kCore);
+  cell_master->set_width(10);
+  cell_master->set_height(10);
+  return cell_master;
+}
+
+auto addIdbInst(idb::IdbDesign& idb_design, const std::string& inst_name, idb::IdbCellMaster& cell_master, int32_t loc_x = 0,
+                int32_t loc_y = 0) -> idb::IdbInstance*
+{
+  auto* idb_inst = idb_design.get_instance_list()->add_instance(inst_name);
+  if (idb_inst == nullptr) {
+    return nullptr;
+  }
+  idb_inst->set_cell_master(&cell_master);
+  idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
+  idb_inst->set_coodinate(loc_x, loc_y, false);
+  idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
+  for (auto* idb_pin : idb_inst->get_pin_list()->get_pin_list()) {
+    if (idb_pin != nullptr) {
+      idb_pin->set_average_coordinate(loc_x, loc_y);
+    }
+  }
+  return idb_inst;
+}
+
+auto attachIdbPinToNet(idb::IdbNet& idb_net, idb::IdbPin& idb_pin) -> void
+{
+  auto* old_net = idb_pin.get_net();
+  if (old_net != nullptr && old_net != &idb_net) {
+    old_net->remove_pin(&idb_pin);
+  }
+
+  idb_pin.set_net(&idb_net);
+  idb_pin.set_net_name(idb_net.get_net_name());
+  auto* pin_list = idb_pin.is_io_pin() ? idb_net.get_io_pins() : idb_net.get_instance_pin_list();
+  if (pin_list != nullptr && pin_list->find_pin(&idb_pin) == nullptr) {
+    if (idb_pin.is_io_pin()) {
+      idb_net.add_io_pin(&idb_pin);
+    } else {
+      idb_net.add_instance_pin(&idb_pin);
+    }
+  }
+}
+
+auto buildClockForWrapperWriteback(icts::Clock& clock, const std::string& source_pin_name, const std::string& sink_inst_name,
+                                   const std::string& sink_pin_name) -> void
+{
+  auto* clock_net = DESIGN_INST.makeNet(clock.get_clock_net_name());
+  ASSERT_NE(clock_net, nullptr);
+  auto* source_pin = DESIGN_INST.makePin(source_pin_name);
+  ASSERT_NE(source_pin, nullptr);
+  source_pin->set_name(source_pin_name);
+  source_pin->set_type(icts::PinType::kOut);
+  source_pin->set_location(icts::Point<int>(0, 0));
+  source_pin->set_net(clock_net);
+  ASSERT_TRUE(DESIGN_INST.indexPin(source_pin));
+
+  auto* sink_inst = makeDesignInst(sink_inst_name, "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
+  ASSERT_NE(sink_inst, nullptr);
+  auto* sink_pin = DESIGN_INST.makePin(sink_pin_name);
+  ASSERT_NE(sink_pin, nullptr);
+  sink_pin->set_name(sink_pin_name);
+  sink_pin->set_type(icts::PinType::kClock);
+  sink_pin->set_location(sink_inst->get_location());
+  sink_pin->set_inst(sink_inst);
+  sink_pin->set_net(clock_net);
+  sink_inst->add_pin(sink_pin);
+  ASSERT_TRUE(DESIGN_INST.indexPin(sink_pin));
+
+  clock_net->set_driver(source_pin);
+  clock_net->add_load(sink_pin);
+  clock.set_clock_source(source_pin);
+  clock.set_clock_source_net(clock_net);
+  clock.add_load(sink_pin);
+}
+
 auto expectClockRestoredToOriginalLoads(const TestClockPins& pins) -> void
 {
   ASSERT_NE(pins.clock, nullptr);
@@ -275,9 +396,18 @@ TEST(FlowTest, EmptyFlowRunIsCallable)
   const ScopedFlowReset scoped_flow_reset;
 
   FLOW_INST.run();
+
+  const auto summary = FLOW_INST.outputRunSummary();
+  EXPECT_FALSE(summary.success);
+  EXPECT_EQ(summary.outcome, icts::SynthesisOutcome::kNoOp);
+  EXPECT_EQ(summary.no_op_reason, "no_clocks_discovered");
+  EXPECT_EQ(summary.total_clocks, 0U);
+  EXPECT_EQ(summary.successful_clocks, 0U);
+  EXPECT_EQ(summary.skipped_clocks, 0U);
+  EXPECT_EQ(summary.failed_clocks, 0U);
 }
 
-TEST(FlowTest, EmptyAPIRunEmitsConciseMainLogContract)
+TEST(FlowTest, RunWithoutSetupFailsExplicitlyAndSkipsPipelineStages)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -287,15 +417,16 @@ TEST(FlowTest, EmptyAPIRunEmitsConciseMainLogContract)
 
   const auto cts_log_content = readTextFile(cts_log_path);
   ASSERT_FALSE(cts_log_content.empty());
-  EXPECT_NE(cts_log_content.find("## Input Overview"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("## Synthesis Overview"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("## Input Overview"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("## Synthesis Overview"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("### Synthesis Flow"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("## Evaluation Overview"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("## Evaluation Overview"), std::string::npos);
   EXPECT_NE(cts_log_content.find("## Runtime Overview"), std::string::npos);
   EXPECT_NE(cts_log_content.find("## Run Results"), std::string::npos);
   EXPECT_NE(cts_log_content.find("CTS Runtime Overview"), std::string::npos);
   EXPECT_NE(cts_log_content.find("CTS Key Results"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("CTS Evaluation Overview"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("CTS Evaluation Overview"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("setup_failed"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("Outcome"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("outcome"), std::string::npos);
@@ -321,29 +452,60 @@ TEST(FlowTest, EmptyAPIRunEmitsConciseMainLogContract)
   const auto read_data_summary = common::logging::ExtractTextBlock(cts_log_content, "CTSReadData Read CTS clock data Overview");
   const auto flow_summary = common::logging::ExtractTextBlock(cts_log_content, "CTSFlow Run CTS synthesis flow Overview");
   const auto evaluation_summary = common::logging::ExtractTextBlock(cts_log_content, "Evaluation Evaluate CTS clock tree Overview");
-  const auto main_flow_summary = common::logging::ExtractTextBlock(cts_log_content, "CTS Clock tree synthesis API flow Overview");
-  ASSERT_FALSE(runtime_read_data_summary.empty());
-  ASSERT_FALSE(read_data_summary.empty());
-  ASSERT_FALSE(flow_summary.empty());
-  ASSERT_FALSE(evaluation_summary.empty());
+  const auto main_flow_summary = common::logging::ExtractTextBlock(cts_log_content, "CTS Clock tree synthesis API flow Summary");
+  EXPECT_TRUE(runtime_read_data_summary.empty());
+  EXPECT_TRUE(read_data_summary.empty());
+  EXPECT_TRUE(flow_summary.empty());
+  EXPECT_TRUE(evaluation_summary.empty());
   ASSERT_FALSE(main_flow_summary.empty());
-  EXPECT_NE(runtime_read_data_summary.find("clock_source"), std::string::npos);
-  EXPECT_NE(runtime_read_data_summary.find("added_clock_nets"), std::string::npos);
-  EXPECT_NE(runtime_read_data_summary.find("total_clock_nets"), std::string::npos);
-  EXPECT_EQ(runtime_read_data_summary.find("unique_clock_domains"), std::string::npos);
-  EXPECT_NE(read_data_summary.find("status"), std::string::npos);
-  EXPECT_NE(flow_summary.find("status"), std::string::npos);
-  EXPECT_NE(evaluation_summary.find("status"), std::string::npos);
+  EXPECT_NE(main_flow_summary.find("setup_failed"), std::string::npos);
   EXPECT_NE(main_flow_summary.find("status"), std::string::npos);
   EXPECT_EQ(main_flow_summary.find("main_flow"), std::string::npos);
-  EXPECT_EQ(read_data_summary.find("outcome"), std::string::npos);
-  EXPECT_EQ(flow_summary.find("outcome"), std::string::npos);
-  EXPECT_EQ(evaluation_summary.find("outcome"), std::string::npos);
   EXPECT_EQ(main_flow_summary.find("outcome"), std::string::npos);
-  EXPECT_EQ(read_data_summary.find("elapsed_time"), std::string::npos);
-  EXPECT_EQ(flow_summary.find("elapsed_time"), std::string::npos);
-  EXPECT_EQ(evaluation_summary.find("elapsed_time"), std::string::npos);
   EXPECT_EQ(main_flow_summary.find("elapsed_time"), std::string::npos);
+}
+
+TEST(FlowTest, AllSkippedSynthesisReportsNoOp)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  auto pins = addClockToDesign(nullptr, nullptr);
+  ASSERT_NE(pins.clock, nullptr);
+  ASSERT_NE(pins.clock_source, nullptr);
+  ASSERT_NE(pins.clock_net, nullptr);
+  ASSERT_TRUE(pins.clock->get_loads().empty());
+
+  icts::ClockLayout clock_layout;
+  const auto summary = icts::Synthesis::run(clock_layout);
+
+  EXPECT_FALSE(summary.success);
+  EXPECT_EQ(summary.outcome, icts::SynthesisOutcome::kNoOp);
+  EXPECT_EQ(summary.no_op_reason, "all_clocks_skipped");
+  EXPECT_EQ(summary.total_clocks, 1U);
+  EXPECT_EQ(summary.successful_clocks, 0U);
+  EXPECT_EQ(summary.skipped_clocks, 1U);
+  EXPECT_EQ(summary.failed_clocks, 0U);
+  EXPECT_TRUE(domainStatusContains(summary.domain_status, "skipped", "none", "no valid sinks"));
+  EXPECT_TRUE(clock_layout.get_clocks().empty());
+}
+
+TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
+{
+  const ScopedFlowReset scoped_flow_reset;
+
+  FLOW_INST.run();
+  FLOW_INST.evaluate();
+
+  const auto run_summary = FLOW_INST.outputRunSummary();
+  EXPECT_EQ(run_summary.outcome, icts::SynthesisOutcome::kNoOp);
+
+  const auto qor_summary = FLOW_INST.outputSummary();
+  EXPECT_FALSE(qor_summary.has_evaluation_result);
+  EXPECT_EQ(qor_summary.qor_metric_status, "unavailable");
+  EXPECT_EQ(qor_summary.timing_metric_source, "unavailable");
+  EXPECT_EQ(qor_summary.physical_metric_source, "unavailable");
+  EXPECT_TRUE(qor_summary.clocks_timing.empty());
+  EXPECT_TRUE(qor_summary.clocks_latency_skew.empty());
 }
 
 TEST(FlowTest, ClockDistributionSummaryUsesMacroSinkTerminology)
@@ -548,7 +710,7 @@ TEST(FlowTest, SourceToRootFailureRollsBackPreparedSinkDomainsAndRecordsStatus)
   expectClockRestoredToOriginalLoads(pins);
 }
 
-TEST(FlowTest, ResetAPIClearsEvaluationSummary)
+TEST(FlowTest, EvaluateWithoutSuccessfulInstantiationLeavesSummaryUnavailableAndResetKeepsItCleared)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -557,14 +719,376 @@ TEST(FlowTest, ResetAPIClearsEvaluationSummary)
   prepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
   FLOW_INST.evaluate();
-  EXPECT_EQ(FLOW_INST.outputSummary().final_clock_buffer_count, 1);
-  EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 1);
+  EXPECT_FALSE(FLOW_INST.outputSummary().has_evaluation_result);
+  EXPECT_EQ(FLOW_INST.outputSummary().final_clock_buffer_count, 0);
+  EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 0);
 
   icts::CTSAPI::resetAPI();
   const auto summary = icts::CTSAPI::outputSummary();
   EXPECT_EQ(summary.buffer_num, 0);
   EXPECT_EQ(summary.clock_path_min_buffer, 0);
   EXPECT_TRUE(summary.clocks_timing.empty());
+}
+
+TEST(FlowTest, SdcClockResolutionDoesNotFallbackToIdbClockNets)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  ASSERT_NE(idb_design.get_net_list(), nullptr);
+  ASSERT_NE(idb_design.get_net_list()->add_net("idb_only_clk", idb::IdbConnectType::kClock), nullptr);
+  auto* physical_clk_net = idb_design.get_net_list()->add_net("physical_clk_net", idb::IdbConnectType::kSignal);
+  ASSERT_NE(physical_clk_net, nullptr);
+
+  auto* src_master = addIdbCellMaster(idb_layout, "SRC_CELL");
+  auto* reg_master = addIdbCellMaster(idb_layout, "REG_CELL");
+  ASSERT_NE(src_master, nullptr);
+  ASSERT_NE(reg_master, nullptr);
+  ASSERT_NE(addIdbTerm(*src_master, "CLKOUT", idb::IdbConnectDirection::kOutput, idb::IdbConnectType::kClock), nullptr);
+  ASSERT_NE(addIdbTerm(*reg_master, "CLK", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+  auto* src_inst = addIdbInst(idb_design, "src0", *src_master, 0, 0);
+  auto* sink_inst = addIdbInst(idb_design, "sink0", *reg_master, 100, 0);
+  ASSERT_NE(src_inst, nullptr);
+  ASSERT_NE(sink_inst, nullptr);
+  auto* src_pin = src_inst->get_pin_by_term("CLKOUT");
+  auto* sink_pin = sink_inst->get_pin_by_term("CLK");
+  ASSERT_NE(src_pin, nullptr);
+  ASSERT_NE(sink_pin, nullptr);
+  attachIdbPinToNet(*physical_clk_net, *src_pin);
+  attachIdbPinToNet(*physical_clk_net, *sink_pin);
+
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  const auto empty_sdc_path = writeTempSdc("icts_empty_clock_resolution.sdc", "");
+  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
+
+  CONFIG_INST.set_use_netlist(true);
+  CONFIG_INST.set_net_list({{"LOGICAL_CLK", "physical_clk_net"}});
+  const auto mapped_sdc_path
+      = writeTempSdc("icts_mapped_clock_resolution.sdc", "create_clock -name LOGICAL_CLK -period 2 physical_clk_net\n");
+  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
+  auto* mapped_clock = DESIGN_INST.get_clocks().front();
+  ASSERT_NE(mapped_clock, nullptr);
+  EXPECT_EQ(mapped_clock->get_clock_name(), "LOGICAL_CLK");
+  EXPECT_EQ(mapped_clock->get_clock_net_name(), "physical_clk_net");
+  EXPECT_DOUBLE_EQ(mapped_clock->get_clock_period_ns(), 2.0);
+  EXPECT_EQ(mapped_clock->get_clock_period_source(), "sdc");
+
+  CONFIG_INST.set_use_netlist(false);
+  CONFIG_INST.set_net_list({{"DIRECT_CLK", "missing_config_net"}});
+  const auto direct_sdc_path
+      = writeTempSdc("icts_direct_clock_resolution.sdc", "create_clock -name DIRECT_CLK -period 3 physical_clk_net\n");
+  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
+  auto* direct_clock = DESIGN_INST.get_clocks().front();
+  ASSERT_NE(direct_clock, nullptr);
+  EXPECT_EQ(direct_clock->get_clock_name(), "DIRECT_CLK");
+  EXPECT_EQ(direct_clock->get_clock_net_name(), "physical_clk_net");
+  EXPECT_DOUBLE_EQ(direct_clock->get_clock_period_ns(), 3.0);
+  EXPECT_EQ(direct_clock->get_clock_period_source(), "sdc");
+
+  CONFIG_INST.set_use_netlist(true);
+  CONFIG_INST.set_net_list({{"ABSENT_FROM_SDC", "physical_clk_net"}});
+  const auto config_absent_sdc_path
+      = writeTempSdc("icts_config_absent_clock_resolution.sdc", "create_clock -name OTHER_CLK -period 2 physical_clk_net\n");
+  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
+
+  CONFIG_INST.set_net_list({});
+  const auto unresolved_sdc_path
+      = writeTempSdc("icts_missing_clock_resolution.sdc", "create_clock -name MISSING_CLK -period 2 missing_physical_net\n");
+  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
+
+  std::error_code error_code;
+  std::filesystem::remove(empty_sdc_path, error_code);
+  std::filesystem::remove(mapped_sdc_path, error_code);
+  std::filesystem::remove(direct_sdc_path, error_code);
+  std::filesystem::remove(config_absent_sdc_path, error_code);
+  std::filesystem::remove(unresolved_sdc_path, error_code);
+}
+
+TEST(FlowTest, WritebackFailureRemovesCreatedIdbNetsOnRollback)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbDesign idb_design;
+  WRAPPER_INST.set_idb_design(&idb_design);
+
+  auto* clock = DESIGN_INST.makeClock("LOGICAL_CLK", "cts_inserted_clk_net");
+  ASSERT_NE(clock, nullptr);
+  buildClockForWrapperWriteback(*clock, "LOGICAL_CLK_SRC", "rollback_ff", "CLK");
+  ASSERT_EQ(idb_design.get_net_list()->find_net("cts_inserted_clk_net"), nullptr);
+
+  const auto result = WRAPPER_INST.writeClocksDetailed({clock});
+
+  EXPECT_FALSE(result.success);
+  EXPECT_EQ(result.failed_clock, "LOGICAL_CLK");
+  EXPECT_EQ(result.failed_net, "cts_inserted_clk_net");
+  EXPECT_EQ(result.reason, "write_clock_failed");
+  EXPECT_TRUE(result.rollback_done);
+  EXPECT_EQ(idb_design.get_net_list()->find_net("cts_inserted_clk_net"), nullptr);
+}
+
+TEST(FlowTest, WrapperReadClocksBuildsCtsClockFromSdcDeclaredIdbNet)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* src_master = addIdbCellMaster(idb_layout, "SRC_CELL");
+  ASSERT_NE(src_master, nullptr);
+  ASSERT_NE(addIdbTerm(*src_master, "CLKOUT", idb::IdbConnectDirection::kOutput, idb::IdbConnectType::kClock), nullptr);
+  auto* reg_master = addIdbCellMaster(idb_layout, "REG_CELL");
+  ASSERT_NE(reg_master, nullptr);
+  ASSERT_NE(addIdbTerm(*reg_master, "CLK", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+
+  auto* src_inst = addIdbInst(idb_design, "src0", *src_master, 0, 0);
+  auto* sink_inst = addIdbInst(idb_design, "sink0", *reg_master, 100, 0);
+  ASSERT_NE(src_inst, nullptr);
+  ASSERT_NE(sink_inst, nullptr);
+  auto* src_pin = src_inst->get_pin_by_term("CLKOUT");
+  auto* sink_pin = sink_inst->get_pin_by_term("CLK");
+  ASSERT_NE(src_pin, nullptr);
+  ASSERT_NE(sink_pin, nullptr);
+
+  auto* idb_net = idb_design.get_net_list()->add_net("physical_clk_net", idb::IdbConnectType::kClock);
+  ASSERT_NE(idb_net, nullptr);
+  idb_net->add_instance_pin(src_pin);
+  src_pin->set_net(idb_net);
+  src_pin->set_net_name("physical_clk_net");
+  idb_net->add_instance_pin(sink_pin);
+  sink_pin->set_net(idb_net);
+  sink_pin->set_net_name("physical_clk_net");
+
+  EXPECT_TRUE(WRAPPER_INST.readClocks({{"LOGICAL_CLK", "physical_clk_net"}}));
+  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
+  auto* clock = DESIGN_INST.get_clocks().front();
+  ASSERT_NE(clock, nullptr);
+  EXPECT_EQ(clock->get_clock_name(), "LOGICAL_CLK");
+  EXPECT_EQ(clock->get_clock_net_name(), "physical_clk_net");
+  ASSERT_NE(clock->get_clock_source(), nullptr);
+  ASSERT_NE(clock->get_clock_source_net(), nullptr);
+  EXPECT_EQ(clock->get_clock_source()->get_name(), "CLKOUT");
+  ASSERT_EQ(clock->get_loads().size(), 1U);
+  EXPECT_EQ(clock->get_loads().front()->get_name(), "CLK");
+  EXPECT_NE(DESIGN_INST.findPin("src0/CLKOUT"), nullptr);
+  EXPECT_NE(DESIGN_INST.findPin("sink0/CLK"), nullptr);
+}
+
+TEST(FlowTest, WrapperWritebackResolvesExistingPinsAndMaterializesCtsBufferInst)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* reg_master = addIdbCellMaster(idb_layout, "REG_CELL");
+  ASSERT_NE(reg_master, nullptr);
+  ASSERT_NE(addIdbTerm(*reg_master, "CLK", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+  auto* buf_master = addIdbCellMaster(idb_layout, "CTS_BUF");
+  ASSERT_NE(buf_master, nullptr);
+  ASSERT_NE(addIdbTerm(*buf_master, "A", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+  ASSERT_NE(addIdbTerm(*buf_master, "Y", idb::IdbConnectDirection::kOutput, idb::IdbConnectType::kClock), nullptr);
+
+  auto* sink_inst = addIdbInst(idb_design, "sink0", *reg_master, 100, 0);
+  ASSERT_NE(sink_inst, nullptr);
+  auto* idb_sink_pin = sink_inst->get_pin_by_term("CLK");
+  ASSERT_NE(idb_sink_pin, nullptr);
+
+  auto* clock = DESIGN_INST.makeClock("LOGICAL_CLK", "root_clk_net");
+  ASSERT_NE(clock, nullptr);
+  auto* source_net = DESIGN_INST.makeNet("root_clk_net");
+  auto* leaf_net = DESIGN_INST.makeNet("leaf_clk_net");
+  ASSERT_NE(source_net, nullptr);
+  ASSERT_NE(leaf_net, nullptr);
+  auto* io_driver = DESIGN_INST.makePin("clk_port");
+  ASSERT_NE(io_driver, nullptr);
+  io_driver->set_name("clk_port");
+  io_driver->set_type(icts::PinType::kOut);
+  io_driver->set_net(source_net);
+  io_driver->set_io(true);
+  ASSERT_TRUE(DESIGN_INST.indexPin(io_driver));
+  auto* buf_inst = makeDesignInst("cts_buf0", "CTS_BUF", icts::InstType::kBuffer, icts::Point<int>(10, 0));
+  ASSERT_NE(buf_inst, nullptr);
+  auto* buf_in = addOwnedLoad(*clock, source_net, *buf_inst, "A");
+  ASSERT_NE(buf_in, nullptr);
+  auto* buf_out = DESIGN_INST.makePin("Y");
+  ASSERT_NE(buf_out, nullptr);
+  buf_out->set_name("Y");
+  buf_out->set_type(icts::PinType::kOut);
+  buf_out->set_inst(buf_inst);
+  buf_out->set_net(leaf_net);
+  buf_inst->insertDriverPin(buf_out);
+  ASSERT_TRUE(DESIGN_INST.indexPin(buf_out));
+  auto* sink_pin = DESIGN_INST.makePin("CLK");
+  ASSERT_NE(sink_pin, nullptr);
+  sink_pin->set_name("CLK");
+  sink_pin->set_type(icts::PinType::kClock);
+  sink_pin->set_inst(makeDesignInst("sink0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0)));
+  ASSERT_NE(sink_pin->get_inst(), nullptr);
+  sink_pin->set_net(leaf_net);
+  sink_pin->get_inst()->add_pin(sink_pin);
+  ASSERT_TRUE(DESIGN_INST.indexPin(sink_pin));
+
+  source_net->set_driver(io_driver);
+  source_net->add_load(buf_in);
+  leaf_net->set_driver(buf_out);
+  leaf_net->add_load(sink_pin);
+  clock->set_clock_source(io_driver);
+  clock->set_clock_source_net(source_net);
+  clock->add_inst(buf_inst);
+  clock->add_net(leaf_net);
+  clock->add_load(sink_pin);
+
+  auto* idb_io_pin = idb_design.get_io_pin_list()->add_pin_list("clk_port");
+  ASSERT_NE(idb_io_pin, nullptr);
+  idb_io_pin->set_as_io();
+  auto* io_term = idb_io_pin->set_term();
+  ASSERT_NE(io_term, nullptr);
+  io_term->set_name("clk_port");
+  io_term->set_direction(idb::IdbConnectDirection::kInput);
+  io_term->set_type(idb::IdbConnectType::kClock);
+  idb_io_pin->set_average_coordinate(0, 0);
+
+  const auto result = WRAPPER_INST.writeClocksDetailed({clock});
+
+  EXPECT_TRUE(result.success);
+  auto* idb_buf = idb_design.get_instance_list()->find_instance("cts_buf0");
+  ASSERT_NE(idb_buf, nullptr);
+  EXPECT_EQ(idb_buf->get_cell_master()->get_name(), "CTS_BUF");
+  auto* root_net = idb_design.get_net_list()->find_net("root_clk_net");
+  auto* leaf_idb_net = idb_design.get_net_list()->find_net("leaf_clk_net");
+  ASSERT_NE(root_net, nullptr);
+  ASSERT_NE(leaf_idb_net, nullptr);
+  EXPECT_EQ(idb_io_pin->get_net(), root_net);
+  EXPECT_EQ(idb_buf->get_pin_by_term("A")->get_net(), root_net);
+  EXPECT_EQ(idb_buf->get_pin_by_term("Y")->get_net(), leaf_idb_net);
+  EXPECT_EQ(idb_sink_pin->get_net(), leaf_idb_net);
+}
+
+TEST(FlowTest, WrapperWritebackDoesNotCreateNonCtsInstWhenResolvingClockSinkPin)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* clock = DESIGN_INST.makeClock("LOGICAL_CLK", "root_clk_net");
+  ASSERT_NE(clock, nullptr);
+  buildClockForWrapperWriteback(*clock, "clk_port", "missing_sink", "CLK");
+  auto* idb_io_pin = idb_design.get_io_pin_list()->add_pin_list("clk_port");
+  ASSERT_NE(idb_io_pin, nullptr);
+  idb_io_pin->set_as_io();
+  auto* io_term = idb_io_pin->set_term();
+  ASSERT_NE(io_term, nullptr);
+  io_term->set_name("clk_port");
+  io_term->set_direction(idb::IdbConnectDirection::kInput);
+  io_term->set_type(idb::IdbConnectType::kClock);
+  idb_io_pin->set_average_coordinate(0, 0);
+
+  const auto result = WRAPPER_INST.writeClocksDetailed({clock});
+
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.rollback_done);
+  EXPECT_EQ(idb_design.get_instance_list()->find_instance("missing_sink"), nullptr);
+  EXPECT_EQ(idb_design.get_net_list()->find_net("root_clk_net"), nullptr);
+}
+
+TEST(FlowTest, WrapperWritebackRollbackRemovesNewCtsInstAndRestoresTouchedNetPins)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* reg_master = addIdbCellMaster(idb_layout, "REG_CELL");
+  ASSERT_NE(reg_master, nullptr);
+  ASSERT_NE(addIdbTerm(*reg_master, "CLK", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+  auto* buf_master = addIdbCellMaster(idb_layout, "CTS_BUF");
+  ASSERT_NE(buf_master, nullptr);
+  ASSERT_NE(addIdbTerm(*buf_master, "A", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+  ASSERT_NE(addIdbTerm(*buf_master, "Y", idb::IdbConnectDirection::kOutput, idb::IdbConnectType::kClock), nullptr);
+  auto* old_sink_inst = addIdbInst(idb_design, "old_sink", *reg_master, 200, 0);
+  ASSERT_NE(old_sink_inst, nullptr);
+  auto* old_sink_pin = old_sink_inst->get_pin_by_term("CLK");
+  ASSERT_NE(old_sink_pin, nullptr);
+  auto* root_net = idb_design.get_net_list()->add_net("root_clk_net", idb::IdbConnectType::kClock);
+  ASSERT_NE(root_net, nullptr);
+  auto* idb_io_pin = idb_design.get_io_pin_list()->add_pin_list("clk_port");
+  ASSERT_NE(idb_io_pin, nullptr);
+  idb_io_pin->set_as_io();
+  auto* io_term = idb_io_pin->set_term();
+  ASSERT_NE(io_term, nullptr);
+  io_term->set_name("clk_port");
+  io_term->set_direction(idb::IdbConnectDirection::kInput);
+  io_term->set_type(idb::IdbConnectType::kClock);
+  idb_io_pin->set_average_coordinate(0, 0);
+  attachIdbPinToNet(*root_net, *idb_io_pin);
+  attachIdbPinToNet(*root_net, *old_sink_pin);
+
+  auto* clock = DESIGN_INST.makeClock("LOGICAL_CLK", "root_clk_net");
+  ASSERT_NE(clock, nullptr);
+  auto* source_net = DESIGN_INST.makeNet("root_clk_net");
+  auto* leaf_net = DESIGN_INST.makeNet("leaf_clk_net");
+  ASSERT_NE(source_net, nullptr);
+  ASSERT_NE(leaf_net, nullptr);
+  auto* source_pin = DESIGN_INST.makePin("clk_port");
+  ASSERT_NE(source_pin, nullptr);
+  source_pin->set_name("clk_port");
+  source_pin->set_type(icts::PinType::kOut);
+  source_pin->set_io(true);
+  source_pin->set_net(source_net);
+  ASSERT_TRUE(DESIGN_INST.indexPin(source_pin));
+  auto* buf_inst = makeDesignInst("cts_buf_rollback", "CTS_BUF", icts::InstType::kBuffer, icts::Point<int>(10, 0));
+  ASSERT_NE(buf_inst, nullptr);
+  auto* buf_in = addOwnedLoad(*clock, source_net, *buf_inst, "A");
+  auto* buf_out = DESIGN_INST.makePin("Y");
+  ASSERT_NE(buf_in, nullptr);
+  ASSERT_NE(buf_out, nullptr);
+  buf_out->set_name("Y");
+  buf_out->set_type(icts::PinType::kOut);
+  buf_out->set_inst(buf_inst);
+  buf_out->set_net(leaf_net);
+  buf_inst->insertDriverPin(buf_out);
+  ASSERT_TRUE(DESIGN_INST.indexPin(buf_out));
+  auto* missing_sink_inst = makeDesignInst("missing_leaf_sink", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(300, 0));
+  auto* missing_sink_pin = DESIGN_INST.makePin("CLK");
+  ASSERT_NE(missing_sink_inst, nullptr);
+  ASSERT_NE(missing_sink_pin, nullptr);
+  missing_sink_pin->set_name("CLK");
+  missing_sink_pin->set_type(icts::PinType::kClock);
+  missing_sink_pin->set_inst(missing_sink_inst);
+  missing_sink_pin->set_net(leaf_net);
+  missing_sink_inst->add_pin(missing_sink_pin);
+  ASSERT_TRUE(DESIGN_INST.indexPin(missing_sink_pin));
+
+  source_net->set_driver(source_pin);
+  source_net->add_load(buf_in);
+  leaf_net->set_driver(buf_out);
+  leaf_net->add_load(missing_sink_pin);
+  clock->set_clock_source(source_pin);
+  clock->set_clock_source_net(source_net);
+  clock->add_inst(buf_inst);
+  clock->add_net(leaf_net);
+  clock->add_load(missing_sink_pin);
+
+  const auto result = WRAPPER_INST.writeClocksDetailed({clock});
+
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.rollback_done);
+  EXPECT_EQ(idb_design.get_instance_list()->find_instance("cts_buf_rollback"), nullptr);
+  EXPECT_EQ(idb_design.get_net_list()->find_net("leaf_clk_net"), nullptr);
+  EXPECT_EQ(idb_io_pin->get_net(), root_net);
+  EXPECT_EQ(old_sink_pin->get_net(), root_net);
+  EXPECT_EQ(root_net->get_pin_number(), 2);
 }
 
 }  // namespace
