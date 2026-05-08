@@ -9,8 +9,10 @@ add_library(ircx ${IRCX_EXTRACT_SRC})
 target_link_libraries(ircx
   PUBLIC
     ircx_cap_table
+    ircx_config
     ircx_headers
     ircx_mapping
+    OpenMP::OpenMP_CXX
   PRIVATE
     idm
     ircx_engine

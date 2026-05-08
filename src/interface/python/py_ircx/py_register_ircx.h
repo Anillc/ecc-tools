@@ -28,7 +28,6 @@ void register_ircx(py::module& m)
   m.def("init_rcx", init_rcx, py::arg("thread_number") = 64);
   m.def("read_rcx_corner", read_rcx_corner, py::arg("corner_name"),
         py::arg("itf_file"), py::arg("captab_file"));
-  m.def("read_rcx_itf", read_rcx_itf, py::arg("itf_files"));
   m.def("read_rcx_mapping", read_rcx_mapping, py::arg("mapping_file"));
 
   m.def("adapt_rcx_db", adapt_rcx_db);

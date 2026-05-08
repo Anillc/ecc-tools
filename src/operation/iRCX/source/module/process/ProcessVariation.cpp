@@ -74,6 +74,7 @@ void ProcessVariation::initEtchIntervals()
 
   net_num_ = layout_data_->regular_net_count();
   corner_num_ = corners_.size();
+  corner_net_etch_pools_.clear();
   corner_net_etch_pools_.resize(net_num_ * corner_num_);
 
   const std::vector<EnvPool>& net_env_pools = env.net_env_pools();

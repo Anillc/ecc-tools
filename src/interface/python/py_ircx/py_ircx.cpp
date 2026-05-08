@@ -19,7 +19,6 @@
 #include <filesystem>
 #include <stdexcept>
 
-#include "ParasiticXEngine.hpp"
 #include "RCX.hpp"
 
 namespace python_interface {
@@ -67,19 +66,6 @@ bool read_rcx_corner(const std::string& corner_name,
   return rcx().readCorner(corner_name, itf_file.c_str(), captab_file.c_str());
 }
 
-bool read_rcx_itf(const std::vector<std::string>& itf_files)
-{
-  if (itf_files.empty()) {
-    throw std::invalid_argument("itf_files is empty.");
-  }
-
-  for (const auto& itf_file : itf_files) {
-    require_file_exists(itf_file, "itf_file");
-  }
-
-  return rcx().readItf(itf_files);
-}
-
 bool read_rcx_mapping(const std::string& mapping_file)
 {
   require_file_exists(mapping_file, "mapping_file");
@@ -114,15 +100,12 @@ bool extract_rcx_parasitics()
 bool run_rcx(const std::string& config)
 {
   require_file_exists(config, "config");
-
-  auto* parasitic_x_engine = ircx::ParasiticXEngine::get_or_create_parasitic_x_engine();
-  return parasitic_x_engine != nullptr && parasitic_x_engine->run_rcx(config);
+  return rcx().runFromConfig(config);
 }
 
 bool report_rcx(const std::string& output_dir)
 {
-  auto* parasitic_x_engine = ircx::ParasiticXEngine::get_or_create_parasitic_x_engine();
-  return parasitic_x_engine != nullptr && parasitic_x_engine->report_rcx(output_dir);
+  return rcx().reportSpef(output_dir);
 }
 
 }  // namespace python_interface

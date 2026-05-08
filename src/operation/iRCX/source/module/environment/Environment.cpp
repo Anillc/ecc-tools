@@ -15,7 +15,6 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #include <algorithm>
-#include <array>
 #include <omp.h>
 #include <vector>
 
@@ -40,6 +39,8 @@ void Environment::buildTracks()
   Dbu die_dy = geom::DeltaY(rect);
 
   Dbu bucket_dlt = static_cast<Dbu>(bucket_size_um_ * layout_data_->micron_to_dbu);
+
+  layer_to_track_.clear();
 
   // init
   for (const auto& [lid, layer] : routing_layers) {
@@ -117,6 +118,9 @@ void Environment::buildPixels()
   Dbu die_x1 = geom::MaxX(rect);
   Dbu die_y1 = geom::MaxY(rect);
 
+  layer_to_pixel_prefer_dir_.clear();
+  layer_to_pixel_nonprefer_dir_.clear();
+
   // init
   for (const auto& [lid, layer] : routing_layers) {
     const RoutingLayer::TrackInfo& ti = layer.track_info();
@@ -128,6 +132,11 @@ void Environment::buildPixels()
     Dbu ny = ti.ny;
     Dbu dx = ti.dx;
     Dbu dy = ti.dy;
+    if (layer.is_prefer_horz()) {
+      dx = layer.layer_width();
+    } else {
+      dy = layer.layer_width();
+    }
 
     while(x0 > die_x0) {
       x0 -= dx;
@@ -150,37 +159,41 @@ void Environment::buildPixels()
     pixel.set_dy(dy);
 
     pixel.initPixel();
-    layer_to_pixel_[lid] = std::move(pixel);
+    layer_to_pixel_prefer_dir_[lid] = pixel;
+    layer_to_pixel_nonprefer_dir_[lid] = std::move(pixel);
   }
 
-  // build: regular edges
-  for (const TopoEdge& edge : topo_pool_->edge_pool()) {
-    if (edge.is_via()) continue;
+  auto add_pixel_edge = [&](const TopoEdge& edge) {
+    if (edge.is_via()) {
+      return;
+    }
 
     Size lid = edge.layer_id();
     bool layer_is_horz = routing_layers.at(lid).is_prefer_horz();
 
     if (edge.is_horz() == layer_is_horz) {
-      layer_to_pixel_.at(lid).addEdge(edge);
+      layer_to_pixel_prefer_dir_.at(lid).addEdge(edge);
+    } else {
+      layer_to_pixel_nonprefer_dir_.at(lid).addEdge(edge);
     }
+  };
+
+  // build: regular edges
+  for (const TopoEdge& edge : topo_pool_->edge_pool()) {
+    add_pixel_edge(edge);
   }
 
   // build: special-net edges (power/ground context)
   for (const TopoEdge& edge : topo_pool_->special_edge_pool()) {
-    if (edge.is_via()) continue;
-
-    Size lid = edge.layer_id();
-    bool layer_is_horz = routing_layers.at(lid).is_prefer_horz();
-
-    if (edge.is_horz() == layer_is_horz) {
-      layer_to_pixel_.at(lid).addEdge(edge);
-    }
+    add_pixel_edge(edge);
   }
 }
 
 void Environment::buildSearchTrackNumMap()
 {
   const std::map<Size, RoutingLayer>& routing_layers = layout_data_->routing_layers;
+
+  layer_to_search_track_num_.clear();
 
   for (const auto& [lid, layer] : routing_layers) {
     // Dbu window_size = static_cast<Dbu>(window_size_um_ * layout_data_->micron_to_dbu);
@@ -196,17 +209,12 @@ void Environment::buildNetEnvPools()
   buildSearchTrackNumMap();
 
   Size net_num = layout_data_->regular_net_count();
+  net_env_pools_.clear();
   net_env_pools_.resize(net_num);
 
   const std::map<Size, RoutingLayer>& routing_layers = layout_data_->routing_layers;
   const Size min_lid = routing_layers.empty() ? 0 : routing_layers.begin()->first;
   const Size max_lid = routing_layers.empty() ? 0 : routing_layers.rbegin()->first;
-
-  Track::OverlapWidenFunc widen_func =
-      [](const ircx::OverlapWidenContext& ctx) -> Dbu {
-        // return ctx.edge->half_width();
-        return 0;
-      };
 
   auto widen_me = [](const LineSegmentI& seg, Dbu ext) {
     LineSegmentI out = seg;
@@ -272,13 +280,14 @@ void Environment::buildNetEnvPools()
         continue;
       }
 
-      // 与 full_seg 平行的层直接跳过；只保留正交层
-      if (it_layer->second.is_prefer_horz() == full_seg.is_horz) {
-        continue;
-      }
+      // Cross-over only queries the conductor set orthogonal to full_seg.
+      const auto& pixel_map =
+          (it_layer->second.is_prefer_horz() != full_seg.is_horz)
+              ? layer_to_pixel_prefer_dir_
+              : layer_to_pixel_nonprefer_dir_;
 
-      auto it_pixel = layer_to_pixel_.find(cand_lid);
-      if (it_pixel == layer_to_pixel_.end()) {
+      auto it_pixel = pixel_map.find(cand_lid);
+      if (it_pixel == pixel_map.end()) {
         continue;
       }
 
@@ -287,7 +296,7 @@ void Environment::buildNetEnvPools()
         continue;
       }
 
-      // delta 从小到大，因此输入顺序天然是“近到远”
+      // Smaller layer deltas have higher priority in PixelOverlapMerge.
       PixelOverlapMerge::LayerPixelOverlaps in;
       in.layer = cand_lid;
       in.segs = std::move(segs);
@@ -309,26 +318,22 @@ void Environment::buildNetEnvPools()
       }
 
       const Size lid = edge.layer_id();
-      const LineSegmentI s = widen_me(edge.line_segment(), 0);
+      const LineSegmentI query_seg = widen_me(edge.line_segment(), 0);
 
-      // 同层环境
       std::vector<TrackOverlap> track_ov_up =
-          layer_to_track_[lid].get_overlap(s,  layer_to_search_track_num_[lid], nullptr);
+          layer_to_track_[lid].get_overlap(query_seg,  layer_to_search_track_num_[lid], nullptr);
       std::vector<TrackOverlap> track_ov_dn =
-          layer_to_track_[lid].get_overlap(s, -layer_to_search_track_num_[lid], nullptr);
+          layer_to_track_[lid].get_overlap(query_seg, -layer_to_search_track_num_[lid], nullptr);
 
       std::vector<EnvInterval> out;
-      track_merger.compute(s.a0, s.a1, track_ov_dn, track_ov_up, out);
+      track_merger.compute(query_seg.a0, query_seg.a1, track_ov_dn, track_ov_up, out);
 
-      // 对整条 s 一次性收集上下最多 3 层内的 cross-over 候选
-      const auto dn_inputs = collect_cross_side(s, lid, /*search_up=*/false);
-      const auto up_inputs = collect_cross_side(s, lid, /*search_up=*/true);
+      const auto dn_inputs = collect_cross_side(query_seg, lid, /*search_up=*/false);
+      const auto up_inputs = collect_cross_side(query_seg, lid, /*search_up=*/true);
 
-      // 对整条 s 一次性 merge cross-over
       std::vector<CrossOverlapSub> cross_full;
-      pixel_merger.compute(s.a0, s.a1, dn_inputs, up_inputs, cross_full);
+      pixel_merger.compute(query_seg.a0, query_seg.a1, dn_inputs, up_inputs, cross_full);
 
-      // 每个 interval 只做裁剪，不再重复 merge
       for (EnvInterval& interval : out) {
         interval.cross_segs = clip_cross_segs(cross_full, interval.a0, interval.a1);
       }

@@ -30,6 +30,14 @@ namespace ircx {
 // by the layout adapter.
 //
 struct SpefContext {
+  void clear() {
+    net_names.clear();
+    port_names.clear();
+    port_io.clear();
+    instance_names.clear();
+    instance_to_cell.clear();
+  }
+
   // Ordered lists for SPEF *NAME_MAP output.
   // Index 0 = first entry; SPEF IDs start at *1.
   std::vector<Str> net_names;

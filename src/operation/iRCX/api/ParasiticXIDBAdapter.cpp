@@ -90,6 +90,10 @@ bool ParasiticXIDBAdapter::adapt(LayoutData& layout_data,
     return false;
   }
 
+  layout_data.clear();
+  spef_context.clear();
+  layer_table.clearDesignLayers();
+
   IdbLayers* idb_layers = idb_layout->get_layers();
   adaptLayerTable(idb_layers);
   adaptRoutingLayer(idb_layers);

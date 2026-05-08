@@ -16,7 +16,6 @@
 // ***************************************************************************************
 #pragma once
 
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -47,7 +46,7 @@ class MappingBuilder;
 
 namespace ircx {
 
-inline constexpr int kDefaultThreadCount = 64;
+inline constexpr unsigned kDefaultThreadCount = 64U;
 
 class RCX final {
  public:
@@ -65,7 +64,6 @@ class RCX final {
 
   // I/O
   [[nodiscard]] unsigned readCorner(const Str&, const char*, const char*);
-  [[nodiscard]] unsigned readItf(const std::vector<std::string>&);
   [[nodiscard]] unsigned readMapping(const char*);
 
   // DB
@@ -85,43 +83,53 @@ class RCX final {
 
   // Extraction
   [[nodiscard]] unsigned extractParasitics();
+  [[nodiscard]] unsigned run();
+  [[nodiscard]] unsigned runFromConfig(const Str& config);
 
   // Report
   [[nodiscard]] unsigned reportSpef(const Str& output_dir);
 
   // setters & getters
-  void set_num_threads(unsigned value) { num_threads_ = value; }
+  void set_num_threads(unsigned value) { num_threads_ = value == 0 ? 1U : value; }
   [[nodiscard]] unsigned num_threads() const { return num_threads_; }
 
   std::vector<::itf::ProcessCorner*> corners() {
     std::vector<::itf::ProcessCorner*> out;
-    out.reserve(process_corners_.size());
-    for (auto& [_, ptr] : process_corners_) out.push_back(ptr.get());
+    out.reserve(corners_.size());
+    for (auto& corner : corners_) out.push_back(corner.process_corner.get());
     return out;
   }
   std::vector<const ::itf::ProcessCorner*> corners() const {
     std::vector<const ::itf::ProcessCorner*> result;
-    result.reserve(process_corners_.size());
-    for (const auto& [_, ptr] : process_corners_) result.push_back(ptr.get());
+    result.reserve(corners_.size());
+    for (const auto& corner : corners_) result.push_back(corner.process_corner.get());
     return result;
   }
 
  private:
+  struct CornerData {
+    Str name;
+    Str itf_file;
+    Str captab_file;
+    std::unique_ptr<::itf::ProcessCorner> process_corner;
+    parser::CapTable cap_table;
+  };
+
   RCX();
   ~RCX();
 
-  [[nodiscard]] unsigned readItf(const Str&, const char*);
-  [[nodiscard]] unsigned readCaptab(const Str&, const char*);
-
-  std::vector<std::unique_ptr<::itf::ProcessCorner>> loadItfFiles(
-      const std::vector<std::string>& itf_files);
+  std::unique_ptr<::itf::ProcessCorner> loadProcessCorner(const Str& corner_name,
+                                                          const Str& itf_file);
+  parser::CapTable loadCapTable(const Str& corner_name, const Str& captab_file);
   void registerProcessLayers(const ::itf::ProcessCorner& pc);
-  void storeProcessCorner(std::unique_ptr<::itf::ProcessCorner> pc);
+  void validateProcessLayers(const ::itf::ProcessCorner& pc) const;
+  [[nodiscard]] bool hasCorner(const Str& corner_name) const;
+  void resetConfigData();
   std::vector<const parser::CapTable*> corner_cap_tables() const;
 
  private:
   // running settings
-  int num_threads_ = kDefaultThreadCount;
+  unsigned num_threads_ = kDefaultThreadCount;
 
   // from db
   LayoutData layout_;
@@ -131,12 +139,9 @@ class RCX final {
   // from 1.db adapter 2.itf 3.mapping
   LayerTable layer_table_;
 
-  // process corners (from itf file)
-  std::map<Str,
-        std::unique_ptr<::itf::ProcessCorner>> process_corners_;
+  // per-corner process/cap data loaded by readCorner()
+  std::vector<CornerData> corners_;
 
-  // per-corner cap table (from captab file)
-  std::map<Str, parser::CapTable> corner_cap_tables_;
   // mapping table (from mapping file)
   parser::MappingBuilder mapping_builder_;
 

@@ -191,6 +191,7 @@ class TopoPool {
   // Pre-allocate all pools to avoid incremental reallocation in addNet().
   // Call once before the addNet() loop with the totals across all nets.
   void reserve(Size net_count, Size total_nodes, Size total_edges);
+  void clear();
 
   // Build interface (called by TopologyBuilder)
   // Assigns per-net local edge/node ids and appends nodes and edges into the flat pools.
