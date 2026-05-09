@@ -70,11 +70,6 @@ class TopologyGenerator
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByUPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByInner3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByOuter3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
-  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongZPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
-  std::vector<int32_t> getSampledExpandStepList(int32_t expand_step_num, int32_t max_step_num);
-  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongUPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
-  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongInner3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
-  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongOuter3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongCorridorWaypointPattern(TGModel& tg_model,
                                                                                                      Segment<PlanarCoord>& planar_topo);
   std::vector<int32_t> getLowCostCorridorIndexList(TGModel& tg_model, Segment<PlanarCoord>& planar_topo, Direction direction, int32_t max_num);
