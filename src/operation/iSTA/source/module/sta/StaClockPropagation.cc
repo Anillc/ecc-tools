@@ -46,18 +46,22 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
   auto* snk_vertex = the_arc->get_snk();
   auto* src_vertex = the_arc->get_src();
 
-  DesignObject* design_obj = src_vertex->get_design_obj();
   std::string obj_name;
-  if (src_vertex->is_port()) {
-    obj_name = design_obj->get_name();
-  } else {
-    Instance* inst = dynamic_cast<Pin*>(design_obj)->get_own_instance();
-    obj_name = inst->get_inst_cell()->get_cell_name();
-  }
+  int src_vertex_depth = 0;
+  if (!isIdealClock()) {
+    DesignObject* design_obj = src_vertex->get_design_obj();
+    if (src_vertex->is_port()) {
+      obj_name = design_obj->get_name();
+    } else {
+      Instance* inst = dynamic_cast<Pin*>(design_obj)->get_own_instance();
+      obj_name = inst->get_inst_cell()->get_cell_name();
+    }
 
-  std::priority_queue<int, std::vector<int>, std::greater<int>> depth_min_queue;
-  src_vertex->getPathDepth(depth_min_queue);
-  int src_vertex_depth = depth_min_queue.top();
+    std::priority_queue<int, std::vector<int>, std::greater<int>>
+        depth_min_queue;
+    src_vertex->getPathDepth(depth_min_queue);
+    src_vertex_depth = depth_min_queue.top();
+  }
 
   // lambda function, get delay derate.
   auto get_delay_derate = [this](AnalysisMode delay_type,
