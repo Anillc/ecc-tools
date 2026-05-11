@@ -24,6 +24,7 @@ from pathlib import Path
 
 from .config import (
     get_packages,
+    get_session_auto_commit,
     is_monorepo,
     resolve_package,
     validate_package,
@@ -36,12 +37,15 @@ from .paths import (
     DIR_TASKS,
     DIR_WORKFLOW,
     FILE_TASK_JSON,
-    clear_current_task,
     generate_task_date_prefix,
-    get_current_task,
     get_developer,
     get_repo_root,
     get_tasks_dir,
+)
+from .safe_commit import (
+    print_gitignore_warning,
+    safe_archive_paths_to_add,
+    safe_git_add,
 )
 from .task_utils import (
     archive_task_complete,
@@ -99,6 +103,7 @@ _SUBAGENT_CONFIG_DIRS: tuple[str, ...] = (
     ".codebuddy",
     ".factory",   # Factory Droid
     ".github/copilot",
+    ".pi",        # Pi Agent
 )
 
 _SEED_EXAMPLE = (
@@ -131,6 +136,32 @@ def _write_seed_jsonl(path: Path) -> None:
     """
     seed = {"_example": _SEED_EXAMPLE}
     path.write_text(json.dumps(seed, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _default_prd_content(title: str, description: str | None = None) -> str:
+    """Return the default PRD skeleton created with every task."""
+    goal = (description or "").strip() or "TBD."
+    heading = title.strip() or "Untitled task"
+    return f"""# {heading}
+
+## Goal
+
+{goal}
+
+## Requirements
+
+- TBD
+
+## Acceptance Criteria
+
+- [ ] TBD
+
+## Notes
+
+- Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
+- Lightweight tasks can remain PRD-only.
+- For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.
+"""
 
 
 # =============================================================================
@@ -228,8 +259,15 @@ def cmd_create(args: argparse.Namespace) -> int:
 
     write_json(task_json_path, task_data)
 
+    prd_path = task_dir / "prd.md"
+    if not prd_path.exists():
+        prd_path.write_text(
+            _default_prd_content(args.title, args.description),
+            encoding="utf-8",
+        )
+
     # Seed implement.jsonl / check.jsonl for sub-agent-capable platforms.
-    # Agent curates real entries in Phase 1.3 (see .trellis/workflow.md).
+    # Agent curates real entries during planning when the task needs them.
     # Agent-less platforms (Kilo / Antigravity / Windsurf) skip this — they
     # load specs via the trellis-before-dev skill instead of JSONL.
     seeded_jsonl = False
@@ -262,19 +300,34 @@ def cmd_create(args: argparse.Namespace) -> int:
 
                 print(colored(f"Linked as child of: {parent_dir.name}", Colors.GREEN), file=sys.stderr)
 
+    # Auto-activate the new task so the per-turn breadcrumb fires planning
+    # state. Best-effort: gracefully degrade if no session identity (CLI run
+    # outside an AI session) — the task is still created, the user can run
+    # task.py start later. Pointer is session-scoped so this never affects
+    # other AI sessions.
+    try:
+        from .active_task import resolve_context_key, set_active_task
+        if resolve_context_key():
+            try:
+                rel_dir = task_dir.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel_dir = str(task_dir)
+            set_active_task(rel_dir, repo_root)
+    except Exception:
+        pass
+
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
-    print("  1. Create prd.md with requirements", file=sys.stderr)
+    print("  - Fill prd.md with requirements and acceptance criteria", file=sys.stderr)
+    print("  - Lightweight task: PRD-only is valid", file=sys.stderr)
+    print("  - Complex task: add design.md and implement.md before task.py start", file=sys.stderr)
     if seeded_jsonl:
         print(
-            "  2. Curate implement.jsonl / check.jsonl (spec + research files only — "
-            "see .trellis/workflow.md Phase 1.3)",
+            "  - Curate implement.jsonl / check.jsonl as spec/research manifests when sub-agents need context",
             file=sys.stderr,
         )
-        print("  3. Run: python3 task.py start <dir>", file=sys.stderr)
-    else:
-        print("  2. Run: python3 task.py start <dir>", file=sys.stderr)
+    print("  - Use /trellis:continue or phase context to decide the next step", file=sys.stderr)
     print("", file=sys.stderr)
 
     # Output relative path for script chaining
@@ -299,8 +352,8 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
     tasks_dir = get_tasks_dir(repo_root)
 
-    # Find task directory
-    task_dir = find_task_by_name(task_name, tasks_dir)
+    # Resolve task directory (supports task name, relative path, or absolute path)
+    task_dir = resolve_task_dir(task_name, repo_root)
 
     if not task_dir or not task_dir.is_dir():
         print(colored(f"Error: Task not found: {task_name}", Colors.RED), file=sys.stderr)
@@ -323,23 +376,11 @@ def cmd_archive(args: argparse.Namespace) -> int:
             data["completedAt"] = today
             write_json(task_json_path, data)
 
-            # Handle subtask relationships on archive
-            task_parent = data.get("parent")
+            # Handle subtask relationships on archive.
+            # Keep this task in its parent's children list so progress
+            # counters (children_progress) stay consistent — children
+            # missing from the active set are treated as completed.
             task_children = data.get("children", [])
-
-            # If this is a child, remove from parent's children list
-            if task_parent:
-                parent_dir = find_task_by_name(task_parent, tasks_dir)
-                if parent_dir:
-                    parent_json = parent_dir / FILE_TASK_JSON
-                    if parent_json.is_file():
-                        parent_data = read_json(parent_json)
-                        if parent_data:
-                            parent_children = parent_data.get("children", [])
-                            if dir_name in parent_children:
-                                parent_children.remove(dir_name)
-                                parent_data["children"] = parent_children
-                                write_json(parent_json, parent_data)
 
             # If this is a parent, clear parent field in all children
             if task_children:
@@ -353,10 +394,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
                                 child_data["parent"] = None
                                 write_json(child_json, child_data)
 
-    # Clear if current task
-    current = get_current_task(repo_root)
-    if current and dir_name in current:
-        clear_current_task(repo_root)
+    # Clear any session that still points at this task before the path moves.
+    from .active_task import clear_task_from_sessions
+    clear_task_from_sessions(str(task_dir), repo_root)
 
     # Archive
     result = archive_task_complete(task_dir, repo_root)
@@ -381,13 +421,43 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
 
 def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
-    """Stage .trellis/tasks/ changes and commit after archive."""
-    tasks_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}"
-    run_git(["add", "-A", tasks_rel], cwd=repo_root)
+    """Stage Trellis-owned task paths and commit after archive.
 
-    # Check if there are staged changes
+    Only stages specific subpaths (the archive subtree and active task dirs),
+    never the whole ``.trellis/`` tree. If ``.gitignore`` blocks the paths,
+    we warn + skip — we do NOT retry with ``git add -f``. The warning
+    explicitly forbids ``git add -f .trellis/`` (which would fan out to
+    caches/backups) and points users at ``session_auto_commit: false``.
+
+    Honors ``session_auto_commit`` in ``.trellis/config.yaml``: when set to
+    ``false``, this function returns immediately without touching git
+    (the archive directory move on disk is unaffected).
+    """
+    if not get_session_auto_commit(repo_root):
+        print(
+            "[OK] session_auto_commit: false — skipping git stage/commit.",
+            file=sys.stderr,
+        )
+        return
+
+    paths = safe_archive_paths_to_add(repo_root)
+    if not paths:
+        print("[OK] No task changes to commit.", file=sys.stderr)
+        return
+
+    success, _, err = safe_git_add(paths, repo_root)
+    if not success:
+        if err and "ignored by" in err.lower():
+            print_gitignore_warning(paths)
+        else:
+            print(
+                f"[WARN] git add failed: {err.strip() if err else 'unknown error'}",
+                file=sys.stderr,
+            )
+        return
+
     rc, _, _ = run_git(
-        ["diff", "--cached", "--quiet", "--", tasks_rel], cwd=repo_root
+        ["diff", "--cached", "--quiet", "--", *paths], cwd=repo_root
     )
     if rc == 0:
         print("[OK] No task changes to commit.", file=sys.stderr)

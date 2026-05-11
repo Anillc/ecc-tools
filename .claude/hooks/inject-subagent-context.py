@@ -12,11 +12,12 @@ Core Design Philosophy:
 
 Trigger: PreToolUse (before Task tool call)
 
-Context Source: .trellis/.current-task points to task directory
+Context Source: Trellis active task resolver points to task directory
 - implement.jsonl - Implement agent dedicated context
 - check.jsonl     - Check agent dedicated context
 - prd.md          - Requirements document
-- info.md         - Technical design
+- design.md       - Technical design for complex tasks
+- implement.md    - Execution plan for complex tasks
 - codex-review-output.txt - Code Review results
 """
 from __future__ import annotations
@@ -29,6 +30,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # IMPORTANT: Force stdout to use UTF-8 on Windows
 # This fixes UnicodeEncodeError when outputting non-ASCII characters
@@ -46,7 +48,6 @@ if sys.platform.startswith("win"):
 
 DIR_WORKFLOW = ".trellis"
 DIR_SPEC = "spec"
-FILE_CURRENT_TASK = ".current-task"
 FILE_TASK_JSON = "task.json"
 
 # =============================================================================
@@ -78,31 +79,56 @@ def find_repo_root(start_path: str) -> str | None:
     return None
 
 
-def get_current_task(repo_root: str) -> str | None:
-    """
-    Read current task directory path from .trellis/.current-task
+def _detect_platform(input_data: dict) -> str | None:
+    if isinstance(input_data.get("cursor_version"), str):
+        return "cursor"
+    env_map = {
+        "CLAUDE_PROJECT_DIR": "claude",
+        "CURSOR_PROJECT_DIR": "cursor",
+        "CODEBUDDY_PROJECT_DIR": "codebuddy",
+        "FACTORY_PROJECT_DIR": "droid",
+        "GEMINI_PROJECT_DIR": "gemini",
+        "QODER_PROJECT_DIR": "qoder",
+        "KIRO_PROJECT_DIR": "kiro",
+        "COPILOT_PROJECT_DIR": "copilot",
+    }
+    for env_name, platform in env_map.items():
+        if os.environ.get(env_name):
+            return platform
+    script_parts = set(Path(sys.argv[0]).parts)
+    if ".claude" in script_parts:
+        return "claude"
+    if ".cursor" in script_parts:
+        return "cursor"
+    if ".gemini" in script_parts:
+        return "gemini"
+    if ".qoder" in script_parts:
+        return "qoder"
+    if ".codebuddy" in script_parts:
+        return "codebuddy"
+    if ".factory" in script_parts:
+        return "droid"
+    if ".kiro" in script_parts:
+        return "kiro"
+    return None
 
-    Returns:
-        Task directory relative path (relative to repo_root)
-        None if not set
-    """
-    current_task_file = os.path.join(repo_root, DIR_WORKFLOW, FILE_CURRENT_TASK)
-    if not os.path.exists(current_task_file):
-        return None
 
+def get_current_task(repo_root: str, input_data: dict) -> str | None:
+    """Resolve current task directory through the unified active task resolver."""
+    scripts_dir = Path(repo_root) / DIR_WORKFLOW / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
     try:
-        with open(current_task_file, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if not content:
-                return None
-            normalized = content.replace("\\", "/")
-            while normalized.startswith("./"):
-                normalized = normalized[2:]
-            if normalized.startswith("tasks/"):
-                normalized = f".trellis/{normalized}"
-            return normalized
+        from common.active_task import resolve_active_task  # type: ignore[import-not-found]
     except Exception:
         return None
+
+    active = resolve_active_task(
+        Path(repo_root),
+        input_data,
+        platform=_detect_platform(input_data),
+    )
+    return active.task_path
 
 
 def read_file_content(base_path: str, file_path: str) -> str | None:
@@ -182,7 +208,7 @@ def read_jsonl_entries(base_path: str, jsonl_path: str) -> list[tuple[str, str]]
     if not os.path.exists(full_path):
         print(
             f"[inject-subagent-context] WARN: {jsonl_path} not found — "
-            f"sub-agent will receive only prd.md",
+            f"sub-agent will receive only task artifacts",
             file=sys.stderr,
         )
         return []
@@ -223,7 +249,7 @@ def read_jsonl_entries(base_path: str, jsonl_path: str) -> list[tuple[str, str]]
         print(
             f"[inject-subagent-context] WARN: {jsonl_path} has no curated "
             f"entries (only seed / empty) — sub-agent will receive only "
-            f"prd.md. See workflow.md Phase 1.3 for curation guidance.",
+            f"task artifacts. See workflow.md planning artifact guidance.",
             file=sys.stderr,
         )
 
@@ -251,9 +277,10 @@ def get_implement_context(repo_root: str, task_dir: str) -> str:
     Complete context for Implement Agent
 
     Read order:
-    1. All files in implement.jsonl (dev specs)
+    1. All files in implement.jsonl (spec/research manifests)
     2. prd.md (requirements)
-    3. info.md (technical design)
+    3. design.md if present (technical design)
+    4. implement.md if present (execution plan)
     """
     context_parts = []
 
@@ -267,11 +294,18 @@ def get_implement_context(repo_root: str, task_dir: str) -> str:
     if prd_content:
         context_parts.append(f"=== {task_dir}/prd.md (Requirements) ===\n{prd_content}")
 
-    # 3. Technical design
-    info_content = read_file_content(repo_root, f"{task_dir}/info.md")
-    if info_content:
+    # 3. Technical design for complex tasks
+    design_content = read_file_content(repo_root, f"{task_dir}/design.md")
+    if design_content:
         context_parts.append(
-            f"=== {task_dir}/info.md (Technical Design) ===\n{info_content}"
+            f"=== {task_dir}/design.md (Technical Design) ===\n{design_content}"
+        )
+
+    # 4. Execution plan for complex tasks
+    implement_plan_content = read_file_content(repo_root, f"{task_dir}/implement.md")
+    if implement_plan_content:
+        context_parts.append(
+            f"=== {task_dir}/implement.md (Execution Plan) ===\n{implement_plan_content}"
         )
 
     return "\n\n".join(context_parts)
@@ -279,7 +313,7 @@ def get_implement_context(repo_root: str, task_dir: str) -> str:
 
 def get_check_context(repo_root: str, task_dir: str) -> str:
     """
-    Context for Check Agent: check.jsonl + prd.md
+    Context for Check Agent: check.jsonl + task artifacts.
     """
     context_parts = []
 
@@ -289,6 +323,18 @@ def get_check_context(repo_root: str, task_dir: str) -> str:
     prd_content = read_file_content(repo_root, f"{task_dir}/prd.md")
     if prd_content:
         context_parts.append(f"=== {task_dir}/prd.md (Requirements) ===\n{prd_content}")
+
+    design_content = read_file_content(repo_root, f"{task_dir}/design.md")
+    if design_content:
+        context_parts.append(
+            f"=== {task_dir}/design.md (Technical Design) ===\n{design_content}"
+        )
+
+    implement_plan_content = read_file_content(repo_root, f"{task_dir}/implement.md")
+    if implement_plan_content:
+        context_parts.append(
+            f"=== {task_dir}/implement.md (Execution Plan) ===\n{implement_plan_content}"
+        )
 
     return "\n\n".join(context_parts)
 
@@ -304,7 +350,8 @@ def get_finish_context(repo_root: str, task_dir: str) -> str:
 
 def build_implement_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Implement"""
-    return f"""# Implement Agent Task
+    return f"""<!-- trellis-hook-injected -->
+# Implement Agent Task
 
 You are the Implement Agent in the Multi-Agent Pipeline.
 
@@ -325,8 +372,8 @@ All the information you need has been prepared for you:
 ## Workflow
 
 1. **Understand specs** - All dev specs are injected above, understand them
-2. **Understand requirements** - Read requirements document and technical design
-3. **Implement feature** - Implement following specs and design
+    2. **Understand task artifacts** - Read requirements, technical design if present, and execution plan if present
+    3. **Implement feature** - Implement following specs and task artifacts
 4. **Self-check** - Ensure code quality against check specs
 
 ## Important Constraints
@@ -338,7 +385,8 @@ All the information you need has been prepared for you:
 
 def build_check_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Check"""
-    return f"""# Check Agent Task
+    return f"""<!-- trellis-hook-injected -->
+# Check Agent Task
 
 You are the Check Agent in the Multi-Agent Pipeline (code and cross-layer checker).
 
@@ -372,7 +420,8 @@ All check specs and dev specs you need:
 
 def build_finish_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Finish (final check before PR)"""
-    return f"""# Finish Agent Task
+    return f"""<!-- trellis-hook-injected -->
+# Finish Agent Task
 
 You are performing the final check before creating a PR.
 
@@ -393,7 +442,7 @@ Finish checklist and requirements:
 ## Workflow
 
 1. **Review changes** - Run `git diff --name-only` to see all changed files
-2. **Verify requirements** - Check each requirement in prd.md is implemented
+	2. **Verify task artifacts** - Check requirements in prd.md and, when present, design.md / implement.md
 3. **Spec sync** - Analyze whether changes introduce new patterns, contracts, or conventions
    - If new pattern/convention found: read target spec file → update it → update index.md if needed
    - If infra/cross-layer change: follow the 7-section mandatory template from update-spec.md
@@ -407,7 +456,8 @@ Finish checklist and requirements:
 - MUST read the target spec file BEFORE editing (avoid duplicating existing content)
 - Do NOT update specs for trivial changes (typos, formatting, obvious fixes)
 - If critical CODE issues found, report them clearly (fix specs, not code)
-- Verify all acceptance criteria in prd.md are met"""
+- Verify all acceptance criteria in prd.md are met
+- Verify design.md and implement.md constraints when those files are present"""
 
 
 
@@ -517,13 +567,90 @@ Provide structured search results including:
 - External references (if any)"""
 
 
+def _string_value(value: Any) -> str:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped
+    return ""
+
+
+def _extract_subagent_name(value: Any) -> str:
+    """Extract a sub-agent name from common platform encodings.
+
+    Cursor's native Task args encode custom sub-agents as a protobuf oneof,
+    which can appear in hook JSON as either ``{"custom": {"name": "..."}}``
+    or ``{"type": {"case": "custom", "value": {"name": "..."}}}``.
+    """
+    direct = _string_value(value)
+    if direct:
+        return direct
+
+    if not isinstance(value, dict):
+        return ""
+
+    for key in ("name", "subagent_type_name", "subagentTypeName"):
+        direct = _string_value(value.get(key))
+        if direct:
+            return direct
+
+    custom = value.get("custom")
+    if isinstance(custom, dict):
+        custom_name = _string_value(custom.get("name"))
+        if custom_name:
+            return custom_name
+
+    oneof = value.get("type")
+    if isinstance(oneof, dict):
+        case_name = _string_value(oneof.get("case"))
+        if case_name == "custom":
+            nested_value = oneof.get("value")
+            if isinstance(nested_value, dict):
+                custom_name = _string_value(nested_value.get("name"))
+                if custom_name:
+                    return custom_name
+        if case_name:
+            return case_name
+
+    case_name = _string_value(value.get("case"))
+    if case_name == "custom":
+        nested_value = value.get("value")
+        if isinstance(nested_value, dict):
+            custom_name = _string_value(nested_value.get("name"))
+            if custom_name:
+                return custom_name
+    if case_name:
+        return case_name
+
+    for agent_name in AGENTS_ALL:
+        if agent_name in value:
+            return agent_name
+
+    return ""
+
+
+def _extract_subagent_type(tool_input: dict) -> str:
+    for key in (
+        "subagent_type",
+        "subagentType",
+        "subagent_type_name",
+        "subagentTypeName",
+        "agent_type",
+        "agentType",
+        "name",
+    ):
+        agent_name = _extract_subagent_name(tool_input.get(key))
+        if agent_name:
+            return agent_name
+    return ""
+
+
 def _parse_hook_input(input_data: dict) -> tuple[str, str, dict]:
     """Parse hook input across different platform formats.
 
     Returns (subagent_type, original_prompt, tool_input).
     Handles:
     - Claude Code / Qoder / CodeBuddy / Droid: tool_name=Task|Agent, tool_input.subagent_type
-    - Cursor: tool_name=Task, tool_input.subagent_type
+    - Cursor: tool_name=Task|Subagent, tool_input.subagent_type
     - Copilot CLI: toolName=task (camelCase key, lowercase value)
     - Gemini CLI: tool_name IS the agent name (BeforeTool matcher already filtered)
     - Kiro: agentSpawn hook, agent_name field at top level
@@ -532,9 +659,9 @@ def _parse_hook_input(input_data: dict) -> tuple[str, str, dict]:
 
     # Standard format: Task/Agent tool with subagent_type
     tool_name = input_data.get("tool_name", "") or input_data.get("toolName", "")
-    if tool_name.lower() in ("task", "agent"):
+    if tool_name.lower() in ("task", "agent", "subagent"):
         return (
-            tool_input.get("subagent_type", ""),
+            _extract_subagent_type(tool_input),
             tool_input.get("prompt", ""),
             tool_input,
         )
@@ -558,6 +685,9 @@ def _parse_hook_input(input_data: dict) -> tuple[str, str, dict]:
 
 
 def main():
+    if os.environ.get("TRELLIS_HOOKS") == "0" or os.environ.get("TRELLIS_DISABLE_HOOKS") == "1":
+        sys.exit(0)
+
     try:
         input_data = json.load(sys.stdin)
     except json.JSONDecodeError:
@@ -576,7 +706,7 @@ def main():
         sys.exit(0)
 
     # Get current task directory (research doesn't require it)
-    task_dir = get_current_task(repo_root)
+    task_dir = get_current_task(repo_root, input_data)
 
     # implement/check need task directory
     if subagent_type in AGENTS_REQUIRE_TASK:
