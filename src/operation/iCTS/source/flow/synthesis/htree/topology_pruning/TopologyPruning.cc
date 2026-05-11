@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -48,36 +49,19 @@
 namespace icts::htree {
 namespace {
 
-auto DelayPowerDominates(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool
-{
-  const bool not_worse = lhs.get_delay() <= rhs.get_delay() && lhs.get_power() <= rhs.get_power();
-  const bool strictly_better = lhs.get_delay() < rhs.get_delay() || lhs.get_power() < rhs.get_power();
-  return not_worse && strictly_better;
-}
-
 auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -> std::vector<const HTreeTopologyChar*>
 {
   std::vector<const HTreeTopologyChar*> pareto_front;
   pareto_front.reserve(entries.size());
 
-  for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
-    bool dominated = false;
-    for (std::size_t other_index = 0; other_index < entries.size(); ++other_index) {
-      if (entry_index == other_index) {
-        continue;
-      }
-      if (DelayPowerDominates(entries[other_index], entries[entry_index])) {
-        dominated = true;
-        break;
-      }
-    }
-
-    if (!dominated) {
-      pareto_front.push_back(&entries[entry_index]);
-    }
+  std::vector<const HTreeTopologyChar*> sorted_entries;
+  sorted_entries.reserve(entries.size());
+  for (const auto& entry : entries) {
+    sorted_entries.push_back(&entry);
   }
 
-  std::ranges::sort(pareto_front, [](const HTreeTopologyChar* lhs, const HTreeTopologyChar* rhs) -> bool {
+  std::ranges::sort(sorted_entries, [](const HTreeTopologyChar* lhs, const HTreeTopologyChar* rhs) -> bool {
+    LOG_FATAL_IF(lhs == nullptr || rhs == nullptr) << "HTree: null pareto entry encountered during delay-power sorting.";
     if (lhs->get_delay() != rhs->get_delay()) {
       return lhs->get_delay() < rhs->get_delay();
     }
@@ -86,6 +70,32 @@ auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -
     }
     return lhs->get_pattern_id().pack() < rhs->get_pattern_id().pack();
   });
+
+  double best_power_before_delay = std::numeric_limits<double>::infinity();
+  std::size_t delay_group_begin = 0U;
+  while (delay_group_begin < sorted_entries.size()) {
+    std::size_t delay_group_end = delay_group_begin + 1U;
+    while (delay_group_end < sorted_entries.size()
+           && sorted_entries.at(delay_group_end)->get_delay() == sorted_entries.at(delay_group_begin)->get_delay()) {
+      ++delay_group_end;
+    }
+
+    double delay_group_min_power = std::numeric_limits<double>::infinity();
+    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
+      delay_group_min_power = std::min(delay_group_min_power, sorted_entries.at(index)->get_power());
+    }
+
+    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
+      const auto* entry = sorted_entries.at(index);
+      if (best_power_before_delay <= entry->get_power() || delay_group_min_power < entry->get_power()) {
+        continue;
+      }
+      pareto_front.push_back(entry);
+    }
+
+    best_power_before_delay = std::min(best_power_before_delay, delay_group_min_power);
+    delay_group_begin = delay_group_end;
+  }
   return pareto_front;
 }
 
@@ -297,30 +307,53 @@ auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::
 
 auto BuildDelayPowerParetoFront(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>
 {
-  std::vector<CandidateCharRef> pareto_front;
-  pareto_front.reserve(entries.size());
-
-  for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
-    if (entries.at(entry_index).entry == nullptr) {
+  std::vector<CandidateCharRef> sorted_entries;
+  sorted_entries.reserve(entries.size());
+  for (const auto& entry_ref : entries) {
+    if (entry_ref.entry == nullptr) {
       continue;
     }
-
-    bool dominated = false;
-    for (std::size_t other_index = 0; other_index < entries.size(); ++other_index) {
-      if (entry_index == other_index || entries.at(other_index).entry == nullptr) {
-        continue;
-      }
-      if (DelayPowerDominates(*entries.at(other_index).entry, *entries.at(entry_index).entry)) {
-        dominated = true;
-        break;
-      }
-    }
-
-    if (!dominated) {
-      pareto_front.push_back(entries.at(entry_index));
-    }
+    sorted_entries.push_back(entry_ref);
   }
 
+  std::ranges::sort(sorted_entries, [](const CandidateCharRef& lhs, const CandidateCharRef& rhs) -> bool {
+    LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTree: null global candidate frontier entry encountered.";
+    if (lhs.entry->get_delay() != rhs.entry->get_delay()) {
+      return lhs.entry->get_delay() < rhs.entry->get_delay();
+    }
+    if (lhs.entry->get_power() != rhs.entry->get_power()) {
+      return lhs.entry->get_power() < rhs.entry->get_power();
+    }
+    return PreferPowerMedianOrder(*lhs.entry, *rhs.entry);
+  });
+
+  std::vector<CandidateCharRef> pareto_front;
+  pareto_front.reserve(sorted_entries.size());
+  double best_power_before_delay = std::numeric_limits<double>::infinity();
+  std::size_t delay_group_begin = 0U;
+  while (delay_group_begin < sorted_entries.size()) {
+    std::size_t delay_group_end = delay_group_begin + 1U;
+    while (delay_group_end < sorted_entries.size()
+           && sorted_entries.at(delay_group_end).entry->get_delay() == sorted_entries.at(delay_group_begin).entry->get_delay()) {
+      ++delay_group_end;
+    }
+
+    double delay_group_min_power = std::numeric_limits<double>::infinity();
+    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
+      delay_group_min_power = std::min(delay_group_min_power, sorted_entries.at(index).entry->get_power());
+    }
+
+    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
+      const auto& entry_ref = sorted_entries.at(index);
+      if (best_power_before_delay <= entry_ref.entry->get_power() || delay_group_min_power < entry_ref.entry->get_power()) {
+        continue;
+      }
+      pareto_front.push_back(entry_ref);
+    }
+
+    best_power_before_delay = std::min(best_power_before_delay, delay_group_min_power);
+    delay_group_begin = delay_group_end;
+  }
   std::ranges::sort(pareto_front, [](const CandidateCharRef& lhs, const CandidateCharRef& rhs) -> bool {
     LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTree: null global candidate frontier entry encountered.";
     return PreferPowerMedianOrder(*lhs.entry, *rhs.entry);
@@ -338,6 +371,32 @@ auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const BoundaryCon
     score += static_cast<double>(entry.get_input_slew_idx()) / static_cast<double>(slew_steps);
   }
   return score;
+}
+
+auto BuildPerDepthDelayPowerParetoRefs(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>
+{
+  std::vector<CandidateCharRef> pareto_entries;
+  pareto_entries.reserve(entries.size());
+
+  std::unordered_map<std::size_t, std::vector<CandidateCharRef>> entries_by_candidate;
+  std::vector<std::size_t> candidate_indices;
+  for (const auto& entry_ref : entries) {
+    if (entry_ref.entry == nullptr) {
+      continue;
+    }
+    if (!entries_by_candidate.contains(entry_ref.candidate_index)) {
+      candidate_indices.push_back(entry_ref.candidate_index);
+    }
+    entries_by_candidate[entry_ref.candidate_index].push_back(entry_ref);
+  }
+
+  for (const auto candidate_index : candidate_indices) {
+    const auto group_it = entries_by_candidate.find(candidate_index);
+    LOG_FATAL_IF(group_it == entries_by_candidate.end()) << "HTree: missing per-depth candidate group during Pareto compression.";
+    auto local_pareto = BuildDelayPowerParetoFront(group_it->second);
+    pareto_entries.insert(pareto_entries.end(), local_pareto.begin(), local_pareto.end());
+  }
+  return pareto_entries;
 }
 
 auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>

@@ -1,0 +1,449 @@
+diff --git a/src/operation/iCTS/source/flow/synthesis/htree/HTree.cc b/src/operation/iCTS/source/flow/synthesis/htree/HTree.cc
+index 774437d47..9782b2cd4 100644
+--- a/src/operation/iCTS/source/flow/synthesis/htree/HTree.cc
++++ b/src/operation/iCTS/source/flow/synthesis/htree/HTree.cc
+@@ -247,10 +247,13 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
+       exploration.global_candidate_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
+       exploration.sink_load_region_legality_context);
+ 
+-  const auto selected_feasible_ref = htree::SelectBestGlobalEntry(covered_global_feasible_pool.entries);
+-  const auto selected_fallback_ref = selected_feasible_ref.has_value()
+-                                         ? std::optional<htree::CandidateCharRef>{}
+-                                         : htree::SelectBestGlobalEntry(covered_global_candidate_pool.entries);
++  const auto per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.entries);
++  const auto selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
++  std::optional<htree::CandidateCharRef> selected_fallback_ref;
++  if (!selected_feasible_ref.has_value()) {
++    const auto per_depth_candidate_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_candidate_pool.entries);
++    selected_fallback_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
++  }
+   const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
+   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
+     if (!covered_global_candidate_pool.first_failure_reason.empty()) {
+diff --git a/src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.cc b/src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.cc
+index 484786f71..79b3d585c 100644
+--- a/src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.cc
++++ b/src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.cc
+@@ -111,11 +111,24 @@ struct RootClosureLoadEstimate
+   std::size_t terminal_count = 0U;
+ };
+ 
++struct RootClosureLoadSignature
++{
++  bool ends_at_real_buffer = false;
++  std::vector<PatternId> root_prefix_segment_pattern_ids;
++
++  auto operator==(const RootClosureLoadSignature& rhs) const -> bool = default;
++};
++
++struct RootClosureLoadSignatureHash
++{
++  auto operator()(const RootClosureLoadSignature& signature) const noexcept -> std::size_t;
++};
++
+ struct RootDriverCompensationState
+ {
+   RootDriverCompensationOptions options;
+   std::unordered_map<RootDriverCompensationCacheKey, RootDriverCompensationDetail, RootDriverCompensationCacheKeyHash> cost_by_key;
+-  std::unordered_map<PatternId, RootClosureLoadEstimate> root_load_by_pattern;
++  std::unordered_map<RootClosureLoadSignature, RootClosureLoadEstimate, RootClosureLoadSignatureHash> root_load_by_signature;
+   RootDriverCompensationStats stats;
+   bool warned_invalid_options = false;
+ };
+@@ -277,6 +290,31 @@ auto MakeBufferRootClosureTerminal(const TreeNode& parent_node, const TreeNode&
+   };
+ }
+ 
++auto SegmentHasRealBuffer(const BufferingPattern& segment_pattern) -> bool
++{
++  return !segment_pattern.get_buffer_positions().empty() && !segment_pattern.get_cell_masters().empty();
++}
++
++auto BuildRootClosureLoadSignature(PatternId topology_pattern_id, const TopologyPatternLibrary& topology_library,
++                                   const BufferPatternLibrary& segment_pattern_library) -> RootClosureLoadSignature
++{
++  RootClosureLoadSignature signature;
++  const auto topology_pattern = topology_library.materialize(topology_pattern_id);
++  const auto& level_segment_pattern_ids = topology_pattern.get_level_segment_pattern_ids();
++  signature.root_prefix_segment_pattern_ids.reserve(level_segment_pattern_ids.size());
++  for (const auto segment_pattern_id : level_segment_pattern_ids) {
++    const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
++    LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: candidate segment pattern metadata is missing during root-load signature build.";
++
++    signature.root_prefix_segment_pattern_ids.push_back(segment_pattern_id);
++    if (SegmentHasRealBuffer(*segment_pattern)) {
++      signature.ends_at_real_buffer = true;
++      break;
++    }
++  }
++  return signature;
++}
++
+ auto CollectExternalLoadTerminals(const std::vector<std::size_t>& boundary_node_ids, const Tree& topology)
+     -> std::vector<RootClosureTerminal>
+ {
+@@ -345,7 +383,7 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
+     const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
+     LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: candidate segment pattern metadata is missing during root-load resolution.";
+ 
+-    const bool segment_has_real_buffer = !segment_pattern->get_buffer_positions().empty() && !segment_pattern->get_cell_masters().empty();
++    const bool segment_has_real_buffer = SegmentHasRealBuffer(*segment_pattern);
+     std::vector<RootClosureTerminal> buffer_input_terminals;
+     std::vector<std::size_t> next_active_node_ids;
+ 
+@@ -465,8 +503,9 @@ auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLib
+                                   const BufferPatternLibrary& segment_pattern_library, const Tree& topology,
+                                   RootDriverCompensationState& state) -> RootClosureLoadEstimate
+ {
+-  auto cache_it = state.root_load_by_pattern.find(pattern_id);
+-  if (cache_it != state.root_load_by_pattern.end()) {
++  auto signature = BuildRootClosureLoadSignature(pattern_id, topology_library, segment_pattern_library);
++  auto cache_it = state.root_load_by_signature.find(signature);
++  if (cache_it != state.root_load_by_signature.end()) {
+     ++state.stats.load_resolution_cache_hit_count;
+     return cache_it->second;
+   }
+@@ -476,7 +515,7 @@ auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLib
+                                                  state.stats);
+   state.stats.load_resolution_runtime_ms
+       += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - resolution_start).count();
+-  return state.root_load_by_pattern.emplace(pattern_id, std::move(estimate)).first->second;
++  return state.root_load_by_signature.emplace(std::move(signature), std::move(estimate)).first->second;
+ }
+ 
+ auto RefreshCompensationStats(RootDriverCompensationState& state) -> void
+@@ -542,6 +581,15 @@ auto RootDriverCompensationCacheKeyHash::operator()(const RootDriverCompensation
+   return seed;
+ }
+ 
++auto RootClosureLoadSignatureHash::operator()(const RootClosureLoadSignature& signature) const noexcept -> std::size_t
++{
++  std::size_t seed = std::hash<bool>{}(signature.ends_at_real_buffer);
++  for (const auto segment_pattern_id : signature.root_prefix_segment_pattern_ids) {
++    seed = HashCombine(seed, std::hash<PatternId>{}(segment_pattern_id));
++  }
++  return seed;
++}
++
+ }  // namespace
+ 
+ struct RootDriverCompensationPass::Impl
+@@ -572,8 +620,6 @@ auto RootDriverCompensationPass::operator=(RootDriverCompensationPass&&) noexcep
+ 
+ auto RootDriverCompensationPass::beginCandidateBuild() -> void
+ {
+-  // Topology pattern ids are local to one candidate build's pattern library.
+-  _impl->state.root_load_by_pattern.clear();
+   _impl->state.warned_invalid_options = false;
+ }
+ 
+diff --git a/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.cc b/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.cc
+index 59be2cd73..84f22365d 100644
+--- a/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.cc
++++ b/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.cc
+@@ -27,6 +27,7 @@
+ 
+ #include <algorithm>
+ #include <cstddef>
++#include <limits>
+ #include <optional>
+ #include <sstream>
+ #include <string>
+@@ -48,36 +49,19 @@
+ namespace icts::htree {
+ namespace {
+ 
+-auto DelayPowerDominates(const HTreeTopologyChar& lhs, const HTreeTopologyChar& rhs) -> bool
+-{
+-  const bool not_worse = lhs.get_delay() <= rhs.get_delay() && lhs.get_power() <= rhs.get_power();
+-  const bool strictly_better = lhs.get_delay() < rhs.get_delay() || lhs.get_power() < rhs.get_power();
+-  return not_worse && strictly_better;
+-}
+-
+ auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -> std::vector<const HTreeTopologyChar*>
+ {
+   std::vector<const HTreeTopologyChar*> pareto_front;
+   pareto_front.reserve(entries.size());
+ 
+-  for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
+-    bool dominated = false;
+-    for (std::size_t other_index = 0; other_index < entries.size(); ++other_index) {
+-      if (entry_index == other_index) {
+-        continue;
+-      }
+-      if (DelayPowerDominates(entries[other_index], entries[entry_index])) {
+-        dominated = true;
+-        break;
+-      }
+-    }
+-
+-    if (!dominated) {
+-      pareto_front.push_back(&entries[entry_index]);
+-    }
++  std::vector<const HTreeTopologyChar*> sorted_entries;
++  sorted_entries.reserve(entries.size());
++  for (const auto& entry : entries) {
++    sorted_entries.push_back(&entry);
+   }
+ 
+-  std::ranges::sort(pareto_front, [](const HTreeTopologyChar* lhs, const HTreeTopologyChar* rhs) -> bool {
++  std::ranges::sort(sorted_entries, [](const HTreeTopologyChar* lhs, const HTreeTopologyChar* rhs) -> bool {
++    LOG_FATAL_IF(lhs == nullptr || rhs == nullptr) << "HTree: null pareto entry encountered during delay-power sorting.";
+     if (lhs->get_delay() != rhs->get_delay()) {
+       return lhs->get_delay() < rhs->get_delay();
+     }
+@@ -86,6 +70,32 @@ auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -
+     }
+     return lhs->get_pattern_id().pack() < rhs->get_pattern_id().pack();
+   });
++
++  double best_power_before_delay = std::numeric_limits<double>::infinity();
++  std::size_t delay_group_begin = 0U;
++  while (delay_group_begin < sorted_entries.size()) {
++    std::size_t delay_group_end = delay_group_begin + 1U;
++    while (delay_group_end < sorted_entries.size()
++           && sorted_entries.at(delay_group_end)->get_delay() == sorted_entries.at(delay_group_begin)->get_delay()) {
++      ++delay_group_end;
++    }
++
++    double delay_group_min_power = std::numeric_limits<double>::infinity();
++    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
++      delay_group_min_power = std::min(delay_group_min_power, sorted_entries.at(index)->get_power());
++    }
++
++    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
++      const auto* entry = sorted_entries.at(index);
++      if (best_power_before_delay <= entry->get_power() || delay_group_min_power < entry->get_power()) {
++        continue;
++      }
++      pareto_front.push_back(entry);
++    }
++
++    best_power_before_delay = std::min(best_power_before_delay, delay_group_min_power);
++    delay_group_begin = delay_group_end;
++  }
+   return pareto_front;
+ }
+ 
+@@ -297,30 +307,53 @@ auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::
+ 
+ auto BuildDelayPowerParetoFront(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>
+ {
++  std::vector<CandidateCharRef> sorted_entries;
++  sorted_entries.reserve(entries.size());
++  for (const auto& entry_ref : entries) {
++    if (entry_ref.entry == nullptr) {
++      continue;
++    }
++    sorted_entries.push_back(entry_ref);
++  }
++
++  std::ranges::sort(sorted_entries, [](const CandidateCharRef& lhs, const CandidateCharRef& rhs) -> bool {
++    LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTree: null global candidate frontier entry encountered.";
++    if (lhs.entry->get_delay() != rhs.entry->get_delay()) {
++      return lhs.entry->get_delay() < rhs.entry->get_delay();
++    }
++    if (lhs.entry->get_power() != rhs.entry->get_power()) {
++      return lhs.entry->get_power() < rhs.entry->get_power();
++    }
++    return PreferPowerMedianOrder(*lhs.entry, *rhs.entry);
++  });
++
+   std::vector<CandidateCharRef> pareto_front;
+-  pareto_front.reserve(entries.size());
++  pareto_front.reserve(sorted_entries.size());
++  double best_power_before_delay = std::numeric_limits<double>::infinity();
++  std::size_t delay_group_begin = 0U;
++  while (delay_group_begin < sorted_entries.size()) {
++    std::size_t delay_group_end = delay_group_begin + 1U;
++    while (delay_group_end < sorted_entries.size()
++           && sorted_entries.at(delay_group_end).entry->get_delay() == sorted_entries.at(delay_group_begin).entry->get_delay()) {
++      ++delay_group_end;
++    }
+ 
+-  for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
+-    if (entries.at(entry_index).entry == nullptr) {
+-      continue;
++    double delay_group_min_power = std::numeric_limits<double>::infinity();
++    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
++      delay_group_min_power = std::min(delay_group_min_power, sorted_entries.at(index).entry->get_power());
+     }
+ 
+-    bool dominated = false;
+-    for (std::size_t other_index = 0; other_index < entries.size(); ++other_index) {
+-      if (entry_index == other_index || entries.at(other_index).entry == nullptr) {
++    for (std::size_t index = delay_group_begin; index < delay_group_end; ++index) {
++      const auto& entry_ref = sorted_entries.at(index);
++      if (best_power_before_delay <= entry_ref.entry->get_power() || delay_group_min_power < entry_ref.entry->get_power()) {
+         continue;
+       }
+-      if (DelayPowerDominates(*entries.at(other_index).entry, *entries.at(entry_index).entry)) {
+-        dominated = true;
+-        break;
+-      }
++      pareto_front.push_back(entry_ref);
+     }
+ 
+-    if (!dominated) {
+-      pareto_front.push_back(entries.at(entry_index));
+-    }
++    best_power_before_delay = std::min(best_power_before_delay, delay_group_min_power);
++    delay_group_begin = delay_group_end;
+   }
+-
+   std::ranges::sort(pareto_front, [](const CandidateCharRef& lhs, const CandidateCharRef& rhs) -> bool {
+     LOG_FATAL_IF(lhs.entry == nullptr || rhs.entry == nullptr) << "HTree: null global candidate frontier entry encountered.";
+     return PreferPowerMedianOrder(*lhs.entry, *rhs.entry);
+@@ -340,6 +373,32 @@ auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const BoundaryCon
+   return score;
+ }
+ 
++auto BuildPerDepthDelayPowerParetoRefs(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>
++{
++  std::vector<CandidateCharRef> pareto_entries;
++  pareto_entries.reserve(entries.size());
++
++  std::unordered_map<std::size_t, std::vector<CandidateCharRef>> entries_by_candidate;
++  std::vector<std::size_t> candidate_indices;
++  for (const auto& entry_ref : entries) {
++    if (entry_ref.entry == nullptr) {
++      continue;
++    }
++    if (!entries_by_candidate.contains(entry_ref.candidate_index)) {
++      candidate_indices.push_back(entry_ref.candidate_index);
++    }
++    entries_by_candidate[entry_ref.candidate_index].push_back(entry_ref);
++  }
++
++  for (const auto candidate_index : candidate_indices) {
++    const auto group_it = entries_by_candidate.find(candidate_index);
++    LOG_FATAL_IF(group_it == entries_by_candidate.end()) << "HTree: missing per-depth candidate group during Pareto compression.";
++    auto local_pareto = BuildDelayPowerParetoFront(group_it->second);
++    pareto_entries.insert(pareto_entries.end(), local_pareto.begin(), local_pareto.end());
++  }
++  return pareto_entries;
++}
++
+ auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>
+ {
+   if (entries.empty()) {
+diff --git a/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.hh b/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.hh
+index feda89018..7a4fe24b2 100644
+--- a/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.hh
++++ b/src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.hh
+@@ -87,6 +87,7 @@ auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateChar
+                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
+                                                  const BufferPatternLibrary& segment_pattern_library,
+                                                  SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterResult;
++auto BuildPerDepthDelayPowerParetoRefs(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>;
+ auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>;
+ auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)
+     -> double;
+diff --git a/src/operation/iCTS/test/flow/synthesis/htree/HTreeTest.cc b/src/operation/iCTS/test/flow/synthesis/htree/HTreeTest.cc
+index 32acabe1a..684e0c696 100644
+--- a/src/operation/iCTS/test/flow/synthesis/htree/HTreeTest.cc
++++ b/src/operation/iCTS/test/flow/synthesis/htree/HTreeTest.cc
+@@ -23,19 +23,23 @@
+ 
+ #include <gtest/gtest.h>
+ 
++#include <algorithm>
+ #include <memory>
+ #include <optional>
+ #include <string>
+ #include <vector>
+ 
++#include "CharCore.hh"
+ #include "HTreeTopologyChar.hh"
+ #include "HTreeTopologyPattern.hh"
+ #include "Net.hh"
++#include "PatternId.hh"
+ #include "Pin.hh"
+ #include "Point.hh"
+ #include "Tree.hh"
+ #include "flow/synthesis/htree/HTree.hh"
+ #include "flow/synthesis/htree/HTreeBuildObservation.hh"
++#include "flow/synthesis/htree/topology_pruning/TopologyPruning.hh"
+ 
+ namespace icts_test {
+ namespace {
+@@ -52,6 +56,11 @@ auto ConnectRootNet(icts::Net& root_net, icts::Pin& root_driver, const std::vect
+   }
+ }
+ 
++auto MakeTopologyChar(unsigned pattern_id, double delay, double power) -> icts::HTreeTopologyChar
++{
++  return icts::HTreeTopologyChar(icts::CharCore(1U, 1U, 1U, 1U, delay, power, icts::PatternId::topology(pattern_id), 0.0), 1U);
++}
++
+ TEST(HTreeTest, EmptyLoadsReturnsEmptyResult)
+ {
+   icts::Pin root_driver("root_out", icts::PinType::kOut, icts::Point<int>(0, 0));
+@@ -162,5 +171,67 @@ TEST(HTreeTest, SingleLoadStopsBeforeCharacterization)
+   EXPECT_EQ(load->get_net(), &root_net);
+ }
+ 
++TEST(HTreeTest, GlobalSelectionPreservesDelayPowerTieMultiplicity)
++{
++  std::vector<icts::HTreeTopologyChar> entries;
++  entries.push_back(MakeTopologyChar(1U, 10.0, 1.0));
++  entries.push_back(MakeTopologyChar(2U, 10.0, 1.0));
++  entries.push_back(MakeTopologyChar(3U, 5.0, 3.0));
++  entries.push_back(MakeTopologyChar(4U, 3.0, 5.0));
++
++  std::vector<icts::htree::CandidateCharRef> refs;
++  refs.reserve(entries.size());
++  for (const auto& entry : entries) {
++    refs.push_back(icts::htree::CandidateCharRef{
++        .candidate_index = 0U,
++        .entry = &entry,
++    });
++  }
++
++  const auto selected_ref = icts::htree::SelectBestGlobalEntry(refs);
++
++  if (!selected_ref.has_value()) {
++    ADD_FAILURE() << "Expected a selected global H-tree candidate.";
++    return;
++  }
++  const auto* const selected_entry = selected_ref->entry;
++  ASSERT_NE(selected_entry, nullptr);
++  EXPECT_EQ(selected_entry->get_pattern_id().local_id, 2U);
++}
++
++TEST(HTreeTest, PerDepthParetoCompressionKeepsDepthGroupsIndependent)
++{
++  std::vector<icts::HTreeTopologyChar> entries;
++  entries.push_back(MakeTopologyChar(1U, 4.0, 4.0));
++  entries.push_back(MakeTopologyChar(2U, 5.0, 5.0));
++  entries.push_back(MakeTopologyChar(3U, 3.0, 3.0));
++
++  const std::vector<icts::htree::CandidateCharRef> refs{
++      icts::htree::CandidateCharRef{
++          .candidate_index = 0U,
++          .entry = &entries.at(0),
++      },
++      icts::htree::CandidateCharRef{
++          .candidate_index = 0U,
++          .entry = &entries.at(1),
++      },
++      icts::htree::CandidateCharRef{
++          .candidate_index = 1U,
++          .entry = &entries.at(2),
++      },
++  };
++
++  const auto compressed_refs = icts::htree::BuildPerDepthDelayPowerParetoRefs(refs);
++
++  std::vector<unsigned> kept_pattern_ids;
++  kept_pattern_ids.reserve(compressed_refs.size());
++  for (const auto& ref : compressed_refs) {
++    ASSERT_NE(ref.entry, nullptr);
++    kept_pattern_ids.push_back(ref.entry->get_pattern_id().local_id);
++  }
++  std::ranges::sort(kept_pattern_ids);
++  EXPECT_EQ(kept_pattern_ids, (std::vector<unsigned>{1U, 3U}));
++}
++
+ }  // namespace
+ }  // namespace icts_test

@@ -247,10 +247,13 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
       exploration.global_candidate_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
       exploration.sink_load_region_legality_context);
 
-  const auto selected_feasible_ref = htree::SelectBestGlobalEntry(covered_global_feasible_pool.entries);
-  const auto selected_fallback_ref = selected_feasible_ref.has_value()
-                                         ? std::optional<htree::CandidateCharRef>{}
-                                         : htree::SelectBestGlobalEntry(covered_global_candidate_pool.entries);
+  const auto per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.entries);
+  const auto selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
+  std::optional<htree::CandidateCharRef> selected_fallback_ref;
+  if (!selected_feasible_ref.has_value()) {
+    const auto per_depth_candidate_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_candidate_pool.entries);
+    selected_fallback_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
+  }
   const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
     if (!covered_global_candidate_pool.first_failure_reason.empty()) {

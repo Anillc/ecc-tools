@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints for temporary instrumentation and any touched backend files."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Placement and flow boundaries for iCTS synthesis/htree/evaluation code inspection and temporary edits."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include, dependency, and validation rules for any temporary iCTS code changes."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Rules for runtime logging and schema/report output used by instrumentation."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Singleton, STAAdapter, Design, and ownership boundaries relevant to h-tree runtime and timing instrumentation."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "No-exception and LOG severity guidance for safe temporary instrumentation."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The analysis touches h-tree synthesis, STAAdapter, schema logging, and evaluation boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Use existing timing/logging patterns instead of inventing duplicate helpers."}

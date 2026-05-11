@@ -1,0 +1,28 @@
+{
+  "id": "05-09-analyze-icts-htree-runtime-bottlenecks",
+  "name": "05-09-analyze-icts-htree-runtime-bottlenecks",
+  "title": "analyze iCTS h-tree runtime bottlenecks and pruning options",
+  "description": "Design and run temporary instrumentation experiments for iCTS H-tree runtime bottlenecks, then analyze algorithmic pruning opportunities that preserve or only lightly affect solution space.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-09",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-09-icts-htree-dominance-pruning-research"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

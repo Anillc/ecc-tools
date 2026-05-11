@@ -111,11 +111,24 @@ struct RootClosureLoadEstimate
   std::size_t terminal_count = 0U;
 };
 
+struct RootClosureLoadSignature
+{
+  bool ends_at_real_buffer = false;
+  std::vector<PatternId> root_prefix_segment_pattern_ids;
+
+  auto operator==(const RootClosureLoadSignature& rhs) const -> bool = default;
+};
+
+struct RootClosureLoadSignatureHash
+{
+  auto operator()(const RootClosureLoadSignature& signature) const noexcept -> std::size_t;
+};
+
 struct RootDriverCompensationState
 {
   RootDriverCompensationOptions options;
   std::unordered_map<RootDriverCompensationCacheKey, RootDriverCompensationDetail, RootDriverCompensationCacheKeyHash> cost_by_key;
-  std::unordered_map<PatternId, RootClosureLoadEstimate> root_load_by_pattern;
+  std::unordered_map<RootClosureLoadSignature, RootClosureLoadEstimate, RootClosureLoadSignatureHash> root_load_by_signature;
   RootDriverCompensationStats stats;
   bool warned_invalid_options = false;
 };
@@ -277,6 +290,31 @@ auto MakeBufferRootClosureTerminal(const TreeNode& parent_node, const TreeNode& 
   };
 }
 
+auto SegmentHasRealBuffer(const BufferingPattern& segment_pattern) -> bool
+{
+  return !segment_pattern.get_buffer_positions().empty() && !segment_pattern.get_cell_masters().empty();
+}
+
+auto BuildRootClosureLoadSignature(PatternId topology_pattern_id, const TopologyPatternLibrary& topology_library,
+                                   const BufferPatternLibrary& segment_pattern_library) -> RootClosureLoadSignature
+{
+  RootClosureLoadSignature signature;
+  const auto topology_pattern = topology_library.materialize(topology_pattern_id);
+  const auto& level_segment_pattern_ids = topology_pattern.get_level_segment_pattern_ids();
+  signature.root_prefix_segment_pattern_ids.reserve(level_segment_pattern_ids.size());
+  for (const auto segment_pattern_id : level_segment_pattern_ids) {
+    const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
+    LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: candidate segment pattern metadata is missing during root-load signature build.";
+
+    signature.root_prefix_segment_pattern_ids.push_back(segment_pattern_id);
+    if (SegmentHasRealBuffer(*segment_pattern)) {
+      signature.ends_at_real_buffer = true;
+      break;
+    }
+  }
+  return signature;
+}
+
 auto CollectExternalLoadTerminals(const std::vector<std::size_t>& boundary_node_ids, const Tree& topology)
     -> std::vector<RootClosureTerminal>
 {
@@ -345,7 +383,7 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
     const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
     LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: candidate segment pattern metadata is missing during root-load resolution.";
 
-    const bool segment_has_real_buffer = !segment_pattern->get_buffer_positions().empty() && !segment_pattern->get_cell_masters().empty();
+    const bool segment_has_real_buffer = SegmentHasRealBuffer(*segment_pattern);
     std::vector<RootClosureTerminal> buffer_input_terminals;
     std::vector<std::size_t> next_active_node_ids;
 
@@ -465,8 +503,9 @@ auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLib
                                   const BufferPatternLibrary& segment_pattern_library, const Tree& topology,
                                   RootDriverCompensationState& state) -> RootClosureLoadEstimate
 {
-  auto cache_it = state.root_load_by_pattern.find(pattern_id);
-  if (cache_it != state.root_load_by_pattern.end()) {
+  auto signature = BuildRootClosureLoadSignature(pattern_id, topology_library, segment_pattern_library);
+  auto cache_it = state.root_load_by_signature.find(signature);
+  if (cache_it != state.root_load_by_signature.end()) {
     ++state.stats.load_resolution_cache_hit_count;
     return cache_it->second;
   }
@@ -476,7 +515,7 @@ auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLib
                                                  state.stats);
   state.stats.load_resolution_runtime_ms
       += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - resolution_start).count();
-  return state.root_load_by_pattern.emplace(pattern_id, std::move(estimate)).first->second;
+  return state.root_load_by_signature.emplace(std::move(signature), std::move(estimate)).first->second;
 }
 
 auto RefreshCompensationStats(RootDriverCompensationState& state) -> void
@@ -542,6 +581,15 @@ auto RootDriverCompensationCacheKeyHash::operator()(const RootDriverCompensation
   return seed;
 }
 
+auto RootClosureLoadSignatureHash::operator()(const RootClosureLoadSignature& signature) const noexcept -> std::size_t
+{
+  std::size_t seed = std::hash<bool>{}(signature.ends_at_real_buffer);
+  for (const auto segment_pattern_id : signature.root_prefix_segment_pattern_ids) {
+    seed = HashCombine(seed, std::hash<PatternId>{}(segment_pattern_id));
+  }
+  return seed;
+}
+
 }  // namespace
 
 struct RootDriverCompensationPass::Impl
@@ -572,8 +620,6 @@ auto RootDriverCompensationPass::operator=(RootDriverCompensationPass&&) noexcep
 
 auto RootDriverCompensationPass::beginCandidateBuild() -> void
 {
-  // Topology pattern ids are local to one candidate build's pattern library.
-  _impl->state.root_load_by_pattern.clear();
   _impl->state.warned_invalid_options = false;
 }
 

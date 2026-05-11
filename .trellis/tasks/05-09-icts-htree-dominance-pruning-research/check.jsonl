@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints for verification."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "iCTS source/test scope and CMake placement rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend validation rules and checker constraints."}
+{"file": ".trellis/tasks/05-09-icts-htree-dominance-pruning-research/research/current_status_audit.md", "reason": "Current stopped-loop status and cleanup result."}
+{"file": ".trellis/tasks/05-09-icts-htree-dominance-pruning-research/research/experiment_decision_table.md", "reason": "Canonical compact attempt history and future stop/revisit rules."}
+{"file": ".trellis/tasks/05-09-analyze-icts-htree-runtime-bottlenecks/reports/rollback_to_opt3_report.md", "reason": "Opt3 backup source-of-truth for restored code state."}
