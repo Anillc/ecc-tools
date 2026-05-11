@@ -111,18 +111,34 @@ LANet LayerAssigner::convertToLANet(Net& net)
 
 void LayerAssigner::setLAComParam(LAModel& la_model)
 {
-  int32_t topo_spilt_length = 1;
+  int32_t topo_spilt_length = 8;
+  int32_t mid_topo_spilt_length = 8;
+  int32_t long_topo_spilt_length = 16;
+  int32_t short_segment_length = 2;
+  int32_t mid_segment_length = 5;
+  int32_t long_segment_length = 20;
   double prefer_wire_unit = 1;
   double non_prefer_wire_unit = 2.5 * prefer_wire_unit;
   double via_unit = 2 * non_prefer_wire_unit;
   double overflow_unit = 4 * non_prefer_wire_unit;
+  double layer_bias_unit = via_unit;
+  double layer_switch_unit = 1.5 * via_unit;
   /**
-   * topo_spilt_length, via_unit, overflow_unit
+   * topo_spilt_length, mid_topo_spilt_length, long_topo_spilt_length, short_segment_length, mid_segment_length, long_segment_length,
+   * via_unit, overflow_unit, layer_bias_unit, layer_switch_unit
    */
-  LAComParam la_com_param(topo_spilt_length, via_unit, overflow_unit);
+  LAComParam la_com_param(topo_spilt_length, mid_topo_spilt_length, long_topo_spilt_length, short_segment_length, mid_segment_length, long_segment_length,
+                          via_unit, overflow_unit, layer_bias_unit, layer_switch_unit);
   RTLOG.info(Loc::current(), "topo_spilt_length: ", la_com_param.get_topo_spilt_length());
+  RTLOG.info(Loc::current(), "mid_topo_spilt_length: ", la_com_param.get_mid_topo_spilt_length());
+  RTLOG.info(Loc::current(), "long_topo_spilt_length: ", la_com_param.get_long_topo_spilt_length());
+  RTLOG.info(Loc::current(), "short_segment_length: ", la_com_param.get_short_segment_length());
+  RTLOG.info(Loc::current(), "mid_segment_length: ", la_com_param.get_mid_segment_length());
+  RTLOG.info(Loc::current(), "long_segment_length: ", la_com_param.get_long_segment_length());
   RTLOG.info(Loc::current(), "via_unit: ", la_com_param.get_via_unit());
   RTLOG.info(Loc::current(), "overflow_unit: ", la_com_param.get_overflow_unit());
+  RTLOG.info(Loc::current(), "layer_bias_unit: ", la_com_param.get_layer_bias_unit());
+  RTLOG.info(Loc::current(), "layer_switch_unit: ", la_com_param.get_layer_switch_unit());
   la_model.set_la_com_param(la_com_param);
 }
 
@@ -322,8 +338,6 @@ bool LayerAssigner::needRouting(LAModel& la_model)
 
 void LayerAssigner::spiltPlaneTree(LAModel& la_model)
 {
-  int32_t topo_spilt_length = la_model.get_la_com_param().get_topo_spilt_length();
-
   TNode<LayerCoord>* planar_tree_root = la_model.get_curr_la_task()->get_planar_tree().get_root();
   std::queue<TNode<LayerCoord>*> planar_queue = RTUTIL.initQueue(planar_tree_root);
   while (!planar_queue.empty()) {
@@ -331,6 +345,7 @@ void LayerAssigner::spiltPlaneTree(LAModel& la_model)
     std::vector<TNode<LayerCoord>*> child_list = planar_node->get_child_list();
     for (size_t i = 0; i < child_list.size(); i++) {
       int32_t length = RTUTIL.getManhattanDistance(planar_node->value().get_planar_coord(), child_list[i]->value().get_planar_coord());
+      int32_t topo_spilt_length = getTopoSpiltLength(la_model, length);
       if (length <= topo_spilt_length) {
         continue;
       }
@@ -340,15 +355,27 @@ void LayerAssigner::spiltPlaneTree(LAModel& la_model)
   }
 }
 
+int32_t LayerAssigner::getTopoSpiltLength(LAModel& la_model, int32_t segment_length)
+{
+  LAComParam& la_com_param = la_model.get_la_com_param();
+  if (segment_length <= la_com_param.get_topo_spilt_length()) {
+    return std::max(1, segment_length);
+  }
+  if (segment_length <= la_com_param.get_long_segment_length()) {
+    return std::max(1, la_com_param.get_mid_topo_spilt_length());
+  }
+  return std::max(1, la_com_param.get_long_topo_spilt_length());
+}
+
 void LayerAssigner::insertMidPoint(LAModel& la_model, TNode<LayerCoord>* planar_node, TNode<LayerCoord>* child_node)
 {
-  int32_t topo_spilt_length = la_model.get_la_com_param().get_topo_spilt_length();
-
   PlanarCoord& parent_coord = planar_node->value().get_planar_coord();
   PlanarCoord& child_coord = child_node->value().get_planar_coord();
   if (RTUTIL.isProximal(parent_coord, child_coord)) {
     return;
   }
+  int32_t length = RTUTIL.getManhattanDistance(parent_coord, child_coord);
+  int32_t topo_spilt_length = getTopoSpiltLength(la_model, length);
   std::vector<PlanarCoord> mid_coord_list;
   int32_t x1 = parent_coord.get_x();
   int32_t x2 = child_coord.get_x();
@@ -480,15 +507,18 @@ void LayerAssigner::buildLayerCost(LAModel& la_model, LAPackage& la_package)
 {
   std::vector<LALayerCost>& layer_cost_list = la_package.getChildPillar().get_layer_cost_list();
 
-  for (int32_t candidate_layer_idx : getCandidateLayerList(la_model, la_package)) {
+  std::vector<int32_t> candidate_layer_idx_list = getCandidateLayerList(la_model, la_package);
+  for (int32_t candidate_layer_idx : candidate_layer_idx_list) {
     std::pair<int32_t, double> parent_pillar_cost_pair = getParentPillarCost(la_model, la_package, candidate_layer_idx);
     double segment_cost = getSegmentCost(la_model, la_package, candidate_layer_idx);
+    double layer_bias_cost = getLayerBiasCost(la_model, la_package, candidate_layer_idx_list, candidate_layer_idx);
+    double layer_switch_cost = getLayerSwitchCost(la_model, la_package, parent_pillar_cost_pair.first, candidate_layer_idx);
     double child_pillar_cost = getChildPillarCost(la_model, la_package, candidate_layer_idx);
 
     LALayerCost layer_cost;
     layer_cost.set_parent_layer_idx(parent_pillar_cost_pair.first);
     layer_cost.set_layer_idx(candidate_layer_idx);
-    layer_cost.set_history_cost(parent_pillar_cost_pair.second + segment_cost + child_pillar_cost);
+    layer_cost.set_history_cost(parent_pillar_cost_pair.second + segment_cost + layer_bias_cost + layer_switch_cost + child_pillar_cost);
     layer_cost_list.push_back(std::move(layer_cost));
   }
 }
@@ -561,6 +591,65 @@ double LayerAssigner::getSegmentCost(LAModel& la_model, LAPackage& la_package, i
     }
   }
   return node_cost;
+}
+
+double LayerAssigner::getLayerBiasCost(LAModel& la_model, LAPackage& la_package, std::vector<int32_t>& candidate_layer_idx_list, int32_t candidate_layer_idx)
+{
+  if (candidate_layer_idx_list.size() <= 1) {
+    return 0;
+  }
+
+  int32_t segment_length = RTUTIL.getManhattanDistance(la_package.getParentPillar().get_planar_coord(), la_package.getChildPillar().get_planar_coord());
+  if (segment_length == 0) {
+    return 0;
+  }
+
+  int32_t layer_rank = -1;
+  for (size_t i = 0; i < candidate_layer_idx_list.size(); i++) {
+    if (candidate_layer_idx_list[i] == candidate_layer_idx) {
+      layer_rank = static_cast<int32_t>(i);
+      break;
+    }
+  }
+  if (layer_rank == -1) {
+    RTLOG.error(Loc::current(), "The candidate layer is not found!");
+  }
+
+  LAComParam& la_com_param = la_model.get_la_com_param();
+  int32_t max_rank = static_cast<int32_t>(candidate_layer_idx_list.size()) - 1;
+  double layer_bias_unit = la_com_param.get_layer_bias_unit();
+
+  if (segment_length <= la_com_param.get_short_segment_length()) {
+    return layer_bias_unit * 2.0 * layer_rank;
+  }
+  if (segment_length <= la_com_param.get_mid_segment_length()) {
+    return layer_bias_unit * 1.0 * layer_rank;
+  }
+  if (segment_length <= la_com_param.get_long_segment_length()) {
+    double target_rank = 0.5 * max_rank;
+    return layer_bias_unit * 0.4 * std::abs(layer_rank - target_rank);
+  }
+
+  double scale = std::min(segment_length / 20.0, 4.0);
+  return layer_bias_unit * 0.6 * scale * (max_rank - layer_rank);
+}
+
+double LayerAssigner::getLayerSwitchCost(LAModel& la_model, LAPackage& la_package, int32_t parent_layer_idx, int32_t candidate_layer_idx)
+{
+  if (parent_layer_idx == candidate_layer_idx) {
+    return 0;
+  }
+
+  int32_t segment_length = RTUTIL.getManhattanDistance(la_package.getParentPillar().get_planar_coord(), la_package.getChildPillar().get_planar_coord());
+  if (segment_length == 0) {
+    return 0;
+  }
+
+  double switch_cost = la_model.get_la_com_param().get_layer_switch_unit() * std::abs(parent_layer_idx - candidate_layer_idx);
+  if (!la_package.getParentPillar().get_pin_layer_idx_set().empty() || !la_package.getChildPillar().get_pin_layer_idx_set().empty()) {
+    switch_cost *= 0.5;
+  }
+  return switch_cost;
 }
 
 double LayerAssigner::getChildPillarCost(LAModel& la_model, LAPackage& la_package, int32_t candidate_layer_idx)
