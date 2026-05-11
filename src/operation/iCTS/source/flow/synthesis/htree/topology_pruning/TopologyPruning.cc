@@ -43,6 +43,7 @@
 #include "Log.hh"
 #include "PatternId.hh"
 #include "SegmentChar.hh"
+#include "logger/Schema.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 
@@ -215,6 +216,12 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
                         const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                         const Tree& topology, RootDriverCompensationPass& compensation_pass) -> PatternSearchResult
 {
+  auto pattern_search_stage
+      = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Build pattern frontier",
+                                      {
+                                          {"levels", std::to_string(levels.size())},
+                                          {"segment_frontier_length_sets", std::to_string(entry_sets_by_length.size())},
+                                      });
   PatternSearchResult result;
   unsigned next_topology_pattern_id = 0U;
   std::vector<HTreeTopologyChar> current_frontier_entries;
@@ -227,6 +234,11 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
     const auto entry_set_it = entry_sets_by_length.find(level.aligned_length_idx);
     if (entry_set_it == entry_sets_by_length.end()) {
       result.failure_reason = "missing_segment_frontier";
+      pattern_search_stage.failed({
+          {"reason", result.failure_reason},
+          {"failure_level", std::to_string(result.failure_level)},
+          {"failure_length_idx", std::to_string(result.failure_length_idx)},
+      });
       return result;
     }
 
@@ -235,6 +247,11 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
     const auto& base_segment_frontier = SelectSegmentEntriesForLevel(entry_set, entry_selection);
     if (base_segment_frontier.empty()) {
       result.failure_reason = DescribeMissingSegmentEntries(entry_selection);
+      pattern_search_stage.failed({
+          {"reason", result.failure_reason},
+          {"failure_level", std::to_string(result.failure_level)},
+          {"failure_length_idx", std::to_string(result.failure_length_idx)},
+      });
       return result;
     }
 
@@ -251,6 +268,11 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
     current_frontier_entries = std::move(composed_entries);
     if (current_frontier_entries.empty()) {
       result.failure_reason = "empty_frontier";
+      pattern_search_stage.failed({
+          {"reason", result.failure_reason},
+          {"failure_level", std::to_string(result.failure_level)},
+          {"failure_length_idx", std::to_string(result.failure_length_idx)},
+      });
       return result;
     }
   }
@@ -263,6 +285,14 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
         });
   result.success = !current_frontier_entries.empty();
   result.frontier = std::move(current_frontier_entries);
+  if (result.success) {
+    pattern_search_stage.finished({
+        {"frontier_entries", std::to_string(result.frontier.size())},
+        {"topology_patterns", std::to_string(next_topology_pattern_id)},
+    });
+  } else {
+    pattern_search_stage.failed({{"reason", "empty_frontier_after_compensation"}});
+  }
   return result;
 }
 
@@ -442,13 +472,30 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
   result.final_frontier_count = topology_assembly.frontier.size();
   result.candidate_solution_count = topology_assembly.frontier.size();
   if (has_boundary_constraints) {
-    auto candidate_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(
-        topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
+    SinkLoadRegionEntryFilterResult candidate_sink_load_region_filter;
+    SinkLoadRegionEntryFilterResult feasible_sink_load_region_filter;
+    std::vector<HTreeTopologyChar> feasible_raw_frontier;
+    {
+      auto filter_stage = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Filter sink-load region",
+                                                        {
+                                                            {"depth", std::to_string(depth)},
+                                                            {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
+                                                            {"has_boundary_constraints", "true"},
+                                                        });
+      candidate_sink_load_region_filter
+          = FilterSinkLoadRegionLegalEntries(topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library,
+                                             sink_load_region_legality_context);
+      result.feasible_solution_count = CountBoundaryFeasibleHTreeChars(topology_assembly.frontier, boundary_constraints);
+      feasible_raw_frontier = FilterBoundaryFeasibleHTreeChars(topology_assembly.frontier, boundary_constraints);
+      feasible_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(feasible_raw_frontier, topology, result.topology_pattern_library,
+                                                                          segment_pattern_library, sink_load_region_legality_context);
+      filter_stage.finished({
+          {"candidate_frontier_entries", std::to_string(candidate_sink_load_region_filter.entries.size())},
+          {"feasible_raw_entries", std::to_string(feasible_raw_frontier.size())},
+          {"feasible_frontier_entries", std::to_string(feasible_sink_load_region_filter.entries.size())},
+      });
+    }
     result.candidate_frontier_entries = std::move(candidate_sink_load_region_filter.entries);
-    result.feasible_solution_count = CountBoundaryFeasibleHTreeChars(topology_assembly.frontier, boundary_constraints);
-    const auto feasible_raw_frontier = FilterBoundaryFeasibleHTreeChars(topology_assembly.frontier, boundary_constraints);
-    auto feasible_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(
-        feasible_raw_frontier, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
     result.feasible_frontier_entries = std::move(feasible_sink_load_region_filter.entries);
     if (result.candidate_frontier_entries.empty() && !candidate_sink_load_region_filter.first_failure_reason.empty()) {
       result.failure_reason = candidate_sink_load_region_filter.first_failure_reason;
@@ -459,8 +506,19 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
     }
   } else {
     result.feasible_solution_count = result.candidate_solution_count;
-    auto feasible_sink_load_region_filter = FilterSinkLoadRegionLegalEntries(
-        topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library, sink_load_region_legality_context);
+    SinkLoadRegionEntryFilterResult feasible_sink_load_region_filter;
+    {
+      auto filter_stage = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Filter sink-load region",
+                                                        {
+                                                            {"depth", std::to_string(depth)},
+                                                            {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
+                                                            {"has_boundary_constraints", "false"},
+                                                        });
+      feasible_sink_load_region_filter
+          = FilterSinkLoadRegionLegalEntries(topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library,
+                                             sink_load_region_legality_context);
+      filter_stage.finished({{"feasible_frontier_entries", std::to_string(feasible_sink_load_region_filter.entries.size())}});
+    }
     result.feasible_frontier_entries = std::move(feasible_sink_load_region_filter.entries);
     if (result.feasible_frontier_entries.empty() && !feasible_sink_load_region_filter.first_failure_reason.empty()) {
       result.failure_reason = feasible_sink_load_region_filter.first_failure_reason;

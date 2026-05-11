@@ -25,15 +25,18 @@
 
 #include <glog/logging.h>
 
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "Log.hh"
 #include "Point.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
+#include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "synthesis/topology/trunk/SourceTrunkSegment.hh"
@@ -128,6 +131,11 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
 
   SourceNetSideEffectGuard source_net_side_effects(source_net, clock_source, valid_root_inputs);
   ReconnectExistingNet(source_net, clock_source, valid_root_inputs);
+  auto dispatch_stage = SCHEMA_WRITER_INST.beginStage("SourceTrunk", "Dispatch source trunk synthesis",
+                                                      {
+                                                          {"root_inputs", std::to_string(valid_root_inputs.size())},
+                                                          {"dispatch", valid_root_inputs.size() == 1U ? "top_segment" : "top_htree"},
+                                                      });
   if (valid_root_inputs.size() == 1U) {
     result.stage = Topology::SourceTrunkStage::kSegment;
     auto segment_options = BuildTopSegmentOptions(clock_source, valid_root_inputs.front(), options);
@@ -136,9 +144,16 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
       result.failure_reason = segment_result.failure_reason.empty() ? "top_segment_failed" : segment_result.failure_reason;
       result.used_boundary_fallback = segment_result.used_boundary_fallback;
       source_net_side_effects.restore();
+      dispatch_stage.failed({{"reason", result.failure_reason}});
       return result;
     }
     RecordTopSegmentResult(result, segment_result);
+    dispatch_stage.finished({
+        {"stage", ToString(result.stage)},
+        {"inserted_insts", std::to_string(result.inserted_insts.size())},
+        {"inserted_nets", std::to_string(result.inserted_nets.size())},
+        {"used_boundary_fallback", result.used_boundary_fallback ? "true" : "false"},
+    });
     return result;
   }
 
@@ -148,10 +163,18 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
   if (!result.htree_result.success) {
     result.failure_reason = result.htree_result.failure_reason.empty() ? "top_htree_failed" : result.htree_result.failure_reason;
     source_net_side_effects.restore();
+    dispatch_stage.failed({{"reason", result.failure_reason}});
     return result;
   }
 
   RecordTopHtreeResult(result);
+  dispatch_stage.finished({
+      {"stage", ToString(result.stage)},
+      {"selected_depth", std::to_string(result.htree_result.selected_depth.value_or(0U))},
+      {"inserted_insts", std::to_string(result.inserted_insts.size())},
+      {"inserted_nets", std::to_string(result.inserted_nets.size())},
+      {"used_boundary_fallback", result.used_boundary_fallback ? "true" : "false"},
+  });
   return result;
 }
 

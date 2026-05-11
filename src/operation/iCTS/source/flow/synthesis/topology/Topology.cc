@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "Log.hh"
@@ -41,6 +42,7 @@
 #include "geometry/Geometry.hh"
 #include "instantiation/design_conversion/DesignConversion.hh"
 #include "io/Wrapper.hh"
+#include "logger/Schema.hh"
 #include "synthesis/distribution/ClockDistribution.hh"
 #include "synthesis/topology/sink/SinkBranch.hh"
 #include "synthesis/topology/trunk/SourceTrunk.hh"
@@ -170,6 +172,12 @@ class ClockTopologyFormation
   auto commitSinkDomain(const ClockDistributionContext& context, Topology::BuildResult& synthesis_result, std::string& failure_reason)
       -> bool
   {
+    auto commit_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Commit sink domain layout",
+                                                      {
+                                                          {"sink_domain", ToString(context.sink_domain)},
+                                                          {"inserted_insts", std::to_string(synthesis_result.inserted_insts.size())},
+                                                          {"inserted_nets", std::to_string(synthesis_result.inserted_nets.size())},
+                                                      });
     auto pending_clock_layout = ClockLayoutBuilder::makeSinkDomainLayout(*_clock, _clock_index, context.makeLayoutTopology(),
                                                                          ClockLayoutAdapter::makeSinkDomainLayoutInput(synthesis_result));
     if (!DesignConversion::commitInsertedObjects(*_clock, synthesis_result.inserted_insts, synthesis_result.inserted_pins,
@@ -177,11 +185,13 @@ class ClockTopologyFormation
       DesignConversion::reconnectNet(*context.downstream_net, context.downstream_net->get_driver(), context.sinks);
       failure_reason = "failed to commit inserted synthesis objects";
       Topology::resetClockTopology(*_clock);
+      commit_stage.failed({{"reason", failure_reason}});
       return false;
     }
 
     ClockLayoutBuilder::merge(*_clock_layout, pending_clock_layout);
     recordSynthesisResult(*_summary, synthesis_result);
+    commit_stage.finished();
     return true;
   }
 
@@ -250,7 +260,26 @@ class ClockTopologyFormation
         .clock_period_source = _clock->get_clock_period_source(),
         .log_context = makeLogContext(*_clock, source_trunk_label, "source_to_root", source_trunk_prefix),
     };
-    auto source_trunk_result = Topology::buildSourceTrunk(*clock_source_net, clock_source, root_inputs, options);
+    Topology::SourceTrunkBuildResult source_trunk_result;
+    {
+      auto build_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Build source trunk",
+                                                       {
+                                                           {"root_inputs", std::to_string(root_inputs.size())},
+                                                           {"object_name_prefix", source_trunk_prefix},
+                                                       });
+      source_trunk_result = Topology::buildSourceTrunk(*clock_source_net, clock_source, root_inputs, options);
+      if (source_trunk_result.success) {
+        build_stage.finished({
+            {"stage", ToString(source_trunk_result.stage)},
+            {"inserted_insts", std::to_string(source_trunk_result.inserted_insts.size())},
+            {"inserted_nets", std::to_string(source_trunk_result.inserted_nets.size())},
+            {"used_boundary_fallback", source_trunk_result.used_boundary_fallback ? "true" : "false"},
+        });
+      } else {
+        build_stage.failed({{"reason", source_trunk_result.failure_reason.empty() ? "source_trunk_formation_failed"
+                                                                                  : source_trunk_result.failure_reason}});
+      }
+    }
     const auto source_trunk_phase = sourceTrunkSynthesisPhase(source_trunk_result.stage);
     if (!source_trunk_result.success) {
       const auto failure_reason
@@ -261,20 +290,30 @@ class ClockTopologyFormation
       return false;
     }
 
-    auto pending_clock_layout = ClockLayoutBuilder::makeSourceToRootLayout(
-        *_clock, _clock_index, *clock_source_net, ClockLayoutAdapter::makeSourceTrunkLayoutInput(source_trunk_result, source_trunk_phase),
-        source_trunk_phase);
-    if (!DesignConversion::commitInsertedObjects(*_clock, source_trunk_result.inserted_insts, source_trunk_result.inserted_pins,
-                                                 source_trunk_result.inserted_nets)) {
-      _status_table->append(*_clock, DomainStatus::kFailed, source_trunk_domain, _valid_sinks, root_inputs.size(),
-                            "failed to commit source trunk objects");
-      LOG_ERROR << "Topology: clock \"" << _clock->get_clock_name()
-                << "\" source trunk formation failed while committing inserted objects.";
-      Topology::resetClockTopology(*_clock);
-      return false;
-    }
+    {
+      auto commit_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Commit source trunk layout",
+                                                        {
+                                                            {"stage", ToString(source_trunk_result.stage)},
+                                                            {"inserted_insts", std::to_string(source_trunk_result.inserted_insts.size())},
+                                                            {"inserted_nets", std::to_string(source_trunk_result.inserted_nets.size())},
+                                                        });
+      auto pending_clock_layout = ClockLayoutBuilder::makeSourceToRootLayout(
+          *_clock, _clock_index, *clock_source_net, ClockLayoutAdapter::makeSourceTrunkLayoutInput(source_trunk_result, source_trunk_phase),
+          source_trunk_phase);
+      if (!DesignConversion::commitInsertedObjects(*_clock, source_trunk_result.inserted_insts, source_trunk_result.inserted_pins,
+                                                   source_trunk_result.inserted_nets)) {
+        _status_table->append(*_clock, DomainStatus::kFailed, source_trunk_domain, _valid_sinks, root_inputs.size(),
+                              "failed to commit source trunk objects");
+        LOG_ERROR << "Topology: clock \"" << _clock->get_clock_name()
+                  << "\" source trunk formation failed while committing inserted objects.";
+        Topology::resetClockTopology(*_clock);
+        commit_stage.failed({{"reason", "failed_to_commit_source_trunk_objects"}});
+        return false;
+      }
 
-    ClockLayoutBuilder::merge(*_clock_layout, pending_clock_layout);
+      ClockLayoutBuilder::merge(*_clock_layout, pending_clock_layout);
+      commit_stage.finished();
+    }
     recordSourceTrunkResult(*_summary, source_trunk_result);
     _status_table->append(*_clock, DomainStatus::kFinished, source_trunk_domain, _valid_sinks, root_inputs.size(),
                           ToString(source_trunk_result.stage));

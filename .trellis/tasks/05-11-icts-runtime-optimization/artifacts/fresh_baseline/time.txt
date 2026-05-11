@@ -1,0 +1,25 @@
++--------+----------+------------------+----------------------+
+I0511 13:09:46.055332 2075593 Schema.cc:627] [Report][FINISHED] Emit CTS statistics and visualization reports: status=finished, statistics_status=finished, visualization_status=finished, gds_status=finished, elapsed_time=1.433 s
+	Command being timed: "./iEDA -script ./script/iCTS_script/run_iCTS_dev.tcl"
+	User time (seconds): 92.85
+	System time (seconds): 15.96
+	Percent of CPU this job got: 155%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:09.99
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 6174168
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4823868
+	Voluntary context switches: 1080120
+	Involuntary context switches: 14949
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 276232
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

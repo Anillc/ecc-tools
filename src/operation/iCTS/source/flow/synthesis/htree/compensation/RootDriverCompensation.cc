@@ -56,6 +56,7 @@
 #include "config/Config.hh"
 #include "design/Design.hh"
 #include "io/Wrapper.hh"
+#include "logger/Schema.hh"
 #include "routing/router/Router.hh"
 #include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 
@@ -631,10 +632,25 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
   if (!compensation_state.options.enabled || entries.empty()) {
     return;
   }
+  auto compensation_stage
+      = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Apply root-driver compensation",
+                                      {
+                                          {"entries", std::to_string(entries.size())},
+                                          {"input_slew_ns", std::to_string(compensation_state.options.input_slew_ns)},
+                                          {"clock_period_ns", std::to_string(compensation_state.options.clock_period_ns)},
+                                      });
   if (!CompensationOptionsAreValid(compensation_state)) {
+    compensation_stage.skip({{"reason", "invalid_compensation_options"}});
     return;
   }
 
+  const auto unique_lookup_count_before = compensation_state.stats.unique_direct_lookup_count;
+  const auto cache_hit_count_before = compensation_state.stats.cache_hit_count;
+  const auto load_resolution_count_before = compensation_state.stats.load_resolution_count;
+  const auto load_resolution_cache_hit_count_before = compensation_state.stats.load_resolution_cache_hit_count;
+  const auto flute_route_estimate_count_before = compensation_state.stats.flute_route_estimate_count;
+  const auto fallback_route_estimate_count_before = compensation_state.stats.fallback_route_estimate_count;
+  const auto compensated_candidate_count_before = compensation_state.stats.compensated_candidate_count;
   for (auto& entry : entries) {
     const auto compensation
         = EvaluateRootDriverCompensation(entry.get_pattern_id(), topology_library, segment_pattern_library, topology, compensation_state);
@@ -644,6 +660,17 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
     entry.set_root_driver_compensation(compensation.cell_delay_ns, compensation.cell_power_w);
     ++compensation_state.stats.compensated_candidate_count;
   }
+  compensation_stage.finished({
+      {"compensated_candidates", std::to_string(compensation_state.stats.compensated_candidate_count - compensated_candidate_count_before)},
+      {"unique_direct_lookups", std::to_string(compensation_state.stats.unique_direct_lookup_count - unique_lookup_count_before)},
+      {"direct_cache_hits", std::to_string(compensation_state.stats.cache_hit_count - cache_hit_count_before)},
+      {"load_resolutions", std::to_string(compensation_state.stats.load_resolution_count - load_resolution_count_before)},
+      {"load_resolution_cache_hits",
+       std::to_string(compensation_state.stats.load_resolution_cache_hit_count - load_resolution_cache_hit_count_before)},
+      {"flute_route_estimates", std::to_string(compensation_state.stats.flute_route_estimate_count - flute_route_estimate_count_before)},
+      {"fallback_route_estimates",
+       std::to_string(compensation_state.stats.fallback_route_estimate_count - fallback_route_estimate_count_before)},
+  });
 }
 
 auto RootDriverCompensationPass::evaluate(PatternId pattern_id, const TopologyPatternLibrary& topology_library,

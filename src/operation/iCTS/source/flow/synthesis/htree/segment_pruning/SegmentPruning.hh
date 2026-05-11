@@ -39,5 +39,8 @@ auto CollectRequiredLengthIndices(const std::vector<HTree::LevelPlan>& levels) -
 auto SynthesizeSegmentEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
                                 const std::vector<unsigned>& required_length_indices)
     -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>;
+auto SynthesizeSegmentAllFrontierEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
+                                           const std::vector<unsigned>& required_length_indices)
+    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>;
 
 }  // namespace icts::htree

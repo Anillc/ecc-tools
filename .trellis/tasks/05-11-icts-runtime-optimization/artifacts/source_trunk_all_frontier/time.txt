@@ -1,0 +1,7 @@
+	Command being timed: "./iEDA -script ./script/iCTS_script/run_iCTS_dev.tcl"
+	User time (seconds): 87.27
+	System time (seconds): 15.58
+	Percent of CPU this job got: 157%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:05.32
+	Maximum resident set size (kbytes): 6149684
+	Exit status: 0

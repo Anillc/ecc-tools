@@ -386,13 +386,22 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
   CharacterizationLibrary local_char_library;
   auto* char_library = options.characterization_library == nullptr ? &local_char_library : options.characterization_library;
   const std::vector<double> requested_lengths_um{result.length_um};
-  if (!char_library->isReady()) {
-    const auto ensure_result = char_library->ensure(ConfigureCharOptions(requested_lengths_um));
-    if (!ensure_result.success) {
-      result.failure_reason = ensure_result.failure_reason.empty() ? "characterization_library_failed" : ensure_result.failure_reason;
-      EmitSegmentSummary(result, options);
-      return result;
+  {
+    auto char_stage = SCHEMA_WRITER_INST.beginStage("SourceTrunkSegment", "Ensure characterization",
+                                                    {
+                                                        {"length_um", std::to_string(result.length_um)},
+                                                        {"library_ready", char_library->isReady() ? "true" : "false"},
+                                                    });
+    if (!char_library->isReady()) {
+      const auto ensure_result = char_library->ensure(ConfigureCharOptions(requested_lengths_um));
+      if (!ensure_result.success) {
+        result.failure_reason = ensure_result.failure_reason.empty() ? "characterization_library_failed" : ensure_result.failure_reason;
+        char_stage.failed({{"reason", result.failure_reason}});
+        EmitSegmentSummary(result, options);
+        return result;
+      }
     }
+    char_stage.finished();
   }
   const auto& char_builder = char_library->getCharBuilder();
   if (char_builder.get_segment_chars().empty() || char_builder.get_wirelength_unit_um() <= 0.0) {
@@ -420,29 +429,64 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
   }
 
   htree::BufferPatternLibrary pattern_library;
-  for (const auto& pattern : char_builder.get_buffering_patterns()) {
-    pattern_library.add(pattern);
-  }
-  auto entry_sets_by_length = htree::SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), pattern_library, {result.length_idx});
-  const auto entry_set_it = entry_sets_by_length.find(result.length_idx);
-  if (entry_set_it == entry_sets_by_length.end() || entry_set_it->second.all_frontier_entries.empty()) {
-    result.failure_reason = "missing_required_segment_frontier";
-    EmitSegmentSummary(result, options);
-    return result;
+  std::unordered_map<unsigned, htree::SegmentCandidateFrontierSet> entry_sets_by_length;
+  const htree::SegmentCandidateFrontierSet* selected_entry_set = nullptr;
+  {
+    auto frontier_stage = SCHEMA_WRITER_INST.beginStage("SourceTrunkSegment", "Synthesize segment frontier",
+                                                        {
+                                                            {"length_idx", std::to_string(result.length_idx)},
+                                                            {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
+                                                        });
+    for (const auto& pattern : char_builder.get_buffering_patterns()) {
+      pattern_library.add(pattern);
+    }
+    entry_sets_by_length
+        = htree::SynthesizeSegmentAllFrontierEntrySets(char_builder.get_segment_chars(), pattern_library, {result.length_idx});
+    const auto entry_set_it = entry_sets_by_length.find(result.length_idx);
+    if (entry_set_it == entry_sets_by_length.end() || entry_set_it->second.all_frontier_entries.empty()) {
+      result.failure_reason = "missing_required_segment_frontier";
+      frontier_stage.failed({{"reason", result.failure_reason}});
+      EmitSegmentSummary(result, options);
+      return result;
+    }
+    selected_entry_set = &entry_set_it->second;
+    frontier_stage.finished({
+        {"length_sets", std::to_string(entry_sets_by_length.size())},
+        {"frontier_entries", std::to_string(selected_entry_set->all_frontier_entries.size())},
+    });
   }
 
-  auto strict_entries = FilterSegmentEntries(entry_set_it->second.all_frontier_entries, result.required_load_cap_idx,
-                                             result.source_drive_cap_idx, result.min_input_slew_idx);
-  result.strict_candidate_count = strict_entries.size();
-  result.best_char = SelectBestSegmentEntry(strict_entries);
-  if (!result.best_char.has_value() && result.min_input_slew_idx.has_value()) {
-    auto fallback_entries = FilterSegmentEntries(entry_set_it->second.all_frontier_entries, result.required_load_cap_idx,
-                                                 result.source_drive_cap_idx, std::nullopt);
-    result.fallback_candidate_count = fallback_entries.size();
-    result.best_char = SelectBestSegmentEntry(fallback_entries);
+  {
+    auto selection_stage = SCHEMA_WRITER_INST.beginStage(
+        "SourceTrunkSegment", "Select segment candidate",
+        {
+            {"frontier_entries", std::to_string(selected_entry_set == nullptr ? 0U : selected_entry_set->all_frontier_entries.size())},
+            {"required_load_cap_idx", std::to_string(result.required_load_cap_idx)},
+            {"source_drive_cap_idx", std::to_string(result.source_drive_cap_idx)},
+        });
+    const auto& all_entries = selected_entry_set->all_frontier_entries;
+    auto strict_entries
+        = FilterSegmentEntries(all_entries, result.required_load_cap_idx, result.source_drive_cap_idx, result.min_input_slew_idx);
+    result.strict_candidate_count = strict_entries.size();
+    result.best_char = SelectBestSegmentEntry(strict_entries);
+    if (!result.best_char.has_value() && result.min_input_slew_idx.has_value()) {
+      auto fallback_entries = FilterSegmentEntries(all_entries, result.required_load_cap_idx, result.source_drive_cap_idx, std::nullopt);
+      result.fallback_candidate_count = fallback_entries.size();
+      result.best_char = SelectBestSegmentEntry(fallback_entries);
+      if (result.best_char.has_value()) {
+        result.used_boundary_fallback = true;
+        result.boundary_fallback_reason = "dropped_soft_input_slew_boundary";
+      }
+    }
     if (result.best_char.has_value()) {
-      result.used_boundary_fallback = true;
-      result.boundary_fallback_reason = "dropped_soft_input_slew_boundary";
+      selection_stage.finished({
+          {"strict_candidates", std::to_string(result.strict_candidate_count)},
+          {"fallback_candidates", std::to_string(result.fallback_candidate_count)},
+          {"used_boundary_fallback", result.used_boundary_fallback ? "true" : "false"},
+          {"selected_pattern_id", std::to_string(result.best_char->get_pattern_id().pack())},
+      });
+    } else {
+      selection_stage.failed({{"reason", "no_hard_boundary_legal_segment_candidate"}});
     }
   }
   if (!result.best_char.has_value()) {
@@ -457,7 +501,22 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
     EmitSegmentSummary(result, options);
     return result;
   }
-  result.success = BuildSourceTrunkSegmentObjects(result, source_net, source, sink, *selected_pattern, options);
+  {
+    auto object_stage
+        = SCHEMA_WRITER_INST.beginStage("SourceTrunkSegment", "Build segment objects",
+                                        {
+                                            {"selected_pattern_id", std::to_string(result.best_char->get_pattern_id().pack())},
+                                        });
+    result.success = BuildSourceTrunkSegmentObjects(result, source_net, source, sink, *selected_pattern, options);
+    if (result.success) {
+      object_stage.finished({
+          {"inserted_insts", std::to_string(result.inserted_insts.size())},
+          {"inserted_nets", std::to_string(result.inserted_nets.size())},
+      });
+    } else {
+      object_stage.failed({{"reason", result.failure_reason.empty() ? "segment_object_build_failed" : result.failure_reason}});
+    }
+  }
   EmitSegmentSummary(result, options);
   return result;
 }

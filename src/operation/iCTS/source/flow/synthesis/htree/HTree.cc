@@ -45,6 +45,7 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
+#include "SegmentChar.hh"
 #include "TopologyConfig.hh"
 #include "Tree.hh"
 #include "config/Config.hh"
@@ -126,6 +127,18 @@ auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::
   report.raw_power_w = selected_entry.get_raw_power();
   report.compensated_delay_ns = selected_entry.get_delay();
   report.compensated_power_w = selected_entry.get_power();
+}
+
+auto CountSegmentFrontierEntries(const std::unordered_map<unsigned, htree::SegmentCandidateFrontierSet>& entry_sets) -> std::size_t
+{
+  std::size_t total_entries = 0U;
+  for (const auto& [length_idx, entry_set] : entry_sets) {
+    (void) length_idx;
+    total_entries += entry_set.all_frontier_entries.size();
+    total_entries += entry_set.branch_buffered_entries.size();
+    total_entries += entry_set.leaf_unbuffered_entries.size();
+  }
+  return total_entries;
 }
 
 }  // namespace
@@ -219,12 +232,26 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   }
 
   const auto required_length_indices = htree::CollectRequiredLengthIndices(full_level_plans);
-  auto entry_sets_by_length
-      = htree::SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_library, required_length_indices);
-  if (entry_sets_by_length.empty()) {
-    LOG_WARNING << "HTree: segment frontier synthesis failed for the required aligned lengths.";
-    build_stage.failed({{"reason", "missing_required_segment_frontiers"}});
-    return result;
+  std::unordered_map<unsigned, htree::SegmentCandidateFrontierSet> entry_sets_by_length;
+  {
+    auto segment_frontier_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Synthesize segment frontiers",
+                                        {
+                                            {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
+                                            {"required_length_indices", std::to_string(required_length_indices.size())},
+                                        });
+    entry_sets_by_length
+        = htree::SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_library, required_length_indices);
+    if (entry_sets_by_length.empty()) {
+      LOG_WARNING << "HTree: segment frontier synthesis failed for the required aligned lengths.";
+      segment_frontier_stage.failed({{"reason", "missing_required_segment_frontiers"}});
+      build_stage.failed({{"reason", "missing_required_segment_frontiers"}});
+      return result;
+    }
+    segment_frontier_stage.finished({
+        {"length_sets", std::to_string(entry_sets_by_length.size())},
+        {"frontier_entries", std::to_string(CountSegmentFrontierEntries(entry_sets_by_length))},
+    });
   }
 
   const auto [root_driver_clock_period_ns, root_driver_clock_period_source] = ResolveRootDriverClockPeriod(options);
@@ -235,24 +262,81 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
       .cap_lattice = char_builder.get_cap_lattice(),
       .fallback_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
   };
-  auto exploration = htree::SearchTopologyDepthCandidates(
-      result.topology, full_level_plans, depth_candidates, entry_sets_by_length, segment_pattern_library, base_boundary_constraints,
-      char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value(), root_driver_compensation_options);
+  htree::DepthSearchResult exploration;
+  {
+    auto depth_search_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Search topology depth candidates",
+                                        {
+                                            {"depth_candidates", std::to_string(depth_candidates.size())},
+                                            {"max_depth", std::to_string(max_depth)},
+                                            {"segment_frontier_length_sets", std::to_string(entry_sets_by_length.size())},
+                                        });
+    exploration = htree::SearchTopologyDepthCandidates(
+        result.topology, full_level_plans, depth_candidates, entry_sets_by_length, segment_pattern_library, base_boundary_constraints,
+        char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value(), root_driver_compensation_options);
+    depth_search_stage.finished({
+        {"evaluated_depths", std::to_string(exploration.depth_summaries.size())},
+        {"global_feasible_refs", std::to_string(exploration.global_feasible_pool.size())},
+        {"global_candidate_refs", std::to_string(exploration.global_candidate_pool.size())},
+        {"compensated_candidates", std::to_string(exploration.root_driver_compensation_stats.compensated_candidate_count)},
+    });
+  }
   result.depth_candidate_count = exploration.depth_summaries.size();
 
-  const auto covered_global_feasible_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
-      exploration.global_feasible_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
-      exploration.sink_load_region_legality_context);
-  const auto covered_global_candidate_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
-      exploration.global_candidate_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
-      exploration.sink_load_region_legality_context);
+  htree::CandidateCharRefFilterResult covered_global_feasible_pool;
+  htree::CandidateCharRefFilterResult covered_global_candidate_pool;
+  {
+    auto coverage_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Filter global sink-load coverage",
+                                        {
+                                            {"global_feasible_refs", std::to_string(exploration.global_feasible_pool.size())},
+                                            {"global_candidate_refs", std::to_string(exploration.global_candidate_pool.size())},
+                                        });
+    covered_global_feasible_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
+        exploration.global_feasible_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
+        exploration.sink_load_region_legality_context);
+    covered_global_candidate_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
+        exploration.global_candidate_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
+        exploration.sink_load_region_legality_context);
+    coverage_stage.finished({
+        {"covered_feasible_refs", std::to_string(covered_global_feasible_pool.entries.size())},
+        {"covered_candidate_refs", std::to_string(covered_global_candidate_pool.entries.size())},
+        {"first_feasible_failure",
+         covered_global_feasible_pool.first_failure_reason.empty() ? "none" : covered_global_feasible_pool.first_failure_reason},
+        {"first_candidate_failure",
+         covered_global_candidate_pool.first_failure_reason.empty() ? "none" : covered_global_candidate_pool.first_failure_reason},
+    });
+  }
 
-  const auto per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.entries);
-  const auto selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
+  std::vector<htree::CandidateCharRef> per_depth_feasible_pareto_pool;
+  std::optional<htree::CandidateCharRef> selected_feasible_ref;
   std::optional<htree::CandidateCharRef> selected_fallback_ref;
-  if (!selected_feasible_ref.has_value()) {
-    const auto per_depth_candidate_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_candidate_pool.entries);
-    selected_fallback_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
+  {
+    auto selection_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Select global topology",
+                                        {
+                                            {"covered_feasible_refs", std::to_string(covered_global_feasible_pool.entries.size())},
+                                            {"covered_candidate_refs", std::to_string(covered_global_candidate_pool.entries.size())},
+                                        });
+    per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.entries);
+    selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
+    std::size_t per_depth_candidate_pareto_count = 0U;
+    if (!selected_feasible_ref.has_value()) {
+      const auto per_depth_candidate_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_candidate_pool.entries);
+      per_depth_candidate_pareto_count = per_depth_candidate_pareto_pool.size();
+      selected_fallback_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
+    }
+    std::string selected_from = "none";
+    if (selected_feasible_ref.has_value()) {
+      selected_from = "strict_feasible";
+    } else if (selected_fallback_ref.has_value()) {
+      selected_from = "fallback";
+    }
+    selection_stage.finished({
+        {"feasible_pareto_refs", std::to_string(per_depth_feasible_pareto_pool.size())},
+        {"candidate_pareto_refs", std::to_string(per_depth_candidate_pareto_count)},
+        {"selected_from", selected_from},
+    });
   }
   const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
@@ -272,9 +356,26 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   selected_summary.selected = true;
   selected_summary.selected_power_w = selected_ref->entry->get_power();
   selected_summary.selected_delay_ns = selected_ref->entry->get_delay();
-  const auto selected_sink_load_region_legality = htree::ResolveSinkLoadRegionLegality(
-      result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library,
-      exploration.sink_load_region_legality_context);
+  htree::SinkLoadRegionLegalityResult selected_sink_load_region_legality;
+  {
+    auto selected_legality_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Resolve selected sink-load legality",
+                                        {
+                                            {"selected_depth", std::to_string(selected_evaluation.depth)},
+                                            {"selected_pattern_id", std::to_string(selected_ref->entry->get_pattern_id().pack())},
+                                        });
+    selected_sink_load_region_legality = htree::ResolveSinkLoadRegionLegality(
+        result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library,
+        exploration.sink_load_region_legality_context);
+    selected_legality_stage.finished({
+        {"legal", selected_sink_load_region_legality.legal ? "true" : "false"},
+        {"required_leaf_load_cap_idx", selected_sink_load_region_legality.required_leaf_load_cap_covering_idx.has_value()
+                                           ? std::to_string(*selected_sink_load_region_legality.required_leaf_load_cap_covering_idx)
+                                           : "none"},
+        {"failure_reason",
+         selected_sink_load_region_legality.failure_reason.empty() ? "none" : selected_sink_load_region_legality.failure_reason},
+    });
+  }
   if (!selected_sink_load_region_legality.legal) {
     result.failure_reason = "sink_load_region_legality_missing";
     LOG_WARNING << "HTree: selected global frontier entry is missing sink-load-region legality coverage.";
@@ -290,8 +391,22 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   result.selected_depth = selected_evaluation.depth;
   result.best_char = *selected_ref->entry;
   htree::RootDriverCompensationPass selected_compensation_pass(root_driver_compensation_options);
-  const auto selected_compensation_detail = selected_compensation_pass.evaluate(
-      selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library, result.topology);
+  htree::RootDriverCompensationDetail selected_compensation_detail;
+  {
+    auto selected_compensation_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Resolve selected root-driver compensation",
+                                        {
+                                            {"selected_pattern_id", std::to_string(selected_ref->entry->get_pattern_id().pack())},
+                                            {"root_driver_sizing_enabled", options.enable_root_driver_sizing ? "true" : "false"},
+                                        });
+    selected_compensation_detail = selected_compensation_pass.evaluate(
+        selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library, result.topology);
+    selected_compensation_stage.finished({
+        {"valid", selected_compensation_detail.valid ? "true" : "false"},
+        {"cell_master", selected_compensation_detail.cell_master.empty() ? "none" : selected_compensation_detail.cell_master},
+        {"load_cap_pf", std::to_string(selected_compensation_detail.load_cap_pf)},
+    });
+  }
   ApplyRootDriverCompensationResult(result, exploration, selected_compensation_detail, *selected_ref->entry);
   result.root_driver_compensation.clock_period_source = root_driver_clock_period_source;
   result.levels = selected_evaluation.levels;
@@ -355,17 +470,37 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     return result;
   }
 
-  htree::BuildEmbedding(result, segment_pattern_library);
-  result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
-                   && result.root_output_pin != nullptr && result.root_net != nullptr;
-  if (result.success && options.enable_root_driver_sizing) {
-    LOG_FATAL_IF(!htree::ApplyRootDriverSizing(result, selected_root_driver_cell_master))
-        << "HTree: prevalidated root-driver sizing failed during embedding construction.";
-  } else if (result.success && result.root_inst != nullptr) {
-    result.selected_root_driver_cell_master = result.root_inst->get_cell_master();
+  {
+    auto embedding_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Build selected embedding",
+                                                         {
+                                                             {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
+                                                             {"selected_levels", std::to_string(result.levels.size())},
+                                                         });
+    htree::BuildEmbedding(result, segment_pattern_library);
+    result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
+                     && result.root_output_pin != nullptr && result.root_net != nullptr;
+    if (result.success && options.enable_root_driver_sizing) {
+      LOG_FATAL_IF(!htree::ApplyRootDriverSizing(result, selected_root_driver_cell_master))
+          << "HTree: prevalidated root-driver sizing failed during embedding construction.";
+    } else if (result.success && result.root_inst != nullptr) {
+      result.selected_root_driver_cell_master = result.root_inst->get_cell_master();
+    }
+    if (result.success) {
+      embedding_stage.finished({
+          {"inserted_insts", std::to_string(result.inserted_insts.size())},
+          {"inserted_nets", std::to_string(result.inserted_nets.size())},
+          {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers)},
+      });
+    } else {
+      embedding_stage.failed({{"reason", result.failure_reason.empty() ? "incomplete_embedding_build" : result.failure_reason}});
+    }
   }
 
-  htree::LogSynthesisSummary(result, selected_evaluation, selected_summary);
+  {
+    auto summary_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Emit synthesis summary");
+    htree::LogSynthesisSummary(result, selected_evaluation, selected_summary);
+    summary_stage.finished();
+  }
   if (result.success) {
     build_stage.finished();
   } else {

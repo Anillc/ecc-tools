@@ -25,14 +25,17 @@
 
 #include <glog/logging.h>
 
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "Log.hh"
 #include "Net.hh"
 #include "config/Config.hh"
+#include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "synthesis/topology/sink/SinkLoadClustering.hh"
@@ -86,7 +89,25 @@ auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topo
   RootNetSideEffectGuard root_net_side_effects(root_net, root_driver);
   ConnectNet(root_net, root_driver, root_loads);
 
-  const auto sink_preparation = PrepareSinkTreeLoads(result, root_loads, options);
+  SinkTreeLoadPreparation sink_preparation;
+  {
+    auto preparation_stage = SCHEMA_WRITER_INST.beginStage(
+        "Topology", "Prepare sink loads",
+        {
+            {"root_loads", std::to_string(root_loads.size())},
+            {"sink_clustering_enabled",
+             options.enable_sink_clustering.value_or(CONFIG_INST.is_enable_sink_clustering()) ? "true" : "false"},
+        });
+    sink_preparation = PrepareSinkTreeLoads(result, root_loads, options);
+    if (sink_preparation.success) {
+      preparation_stage.finished({
+          {"htree_sinks", std::to_string(sink_preparation.htree_sinks.size())},
+          {"cluster_buffers", std::to_string(result.cluster_buffers.size())},
+      });
+    } else {
+      preparation_stage.failed({{"reason", result.failure_reason.empty() ? "sink_load_preparation_failed" : result.failure_reason}});
+    }
+  }
   if (!sink_preparation.success) {
     root_net_side_effects.restore();
     return result;
@@ -96,7 +117,24 @@ auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topo
   }
 
   auto htree_options = BuildSinkHtreeOptions(result.sink_clustering_enabled, options);
-  result.htree_result = HTree::build(root_net, htree_options);
+  {
+    auto htree_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Build downstream HTree",
+                                                     {
+                                                         {"htree_sinks", std::to_string(sink_preparation.htree_sinks.size())},
+                                                         {"sink_clustering_enabled", result.sink_clustering_enabled ? "true" : "false"},
+                                                     });
+    result.htree_result = HTree::build(root_net, htree_options);
+    if (result.htree_result.success) {
+      htree_stage.finished({
+          {"selected_depth", std::to_string(result.htree_result.selected_depth.value_or(0U))},
+          {"inserted_insts", std::to_string(result.htree_result.inserted_insts.size())},
+          {"inserted_nets", std::to_string(result.htree_result.inserted_nets.size())},
+      });
+    } else {
+      htree_stage.failed(
+          {{"reason", result.htree_result.failure_reason.empty() ? "unknown_h_tree_failure" : result.htree_result.failure_reason}});
+    }
+  }
   if (!result.htree_result.success) {
     const std::string htree_failure
         = result.htree_result.failure_reason.empty() ? "unknown H-tree failure" : result.htree_result.failure_reason;
@@ -115,7 +153,19 @@ auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topo
   }
 
   if (result.sink_clustering_enabled) {
+    auto distance_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Emit cluster leaf distance report",
+                                                        {
+                                                            {"cluster_buffers", std::to_string(result.cluster_buffers.size())},
+                                                        });
     result.cluster_leaf_distance_summary = EmitClusterLeafDistanceTables(result);
+    if (result.cluster_leaf_distance_summary.has_value()) {
+      distance_stage.finished({
+          {"cluster_leaf_pairs", std::to_string(result.cluster_leaf_distance_summary->count)},
+          {"mean_distance_um", std::to_string(result.cluster_leaf_distance_summary->mean_distance_um)},
+      });
+    } else {
+      distance_stage.skip({{"reason", "no_cluster_leaf_distance_summary"}});
+    }
   }
   result.success = true;
   return result;
