@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "BufferingPattern.hh"
 #include "CharCore.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
@@ -36,10 +37,14 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
+#include "SegmentChar.hh"
 #include "Tree.hh"
 #include "flow/synthesis/htree/HTree.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
+#include "flow/synthesis/htree/constraint/Constraint.hh"
+#include "flow/synthesis/htree/segment_pruning/SegmentPruning.hh"
 #include "flow/synthesis/htree/topology_pruning/TopologyPruning.hh"
+#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
 
 namespace icts_test {
 namespace {
@@ -59,6 +64,108 @@ auto ConnectRootNet(icts::Net& root_net, icts::Pin& root_driver, const std::vect
 auto MakeTopologyChar(unsigned pattern_id, double delay, double power) -> icts::HTreeTopologyChar
 {
   return icts::HTreeTopologyChar(icts::CharCore(1U, 1U, 1U, 1U, delay, power, icts::PatternId::topology(pattern_id), 0.0), 1U);
+}
+
+auto MakeSegmentChar(unsigned pattern_id, double delay, double power) -> icts::SegmentChar
+{
+  return icts::SegmentChar(icts::CharCore(1U, 1U, 1U, 1U, delay, power, icts::PatternId::segment(pattern_id), 0.0), 1U);
+}
+
+struct SegmentFrontierTestData
+{
+  icts::htree::BufferPatternLibrary pattern_library;
+  icts::htree::SegmentFrontierCatalog catalog;
+};
+
+auto BuildSegmentFrontierTestData(icts::htree::SegmentFrontierKindSet required_kinds) -> SegmentFrontierTestData
+{
+  SegmentFrontierTestData test_data;
+  test_data.pattern_library.add(icts::BufferingPattern(1U, icts::PatternId::segment(1U), {}, {}, false));
+  test_data.pattern_library.add(icts::BufferingPattern(1U, icts::PatternId::segment(2U), {}, {}, true));
+
+  const std::vector<icts::SegmentChar> segment_chars{
+      MakeSegmentChar(1U, 2.0, 2.0),
+      MakeSegmentChar(2U, 1.0, 1.0),
+  };
+  test_data.catalog = icts::htree::SynthesizeSegmentFrontiers(segment_chars, test_data.pattern_library,
+                                                              icts::htree::SegmentFrontierRequest{
+                                                                  .required_length_indices = {2U},
+                                                                  .required_kinds = required_kinds,
+                                                              });
+  return test_data;
+}
+
+auto BuildSegmentFrontierSignatures(const SegmentFrontierTestData& test_data, icts::htree::SegmentFrontierKind kind)
+    -> std::vector<std::string>
+{
+  std::vector<std::string> signatures;
+  const auto* frontier = test_data.catalog.find(2U, kind);
+  if (frontier == nullptr) {
+    return signatures;
+  }
+
+  signatures.reserve(frontier->size());
+  for (const auto& entry : *frontier) {
+    const auto* pattern = test_data.pattern_library.find(entry.get_pattern_id());
+    std::string signature = std::to_string(entry.get_length_idx()) + "/" + std::to_string(entry.get_input_slew_idx()) + "/"
+                            + std::to_string(entry.get_output_slew_idx()) + "/" + std::to_string(entry.get_driven_cap_idx()) + "/"
+                            + std::to_string(entry.get_load_cap_idx()) + "/" + std::to_string(entry.get_delay()) + "/"
+                            + std::to_string(entry.get_power());
+    if (pattern == nullptr) {
+      signature += "/missing_pattern";
+    } else {
+      signature += pattern->hasTerminalBranchBuffer() ? "/branch" : "/leaf";
+      signature += "/" + std::to_string(pattern->get_buffer_positions().size());
+      signature += "/" + std::to_string(pattern->get_cell_masters().size());
+    }
+    signatures.push_back(signature);
+  }
+  std::ranges::sort(signatures);
+  return signatures;
+}
+
+TEST(HTreeTest, SegmentFrontierRequestBuildsOnlyRequestedKinds)
+{
+  const auto all_only = BuildSegmentFrontierTestData(icts::htree::SegmentFrontierKindSet::allOnly());
+  EXPECT_NE(all_only.catalog.find(2U, icts::htree::SegmentFrontierKind::kAll), nullptr);
+  EXPECT_EQ(all_only.catalog.find(2U, icts::htree::SegmentFrontierKind::kTerminalBranchBuffered), nullptr);
+  EXPECT_EQ(all_only.catalog.find(2U, icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered), nullptr);
+
+  const auto branch = BuildSegmentFrontierTestData(icts::htree::SegmentFrontierKindSet::branchConstrained());
+  EXPECT_NE(branch.catalog.find(2U, icts::htree::SegmentFrontierKind::kAll), nullptr);
+  EXPECT_NE(branch.catalog.find(2U, icts::htree::SegmentFrontierKind::kTerminalBranchBuffered), nullptr);
+  EXPECT_EQ(branch.catalog.find(2U, icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered), nullptr);
+
+  const auto full = BuildSegmentFrontierTestData(icts::htree::SegmentFrontierKindSet::full());
+  EXPECT_NE(full.catalog.find(2U, icts::htree::SegmentFrontierKind::kAll), nullptr);
+  EXPECT_NE(full.catalog.find(2U, icts::htree::SegmentFrontierKind::kTerminalBranchBuffered), nullptr);
+  EXPECT_NE(full.catalog.find(2U, icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered), nullptr);
+
+  EXPECT_EQ(BuildSegmentFrontierSignatures(all_only, icts::htree::SegmentFrontierKind::kAll),
+            BuildSegmentFrontierSignatures(full, icts::htree::SegmentFrontierKind::kAll));
+  EXPECT_EQ(BuildSegmentFrontierSignatures(branch, icts::htree::SegmentFrontierKind::kAll),
+            BuildSegmentFrontierSignatures(full, icts::htree::SegmentFrontierKind::kAll));
+  EXPECT_EQ(BuildSegmentFrontierSignatures(branch, icts::htree::SegmentFrontierKind::kTerminalBranchBuffered),
+            BuildSegmentFrontierSignatures(full, icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
+}
+
+TEST(HTreeTest, HTreeSegmentFrontierRequestFollowsBoundaryConstraints)
+{
+  const std::vector<unsigned> required_lengths{1U, 2U, 3U};
+
+  const auto unrestricted_request = icts::htree::MakeHTreeSegmentFrontierRequest(required_lengths, icts::htree::BoundaryConstraints{});
+  EXPECT_EQ(unrestricted_request.required_length_indices, required_lengths);
+  EXPECT_TRUE(unrestricted_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kAll));
+  EXPECT_FALSE(unrestricted_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
+  EXPECT_FALSE(unrestricted_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered));
+
+  const auto branch_request = icts::htree::MakeHTreeSegmentFrontierRequest(required_lengths, icts::htree::BoundaryConstraints{
+                                                                                                 .force_branch_buffer = true,
+                                                                                             });
+  EXPECT_EQ(branch_request.required_length_indices, required_lengths);
+  EXPECT_TRUE(branch_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kAll));
+  EXPECT_TRUE(branch_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
+  EXPECT_FALSE(branch_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered));
 }
 
 TEST(HTreeTest, EmptyLoadsReturnsEmptyResult)

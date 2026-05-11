@@ -129,36 +129,28 @@ auto PreferPowerMedianOrder(const HTreeTopologyChar& lhs, const HTreeTopologyCha
   return PreferDelayPowerTieBreak(lhs, rhs);
 }
 
-auto ResolveSegmentEntrySelection(const BoundaryConstraints& boundary_constraints) -> SegmentEntrySelection
+auto ResolveSegmentFrontierKind(const BoundaryConstraints& boundary_constraints) -> SegmentFrontierKind
 {
   if (boundary_constraints.force_branch_buffer) {
-    return SegmentEntrySelection::kBranchBuffered;
+    return SegmentFrontierKind::kTerminalBranchBuffered;
   }
-  return SegmentEntrySelection::kAllFrontier;
+  return SegmentFrontierKind::kAll;
 }
 
-auto SelectSegmentEntriesForLevel(const SegmentCandidateFrontierSet& entry_set, SegmentEntrySelection selection)
-    -> const std::vector<SegmentChar>&
+auto SelectSegmentEntriesForLevel(const SegmentFrontierCatalog& segment_frontier_catalog, unsigned length_idx,
+                                  SegmentFrontierKind frontier_kind) -> const std::vector<SegmentChar>*
 {
-  switch (selection) {
-    case SegmentEntrySelection::kBranchBuffered:
-      return entry_set.branch_buffered_entries;
-    case SegmentEntrySelection::kLeafUnbuffered:
-      return entry_set.leaf_unbuffered_entries;
-    case SegmentEntrySelection::kAllFrontier:
-      return entry_set.all_frontier_entries;
-  }
-  return entry_set.all_frontier_entries;
+  return segment_frontier_catalog.find(length_idx, frontier_kind);
 }
 
-auto DescribeMissingSegmentEntries(SegmentEntrySelection selection) -> std::string
+auto DescribeMissingSegmentEntries(SegmentFrontierKind frontier_kind) -> std::string
 {
-  switch (selection) {
-    case SegmentEntrySelection::kBranchBuffered:
+  switch (frontier_kind) {
+    case SegmentFrontierKind::kTerminalBranchBuffered:
       return "missing_branch_buffered_segment_frontier";
-    case SegmentEntrySelection::kLeafUnbuffered:
+    case SegmentFrontierKind::kTerminalLeafUnbuffered:
       return "missing_leaf_unbuffered_segment_frontier";
-    case SegmentEntrySelection::kAllFrontier:
+    case SegmentFrontierKind::kAll:
       return "missing_segment_frontier";
   }
   return "missing_segment_frontier";
@@ -211,8 +203,7 @@ auto CountBoundaryFeasibleHTreeChars(const std::vector<HTreeTopologyChar>& entri
   }));
 }
 
-auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
-                        const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels, const SegmentFrontierCatalog& segment_frontier_catalog,
                         const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                         const Tree& topology, RootDriverCompensationPass& compensation_pass) -> PatternSearchResult
 {
@@ -220,7 +211,7 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
       = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Build pattern frontier",
                                       {
                                           {"levels", std::to_string(levels.size())},
-                                          {"segment_frontier_length_sets", std::to_string(entry_sets_by_length.size())},
+                                          {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
                                       });
   PatternSearchResult result;
   unsigned next_topology_pattern_id = 0U;
@@ -231,8 +222,7 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
     result.failure_level = static_cast<unsigned>(reverse_level - 1U);
     result.failure_length_idx = level.aligned_length_idx;
 
-    const auto entry_set_it = entry_sets_by_length.find(level.aligned_length_idx);
-    if (entry_set_it == entry_sets_by_length.end()) {
+    if (segment_frontier_catalog.find(level.aligned_length_idx, SegmentFrontierKind::kAll) == nullptr) {
       result.failure_reason = "missing_segment_frontier";
       pattern_search_stage.failed({
           {"reason", result.failure_reason},
@@ -242,11 +232,10 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
       return result;
     }
 
-    const auto& entry_set = entry_set_it->second;
-    const SegmentEntrySelection entry_selection = ResolveSegmentEntrySelection(boundary_constraints);
-    const auto& base_segment_frontier = SelectSegmentEntriesForLevel(entry_set, entry_selection);
-    if (base_segment_frontier.empty()) {
-      result.failure_reason = DescribeMissingSegmentEntries(entry_selection);
+    const SegmentFrontierKind frontier_kind = ResolveSegmentFrontierKind(boundary_constraints);
+    const auto* base_segment_frontier = SelectSegmentEntriesForLevel(segment_frontier_catalog, level.aligned_length_idx, frontier_kind);
+    if (base_segment_frontier == nullptr || base_segment_frontier->empty()) {
+      result.failure_reason = DescribeMissingSegmentEntries(frontier_kind);
       pattern_search_stage.failed({
           {"reason", result.failure_reason},
           {"failure_level", std::to_string(result.failure_level)},
@@ -256,7 +245,7 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels,
     }
 
     auto seed_entries
-        = MakeHTreeSeedEntries(base_segment_frontier, segment_pattern_library, result.topology_pattern_library, next_topology_pattern_id);
+        = MakeHTreeSeedEntries(*base_segment_frontier, segment_pattern_library, result.topology_pattern_library, next_topology_pattern_id);
     if (current_frontier_entries.empty()) {
       current_frontier_entries = std::move(seed_entries);
       continue;
@@ -444,8 +433,7 @@ auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std:
   return pareto_front.at(median_index);
 }
 
-auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
-                            const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const SegmentFrontierCatalog& segment_frontier_catalog,
                             const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                             const Tree& topology, SinkLoadRegionLegalityContext& sink_load_region_legality_context, std::size_t leaf_count,
                             unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass)
@@ -460,7 +448,7 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
 
   const bool has_boundary_constraints = HasBoundaryConstraints(boundary_constraints);
   const auto topology_assembly
-      = BuildPatternSearch(levels, entry_sets_by_length, segment_pattern_library, boundary_constraints, topology, compensation_pass);
+      = BuildPatternSearch(levels, segment_frontier_catalog, segment_pattern_library, boundary_constraints, topology, compensation_pass);
   if (!topology_assembly.success) {
     result.failure_reason = topology_assembly.failure_reason.empty() ? std::string{"empty_frontier"} : topology_assembly.failure_reason;
     result.failure_level = topology_assembly.failure_level;

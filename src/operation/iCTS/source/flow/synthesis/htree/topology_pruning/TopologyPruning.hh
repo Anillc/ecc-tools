@@ -26,7 +26,6 @@
 #include <cstddef>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "HTreeTopologyChar.hh"
@@ -77,8 +76,7 @@ struct CandidateCharRefFilterResult
   std::string first_failure_reason;
 };
 
-auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels,
-                            const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const SegmentFrontierCatalog& segment_frontier_catalog,
                             const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                             const Tree& topology, SinkLoadRegionLegalityContext& sink_load_region_legality_context, std::size_t leaf_count,
                             unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass)

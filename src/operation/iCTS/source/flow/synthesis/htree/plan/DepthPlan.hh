@@ -25,7 +25,6 @@
 
 #include <cstddef>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "synthesis/htree/HTree.hh"
@@ -42,7 +41,7 @@ namespace icts::htree {
 
 struct BoundaryConstraints;
 struct BufferPatternLibrary;
-struct SegmentCandidateFrontierSet;
+class SegmentFrontierCatalog;
 
 struct DepthSummary
 {
@@ -84,8 +83,8 @@ struct DepthCandidateResult
 };
 
 auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans, unsigned depth,
-                                    const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
-                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
+                                    const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,
+                                    const BoundaryConstraints& base_boundary_constraints,
                                     SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps,
                                     RootDriverCompensationPass& compensation_pass) -> DepthCandidateResult;
 auto RecordTopologyDepthCandidateResult(unsigned depth, bool used_explicit_target_depth, const DepthCandidateResult& candidate_result,
@@ -94,8 +93,7 @@ auto AppendGlobalCandidateRefs(std::size_t candidate_index, const CandidateBuild
                                std::vector<CandidateCharRef>& global_feasible_pool, std::vector<CandidateCharRef>& global_candidate_pool)
     -> void;
 auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans,
-                                   const std::vector<unsigned>& depth_candidates,
-                                   const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+                                   const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
                                    const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
                                    const RootDriverCompensationOptions& compensation_options) -> DepthSearchResult;

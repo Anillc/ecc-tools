@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file SegmentFrontier.cc
+ * @file SegmentPruning.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-24
  * @brief Segment frontier synthesis for required H-tree level lengths.
@@ -36,15 +36,10 @@
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "SegmentTraits.hh"
+#include "synthesis/htree/constraint/Constraint.hh"
 
 namespace icts::htree {
 namespace {
-
-enum class SegmentFrontierSynthesisMode
-{
-  kFull,
-  kAllOnly,
-};
 
 auto resolveSegmentCompositionState(const BufferPatternLibrary& pattern_library, PatternId pattern_id) -> PatternCompositionState
 {
@@ -76,7 +71,7 @@ auto hasTerminalBranchBufferPattern(const BufferPatternLibrary& pattern_library,
 
 auto CountSegmentCandidateFrontierEntries(const SegmentCandidateFrontierSet& entry_set) -> std::size_t
 {
-  return entry_set.all_frontier_entries.size() + entry_set.branch_buffered_entries.size() + entry_set.leaf_unbuffered_entries.size();
+  return entry_set.countEntries(SegmentFrontierKindSet::full());
 }
 
 auto CountTotalSegmentCandidateFrontierEntries(const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets) -> std::size_t
@@ -115,53 +110,66 @@ auto ComposeSegmentCandidateFrontierEntries(const std::vector<SegmentChar>& upst
 
 auto ComposeSegmentCandidateFrontierSet(const SegmentCandidateFrontierSet& upstream, const SegmentCandidateFrontierSet& downstream,
                                         BufferPatternLibrary& pattern_library, unsigned start_pattern_id,
-                                        SegmentFrontierSynthesisMode synthesis_mode) -> std::pair<SegmentCandidateFrontierSet, unsigned>
+                                        SegmentFrontierKindSet required_kinds) -> std::pair<SegmentCandidateFrontierSet, unsigned>
 {
   SegmentCandidateFrontierSet result;
   unsigned next_pattern_id = start_pattern_id;
 
-  auto [all_frontier_entries, after_all_pattern_id] = ComposeSegmentCandidateFrontierEntries(
-      upstream.all_frontier_entries, downstream.all_frontier_entries, pattern_library, next_pattern_id);
-  result.all_frontier_entries = std::move(all_frontier_entries);
-  next_pattern_id = after_all_pattern_id;
-
-  if (synthesis_mode == SegmentFrontierSynthesisMode::kAllOnly) {
-    return {std::move(result), next_pattern_id};
+  if (required_kinds.contains(SegmentFrontierKind::kAll)) {
+    auto [all_frontier_entries, after_all_pattern_id] = ComposeSegmentCandidateFrontierEntries(
+        upstream.require(SegmentFrontierKind::kAll), downstream.require(SegmentFrontierKind::kAll), pattern_library, next_pattern_id);
+    result.mutableEntries(SegmentFrontierKind::kAll) = std::move(all_frontier_entries);
+    next_pattern_id = after_all_pattern_id;
   }
 
-  auto [branch_frontier_entries, after_branch_pattern_id] = ComposeSegmentCandidateFrontierEntries(
-      upstream.all_frontier_entries, downstream.branch_buffered_entries, pattern_library, next_pattern_id);
-  result.branch_buffered_entries = std::move(branch_frontier_entries);
-  next_pattern_id = after_branch_pattern_id;
+  if (required_kinds.contains(SegmentFrontierKind::kTerminalBranchBuffered)) {
+    auto [branch_frontier_entries, after_branch_pattern_id] = ComposeSegmentCandidateFrontierEntries(
+        upstream.require(SegmentFrontierKind::kAll), downstream.require(SegmentFrontierKind::kTerminalBranchBuffered), pattern_library,
+        next_pattern_id);
+    result.mutableEntries(SegmentFrontierKind::kTerminalBranchBuffered) = std::move(branch_frontier_entries);
+    next_pattern_id = after_branch_pattern_id;
+  }
 
-  auto [leaf_frontier_entries, after_leaf_pattern_id] = ComposeSegmentCandidateFrontierEntries(
-      upstream.all_frontier_entries, downstream.leaf_unbuffered_entries, pattern_library, next_pattern_id);
-  result.leaf_unbuffered_entries = std::move(leaf_frontier_entries);
-  next_pattern_id = after_leaf_pattern_id;
+  if (required_kinds.contains(SegmentFrontierKind::kTerminalLeafUnbuffered)) {
+    auto [leaf_frontier_entries, after_leaf_pattern_id] = ComposeSegmentCandidateFrontierEntries(
+        upstream.require(SegmentFrontierKind::kAll), downstream.require(SegmentFrontierKind::kTerminalLeafUnbuffered), pattern_library,
+        next_pattern_id);
+    result.mutableEntries(SegmentFrontierKind::kTerminalLeafUnbuffered) = std::move(leaf_frontier_entries);
+    next_pattern_id = after_leaf_pattern_id;
+  }
 
   return {std::move(result), next_pattern_id};
 }
 
 auto BuildBaseSegmentCandidateLengthEntrySets(const std::vector<SegmentChar>& chars, const BufferPatternLibrary& pattern_library,
-                                              SegmentFrontierSynthesisMode synthesis_mode)
+                                              SegmentFrontierKindSet required_kinds)
     -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
 {
   std::unordered_map<unsigned, std::vector<SegmentChar>> raw_all_by_length;
   std::unordered_map<unsigned, std::vector<SegmentChar>> raw_leaf_unbuffered_by_length;
   std::unordered_map<unsigned, std::vector<SegmentChar>> raw_branch_by_length;
+  const bool build_all = required_kinds.contains(SegmentFrontierKind::kAll);
+  const bool build_branch = required_kinds.contains(SegmentFrontierKind::kTerminalBranchBuffered);
+  const bool build_leaf = required_kinds.contains(SegmentFrontierKind::kTerminalLeafUnbuffered);
   raw_all_by_length.reserve(chars.size());
-  if (synthesis_mode == SegmentFrontierSynthesisMode::kFull) {
+  if (build_leaf) {
     raw_leaf_unbuffered_by_length.reserve(chars.size());
+  }
+  if (build_branch) {
     raw_branch_by_length.reserve(chars.size());
   }
   for (const auto& entry : chars) {
-    raw_all_by_length[entry.get_length_idx()].push_back(entry);
-    if (synthesis_mode == SegmentFrontierSynthesisMode::kAllOnly) {
+    if (build_all) {
+      raw_all_by_length[entry.get_length_idx()].push_back(entry);
+    }
+    if (!build_branch && !build_leaf) {
       continue;
     }
     if (hasTerminalBranchBufferPattern(pattern_library, entry.get_pattern_id())) {
-      raw_branch_by_length[entry.get_length_idx()].push_back(entry);
-    } else {
+      if (build_branch) {
+        raw_branch_by_length[entry.get_length_idx()].push_back(entry);
+      }
+    } else if (build_leaf) {
       raw_leaf_unbuffered_by_length[entry.get_length_idx()].push_back(entry);
     }
   }
@@ -170,19 +178,30 @@ auto BuildBaseSegmentCandidateLengthEntrySets(const std::vector<SegmentChar>& ch
   entry_sets_by_length.reserve(raw_all_by_length.size());
   for (auto& [length_idx, raw_entries] : raw_all_by_length) {
     auto& entry_set = entry_sets_by_length[length_idx];
-    entry_set.all_frontier_entries = BuildSegmentStateFrontier(raw_entries, pattern_library);
-  }
-  if (synthesis_mode == SegmentFrontierSynthesisMode::kAllOnly) {
-    return entry_sets_by_length;
+    entry_set.mutableEntries(SegmentFrontierKind::kAll) = BuildSegmentStateFrontier(raw_entries, pattern_library);
   }
 
-  for (auto& [length_idx, raw_entries] : raw_branch_by_length) {
-    auto& entry_set = entry_sets_by_length[length_idx];
-    entry_set.branch_buffered_entries = BuildSegmentStateFrontier(raw_entries, pattern_library);
+  for (auto& [length_idx, entry_set] : entry_sets_by_length) {
+    (void) length_idx;
+    if (build_branch) {
+      (void) entry_set.mutableEntries(SegmentFrontierKind::kTerminalBranchBuffered);
+    }
+    if (build_leaf) {
+      (void) entry_set.mutableEntries(SegmentFrontierKind::kTerminalLeafUnbuffered);
+    }
   }
-  for (auto& [length_idx, raw_entries] : raw_leaf_unbuffered_by_length) {
-    auto& entry_set = entry_sets_by_length[length_idx];
-    entry_set.leaf_unbuffered_entries = BuildSegmentStateFrontier(raw_entries, pattern_library);
+
+  if (build_branch) {
+    for (auto& [length_idx, raw_entries] : raw_branch_by_length) {
+      auto& entry_set = entry_sets_by_length[length_idx];
+      entry_set.mutableEntries(SegmentFrontierKind::kTerminalBranchBuffered) = BuildSegmentStateFrontier(raw_entries, pattern_library);
+    }
+  }
+  if (build_leaf) {
+    for (auto& [length_idx, raw_entries] : raw_leaf_unbuffered_by_length) {
+      auto& entry_set = entry_sets_by_length[length_idx];
+      entry_set.mutableEntries(SegmentFrontierKind::kTerminalLeafUnbuffered) = BuildSegmentStateFrontier(raw_entries, pattern_library);
+    }
   }
   return entry_sets_by_length;
 }
@@ -203,7 +222,8 @@ auto BuildPendingLengthKey(const std::vector<unsigned>& pending_lengths,
   canonical_lengths.reserve(pending_lengths.size());
   for (const unsigned length_idx : pending_lengths) {
     const auto* base_entry_set = FindSegmentCandidateFrontierSet(base_entry_sets, length_idx);
-    if (base_entry_set != nullptr && !base_entry_set->all_frontier_entries.empty()) {
+    const auto* all_frontier = base_entry_set == nullptr ? nullptr : base_entry_set->find(SegmentFrontierKind::kAll);
+    if (all_frontier != nullptr && !all_frontier->empty()) {
       continue;
     }
     canonical_lengths.push_back(length_idx);
@@ -249,7 +269,7 @@ auto SolveRequiredLengthState(const RequiredLengthStateKey& state_key,
                               const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& base_entry_sets,
                               BufferPatternLibrary& pattern_library, unsigned& next_pattern_id,
                               std::unordered_map<RequiredLengthStateKey, SegmentClosureSolution, RequiredLengthStateKeyHash>& memo,
-                              SegmentFrontierSynthesisMode synthesis_mode) -> SegmentClosureSolution
+                              SegmentFrontierKindSet required_kinds) -> SegmentClosureSolution
 {
   std::vector<RequiredLengthStateKey> pending_states = {state_key};
   while (!pending_states.empty()) {
@@ -310,14 +330,17 @@ auto SolveRequiredLengthState(const RequiredLengthStateKey& state_key,
       if (left_entry_set == nullptr || right_entry_set == nullptr) {
         continue;
       }
-      if (left_entry_set->all_frontier_entries.empty() || right_entry_set->all_frontier_entries.empty()) {
+      const auto* left_all_frontier = left_entry_set->find(SegmentFrontierKind::kAll);
+      const auto* right_all_frontier = right_entry_set->find(SegmentFrontierKind::kAll);
+      if (left_all_frontier == nullptr || right_all_frontier == nullptr || left_all_frontier->empty() || right_all_frontier->empty()) {
         continue;
       }
 
       auto [composed_entry_set, updated_next_pattern_id]
-          = ComposeSegmentCandidateFrontierSet(*left_entry_set, *right_entry_set, pattern_library, next_pattern_id, synthesis_mode);
+          = ComposeSegmentCandidateFrontierSet(*left_entry_set, *right_entry_set, pattern_library, next_pattern_id, required_kinds);
       next_pattern_id = updated_next_pattern_id;
-      if (composed_entry_set.all_frontier_entries.empty()) {
+      const auto* composed_all_frontier = composed_entry_set.find(SegmentFrontierKind::kAll);
+      if (composed_all_frontier == nullptr || composed_all_frontier->empty()) {
         continue;
       }
 
@@ -337,12 +360,16 @@ auto SolveRequiredLengthState(const RequiredLengthStateKey& state_key,
   return memo.at(state_key);
 }
 
-auto SynthesizeSegmentEntrySetsByMode(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                      const std::vector<unsigned>& required_length_indices, SegmentFrontierSynthesisMode synthesis_mode)
-    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
+auto SynthesizeSegmentFrontierSets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
+                                   const SegmentFrontierRequest& request) -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
 {
-  auto entry_sets_by_length = BuildBaseSegmentCandidateLengthEntrySets(base_segment_chars, pattern_library, synthesis_mode);
-  const RequiredLengthStateKey root_state_key = BuildPendingLengthKey(required_length_indices, entry_sets_by_length);
+  const SegmentFrontierKindSet required_kinds = request.required_kinds.normalized();
+  if (required_kinds.empty()) {
+    return {};
+  }
+
+  auto entry_sets_by_length = BuildBaseSegmentCandidateLengthEntrySets(base_segment_chars, pattern_library, required_kinds);
+  const RequiredLengthStateKey root_state_key = BuildPendingLengthKey(request.required_length_indices, entry_sets_by_length);
   if (root_state_key.pending_lengths.empty()) {
     return entry_sets_by_length;
   }
@@ -350,7 +377,7 @@ auto SynthesizeSegmentEntrySetsByMode(const std::vector<SegmentChar>& base_segme
   unsigned next_pattern_id = FindNextSegmentPatternId(base_segment_chars);
   std::unordered_map<RequiredLengthStateKey, SegmentClosureSolution, RequiredLengthStateKeyHash> memo;
   auto closure_solution
-      = SolveRequiredLengthState(root_state_key, entry_sets_by_length, pattern_library, next_pattern_id, memo, synthesis_mode);
+      = SolveRequiredLengthState(root_state_key, entry_sets_by_length, pattern_library, next_pattern_id, memo, required_kinds);
   if (!closure_solution.feasible) {
     return {};
   }
@@ -375,20 +402,20 @@ auto CollectRequiredLengthIndices(const std::vector<HTree::LevelPlan>& levels) -
   return NormalizeRequiredLengths(std::move(required_lengths));
 }
 
-auto SynthesizeSegmentEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                const std::vector<unsigned>& required_length_indices)
-    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
+auto MakeHTreeSegmentFrontierRequest(std::vector<unsigned> required_length_indices, const BoundaryConstraints& boundary_constraints)
+    -> SegmentFrontierRequest
 {
-  return SynthesizeSegmentEntrySetsByMode(base_segment_chars, pattern_library, required_length_indices,
-                                          SegmentFrontierSynthesisMode::kFull);
+  return SegmentFrontierRequest{
+      .required_length_indices = std::move(required_length_indices),
+      .required_kinds
+      = boundary_constraints.force_branch_buffer ? SegmentFrontierKindSet::branchConstrained() : SegmentFrontierKindSet::allOnly(),
+  };
 }
 
-auto SynthesizeSegmentAllFrontierEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                           const std::vector<unsigned>& required_length_indices)
-    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
+auto SynthesizeSegmentFrontiers(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
+                                const SegmentFrontierRequest& request) -> SegmentFrontierCatalog
 {
-  return SynthesizeSegmentEntrySetsByMode(base_segment_chars, pattern_library, required_length_indices,
-                                          SegmentFrontierSynthesisMode::kAllOnly);
+  return SegmentFrontierCatalog(SynthesizeSegmentFrontierSets(base_segment_chars, pattern_library, request));
 }
 
 }  // namespace icts::htree

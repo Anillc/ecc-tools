@@ -32,7 +32,6 @@
 #include <optional>
 #include <ostream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -429,8 +428,8 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
   }
 
   htree::BufferPatternLibrary pattern_library;
-  std::unordered_map<unsigned, htree::SegmentCandidateFrontierSet> entry_sets_by_length;
-  const htree::SegmentCandidateFrontierSet* selected_entry_set = nullptr;
+  htree::SegmentFrontierCatalog segment_frontier_catalog;
+  const std::vector<SegmentChar>* all_frontier_entries = nullptr;
   {
     auto frontier_stage = SCHEMA_WRITER_INST.beginStage("SourceTrunkSegment", "Synthesize segment frontier",
                                                         {
@@ -440,19 +439,22 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
     for (const auto& pattern : char_builder.get_buffering_patterns()) {
       pattern_library.add(pattern);
     }
-    entry_sets_by_length
-        = htree::SynthesizeSegmentAllFrontierEntrySets(char_builder.get_segment_chars(), pattern_library, {result.length_idx});
-    const auto entry_set_it = entry_sets_by_length.find(result.length_idx);
-    if (entry_set_it == entry_sets_by_length.end() || entry_set_it->second.all_frontier_entries.empty()) {
+    const htree::SegmentFrontierRequest segment_frontier_request{
+        .required_length_indices = {result.length_idx},
+        .required_kinds = htree::SegmentFrontierKindSet::allOnly(),
+    };
+    segment_frontier_catalog
+        = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), pattern_library, segment_frontier_request);
+    all_frontier_entries = segment_frontier_catalog.find(result.length_idx, htree::SegmentFrontierKind::kAll);
+    if (all_frontier_entries == nullptr || all_frontier_entries->empty()) {
       result.failure_reason = "missing_required_segment_frontier";
       frontier_stage.failed({{"reason", result.failure_reason}});
       EmitSegmentSummary(result, options);
       return result;
     }
-    selected_entry_set = &entry_set_it->second;
     frontier_stage.finished({
-        {"length_sets", std::to_string(entry_sets_by_length.size())},
-        {"frontier_entries", std::to_string(selected_entry_set->all_frontier_entries.size())},
+        {"length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
+        {"frontier_entries", std::to_string(all_frontier_entries->size())},
     });
   }
 
@@ -460,17 +462,17 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
     auto selection_stage = SCHEMA_WRITER_INST.beginStage(
         "SourceTrunkSegment", "Select segment candidate",
         {
-            {"frontier_entries", std::to_string(selected_entry_set == nullptr ? 0U : selected_entry_set->all_frontier_entries.size())},
+            {"frontier_entries", std::to_string(all_frontier_entries == nullptr ? 0U : all_frontier_entries->size())},
             {"required_load_cap_idx", std::to_string(result.required_load_cap_idx)},
             {"source_drive_cap_idx", std::to_string(result.source_drive_cap_idx)},
         });
-    const auto& all_entries = selected_entry_set->all_frontier_entries;
     auto strict_entries
-        = FilterSegmentEntries(all_entries, result.required_load_cap_idx, result.source_drive_cap_idx, result.min_input_slew_idx);
+        = FilterSegmentEntries(*all_frontier_entries, result.required_load_cap_idx, result.source_drive_cap_idx, result.min_input_slew_idx);
     result.strict_candidate_count = strict_entries.size();
     result.best_char = SelectBestSegmentEntry(strict_entries);
     if (!result.best_char.has_value() && result.min_input_slew_idx.has_value()) {
-      auto fallback_entries = FilterSegmentEntries(all_entries, result.required_load_cap_idx, result.source_drive_cap_idx, std::nullopt);
+      auto fallback_entries
+          = FilterSegmentEntries(*all_frontier_entries, result.required_load_cap_idx, result.source_drive_cap_idx, std::nullopt);
       result.fallback_candidate_count = fallback_entries.size();
       result.best_char = SelectBestSegmentEntry(fallback_entries);
       if (result.best_char.has_value()) {

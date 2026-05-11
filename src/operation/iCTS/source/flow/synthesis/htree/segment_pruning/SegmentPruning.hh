@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file SegmentFrontier.hh
+ * @file SegmentPruning.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-01
  * @brief H-tree segment frontier synthesis contracts.
@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <unordered_map>
 #include <vector>
 
 #include "synthesis/htree/HTree.hh"
@@ -35,12 +34,12 @@ class SegmentChar;
 
 namespace icts::htree {
 
+struct BoundaryConstraints;
+
 auto CollectRequiredLengthIndices(const std::vector<HTree::LevelPlan>& levels) -> std::vector<unsigned>;
-auto SynthesizeSegmentEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                const std::vector<unsigned>& required_length_indices)
-    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>;
-auto SynthesizeSegmentAllFrontierEntrySets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                           const std::vector<unsigned>& required_length_indices)
-    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>;
+auto MakeHTreeSegmentFrontierRequest(std::vector<unsigned> required_length_indices, const BoundaryConstraints& boundary_constraints)
+    -> SegmentFrontierRequest;
+auto SynthesizeSegmentFrontiers(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
+                                const SegmentFrontierRequest& request) -> SegmentFrontierCatalog;
 
 }  // namespace icts::htree

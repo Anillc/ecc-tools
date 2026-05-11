@@ -31,7 +31,6 @@
 #include <optional>
 #include <ostream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -129,16 +128,26 @@ auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::
   report.compensated_power_w = selected_entry.get_power();
 }
 
-auto CountSegmentFrontierEntries(const std::unordered_map<unsigned, htree::SegmentCandidateFrontierSet>& entry_sets) -> std::size_t
+auto ApplySelectedPatternToLevelPlans(HTree::BuildResult& result, const htree::BufferPatternLibrary& segment_pattern_library) -> void
 {
-  std::size_t total_entries = 0U;
-  for (const auto& [length_idx, entry_set] : entry_sets) {
-    (void) length_idx;
-    total_entries += entry_set.all_frontier_entries.size();
-    total_entries += entry_set.branch_buffered_entries.size();
-    total_entries += entry_set.leaf_unbuffered_entries.size();
+  LOG_FATAL_IF(!result.best_pattern.has_value()) << "HTree: selected topology pattern is missing.";
+  const auto& best_level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
+  LOG_FATAL_IF(best_level_segment_pattern_ids.size() != result.levels.size())
+      << "HTree: best H-tree pattern level count does not match selected depth.";
+
+  for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
+    auto& level = result.levels.at(level_index);
+    const auto segment_pattern_id = best_level_segment_pattern_ids.at(level_index);
+    level.segment_pattern_id = segment_pattern_id;
+    const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
+    LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: selected segment pattern metadata is missing.";
+
+    const auto& cell_masters = segment_pattern->get_cell_masters();
+    level.selected_has_any_buffer = !cell_masters.empty();
+    level.selected_leaf_buffer_cell_master = cell_masters.empty() ? "" : cell_masters.back();
+    level.selected_has_terminal_branch_buffer = segment_pattern->hasTerminalBranchBuffer();
+    level.selected_terminal_cell_master = segment_pattern->hasTerminalBranchBuffer() && !cell_masters.empty() ? cell_masters.back() : "";
   }
-  return total_entries;
 }
 
 }  // namespace
@@ -231,26 +240,27 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     segment_pattern_library.add(pattern);
   }
 
-  const auto required_length_indices = htree::CollectRequiredLengthIndices(full_level_plans);
-  std::unordered_map<unsigned, htree::SegmentCandidateFrontierSet> entry_sets_by_length;
+  auto segment_frontier_request
+      = htree::MakeHTreeSegmentFrontierRequest(htree::CollectRequiredLengthIndices(full_level_plans), base_boundary_constraints);
+  htree::SegmentFrontierCatalog segment_frontier_catalog;
   {
-    auto segment_frontier_stage
-        = SCHEMA_WRITER_INST.beginStage("HTree", "Synthesize segment frontiers",
-                                        {
-                                            {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
-                                            {"required_length_indices", std::to_string(required_length_indices.size())},
-                                        });
-    entry_sets_by_length
-        = htree::SynthesizeSegmentEntrySets(char_builder.get_segment_chars(), segment_pattern_library, required_length_indices);
-    if (entry_sets_by_length.empty()) {
+    auto segment_frontier_stage = SCHEMA_WRITER_INST.beginStage(
+        "HTree", "Synthesize segment frontiers",
+        {
+            {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
+            {"required_length_indices", std::to_string(segment_frontier_request.required_length_indices.size())},
+        });
+    segment_frontier_catalog
+        = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), segment_pattern_library, segment_frontier_request);
+    if (segment_frontier_catalog.empty()) {
       LOG_WARNING << "HTree: segment frontier synthesis failed for the required aligned lengths.";
       segment_frontier_stage.failed({{"reason", "missing_required_segment_frontiers"}});
       build_stage.failed({{"reason", "missing_required_segment_frontiers"}});
       return result;
     }
     segment_frontier_stage.finished({
-        {"length_sets", std::to_string(entry_sets_by_length.size())},
-        {"frontier_entries", std::to_string(CountSegmentFrontierEntries(entry_sets_by_length))},
+        {"length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
+        {"frontier_entries", std::to_string(segment_frontier_catalog.countEntries(segment_frontier_request.required_kinds))},
     });
   }
 
@@ -269,10 +279,10 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                         {
                                             {"depth_candidates", std::to_string(depth_candidates.size())},
                                             {"max_depth", std::to_string(max_depth)},
-                                            {"segment_frontier_length_sets", std::to_string(entry_sets_by_length.size())},
+                                            {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
                                         });
     exploration = htree::SearchTopologyDepthCandidates(
-        result.topology, full_level_plans, depth_candidates, entry_sets_by_length, segment_pattern_library, base_boundary_constraints,
+        result.topology, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library, base_boundary_constraints,
         char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value(), root_driver_compensation_options);
     depth_search_stage.finished({
         {"evaluated_depths", std::to_string(exploration.depth_summaries.size())},
@@ -442,27 +452,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   }
 
   result.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.best_char->get_pattern_id());
-  const auto& best_level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
-  LOG_FATAL_IF(best_level_segment_pattern_ids.size() != result.levels.size())
-      << "HTree: best H-tree pattern level count does not match selected depth.";
-  for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
-    const auto segment_pattern_id = best_level_segment_pattern_ids.at(level_index);
-    result.levels.at(level_index).segment_pattern_id = segment_pattern_id;
-    const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
-    LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: selected segment pattern metadata is missing.";
-    result.levels.at(level_index).selected_has_any_buffer = !segment_pattern->get_cell_masters().empty();
-    if (!segment_pattern->get_cell_masters().empty()) {
-      result.levels.at(level_index).selected_leaf_buffer_cell_master = segment_pattern->get_cell_masters().back();
-    } else {
-      result.levels.at(level_index).selected_leaf_buffer_cell_master.clear();
-    }
-    result.levels.at(level_index).selected_has_terminal_branch_buffer = segment_pattern->hasTerminalBranchBuffer();
-    if (segment_pattern->hasTerminalBranchBuffer() && !segment_pattern->get_cell_masters().empty()) {
-      result.levels.at(level_index).selected_terminal_cell_master = segment_pattern->get_cell_masters().back();
-    } else {
-      result.levels.at(level_index).selected_terminal_cell_master.clear();
-    }
-  }
+  ApplySelectedPatternToLevelPlans(result, segment_pattern_library);
   const std::string selected_root_driver_cell_master = ResolveSelectedRootDriverCellMaster(result.levels);
   if (options.enable_root_driver_sizing && !htree::ValidateRootDriverSizing(result, selected_root_driver_cell_master)) {
     result.failure_reason = "root_driver_sizing_precheck_failed";

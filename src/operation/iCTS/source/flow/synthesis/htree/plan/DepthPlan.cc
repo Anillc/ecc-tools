@@ -40,8 +40,8 @@
 namespace icts::htree {
 
 auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans, unsigned depth,
-                                    const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
-                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
+                                    const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,
+                                    const BoundaryConstraints& base_boundary_constraints,
                                     SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps,
                                     RootDriverCompensationPass& compensation_pass) -> DepthCandidateResult
 {
@@ -52,7 +52,7 @@ auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTre
   DepthCandidateResult candidate_result;
   candidate_result.leaf_count = leaf_count;
   candidate_result.evaluation
-      = EvaluateCandidateBuild(candidate_levels, entry_sets_by_length, segment_pattern_library, candidate_constraints, topology,
+      = EvaluateCandidateBuild(candidate_levels, segment_frontier_catalog, segment_pattern_library, candidate_constraints, topology,
                                sink_load_region_legality_context, leaf_count, depth, char_slew_steps, compensation_pass);
   return candidate_result;
 }
@@ -98,8 +98,7 @@ auto AppendGlobalCandidateRefs(std::size_t candidate_index, const CandidateBuild
 }
 
 auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans,
-                                   const std::vector<unsigned>& depth_candidates,
-                                   const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets_by_length,
+                                   const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
                                    const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
                                    const RootDriverCompensationOptions& compensation_options) -> DepthSearchResult
@@ -115,9 +114,9 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
   RootDriverCompensationPass compensation_pass(compensation_options);
 
   for (const unsigned depth : depth_candidates) {
-    auto candidate_result = EvaluateTopologyDepthCandidate(topology, full_level_plans, depth, entry_sets_by_length, segment_pattern_library,
-                                                           base_boundary_constraints, exploration.sink_load_region_legality_context,
-                                                           char_slew_steps, compensation_pass);
+    auto candidate_result = EvaluateTopologyDepthCandidate(
+        topology, full_level_plans, depth, segment_frontier_catalog, segment_pattern_library, base_boundary_constraints,
+        exploration.sink_load_region_legality_context, char_slew_steps, compensation_pass);
     RecordTopologyDepthCandidateResult(depth, used_explicit_target_depth, candidate_result, exploration.depth_summaries);
     exploration.candidate_evaluations.push_back(std::move(candidate_result.evaluation));
     const auto candidate_index = exploration.candidate_evaluations.size() - 1U;
