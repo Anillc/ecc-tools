@@ -80,3 +80,36 @@ Optimized H-tree selection/root compensation complexity, documented rejected pru
 ### Next Steps
 
 - None - task complete
+
+
+## Session 47: HTree demand-driven frontier refactor
+
+**Date**: 2026-05-11
+**Task**: HTree demand-driven frontier refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Refactored iCTS HTree segment frontier synthesis to use request/catalog demand planning, enabled narrowed HTree frontier construction, validated ics55_dev runtime/QoR, and passed full src/operation/iCTS ecc_dev_tools check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `302077b5d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 46
+- **Total Sessions**: 47
 - **Last Active**: 2026-05-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~82 | Active |
+| `journal-2.md` | ~115 | Active |
 | `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 47 | 2026-05-11 | HTree demand-driven frontier refactor | `302077b5d` | `cts_refactor` |
 | 46 | 2026-05-11 | iCTS H-tree complexity optimization and pruning research cleanup | `f235e1985` | `cts_refactor` |
 | 45 | 2026-05-08 | CTS SDC clock semantics and writeback hardening | `1cf71a890`, `31e81ae05`, `2cd82603` | `cts_refactor` |
 | 44 | 2026-05-04 | Archive root-driver delay power semantics task | `705c182ca`, `6020d8b4e`, `367584397` | `cts_refactor` |
