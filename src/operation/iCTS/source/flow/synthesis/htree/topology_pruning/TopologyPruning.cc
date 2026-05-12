@@ -292,7 +292,20 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels, const Segme
   }
 
   result.success = !current_frontier_entries.empty();
-  compensation_pass.apply(current_frontier_entries, result.topology_pattern_library, segment_pattern_library, topology);
+  const auto compensation_result
+      = compensation_pass.apply(current_frontier_entries, result.topology_pattern_library, segment_pattern_library, topology);
+  if (current_frontier_entries.empty()) {
+    result.success = false;
+    result.failure_reason = compensation_result.rejected_candidate_count > 0U ? "empty_frontier_after_root_boundary_closure"
+                                                                              : "empty_frontier_after_compensation";
+    pattern_search_stage.failed({
+        {"reason", result.failure_reason},
+        {"root_boundary_input_candidates", std::to_string(compensation_result.input_candidate_count)},
+        {"root_boundary_closed_candidates", std::to_string(compensation_result.closed_candidate_count)},
+        {"root_boundary_rejected_candidates", std::to_string(compensation_result.rejected_candidate_count)},
+    });
+    return result;
+  }
   current_frontier_entries
       = BuildHTreeStateFrontier(current_frontier_entries, [&](const HTreeTopologyChar& entry) -> PatternCompositionState {
           return result.topology_pattern_library.getCompositionState(entry.get_pattern_id());

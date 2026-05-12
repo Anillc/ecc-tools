@@ -290,6 +290,7 @@ TEST(TopologyTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigReport)
   const ScopedConfigReset scoped_config_reset;
   EXPECT_TRUE(CONFIG_INST.is_enable_sink_clustering());
   EXPECT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.1);
+  EXPECT_DOUBLE_EQ(CONFIG_INST.get_root_input_slew(), 0.0);
 
   const auto json_path = MakeUniqueTempPath("config.json");
   const auto cts_log_path = MakeUniqueTempPath("cts.log");
@@ -298,12 +299,13 @@ TEST(TopologyTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigReport)
     std::ofstream output_stream(json_path);
     ASSERT_TRUE(output_stream.is_open());
     output_stream
-        << R"({"enable_sink_clustering": false, "htree_topology_tolerance": 0.25, "routing_layer": [5, 6], "wire_width": 0.12, "wirelength_unit_um": 12.5, "wirelength_iterations": 7})";
+        << R"({"enable_sink_clustering": false, "htree_topology_tolerance": 0.25, "root_input_slew": 0.123, "routing_layer": [5, 6], "wire_width": 0.12, "wirelength_unit_um": 12.5, "wirelength_iterations": 7})";
   }
 
   CONFIG_INST.parse(json_path.string());
   EXPECT_FALSE(CONFIG_INST.is_enable_sink_clustering());
   EXPECT_DOUBLE_EQ(CONFIG_INST.get_htree_topology_tolerance(), 0.25);
+  EXPECT_DOUBLE_EQ(CONFIG_INST.get_root_input_slew(), 0.123);
   EXPECT_DOUBLE_EQ(CONFIG_INST.get_wirelength_unit_um(), 12.5);
   EXPECT_EQ(CONFIG_INST.get_wirelength_iterations(), 7U);
 
@@ -316,6 +318,8 @@ TEST(TopologyTest, EnableSinkClusteringDefaultsTrueAndEmitsRuntimeConfigReport)
   EXPECT_NE(cts_log_content.find("false"), std::string::npos);
   EXPECT_NE(cts_log_content.find("htree_topology_tolerance"), std::string::npos);
   EXPECT_NE(cts_log_content.find("25.00 %"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("root_input_slew"), std::string::npos);
+  EXPECT_NE(cts_log_content.find("0.1230 ns"), std::string::npos);
   EXPECT_NE(cts_log_content.find("routing_layers"), std::string::npos);
   EXPECT_NE(cts_log_content.find("configured order: 5, 6"), std::string::npos);
   EXPECT_NE(cts_log_content.find("wire_width"), std::string::npos);

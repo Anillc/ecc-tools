@@ -106,6 +106,9 @@ struct RootClosureLoadEstimate
   std::string route_estimator;
   unsigned bucket_idx = 0U;
   double total_load_cap_pf = 0.0;
+  unsigned source_boundary_bucket_idx = 0U;
+  double source_boundary_load_cap_pf = 0.0;
+  std::size_t source_boundary_branch_count = 0U;
   double terminal_pin_cap_pf = 0.0;
   double wire_cap_pf = 0.0;
   double routed_wirelength_um = 0.0;
@@ -173,6 +176,14 @@ auto QueryWireCapForDbuLength(int64_t length_dbu) -> double
     return 0.0;
   }
   return wire_cap_pf;
+}
+
+auto CoveringLatticeIndex(double value, const UniformValueLattice& lattice) -> unsigned
+{
+  if (value <= 0.0 || !lattice.isValid()) {
+    return 0U;
+  }
+  return lattice.coveringIndex(value);
 }
 
 auto CalcManhattanDbu(const Point<int>& lhs, const Point<int>& rhs) -> int64_t
@@ -340,6 +351,30 @@ auto CollectExternalLoadTerminals(const std::vector<std::size_t>& boundary_node_
   return terminals;
 }
 
+auto CountLoadedRootBranches(const TreeNode& root_node, const Tree& topology) -> std::size_t
+{
+  std::size_t branch_count = 0U;
+  for (const auto child_id : root_node.get_children()) {
+    if (child_id == std::numeric_limits<std::size_t>::max()) {
+      continue;
+    }
+    const auto* child_node = topology.get_node(child_id);
+    if (child_node != nullptr && !child_node->get_loads().empty()) {
+      ++branch_count;
+    }
+  }
+  return branch_count;
+}
+
+auto SetSourceBoundaryLoadEstimate(RootClosureLoadEstimate& estimate, double source_boundary_load_cap_pf,
+                                   std::size_t source_boundary_branch_count, const UniformValueLattice& cap_lattice) -> void
+{
+  estimate.source_boundary_load_cap_pf = source_boundary_load_cap_pf;
+  estimate.source_boundary_branch_count = source_boundary_branch_count;
+  estimate.source_boundary_bucket_idx
+      = source_boundary_load_cap_pf > 0.0 && cap_lattice.isValid() ? cap_lattice.coveringIndex(source_boundary_load_cap_pf) : 0U;
+}
+
 auto MakeRootClosureLoadEstimate(const Point<int>& root_location, const std::vector<RootClosureTerminal>& terminals,
                                  const UniformValueLattice& cap_lattice, RootDriverCompensationStats& stats) -> RootClosureLoadEstimate
 {
@@ -361,6 +396,7 @@ auto MakeRootClosureLoadEstimate(const Point<int>& root_location, const std::vec
   estimate.total_load_cap_pf = estimate.terminal_pin_cap_pf + estimate.wire_cap_pf;
   estimate.bucket_idx = cap_lattice.isValid() ? cap_lattice.coveringIndex(estimate.total_load_cap_pf) : 0U;
   estimate.valid = estimate.total_load_cap_pf > 0.0;
+  SetSourceBoundaryLoadEstimate(estimate, estimate.total_load_cap_pf, estimate.terminal_count > 0U ? 1U : 0U, cap_lattice);
   return estimate;
 }
 
@@ -379,6 +415,7 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
   const auto topology_pattern = topology_library.materialize(topology_pattern_id);
   const auto& level_segment_pattern_ids = topology_pattern.get_level_segment_pattern_ids();
   std::vector<std::size_t> active_node_ids{topology.get_root()};
+  const std::size_t loaded_root_branch_count = CountLoadedRootBranches(*root_node, topology);
 
   for (const auto segment_pattern_id : level_segment_pattern_ids) {
     const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
@@ -412,6 +449,10 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
 
     if (segment_has_real_buffer) {
       auto estimate = MakeRootClosureLoadEstimate(root_node->get_position(), buffer_input_terminals, cap_lattice, stats);
+      if (loaded_root_branch_count > 0U) {
+        SetSourceBoundaryLoadEstimate(estimate, estimate.total_load_cap_pf / static_cast<double>(loaded_root_branch_count),
+                                      loaded_root_branch_count, cap_lattice);
+      }
       if (!estimate.valid) {
         ++stats.load_resolution_failure_count;
       }
@@ -426,6 +467,10 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
 
   auto estimate
       = MakeRootClosureLoadEstimate(root_node->get_position(), CollectExternalLoadTerminals(active_node_ids, topology), cap_lattice, stats);
+  if (loaded_root_branch_count > 0U) {
+    SetSourceBoundaryLoadEstimate(estimate, estimate.total_load_cap_pf / static_cast<double>(loaded_root_branch_count),
+                                  loaded_root_branch_count, cap_lattice);
+  }
   if (!estimate.valid) {
     ++stats.load_resolution_failure_count;
   }
@@ -449,7 +494,8 @@ auto ResolveRootDriverCellMaster(PatternId topology_pattern_id, const TopologyPa
 }
 
 auto MakeRootDriverCompensationDetail(const STAAdapter::RootDriverCost& cost, double input_slew_ns,
-                                      const RootClosureLoadEstimate& load_estimate, double clock_period_ns) -> RootDriverCompensationDetail
+                                      const RootClosureLoadEstimate& load_estimate, double clock_period_ns,
+                                      const UniformValueLattice& slew_lattice) -> RootDriverCompensationDetail
 {
   RootDriverCompensationDetail detail;
   detail.enabled = true;
@@ -461,11 +507,16 @@ auto MakeRootDriverCompensationDetail(const STAAdapter::RootDriverCost& cost, do
   detail.input_slew_ns = input_slew_ns;
   detail.load_bucket_idx = load_estimate.bucket_idx;
   detail.load_cap_pf = load_estimate.total_load_cap_pf;
+  detail.source_boundary_bucket_idx = load_estimate.source_boundary_bucket_idx;
+  detail.source_boundary_load_cap_pf = load_estimate.source_boundary_load_cap_pf;
+  detail.source_boundary_branch_count = load_estimate.source_boundary_branch_count;
   detail.terminal_pin_cap_pf = load_estimate.terminal_pin_cap_pf;
   detail.wire_cap_pf = load_estimate.wire_cap_pf;
   detail.routed_wirelength_um = load_estimate.routed_wirelength_um;
   detail.terminal_count = load_estimate.terminal_count;
   detail.clock_period_ns = clock_period_ns;
+  detail.output_slew_ns = cost.output_slew_ns;
+  detail.output_slew_bucket_idx = CoveringLatticeIndex(cost.output_slew_ns, slew_lattice);
   detail.cell_delay_ns = cost.cell_delay_ns;
   detail.internal_power_w = cost.internal_power_w;
   detail.leakage_power_w = cost.leakage_power_w;
@@ -485,6 +536,9 @@ auto QueryRootDriverCompensation(const RootDriverCompensationCacheKey& key, cons
     result.route_estimator = load_estimate.route_estimator;
     result.load_bucket_idx = load_estimate.bucket_idx;
     result.load_cap_pf = load_estimate.total_load_cap_pf;
+    result.source_boundary_bucket_idx = load_estimate.source_boundary_bucket_idx;
+    result.source_boundary_load_cap_pf = load_estimate.source_boundary_load_cap_pf;
+    result.source_boundary_branch_count = load_estimate.source_boundary_branch_count;
     result.terminal_pin_cap_pf = load_estimate.terminal_pin_cap_pf;
     result.wire_cap_pf = load_estimate.wire_cap_pf;
     result.routed_wirelength_um = load_estimate.routed_wirelength_um;
@@ -496,7 +550,8 @@ auto QueryRootDriverCompensation(const RootDriverCompensationCacheKey& key, cons
   const auto cost = STA_ADAPTER_INST.queryRootDriverCostDirect(key.cell_master, key.input_slew_ns, key.load_cap_pf, key.clock_period_ns);
   stats.total_runtime_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - lookup_start).count();
   ++stats.unique_direct_lookup_count;
-  auto compensation = MakeRootDriverCompensationDetail(cost, key.input_slew_ns, load_estimate, key.clock_period_ns);
+  auto compensation
+      = MakeRootDriverCompensationDetail(cost, key.input_slew_ns, load_estimate, key.clock_period_ns, state.options.slew_lattice);
   return state.cost_by_key.emplace(key, std::move(compensation)).first->second;
 }
 
@@ -531,12 +586,14 @@ auto RefreshCompensationStats(RootDriverCompensationState& state) -> void
 
 auto CompensationOptionsAreValid(RootDriverCompensationState& state) -> bool
 {
-  if (state.options.input_slew_ns > 0.0 && state.options.clock_period_ns > 0.0 && state.options.cap_lattice.isValid()) {
+  if (state.options.input_slew_ns >= 0.0 && state.options.clock_period_ns > 0.0 && state.options.cap_lattice.isValid()
+      && (!state.options.strict_boundary_closure || state.options.slew_lattice.isValid())) {
     return true;
   }
 
   if (!state.warned_invalid_options) {
-    LOG_WARNING << "HTree: root-driver direct compensation skipped because slew/period/cap lattice is invalid.";
+    LOG_WARNING << "HTree: root-driver direct compensation skipped because input slew, clock period, or cap/slew lattice options "
+                   "are invalid.";
     state.warned_invalid_options = true;
   }
   return false;
@@ -570,6 +627,26 @@ auto EvaluateRootDriverCompensation(PatternId pattern_id, const TopologyPatternL
       .clock_period_ns = compensation_state.options.clock_period_ns,
   };
   return QueryRootDriverCompensation(key, load_estimate, compensation_state);
+}
+
+auto CheckRootDriverBoundaryClosure(const HTreeTopologyChar& entry, const TopologyPatternLibrary& topology_library,
+                                    const BufferPatternLibrary& segment_pattern_library, const Tree& topology,
+                                    RootDriverCompensationState& compensation_state) -> RootDriverBoundaryClosureCheck
+{
+  auto compensation
+      = EvaluateRootDriverCompensation(entry.get_pattern_id(), topology_library, segment_pattern_library, topology, compensation_state);
+  RootDriverBoundaryClosureCheck check;
+  check.compensation_valid = compensation.enabled && compensation.valid && compensation.load_bucket_idx > 0U
+                             && compensation.source_boundary_bucket_idx > 0U && compensation.output_slew_bucket_idx > 0U;
+  check.raw_cap_bucket_idx = entry.get_driven_cap_idx();
+  check.physical_load_bucket_idx = compensation.load_bucket_idx;
+  check.physical_source_boundary_bucket_idx = compensation.source_boundary_bucket_idx;
+  check.raw_input_slew_idx = entry.get_input_slew_idx();
+  check.root_output_slew_bucket_idx = compensation.output_slew_bucket_idx;
+  check.cap_bucket_matches = check.compensation_valid && check.raw_cap_bucket_idx == check.physical_source_boundary_bucket_idx;
+  check.slew_bucket_matches = check.compensation_valid && check.raw_input_slew_idx == check.root_output_slew_bucket_idx;
+  check.compensation = std::move(compensation);
+  return check;
 }
 
 auto RootDriverCompensationCacheKeyHash::operator()(const RootDriverCompensationCacheKey& key) const noexcept -> std::size_t
@@ -625,12 +702,14 @@ auto RootDriverCompensationPass::beginCandidateBuild() -> void
 }
 
 auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, const TopologyPatternLibrary& topology_library,
-                                       const BufferPatternLibrary& segment_pattern_library, const Tree& topology) -> void
+                                       const BufferPatternLibrary& segment_pattern_library, const Tree& topology)
+    -> RootDriverCompensationApplyResult
 {
+  RootDriverCompensationApplyResult apply_result;
   auto& compensation_state = _impl->state;
   RefreshCompensationStats(compensation_state);
   if (!compensation_state.options.enabled || entries.empty()) {
-    return;
+    return apply_result;
   }
   auto compensation_stage
       = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Apply root-driver compensation",
@@ -641,7 +720,7 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
                                       });
   if (!CompensationOptionsAreValid(compensation_state)) {
     compensation_stage.skip({{"reason", "invalid_compensation_options"}});
-    return;
+    return apply_result;
   }
 
   const auto unique_lookup_count_before = compensation_state.stats.unique_direct_lookup_count;
@@ -651,17 +730,77 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
   const auto flute_route_estimate_count_before = compensation_state.stats.flute_route_estimate_count;
   const auto fallback_route_estimate_count_before = compensation_state.stats.fallback_route_estimate_count;
   const auto compensated_candidate_count_before = compensation_state.stats.compensated_candidate_count;
+  const auto boundary_input_candidate_count_before = compensation_state.stats.boundary_input_candidate_count;
+  const auto boundary_closed_candidate_count_before = compensation_state.stats.boundary_closed_candidate_count;
+  const auto boundary_rejected_candidate_count_before = compensation_state.stats.boundary_rejected_candidate_count;
+  const auto boundary_cap_bucket_mismatch_count_before = compensation_state.stats.boundary_cap_bucket_mismatch_count;
+  const auto boundary_slew_bucket_mismatch_count_before = compensation_state.stats.boundary_slew_bucket_mismatch_count;
+  const auto invalid_compensation_count_before = compensation_state.stats.invalid_compensation_count;
+  std::vector<HTreeTopologyChar> boundary_closed_entries;
+  if (compensation_state.options.strict_boundary_closure) {
+    boundary_closed_entries.reserve(entries.size());
+  }
   for (auto& entry : entries) {
-    const auto compensation
-        = EvaluateRootDriverCompensation(entry.get_pattern_id(), topology_library, segment_pattern_library, topology, compensation_state);
-    if (!compensation.enabled) {
+    ++compensation_state.stats.boundary_input_candidate_count;
+    ++apply_result.input_candidate_count;
+    auto boundary_check = CheckRootDriverBoundaryClosure(entry, topology_library, segment_pattern_library, topology, compensation_state);
+    if (!boundary_check.compensation_valid) {
+      ++compensation_state.stats.invalid_compensation_count;
+      if (compensation_state.options.strict_boundary_closure) {
+        ++compensation_state.stats.boundary_rejected_candidate_count;
+        ++apply_result.rejected_candidate_count;
+        if (!apply_result.has_first_rejected_boundary) {
+          apply_result.first_rejected_boundary = boundary_check;
+          apply_result.has_first_rejected_boundary = true;
+        }
+        continue;
+      }
+    } else if (compensation_state.options.strict_boundary_closure) {
+      if (!boundary_check.cap_bucket_matches) {
+        ++compensation_state.stats.boundary_cap_bucket_mismatch_count;
+      }
+      if (!boundary_check.slew_bucket_matches) {
+        ++compensation_state.stats.boundary_slew_bucket_mismatch_count;
+      }
+      if (!boundary_check.isClosed(compensation_state.options.strict_slew_boundary_closure)) {
+        ++compensation_state.stats.boundary_rejected_candidate_count;
+        ++apply_result.rejected_candidate_count;
+        if (!apply_result.has_first_rejected_boundary) {
+          apply_result.first_rejected_boundary = boundary_check;
+          apply_result.has_first_rejected_boundary = true;
+        }
+        continue;
+      }
+      ++compensation_state.stats.boundary_closed_candidate_count;
+      ++apply_result.closed_candidate_count;
+    }
+    if (!boundary_check.compensation.enabled) {
       continue;
     }
-    entry.set_root_driver_compensation(compensation.cell_delay_ns, compensation.cell_power_w);
+    entry.set_root_driver_compensation(boundary_check.compensation.cell_delay_ns, boundary_check.compensation.cell_power_w);
     ++compensation_state.stats.compensated_candidate_count;
+    if (compensation_state.options.strict_boundary_closure) {
+      boundary_closed_entries.push_back(std::move(entry));
+    }
+  }
+  if (compensation_state.options.strict_boundary_closure) {
+    entries = std::move(boundary_closed_entries);
   }
   compensation_stage.finished({
       {"compensated_candidates", std::to_string(compensation_state.stats.compensated_candidate_count - compensated_candidate_count_before)},
+      {"strict_boundary_closure", compensation_state.options.strict_boundary_closure ? "true" : "false"},
+      {"strict_slew_boundary_closure", compensation_state.options.strict_slew_boundary_closure ? "true" : "false"},
+      {"boundary_input_candidates",
+       std::to_string(compensation_state.stats.boundary_input_candidate_count - boundary_input_candidate_count_before)},
+      {"boundary_closed_candidates",
+       std::to_string(compensation_state.stats.boundary_closed_candidate_count - boundary_closed_candidate_count_before)},
+      {"boundary_rejected_candidates",
+       std::to_string(compensation_state.stats.boundary_rejected_candidate_count - boundary_rejected_candidate_count_before)},
+      {"cap_bucket_mismatches",
+       std::to_string(compensation_state.stats.boundary_cap_bucket_mismatch_count - boundary_cap_bucket_mismatch_count_before)},
+      {"slew_bucket_mismatches",
+       std::to_string(compensation_state.stats.boundary_slew_bucket_mismatch_count - boundary_slew_bucket_mismatch_count_before)},
+      {"invalid_compensations", std::to_string(compensation_state.stats.invalid_compensation_count - invalid_compensation_count_before)},
       {"unique_direct_lookups", std::to_string(compensation_state.stats.unique_direct_lookup_count - unique_lookup_count_before)},
       {"direct_cache_hits", std::to_string(compensation_state.stats.cache_hit_count - cache_hit_count_before)},
       {"load_resolutions", std::to_string(compensation_state.stats.load_resolution_count - load_resolution_count_before)},
@@ -671,6 +810,7 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
       {"fallback_route_estimates",
        std::to_string(compensation_state.stats.fallback_route_estimate_count - fallback_route_estimate_count_before)},
   });
+  return apply_result;
 }
 
 auto RootDriverCompensationPass::evaluate(PatternId pattern_id, const TopologyPatternLibrary& topology_library,

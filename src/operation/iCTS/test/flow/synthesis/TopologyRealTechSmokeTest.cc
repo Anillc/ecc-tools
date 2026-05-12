@@ -126,7 +126,7 @@ TEST(TopologyRealTechSmokeTest, ClusteredModeBuildsCentroidBuffersAndUsesUnrestr
   smoke::AssertDepthCandidateCoverage(result.htree_result);
   smoke::AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
-  EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), smoke::kSynthesisSmokeMaxSlewNs * 0.5);
+  EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), CONFIG_INST.get_root_input_slew());
 
   smoke::AssertClusterBufferMastersFollowLeafSemantics(result, expected_cluster_master_name);
   const auto cluster_buffer_insts = smoke::CollectClusterBufferInsts(result);

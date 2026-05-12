@@ -267,6 +267,7 @@ auto Config::parse(const std::string& json_file) -> bool
 
   ApplyDoubleIfPresent(json, "skew_bound", *this, &Config::get_skew_bound, &Config::set_skew_bound);
   ApplyDoubleIfPresent(json, "max_buf_tran", *this, &Config::get_max_buf_tran, &Config::set_max_buf_tran);
+  ApplyDoubleIfPresent(json, "root_input_slew", *this, &Config::get_root_input_slew, &Config::set_root_input_slew);
   ApplyDoubleIfPresent(json, "max_sink_tran", *this, &Config::get_max_sink_tran, &Config::set_max_sink_tran);
   ApplyDoubleIfPresent(json, "max_cap", *this, &Config::get_max_cap, &Config::set_max_cap);
   // max_length remains parseable as a placeholder knob; active lattice comes
@@ -310,6 +311,8 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
       {"skew_bound", logformat::FormatWithUnit(get_skew_bound(), "ns"), "clock skew target"},
       {"max_buf_tran", has_max_buf_tran() ? logformat::FormatWithUnit(get_max_buf_tran(), "ns") : "auto",
        has_max_buf_tran() ? "explicit runtime config" : "resolve from liberty slew limit/table-axis during characterization"},
+      {"root_input_slew", logformat::FormatWithUnit(get_root_input_slew(), "ns"),
+       "root-driver Liberty input slew and source-trunk input slew boundary; 0.0 means ideal/no lower-bound filter"},
       {"max_sink_tran", logformat::FormatWithUnit(get_max_sink_tran(), "ns"), "sink transition target"},
       {"max_cap", has_max_cap() ? logformat::FormatWithUnit(get_max_cap(), "pF") : "auto",
        has_max_cap() ? "explicit runtime config" : "resolve from liberty cap limit/table-axis during characterization"},

@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -61,10 +62,47 @@ auto FormatRootLoadDetail(const HTree::RootDriverCompensationReport& compensatio
   std::string detail = "source=" + (compensation.load_source.empty() ? std::string{"none"} : compensation.load_source);
   detail += ", route=" + (compensation.route_estimator.empty() ? std::string{"none"} : compensation.route_estimator);
   detail += ", bucket=" + std::to_string(compensation.load_bucket_idx);
+  detail += ", source_boundary_bucket=" + std::to_string(compensation.source_boundary_bucket_idx);
+  detail += ", source_boundary_branches=" + std::to_string(compensation.source_boundary_branch_count);
   detail += ", terminals=" + std::to_string(compensation.terminal_count);
   detail += ", pin_cap=" + logformat::FormatWithUnit(compensation.terminal_pin_cap_pf, "pF");
   detail += ", wire_cap=" + logformat::FormatWithUnit(compensation.wire_cap_pf, "pF");
   return detail;
+}
+
+auto FormatBucketDelta(unsigned physical_bucket_idx, unsigned raw_bucket_idx) -> std::string
+{
+  const auto delta = physical_bucket_idx >= raw_bucket_idx ? static_cast<std::int64_t>(physical_bucket_idx - raw_bucket_idx)
+                                                           : -static_cast<std::int64_t>(raw_bucket_idx - physical_bucket_idx);
+  return std::to_string(delta);
+}
+
+auto FormatLevelBufferCounts(const std::vector<HTree::LevelPlan>& levels, bool weighted) -> std::string
+{
+  std::string summary;
+  for (std::size_t level_index = 0U; level_index < levels.size(); ++level_index) {
+    if (!summary.empty()) {
+      summary += ",";
+    }
+    const auto& level = levels.at(level_index);
+    summary += "L" + std::to_string(level_index) + "="
+               + std::to_string(weighted ? level.selected_weighted_buffer_count : level.selected_buffer_count);
+  }
+  return summary.empty() ? "none" : summary;
+}
+
+auto FormatLevelBufferAreas(const std::vector<HTree::LevelPlan>& levels, bool weighted) -> std::string
+{
+  std::string summary;
+  for (std::size_t level_index = 0U; level_index < levels.size(); ++level_index) {
+    if (!summary.empty()) {
+      summary += ",";
+    }
+    const auto& level = levels.at(level_index);
+    const double area_um2 = weighted ? level.selected_weighted_buffer_area_um2 : level.selected_buffer_area_um2;
+    summary += "L" + std::to_string(level_index) + "=" + logformat::FormatWithUnit(area_um2, "um^2");
+  }
+  return summary.empty() ? "none" : summary;
 }
 
 }  // namespace
@@ -108,6 +146,12 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
                                      : "selected strict-feasible topology pattern from the global feasible frontier pool"},
       {"selected_level_segment_pattern_ids", selected_level_segment_pattern_ids.empty() ? "none" : selected_level_segment_pattern_ids,
        "root-to-leaf selected segment pattern ids for the chosen topology pattern"},
+      {"selected_level_buffer_counts", FormatLevelBufferCounts(result.levels, false), "unweighted selected buffer count per H-tree level"},
+      {"selected_weighted_level_buffer_counts", FormatLevelBufferCounts(result.levels, true),
+       "selected buffer count multiplied by H-tree level multiplicity; this explains physical H-tree buffer pressure"},
+      {"selected_level_buffer_area", FormatLevelBufferAreas(result.levels, false), "unweighted selected buffer area per H-tree level"},
+      {"selected_weighted_level_buffer_area", FormatLevelBufferAreas(result.levels, true),
+       "selected buffer area multiplied by H-tree level multiplicity"},
       {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_frontier_pareto_power_median",
        result.used_boundary_fallback
            ? "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global candidate "
@@ -143,14 +187,32 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
        root_compensation_report.enabled ? "selected H-tree metric after root-driver compensation" : "root driver compensation disabled"},
       {"selected_physical_root_load", logformat::FormatWithUnit(root_compensation_report.load_cap_pf, "pF"),
        FormatRootLoadDetail(root_compensation_report)},
-      {"root_driven_cap_idx", std::to_string(best_char.get_driven_cap_idx()), "selected pattern metric"},
+      {"selected_physical_root_source_boundary_load", logformat::FormatWithUnit(root_compensation_report.source_boundary_load_cap_pf, "pF"),
+       "physical root closure load projected to one root H-tree source branch; this is the cap bucket matched against raw char"},
+      {"root_driver_input_slew", logformat::FormatWithUnit(root_compensation_report.input_slew_ns, "ns"),
+       "H-tree root input margin used for the root-driver Liberty lookup"},
+      {"root_driver_output_slew", logformat::FormatWithUnit(root_compensation_report.output_slew_ns, "ns"),
+       "resolved root-driver output slew at the raw H-tree top boundary"},
+      {"raw_char_source_boundary_cap_idx", std::to_string(best_char.get_driven_cap_idx()),
+       "raw H-tree char top/source boundary cap bucket"},
+      {"physical_root_load_bucket_idx", std::to_string(root_compensation_report.load_bucket_idx),
+       "total physical root-closure output load bucket used by root-driver compensation"},
+      {"physical_root_source_boundary_bucket_idx", std::to_string(root_compensation_report.source_boundary_bucket_idx),
+       "per-root-branch physical source-boundary bucket used to close the raw H-tree top boundary"},
+      {"root_cap_bucket_delta", FormatBucketDelta(root_compensation_report.source_boundary_bucket_idx, best_char.get_driven_cap_idx()),
+       "physical_root_source_boundary_bucket_idx - raw_char_source_boundary_cap_idx"},
+      {"raw_char_top_input_slew_idx", std::to_string(best_char.get_input_slew_idx()), "raw H-tree char top/source input slew bucket"},
+      {"root_output_slew_bucket_idx", std::to_string(root_compensation_report.output_slew_bucket_idx),
+       "root-driver output slew bucket used to close the raw H-tree top boundary"},
+      {"root_slew_bucket_delta", FormatBucketDelta(root_compensation_report.output_slew_bucket_idx, best_char.get_input_slew_idx()),
+       "root_output_slew_bucket_idx - raw_char_top_input_slew_idx"},
       {"leaf_load_cap_idx", std::to_string(best_char.get_leaf_load_cap_idx()), "selected pattern metric"},
       {"leaf_output_slew_idx", std::to_string(best_char.get_output_slew_idx()), "selected pattern metric"},
-      {"root_load_cap_idx", std::to_string(best_char.get_load_cap_idx()), "selected pattern metric"},
+      {"raw_char_downstream_load_cap_idx", std::to_string(best_char.get_load_cap_idx()), "raw H-tree downstream/leaf-side load cap bucket"},
       {"selected_terminal_branch_buffered_levels",
        std::to_string(selected_terminal_branch_buffered_levels) + "/" + std::to_string(result.levels.size()),
        "actual selected H-tree levels whose segment pattern includes a terminal branch buffer"},
-      {"top_input_slew_covering_idx",
+      {"raw_top_input_slew_constraint_idx",
        selected_evaluation.boundary_constraints.top_input_slew_covering_idx.has_value()
            ? std::to_string(*selected_evaluation.boundary_constraints.top_input_slew_covering_idx)
            : "none",

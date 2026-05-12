@@ -52,7 +52,7 @@ auto CharBuilder::sampleFeasibleTopology(unsigned length_idx, const PatternId& p
 {
   createCharCircuit(topo, buf_masters);
   STA_ADAPTER_INST.createCharClock(_source_out_pin, _char_clock_name, kCharClockPeriodNs);
-  STA_ADAPTER_INST.prepareCharTimingContext(_source_in_pin, _source_out_pin, _sink_in_pin);
+  STA_ADAPTER_INST.prepareCharTimingContext(_source_in_pin, _source_out_pin, _timing_observation_pin);
 
   std::vector<std::string> power_inst_names = _temp_inst_names;
   bool power_context_ready = false;

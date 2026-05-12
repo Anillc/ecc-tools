@@ -83,6 +83,10 @@ class HTree
     bool selected_has_terminal_branch_buffer = false;
     std::string selected_leaf_buffer_cell_master;
     std::string selected_terminal_cell_master;
+    std::size_t selected_buffer_count = 0U;
+    double selected_buffer_area_um2 = 0.0;
+    std::size_t selected_weighted_buffer_count = 0U;
+    double selected_weighted_buffer_area_um2 = 0.0;
     PatternId segment_pattern_id = PatternId::segment(0);
   };
 
@@ -111,12 +115,17 @@ class HTree
     double input_slew_ns = 0.0;
     unsigned load_bucket_idx = 0U;
     double load_cap_pf = 0.0;
+    unsigned source_boundary_bucket_idx = 0U;
+    double source_boundary_load_cap_pf = 0.0;
+    std::size_t source_boundary_branch_count = 0U;
     double terminal_pin_cap_pf = 0.0;
     double wire_cap_pf = 0.0;
     double routed_wirelength_um = 0.0;
     std::size_t terminal_count = 0U;
     double clock_period_ns = 0.0;
     std::string clock_period_source;
+    double output_slew_ns = 0.0;
+    unsigned output_slew_bucket_idx = 0U;
     double cell_delay_ns = 0.0;
     double internal_power_w = 0.0;
     double leakage_power_w = 0.0;

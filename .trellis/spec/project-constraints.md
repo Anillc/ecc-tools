@@ -14,6 +14,7 @@ Repository-wide hard constraints for work under `src/operation/iCTS/`.
 
 - AI agents must not run `git push`.
 - Use read-only Git commands unless the human explicitly asks for more.
+- **Do not change specs lightly unless the change belongs to global code-development conventions.**
 
 ### Files and Naming
 

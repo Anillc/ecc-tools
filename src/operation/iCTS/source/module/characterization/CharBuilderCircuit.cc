@@ -34,6 +34,11 @@
 #include "adapter/sta/STAAdapter.hh"
 
 namespace icts {
+namespace {
+
+constexpr double kMilliOhmPerOhm = 1000.0;
+
+}  // namespace
 
 auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void
 {
@@ -49,6 +54,7 @@ auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   STA_ADAPTER_INST.createCharInstance(source_buf.cell_master, _source_inst_name);
   _source_in_pin = _source_inst_name + "/" + source_buf.input_pin;
   _source_out_pin = _source_inst_name + "/" + source_buf.output_pin;
+  _timing_observation_pin.clear();
 
   _sink_inst_name = id_prefix + "sink";
   STA_ADAPTER_INST.createCharInstance(sink_buf.cell_master, _sink_inst_name);
@@ -78,9 +84,15 @@ auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
 
     STA_ADAPTER_INST.attachCharPin(_temp_inst_names.at(bi), buffer_info.input_pin, _temp_net_names.at(bi));
     STA_ADAPTER_INST.attachCharPin(_temp_inst_names.at(bi), buffer_info.output_pin, _temp_net_names.at(bi + 1));
+    if (bi + 1U == buf_masters.size()) {
+      _timing_observation_pin = _temp_inst_names.at(bi) + "/" + buffer_info.output_pin;
+    }
   }
 
   STA_ADAPTER_INST.attachCharPin(_sink_inst_name, sink_buf.input_pin, _temp_net_names.back());
+  if (_timing_observation_pin.empty()) {
+    _timing_observation_pin = _sink_in_pin;
+  }
 
   for (const auto& net_name : _temp_net_names) {
     STA_ADAPTER_INST.buildCharNetGraph(net_name);
@@ -95,7 +107,7 @@ auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) ->
 {
   for (size_t i = 0; i < _temp_net_names.size(); ++i) {
     const double seg_len_um = topo.wire_segments_um.at(i);
-    const double wire_res = STA_ADAPTER_INST.queryWireResistance(_routing_layer, seg_len_um, _wire_width);
+    const double wire_res = STA_ADAPTER_INST.queryWireResistance(_routing_layer, seg_len_um, _wire_width) / kMilliOhmPerOhm;
     const double wire_cap = STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
 
     const double seg_load = (i == _temp_net_names.size() - 1) ? load_pf : 0.0;
@@ -113,6 +125,7 @@ auto CharBuilder::destroyCharCircuit() -> void
   _source_in_pin.clear();
   _source_out_pin.clear();
   _sink_in_pin.clear();
+  _timing_observation_pin.clear();
 }
 
 }  // namespace icts

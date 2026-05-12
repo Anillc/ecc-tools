@@ -45,6 +45,7 @@ auto CaptureConfigState() -> ConfigState
   ConfigState state{};
   state.skew_bound = CONFIG_INST.get_skew_bound();
   state.max_buf_tran = CONFIG_INST.get_max_buf_tran();
+  state.root_input_slew = CONFIG_INST.get_root_input_slew();
   state.max_sink_tran = CONFIG_INST.get_max_sink_tran();
   state.max_cap = CONFIG_INST.get_max_cap();
   state.has_max_buf_tran = CONFIG_INST.has_max_buf_tran();
@@ -78,6 +79,7 @@ auto ApplyConfigState(const ConfigState& state) -> void
   if (state.has_max_buf_tran) {
     CONFIG_INST.set_max_buf_tran(state.max_buf_tran);
   }
+  CONFIG_INST.set_root_input_slew(state.root_input_slew);
   CONFIG_INST.set_max_sink_tran(state.max_sink_tran);
   if (state.has_max_cap) {
     CONFIG_INST.set_max_cap(state.max_cap);

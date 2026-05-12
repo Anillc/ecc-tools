@@ -112,7 +112,7 @@ TEST(TopologyRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUsesUnrest
   smoke::AssertDepthCandidateCoverage(result.htree_result);
   smoke::AssertSelectedHTreeLoadDistribution(result.htree_result);
   EXPECT_TRUE(result.htree_result.min_top_input_slew_ns.has_value());
-  EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), smoke::kSynthesisSmokeMaxSlewNs * 0.5);
+  EXPECT_DOUBLE_EQ(result.htree_result.min_top_input_slew_ns.value_or(0.0), CONFIG_INST.get_root_input_slew());
   EXPECT_TRUE(result.cluster_buffers.empty());
   EXPECT_EQ(smoke::CountTopologyLeafNodes(result.htree_result.topology), smoke::CalcFloorPowerOfTwo(selected_clock_data.sinks.size()));
 

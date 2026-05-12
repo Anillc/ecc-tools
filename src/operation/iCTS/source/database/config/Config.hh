@@ -57,6 +57,7 @@ class Config
   {
     _skew_bound = 0.04;
     _max_buf_tran = 1.5;
+    _root_input_slew = 0.0;
     _max_sink_tran = 1.5;
     _max_cap = 1.5;
     _has_max_buf_tran = false;
@@ -89,6 +90,7 @@ class Config
   // algorithm
   auto get_skew_bound() const -> double { return _skew_bound; }
   auto get_max_buf_tran() const -> double { return _max_buf_tran; }
+  auto get_root_input_slew() const -> double { return _root_input_slew; }
   auto get_max_sink_tran() const -> double { return _max_sink_tran; }
   auto get_max_cap() const -> double { return _max_cap; }
   auto has_max_buf_tran() const -> bool { return _has_max_buf_tran; }
@@ -125,6 +127,7 @@ class Config
     _max_buf_tran = max_buf_tran;
     _has_max_buf_tran = true;
   }
+  auto set_root_input_slew(double root_input_slew) -> void { _root_input_slew = std::max(0.0, root_input_slew); }
   auto set_max_sink_tran(double max_sink_tran) -> void { _max_sink_tran = max_sink_tran; }
   auto set_max_cap(double max_cap) -> void
   {
@@ -166,6 +169,7 @@ class Config
   // algorithm
   double _skew_bound = 0.0;
   double _max_buf_tran = 0.0;
+  double _root_input_slew = 0.0;
   double _max_sink_tran = 0.0;
   double _max_cap = 0.0;
   bool _has_max_buf_tran = false;

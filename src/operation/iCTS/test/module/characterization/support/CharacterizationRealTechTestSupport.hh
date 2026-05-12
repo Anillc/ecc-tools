@@ -62,6 +62,7 @@ struct ConfigState
 {
   double skew_bound = 0.0;
   double max_buf_tran = 0.0;
+  double root_input_slew = 0.0;
   double max_sink_tran = 0.0;
   double max_cap = 0.0;
   bool has_max_buf_tran = false;

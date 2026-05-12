@@ -70,7 +70,7 @@ auto makeInvalidCost(const std::string& method, const std::string& cell_master, 
 
 auto lookupRootCellDelayNs(ista::LibCell* lib_cell, ista::LibArcSet* timing_arc_set, double input_slew_ns, double output_load_pf) -> double
 {
-  if (lib_cell == nullptr || timing_arc_set == nullptr || input_slew_ns <= 0.0 || output_load_pf < 0.0) {
+  if (lib_cell == nullptr || timing_arc_set == nullptr || input_slew_ns < 0.0 || output_load_pf < 0.0) {
     return 0.0;
   }
 
@@ -94,10 +94,37 @@ auto lookupRootCellDelayNs(ista::LibCell* lib_cell, ista::LibArcSet* timing_arc_
   return has_delay ? worst_delay_ns : 0.0;
 }
 
+auto lookupRootCellOutputSlewNs(ista::LibCell* lib_cell, ista::LibArcSet* timing_arc_set, double input_slew_ns, double output_load_pf)
+    -> double
+{
+  if (lib_cell == nullptr || timing_arc_set == nullptr || input_slew_ns < 0.0 || output_load_pf < 0.0) {
+    return 0.0;
+  }
+
+  const double output_load = sta_adapter_internal::ConvertPfLoadToLibUnit(lib_cell, output_load_pf);
+  double worst_slew_ns = 0.0;
+  bool has_slew = false;
+  for (const auto input_trans : {ista::TransType::kRise, ista::TransType::kFall}) {
+    const auto output_trans = timing_arc_set->isNegativeArc() != 0U ? flipTrans(input_trans) : input_trans;
+    if (!timing_arc_set->isMatchTimingType(output_trans)) {
+      continue;
+    }
+    const auto slew_values = timing_arc_set->getSlewNs(input_trans, output_trans, input_slew_ns, output_load);
+    for (const double slew_ns : slew_values) {
+      if (!std::isfinite(slew_ns)) {
+        continue;
+      }
+      worst_slew_ns = has_slew ? std::max(worst_slew_ns, slew_ns) : slew_ns;
+      has_slew = true;
+    }
+  }
+  return has_slew ? worst_slew_ns : 0.0;
+}
+
 auto lookupInternalPowerW(ista::LibCell* lib_cell, ista::LibPowerArcSet* power_arc_set, double input_slew_ns, double output_load_pf,
                           double clock_period_ns) -> double
 {
-  if (lib_cell == nullptr || power_arc_set == nullptr || input_slew_ns <= 0.0 || output_load_pf < 0.0 || clock_period_ns <= 0.0) {
+  if (lib_cell == nullptr || power_arc_set == nullptr || input_slew_ns < 0.0 || output_load_pf < 0.0 || clock_period_ns <= 0.0) {
     return 0.0;
   }
 
@@ -211,10 +238,11 @@ auto STAAdapter::queryRootDriverCostDirect(const std::string& cell_master, doubl
   const auto timing_arc_set = sta_adapter_internal::FindBufferArcSet(lib_cell);
   auto power_arc_set = lib_cell->findLibertyPowerArcSet(input_port->get_port_name(), output_port->get_port_name());
   cost.cell_delay_ns = lookupRootCellDelayNs(lib_cell, timing_arc_set.value_or(nullptr), input_slew_ns, output_load_pf);
+  cost.output_slew_ns = lookupRootCellOutputSlewNs(lib_cell, timing_arc_set.value_or(nullptr), input_slew_ns, output_load_pf);
   cost.internal_power_w = lookupInternalPowerW(lib_cell, power_arc_set.value_or(nullptr), input_slew_ns, output_load_pf, clock_period_ns);
   cost.leakage_power_w = lookupLeakagePowerW(lib_cell);
   cost.cell_power_w = cost.internal_power_w + cost.leakage_power_w;
-  cost.valid = cost.cell_delay_ns > 0.0 || cost.cell_power_w > 0.0;
+  cost.valid = cost.cell_delay_ns > 0.0 || cost.output_slew_ns > 0.0 || cost.cell_power_w > 0.0;
   return cost;
 }
 

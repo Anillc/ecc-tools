@@ -47,9 +47,11 @@ auto ResolveBoundaryConstraints(const HTree::BuildOptions& options, const CharBu
   BoundaryConstraints constraints;
   constraints.force_branch_buffer = options.force_branch_buffer.value_or(CONFIG_INST.is_force_branch_buffer());
 
-  if (options.min_top_input_slew_ns.has_value() && *options.min_top_input_slew_ns > 0.0) {
+  if (options.min_top_input_slew_ns.has_value() && *options.min_top_input_slew_ns >= 0.0) {
     constraints.min_top_input_slew_ns = options.min_top_input_slew_ns;
-    constraints.top_input_slew_covering_idx = CoveringBoundaryIndex(*options.min_top_input_slew_ns, char_builder.get_slew_lattice());
+    if (*options.min_top_input_slew_ns > 0.0) {
+      constraints.top_input_slew_covering_idx = CoveringBoundaryIndex(*options.min_top_input_slew_ns, char_builder.get_slew_lattice());
+    }
   }
 
   return constraints;

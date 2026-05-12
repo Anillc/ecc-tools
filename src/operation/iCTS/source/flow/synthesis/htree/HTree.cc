@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -44,6 +45,7 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
+#include "STAAdapter.hh"
 #include "SegmentChar.hh"
 #include "TopologyConfig.hh"
 #include "Tree.hh"
@@ -83,9 +85,50 @@ auto ResolveSelectedRootDriverCellMaster(const std::vector<HTree::LevelPlan>& le
   return {};
 }
 
-auto ResolveRootDriverCompensationInputSlewNs(double max_slew_ns) -> double
+auto ResolveTopologyLevelMultiplicity(std::size_t level_index) -> std::size_t
 {
+  if (level_index >= static_cast<std::size_t>(std::numeric_limits<std::size_t>::digits - 1)) {
+    return std::numeric_limits<std::size_t>::max();
+  }
+  return std::size_t{1U} << level_index;
+}
+
+auto SaturatingMultiply(std::size_t lhs, std::size_t rhs) -> std::size_t
+{
+  if (lhs == 0U || rhs == 0U) {
+    return 0U;
+  }
+  if (lhs > std::numeric_limits<std::size_t>::max() / rhs) {
+    return std::numeric_limits<std::size_t>::max();
+  }
+  return lhs * rhs;
+}
+
+auto CalcCellMastersAreaUm2(const std::vector<std::string>& cell_masters) -> double
+{
+  double area_um2 = 0.0;
+  for (const auto& cell_master : cell_masters) {
+    area_um2 += std::max(0.0, STA_ADAPTER_INST.queryCellAreaUm2(cell_master));
+  }
+  return area_um2;
+}
+
+auto ResolveRootDriverCompensationInputSlewNs(const HTree::BuildOptions& options, double max_slew_ns) -> double
+{
+  if (options.min_top_input_slew_ns.has_value() && *options.min_top_input_slew_ns >= 0.0) {
+    return *options.min_top_input_slew_ns;
+  }
   return max_slew_ns > 0.0 ? max_slew_ns * 0.5 : 0.0;
+}
+
+auto ResolvePatternSearchBoundaryConstraints(const htree::BoundaryConstraints& base_constraints, bool strict_root_boundary_closure)
+    -> htree::BoundaryConstraints
+{
+  auto constraints = base_constraints;
+  if (strict_root_boundary_closure) {
+    constraints.top_input_slew_covering_idx = std::nullopt;
+  }
+  return constraints;
 }
 
 auto ResolveRootDriverClockPeriod(const HTree::BuildOptions& options) -> std::pair<double, std::string>
@@ -112,12 +155,17 @@ auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::
                                                                  : exploration.root_driver_compensation_stats.input_slew_ns;
   report.load_bucket_idx = compensation_detail.load_bucket_idx;
   report.load_cap_pf = compensation_detail.load_cap_pf;
+  report.source_boundary_bucket_idx = compensation_detail.source_boundary_bucket_idx;
+  report.source_boundary_load_cap_pf = compensation_detail.source_boundary_load_cap_pf;
+  report.source_boundary_branch_count = compensation_detail.source_boundary_branch_count;
   report.terminal_pin_cap_pf = compensation_detail.terminal_pin_cap_pf;
   report.wire_cap_pf = compensation_detail.wire_cap_pf;
   report.routed_wirelength_um = compensation_detail.routed_wirelength_um;
   report.terminal_count = compensation_detail.terminal_count;
   report.clock_period_ns = compensation_detail.clock_period_ns > 0.0 ? compensation_detail.clock_period_ns
                                                                      : exploration.root_driver_compensation_stats.clock_period_ns;
+  report.output_slew_ns = compensation_detail.output_slew_ns;
+  report.output_slew_bucket_idx = compensation_detail.output_slew_bucket_idx;
   report.cell_delay_ns = compensation_detail.cell_delay_ns;
   report.internal_power_w = compensation_detail.internal_power_w;
   report.leakage_power_w = compensation_detail.leakage_power_w;
@@ -143,10 +191,15 @@ auto ApplySelectedPatternToLevelPlans(HTree::BuildResult& result, const htree::B
     LOG_FATAL_IF(segment_pattern == nullptr) << "HTree: selected segment pattern metadata is missing.";
 
     const auto& cell_masters = segment_pattern->get_cell_masters();
+    const auto level_multiplicity = ResolveTopologyLevelMultiplicity(level_index);
     level.selected_has_any_buffer = !cell_masters.empty();
     level.selected_leaf_buffer_cell_master = cell_masters.empty() ? "" : cell_masters.back();
     level.selected_has_terminal_branch_buffer = segment_pattern->hasTerminalBranchBuffer();
     level.selected_terminal_cell_master = segment_pattern->hasTerminalBranchBuffer() && !cell_masters.empty() ? cell_masters.back() : "";
+    level.selected_buffer_count = cell_masters.size();
+    level.selected_buffer_area_um2 = CalcCellMastersAreaUm2(cell_masters);
+    level.selected_weighted_buffer_count = SaturatingMultiply(level_multiplicity, level.selected_buffer_count);
+    level.selected_weighted_buffer_area_um2 = static_cast<double>(level_multiplicity) * level.selected_buffer_area_um2;
   }
 }
 
@@ -219,6 +272,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   result.force_branch_buffer = base_boundary_constraints.force_branch_buffer;
   result.root_driver_sizing_enabled = options.enable_root_driver_sizing;
   result.target_depth = options.target_depth;
+  const bool strict_root_boundary_closure = options.enable_root_driver_sizing;
+  const auto search_boundary_constraints = ResolvePatternSearchBoundaryConstraints(base_boundary_constraints, strict_root_boundary_closure);
 
   const auto full_level_plans = htree::BuildLevelPlans(result.topology, char_flow.length_step_um, dbu_per_um);
   if (full_level_plans.empty()) {
@@ -242,7 +297,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   }
 
   auto segment_frontier_request
-      = htree::MakeHTreeSegmentFrontierRequest(htree::CollectRequiredLengthIndices(full_level_plans), base_boundary_constraints);
+      = htree::MakeHTreeSegmentFrontierRequest(htree::CollectRequiredLengthIndices(full_level_plans), search_boundary_constraints);
   htree::SegmentFrontierCatalog segment_frontier_catalog;
   {
     auto segment_frontier_stage = SCHEMA_WRITER_INST.beginStage(
@@ -268,10 +323,12 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   const auto [root_driver_clock_period_ns, root_driver_clock_period_source] = ResolveRootDriverClockPeriod(options);
   const htree::RootDriverCompensationOptions root_driver_compensation_options{
       .enabled = options.enable_root_driver_sizing,
-      .input_slew_ns = ResolveRootDriverCompensationInputSlewNs(char_builder.get_max_slew()),
+      .input_slew_ns = ResolveRootDriverCompensationInputSlewNs(options, char_builder.get_max_slew()),
       .clock_period_ns = root_driver_clock_period_ns,
       .cap_lattice = char_builder.get_cap_lattice(),
+      .slew_lattice = char_builder.get_slew_lattice(),
       .fallback_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
+      .strict_boundary_closure = strict_root_boundary_closure,
   };
   const htree::HTreeFanoutPruningOptions fanout_pruning_options{
       .max_fanout = CONFIG_INST.get_max_fanout(),
@@ -286,7 +343,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                             {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
                                         });
     exploration = htree::SearchTopologyDepthCandidates(result.topology, full_level_plans, depth_candidates, segment_frontier_catalog,
-                                                       segment_pattern_library, base_boundary_constraints, char_builder.get_cap_lattice(),
+                                                       segment_pattern_library, search_boundary_constraints, char_builder.get_cap_lattice(),
                                                        result.char_slew_steps, options.target_depth.has_value(),
                                                        root_driver_compensation_options, fanout_pruning_options);
     depth_search_stage.finished({

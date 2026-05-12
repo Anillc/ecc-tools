@@ -47,10 +47,7 @@ namespace {
 
 auto ApplyMinTopInputSlew(HTree::BuildOptions& htree_options) -> void
 {
-  const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
-  if (max_buf_tran > 0.0) {
-    htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
-  }
+  htree_options.min_top_input_slew_ns = CONFIG_INST.get_root_input_slew();
 }
 
 auto BuildSinkHtreeOptions(bool enable_sink_clustering, const Topology::BuildOptions& options) -> HTree::BuildOptions

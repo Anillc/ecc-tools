@@ -202,6 +202,7 @@ class CharBuilder
   std::string _sink_inst_name;
   std::string _source_out_pin;
   std::string _sink_in_pin;
+  std::string _timing_observation_pin;
   double _sink_input_cap_pf = 0.0;
   std::vector<std::string> _temp_inst_names;
   std::vector<std::string> _temp_net_names;

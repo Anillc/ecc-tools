@@ -98,6 +98,7 @@ class STAAdapter
     double input_slew_ns = 0.0;
     double output_load_pf = 0.0;
     double cell_delay_ns = 0.0;
+    double output_slew_ns = 0.0;
     double internal_power_w = 0.0;
     double leakage_power_w = 0.0;
     double cell_power_w = 0.0;

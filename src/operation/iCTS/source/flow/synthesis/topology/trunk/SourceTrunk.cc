@@ -58,18 +58,12 @@ auto ResolveSourceDriveCap(Pin* clock_source) -> double
 
 auto ApplyMinTopInputSlew(HTree::BuildOptions& htree_options) -> void
 {
-  const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
-  if (max_buf_tran > 0.0) {
-    htree_options.min_top_input_slew_ns = max_buf_tran * 0.5;
-  }
+  htree_options.min_top_input_slew_ns = CONFIG_INST.get_root_input_slew();
 }
 
 auto ApplyMinInputSlew(SourceTrunkSegment::BuildOptions& segment_options) -> void
 {
-  const double max_buf_tran = CONFIG_INST.get_max_buf_tran();
-  if (max_buf_tran > 0.0) {
-    segment_options.min_input_slew_ns = max_buf_tran * 0.5;
-  }
+  segment_options.min_input_slew_ns = CONFIG_INST.get_root_input_slew();
 }
 
 auto BuildTopSegmentOptions(Pin* clock_source, Pin* root_input, const Topology::SourceTrunkBuildOptions& options)
