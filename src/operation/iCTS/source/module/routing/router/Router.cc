@@ -140,6 +140,94 @@ auto MakeTerminal(Pin* pin) -> Router::ClockTerminal
   return terminal;
 }
 
+auto HasOverlappingTerminalLocation(const Router::ClockTerminal& driver_terminal, const std::vector<Router::ClockTerminal>& load_terminals)
+    -> bool
+{
+  std::vector<Point<int>> terminal_locations;
+  terminal_locations.reserve(load_terminals.size() + 1U);
+  terminal_locations.push_back(driver_terminal.location);
+  for (const auto& load_terminal : load_terminals) {
+    terminal_locations.push_back(load_terminal.location);
+  }
+
+  std::ranges::sort(terminal_locations, [](const Point<int>& lhs, const Point<int>& rhs) -> bool {
+    if (lhs.get_x() != rhs.get_x()) {
+      return lhs.get_x() < rhs.get_x();
+    }
+    return lhs.get_y() < rhs.get_y();
+  });
+
+  for (std::size_t i = 1U; i < terminal_locations.size(); ++i) {
+    if (terminal_locations.at(i - 1U) == terminal_locations.at(i)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+auto LegalizeFluteLoadTerminals(const Router::ClockTerminal& driver_terminal, const std::vector<Router::ClockTerminal>& load_terminals)
+    -> std::vector<Router::ClockTerminal>
+{
+  if (!HasOverlappingTerminalLocation(driver_terminal, load_terminals)) {
+    return load_terminals;
+  }
+
+  std::vector<Router::ClockTerminal> legalized_terminals = load_terminals;
+  std::vector<Point<int>> movable_points;
+  movable_points.reserve(legalized_terminals.size());
+  for (const auto& load_terminal : legalized_terminals) {
+    movable_points.push_back(load_terminal.location);
+  }
+
+  LocalLegalization::Options options;
+  options.failure_policy = LocalLegalization::FailurePolicy::kKeepOriginal;
+  auto result = LocalLegalization::legalize(movable_points, std::vector<Point<int>>{driver_terminal.location},
+                                            LocalLegalization::RegionType{}, LocalLegalization::RegionType{}, options);
+  if (result.legalized_points.size() != legalized_terminals.size()) {
+    LOG_WARNING << "Router: terminal legalization before FLUTE returned an unexpected point count; continuing with original locations.";
+    return load_terminals;
+  }
+
+  for (std::size_t i = 0; i < legalized_terminals.size(); ++i) {
+    legalized_terminals.at(i).location = result.legalized_points.at(i);
+  }
+
+  if (!result.success || HasOverlappingTerminalLocation(driver_terminal, legalized_terminals)) {
+    LOG_WARNING << "Router: terminal legalization before FLUTE did not fully resolve overlaps; continuing with original locations.";
+    return load_terminals;
+  }
+
+  return legalized_terminals;
+}
+
+auto BuildClockStarTree(const Router::ClockTerminal& driver_terminal, const std::vector<Router::ClockTerminal>& load_terminals)
+    -> Router::ClockSteinerTreeType
+{
+  Router::ClockSteinerTreeType route_tree;
+  const auto root_id
+      = route_tree.addNode(driver_terminal.name, driver_terminal.location, true, driver_terminal.pin_cap, driver_terminal.insertion_delay);
+  if (root_id == Router::ClockSteinerTreeType::kInvalidId) {
+    return {};
+  }
+  route_tree.setRoot(root_id);
+
+  for (const auto& load_terminal : load_terminals) {
+    const auto load_id
+        = route_tree.addNode(load_terminal.name, load_terminal.location, true, load_terminal.pin_cap, load_terminal.insertion_delay);
+    if (load_id == Router::ClockSteinerTreeType::kInvalidId) {
+      return {};
+    }
+
+    const auto distance = geometry::Manhattan(driver_terminal.location, load_terminal.location);
+    const auto edge_id = route_tree.addEdge(root_id, load_id, distance, distance);
+    if (edge_id == Router::ClockSteinerTreeType::kInvalidId) {
+      return {};
+    }
+  }
+
+  return route_tree.validate() ? route_tree : Router::ClockSteinerTreeType{};
+}
+
 auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RCTreeBuildOptions& options) -> Router::RCTreeType
 {
   Router::RCTreeType rc_tree;
@@ -182,7 +270,7 @@ auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RC
 auto Router::buildFluteTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals)
     -> Router::ClockSteinerTreeType
 {
-  return FLUTERouter::buildTree(driver_terminal, load_terminals);
+  return FLUTERouter::buildTree(driver_terminal, LegalizeFluteLoadTerminals(driver_terminal, load_terminals));
 }
 
 auto Router::buildSaltTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals)
@@ -221,27 +309,7 @@ auto Router::buildClockNetTree(const Net& net) -> Router::ClockSteinerTreeType
 
   const auto driver_terminal = MakeTerminal(net.get_driver());
   if (load_terminals.size() == 1U) {
-    Router::ClockSteinerTreeType route_tree;
-    const auto root_id = route_tree.addNode(driver_terminal.name, driver_terminal.location, true, driver_terminal.pin_cap,
-                                            driver_terminal.insertion_delay);
-    if (root_id == Router::ClockSteinerTreeType::kInvalidId) {
-      return {};
-    }
-    route_tree.setRoot(root_id);
-
-    const auto& load_terminal = load_terminals.front();
-    const auto load_id
-        = route_tree.addNode(load_terminal.name, load_terminal.location, true, load_terminal.pin_cap, load_terminal.insertion_delay);
-    if (load_id == Router::ClockSteinerTreeType::kInvalidId) {
-      return {};
-    }
-
-    const auto distance = geometry::Manhattan(driver_terminal.location, load_terminal.location);
-    const auto edge_id = route_tree.addEdge(root_id, load_id, distance, distance);
-    if (edge_id == Router::ClockSteinerTreeType::kInvalidId || !route_tree.validate()) {
-      return {};
-    }
-    return route_tree;
+    return BuildClockStarTree(driver_terminal, load_terminals);
   }
 
   return buildFluteTree(driver_terminal, load_terminals);

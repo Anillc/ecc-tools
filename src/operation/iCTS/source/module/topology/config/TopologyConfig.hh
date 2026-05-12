@@ -35,6 +35,8 @@ struct BiPartitionConfig
   int converge_threshold = 1000;
   std::size_t kmeans_iter_count = 5;
   double htree_topology_tolerance = 0.1;
+  std::size_t max_cluster_size = 0;     // 0 means unconstrained.
+  std::size_t max_leaf_load_count = 0;  // 0 means unconstrained.
 };
 
 enum class ClusterRouterKind

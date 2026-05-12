@@ -48,6 +48,7 @@ struct PatternCompositionState
 {
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
   MonotonicBoundaryState monotonic_boundary_state{};
+  std::size_t source_exposed_load_count = 1U;
 
   auto operator==(const PatternCompositionState& rhs) const -> bool = default;
 };
@@ -71,6 +72,7 @@ struct SegmentFrontierStateKey
   double source_boundary_net_switch_power_w = 0.0;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
   MonotonicBoundaryState monotonic_boundary_state{};
+  std::size_t source_exposed_load_count = 1U;
 
   auto operator==(const SegmentFrontierStateKey& rhs) const -> bool = default;
 };
@@ -89,6 +91,7 @@ struct SegmentFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<bool>{}(key.monotonic_boundary_state.sink.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<std::size_t>{}(key.source_exposed_load_count) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     return seed;
   }
 };
@@ -103,6 +106,7 @@ struct HTreeFrontierStateKey
   double source_boundary_net_switch_power_w = 0.0;
   TerminalSemantic terminal_semantic = TerminalSemantic::kLeafUnbuffered;
   MonotonicBoundaryState monotonic_boundary_state{};
+  std::size_t source_exposed_load_count = 1U;
 
   auto operator==(const HTreeFrontierStateKey& rhs) const -> bool = default;
 };
@@ -122,6 +126,7 @@ struct HTreeFrontierStateKeyHash
     seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.source.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<bool>{}(key.monotonic_boundary_state.sink.has_buffer) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     seed ^= std::hash<unsigned>{}(key.monotonic_boundary_state.sink.strength_rank) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    seed ^= std::hash<std::size_t>{}(key.source_exposed_load_count) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
     return seed;
   }
 };
@@ -226,6 +231,7 @@ inline auto MakeSegmentStateFrontierPruner(StateResolverT state_resolver)
         .source_boundary_net_switch_power_w = entry.get_source_boundary_net_switch_power(),
         .terminal_semantic = state.terminal_semantic,
         .monotonic_boundary_state = state.monotonic_boundary_state,
+        .source_exposed_load_count = state.source_exposed_load_count,
     };
   };
   return StateFrontierPruner<SegmentChar, SegmentFrontierStateKey, SegmentFrontierStateKeyHash, decltype(key_builder)>(
@@ -246,6 +252,7 @@ inline auto MakeHTreeStateFrontierPruner(StateResolverT state_resolver)
         .source_boundary_net_switch_power_w = entry.get_source_boundary_net_switch_power(),
         .terminal_semantic = state.terminal_semantic,
         .monotonic_boundary_state = state.monotonic_boundary_state,
+        .source_exposed_load_count = state.source_exposed_load_count,
     };
   };
   return StateFrontierPruner<HTreeTopologyChar, HTreeFrontierStateKey, HTreeFrontierStateKeyHash, decltype(key_builder)>(

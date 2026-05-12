@@ -43,7 +43,8 @@ auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTre
                                     const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,
                                     const BoundaryConstraints& base_boundary_constraints,
                                     SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps,
-                                    RootDriverCompensationPass& compensation_pass) -> DepthCandidateResult
+                                    RootDriverCompensationPass& compensation_pass, const HTreeFanoutPruningOptions& fanout_options)
+    -> DepthCandidateResult
 {
   auto candidate_levels = MakeCandidateLevelPlans(full_level_plans, depth);
   const std::size_t leaf_count = CountCandidateLeafNodes(topology, depth);
@@ -53,7 +54,7 @@ auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTre
   candidate_result.leaf_count = leaf_count;
   candidate_result.evaluation
       = EvaluateCandidateBuild(candidate_levels, segment_frontier_catalog, segment_pattern_library, candidate_constraints, topology,
-                               sink_load_region_legality_context, leaf_count, depth, char_slew_steps, compensation_pass);
+                               sink_load_region_legality_context, leaf_count, depth, char_slew_steps, compensation_pass, fanout_options);
   return candidate_result;
 }
 
@@ -101,7 +102,8 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
                                    const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
                                    const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
-                                   const RootDriverCompensationOptions& compensation_options) -> DepthSearchResult
+                                   const RootDriverCompensationOptions& compensation_options,
+                                   const HTreeFanoutPruningOptions& fanout_options) -> DepthSearchResult
 {
   DepthSearchResult exploration;
   exploration.candidate_evaluations.reserve(depth_candidates.size());
@@ -116,7 +118,7 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
   for (const unsigned depth : depth_candidates) {
     auto candidate_result = EvaluateTopologyDepthCandidate(
         topology, full_level_plans, depth, segment_frontier_catalog, segment_pattern_library, base_boundary_constraints,
-        exploration.sink_load_region_legality_context, char_slew_steps, compensation_pass);
+        exploration.sink_load_region_legality_context, char_slew_steps, compensation_pass, fanout_options);
     RecordTopologyDepthCandidateResult(depth, used_explicit_target_depth, candidate_result, exploration.depth_summaries);
     exploration.candidate_evaluations.push_back(std::move(candidate_result.evaluation));
     const auto candidate_index = exploration.candidate_evaluations.size() - 1U;

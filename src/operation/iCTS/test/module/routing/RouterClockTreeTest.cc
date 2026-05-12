@@ -170,6 +170,58 @@ TEST(RouterClockTreeTest, BuildFluteClockTreePreservesTerminalMetadataAndRCTreeC
   ExpectRCTreeLumpedCapMatchesClockTree(clock_tree);
 }
 
+TEST(RouterClockTreeTest, BuildFluteClockTreeLegalizesOverlappingTerminals)
+{
+  Router::ClockTerminal driver;
+  driver.name = "driver";
+  driver.location = Point(0, 0);
+  driver.pin_cap = kDriverPinCap;
+  driver.insertion_delay = kDriverInsertionDelay;
+
+  Router::ClockTerminal load0;
+  load0.name = "load0";
+  load0.location = Point(0, 0);
+  load0.pin_cap = kLoadPinCap0;
+  load0.insertion_delay = kLoadInsertionDelay0;
+
+  Router::ClockTerminal load1;
+  load1.name = "load1";
+  load1.location = Point(0, 0);
+  load1.pin_cap = kLoadPinCap1;
+  load1.insertion_delay = kLoadInsertionDelay1;
+
+  Router::ClockTerminal load2;
+  load2.name = "load2";
+  load2.location = Point(kFluteLoad2X, kFluteLoad2Y);
+  load2.pin_cap = kLoadPinCap2;
+  load2.insertion_delay = kLoadInsertionDelay2;
+
+  const std::vector<Router::ClockTerminal> loads = {load0, load1, load2};
+
+  const auto clock_tree = Router::buildFluteTree(driver, loads);
+  ASSERT_TRUE(clock_tree.validate());
+
+  ExpectTerminalNodeMetadata(clock_tree, driver);
+  for (const auto& load : loads) {
+    ExpectTerminalNodeMetadata(clock_tree, load);
+  }
+
+  const auto* driver_node = clock_tree.findNode(driver.name);
+  const auto* load0_node = clock_tree.findNode(load0.name);
+  const auto* load1_node = clock_tree.findNode(load1.name);
+  const auto* load2_node = clock_tree.findNode(load2.name);
+  ASSERT_NE(driver_node, nullptr);
+  ASSERT_NE(load0_node, nullptr);
+  ASSERT_NE(load1_node, nullptr);
+  ASSERT_NE(load2_node, nullptr);
+
+  EXPECT_EQ(driver_node->location, driver.location);
+  EXPECT_NE(load0_node->location, driver_node->location);
+  EXPECT_NE(load1_node->location, driver_node->location);
+  EXPECT_NE(load0_node->location, load1_node->location);
+  EXPECT_NE(load2_node->location, driver_node->location);
+}
+
 TEST(RouterClockTreeTest, BuildSaltClockTreePreservesTerminalMetadataAndRCTreeCap)
 {
   Router::ClockTerminal driver;

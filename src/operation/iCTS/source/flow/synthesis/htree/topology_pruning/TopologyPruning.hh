@@ -64,6 +64,11 @@ struct CandidateBuildEvaluation
   TopologyPatternLibrary topology_pattern_library;
 };
 
+struct HTreeFanoutPruningOptions
+{
+  std::size_t max_fanout = 0U;
+};
+
 struct CandidateCharRef
 {
   std::size_t candidate_index = 0U;
@@ -79,8 +84,8 @@ struct CandidateCharRefFilterResult
 auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const SegmentFrontierCatalog& segment_frontier_catalog,
                             const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                             const Tree& topology, SinkLoadRegionLegalityContext& sink_load_region_legality_context, std::size_t leaf_count,
-                            unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass)
-    -> CandidateBuildEvaluation;
+                            unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass,
+                            const HTreeFanoutPruningOptions& fanout_options) -> CandidateBuildEvaluation;
 auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateCharRef>& entries,
                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
                                                  const BufferPatternLibrary& segment_pattern_library,

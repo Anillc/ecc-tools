@@ -86,7 +86,8 @@ auto EvaluateTopologyDepthCandidate(const Tree& topology, const std::vector<HTre
                                     const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,
                                     const BoundaryConstraints& base_boundary_constraints,
                                     SinkLoadRegionLegalityContext& sink_load_region_legality_context, unsigned char_slew_steps,
-                                    RootDriverCompensationPass& compensation_pass) -> DepthCandidateResult;
+                                    RootDriverCompensationPass& compensation_pass, const HTreeFanoutPruningOptions& fanout_options)
+    -> DepthCandidateResult;
 auto RecordTopologyDepthCandidateResult(unsigned depth, bool used_explicit_target_depth, const DepthCandidateResult& candidate_result,
                                         std::vector<DepthSummary>& depth_summaries) -> void;
 auto AppendGlobalCandidateRefs(std::size_t candidate_index, const CandidateBuildEvaluation& evaluation,
@@ -96,6 +97,7 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
                                    const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
                                    BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& base_boundary_constraints,
                                    const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
-                                   const RootDriverCompensationOptions& compensation_options) -> DepthSearchResult;
+                                   const RootDriverCompensationOptions& compensation_options,
+                                   const HTreeFanoutPruningOptions& fanout_options) -> DepthSearchResult;
 
 }  // namespace icts::htree

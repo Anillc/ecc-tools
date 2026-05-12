@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/prd.md", "reason": "Task requirements, constraints, and acceptance criteria for small-fanout H-tree root-cause debugging."}
+{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/design.md", "reason": "Technical debugging boundary, hypotheses, relevant code paths, and required evidence."}
+{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/implement.md", "reason": "Execution checklist, validation commands, and review gates for the debugging task."}
+{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/research/fanout4-initial-evidence.md", "reason": "Initial reproduction evidence from the dev flow and current CTS log."}

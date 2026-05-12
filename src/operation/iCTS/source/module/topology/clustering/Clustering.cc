@@ -137,6 +137,10 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   auto max_cluster_size = static_cast<std::size_t>(std::ceil(config.max_ratio * static_cast<double>(loads.size())));
   max_cluster_size = std::max(max_cluster_size, safe_min);
   max_cluster_size = std::min(max_cluster_size, loads.size() - safe_min);
+  if (config.max_cluster_size > 0U) {
+    const auto max_legal_size = std::max(safe_min, std::min(config.max_cluster_size, loads.size() - safe_min));
+    max_cluster_size = std::min(max_cluster_size, max_legal_size);
+  }
   max_cluster_size = std::max<std::size_t>(1, max_cluster_size);
 
   const KMeans<Pin*> kmeans;

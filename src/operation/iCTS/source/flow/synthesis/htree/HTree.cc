@@ -183,6 +183,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   BiPartitionConfig topology_config;
   topology_config.htree_topology_tolerance
       = std::max(0.0, options.htree_topology_tolerance.value_or(CONFIG_INST.get_htree_topology_tolerance()));
+  topology_config.max_leaf_load_count = CONFIG_INST.get_max_fanout();
   result.topology
       = TopologyGen::build(loads, TopologyGen::BuildOptions{
                                       .partition_config = topology_config,
@@ -272,6 +273,9 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
       .cap_lattice = char_builder.get_cap_lattice(),
       .fallback_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
   };
+  const htree::HTreeFanoutPruningOptions fanout_pruning_options{
+      .max_fanout = CONFIG_INST.get_max_fanout(),
+  };
   htree::DepthSearchResult exploration;
   {
     auto depth_search_stage
@@ -281,9 +285,10 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                             {"max_depth", std::to_string(max_depth)},
                                             {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
                                         });
-    exploration = htree::SearchTopologyDepthCandidates(
-        result.topology, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library, base_boundary_constraints,
-        char_builder.get_cap_lattice(), result.char_slew_steps, options.target_depth.has_value(), root_driver_compensation_options);
+    exploration = htree::SearchTopologyDepthCandidates(result.topology, full_level_plans, depth_candidates, segment_frontier_catalog,
+                                                       segment_pattern_library, base_boundary_constraints, char_builder.get_cap_lattice(),
+                                                       result.char_slew_steps, options.target_depth.has_value(),
+                                                       root_driver_compensation_options, fanout_pruning_options);
     depth_search_stage.finished({
         {"evaluated_depths", std::to_string(exploration.depth_summaries.size())},
         {"global_feasible_refs", std::to_string(exploration.global_feasible_pool.size())},

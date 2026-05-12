@@ -99,6 +99,15 @@ auto NormalizeDbuPerUm(int32_t dbu_per_um) -> double
   return static_cast<double>(std::max(dbu_per_um, int32_t{1}));
 }
 
+auto ResolveMaxNodeLoadCount(std::size_t leaf_need, const BiPartitionConfig& config) -> std::size_t
+{
+  if (config.max_leaf_load_count == 0U || leaf_need == 0U) {
+    return 0U;
+  }
+
+  return leaf_need * config.max_leaf_load_count;
+}
+
 auto DbuToUm(double value_dbu, int32_t dbu_per_um) -> double
 {
   return value_dbu / NormalizeDbuPerUm(dbu_per_um);
@@ -419,7 +428,9 @@ auto TopologyGen::embedPositions(Tree& tree, std::size_t node, const std::vector
     }
 
     const std::size_t child_leaf_need = frame.node_leaf_need / 2;
-    auto result = Clustering::biPartition(frame.node_loads, child_leaf_need, config);
+    auto partition_config = config;
+    partition_config.max_cluster_size = ResolveMaxNodeLoadCount(child_leaf_need, config);
+    auto result = Clustering::biPartition(frame.node_loads, child_leaf_need, partition_config);
     if (result.clusters.size() < 2) {
       continue;
     }
