@@ -93,6 +93,7 @@ class CtsConfig
   const std::string& get_gds_file() const { return _gds_file; }
   const std::string& get_use_netlist_string() const { return _gds_file; }
   bool is_use_netlist() { return _use_netlist == "ON" ? true : false; }
+  bool is_skip_evaluate() const { return _skip_evaluate; }
   const std::vector<std::pair<std::string, std::string>> get_clock_netlist() const { return _net_list; }
 
   // algorithm
@@ -129,6 +130,7 @@ class CtsConfig
   void set_log_file(const std::string& file) { _log_file = file; }
   void set_gds_file(const std::string& file) { _gds_file = file; }
   void set_use_netlist(const std::string& use_netlist) { _use_netlist = use_netlist; }
+  void set_skip_evaluate(const bool& skip_evaluate) { _skip_evaluate = skip_evaluate; }
   void set_netlist(const std::vector<std::pair<std::string, std::string>>& net_list) { _net_list = net_list; }
 
   // query
@@ -237,6 +239,7 @@ class CtsConfig
   std::string _gds_file = "./result/cts/output/cts.gds";
 
   std::string _use_netlist = "OFF";
+  bool _skip_evaluate = false;
   std::vector<std::pair<std::string, std::string>> _net_list;
 };
 }  // namespace icts

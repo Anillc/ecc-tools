@@ -253,8 +253,22 @@ std::vector<Pin*> Solver::assignApply(const std::vector<Pin*>& load_pins, const 
   // auto enhanced_clusters = clusters;
   auto enhanced_clusters = BalanceClustering::slackClustering(clusters, max_net_len, max_fanout);
   if (enhanced_clusters.size() < load_pins.size()) {
-    enhanced_clusters
+    auto optimized_clusters
         = BalanceClustering::clusteringEnhancement(enhanced_clusters, max_fanout, max_cap, max_net_len, skew_bound, 200, 0.95, 10000);
+    if (optimized_clusters.size() < load_pins.size()) {
+      enhanced_clusters = optimized_clusters;
+    } else {
+      LOG_WARNING << "CTS clustering enhancement made no progress at level " << _level << " for net " << _net_name
+                  << " (pins: " << load_pins.size() << ", optimized clusters: " << optimized_clusters.size()
+                  << "). Use pre-enhancement clusters.";
+    }
+  }
+  const size_t required_reduction = std::max<size_t>(1, load_pins.size() / static_cast<size_t>(std::max(2, max_fanout)));
+  if (enhanced_clusters.size() + required_reduction > load_pins.size() && clusters.size() < enhanced_clusters.size()) {
+    LOG_WARNING << "CTS clustering made little progress at level " << _level << " for net " << _net_name << " (pins: "
+                << load_pins.size() << ", enhanced clusters: " << enhanced_clusters.size() << ", base clusters: " << clusters.size()
+                << "). Fall back to base fanout clusters.";
+    enhanced_clusters = clusters;
   }
   // top guide
   // auto guide_centers = BalanceClustering::guideCenter(enhanced_clusters, std::nullopt, TimingPropagator::getMinLength(), 1);

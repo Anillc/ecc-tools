@@ -185,6 +185,15 @@ void JsonParser::parse(const string& json_file, CtsConfig* config) const
     if (COMUtil::getData(json, {"use_netlist"}) != nullptr) {
       config->set_use_netlist(COMUtil::getData(json, {"use_netlist"}));
     }
+    if (COMUtil::getData(json, {"skip_evaluate"}) != nullptr) {
+      std::string skip_evaluate = COMUtil::getData(json, {"skip_evaluate"});
+      if (skip_evaluate == "true" || skip_evaluate == "True" || skip_evaluate == "TRUE" || skip_evaluate == "On"
+          || skip_evaluate == "ON" || skip_evaluate == "on") {
+        config->set_skip_evaluate(true);
+      } else {
+        config->set_skip_evaluate(false);
+      }
+    }
     nlohmann::json json_netlist = COMUtil::getData(json, {"net_list"});
     {
       auto clock_name_list = COMUtil::getSerializeObjectData(json_netlist, "clock_name", data_type_string);

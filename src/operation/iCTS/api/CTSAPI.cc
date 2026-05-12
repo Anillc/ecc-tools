@@ -77,7 +77,14 @@ void CTSAPI::runCTS()
   CTSAPIInst.logTime();
   readData();
   routing();
-  evaluate();
+  if (_config->is_skip_evaluate()) {
+    LOG_WARNING << "Skip CTS evaluate by config.";
+    CTSAPIInst.logTitle("Skip CTS Evaluate");
+    CTSAPIInst.saveToLog("CTS evaluate skipped by config.");
+    CTSAPIInst.logEnd();
+  } else {
+    evaluate();
+  }
   // writeGDS();
   LOG_INFO << "**Flow memory usage " << stats.memoryDelta() << "MB";
   LOG_INFO << "**Flow elapsed time " << stats.elapsedRunTime() << "s";
