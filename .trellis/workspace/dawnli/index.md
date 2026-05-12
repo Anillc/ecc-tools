@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 47
-- **Last Active**: 2026-05-11
+- **Total Sessions**: 48
+- **Last Active**: 2026-05-12
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~115 | Active |
+| `journal-2.md` | ~148 | Active |
 | `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 48 | 2026-05-12 | Fix small-fanout H-tree legality | `2d016b246` | `cts_refactor` |
 | 47 | 2026-05-11 | HTree demand-driven frontier refactor | `302077b5d` | `cts_refactor` |
 | 46 | 2026-05-11 | iCTS H-tree complexity optimization and pruning research cleanup | `f235e1985` | `cts_refactor` |
 | 45 | 2026-05-08 | CTS SDC clock semantics and writeback hardening | `1cf71a890`, `31e81ae05`, `2cd82603` | `cts_refactor` |
