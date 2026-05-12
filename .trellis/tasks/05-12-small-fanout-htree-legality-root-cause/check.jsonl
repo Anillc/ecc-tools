@@ -1,4 +1,0 @@
-{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/prd.md", "reason": "Verify final work against task requirements and acceptance criteria."}
-{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/design.md", "reason": "Verify the final root-cause explanation covers planned hypotheses and code-path boundaries."}
-{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/implement.md", "reason": "Verify planned validation commands and review gates were executed or explicitly deferred."}
-{"file": ".trellis/tasks/05-12-small-fanout-htree-legality-root-cause/research/fanout4-initial-evidence.md", "reason": "Verify initial evidence is preserved and later reports build on it instead of repeating work."}
