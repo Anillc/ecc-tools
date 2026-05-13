@@ -5,6 +5,7 @@ target_link_libraries(
   PUBLIC
   icts_source_database_spatial
   PRIVATE
+  log
   icts_source_utils
 )
 

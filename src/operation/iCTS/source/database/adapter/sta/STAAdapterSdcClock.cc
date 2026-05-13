@@ -32,8 +32,8 @@
 #include <vector>
 
 #include "Log.hh"
-#include "STAAdapter.hh"
 #include "STAAdapterInternal.hh"
+#include "SdcClockReader.hh"
 #include "api/TimingEngine.hh"
 #include "dm_config.h"
 #include "idm.h"
@@ -49,19 +49,26 @@ auto configuredSdcPath() -> std::string
 
 }  // namespace
 
-auto STAAdapter::readSdcClockDeclarationsOnly(const std::string& sdc_path)
-    -> std::vector<std::tuple<std::string, std::string, double, bool>>
+SdcClockReader::SdcClockReader() : SdcClockReader(configuredSdcPath())
+{
+}
+
+SdcClockReader::SdcClockReader(std::string sdc_path) : _sdc_path(std::move(sdc_path))
+{
+}
+
+auto SdcClockReader::readDeclarationsOnly() const -> std::vector<std::tuple<std::string, std::string, double, bool>>
 {
   std::vector<std::tuple<std::string, std::string, double, bool>> declarations;
-  if (sdc_path.empty()) {
+  if (_sdc_path.empty()) {
     schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "STAAdapter", "SDC clock read skipped because SDC path is empty.",
                            {{"clock_source", "sdc"}});
     return declarations;
   }
-  if (!std::filesystem::exists(sdc_path)) {
+  if (!std::filesystem::exists(_sdc_path)) {
     schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "STAAdapter", "SDC clock read skipped because SDC file does not exist.",
-                           {{"clock_source", "sdc"}, {"sdc_path", sdc_path}});
-    LOG_ERROR << "STAAdapter: SDC clock-only file does not exist: " << sdc_path;
+                           {{"clock_source", "sdc"}, {"sdc_path", _sdc_path}});
+    LOG_ERROR << "STAAdapter: SDC clock-only file does not exist: " << _sdc_path;
     return declarations;
   }
 
@@ -71,7 +78,7 @@ auto STAAdapter::readSdcClockDeclarationsOnly(const std::string& sdc_path)
     return declarations;
   }
 
-  const auto records = timing_engine->readSdcClockPeriodsOnly(sdc_path.c_str());
+  const auto records = timing_engine->readSdcClockPeriodsOnly(_sdc_path.c_str());
   declarations.reserve(records.size());
   for (const auto& [clock_name, source_expression, period_ns, period_resolved] : records) {
     if (!period_resolved) {
@@ -81,11 +88,6 @@ auto STAAdapter::readSdcClockDeclarationsOnly(const std::string& sdc_path)
     declarations.emplace_back(clock_name, source_expression, period_ns, period_resolved);
   }
   return declarations;
-}
-
-auto STAAdapter::readConfiguredSdcClockDeclarationsOnly() -> std::vector<std::tuple<std::string, std::string, double, bool>>
-{
-  return readSdcClockDeclarationsOnly(configuredSdcPath());
 }
 
 }  // namespace icts

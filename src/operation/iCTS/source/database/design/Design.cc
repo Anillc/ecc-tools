@@ -161,13 +161,7 @@ auto Design::getPinFullName(const Pin* pin) -> std::string
 auto Design::findInst(const std::string& name) const -> Inst*
 {
   const auto iter = _inst_by_name.find(name);
-  if (iter != _inst_by_name.end()) {
-    return iter->second;
-  }
-
-  const auto object_iter
-      = std::ranges::find_if(_insts, [&name](const auto& inst) -> bool { return inst != nullptr && inst->get_name() == name; });
-  return object_iter == _insts.end() ? nullptr : object_iter->get();
+  return iter == _inst_by_name.end() ? nullptr : iter->second;
 }
 
 auto Design::makeInst(const std::string& name) -> Inst*
@@ -215,9 +209,7 @@ auto Design::findPin(const std::string& pin_full_name) const -> Pin*
     }
   }
 
-  const auto object_iter = std::ranges::find_if(
-      _pins, [&pin_full_name](const auto& pin) -> bool { return pin != nullptr && getPinFullName(pin.get()) == pin_full_name; });
-  return object_iter == _pins.end() ? nullptr : object_iter->get();
+  return nullptr;
 }
 
 auto Design::makePin(const std::string& name) -> Pin*
@@ -248,16 +240,15 @@ auto Design::indexPin(Pin* pin) -> bool
     return false;
   }
 
-  const auto object_iter = std::ranges::find_if(_pins, [pin, &full_name](const auto& candidate) -> bool {
-    return candidate != nullptr && candidate.get() != pin && getPinFullName(candidate.get()) == full_name;
-  });
-  if (object_iter != _pins.end()) {
-    LOG_ERROR << "Design: reject indexing pin \"" << full_name << "\" because a different final pin already uses that full name.";
-    return false;
+  const auto old_name_iter = _pin_full_name_by_pin.find(pin);
+  if (old_name_iter != _pin_full_name_by_pin.end() && old_name_iter->second != full_name) {
+    const auto old_pin_iter = _pin_by_full_name.find(old_name_iter->second);
+    if (old_pin_iter != _pin_by_full_name.end() && old_pin_iter->second == pin) {
+      _pin_by_full_name.erase(old_pin_iter);
+    }
   }
-
-  std::erase_if(_pin_by_full_name, [pin](const auto& entry) -> bool { return entry.second == pin; });
   _pin_by_full_name[full_name] = pin;
+  _pin_full_name_by_pin[pin] = full_name;
   _clock_dag.invalidate("clock_topology_changed");
   return true;
 }
@@ -312,7 +303,6 @@ auto Design::renamePin(Pin* pin, const std::string& name) -> bool
   }
 
   const auto old_name = pin->get_name();
-  std::erase_if(_pin_by_full_name, [pin](const auto& entry) -> bool { return entry.second == pin; });
   pin->set_name(name);
   if (!indexPin(pin)) {
     pin->set_name(old_name);
@@ -326,13 +316,7 @@ auto Design::renamePin(Pin* pin, const std::string& name) -> bool
 auto Design::findNet(const std::string& name) const -> Net*
 {
   const auto iter = _net_by_name.find(name);
-  if (iter != _net_by_name.end()) {
-    return iter->second;
-  }
-
-  const auto object_iter
-      = std::ranges::find_if(_nets, [&name](const auto& net) -> bool { return net != nullptr && net->get_name() == name; });
-  return object_iter == _nets.end() ? nullptr : object_iter->get();
+  return iter == _net_by_name.end() ? nullptr : iter->second;
 }
 
 auto Design::makeNet(const std::string& name) -> Net*
@@ -381,6 +365,7 @@ auto Design::clearTopologyObjects() -> void
   _nets.clear();
   _inst_by_name.clear();
   _pin_by_full_name.clear();
+  _pin_full_name_by_pin.clear();
   _net_by_name.clear();
   _clock_dag.invalidate("clock_topology_cleared");
 }
@@ -411,7 +396,14 @@ auto Design::removePin(Pin* pin) -> void
     std::erase(pins, pin);
   }
 
-  std::erase_if(_pin_by_full_name, [pin](const auto& entry) -> bool { return entry.second == pin; });
+  const auto full_name_iter = _pin_full_name_by_pin.find(pin);
+  if (full_name_iter != _pin_full_name_by_pin.end()) {
+    const auto pin_iter = _pin_by_full_name.find(full_name_iter->second);
+    if (pin_iter != _pin_by_full_name.end() && pin_iter->second == pin) {
+      _pin_by_full_name.erase(pin_iter);
+    }
+    _pin_full_name_by_pin.erase(full_name_iter);
+  }
   std::erase_if(_pins, [pin](const auto& object) -> bool { return object.get() == pin; });
   _clock_dag.invalidate("clock_topology_changed");
 }

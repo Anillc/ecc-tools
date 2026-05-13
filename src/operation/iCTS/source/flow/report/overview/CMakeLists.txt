@@ -4,6 +4,7 @@ target_link_libraries(
   icts_source_flow_report_overview
   PRIVATE
   icts_source_database
+  icts_source_flow_report_export
   icts_source_utils
 )
 

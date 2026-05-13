@@ -67,6 +67,13 @@ If a type is shared across modules and is part of the stable data model, prefer 
 - Report-only data should be narrow and typed. Do not add broad snapshots that duplicate data already available from `Design`, `Clock`, `Inst`, `Net`, report metadata, or narrow `Wrapper` queries.
 - Raw iDB pointers must not escape `Wrapper`.
 
+### Scalable Query Paths
+
+- Name-based `Design` lookups such as `findInst`, `findNet`, and full-name `findPin` must use maintained indexes as the authoritative query path. Do not add vector-scan fallback logic to these hot lookups; it hides indexing bugs and turns report/evaluation paths into O(N) or worse behavior on million-instance designs.
+- When object names can change after insertion, maintain a reverse index or equivalent targeted removal path so re-indexing does not scan the entire object map.
+- `Wrapper` queries over iDB objects should use iDB-provided maps/search helpers, such as `find_instance`, when available. Avoid linear scans over all iDB instances from report, evaluation, or visualization code.
+- If a required index is missing or stale, fix the index ownership/update path rather than compensating at each query call site.
+
 ### Output Directories
 
 - Flow/session code derives report roots from the runtime work directory.
@@ -102,6 +109,7 @@ Before handoff, verify:
 - [ ] Borrowed pointers do not outlive their owners
 - [ ] New data types live in the correct database subdirectory
 - [ ] External-tool access stays inside adapter layers
+- [ ] Hot name-based queries use maintained indexes, not fallback full-object scans
 - [ ] Evaluation/report code is readonly with respect to iDB projection
 - [ ] Report-only data is narrow, typed, and not a broad snapshot of database state
 - [ ] Header-only database types use `INTERFACE` targets when appropriate

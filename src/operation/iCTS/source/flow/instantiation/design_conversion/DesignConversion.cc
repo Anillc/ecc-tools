@@ -43,6 +43,7 @@
 
 #include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
+#include "adapter/sta/SdcClockReader.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/ClockLayout.hh"
@@ -305,7 +306,7 @@ auto DesignConversion::readClockData() -> bool
   std::string clock_source = "sdc";
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
 
-  const auto sdc_clock_declarations = STA_ADAPTER_INST.readConfiguredSdcClockDeclarationsOnly();
+  const auto sdc_clock_declarations = SdcClockReader().readDeclarationsOnly();
   std::set<std::string> sdc_clock_names;
   std::map<std::string, double> sdc_period_by_clock;
   std::map<std::string, std::string> sdc_source_by_clock;

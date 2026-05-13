@@ -32,6 +32,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -197,9 +198,9 @@ auto findIdbPinByTermOrPinName(idb::IdbInstance* idb_inst, const std::string& pi
   return nullptr;
 }
 
-auto appendUniqueIdbPin(std::vector<idb::IdbPin*>& pins, idb::IdbPin* idb_pin) -> void
+auto appendUniqueIdbPin(std::vector<idb::IdbPin*>& pins, std::unordered_set<idb::IdbPin*>& seen_pins, idb::IdbPin* idb_pin) -> void
 {
-  if (idb_pin == nullptr || std::ranges::find(pins, idb_pin) != pins.end()) {
+  if (idb_pin == nullptr || !seen_pins.insert(idb_pin).second) {
     return;
   }
   pins.push_back(idb_pin);
@@ -213,14 +214,19 @@ auto collectIdbClockNetPins(idb::IdbNet* idb_net) -> IdbClockNetPins
   }
 
   std::vector<idb::IdbPin*> all_pins;
+  const auto io_pin_count = idb_net->get_io_pins() == nullptr ? 0U : idb_net->get_io_pins()->get_pin_list().size();
+  const auto inst_pin_count = idb_net->get_instance_pin_list() == nullptr ? 0U : idb_net->get_instance_pin_list()->get_pin_list().size();
+  all_pins.reserve(io_pin_count + inst_pin_count);
+  std::unordered_set<idb::IdbPin*> seen_pins;
+  seen_pins.reserve(io_pin_count + inst_pin_count);
   if (idb_net->get_io_pins() != nullptr) {
     for (auto* idb_pin : idb_net->get_io_pins()->get_pin_list()) {
-      appendUniqueIdbPin(all_pins, idb_pin);
+      appendUniqueIdbPin(all_pins, seen_pins, idb_pin);
     }
   }
   if (idb_net->get_instance_pin_list() != nullptr) {
     for (auto* idb_pin : idb_net->get_instance_pin_list()->get_pin_list()) {
-      appendUniqueIdbPin(all_pins, idb_pin);
+      appendUniqueIdbPin(all_pins, seen_pins, idb_pin);
     }
   }
 
@@ -461,10 +467,12 @@ class Wrapper::CtsClockReader
     }
 
     std::vector<idb::IdbPin*> idb_pins;
+    idb_pins.reserve(idb_net_pins.loads.size() + 1U);
     idb_pins.push_back(idb_net_pins.driver);
     std::ranges::copy(idb_net_pins.loads, std::back_inserter(idb_pins));
 
     std::unordered_map<idb::IdbInstance*, Inst*> cts_inst_by_idb;
+    cts_inst_by_idb.reserve(idb_pins.size());
     for (auto* idb_pin : idb_pins) {
       if (idb_pin == nullptr) {
         continue;
@@ -1065,11 +1073,14 @@ auto Wrapper::collectLogicCellGeometries() const -> std::vector<WrapperCellGeome
   const auto& idb_insts = _idb_design->get_instance_list()->get_instance_list();
   geometries.reserve(idb_insts.size());
   for (auto* idb_inst : idb_insts) {
-    if (idb_inst == nullptr || idb_inst->is_clock_instance() || idb_inst->is_physical()) {
+    if (idb_inst == nullptr || idb_inst->is_physical()) {
       continue;
     }
     auto* cell_master = idb_inst->get_cell_master();
     if (cell_master == nullptr || !cell_master->is_logic()) {
+      continue;
+    }
+    if (idb_inst->is_clock_instance()) {
       continue;
     }
     geometries.push_back(BuildCellGeometry(idb_inst));
@@ -1087,13 +1098,11 @@ auto Wrapper::queryInstGeometry(const std::string& inst_name) const -> std::opti
     return std::nullopt;
   }
 
-  const auto& idb_insts = _idb_design->get_instance_list()->get_instance_list();
-  auto iter = std::ranges::find_if(
-      idb_insts, [&inst_name](idb::IdbInstance* idb_inst) -> bool { return idb_inst != nullptr && idb_inst->get_name() == inst_name; });
-  if (iter == idb_insts.end()) {
+  auto* idb_inst = _idb_design->get_instance_list()->find_instance(inst_name);
+  if (idb_inst == nullptr) {
     return std::nullopt;
   }
-  return BuildCellGeometry(*iter);
+  return BuildCellGeometry(idb_inst);
 }
 
 }  // namespace icts
