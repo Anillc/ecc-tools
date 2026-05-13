@@ -245,3 +245,36 @@ Merged latest main into cts_refactor after review, preserving cts_refactor CTS b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 52: Align non-CTS drift with main
+
+**Date**: 2026-05-13
+**Task**: Align non-CTS drift with main
+**Branch**: `cts_refactor`
+
+### Summary
+
+Restored approved category 3/4 non-CTS drift on cts_refactor to main, kept CTS-facing/iCTS-required semantics, clean-built, and reran ics55_dev iCTS binary with matching key CTS results.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d62a25e9f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
