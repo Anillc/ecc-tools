@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 49
+- **Total Sessions**: 50
 - **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~181 | Active |
+| `journal-2.md` | ~214 | Active |
 | `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 50 | 2026-05-13 | Merge main into cts_refactor | `e18c8ce8f` | `cts_refactor` |
 | 49 | 2026-05-13 | H-tree characterization semantic alignment | `36844c2db` | `cts_refactor` |
 | 48 | 2026-05-12 | Fix small-fanout H-tree legality | `2d016b246` | `cts_refactor` |
 | 47 | 2026-05-11 | HTree demand-driven frontier refactor | `302077b5d` | `cts_refactor` |

@@ -179,3 +179,36 @@ Aligned native H-tree characterization boundaries with evaluation semantics, add
 ### Next Steps
 
 - None - task complete
+
+
+## Session 50: Merge main into cts_refactor
+
+**Date**: 2026-05-13
+**Task**: Merge main into cts_refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Merged local main into cts_refactor, preserved CTS/refactor and iSTA/liberty semantics, and validated clean build plus pre/post iCTS binary equivalence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e18c8ce8f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
