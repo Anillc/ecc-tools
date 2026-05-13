@@ -15,7 +15,7 @@ namespace imp {
     std::string outputPin;
     std::string inputPin;
     double delay;
-  };
+  }; 
   struct TimingPath {
     std::string beginpoint;
     std::string endpoint;

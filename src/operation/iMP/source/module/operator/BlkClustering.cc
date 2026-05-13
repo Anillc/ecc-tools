@@ -144,9 +144,9 @@ void BlkClustering2::singleLevelClustering(Block& block)
       new_block->set_fixed();
     }
     // new_block->set_shape(imp::geo::make_box(0, 0, w, h));
-    INFO(new_block->get_name(),
-       " num_v: ", new_block->netlist().vSize(),
-       " num_cuts: ", cuts.size(),
+    INFO(new_block->get_name(), 
+       " num_v: ", new_block->netlist().vSize(), 
+       " num_cuts: ", cuts.size(), 
        " num_e: ", new_block->netlist().heSize(),
        " - Fixed: ", new_block->isFixed());
     return new_block;
@@ -179,7 +179,7 @@ void BlkClustering2::singleLevelClustering(Block& block)
   // std::cout<<"non_critical_cuts = "<<non_critical_cut<<std::endl;
 }
 
-void BlkClustering2::findClusterTypes(std::shared_ptr<Object> vertex_prop, std::vector<ClusterType>& clusterTypes, bool& isFixed)
+void BlkClustering2::findClusterTypes(std::shared_ptr<Object> vertex_prop, std::vector<ClusterType>& clusterTypes, bool& isFixed) 
 {
   if (vertex_prop->isInstance()) {
     auto& inst = dynamic_cast<Instance&>(*vertex_prop);

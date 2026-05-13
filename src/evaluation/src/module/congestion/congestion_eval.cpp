@@ -915,15 +915,15 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
     for (const auto& pin : net.pins) {
       int32_t pin_col = static_cast<int32_t>((pin.lx - region.lx) / grid_size_x);
       int32_t pin_row = static_cast<int32_t>((pin.ly - region.ly) / grid_size_y);
-
+      
       pin_col = std::max(0, std::min(bin_cnt_x - 1, pin_col));
       pin_row = std::max(0, std::min(bin_cnt_y - 1, pin_row));
-
+      
       start_row = std::min(start_row, pin_row);
       end_row = std::max(end_row, pin_row);
       start_col = std::min(start_col, pin_col);
       end_col = std::max(end_col, pin_col);
-
+      
       net_lx = std::min(net_lx, pin.lx);
       net_ly = std::min(net_ly, pin.ly);
       net_ux = std::max(net_ux, pin.lx);
@@ -936,7 +936,7 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
     } else {
       hor_rudy = 1.0 / static_cast<double>(net_uy - net_ly);
     }
-
+    
     double ver_rudy = 0.0;
     if (net_ux == net_lx) {
       ver_rudy = 1.0;
@@ -959,7 +959,7 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
 
         double overlap_area = 0.0;
         if (overlap_lx == overlap_ux) {
-          overlap_area = overlap_uy - overlap_ly;
+          overlap_area = overlap_uy - overlap_ly; 
         } else if (overlap_ly == overlap_uy) {
           overlap_area = overlap_ux - overlap_lx;
         } else {
@@ -989,18 +989,18 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
 
   double max_congestion = 0.0;
   double total_congestion = 0.0;
-
+  
   for (const auto& row : density_grid) {
     for (double congestion : row) {
       total_congestion += congestion;
       max_congestion = std::max(max_congestion, congestion);
     }
   }
-
+  
   CongestionValue result;
   result.max_congestion = max_congestion;
   result.total_congestion = total_congestion;
-
+  
   return result;
 
 }
@@ -1028,15 +1028,15 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
     for (const auto& pin : net.pins) {
       int32_t pin_col = static_cast<int32_t>((pin.lx - region.lx) / grid_size_x);
       int32_t pin_row = static_cast<int32_t>((pin.ly - region.ly) / grid_size_y);
-
+      
       pin_col = std::max(0, std::min(bin_cnt_x - 1, pin_col));
       pin_row = std::max(0, std::min(bin_cnt_y - 1, pin_row));
-
+      
       start_row = std::min(start_row, pin_row);
       end_row = std::max(end_row, pin_row);
       start_col = std::min(start_col, pin_col);
       end_col = std::max(end_col, pin_col);
-
+      
       net_lx = std::min(net_lx, pin.lx);
       net_ly = std::min(net_ly, pin.ly);
       net_ux = std::max(net_ux, pin.lx);
@@ -1091,7 +1091,7 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
 
         double overlap_area = 0.0;
         if (overlap_lx == overlap_ux) {
-          overlap_area = overlap_uy - overlap_ly;
+          overlap_area = overlap_uy - overlap_ly; 
         } else if (overlap_ly == overlap_uy) {
           overlap_area = overlap_ux - overlap_lx;
         } else {
@@ -1121,18 +1121,18 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
 
   double max_congestion = 0.0;
   double total_congestion = 0.0;
-
+  
   for (const auto& row : density_grid) {
     for (double congestion : row) {
       total_congestion += congestion;
       max_congestion = std::max(max_congestion, congestion);
     }
   }
-
+  
   CongestionValue result;
   result.max_congestion = max_congestion;
   result.total_congestion = total_congestion;
-
+  
   return result;
 }
 
@@ -1140,7 +1140,7 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
 CongestionValue CongestionEval::calEGRCongestion(const std::string& save_path)
 {
   std::string rt_dir_path = getEGRDirPath();
-
+  
   std::unordered_map<std::string, LayerDirection> layer_directions
       = EVAL_INIT_EGR_INST->parseLayerDirection(rt_dir_path + "/early_router/route.guide");
 
@@ -1161,15 +1161,15 @@ CongestionValue CongestionEval::calEGRCongestion(const std::string& save_path)
           std::ifstream file(entry.path());
           std::string line;
           size_t row = 0;
-
+          
           while (std::getline(file, line)) {
             std::istringstream iss(line);
             std::string value;
             int col = 0;
-
+            
             while (std::getline(iss, value, ',')) {
               double num_value = std::stod(value);
-
+              
               if (is_first_file) {
                 if (row >= sum_matrix.size()) {
                   sum_matrix.push_back(std::vector<double>());
@@ -1210,18 +1210,18 @@ CongestionValue CongestionEval::calEGRCongestion(const std::string& save_path)
 
   double max_congestion = 0.0;
   double total_congestion = 0.0;
-
+  
   for (const auto& row : sum_matrix) {
     for (double congestion : row) {
       total_congestion += congestion;
       max_congestion = std::max(max_congestion, congestion);
     }
   }
-
+  
   CongestionValue result;
   result.max_congestion = max_congestion;
   result.total_congestion = total_congestion;
-
+  
   return result;
 
 }
@@ -1788,9 +1788,9 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
   // read gcell info
   std::vector<GCellInfo> gcell_info_list;
   string gcell_file_path  =  demand_dir + "/gcell.info";
-
+  
   std::ifstream file(gcell_file_path);
-  std::string line;
+  std::string line;  
   while (std::getline(file, line)) {
     std::vector<int> row;
     std::istringstream iss(line);
@@ -1801,7 +1801,7 @@ std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>,
     GCellInfo gcell_info;
     gcell_info.grid_x = row[0];
     gcell_info.grid_y = row[1];
-
+    
     gcell_info.lx = row[2];
     gcell_info.ly = row[3];
     gcell_info.ux = row[4];
@@ -1840,7 +1840,7 @@ std::map<int, double> CongestionEval::patchRUDYCongestion(CongestionNets nets,
                                      [](const NetMetadata& net, int x) {
                                        return net.ux < x;
                                      });
-
+    
     auto end_it = std::upper_bound(net_metadata.begin(), net_metadata.end(), patch_ux,
                                    [](int x, const NetMetadata& net) {
                                      return x < net.lx;
@@ -1904,8 +1904,8 @@ std::map<int, double> CongestionEval::patchEGRCongestion(std::map<int, std::pair
   // step 2 : get physical coordinate range
   int max_phy_x = 0, max_phy_y = 0;
   for (const auto& [id, coords] : patch_coords) {
-    max_phy_x = std::max(max_phy_x, coords.second.first);
-    max_phy_y = std::max(max_phy_y, coords.second.second);
+    max_phy_x = std::max(max_phy_x, coords.second.first);   
+    max_phy_y = std::max(max_phy_y, coords.second.second);  
   }
 
   // step 3: establish mapping for each patch
@@ -1957,8 +1957,8 @@ std::map<int, std::map<std::string, double>> CongestionEval::patchLayerEGRConges
   // get physical coordinate range
   int max_phy_x = 0, max_phy_y = 0;
   for (const auto& [id, coords] : patch_coords) {
-    max_phy_x = std::max(max_phy_x, coords.second.first);
-    max_phy_y = std::max(max_phy_y, coords.second.second);
+    max_phy_x = std::max(max_phy_x, coords.second.first); 
+    max_phy_y = std::max(max_phy_y, coords.second.second); 
   }
 
   // establish mapping for each patch
@@ -2008,12 +2008,12 @@ std::vector<NetMetadata> CongestionEval::precomputeNetData(const CongestionNets&
       md.ux = std::max(md.ux, pin.lx);
       md.uy = std::max(md.uy, pin.ly);
     }
-
+    
     // skip nets without valid pins
     if (md.lx == INT32_MAX || md.ly == INT32_MAX || md.ux == INT32_MIN || md.uy == INT32_MIN) {
-      continue;
+      continue; 
     }
-
+    
     // precompute RUDY factors
     md.hor_rudy = (md.uy == md.ly) ? 1.0 : 1.0 / (md.uy - md.ly);
     md.ver_rudy = (md.ux == md.lx) ? 1.0 : 1.0 / (md.ux - md.lx);

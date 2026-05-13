@@ -114,7 +114,7 @@ bool StaIO::initSTA(std::string path, bool init_log)
   readIdb();
   runSDC();
 
-  set_instance_flip_flop();
+  // set_instance_flip_flop();
 
   return true;
 }

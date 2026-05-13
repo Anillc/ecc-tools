@@ -90,7 +90,7 @@ idm::DataManager* getDMInst()
 }
 
 template <typename T>
-bool write_placement_back(       idm::DataManager*   db,
+bool write_placement_back(       idm::DataManager*   db,                                         
                                  pybind11::array_t<T, pybind11::array::c_style | pybind11::array::forcecast> const& x,
                                  pybind11::array_t<T, pybind11::array::c_style | pybind11::array::forcecast> const& y)
 {

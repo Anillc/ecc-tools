@@ -32,11 +32,11 @@ def draw(input_file, output_dir):
         else:
             color = 'c'
             facecolor = 'none'
-
+        
         lx = float(line[0])
         ly = float(line[1])
         w = float(line[2])
-        h = float(line[3])
+        h = float(line[3]) 
         if (type == 'io'):
             lx -= 1e4
             ly -= 1e4

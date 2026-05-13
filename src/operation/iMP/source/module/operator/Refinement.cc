@@ -17,17 +17,17 @@ Refinement::~Refinement() {
 }
 
 void Refinement::initPostProcessingData(
-    float macro_halo_micron,
-    const std::string& original_pin_dir,
-    int exp_space_x,
-    int exp_space_y,
-    int search_space_x,
-    int search_space_y,
-    int gap,
-    int virtual_macro_size,
-    bool beikaobei,
-    float h_weight,
-    float v_weight,
+    float macro_halo_micron, 
+    const std::string& original_pin_dir, 
+    int exp_space_x, 
+    int exp_space_y, 
+    int search_space_x, 
+    int search_space_y, 
+    int gap, 
+    int virtual_macro_size, 
+    bool beikaobei, 
+    float h_weight, 
+    float v_weight, 
     bool consider_std
 ) {
     std::cout << "Initializing post-processing data..." << std::endl;
@@ -73,7 +73,7 @@ void Refinement::extractCoreData()
     _core.ux = bounding_box->get_high_x();
     _core.uy = bounding_box->get_high_y();
 
-    std::cout << "Extracted core bounds: (" << _core.lx << ", " << _core.ly << "), ("
+    std::cout << "Extracted core bounds: (" << _core.lx << ", " << _core.ly << "), (" 
               << _core.ux << ", " << _core.uy << ")" << std::endl;
 }
 
@@ -90,7 +90,7 @@ void Refinement::extractMacroData()
             macro_info.x = bbox.min_corner().x();
             macro_info.y = bbox.min_corner().y();
             macro_info.width = bbox.max_corner().x() - bbox.min_corner().x();
-            macro_info.height = bbox.max_corner().y() - bbox.min_corner().y();
+            macro_info.height = bbox.max_corner().y() - bbox.min_corner().y(); 
             macro_info.orient = orientToString(inst_ptr->get_orient());
 
             if (inst_ptr->isFixed()) {
@@ -129,9 +129,9 @@ void Refinement::extractBlockageData()
     for (const auto& [name, inst_ptr] : instances) {
         if (inst_ptr->get_cell_master().isMacro() && inst_ptr->isFixed()) {
             BlockageInfo blockage_info;
-            int lx = inst_ptr->get_lx();
-            int ly = inst_ptr->get_ly();
-            int width = inst_ptr->get_width();
+            int lx = inst_ptr->get_lx(); 
+            int ly = inst_ptr->get_ly(); 
+            int width = inst_ptr->get_width(); 
             int height = inst_ptr->get_height();
 
             blockage_info.lx = lx;
@@ -225,7 +225,7 @@ void Refinement::expandMacros() {
 
     for (const auto& macro : _mov_macros) {
         MacroInfo expanded_macro = macro;
-
+        
         int32_t original_lx = macro.x;
         int32_t original_ly = macro.y;
         int32_t original_ux = macro.x + macro.width;
@@ -390,13 +390,13 @@ void Refinement::adjustMacroOrientationBasedOnGridPosition() {
     for (auto& macro : _exp_mov_macros) {
         if (macro.grid_x >= mid_grid_x) {
             if (macro.orient != "MX") {
-                std::cout << "Changing orientation of macro " << macro.name
+                std::cout << "Changing orientation of macro " << macro.name 
                           << " from " << macro.orient << " to MX." << std::endl;
                 macro.orient = "MX";
             }
         } else {
             if (macro.orient != "R0") {
-                std::cout << "Changing orientation of macro " << macro.name
+                std::cout << "Changing orientation of macro " << macro.name 
                           << " from " << macro.orient << " to R0." << std::endl;
                 macro.orient = "R0";
             }
@@ -441,7 +441,7 @@ void Refinement::placeMacrosNearBoundaryOptimized() {
             for (int j = start_grid_y; j <= end_grid_y - macro.grid_count_y + 1; ++j) {
                 bool can_place = true;
                 double grid_border_distance = std::numeric_limits<double>::max();
-
+                
                 if (i + macro.grid_count_x > _gcd_num_grid_x || j + macro.grid_count_y > _gcd_num_grid_y) {
                     std::cout << "Skipping grid (" << i << ", " << j << ") due to grid overflow." << std::endl;
                     continue;
@@ -490,12 +490,12 @@ void Refinement::placeMacrosNearBoundaryOptimized() {
             for (int x_offset = 0; x_offset < macro.grid_count_x; ++x_offset) {
                 for (int y_offset = 0; y_offset < macro.grid_count_y; ++y_offset) {
                     _gcd_grids[closest_grid_x + x_offset][closest_grid_y + y_offset].is_used = true;
-                    // std::cout << "Marking grid (" << closest_grid_x + x_offset << ", "
+                    // std::cout << "Marking grid (" << closest_grid_x + x_offset << ", " 
                     //         << closest_grid_y + y_offset << ") as used." << std::endl;
                 }
             }
 
-            std::cout << "Successfully placed macro " << macro.name
+            std::cout << "Successfully placed macro " << macro.name 
                     << " at new position (" << macro.x << ", " << macro.y << ")" << std::endl;
             placed = true;
         }
@@ -578,9 +578,9 @@ void Refinement::simulatedAnnealingOptimize(int iterations, double temperature, 
             double new_cost = calculateObjectiveFunction();  // 计算新的目标函数值
             double delta_cost = new_cost - previous_cost;
 
-            std::cout << "Iteration " << iter
-                      << " | Temperature: " << temperature
-                      << " | Delta cost: " << delta_cost
+            std::cout << "Iteration " << iter 
+                      << " | Temperature: " << temperature 
+                      << " | Delta cost: " << delta_cost 
                       << " | ";
 
             if (delta_cost < 0 || (rand() / RAND_MAX) < exp(-delta_cost / temperature)) {
@@ -714,7 +714,7 @@ void Refinement::writeTcl(const std::string& tcl_file_path) {
 
     for (const auto& macro : _mov_macros) {
         tcl_file << "placeInstance " << macro.name << " "
-                 << static_cast<double>(macro.x) / dbu << " "
+                 << static_cast<double>(macro.x) / dbu << " " 
                  << static_cast<double>(macro.y) / dbu << " "
                  << macro.orient << "\n";
 
@@ -738,8 +738,8 @@ void Refinement::export_to_json(const std::string& filename)
         json_data["macros"].push_back({
             {"id", macro.id},
             {"name", macro.name},
-            {"x", macro.x},
-            {"y", macro.y},
+            {"x", macro.x}, 
+            {"y", macro.y}, 
             {"width", macro.width},
             {"height", macro.height},
             {"orientation", macro.orient}

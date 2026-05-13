@@ -16,7 +16,7 @@ void CairoPlot::save_as_pdf(const std::string& filename)
   cairo_scale(cr, 1, -1);
   cairo_translate(cr, 0, -_canvas_height);
 
-  cairo_set_source_rgb(cr, 1, 1, 1);
+  cairo_set_source_rgb(cr, 1, 1, 1);  
   cairo_paint(cr);
 
   save_rectangles(cr);
@@ -35,7 +35,7 @@ void CairoPlot::save_as_png(const std::string& filename)
   cairo_scale(cr, 1, -1);
   cairo_translate(cr, 0, -_canvas_height);
 
-  cairo_set_source_rgb(cr, 1, 1, 1);
+  cairo_set_source_rgb(cr, 1, 1, 1); 
   cairo_paint(cr);
 
   save_rectangles(cr);

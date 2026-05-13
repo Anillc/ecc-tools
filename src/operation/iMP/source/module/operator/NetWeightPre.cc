@@ -224,13 +224,13 @@ TimingPath parsePathBlock(const std::string& block, bool& skip_path) {
             // std::cout << "Beginpoint and endpoint belong to the same instance." << std::endl;
           }
       } else {
-          std::cout << "Error, not skip but not have /. Beginpoint: " << path.beginpoint
+          std::cout << "Error, not skip but not have /. Beginpoint: " << path.beginpoint 
               << ", Endpoint: " << path.endpoint << std::endl;
           std::cout << block << std::endl;
           exit(0);
       }
     }
-
+    
     return path;
 }
 
@@ -419,4 +419,4 @@ void timingDrivenNetWeight(HyperGraph<Multilevel>& graph, std::unordered_set<std
     processNonCriticalNets(graph, hedge_avaliable_delay, extra_delay, non_critical_nets_name);
 }
 
-} // namespace imp
+} // namespace imp   

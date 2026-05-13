@@ -411,12 +411,8 @@ Instance* TimingIDBAdapter::createInstance(LibCell* cell, const char* name) {
 void TimingIDBAdapter::deleteInstance(const char* instance_name) {
   auto* design_netlist = getNetlist();
   auto* the_instance = design_netlist->findInstance(instance_name);
-  if (the_instance == nullptr) {
-    return;
-  }
 
   IdbDesign* idb_design = _idb_def_service->get_design();
-  IdbInstance* idb_instance = staToDb(the_instance);
 
   Pin* pin;
   FOREACH_INSTANCE_PIN(the_instance, pin) {
@@ -425,10 +421,9 @@ void TimingIDBAdapter::deleteInstance(const char* instance_name) {
   }
 
   design_netlist->removeInstance(instance_name);
-  LOG_FATAL_IF(idb_instance == nullptr)
-      << "DB instance is not found for STA instance " << instance_name;
-  std::string idb_inst_name = idb_instance->get_name();
+  std::string idb_inst_name = staToDb(the_instance)->get_name();
   idb_design->get_instance_list()->remove_instance(idb_inst_name);
+  IdbInstance* idb_instance = staToDb(the_instance);
   removeCrossRef(the_instance, idb_instance);
 }
 
@@ -439,59 +434,9 @@ void TimingIDBAdapter::deleteInstance(const char* instance_name) {
  * @param cell
  */
 void TimingIDBAdapter::substituteCell(Instance* inst, LibCell* cell) {
-  if (inst == nullptr || cell == nullptr) {
-    return;
-  }
-
   IdbCellMaster* idb_master = staToDb(cell);
   IdbInstance* idb_inst = staToDb(inst);
-  if (idb_inst != nullptr && idb_master != nullptr) {
-    idb_inst->swap_cell_master(idb_master);
-  }
-
-  Pin* pin = nullptr;
-  FOREACH_INSTANCE_PIN(inst, pin) {
-    auto* liberty_port_or_port_bus =
-        cell->get_cell_port_or_port_bus(pin->get_name());
-    LOG_FATAL_IF(!liberty_port_or_port_bus)
-        << "substituteCell cannot find pin " << pin->get_name()
-        << " in lib cell " << cell->get_cell_name();
-    LOG_FATAL_IF(liberty_port_or_port_bus->isLibertyPortBus())
-        << "substituteCell does not support port bus pin "
-        << pin->get_name();
-
-    auto* liberty_port = dynamic_cast<LibPort*>(liberty_port_or_port_bus);
-    pin->set_cell_port(liberty_port);
-
-    if (!_ista->isBuildGraph() || !pin->isInput()) {
-      continue;
-    }
-
-    auto* the_vertex = _ista->findVertex(pin);
-    if (the_vertex == nullptr) {
-      continue;
-    }
-
-    FOREACH_SRC_ARC(the_vertex, the_arc) {
-      auto* the_inst_arc = dynamic_cast<StaInstArc*>(the_arc);
-      if (the_inst_arc == nullptr) {
-        continue;
-      }
-
-      auto* origin_lib_arc = the_inst_arc->get_lib_arc();
-      auto lib_arc_set = cell->findLibertyArcSet(origin_lib_arc->get_src_port(),
-                                                 origin_lib_arc->get_snk_port(),
-                                                 the_inst_arc->getTimingType());
-      LOG_FATAL_IF(!lib_arc_set)
-          << "substituteCell cannot find matching liberty arc for inst "
-          << inst->get_name() << " pin " << pin->get_name()
-          << " target cell " << cell->get_cell_name();
-      auto* new_lib_arc = (*lib_arc_set)->front();
-      the_inst_arc->set_lib_arc(new_lib_arc);
-    }
-  }
-
-  inst->set_inst_cell(cell);
+  idb_inst->set_cell_master(idb_master);  // TODO: dinst->swapMaster(master)
 }
 
 /**
@@ -738,50 +683,10 @@ Net* TimingIDBAdapter::createNet(const char* name,
  * @param sta_net
  */
 void TimingIDBAdapter::deleteNet(Net* sta_net) {
-  if (sta_net == nullptr) {
-    return;
-  }
-
-  IdbNet* mapped_dnet = staToDb(sta_net);
   IdbNetList* dbnet_list = _idb_design->get_net_list();
   IdbNet* dnet = dbnet_list->find_net(sta_net->get_name());
-  if (dnet == nullptr) {
-    std::string sta_net_name = sta_net->get_name();
-    std::string idb_net_name = changeStaBusNetNameToIdb(sta_net_name);
-    dnet = dbnet_list->find_net(idb_net_name);
-  }
 
   auto* design_netlist = getNetlist();
-
-  std::vector<DesignObject*> sta_pin_ports;
-  sta_pin_ports.reserve(sta_net->get_pin_ports().size());
-  for (auto* pin_port : sta_net->get_pin_ports()) {
-    sta_pin_ports.push_back(pin_port);
-  }
-  for (auto* pin_port : sta_pin_ports) {
-    sta_net->removePinPort(pin_port);
-  }
-
-  if (dnet == nullptr) {
-    LOG_WARNING << "DB net is not found for STA net " << sta_net->get_name()
-                << ", removing STA-side net only.";
-    design_netlist->removeNet(sta_net);
-    removeCrossRef(sta_net, mapped_dnet);
-    return;
-  }
-
-  std::vector<IdbPin*> db_pins;
-  db_pins.reserve(dnet->get_pin_number());
-  for (auto* db_pin : dnet->get_instance_pin_list()->get_pin_list()) {
-    db_pins.push_back(db_pin);
-  }
-  for (auto* db_pin : dnet->get_io_pins()->get_pin_list()) {
-    db_pins.push_back(db_pin);
-  }
-  for (auto* db_pin : db_pins) {
-    dnet->remove_pin(db_pin);
-  }
-
   design_netlist->removeNet(sta_net);
   removeCrossRef(sta_net, dnet);
 

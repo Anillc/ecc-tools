@@ -1,4 +1,4 @@
-add_library(imp-partition
+add_library(imp-partition 
             ${IMP_PARTITION}/Hmetis.cc
             ${IMP_PARTITION}/MtKahypar.cc)
 target_link_libraries(imp-partition

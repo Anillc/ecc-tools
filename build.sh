@@ -68,7 +68,7 @@ echo -e "  ${bold}-r${clear} run iEDA hello test after build (default OFF)"
 echo -e "  ${bold}-j${clear} job threads for building iEDA (default ${BUILD_THREADS} (num of cores))"
 echo -e "  ${bold}-b${clear} iEDA binary path (default at ${BINARY_DIR})"
 echo -e "  ${bold}-i${clear} apt-get install (root/sudo required) dependencies before build (default OFF)"
-echo -e "  ${bold}-p${clear} build AIEDA (default OFF)"
+echo -e "  ${bold}-p${clear} build ECOS (default OFF)"
 echo -e "  ${bold}-g${clear} enable GUI components (default OFF)"
 echo -e "  ${bold}-s${clear} enable address sanitizer (default OFF)"
 echo -e "  ${bold}-P${clear} enable performance profiling (default OFF)"
@@ -372,9 +372,9 @@ opt_non_interactive()
   NON_INTERACTIVE="ON"
 }
 
-opt_build_aieda()
+opt_build_ecos()
 {
-  CMAKE_OPTIONS+=("-DBUILD_AIEDA=ON")
+  CMAKE_OPTIONS+=("-DBUILD_ECOS=ON")
   opt_build_target "ecc_py"
 }
 
@@ -394,7 +394,7 @@ while getopts j:b:t:i:rndDyp opt; do
     d) opt_del_build              ;;
     D) opt_dry_run                ;;
     y) opt_non_interactive        ;;
-    p) opt_build_aieda            ;;
+    p) opt_build_ecos             ;;
     g) CMAKE_OPTIONS+=("-DBUILD_GUI=ON")    ;;
     s) CMAKE_OPTIONS+=("-DSANITIZER=ON")    ;;
     P) CMAKE_OPTIONS+=("-DUSE_PROFILER=ON") ;;

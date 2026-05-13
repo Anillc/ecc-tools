@@ -1125,7 +1125,7 @@ void PyPlaceDB::init_timing(idm::DataManager* db, std::unordered_map<std::string
           string cell_type_name = lib_cell->get_cell_name();
           string info = cell_type_name + "_" + from_lib_pin + "_" + to_lib_pin;
           // clang-format off
-          if (   arc->get_timing_type() == ista::LibArc::TimingType::kCombFall
+          if (   arc->get_timing_type() == ista::LibArc::TimingType::kCombFall 
               || arc->get_timing_type() == ista::LibArc::TimingType::kCombRise
               || arc->get_timing_type() == ista::LibArc::TimingType::kComb
               || arc->get_timing_type() == ista::LibArc::TimingType::kFallingEdge

@@ -17,18 +17,22 @@
 
 cmake_minimum_required(VERSION 3.11)
 project(iEDA)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -Werror=return-type")
+set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -g -Wall -Werror=return-type")
+# set(CMAKE_BUILD_TYPE "Release")
+set(BUILD_ECOS ON)
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -Werror=return-type")
 
-if(NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default: Release)" FORCE)
-endif()
+# if(NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+#     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default: Release)" FORCE)
+# endif()
 
-if(DEFINED BUILD_AIEDA)
+if(DEFINED BUILD_ECOS)
     option(BUILD_STATIC_LIB "Build static library OFF" OFF)
     option(BUILD_PYTHON "Build Python bindings ON" ON)
 else()
@@ -39,8 +43,12 @@ option(USE_PROFILER "Enable performance profiling (default OFF)" OFF)
 option(SANITIZER "Enable address sanitizer (default OFF)" OFF)
 option(BUILD_GUI "Enable GUI components (default OFF)" OFF)
 option(USE_GPU "Enable GPU acceleration (default OFF)" OFF)
-option(ENABLE_AI "Enable AI modules (default OFF)" OFF)
-option(COMPATIBILITY_MODE "Enable compatibility mode (disable aggressive optimizations)" ON)
+option(COMPATIBILITY_MODE "Enable compatibility mode (disable aggressive optimizations)" OFF)
+
+
+set(BUILD_PYTHON ON)
+set(BUILD_STATIC_LIB OFF)
+set(COMPATIBILITY_MODE ON)
 
 # Define GLOG_USE_GLOG_EXPORT for glog 0.7.1+ compatibility
 add_definitions(-DGLOG_USE_GLOG_EXPORT)

@@ -78,3 +78,4 @@ install(TARGETS ecc_py
 get_target_property(DEPENDENCIES ecc_py INTERFACE_LINK_LIBRARIES)
 message(STATUS "ecc_py install prefix: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "ecc_py dependencies: ${DEPENDENCIES}")
+

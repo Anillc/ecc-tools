@@ -152,35 +152,6 @@ void IdbInstance::set_cell_master(IdbCellMaster* cell_master)
   //   set_bounding_box();
 }
 
-void IdbInstance::swap_cell_master(IdbCellMaster* cell_master)
-{
-  _cell_master = cell_master;
-  if (_pin_list != nullptr && _cell_master != nullptr) {
-    for (IdbPin* pin : _pin_list->get_pin_list()) {
-      if (pin == nullptr) {
-        continue;
-      }
-      std::string term_name = pin->get_pin_name();
-      if (pin->get_term() != nullptr) {
-        term_name = pin->get_term()->get_name();
-      }
-      IdbTerm* new_term = _cell_master->findTerm(term_name);
-      if (new_term == nullptr) {
-        new_term = _cell_master->findTerm(pin->get_pin_name());
-      }
-      if (new_term != nullptr) {
-        pin->set_pin_name(new_term->get_name());
-        pin->set_term(new_term);
-      }
-    }
-  }
-
-  set_bounding_box();
-  set_pin_list_coodinate();
-  set_halo_coodinate();
-  set_obs_box_list();
-}
-
 void IdbInstance::set_pin_list()
 {
   for (IdbTerm* term : _cell_master->get_term_list()) {

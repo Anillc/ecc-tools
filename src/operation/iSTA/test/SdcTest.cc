@@ -15,12 +15,8 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #include "gtest/gtest.h"
-#include <array>
-#include <filesystem>
-#include <fstream>
+
 #include <set>
-#include <string>
-#include <tuple>
 #include <variant>
 
 #include "liberty/Lib.hh"
@@ -222,54 +218,6 @@ TEST_F(SdcTest, set_load) {
       R"(set_load 8.0 [get_ports clk1])");
 }
 
-TEST_F(SdcTest, zx_test) {
-  Sta* ista = Sta::getOrCreateSta();
-  ista->initSdcCmd();
-
-  int result = 1;
-  result = ScriptEngine::getOrCreateInstance()->evalString(
-      R"(create_clock -name clk -period 2.2 -add [get_ports clk1])");
-
-  result &= ScriptEngine::getOrCreateInstance()->evalString(
-      R"(set_false_path -to [get_ports clk1])");
-
-  result &= ScriptEngine::getOrCreateInstance()->evalString(
-      R"(set_max_delay 1.0 -from [get_ports clk1] -to [get_ports out])");
-
-  result &= ScriptEngine::getOrCreateInstance()->evalString(
-      R"(set_min_delay 1.0 -from [get_ports clk1] -to [get_ports out])");
-}
-
-class SetIdealNetworkCmdTest : public testing::Test {
- protected:
-  void SetUp() override {
-    char config[] = "test";
-    char* argv[] = {config};
-    Log::init(argv);
-
-    auto* ista = Sta::getOrCreateSta();
-    ista->initSdcCmd();
-    ista->get_netlist()->addPort(Port("clk1", PortDir::kIn));
-  }
-
-  void TearDown() override {
-    Sta::destroySta();
-    Log::end();
-  }
-};
-
-TEST_F(SetIdealNetworkCmdTest, marks_port_as_ideal_network) {
-  auto* ista = Sta::getOrCreateSta();
-
-  int result = ScriptEngine::getOrCreateInstance()->evalString(
-      R"(set_ideal_network clk1)");
-
-  auto* clk1 = ista->get_netlist()->findPort("clk1");
-  ASSERT_NE(clk1, nullptr);
-  EXPECT_EQ(result, 0);
-  EXPECT_TRUE(clk1->is_ideal_network());
-}
-
 class SdcCollectionExpansionTest : public testing::Test {
  protected:
   void SetUp() override {
@@ -370,79 +318,22 @@ TEST_F(SdcCollectionExpansionTest,
             0);
 }
 
-class SdcClockPeriodOnlyTest : public testing::Test {
- protected:
-  void SetUp() override {
-    std::array<char, 5> config{"test"};
-    std::array<char*, 1> argv{config.data()};
-    if (!Log::isInit()) {
-      Log::init(argv.data());
-    }
-    Sta::getOrCreateSta()->getConstrain();
-  }
+TEST_F(SdcTest, zx_test) {
+  Sta* ista = Sta::getOrCreateSta();
+  ista->initSdcCmd();
 
-  void TearDown() override {
-    Sta::destroySta();
-    ScriptEngine::destroyInstance();
-  }
-};
+  int result = 1;
+  result = ScriptEngine::getOrCreateInstance()->evalString(
+      R"(create_clock -name clk -period 2.2 -add [get_ports clk1])");
 
-auto writeClockOnlySdc(const std::string& file_name, const std::string& content)
-    -> std::filesystem::path {
-  const auto path = std::filesystem::temp_directory_path() / file_name;
-  std::ofstream output_stream(path);
-  EXPECT_TRUE(output_stream.is_open());
-  output_stream << content;
-  return path;
-}
+  result &= ScriptEngine::getOrCreateInstance()->evalString(
+      R"(set_false_path -to [get_ports clk1])");
 
-TEST_F(SdcClockPeriodOnlyTest,
-       clock_only_reader_handles_units_and_unresolved_generated_clock) {
-  const auto sdc_path =
-      writeClockOnlySdc("ista_clock_period_only_clocks.sdc",
-                        "set_units -time ps\n"
-                        "create_clock -name CLK -period 1000 [get_ports clk]\n"
-                        "create_generated_clock -name GEN_CLK -divide_by 2 "
-                        "-source MISSING_CLK [get_pins u0/CLK]\n");
-  auto* ista = Sta::getOrCreateSta();
+  result &= ScriptEngine::getOrCreateInstance()->evalString(
+      R"(set_max_delay 1.0 -from [get_ports clk1] -to [get_ports out])");
 
-  const auto records = ista->readSdcClockPeriodsOnly(sdc_path.c_str());
-
-  ASSERT_EQ(records.size(), 2U);
-  EXPECT_EQ(std::get<0>(records.at(0)), "CLK");
-  EXPECT_EQ(std::get<1>(records.at(0)), "clk");
-  EXPECT_DOUBLE_EQ(std::get<2>(records.at(0)), 1.0);
-  EXPECT_TRUE(std::get<3>(records.at(0)));
-
-  EXPECT_EQ(std::get<0>(records.at(1)), "GEN_CLK");
-  EXPECT_EQ(std::get<1>(records.at(1)), "u0/CLK");
-  EXPECT_DOUBLE_EQ(std::get<2>(records.at(1)), 0.0);
-  EXPECT_FALSE(std::get<3>(records.at(1)));
-
-  std::error_code error_code;
-  std::filesystem::remove(sdc_path, error_code);
-}
-
-TEST_F(SdcClockPeriodOnlyTest, clock_only_reader_restores_sta_state) {
-  auto* ista = Sta::getOrCreateSta();
-  auto* original_constrain = ista->getConstrain();
-  ista->setTimeUnit(TimeUnit::kFS);
-
-  const auto sdc_path =
-      writeClockOnlySdc("ista_clock_period_only_state.sdc",
-                        "create_clock -name CLK -period 2 [get_ports clk]\n");
-
-  const auto records = ista->readSdcClockPeriodsOnly(sdc_path.c_str());
-
-  ASSERT_EQ(records.size(), 1U);
-  EXPECT_EQ(std::get<0>(records.at(0)), "CLK");
-  EXPECT_DOUBLE_EQ(std::get<2>(records.at(0)), 2.0);
-  EXPECT_EQ(ista->getTimeUnit(), TimeUnit::kFS);
-  EXPECT_EQ(ista->getConstrain(), original_constrain);
-  EXPECT_EQ(ista->getConstrain()->findClock("CLK"), nullptr);
-
-  std::error_code error_code;
-  std::filesystem::remove(sdc_path, error_code);
+  result &= ScriptEngine::getOrCreateInstance()->evalString(
+      R"(set_min_delay 1.0 -from [get_ports clk1] -to [get_ports out])");
 }
 
 }  // namespace

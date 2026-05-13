@@ -14,25 +14,16 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "RTInterface.hpp"
-#include "tcl_rt.h"
-#include "tcl_util.h"
+#pragma once
 
-namespace tcl {
+namespace imp {
 
-TclRTGetCongestion::TclRTGetCongestion(const char* cmd_name) : TclCmd(cmd_name)
+enum class LogLevel
 {
-}
+  kNone = 0,
+  kInfo = 1,
+  kWarning = 2,
+  kError = 3
+};
 
-unsigned TclRTGetCongestion::exec()
-{
-  if (!check()) {
-    return 0;
-  }
-
-  RTI.getCongestion();
-
-  return 1;
-}
-
-}  // namespace tcl
+}  // namespace imp

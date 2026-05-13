@@ -111,7 +111,6 @@ class IdbInstance : public IdbObject
   void set_name(string name) { _name = name; }
   // void set_cell_master_name(string name){_master_name = name;}
   void set_cell_master(IdbCellMaster* cell_master);
-  void swap_cell_master(IdbCellMaster* cell_master);
   void set_pin_list();
   IdbPin* addPin(string name);
   void set_type(string type);
