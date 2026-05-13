@@ -756,7 +756,7 @@ class LibLeakagePower : public LibObject
  private:
   std::string _related_pg_port;  //!< The related pg pin of the leakage power.
   std::string _when;             //!< The when of the leakage power.
-  double _value;                 //!< The value of the leakage power.
+  double _value = 0.0;           //!< The value of the leakage power.
   LibCell* _owner_cell;          //!< The cell owner the port.
 
   FORBIDDEN_COPY(LibLeakagePower);
@@ -1140,12 +1140,13 @@ class LibCell : public LibObject
   void set_is_macro() { _is_macro_cell = 1; }
   [[nodiscard]] unsigned isMacroCell() const { return _is_macro_cell; }
 
+  double convertInternalPowerTableToMwNs(double query_table_power);
   double convertTablePowerToMw(double query_table_power);
 
  private:
   std::string _cell_name;                                             //!< The liberty cell name.
   double _cell_area;                                                  //!< The liberty cell area.
-  double _cell_leakage_power;                                         //!< The cell leakage power of the cell.
+  double _cell_leakage_power = 0.0;                                   //!< The cell leakage power of the cell.
   std::string _clock_gating_integrated_cell;                          //!< The clock gate cell.
   bool _is_clock_gating_integrated_cell = false;                      //!< The flag of the clock gate cell.
   std::vector<std::unique_ptr<LibLeakagePower>> _leakage_power_list;  //!< All leakage powers of the cell.
@@ -1374,6 +1375,7 @@ class LibLibrary : public LibObject
         _simulation(other._simulation),
         _library_features(std::move(other._library_features)),
         _leakage_power_unit(std::move(other._leakage_power_unit)),
+        _power_unit_mw_scale(other._power_unit_mw_scale),
         _current_unit_name(std::move(other._current_unit_name)),
         _voltage_unit_name(std::move(other._voltage_unit_name)),
         _nom_process(other._nom_process),
@@ -1389,6 +1391,7 @@ class LibLibrary : public LibObject
     _simulation = rhs._simulation;
     _library_features = std::move(rhs._library_features);
     _leakage_power_unit = std::move(rhs._leakage_power_unit);
+    _power_unit_mw_scale = rhs._power_unit_mw_scale;
     _current_unit_name = std::move(rhs._current_unit_name);
     _voltage_unit_name = std::move(rhs._voltage_unit_name);
     _nom_process = rhs._nom_process;
@@ -1524,6 +1527,16 @@ class LibLibrary : public LibObject
     return 0.0;
   }
 
+  void set_power_unit_mw_scale(double power_unit_mw_scale)
+  {
+    _power_unit_mw_scale = power_unit_mw_scale;
+  }
+  double get_power_unit_mw_scale() const { return _power_unit_mw_scale; }
+  double convert_power_unit_to_mw(double src_value) const
+  {
+    return src_value * _power_unit_mw_scale;
+  }
+
   std::vector<std::unique_ptr<LibCell>>& get_cells() { return _cells; }
   auto& get_lut_templates() { return _lut_templates; }
   auto& get_types() { return _types; }
@@ -1637,6 +1650,7 @@ class LibLibrary : public LibObject
   CapacitiveUnit _cap_unit = CapacitiveUnit::kFF;
   ResistanceUnit _resistance_unit = ResistanceUnit::kkOHM;
   TimeUnit _time_unit = TimeUnit::kNS;
+  double _power_unit_mw_scale = 1.0;
 
   std::optional<double> _default_max_transition;
   std::optional<double> _default_max_fanout;

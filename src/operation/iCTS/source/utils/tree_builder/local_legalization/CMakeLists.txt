@@ -1,5 +1,0 @@
-add_library(icts_local_legalization INTERFACE)
-
-target_link_libraries(icts_local_legalization INTERFACE icts_utils_algorithm_core)
-
-target_include_directories(icts_local_legalization INTERFACE ${ICTS_UTILS}/tree_builder/local_legalization)

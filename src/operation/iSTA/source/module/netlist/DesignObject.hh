@@ -120,8 +120,16 @@ class DesignObject {
   virtual void set_coordinate(double /*x*/, double /*y*/) { LOG_FATAL << "The func is not defined."; }
   virtual std::optional<Coordinate> get_coordinate() { return std::nullopt; }
 
+  // set_ideal_network support.
+  // Note: this flag currently records the SDC object tagging only.
+  // The existing clock ideal/propagated behavior in STA is still driven by
+  // StaClock::ClockType via create_clock / set_propagated_clock.
+  void set_ideal_network(bool is_ideal = true) { _is_ideal_network = is_ideal; }
+  bool is_ideal_network() const { return _is_ideal_network; }
+
  private:
   std::string _name;
+  bool _is_ideal_network = false;
 };
 
 }  // namespace ista

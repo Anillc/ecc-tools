@@ -108,7 +108,8 @@ double PwrCalcInternalPower::calcCombInputPinPower(Instance* inst,
 
     double rise_power = internal_power->gatePower(
         TransType::kRise, rise_slew.value_or(0.0), std ::nullopt);
-    double rise_power_mw = lib_cell->convertTablePowerToMw(rise_power);
+    double rise_energy_mw_ns =
+        lib_cell->convertInternalPowerTableToMwNs(rise_power);
     // fall power
     auto fall_slew = (*the_input_sta_vertex)
                          ->getSlewNs(AnalysisMode::kMax, TransType::kFall);
@@ -116,7 +117,8 @@ double PwrCalcInternalPower::calcCombInputPinPower(Instance* inst,
         << (*the_input_sta_vertex)->getName() << " fall slew is not exist.";
     double fall_power = internal_power->gatePower(
         TransType::kFall, fall_slew.value_or(0.0), std ::nullopt);
-    double fall_power_mw = lib_cell->convertTablePowerToMw(fall_power);
+    double fall_energy_mw_ns =
+        lib_cell->convertInternalPowerTableToMwNs(fall_power);
 
     // When the input causes the output to be flipped, the toggle needs to
     // be calculated based on the percentage of the input toggle.
@@ -128,20 +130,20 @@ double PwrCalcInternalPower::calcCombInputPinPower(Instance* inst,
     double output_no_flip_toggle = input_pin_toggle - output_flip_toggle;
 
     // the internal power of this condition.
-    double average_power_mw = CalcAveragePower(rise_power_mw, fall_power_mw);
-    double the_internal_power = output_no_flip_toggle * average_power_mw;
+    double average_energy_mw_ns =
+        CalcAveragePower(rise_energy_mw_ns, fall_energy_mw_ns);
+    double the_internal_power = output_no_flip_toggle * average_energy_mw_ns;
 
     if (is_debug) {
       
       out_debug
           << "input pin " << input_pin->getFullName() << " toggle "
-          << output_no_flip_toggle << " average power(mW) " << average_power_mw
-          << " rise slew " << rise_slew.value_or(0.0)
-          << " rise power(mW) "
-          << cell_port->get_ower_cell()->convertTablePowerToMw(rise_power_mw)
+          << output_no_flip_toggle << " average energy(mW*ns) "
+          << average_energy_mw_ns << " rise slew " << rise_slew.value_or(0.0)
+          << " rise energy(mW*ns) "
+          << rise_energy_mw_ns
           << " fall slew " << fall_slew.value_or(0.0)
-          << " fall_power(mW) "
-          << cell_port->get_ower_cell()->convertTablePowerToMw(fall_power_mw) << "\n";
+          << " fall energy(mW*ns) " << fall_energy_mw_ns << "\n";
       
     }
 
@@ -231,11 +233,11 @@ double PwrCalcInternalPower::calcOutputPinPower(Instance* inst,
       double internal_power_value = internal_power_info->gatePower(
           trans_type, input_slew_ns.value_or(0.0), output_load);
 
-      double internal_power_value_mw =
-          power_arc->get_owner_cell()->convertTablePowerToMw(
+      double internal_power_value_mw_ns =
+          power_arc->get_owner_cell()->convertInternalPowerTableToMwNs(
               internal_power_value);
 
-      return {internal_power_value_mw, input_slew_ns ? *input_slew_ns : 0.0,
+      return {internal_power_value_mw_ns, input_slew_ns ? *input_slew_ns : 0.0,
               output_load};
     };
 
@@ -252,22 +254,24 @@ double PwrCalcInternalPower::calcOutputPinPower(Instance* inst,
 
     LibPowerArc* power_arc;
     FOREACH_POWER_LIB_ARC(power_arc_set, power_arc) {
-      auto [rise_power_mw, rise_input_slew_ns, rise_output_load] =
+      auto [rise_energy_mw_ns, rise_input_slew_ns, rise_output_load] =
           query_power(power_arc, TransType::kRise);
-      auto [fall_power_mw, fall_input_slew_ns, fall_output_load] =
+      auto [fall_energy_mw_ns, fall_input_slew_ns, fall_output_load] =
           query_power(power_arc, TransType::kFall);
-      // the internal power of this power arc.
-      double table_average_power_mw =
-          CalcAveragePower(rise_power_mw, fall_power_mw);
+      // The LUT stores per-transition energy. Toggle is transitions/ns, so the
+      // product below is averaged power in mW.
+      double table_average_energy_mw_ns =
+          CalcAveragePower(rise_energy_mw_ns, fall_energy_mw_ns);
 
       double output_toggle = getToggleData(output_pin);
-      double the_arc_power = output_toggle * table_average_power_mw;
+      double the_arc_power = output_toggle * table_average_energy_mw_ns;
 
       VERBOSE_LOG(1) << "output pin " << output_pin->getFullName()
                      << " arc power(mW) " << the_arc_power << " toggle "
-                     << output_toggle << " table average power(mW) "
-                     << table_average_power_mw << " rise power(mW) "
-                     << rise_power_mw << " fall_power(mW) " << fall_power_mw;
+                     << output_toggle << " table average energy(mW*ns) "
+                     << table_average_energy_mw_ns << " rise energy(mW*ns) "
+                     << rise_energy_mw_ns << " fall energy(mW*ns) "
+                     << fall_energy_mw_ns;
 
       auto* internal_power_info = power_arc->get_internal_power_info().get();
       auto& when = internal_power_info->get_when();
@@ -286,11 +290,11 @@ double PwrCalcInternalPower::calcOutputPinPower(Instance* inst,
       if (is_debug) {
         std::ofstream out_debug("internal_out.txt");
         out_debug << "inst: " << inst->get_name();
-        out_debug << "\nrise power :" << rise_power_mw;
+        out_debug << "\nrise energy :" << rise_energy_mw_ns;
         out_debug << "\nrise input slew :" << rise_input_slew_ns;
         out_debug << "\nrise output load :" << rise_output_load;
 
-        out_debug << "\nfall power :" << fall_power_mw;
+        out_debug << "\nfall energy :" << fall_energy_mw_ns;
         out_debug << "\nfall input slew :" << fall_input_slew_ns;
         out_debug << "\nfall output load :" << fall_output_load;
 
@@ -341,7 +345,8 @@ double PwrCalcInternalPower::calcClockPinPower(Instance* inst, Pin* clock_pin,
 
     double rise_power = internal_power->gatePower(
         TransType::kRise, rise_slew.value_or(0.0), std ::nullopt);
-    double rise_power_mw = lib_cell->convertTablePowerToMw(rise_power);
+    double rise_energy_mw_ns =
+        lib_cell->convertInternalPowerTableToMwNs(rise_power);
     // fall power
     auto fall_slew = (*the_clock_sta_vertex)
                          ->getSlewNs(AnalysisMode::kMax, TransType::kFall);
@@ -353,29 +358,32 @@ double PwrCalcInternalPower::calcClockPinPower(Instance* inst, Pin* clock_pin,
 
     double fall_power = internal_power->gatePower(
         TransType::kFall, fall_slew.value_or(0.0), std ::nullopt);
-    double fall_power_mw = lib_cell->convertTablePowerToMw(fall_power);
+    double fall_energy_mw_ns =
+        lib_cell->convertInternalPowerTableToMwNs(fall_power);
 
-    double average_power_mw = CalcAveragePower(rise_power_mw, fall_power_mw);
+    double average_energy_mw_ns =
+        CalcAveragePower(rise_energy_mw_ns, fall_energy_mw_ns);
 
     double clock_pin_toggle = getToggleData(clock_pin);
 
     // the internal power of this condition.
     double output_flip_power =
         HalfToggle(clock_pin_toggle) *
-        ((*the_clock_sta_vertex)->isRisingTriggered() ? rise_power_mw
-                                                      : fall_power_mw);
+        ((*the_clock_sta_vertex)->isRisingTriggered() ? rise_energy_mw_ns
+                                                      : fall_energy_mw_ns);
 
     double output_no_flip_power =
-        (clock_pin_toggle - output_pin_toggle) * average_power_mw +
+        (clock_pin_toggle - output_pin_toggle) * average_energy_mw_ns +
         HalfToggle(clock_pin_toggle) *
-            ((*the_clock_sta_vertex)->isRisingTriggered() ? rise_power_mw
-                                                          : fall_power_mw);
+            ((*the_clock_sta_vertex)->isRisingTriggered() ? rise_energy_mw_ns
+                                                          : fall_energy_mw_ns);
 
     VERBOSE_LOG(1) << "clock pin " << clock_pin->getFullName()
                    << " output flip power(mW) " << output_flip_power
                    << " output no flip power(mW) " << output_no_flip_power
-                   << " toggle " << clock_pin_toggle << " rise power(mW) "
-                   << rise_power << " fall_power(mW) " << fall_power;
+                   << " toggle " << clock_pin_toggle << " rise energy(mW*ns) "
+                   << rise_energy_mw_ns << " fall energy(mW*ns) "
+                   << fall_energy_mw_ns;
 
     auto& when = internal_power->get_when();
     if (!when.empty()) {
@@ -421,13 +429,13 @@ double PwrCalcInternalPower::calcSeqInputPinPower(Instance* inst,
     auto rise_slew = (*the_input_sta_vertex)
                          ->getSlewNs(AnalysisMode::kMax, TransType::kRise);
 
-    double rise_power_mw = 0.0;
+    double rise_energy_mw_ns = 0.0;
     LOG_ERROR_IF(!rise_slew)
         << (*the_input_sta_vertex)->getName() << " rise slew is not exist.";
     if (rise_slew) {
       double rise_power = internal_power->gatePower(
           TransType::kRise, rise_slew.value_or(0.0), std ::nullopt);
-      rise_power_mw = lib_cell->convertTablePowerToMw(rise_power);
+      rise_energy_mw_ns = lib_cell->convertInternalPowerTableToMwNs(rise_power);
     }
 
     // fall power
@@ -435,24 +443,27 @@ double PwrCalcInternalPower::calcSeqInputPinPower(Instance* inst,
                          ->getSlewNs(AnalysisMode::kMax, TransType::kFall);
     LOG_ERROR_IF(!fall_slew)
         << (*the_input_sta_vertex)->getName() << " fall slew is not exist.";
-    double fall_power_mw = rise_power_mw;
+    double fall_energy_mw_ns = rise_energy_mw_ns;
     if (fall_slew) {
       double fall_power = internal_power->gatePower(
           TransType::kFall, fall_slew.value_or(0.0), std ::nullopt);
-      fall_power_mw = lib_cell->convertTablePowerToMw(fall_power);
+      fall_energy_mw_ns =
+          lib_cell->convertInternalPowerTableToMwNs(fall_power);
     }
 
-    double average_power_mw = CalcAveragePower(rise_power_mw, fall_power_mw);
+    double average_energy_mw_ns =
+        CalcAveragePower(rise_energy_mw_ns, fall_energy_mw_ns);
 
     double input_pin_toggle = getToggleData(input_pin);
 
     // the internal power of this condition.
-    double the_internal_power = input_pin_toggle * average_power_mw;
+    double the_internal_power = input_pin_toggle * average_energy_mw_ns;
 
     VERBOSE_LOG(1) << "input pin " << input_pin->getFullName() << " toggle "
-                   << input_pin_toggle << " average power(mW) "
-                   << average_power_mw << " rise power(mW) " << rise_power_mw
-                   << " fall_power(mW) " << fall_power_mw;
+                   << input_pin_toggle << " average energy(mW*ns) "
+                   << average_energy_mw_ns << " rise energy(mW*ns) "
+                   << rise_energy_mw_ns << " fall energy(mW*ns) "
+                   << fall_energy_mw_ns;
 
     auto& when = internal_power->get_when();
     if (!when.empty()) {

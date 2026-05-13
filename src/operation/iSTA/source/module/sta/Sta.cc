@@ -26,7 +26,6 @@
 
 #include <algorithm>
 #include <filesystem>
-#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -69,6 +68,10 @@
 #include "time/Time.hh"
 #include "usage/usage.hh"
 
+#if CUDA_PROPAGATION
+#include "propagation-cuda/lib_arc.cuh"
+#endif
+
 namespace ista {
 
 static bool IsFileExists(const char *name) {
@@ -81,6 +84,244 @@ static bool IsFileExists(const char *name) {
   return is_exit;
 }
 
+namespace {
+
+const char* kClockPeriodOnlyPrelude = R"(
+set __ista_clock_unit_ns 1.0
+set __ista_clock_period_records {}
+array unset __ista_clock_period_by_name
+array unset __ista_clock_source_by_name
+
+proc __ista_clock_unit_to_ns {unit} {
+  set normalized [string tolower $unit]
+  switch -- $normalized {
+    fs {return 0.000001}
+    ps {return 0.001}
+    ns {return 1.0}
+    us {return 1000.0}
+    ms {return 1000000.0}
+    s {return 1000000000.0}
+    default {
+      if {[regexp {^([0-9.]+)(fs|ps|ns|us|ms|s)$} $normalized -> scale suffix]} {
+        return [expr {double($scale) * [__ista_clock_unit_to_ns $suffix]}]
+      }
+      return 1.0
+    }
+  }
+}
+
+proc set_units {args} {
+  global __ista_clock_unit_ns
+  for {set i 0} {$i < [llength $args]} {incr i} {
+    if {[lindex $args $i] eq "-time" && $i + 1 < [llength $args]} {
+      incr i
+      set __ista_clock_unit_ns [__ista_clock_unit_to_ns [lindex $args $i]]
+    }
+  }
+  return ""
+}
+
+proc get_ports {args} {return [join $args " "]}
+proc get_pins {args} {return [join $args " "]}
+
+proc get_clocks {args} {
+  global __ista_clock_period_by_name
+  set result {}
+  if {[llength $args] == 0} {
+    return [array names __ista_clock_period_by_name]
+  }
+  foreach pattern $args {
+    foreach clock_name [array names __ista_clock_period_by_name] {
+      if {[string match $pattern $clock_name]} {
+        lappend result $clock_name
+      }
+    }
+  }
+  return $result
+}
+
+proc all_clocks {} {
+  global __ista_clock_period_by_name
+  return [array names __ista_clock_period_by_name]
+}
+
+proc create_clock {args} {
+  global __ista_clock_unit_ns __ista_clock_period_records __ista_clock_period_by_name __ista_clock_source_by_name
+  set clock_name ""
+  set period ""
+  set source_expression ""
+  for {set i 0} {$i < [llength $args]} {incr i} {
+    set token [lindex $args $i]
+    switch -- $token {
+      -name {
+        incr i
+        set clock_name [lindex $args $i]
+      }
+      -period {
+        incr i
+        set period [lindex $args $i]
+      }
+      -waveform {
+        incr i
+      }
+      -add {}
+      default {
+        set source_expression $token
+      }
+    }
+  }
+  if {$clock_name eq ""} {
+    set clock_name $source_expression
+  }
+  if {$clock_name eq "" || $period eq ""} {
+    error "clock-only create_clock requires a clock name/source and period"
+  }
+  set period_ns [expr {double($period) * $__ista_clock_unit_ns}]
+  lappend __ista_clock_period_records [list $clock_name $source_expression $period_ns 1]
+  set __ista_clock_period_by_name($clock_name) $period_ns
+  set __ista_clock_source_by_name($clock_name) $source_expression
+  return $clock_name
+}
+
+proc __ista_find_clock_period {clock_or_source resolved_var} {
+  global __ista_clock_period_by_name __ista_clock_source_by_name
+  upvar 1 $resolved_var resolved
+  set resolved 0
+  if {$clock_or_source ne "" && [info exists __ista_clock_period_by_name($clock_or_source)]} {
+    set resolved 1
+    return $__ista_clock_period_by_name($clock_or_source)
+  }
+  foreach clock_name [array names __ista_clock_source_by_name] {
+    if {$__ista_clock_source_by_name($clock_name) eq $clock_or_source} {
+      set resolved 1
+      return $__ista_clock_period_by_name($clock_name)
+    }
+  }
+  return 0.0
+}
+
+proc create_generated_clock {args} {
+  global __ista_clock_period_records __ista_clock_period_by_name __ista_clock_source_by_name
+  set clock_name ""
+  set source_name ""
+  set master_clock_name ""
+  set source_expression ""
+  set divide_by 0
+  set multiply_by 0
+  for {set i 0} {$i < [llength $args]} {incr i} {
+    set token [lindex $args $i]
+    switch -- $token {
+      -name {
+        incr i
+        set clock_name [lindex $args $i]
+      }
+      -source {
+        incr i
+        set source_name [lindex $args $i]
+      }
+      -master_clock {
+        incr i
+        set master_clock_name [lindex $args $i]
+      }
+      -divide_by {
+        incr i
+        set divide_by [lindex $args $i]
+      }
+      -multiply_by {
+        incr i
+        set multiply_by [lindex $args $i]
+      }
+      -edges -
+      -edge_shift {
+        incr i
+      }
+      -invert {}
+      default {
+        set source_expression $token
+      }
+    }
+  }
+  if {$clock_name eq ""} {
+    error "clock-only create_generated_clock requires -name"
+  }
+  if {$source_expression eq ""} {
+    set source_expression $source_name
+  }
+  set lookup_name $master_clock_name
+  if {$lookup_name eq ""} {
+    set lookup_name $source_name
+  }
+  set period_ns [__ista_find_clock_period $lookup_name resolved]
+  if {$resolved} {
+    if {$divide_by > 0} {
+      set period_ns [expr {$period_ns * $divide_by}]
+    }
+    if {$multiply_by > 0} {
+      set period_ns [expr {$period_ns / $multiply_by}]
+    }
+    set __ista_clock_period_by_name($clock_name) $period_ns
+    set __ista_clock_source_by_name($clock_name) $source_expression
+  }
+  lappend __ista_clock_period_records [list $clock_name $source_expression $period_ns $resolved]
+  return $clock_name
+}
+
+foreach ignored_cmd {
+  set_input_transition set_clock_transition set_driving_cell set_load
+  set_ideal_network set_input_delay set_output_delay set_max_fanout
+  set_max_transition set_max_capacitance current_design get_cells get_libs
+  all_inputs all_outputs set_propagated_clock set_clock_groups
+  set_multicycle_path set_false_path set_max_delay set_min_delay
+  set_timing_derate set_clock_uncertainty group_path set_operating_conditions
+  set_wire_load_mode set_disable_timing set_case_analysis
+} {
+  proc $ignored_cmd args {return ""}
+}
+)";
+
+auto getTclString(Tcl_Obj* object) -> std::string
+{
+  const auto* raw_value = Tcl_GetString(object);
+  return raw_value == nullptr ? std::string{} : std::string(raw_value);
+}
+
+auto parseSdcClockPeriodRecords(Tcl_Interp* interp) -> std::vector<std::tuple<std::string, std::string, double, bool>>
+{
+  std::vector<std::tuple<std::string, std::string, double, bool>> records;
+  auto* records_object = Tcl_GetVar2Ex(interp, "__ista_clock_period_records", nullptr, TCL_GLOBAL_ONLY);
+  if (records_object == nullptr) {
+    return records;
+  }
+
+  int record_count = 0;
+  Tcl_Obj** record_objects = nullptr;
+  if (Tcl_ListObjGetElements(interp, records_object, &record_count, &record_objects) != TCL_OK) {
+    return records;
+  }
+
+  records.reserve(static_cast<std::size_t>(record_count));
+  for (int record_index = 0; record_index < record_count; ++record_index) {
+    int field_count = 0;
+    Tcl_Obj** fields = nullptr;
+    if (Tcl_ListObjGetElements(interp, record_objects[record_index], &field_count, &fields) != TCL_OK || field_count < 4) {
+      continue;
+    }
+
+    double period_ns = 0.0;
+    if (Tcl_GetDoubleFromObj(interp, fields[2], &period_ns) != TCL_OK) {
+      period_ns = 0.0;
+    }
+    int resolved = 0;
+    if (Tcl_GetBooleanFromObj(interp, fields[3], &resolved) != TCL_OK) {
+      resolved = 0;
+    }
+    records.emplace_back(getTclString(fields[0]), getTclString(fields[1]), period_ns, resolved != 0);
+  }
+  return records;
+}
+
+}  // namespace
+
 Sta *Sta::_sta = nullptr;
 
 Sta::Sta()
@@ -89,12 +330,11 @@ Sta::Sta()
       _analysis_mode(AnalysisMode::kMaxMin),
       _graph(&_netlist),
       _clock_groups(sta_clock_cmp) {
-  if (!Log::isInit()) {
-    char config[] = "iSTA";
-    char* argv[] = {config, nullptr};
-    // Sta may be created from pybind without a traditional main() path.
-    Log::init(argv);
-  }
+  char config[] = "iSTA";
+  char *argv[] = {config, nullptr};
+  // We need to initialize the log system here, because Sta() may be called in
+  // pybind, which does not have a main function to initialize the log system.
+  Log::init(argv);
 
   _report_tbl_summary = StaReportPathSummary::createReportTable("sta");
   _report_tbl_TNS = StaReportClockTNS::createReportTable("TNS");
@@ -196,6 +436,31 @@ unsigned Sta::readSdc(const char *sdc_file) {
   LOG_INFO << "read sdc " << sdc_file << " end ";
 
   return 1;
+}
+
+std::vector<std::tuple<std::string, std::string, double, bool>>
+Sta::readSdcClockPeriodsOnly(const char* sdc_file) {
+  LOG_INFO << "read sdc clock periods only " << sdc_file << " start ";
+  if (!IsFileExists(sdc_file)) {
+    return {};
+  }
+
+  auto* interp = Tcl_CreateInterp();
+  if (Tcl_Eval(interp, kClockPeriodOnlyPrelude) != TCL_OK) {
+    LOG_ERROR << "failed to initialize sdc clock period-only parser: " << Tcl_GetStringResult(interp);
+    Tcl_DeleteInterp(interp);
+    return {};
+  }
+
+  const int result = Tcl_EvalFile(interp, sdc_file);
+  if (result != TCL_OK) {
+    LOG_ERROR << "read sdc clock periods only failed for " << sdc_file << ": " << Tcl_GetStringResult(interp);
+  }
+
+  auto clock_period_records = parseSdcClockPeriodRecords(interp);
+  Tcl_DeleteInterp(interp);
+  LOG_INFO << "read sdc clock periods only " << sdc_file << " end ";
+  return clock_period_records;
 }
 
 /**
@@ -329,21 +594,6 @@ unsigned Sta::readLiberty(std::vector<std::string> &lib_files) {
 }
 
 /**
- * @brief read liberty files.
- *
- * @param lib_files
- * @return unsigned
- */
-unsigned Sta::readLiberty(std::vector<const char *> &lib_files) {
-  std::vector<std::string> tmp;
-  for (const auto *lib_file : lib_files) {
-    tmp.emplace_back(lib_file);
-  }
-  unsigned ret = readLiberty(tmp);
-  return ret;
-}
-
-/**
  * @brief Link liberty according the builded cells to construct the lib data, if
  * build cell is empty, link all.
  *
@@ -356,8 +606,8 @@ unsigned Sta::linkLibertys() {
   }
 
   auto link_lib = [this](auto &lib_rust_reader) {
-    // master should load all lib.
-    // lib_rust_reader.set_build_cells(get_link_cells());
+    // master should load all lib cell.
+    lib_rust_reader.set_build_cells(get_link_cells());
     lib_rust_reader.linkLib();
     auto lib = lib_rust_reader.get_library_builder()->takeLib();
 
@@ -783,6 +1033,11 @@ void Sta::linkDesignWithRustParser(const char *top_cell_name) {
 
     left_net_name = Str::replace(left_net_name, R"(\\)", "");
     right_net_name = Str::replace(right_net_name, R"(\\)", "");
+
+    // for debug
+    // if (Str::contain(left_net_name.c_str(), "io_master_araddr[0]")) {
+    //   LOG_INFO << "debug";
+    // }
 
     Net *the_left_net = design_netlist.findNet(left_net_name.c_str());
     if (!the_left_net && remove_to_merge_nets.contains(left_net_name)) {
@@ -1226,9 +1481,11 @@ void Sta::initSdcCmd() {
   registerTclCmd(CmdCreateClock, "create_clock");
   registerTclCmd(CmdCreateGeneratedClock, "create_generated_clock");
   registerTclCmd(CmdSetInputTransition, "set_input_transition");
+  // set_clock_transition share the set_input_transition process.
   registerTclCmd(CmdSetInputTransition, "set_clock_transition");
   registerTclCmd(CmdSetDrivingCell, "set_driving_cell");
   registerTclCmd(CmdSetLoad, "set_load");
+  registerTclCmd(CmdSetIdealNetwork, "set_ideal_network");
   registerTclCmd(CmdSetInputDelay, "set_input_delay");
   registerTclCmd(CmdSetOutputDelay, "set_output_delay");
   registerTclCmd(CmdSetMaxFanout, "set_max_fanout");
@@ -1648,10 +1905,12 @@ unsigned Sta::buildLibArcsGPU() {
     lib_gpu_arc._cap_unit =
         ((lib_cap_unit == CapacitiveUnit::kFF) ? Lib_Cap_unit::kFF
                                                : Lib_Cap_unit::kPF);
-    auto lib_time_unit = the_lib_arc->get_owner_cell()->get_owner_lib()->get_time_unit();
+    auto lib_time_unit =
+        the_lib_arc->get_owner_cell()->get_owner_lib()->get_time_unit();
     lib_gpu_arc._time_unit =
-        ((lib_time_unit == TimeUnit::kNS) ? Lib_Time_unit::kNS :
-                                          (lib_time_unit == TimeUnit::kPS) ? Lib_Time_unit::kPS : Lib_Time_unit::kFS);
+        ((lib_time_unit == TimeUnit::kNS)   ? Lib_Time_unit::kNS
+         : (lib_time_unit == TimeUnit::kPS) ? Lib_Time_unit::kPS
+                                            : Lib_Time_unit::kFS);
 
     lib_gpu_arc._table = new Lib_Table_GPU[lib_gpu_arc._num_table];
 
@@ -1666,7 +1925,7 @@ unsigned Sta::buildLibArcsGPU() {
       }
 
       if (table->getAxesSize() == 0) {
-        // Scalar tables do not have GPU LUT axes to export.
+        // (TODO totaosimin), need to process no axes table.
         lib_gpu_arc._table[index] = gpu_table;
         continue;
       }
@@ -1809,8 +2068,8 @@ void Sta::setReportSpec(std::vector<std::string> &&prop_froms,
  * @param rpt_file_name The report text file name.
  * @return unsigned 1 if success, 0 else fail.
  */
-unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
-                         bool only_wire_path /*=false*/) {
+unsigned Sta::reportPath(const char *rpt_file_name, bool is_derate,
+                         bool only_wire_path) {
   auto report_path =
       [this](StaReportPathSummary &report_path_func) -> unsigned {
     unsigned is_ok = 1;
@@ -1937,7 +2196,7 @@ unsigned Sta::reportPath(const char* rpt_file_name, bool is_derate /*=true*/,
 
     std::ofstream out_file(report_path);
     if (out_file.is_open()) {
-      out_file << dump_json.dump(4);
+      out_file << dump_json.dump(4);  // 4 spaces indent
       LOG_INFO << "JSON report written to: " << report_path;
       out_file.close();
     } else {
@@ -2480,10 +2739,9 @@ std::multimap<std::string, std::string> Sta::getSkewRelatedSink(
  * @param trans_type
  * @return StaSeqPathData*
  */
-std::vector<StaSeqPathData*> Sta::getWorstSeqData(std::optional<StaVertex*> vertex,
-                                                  AnalysisMode mode,
-                                                  TransType trans_type,
-                                                  unsigned top_n_path) {
+std::vector<StaSeqPathData *> Sta::getWorstSeqData(
+    std::optional<StaVertex *> vertex, AnalysisMode mode, TransType trans_type,
+    unsigned top_n_path) {
   auto cmp = [](StaPathData *left, StaPathData *right) -> bool {
     int left_slack = left->getSlack();
     int right_slack = right->getSlack();
@@ -2505,19 +2763,21 @@ std::vector<StaSeqPathData*> Sta::getWorstSeqData(std::optional<StaVertex*> vert
     }
   }
 
-  std::vector<StaSeqPathData*> seq_path_datas;
+  std::vector<StaSeqPathData *> seq_path_datas;
+  unsigned i = 0;
   while (!seq_data_queue.empty()) {
-    auto* seq_path_data =
-        dynamic_cast<StaSeqPathData*>(seq_data_queue.top());
-    seq_data_queue.pop();
+    auto *seq_path_data = dynamic_cast<StaSeqPathData *>(seq_data_queue.top());
 
     if ((seq_path_data->get_delay_data()->get_trans_type() == trans_type) ||
         (trans_type == TransType::kRiseFall)) {
       seq_path_datas.push_back(seq_path_data);
-      if (seq_path_datas.size() >= top_n_path) {
+      ++i;
+
+      if (i >= top_n_path) {
         break;
       }
     }
+    seq_data_queue.pop();
   }
 
   return seq_path_datas;
@@ -2530,14 +2790,22 @@ std::vector<StaSeqPathData*> Sta::getWorstSeqData(std::optional<StaVertex*> vert
  * @param trans_type
  * @return StaSeqPathData*
  */
-StaSeqPathData* Sta::getWorstSeqData(AnalysisMode mode, TransType trans_type) {
-  auto seq_path_datas = getWorstSeqData(std::nullopt, mode, trans_type, 1);
-  return seq_path_datas.empty() ? nullptr : seq_path_datas.front();
+StaSeqPathData *Sta::getWorstSeqData(AnalysisMode mode, TransType trans_type) {
+  auto worst_seq_datas = getWorstSeqData(std::nullopt, mode, trans_type);
+  return worst_seq_datas.empty() ? nullptr : worst_seq_datas[0];
 }
 
-std::vector<StaSeqPathData*> Sta::getTopNWorstSeqPaths(AnalysisMode mode,
-                                                       unsigned top_n_path) {
-  return getWorstSeqData(std::nullopt, mode, TransType::kRiseFall, top_n_path);
+/**
+ * @brief Get the top n worst slack path.
+ *
+ * @param mode
+ * @return StaSeqPathData*
+ */
+std::vector<StaSeqPathData *> Sta::getTopNWorstSeqPaths(AnalysisMode mode,
+                                                        unsigned top_n_path) {
+  auto worst_seq_datas =
+      getWorstSeqData(std::nullopt, mode, TransType::kRiseFall, top_n_path);
+  return worst_seq_datas;
 }
 
 /**
@@ -2808,11 +3076,9 @@ Sta::getWorstSlackBetweenTwoSinks(AnalysisMode mode) {
  */
 int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
                        TransType trans_type) {
-  auto seq_path_datas = getWorstSeqData(end_vertex, mode, trans_type, 1);
-  auto* the_worst_seq_path_data =
-      seq_path_datas.empty() ? nullptr : seq_path_datas.front();
-  LOG_FATAL_IF(!the_worst_seq_path_data);
-  return the_worst_seq_path_data->getSlack();
+  auto the_worst_seq_path_data = getWorstSeqData(end_vertex, mode, trans_type);
+  LOG_FATAL_IF(the_worst_seq_path_data.empty()) << "no seq data found.";
+  return the_worst_seq_path_data.front()->getSlack();
 }
 
 /**
@@ -2825,17 +3091,9 @@ int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
  * @param netlist
  */
 void Sta::writeVerilog(const char *verilog_file_name,
-                       std::set<std::string> &exclude_cell_names,
-                       bool is_hier_module) {
+                       std::set<std::string> &exclude_cell_names) {
   NetlistWriter writer(verilog_file_name, exclude_cell_names, &_netlist);
   writer.writeModule();
-  // Only suitable for two hierarichal-modules situation.
-  if (is_hier_module) {
-    for (auto &hier_netlist : _netlist.get_hier_sub_netlists()) {
-      writer.set_netlist(hier_netlist);
-      writer.writeModule();
-    }
-  }
 }
 
 /**
@@ -2888,6 +3146,7 @@ unsigned Sta::resetGPUData() {
   _index_to_at.clear();
 
   return 1;
+
 }
 #endif
 
@@ -3057,7 +3316,7 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
                            bool is_derate /*=false*/,
                            bool is_clock_cap /*=false*/,
                            bool is_copy /*=true*/) {
-   const char *design_work_space = get_design_work_space();
+  const char *design_work_space = get_design_work_space();
   std::string now_time = Time::getNowWallTime();
   std::string tmp = Str::replace(now_time, ":", "_");
   std::string copy_design_work_space =
@@ -3151,13 +3410,46 @@ unsigned Sta::reportTiming(std::set<std::string> &&exclude_cell_names /*= {}*/,
     reportNet();
   }
 
-  writeVerilog(verilog_file_name.c_str(), exclude_cell_names, false);
+  writeVerilog(verilog_file_name.c_str(), exclude_cell_names);
 
   reportUsedLibs();
+
+  // for test dump timing data in memory.
+  // reportTimingData(10);
+
+  // for test dump json data.
+  // reportWirePaths();
+
+  // for test dump graph json data.
+  if (0) {
+    json graph_json;
+    StaDumpGraphJson dump_graph_json(graph_json);
+    auto &the_graph = get_graph();
+    dump_graph_json(&the_graph);
+
+    std::string graph_json_file_name = Str::printf(
+        "%s/%s_graph.json", design_work_space, get_design_name().c_str());
+
+    std::ofstream out_file(graph_json_file_name);
+    if (out_file.is_open()) {
+      out_file << graph_json.dump(4);  // 4 spaces indent
+      LOG_INFO << "JSON report written to: " << graph_json_file_name;
+      out_file.close();
+    } else {
+      LOG_ERROR << "Failed to open JSON report file: " << graph_json_file_name;
+    }
+  }
+
+#if CUDA_PROPAGATION
+  // printFlattenData();
+#endif
 
   // dumpGraphData("/home/taosimin/ysyx_test25/2025-04-05/graph.yaml");
 
   LOG_INFO << "The timing engine run success.";
+
+  // restart the timer.
+  Time::start();
 
   return 1;
 }
@@ -3201,10 +3493,8 @@ std::vector<StaPathWireTimingData> Sta::reportTimingData(
 unsigned Sta::reportUsedLibs() {
   auto used_libs = getUsedLibs();
   for (auto *used_lib : used_libs) {
-    const char *lib_name = used_lib->get_file_name();
-    if (lib_name) {
-      LOG_INFO << "used lib: " << lib_name;
-    }
+    std::string lib_name = used_lib->get_file_name();
+    LOG_INFO << "used lib: " << lib_name;
   }
   return 1;
 }
@@ -3618,7 +3908,7 @@ void Sta::printFlattenData() {
 
     output_file << "GPU_AT_DATA_" << at_data_index++ << ": " << std::endl;
     output_file << "  own_vertex: " << own_vertex->getName() << std::endl;
-    output_file << "  vertex level" << own_vertex->get_level() << std::endl;
+    output_file << "  vertex level: " << own_vertex->get_level() << std::endl;
     output_file << "  launch_clock_name: " << launch_clock_name << std::endl;
     output_file << "  launch_clock_index: " << at_data._own_clock_index
                 << std::endl;
@@ -3636,7 +3926,8 @@ void Sta::printFlattenData() {
       auto *src_vertex = getVertex(at_data._src_vertex_id);
       output_file << "  src_vertex: " << src_vertex->getName() << std::endl;
     } else {
-      output_file << "  src_vertex: " << "NA" << std::endl;
+      output_file << "  src_vertex: "
+                  << "NA" << std::endl;
     }
 
     output_file << "  src_data_index: " << at_data._src_data_index << std::endl;

@@ -1,88 +1,53 @@
-if(DEBUG_ICTS_TEST)
-  message(STATUS "CTS: DEBUG_ICTS_TEST")
-  set(CMAKE_BUILD_TYPE "Debug")
-else()
-  message(STATUS "CTS: RELEASE_ICTS_TEST")
-  set(CMAKE_BUILD_TYPE "Release")
-endif()
+include(CMakeParseArguments)
 
-# Set(GTest_DIR "/usr/src/googletest/googletest")
-find_package(GTest REQUIRED)
+add_library(icts_test_base INTERFACE)
 
-# TreeBuilderTest
-# add_executable(icts_tree_builder_test ${ICTS_TEST}/TreeBuilderTest.cc)
-# target_link_libraries(
-#   icts_tree_builder_test PUBLIC icts_source icts_api icts_test_external_libs
-# ) # ${GTEST_LIBRARY} ${GTEST_MAIN_LIBRARY}
-# target_include_directories(icts_tree_builder_test PUBLIC ${ICTS_TEST})
+target_include_directories(
+  icts_test_base
+  INTERFACE
+  ${ICTS_TEST}
+)
 
-# AnnealOptTest
-add_executable(icts_anneal_opt_test ${ICTS_TEST}/AnnealOptTest.cc)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_link_libraries(
-    icts_anneal_opt_test PUBLIC icts_source icts_api icts_api_external_libs icts_test_external_libs
-                                gtestd gtest_maind
-                                -u_ZN3ipl17SteinerWirelength25updateAllNetWorkPointPairEv
-                                -u_ZN3ipl13NesterovPlace21printNesterovDatabaseEv
-                                -u_ZN3ito3iTO5runTOEv
-                                -u_ZN3idm11DataManager7saveDefENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-                                -u_ZN4icts9GDSPloter10plotDesignERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE)
-else()
-  target_link_libraries(
-    icts_anneal_opt_test PUBLIC icts_source icts_api icts_api_external_libs icts_test_external_libs
-                                gtest gtest_main
-                                -u_ZN3ipl17SteinerWirelength25updateAllNetWorkPointPairEv
-                                -u_ZN3ipl13NesterovPlace21printNesterovDatabaseEv
-                                -u_ZN3ito3iTO5runTOEv
-                                -u_ZN3idm11DataManager7saveDefENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-                                -u_ZN4icts9GDSPloter10plotDesignERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE)
-endif()
-target_include_directories(icts_anneal_opt_test PUBLIC ${ICTS_TEST})
+target_link_libraries(
+  icts_test_base
+  INTERFACE
+  log
+  icts_source
+  icts_api
+  icts_test_external_libs
+)
 
-# DesignCommitterTest
-add_executable(icts_design_committer_test ${ICTS_TEST}/DesignCommitterTest.cc)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_link_libraries(icts_design_committer_test PUBLIC icts_api icts_api_external_libs
-                                                          gtestd gtest_maind)
-else()
-  target_link_libraries(icts_design_committer_test PUBLIC icts_api icts_api_external_libs
-                                                          gtest gtest_main)
-endif()
-target_include_directories(icts_design_committer_test PUBLIC ${ICTS_TEST})
-add_test(NAME icts_design_committer_test COMMAND icts_design_committer_test)
+add_library(icts_test_realtech_base INTERFACE)
 
-# LongWireBufferingOperatorTest
-add_executable(icts_long_wire_buffering_test ${ICTS_TEST}/LongWireBufferingOperatorTest.cc)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_link_libraries(icts_long_wire_buffering_test PUBLIC icts_synthesis_operator
-                                                            gtestd gtest_maind)
-else()
-  target_link_libraries(icts_long_wire_buffering_test PUBLIC icts_synthesis_operator
-                                                            gtest gtest_main)
-endif()
-target_include_directories(icts_long_wire_buffering_test PUBLIC ${ICTS_TEST})
-add_test(NAME icts_long_wire_buffering_test COMMAND icts_long_wire_buffering_test)
+target_link_libraries(
+  icts_test_realtech_base
+  INTERFACE
+  icts_test_base
+  idm
+)
 
-# TopologyBuilderOperatorTest
-add_executable(icts_topology_builder_test ${ICTS_TEST}/TopologyBuilderOperatorTest.cc)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_link_libraries(icts_topology_builder_test PUBLIC icts_synthesis_operator icts_runtime
-                                                         gtestd gtest_maind)
-else()
-  target_link_libraries(icts_topology_builder_test PUBLIC icts_synthesis_operator icts_runtime
-                                                         gtest gtest_main)
-endif()
-target_include_directories(icts_topology_builder_test PUBLIC ${ICTS_TEST})
-add_test(NAME icts_topology_builder_test COMMAND icts_topology_builder_test)
+add_library(icts_test_main OBJECT ${ICTS_TEST}/main.cc)
+target_link_libraries(icts_test_main PUBLIC icts_test_base)
 
-# SkewPostOptimizationOperatorTest
-add_executable(icts_skew_post_optimization_test ${ICTS_TEST}/SkewPostOptimizationOperatorTest.cc)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_link_libraries(icts_skew_post_optimization_test PUBLIC icts_synthesis_operator icts_runtime
-                                                                gtestd gtest_maind)
-else()
-  target_link_libraries(icts_skew_post_optimization_test PUBLIC icts_synthesis_operator icts_runtime
-                                                                gtest gtest_main)
-endif()
-target_include_directories(icts_skew_post_optimization_test PUBLIC ${ICTS_TEST})
-add_test(NAME icts_skew_post_optimization_test COMMAND icts_skew_post_optimization_test)
+option(ICTS_BUILD_SLOW_REALTECH_TESTS "Build slow iCTS real-tech regression tests" OFF)
+
+function(icts_add_test_executable target_name)
+  set(options REALTECH)
+  set(one_value_args)
+  set(multi_value_args SOURCES LIBS)
+  cmake_parse_arguments(ICTS_ADD_TEST "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+  add_executable(${target_name} ${ICTS_ADD_TEST_SOURCES} $<TARGET_OBJECTS:icts_test_main>)
+  target_link_libraries(${target_name} PRIVATE icts_test_base icts_test_common_io ${ICTS_ADD_TEST_LIBS})
+
+  if(ICTS_ADD_TEST_REALTECH)
+    target_link_libraries(${target_name} PRIVATE icts_test_realtech_base)
+  endif()
+
+  add_test(NAME ${target_name} COMMAND ${target_name})
+endfunction()
+
+add_subdirectory(common)
+add_subdirectory(database)
+add_subdirectory(flow)
+add_subdirectory(module)

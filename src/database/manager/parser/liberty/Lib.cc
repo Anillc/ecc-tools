@@ -2005,6 +2005,20 @@ double LibCell::convertTablePowerToMw(double query_table_power)
   return power_mw;
 }
 
+/**
+ * @brief Preserve internal_power table entries as per-transition energy.
+ *
+ * Liberty internal_power LUT entries model energy. CTS and iPA callers multiply
+ * this value by transitions/ns to get averaged power in mW.
+ *
+ * @param query_table_power
+ * @return double
+ */
+double LibCell::convertInternalPowerTableToMwNs(double query_table_power)
+{
+  return query_table_power;
+}
+
 LibWireLoad::LibWireLoad(const char* wire_load_name) : _wire_load_name(wire_load_name)
 {
 }

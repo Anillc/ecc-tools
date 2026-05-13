@@ -91,7 +91,7 @@ class StaSlewPropagation : public StaFunc {
 
   void set_propagate_output_port() { _propagate_output_port = true; }
   bool isPropagateOutputPort() { return _propagate_output_port; }
-  
+
  private:
   bool _propagate_output_port = false;
 };

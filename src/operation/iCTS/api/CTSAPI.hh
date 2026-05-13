@@ -17,197 +17,48 @@
 /**
  * @file CTSAPI.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-01-07
+ * @brief iCTS API
  */
 #pragma once
 
-#include <any>
-#include <cassert>
-#include <fstream>
-#include <map>
-#include <memory>
-#include <optional>
 #include <string>
-#include <string_view>
-#include <type_traits>
-#include <unordered_map>
-#include <vector>
-
-#include "interaction/ids.hpp"
 
 namespace ieda_feature {
-class CTSSummary;
-class ClockTiming;
+struct CTSSummary;
 }  // namespace ieda_feature
 
 namespace icts {
 
-class CTSFlowRunner;
-class CTSSession;
-class Net;
-struct CTSState;
-
-#define CTSAPI_INST (icts::CTSAPI::getInst())
-
-using SkewConstraintsMap = std::map<std::pair<std::string, std::string>, std::pair<double, double>>;
-
-template <typename T>
-concept StringAble = requires(const T& t) {
-  { std::to_string(t) } -> std::convertible_to<std::string>;
-};
+#define CTS_API_INST (icts::CTSAPI::getInst())
 
 class CTSAPI
 {
  public:
-  static CTSAPI& getInst();
-  static void destroyInst();
-  void init(const std::string& config_file, const std::string& work_dir = "");
-  void runCTS();
-  void report(const std::string& save_dir);
-  void resetAPI();
-
-  void initEvalInfo();
-  size_t getInsertCellNum() const;
-  double getInsertCellArea() const;
-  std::vector<PathInfo> getPathInfos() const;
-  double getMaxClockNetWL() const;
-  double getTotalClockNetWL() const;
-  ieda_feature::CTSSummary outputSummary();
-
-  icts::CtsConfig* getConfig() const;
-  double getClockUnitCap(const std::optional<icts::LayerPattern>& layer_pattern = std::nullopt) const;
-  double getClockUnitRes(const std::optional<icts::LayerPattern>& layer_pattern = std::nullopt) const;
-  std::vector<icts::CtsCellLib*> getAllBufferLibs();
-
-  template <StringAble T>
-  std::string stringify(const T& t)
+  static auto getInst() -> CTSAPI&
   {
-    return std::to_string(t);
+    static CTSAPI inst;
+    return inst;
   }
 
-  std::string stringify(const std::string_view sv) { return std::string(sv); }
+  // CTS CLI
+  static auto runCTS() -> void;
+  static auto report(const std::string& save_dir) -> void;
 
-  template <typename... Args>
-  std::string toString(const Args&... args)
-  {
-    return (stringify(args) + ...);
-  }
+  // Flow API
+  static auto resetAPI() -> void;
+  static auto init(const std::string& config_file, const std::string& work_dir = "") -> void;
 
- private:
-  friend class CTSFlowRunner;
-  friend class CTSSession;
-  static CTSAPI* _cts_api_instance;
-  CTSAPI() = default;
+  // Feature API
+  static auto outputSummary() -> ieda_feature::CTSSummary;
   CTSAPI(const CTSAPI& other) = delete;
   CTSAPI(CTSAPI&& other) = delete;
+  auto operator=(const CTSAPI& other) -> CTSAPI& = delete;
+  auto operator=(CTSAPI&& other) -> CTSAPI& = delete;
+
+ private:
+  CTSAPI() = default;
   ~CTSAPI() = default;
-  CTSAPI& operator=(const CTSAPI& other) = delete;
-  CTSAPI& operator=(CTSAPI&& other) = delete;
-
-  [[nodiscard]] CTSSession& requireSession() const;
-  [[nodiscard]] CTSState& mutableState();
-  [[nodiscard]] const CTSState& sessionState() const;
-  [[nodiscard]] std::ofstream* logStream() const;
-
-  void writeDB();
-  void writeGDS();
-  void dumpVertexData(const std::vector<std::string>& vertex_names) const;
-  double getSinkCap(icts::CtsInstance* sink) const;
-  double getSinkCap(const std::string& load_pin_full_name) const;
-  bool isFlipFlop(const std::string& inst_name) const;
-  bool isClockNet(const std::string& net_name) const;
-  void startDbSta();
-  void readClockNetNames() const;
-  void setPropagateClock();
-  void convertDBToTimingEngine();
-  void reportTiming() const;
-  void refresh();
-  icts::CtsPin* findDriverPin(icts::CtsNet* net);
-  std::map<std::string, double> elmoreDelay(const icts::EvalNet& eval_net);
-  bool cellLibExist(const std::string& cell_master, const std::string& query_field = "cell_rise", const std::string& from_port = "",
-                    const std::string& to_port = "");
-  std::vector<std::vector<double>> queryCellLibIndex(const std::string& cell_master, const std::string& query_field,
-                                                     const std::string& from_port = "", const std::string& to_port = "");
-  std::vector<double> queryCellLibValue(const std::string& cell_master, const std::string& query_field, const std::string& from_port = "",
-                                        const std::string& to_port = "");
-  icts::CtsCellLib* getCellLib(const std::string& cell_masterconst, const std::string& from_port = "", const std::string& to_port = "",
-                               const bool& use_work_value = true);
-  std::vector<std::string> getMasterClocks(icts::CtsNet* net) const;
-  double getClockAT(const std::string& pin_name, const std::string& belong_clock_name) const;
-  std::string getCellType(const std::string& cell_master) const;
-  double getCellArea(const std::string& cell_master) const;
-  double getCellLeakagePower(const std::string& cell_master) const;
-  double getCellCap(const std::string& cell_master) const;
-  double getSlewIn(const std::string& pin_name) const;
-  double getCapOut(const std::string& pin_name) const;
-  std::vector<double> solvePolynomialRealRoots(const std::vector<double>& coeffs);
-  int32_t getDbUnit() const;
-  bool isInDie(const icts::Point& point) const;
-  idb::IdbInstance* makeIdbInstance(const std::string& inst_name, const std::string& cell_master);
-  idb::IdbNet* makeIdbNet(const std::string& net_name);
-  void linkIdbNetToSta(idb::IdbNet* idb_net);
-  void disconnect(idb::IdbPin* pin);
-  void connect(idb::IdbInstance* idb_inst, const std::string& pin_name, idb::IdbNet* net);
-  void insertBuffer(const std::string& name);
-  void resetId();
-  int genId();
-  void registerSynthesisNet(Net* net);
-  Net* findSynthesisNet(const std::string& net_name) const;
-  void clearSynthesisNets();
-  void genFluteTree(const std::string& net_name, icts::Pin* driver, const std::vector<icts::Pin*>& loads);
-  void genShallowLightTree(const std::string& net_name, icts::Pin* driver, const std::vector<icts::Pin*>& loads);
-  icts::Inst* genBoundSkewTree(const std::string& net_name, const std::vector<icts::Pin*>& loads, const std::optional<double>& skew_bound,
-                               const std::optional<icts::Point>& guide_loc, const TopoType& topo_type);
-  icts::Inst* genBstSaltTree(const std::string& net_name, const std::vector<icts::Pin*>& loads, const std::optional<double>& skew_bound,
-                             const std::optional<icts::Point>& guide_loc, const TopoType& topo_type);
-  icts::Inst* genCBSTree(const std::string& net_name, const std::vector<icts::Pin*>& loads, const std::optional<double>& skew_bound,
-                         const std::optional<icts::Point>& guide_loc, const TopoType& topo_type);
-  bool isTop(const std::string& net_name) const;
-  void buildRCTree(const std::vector<icts::EvalNet>& eval_nets);
-  void buildRCTree(const icts::EvalNet& eval_net);
-  void buildPinPortsRCTree(const icts::EvalNet& eval_net);
-  void resetRCTree(const std::string& net_name);
-  void utilizationLog() const;
-  void latencySkewLog() const;
-  void slackLog() const;
-  void checkFile(const std::string& dir, const std::string& file_name, const std::string& suffix = ".rpt") const;
-
-  template <typename... Args>
-  void saveToLog(const Args&... args)
-  {
-    auto* log_ofs = logStream();
-    if (log_ofs == nullptr || !log_ofs->is_open()) {
-      return;
-    }
-    (*log_ofs) << toString(args...) << std::endl;
-  }
-
-  template <typename... Args>
-  void mirrorToTerminalAndLog(const Args&... args)
-  {
-    mirrorToTerminalAndLog(toString(args...));
-  }
-
-  void mirrorToTerminalAndLog(const std::string& text);
-
-  void logTime() const;
-  void logLine() const;
-  void logTitle(const std::string& title) const;
-  void logEnd() const;
-  std::vector<std::string> splitString(std::string str, const char split);
-  void writeVerilog() const;
-  void toPyArray(const icts::Point& point, const std::string& label);
-  void readSTAFile();
-  ista::RctNode* makeRCTreeNode(const icts::EvalNet& eval_net, const std::string& name);
-  ista::RctNode* makePinRCTreeNode(icts::CtsPin* pin);
-  ista::DesignObject* findStaPin(icts::CtsPin* pin) const;
-  ista::DesignObject* findStaPin(const std::string& pin_full_name) const;
-  ista::Net* findStaNet(const icts::EvalNet& eval_net) const;
-  ista::Net* findStaNet(const std::string& name) const;
-  double getCapacitance(const double& wire_length, const int& level) const;
-  double getResistance(const double& wire_length, const int& level) const;
-  ista::TimingIDBAdapter* getStaDbAdapter() const;
-
-  std::shared_ptr<CTSSession> _session;
 };
 
 }  // namespace icts
