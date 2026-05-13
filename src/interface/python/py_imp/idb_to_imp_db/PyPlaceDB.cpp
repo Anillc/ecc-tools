@@ -39,15 +39,12 @@
 
 namespace python_interface {
 
-void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_config, std::string process_node)
+void PyPlaceDB::set(idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta)
 {
   printf("PyPlaceDB::set start!!! Db address is %p\n", db);
   printf("PyPlaceDB::set start!!! idb_design address is %p\n", db->get_idb_design());
-
-  // Initialize VT configuration
-  set_vt_config(vt_config);
-  _process_node = std::move(process_node);
-
+  num_routing_grids_x = numRoutingGridsX;
+  num_routing_grids_y = numRoutingGridsY;
   using namespace idb;
   namespace gtl = boost::polygon;
   using namespace gtl::operators;
@@ -99,7 +96,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
 
     mNet2ID[net->get_net_name()] = net_id++;
   }
-  // std::unordered_map<std::string, int> mPinName2PyPinID;
+  std::unordered_map<std::string, int> mPin2ID;
   int pin_id = 0;
   for (IdbNet* net : db_deisgn->get_net_list()->get_net_list()) {
     if (isInvailidNet(net)) {
@@ -111,13 +108,13 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
       std::string pin_name = pin->get_pin_name();
       std::string full_pin_name = inst_name + ":" + pin_name;  //: or /
       pin_names.append(full_pin_name);
-      mPinName2PyPinID[inst_name + pin->get_pin_name()] = pin_id++;
+      mPin2ID[inst_name + pin->get_pin_name()] = pin_id++;
     }
 
     for (IdbPin* io_pin : net->get_io_pins()->get_pin_list()) {
       std::string inst_name = io_pin->get_pin_name();
       pin_names.append(inst_name);
-      mPinName2PyPinID[io_pin->get_pin_name()] = pin_id++;
+      mPin2ID[io_pin->get_pin_name()] = pin_id++;
     }
   }
   std::unordered_map<std::string, int> mClkPin2ID;
@@ -130,9 +127,6 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
       std::string inst_name = node->get_name();
       string cell_type = node->get_cell_master()->get_name();
       auto lib_cell = ista->findLibertyCell(cell_type.c_str());
-      if(lib_cell == nullptr){
-        continue;
-      }
       string clock_pin_name;
       if (is_ff_map.count(cell_type) > 0) {
         clock_pin_name = is_ff_map[cell_type];
@@ -208,6 +202,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
   };
 #endif
   num_terminals = 0;  // regard only fixed macros as macros, placement blockages are ignored
+  PolygonSet fixed_node_ps;
   for (int i = 0; i < inst_num; ++i) {
     IdbInstance* node = inst_resort_list.at(i);
     if (node->get_cell_master()->is_block()) {
@@ -257,60 +252,87 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
       num_terminals += 1;
       // compute upper bound of total fixed cell area
       total_fixed_node_area += 1LL * node->get_cell_master()->get_height() * node->get_cell_master()->get_width();
+
+      fixed_node_ps += gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
     }
   }
 
-  // blockage
-  int ext_blockage_num = 0;
+  PolygonSet blockage_ps_list;
+  // def blockage list
   for (auto blockage : db->get_idb_design()->get_blockage_list()->get_blockage_list()) {
     if (!blockage->is_palcement_blockage()) {
       continue;
     }
-
     IdbPlacementBlockage* placement_blockage = dynamic_cast<IdbPlacementBlockage*>(blockage);
-
-    // add obstruction boxes for fixed nodes
-    // initialize node shapes from obstruction
-    // I do not differentiate obstruction boxes at different layers
-    // At least, this is true for DAC/ICCAD 2012 benchmarks
-
-    // put all boxes into a polygon set to remove overlaps
-    // this can make the placement engine more robust
     PolygonSet ps;
     for (auto rect : blockage->get_rect_list()) {
       // convert to absolute box
       Box box(rect->get_low_x(), rect->get_low_y(), rect->get_high_x(), rect->get_high_y());
       ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
     }
-    for (unsigned int i = 0; i < inst_num; ++i) {
-      IdbInstance* node = inst_resort_list.at(i);
-      // Macro const& macro = db.macro(db.macroId(node));
-      if (node->get_status() == IdbPlacementStatus::kFixed) {  // || i >= db.nodes().size() - num_terminal_NIs
-        Box box_tmp(node->get_coordinate()->get_x(), node->get_coordinate()->get_y(), node->get_bounding_box()->get_high_x(),
-                    node->get_bounding_box()->get_high_y());
-        ps -= gtl::rectangle_data<coordinate_type>(box_tmp.xl, box_tmp.yl, box_tmp.xh, box_tmp.yh);
+    blockage_ps_list += ps;
+  }
+  auto core = db->get_idb_layout()->get_core();
+  row_height = db->get_idb_layout()->get_rows()->get_row_height();
+  auto second_routing_layer = db->get_idb_layout()->get_layers()->get_routing_layers().at(1);
+  assert(second_routing_layer->get_name().find("2") != std::string::npos);
+  idb::IdbLayerRouting* second_idb_routing_layer = dynamic_cast<idb::IdbLayerRouting*>(second_routing_layer);
+// IO PIN external blockage
+#if 1
+  for (auto* special_net : db_deisgn->get_special_net_list()->get_net_list()) {
+    if (special_net->is_vdd() || special_net->is_vss()) {
+      int via_num = special_net->get_via_num();
+      for (auto segment : special_net->get_wire_list()->get_wire_list()) {
+        for (auto* seg : segment->get_segment_list()) {
+          if (seg->is_line()) {
+            auto layer = seg->get_layer();
+            PolygonSet ps;
+            if (layer->is_routing() && layer == second_idb_routing_layer) {
+              auto rect = seg->get_bounding_box();
+
+              // 获取原始边界框
+              int xl = core->get_bounding_box()->get_low_x();
+              int yl = core->get_bounding_box()->get_low_y();
+
+              coordinate_type orig_xl = rect->get_low_x();
+              coordinate_type orig_yl = rect->get_low_y();
+              coordinate_type orig_xh = rect->get_high_x();
+              coordinate_type orig_yh = rect->get_high_y();
+              // if (orig_yh - orig_yl > row_height * 2) {
+              //   printf("Via %s has too large height (%d), skip it\n", idb_via->get_name().c_str(), orig_yh - orig_yl);
+              // }
+              // // 计算包含该形状的行范围
+              // int start_row = (orig_yl - yl) / row_height;
+              // int end_row = (orig_yh - yl) / row_height;
+              // coordinate_type aligned_yl = yl + start_row * row_height;      // 起始行底部
+              // coordinate_type aligned_yh = yl + (end_row + 1) * row_height;  // 结束行顶部
+
+              Box box(orig_xl, orig_yl, orig_xh, orig_yh);
+              ps.insert(gtl::rectangle_data<coordinate_type>(box.xl, box.yl, box.xh, box.yh));
+              blockage_ps_list += ps;
+            }
+          }
+        }
       }
     }
-    // Get unique boxes without overlap for each fixed cell
-    // However, there may still be overlapping between fixed cells.
-    // We cannot eliminate these because we want to keep the mapping from boxes to cells.
-    std::vector<gtl::rectangle_data<coordinate_type>> vRect;
-    ps.get_rectangles(vRect);
-    std::vector<Box> vBox;
-    vBox.reserve(vRect.size());
-    for (auto const& rect : vRect) {
-      vBox.emplace_back(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
-      auto box = vBox.back();
-      int id = node_names.size();
-      string block_name = "blockage" + std::to_string(id);
-      printf("PyPlaceDB detect fixed blockage: %s\n", block_name.c_str());
-      addNode("R0", block_name, box, true);
-      // record original node to new node mapping
-      total_fixed_node_area += 1LL * box.area();
-    }
-    num_terminals += vBox.size();
-    ext_blockage_num += vBox.size();
   }
+#endif
+  blockage_ps_list -= fixed_node_ps;  // remove overlap with fixed cells
+  int ext_blockage_num = 0;
+
+  std::vector<gtl::rectangle_data<coordinate_type>> vRect;
+  blockage_ps_list.get_rectangles(vRect);
+  for (auto const& rect : vRect) {
+    Box box(gtl::xl(rect), gtl::yl(rect), gtl::xh(rect), gtl::yh(rect));
+    int id = node_names.size();
+    string block_name = "blockage" + std::to_string(id);
+    printf("PyPlaceDB detect fixed blockage: %s, (%d, %d, %d, %d)\n", block_name.c_str(), box.xl, box.yl, box.xh, box.yh);
+    addNode("R0", block_name, box, true);
+    // record original node to new node mapping
+    total_fixed_node_area += 1LL * box.area();
+  }
+  num_terminals += vRect.size();
+  ext_blockage_num += vRect.size();
 
   // IO PINS
   for (auto io_pin : db_deisgn->get_io_pin_list()->get_pin_list()) {
@@ -368,11 +390,11 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
     int pin_num = 0;
     for (IdbPin* pin : node->get_pin_list()->get_pin_list()) {
       string inst_name = pin->get_instance()->get_name();
-      // assert(mPinName2PyPinID.count(inst_name + pin->get_pin_name()));
-      if (!mPinName2PyPinID.count(inst_name + pin->get_pin_name())) {
+      // assert(mPin2ID.count(inst_name + pin->get_pin_name()));
+      if (!mPin2ID.count(inst_name + pin->get_pin_name())) {
         continue;
       }
-      int pin_id = mPinName2PyPinID[inst_name + pin->get_pin_name()];
+      int pin_id = mPin2ID[inst_name + pin->get_pin_name()];
       pins.append(pin_id);
       flat_node2pin_map.append(pin_id);
       pin_num += 1;
@@ -391,8 +413,8 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
     auto io_pin_name = node_names[i].cast<std::string>();
     pybind11::list pins;
     int pin_num = 0;
-    if (mPinName2PyPinID.count(io_pin_name)) {
-      int pin_id = mPinName2PyPinID[io_pin_name];
+    if (mPin2ID.count(io_pin_name)) {
+      int pin_id = mPin2ID[io_pin_name];
       pins.append(pin_id);
       flat_node2pin_map.append(pin_id);
       pin_num = 1;
@@ -465,12 +487,12 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
     pybind11::list pins;
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
       string inst_name = pin->get_instance()->get_name();
-      assert(mPinName2PyPinID.count(inst_name + pin->get_pin_name()));
-      pins.append(mPinName2PyPinID[inst_name + pin->get_pin_name()]);
+      assert(mPin2ID.count(inst_name + pin->get_pin_name()));
+      pins.append(mPin2ID[inst_name + pin->get_pin_name()]);
     }
     for (IdbPin* pin : net->get_io_pins()->get_pin_list()) {
-      assert(mPinName2PyPinID.count(pin->get_pin_name()));
-      pins.append(mPinName2PyPinID[pin->get_pin_name()]);
+      assert(mPin2ID.count(pin->get_pin_name()));
+      pins.append(mPin2ID[pin->get_pin_name()]);
     }
     net2pin_map.append(pins);
 
@@ -484,19 +506,20 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
       } else {  // IO Pin
         driver_name = driver->get_pin_name();
       }
-      flat_net2pin_map.append(mPinName2PyPinID[driver_name]);
+      flat_net2pin_map.append(mPin2ID[driver_name]);
       pin_num = 1;  // include driving pin
     } else {
-      pin_num = 0;
+      printf("Error: Net %s has no driver.\n", net->get_net_name().c_str());
       exit(0);
+      pin_num = 0;
     }
     for (IdbPin* pin : net->get_instance_pin_list()->get_pin_list()) {
       if (pin == driver) {
         continue;
       }
       string inst_name = pin->get_instance()->get_name();
-      assert(mPinName2PyPinID.count(inst_name + pin->get_pin_name()));
-      flat_net2pin_map.append(mPinName2PyPinID[inst_name + pin->get_pin_name()]);
+      assert(mPin2ID.count(inst_name + pin->get_pin_name()));
+      flat_net2pin_map.append(mPin2ID[inst_name + pin->get_pin_name()]);
       pin_num += 1;
     }
 
@@ -504,7 +527,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
       if (pin == driver) {
         continue;
       }
-      flat_net2pin_map.append(mPinName2PyPinID[pin->get_pin_name()]);
+      flat_net2pin_map.append(mPin2ID[pin->get_pin_name()]);
       pin_num += 1;
     }
     flat_net2pin_start_map.append(count);
@@ -556,7 +579,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
   for (std::vector<int>::const_iterator it = vNode2FenceRegion.begin(), ite = vNode2FenceRegion.end(); it != ite; ++it) {
     node2fence_region_map.append(*it);
   }
-  auto core = db->get_idb_layout()->get_core();
+  // auto core = db->get_idb_layout()->get_core();
   xl = core->get_bounding_box()->get_low_x();
   yl = core->get_bounding_box()->get_low_y();
   xh = core->get_bounding_box()->get_high_x();
@@ -575,7 +598,7 @@ void PyPlaceDB::set(idm::DataManager* db, bool with_sta, pybind11::list vt_confi
 
   init_routability(db, inst_resort_list);
   if (with_sta) {
-    init_timing(db, mClkPin2ID, mNode2PyNondeID, inst_resort_list, ext_blockage_num);
+    init_timing(db, mPin2ID, mClkPin2ID, mNode2PyNondeID, inst_resort_list, ext_blockage_num);
   }
   printf("PyPlaceDB::set end!!!\n");
 

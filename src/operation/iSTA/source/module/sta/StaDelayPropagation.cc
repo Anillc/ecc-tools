@@ -23,7 +23,10 @@
  */
 #include "StaDelayPropagation.hh"
 
+#include <algorithm>
+#include <cstdlib>
 #include <optional>
+#include <sstream>
 
 #include "StaArc.hh"
 #include "ThreadPool/ThreadPool.h"
@@ -34,15 +37,38 @@
 #include "netlist/Port.hh"
 
 namespace ista {
-inline int timingSenseToInt(ista::LibArc::TimingSense sense) {
-    switch (sense) {
-        case ista::LibArc::TimingSense::kPositiveUnate: return 1;
-        case ista::LibArc::TimingSense::kNegativeUnate: return -1;
-        case ista::LibArc::TimingSense::kNonUnate:      return 0;
-        case ista::LibArc::TimingSense::kDefault:       return 1;
-        default:                                      return 1;
+
+namespace {
+
+bool shouldTraceLibertyArc(StaVertex* src_vertex, StaVertex* snk_vertex) {
+  const char* trace_env = std::getenv("IEDA_TRACE_LIB_ARCS");
+  if (!trace_env || !*trace_env) {
+    return false;
+  }
+
+  const std::string src_name = src_vertex ? src_vertex->getName() : "";
+  const std::string snk_name = snk_vertex ? snk_vertex->getName() : "";
+
+  std::stringstream ss(trace_env);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item.erase(std::remove_if(item.begin(), item.end(), ::isspace),
+               item.end());
+    if (item.empty()) {
+      continue;
     }
+
+    if (src_name.find(item) != std::string::npos ||
+        snk_name.find(item) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
 }
+
+}  // namespace
+
 /**
  * @brief The delay propagation from  the arc.
  *
@@ -56,7 +82,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
   auto construct_delay_data = [this](AnalysisMode delay_type,
                                      TransType trans_type, StaArc* own_arc,
-                                     int delay) {
+                                     int delay, uint64_t data_epoch) {
     StaArcDelayData* arc_delay = nullptr;
     if (isIncremental()) {
       arc_delay = own_arc->getArcDelayData(delay_type, trans_type);
@@ -64,6 +90,7 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
     if (!arc_delay) {
       arc_delay = new StaArcDelayData(delay_type, trans_type, own_arc, delay);
+      arc_delay->set_data_epoch(data_epoch);
       own_arc->addData(arc_delay);
     }
 
@@ -81,6 +108,11 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
 
   StaData* slew_data;
   FOREACH_SLEW_DATA(src_vertex, slew_data) {
+    if (auto data_epoch = get_data_epoch_filter();
+        data_epoch && slew_data->get_data_epoch() != *data_epoch) {
+      continue;
+    }
+
     auto analysis_mode = slew_data->get_delay_type();
     auto trans_type = slew_data->get_trans_type();
     if (analysis_mode == get_analysis_mode() ||
@@ -90,9 +122,10 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
       auto in_slew = FS_TO_NS(in_slew_fs);
 
       if (the_arc->isInstArc()) {
-        auto* lib_arc = dynamic_cast<StaInstArc*>(the_arc)->get_lib_arc();
-        auto* lib_arc_set =
-            dynamic_cast<StaInstArc*>(the_arc)->get_lib_arc_set();
+        auto* inst_arc = dynamic_cast<StaInstArc*>(the_arc);
+        auto* lib_arc = inst_arc->get_lib_arc();
+        auto* lib_arc_set = inst_arc->get_lib_arc_set();
+        const bool trace_arc = shouldTraceLibertyArc(src_vertex, snk_vertex);
         /*The check arc is the end of the recursion .*/
         if (the_arc->isCheckArc()) {
           // Since slew is fitter accord trigger type, May be do not need below
@@ -112,42 +145,89 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             auto snk_slew_fs =
                 dynamic_cast<StaSlewData*>(snk_slew_data)->get_slew();
             auto snk_slew = FS_TO_NS(snk_slew_fs);
-            auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(trans_type,
-                snk_trans_type, in_slew, snk_slew);
-            double delay_ns = analysis_mode == AnalysisMode::kMax
-                                  ? delay_values.front()
-                                  : delay_values.back();
+            auto convert_check_slew_for_lookup =
+                [lib_arc](double constrained_slew_ns) -> double {
+              auto* owner_lib =
+                  lib_arc && lib_arc->get_owner_cell()
+                      ? lib_arc->get_owner_cell()->get_owner_lib()
+                      : nullptr;
+              if (!owner_lib) {
+                return constrained_slew_ns;
+              }
+
+              switch (owner_lib->get_time_unit()) {
+                case TimeUnit::kPS:
+                  return constrained_slew_ns * 1e3;
+                case TimeUnit::kFS:
+                  return constrained_slew_ns * 1e6;
+                case TimeUnit::kNS:
+                default:
+                  return constrained_slew_ns;
+              }
+            };
+            auto delay_ns = lib_arc->getDelayOrConstrainCheckNs(
+                snk_trans_type, in_slew,
+                convert_check_slew_for_lookup(snk_slew));
             auto delay = NS_TO_FS(delay_ns);
-            construct_delay_data(analysis_mode, snk_trans_type, the_arc, delay);
+            if (trace_arc) {
+              LOG_INFO << "[sta_check_binding_source] src_vertex="
+                       << src_vertex->getName() << " snk_vertex="
+                       << snk_vertex->getName() << " lib_cell="
+                       << lib_arc->get_owner_cell()->get_cell_name()
+                       << " lib_arc=" << lib_arc->get_src_port() << "->"
+                       << lib_arc->get_snk_port() << " analysis_mode="
+                       << static_cast<int>(analysis_mode) << " src_trans="
+                       << static_cast<int>(trans_type) << " snk_trans="
+                       << static_cast<int>(snk_trans_type)
+                       << " in_slew_fs=" << in_slew_fs
+                       << " in_slew_ns=" << in_slew << " snk_slew_fs="
+                       << snk_slew_fs << " snk_slew_ns=" << snk_slew
+                       << " delay_ns=" << delay_ns;
+            }
+            construct_delay_data(analysis_mode, snk_trans_type, the_arc, delay,
+                                 src_slew_data->get_data_epoch());
+            if (auto* arc_delay =
+                    the_arc->getArcDelayData(analysis_mode, snk_trans_type,
+                                             src_slew_data->get_data_epoch());
+                arc_delay) {
+              StaCheckPairBinding check_pair_binding;
+              check_pair_binding.analysis_mode = analysis_mode;
+              check_pair_binding.check_trans_type = snk_trans_type;
+              check_pair_binding.clock_trans_type = trans_type;
+              check_pair_binding.data_trans_type = snk_trans_type;
+              check_pair_binding.clock_slew_fs = in_slew_fs;
+              check_pair_binding.data_slew_fs = snk_slew_fs;
+              check_pair_binding.sampled_check_margin_fs = delay;
+              check_pair_binding.check_arc = the_arc;
+              check_pair_binding.clock_slew_data = src_slew_data;
+              check_pair_binding.data_slew_data =
+                  dynamic_cast<StaSlewData*>(snk_slew_data);
+              check_pair_binding.data_epoch = src_slew_data->get_data_epoch();
+              arc_delay->add_check_pair_binding(check_pair_binding);
+            }
           }
 
         } else if (the_arc->isDelayArc()) {
           auto* rc_net = getSta()->getRcNet(the_net);
+          auto* the_lib = lib_arc->get_owner_cell()->get_owner_lib();
+          auto convert_load = [&](TransType load_trans_type) {
+            auto load_pf = rc_net ? rc_net->load(analysis_mode, load_trans_type)
+                                  : the_net->getLoad(analysis_mode,
+                                                     load_trans_type);
 
-          auto out_trans_type = the_arc->isNegativeArc()
-                                    ? flip_trans_type(trans_type)
-                                    : trans_type;
-          auto trans_to_index = [](TransType trans_type) -> int {
-            return static_cast<int>(trans_type) - 1;
-          };
-          auto* owner_lib = lib_arc->get_owner_cell()->get_owner_lib();
-
-          std::array<double, 2> load_array;  // rise, fall load.
-
-          for (auto load_trans_type : {TransType::kRise, TransType::kFall}) {
-            auto load_pf =
-                rc_net ? rc_net->load(analysis_mode, out_trans_type)
-                       : the_net->getLoad(analysis_mode, out_trans_type);
-
-            double load{0};
-            if (owner_lib->get_cap_unit() == CapacitiveUnit::kFF) {
+            double load = load_pf;
+            if (the_lib->get_cap_unit() == CapacitiveUnit::kFF) {
               load = PF_TO_FF(load_pf);
-            } else if (owner_lib->get_cap_unit() == CapacitiveUnit::kPF) {
+            } else if (the_lib->get_cap_unit() == CapacitiveUnit::kPF) {
               load = load_pf;
             }
 
-            load_array[trans_to_index(load_trans_type)] = load;
-          }
+            return std::pair<double, double>{load_pf, load};
+          };
+
+          auto out_trans_type = lib_arc->isNegativeArc()
+                                    ? flip_trans_type(trans_type)
+                                    : trans_type;
 
           // fix the timing type not match the trans type, which would lead to
           // crash.
@@ -155,102 +235,19 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             continue;
           }
 
-          // assure delay values sort by descending order.
-          auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(trans_type,
-              out_trans_type, in_slew,
-              load_array[trans_to_index(out_trans_type)]);
-          double delay_ns = analysis_mode == AnalysisMode::kMax
-                                ? delay_values.front()
-                                : delay_values.back();
+          auto [load_pf, load] = convert_load(out_trans_type);
+          auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(
+              trans_type, out_trans_type, in_slew, load);
+          auto delay_ns = analysis_mode == AnalysisMode::kMax
+                              ? delay_values.front()
+                              : delay_values.back();
           auto delay = NS_TO_FS(delay_ns);
-          auto* src_pin = dynamic_cast<Pin*>(src_vertex->get_design_obj());
-          auto* snk_pin = dynamic_cast<Pin*>(snk_vertex->get_design_obj());
 
-          if (src_pin && snk_pin) {
-              auto should_log_arc_net_choice =
-                  [](const std::string& from_pin_name,
-                     const std::string& to_pin_name) -> bool {
-                return (from_pin_name.find("FE_DBTC149_n_2224:A") !=
-                            std::string::npos &&
-                        to_pin_name.find("FE_DBTC149_n_2224:Y") !=
-                            std::string::npos) ||
-                       (from_pin_name.find("g63378:A2") != std::string::npos &&
-                        to_pin_name.find("g63378:Y") != std::string::npos);
-              };
-
-              if (should_log_arc_net_choice(src_pin->getFullName(),
-                                            snk_pin->getFullName())) {
-                auto* src_net = src_pin->get_net();
-                auto* snk_net = snk_pin->get_net();
-                auto dump_net_load_pf =
-                    [&](Net* net, const char* net_role) {
-                      if (!net) {
-                        LOG_INFO << "[ArcNetDebug] " << src_pin->getFullName()
-                                 << " -> " << snk_pin->getFullName() << " "
-                                 << net_role << "=<null>";
-                        return;
-                      }
-
-                      auto* role_rc_net = getSta()->getRcNet(net);
-                      auto role_load_pf =
-                          role_rc_net ? role_rc_net->load(analysis_mode,
-                                                          out_trans_type)
-                                      : net->getLoad(analysis_mode,
-                                                     out_trans_type);
-                      LOG_INFO << "[ArcNetDebug] " << src_pin->getFullName()
-                               << " -> " << snk_pin->getFullName() << " "
-                               << net_role << "=" << net->get_name()
-                               << " load_pf=" << role_load_pf
-                               << " has_rc_net=" << (role_rc_net != nullptr);
-                    };
-
-                LOG_INFO << "[ArcNetDebug] inspect arc "
-                         << src_pin->getFullName() << " -> "
-                         << snk_pin->getFullName()
-                         << " analysis_mode="
-                         << (analysis_mode == AnalysisMode::kMax ? "Max"
-                                                                : "Min")
-                         << " in_trans="
-                         << (trans_type == TransType::kRise ? "Rise" : "Fall")
-                         << " out_trans="
-                         << (out_trans_type == TransType::kRise ? "Rise"
-                                                                : "Fall");
-                dump_net_load_pf(src_net, "src_net");
-                dump_net_load_pf(snk_net, "snk_net");
-                dump_net_load_pf(the_net, "chosen_net");
-              }
-
-              // 填充调试信息结构体
-              ArcDebugInfo info;
-              info.inst_name = src_pin->get_own_instance()->get_name();
-              info.from_pin = src_pin->getFullName();
-              info.to_pin = snk_pin->getFullName();
-            if (info.from_pin.find("_23155_:A") != std::string::npos
-                && info.to_pin.find("_23155_:Y") != std::string::npos) {
-
-                }
-              info.analysis_mode = (analysis_mode == AnalysisMode::kMax ? "Max" : "Min");
-              info.transition = (out_trans_type == TransType::kRise ? "Rise" : "Fall");
-              info.in_slew_ns = in_slew;
-              // Debug export should stay on the internal pF basis so Python-side
-              // reports can compare iEDA and PyPlaceDB loads directly.
-              auto debug_load_cap = load_array[trans_to_index(out_trans_type)];
-              if (owner_lib->get_cap_unit() == CapacitiveUnit::kFF) {
-                debug_load_cap = FF_TO_PF(debug_load_cap);
-              } else if (owner_lib->get_cap_unit() == CapacitiveUnit::kF) {
-                debug_load_cap = F_TO_PF(debug_load_cap);
-              }
-              info.load_cap = debug_load_cap;
-              info.delay_ns = delay_ns;
-              info.timing_sense = timingSenseToInt(lib_arc->get_timing_sense());
-
-              // 将信息存入线程安全的管理器
-              ArcDebugDataManager::getInstance().addArcInfo(info);
-          }
-          // DEBUG
-          construct_delay_data(analysis_mode, out_trans_type, the_arc, delay);
-          /*The unate arc should split two.*/
-          if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() || src_vertex->is_clock()) {
+          construct_delay_data(analysis_mode, out_trans_type, the_arc, delay,
+                               src_slew_data->get_data_epoch());
+          /* Mixed-sense arc sets need both output transitions on data paths. */
+          if (!the_arc->isUnateArc() || the_arc->isTwoTypeSenseArc() ||
+              src_vertex->is_clock()) {
             auto out_trans_type1 = flip_trans_type(trans_type);
 
             // fix the timing type not match the trans type, which would lead to
@@ -258,16 +255,16 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
             if (!lib_arc_set->isMatchTimingType(out_trans_type1)) {
               continue;
             }
-            auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(trans_type,
-                out_trans_type1, in_slew,
-                load_array[trans_to_index(out_trans_type1)]);
-            double delay1_ns = analysis_mode == AnalysisMode::kMax
-                                  ? delay_values.front()
-                                  : delay_values.back();
+            auto [load_pf1, load1] = convert_load(out_trans_type1);
+            auto delay_values = lib_arc_set->getDelayOrConstrainCheckNs(
+                trans_type, out_trans_type1, in_slew, load1);
+            auto delay1_ns = analysis_mode == AnalysisMode::kMax
+                                 ? delay_values.front()
+                                 : delay_values.back();
             auto delay1 = NS_TO_FS(delay1_ns);
 
             construct_delay_data(analysis_mode, out_trans_type1, the_arc,
-                                 delay1);
+                                 delay1, src_slew_data->get_data_epoch());
           }
         } else if (the_arc->isMpwArc()) {
           // TODO(to taosimin) fix mpw arc
@@ -281,7 +278,8 @@ unsigned StaDelayPropagation::operator()(StaArc* the_arc) {
                                 : std::nullopt;
         auto delay_ps = net_delay ? net_delay->first : 0.0;
         auto delay = PS_TO_FS(delay_ps);
-        construct_delay_data(analysis_mode, trans_type, the_arc, delay);
+        construct_delay_data(analysis_mode, trans_type, the_arc, delay,
+                             src_slew_data->get_data_epoch());
 
         if (rc_net) {
           auto* arnoldi_rc_net = dynamic_cast<ArnoldiNet*>(rc_net);

@@ -54,6 +54,11 @@ bool saveDef(const std::string& def_name)
   return dmInst->saveDef(def_name);
 }
 
+bool saveMacroTCL(const std::string& def_name)
+{
+  return dmInst->saveMacroTCL(def_name);
+}
+
 bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_cell_names /* = {} */,
                  bool is_add_space_for_escape_name /* = false*/)
 {
@@ -64,6 +69,13 @@ bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_
 bool saveGDSII(const std::string& gds_name)
 {
   return dmInst->saveGDSII(gds_name);
+}
+
+bool saveJson(const std::string& path)
+{
+  std::string options = "";
+
+  return dmInst->saveJSON(path, options);
 }
 
 }  // namespace python_interface

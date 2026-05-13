@@ -24,11 +24,11 @@ message(STATUS "vcd parser rust lib path ${RUST_LIB_PATH}")
 ADD_EXTERNAL_PROJ(vcd)
 
 target_link_libraries(vcd ${RUST_LIB_PATH} dl)
-target_include_directories(vcd PUBLIC 
+target_include_directories(vcd PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(test_vcd ${CMAKE_CURRENT_SOURCE_DIR}/vcd_parser/test/test.cpp)
 target_link_libraries(test_vcd vcd)
-target_include_directories(test_vcd PUBLIC 
+target_include_directories(test_vcd PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR})
-    
+

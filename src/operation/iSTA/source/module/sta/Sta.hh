@@ -541,6 +541,8 @@ class Sta {
 
   std::vector<StaSeqPathData*> getSeqData(StaVertex* vertex,
                                           StaData* delay_data);
+  std::vector<StaSeqPathData*> getSeqData(StaVertex* vertex,
+                                          AnalysisMode analysis_mode);
   double getWNS(const char* clock_name, AnalysisMode mode);
   double getTNS(const char* clock_name, AnalysisMode mode);
   double getLocalSkew(const char* clock_name, AnalysisMode mode,

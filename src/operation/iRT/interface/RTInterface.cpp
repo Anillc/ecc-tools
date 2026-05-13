@@ -351,38 +351,6 @@ void RTInterface::fixFanout()
   }
 }
 
-void RTInterface::getCongestion()
-{
-  Monitor monitor;
-  RTLOG.info(Loc::current(), "Starting...");
-
-  initFlute();
-  RTGP.init();
-  RTDE.init();
-
-  PinAccessor::initInst();
-  RTPA.access();
-  PinAccessor::destroyInst();
-
-  SupplyAnalyzer::initInst();
-  RTSA.analyze();
-  SupplyAnalyzer::destroyInst();
-
-  TopologyGenerator::initInst();
-  RTTG.generate();
-  TopologyGenerator::destroyInst();
-
-  LayerAssigner::initInst();
-  RTLA.assign();
-  LayerAssigner::destroyInst();
-
-  destroyFlute();
-  RTGP.destroy();
-  RTDE.destroy();
-
-  RTLOG.info(Loc::current(), "Completed", monitor.getStatsInfo());
-}
-
 #endif
 
 #endif
@@ -764,6 +732,10 @@ void RTInterface::wrapObstacleList()
     for (idb::IdbInstance* idb_instance : idb_instance_list) {
       // instance obs
       for (idb::IdbLayerShape* obs_box : idb_instance->get_obs_box_list()) {
+        if (obs_box->get_layer() == nullptr) {
+          // RTLOG.warn(Loc::current(), "The obs box layer is empty for instance ", idb_instance->get_name());
+          continue;
+        }
         if (obs_box->get_layer()->is_routing()) {
           total_routing_obstacle_num += obs_box->get_rect_list().size();
         } else if (obs_box->get_layer()->is_cut()) {
@@ -824,6 +796,10 @@ void RTInterface::wrapObstacleList()
       // instance obs
       for (idb::IdbLayerShape* obs_box : idb_instance->get_obs_box_list()) {
         for (idb::IdbRect* rect : obs_box->get_rect_list()) {
+          if (obs_box->get_layer() == nullptr) {
+            // RTLOG.warn(Loc::current(), "The obs box layer is empty for instance ", idb_instance->get_name());
+            continue;
+          }
           Obstacle obstacle;
           obstacle.set_real_ll(rect->get_low_x(), rect->get_low_y());
           obstacle.set_real_ur(rect->get_high_x(), rect->get_high_y());

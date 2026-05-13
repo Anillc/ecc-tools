@@ -2429,6 +2429,27 @@ std::vector<StaSeqPathData *> Sta::getSeqData(StaVertex *vertex,
   return seq_data_vec;
 }
 
+std::vector<StaSeqPathData *> Sta::getSeqData(StaVertex *vertex,
+                                              AnalysisMode analysis_mode) {
+  std::vector<StaSeqPathData *> seq_data_vec;
+  for (const auto &[clk, seq_path_group] : _clock_groups) {
+    StaPathEnd *path_end = seq_path_group->findPathEndData(vertex);
+    if (!path_end) {
+      continue;
+    }
+
+    StaPathEndIterator path_iter(path_end, analysis_mode);
+    while (path_iter.hasNext()) {
+      auto *seq_data = dynamic_cast<StaSeqPathData *>(path_iter.next());
+      if (seq_data) {
+        seq_data_vec.emplace_back(seq_data);
+      }
+    }
+  }
+
+  return seq_data_vec;
+}
+
 /**
  * @brief Get WNS.
  *
@@ -3071,7 +3092,7 @@ int Sta::getWorstSlack(StaVertex *end_vertex, AnalysisMode mode,
  */
 void Sta::writeVerilog(const char *verilog_file_name,
                        std::set<std::string> &exclude_cell_names) {
-  NetlistWriter writer(verilog_file_name, exclude_cell_names, _netlist);
+  NetlistWriter writer(verilog_file_name, exclude_cell_names, &_netlist);
   writer.writeModule();
 }
 

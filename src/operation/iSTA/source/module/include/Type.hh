@@ -52,13 +52,16 @@ static constexpr int g_pf2ff = 1000;
 static constexpr double g_pf2f = 1e-12;
 
 static constexpr std::initializer_list<std::pair<AnalysisMode, TransType>>
-    g_split_trans = {{AnalysisMode::kMax, TransType::kRise},
-                     {AnalysisMode::kMax, TransType::kFall},
-                     {AnalysisMode::kMin, TransType::kRise},
-                     {AnalysisMode::kMin, TransType::kFall}};
+    g_split_mode_trans = {{AnalysisMode::kMax, TransType::kRise},
+                          {AnalysisMode::kMax, TransType::kFall},
+                          {AnalysisMode::kMin, TransType::kRise},
+                          {AnalysisMode::kMin, TransType::kFall}};
 
 static constexpr std::initializer_list<AnalysisMode> g_split_mode = {
     AnalysisMode::kMax, AnalysisMode::kMin};
+
+static constexpr std::initializer_list<TransType> g_split_trans = {
+    TransType::kRise, TransType::kFall};
 
 enum class ModeTransIndex : int {
   kMaxRise = 0,
@@ -71,8 +74,10 @@ ModeTransIndex mapToModeTransIndex(AnalysisMode mode, TransType type);
 
 using ModeTransPair = std::pair<AnalysisMode, TransType>;
 
-#define FOREACH_MODE_TRANS(mode, trans) for (auto [mode, trans] : g_split_trans)
+#define FOREACH_MODE_TRANS(mode, trans) \
+  for (auto [mode, trans] : g_split_mode_trans)
 #define FOREACH_MODE(mode) for (auto mode : g_split_mode)
+#define FOREACH_TRANS(trans) for (auto trans : g_split_trans)
 
 #define NS_TO_FS(delay) ((delay) * static_cast<int64_t>(g_ns2fs))
 #define FS_TO_NS(delay) ((delay) / static_cast<double>(g_ns2fs))

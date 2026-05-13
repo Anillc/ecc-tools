@@ -52,6 +52,8 @@ TimingInstanceGraph* TimingAPI::getTimingInstanceGraph()
 void TimingAPI::destroyInst()
 {
   ieval::TimingEval::destroyInst();
+  delete _timing_api;
+  _timing_api = nullptr;
 }
 
 std::map<std::string, TimingSummary> TimingAPI::evalDesign()

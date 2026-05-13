@@ -156,8 +156,13 @@ class StaVertex {
   }
   void resetVertexArcData();
 
-  void initSlewData();
-  void initPathDelayData();
+  void setPathBasedPropagated();
+  void initSlewData(int init_slew = 0, bool is_set_launch_data = false,
+                    bool force_create = false, uint64_t data_epoch = 0);
+  void initPathDelayData(int init_at = 0, bool force_create = false,
+                         uint64_t data_epoch = 0);
+  void setConstainTime(AnalysisMode analysis_mode, TransType trans_type,
+                       int constrain_rt);
 
   StaDataBucket& getSlewBucket() { return _slew_bucket; }
   StaDataBucket& getClockBucket() { return _clock_bucket; }
@@ -214,8 +219,8 @@ class StaVertex {
   void set_is_crosstalk_prop() { _is_crosstalk_prop = 1; }
   void reset_is_crosstalk_prop() { _is_crosstalk_prop = 0; }
 
-  void set_level(int level);
-  int get_level() const { return _level; }
+  void set_level(unsigned level);
+  unsigned get_level() const { return _level; }
   void resetLevel() { _level = 0; }
   unsigned isSetLevel() { return _level != 0; }
 
@@ -409,10 +414,20 @@ class StaVertex {
 
   StaSlewData* getSlewData(AnalysisMode analysis_mode, TransType trans_type,
                            StaData* src_slew_data);
+  StaSlewData* getWorstSlewData(AnalysisMode analysis_mode,
+                                TransType trans_type);
+  StaSlewData* getWorstSlewDataFromStart(AnalysisMode analysis_mode,
+                                         TransType trans_type,
+                                         StaVertex* start_vertex);
 
   StaPathDelayData* getPathDelayData(AnalysisMode analysis_mode,
                                      TransType trans_type,
                                      StaData* src_delay_data);
+  StaPathDelayData* getWorstPathDelayData(AnalysisMode analysis_mode,
+                                          TransType trans_type);
+  std::map<StaVertex*, StaPathDelayData*> getDifferentStartPathDelayData(
+      AnalysisMode analysis_mode, TransType trans_type);
+
   void getPathDepth(std::priority_queue<int, std::vector<int>,
                                         std::greater<int>>& depth_min_queue,
                     int depth = 0);
@@ -443,7 +458,7 @@ class StaVertex {
   unsigned _is_fwd : 1 = 0;  //!< The vertex is arrive time forward propagated.
   unsigned _is_crosstalk_prop : 1 = 0;  // The vertex is crosstalk propagated.
 
-  int _level : 10 = 0;            //!< The vertex level, start from 1;
+  unsigned _level : 10 = 0;            //!< The vertex level, start from 1;
   unsigned _is_sdc_clock_pin : 1 = 0;  //!< The create_clock or
                                        //!< create_generate_clock constrain pin.
   unsigned _is_ideal_clock_latency : 1 = 0;  //!< The ideal clock latency set.

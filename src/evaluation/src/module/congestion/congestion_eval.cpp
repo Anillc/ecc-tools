@@ -16,6 +16,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 
 #include "general_ops.h"
 #include "idm.h"
@@ -854,8 +855,10 @@ float CongestionEval::evalAvgUtilization(string stage, string rudy_dir_path, str
   return avg_util;
 }
 
-void CongestionEval::initEGR()
+void CongestionEval::initEGR(std::string stage, std::string resolve_congestion)
 {
+  EVAL_INIT_EGR_INST->setStage(stage);
+  EVAL_INIT_EGR_INST->setResolveCongestion(resolve_congestion);
   EVAL_INIT_EGR_INST->runEGR();
 }
 
@@ -912,15 +915,15 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
     for (const auto& pin : net.pins) {
       int32_t pin_col = static_cast<int32_t>((pin.lx - region.lx) / grid_size_x);
       int32_t pin_row = static_cast<int32_t>((pin.ly - region.ly) / grid_size_y);
-      
+
       pin_col = std::max(0, std::min(bin_cnt_x - 1, pin_col));
       pin_row = std::max(0, std::min(bin_cnt_y - 1, pin_row));
-      
+
       start_row = std::min(start_row, pin_row);
       end_row = std::max(end_row, pin_row);
       start_col = std::min(start_col, pin_col);
       end_col = std::max(end_col, pin_col);
-      
+
       net_lx = std::min(net_lx, pin.lx);
       net_ly = std::min(net_ly, pin.ly);
       net_ux = std::max(net_ux, pin.lx);
@@ -933,7 +936,7 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
     } else {
       hor_rudy = 1.0 / static_cast<double>(net_uy - net_ly);
     }
-    
+
     double ver_rudy = 0.0;
     if (net_ux == net_lx) {
       ver_rudy = 1.0;
@@ -956,7 +959,7 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
 
         double overlap_area = 0.0;
         if (overlap_lx == overlap_ux) {
-          overlap_area = overlap_uy - overlap_ly; 
+          overlap_area = overlap_uy - overlap_ly;
         } else if (overlap_ly == overlap_uy) {
           overlap_area = overlap_ux - overlap_lx;
         } else {
@@ -986,18 +989,18 @@ CongestionValue CongestionEval::calRUDY(int bin_cnt_x, int bin_cnt_y, const std:
 
   double max_congestion = 0.0;
   double total_congestion = 0.0;
-  
+
   for (const auto& row : density_grid) {
     for (double congestion : row) {
       total_congestion += congestion;
       max_congestion = std::max(max_congestion, congestion);
     }
   }
-  
+
   CongestionValue result;
   result.max_congestion = max_congestion;
   result.total_congestion = total_congestion;
-  
+
   return result;
 
 }
@@ -1025,15 +1028,15 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
     for (const auto& pin : net.pins) {
       int32_t pin_col = static_cast<int32_t>((pin.lx - region.lx) / grid_size_x);
       int32_t pin_row = static_cast<int32_t>((pin.ly - region.ly) / grid_size_y);
-      
+
       pin_col = std::max(0, std::min(bin_cnt_x - 1, pin_col));
       pin_row = std::max(0, std::min(bin_cnt_y - 1, pin_row));
-      
+
       start_row = std::min(start_row, pin_row);
       end_row = std::max(end_row, pin_row);
       start_col = std::min(start_col, pin_col);
       end_col = std::max(end_col, pin_col);
-      
+
       net_lx = std::min(net_lx, pin.lx);
       net_ly = std::min(net_ly, pin.ly);
       net_ux = std::max(net_ux, pin.lx);
@@ -1088,7 +1091,7 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
 
         double overlap_area = 0.0;
         if (overlap_lx == overlap_ux) {
-          overlap_area = overlap_uy - overlap_ly; 
+          overlap_area = overlap_uy - overlap_ly;
         } else if (overlap_ly == overlap_uy) {
           overlap_area = overlap_ux - overlap_lx;
         } else {
@@ -1118,18 +1121,18 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
 
   double max_congestion = 0.0;
   double total_congestion = 0.0;
-  
+
   for (const auto& row : density_grid) {
     for (double congestion : row) {
       total_congestion += congestion;
       max_congestion = std::max(max_congestion, congestion);
     }
   }
-  
+
   CongestionValue result;
   result.max_congestion = max_congestion;
   result.total_congestion = total_congestion;
-  
+
   return result;
 }
 
@@ -1137,7 +1140,7 @@ CongestionValue CongestionEval::calLUTRUDY(int bin_cnt_x, int bin_cnt_y, const s
 CongestionValue CongestionEval::calEGRCongestion(const std::string& save_path)
 {
   std::string rt_dir_path = getEGRDirPath();
-  
+
   std::unordered_map<std::string, LayerDirection> layer_directions
       = EVAL_INIT_EGR_INST->parseLayerDirection(rt_dir_path + "/early_router/route.guide");
 
@@ -1158,15 +1161,15 @@ CongestionValue CongestionEval::calEGRCongestion(const std::string& save_path)
           std::ifstream file(entry.path());
           std::string line;
           size_t row = 0;
-          
+
           while (std::getline(file, line)) {
             std::istringstream iss(line);
             std::string value;
             int col = 0;
-            
+
             while (std::getline(iss, value, ',')) {
               double num_value = std::stod(value);
-              
+
               if (is_first_file) {
                 if (row >= sum_matrix.size()) {
                   sum_matrix.push_back(std::vector<double>());
@@ -1207,18 +1210,18 @@ CongestionValue CongestionEval::calEGRCongestion(const std::string& save_path)
 
   double max_congestion = 0.0;
   double total_congestion = 0.0;
-  
+
   for (const auto& row : sum_matrix) {
     for (double congestion : row) {
       total_congestion += congestion;
       max_congestion = std::max(max_congestion, congestion);
     }
   }
-  
+
   CongestionValue result;
   result.max_congestion = max_congestion;
   result.total_congestion = total_congestion;
-  
+
   return result;
 
 }
@@ -1687,6 +1690,128 @@ std::map<std::string, std::vector<std::vector<int>>> CongestionEval::getDemandSu
   return diff_map;
 }
 
+std::tuple<std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>>, std::vector<GCellInfo>> CongestionEval::getOverflowSupplyMap(bool is_run_egr, std::string stage, std::string resolve_congestion)
+{
+  // 如果未指定目录，使用默认路径
+  std::string congestion_dir = dmInst->get_config().get_output_path() + "/rt/rt_temp_directory";
+
+  if (is_run_egr == true) {
+    setEGRDirPath(congestion_dir);
+    initEGR(stage, resolve_congestion);
+    destroyEGR();
+  }
+
+  // 构造early_router和supply_analyzer的完整路径
+  std::string demand_dir = congestion_dir + "/early_router";
+  std::string supply_dir = congestion_dir + "/early_router";
+
+  printf("demand_dir: %s\nsupply_dir: %s\n", demand_dir.c_str(), supply_dir.c_str());
+
+  // 用于存储最终的差值矩阵
+  std::map<std::string, std::pair<CongestionMatrix, CongestionMatrix>> result_map;
+  // 临时存储demand和supply矩阵
+  std::map<std::string, std::vector<std::vector<int>>> demand_matrices;
+  std::map<std::string, std::vector<std::vector<int>>> supply_matrices;
+
+  // 读取overflow矩阵
+  std::filesystem::path demand_path(demand_dir);
+  for (const auto& entry : std::filesystem::directory_iterator(demand_path)) {
+    std::string filename = entry.path().filename().string();
+    if (filename.find("overflow_map_") == 0) {
+      // extract layer name (overflow_map_ = 13 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(13, filename.length() - 13 - 4);
+
+      // 读取文件内容
+      std::ifstream file(entry.path());
+      std::string line;
+      std::vector<std::vector<int>> matrix;
+      while (std::getline(file, line)) {
+        std::vector<int> row;
+        std::istringstream iss(line);
+        std::string value;
+        while (std::getline(iss, value, ',')) {
+          row.push_back(std::stod(value));
+        }
+        matrix.push_back(row);
+      }
+      // 反转行顺序（转换为左下角原点）
+      std::reverse(matrix.begin(), matrix.end());
+      demand_matrices[layer_name] = matrix;
+    }
+  }
+
+  // 读取supply矩阵
+  std::filesystem::path supply_path(supply_dir);
+  for (const auto& entry : std::filesystem::directory_iterator(supply_path)) {
+    std::string filename = entry.path().filename().string();
+    if (filename.find("supply_map_") == 0) {
+      // 提取层名 (AP, M1, M2等)
+      // extract layer name (supply_map_ = 11 chars, .csv = 4 chars)
+      std::string layer_name = filename.substr(11, filename.length() - 11 - 4);
+
+      // 读取文件内容
+      std::ifstream file(entry.path());
+      std::string line;
+      std::vector<std::vector<int>> matrix;
+      while (std::getline(file, line)) {
+        std::vector<int> row;
+        std::istringstream iss(line);
+        std::string value;
+        while (std::getline(iss, value, ',')) {
+          row.push_back(std::stod(value));
+        }
+        matrix.push_back(row);
+      }
+      // 反转行顺序（转换为左下角原点）
+      std::reverse(matrix.begin(), matrix.end());
+      supply_matrices[layer_name] = matrix;
+    }
+  }
+
+  // 计算results矩阵
+  for (const auto& [layer_name, demand_matrix] : demand_matrices) {
+    // 检查该层是否同时存在supply数据
+    if (supply_matrices.find(layer_name) != supply_matrices.end()) {
+      const auto& supply_matrix = supply_matrices[layer_name];
+
+      // 确保矩阵尺寸相同
+      if (demand_matrix.size() == supply_matrix.size() && demand_matrix[0].size() == supply_matrix[0].size()) {
+        CongestionMatrix demand_congestion(demand_matrix);
+        CongestionMatrix supply_congestion(supply_matrix);
+        result_map[layer_name] = std::make_pair(demand_congestion, supply_congestion);
+      } else {
+        printf("Warning: Matrix size mismatch for layer %s\n", layer_name.c_str());
+      }
+    }
+  }
+
+  // read gcell info
+  std::vector<GCellInfo> gcell_info_list;
+  string gcell_file_path  =  demand_dir + "/gcell.info";
+
+  std::ifstream file(gcell_file_path);
+  std::string line;
+  while (std::getline(file, line)) {
+    std::vector<int> row;
+    std::istringstream iss(line);
+    std::string value;
+    while (std::getline(iss, value, ',')) {
+      row.push_back(std::stod(value));
+    }
+    GCellInfo gcell_info;
+    gcell_info.grid_x = row[0];
+    gcell_info.grid_y = row[1];
+
+    gcell_info.lx = row[2];
+    gcell_info.ly = row[3];
+    gcell_info.ux = row[4];
+    gcell_info.uy = row[5];
+
+    gcell_info_list.push_back(gcell_info);
+  }
+
+  return std::make_tuple(result_map, gcell_info_list);
+}
 
 std::map<int, double> CongestionEval::patchRUDYCongestion(CongestionNets nets,
                                                           std::map<int, std::pair<std::pair<int, int>, std::pair<int, int>>> patch_coords)
@@ -1715,7 +1840,7 @@ std::map<int, double> CongestionEval::patchRUDYCongestion(CongestionNets nets,
                                      [](const NetMetadata& net, int x) {
                                        return net.ux < x;
                                      });
-    
+
     auto end_it = std::upper_bound(net_metadata.begin(), net_metadata.end(), patch_ux,
                                    [](int x, const NetMetadata& net) {
                                      return x < net.lx;
@@ -1779,8 +1904,8 @@ std::map<int, double> CongestionEval::patchEGRCongestion(std::map<int, std::pair
   // step 2 : get physical coordinate range
   int max_phy_x = 0, max_phy_y = 0;
   for (const auto& [id, coords] : patch_coords) {
-    max_phy_x = std::max(max_phy_x, coords.second.first);   
-    max_phy_y = std::max(max_phy_y, coords.second.second);  
+    max_phy_x = std::max(max_phy_x, coords.second.first);
+    max_phy_y = std::max(max_phy_y, coords.second.second);
   }
 
   // step 3: establish mapping for each patch
@@ -1832,8 +1957,8 @@ std::map<int, std::map<std::string, double>> CongestionEval::patchLayerEGRConges
   // get physical coordinate range
   int max_phy_x = 0, max_phy_y = 0;
   for (const auto& [id, coords] : patch_coords) {
-    max_phy_x = std::max(max_phy_x, coords.second.first); 
-    max_phy_y = std::max(max_phy_y, coords.second.second); 
+    max_phy_x = std::max(max_phy_x, coords.second.first);
+    max_phy_y = std::max(max_phy_y, coords.second.second);
   }
 
   // establish mapping for each patch
@@ -1883,12 +2008,12 @@ std::vector<NetMetadata> CongestionEval::precomputeNetData(const CongestionNets&
       md.ux = std::max(md.ux, pin.lx);
       md.uy = std::max(md.uy, pin.ly);
     }
-    
+
     // skip nets without valid pins
     if (md.lx == INT32_MAX || md.ly == INT32_MAX || md.ux == INT32_MIN || md.uy == INT32_MIN) {
-      continue; 
+      continue;
     }
-    
+
     // precompute RUDY factors
     md.hor_rudy = (md.uy == md.ly) ? 1.0 : 1.0 / (md.uy - md.ly);
     md.ver_rudy = (md.ux == md.lx) ? 1.0 : 1.0 / (md.ux - md.lx);

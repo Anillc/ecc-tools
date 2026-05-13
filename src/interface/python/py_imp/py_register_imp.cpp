@@ -34,6 +34,9 @@ void register_imp(pybind11::module& m)
 
   pybind11::class_<PyPlaceDB>(m, "PyPlaceDB")
       .def(pybind11::init<>())
+      /*----------functions ---------*/
+      .def("getCongestionMap", &PyPlaceDB::getCongestionMap, py::arg("method") = "max", py::arg("stage") = "egr3D", py::arg("resolve_congestion") = "low")
+      /*----------end  functions ---------*/
       .def_readwrite("num_nodes", &PyPlaceDB::num_nodes)
       .def_readwrite("num_terminals", &PyPlaceDB::num_terminals)
       .def_readwrite("num_terminal_NIs", &PyPlaceDB::num_terminal_NIs)
@@ -91,8 +94,6 @@ void register_imp(pybind11::module& m)
       .def_readwrite("end_points", &PyPlaceDB::end_points)
       .def_readwrite("clock_pins", &PyPlaceDB::clock_pins)
       .def_readwrite("FF_ids", &PyPlaceDB::FF_ids)
-      .def_readwrite("clk_pin_r_aat", &PyPlaceDB::clk_pin_r_aat)
-      .def_readwrite("clk_pin_f_aat", &PyPlaceDB::clk_pin_f_aat)
       .def_readwrite("clk_pin_rtran", &PyPlaceDB::clk_pin_rtran)
       .def_readwrite("clk_pin_ftran", &PyPlaceDB::clk_pin_ftran)
       .def_readwrite("clk_pin_names", &PyPlaceDB::clk_pin_names)
@@ -100,7 +101,6 @@ void register_imp(pybind11::module& m)
       // .def_readwrite("cells_by_reverse_level", &PyPlaceDB::cells_by_reverse_level)
       .def_readwrite("inrdelays", &PyPlaceDB::inrdelays)
       .def_readwrite("infdelays", &PyPlaceDB::infdelays)
-      .def("set_debug_dump_lut", &PyPlaceDB::set_debug_dump_lut)
       .def_readwrite("inrtrans", &PyPlaceDB::inrtrans)
       .def_readwrite("inftrans", &PyPlaceDB::inftrans)
       .def_readwrite("outcaps", &PyPlaceDB::outcaps)
@@ -112,7 +112,7 @@ void register_imp(pybind11::module& m)
       .def_readwrite("main_id_2_cell_id_start", &PyPlaceDB::main_id_2_cell_id_start)
       .def_readwrite("cell_id_2_arc_id_start", &PyPlaceDB::cell_id_2_arc_id_start)
       .def_readwrite("inst_main_id", &PyPlaceDB::inst_main_id)
-      .def_readwrite("inst_libcell_offset", &PyPlaceDB::inst_libcell_offset)
+      .def_readwrite("inst_size", &PyPlaceDB::inst_size)
       .def_readwrite("f_delay_flat_luts_values", &PyPlaceDB::f_delay_flat_luts_values)
       .def_readwrite("f_delay_flat_luts_trans_table", &PyPlaceDB::f_delay_flat_luts_trans_table)
       .def_readwrite("f_delay_flat_luts_cap_table", &PyPlaceDB::f_delay_flat_luts_cap_table)
@@ -129,16 +129,12 @@ void register_imp(pybind11::module& m)
       .def_readwrite("r_trans_flat_luts_trans_table", &PyPlaceDB::r_trans_flat_luts_trans_table)
       .def_readwrite("r_trans_flat_luts_cap_table", &PyPlaceDB::r_trans_flat_luts_cap_table)
       .def_readwrite("r_trans_flat_luts_dim", &PyPlaceDB::r_trans_flat_luts_dim)
-      .def_readwrite("flat_inst_arcs_by_level", &PyPlaceDB::flat_inst_arcs_by_level)
-      .def_readwrite("flat_inst_arcs_by_level_start", &PyPlaceDB::flat_inst_arcs_by_level_start)
       .def_readwrite("flat_cells_by_level", &PyPlaceDB::flat_cells_by_level)
       .def_readwrite("flat_cells_by_reverse_level", &PyPlaceDB::flat_cells_by_reverse_level)
       .def_readwrite("flat_cells_by_level_start", &PyPlaceDB::flat_cells_by_level_start)
       .def_readwrite("net2driver_pin_map", &PyPlaceDB::net2driver_pin_map)
       .def_readwrite("cell_id_2_libpin_id_start", &PyPlaceDB::cell_id_2_libpin_id_start)
       .def_readwrite("pin_2_libpin_offset", &PyPlaceDB::pin_2_libpin_offset)
-      .def_readwrite("flat_lib_pin_offset_x", &PyPlaceDB::flat_lib_pin_offset_x)
-      .def_readwrite("flat_lib_pin_offset_y", &PyPlaceDB::flat_lib_pin_offset_y)
       .def_readwrite("flat_lib_pin_cap", &PyPlaceDB::flat_lib_pin_cap)
       .def_readwrite("flat_lib_pin_rcap", &PyPlaceDB::flat_lib_pin_rcap)
       .def_readwrite("flat_lib_pin_fcap", &PyPlaceDB::flat_lib_pin_fcap)
@@ -148,30 +144,16 @@ void register_imp(pybind11::module& m)
       .def_readwrite("c_unit", &PyPlaceDB::c_unit)
       .def_readwrite("r_unit", &PyPlaceDB::r_unit)
       .def_readwrite("dbu", &PyPlaceDB::dbu)
-      .def_readwrite("flat_pin_to_graph", &PyPlaceDB::flat_pin_to_graph)
-      .def_readwrite("flat_pin_to_graph_start", &PyPlaceDB::flat_pin_to_graph_start)
-      .def_readwrite("flat_pin_to_graph_reverse", &PyPlaceDB::flat_pin_to_graph_reverse)
-      .def_readwrite("flat_pin_to_graph_start_reverse", &PyPlaceDB::flat_pin_to_graph_start_reverse)
-      .def_readwrite("pin_pair_arc_keys", &PyPlaceDB::pin_pair_arc_keys)
-      .def_readwrite("flat_pin_pair_arc_start", &PyPlaceDB::flat_pin_pair_arc_start)
-      .def_readwrite("flat_pin_pair_arc_indices", &PyPlaceDB::flat_pin_pair_arc_indices)
       .def_readwrite("endpoints_rRAT", &PyPlaceDB::endpoints_rRAT)
-      .def_readwrite("endpoints_fRAT", &PyPlaceDB::endpoints_fRAT)
-      .def_readwrite("flat_libarc_info", &PyPlaceDB::flat_libarc_info)
-      .def_readwrite("flat_libcell_info", &PyPlaceDB::flat_libcell_info)
-      .def_readwrite("flat_libcell_width", &PyPlaceDB::flat_libcell_width)
-      .def_readwrite("flat_libcell_height", &PyPlaceDB::flat_libcell_height)
-      .def_readwrite("flat_libcell_leakage", &PyPlaceDB::flat_libcell_leakage)
-      .def_readwrite("main_id_is_sizeable", &PyPlaceDB::main_id_is_sizeable)
-      .def_readwrite("flat_libcell_main_id2size_vt_limit", &PyPlaceDB::flat_libcell_main_id2size_vt_limit);
+      .def_readwrite("endpoints_fRAT", &PyPlaceDB::endpoints_fRAT);
 
   // .def("sum_pin_weights", &_pybind::sum_pin_weights);
-  m.def("pydb",
-        [](idm::DataManager* db, bool with_sta, pybind11::list vt_config, const std::string& process_node) {
-          return PyPlaceDB(db, with_sta, vt_config, process_node);
-        },
-        "Convert PlaceDB to PyPlaceDB", py::arg("db"), py::arg("with_sta"), py::arg("vt_config") = pybind11::list(),
-        py::arg("process_node") = "");
+  m.def(
+      "pydb",
+      [](idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta) {
+        return PyPlaceDB(db, numRoutingGridsX, numRoutingGridsY, with_routability, with_sta);
+      },
+      "Convert PlaceDB to PyPlaceDB");
   // m.def("SAPlaceSeqPairInt64", imp::SAPlaceSeqPairInt64);
   // m.def("runMP", runMP, py::arg("config"), py::arg("output_tcl") = "");
   // m.def("runRef", runRef, py::arg("output_tcl") = "");

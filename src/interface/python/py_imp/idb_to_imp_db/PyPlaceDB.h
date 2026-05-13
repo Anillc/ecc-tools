@@ -91,18 +91,14 @@ struct PyPlaceDB
 
   pybind11::list node2fence_region_map;  ///< only record fence regions for each cell
 
-  // STA graph
-  pybind11::list flat_pin_to_graph;       ///< flatten version of flat_pin_to_graph
-  pybind11::list flat_pin_to_graph_start;  ///< starting index of each pin in flat_pin_to_graph
-  pybind11::list flat_pin_to_graph_reverse;       ///< flatten version of flat_pin_to_graph_reverse
-  pybind11::list flat_pin_to_graph_start_reverse;  ///< starting index of each pin in flat_pin_to_graph_reverse
-
   unsigned int num_routing_grids_x;  ///< number of routing grids in x
   unsigned int num_routing_grids_y;  ///< number of routing grids in y
   int routing_grid_xl;               ///< routing grid region may be different from placement region
   int routing_grid_yl;
   int routing_grid_xh;
   int routing_grid_yh;
+  int routing_grids_size_x;
+  int routing_grids_size_y;
   int dbu;                                       ///< database unit, used to convert coordinate to integer
   pybind11::list unit_horizontal_capacities;     ///< number of horizontal tracks of layers per unit distance
   pybind11::list unit_vertical_capacities;       /// number of vertical tracks of layers per unit distance
@@ -116,8 +112,6 @@ struct PyPlaceDB
   pybind11::list start_points;   //
   pybind11::list end_points;     //
   pybind11::list clock_pins;     //
-  pybind11::list clk_pin_r_aat;  //
-  pybind11::list clk_pin_f_aat;  //
   pybind11::list clk_pin_rtran;  //
   pybind11::list clk_pin_ftran;  //
   pybind11::list clk_pin_names;  ///< 1D array, pin name
@@ -127,27 +121,6 @@ struct PyPlaceDB
 
   pybind11::list flat_cells_by_level_start;          //
   pybind11::list flat_cells_by_reverse_level_start;  //
-
-  /*
-    [N, 7]
-    from_pin_id
-    to_pin_id
-    libcell id 不区分vt和size，是确定的某个具体的libcell type
-    libarc idx 具体的某个libarc 的位置，不区分arc type
-    libarc timing sense
-    libarc timing type
-    libarc offset
-    inst id
-  */
-  pybind11::list flat_inst_arcs_by_level;                // inst arcs by level for timing propagation
-  pybind11::list flat_inst_arcs_by_level_start;          //
-
-  pybind11::list pin_pair_arc_keys;               // 每个 (src, dst) 对应的 pin 对
-  pybind11::list flat_pin_pair_arc_start;         // CSR 起始索引
-  pybind11::list flat_pin_pair_arc_indices;       // 扁平化的弧索引列表
-
-  pybind11::list flat_inst_arcs_by_reverse_level;          //
-  pybind11::list flat_inst_arcs_by_reverse_level_start;     //
 
   /*sdc */
   pybind11::list inrdelays;  //
@@ -167,33 +140,21 @@ struct PyPlaceDB
   pybind11::list endpoints_constraint_arcs;  // constraint arcs,
 
   /* ------------------------info for gate sizing----------------------*/
-  pybind11::list main_id_2_cell_id_start;  // CSR start offsets, shape = [num_main_type + 1]
-                                           // main_id_2_cell_id_start[main_id] + libcell_offset -> cell_id
-  pybind11::list cell_id_2_arc_id_start;   // CSR start offsets, shape = [num_lib_cells + 1]
-                                           // cell_id_2_arc_id_start[cell_id] + arc_offset -> arc
+  pybind11::list main_id_2_cell_id_start;  // [num_main_type, ] main_id_2_cell_id_start + cell_width -> cell_id
+  // main_id -> cell_id
+  pybind11::list cell_id_2_arc_id_start;  //[num_lib_cells, ] cell_id_2_arc_id_start + arc_offset -> arc
 
-  pybind11::list inst_main_id;  // [inst_num, ] libcell_main_id + libcell_offset -> libcell_id
-  pybind11::list inst_libcell_offset;     // [inst_num, ] libcell_main_id + libcell_offset -> libcell_id
+  pybind11::list inst_main_id;  // [inst_num, ] cell_main_id + cell_width -> cell_id
+  pybind11::list inst_size;     // [inst_num, ] cell_main_id + cell_width -> cell_id
 
-  pybind11::list cell_id_2_libpin_id_start;  // CSR start offsets, shape = [num_lib_cells + 1]
-                                             // cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
+  pybind11::list cell_id_2_libpin_id_start;  // [num_lib_cells, ] cell_id_2_libpin_id_start[cell_id] + lib_pin_offset -> libpin_id
   pybind11::list pin_2_libpin_offset;
-  pybind11::list flat_lib_pin_offset_x;   // [num_lib_pins, ] lib-pin offset x aligned with libpin_id
-  pybind11::list flat_lib_pin_offset_y;   // [num_lib_pins, ] lib-pin offset y aligned with libpin_id
   pybind11::list flat_lib_pin_cap;         //
   pybind11::list flat_lib_pin_rcap;        //
   pybind11::list flat_lib_pin_fcap;        //
   pybind11::list flat_lib_pin_cap_limit;   //
   pybind11::list flat_lib_pin_slew_limit;  //
 
-  
-  pybind11::list flat_libarc_info;                 // raw pybind rows, at least [src_pin_name, dst_pin_name, libcell_idx, libarc_offset]
-  pybind11::list flat_libcell_info;                // raw pybind rows, [libcell_name, libcell_main_id, libcell_size, libcell_vt]
-  pybind11::list flat_libcell_width;               // [num_lib_cells, ] physical libcell width aligned with cell_id
-  pybind11::list flat_libcell_height;              // [num_lib_cells, ] physical libcell height aligned with cell_id
-  pybind11::list flat_libcell_leakage;             // [num_lib_cells, ] leakage aligned with flat_libcell_info / cell_id
-  pybind11::list flat_libcell_main_id2size_vt_limit;  // raw pybind rows, [libcell_main_type, size_limit, vt_limit]
-  pybind11::list main_id_is_sizeable;              // [num_main_type, ] family-level sizing eligibility flag
   /* ------------------------end info for gate sizing----------------------*/
 
   /**/
@@ -252,36 +213,23 @@ struct PyPlaceDB
 
   PyPlaceDB() {}
 
-  PyPlaceDB(idm::DataManager* db, bool with_sta, pybind11::list vt_config = pybind11::list(),
-            std::string process_node = "")
+  PyPlaceDB(idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta)
   {
-    set(db, with_sta, vt_config, std::move(process_node));
+    set(db, numRoutingGridsX, numRoutingGridsY, with_routability, with_sta);
   }
 
-  void set(idm::DataManager* db, bool with_sta, pybind11::list vt_config = pybind11::list(), std::string process_node = "");
+  void set(idm::DataManager* db, int numRoutingGridsX, int numRoutingGridsY, bool with_routability, bool with_sta);
   void set_sta();
   void init_routability(idm::DataManager* db, std::vector<IdbInstance*> inst_resort_list);
-  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mClkPin2ID,
+  void init_timing(idm::DataManager* db, std::unordered_map<std::string, int>& mPin2ID, std::unordered_map<std::string, int>& mClkPin2ID,
                    std::map<std::string, index_type>& mNodeName2ID, std::vector<IdbInstance*>& inst_resort_list, int ext_blockage_num);
-
-  void set_debug_dump_lut(bool enable) { _debug_dump_lut = enable; }
+  std::vector<std::vector<float>> getCongestionMap(string method = "max", string stage = "egr3D", string resolve_congestion = "low");
 
  private:
-  bool _debug_dump_lut = true;
   // 统一的LUT表格初始化函数
   void init_lut_table_unified(pybind11::list& flat_luts_values, pybind11::list& flat_luts_axis1_table,
                               pybind11::list& flat_luts_axis2_table, pybind11::list& flat_luts_dim, ista::LibTable* table,
-                              ista::LibCell* lib_cell, bool is_constraint_table = false, std::string pin_name = "",
-                              std::string related_pin_name = "", std::string table_type = "", std::string main_type = "",
-                              double cell_size = 0, std::string vt = "");
-
-  // VT configuration
-  std::vector<std::pair<std::string, std::string>> _vt_config;
-  std::string _process_node;
-  void set_vt_config(pybind11::list config);
-  double get_size_width(const std::string& cell_name);
-  std::string get_vt_type(const std::string& cell_name);
-
+                              ista::LibCell* lib_cell, bool is_constraint_table = false);
   std::string getLibPinName(std::string libpin_name)
   {
     auto bracket_pos = libpin_name.find('[');
@@ -290,19 +238,6 @@ struct PyPlaceDB
     }
     return libpin_name;
   }
-  std::map<std::string, index_type> mNode2PyNodeID;
-  std::unordered_map<std::string, int> mPinName2PyPinID;
-  std::vector<std::vector<int>> graph_local;
-  std::vector<std::vector<int>> reverse_graph_local;
-  int _num_vt_types = 1;
-
-  ///<  python 中只存储 int 类型的main_id，代表一类功能都相同的cell master
-  std::map<std::string, int> main_type2main_id;
-  
-  //< 
-  std::unordered_map<std::string, int> cell_type2cell_id;  // cell_id = libcell_start[main_id] + width
-
-  std::map<std::string, std::unordered_map<std::string, std::pair<std::string, double>>> main_type_2_vt_and_size;
 };
 
 }  // namespace python_interface

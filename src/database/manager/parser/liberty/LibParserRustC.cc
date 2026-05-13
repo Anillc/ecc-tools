@@ -90,13 +90,6 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
   };
 
   std::map<std::string, std::function<void()>> process_attri = {
-      {"nom_voltage",
-       [=]() {
-         auto* rust_attri_value = rust_convert_float_value(attri_value);
-         double nom_voltage = rust_attri_value->value;
-         current_lib->set_nom_voltage(nom_voltage);
-         rust_free_float_value(rust_attri_value);
-       }},
       {"slew_lower_threshold_pct_rise",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
@@ -175,6 +168,42 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          }
          rust_free_string_value(rust_attri_value);
        }},
+      {"comment",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_comment(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"simulation",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_simulation(
+             convert_string_to_bool(rust_attri_value->value));
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"time_unit",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         const char* time_unit = rust_attri_value->value;
+         if (Str::equal(time_unit, "1fs")) {
+           current_lib->set_time_unit(TimeUnit::kFS);
+         } else if (Str::equal(time_unit, "1ps")) {
+           current_lib->set_time_unit(TimeUnit::kPS);
+         }
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"current_unit",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_current_unit_name(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
+      {"voltage_unit",
+       [=]() {
+         auto* rust_attri_value = rust_convert_string_value(attri_value);
+         current_lib->set_voltage_unit_name(rust_attri_value->value);
+         rust_free_string_value(rust_attri_value);
+       }},
       {"leakage_power_unit",
        [=]() {
          auto* rust_attri_value = rust_convert_string_value(attri_value);
@@ -189,18 +218,8 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          } else if (Str::noCaseEqual(leakage_power_unit, "1mw")) {
            power_unit_mw_scale = 1.0;
          }
+         current_lib->set_leakage_power_unit(leakage_power_unit);
          current_lib->set_power_unit_mw_scale(power_unit_mw_scale);
-         rust_free_string_value(rust_attri_value);
-       }},
-      {"time_unit",
-       [=]() {
-         auto* rust_attri_value = rust_convert_string_value(attri_value);
-         const char* time_unit = rust_attri_value->value;
-         if (Str::equal(time_unit, "1fs")) {
-           current_lib->set_time_unit(TimeUnit::kFS);
-         } else if (Str::equal(time_unit, "1ps")) {
-           current_lib->set_time_unit(TimeUnit::kPS);
-         }
          rust_free_string_value(rust_attri_value);
        }},
 
@@ -209,6 +228,18 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double nom_voltage = rust_attri_value->value;
          current_lib->set_nom_voltage(nom_voltage);
+         rust_free_float_value(rust_attri_value);
+       }},
+      {"nom_process",
+       [=]() {
+         auto* rust_attri_value = rust_convert_float_value(attri_value);
+         current_lib->set_nom_process(rust_attri_value->value);
+         rust_free_float_value(rust_attri_value);
+       }},
+      {"nom_temperature",
+       [=]() {
+         auto* rust_attri_value = rust_convert_float_value(attri_value);
+         current_lib->set_nom_temperature(rust_attri_value->value);
          rust_free_float_value(rust_attri_value);
        }},
 
@@ -286,8 +317,8 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
       {"capacitance",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
-         double raw_cap = rust_attri_value->value;
-         double cap = raw_cap * cap_unit_convert;
+         double cap = rust_attri_value->value;
+         cap *= cap_unit_convert;
          if (lib_port) {
            lib_port->set_port_cap(cap);
          } else {
@@ -350,16 +381,16 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
       {"rise_capacitance",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
-         double raw_cap = rust_attri_value->value;
-         double cap = raw_cap * cap_unit_convert;
+         double cap = rust_attri_value->value;
+         cap *= cap_unit_convert;
          lib_port->set_port_cap(AnalysisMode::kMaxMin, TransType::kRise, cap);
          rust_free_float_value(rust_attri_value);
        }},
       {"fall_capacitance",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
-         double raw_cap = rust_attri_value->value;
-         double cap = raw_cap * cap_unit_convert;
+         double cap = rust_attri_value->value;
+         cap *= cap_unit_convert;
          lib_port->set_port_cap(AnalysisMode::kMaxMin, TransType::kFall, cap);
          rust_free_float_value(rust_attri_value);
        }},
@@ -435,7 +466,11 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_string_value(attri_value);
          const char* when = rust_attri_value->value;
-         if (own_pg_or_when_type ==
+         if (own_port_type == LibBuilder::LibertyOwnPortType::kTimingArc) {
+           if (lib_arc) {
+             lib_arc->set_when(when);
+           }
+         } else if (own_pg_or_when_type ==
              LibBuilder::LibertyOwnPgOrWhenType::kLibertyLeakagePower) {
            leakage_power->set_when(when);
          } else if (own_pg_or_when_type ==
@@ -622,9 +657,11 @@ unsigned RustLibertyReader::visitAxisOrValues(
     if (Str::equal(attri_name, "values")) {
       auto* lib_table = dynamic_cast<LibTable*>(lib_obj);
       LOG_FATAL_IF(!lib_table);
+      lib_table->set_value_scale(LibValueScale::kLibrary);
       lib_table->set_table_values(std::move(result_values));
     } else {
       auto liberty_axis = std::make_unique<LibAxis>(attri_name);
+      liberty_axis->set_value_scale(LibValueScale::kLibrary);
       liberty_axis->set_axis_values(std::move(result_values));
       lib_obj->addAxis(std::move(liberty_axis));
     }
@@ -651,13 +688,13 @@ unsigned RustLibertyReader::visitComplexAttri(
 
   unsigned is_ok = 1;
 
+  void* attri_0 = GetRustVecElem<void>(&attri_values, 0);
+  void* attri_1 = GetRustVecElem<void>(&attri_values, 1);
+
   double cap_unit_convert = 1.0;  // sta use pf internal
   if (the_lib && CapacitiveUnit::kFF == the_lib->get_cap_unit()) {
     cap_unit_convert = 0.001;
   }
-
-  void* attri_0 = GetRustVecElem<void>(&attri_values, 0);
-  void* attri_1 = GetRustVecElem<void>(&attri_values, 1);
 
   std::map<std::string, std::function<void()>> process_attri = {
       {"capacitive_load_unit",
@@ -670,10 +707,10 @@ unsigned RustLibertyReader::visitComplexAttri(
        }},
       {{"rise_capacitance_range"},
        [&]() {
-         double min_rise_cap =
-             rust_convert_float_value(attri_0)->value * cap_unit_convert;
-         double max_rise_cap =
-             rust_convert_float_value(attri_1)->value * cap_unit_convert;
+         double min_rise_cap = rust_convert_float_value(attri_0)->value;
+         double max_rise_cap = rust_convert_float_value(attri_1)->value;
+         min_rise_cap *= cap_unit_convert;
+         max_rise_cap *= cap_unit_convert;
 
          lib_port->set_port_cap(AnalysisMode::kMin, TransType::kRise,
                                 min_rise_cap);
@@ -682,10 +719,10 @@ unsigned RustLibertyReader::visitComplexAttri(
        }},
       {{"fall_capacitance_range"},
        [&]() {
-         double min_fall_cap =
-             rust_convert_float_value(attri_0)->value * cap_unit_convert;
-         double max_fall_cap =
-             rust_convert_float_value(attri_1)->value * cap_unit_convert;
+         double min_fall_cap = rust_convert_float_value(attri_0)->value;
+         double max_fall_cap = rust_convert_float_value(attri_1)->value;
+         min_fall_cap *= cap_unit_convert;
+         max_fall_cap *= cap_unit_convert;
 
          lib_port->set_port_cap(AnalysisMode::kMin, TransType::kFall,
                                 min_fall_cap);
@@ -696,7 +733,8 @@ unsigned RustLibertyReader::visitComplexAttri(
          if (attri_values.len == 2) {
            double fanout = rust_convert_float_value(attri_0)->value;
            double length = rust_convert_float_value(attri_1)->value;
-           dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(static_cast<int>(fanout), length);
+           dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
+               static_cast<int>(fanout), length);
          } else if (attri_values.len == 1) {
            // this case is fix cx55 issue, such as:
            // fanout_length("1", \
@@ -709,8 +747,25 @@ unsigned RustLibertyReader::visitComplexAttri(
            double fanout = std::atof(fanout_lenth_vec[0].c_str());
            double length = std::atof(fanout_lenth_vec[1].c_str());
 
-           dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(static_cast<int>(fanout), length);
+           dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
+               static_cast<int>(fanout), length);
          }
+       }},
+      {"library_features",
+       [&]() {
+         void* attri_value = nullptr;
+         FOREACH_VEC_ELEM(&attri_values, void, attri_value) {
+           if (rust_is_string_value(attri_value)) {
+             auto* feature_value = rust_convert_string_value(attri_value);
+             the_lib->add_library_feature(feature_value->value);
+             rust_free_string_value(feature_value);
+           } else if (rust_is_float_value(attri_value)) {
+             auto* feature_value = rust_convert_float_value(attri_value);
+              the_lib->add_library_feature(
+                  std::to_string(feature_value->value));
+              rust_free_float_value(feature_value);
+            }
+          }
        }}};
 
   if (process_attri.contains(attri_name)) {

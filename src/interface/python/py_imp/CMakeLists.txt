@@ -27,7 +27,3 @@ target_include_directories(py_imp
     ${HOME_OPERATION}
     ${HOME_PLATFORM}/data_manager
     ${HOME_DATABASE}/data/design)
-
-if(BUILD_TESTING)
-  add_subdirectory(test)
-endif()

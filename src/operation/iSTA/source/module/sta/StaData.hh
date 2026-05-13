@@ -25,6 +25,7 @@
 #pragma once
 
 #include <forward_list>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -50,6 +51,20 @@ class StaClockData;
 class StaPathDelayData;
 class StaDataBucketIterator;
 class LibCurrentData;
+
+struct StaCheckPairBinding {
+  AnalysisMode analysis_mode = AnalysisMode::kMax;
+  TransType check_trans_type = TransType::kRise;
+  TransType clock_trans_type = TransType::kRise;
+  TransType data_trans_type = TransType::kRise;
+  int64_t clock_slew_fs = 0;
+  int64_t data_slew_fs = 0;
+  int64_t sampled_check_margin_fs = 0;
+  StaArc* check_arc = nullptr;
+  StaSlewData* clock_slew_data = nullptr;
+  StaSlewData* data_slew_data = nullptr;
+  uint64_t data_epoch = 0;
+};
 
 /**
  * @brief The base class of sta data.
@@ -122,6 +137,8 @@ class StaData {
 
   void set_derate(std::optional<float> derate) { _derate = derate; }
   std::optional<float> get_derate() const { return _derate; }
+  void set_data_epoch(uint64_t data_epoch) { _data_epoch = data_epoch; }
+  uint64_t get_data_epoch() const { return _data_epoch; }
 
   virtual unsigned compareSignature(const StaSlewData* data) const;
   virtual unsigned compareSignature(const StaClockData* data) const;
@@ -140,11 +157,28 @@ class StaData {
       _delay_type;  //!< The delay type, max is for setup, min is for hold etc.
   TransType _trans_type;         //!< The transition type, rise/fall.
   std::optional<float> _derate;  //!< The vertex derate
+  uint64_t _data_epoch = 0;      //!< The propagation generation/epoch.
   StaVertex* _own_vertex;        //!< The vertex which the data belong to.
   ieda::BTreeSet<StaData*>
       _fwd_set;  //!< The propagation fwd datas, maybe more than once.
   StaData* _bwd = nullptr;  //!< The propagation bwd data, should be one.
   std::mutex _mt;
+};
+
+/**
+ * @brief cmp for data.
+ *
+ */
+const std::function<bool(StaData*, StaData*)> sta_data_cmp =
+    [](StaData* left, StaData* right) -> unsigned {
+  auto delay_type = left->get_delay_type();
+  int left_compare_value = left->getCompareValue();
+  int right_compare_value = right->getCompareValue();
+
+  // Judge more critical.
+  return (delay_type == AnalysisMode::kMax)
+             ? (left_compare_value > right_compare_value)
+             : (left_compare_value < right_compare_value);
 };
 
 /**
@@ -168,6 +202,10 @@ class StaSlewData : public StaData {
 
   int get_slew() const { return _slew; }
   void set_slew(int slew) { _slew = slew; }
+  auto* get_launch_slew_data() { return _launch_slew_data; }
+  void set_launch_slew_data(StaSlewData* launch_slew_data) {
+    _launch_slew_data = launch_slew_data;
+  }
 
   int64_t getCompareValue() const override { return _slew; }
 
@@ -187,6 +225,8 @@ class StaSlewData : public StaData {
 
  private:
   int _slew;  //!< The slew value, unit is fs.
+  StaSlewData* _launch_slew_data =
+      nullptr;  //!< The data origin from the launch slew data.
   std::optional<std::unique_ptr<LibCurrentData>> _output_current_data =
       std::nullopt;  //!< The output current data of driving point.
 };
@@ -211,6 +251,23 @@ class StaArcDelayData : public StaData {
   int get_arc_delay() const { return (_arc_delay + _crosstalk_delay); }
   void set_arc_delay(int arc_delay) { _arc_delay = arc_delay; }
   int64_t getCompareValue() const override { return _arc_delay; }
+  StaArc* get_own_arc() const { return _own_arc; }
+
+  void set_check_pair_binding(const StaCheckPairBinding& check_pair_binding) {
+    _check_pair_binding = check_pair_binding;
+  }
+  void add_check_pair_binding(const StaCheckPairBinding& check_pair_binding) {
+    _check_pair_binding = check_pair_binding;
+    _check_pair_bindings.push_back(check_pair_binding);
+  }
+  const StaCheckPairBinding* get_check_pair_binding() const {
+    return _check_pair_binding ? &*_check_pair_binding : nullptr;
+  }
+  bool has_check_pair_binding() const { return _check_pair_binding.has_value(); }
+  const std::vector<StaCheckPairBinding>& get_check_pair_bindings() const {
+    return _check_pair_bindings;
+  }
+  bool has_check_pair_bindings() const { return !_check_pair_bindings.empty(); }
 
   int get_crosstalk_delay() const { return _crosstalk_delay; }
   void set_crosstalk_delay(int crosstalk_delay) {
@@ -221,6 +278,8 @@ class StaArcDelayData : public StaData {
   int _arc_delay;            //!< The delay value, unit is fs.
   int _crosstalk_delay = 0;  //!< The crosstalk delay, unit is fs.
   StaArc* _own_arc;          //!< The arc delay belong to.
+  std::optional<StaCheckPairBinding> _check_pair_binding;
+  std::vector<StaCheckPairBinding> _check_pair_bindings;
 };
 
 /**
@@ -293,6 +352,11 @@ class StaPathDelayData : public StaData {
 
   StaClockData* get_launch_clock_data() const { return _launch_clock_data; }
 
+  void set_launch_delay_data(StaPathDelayData* launch_delay_data) {
+    _launch_delay_data = launch_delay_data;
+  }
+  auto* get_launch_delay_data() const { return _launch_delay_data; }
+
   unsigned compareSignature(const StaData* data) const override;
   int64_t getCompareValue() const override { return _arrive_time; }
 
@@ -301,6 +365,9 @@ class StaPathDelayData : public StaData {
   }
   auto get_calibrated_derate() const { return _calibrated_derate; }
 
+  void set_is_need_keep() { _is_need_keep = 1; }
+  unsigned isNeedKeep() const { return _is_need_keep; }
+
  private:
   int64_t _arrive_time;  //!< The arrive time value, unit is fs.
   std::optional<float>
@@ -308,6 +375,10 @@ class StaPathDelayData : public StaData {
   std::optional<int> _req_time =
       std::nullopt;  //!< The req time value, unit is fs.
   StaClockData* _launch_clock_data;
+  StaPathDelayData* _launch_delay_data =
+      nullptr;  //!< The data origin from the launch delay data.
+  unsigned _is_need_keep : 1 =
+      0;  //!< The data need keep when propagated along path.
 };
 
 /**
@@ -361,6 +432,9 @@ class StaDataBucket {
   StaDataBucket(StaDataBucket&& other) noexcept;
   StaDataBucket& operator=(StaDataBucket&& rhs) noexcept;
 
+  void set_is_path_based() { _is_path_based = 1; }
+  unsigned isPathBased() { return _is_path_based; }
+
   unsigned bucket_size() const { return _count; }
   bool empty() { return _data_list.empty(); }
   void addData(StaData* data, int track_stack_deep);
@@ -396,6 +470,10 @@ class StaDataBucket {
 
   unsigned _n_worst;    //!< Store the top n worst data.
   unsigned _count = 0;  //!<  For the fwd list do not provide cout.
+
+  unsigned _is_path_based : 1 =
+      0;  //!< Default is graph based, true is path based;
+  unsigned _reserverd : 31 = 0;
 
   std::unique_ptr<StaDataBucket>
       _next;  //!< The next data bucket which has different signature.

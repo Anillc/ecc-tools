@@ -41,8 +41,8 @@ namespace iir {
  * @return unsigned
  */
 unsigned iIR::init() {
-  static std::once_flag init_flag;
-  std::call_once(init_flag, []() { init_iir(); });
+  static std::once_flag init_once;
+  std::call_once(init_once, [] { init_iir(); });
   return 1;
 }
 

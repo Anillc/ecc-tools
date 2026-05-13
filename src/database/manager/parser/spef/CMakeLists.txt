@@ -19,6 +19,9 @@ else()
     set(RUST_LIB_PATH ${RUST_PROJECT_DIR}/target/release/lib${RUST_PROJECT_NAME}.${RUST_LIB_TYPE})
     set(RUST_BUILD_CMD_OPTION "--release")
 endif()
+if(IEDA_BUILD_AS_THIRDPARTY)
+    install(FILES ${RUST_LIB_PATH} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+endif()
 
 message(STATUS "spef parser rust lib path ${RUST_LIB_PATH}")
 
@@ -32,5 +35,4 @@ add_executable(test_spef ${CMAKE_CURRENT_SOURCE_DIR}/spef-parser/test/test.cpp)
 target_link_libraries(test_spef spef)
 target_include_directories(test_spef PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR})
-
 

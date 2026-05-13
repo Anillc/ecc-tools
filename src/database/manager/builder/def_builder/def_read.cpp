@@ -33,6 +33,7 @@
 
 #include "def_read.h"
 
+#include <cstdio>
 #include <regex>
 
 #include "../../../data/design/IdbDesign.h"
@@ -913,7 +914,8 @@ int32_t DefRead::parse_component(defiComponent* def_component)
   instance->set_cell_master(_cur_cell_master);
   instance->set_status_by_def_enum(def_component->placementStatus());
   instance->set_orient_by_enum(def_component->placementOrient());
-
+  // printf("def_component %p, instance name %s, placementOrient %d\n", def_component, instance->get_name().c_str(),
+  //        def_component->placementOrient());
   if (def_component->hasSource()) {
     instance->set_type(def_component->source());
   }
@@ -1665,8 +1667,12 @@ int32_t DefRead::parse_pin(defiPin* def_pin)
         }
       }
     }
-
+    auto port_0 = io_term->get_port_list().at(0);
+    auto port_0_coordinate = port_0->get_io_average_coordinate();
     pin->set_port_layer_shape();
+    pin->set_location(port_0_coordinate->get_x(), port_0_coordinate->get_y());
+    pin->set_average_coordinate(port_0_coordinate->get_x(), port_0_coordinate->get_y());
+    // pin->set_bounding_box();
 
   } else {
     int32_t bounding_box_ll_x = INT_MAX;
