@@ -192,4 +192,46 @@ class CmdSaveJSON : public TclCmd
   // private data
 };
 
+class CmdSaveData : public TclCmd
+{
+ public:
+  explicit CmdSaveData(const char* cmd_name);
+  ~CmdSaveData() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
+class CmdLoadData : public TclCmd
+{
+ public:
+  explicit CmdLoadData(const char* cmd_name);
+  ~CmdLoadData() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
+class CmdWriteSocJson : public TclCmd
+{
+ public:
+  explicit CmdWriteSocJson(const char* cmd_name);
+  ~CmdWriteSocJson() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
 }  // namespace tcl

@@ -291,6 +291,9 @@ class TimingEngine {
     return  _ista->reportWirePaths();
   }
 
+  TimingEngine &extractTimingModel(AnalysisMode analysis_mode,
+                                   const char *model_path);
+
   std::vector<StaClock *> getClockList();
   void setPropagatedClock(const char *clock_name);
   bool isPropagatedClock(const char *clock_name);

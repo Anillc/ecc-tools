@@ -17,6 +17,7 @@
 #include "tcl_sta.h"
 
 #include "tool_manager.h"
+#include "sta/Sta.hh"
 
 namespace tcl {
 
@@ -145,6 +146,35 @@ unsigned CmdSTAReport::exec()
   if (iplf::tmInst->runSTA(path)) {
     std::cout << "iSTA run successfully." << std::endl;
   }
+
+  return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdUpdateTiming::CmdUpdateTiming(const char* cmd_name) : TclCmd(cmd_name)
+{
+  // auto* file_name_option = new TclStringOption(TCL_OUTPUT_PATH, 1, nullptr);
+  // addOption(file_name_option);
+}
+
+unsigned CmdUpdateTiming::check()
+{
+  // TclOption* file_name_option = getOptionOrArg(TCL_OUTPUT_PATH);
+  // LOG_FATAL_IF(!file_name_option);
+  return 1;
+}
+
+unsigned CmdUpdateTiming::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  auto* ista = ista::Sta::getOrCreateSta();
+  ista->buildGraph();
+  ista->updateTiming();
 
   return 1;
 }

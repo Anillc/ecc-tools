@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "tcl_db_file.h"
 
+#include "db_fm/file_soc.h"
 #include "idm.h"
 #include "report_manager.h"
 #include "tool_manager.h"
@@ -370,6 +371,9 @@ CmdSaveGDS::CmdSaveGDS(const char* cmd_name) : TclCmd(cmd_name)
 
   auto* path = new TclStringOption(TCL_PATH, 1);
   addOption(path);
+
+  auto* harden_option = new TclSwitchOption("-harden");
+  addOption(harden_option);
 }
 
 unsigned CmdSaveGDS::check()
@@ -379,6 +383,10 @@ unsigned CmdSaveGDS::check()
 
   TclOption* path = getOptionOrArg(TCL_PATH);
   LOG_FATAL_IF(!path);
+
+  TclOption* harden_option = getOptionOrArg("-harden");
+  LOG_FATAL_IF(!harden_option);
+
   return 1;
 }
 
@@ -390,8 +398,13 @@ unsigned CmdSaveGDS::exec()
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
   auto str_path = def_path->getStringVal();
+  TclOption* harden_option = getOptionOrArg("-harden");
+  bool is_harden = false;
+  if (harden_option->is_set_val()) {
+    is_harden = true;
+  }
   if (str_path != nullptr) {
-    dmInst->saveGDSII(str_path);
+    dmInst->saveGDSII(str_path, is_harden);
     return 1;
   }
   return 1;
@@ -443,6 +456,115 @@ unsigned CmdSaveJSON::exec()
   }
 
   return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdWriteSocJson::CmdWriteSocJson(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+
+  auto* harden_cores = new TclStringListOption("-harden_cores", 1);
+  addOption(harden_cores);
+}
+
+unsigned CmdWriteSocJson::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  TclOption* harden_cores = getOptionOrArg("-harden_cores");
+  LOG_FATAL_IF(!harden_cores);
+
+  return 1;
+}
+
+unsigned CmdWriteSocJson::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  TclOption* harden_cores = getOptionOrArg("-harden_cores");
+  std::vector<std::string> harden_core_list;
+  if (harden_cores) {
+    harden_core_list = harden_cores->getStringList();
+  }
+
+  idb::JsonSoc soc_file(str_path, harden_core_list);
+  return soc_file.saveFileData() ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdSaveData::CmdSaveData(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+}
+
+unsigned CmdSaveData::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  return 1;
+}
+
+unsigned CmdSaveData::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  return dmInst->saveData(str_path) ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdLoadData::CmdLoadData(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+}
+
+unsigned CmdLoadData::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  return 1;
+}
+
+unsigned CmdLoadData::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  return dmInst->loadData(str_path) ? 1 : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -17,7 +17,9 @@
 #pragma once
 
 #include "api/TimingEngine.hh"
+#include "api/TimingIDBAdapter.hh"
 #include "idm.h"
+#include "sta/Sta.hh"
 #include "timing_api.hh"
 #include "gtest/gtest.h"
 
@@ -86,6 +88,128 @@ inline bool reuseExistingGeneratedLib() {
 
 inline fs::path goldenCaseOutputDir() {
   return defaultOutputRoot() / "NV_NVDLA_partition_m";
+}
+
+inline const fs::path& ics55GcdServiceRoot() {
+  static const fs::path kServiceRoot =
+      "/nfs/share/home/huangzengrong/benchmark/test/ics55_gcd_service";
+  return kServiceRoot;
+}
+
+inline const fs::path& ics55GcdHardenRoot() {
+  static const fs::path kHardenRoot =
+      "/nfs/share/home/huangzengrong/benchmark/test/gcd_harden";
+  return kHardenRoot;
+}
+
+inline const fs::path& ics55PdkRoot() {
+  static const fs::path kPdkRoot = [] {
+    if (const char* pdk_root =
+            std::getenv("IEDA_CHARACTER_TIMING_ICS55_PDK_ROOT");
+        pdk_root && *pdk_root) {
+      return fs::path(pdk_root);
+    }
+
+    for (const fs::path& candidate : {
+             fs::path("/nfs/home/huangzengrong/ecc_project/ecc/chipcompiler/"
+                      "thirdparty/icsprout55-pdk"),
+             fs::path("/nfs/share/home/zhaoxueyan/icsprout55-pdk")}) {
+      if (fs::exists(candidate)) {
+        return candidate;
+      }
+    }
+
+    return fs::path();
+  }();
+  return kPdkRoot;
+}
+
+inline fs::path ics55GcdOutputDir() {
+  return defaultOutputRoot() / "ics55_gcd";
+}
+
+inline fs::path ics55GcdIntegrationOutputDir() {
+  return ics55GcdOutputDir() / "integration";
+}
+
+inline fs::path ics55GcdRuntimeOutputDir() {
+  return ics55GcdOutputDir() / "runtime";
+}
+
+inline fs::path ics55GcdDefPath() {
+  return ics55GcdHardenRoot() / "gcd_filler.def.gz";
+}
+
+inline fs::path ics55GcdSdcPath() {
+  return ics55GcdHardenRoot() / "gcd.sdc";
+}
+
+inline fs::path ics55GcdVerilogPath() {
+  const auto filler_output =
+      ics55GcdServiceRoot() / "filler_ecc/output/gcd_filler.v";
+  if (fs::exists(filler_output)) {
+    return filler_output;
+  }
+
+  return ics55GcdServiceRoot() / "origin/gcd.v";
+}
+
+inline fs::path ics55GcdTechLefPath() {
+  return ics55PdkRoot() / "prtech/techLEF/N551P6M.lef";
+}
+
+inline std::vector<std::string> ics55GcdLefFiles() {
+  const auto pdk_root = ics55PdkRoot();
+  return {
+      (pdk_root /
+       "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/"
+       "ics55_LLSC_H7CR_ecos.lef")
+          .string(),
+      (pdk_root /
+       "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/"
+       "ics55_LLSC_H7CL_ecos.lef")
+          .string(),
+  };
+}
+
+inline std::vector<std::string> ics55GcdLibertyFiles() {
+  const auto pdk_root = ics55PdkRoot();
+  return {
+      (pdk_root /
+       "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/"
+       "ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib")
+          .string(),
+      (pdk_root /
+       "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/"
+       "ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib")
+          .string(),
+  };
+}
+
+inline bool ics55GcdCaseAvailable() {
+  if (ics55PdkRoot().empty()) {
+    return false;
+  }
+
+  std::vector<fs::path> required_paths = {
+      ics55GcdServiceRoot(),
+      ics55GcdHardenRoot(),
+      ics55GcdTechLefPath(),
+      ics55GcdDefPath(),
+      ics55GcdSdcPath(),
+      ics55GcdVerilogPath(),
+  };
+  for (const auto& lef_file : ics55GcdLefFiles()) {
+    required_paths.emplace_back(lef_file);
+  }
+  for (const auto& liberty_file : ics55GcdLibertyFiles()) {
+    required_paths.emplace_back(liberty_file);
+  }
+
+  return std::all_of(required_paths.begin(), required_paths.end(),
+                     [](const fs::path& candidate) {
+                       return !candidate.empty() && fs::exists(candidate);
+                     });
 }
 
 inline fs::path goldenCaseIntegrationOutputDir() {
@@ -262,6 +386,89 @@ inline fs::path writeGoldenCaseDbConfig(const fs::path& output_root) {
   return config_path;
 }
 
+inline fs::path writeIcs55GcdDbConfig(const fs::path& output_root) {
+  const auto config_dir = output_root / "config";
+  std::error_code ec;
+  fs::create_directories(config_dir, ec);
+  EXPECT_FALSE(ec) << "failed to create config directory: " << config_dir
+                   << ", error=" << ec.message();
+
+  const auto config_path = config_dir / "ics55_gcd.integration.db.json";
+  std::ofstream output(config_path);
+  EXPECT_TRUE(output.is_open()) << "failed to open generated db config at "
+                                << config_path;
+
+  const auto lef_files = ics55GcdLefFiles();
+  const auto liberty_files = ics55GcdLibertyFiles();
+  output << "{\n";
+  output << "  \"INPUT\": {\n";
+  output << "    \"tech_lef_path\": \"" << ics55GcdTechLefPath().string()
+         << "\",\n";
+  output << "    \"lef_paths\": [\n";
+  for (size_t i = 0; i < lef_files.size(); ++i) {
+    output << "      \"" << lef_files[i] << "\"";
+    output << (i + 1 == lef_files.size() ? "\n" : ",\n");
+  }
+  output << "    ],\n";
+  output << "    \"def_path\": \"" << ics55GcdDefPath().string() << "\",\n";
+  output << "    \"verilog_path\": \"" << ics55GcdVerilogPath().string()
+         << "\",\n";
+  output << "    \"lib_path\": [\n";
+  for (size_t i = 0; i < liberty_files.size(); ++i) {
+    output << "      \"" << liberty_files[i] << "\"";
+    output << (i + 1 == liberty_files.size() ? "\n" : ",\n");
+  }
+  output << "    ],\n";
+  output << "    \"sdc_path\": \"" << ics55GcdSdcPath().string() << "\"\n";
+  output << "  },\n";
+  output << "  \"OUTPUT\": {\n";
+  output << "    \"output_dir_path\": \"" << output_root.string() << "\"\n";
+  output << "  },\n";
+  output << "  \"LayerSettings\": {\n";
+  output << "    \"routing_layer_1st\": \"MET1\"\n";
+  output << "  }\n";
+  output << "}\n";
+  output.close();
+
+  return config_path;
+}
+
+inline bool prepareIcs55GcdDatabase(
+    const fs::path& integration_output_dir = ics55GcdIntegrationOutputDir()) {
+  std::error_code ec;
+  fs::create_directories(integration_output_dir, ec);
+  EXPECT_FALSE(ec) << "failed to create ICS55 gcd integration directory: "
+                   << integration_output_dir << ", error=" << ec.message();
+
+  const auto db_config_path = writeIcs55GcdDbConfig(integration_output_dir);
+  EXPECT_TRUE(fs::exists(db_config_path))
+      << "generated db config missing: " << db_config_path;
+  if (!fs::exists(db_config_path)) {
+    return false;
+  }
+
+  ieval::TimingAPI::destroyInst();
+  TimingEngine::destroyTimingEngine();
+  Sta::destroySta();
+  dmInst->reset();
+  return dmInst->init(db_config_path.string());
+}
+
+inline unsigned readLibertySequentially(TimingEngine* timing_engine,
+                                        const std::vector<std::string>& lib_files) {
+  EXPECT_NE(timing_engine, nullptr);
+  if (!timing_engine) {
+    return 0;
+  }
+
+  unsigned read_ok = 1;
+  for (const auto& lib_file : lib_files) {
+    read_ok &= timing_engine->get_ista()->readLiberty(lib_file.c_str());
+  }
+
+  return read_ok;
+}
+
 inline fs::path generateGoldenCaseTimingModel(AnalysisMode analysis_mode,
                                               const fs::path& output_lib) {
   static std::mutex generation_mutex;
@@ -296,6 +503,9 @@ inline fs::path generateGoldenCaseTimingModel(AnalysisMode analysis_mode,
   }
 
   ieval::TimingAPI::destroyInst();
+  TimingEngine::destroyTimingEngine();
+  Sta::destroySta();
+  dmInst->reset();
   auto* timing_api = ieval::TimingAPI::getInst();
 
   EXPECT_TRUE(dmInst->init(db_config_path.string()))
@@ -357,6 +567,9 @@ inline TimingEngine* prepareGoldenCaseTimingRuntime(
   }
 
   ieval::TimingAPI::destroyInst();
+  TimingEngine::destroyTimingEngine();
+  Sta::destroySta();
+  dmInst->reset();
   auto* timing_api = ieval::TimingAPI::getInst();
 
   EXPECT_TRUE(dmInst->init(db_config_path.string()))
@@ -382,6 +595,78 @@ inline TimingEngine* prepareGoldenCaseTimingRuntime(
   timing_engine->get_ista()->set_n_worst_path_per_clock(1);
   timing_engine->get_ista()->set_n_worst_path_per_endpoint(512);
   timing_engine->get_ista()->set_analysis_mode(AnalysisMode::kMaxMin);
+  timing_engine->updateTiming();
+
+  return timing_engine;
+}
+
+inline TimingEngine* prepareIcs55GcdTimingRuntime(
+    const fs::path& design_workspace,
+    const fs::path& integration_output_dir = ics55GcdRuntimeOutputDir() /
+                                             "integration") {
+  static std::mutex runtime_mutex;
+  std::lock_guard<std::mutex> lock(runtime_mutex);
+
+  std::error_code ec;
+  fs::create_directories(design_workspace, ec);
+  EXPECT_FALSE(ec) << "failed to create runtime output directory: "
+                   << design_workspace << ", error=" << ec.message();
+
+  fs::create_directories(integration_output_dir, ec);
+  EXPECT_FALSE(ec) << "failed to create runtime integration directory: "
+                   << integration_output_dir << ", error=" << ec.message();
+
+  const auto db_config_path = writeIcs55GcdDbConfig(integration_output_dir);
+  EXPECT_TRUE(fs::exists(db_config_path))
+      << "generated runtime db config missing: " << db_config_path;
+  if (!fs::exists(db_config_path)) {
+    return nullptr;
+  }
+
+  ieval::TimingAPI::destroyInst();
+  TimingEngine::destroyTimingEngine();
+  Sta::destroySta();
+  dmInst->reset();
+
+  EXPECT_TRUE(dmInst->init(db_config_path.string()))
+      << "failed to initialize dmInst with " << db_config_path;
+
+  auto* timing_engine = TimingEngine::getOrCreateTimingEngine();
+  timing_engine->set_num_threads(1);
+
+  EXPECT_TRUE(readLibertySequentially(timing_engine, ics55GcdLibertyFiles()))
+      << "failed to load ICS55 liberty files";
+
+  auto db_adapter =
+      std::make_unique<TimingIDBAdapter>(timing_engine->get_ista());
+  db_adapter->set_idb(dmInst->get_idb_builder());
+  EXPECT_TRUE(db_adapter->convertDBToTimingNetlist(true))
+      << "failed to convert ICS55 gcd DB into timing netlist";
+  timing_engine->set_db_adapter(std::move(db_adapter));
+
+  timing_engine->readSdc(ics55GcdSdcPath().c_str());
+
+  const auto output_dir_string = design_workspace.string();
+  timing_engine->set_design_work_space(output_dir_string.c_str());
+  timing_engine->get_ista()->set_top_module_name("gcd");
+  timing_engine->get_ista()->set_n_worst_path_per_clock(1);
+  timing_engine->get_ista()->set_n_worst_path_per_endpoint(256);
+  timing_engine->get_ista()->set_analysis_mode(AnalysisMode::kMaxMin);
+  timing_engine->buildGraph();
+
+  auto* clk_port = timing_engine->get_ista()->get_netlist()->findPort("clk");
+  EXPECT_NE(clk_port, nullptr) << "ICS55 gcd netlist is missing port clk";
+  if (!clk_port) {
+    return nullptr;
+  }
+
+  auto* clk_vertex = timing_engine->get_ista()->findVertex(clk_port);
+  EXPECT_NE(clk_vertex, nullptr)
+      << "ICS55 gcd graph is missing clk vertex after buildGraph";
+  if (!clk_vertex) {
+    return nullptr;
+  }
+
   timing_engine->updateTiming();
 
   return timing_engine;

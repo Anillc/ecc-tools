@@ -47,6 +47,7 @@
 #include "sta/StaClockSlewDelayPropagation.hh"
 #include "sta/StaClockTree.hh"
 #include "sta/StaConstPropagation.hh"
+#include "sta/StaCharacterTiming.hh"
 #include "sta/StaDataPropagation.hh"
 #include "sta/StaDelayPropagation.hh"
 #include "sta/StaDump.hh"
@@ -726,6 +727,23 @@ TimingEngine& TimingEngine::updateCharTiming() {
   for (auto& func : funcs) {
     the_graph.exec(func);
   }
+
+  return *this;
+}
+
+/**
+ * @brief generate the ETM(extracted timing model).
+ *
+ * @param model_path
+ * @return TimingEngine&
+ */
+TimingEngine& TimingEngine::extractTimingModel(AnalysisMode analysis_mode,
+                                               const char* model_path) {
+  StaCharacterTiming character_timing(analysis_mode, model_path);
+  auto& the_graph = _ista->get_graph();
+  character_timing(&the_graph);
+
+  character_timing.get_design_timing_model()->printLibertyLibrary(model_path);
 
   return *this;
 }

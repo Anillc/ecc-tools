@@ -28,6 +28,7 @@ def_init -path $::env(RESULT_DIR)/iRT_result.def
 #===========================================================
 def_save -path $::env(RESULT_DIR)/data_out.def
 netlist_save -path $::env(RESULT_DIR)/data_out.v
+save_data -path $::env(RESULT_DIR)/data_out
 
 #===========================================================
 ##   Exit 
