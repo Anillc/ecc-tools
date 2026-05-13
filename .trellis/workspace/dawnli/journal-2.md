@@ -212,3 +212,36 @@ Merged local main into cts_refactor, preserved CTS/refactor and iSTA/liberty sem
 ### Next Steps
 
 - None - task complete
+
+
+## Session 51: Merge latest main into cts_refactor
+
+**Date**: 2026-05-13
+**Task**: Merge latest main into cts_refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Merged latest main into cts_refactor after review, preserving cts_refactor CTS behavior, semantically resolving iSTA changes, and confirming iCTS validation outputs match before and after merge.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `364215d55` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
