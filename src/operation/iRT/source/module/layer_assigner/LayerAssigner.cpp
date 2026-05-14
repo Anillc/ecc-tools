@@ -824,8 +824,44 @@ double LayerAssigner::getLayerBiasCost(LAModel& la_model, LAPackage& la_package,
     return layer_bias_unit * 0.4 * std::abs(layer_rank - target_rank);
   }
 
-  double scale = std::min(segment_length / 20.0, 4.0);
-  return layer_bias_unit * 0.6 * scale * (max_rank - layer_rank);
+  auto clamp = [](double value, double lower_bound, double upper_bound) {
+    return std::max(lower_bound, std::min(value, upper_bound));
+  };
+  auto smooth_step = [&clamp](double value, double lower_bound, double upper_bound) {
+    double ratio = clamp((value - lower_bound) / (upper_bound - lower_bound), 0.0, 1.0);
+    return ratio * ratio * (3.0 - 2.0 * ratio);
+  };
+  auto lerp = [](double start, double end, double ratio) { return start + (end - start) * ratio; };
+
+  double long_segment_length = la_com_param.get_long_segment_length();
+  double length_scale = std::min(segment_length / long_segment_length, 4.0);
+  double old_layer_bias_cost = layer_bias_unit * 0.6 * length_scale * (max_rank - layer_rank);
+  double candidate_layer_num = static_cast<double>(candidate_layer_idx_list.size());
+  double resolution_ratio = clamp(candidate_layer_num - 2.0, 0.0, 1.0);
+
+  double knee1 = long_segment_length * 2.5;
+  double knee2 = long_segment_length * 5.0;
+  double knee3 = long_segment_length * 10.0;
+
+  double target_norm_rank = 0.70;
+  if (segment_length <= knee1) {
+    target_norm_rank = 0.70;
+  } else if (segment_length <= knee2) {
+    target_norm_rank = lerp(0.70, 0.78, smooth_step(segment_length, knee1, knee2));
+  } else if (segment_length <= knee3) {
+    target_norm_rank = lerp(0.78, 0.90, smooth_step(segment_length, knee2, knee3));
+  } else {
+    target_norm_rank = 0.90;
+  }
+
+  double norm_rank = layer_rank / 1.0 / max_rank;
+  double rank_distance = std::abs(norm_rank - target_norm_rank);
+  double normalized_layer_bias_cost = layer_bias_unit * 0.8 * max_rank * rank_distance;
+
+  double top_region_ratio = clamp((norm_rank - 0.8) / 0.2, 0.0, 1.0);
+  double top_gate_ratio = (1.0 - smooth_step(segment_length, knee1, knee3)) * resolution_ratio;
+  normalized_layer_bias_cost += layer_bias_unit * 0.6 * length_scale * top_region_ratio * top_gate_ratio;
+  return lerp(old_layer_bias_cost, normalized_layer_bias_cost, resolution_ratio);
 }
 
 double LayerAssigner::getRefineLayerHintCost(LAModel& la_model, LAPackage& la_package, int32_t candidate_layer_idx)
