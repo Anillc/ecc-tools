@@ -269,7 +269,7 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGMod
   double corner_weight = tg_model.get_tg_com_param().get_corner_weight();
 
   auto computeScore = [&](TGCandidate& c) {
-    return c.get_total_wire_length() + c.get_total_overflow_cost() + corner_weight * c.get_total_corner_num();
+    return c.get_total_wire_length() + c.get_total_cost() + corner_weight * c.get_total_corner_num();
   };
 
   auto isBetterCandidate = [&](TGCandidate& candidate, TGCandidate& current_best) {
@@ -283,6 +283,15 @@ std::vector<Segment<PlanarCoord>> TopologyGenerator::getRoutingSegmentList(TGMod
     double score_a = computeScore(candidate);
     double score_b = computeScore(current_best);
     if (std::abs(score_a - score_b) < 1e-9) {
+      if (candidate.get_saturation_node_num() != current_best.get_saturation_node_num()) {
+        return candidate.get_saturation_node_num() < current_best.get_saturation_node_num();
+      }
+      if (candidate.get_hotspot_node_num() != current_best.get_hotspot_node_num()) {
+        return candidate.get_hotspot_node_num() < current_best.get_hotspot_node_num();
+      }
+      if (std::abs(candidate.get_max_usage_ratio() - current_best.get_max_usage_ratio()) >= 1e-9) {
+        return candidate.get_max_usage_ratio() < current_best.get_max_usage_ratio();
+      }
       return candidate.get_total_wire_length() < current_best.get_total_wire_length();
     }
     return score_a < score_b;
@@ -946,18 +955,15 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
   GridMap<TGNode>& tg_node_map = tg_model.get_tg_node_map();
   int32_t curr_net_idx = tg_model.get_curr_tg_task()->get_net_idx();
 
-  int32_t total_wire_length = 0;
-  int32_t total_corner_num = 0;
+  TGCandidateCost candidate_cost;
   Direction pre_direction = Direction::kNone;
-  bool is_path_blocked = false;
-  double total_overflow_cost = 0;
   for (Segment<PlanarCoord>& coord_segment : tg_candidate.get_routing_segment_list()) {
     PlanarCoord& first_coord = coord_segment.get_first();
     PlanarCoord& second_coord = coord_segment.get_second();
     if (!RTUTIL.isRightAngled(first_coord, second_coord)) {
       RTLOG.error(Loc::current(), "The direction is error!");
     }
-    total_wire_length += RTUTIL.getManhattanDistance(first_coord, second_coord);
+    candidate_cost.total_wire_length += RTUTIL.getManhattanDistance(first_coord, second_coord);
 
     int32_t first_x = first_coord.get_x();
     int32_t second_x = second_coord.get_x();
@@ -967,7 +973,7 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
     RTUTIL.swapByASC(first_y, second_y);
     Direction direction = RTUTIL.getDirection(first_coord, second_coord);
     if (pre_direction != Direction::kNone && pre_direction != direction) {
-      total_corner_num++;
+      candidate_cost.total_corner_num++;
     }
     pre_direction = direction;
     for (int32_t x = first_x; x <= second_x; x++) {
@@ -980,19 +986,28 @@ void TopologyGenerator::updateTGCandidate(TGModel& tg_model, TGCandidate& tg_can
             extra_orients = &it->second;
           }
         }
-        double overflow_cost = tg_node_map[x][y].getOverflowCost(curr_net_idx, direction, overflow_unit, extra_orients);
-        if (overflow_cost > 1) {
-          is_path_blocked = true;
+        TGNodeCost node_cost = tg_node_map[x][y].getCost(curr_net_idx, direction, overflow_unit, extra_orients);
+        if (node_cost.overflow > 0) {
+          candidate_cost.is_path_blocked = true;
+          candidate_cost.overflow_node_num++;
         }
-        total_overflow_cost += overflow_cost;
+        candidate_cost.total_usage_cost += node_cost.usage_cost;
+        candidate_cost.total_saturation_cost += node_cost.saturation_cost;
+        candidate_cost.total_hotspot_cost += node_cost.hotspot_cost;
+        candidate_cost.total_overflow_cost += node_cost.overflow_cost;
+        candidate_cost.total_overflow += node_cost.overflow;
+        candidate_cost.max_usage_ratio = std::max(candidate_cost.max_usage_ratio, node_cost.max_usage_ratio);
+        if (node_cost.saturation_orient_num > 0) {
+          candidate_cost.saturation_node_num++;
+        }
+        if (node_cost.hotspot_orient_num > 0) {
+          candidate_cost.hotspot_node_num++;
+        }
       }
     }
   }
 
-  tg_candidate.set_total_corner_num(total_corner_num);
-  tg_candidate.set_total_wire_length(total_wire_length);
-  tg_candidate.set_is_path_blocked(is_path_blocked);
-  tg_candidate.set_total_overflow_cost(total_overflow_cost);
+  tg_candidate.set_candidate_cost(candidate_cost);
 }
 
 MTree<PlanarCoord> TopologyGenerator::getCoordTree(TGModel& tg_model, std::vector<Segment<PlanarCoord>>& routing_segment_list)
