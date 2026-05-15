@@ -23,9 +23,11 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <limits>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "Clustering.hh"
@@ -33,6 +35,9 @@
 #include "TopologyConfig.hh"
 
 namespace icts::fast_clustering {
+
+using SteadyClock = std::chrono::steady_clock;
+using TimePoint = SteadyClock::time_point;
 
 inline constexpr std::size_t kDefaultPackingFanout = 32;
 inline constexpr std::size_t kMergeRoundCount = 2;
@@ -42,8 +47,11 @@ inline constexpr std::size_t kBoundaryPolishRoundCount = 2;
 inline constexpr std::size_t kMaxBoundaryNeighborCandidates = 8;
 inline constexpr std::size_t kMaxBoundaryEntryCandidates = 8;
 inline constexpr double kSplitRoutingCapBalanceWeight = 0.25;
+inline constexpr double kSplitUtilizationBalanceWeight = 2.0;
 inline constexpr double kMergeRoutingCapBalanceWeight = 0.18;
 inline constexpr double kBoundaryRoutingCapBalanceWeight = 0.35;
+inline constexpr double kBoundaryHeavyStddevFactor = 0.25;
+inline constexpr double kBoundaryMaxSourceFraction = 0.35;
 inline constexpr double kScoreEpsilon = 1e-9;
 
 struct LoadEntry
@@ -83,6 +91,14 @@ struct BoundaryMove
   double score_delta = 0.0;
 };
 
+struct NeighborGraph
+{
+  std::vector<std::vector<std::size_t>> neighbor_ids;
+};
+
+auto ElapsedSeconds(TimePoint start) -> double;
+auto FormatSeconds(double seconds) -> std::string;
+auto FormatRatio(double value) -> std::string;
 auto IsEmpty(const Bounds& bounds) -> bool;
 auto ExtendBounds(Bounds bounds, const Point<int>& point) -> Bounds;
 auto CalcDiameter(const Bounds& bounds) -> int;
@@ -110,6 +126,9 @@ auto BuildMergedDraft(const ClusterDraft& lhs, const ClusterDraft& rhs, const st
     -> ClusterDraft;
 auto SelectNearestActiveNeighbors(std::size_t cluster_id, const std::vector<ClusterDraft>& clusters, std::size_t max_candidate_count)
     -> std::vector<std::size_t>;
+auto BuildSpatialNeighborGraph(const std::vector<ClusterDraft>& clusters, std::size_t max_candidate_count) -> NeighborGraph;
+auto SelectNearestActiveNeighbors(std::size_t cluster_id, const std::vector<ClusterDraft>& clusters, const NeighborGraph* neighbor_graph,
+                                  std::size_t max_candidate_count) -> std::vector<std::size_t>;
 auto PairObjective(const ClusterDraft& lhs, const ClusterDraft& rhs, const ClusterConfig& config, double target_routing_cap_proxy,
                    double routing_cap_balance_weight) -> double;
 auto CollectEntries(const std::vector<Pin*>& loads) -> std::vector<LoadEntry>;
@@ -120,9 +139,10 @@ auto TryBuildDraftAfterMove(const ClusterDraft& source, const ClusterDraft& targ
 auto BuildBoundaryEntryCandidates(const ClusterDraft& source, const ClusterDraft& target, const std::vector<LoadEntry>& entries,
                                   const ClusterConfig& config) -> std::vector<std::size_t>;
 auto FindBestBoundaryMove(std::size_t source_id, const std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                          const ClusterConfig& config, const DraftAggregate& aggregate) -> std::optional<BoundaryMove>;
+                          const ClusterConfig& config, const DraftAggregate& aggregate, const NeighborGraph* neighbor_graph)
+    -> std::optional<BoundaryMove>;
 auto MergeDraftsIfUseful(std::size_t cluster_id, std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                         const ClusterConfig& config) -> bool;
+                         const ClusterConfig& config, const NeighborGraph* neighbor_graph) -> bool;
 auto PolishBoundaryLoads(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void;
 auto PolishSmallClusters(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void;
 auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const ClusterConfig& config)

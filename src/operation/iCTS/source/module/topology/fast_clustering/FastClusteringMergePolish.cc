@@ -56,12 +56,12 @@ auto MergeDrafts(ClusterDraft& target, ClusterDraft& source, const std::vector<L
 }  // namespace
 
 auto MergeDraftsIfUseful(std::size_t cluster_id, std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                         const ClusterConfig& config) -> bool
+                         const ClusterConfig& config, const NeighborGraph* neighbor_graph) -> bool
 {
   const auto aggregate = CalcDraftAggregate(clusters);
   const auto before_target_proxy = CalcMeanRoutingCapProxy(aggregate);
   const auto& cluster = clusters.at(cluster_id);
-  const auto neighbor_ids = SelectNearestActiveNeighbors(cluster_id, clusters, kMaxMergeNeighborCandidates);
+  const auto neighbor_ids = SelectNearestActiveNeighbors(cluster_id, clusters, neighbor_graph, kMaxMergeNeighborCandidates);
 
   std::optional<std::size_t> best_neighbor;
   double best_delta = std::numeric_limits<double>::infinity();

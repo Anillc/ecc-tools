@@ -22,8 +22,8 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
-#include <cstdlib>
 #include <limits>
 #include <numeric>
 #include <utility>
@@ -96,6 +96,26 @@ auto CalcSizeDistance(std::size_t lhs, std::size_t rhs) -> std::size_t
   return lhs > rhs ? lhs - rhs : rhs - lhs;
 }
 
+auto ResolveSplitCandidateWindow(std::size_t fanout_limit) -> std::size_t
+{
+  const auto utilization_scaled_window = std::max<std::size_t>(1U, fanout_limit / 4U);
+  return std::min(kSplitCandidateWindow, utilization_scaled_window);
+}
+
+auto CalcSplitUtilizationPenalty(std::size_t entry_count, std::size_t split_size, std::size_t ideal_split_size,
+                                 std::size_t target_cluster_count, std::size_t lhs_child_count, std::size_t rhs_child_count,
+                                 std::size_t fanout_limit) -> double
+{
+  const auto safe_fanout = static_cast<double>(std::max<std::size_t>(1U, fanout_limit));
+  const auto split_deviation = static_cast<double>(CalcSizeDistance(split_size, ideal_split_size)) / safe_fanout;
+  const auto target_leaf_size = static_cast<double>(entry_count) / static_cast<double>(std::max<std::size_t>(1U, target_cluster_count));
+  const auto lhs_leaf_size = static_cast<double>(split_size) / static_cast<double>(std::max<std::size_t>(1U, lhs_child_count));
+  const auto rhs_size = entry_count - split_size;
+  const auto rhs_leaf_size = static_cast<double>(rhs_size) / static_cast<double>(std::max<std::size_t>(1U, rhs_child_count));
+  const auto child_balance = (std::abs(lhs_leaf_size - target_leaf_size) + std::abs(rhs_leaf_size - target_leaf_size)) / safe_fanout;
+  return split_deviation + child_balance;
+}
+
 auto ResolveRecursiveSplitSize(const std::vector<std::size_t>& entry_ids, const std::vector<LoadEntry>& entries, std::size_t fanout_limit,
                                const Bounds& bounds, const ClusterConfig& config) -> std::size_t
 {
@@ -105,8 +125,9 @@ auto ResolveRecursiveSplitSize(const std::vector<std::size_t>& entry_ids, const 
   const auto left_cluster_count = std::max<std::size_t>(1U, target_cluster_count / 2U);
   const auto ideal_split_size = std::clamp<std::size_t>(
       (entry_count * left_cluster_count + target_cluster_count - 1U) / target_cluster_count, 1U, entry_count - 1U);
-  const auto split_begin = ideal_split_size > kSplitCandidateWindow ? ideal_split_size - kSplitCandidateWindow : 1U;
-  const auto split_end = std::min(entry_count - 1U, ideal_split_size + kSplitCandidateWindow);
+  const auto split_candidate_window = ResolveSplitCandidateWindow(fanout_limit);
+  const auto split_begin = ideal_split_size > split_candidate_window ? ideal_split_size - split_candidate_window : 1U;
+  const auto split_end = std::min(entry_count - 1U, ideal_split_size + split_candidate_window);
 
   std::size_t best_split_size = ideal_split_size;
   std::size_t best_split_distance = std::numeric_limits<std::size_t>::max();
@@ -122,11 +143,15 @@ auto ResolveRecursiveSplitSize(const std::vector<std::size_t>& entry_ids, const 
     const auto target_routing_cap_proxy = (lhs.routing_cap_proxy + rhs.routing_cap_proxy) / static_cast<double>(child_count);
     const auto lhs_avg_proxy = lhs.routing_cap_proxy / static_cast<double>(std::max<std::size_t>(1U, lhs_child_count));
     const auto rhs_avg_proxy = rhs.routing_cap_proxy / static_cast<double>(std::max<std::size_t>(1U, rhs_child_count));
+    const auto geometry_score = ClusterScoreProxy(lhs, config) + ClusterScoreProxy(rhs, config);
+    const auto utilization_penalty = CalcSplitUtilizationPenalty(entry_count, split_size, ideal_split_size, target_cluster_count,
+                                                                 lhs_child_count, rhs_child_count, fanout_limit);
     const auto score
-        = ClusterScoreProxy(lhs, config) + ClusterScoreProxy(rhs, config)
+        = geometry_score
           + kSplitRoutingCapBalanceWeight
                 * (static_cast<double>(lhs_child_count) * CalcRoutingCapVariancePenalty(lhs_avg_proxy, target_routing_cap_proxy)
-                   + static_cast<double>(rhs_child_count) * CalcRoutingCapVariancePenalty(rhs_avg_proxy, target_routing_cap_proxy));
+                   + static_cast<double>(rhs_child_count) * CalcRoutingCapVariancePenalty(rhs_avg_proxy, target_routing_cap_proxy))
+          + kSplitUtilizationBalanceWeight * std::max(1.0, geometry_score) * utilization_penalty;
     const auto split_distance = CalcSizeDistance(split_size, ideal_split_size);
     if (score + kScoreEpsilon < best_score || (std::abs(score - best_score) <= kScoreEpsilon && split_distance < best_split_distance)) {
       best_score = score;

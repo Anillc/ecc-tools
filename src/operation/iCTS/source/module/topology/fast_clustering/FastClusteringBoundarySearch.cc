@@ -86,7 +86,8 @@ auto SelectBetterBoundaryMove(std::optional<BoundaryMove> best_move, BoundaryMov
 }  // namespace
 
 auto FindBestBoundaryMove(std::size_t source_id, const std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries,
-                          const ClusterConfig& config, const DraftAggregate& aggregate) -> std::optional<BoundaryMove>
+                          const ClusterConfig& config, const DraftAggregate& aggregate, const NeighborGraph* neighbor_graph)
+    -> std::optional<BoundaryMove>
 {
   const auto& source = clusters.at(source_id);
   const auto target_routing_cap_proxy = CalcMeanRoutingCapProxy(aggregate);
@@ -95,7 +96,7 @@ auto FindBestBoundaryMove(std::size_t source_id, const std::vector<ClusterDraft>
   }
 
   std::optional<BoundaryMove> best_move;
-  const auto neighbor_ids = SelectNearestActiveNeighbors(source_id, clusters, kMaxBoundaryNeighborCandidates);
+  const auto neighbor_ids = SelectNearestActiveNeighbors(source_id, clusters, neighbor_graph, kMaxBoundaryNeighborCandidates);
   for (const auto target_id : neighbor_ids) {
     const auto& target = clusters.at(target_id);
     if (!IsBoundaryTargetUseful(target, target_routing_cap_proxy)) {
