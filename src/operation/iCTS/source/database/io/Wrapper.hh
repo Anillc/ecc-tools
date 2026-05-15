@@ -50,6 +50,8 @@ class Clock;
 class Inst;
 class Net;
 class Pin;
+struct ClockTraceResult;
+struct SdcClockData;
 
 struct WrapperCellGeometry
 {
@@ -112,6 +114,7 @@ class Wrapper
   // Interface
   auto read() -> void;
   auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool;
+  auto traceSdcClocks(const SdcClockData& clock_data) const -> ClockTraceResult;
   auto writeClock(Clock& clock) -> bool;
   auto writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult;
   auto writeClocks(const std::vector<Clock*>& clocks) -> bool;

@@ -15,30 +15,67 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file SdcClockReader.hh
+ * @file SdcClockModel.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-05-13
- * @brief SDC clock-only declaration reader for iCTS.
+ * @date 2026-05-15
+ * @brief CTS-owned SDC clock records for clock tracing.
  */
 
 #pragma once
 
 #include <string>
-#include <tuple>
 #include <vector>
 
 namespace icts {
 
-class SdcClockReader
+enum class SdcObjectKind
 {
- public:
-  SdcClockReader();
-  explicit SdcClockReader(std::string sdc_path);
+  kPort,
+  kPin,
+  kNet,
+  kClock,
+  kUnknown,
+};
 
-  auto readDeclarationsOnly() const -> std::vector<std::tuple<std::string, std::string, double, bool>>;
+struct SdcObjectRef
+{
+  SdcObjectKind kind = SdcObjectKind::kUnknown;
+  std::string pattern;
+  bool from_collection_cmd = false;
+};
 
- private:
-  std::string _sdc_path;
+struct SdcClockDecl
+{
+  enum class Kind
+  {
+    kPrimary,
+    kGenerated,
+  };
+
+  Kind kind = Kind::kPrimary;
+  std::string clock_name;
+  std::vector<SdcObjectRef> targets;
+  std::vector<SdcObjectRef> generated_sources;
+  std::string master_clock_name;
+  double period_ns = 0.0;
+  bool period_resolved = false;
+  int divide_by = 1;
+  int multiply_by = 1;
+  bool invert = false;
+  bool is_virtual = false;
+};
+
+struct SdcCaseAnalysis
+{
+  int value = 0;
+  std::vector<SdcObjectRef> objects;
+};
+
+struct SdcClockData
+{
+  std::vector<SdcClockDecl> clocks;
+  std::vector<SdcCaseAnalysis> case_analyses;
+  std::vector<std::string> diagnostics;
 };
 
 }  // namespace icts

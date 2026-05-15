@@ -1,12 +1,15 @@
 set(ICTS_DATABASE_ADAPTER_STA ${ICTS_DATABASE}/adapter/sta)
+set(ICTS_DATABASE_ADAPTER_SDC ${ICTS_DATABASE}/adapter/sdc)
 
 add_subdirectory(${ICTS_DATABASE_ADAPTER_STA})
+add_subdirectory(${ICTS_DATABASE_ADAPTER_SDC})
 
 add_library(icts_source_database_adapter INTERFACE)
 
 target_link_libraries(
   icts_source_database_adapter
   INTERFACE
+  icts_source_database_adapter_sdc
   icts_source_database_adapter_sta
 )
 

@@ -36,14 +36,15 @@
 #include <ranges>
 #include <set>
 #include <string>
-#include <tuple>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "Log.hh"
+#include "adapter/sdc/ClockTraceResolver.hh"
+#include "adapter/sdc/SdcClockModel.hh"
+#include "adapter/sdc/SdcClockReader.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "adapter/sta/SdcClockReader.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/ClockLayout.hh"
@@ -306,19 +307,21 @@ auto DesignConversion::readClockData() -> bool
   std::string clock_source = "sdc";
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
 
-  const auto sdc_clock_declarations = SdcClockReader().readDeclarationsOnly();
+  const auto sdc_clock_data = SdcClockReader().readClockData();
   std::set<std::string> sdc_clock_names;
+  std::set<std::string> traceable_sdc_clock_names;
   std::map<std::string, double> sdc_period_by_clock;
-  std::map<std::string, std::string> sdc_source_by_clock;
   std::map<std::string, bool> sdc_resolved_by_clock;
-  for (const auto& [clock_name, source_expression, period_ns, period_resolved] : sdc_clock_declarations) {
-    if (clock_name.empty()) {
+  for (const auto& clock_decl : sdc_clock_data.clocks) {
+    if (clock_decl.clock_name.empty()) {
       continue;
     }
-    sdc_clock_names.insert(clock_name);
-    sdc_period_by_clock[clock_name] = period_ns;
-    sdc_source_by_clock[clock_name] = source_expression;
-    sdc_resolved_by_clock[clock_name] = period_resolved;
+    sdc_clock_names.insert(clock_decl.clock_name);
+    if (!clock_decl.is_virtual) {
+      traceable_sdc_clock_names.insert(clock_decl.clock_name);
+    }
+    sdc_period_by_clock[clock_decl.clock_name] = clock_decl.period_ns;
+    sdc_resolved_by_clock[clock_decl.clock_name] = clock_decl.period_resolved;
   }
 
   if (sdc_clock_names.empty()) {
@@ -326,7 +329,8 @@ auto DesignConversion::readClockData() -> bool
                            "no SDC clocks were declared; CTS clock read will be an explicit no-op.", {{"clock_source", "sdc"}});
   }
 
-  std::map<std::string, std::string> configured_net_by_clock;
+  std::map<std::string, std::vector<std::string>> configured_nets_by_clock;
+  std::size_t active_configured_mapping_count = 0U;
   bool preflight_failed = false;
   std::string failure_reason = "n/a";
   if (CONFIG_INST.is_use_netlist()) {
@@ -340,29 +344,49 @@ auto DesignConversion::readClockData() -> bool
         LOG_ERROR << "DesignConversion: reject configured clock mapping for \"" << clock_name << "\" because it is not declared in SDC.";
         continue;
       }
-      configured_net_by_clock[clock_name] = net_name;
+      configured_nets_by_clock[clock_name].push_back(net_name);
     }
-  }
 
-  for (const auto& clock_name : sdc_clock_names) {
-    if (const auto configured_iter = configured_net_by_clock.find(clock_name); configured_iter != configured_net_by_clock.end()) {
-      clock_net_pairs.emplace_back(clock_name, configured_iter->second);
-      continue;
+    for (const auto& [clock_name, net_names] : configured_nets_by_clock) {
+      for (const auto& net_name : net_names) {
+        clock_net_pairs.emplace_back(clock_name, net_name);
+        ++active_configured_mapping_count;
+      }
     }
-    const auto source_iter = sdc_source_by_clock.find(clock_name);
-    const auto source_expression = source_iter == sdc_source_by_clock.end() ? std::string{} : source_iter->second;
-    if (source_expression.empty()) {
+    for (const auto& clock_name : sdc_clock_names) {
+      if (configured_nets_by_clock.contains(clock_name)) {
+        continue;
+      }
       preflight_failed = true;
       if (failure_reason == "n/a") {
-        failure_reason = "empty_sdc_clock_source";
+        failure_reason = "configured_clock_net_mapping_missing";
       }
       schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "DesignConversion",
-                             "SDC clock source is empty and no config net mapping is available.",
+                             "manual CTS clock net mode requires a configured net mapping for each SDC clock.",
                              {{"clock", clock_name}, {"clock_source", "sdc"}});
-      LOG_ERROR << "DesignConversion: SDC clock \"" << clock_name << "\" has no source expression and no configured net mapping.";
-      continue;
+      LOG_ERROR << "DesignConversion: SDC clock \"" << clock_name << "\" has no configured clock net mapping while use_netlist is enabled.";
     }
-    clock_net_pairs.emplace_back(clock_name, source_expression);
+  } else if (!sdc_clock_data.clocks.empty()) {
+    const auto trace_result = WRAPPER_INST.traceSdcClocks(sdc_clock_data);
+    clock_net_pairs = trace_result.clock_net_pairs;
+    std::set<std::string> accepted_trace_clock_names;
+    for (const auto& [clock_name, net_name] : clock_net_pairs) {
+      (void) net_name;
+      accepted_trace_clock_names.insert(clock_name);
+    }
+    for (const auto& clock_name : traceable_sdc_clock_names) {
+      if (accepted_trace_clock_names.contains(clock_name)) {
+        continue;
+      }
+      preflight_failed = true;
+      if (failure_reason == "n/a") {
+        failure_reason = "clock_trace_no_targets";
+      }
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "DesignConversion",
+                             "SDC clock tracing found no CTS target net for a traceable SDC clock.",
+                             {{"clock", clock_name}, {"clock_source", "sdc"}});
+      LOG_ERROR << "DesignConversion: SDC clock tracing found no CTS target net for \"" << clock_name << "\".";
+    }
   }
 
   if (!preflight_failed && !clock_net_pairs.empty() && !WRAPPER_INST.readClocks(clock_net_pairs)) {
@@ -392,7 +416,7 @@ auto DesignConversion::readClockData() -> bool
                                                      {"status", preflight_failed ? "failed" : "finished"},
                                                      {"failure_reason", failure_reason},
                                                      {"sdc_declared_clocks", std::to_string(sdc_clock_names.size())},
-                                                     {"configured_clock_net_mappings", std::to_string(configured_net_by_clock.size())},
+                                                     {"configured_clock_net_mappings", std::to_string(active_configured_mapping_count)},
                                                      {"added_clock_nets", std::to_string(materialized_clock_count)},
                                                      {"total_clock_nets", std::to_string(materialized_clock_count)},
                                                  });

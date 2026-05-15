@@ -9,7 +9,6 @@ add_library(
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterInternal.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterRcTree.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterRootDriverQuery.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterSdcClock.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterTimingUpdate.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterWireRc.cc
 )

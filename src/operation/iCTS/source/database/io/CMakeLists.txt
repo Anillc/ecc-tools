@@ -16,6 +16,7 @@ target_link_libraries(
   icts_source_database_io
   PRIVATE
   idm
+  icts_source_database_adapter_sdc
   icts_source_database_adapter_sta
   icts_source_database_design
   icts_source_utils
