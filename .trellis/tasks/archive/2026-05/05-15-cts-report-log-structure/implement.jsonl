@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Authority for iCTS runtime logging, structured report output, and log level/report helper rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Authority for iCTS naming, include, dependency, and validation expectations while refactoring report code."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide constraints for iCTS code changes and final validation."}
+{"file": ".trellis/tasks/05-15-cts-report-log-structure/research/cts-log-analysis.md", "reason": "Evidence-based breakdown of the current cts.log structure, redundant output, and impacted code paths."}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check report/logging changes against structured output and LOG_* rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check implementation quality, naming, includes, and validation expectations."}
+{"file": ".trellis/spec/project-constraints.md", "reason": "Check repository-wide iCTS constraints and required final validation."}
+{"file": ".trellis/tasks/05-15-cts-report-log-structure/prd.md", "reason": "Check acceptance criteria for the optimized default cts.log behavior."}
