@@ -65,6 +65,11 @@ auto BuildSinkHtreeOptions(bool enable_sink_clustering, const Topology::BuildOpt
   return htree_options;
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 }  // namespace
 
 auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topology::BuildResult
@@ -95,7 +100,8 @@ auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topo
             {"root_loads", std::to_string(root_loads.size())},
             {"sink_clustering_enabled",
              options.enable_sink_clustering.value_or(CONFIG_INST.is_enable_sink_clustering()) ? "true" : "false"},
-        });
+        },
+        DetailStageReportOptions());
     sink_preparation = PrepareSinkTreeLoads(result, root_loads, options);
     if (sink_preparation.success) {
       preparation_stage.finished({
@@ -120,7 +126,8 @@ auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topo
                                                      {
                                                          {"htree_sinks", std::to_string(sink_preparation.htree_sinks.size())},
                                                          {"sink_clustering_enabled", result.sink_clustering_enabled ? "true" : "false"},
-                                                     });
+                                                     },
+                                                     DetailStageReportOptions());
     result.htree_result = HTree::build(root_net, htree_options);
     if (result.htree_result.success) {
       htree_stage.finished({
@@ -154,7 +161,8 @@ auto BuildSinkTree(Net& root_net, const Topology::BuildOptions& options) -> Topo
     auto distance_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Emit cluster leaf distance report",
                                                         {
                                                             {"cluster_buffers", std::to_string(result.cluster_buffers.size())},
-                                                        });
+                                                        },
+                                                        DetailStageReportOptions());
     result.cluster_leaf_distance_summary = EmitClusterLeafDistanceTables(result);
     if (result.cluster_leaf_distance_summary.has_value()) {
       distance_stage.finished({

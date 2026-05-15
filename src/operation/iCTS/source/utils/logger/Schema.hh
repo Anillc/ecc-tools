@@ -51,6 +51,21 @@ enum class DiagnosticLevel
   kFallback
 };
 
+enum class ReportSink
+{
+  kDefault,
+  kDetail,
+  kBoth,
+  kNone
+};
+
+struct StageReportOptions
+{
+  ReportSink context_sink = ReportSink::kDefault;
+  ReportSink summary_sink = ReportSink::kDefault;
+  bool emit_success_summary = true;
+};
+
 class SchemaWriter
 {
  public:
@@ -102,12 +117,14 @@ class SchemaWriter
    private:
     friend class SchemaWriter;
 
-    StageScope(SchemaWriter& writer, std::string module, std::string stage, const KeyValueFields& start_fields = {});
+    StageScope(SchemaWriter& writer, std::string module, std::string stage, const KeyValueFields& start_fields = {},
+               StageReportOptions report_options = {});
 
     auto closeWithStatus(const std::string& status, const KeyValueFields& finish_fields) -> void;
 
     std::string _module;
     std::string _stage;
+    StageReportOptions _report_options;
     SchemaWriter* _writer = nullptr;
     std::chrono::steady_clock::time_point _start_time;
     bool _finished = false;
@@ -126,20 +143,28 @@ class SchemaWriter
   auto reset() -> void;
   auto isOpen() const -> bool;
   auto getActivePath() const -> std::filesystem::path;
+  auto getDetailPath() const -> std::filesystem::path;
 
   auto emitSection(const std::string& title) -> void;
+  auto emitSectionTo(const std::string& title, ReportSink sink) -> void;
   auto emitTable(const std::string& title, const std::vector<std::string>& headers, const TableRows& rows) -> void;
+  auto emitTableTo(const std::string& title, const std::vector<std::string>& headers, const TableRows& rows, ReportSink sink) -> void;
   auto emitKeyValueTable(const std::string& title, const KeyValueFields& fields) -> void;
+  auto emitKeyValueTableTo(const std::string& title, const KeyValueFields& fields, ReportSink sink) -> void;
   auto emitDetailBlock(const std::string& title, const std::vector<std::string>& lines) -> void;
+  auto emitDetailBlockTo(const std::string& title, const std::vector<std::string>& lines, ReportSink sink) -> void;
   auto emitDiagnostic(DiagnosticLevel level, const std::string& owner, const std::string& summary, const KeyValueFields& fields = {})
       -> void;
   auto emitArtifact(const std::string& label, const std::filesystem::path& path, const std::string& detail = {}) -> void;
+  auto emitArtifactTo(const std::string& label, const std::filesystem::path& path, const std::string& detail, ReportSink sink) -> void;
   auto resetRuntimeMetrics() -> void;
   auto beginRuntimeMetric(std::string stage) -> RuntimeMetricScope;
   auto emitRuntimeSummary(const std::string& title = "Runtime Summary") -> void;
   auto emitRuntimeMetricTable(const std::string& title, const std::string& stage, const std::string& status,
                               const RuntimeMetricSnapshot& snapshot) -> void;
   auto beginStage(std::string module, std::string stage, const KeyValueFields& start_fields = {}) -> StageScope;
+  auto beginStage(std::string module, std::string stage, const KeyValueFields& start_fields, StageReportOptions report_options)
+      -> StageScope;
 
   static auto appendStandaloneTable(const std::filesystem::path& path, const std::string& run_title, const std::string& title,
                                     const std::vector<std::string>& headers, const TableRows& rows) -> void;
@@ -155,6 +180,8 @@ class SchemaWriter
   {
     std::filesystem::path path;
     bool has_content = false;
+    std::filesystem::path detail_path;
+    bool detail_has_content = false;
   };
 
   struct RuntimeMetric
@@ -168,7 +195,8 @@ class SchemaWriter
   SchemaWriter() = default;
   ~SchemaWriter() = default;
 
-  auto writeBlockLocked(const std::string& block) -> void;
+  auto writeBlockLocked(const std::string& block, ReportSink sink = ReportSink::kDefault) -> void;
+  static auto writeBlockToStream(std::ofstream& stream, bool& has_content, const std::string& block) -> void;
   auto recordRuntimeMetric(std::string stage, std::string status, const RuntimeMetricSnapshot& snapshot) -> void;
   auto restoreSuspendedWriterLocked() -> void;
   static auto appendStandaloneBlock(const std::filesystem::path& path, const std::string& run_title, const std::string& block) -> void;
@@ -177,6 +205,9 @@ class SchemaWriter
   std::ofstream _stream;
   std::filesystem::path _path;
   bool _has_content = false;
+  std::ofstream _detail_stream;
+  std::filesystem::path _detail_path;
+  bool _detail_has_content = false;
   std::vector<SuspendedWriter> _suspended_writers;
   std::vector<RuntimeMetric> _runtime_metrics;
 };

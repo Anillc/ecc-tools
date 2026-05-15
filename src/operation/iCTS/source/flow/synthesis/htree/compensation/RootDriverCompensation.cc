@@ -711,13 +711,14 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
   if (!compensation_state.options.enabled || entries.empty()) {
     return apply_result;
   }
-  auto compensation_stage
-      = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Apply root-driver compensation",
-                                      {
-                                          {"entries", std::to_string(entries.size())},
-                                          {"input_slew_ns", std::to_string(compensation_state.options.input_slew_ns)},
-                                          {"clock_period_ns", std::to_string(compensation_state.options.clock_period_ns)},
-                                      });
+  auto compensation_stage = SCHEMA_WRITER_INST.beginStage(
+      "HTreeDepth", "Apply root-driver compensation",
+      {
+          {"entries", std::to_string(entries.size())},
+          {"input_slew_ns", std::to_string(compensation_state.options.input_slew_ns)},
+          {"clock_period_ns", std::to_string(compensation_state.options.clock_period_ns)},
+      },
+      schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail});
   if (!CompensationOptionsAreValid(compensation_state)) {
     compensation_stage.skip({{"reason", "invalid_compensation_options"}});
     return apply_result;

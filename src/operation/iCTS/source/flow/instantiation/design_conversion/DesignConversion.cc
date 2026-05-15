@@ -411,15 +411,20 @@ auto DesignConversion::readClockData() -> bool
   if (!preflight_failed) {
     DESIGN_INST.emitClockDistributionSummary();
   }
-  schema::EmitKeyValueTable("ReadData Overview", {
-                                                     {"clock_source", clock_source},
-                                                     {"status", preflight_failed ? "failed" : "finished"},
-                                                     {"failure_reason", failure_reason},
-                                                     {"sdc_declared_clocks", std::to_string(sdc_clock_names.size())},
-                                                     {"configured_clock_net_mappings", std::to_string(active_configured_mapping_count)},
-                                                     {"added_clock_nets", std::to_string(materialized_clock_count)},
-                                                     {"total_clock_nets", std::to_string(materialized_clock_count)},
-                                                 });
+  schema::KeyValueFields read_data_fields = {
+      {"clock_source", clock_source},
+      {"status", preflight_failed ? "failed" : "finished"},
+  };
+  if (preflight_failed && !failure_reason.empty()) {
+    read_data_fields.emplace_back("failure_reason", failure_reason);
+  }
+  read_data_fields.insert(read_data_fields.end(), {
+                                                      {"sdc_declared_clocks", std::to_string(sdc_clock_names.size())},
+                                                      {"configured_clock_net_mappings", std::to_string(active_configured_mapping_count)},
+                                                      {"added_clock_nets", std::to_string(materialized_clock_count)},
+                                                      {"total_clock_nets", std::to_string(materialized_clock_count)},
+                                                  });
+  schema::EmitKeyValueTable("ReadData Overview", read_data_fields);
   if (preflight_failed) {
     DESIGN_INST.clearClocks();
     DESIGN_INST.clearTopologyObjects();

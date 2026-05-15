@@ -98,12 +98,15 @@ auto Setup::initialize(const std::string& config_file, const std::string& work_d
 auto Setup::emitRuntimeSetup() -> void
 {
   SCHEMA_WRITER_INST.emitSection("## Runtime Setup");
-  schema::EmitKeyValueTable("Runtime Paths", {
-                                                 {"work_dir", CONFIG_INST.get_work_dir()},
-                                                 {"cts_log", CONFIG_INST.get_log_file()},
-                                                 {"visualization_dir", CONFIG_INST.get_visualization_dir()},
-                                                 {"statistics_dir", CONFIG_INST.get_statistics_dir()},
-                                             });
+  schema::EmitKeyValueTable(
+      "Runtime Paths",
+      {
+          {"work_dir", CONFIG_INST.get_work_dir()},
+          {"cts_log", CONFIG_INST.get_log_file()},
+          {"cts_detail_log", SCHEMA_WRITER_INST.getDetailPath().empty() ? "unavailable" : SCHEMA_WRITER_INST.getDetailPath().string()},
+          {"visualization_dir", CONFIG_INST.get_visualization_dir()},
+          {"statistics_dir", CONFIG_INST.get_statistics_dir()},
+      });
   SCHEMA_WRITER_INST.emitSection("### Runtime Configuration");
   CONFIG_INST.emitRuntimeConfigReport("Runtime Configuration");
   SCHEMA_WRITER_INST.emitSection("### Runtime Routing / Wire RC");

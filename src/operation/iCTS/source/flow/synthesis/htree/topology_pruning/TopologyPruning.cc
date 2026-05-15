@@ -232,12 +232,13 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels, const Segme
                         const Tree& topology, RootDriverCompensationPass& compensation_pass,
                         const HTreeFanoutPruningOptions& fanout_options) -> PatternSearchResult
 {
-  auto pattern_search_stage
-      = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Build pattern frontier",
-                                      {
-                                          {"levels", std::to_string(levels.size())},
-                                          {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
-                                      });
+  auto pattern_search_stage = SCHEMA_WRITER_INST.beginStage(
+      "HTreeDepth", "Build pattern frontier",
+      {
+          {"levels", std::to_string(levels.size())},
+          {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
+      },
+      schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail});
   PatternSearchResult result;
   unsigned next_topology_pattern_id = 0U;
   std::vector<HTreeTopologyChar> current_frontier_entries;
@@ -503,12 +504,14 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const S
     SinkLoadRegionEntryFilterResult feasible_sink_load_region_filter;
     std::vector<HTreeTopologyChar> feasible_raw_frontier;
     {
-      auto filter_stage = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Filter sink-load region",
-                                                        {
-                                                            {"depth", std::to_string(depth)},
-                                                            {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
-                                                            {"has_boundary_constraints", "true"},
-                                                        });
+      auto filter_stage = SCHEMA_WRITER_INST.beginStage(
+          "HTreeDepth", "Filter sink-load region",
+          {
+              {"depth", std::to_string(depth)},
+              {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
+              {"has_boundary_constraints", "true"},
+          },
+          schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail});
       candidate_sink_load_region_filter
           = FilterSinkLoadRegionLegalEntries(topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library,
                                              sink_load_region_legality_context);
@@ -535,12 +538,14 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const S
     result.feasible_solution_count = result.candidate_solution_count;
     SinkLoadRegionEntryFilterResult feasible_sink_load_region_filter;
     {
-      auto filter_stage = SCHEMA_WRITER_INST.beginStage("HTreeDepth", "Filter sink-load region",
-                                                        {
-                                                            {"depth", std::to_string(depth)},
-                                                            {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
-                                                            {"has_boundary_constraints", "false"},
-                                                        });
+      auto filter_stage = SCHEMA_WRITER_INST.beginStage(
+          "HTreeDepth", "Filter sink-load region",
+          {
+              {"depth", std::to_string(depth)},
+              {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
+              {"has_boundary_constraints", "false"},
+          },
+          schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail});
       feasible_sink_load_region_filter
           = FilterSinkLoadRegionLegalEntries(topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library,
                                              sink_load_region_legality_context);

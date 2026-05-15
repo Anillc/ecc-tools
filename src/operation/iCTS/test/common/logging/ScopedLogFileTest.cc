@@ -105,5 +105,50 @@ TEST(ScopedLogFileTest, StageScopeSummaryOmitsElapsedTimeFromSchemaFile)
   EXPECT_EQ(stage_summary.find("elapsed_time"), std::string::npos);
 }
 
+TEST(ScopedLogFileTest, DetailReportReceivesDetailOnlyTablesAndSharedDiagnostics)
+{
+  const auto output_dir = common::io::PrepareCleanOutputDir(common::io::ResolveOutputDir() / "common" / "logging" / "detail_report");
+  ASSERT_FALSE(output_dir.empty());
+
+  const auto log_path = output_dir / "cts.log";
+  const auto detail_log_path = output_dir / "cts_detail.log";
+  {
+    const common::logging::ScopedLogFile log_guard(log_path, "Detail Routing CTS Report");
+    SCHEMA_WRITER_INST.emitKeyValueTableTo("Default Only", {{"scope", "default"}}, icts::schema::ReportSink::kDefault);
+    SCHEMA_WRITER_INST.emitKeyValueTableTo("Detail Only", {{"scope", "detail"}}, icts::schema::ReportSink::kDetail);
+    icts::schema::EmitDiagnostic(icts::schema::DiagnosticLevel::kWarning, "DetailRouting", "shared diagnostic",
+                                 {{"case", "detail_report"}});
+
+    auto detail_stage = SCHEMA_WRITER_INST.beginStage("DetailStage", "trace", {{"phase", "detail"}},
+                                                      icts::schema::StageReportOptions{.context_sink = icts::schema::ReportSink::kDetail,
+                                                                                       .summary_sink = icts::schema::ReportSink::kDetail});
+    detail_stage.finished({{"count", "1"}});
+
+    auto failed_detail_stage
+        = SCHEMA_WRITER_INST.beginStage("DetailStage", "failure trace", {{"phase", "detail"}},
+                                        icts::schema::StageReportOptions{.context_sink = icts::schema::ReportSink::kDetail,
+                                                                         .summary_sink = icts::schema::ReportSink::kDetail});
+    failed_detail_stage.failed({{"reason", "unit_failure"}});
+  }
+
+  const auto log_content = ReadTextFile(log_path);
+  const auto detail_log_content = ReadTextFile(detail_log_path);
+  ASSERT_FALSE(log_content.empty());
+  ASSERT_FALSE(detail_log_content.empty());
+  EXPECT_NE(log_content.find("Default Only"), std::string::npos);
+  EXPECT_EQ(log_content.find("Detail Only"), std::string::npos);
+  EXPECT_EQ(log_content.find("DetailStage trace"), std::string::npos);
+  EXPECT_EQ(log_content.find("DetailStage failure trace Context"), std::string::npos);
+  EXPECT_NE(log_content.find("DetailStage failure trace Summary"), std::string::npos);
+  EXPECT_NE(log_content.find("unit_failure"), std::string::npos);
+  EXPECT_NE(log_content.find("DetailRouting Diagnostic"), std::string::npos);
+  EXPECT_NE(detail_log_content.find("Detail Only"), std::string::npos);
+  EXPECT_NE(detail_log_content.find("DetailStage trace Context"), std::string::npos);
+  EXPECT_NE(detail_log_content.find("DetailStage trace Summary"), std::string::npos);
+  EXPECT_NE(detail_log_content.find("DetailStage failure trace Context"), std::string::npos);
+  EXPECT_NE(detail_log_content.find("DetailStage failure trace Summary"), std::string::npos);
+  EXPECT_NE(detail_log_content.find("DetailRouting Diagnostic"), std::string::npos);
+}
+
 }  // namespace
 }  // namespace icts_test

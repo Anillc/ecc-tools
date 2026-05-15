@@ -124,7 +124,9 @@ TEST(CharacterizationRealTechFallbackTest, WirelengthUnitFallsBackToStrongestBuf
   EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*max_slew\s*\|)")));
   EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*max_cap\s*\|)")));
   EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_iterations\s*\|)")));
-  EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_points\s*\|)")));
+  EXPECT_TRUE(
+      std::regex_search(char_builder_setup, std::regex(R"(\|\s*resolved_wirelength_unit\s*\|\s*[^|\n]*um\s*\|\s*auto_derived\s*\|)")));
+  EXPECT_TRUE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*wirelength_points\s*\|)")));
   EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*slew_steps\s*\|)")));
   EXPECT_FALSE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*cap_steps\s*\|)")));
   EXPECT_EQ(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
@@ -132,10 +134,11 @@ TEST(CharacterizationRealTechFallbackTest, WirelengthUnitFallsBackToStrongestBuf
   EXPECT_EQ(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("Notes"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("Characterization setup lists the resolved limits"), std::string::npos);
-  EXPECT_NE(cts_log_content.find("wirelength_setup_source"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("wirelength_setup_source"), std::string::npos);
+  EXPECT_EQ(cts_log_content.find("deduplicated"), std::string::npos);
   EXPECT_NE(cts_log_content.find("auto_derived"), std::string::npos);
   EXPECT_NE(cts_log_content.find("strongest buffer"), std::string::npos);
-  EXPECT_TRUE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_rc_source\s*\|\s*Runtime Routing / Wire RC\s*\|)")));
+  EXPECT_TRUE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_rc\s*\|\s*Runtime Routing / Wire RC\s*\|)")));
 }
 
 TEST(CharacterizationRealTechFallbackTest, RepresentativePinCapRemainsStableAfterExplicitFullTimingRefresh)

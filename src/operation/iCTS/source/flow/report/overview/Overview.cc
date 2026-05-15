@@ -23,23 +23,19 @@
 
 #include "report/overview/Overview.hh"
 
-#include <filesystem>
 #include <string>
 #include <utility>
 
 #include "logger/Schema.hh"
-#include "report/export/ResultExport.hh"
 
 namespace icts {
 
 auto Overview::emitReportMode(bool reused_evaluation_state, const ResultExportPaths& paths) -> void
 {
+  (void) paths;
   schema::EmitKeyValueTable("CTS Report Mode",
                             {
                                 {"mode", reused_evaluation_state ? "reuse_evaluation_state" : "rebuild_evaluation_state"},
-                                {"save_dir", paths.report_root_dir.string()},
-                                {"visualization_dir", paths.visualization_dir.string()},
-                                {"statistics_dir", paths.statistics_dir.string()},
                             });
 }
 

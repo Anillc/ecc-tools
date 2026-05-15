@@ -36,7 +36,8 @@ namespace icts {
 auto IdbConversion::run() -> IdbConversionResult
 {
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("instantiation");
-  auto instantiation_stage = SCHEMA_WRITER_INST.beginStage("Instantiation", "Instantiate synthesized CTS topology into iDB");
+  auto instantiation_stage = SCHEMA_WRITER_INST.beginStage("Instantiation", "Instantiate synthesized CTS topology into iDB", {},
+                                                           schema::StageReportOptions{.emit_success_summary = false});
   SCHEMA_WRITER_INST.emitSection("### iDB Conversion");
 
   auto clocks = DESIGN_INST.get_clocks();
@@ -54,17 +55,19 @@ auto IdbConversion::run() -> IdbConversionResult
   }
 
   const std::string status = result.idb_conversion_done ? "finished" : "failed";
-  schema::EmitKeyValueTable("CTS Instantiation Overview",
-                            {
-                                {"semantic_owner", "instantiation"},
-                                {"status", status},
-                                {"design_ready", result.design_ready ? "true" : "false"},
-                                {"clock_count", std::to_string(result.clock_count)},
-                                {"failed_clock", write_result.failed_clock.empty() ? "n/a" : write_result.failed_clock},
-                                {"failed_net", write_result.failed_net.empty() ? "n/a" : write_result.failed_net},
-                                {"rollback_done", write_result.rollback_done ? "true" : "false"},
-                                {"failure_reason", write_result.reason.empty() ? "n/a" : write_result.reason},
-                            });
+  schema::KeyValueFields overview_fields = {
+      {"semantic_owner", "instantiation"},
+      {"status", status},
+      {"design_ready", result.design_ready ? "true" : "false"},
+      {"clock_count", std::to_string(result.clock_count)},
+  };
+  if (!result.idb_conversion_done) {
+    overview_fields.emplace_back("failed_clock", write_result.failed_clock.empty() ? "n/a" : write_result.failed_clock);
+    overview_fields.emplace_back("failed_net", write_result.failed_net.empty() ? "n/a" : write_result.failed_net);
+    overview_fields.emplace_back("rollback_done", write_result.rollback_done ? "true" : "false");
+    overview_fields.emplace_back("failure_reason", write_result.reason.empty() ? "n/a" : write_result.reason);
+  }
+  schema::EmitKeyValueTable("CTS Instantiation Overview", overview_fields);
 
   if (result.idb_conversion_done) {
     (void) runtime.finished();

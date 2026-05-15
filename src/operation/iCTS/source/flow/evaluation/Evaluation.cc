@@ -37,7 +37,8 @@ auto Evaluation::run(EvaluationState& evaluation_state, bool refresh_sta_timing)
 auto Evaluation::run(EvaluationState& evaluation_state, const EvaluationOptions& options) -> EvaluationResult
 {
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("evaluation");
-  auto evaluation_stage = SCHEMA_WRITER_INST.beginStage("Evaluation", "Evaluate CTS clock tree");
+  auto evaluation_stage = SCHEMA_WRITER_INST.beginStage("Evaluation", "Evaluate CTS clock tree", {},
+                                                        schema::StageReportOptions{.emit_success_summary = false});
   SCHEMA_WRITER_INST.emitSection("## Evaluation Overview");
   SCHEMA_WRITER_INST.emitSection("### Final Evaluation");
   evaluate(evaluation_state, options);

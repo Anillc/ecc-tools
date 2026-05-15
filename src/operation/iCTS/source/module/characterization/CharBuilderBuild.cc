@@ -46,11 +46,6 @@ auto formatFixed(double value, int precision = 4) -> std::string
   return logformat::FormatFixed(value, precision);
 }
 
-auto logInfoTable(const std::string& title, const std::vector<std::string>& headers, const logformat::TableRows& rows) -> void
-{
-  schema::EmitTable(title, headers, rows);
-}
-
 auto calcRatio(std::size_t numerator, std::size_t denominator) -> double
 {
   if (denominator == 0U) {
@@ -59,11 +54,16 @@ auto calcRatio(std::size_t numerator, std::size_t denominator) -> double
   return static_cast<double>(numerator) / static_cast<double>(denominator);
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 }  // namespace
 
 auto CharBuilder::build() -> void
 {
-  auto build_stage = SCHEMA_WRITER_INST.beginStage("CharBuilder", "build");
+  auto build_stage = SCHEMA_WRITER_INST.beginStage("CharBuilder", "build", {}, DetailStageReportOptions());
   logformat::TableRows progress_rows;
 
   _executed_sta_samples = 0U;
@@ -153,16 +153,28 @@ auto CharBuilder::build() -> void
   }
 
   if (!progress_rows.empty()) {
-    logInfoTable(
-        "CharBuilder Sweep Progress",
+    SCHEMA_WRITER_INST.emitTableTo(
+        "CharBuilder Sweep Progress Detail",
         {"Wirelength", "Topology Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns", "Skipped Patterns",
          "Executed STA Samples", "Skipped STA Samples", "Output Slew Overflow", "Driven Cap Overflow", "Driven Cap Overflow Load Points"},
-        progress_rows);
+        progress_rows, schema::ReportSink::kDetail);
   }
 
   const double output_slew_overflow_ratio = calcRatio(_output_slew_overflow_samples, _executed_sta_samples);
   const double driven_cap_overflow_ratio = calcRatio(_driven_cap_overflow_samples, _executed_sta_samples);
-  const schema::KeyValueFields observed_fields = {
+  const schema::KeyValueFields default_observed_fields = {
+      {"segment_chars", std::to_string(_segment_chars.size())},
+      {"executed_sta_samples", std::to_string(_executed_sta_samples)},
+      {"skipped_sta_samples", std::to_string(_skipped_sta_samples)},
+      {"output_slew_overflow_samples", std::to_string(_output_slew_overflow_samples)},
+      {"output_slew_overflow_ratio", logformat::FormatPercent(output_slew_overflow_ratio, 2)},
+      {"max_observed_output_slew", logformat::FormatWithUnit(_max_observed_output_slew_ns, "ns")},
+      {"driven_cap_overflow_samples", std::to_string(_driven_cap_overflow_samples)},
+      {"driven_cap_overflow_ratio", logformat::FormatPercent(driven_cap_overflow_ratio, 2)},
+      {"driven_cap_overflow_load_points", std::to_string(_driven_cap_overflow_load_points)},
+      {"max_observed_driven_cap", logformat::FormatWithUnit(_max_observed_driven_cap_pf, "pF")},
+  };
+  const schema::KeyValueFields detail_observed_fields = {
       {"segment_chars", std::to_string(_segment_chars.size())},
       {"executed_sta_samples", std::to_string(_executed_sta_samples)},
       {"skipped_sta_samples", std::to_string(_skipped_sta_samples)},
@@ -179,7 +191,8 @@ auto CharBuilder::build() -> void
       {"cap_lattice_source", "CharBuilder Setup"},
   };
   SCHEMA_WRITER_INST.emitSection("### Characterization Results");
-  SCHEMA_WRITER_INST.emitKeyValueTable("CharBuilder Results", observed_fields);
+  SCHEMA_WRITER_INST.emitKeyValueTable("CharBuilder Results", default_observed_fields);
+  SCHEMA_WRITER_INST.emitKeyValueTableTo("CharBuilder Results Detail", detail_observed_fields, schema::ReportSink::kDetail);
   if (_output_slew_overflow_samples > 0U) {
     schema::EmitDiagnostic(output_slew_overflow_ratio >= 0.10 ? schema::DiagnosticLevel::kWarning : schema::DiagnosticLevel::kInfo,
                            "CharBuilder",

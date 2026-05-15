@@ -74,14 +74,14 @@ auto FormatLogValue(const std::string& value) -> std::string
   return value.empty() ? "n/a" : value;
 }
 
-auto MakeContextRows(const HTree::LogContext& context, const std::string& object_name_prefix) -> logformat::TableRows
+auto MakeContextFields(const HTree::LogContext& context, const std::string& object_name_prefix) -> schema::KeyValueFields
 {
   return {
-      {"clock_name", FormatLogValue(context.clock_name), "log context"},
-      {"clock_net_name", FormatLogValue(context.clock_net_name), "log context"},
-      {"sink_domain", FormatLogValue(context.sink_domain), "log context"},
-      {"stage", FormatLogValue(context.stage), "log context"},
-      {"object_name_prefix", FormatLogValue(object_name_prefix.empty() ? context.object_name_prefix : object_name_prefix), "log context"},
+      {"clock_name", FormatLogValue(context.clock_name)},
+      {"clock_net_name", FormatLogValue(context.clock_net_name)},
+      {"sink_domain", FormatLogValue(context.sink_domain)},
+      {"stage", FormatLogValue(context.stage)},
+      {"object_name_prefix", FormatLogValue(object_name_prefix.empty() ? context.object_name_prefix : object_name_prefix)},
   };
 }
 
@@ -115,11 +115,6 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
   }
   const std::string decision_flags = decision_flag_values.empty() ? std::string{"none"} : logformat::JoinStrings(decision_flag_values, "+");
   logformat::TableRows grid_plan_rows = {
-      {"clock_name", FormatLogValue(options.log_context.clock_name), "context for repeated H-tree/top-level sections"},
-      {"clock_net_name", FormatLogValue(options.log_context.clock_net_name), "context for repeated H-tree/top-level sections"},
-      {"sink_domain", FormatLogValue(options.log_context.sink_domain), "context for repeated H-tree/top-level sections"},
-      {"stage", FormatLogValue(options.log_context.stage), "context for repeated H-tree/top-level sections"},
-      {"object_name_prefix", FormatLogValue(options.object_name_prefix), "context for inserted object names"},
       {"source", grid_source, char_grid_plan.adapted ? "fallback derived from topology level lengths" : "use runtime-configured grid"},
       {"requested_level_lengths", std::to_string(char_grid_plan.requested_level_lengths),
        "average parent-child segment length per topology level plus caller-supplied source-to-root lengths"},
@@ -131,11 +126,13 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
       {"decision_flags", decision_flags, "fallback/adaptation trigger flags"},
   };
   if (char_grid_plan.adapted) {
-    grid_plan_rows.insert(grid_plan_rows.begin() + 2,
+    grid_plan_rows.insert(grid_plan_rows.begin() + 1,
                           {"resolved_wirelength_unit", logformat::FormatWithUnit(char_grid_plan.wirelength_unit_um, "um"),
                            "effective unit for the adapted characterization grid"});
   }
   SCHEMA_WRITER_INST.emitSection("### H-Tree Characterization");
+  SCHEMA_WRITER_INST.emitKeyValueTableTo("HTree Build Scope", MakeContextFields(options.log_context, options.object_name_prefix),
+                                         schema::ReportSink::kBoth);
   schema::EmitTable("HTree Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
 
   auto char_options = base_char_options;
@@ -186,9 +183,8 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
       {"grid_plan_source", grid_source, char_grid_plan.adapted ? "HTree adapted characterization grid" : "no HTree override"},
       {"characterization_library", ensure_result.reused ? "reused" : "built", "shared characterization cache state"},
   };
-  auto context_rows = MakeContextRows(options.log_context, options.object_name_prefix);
-  char_summary_rows.insert(char_summary_rows.begin(), context_rows.begin(), context_rows.end());
-  schema::EmitTable("HTree Characterization Overview", {"Item", "Value", "Detail"}, char_summary_rows);
+  SCHEMA_WRITER_INST.emitTableTo("HTree Characterization Detail", {"Item", "Value", "Detail"}, char_summary_rows,
+                                 schema::ReportSink::kDetail);
 
   return CharacterizationResult{.success = true, .failure_reason = {}, .length_step_um = length_step_um};
 }

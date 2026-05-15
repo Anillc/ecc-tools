@@ -365,11 +365,16 @@ auto resolveWirelengthUnitUm(const CharBuilder::InitOptions& options, const std:
   return resolveWirelengthUnitUm(sorted_buffers);
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 }  // namespace
 
 auto CharBuilder::init(const InitOptions& options) -> void
 {
-  auto init_stage = SCHEMA_WRITER_INST.beginStage("CharBuilder", "initialization");
+  auto init_stage = SCHEMA_WRITER_INST.beginStage("CharBuilder", "initialization", {}, DetailStageReportOptions());
   const InitOptions& effective_options = options;
 
   _segment_chars.clear();
@@ -435,26 +440,32 @@ auto CharBuilder::init(const InitOptions& options) -> void
   }
 
   SCHEMA_WRITER_INST.emitSection("### Characterization Setup");
-  const logformat::TableRows setup_rows = {
-      {"max_slew_source", toResolutionSourceName(max_slew_resolution.source), "deduplicated",
-       max_slew_resolution.source == ResolutionSource::kRuntimeConfig ? "configured limit is reported in Runtime Configuration"
-                                                                      : max_slew_resolution.detail},
-      {"max_cap_source", toResolutionSourceName(max_cap_resolution.source), "deduplicated",
-       max_cap_resolution.source == ResolutionSource::kRuntimeConfig ? "configured limit is reported in Runtime Configuration"
-                                                                     : max_cap_resolution.detail},
-      {"wirelength_setup_source",
+  logformat::TableRows default_setup_rows;
+  if (!effective_options.wirelength_indices.has_value()) {
+    default_setup_rows.push_back({"resolved_wirelength_unit", logformat::FormatWithUnit(_length_unit_um, "um"),
+                                  toResolutionSourceName(wirelength_unit_resolution.source)});
+  }
+  default_setup_rows.push_back(
+      {"wirelength_points", std::to_string(_wirelengths_um.size()),
+       effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan" : wirelength_unit_resolution.detail});
+  default_setup_rows.push_back({"routing_rc", "Runtime Routing / Wire RC", "STAAdapter"});
+  default_setup_rows.push_back({"buffer_count", std::to_string(_sorted_buffers.size()), "resolved_buffers"});
+  const logformat::TableRows detail_setup_rows = {
+      {"max_slew", logformat::FormatWithUnit(_max_slew, "ns"), toResolutionSourceName(max_slew_resolution.source)},
+      {"max_cap", logformat::FormatWithUnit(_max_cap, "pF"), toResolutionSourceName(max_cap_resolution.source)},
+      {"resolved_wirelength_unit", logformat::FormatWithUnit(_length_unit_um, "um"),
        effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan"
-                                                        : toResolutionSourceName(wirelength_unit_resolution.source),
-       "deduplicated",
-       effective_options.wirelength_indices.has_value() ? "wirelength iteration/bin decisions are reported in H-tree grid plan"
-                                                        : wirelength_unit_resolution.detail},
-      {"slew_lattice_source", "Runtime Configuration", "deduplicated", "max slew and slew step count are reported once there"},
-      {"cap_lattice_source", "Runtime Configuration", "deduplicated", "max cap and cap step count are reported once there"},
-      {"routing_rc_source", "Runtime Routing / Wire RC", "deduplicated",
-       "unit RC is reported there; routing config is reported in Runtime Configuration"},
-      {"buffer_count", std::to_string(_sorted_buffers.size()), "resolved_buffers", "usable buffers after liberty filtering"},
+                                                        : toResolutionSourceName(wirelength_unit_resolution.source)},
+      {"wirelength_points", std::to_string(_wirelengths_um.size()),
+       effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan" : wirelength_unit_resolution.detail},
+      {"slew_steps", std::to_string(_slew_steps), "Runtime Configuration"},
+      {"cap_steps", std::to_string(_cap_steps), "Runtime Configuration"},
+      {"routing_rc", "Runtime Routing / Wire RC", "STAAdapter"},
+      {"buffer_count", std::to_string(_sorted_buffers.size()), "resolved_buffers"},
   };
-  logInfoTable("CharBuilder Setup", {"Parameter", "Value", "Source", "Detail"}, setup_rows);
+  logInfoTable("CharBuilder Setup", {"Parameter", "Value", "Source"}, default_setup_rows);
+  SCHEMA_WRITER_INST.emitTableTo("CharBuilder Setup Detail", {"Parameter", "Value", "Source"}, detail_setup_rows,
+                                 schema::ReportSink::kDetail);
 
   logformat::TableRows buffer_rows;
   buffer_rows.reserve(_sorted_buffers.size());

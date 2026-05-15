@@ -47,7 +47,8 @@ auto Report::run(const std::string& save_dir, bool evaluation_ready, bool refres
   LOG_FATAL_IF(CONFIG_INST.get_work_dir().empty()) << "CTS report requires initialized CTS run setup.";
 
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("report");
-  auto report_stage = SCHEMA_WRITER_INST.beginStage("Report", "Emit CTS statistics and visualization reports");
+  auto report_stage = SCHEMA_WRITER_INST.beginStage("Report", "Emit CTS statistics and visualization reports", {},
+                                                    schema::StageReportOptions{.emit_success_summary = false});
   const auto paths = ResultExport::resolvePaths(save_dir);
   const bool reused_evaluation_state = evaluation_ready && Evaluation::hasEvaluationResult(evaluation_state);
 

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -103,6 +104,34 @@ auto FormatLevelBufferAreas(const std::vector<HTree::LevelPlan>& levels, bool we
     summary += "L" + std::to_string(level_index) + "=" + logformat::FormatWithUnit(area_um2, "um^2");
   }
   return summary.empty() ? "none" : summary;
+}
+
+auto IsDefaultSynthesisSummaryField(const std::string& field) -> bool
+{
+  return field == "levels" || field == "depth_candidates" || field == "selected_depth" || field == "selection_engine"
+         || field == "analytical_fallback_reason" || field == "selected_topology_pattern_id"
+         || field == "selected_level_segment_pattern_ids" || field == "selected_terminal_branch_buffered_levels"
+         || field == "final_frontier_count" || field == "inserted_insts" || field == "inserted_nets"
+         || field == "pruned_leaf_single_load_buffers" || field == "power" || field == "delay" || field == "root_driver_compensation"
+         || field == "root_driver_clock_period" || field == "compensated_htree_metric" || field == "selected_root_driver_cell_master"
+         || field == "root_driver_sizing_enabled" || field == "used_boundary_fallback" || field == "boundary_fallback_score"
+         || field == "htree_load_group_count" || field == "htree_load_cap_min" || field == "htree_load_cap_max"
+         || field == "htree_load_cap_mean" || field == "htree_load_cap_median";
+}
+
+auto BuildDefaultSynthesisSummaryFields(const logformat::TableRows& synthesis_summary_rows) -> schema::KeyValueFields
+{
+  schema::KeyValueFields default_fields;
+  default_fields.reserve(synthesis_summary_rows.size());
+  for (const auto& row : synthesis_summary_rows) {
+    if (row.size() < 2U || !IsDefaultSynthesisSummaryField(row.at(0))) {
+      continue;
+    }
+    default_fields.emplace_back(row.at(0), row.at(1));
+  }
+  default_fields.emplace_back("detail_report",
+                              SCHEMA_WRITER_INST.getDetailPath().empty() ? "unavailable" : SCHEMA_WRITER_INST.getDetailPath().string());
+  return default_fields;
 }
 
 }  // namespace
@@ -321,7 +350,10 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
     auto duplicate_rows = std::ranges::remove_if(synthesis_summary_rows, is_duplicate_frontier_row);
     synthesis_summary_rows.erase(duplicate_rows.begin(), duplicate_rows.end());
   }
-  schema::EmitTable("HTree Synthesis Overview", {"Item", "Value", "Detail"}, synthesis_summary_rows);
+  SCHEMA_WRITER_INST.emitKeyValueTableTo("HTree Synthesis Overview", BuildDefaultSynthesisSummaryFields(synthesis_summary_rows),
+                                         schema::ReportSink::kDefault);
+  SCHEMA_WRITER_INST.emitTableTo("HTree Synthesis Detail", {"Item", "Value", "Detail"}, synthesis_summary_rows,
+                                 schema::ReportSink::kDetail);
 }
 
 }  // namespace icts::htree

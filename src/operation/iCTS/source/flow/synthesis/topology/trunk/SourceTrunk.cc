@@ -99,6 +99,11 @@ auto BuildTopHtreeOptions(Pin* clock_source, const Topology::SourceTrunkBuildOpt
   return htree_options;
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 }  // namespace
 
 auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<Pin*>& root_inputs,
@@ -130,7 +135,8 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
                                                       {
                                                           {"root_inputs", std::to_string(valid_root_inputs.size())},
                                                           {"dispatch", valid_root_inputs.size() == 1U ? "top_segment" : "top_htree"},
-                                                      });
+                                                      },
+                                                      DetailStageReportOptions());
   if (valid_root_inputs.size() == 1U) {
     result.stage = Topology::SourceTrunkStage::kSegment;
     auto segment_options = BuildTopSegmentOptions(clock_source, valid_root_inputs.front(), options);

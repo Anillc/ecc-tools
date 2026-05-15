@@ -44,6 +44,7 @@
 #include "HTreeTopologyPattern.hh"
 #include "Inst.hh"
 #include "Log.hh"
+#include "LogFormat.hh"
 #include "Net.hh"
 #include "PatternId.hh"
 #include "Pin.hh"
@@ -85,6 +86,11 @@ constexpr std::size_t kAnalyticalTopKPerDepth = 128U;
 constexpr std::size_t kAnalyticalUnitComposeBeamSize = 128U;
 constexpr unsigned kAnalyticalUnitLengthIdx = 1U;
 constexpr double kAnalyticalParetoPowerSlackRatio = 0.20;
+
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
 
 struct AnalyticalHTreeAttempt
 {
@@ -249,6 +255,46 @@ auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const htree::
   report.raw_power_w = selected_entry.get_raw_power();
   report.compensated_delay_ns = selected_entry.get_delay();
   report.compensated_power_w = selected_entry.get_power();
+}
+
+auto FormatDepthCandidateStatus(const htree::DepthSummary& summary) -> std::string
+{
+  if (summary.selected) {
+    return "selected";
+  }
+  if (summary.success) {
+    return summary.used_boundary_fallback ? "fallback" : "feasible";
+  }
+  return "failed";
+}
+
+auto EmitDepthCandidateSummary(const std::vector<htree::DepthSummary>& depth_summaries) -> void
+{
+  if (depth_summaries.empty()) {
+    return;
+  }
+
+  schema::TableRows rows;
+  rows.reserve(depth_summaries.size());
+  for (const auto& summary : depth_summaries) {
+    rows.push_back({
+        std::to_string(summary.depth),
+        std::to_string(summary.leaf_count),
+        FormatDepthCandidateStatus(summary),
+        std::to_string(summary.final_frontier_count),
+        std::to_string(summary.feasible_frontier_entry_count),
+        std::to_string(summary.candidate_frontier_entry_count),
+        summary.used_boundary_fallback ? "true" : "false",
+        summary.selected_delay_ns > 0.0 ? logformat::FormatWithUnit(summary.selected_delay_ns, "ns") : "n/a",
+        summary.selected_power_w > 0.0 ? logformat::FormatPowerW(summary.selected_power_w) : "n/a",
+        summary.failure_reason.empty() ? "none" : summary.failure_reason,
+    });
+  }
+
+  SCHEMA_WRITER_INST.emitTableTo("HTree Depth Candidate Summary",
+                                 {"Depth", "Leaves", "Status", "Final Frontier", "Feasible Entries", "Candidate Entries",
+                                  "Boundary Fallback", "Best Delay", "Best Power", "Failure"},
+                                 rows, schema::ReportSink::kBoth);
 }
 
 auto ApplySelectedPatternToLevelPlans(HTree::BuildResult& result, const htree::BufferPatternLibrary& segment_pattern_library) -> void
@@ -736,7 +782,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     LOG_WARNING << "HTree: build skipped because root net " << root_net.get_name() << " has no loads.";
     return result;
   }
-  auto build_stage = SCHEMA_WRITER_INST.beginStage("HTree", "build");
+  auto build_stage = SCHEMA_WRITER_INST.beginStage("HTree", "build", {}, schema::StageReportOptions{.emit_success_summary = false});
   const int32_t dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
 
   BiPartitionConfig topology_config;
@@ -811,7 +857,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
         {
             {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
             {"required_length_indices", std::to_string(segment_frontier_request.required_length_indices.size())},
-        });
+        },
+        DetailStageReportOptions());
     segment_frontier_catalog
         = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), segment_pattern_library, segment_frontier_request);
     if (segment_frontier_catalog.empty()) {
@@ -847,7 +894,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                                               {"max_depth", std::to_string(max_depth)},
                                                               {"per_level_shortlist", std::to_string(kAnalyticalPerLevelShortlistSize)},
                                                               {"top_k_per_depth", std::to_string(kAnalyticalTopKPerDepth)},
-                                                          });
+                                                          },
+                                                          DetailStageReportOptions());
     const auto analytical_attempt = TrySolveAnalyticalHTree(result.topology, full_level_plans, depth_candidates, segment_frontier_catalog,
                                                             segment_pattern_library, search_boundary_constraints, fanout_pruning_options,
                                                             root_driver_compensation_options, char_builder, result.char_slew_steps);
@@ -950,7 +998,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                                                  {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
                                                                  {"selected_levels", std::to_string(result.levels.size())},
                                                                  {"selection_engine", "analytical"},
-                                                             });
+                                                             },
+                                                             DetailStageReportOptions());
         htree::BuildEmbedding(result, segment_pattern_library);
         result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
                          && result.root_output_pin != nullptr && result.root_net != nullptr;
@@ -972,7 +1021,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
       }
 
       {
-        auto summary_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Emit synthesis summary");
+        auto summary_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Emit synthesis summary", {},
+                                                           schema::StageReportOptions{.emit_success_summary = false});
         htree::LogSynthesisSummary(result, selected_evaluation, selected_summary);
         summary_stage.finished();
       }
@@ -1056,7 +1106,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                             {"depth_candidates", std::to_string(depth_candidates.size())},
                                             {"max_depth", std::to_string(max_depth)},
                                             {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
-                                        });
+                                        },
+                                        DetailStageReportOptions());
     exploration = htree::SearchTopologyDepthCandidates(result.topology, full_level_plans, depth_candidates, segment_frontier_catalog,
                                                        segment_pattern_library, search_boundary_constraints, char_builder.get_cap_lattice(),
                                                        result.char_slew_steps, options.target_depth.has_value(),
@@ -1078,7 +1129,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                         {
                                             {"global_feasible_refs", std::to_string(exploration.global_feasible_pool.size())},
                                             {"global_candidate_refs", std::to_string(exploration.global_candidate_pool.size())},
-                                        });
+                                        },
+                                        DetailStageReportOptions());
     covered_global_feasible_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
         exploration.global_feasible_pool, exploration.candidate_evaluations, result.topology, segment_pattern_library,
         exploration.sink_load_region_legality_context);
@@ -1104,7 +1156,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                         {
                                             {"covered_feasible_refs", std::to_string(covered_global_feasible_pool.entries.size())},
                                             {"covered_candidate_refs", std::to_string(covered_global_candidate_pool.entries.size())},
-                                        });
+                                        },
+                                        DetailStageReportOptions());
     per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.entries);
     selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
     std::size_t per_depth_candidate_pareto_count = 0U;
@@ -1143,6 +1196,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   selected_summary.selected = true;
   selected_summary.selected_power_w = selected_ref->entry->get_power();
   selected_summary.selected_delay_ns = selected_ref->entry->get_delay();
+  EmitDepthCandidateSummary(exploration.depth_summaries);
   htree::SinkLoadRegionLegalityResult selected_sink_load_region_legality;
   {
     auto selected_legality_stage
@@ -1150,7 +1204,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                         {
                                             {"selected_depth", std::to_string(selected_evaluation.depth)},
                                             {"selected_pattern_id", std::to_string(selected_ref->entry->get_pattern_id().pack())},
-                                        });
+                                        },
+                                        DetailStageReportOptions());
     selected_sink_load_region_legality = htree::ResolveSinkLoadRegionLegality(
         result.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library,
         exploration.sink_load_region_legality_context);
@@ -1185,7 +1240,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                         {
                                             {"selected_pattern_id", std::to_string(selected_ref->entry->get_pattern_id().pack())},
                                             {"root_driver_sizing_enabled", options.enable_root_driver_sizing ? "true" : "false"},
-                                        });
+                                        },
+                                        DetailStageReportOptions());
     selected_compensation_detail = selected_compensation_pass.evaluate(
         selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library, segment_pattern_library, result.topology);
     selected_compensation_stage.finished({
@@ -1242,7 +1298,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
                                                          {
                                                              {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
                                                              {"selected_levels", std::to_string(result.levels.size())},
-                                                         });
+                                                         },
+                                                         DetailStageReportOptions());
     htree::BuildEmbedding(result, segment_pattern_library);
     result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
                      && result.root_output_pin != nullptr && result.root_net != nullptr;
@@ -1264,7 +1321,8 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   }
 
   {
-    auto summary_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Emit synthesis summary");
+    auto summary_stage
+        = SCHEMA_WRITER_INST.beginStage("HTree", "Emit synthesis summary", {}, schema::StageReportOptions{.emit_success_summary = false});
     htree::LogSynthesisSummary(result, selected_evaluation, selected_summary);
     summary_stage.finished();
   }

@@ -69,18 +69,22 @@ auto synthesisOutcomeName(SynthesisOutcome outcome) -> std::string
 auto emitSynthesisOverview(const SynthesisTraceSummary& summary, const schema::TableRows& rows) -> void
 {
   SCHEMA_WRITER_INST.emitSection("### Flow Status");
-  schema::EmitKeyValueTable("CTS Clock Tree Synthesis Overview",
-                            {
-                                {"status", synthesisOutcomeName(summary.outcome)},
-                                {"no_op_reason", summary.no_op_reason.empty() ? "n/a" : summary.no_op_reason},
-                                {"total_clocks", std::to_string(summary.total_clocks)},
-                                {"finished_clocks", std::to_string(summary.successful_clocks)},
-                                {"skipped_clocks", std::to_string(summary.skipped_clocks)},
-                                {"failed_clocks", std::to_string(summary.failed_clocks)},
-                                {"total_sink_domains", std::to_string(summary.total_sink_domains)},
-                                {"hard_macro_sinks", std::to_string(summary.hard_macro_sinks)},
-                                {"regular_sinks", std::to_string(summary.regular_sinks)},
-                            });
+  schema::KeyValueFields fields = {
+      {"status", synthesisOutcomeName(summary.outcome)},
+  };
+  if (!summary.no_op_reason.empty()) {
+    fields.emplace_back("no_op_reason", summary.no_op_reason);
+  }
+  fields.insert(fields.end(), {
+                                  {"total_clocks", std::to_string(summary.total_clocks)},
+                                  {"finished_clocks", std::to_string(summary.successful_clocks)},
+                                  {"skipped_clocks", std::to_string(summary.skipped_clocks)},
+                                  {"failed_clocks", std::to_string(summary.failed_clocks)},
+                                  {"total_sink_domains", std::to_string(summary.total_sink_domains)},
+                                  {"hard_macro_sinks", std::to_string(summary.hard_macro_sinks)},
+                                  {"regular_sinks", std::to_string(summary.regular_sinks)},
+                              });
+  schema::EmitKeyValueTable("CTS Clock Tree Synthesis Overview", fields);
 
   if (!rows.empty()) {
     schema::EmitTable("CTS Clock Tree Sink Domains", {"Clock", "Net", "Status", "Sink Domain", "Valid Sinks", "Domain Sinks", "Detail"},
@@ -189,7 +193,8 @@ auto recordDomainStatusRows(SynthesisTraceSummary& summary, const schema::TableR
 auto Synthesis::run(ClockLayout& clock_layout) -> SynthesisTraceSummary
 {
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("synthesis");
-  auto flow_stage = SCHEMA_WRITER_INST.beginStage("CTSFlow", "Run CTS synthesis flow");
+  auto flow_stage
+      = SCHEMA_WRITER_INST.beginStage("CTSFlow", "Run CTS synthesis flow", {}, schema::StageReportOptions{.emit_success_summary = false});
   SCHEMA_WRITER_INST.emitSection("## Synthesis Overview");
 
   clock_layout.reset();

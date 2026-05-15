@@ -80,7 +80,8 @@ auto Flow::runCTS() -> void
 {
   SCHEMA_WRITER_INST.resetRuntimeMetrics();
   auto total_runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("total");
-  auto run_stage = SCHEMA_WRITER_INST.beginStage("CTS", "Clock tree synthesis API flow");
+  auto run_stage = SCHEMA_WRITER_INST.beginStage("CTS", "Clock tree synthesis API flow", {},
+                                                 schema::StageReportOptions{.emit_success_summary = false});
 
   if (!_setup_ready) {
     _run_summary = SynthesisTraceSummary{};
@@ -143,7 +144,8 @@ auto Flow::readData() -> bool
   _evaluation_ready = false;
 
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("read_data");
-  auto read_stage = SCHEMA_WRITER_INST.beginStage("CTSReadData", "Read CTS clock data");
+  auto read_stage
+      = SCHEMA_WRITER_INST.beginStage("CTSReadData", "Read CTS clock data", {}, schema::StageReportOptions{.emit_success_summary = false});
   SCHEMA_WRITER_INST.emitSection("## Input Overview");
   SCHEMA_WRITER_INST.emitSection("### Clock Data");
   const bool read_data_ready = DesignConversion::readClockData();
@@ -219,21 +221,27 @@ auto Flow::emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) cons
 
   schema::KeyValueFields fields = {
       {"status", synthesisOutcomeName(_run_summary.outcome)},
-      {"no_op_reason", _run_summary.no_op_reason.empty() ? "n/a" : _run_summary.no_op_reason},
-      {"clock_count", std::to_string(_run_summary.total_clocks)},
-      {"sink_count", std::to_string(sink_count)},
-      {"sink_domain_count", std::to_string(_run_summary.total_sink_domains)},
-      {"selected_htree_level_count", formatOptionalCount(_run_summary.selected_htree_level_count)},
-      {"selected_htree_depth", formatOptionalUnsigned(_run_summary.selected_htree_depth)},
-      {"htree_inserted_buffer_count", std::to_string(_run_summary.htree_inserted_buffer_count)},
-      {"final_clock_buffer_count", std::to_string(evaluation_summary.final_clock_buffer_count)},
-      {"final_buffer_area", formatValueWithUnit(logformat::FormatFixed(evaluation_summary.final_buffer_area_um2, 3), "um^2")},
-      {"max_clock_net_wirelength", formatValueWithUnit(logformat::FormatFixed(evaluation_summary.max_clock_net_wirelength_um, 3), "um")},
-      {"total_clock_network_wirelength",
-       formatValueWithUnit(logformat::FormatFixed(evaluation_summary.total_clock_network_wirelength_um, 3), "um")},
-      {"elapsed_time", formatValueWithUnit(logformat::FormatFixed(elapsed_time_s, 3), "s")},
-      {"peak_vmem_delta", formatValueWithUnit(logformat::FormatFixed(peak_vmem_delta_mb, 3), "MB")},
   };
+  if (!_run_summary.no_op_reason.empty()) {
+    fields.emplace_back("no_op_reason", _run_summary.no_op_reason);
+  }
+  fields.insert(fields.end(),
+                {
+                    {"clock_count", std::to_string(_run_summary.total_clocks)},
+                    {"sink_count", std::to_string(sink_count)},
+                    {"sink_domain_count", std::to_string(_run_summary.total_sink_domains)},
+                    {"selected_htree_level_count", formatOptionalCount(_run_summary.selected_htree_level_count)},
+                    {"selected_htree_depth", formatOptionalUnsigned(_run_summary.selected_htree_depth)},
+                    {"htree_inserted_buffer_count", std::to_string(_run_summary.htree_inserted_buffer_count)},
+                    {"final_clock_buffer_count", std::to_string(evaluation_summary.final_clock_buffer_count)},
+                    {"final_buffer_area", formatValueWithUnit(logformat::FormatFixed(evaluation_summary.final_buffer_area_um2, 3), "um^2")},
+                    {"max_clock_net_wirelength",
+                     formatValueWithUnit(logformat::FormatFixed(evaluation_summary.max_clock_net_wirelength_um, 3), "um")},
+                    {"total_clock_network_wirelength",
+                     formatValueWithUnit(logformat::FormatFixed(evaluation_summary.total_clock_network_wirelength_um, 3), "um")},
+                    {"elapsed_time", formatValueWithUnit(logformat::FormatFixed(elapsed_time_s, 3), "s")},
+                    {"peak_vmem_delta", formatValueWithUnit(logformat::FormatFixed(peak_vmem_delta_mb, 3), "MB")},
+                });
 
   SCHEMA_WRITER_INST.emitSection("## Run Results");
   schema::EmitKeyValueTable("CTS Key Results", fields);

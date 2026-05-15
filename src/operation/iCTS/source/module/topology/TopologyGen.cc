@@ -134,6 +134,11 @@ auto ToLoadCountLabel(TopologyGen::LoadCountKind load_count_kind) -> const char*
   return "load_count (sink)";
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 }  // namespace
 
 auto TopologyGen::build(const std::vector<Pin*>& loads) -> Tree
@@ -187,7 +192,8 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
                         const BuildOptions& options) -> Tree
 {
   Tree tree;
-  auto build_stage = SCHEMA_WRITER_INST.beginStage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads");
+  auto build_stage = SCHEMA_WRITER_INST.beginStage("TopologyGen", "Build H-tree topology for " + std::to_string(loads.size()) + " loads",
+                                                   {}, DetailStageReportOptions());
   if (loads.empty()) {
     LOG_WARNING << "Topology generation skipped: no loads.";
     build_stage.skip({{"load_count", "0"}});
@@ -225,6 +231,12 @@ auto TopologyGen::build(const std::vector<Pin*>& loads, const BiPartitionConfig&
   embedPositions(tree, root, loads, leaf_count, config);
   balanceTopology(tree, bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y, config.htree_topology_tolerance);
   reportRootToLeafLengths(tree, dbu_per_um);
+  schema::EmitKeyValueTable("TopologyGen HTree Shape Summary", {
+                                                                   {"nodes", std::to_string(tree.get_size())},
+                                                                   {"depth", std::to_string(height)},
+                                                                   {"leaf_count", std::to_string(leaf_count)},
+                                                                   {"root_policy", fixed_root_location.has_value() ? "fixed" : "median"},
+                                                               });
   build_stage.finished({
       {"nodes", std::to_string(tree.get_size())},
       {"depth", std::to_string(height)},

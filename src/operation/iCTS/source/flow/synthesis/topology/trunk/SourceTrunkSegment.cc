@@ -66,6 +66,11 @@ auto FormatLogValue(const std::string& value) -> std::string
   return value.empty() ? "n/a" : value;
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 auto MakeObjectName(const std::string& prefix, const std::string& suffix) -> std::string
 {
   return prefix.empty() ? "cts_" + suffix : prefix + "_" + suffix;
@@ -304,30 +309,66 @@ auto BuildSourceTrunkSegmentObjects(SourceTrunkSegment::BuildResult& result, Net
 
 auto EmitSegmentSummary(const SourceTrunkSegment::BuildResult& result, const SourceTrunkSegment::BuildOptions& options) -> void
 {
-  schema::EmitKeyValueTable(
-      "SourceTrunkSegment Build Overview",
-      {
-          {"clock_name", FormatLogValue(options.log_context.clock_name)},
-          {"clock_net_name", FormatLogValue(options.log_context.clock_net_name)},
-          {"sink_domain", FormatLogValue(options.log_context.sink_domain)},
-          {"stage", FormatLogValue(options.log_context.stage)},
-          {"object_name_prefix", FormatLogValue(options.object_name_prefix)},
-          {"status", result.success ? "finished" : "failed"},
-          {"length", logformat::FormatWithUnit(result.length_um, "um")},
-          {"required_load_cap", logformat::FormatWithUnit(options.required_load_cap_pf, "pF")},
-          {"source_drive_cap", logformat::FormatWithUnit(options.source_drive_cap_pf, "pF")},
-          {"min_input_slew", options.min_input_slew_ns.has_value() ? logformat::FormatWithUnit(*options.min_input_slew_ns, "ns") : "none"},
-          {"length_idx", std::to_string(result.length_idx)},
-          {"required_load_cap_idx", std::to_string(result.required_load_cap_idx)},
-          {"source_drive_cap_idx", std::to_string(result.source_drive_cap_idx)},
-          {"min_input_slew_idx", result.min_input_slew_idx.has_value() ? std::to_string(*result.min_input_slew_idx) : "none"},
-          {"strict_candidate_count", std::to_string(result.strict_candidate_count)},
-          {"fallback_candidate_count", std::to_string(result.fallback_candidate_count)},
-          {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback)},
-          {"boundary_fallback_reason", result.boundary_fallback_reason.empty() ? "none" : result.boundary_fallback_reason},
-          {"inserted_insts", std::to_string(result.inserted_insts.size())},
-          {"inserted_nets", std::to_string(result.inserted_nets.size())},
-      });
+  std::vector<std::string> default_headers = {"Clock",
+                                              "Net",
+                                              "Stage",
+                                              "Status",
+                                              "Length",
+                                              "Required Load Cap",
+                                              "Source Drive",
+                                              "Strict Candidates",
+                                              "Fallback Candidates",
+                                              "Inserted Insts",
+                                              "Inserted Nets"};
+  logformat::TableRows default_rows = {{
+      FormatLogValue(options.log_context.clock_name),
+      FormatLogValue(options.log_context.clock_net_name),
+      FormatLogValue(options.log_context.stage),
+      result.success ? "finished" : "failed",
+      logformat::FormatWithUnit(result.length_um, "um"),
+      logformat::FormatWithUnit(options.required_load_cap_pf, "pF"),
+      logformat::FormatWithUnit(options.source_drive_cap_pf, "pF"),
+      std::to_string(result.strict_candidate_count),
+      std::to_string(result.fallback_candidate_count),
+      std::to_string(result.inserted_insts.size()),
+      std::to_string(result.inserted_nets.size()),
+  }};
+  if (result.used_boundary_fallback) {
+    default_headers.emplace_back("Fallback Reason");
+    default_rows.front().emplace_back(result.boundary_fallback_reason.empty() ? "unknown" : result.boundary_fallback_reason);
+  }
+  if (!result.success) {
+    default_headers.emplace_back("Failure");
+    default_rows.front().emplace_back(result.failure_reason.empty() ? "source_trunk_segment_failed" : result.failure_reason);
+  }
+  SCHEMA_WRITER_INST.emitTableTo("Source Trunk Summary", default_headers, default_rows, schema::ReportSink::kDefault);
+
+  schema::KeyValueFields detail_fields = {
+      {"clock_name", FormatLogValue(options.log_context.clock_name)},
+      {"clock_net_name", FormatLogValue(options.log_context.clock_net_name)},
+      {"sink_domain", FormatLogValue(options.log_context.sink_domain)},
+      {"stage", FormatLogValue(options.log_context.stage)},
+      {"object_name_prefix", FormatLogValue(options.object_name_prefix)},
+      {"status", result.success ? "finished" : "failed"},
+      {"length", logformat::FormatWithUnit(result.length_um, "um")},
+      {"required_load_cap", logformat::FormatWithUnit(options.required_load_cap_pf, "pF")},
+      {"source_drive_cap", logformat::FormatWithUnit(options.source_drive_cap_pf, "pF")},
+      {"min_input_slew", options.min_input_slew_ns.has_value() ? logformat::FormatWithUnit(*options.min_input_slew_ns, "ns") : "none"},
+      {"length_idx", std::to_string(result.length_idx)},
+      {"required_load_cap_idx", std::to_string(result.required_load_cap_idx)},
+      {"source_drive_cap_idx", std::to_string(result.source_drive_cap_idx)},
+      {"min_input_slew_idx", result.min_input_slew_idx.has_value() ? std::to_string(*result.min_input_slew_idx) : "none"},
+      {"strict_candidate_count", std::to_string(result.strict_candidate_count)},
+      {"fallback_candidate_count", std::to_string(result.fallback_candidate_count)},
+      {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback)},
+      {"boundary_fallback_reason", result.boundary_fallback_reason.empty() ? "none" : result.boundary_fallback_reason},
+      {"segment_inserted_insts", std::to_string(result.inserted_insts.size())},
+      {"segment_inserted_nets", std::to_string(result.inserted_nets.size())},
+  };
+  if (!result.failure_reason.empty()) {
+    detail_fields.emplace_back("failure_reason", result.failure_reason);
+  }
+  SCHEMA_WRITER_INST.emitKeyValueTableTo("SourceTrunkSegment Build Detail", detail_fields, schema::ReportSink::kDetail);
 }
 
 auto ConfigureCharOptions(const std::vector<double>& requested_lengths_um) -> CharBuilder::InitOptions
@@ -390,7 +431,8 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
                                                     {
                                                         {"length_um", std::to_string(result.length_um)},
                                                         {"library_ready", char_library->isReady() ? "true" : "false"},
-                                                    });
+                                                    },
+                                                    DetailStageReportOptions());
     if (!char_library->isReady()) {
       const auto ensure_result = char_library->ensure(ConfigureCharOptions(requested_lengths_um));
       if (!ensure_result.success) {
@@ -435,7 +477,8 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
                                                         {
                                                             {"length_idx", std::to_string(result.length_idx)},
                                                             {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
-                                                        });
+                                                        },
+                                                        DetailStageReportOptions());
     for (const auto& pattern : char_builder.get_buffering_patterns()) {
       pattern_library.add(pattern);
     }
@@ -465,7 +508,8 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
             {"frontier_entries", std::to_string(all_frontier_entries == nullptr ? 0U : all_frontier_entries->size())},
             {"required_load_cap_idx", std::to_string(result.required_load_cap_idx)},
             {"source_drive_cap_idx", std::to_string(result.source_drive_cap_idx)},
-        });
+        },
+        DetailStageReportOptions());
     auto strict_entries
         = FilterSegmentEntries(*all_frontier_entries, result.required_load_cap_idx, result.source_drive_cap_idx, result.min_input_slew_idx);
     result.strict_candidate_count = strict_entries.size();
@@ -508,7 +552,8 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
         = SCHEMA_WRITER_INST.beginStage("SourceTrunkSegment", "Build segment objects",
                                         {
                                             {"selected_pattern_id", std::to_string(result.best_char->get_pattern_id().pack())},
-                                        });
+                                        },
+                                        DetailStageReportOptions());
     result.success = BuildSourceTrunkSegmentObjects(result, source_net, source, sink, *selected_pattern, options);
     if (result.success) {
       object_stage.finished({

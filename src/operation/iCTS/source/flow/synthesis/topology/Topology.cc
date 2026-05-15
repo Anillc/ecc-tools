@@ -101,6 +101,11 @@ auto makeLogContext(const Clock& clock, const std::string& sink_domain, const st
   };
 }
 
+auto DetailStageReportOptions() -> schema::StageReportOptions
+{
+  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+}
+
 auto clearClockCtsMembership(Clock& clock) -> void
 {
   DESIGN_INST.removeClockMembershipObjects(clock);
@@ -172,12 +177,14 @@ class ClockTopologyFormation
   auto commitSinkDomain(const ClockDistributionContext& context, Topology::BuildResult& synthesis_result, std::string& failure_reason)
       -> bool
   {
-    auto commit_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Commit sink domain layout",
-                                                      {
-                                                          {"sink_domain", ToString(context.sink_domain)},
-                                                          {"inserted_insts", std::to_string(synthesis_result.inserted_insts.size())},
-                                                          {"inserted_nets", std::to_string(synthesis_result.inserted_nets.size())},
-                                                      });
+    auto commit_stage = SCHEMA_WRITER_INST.beginStage(
+        "Topology", "Commit sink domain layout",
+        {
+            {"sink_domain", ToString(context.sink_domain)},
+            {"inserted_insts", std::to_string(synthesis_result.inserted_insts.size())},
+            {"inserted_nets", std::to_string(synthesis_result.inserted_nets.size())},
+        },
+        schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .emit_success_summary = false});
     auto pending_clock_layout = ClockLayoutBuilder::makeSinkDomainLayout(*_clock, _clock_index, context.makeLayoutTopology(),
                                                                          ClockLayoutAdapter::makeSinkDomainLayoutInput(synthesis_result));
     if (!DesignConversion::commitInsertedObjects(*_clock, synthesis_result.inserted_insts, synthesis_result.inserted_pins,
@@ -266,7 +273,8 @@ class ClockTopologyFormation
                                                        {
                                                            {"root_inputs", std::to_string(root_inputs.size())},
                                                            {"object_name_prefix", source_trunk_prefix},
-                                                       });
+                                                       },
+                                                       DetailStageReportOptions());
       source_trunk_result = Topology::buildSourceTrunk(*clock_source_net, clock_source, root_inputs, options);
       if (source_trunk_result.success) {
         build_stage.finished({
@@ -291,12 +299,14 @@ class ClockTopologyFormation
     }
 
     {
-      auto commit_stage = SCHEMA_WRITER_INST.beginStage("Topology", "Commit source trunk layout",
-                                                        {
-                                                            {"stage", ToString(source_trunk_result.stage)},
-                                                            {"inserted_insts", std::to_string(source_trunk_result.inserted_insts.size())},
-                                                            {"inserted_nets", std::to_string(source_trunk_result.inserted_nets.size())},
-                                                        });
+      auto commit_stage = SCHEMA_WRITER_INST.beginStage(
+          "Topology", "Commit source trunk layout",
+          {
+              {"stage", ToString(source_trunk_result.stage)},
+              {"inserted_insts", std::to_string(source_trunk_result.inserted_insts.size())},
+              {"inserted_nets", std::to_string(source_trunk_result.inserted_nets.size())},
+          },
+          schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .emit_success_summary = false});
       auto pending_clock_layout = ClockLayoutBuilder::makeSourceToRootLayout(
           *_clock, _clock_index, *clock_source_net, ClockLayoutAdapter::makeSourceTrunkLayoutInput(source_trunk_result, source_trunk_phase),
           source_trunk_phase);
