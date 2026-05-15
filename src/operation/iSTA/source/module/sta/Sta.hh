@@ -31,7 +31,9 @@
 #include <set>
 #include <shared_mutex>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "FlatMap.hh"
 #include "StaClock.hh"
@@ -203,14 +205,18 @@ class Sta {
   auto& get_link_cells() { return _link_cells; }
 
   auto get_propagation_method() { return _propagation_method; }
+  void set_propagation_method(PropagationMethod propagation_method) {
+    _propagation_method = propagation_method;
+  }
 
   SdcConstrain* getConstrain();
 
   unsigned readDesignWithRustParser(const char* verilog_file);
   unsigned readLiberty(const char* lib_file);
   unsigned readLiberty(std::vector<std::string>& lib_files);
-  unsigned readLiberty(std::vector<const char*>& lib_files);
   unsigned readSdc(const char* sdc_file);
+  std::vector<std::tuple<std::string, std::string, double, bool>>
+  readSdcClockPeriodsOnly(const char* sdc_file);
   unsigned readSpef(const char* spef_file);
   unsigned readAocv(const char* aocv_file);
   unsigned readAocv(std::vector<std::string>& aocv_files);
@@ -575,8 +581,7 @@ class Sta {
   int getWorstSlack(StaVertex* end_vertex, AnalysisMode mode,
                     TransType trans_type);
   void writeVerilog(const char* verilog_file_name,
-                    std::set<std::string>& exclude_cell_names,
-                    bool is_hier_module);
+                    std::set<std::string>& exclude_cell_names);
 
   unsigned resetGraphData();
   unsigned resetPathData();

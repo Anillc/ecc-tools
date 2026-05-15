@@ -1,107 +1,49 @@
-# # DEBUG CTS
-set(DEBUG_ICTS_API OFF)
-# DEBUG DATA MANAGER
-set(DEBUG_ICTS_CONFIG OFF)
-set(DEBUG_ICTS_DATABASE OFF)
-set(DEBUG_ICTS_IO OFF)
-set(DEBUG_ICTS_REPORT OFF)
+message(STATUS "############## CTS: START CMAKE ##############")
 
-# DEBUG UTILS
-set(DEBUG_ICTS_MATH OFF)
+# Debug options
+# source/database
+option(DEBUG_ICTS_SOURCE_DATABASE_CONFIG "source database config" OFF)
+option(DEBUG_ICTS_SOURCE_DATABASE_DESIGN "source database design" OFF)
+option(DEBUG_ICTS_SOURCE_DATABASE_IO "source database io" OFF)
+option(DEBUG_ICTS_SOURCE_DATABASE_SPATIAL "source database spatial" OFF)
+option(DEBUG_ICTS_SOURCE_DATABASE "source database" OFF)
 
-# DEBUG MODULE
-set(DEBUG_ICTS_EVALUATOR OFF)
-set(DEBUG_ICTS_ROUTER OFF)
+# source/utils
+option(DEBUG_ICTS_SOURCE_UTILS_LOGGER "source utils logger" OFF)
+option(DEBUG_ICTS_SOURCE_UTILS_GEOMETRY "source utils geometry" OFF)
+option(DEBUG_ICTS_SOURCE_UTILS "source utils" OFF)
 
-# DEBUG SYNTHESIS
-set(DEBUG_ICTS_SYNTHESIS OFF)
-set(DEBUG_ICTS_SYNTHESIS_IR OFF)
-set(DEBUG_ICTS_BALANCE_CLUSTERING OFF)
-set(DEBUG_ICTS_ANNEAL_OPT OFF)
-set(DEBUG_ICTS_MIN_COST_FLOW OFF)
-set(DEBUG_ICTS_TIMING_PROPAGATOR OFF)
-set(DEBUG_ICTS_TREE_BUILDER OFF)
-set(DEBUG_ICTS_BST OFF)
-set(DEBUG_ICTS_CBS OFF)
-set(DEBUG_ICTS_LOCAL_LEGALIZATION OFF)
+# source/flow
+option(DEBUG_ICTS_SOURCE_FLOW "source flow" OFF)
 
-# # DEBUG TEST
-# set(DEBUG_ICTS_TEST ON)
+# source/module
+option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_KMEANS "source module topology kmeans" OFF)
+option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_MCF "source module topology mcf" OFF)
+option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY_CLUSTERING "source module topology clustering" OFF)
+option(DEBUG_ICTS_SOURCE_MODULE_TOPOLOGY "source module topology" OFF)
+option(DEBUG_ICTS_SOURCE_MODULE "source module" OFF)
 
-# Debug definitions
-if(DEBUG_ICTS_API)
-  add_compile_definitions(DEBUG_ICTS_API)
-endif()
-if(DEBUG_ICTS_CONFIG)
-  add_compile_definitions(DEBUG_ICTS_CONFIG)
-endif()
-if(DEBUG_ICTS_DATABASE)
-  add_compile_definitions(DEBUG_ICTS_DATABASE)
-endif()
-if(DEBUG_ICTS_IO)
-  add_compile_definitions(DEBUG_ICTS_IO)
-endif()
-if(DEBUG_ICTS_REPORT)
-  add_compile_definitions(DEBUG_ICTS_REPORT)
-endif()
-if(DEBUG_ICTS_MATH)
-  add_compile_definitions(DEBUG_ICTS_MATH)
-endif()
-if(DEBUG_ICTS_EVALUATOR)
-  add_compile_definitions(DEBUG_ICTS_EVALUATOR)
-endif()
-if(DEBUG_ICTS_ROUTER)
-  add_compile_definitions(DEBUG_ICTS_ROUTER)
-endif()
-if(DEBUG_ICTS_CBS)
-  add_compile_definitions(DEBUG_ICTS_CBS)
-endif()
-if(DEBUG_ICTS_SYNTHESIS)
-  add_compile_definitions(DEBUG_ICTS_SYNTHESIS)
-endif()
-if(DEBUG_ICTS_SYNTHESIS_IR)
-  add_compile_definitions(DEBUG_ICTS_SYNTHESIS_IR)
-endif()
-if(DEBUG_ICTS_BALANCE_CLUSTERING)
-  add_compile_definitions(DEBUG_ICTS_BALANCE_CLUSTERING)
-endif()
-if(DEBUG_ICTS_MIN_COST_FLOW)
-  add_compile_definitions(DEBUG_ICTS_MIN_COST_FLOW)
-endif()
-if(DEBUG_ICTS_ANNEAL_OPT)
-  add_compile_definitions(DEBUG_ICTS_ANNEAL_OPT)
-endif()
-if(DEBUG_ICTS_TIMING_PROPAGATOR)
-  add_compile_definitions(DEBUG_ICTS_TIMING_PROPAGATOR)
-endif()
-if(DEBUG_ICTS_BST)
-  add_compile_definitions(DEBUG_ICTS_BST)
-endif()
-if(DEBUG_ICTS_LOCAL_LEGALIZATION)
-  add_compile_definitions(DEBUG_ICTS_LOCAL_LEGALIZATION)
-endif()
-if(DEBUG_ICTS_TREE_BUILDER)
-  add_compile_definitions(DEBUG_ICTS_TREE_BUILDER)
-endif()
-if(DEBUG_ICTS_TEST)
-  add_compile_definitions(DEBUG_ICTS_TEST)
-endif()
+# source
+option(DEBUG_ICTS_SOURCE "source" OFF)
 
-# path setting
+# api
+option(DEBUG_ICTS_API "api" OFF)
+
+# test
+option(DEBUG_ICTS_TEST "test" OFF)
+
+# Path setting
 set(HOME_ICTS ${HOME_OPERATION}/iCTS)
 set(HOME_ISTA ${HOME_OPERATION}/iSTA)
-set(HOME_ITO ${HOME_OPERATION}/iTO)
 
-set(ICTS_API ${HOME_ICTS}/api)
 set(ICTS_EXTERNAL_LIBS ${HOME_ICTS}/external_libs)
+set(ICTS_API ${HOME_ICTS}/api)
 set(ICTS_SOURCE ${HOME_ICTS}/source)
 set(ICTS_TEST ${HOME_ICTS}/test)
-option(ICTS_BUILD_UNIT_TESTS "Build iCTS unit tests" OFF)
 
 add_subdirectory(${ICTS_EXTERNAL_LIBS})
 add_subdirectory(${ICTS_SOURCE})
 add_subdirectory(${ICTS_API})
-if(ICTS_BUILD_UNIT_TESTS)
-  enable_testing()
-  add_subdirectory(${ICTS_TEST})
-endif()
+add_subdirectory(${ICTS_TEST})
+
+message(STATUS "############## CTS: END CMAKE ##############")

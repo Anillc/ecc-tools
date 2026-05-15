@@ -16,9 +16,7 @@
 // ***************************************************************************************
 #include <algorithm>
 #include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <limits>
+#include <omp.h>
 #include <system_error>
 #include <utility>
 
@@ -30,103 +28,25 @@
 #include "ItfBuilder.hpp"
 #include "ParasiticXIDBAdapter.hpp"
 #include "CapacitanceCalc.hpp"
+#include "RCXConfig.hh"
 #include "ResistanceCalc.hpp"
 #include "SpefDumper.hpp"
 #include "idm.h"
 #include "log/Log.hh"
 namespace ircx {
 
-std::vector<std::unique_ptr<::itf::ProcessCorner>>
-RCX::loadItfFiles(const std::vector<std::string>& itf_files)
+std::unique_ptr<::itf::ProcessCorner> RCX::loadProcessCorner(const Str& corner_name,
+                                                             const Str& itf_file)
 {
-  LOG_FATAL_IF(itf_files.empty()) << "itf file list is empty.";
+  LOG_FATAL_IF(corner_name.empty()) << "corner name is empty.";
+  LOG_FATAL_IF(itf_file.empty()) << "itf file is empty for corner " << corner_name;
 
   ::itf::ItfBuilder itf_builder;
-  for (const auto& itf_file : itf_files) {
-    LOG_INFO << "read itf " << itf_file << " start";
-    itf_builder.buildItf(itf_file);
-    LOG_INFO << "read itf " << itf_file << " end";
-  }
+  LOG_INFO << "read itf " << itf_file << " for corner " << corner_name << " start";
+  itf_builder.buildItf(itf_file);
+  LOG_INFO << "read itf " << itf_file << " for corner " << corner_name << " end";
 
-  return itf_builder.get_itf_service()->take_process_corners();
-}
-
-void RCX::registerProcessLayers(const ::itf::ProcessCorner& pc)
-{
-  if (process_layers_registered_) {
-    return;
-  }
-
-  auto& cond_layers = pc.get_layers()->get_conductor_layers();
-  auto& via_layers = pc.get_layers()->get_via_layers();
-
-  for (auto* layer : cond_layers)
-    layer_table_.registerProcessLayer(layer->get_id(), layer->get_name());
-  for (auto* layer : via_layers)
-    layer_table_.registerProcessLayer(layer->get_id(), layer->get_name());
-
-  process_layers_registered_ = true;
-}
-
-void RCX::storeProcessCorner(std::unique_ptr<::itf::ProcessCorner> pc)
-{
-  if (!pc || pc->get_technology().empty()) {
-    return;
-  }
-
-  registerProcessLayers(*pc);
-  const Str corner_name = pc->get_technology();
-  process_corners_[corner_name] = std::move(pc);
-}
-
-std::vector<const parser::CapTable*> RCX::corner_cap_tables() const
-{
-  std::vector<const parser::CapTable*> result;
-  result.reserve(process_corners_.size());
-
-  for (const auto& [corner_name, _] : process_corners_) {
-    auto iter = corner_cap_tables_.find(corner_name);
-    result.push_back(iter == corner_cap_tables_.end() ? nullptr : &iter->second);
-  }
-
-  return result;
-}
-
-unsigned RCX::readCorner(const Str& corner_name,
-                         const char* itf_file,
-                         const char* captab_file)
-{
-  if (!readItf(corner_name, itf_file)) {
-    return 0;
-  }
-  return readCaptab(corner_name, captab_file);
-}
-
-unsigned RCX::readCaptab(const Str& corner_name, const char* captab_file)
-{
-  LOG_FATAL_IF(corner_name.empty()) << "corner name is empty.";
-  LOG_FATAL_IF(!process_corners_.contains(corner_name))
-      << "process corner not loaded: " << corner_name;
-
-  LOG_INFO << "read captab " << captab_file
-           << " for corner " << corner_name << " start";
-
-  parser::CapTable cap_table;
-  LOG_FATAL_IF(!cap_table.loadFromFile(captab_file))
-      << "failed to load captab: " << captab_file;
-  corner_cap_tables_[corner_name] = std::move(cap_table);
-
-  LOG_INFO << "read captab " << captab_file
-           << " for corner " << corner_name << " end";
-  return 1;
-}
-
-unsigned RCX::readItf(const Str& corner_name, const char* itf_file)
-{
-  LOG_FATAL_IF(corner_name.empty()) << "corner name is empty.";
-
-  auto pcs = loadItfFiles({itf_file});
-
+  auto pcs = itf_builder.get_itf_service()->take_process_corners();
   std::unique_ptr<::itf::ProcessCorner> loaded_corner;
   Size valid_corner_num = 0;
   for (auto& pc : pcs) {
@@ -151,17 +71,142 @@ unsigned RCX::readItf(const Str& corner_name, const char* itf_file)
     loaded_corner->set_technology(corner_name);
   }
 
-  storeProcessCorner(std::move(loaded_corner));
-  return 1;
+  return loaded_corner;
 }
 
-unsigned RCX::readItf(const std::vector<std::string>& itf_files)
+parser::CapTable RCX::loadCapTable(const Str& corner_name, const Str& captab_file)
 {
-  auto pcs = loadItfFiles(itf_files);
-  for (auto& pc : pcs) {
-    storeProcessCorner(std::move(pc));
+  LOG_FATAL_IF(corner_name.empty()) << "corner name is empty.";
+  LOG_FATAL_IF(captab_file.empty()) << "captab file is empty for corner " << corner_name;
+
+  LOG_INFO << "read captab " << captab_file
+           << " for corner " << corner_name << " start";
+
+  parser::CapTable cap_table;
+  LOG_FATAL_IF(!cap_table.loadFromFile(captab_file))
+      << "failed to load captab: " << captab_file;
+
+  LOG_INFO << "read captab " << captab_file
+           << " for corner " << corner_name << " end";
+  return cap_table;
+}
+
+void RCX::registerProcessLayers(const ::itf::ProcessCorner& pc)
+{
+  if (process_layers_registered_) {
+    return;
   }
 
+  auto& cond_layers = pc.get_layers()->get_conductor_layers();
+  auto& via_layers = pc.get_layers()->get_via_layers();
+
+  for (auto* layer : cond_layers)
+    layer_table_.registerProcessLayer(layer->get_id(), layer->get_name());
+  for (auto* layer : via_layers)
+    layer_table_.registerProcessLayer(layer->get_id(), layer->get_name());
+
+  process_layers_registered_ = true;
+}
+
+void RCX::validateProcessLayers(const ::itf::ProcessCorner& pc) const
+{
+  if (corners_.empty()) {
+    return;
+  }
+
+  const ::itf::ProcessCorner& ref = *corners_.front().process_corner;
+  const auto& ref_layers = ref.get_layers()->get_layers();
+  const auto& cur_layers = pc.get_layers()->get_layers();
+
+  LOG_FATAL_IF(ref_layers.size() != cur_layers.size())
+      << "process layer count mismatch between corner "
+      << pc.get_technology() << " and " << ref.get_technology()
+      << ": " << cur_layers.size() << " vs " << ref_layers.size();
+
+  for (Size idx = 0; idx < ref_layers.size(); ++idx) {
+    const auto* ref_layer = ref_layers[idx];
+    const auto* cur_layer = cur_layers[idx];
+
+    LOG_FATAL_IF(ref_layer == nullptr || cur_layer == nullptr)
+        << "null process layer in corner layer list.";
+    LOG_FATAL_IF(ref_layer->get_type() != cur_layer->get_type())
+        << "process layer type mismatch at index " << idx
+        << " between corner " << pc.get_technology()
+        << " and " << ref.get_technology();
+    LOG_FATAL_IF(ref_layer->get_id() != cur_layer->get_id())
+        << "process layer id mismatch at index " << idx
+        << " between corner " << pc.get_technology()
+        << " and " << ref.get_technology()
+        << ": " << cur_layer->get_id() << " vs " << ref_layer->get_id();
+    LOG_FATAL_IF(ref_layer->get_order() != cur_layer->get_order())
+        << "process layer order mismatch at index " << idx
+        << " between corner " << pc.get_technology()
+        << " and " << ref.get_technology();
+    LOG_FATAL_IF(ref_layer->get_name() != cur_layer->get_name())
+        << "process layer name mismatch at index " << idx
+        << " between corner " << pc.get_technology()
+        << " and " << ref.get_technology()
+        << ": " << cur_layer->get_name() << " vs " << ref_layer->get_name();
+  }
+}
+
+bool RCX::hasCorner(const Str& corner_name) const
+{
+  return std::any_of(corners_.begin(), corners_.end(),
+                     [&](const CornerData& corner) {
+                       return corner.name == corner_name;
+                     });
+}
+
+void RCX::resetConfigData()
+{
+  layout_.clear();
+  spef_context_.clear();
+  layer_table_.clear();
+  corners_.clear();
+  mapping_builder_.clear();
+  topo_pool_.clear();
+  rc_table_.clear();
+  process_layers_registered_ = false;
+}
+
+std::vector<const parser::CapTable*> RCX::corner_cap_tables() const
+{
+  std::vector<const parser::CapTable*> result;
+  result.reserve(corners_.size());
+
+  for (const auto& corner : corners_) {
+    result.push_back(&corner.cap_table);
+  }
+
+  return result;
+}
+
+unsigned RCX::readCorner(const Str& corner_name,
+                         const char* itf_file,
+                         const char* captab_file)
+{
+  LOG_FATAL_IF(corner_name.empty()) << "corner name is empty.";
+  LOG_FATAL_IF(itf_file == nullptr || itf_file[0] == '\0')
+      << "itf file is empty for corner " << corner_name;
+  LOG_FATAL_IF(captab_file == nullptr || captab_file[0] == '\0')
+      << "captab file is empty for corner " << corner_name;
+  LOG_FATAL_IF(hasCorner(corner_name)) << "duplicate corner: " << corner_name;
+
+  CornerData corner;
+  corner.name = corner_name;
+  corner.itf_file = itf_file;
+  corner.captab_file = captab_file;
+  corner.process_corner = loadProcessCorner(corner.name, corner.itf_file);
+  corner.cap_table = loadCapTable(corner.name, corner.captab_file);
+
+  if (corners_.empty()) {
+    registerProcessLayers(*corner.process_corner);
+  } else {
+    validateProcessLayers(*corner.process_corner);
+  }
+
+  corners_.push_back(std::move(corner));
   return 1;
 }
 
@@ -170,6 +215,7 @@ unsigned RCX::readMapping(const char* mapping_file)
   LOG_INFO << "read mapping "
            << mapping_file << " start";
 
+  layer_table_.clearMappings();
   mapping_builder_.read(mapping_file);
 
   for (const auto& [dn, pn] : mapping_builder_.design_to_process_layer_names())
@@ -223,6 +269,7 @@ unsigned RCX::buildTopology()
 {
   LOG_INFO << "build topology start";
 
+  topo_pool_.clear();
   TopologyBuilder tb(topo_pool_);
   tb.build_all(layout_);
   tb.build_special(layout_);
@@ -304,9 +351,65 @@ unsigned RCX::extractParasitics()
   return 1;
 }
 
+unsigned RCX::run()
+{
+  LOG_INFO << "RCX run begin...";
+
+  omp_set_num_threads(num_threads_);
+
+  if (!adaptDB() ||
+      !buildTopology() ||
+      !buildEnvironment() ||
+      !buildProcessVariation() ||
+      !extractParasitics()) {
+    LOG_INFO << "RCX run end.";
+    return 0;
+  }
+
+  LOG_INFO << "RCX run end.";
+  return 1;
+}
+
+unsigned RCX::runFromConfig(const Str& config)
+{
+  RCXConfig rcx_config;
+  if (!rcx_config.loadFromFile(config)) {
+    return 0;
+  }
+
+  resetConfigData();
+  set_num_threads(rcx_config.get_thread_num());
+
+  for (const auto& corner : rcx_config.get_corners()) {
+    if (!readCorner(corner.name, corner.itf_file.c_str(), corner.captab_file.c_str())) {
+      return 0;
+    }
+  }
+  if (!readMapping(rcx_config.get_mapping_file().c_str())) {
+    return 0;
+  }
+
+  if (!run()) {
+    return 0;
+  }
+
+  const Str output_dir =
+      rcx_config.get_output_dir().empty() ? "." : rcx_config.get_output_dir();
+  return reportSpef(output_dir);
+}
+
 unsigned RCX::reportSpef(const Str& output_dir)
 {
   LOG_INFO << "report spef start";
+  const Str resolved_output_dir = output_dir.empty() ? "." : output_dir;
+  std::error_code ec;
+  std::filesystem::create_directories(resolved_output_dir, ec);
+  if (ec) {
+    LOG_ERROR << "Failed to create RCX output directory "
+              << resolved_output_dir << ": " << ec.message();
+    return 0;
+  }
+
   const auto process_corners = corners();
 
   SpefDumper dumper;
@@ -319,7 +422,7 @@ unsigned RCX::reportSpef(const Str& output_dir)
   dumper.set_corners(process_corners);
 
   for (Size corner_idx = 0; corner_idx < process_corners.size(); ++corner_idx) {
-    dumper.dump(output_dir, corner_idx);
+    dumper.dump(resolved_output_dir, corner_idx);
   }
 
   LOG_INFO << "report spef end";

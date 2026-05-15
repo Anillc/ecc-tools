@@ -41,8 +41,8 @@ bool CtsIO::runCTS(std::string config, std::string work_dir)
 
   ieda::Stats stats;
 
-  CTSAPI_INST.init(config, work_dir);
-  CTSAPI_INST.runCTS();
+  CTS_API_INST.init(config, work_dir);
+  CTS_API_INST.runCTS();
 
   flowConfigInst->add_status_runtime(stats.elapsedRunTime());
   flowConfigInst->set_status_memmory(stats.memoryDelta());
@@ -52,7 +52,10 @@ bool CtsIO::runCTS(std::string config, std::string work_dir)
 
 bool CtsIO::reportCTS(std::string path)
 {
-  CTSAPI_INST.report(path);
+  if (path.empty()) {
+    path = flowConfigInst->get_icts_path();
+  }
+  CTS_API_INST.report(path);
   return true;
 }
 

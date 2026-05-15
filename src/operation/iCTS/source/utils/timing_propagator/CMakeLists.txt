@@ -1,5 +1,0 @@
-add_library(icts_timing_propagator INTERFACE)
-
-target_link_libraries(icts_timing_propagator INTERFACE icts_utils_algorithm_core)
-
-target_include_directories(icts_timing_propagator INTERFACE ${ICTS_UTILS}/timing_propagator)

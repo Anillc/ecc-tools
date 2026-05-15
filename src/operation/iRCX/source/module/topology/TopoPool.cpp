@@ -46,6 +46,15 @@ void TopoPool::reserve(Size net_count, Size total_nodes, Size total_edges) {
   edge_pool_.reserve(total_edges);
 }
 
+void TopoPool::clear()
+{
+  node_pool_.clear();
+  net_node_ranges_.clear();
+  edge_pool_.clear();
+  net_edge_ranges_.clear();
+  special_edge_pool_.clear();
+}
+
 std::span<const TopoNode> TopoPool::net_nodes(Size net_id) const {
   LOG_FATAL_IF(net_id >= net_node_ranges_.size()) << "net_id out of range.";
   auto [offset, count] = net_node_ranges_[net_id];

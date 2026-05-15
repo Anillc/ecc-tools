@@ -29,13 +29,16 @@
 namespace ista {
 
 DesignObject::DesignObject(const char* name) : _name(name) {}
-DesignObject::DesignObject(const DesignObject& other) : _name(other._name) {}
+DesignObject::DesignObject(const DesignObject& other)
+    : _name(other._name), _is_ideal_network(other._is_ideal_network) {}
 
 DesignObject::DesignObject(DesignObject&& other) noexcept
-    : _name(std::move(other._name)) {}
+    : _name(std::move(other._name)),
+      _is_ideal_network(other._is_ideal_network) {}
 
 DesignObject& DesignObject::operator=(DesignObject&& rhs) noexcept {
   _name = std::move(rhs._name);
+  _is_ideal_network = rhs._is_ideal_network;
 
   return *this;
 }

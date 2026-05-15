@@ -159,8 +159,22 @@ void SdcConstrain::addSdcException(SdcException* sdc_exception) {
 }
 
 /**
- * @brief Helper: recursively expand SDC collection objects into individual
- * design objects when possible.
+ * @brief Find the matched sdc object or design object.
+ *
+ * @param pin_port_name
+ * @param design_nl
+ * @return std::vector<SdcCollectionObj>
+ */
+/**
+ * @brief Helper: recursively expand SdcCollection objects into individual design
+ * objects. When [all_outputs] or [all_inputs] is used in an SDC command, it is
+ * Tcl-encoded as an SdcCollection containing DesignObject* entries. This
+ * function unwraps those collections so callers receive flat port lists.
+ *
+ * @param objs the raw object list returned by FindObjOfSdc, which may contain
+ *              SdcCollection* variants
+ * @param design_nl needed to resolve port collections
+ * @return std::vector<SdcCollectionObj> flattened list with all SdcCollections expanded
  */
 static std::vector<SdcCollectionObj> _expand_collection_objs(
     const std::vector<SdcCollectionObj>& objs, Netlist* design_nl) {
@@ -172,9 +186,12 @@ static std::vector<SdcCollectionObj> _expand_collection_objs(
               result.emplace_back(design_obj);
             },
             [&result, design_nl](SdcCommandObj* sdc_obj) {
-              if (auto* collection = dynamic_cast<SdcCollection*>(const_cast<SdcCommandObj*>(sdc_obj))) {
-                auto inner =
-                    _expand_collection_objs(collection->get_collection_objs(), design_nl);
+              // SdcCollection wraps another SdcCollectionObj list.
+              // Recursively expand it to get the actual design objects.
+              if (auto* collection =
+                      dynamic_cast<SdcCollection*>(const_cast<SdcCommandObj*>(sdc_obj))) {
+                auto inner = _expand_collection_objs(
+                    collection->get_collection_objs(), design_nl);
                 result.insert(result.end(), inner.begin(), inner.end());
               } else if (sdc_obj->isAllInputPorts()) {
                 auto* all_input_ports =
@@ -189,6 +206,8 @@ static std::vector<SdcCollectionObj> _expand_collection_objs(
                   result.emplace_back(output_port);
                 }
               } else {
+                // Preserve non-collection SDC objects such as SdcClock so
+                // existing command handlers can continue to interpret them.
                 result.emplace_back(sdc_obj);
               }
             },
@@ -201,9 +220,13 @@ static std::vector<SdcCollectionObj> _expand_collection_objs(
 /**
  * @brief Find design objects by SDC collection expression.
  *
- * @param pin_port_name
+ * Handles both direct port names and Tcl-encoded collection commands
+ * (e.g., [all_outputs], [all_inputs]). Collection commands are recursively
+ * expanded so callers receive flat DesignObject* lists.
+ *
+ * @param pin_port_name either a port name or an encoded collection string
  * @param design_nl
- * @return std::vector<SdcCollectionObj>
+ * @return std::vector<SdcCollectionObj> flat list of design objects
  */
 std::vector<SdcCollectionObj> FindObjOfSdc(const std::string& pin_port_name,
                                            Netlist* design_nl) {
@@ -221,6 +244,9 @@ std::vector<SdcCollectionObj> FindObjOfSdc(const std::string& pin_port_name,
     }
   }
 
+  // Recursively expand any SdcCollection wrappers so callers get flat port
+  // lists. This fixes set_load / set_ideal_network / set_input_delay when
+  // they use [all_outputs] or [all_inputs].
   return _expand_collection_objs(objs, design_nl);
 }
 

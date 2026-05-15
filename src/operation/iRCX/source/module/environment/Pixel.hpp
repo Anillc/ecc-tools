@@ -152,7 +152,12 @@ class Pixel
       std::swap(a0, a1);
     }
   }
-  
+
+  static Dbu midpoint(Dbu coord0, Dbu coord1)
+  {
+    return coord0 + (coord1 - coord0) / 2;
+  }
+
   template <typename CoordToIdx,
             typename IdxValid,
             typename CellGetter,
@@ -168,7 +173,7 @@ class Pixel
     if (a0 >= a1) return ret;
 
     const Dbu a0_idx = coord_to_idx(a0);
-    const Dbu a1_idx = coord_to_idx(a1);
+    const Dbu a1_idx = coord_to_idx(a1) + 1;
     if (a0_idx > a1_idx) return ret;
 
     auto clamp_sequence_bounds = [&](Dbu coord_lo, Dbu coord_hi) {
@@ -187,13 +192,15 @@ class Pixel
     bool current_type = cell_or_empty(a0_idx);
     Dbu run_start = a0_idx;
 
-    auto push_sequence = [&](Dbu start_idx, Dbu end_idx, bool has_conductor) {
-      if (!has_conductor) {
+    auto push_sequence = [&](Dbu start_idx, Dbu end_idx_exclusive) {
+      if (end_idx_exclusive <= start_idx) {
         return;
       }
 
-      const Dbu lo = idx_to_coord(start_idx);
-      const Dbu hi = idx_to_coord(end_idx);
+      // Each occupied idx is a sample on the pixel lattice. The effective
+      // overlap span is bounded by the midpoints of neighboring samples.
+      const Dbu lo = midpoint(idx_to_coord(start_idx), idx_to_coord(start_idx + 1));
+      const Dbu hi = midpoint(idx_to_coord(end_idx_exclusive - 1), idx_to_coord(end_idx_exclusive));
 
       PixelOverlap seq = clamp_sequence_bounds(lo, hi);
       if (!seq.empty()) {
@@ -205,19 +212,7 @@ class Pixel
       const bool cell = cell_or_empty(idx);
       if (cell != current_type) {
         if (current_type) {
-          Dbu valid_start = run_start;
-          while (valid_start <= idx && !idx_valid(valid_start)) {
-            ++valid_start;
-          }
-
-          Dbu valid_end = idx;
-          while (valid_end >= valid_start && !idx_valid(valid_end)) {
-            --valid_end;
-          }
-
-          if (valid_start <= valid_end) {
-            push_sequence(valid_start, valid_end, true);
-          }
+          push_sequence(run_start, idx);
         }
 
         run_start = idx;
@@ -226,26 +221,13 @@ class Pixel
     }
 
     if (current_type) {
-      Dbu valid_start = run_start;
-      while (valid_start <= a1_idx && !idx_valid(valid_start)) {
-        ++valid_start;
-      }
-
-      Dbu valid_end = a1_idx;
-      while (valid_end >= valid_start && !idx_valid(valid_end)) {
-        --valid_end;
-      }
-
-      if (valid_start <= valid_end) {
-        push_sequence(valid_start, valid_end, true);
-      }
+      push_sequence(run_start, a1_idx + 1);
     }
 
     return ret;
   }
 
-
-private:
+ private:
   std::vector<std::vector<bool>> pixel_;  // true: conductor, false: empty
 
   Dbu x0_{0}, y0_{0};

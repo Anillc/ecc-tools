@@ -24,6 +24,8 @@
 
 #include "StaLevelization.hh"
 
+#include <cstdio>
+
 namespace ista {
 
 /**
@@ -32,10 +34,13 @@ namespace ista {
  * @param the_vertex
  * @return unsigned  1 if success, 0 else fail.
  */
-unsigned StaLevelization::operator()(StaVertex* the_vertex) {  
-  if (the_vertex->is_start()) {
+unsigned StaLevelization::operator()(StaVertex* the_vertex) {
+  // if (the_vertex->getName() == "A1_B1_C1_D14_E26_F4_G3_H2_o765551:o25") {
+  //   printf("debug\n");
+  // }
+  if (the_vertex->is_start() && !the_vertex->is_clock()) {
     VLOG(1) << "set start vertex " << the_vertex->getName() << " level 1";
-    the_vertex->set_level(1);
+    the_vertex->set_level(2);
     return 1;
   }
 
@@ -54,7 +59,9 @@ unsigned StaLevelization::operator()(StaVertex* the_vertex) {
       snk_arc->exec(*this);
     }
   }
-
+  if (!the_vertex->isSetLevel()) {
+    the_vertex->set_level(-1e8);
+  }
   return 1;
 }
 

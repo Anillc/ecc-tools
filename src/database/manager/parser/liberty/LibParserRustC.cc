@@ -77,7 +77,7 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
 
   double resistance_unit_convert = 1000.0;  // sta use ohm internal
   if (ResistanceUnit::kOHM == current_lib->get_resistance_unit()) {
-    cap_unit_convert = 1.0;
+    resistance_unit_convert = 1.0;
   }
 
   const char* attri_name = attri->attri_name;
@@ -90,13 +90,6 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
   };
 
   std::map<std::string, std::function<void()>> process_attri = {
-      {"nom_voltage",
-       [=]() {
-         auto* rust_attri_value = rust_convert_float_value(attri_value);
-         double nom_voltage = rust_attri_value->value;
-         current_lib->set_nom_voltage(nom_voltage);
-         rust_free_float_value(rust_attri_value);
-       }},
       {"slew_lower_threshold_pct_rise",
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
@@ -170,6 +163,8 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          const char* pulling_resistance_unit = rust_attri_value->value;
          if (Str::equal(pulling_resistance_unit, "1kohm")) {
            current_lib->set_resistance_unit(ResistanceUnit::kkOHM);
+         } else if (Str::equal(pulling_resistance_unit, "1ohm")) {
+           current_lib->set_resistance_unit(ResistanceUnit::kOHM);
          }
          rust_free_string_value(rust_attri_value);
        }},
@@ -212,7 +207,19 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
       {"leakage_power_unit",
        [=]() {
          auto* rust_attri_value = rust_convert_string_value(attri_value);
-         current_lib->set_leakage_power_unit(rust_attri_value->value);
+         const char* leakage_power_unit = rust_attri_value->value;
+         double power_unit_mw_scale = 1.0;
+         if (Str::noCaseEqual(leakage_power_unit, "1pw")) {
+           power_unit_mw_scale = 1e-9;
+         } else if (Str::noCaseEqual(leakage_power_unit, "1nw")) {
+           power_unit_mw_scale = 1e-6;
+         } else if (Str::noCaseEqual(leakage_power_unit, "1uw")) {
+           power_unit_mw_scale = 1e-3;
+         } else if (Str::noCaseEqual(leakage_power_unit, "1mw")) {
+           power_unit_mw_scale = 1.0;
+         }
+         current_lib->set_leakage_power_unit(leakage_power_unit);
+         current_lib->set_power_unit_mw_scale(power_unit_mw_scale);
          rust_free_string_value(rust_attri_value);
        }},
 
@@ -240,6 +247,8 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double default_max_transition = rust_attri_value->value;
+         default_max_transition =
+             current_lib->convert_time_unit_to_ns(default_max_transition);
          current_lib->set_default_max_transition(default_max_transition);
          rust_free_float_value(rust_attri_value);
        }},
@@ -339,7 +348,8 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double cell_leakage_power = rust_attri_value->value;
-         //  cell_leakage_power *= power_unit_convert;
+         cell_leakage_power =
+             current_lib->convert_power_unit_to_mw(cell_leakage_power);
          lib_cell->set_cell_leakage_power(cell_leakage_power);
          rust_free_float_value(rust_attri_value);
        }},
@@ -404,6 +414,7 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double max_slew_limit = rust_attri_value->value;
+         max_slew_limit = current_lib->convert_time_unit_to_ns(max_slew_limit);
          lib_port->set_port_slew_limit(AnalysisMode::kMax, max_slew_limit);
          rust_free_float_value(rust_attri_value);
        }},
@@ -411,6 +422,7 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
        [=]() {
          auto* rust_attri_value = rust_convert_float_value(attri_value);
          double min_slew_limit = rust_attri_value->value;
+         min_slew_limit = current_lib->convert_time_unit_to_ns(min_slew_limit);
          lib_port->set_port_slew_limit(AnalysisMode::kMin, min_slew_limit);
          rust_free_float_value(rust_attri_value);
        }},
@@ -474,12 +486,14 @@ unsigned RustLibertyReader::visitSimpleAttri(RustLibertySimpleAttrStmt* attri) {
          if (rust_is_string_value(attri_value)) {
            auto* rust_attri_value = rust_convert_string_value(attri_value);
            const char* value = rust_attri_value->value;  // ysxy
-           leakage_power->set_value(atof(value));
+           leakage_power->set_value(
+               current_lib->convert_power_unit_to_mw(atof(value)));
            rust_free_string_value(rust_attri_value);
          } else {
            auto* rust_attri_value = rust_convert_float_value(attri_value);
            double value = rust_attri_value->value;  // T28
-           leakage_power->set_value(value);
+           leakage_power->set_value(
+               current_lib->convert_power_unit_to_mw(value));
            rust_free_float_value(rust_attri_value);
          }
        }},
@@ -678,7 +692,7 @@ unsigned RustLibertyReader::visitComplexAttri(
   void* attri_1 = GetRustVecElem<void>(&attri_values, 1);
 
   double cap_unit_convert = 1.0;  // sta use pf internal
-  if (CapacitiveUnit::kFF == the_lib->get_cap_unit()) {
+  if (the_lib && CapacitiveUnit::kFF == the_lib->get_cap_unit()) {
     cap_unit_convert = 0.001;
   }
 
@@ -752,7 +766,7 @@ unsigned RustLibertyReader::visitComplexAttri(
               rust_free_float_value(feature_value);
             }
           }
-       }}}; 
+       }}};
 
   if (process_attri.contains(attri_name)) {
     process_attri[attri_name]();

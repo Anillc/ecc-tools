@@ -132,6 +132,19 @@ class CmdSetLoad : public TclCmd {
 };
 
 /**
+ * @brief set_ideal_network command.
+ *
+ */
+class CmdSetIdealNetwork : public TclCmd {
+ public:
+  explicit CmdSetIdealNetwork(const char* cmd_name);
+  ~CmdSetIdealNetwork() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+};
+
+/**
  * @brief set_input_delay command.
  *
  */

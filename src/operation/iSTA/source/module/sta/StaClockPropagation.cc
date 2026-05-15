@@ -46,29 +46,6 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
   auto* snk_vertex = the_arc->get_snk();
   auto* src_vertex = the_arc->get_src();
 
-  auto propagate_ideal_clock_slew = [the_arc, src_vertex, snk_vertex]() {
-    if (!src_vertex || !snk_vertex) {
-      return;
-    }
-
-    StaData* slew_data = nullptr;
-    FOREACH_SLEW_DATA(src_vertex, slew_data) {
-      auto* src_slew_data = dynamic_cast<StaSlewData*>(slew_data);
-      if (!src_slew_data) {
-        continue;
-      }
-
-      auto* new_slew_data = src_slew_data->copy();
-      if (the_arc->isNegativeArc()) {
-        new_slew_data->flipTransType();
-      }
-
-      src_slew_data->add_fwd(new_slew_data);
-      new_slew_data->set_bwd(src_slew_data);
-      snk_vertex->addData(new_slew_data);
-    }
-  };
-
   DesignObject* design_obj = src_vertex->get_design_obj();
   std::string obj_name;
   if (src_vertex->is_port()) {
@@ -191,10 +168,6 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
   if (the_arc->isNetArc()) {
     auto* net_arc = dynamic_cast<StaNetArc*>(the_arc);
     net_arc->get_net()->set_is_clock_net();
-  }
-
-  if (isIdealClock()) {
-    propagate_ideal_clock_slew();
   }
 
   StaClockData* new_rise_data = nullptr;

@@ -40,12 +40,22 @@ class RCTable {
   RCTable() = default;
   ~RCTable() = default;
 
+  void clear() {
+    corner_num_ = 0;
+    net_num_ = 0;
+    corner_net_res_pools_.clear();
+    corner_net_gcap_pools_.clear();
+    net_ccap_entries_.clear();
+    merged_ccap_.clear();
+  }
+
   /// Pre-allocate all storage. Must be called before any parallel calc.
   void init(Size corner_num, Size net_num, const TopoPool& topo) {
+    clear();
     corner_num_ = corner_num;
-    net_num_    = net_num;
+    net_num_ = net_num;
 
-    Size total = corner_num * net_num;
+    Size total = corner_num_ * net_num_;
     corner_net_res_pools_.resize(total);
     corner_net_gcap_pools_.resize(total);
 
@@ -59,7 +69,6 @@ class RCTable {
     }
 
     net_ccap_entries_.resize(net_num);
-    merged_ccap_.clear();
   }
 
   // Resistance: writable span per (corner, net)

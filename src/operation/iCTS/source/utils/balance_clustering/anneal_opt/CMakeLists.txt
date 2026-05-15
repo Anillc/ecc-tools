@@ -1,5 +1,0 @@
-add_library(icts_anneal_opt INTERFACE)
-
-target_link_libraries(icts_anneal_opt INTERFACE icts_utils_algorithm_core)
-
-target_include_directories(icts_anneal_opt INTERFACE ${ICTS_UTILS}/balance_clustering/anneal_opt)

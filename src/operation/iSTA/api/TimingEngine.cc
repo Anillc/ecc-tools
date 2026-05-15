@@ -27,7 +27,6 @@
 #include <cassert>
 #include <iostream>
 #include <optional>
-#include <vector>
 
 #include "FlatSet.hh"
 #include "TimingIDBAdapter.hh"
@@ -43,11 +42,12 @@
 #include "sta/StaApplySdc.hh"
 #include "sta/StaBuildGraph.hh"
 #include "sta/StaBuildRCTree.hh"
-#include "sta/StaCharacterTiming.hh"
 #include "sta/StaCheck.hh"
 #include "sta/StaClockPropagation.hh"
+#include "sta/StaClockSlewDelayPropagation.hh"
 #include "sta/StaClockTree.hh"
 #include "sta/StaConstPropagation.hh"
+#include "sta/StaCharacterTiming.hh"
 #include "sta/StaDataPropagation.hh"
 #include "sta/StaDelayPropagation.hh"
 #include "sta/StaDump.hh"
@@ -650,9 +650,7 @@ std::map<std::string, double> TimingEngine::getVirtualRCTreeAllNodeSlew(
   auto& virtual_rc_tree = _virtual_rc_trees[rc_tree_name];
 
   std::map<std::string, double> all_node_slews;
-  all_node_slews =
-      virtual_rc_tree.getAllNodeSlew(driver_slew, AnalysisMode::kMax,
-                                     trans_type);
+  all_node_slews = virtual_rc_tree.getAllNodeSlew(driver_slew, AnalysisMode::kMax, trans_type);
 
   return all_node_slews;
 }
@@ -677,17 +675,6 @@ std::map<std::string, double> TimingEngine::getVirtualRCTreeAllNodeDelay(
   }
 
   return all_node_delays;
-}
-
-/**
- * @brief check and break the graph datapath loop.
- *
- * @return TimingEngine&
- */
-TimingEngine& TimingEngine::checkAndBreakLoop(StaGraph* the_graph) {
-  StaCombLoopCheck comb_loop_check;
-  comb_loop_check(the_graph);
-  return *this;
 }
 
 /**
@@ -718,6 +705,32 @@ TimingEngine& TimingEngine::incrUpdateTiming() {
   return *this;
 }
 
+TimingEngine& TimingEngine::prepareCharTiming() {
+  resetGraphData();
+  resetPathData();
+  return *this;
+}
+
+TimingEngine& TimingEngine::updateCharTiming() {
+  StaGraph& the_graph = _ista->get_graph();
+  // Characterization graphs are built incrementally and are not part of the
+  // full-design endpoint set used by the DFS slew/delay propagators. Always
+  // run the clock-root BFS propagation here so char-only subgraphs are
+  // traversed from the injected source clock vertex.
+  Vector<std::function<unsigned(StaGraph*)>> funcs = {
+      StaConstPropagation(),
+      StaClockPropagation(StaClockPropagation::PropType::kIdealClockProp),
+      StaCombLoopCheck(),
+      StaClockSlewDelayPropagation(),
+      StaClockPropagation(StaClockPropagation::PropType::kNormalClockProp)};
+
+  for (auto& func : funcs) {
+    the_graph.exec(func);
+  }
+
+  return *this;
+}
+
 /**
  * @brief generate the ETM(extracted timing model).
  *
@@ -730,10 +743,7 @@ TimingEngine& TimingEngine::extractTimingModel(AnalysisMode analysis_mode,
   auto& the_graph = _ista->get_graph();
   character_timing(&the_graph);
 
-// for debug
-#if 1
   character_timing.get_design_timing_model()->printLibertyLibrary(model_path);
-#endif
 
   return *this;
 }

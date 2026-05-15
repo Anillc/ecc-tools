@@ -69,7 +69,7 @@ void PwrCalcLeakagePower::printLeakagePower(std::ostream& out) {
   out << "leakage power :\n";
   for (auto& elem : _leakage_powers) {
     out << elem->get_design_obj()->get_name() << " : "
-        << elem->get_leakage_power() << " nW"
+        << elem->get_leakage_power() * static_cast<double>(g_mw2w) << " mW"
         << "\n";
   }
 }
@@ -100,13 +100,13 @@ unsigned PwrCalcLeakagePower::operator()(PwrGraph* the_graph) {
 
     // add power analysis data.
     double nom_voltage = inst_cell->get_owner_lib()->get_nom_voltage();
-    auto leakage_data =
-        std::make_unique<PwrLeakageData>(design_inst, NW_TO_W(leakage_power_sum_data));
+    auto leakage_data = std::make_unique<PwrLeakageData>(
+        design_inst, MW_TO_W(leakage_power_sum_data));
     leakage_data->set_nom_voltage(nom_voltage);
 
     addLeakagePower(std::move(leakage_data));
     VERBOSE_LOG(2) << "cell  " << design_inst->get_name()
-                   << "  leakage power: " << leakage_power_sum_data << " nW";
+                   << "  leakage power: " << leakage_power_sum_data << " mW";
 
     _leakage_power_result += leakage_power_sum_data;
   }
@@ -116,8 +116,7 @@ unsigned PwrCalcLeakagePower::operator()(PwrGraph* the_graph) {
   // printLeakagePower(out);
   // out.close();
 
-  LOG_INFO << "calc leakage power result " << NW_TO_MW(_leakage_power_result)
-           << "mw";
+  LOG_INFO << "calc leakage power result " << _leakage_power_result << "mw";
 
   LOG_INFO << "calc leakage power end";
   double memory_delta = stats.memoryDelta();

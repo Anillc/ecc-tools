@@ -21,8 +21,16 @@
 namespace ircx {
 namespace parser {
 
+void MappingBuilder::clear()
+{
+  design_to_process_layer_names_.clear();
+  process_to_design_layer_names_.clear();
+}
+
 void MappingBuilder::read(const std::string& mappingPath)
 {
+  clear();
+
   std::ifstream mappingFile(mappingPath);
   std::string line;
   while (std::getline(mappingFile, line)) {
