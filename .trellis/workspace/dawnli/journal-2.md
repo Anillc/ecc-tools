@@ -345,3 +345,36 @@ Reviewed CTS changes for natural integration, optimized clock read_data bulk loa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 55: CTS SDC clock tracing
+
+**Date**: 2026-05-15
+**Task**: CTS SDC clock tracing
+**Branch**: `cts_refactor`
+
+### Summary
+
+Added CTS-owned SDC clock parsing and tracing, ownership/unowned clock-like reports, regression coverage, and validated the huge design flow without manual use_netlist mapping.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8fb4d2edf` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
