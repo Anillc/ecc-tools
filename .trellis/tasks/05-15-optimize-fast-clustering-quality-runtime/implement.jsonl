@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend iCTS spec index for topology-module work."}
-{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Module code-quality, include, and final validation rules."}
-{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "LOG_INFO diagnostic conventions for FastClustering timing summaries."}
-{"file": ".trellis/tasks/05-15-optimize-fast-clustering-quality-runtime/research/optimization_strategy.md", "reason": "Design rationale for P1-P4 optimization sequence."}
-{"file": ".trellis/tasks/05-15-optimize-fast-clustering-quality-runtime/research/p1_p4_validation.md", "reason": "Per-step and fanout-sweep validation evidence."}

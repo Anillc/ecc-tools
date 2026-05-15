@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend iCTS spec index for touched database/io code."}
-{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Clock/load ownership and Wrapper adapter boundary rules."}
-{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Final iCTS validation and code-quality rules."}
-{"file": ".trellis/tasks/05-15-optimize-cts-read-data-performance/research/read_data_baseline.md", "reason": "Baseline, hotspot diagnosis, optimized read_data timing, and full-run evidence."}

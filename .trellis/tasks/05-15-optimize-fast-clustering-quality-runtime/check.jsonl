@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality gate and ecc_dev_tools validation requirements for iCTS."}
-{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime diagnostic conventions for FastClustering logs."}
-{"file": ".trellis/tasks/05-15-optimize-fast-clustering-quality-runtime/implement.md", "reason": "Implementation checklist and final check status."}
-{"file": ".trellis/tasks/05-15-optimize-fast-clustering-quality-runtime/research/p1_p4_validation.md", "reason": "Runtime, quality, fanout sweep, and residual STA sensitivity evidence."}
