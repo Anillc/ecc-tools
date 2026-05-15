@@ -70,6 +70,7 @@ class HTree
     std::string clock_period_source;
     LogContext log_context;
     std::string object_name_prefix;
+    bool enable_analytical_solver = false;
   };
 
   struct LevelPlan
@@ -178,6 +179,23 @@ class HTree
     std::optional<double> boundary_fallback_score = std::nullopt;
     std::string boundary_fallback_reason;
     std::size_t pruned_leaf_single_load_buffers = 0U;
+    bool analytical_mode_enabled = false;
+    bool analytical_mode_selected = false;
+    std::string analytical_fallback_reason;
+    std::size_t analytical_model_set_count = 0U;
+    std::size_t analytical_rejected_fit_count = 0U;
+    std::size_t analytical_structural_cap_operator_count = 0U;
+    std::size_t analytical_evaluated_segment_count = 0U;
+    std::size_t analytical_generated_candidate_count = 0U;
+    std::size_t analytical_validated_candidate_count = 0U;
+    std::size_t analytical_validated_pareto_count = 0U;
+    std::size_t analytical_selected_pareto_power_rank = 0U;
+    double analytical_validated_delay_min_ns = 0.0;
+    double analytical_validated_delay_median_ns = 0.0;
+    double analytical_validated_delay_max_ns = 0.0;
+    double analytical_validated_power_min_w = 0.0;
+    double analytical_validated_power_median_w = 0.0;
+    double analytical_validated_power_max_w = 0.0;
     LogContext log_context;
     std::string object_name_prefix;
 

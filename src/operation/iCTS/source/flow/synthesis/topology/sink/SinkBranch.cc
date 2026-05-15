@@ -61,6 +61,7 @@ auto BuildSinkHtreeOptions(bool enable_sink_clustering, const Topology::BuildOpt
   htree_options.clock_period_source = options.clock_period_source;
   htree_options.log_context = options.log_context;
   htree_options.object_name_prefix = options.object_name_prefix;
+  htree_options.enable_analytical_solver = CONFIG_INST.is_enable_analytical_htree();
   return htree_options;
 }
 

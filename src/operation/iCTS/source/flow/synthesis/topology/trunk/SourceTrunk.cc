@@ -95,6 +95,7 @@ auto BuildTopHtreeOptions(Pin* clock_source, const Topology::SourceTrunkBuildOpt
   htree_options.clock_period_source = options.clock_period_source;
   htree_options.object_name_prefix = options.object_name_prefix;
   htree_options.log_context = log_context;
+  htree_options.enable_analytical_solver = CONFIG_INST.is_enable_analytical_htree();
   return htree_options;
 }
 

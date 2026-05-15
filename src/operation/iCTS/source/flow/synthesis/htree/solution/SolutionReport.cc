@@ -126,6 +126,37 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
     }
     selected_level_segment_pattern_ids += std::to_string(level.segment_pattern_id.local_id);
   }
+  std::string selection_engine_detail;
+  if (!result.analytical_mode_enabled) {
+    selection_engine_detail = "analytical mode disabled";
+  } else if (result.analytical_mode_selected) {
+    selection_engine_detail = "experimental analytical candidate selection produced the embedded H-tree";
+  } else {
+    selection_engine_detail = "analytical mode was enabled but did not select a candidate";
+  }
+
+  std::string selection_policy;
+  if (result.analytical_mode_selected) {
+    selection_policy = "analytical_validated_pareto_power_guarded_min_delay";
+  } else if (result.used_boundary_fallback) {
+    selection_policy = "global_boundary_fallback";
+  } else {
+    selection_policy = "global_frontier_pareto_power_median";
+  }
+
+  std::string selection_policy_detail;
+  if (result.used_boundary_fallback) {
+    selection_policy_detail
+        = "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global "
+          "candidate post-compensation frontier pool with delay-power Pareto power-median ordering";
+  } else if (result.analytical_mode_selected) {
+    selection_policy_detail
+        = "the validated analytical pool is delay-power Pareto filtered; the lowest-delay entry within the low-power "
+          "guard band is selected";
+  } else {
+    selection_policy_detail
+        = "the global feasible post-compensation frontier pool is Pareto filtered and the lower power-ordered median entry is selected";
+  }
 
   SCHEMA_WRITER_INST.emitSection("### H-Tree Selection");
   logformat::TableRows synthesis_summary_rows = {
@@ -141,6 +172,30 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"depth_candidates", std::to_string(result.depth_candidate_count), "evaluated descending depth candidates"},
       {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
        "global winner across all evaluated depth candidates"},
+      {"selection_engine", result.analytical_mode_selected ? "analytical" : "native", selection_engine_detail},
+      {"analytical_fallback_reason", result.analytical_fallback_reason.empty() ? "none" : result.analytical_fallback_reason,
+       result.analytical_mode_enabled ? "analytical failure reason; native fallback is not used in analytical mode"
+                                      : "analytical mode disabled"},
+      {"analytical_model_sets", std::to_string(result.analytical_model_set_count),
+       result.analytical_mode_enabled ? "complete F/D/P/W model sets built from segment characterization" : "not evaluated"},
+      {"analytical_rejected_fits", std::to_string(result.analytical_rejected_fit_count),
+       result.analytical_mode_enabled ? "fit failures while building analytical model catalog" : "not evaluated"},
+      {"analytical_candidates", std::to_string(result.analytical_generated_candidate_count),
+       result.analytical_mode_enabled ? "materializable analytical candidates generated before native validation" : "not evaluated"},
+      {"analytical_validated_candidates", std::to_string(result.analytical_validated_candidate_count),
+       result.analytical_mode_enabled ? "analytical candidates accepted by native legality/compensation validation" : "not evaluated"},
+      {"analytical_validated_pareto_candidates", std::to_string(result.analytical_validated_pareto_count),
+       result.analytical_mode_enabled ? "validated analytical candidates remaining on the delay-power Pareto frontier" : "not evaluated"},
+      {"analytical_selected_pareto_power_rank", std::to_string(result.analytical_selected_pareto_power_rank),
+       result.analytical_mode_selected ? "1-based selected rank by power after delay-first analytical Pareto selection"
+                                       : "not selected analytically"},
+      {"analytical_validated_delay_range",
+       FormatDelayPower(result.analytical_validated_delay_min_ns, result.analytical_validated_power_min_w) + " .. "
+           + FormatDelayPower(result.analytical_validated_delay_median_ns, result.analytical_validated_power_median_w) + " .. "
+           + FormatDelayPower(result.analytical_validated_delay_max_ns, result.analytical_validated_power_max_w),
+       result.analytical_mode_enabled
+           ? "min / median / max delay with matching marginal power distribution values over validated candidates"
+           : "not evaluated"},
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
        result.used_boundary_fallback ? "selected fallback topology pattern from candidate frontier selection entries"
                                      : "selected strict-feasible topology pattern from the global feasible frontier pool"},
@@ -152,11 +207,7 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"selected_level_buffer_area", FormatLevelBufferAreas(result.levels, false), "unweighted selected buffer area per H-tree level"},
       {"selected_weighted_level_buffer_area", FormatLevelBufferAreas(result.levels, true),
        "selected buffer area multiplied by H-tree level multiplicity"},
-      {"selection_policy", result.used_boundary_fallback ? "global_boundary_fallback" : "global_frontier_pareto_power_median",
-       result.used_boundary_fallback
-           ? "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global candidate "
-             "post-compensation frontier pool with delay-power Pareto power-median ordering"
-           : "the global feasible post-compensation frontier pool is Pareto filtered and the lower power-ordered median entry is selected"},
+      {"selection_policy", selection_policy, selection_policy_detail},
       {"final_frontier_count", std::to_string(selected_summary.final_frontier_count),
        "selected-depth post-compensation frontier size before boundary filtering and sink-load-region legality filtering"},
       {"candidate_solutions", std::to_string(selected_summary.candidate_solution_count),

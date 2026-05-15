@@ -89,6 +89,8 @@ class CharBuilder
   auto get_max_cap() const -> double { return _max_cap; }
   auto get_slew_steps() const -> unsigned { return _slew_steps; }
   auto get_cap_steps() const -> unsigned { return _cap_steps; }
+  auto get_routing_layer() const -> int { return _routing_layer; }
+  auto get_wire_width() const -> std::optional<double> { return _wire_width; }
   auto get_length_lattice() const -> UniformValueLattice { return UniformValueLattice(_length_unit_um, _wirelength_iterations); }
   auto get_slew_lattice() const -> UniformValueLattice { return UniformValueLattice::buildFromMax(_max_slew, _slew_steps); }
   auto get_cap_lattice() const -> UniformValueLattice { return UniformValueLattice::buildFromMax(_max_cap, _cap_steps); }

@@ -56,6 +56,19 @@ auto AppendPositiveLengths(std::vector<double>& target, const std::vector<double
   }
 }
 
+auto AppendUniqueLengthIndex(std::vector<unsigned>& target, unsigned length_idx) -> void
+{
+  if (length_idx == 0U) {
+    return;
+  }
+  for (const unsigned existing_idx : target) {
+    if (existing_idx == length_idx) {
+      return;
+    }
+  }
+  target.push_back(length_idx);
+}
+
 auto FormatLogValue(const std::string& value) -> std::string
 {
   return value.empty() ? "n/a" : value;
@@ -130,6 +143,9 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
     char_options.wirelength_unit_um = char_grid_plan.wirelength_unit_um;
     char_options.wirelength_iterations = char_grid_plan.wirelength_iterations;
     auto direct_length_indices = ResolveDirectCharacterizationLengthIndices(requested_lengths_um, char_grid_plan);
+    if (options.enable_analytical_solver) {
+      AppendUniqueLengthIndex(direct_length_indices, 1U);
+    }
     if (!direct_length_indices.empty()) {
       char_options.wirelength_indices = std::move(direct_length_indices);
     }

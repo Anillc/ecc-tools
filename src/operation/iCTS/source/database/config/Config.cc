@@ -289,6 +289,10 @@ auto Config::parse(const std::string& json_file) -> bool
                          &Config::set_htree_depth_explore_window);
   ApplyDoubleIfPresent(json, "htree_topology_tolerance", *this, &Config::get_htree_topology_tolerance,
                        &Config::set_htree_topology_tolerance);
+  if (!ApplyBoolIfPresent(json, "enable_analytical_htree", is_enable_analytical_htree(), *this, &Config::set_enable_analytical_htree,
+                          json_file)) {
+    return false;
+  }
   if (!ApplyBoolIfPresent(json, "enable_sink_clustering", is_enable_sink_clustering(), *this, &Config::set_enable_sink_clustering,
                           json_file)) {
     return false;
@@ -337,6 +341,9 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
        "flow-level H-tree explores up to this many descending depth candidates from the deepest topology"},
       {"htree_topology_tolerance", logformat::FormatPercent(get_htree_topology_tolerance()),
        "per-level H-tree topology segment length deviation allowed around the baseline"},
+      {"enable_analytical_htree", logformat::FormatBool(is_enable_analytical_htree()),
+       is_enable_analytical_htree() ? "experimental analytical H-tree candidate selection is enabled"
+                                    : "native discrete H-tree search is used"},
       {"enable_sink_clustering", logformat::FormatBool(is_enable_sink_clustering()),
        is_enable_sink_clustering() ? "run sink linear clustering before H-tree synthesis" : "build H-tree directly on original sinks"},
       {"use_netlist", logformat::FormatBool(is_use_netlist()),
