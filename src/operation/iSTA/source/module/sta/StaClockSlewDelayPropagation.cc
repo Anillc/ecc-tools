@@ -157,7 +157,7 @@ unsigned StaClockSlewDelayPropagation::operator()(StaGraph*) {
     _bfs_queue.clear();
 
     // swap to the next bfs queue.
-    std::swap(_bfs_queue, _next_bfs_queue);
+    swapNextBFSQueue();
 
   } while (!_bfs_queue.empty());
 

@@ -668,7 +668,7 @@ class Sta {
 
   AnalysisMode _analysis_mode;  //!< The analysis max/min mode.
   PropagationMethod _propagation_method =
-      PropagationMethod::kDFS;  //!< The propagation method used by DFS or BFS.
+      PropagationMethod::kBFS;  //!< The propagation method used by DFS or BFS.
 
   StaDreateTable _derate_table;  //!< The derate table for ocv.
   Vector<std::unique_ptr<AocvLibrary>>

@@ -27,6 +27,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -416,6 +417,8 @@ class StaVertex {
   void getPathDepth(std::priority_queue<int, std::vector<int>,
                                         std::greater<int>>& depth_min_queue,
                     int depth = 0);
+  int getPathDepth(std::unordered_map<StaVertex*, int>& depth_cache,
+                   std::unordered_set<StaVertex*>& visiting);
 
   unsigned GetWorstPathDepth(AnalysisMode analysis_mode);
 

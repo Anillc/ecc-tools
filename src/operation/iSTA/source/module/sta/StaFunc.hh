@@ -23,7 +23,11 @@
  */
 #pragma once
 
+#include <algorithm>
+#include <mutex>
 #include <stack>
+#include <unordered_set>
+#include <vector>
 
 #include "Sta.hh"
 #include "StaGraph.hh"
@@ -84,19 +88,43 @@ class StaFunc {
  */
 class StaBFSFunc {
   protected:
+  StaBFSFunc() = default;
+  StaBFSFunc(const StaBFSFunc& other) {
+    std::lock_guard<std::mutex> lk(other._next_bfs_queue_mutex);
+    _bfs_queue = other._bfs_queue;
+    _next_bfs_queue = other._next_bfs_queue;
+    _next_bfs_queue_set = other._next_bfs_queue_set;
+  }
+  StaBFSFunc& operator=(const StaBFSFunc& other) {
+    if (this == &other) {
+      return *this;
+    }
+    std::scoped_lock lk(_next_bfs_queue_mutex, other._next_bfs_queue_mutex);
+    _bfs_queue = other._bfs_queue;
+    _next_bfs_queue = other._next_bfs_queue;
+    _next_bfs_queue_set = other._next_bfs_queue_set;
+    return *this;
+  }
+  ~StaBFSFunc() = default;
 
   void addNextBFSQueue(StaVertex* the_vertex) {
-      static std::mutex g_mutex;
-      std::lock_guard<std::mutex> lk(g_mutex);
+      std::lock_guard<std::mutex> lk(_next_bfs_queue_mutex);
 
-      if (std::find(_next_bfs_queue.begin(), _next_bfs_queue.end(),
-                    the_vertex) == _next_bfs_queue.end()) {        
+      if (_next_bfs_queue_set.insert(the_vertex).second) {
         _next_bfs_queue.push_back(the_vertex);
       }
   }
 
+  void swapNextBFSQueue() {
+    std::lock_guard<std::mutex> lk(_next_bfs_queue_mutex);
+    std::swap(_bfs_queue, _next_bfs_queue);
+    _next_bfs_queue_set.clear();
+  }
+
   std::vector<StaVertex*> _bfs_queue; //!< The current bfs queue
   std::vector<StaVertex*> _next_bfs_queue; //!< For next bfs use.
+  std::unordered_set<StaVertex*> _next_bfs_queue_set; //!< Fast duplicate check for the next bfs queue.
+  mutable std::mutex _next_bfs_queue_mutex; //!< Protects _next_bfs_queue for this propagation object.
 };
 
 }  // namespace ista

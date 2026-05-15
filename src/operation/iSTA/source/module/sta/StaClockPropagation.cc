@@ -57,10 +57,8 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
       obj_name = inst->get_inst_cell()->get_cell_name();
     }
 
-    std::priority_queue<int, std::vector<int>, std::greater<int>>
-        depth_min_queue;
-    src_vertex->getPathDepth(depth_min_queue);
-    src_vertex_depth = depth_min_queue.top();
+    std::unordered_set<StaVertex*> visiting;
+    src_vertex_depth = src_vertex->getPathDepth(_path_depth_cache, visiting);
   }
 
   // lambda function, get delay derate.
@@ -354,6 +352,7 @@ unsigned StaClockPropagation::operator()(StaGraph* /* the_graph */) {
   };
 
   unsigned is_ok = 1;
+  _path_depth_cache.clear();
 
   LOG_INFO << "clock propagation clock num: " << clocks.size();
 
