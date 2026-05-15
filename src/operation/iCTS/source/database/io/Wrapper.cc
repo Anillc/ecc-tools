@@ -473,6 +473,8 @@ class Wrapper::CtsClockReader
 
     std::unordered_map<idb::IdbInstance*, Inst*> cts_inst_by_idb;
     cts_inst_by_idb.reserve(idb_pins.size());
+    std::vector<Pin*> cts_loads;
+    cts_loads.reserve(idb_net_pins.loads.size());
     for (auto* idb_pin : idb_pins) {
       if (idb_pin == nullptr) {
         continue;
@@ -517,10 +519,11 @@ class Wrapper::CtsClockReader
         clock->set_clock_source(cts_pin);
         cts_net->set_driver(cts_pin);
       } else {
-        clock->add_load(cts_pin);
-        cts_net->add_load(cts_pin);
+        cts_loads.push_back(cts_pin);
       }
     }
+    clock->set_loads(cts_loads);
+    cts_net->set_loads(cts_loads);
     return clock;
   }
 

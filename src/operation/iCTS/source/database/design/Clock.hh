@@ -60,6 +60,7 @@ class Clock
 
   // Membership helpers.
   auto add_load(Pin* load) -> void { appendUnique(_loads, load); }
+  auto set_loads(const std::vector<Pin*>& loads) -> void { _loads = loads; }
   auto clear_loads() -> void { _loads.clear(); }
   auto add_inst(Inst* inst) -> void { appendUnique(_insts, inst); }
   auto add_net(Net* net) -> void { appendUnique(_nets, net); }
