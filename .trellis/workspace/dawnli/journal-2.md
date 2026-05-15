@@ -378,3 +378,44 @@ Added CTS-owned SDC clock parsing and tracing, ownership/unowned clock-like repo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 56: CTS report log structure
+
+**Date**: 2026-05-15
+**Task**: CTS report log structure
+**Branch**: `cts_refactor`
+
+### Summary
+
+Split CTS report logging into concise default and curated detail outputs, then fixed iSTA test build blockers needed for all-target validation.
+
+### Main Changes
+
+- Added CTS structured report routing so `cts.log` stays concise while curated internals go to `cts_detail.log`.
+- Moved repeated HTree per-depth/helper lifecycle detail out of the default report and replaced it with compact summary tables.
+- Trimmed duplicated/default-low-value characterization, source trunk, synthesis, instantiation, and report-mode fields while preserving failure/fallback diagnostics.
+- Updated focused iCTS report tests for default/detail routing and report-content expectations.
+- External module note: changed only `src/operation/iSTA/test` to restore all-target build compatibility with current STA/Python DB APIs and the local conda/system libffi mix.
+- Validation passed: `cmake --build build -j 8`, focused iCTS tests, `./bin/iSTATest --gtest_list_tests`, and `python3 ./.trellis/ecc_dev_tools/check.py check --path src/operation/iCTS` with in-scope findings 0.
+- Left `src/apps/CMakeLists.txt` uncommitted because it only redirects local app output to `scripts/design/ics55_huge_dev` and is not required for the task.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ed18a76a9` | (see git log) |
+| `2eeb4b3c1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
