@@ -419,3 +419,36 @@ Split CTS report logging into concise default and curated detail outputs, then f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 57: Optimize ecc dev iCTS runtime
+
+**Date**: 2026-05-16
+**Task**: Optimize ecc dev iCTS runtime
+**Branch**: `cts_refactor`
+
+### Summary
+
+Optimized ecc_dev_tools iCTS full-check runtime without reducing coverage: parallelized tidy header checks, combined tidy/analyzer TU execution, split header self-check subchecks, improved runtime attribution, documented experiments and rejected shortcut/runtime-contention approaches.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `657ad86c5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
