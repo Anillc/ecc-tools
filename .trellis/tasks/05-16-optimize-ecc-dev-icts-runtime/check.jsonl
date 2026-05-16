@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/prd.md", "reason": "Requirements, acceptance criteria, and coverage constraints for checking implementation completeness."}
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/analysis.md", "reason": "Baseline runtime and hotspot evidence used for before/after validation."}
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/research.md", "reason": "External guidance and excluded shortcut methods to verify the implementation preserves coverage."}
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/design.md", "reason": "Design contract and risk mitigations for checker runtime optimization review."}
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/implement.md", "reason": "Implementation checklist and validation gates for final quality check."}

@@ -9,7 +9,7 @@ from pathlib import Path
 
 try:
     from .build_context import ensure_build_context
-    from .checkers import run_selected_checks
+    from .checkers import CheckExecutionError, run_selected_checks
     from .environment import TOOL_REQUIREMENTS, inspect_environment, required_tool_names_for_run, validate_required_tools
     from .models import CheckKind, ToolStatus, load_suppressions
     from .profiles import (
@@ -35,7 +35,7 @@ try:
     from .utils import default_jobs, detect_idle_threads, parse_version_text, python_executable
 except ImportError:
     from build_context import ensure_build_context
-    from checkers import run_selected_checks
+    from checkers import CheckExecutionError, run_selected_checks
     from environment import TOOL_REQUIREMENTS, inspect_environment, required_tool_names_for_run, validate_required_tools
     from models import CheckKind, ToolStatus, load_suppressions
     from profiles import (
@@ -99,7 +99,7 @@ def parse_args() -> argparse.Namespace:
     )
     check_parser.add_argument("--fix", action="store_true", help="Apply fixes where supported (currently format only)")
     check_parser.add_argument("--build-dir", default="build", help="Build directory to reuse or refresh")
-    check_parser.add_argument("--jobs", type=int, help="Parallel jobs for metadata refresh")
+    check_parser.add_argument("--jobs", type=int, help="Parallel jobs for metadata refresh and checker workers")
     check_parser.add_argument("--repo-root", default=None, help="Repository root override")
     check_parser.add_argument("--clang-tidy-binary", default=None, help="Override clang-tidy executable")
     check_parser.add_argument(
@@ -183,6 +183,73 @@ def _parse_kinds(raw_value: str | None) -> tuple[CheckKind, ...] | None:
 def _emit_runtime_log(message: str, *, enabled: bool, quiet: bool) -> None:
     if enabled and not quiet:
         print(message, file=sys.stderr, flush=True)
+
+
+def _apply_suppressions(repo_root: Path, results: list, *, show_suppressed: bool) -> list[tuple[str, object]]:
+    suppressions = load_suppressions(repo_root)
+    suppressed_findings: list[tuple[str, object]] = []
+    if not suppressions:
+        return suppressed_findings
+
+    for result in results:
+        original = result.findings[:]
+        result.findings = [f for f in result.findings if not any(s.matches(f, repo_root) for s in suppressions)]
+        suppressed_count = len(original) - len(result.findings)
+        if suppressed_count > 0:
+            result.notes.append(f"Suppressed {suppressed_count} finding(s) matching whitelist rules.")
+            if show_suppressed:
+                for finding in original:
+                    if any(s.matches(finding, repo_root) for s in suppressions):
+                        suppressed_findings.append((result.kind, finding))
+    return suppressed_findings
+
+
+def _emit_results(
+    args: argparse.Namespace,
+    *,
+    repo_root: Path,
+    snapshot,
+    plan,
+    profile,
+    scope,
+    context,
+    results: list,
+    suppressed_findings: list[tuple[str, object]],
+) -> None:
+    if args.output_format == "json":
+        print(format_results_json(results, plan, profile))
+    elif args.output_format == "compiler":
+        compiler_output = format_results_compiler_style(results)
+        if compiler_output:
+            print(compiler_output)
+    else:
+        if not args.quiet:
+            print(format_environment(snapshot))
+            print()
+            print(format_execution_plan(plan, profile))
+            print()
+            print(format_scope(scope))
+            print()
+            if context is not None:
+                print(format_build_context(context.refreshed, context.refresh_reason, context.compile_commands_path, context.file_api_reply_dir))
+            else:
+                print("Build metadata\n- not required for selected checks")
+            print()
+        for result in results:
+            print(format_check_result(result, repo_root))
+            print()
+        print(format_exit_summary(results, fail_on_findings=not args.no_fail_on_findings))
+
+    if suppressed_findings and args.show_suppressed:
+        print()
+        print(f"Suppressed findings ({len(suppressed_findings)} total):")
+        for check_kind, finding in suppressed_findings:
+            loc = str(finding.path) if finding.path else "<unknown>"
+            if finding.line:
+                loc = f"{loc}:{finding.line}"
+            cat = finding.category or "general"
+            sub = finding.subtype or "general"
+            print(f"  [SUPPRESSED] [{check_kind}] {loc}: {finding.severity}: [{cat}/{sub}] {finding.message}")
 
 
 _INSTALL_HINTS: dict[str, str] = {
@@ -407,59 +474,39 @@ def main() -> int:
                 lambda message: _emit_runtime_log(message, enabled=args.runtime_logging, quiet=args.quiet)
             ),
         )
+    except CheckExecutionError as exc:
+        results = exc.results
+        suppressed_findings = _apply_suppressions(repo_root, results, show_suppressed=args.show_suppressed)
+        _emit_results(
+            args,
+            repo_root=repo_root,
+            snapshot=snapshot,
+            plan=plan,
+            profile=profile,
+            scope=scope,
+            context=context,
+            results=results,
+            suppressed_findings=suppressed_findings,
+        )
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     except (RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 2
 
     # -- Apply suppression whitelist --
-    suppressions = load_suppressions(repo_root)
-    suppressed_findings: list[tuple[str, object]] = []  # list of (check_kind, finding) for --show-suppressed
-    if suppressions:
-        for result in results:
-            original = result.findings[:]
-            result.findings = [f for f in result.findings if not any(s.matches(f, repo_root) for s in suppressions)]
-            suppressed_count = len(original) - len(result.findings)
-            if suppressed_count > 0:
-                result.notes.append(f"Suppressed {suppressed_count} finding(s) matching whitelist rules.")
-                if args.show_suppressed:
-                    for f in original:
-                        if any(s.matches(f, repo_root) for s in suppressions):
-                            suppressed_findings.append((result.kind, f))
-
-    if args.output_format == "json":
-        print(format_results_json(results, plan, profile))
-    elif args.output_format == "compiler":
-        compiler_output = format_results_compiler_style(results)
-        if compiler_output:
-            print(compiler_output)
-    else:
-        if not args.quiet:
-            print(format_environment(snapshot))
-            print()
-            print(format_execution_plan(plan, profile))
-            print()
-            print(format_scope(scope))
-            print()
-            if context is not None:
-                print(format_build_context(context.refreshed, context.refresh_reason, context.compile_commands_path, context.file_api_reply_dir))
-            else:
-                print("Build metadata\n- not required for selected checks")
-            print()
-        for result in results:
-            print(format_check_result(result, repo_root))
-            print()
-        print(format_exit_summary(results, fail_on_findings=not args.no_fail_on_findings))
-
-    if suppressed_findings and args.show_suppressed:
-        print()
-        print(f"Suppressed findings ({len(suppressed_findings)} total):")
-        for check_kind, finding in suppressed_findings:
-            loc = str(finding.path) if finding.path else "<unknown>"
-            if finding.line:
-                loc = f"{loc}:{finding.line}"
-            cat = finding.category or "general"
-            sub = finding.subtype or "general"
-            print(f"  [SUPPRESSED] [{check_kind}] {loc}: {finding.severity}: [{cat}/{sub}] {finding.message}")
+    suppressed_findings = _apply_suppressions(repo_root, results, show_suppressed=args.show_suppressed)
+    _emit_results(
+        args,
+        repo_root=repo_root,
+        snapshot=snapshot,
+        plan=plan,
+        profile=profile,
+        scope=scope,
+        context=context,
+        results=results,
+        suppressed_findings=suppressed_findings,
+    )
 
     has_in_scope_findings = any(result.in_scope_findings() for result in results)
     if has_in_scope_findings and not args.no_fail_on_findings:

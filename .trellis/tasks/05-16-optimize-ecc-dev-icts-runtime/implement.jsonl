@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/analysis.md", "reason": "Baseline iCTS runtime distribution, local checker structure, and slow-file/code-size analysis for planning the runtime optimization."}
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/research.md", "reason": "External clang-tidy and IWYU documentation/community guidance used to constrain acceptable runtime optimization methods."}
+{"file": ".trellis/tasks/05-16-optimize-ecc-dev-icts-runtime/design.md", "reason": "Technical design for the first no-coverage-loss runtime optimization slice and follow-up boundaries."}

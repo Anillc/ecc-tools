@@ -11,6 +11,9 @@ Tests cover pure functions and algorithmic logic across:
 
 from __future__ import annotations
 
+import argparse
+from contextlib import ExitStack, contextmanager
+import io
 import json
 import sys
 import tempfile
@@ -26,6 +29,7 @@ if str(_PACKAGE_ROOT.parent) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_ROOT.parent))
 
 # ruff: noqa: E402
+from ecc_dev_tools import check as check_cli
 from ecc_dev_tools.models import (
     BuildContext,
     CMakeTarget,
@@ -47,10 +51,13 @@ from ecc_dev_tools.profiles import (
     resolve_execution_plan,
 )
 from ecc_dev_tools.checkers import (
+    CheckExecutionError,
     _build_header_include_first_command,
+    _build_header_syntax_command,
     _build_source_syntax_command,
     _classify_compiler_diagnostic,
     _classify_tidy_diagnostic,
+    _combine_tidy_checks,
     _dedupe_findings,
     _detect_cycles,
     _extract_diagnostic_checks,
@@ -58,10 +65,13 @@ from ecc_dev_tools.checkers import (
     _parallel_map,
     _parse_clang_tidy_output,
     _parse_iwyu_output,
+    _run_clang_tidy_tu_pass,
     _run_clang_tidy_header_pass,
     _scan_deps_for_file,
     _strip_diagnostic_suffix,
     run_header_dependency_check,
+    run_selected_checks,
+    run_tidy_check,
 )
 from ecc_dev_tools.reporting import (
     format_check_result,
@@ -851,20 +861,292 @@ class TestParseClangTidyOutput(unittest.TestCase):
         result = _parse_clang_tidy_output(text, scope, command, origin="tidy-tu")
         self.assertIsNotNone(result.suppression_note)
 
+    def test_origin_resolver_maps_mixed_combined_diagnostics(self):
+        tmp = Path(tempfile.mkdtemp())
+        scope, command = self._make_scope_and_command(tmp)
+        text = (
+            f"{command.file}:10:5: warning: normal issue [bugprone-use-after-move]\n"
+            f"{command.file}:20:7: warning: analyzer issue [clang-analyzer-core.NullDereference]\n"
+            f"{command.file}:30:1: error: compiler issue [clang-diagnostic-return-type]\n"
+        )
 
-class TestRunClangTidyHeaderPass(unittest.TestCase):
-    """_run_clang_tidy_header_pass() -- reports parsed findings for scope-local headers."""
+        def resolve_origin(_category, _subtype, checks):
+            if any(check.startswith("clang-analyzer-") for check in checks):
+                return "analyzer-tu"
+            return "tidy-tu"
 
-    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
-    @patch("ecc_dev_tools.checkers.run_command")
-    def test_reports_all_parsed_findings(self, run_command_mock, _config_args_mock):
+        result = _parse_clang_tidy_output(
+            text,
+            scope,
+            command,
+            origin="tidy-tu+analyzer-tu",
+            origin_resolver=resolve_origin,
+        )
+
+        self.assertEqual(
+            [finding.origin for finding in result.findings],
+            ["tidy-tu", "analyzer-tu", "tidy-tu"],
+        )
+
+
+class TestCombineTidyChecks(unittest.TestCase):
+    """_combine_tidy_checks() -- merge adjacent clang-tidy check globs."""
+
+    def test_removes_secondary_reset_glob(self):
+        combined = _combine_tidy_checks("-*,bugprone-*", "-*,clang-analyzer-*")
+        self.assertEqual(combined, "-*,bugprone-*,clang-analyzer-*")
+
+    def test_keeps_primary_when_secondary_has_no_enabled_globs(self):
+        combined = _combine_tidy_checks("-*,bugprone-*", "-*")
+        self.assertEqual(combined, "-*,bugprone-*")
+
+    def test_handles_missing_primary_or_secondary(self):
+        self.assertEqual(_combine_tidy_checks(None, "-*,clang-analyzer-*"), "-*,clang-analyzer-*")
+        self.assertEqual(_combine_tidy_checks("-*,bugprone-*", None), "-*,bugprone-*")
+
+
+class TestRunClangTidyTuPass(unittest.TestCase):
+    """_run_clang_tidy_tu_pass() -- clang-tidy TU execution details."""
+
+    def _make_fixture(self):
         tmp = Path(tempfile.mkdtemp())
         src = tmp / "src"
         build = tmp / "build"
         src.mkdir()
         build.mkdir()
-        header = (src / "File.hh").resolve()
-        header.write_text("#pragma once\n", encoding="utf-8")
+        source = (src / "File.cc").resolve()
+        source.write_text("int f() { return 1; }\n", encoding="utf-8")
+        scope = Scope(
+            repo_root=tmp,
+            raw_paths=["src"],
+            resolved_paths=[src.resolve()],
+        )
+        command = CompileCommand(
+            file=source,
+            directory=tmp,
+            command=f"g++ -c {source}",
+        )
+        context = BuildContext(
+            build_dir=build,
+            compile_commands_path=build / "compile_commands.json",
+            file_api_reply_dir=build / ".cmake" / "api" / "v1" / "reply",
+            compile_commands=[command],
+            targets={},
+            declared_graph={},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=tmp,
+            build_dir=build,
+            jobs=1,
+            total_cpus=1,
+            idle_threads_estimate=1,
+            tool_statuses=[
+                ToolStatus(
+                    name="clang-tidy",
+                    required=True,
+                    found=True,
+                    executable="/usr/bin/clang-tidy",
+                    version_text="LLVM version 22.1.2",
+                    ok=True,
+                )
+            ],
+        )
+        tidy_pass = TidyPass(
+            name="tidy-tu+analyzer-tu",
+            description="",
+            tool_name="clang-tidy",
+            runner="clang-tidy-tu",
+            checks_arg="-*,bugprone-*,clang-analyzer-*",
+        )
+        return tmp, scope, context, snapshot, tidy_pass, command
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_origin_resolver_is_applied_to_combined_runner(self, run_command_mock, _config_args_mock):
+        tmp, scope, context, snapshot, tidy_pass, command = self._make_fixture()
+        run_command_mock.return_value = type(
+            "Result",
+            (),
+            {
+                "returncode": 0,
+                "stdout": (
+                    f"{command.file}:10:5: warning: normal issue [bugprone-use-after-move]\n"
+                    f"{command.file}:20:7: warning: analyzer issue [clang-analyzer-core.NullDereference]\n"
+                ),
+                "stderr": "",
+            },
+        )()
+
+        def resolve_origin(_category, _subtype, checks):
+            if any(check.startswith("clang-analyzer-") for check in checks):
+                return "analyzer-tu"
+            return "tidy-tu"
+
+        result = _run_clang_tidy_tu_pass(
+            tidy_pass,
+            repo_root=tmp,
+            scope=scope,
+            context=context,
+            snapshot=snapshot,
+            config_path=tmp / ".clang-tidy",
+            commands=[command],
+            runtime_detail=True,
+            origin_resolver=resolve_origin,
+        )
+
+        self.assertEqual(result.commands_run, 1)
+        self.assertEqual([finding.origin for finding in result.findings], ["tidy-tu", "analyzer-tu"])
+        self.assertEqual(result.runtime_entries[0].label, "tidy-tu+analyzer-tu:src/File.cc")
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_no_diagnostics_queues_fallback_candidate(self, run_command_mock, _config_args_mock):
+        tmp, scope, context, snapshot, tidy_pass, command = self._make_fixture()
+        run_command_mock.return_value = type(
+            "Result",
+            (),
+            {"returncode": 0, "stdout": "", "stderr": ""},
+        )()
+
+        result = _run_clang_tidy_tu_pass(
+            tidy_pass,
+            repo_root=tmp,
+            scope=scope,
+            context=context,
+            snapshot=snapshot,
+            config_path=tmp / ".clang-tidy",
+            commands=[command],
+        )
+
+        self.assertEqual(result.commands_run, 1)
+        self.assertEqual(result.candidate_commands, [command])
+        self.assertEqual(result.fallback_candidates, 1)
+
+
+class TestRunTidyCheckCombinedPass(unittest.TestCase):
+    """run_tidy_check() -- combines adjacent tidy/analyzer TU passes."""
+
+    def test_combines_adjacent_tidy_and_analyzer_passes(self):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "src"
+        build = tmp / "build"
+        src.mkdir()
+        build.mkdir()
+        source = (src / "File.cc").resolve()
+        source.write_text("int f() { return 1; }\n", encoding="utf-8")
+        command = CompileCommand(
+            file=source,
+            directory=tmp,
+            command=f"g++ -c {source}",
+        )
+        scope = Scope(
+            repo_root=tmp,
+            raw_paths=["src"],
+            resolved_paths=[src.resolve()],
+        )
+        context = BuildContext(
+            build_dir=build,
+            compile_commands_path=build / "compile_commands.json",
+            file_api_reply_dir=build / ".cmake" / "api" / "v1" / "reply",
+            compile_commands=[command],
+            targets={},
+            declared_graph={},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=tmp,
+            build_dir=build,
+            jobs=4,
+            total_cpus=8,
+            idle_threads_estimate=8,
+            tool_statuses=[],
+        )
+        profile = get_profile("icts")
+        plan = ExecutionPlan(
+            validation_preset="custom",
+            kinds=("tidy",),
+            tidy_mode="deep",
+            pass_plan="complete",
+            tidy_passes=(
+                TidyPass(
+                    name="tidy-tu",
+                    description="",
+                    tool_name="clang-tidy",
+                    runner="clang-tidy-tu",
+                    checks_arg="-*,bugprone-*",
+                    dedupe_priority=10,
+                ),
+                TidyPass(
+                    name="analyzer-tu",
+                    description="",
+                    tool_name="clang-tidy",
+                    runner="clang-tidy-tu",
+                    checks_arg="-*,clang-analyzer-*",
+                    dedupe_priority=15,
+                ),
+                TidyPass(
+                    name="native-fallback",
+                    description="",
+                    tool_name="g++",
+                    runner="native-compiler",
+                    on_demand=True,
+                    dedupe_priority=40,
+                ),
+            ),
+        )
+
+        combined_outcome = type(
+            "Outcome",
+            (),
+            {
+                "commands_run": 1,
+                "runtime_entries": [RuntimeEntry(label="tidy-tu+analyzer-tu:src/File.cc", seconds=2.0, category="unit")],
+                "findings": [],
+                "notes": [],
+                "candidate_commands": [],
+            },
+        )()
+        with patch("ecc_dev_tools.checkers._collect_scope_headers", return_value=[]), \
+            patch("ecc_dev_tools.checkers.compile_commands_for_scope", return_value=[command]), \
+            patch("ecc_dev_tools.checkers._run_clang_tidy_combined_tu_pass", return_value=combined_outcome) as combined_mock, \
+            patch("ecc_dev_tools.checkers._run_tidy_pass") as tidy_pass_mock:
+            result = run_tidy_check(
+                tmp,
+                scope,
+                context,
+                profile,
+                snapshot,
+                plan,
+                jobs=4,
+                runtime_detail=True,
+            )
+
+        combined_mock.assert_called_once()
+        tidy_pass_mock.assert_not_called()
+        self.assertEqual(result.runtime_entries[0].label, "tidy-tu+analyzer-tu")
+        self.assertEqual(result.runtime_entries[0].count, 1)
+        self.assertNotIn("analyzer-tu", [entry.label for entry in result.runtime_entries if entry.category == "phase"])
+
+
+class TestRunClangTidyHeaderPass(unittest.TestCase):
+    """_run_clang_tidy_header_pass() -- reports parsed findings for scope-local headers."""
+
+    def _make_fixture(self, header_names):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "src"
+        build = tmp / "build"
+        src.mkdir()
+        build.mkdir()
+        headers = []
+        for header_name in header_names:
+            header = (src / header_name).resolve()
+            header.write_text("#pragma once\n", encoding="utf-8")
+            headers.append(header)
 
         scope = Scope(
             repo_root=tmp,
@@ -906,6 +1188,13 @@ class TestRunClangTidyHeaderPass(unittest.TestCase):
             runner="clang-tidy-header",
             checks_arg="-*,modernize-*,readability-*",
         )
+        return tmp, scope, context, snapshot, tidy_pass, headers
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_reports_all_parsed_findings(self, run_command_mock, _config_args_mock):
+        tmp, scope, context, snapshot, tidy_pass, headers = self._make_fixture(["File.hh"])
+        header = headers[0]
         run_command_mock.return_value = type(
             "Result",
             (),
@@ -935,6 +1224,310 @@ class TestRunClangTidyHeaderPass(unittest.TestCase):
             {finding.subtype for finding in result.findings},
             {"modernize-use-trailing-return-type", "readability-identifier-naming"},
         )
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers._parallel_map", return_value=[])
+    def test_passes_jobs_to_parallel_map(self, parallel_map_mock, _config_args_mock):
+        tmp, scope, context, snapshot, tidy_pass, headers = self._make_fixture(["File.hh"])
+
+        _run_clang_tidy_header_pass(
+            tidy_pass,
+            repo_root=tmp,
+            scope=scope,
+            context=context,
+            snapshot=snapshot,
+            config_path=tmp / ".clang-tidy",
+            headers=headers,
+            jobs=7,
+        )
+
+        self.assertEqual(parallel_map_mock.call_args.args[2], 7)
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_aggregates_parallel_results_in_header_order(self, run_command_mock, _config_args_mock):
+        tmp, scope, context, snapshot, tidy_pass, headers = self._make_fixture(["A.hh", "B.hh"])
+
+        def fake_result_for_header(header_path):
+            return type(
+                "Result",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": f"{header_path}:1:1: warning: issue in {Path(header_path).name} [readability-identifier-naming]\n",
+                    "stderr": "",
+                },
+            )()
+
+        def run_command_side_effect(command, cwd=None, check=False):
+            _ = cwd, check
+            return fake_result_for_header(command[1])
+
+        def out_of_order_parallel_map(func, items, jobs):
+            _ = jobs
+            return [func(item) for item in reversed(items)]
+
+        run_command_mock.side_effect = run_command_side_effect
+        with patch("ecc_dev_tools.checkers._parallel_map", side_effect=out_of_order_parallel_map):
+            result = _run_clang_tidy_header_pass(
+                tidy_pass,
+                repo_root=tmp,
+                scope=scope,
+                context=context,
+                snapshot=snapshot,
+                config_path=tmp / ".clang-tidy",
+                headers=headers,
+                jobs=2,
+            )
+
+        self.assertEqual(result.commands_run, 2)
+        self.assertEqual(
+            [finding.path.name for finding in result.findings],
+            ["A.hh", "B.hh"],
+        )
+
+    @patch("ecc_dev_tools.checkers._clang_tidy_config_args", return_value=[])
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_runtime_detail_labels_include_tidy_phase(self, run_command_mock, _config_args_mock):
+        tmp, scope, context, snapshot, tidy_pass, headers = self._make_fixture(["File.hh"])
+        run_command_mock.return_value = type(
+            "Result",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "",
+                "stderr": "",
+            },
+        )()
+
+        result = _run_clang_tidy_header_pass(
+            tidy_pass,
+            repo_root=tmp,
+            scope=scope,
+            context=context,
+            snapshot=snapshot,
+            config_path=tmp / ".clang-tidy",
+            headers=headers,
+            runtime_detail=True,
+        )
+
+        self.assertEqual(
+            result.runtime_entries[0].label,
+            "tidy-headers:src/File.hh",
+        )
+
+
+class TestRunSelectedChecks(unittest.TestCase):
+    """run_selected_checks() -- top-level orchestration metadata."""
+
+    @patch("ecc_dev_tools.checkers.run_format_check")
+    def test_records_worker_jobs_note(self, run_format_check_mock):
+        profile = get_profile("icts")
+        plan = ExecutionPlan(
+            validation_preset="custom",
+            kinds=("format",),
+            tidy_mode="deep",
+            pass_plan="complete",
+            tidy_passes=(),
+        )
+        scope = Scope(repo_root=Path("/repo"), raw_paths=["src"], resolved_paths=[Path("/repo/src")])
+        snapshot = EnvironmentSnapshot(
+            repo_root=Path("/repo"),
+            build_dir=Path("/repo/build"),
+            jobs=9,
+            total_cpus=16,
+            idle_threads_estimate=16,
+            tool_statuses=[],
+        )
+        run_format_check_mock.return_value = CheckResult(kind="format")
+
+        results = run_selected_checks(
+            plan,
+            repo_root=Path("/repo"),
+            scope=scope,
+            context=None,
+            profile=profile,
+            jobs=9,
+            fix=False,
+            snapshot=snapshot,
+        )
+
+        self.assertEqual(results[0].notes[0], "Worker jobs: 9")
+
+    @patch("ecc_dev_tools.checkers.run_tidy_check", side_effect=RuntimeError("tidy tool crashed"))
+    @patch("ecc_dev_tools.checkers.run_format_check")
+    def test_runtime_error_carries_completed_results(self, run_format_check_mock, _run_tidy_check_mock):
+        profile = get_profile("icts")
+        plan = ExecutionPlan(
+            validation_preset="custom",
+            kinds=("format", "tidy"),
+            tidy_mode="deep",
+            pass_plan="complete",
+            tidy_passes=(),
+        )
+        scope = Scope(repo_root=Path("/repo"), raw_paths=["src"], resolved_paths=[Path("/repo/src")])
+        context = BuildContext(
+            build_dir=Path("/repo/build"),
+            compile_commands_path=Path("/repo/build/compile_commands.json"),
+            file_api_reply_dir=Path("/repo/build/.cmake/api/v1/reply"),
+            compile_commands=[],
+            targets={},
+            declared_graph={},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=Path("/repo"),
+            build_dir=Path("/repo/build"),
+            jobs=3,
+            total_cpus=8,
+            idle_threads_estimate=8,
+            tool_statuses=[],
+        )
+        run_format_check_mock.return_value = CheckResult(kind="format")
+
+        with self.assertRaises(CheckExecutionError) as ctx:
+            run_selected_checks(
+                plan,
+                repo_root=Path("/repo"),
+                scope=scope,
+                context=context,
+                profile=profile,
+                jobs=3,
+                fix=False,
+                snapshot=snapshot,
+            )
+
+        self.assertEqual([result.kind for result in ctx.exception.results], ["format"])
+        self.assertEqual(ctx.exception.results[0].notes[0], "Worker jobs: 3")
+        self.assertIn("tidy check failed: tidy tool crashed", str(ctx.exception))
+
+
+class TestCheckMainPartialFailureOutput(unittest.TestCase):
+    """check.py main() -- partial results are reported before runtime-error exit."""
+
+    def _args(self, *, output_format="text", quiet=True):
+        return argparse.Namespace(
+            command="check",
+            paths=["src"],
+            profile="icts",
+            preset=None,
+            tidy_mode=None,
+            pass_plan=None,
+            kinds="format,tidy",
+            fix=False,
+            build_dir="build",
+            jobs=4,
+            repo_root="/repo",
+            clang_tidy_binary=None,
+            output_format=output_format,
+            quiet=quiet,
+            runtime_logging=False,
+            runtime_detail=False,
+            legacy_deep_tidy=None,
+            no_fail_on_findings=False,
+            show_suppressed=False,
+        )
+
+    @contextmanager
+    def _patch_main_context(self, args, completed_result):
+        profile = get_profile("icts")
+        plan = ExecutionPlan(
+            validation_preset="custom",
+            kinds=("format", "tidy"),
+            tidy_mode="deep",
+            pass_plan="complete",
+            tidy_passes=(),
+        )
+        scope = Scope(repo_root=Path("/repo"), raw_paths=["src"], resolved_paths=[Path("/repo/src")])
+        context = BuildContext(
+            build_dir=Path("/repo/build"),
+            compile_commands_path=Path("/repo/build/compile_commands.json"),
+            file_api_reply_dir=Path("/repo/build/.cmake/api/v1/reply"),
+            compile_commands=[],
+            targets={},
+            declared_graph={},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=Path("/repo"),
+            build_dir=Path("/repo/build"),
+            jobs=4,
+            total_cpus=8,
+            idle_threads_estimate=8,
+            tool_statuses=[],
+        )
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(check_cli, "parse_args", return_value=args))
+            stack.enter_context(patch.object(check_cli, "_resolve_repo_root", return_value=Path("/repo")))
+            stack.enter_context(patch.object(check_cli, "get_profile", return_value=profile))
+            stack.enter_context(patch.object(check_cli, "resolve_execution_plan", return_value=plan))
+            stack.enter_context(patch.object(check_cli, "build_scope", return_value=scope))
+            stack.enter_context(patch.object(check_cli, "inspect_environment", return_value=snapshot))
+            stack.enter_context(patch.object(check_cli, "validate_required_tools", return_value=None))
+            stack.enter_context(patch.object(check_cli, "required_tool_names_for_run", return_value={"clang-format", "clang-tidy"}))
+            stack.enter_context(patch.object(check_cli, "ensure_build_context", return_value=context))
+            stack.enter_context(
+                patch.object(
+                    check_cli,
+                    "run_selected_checks",
+                    side_effect=CheckExecutionError("tidy check failed: missing tool", [completed_result]),
+                )
+            )
+            stack.enter_context(patch.object(check_cli, "load_suppressions", return_value=[]))
+            yield
+
+    def test_quiet_text_keeps_completed_result_sections_before_runtime_error(self):
+        completed_result = CheckResult(kind="format", notes=["Worker jobs: 4"])
+        args = self._args(output_format="text", quiet=True)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with self._patch_main_context(args, completed_result), \
+            patch("sys.stdout", stdout), \
+            patch("sys.stderr", stderr):
+            exit_code = check_cli.main()
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("[format] Summary", stdout.getvalue())
+        self.assertIn("Overall summary", stdout.getvalue())
+        self.assertNotIn("Environment", stdout.getvalue())
+        self.assertIn("ERROR: tidy check failed: missing tool", stderr.getvalue())
+
+    def test_json_keeps_valid_partial_results_before_runtime_error(self):
+        completed_result = CheckResult(
+            kind="format",
+            findings=[
+                Finding(
+                    check="format",
+                    severity="warning",
+                    path=Path("/repo/src/File.cc"),
+                    message="needs format",
+                    category="format",
+                    subtype="needs-reformat",
+                    location_scope_class="in_scope",
+                )
+            ],
+            notes=["Worker jobs: 4"],
+        )
+        args = self._args(output_format="json", quiet=True)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with self._patch_main_context(args, completed_result), \
+            patch("sys.stdout", stdout), \
+            patch("sys.stderr", stderr):
+            exit_code = check_cli.main()
+
+        self.assertEqual(exit_code, 2)
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["summary"]["in_scope"], 1)
+        self.assertEqual(data["notes"]["format"], ["Worker jobs: 4"])
+        self.assertEqual(data["findings"][0]["check"], "format")
+        self.assertIn("ERROR: tidy check failed: missing tool", stderr.getvalue())
 
 
 class TestExtractDiagnosticChecks(unittest.TestCase):
@@ -1263,6 +1856,188 @@ class TestHeaderDependencyCheckFallback(unittest.TestCase):
         self.assertTrue(
             any("falling back to regex-based include scanning" in note for note in result.notes),
             result.notes,
+        )
+
+
+class TestHeaderDependencyCheckScheduling(unittest.TestCase):
+    """run_header_dependency_check() -- schedules header subchecks without reducing coverage."""
+
+    def _make_fixture(self, header_names):
+        tmp = Path(tempfile.mkdtemp())
+        src_dir = tmp / "src"
+        build_dir = tmp / "build"
+        src_dir.mkdir()
+        build_dir.mkdir()
+        source = src_dir / "File.cc"
+        source.write_text('#include "A.hh"\n#include "B.hh"\n', encoding="utf-8")
+        headers = []
+        for header_name in header_names:
+            header = src_dir / header_name
+            header.write_text("#pragma once\n", encoding="utf-8")
+            headers.append(header.resolve())
+        source_path = source.resolve()
+        src_dir_path = src_dir.resolve()
+        scope = Scope(
+            repo_root=tmp,
+            raw_paths=["src"],
+            resolved_paths=[src_dir_path],
+        )
+        target = CMakeTarget(
+            name="icts_source_module_topology_linear_clustering",
+            source_dir=src_dir_path,
+            sources=[source_path],
+            include_dirs=[src_dir_path],
+        )
+        context = BuildContext(
+            build_dir=build_dir,
+            compile_commands_path=build_dir / "compile_commands.json",
+            file_api_reply_dir=build_dir / ".cmake" / "api" / "v1" / "reply",
+            compile_commands=[
+                CompileCommand(
+                    file=source_path,
+                    directory=tmp,
+                    command=f"g++ -I{src_dir_path} -c {source_path}",
+                )
+            ],
+            targets={target.name: target},
+            declared_graph={target.name: []},
+            cmake_text_graph={},
+            cmake_public_graph={},
+            profile_name="icts",
+        )
+        snapshot = EnvironmentSnapshot(
+            repo_root=tmp,
+            build_dir=build_dir,
+            jobs=4,
+            total_cpus=4,
+            idle_threads_estimate=4,
+            tool_statuses=[
+                ToolStatus(name="g++", required=True, found=True, executable="/usr/bin/g++", ok=True),
+            ],
+        )
+        return tmp, scope, context, snapshot, headers
+
+    @patch("ecc_dev_tools.checkers._build_header_syntax_command")
+    @patch("ecc_dev_tools.checkers._build_header_include_first_command")
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_runs_direct_and_include_first_checks_for_each_header(
+        self,
+        run_command_mock,
+        include_first_command_mock,
+        header_syntax_command_mock,
+    ):
+        tmp, scope, context, snapshot, headers = self._make_fixture(["A.hh", "B.hh"])
+        header_syntax_command_mock.side_effect = lambda trigger_command, header: ["g++", "-fsyntax-only", str(header)]
+        include_first_command_mock.side_effect = lambda header, include_dirs, trigger_command, compiler, repo_root: (
+            ["g++", "-fsyntax-only", str(header)],
+            repo_root,
+            header,
+        )
+        run_command_mock.return_value = type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        result = run_header_dependency_check(tmp, scope, context, get_profile("icts"), snapshot, cpp_files=headers, runtime_detail=True)
+
+        self.assertEqual(result.in_scope_findings(), [])
+        self.assertEqual(header_syntax_command_mock.call_count, 2)
+        self.assertEqual(include_first_command_mock.call_count, 2)
+        self.assertTrue(any(entry.label == "header-self-check" and entry.count == 2 for entry in result.runtime_entries))
+        runtime_labels = {entry.label for entry in result.runtime_entries if entry.category == "unit"}
+        self.assertIn("src/A.hh", runtime_labels)
+        self.assertIn("include-first:src/A.hh", runtime_labels)
+
+    @patch("ecc_dev_tools.checkers._parallel_map")
+    @patch("ecc_dev_tools.checkers._build_header_syntax_command")
+    @patch("ecc_dev_tools.checkers._build_header_include_first_command")
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_schedules_direct_and_include_first_as_one_task_queue(
+        self,
+        run_command_mock,
+        include_first_command_mock,
+        header_syntax_command_mock,
+        parallel_map_mock,
+    ):
+        tmp, scope, context, snapshot, headers = self._make_fixture(["A.hh", "B.hh"])
+        header_syntax_command_mock.side_effect = lambda trigger_command, header: ["direct", str(header)]
+        include_first_command_mock.side_effect = lambda header, include_dirs, trigger_command, compiler, repo_root: (
+            ["include-first", str(header)],
+            repo_root,
+            header,
+        )
+        run_command_mock.return_value = type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        def fake_parallel_map(func, items, jobs):
+            self.assertEqual(jobs, 4)
+            self.assertEqual(len(items), 4)
+            phase_indexes = [phase_index for phase_index, _plan in items]
+            self.assertEqual(phase_indexes, [0, 1, 0, 1])
+            return [func(item) for item in reversed(items)]
+
+        parallel_map_mock.side_effect = fake_parallel_map
+
+        result = run_header_dependency_check(tmp, scope, context, get_profile("icts"), snapshot, cpp_files=headers, runtime_detail=True)
+
+        self.assertEqual(result.findings, [])
+        runtime_labels = {entry.label for entry in result.runtime_entries if entry.category == "unit"}
+        self.assertIn("src/A.hh", runtime_labels)
+        self.assertIn("include-first:src/A.hh", runtime_labels)
+
+
+    @patch("ecc_dev_tools.checkers._build_header_syntax_command")
+    @patch("ecc_dev_tools.checkers._build_header_include_first_command")
+    @patch("ecc_dev_tools.checkers.run_command")
+    def test_parallel_header_findings_are_aggregated_deterministically(
+        self,
+        run_command_mock,
+        include_first_command_mock,
+        header_syntax_command_mock,
+    ):
+        tmp, scope, context, snapshot, headers = self._make_fixture(["A.hh", "B.hh"])
+        header_syntax_command_mock.side_effect = lambda trigger_command, header: ["direct", str(header)]
+        include_first_command_mock.side_effect = lambda header, include_dirs, trigger_command, compiler, repo_root: (
+            ["include-first", str(header)],
+            repo_root,
+            header,
+        )
+
+        def run_command_side_effect(command, cwd=None, check=False):
+            _ = cwd, check
+            header = Path(command[-1])
+            if command[0] == "direct":
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "returncode": 1,
+                        "stdout": "",
+                        "stderr": f"{header}:1:1: error: direct failure",
+                    },
+                )()
+            return type(
+                "Result",
+                (),
+                {
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": f"{header}:1:1: error: include-first failure",
+                },
+            )()
+
+        def out_of_order_parallel_map(func, items, jobs):
+            _ = jobs
+            return [func(item) for item in reversed(items)]
+
+        run_command_mock.side_effect = run_command_side_effect
+        with patch("ecc_dev_tools.checkers._parallel_map", side_effect=out_of_order_parallel_map):
+            result = run_header_dependency_check(tmp, scope, context, get_profile("icts"), snapshot, cpp_files=headers)
+
+        self.assertEqual(
+            [(finding.path.name, finding.origin) for finding in result.findings],
+            [
+                ("A.hh", "header-self-check"),
+                ("A.hh", "header-include-first-check"),
+                ("B.hh", "header-self-check"),
+                ("B.hh", "header-include-first-check"),
+            ],
         )
 
 

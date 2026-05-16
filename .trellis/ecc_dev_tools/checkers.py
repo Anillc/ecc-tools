@@ -65,6 +65,7 @@ GENERIC_WARNING_FLAG_TOKENS = (
 )
 RUNTIME_DETAIL_LIMIT = 10
 RuntimeProgressLogger = Callable[[str], None]
+TidyOriginResolver = Callable[[str, str, tuple[str, ...]], str]
 
 DIAGNOSTIC_LINE_RE = re.compile(r"^(.*?):(\d+):(\d+):\s+(warning|error|note):\s+(.*)$")
 CHECK_BRACKET_RE = re.compile(r"\[([^\[\]]+)\]\s*$")
@@ -81,6 +82,14 @@ SUPPRESSED_WARNING_RE = re.compile(r"^(\d+) warnings? generated\.$")
 SUPPRESSED_SUMMARY_RE = re.compile(r"^Suppressed\s+(\d+)\s+warnings?\s*\((.*)\)\.$")
 
 _config_file_support_cache: dict[str, bool] = {}
+
+
+class CheckExecutionError(RuntimeError):
+    """Raised when a check kind fails after earlier kinds completed."""
+
+    def __init__(self, message: str, results: list[CheckResult]) -> None:
+        super().__init__(message)
+        self.results = results
 
 
 def _parallel_map(func, items, jobs: int):
@@ -195,13 +204,14 @@ def run_selected_checks(
                 )
             else:
                 raise ValueError(f"Unsupported check kind: {kind}")
-        except Exception:
+        except Exception as exc:
             elapsed = time.perf_counter() - started_at
             if progress_logger is not None:
                 progress_logger(f"[runtime] [{kind}] done runtime={elapsed:.3f}s status=failed")
-            raise
+            raise CheckExecutionError(f"{kind} check failed: {exc}", results) from exc
 
         result.runtime_seconds = time.perf_counter() - started_at
+        result.notes.insert(0, f"Worker jobs: {jobs}")
         if progress_logger is not None:
             progress_logger(
                 f"[runtime] [{kind}] done runtime={result.runtime_seconds:.3f}s "
@@ -306,28 +316,57 @@ def run_tidy_check(
     result.notes.append("Compiler diagnostics are summarized separately under clang-diagnostic.")
 
     fallback_candidates: list[CompileCommand] = []
+    pass_index = 0
 
-    for tidy_pass in plan.tidy_passes:
+    while pass_index < len(plan.tidy_passes):
+        tidy_pass = plan.tidy_passes[pass_index]
         if tidy_pass.runner == "native-compiler":
+            pass_index += 1
             continue
-        pass_started_at = time.perf_counter()
-        outcome = _run_tidy_pass(
-            tidy_pass,
-            repo_root=repo_root,
-            scope=scope,
-            context=context,
-            snapshot=snapshot,
-            config_path=config_path,
-            commands=commands,
-            headers=headers,
-            profile=profile,
-            jobs=jobs,
-            runtime_detail=runtime_detail,
-        )
+        if (
+            tidy_pass.name == "tidy-tu"
+            and tidy_pass.runner == "clang-tidy-tu"
+            and pass_index + 1 < len(plan.tidy_passes)
+            and plan.tidy_passes[pass_index + 1].name == "analyzer-tu"
+            and plan.tidy_passes[pass_index + 1].runner == "clang-tidy-tu"
+        ):
+            analyzer_pass = plan.tidy_passes[pass_index + 1]
+            pass_label = f"{tidy_pass.name}+{analyzer_pass.name}"
+            pass_started_at = time.perf_counter()
+            outcome = _run_clang_tidy_combined_tu_pass(
+                tidy_pass,
+                analyzer_pass,
+                repo_root=repo_root,
+                scope=scope,
+                context=context,
+                snapshot=snapshot,
+                config_path=config_path,
+                commands=commands,
+                jobs=jobs,
+                runtime_detail=runtime_detail,
+            )
+            pass_index += 2
+        else:
+            pass_label = tidy_pass.name
+            pass_started_at = time.perf_counter()
+            outcome = _run_tidy_pass(
+                tidy_pass,
+                repo_root=repo_root,
+                scope=scope,
+                context=context,
+                snapshot=snapshot,
+                config_path=config_path,
+                commands=commands,
+                headers=headers,
+                profile=profile,
+                jobs=jobs,
+                runtime_detail=runtime_detail,
+            )
+            pass_index += 1
         pass_elapsed = time.perf_counter() - pass_started_at
         result.runtime_entries.append(
             RuntimeEntry(
-                label=tidy_pass.name,
+                label=pass_label,
                 seconds=pass_elapsed,
                 category="phase",
                 count=outcome.commands_run,
@@ -425,9 +464,14 @@ def run_header_dependency_check(
         for target in context.targets.values()
     }
 
-    def _check_one_header(header: Path) -> tuple[list[Finding], RuntimeEntry]:
-        started_at = time.perf_counter()
-        findings: list[Finding] = []
+    @dataclass(frozen=True)
+    class HeaderCheckPlan:
+        header: Path
+        owner: CMakeTarget | None
+        include_dirs: tuple[str, ...]
+        trigger_command: CompileCommand | None
+
+    def _plan_one_header(header: Path) -> HeaderCheckPlan:
         owners = [target for target in targets if target.owns_path(header)]
         owner = owners[0] if owners else None
         include_dirs = set()
@@ -450,12 +494,28 @@ def run_header_dependency_check(
             if trigger_command is not None:
                 include_dirs |= {str(path) for path in _extract_include_flags(trigger_command.command, trigger_command.directory)}
 
+        return HeaderCheckPlan(
+            header=header,
+            owner=owner,
+            include_dirs=tuple(sorted(include_dirs)),
+            trigger_command=trigger_command,
+        )
+
+    header_plans = [_plan_one_header(header) for header in headers]
+
+    def _run_direct_header_check(plan: HeaderCheckPlan) -> tuple[str, list[Finding], RuntimeEntry]:
+        started_at = time.perf_counter()
+        findings: list[Finding] = []
+        header = plan.header
+        owner = plan.owner
+        trigger_command = plan.trigger_command
+
         if trigger_command is not None:
             compile_cmd = _build_header_syntax_command(trigger_command, header)
             check = run_command(compile_cmd, cwd=trigger_command.directory)
         else:
             compile_cmd = [compiler, "-x", "c++-header", "-std=c++20", "-fsyntax-only", "-Winvalid-pch"]
-            for include_dir in sorted(include_dirs):
+            for include_dir in plan.include_dirs:
                 compile_cmd.extend(["-I", include_dir])
             compile_cmd.append(str(header))
             check = run_command(compile_cmd, cwd=repo_root)
@@ -478,10 +538,27 @@ def run_header_dependency_check(
                     trigger_target=owner.name if owner else None,
                 )
             )
+        label = relative_to_repo(header, repo_root)
+        return (
+            label,
+            findings,
+            RuntimeEntry(
+                label=label,
+                seconds=time.perf_counter() - started_at,
+                category="unit",
+            ),
+        )
+
+    def _run_include_first_check(plan: HeaderCheckPlan) -> tuple[str, list[Finding], RuntimeEntry]:
+        started_at = time.perf_counter()
+        findings: list[Finding] = []
+        header = plan.header
+        owner = plan.owner
+        trigger_command = plan.trigger_command
 
         include_first_cmd, include_first_cwd, wrapper = _build_header_include_first_command(
             header=header,
-            include_dirs=sorted(include_dirs),
+            include_dirs=list(plan.include_dirs),
             trigger_command=trigger_command,
             compiler=compiler,
             repo_root=repo_root,
@@ -509,15 +586,32 @@ def run_header_dependency_check(
                 )
         finally:
             wrapper.unlink(missing_ok=True)
-        runtime_entry = RuntimeEntry(
-            label=relative_to_repo(header, repo_root),
-            seconds=time.perf_counter() - started_at,
-            category="unit",
+        label = relative_to_repo(header, repo_root)
+        return (
+            label,
+            findings,
+            RuntimeEntry(
+                label=f"include-first:{label}",
+                seconds=time.perf_counter() - started_at,
+                category="unit",
+            ),
         )
-        return findings, runtime_entry
+
+    def _run_header_subcheck(task: tuple[int, HeaderCheckPlan]) -> tuple[str, int, list[Finding], RuntimeEntry]:
+        phase_index, plan = task
+        if phase_index == 0:
+            label, findings, runtime_entry = _run_direct_header_check(plan)
+            return label, phase_index, findings, runtime_entry
+        label, findings, runtime_entry = _run_include_first_check(plan)
+        return label, phase_index, findings, runtime_entry
 
     self_check_started_at = time.perf_counter()
-    header_results = _parallel_map(_check_one_header, headers, snapshot.jobs)
+    header_subchecks = [
+        (phase_index, plan)
+        for plan in header_plans
+        for phase_index in (0, 1)
+    ]
+    header_results = _parallel_map(_run_header_subcheck, header_subchecks, snapshot.jobs)
     self_check_elapsed = time.perf_counter() - self_check_started_at
     result.runtime_entries.append(
         RuntimeEntry(
@@ -528,13 +622,18 @@ def run_header_dependency_check(
         )
     )
     header_runtime_entries: list[RuntimeEntry] = []
+    header_findings: list[tuple[str, int, Finding]] = []
+    header_error_notes: list[str] = []
     for item in header_results:
         if isinstance(item, Exception):
-            result.notes.append(f"Header self-check error: {item}")
+            header_error_notes.append(f"Header self-check error: {item}")
             continue
-        findings, runtime_entry = item
-        result.findings.extend(findings)
+        label, phase_index, findings, runtime_entry = item
+        header_findings.extend((label, phase_index, finding) for finding in findings)
         header_runtime_entries.append(runtime_entry)
+    for _label, _phase_index, finding in sorted(header_findings, key=lambda item: (item[0], item[1], item[2].sort_key())):
+        result.findings.append(finding)
+    result.notes.extend(sorted(header_error_notes))
     if runtime_detail:
         result.runtime_entries.extend(_top_runtime_entries(header_runtime_entries))
 
@@ -1116,6 +1215,7 @@ def _run_tidy_pass(
             config_path=config_path,
             headers=headers,
             profile=profile,
+            jobs=jobs,
             runtime_detail=runtime_detail,
         )
     if tidy_pass.runner == "clang-frontend":
@@ -1144,6 +1244,7 @@ def _run_clang_tidy_tu_pass(
     commands: list[CompileCommand],
     jobs: int = 1,
     runtime_detail: bool = False,
+    origin_resolver: TidyOriginResolver | None = None,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
     clang_tidy_status = snapshot.get_tool_status("clang-tidy")
@@ -1176,7 +1277,13 @@ def _run_clang_tidy_tu_pass(
             tidy_cmd.append(f"--header-filter={header_filter}")
         output = run_command(tidy_cmd, cwd=repo_root)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
-        parsed = _parse_clang_tidy_output(text, scope, command, origin=tidy_pass.name)
+        parsed = _parse_clang_tidy_output(
+            text,
+            scope,
+            command,
+            origin=tidy_pass.name,
+            origin_resolver=origin_resolver,
+        )
         local_findings = list(parsed.findings)
         local_notes: list[str] = []
         local_candidates: list[CompileCommand] = []
@@ -1188,7 +1295,7 @@ def _run_clang_tidy_tu_pass(
         if should_run_fallback:
             local_candidates.append(command)
         runtime_entry = RuntimeEntry(
-            label=relative_to_repo(command.file, repo_root),
+            label=f"{tidy_pass.name}:{relative_to_repo(command.file, repo_root)}",
             seconds=time.perf_counter() - started_at,
             category="unit",
         )
@@ -1217,6 +1324,47 @@ def _run_clang_tidy_tu_pass(
     return outcome
 
 
+def _run_clang_tidy_combined_tu_pass(
+    tidy_pass: TidyPass,
+    analyzer_pass: TidyPass,
+    *,
+    repo_root: Path,
+    scope: Scope,
+    context: BuildContext,
+    snapshot: EnvironmentSnapshot,
+    config_path: Path,
+    commands: list[CompileCommand],
+    jobs: int = 1,
+    runtime_detail: bool = False,
+) -> TidyPassOutcome:
+    combined_pass = TidyPass(
+        name=f"{tidy_pass.name}+{analyzer_pass.name}",
+        description=f"{tidy_pass.description}; {analyzer_pass.description}",
+        tool_name=tidy_pass.tool_name,
+        runner=tidy_pass.runner,
+        checks_arg=_combine_tidy_checks(tidy_pass.checks_arg, analyzer_pass.checks_arg),
+        dedupe_priority=max(tidy_pass.dedupe_priority, analyzer_pass.dedupe_priority),
+    )
+
+    def _resolve_origin(_category: str, _subtype: str, checks: tuple[str, ...]) -> str:
+        if any(check == "clang-analyzer" or check.startswith("clang-analyzer-") for check in checks):
+            return analyzer_pass.name
+        return tidy_pass.name
+
+    return _run_clang_tidy_tu_pass(
+        combined_pass,
+        repo_root=repo_root,
+        scope=scope,
+        context=context,
+        snapshot=snapshot,
+        config_path=config_path,
+        commands=commands,
+        jobs=jobs,
+        runtime_detail=runtime_detail,
+        origin_resolver=_resolve_origin,
+    )
+
+
 
 def _run_clang_tidy_header_pass(
     tidy_pass: TidyPass,
@@ -1228,6 +1376,7 @@ def _run_clang_tidy_header_pass(
     config_path: Path,
     headers: list[Path],
     profile: Profile | None = None,
+    jobs: int = 1,
     runtime_detail: bool = False,
 ) -> TidyPassOutcome:
     outcome = TidyPassOutcome(tidy_pass=tidy_pass)
@@ -1247,8 +1396,7 @@ def _run_clang_tidy_header_pass(
     if checks_arg is not None:
         outcome.notes.append(f"Pass {tidy_pass.name}: checks={checks_arg}")
 
-    runtime_entries: list[RuntimeEntry] = []
-    for header in headers:
+    def _run_one_header(header: Path) -> tuple[str, list[Finding], RuntimeEntry]:
         started_at = time.perf_counter()
         owners = [target for target in targets if target.owns_path(header)]
         owner = owners[0] if owners else None
@@ -1290,15 +1438,32 @@ def _run_clang_tidy_header_pass(
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
         pseudo_command = CompileCommand(file=header, directory=repo_root, command="header-pass")
         parsed = _parse_clang_tidy_output(text, scope, pseudo_command, origin=tidy_pass.name)
-        outcome.findings.extend(parsed.findings)
-        runtime_entries.append(
+        label = relative_to_repo(header, repo_root)
+        return (
+            label,
+            parsed.findings,
             RuntimeEntry(
-                label=relative_to_repo(header, repo_root),
+                label=f"{tidy_pass.name}:{label}",
                 seconds=time.perf_counter() - started_at,
                 category="unit",
-            )
+            ),
         )
+
+    header_results = _parallel_map(_run_one_header, headers, jobs)
+    successful_results: list[tuple[str, list[Finding], RuntimeEntry]] = []
+    error_notes: list[str] = []
+    for header_result in header_results:
+        if isinstance(header_result, Exception):
+            error_notes.append(f"Tidy header pass error: {header_result}")
+            continue
+        successful_results.append(header_result)
+
+    runtime_entries: list[RuntimeEntry] = []
+    for _label, findings, runtime_entry in sorted(successful_results, key=lambda item: item[0]):
+        outcome.findings.extend(findings)
+        runtime_entries.append(runtime_entry)
         outcome.commands_run += 1
+    outcome.notes.extend(sorted(error_notes))
     outcome.notes.append(f"Pass {tidy_pass.name}: ran for {outcome.commands_run} scope-local headers.")
     if runtime_detail:
         outcome.runtime_entries.extend(_top_runtime_entries(runtime_entries))
@@ -1330,8 +1495,9 @@ def _run_clang_frontend_pass(
         frontend_cmd = _build_source_syntax_command(command, compiler_override=clangxx, extra_flags=GENERIC_WARNING_FLAG_TOKENS)
         output = run_command(frontend_cmd, cwd=command.directory)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
+        label = relative_to_repo(command.file, repo_root)
         return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name), RuntimeEntry(
-            label=relative_to_repo(command.file, repo_root),
+            label=f"{tidy_pass.name}:{label}",
             seconds=time.perf_counter() - started_at,
             category="unit",
         )
@@ -1376,8 +1542,9 @@ def _run_native_compiler_pass(
         syntax_cmd = _build_source_syntax_command(command, compiler_override=compiler, extra_flags=GENERIC_WARNING_FLAG_TOKENS)
         output = run_command(syntax_cmd, cwd=command.directory)
         text = "\n".join(part for part in [output.stdout, output.stderr] if part)
+        label = relative_to_repo(command.file, repo_root)
         return _parse_compiler_output(text, scope, command, repo_root, origin=tidy_pass.name), RuntimeEntry(
-            label=relative_to_repo(command.file, repo_root),
+            label=f"{tidy_pass.name}:{label}",
             seconds=time.perf_counter() - started_at,
             category="unit",
         )
@@ -1466,6 +1633,21 @@ def _dedupe_compile_commands(commands: list[CompileCommand]) -> list[CompileComm
     return deduped
 
 
+def _combine_tidy_checks(primary: str | None, secondary: str | None) -> str | None:
+    if not primary:
+        return secondary
+    if not secondary:
+        return primary
+    secondary_parts = [
+        part.strip()
+        for part in secondary.split(",")
+        if part.strip() and part.strip() != "-*"
+    ]
+    if not secondary_parts:
+        return primary
+    return ",".join([primary, *secondary_parts])
+
+
 
 def _has_findings_for_trigger_from_other_passes(findings: list[Finding], trigger_path: Path, pass_name: str) -> bool:
     return any(finding.trigger_path == trigger_path and finding.origin != pass_name for finding in findings)
@@ -1507,7 +1689,14 @@ def _suppressed_tidy_note(text: str, command: CompileCommand, repo_root: Path) -
 
 
 
-def _parse_clang_tidy_output(text: str, scope: Scope, command: CompileCommand, *, origin: str) -> ParsedDiagnosticSet:
+def _parse_clang_tidy_output(
+    text: str,
+    scope: Scope,
+    command: CompileCommand,
+    *,
+    origin: str,
+    origin_resolver: TidyOriginResolver | None = None,
+) -> ParsedDiagnosticSet:
     findings: list[Finding] = []
     parsed_count = 0
     for raw_line in text.splitlines():
@@ -1522,6 +1711,7 @@ def _parse_clang_tidy_output(text: str, scope: Scope, command: CompileCommand, *
         checks = _extract_diagnostic_checks(message_text)
         message = _strip_diagnostic_suffix(message_text)
         category, subtype, _ = _classify_tidy_diagnostic(checks)
+        resolved_origin = origin_resolver(category, subtype, tuple(checks)) if origin_resolver is not None else origin
 
         if severity_text == "note":
             if findings and _should_attach_followup(findings[-1], path, int(match.group(2)), command.file):
@@ -1542,7 +1732,7 @@ def _parse_clang_tidy_output(text: str, scope: Scope, command: CompileCommand, *
             message=message,
             category=category,
             subtype=subtype,
-            origin=origin,
+            origin=resolved_origin,
             confidence="high",
             location_scope_class="in_scope" if scope.contains(path) else "out_of_scope",
             trigger_scope_class="in_scope" if scope.contains(command.file) else "out_of_scope",

@@ -108,10 +108,6 @@ Before handoff, verify:
 
 - [ ] Naming follows the backend rules
 - [ ] Touched code keeps a consistent modern C++ style
-- [ ] Headers are minimal and self-contained
-- [ ] Include order is correct
-- [ ] CMake dependencies use the correct visibility
-- [ ] IWYU findings were fixed or explicitly justified
 - [ ] Final full `src/operation/iCTS` `ecc_dev_tools` validation was run in `finish-work`
 
 ## Related Docs

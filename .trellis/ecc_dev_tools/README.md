@@ -103,6 +103,25 @@ Notes:
 - `json`: includes `summary`, `notes`, and `findings`
 - `compiler`: in-scope findings only, no notes or summary
 
+## Runtime Measurement
+
+For runtime comparisons, use explicit runtime reporting:
+
+```bash
+python3 ./.trellis/ecc_dev_tools/check.py check \
+  --path src/operation/iCTS \
+  --output-format json \
+  --no-fail-on-findings \
+  --runtime-detail \
+  --runtime-logging
+```
+
+Notes:
+- The checker computes default worker jobs from current system load. A busy machine can reduce default jobs substantially.
+- Each check kind reports the actual worker count in notes as `Worker jobs: N`.
+- For apples-to-apples before/after runtime comparisons, either record the worker-job notes from JSON output or pass an explicit `--jobs N`.
+- `--runtime-detail` includes phase and top-unit timings. Tidy unit labels include the tidy phase prefix, such as `tidy-tu+analyzer-tu:<path>`, `tidy-headers:<path>`, `clang-frontend:<path>`, and `native-fallback:<path>`. Header self-check unit labels may include `include-first:<path>` for the include-first subcheck.
+
 ## Exit Codes
 
 - `0`
