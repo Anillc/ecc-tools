@@ -91,6 +91,8 @@ class ClockDAG
     std::vector<Pin*> topological_pins;
   };
 
+  auto graphForClock(const Clock* clock) const -> const ClockGraph*;
+
  private:
   auto findGraph(const Clock* clock) const -> const ClockGraph*;
 

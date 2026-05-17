@@ -15,27 +15,32 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Synthesis.hh
+ * @file TreeBufferSizing.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-04-30
- * @brief CTS synthesis entry facade.
+ * @date 2026-05-17
+ * @brief Critical-branch clock-tree buffer sizing solver.
  */
 
 #pragma once
 
-#include "synthesis/trace/SynthesisTrace.hh"
+#include <cstddef>
+#include <vector>
 
-namespace icts {
+#include "buffer_sizing/BufferSizingTypes.hh"
 
-class CharacterizationLibrary;
-class ClockLayout;
+namespace icts::buffer_sizing {
 
-class Synthesis
+class CharTimingLookup;
+
+class TreeBufferSizing
 {
  public:
-  Synthesis() = delete;
+  TreeBufferSizing() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& char_library) -> SynthesisTraceSummary;
+  static auto evaluate(const TreeSizingProblem& problem, const CharTimingLookup& timing_lookup,
+                       const std::vector<std::size_t>& selected_candidate_by_node) -> TreeEvaluation;
+  static auto solve(const TreeSizingProblem& problem, const CharTimingLookup& timing_lookup) -> TreeSizingSummary;
+  static auto criticalBranchCandidates(const TreeSizingProblem& problem, const TreeEvaluation& evaluation) -> std::vector<std::size_t>;
 };
 
-}  // namespace icts
+}  // namespace icts::buffer_sizing

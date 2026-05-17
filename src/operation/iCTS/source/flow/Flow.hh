@@ -28,6 +28,7 @@
 #include "design/ClockLayout.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "instantiation/Instantiation.hh"
+#include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 
 namespace icts {
@@ -70,6 +71,7 @@ class Flow
   ClockLayout _clock_layout;
   EvaluationState _evaluation_state;
   InstantiationResult _instantiation_result;
+  CharacterizationLibrary _char_library;
   bool _runtime_setup_emitted = false;
   bool _setup_ready = false;
   bool _evaluation_ready = false;

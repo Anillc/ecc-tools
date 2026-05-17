@@ -15,27 +15,36 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Synthesis.hh
+ * @file Optimization.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-04-30
- * @brief CTS synthesis entry facade.
+ * @date 2026-05-17
+ * @brief CTS post-synthesis optimization flow facade.
  */
 
 #pragma once
 
-#include "synthesis/trace/SynthesisTrace.hh"
+#include <cstddef>
 
 namespace icts {
 
 class CharacterizationLibrary;
 class ClockLayout;
 
-class Synthesis
+struct OptimizationResult
+{
+  bool success = true;
+  bool optimized = false;
+  std::size_t clock_count = 0U;
+  std::size_t optimized_clock_count = 0U;
+  std::size_t accepted_mutation_count = 0U;
+};
+
+class Optimization
 {
  public:
-  Synthesis() = delete;
+  Optimization() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& char_library) -> SynthesisTraceSummary;
+  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& char_library) -> OptimizationResult;
 };
 
 }  // namespace icts

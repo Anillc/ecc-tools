@@ -1,4 +1,5 @@
 add_subdirectory(analytical_characterization)
+add_subdirectory(buffer_sizing)
 add_subdirectory(characterization)
 add_subdirectory(routing)
 add_subdirectory(topology)

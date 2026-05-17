@@ -532,7 +532,8 @@ TEST(FlowTest, AllSkippedSynthesisReportsNoOp)
   ASSERT_TRUE(pins.clock->get_loads().empty());
 
   icts::ClockLayout clock_layout;
-  const auto summary = icts::Synthesis::run(clock_layout);
+  icts::CharacterizationLibrary char_library;
+  const auto summary = icts::Synthesis::run(clock_layout, char_library);
 
   EXPECT_FALSE(summary.success);
   EXPECT_EQ(summary.outcome, icts::SynthesisOutcome::kNoOp);
@@ -680,7 +681,8 @@ TEST(FlowTest, RootBufferInsertionFailureRollsBackClockAndRecordsSinkDomainStatu
   ASSERT_NE(pins.regular_sink, nullptr);
 
   icts::ClockLayout clock_layout;
-  const auto summary = icts::Synthesis::run(clock_layout);
+  icts::CharacterizationLibrary char_library;
+  const auto summary = icts::Synthesis::run(clock_layout, char_library);
 
   EXPECT_FALSE(summary.success);
   EXPECT_EQ(summary.failed_clocks, 1U);

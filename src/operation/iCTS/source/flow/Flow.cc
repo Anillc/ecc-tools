@@ -36,6 +36,7 @@
 #include "instantiation/design_conversion/DesignConversion.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "optimization/Optimization.hh"
 #include "report/Report.hh"
 #include "setup/Setup.hh"
 #include "synthesis/Synthesis.hh"
@@ -139,6 +140,7 @@ auto Flow::readData() -> bool
 {
   _run_summary = SynthesisTraceSummary{};
   _clock_layout.reset();
+  _char_library = CharacterizationLibrary{};
   Evaluation::reset(_evaluation_state);
   _instantiation_result = InstantiationResult{};
   _evaluation_ready = false;
@@ -165,13 +167,29 @@ auto Flow::run() -> void
   _evaluation_ready = false;
   _instantiation_result = InstantiationResult{};
   DESIGN_INST.clearClockDAG();
-  _run_summary = Synthesis::run(_clock_layout);
+  _run_summary = Synthesis::run(_clock_layout, _char_library);
   if (_run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success && !DESIGN_INST.rebuildClockDAG()) {
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
     schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CTSFlow",
                            "synthesized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
                            {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+    return;
+  }
+  if (_run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success) {
+    const auto optimization_result = Optimization::run(_clock_layout, _char_library);
+    if (!optimization_result.success) {
+      _run_summary.success = false;
+      _run_summary.outcome = SynthesisOutcome::kFailed;
+      return;
+    }
+    if (!DESIGN_INST.rebuildClockDAG()) {
+      _run_summary.success = false;
+      _run_summary.outcome = SynthesisOutcome::kFailed;
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CTSFlow",
+                             "optimized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
+                             {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+    }
   }
 }
 
@@ -265,6 +283,7 @@ auto Flow::reset() -> void
   Evaluation::reset(_evaluation_state);
   _run_summary = SynthesisTraceSummary{};
   _clock_layout.reset();
+  _char_library = CharacterizationLibrary{};
   _instantiation_result = InstantiationResult{};
   _runtime_setup_emitted = false;
   _setup_ready = false;

@@ -39,7 +39,6 @@
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "synthesis/distribution/ClockDistribution.hh"
-#include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/topology/Topology.hh"
 #include "synthesis/trace/domain_status/DomainStatus.hh"
 #include "synthesis/trace/layout/ClockLayoutBuilder.hh"
@@ -94,7 +93,7 @@ auto emitSynthesisOverview(const SynthesisTraceSummary& summary, const schema::T
 
 auto synthesizeClock(Clock& clock, std::size_t clock_index, ClockLayout& clock_layout, SynthesisTraceSummary& summary,
                      schema::TableRows& rows, std::size_t& total_sink_domains, std::size_t& hard_macro_sink_count,
-                     std::size_t& regular_sink_count) -> ClockSynthesisResult
+                     std::size_t& regular_sink_count, CharacterizationLibrary& char_library) -> ClockSynthesisResult
 {
   DomainStatusTable status_table(rows);
   Topology::resetClockTopology(clock);
@@ -130,7 +129,6 @@ auto synthesizeClock(Clock& clock, std::size_t clock_index, ClockLayout& clock_l
   ClockLayoutBuilder::appendSinkInsts(per_clock_layout, clock, clock_index, sink_partition.macro_sinks, SinkDomainKind::kHardMacro);
   ClockLayoutBuilder::appendSinkInsts(per_clock_layout, clock, clock_index, sink_partition.regular_sinks, SinkDomainKind::kRegular);
 
-  CharacterizationLibrary char_library;
   std::vector<ClockDistributionContext> sink_domain_contexts;
   sink_domain_contexts.reserve(2U);
 
@@ -190,7 +188,7 @@ auto recordDomainStatusRows(SynthesisTraceSummary& summary, const schema::TableR
 
 }  // namespace
 
-auto Synthesis::run(ClockLayout& clock_layout) -> SynthesisTraceSummary
+auto Synthesis::run(ClockLayout& clock_layout, CharacterizationLibrary& char_library) -> SynthesisTraceSummary
 {
   auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("synthesis");
   auto flow_stage
@@ -218,8 +216,8 @@ auto Synthesis::run(ClockLayout& clock_layout) -> SynthesisTraceSummary
       continue;
     }
 
-    const auto clock_result
-        = synthesizeClock(*clock, clock_index, clock_layout, summary, rows, total_sink_domains, hard_macro_sinks, regular_sinks);
+    const auto clock_result = synthesizeClock(*clock, clock_index, clock_layout, summary, rows, total_sink_domains, hard_macro_sinks,
+                                              regular_sinks, char_library);
     if (clock_result.success) {
       ++successful_clocks;
     } else if (clock_result.skipped) {

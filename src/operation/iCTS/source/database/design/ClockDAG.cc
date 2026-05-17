@@ -415,6 +415,12 @@ auto ClockDAG::reachableNets(const Clock* clock) const -> std::vector<Net*>
   return nets;
 }
 
+auto ClockDAG::graphForClock(const Clock* clock) const -> const ClockGraph*
+{
+  const auto* graph = findGraph(clock);
+  return graph != nullptr && graph->valid ? graph : nullptr;
+}
+
 auto ClockDAG::pathBufferStats(const Clock* clock) const -> PathBufferStats
 {
   PathBufferStats stats;
