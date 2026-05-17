@@ -1,3 +1,11 @@
 {
-    "checklist": []
+    "path": "/Floorplan_ecc/checklist.json",
+    "checklist": [
+        {
+            "step": "Floorplan",
+            "type": "Area",
+            "item": "check DIE area",
+            "state": "Unstart"
+        }
+    ]
 }

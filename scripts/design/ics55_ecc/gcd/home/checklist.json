@@ -1,5 +1,5 @@
 {
-    "path": "/nfs/home/huangzengrong/ecos_cloud/ecc/test/examples/ics55_gcd_tool1/home/checklist.json",
+    "path": "/home/checklist.json",
     "checklist": [
         {
             "step": "Floorplan",

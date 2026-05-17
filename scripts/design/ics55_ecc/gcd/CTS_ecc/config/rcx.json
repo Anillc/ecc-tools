@@ -1,4 +1,5 @@
 {
+    "thread_num": 64,
     "output": "/CTS_ecc/output",
     "mapping_file": "/resource/ICsprout_55LLULP_1P6M_5lc_V1p1_cell.map",
     "corners": [
@@ -37,12 +38,5 @@
             "captab_file": "/resource/Cworst.captab",
             "spef_file": "/CTS_ecc/output/gcd_Cworst.spef"
         }
-    ],
-    "spef": [
-        "/CTS_ecc/output/gcd_TYPICAL.spef",
-        "/CTS_ecc/output/gcd_RCbest.spef",
-        "/CTS_ecc/output/gcd_RCworst.spef",
-        "/CTS_ecc/output/gcd_Cbest.spef",
-        "/CTS_ecc/output/gcd_Cworst.spef"
     ]
 }
