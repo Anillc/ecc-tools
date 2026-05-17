@@ -1,7 +1,7 @@
 # Tcl implementation for the ecc workspace flow.
 # Usage:
 #   ecc -script run_workspace.tcl <workspace-home-or-root>
-#   ecc -script run_workspace.tcl workspace_gcd
+#   ecc -script run_workspace.tcl gcd
 
 
 proc ws_get {key} {
@@ -387,7 +387,7 @@ proc ecc_run_step {step} {
 }
 
 set script_dir [file normalize [file dirname [info script]]]
-set default_workspace [file normalize [file join $script_dir workspace_gcd home]]
+set default_workspace [file normalize [file join $script_dir gcd home]]
 set default_pdk [file normalize [file join $script_dir .. .. .. .. icsprout55-pdk]]
 
 if {[llength $argv] > 0} {

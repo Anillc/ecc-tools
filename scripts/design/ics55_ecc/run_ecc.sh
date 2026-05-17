@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 ECC_BINARY="${ECC_BINARY:-${SCRIPT_DIR}/ecc}"
-WORKSPACE="${WORKSPACE_HOME:-workspace_gcd}"
+WORKSPACE="${WORKSPACE_HOME:-gcd}"
 
 if [[ ! -x "${ECC_BINARY}" && -x "${REPO_ROOT}/bin/ecc" ]]; then
   ECC_BINARY="${REPO_ROOT}/bin/ecc"
@@ -25,10 +25,10 @@ Usage:
 
 Examples:
   $(basename "$0")
-  $(basename "$0") workspace_gcd
-  $(basename "$0") all workspace_gcd
-  $(basename "$0") CTS workspace_gcd
-  $(basename "$0") route /path/to/workspace_gcd
+  $(basename "$0") gcd
+  $(basename "$0") all gcd
+  $(basename "$0") CTS gcd
+  $(basename "$0") route /path/to/gcd
 
 Steps:
   Floorplan fixFanout place CTS legalization route drc filler

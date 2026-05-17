@@ -1,12 +1,12 @@
 # Usage:
-#   ecc -script steps/place.tcl workspace_gcd
+#   ecc -script steps/place.tcl gcd
 
 set step_name "place"
 set script_dir [file normalize [file dirname [info script]]]
 source [file normalize [file join $script_dir step_common.tcl]]
 
 set flow_dir [file normalize [file join $script_dir ..]]
-set default_workspace [file normalize [file join $flow_dir workspace_gcd home]]
+set default_workspace [file normalize [file join $flow_dir gcd home]]
 set default_pdk [file normalize [file join $flow_dir .. .. .. .. icsprout55-pdk]]
 lassign [step_setup_workspace $default_workspace $default_pdk] workspace_root pdk_root
 set step_dir [file join $workspace_root place_ecc]
