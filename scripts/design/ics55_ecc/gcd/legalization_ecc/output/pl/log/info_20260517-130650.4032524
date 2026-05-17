@@ -337,29 +337,29 @@ I0517 13:06:51.905651 4032524 PLReporter.cc:103] Detect Core outside Instances..
 I0517 13:06:51.905664 4032524 PLReporter.cc:117] Detect Instances' Alignment...
 I0517 13:06:51.905673 4032524 PLReporter.cc:131] Detect Power Alignment...
 I0517 13:06:51.905679 4032524 PLReporter.cc:145] Detect Overlap Between Instances...
-I0517 13:06:51.906337 4032524 PLReporter.cc:165] Detail Violations Info Writed to '/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/output/pl/report'
-I0517 13:06:53.410928 4032524 PLReporter.cc:741] Detail Long Net Wirelength Info Writed to '/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/output/pl/report'
+I0517 13:06:51.906337 4032524 PLReporter.cc:165] Detail Violations Info Writed to '/legalization_ecc/output/pl/report'
+I0517 13:06:53.410928 4032524 PLReporter.cc:741] Detail Long Net Wirelength Info Writed to '/legalization_ecc/output/pl/report'
 I0517 13:06:53.412745 4032524 PLAPI.cc:904] Report Generation Total Time Elapsed: 1.50994s
 I0517 13:06:53.412755 4032524 PLAPI.cc:905] -----------------Finish Report Generation-----------------
-I0517 13:06:53.424926 4032524 verilog_write.cpp:59] start write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/output/gcd_legalization.v
-I0517 13:06:53.427363 4032524 verilog_write.cpp:77] finish write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/output/gcd_legalization.v
+I0517 13:06:53.424926 4032524 verilog_write.cpp:59] start write verilog file /legalization_ecc/output/gcd_legalization.v
+I0517 13:06:53.427363 4032524 verilog_write.cpp:77] finish write verilog file /legalization_ecc/output/gcd_legalization.v
 I0517 13:06:53.618584 4032524 Sta.cc:572] load lib start
-I0517 13:06:53.622197 4039739 Sta.cc:550] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start 
-I0517 13:06:53.622200 4039660 Sta.cc:550] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start 
-I0517 13:06:53.622622 4039660 LibParserRustC.cc:1397] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
-I0517 13:06:53.622695 4039739 LibParserRustC.cc:1397] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
-I0517 13:06:58.165716 4039660 LibParserRustC.cc:1406] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
-I0517 13:06:58.165771 4039660 Sta.cc:560] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib end 
-I0517 13:06:58.205410 4039739 LibParserRustC.cc:1406] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
-I0517 13:06:58.205468 4039739 Sta.cc:560] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib end 
+I0517 13:06:53.622197 4039739 Sta.cc:550] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start 
+I0517 13:06:53.622200 4039660 Sta.cc:550] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start 
+I0517 13:06:53.622622 4039660 LibParserRustC.cc:1397] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0517 13:06:53.622695 4039739 LibParserRustC.cc:1397] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0517 13:06:58.165716 4039660 LibParserRustC.cc:1406] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
+I0517 13:06:58.165771 4039660 Sta.cc:560] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib end 
+I0517 13:06:58.205410 4039739 LibParserRustC.cc:1406] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
+I0517 13:06:58.205468 4039739 Sta.cc:560] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib end 
 I0517 13:06:58.205628 4032524 Sta.cc:591] load lib end
 I0517 13:06:58.212553 4032524 TimingIDBAdapter.cc:747] core area width 47.538um height 47.538um
 I0517 13:06:58.216100 4032524 TimingIDBAdapter.cc:939] build instance num: 334
 I0517 13:06:58.216109 4032524 TimingIDBAdapter.cc:940] build port num: 58
 I0517 13:06:58.216113 4032524 TimingIDBAdapter.cc:941] build net num: 370
-I0517 13:06:58.216125 4032524 Sta.cc:419] read sdc /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/origin/gcd.sdc start 
+I0517 13:06:58.216125 4032524 Sta.cc:419] read sdc /origin/gcd.sdc start 
 I0517 13:06:58.217401 4032524 CmdCreateClock.cc:124] create clock clk for pin/port: clk
-I0517 13:06:58.217415 4032524 Sta.cc:436] read sdc /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/origin/gcd.sdc end 
+I0517 13:06:58.217415 4032524 Sta.cc:436] read sdc /origin/gcd.sdc end 
 I0517 13:06:58.217458 4032524 StaBuildGraph.cc:324] build graph start
 I0517 13:06:58.220840 4032524 StaBuildGraph.cc:341] build graph end
 I0517 13:06:58.220903 4032524 Sta.cc:3161] update timing start
@@ -408,13 +408,13 @@ I0517 13:06:58.265029 4032524 Sta.cc:3222] update timing end
 I0517 13:06:58.265103 4032524 Sta.cc:3225] update timing memory usage 0MB
 I0517 13:06:58.265115 4032524 Sta.cc:3227] update timing time elapsed 0.044211s
 I0517 13:06:58.265152 4032524 Sta.cc:3325] start write sta report.
-I0517 13:06:58.265156 4032524 Sta.cc:3326] output sta report path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta
+I0517 13:06:58.265156 4032524 Sta.cc:3326] output sta report path: /legalization_ecc/data/sta
 I0517 13:06:58.266948 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:06:58.267470 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:06:58.267494 4032524 StaReport.cc:229] report the clock group clk 1 timing paths.
-I0517 13:06:58.270262 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/wire_paths/wire_path_45.json
-I0517 13:06:58.271481 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/wire_paths/wire_path_46.json
-I0517 13:06:58.272949 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/wire_paths/wire_path_47.json
+I0517 13:06:58.270262 4032524 StaReport.cc:1117] output json file path: /legalization_ecc/data/sta/wire_paths/wire_path_45.json
+I0517 13:06:58.271481 4032524 StaReport.cc:1117] output json file path: /legalization_ecc/data/sta/wire_paths/wire_path_46.json
+I0517 13:06:58.272949 4032524 StaReport.cc:1117] output json file path: /legalization_ecc/data/sta/wire_paths/wire_path_47.json
 I0517 13:06:58.272965 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 W0517 13:06:58.272989 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[10]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:06:58.273204 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[10]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
@@ -423,9 +423,9 @@ I0517 13:06:58.273322 4032524 StaReport.cc:229] report the clock group clk 3 tim
 I0517 13:06:58.273355 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:06:58.273613 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:06:58.273640 4032524 StaReport.cc:229] report the clock group clk 1 timing paths.
-I0517 13:06:58.274900 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/wire_paths/wire_path_48.json
-I0517 13:06:58.276156 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/wire_paths/wire_path_49.json
-I0517 13:06:58.277360 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/wire_paths/wire_path_50.json
+I0517 13:06:58.274900 4032524 StaReport.cc:1117] output json file path: /legalization_ecc/data/sta/wire_paths/wire_path_48.json
+I0517 13:06:58.276156 4032524 StaReport.cc:1117] output json file path: /legalization_ecc/data/sta/wire_paths/wire_path_49.json
+I0517 13:06:58.277360 4032524 StaReport.cc:1117] output json file path: /legalization_ecc/data/sta/wire_paths/wire_path_50.json
 I0517 13:06:58.277370 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 W0517 13:06:58.277390 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in0[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:06:58.277419 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
@@ -450,31 +450,31 @@ I0517 13:06:58.277552 4032524 Sta.cc:2167]
 | clk   | min        | 0.000 |
 +-------+------------+-------+
 I0517 13:06:58.277572 4032524 Sta.cc:2171] iSTA total elapsed time: 8.01753 seconds
-I0517 13:06:58.282181 4032524 Sta.cc:2200] JSON report written to: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/gcd.rpt.json
-I0517 13:06:58.296025 4032524 NetlistWriter.cc:52] start write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/gcd.v
-I0517 13:06:58.297451 4032524 NetlistWriter.cc:70] finish write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/data/sta/gcd.v
-I0517 13:06:58.299222 4032524 Sta.cc:3497] used lib: /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
-I0517 13:06:58.299229 4032524 Sta.cc:3497] used lib: /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0517 13:06:58.282181 4032524 Sta.cc:2200] JSON report written to: /legalization_ecc/data/sta/gcd.rpt.json
+I0517 13:06:58.296025 4032524 NetlistWriter.cc:52] start write verilog file /legalization_ecc/data/sta/gcd.v
+I0517 13:06:58.297451 4032524 NetlistWriter.cc:70] finish write verilog file /legalization_ecc/data/sta/gcd.v
+I0517 13:06:58.299222 4032524 Sta.cc:3497] used lib: /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0517 13:06:58.299229 4032524 Sta.cc:3497] used lib: /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
 I0517 13:06:58.299233 4032524 Sta.cc:3449] The timing engine run success.
-I0517 13:07:17.261627 4032524 verilog_write.cpp:59] start write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/output/gcd_route.v
-I0517 13:07:17.264354 4032524 verilog_write.cpp:77] finish write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/output/gcd_route.v
+I0517 13:07:17.261627 4032524 verilog_write.cpp:59] start write verilog file /route_ecc/output/gcd_route.v
+I0517 13:07:17.264354 4032524 verilog_write.cpp:77] finish write verilog file /route_ecc/output/gcd_route.v
 I0517 13:07:17.464413 4032524 Sta.cc:572] load lib start
-I0517 13:07:17.468082 4040409 Sta.cc:550] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start 
-I0517 13:07:17.468097 4040331 Sta.cc:550] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start 
-I0517 13:07:17.468482 4040331 LibParserRustC.cc:1397] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
-I0517 13:07:17.469775 4040409 LibParserRustC.cc:1397] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
-I0517 13:07:21.960215 4040409 LibParserRustC.cc:1406] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
-I0517 13:07:21.960776 4040409 Sta.cc:560] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib end 
-I0517 13:07:22.013602 4040331 LibParserRustC.cc:1406] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
-I0517 13:07:22.013649 4040331 Sta.cc:560] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib end 
+I0517 13:07:17.468082 4040409 Sta.cc:550] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start 
+I0517 13:07:17.468097 4040331 Sta.cc:550] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start 
+I0517 13:07:17.468482 4040331 LibParserRustC.cc:1397] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:17.469775 4040409 LibParserRustC.cc:1397] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:21.960215 4040409 LibParserRustC.cc:1406] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
+I0517 13:07:21.960776 4040409 Sta.cc:560] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib end 
+I0517 13:07:22.013602 4040331 LibParserRustC.cc:1406] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
+I0517 13:07:22.013649 4040331 Sta.cc:560] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib end 
 I0517 13:07:22.014799 4032524 Sta.cc:591] load lib end
 I0517 13:07:22.029927 4032524 TimingIDBAdapter.cc:747] core area width 47.538um height 47.538um
 I0517 13:07:22.035722 4032524 TimingIDBAdapter.cc:939] build instance num: 334
 I0517 13:07:22.035733 4032524 TimingIDBAdapter.cc:940] build port num: 58
 I0517 13:07:22.035737 4032524 TimingIDBAdapter.cc:941] build net num: 370
-I0517 13:07:22.035774 4032524 Sta.cc:419] read sdc /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/origin/gcd.sdc start 
+I0517 13:07:22.035774 4032524 Sta.cc:419] read sdc /origin/gcd.sdc start 
 I0517 13:07:22.037001 4032524 CmdCreateClock.cc:124] create clock clk for pin/port: clk
-I0517 13:07:22.037017 4032524 Sta.cc:436] read sdc /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/origin/gcd.sdc end 
+I0517 13:07:22.037017 4032524 Sta.cc:436] read sdc /origin/gcd.sdc end 
 I0517 13:07:22.037065 4032524 StaBuildGraph.cc:324] build graph start
 I0517 13:07:22.041522 4032524 StaBuildGraph.cc:341] build graph end
 I0517 13:07:22.041586 4032524 Sta.cc:3161] update timing start
@@ -523,13 +523,13 @@ I0517 13:07:22.078078 4032524 Sta.cc:3222] update timing end
 I0517 13:07:22.078148 4032524 Sta.cc:3225] update timing memory usage 0MB
 I0517 13:07:22.078161 4032524 Sta.cc:3227] update timing time elapsed 0.036573s
 I0517 13:07:22.078215 4032524 Sta.cc:3325] start write sta report.
-I0517 13:07:22.078219 4032524 Sta.cc:3326] output sta report path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta
+I0517 13:07:22.078219 4032524 Sta.cc:3326] output sta report path: /route_ecc/data/sta
 I0517 13:07:22.079481 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:22.080286 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:22.080309 4032524 StaReport.cc:229] report the clock group clk 1 timing paths.
-I0517 13:07:22.083115 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/wire_paths/wire_path_51.json
-I0517 13:07:22.084443 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/wire_paths/wire_path_52.json
-I0517 13:07:22.085683 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/wire_paths/wire_path_53.json
+I0517 13:07:22.083115 4032524 StaReport.cc:1117] output json file path: /route_ecc/data/sta/wire_paths/wire_path_51.json
+I0517 13:07:22.084443 4032524 StaReport.cc:1117] output json file path: /route_ecc/data/sta/wire_paths/wire_path_52.json
+I0517 13:07:22.085683 4032524 StaReport.cc:1117] output json file path: /route_ecc/data/sta/wire_paths/wire_path_53.json
 I0517 13:07:22.085700 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 W0517 13:07:22.085721 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[10]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:07:22.085920 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[10]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
@@ -538,9 +538,9 @@ I0517 13:07:22.086041 4032524 StaReport.cc:229] report the clock group clk 3 tim
 I0517 13:07:22.086074 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:22.086409 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:22.086428 4032524 StaReport.cc:229] report the clock group clk 1 timing paths.
-I0517 13:07:22.087705 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/wire_paths/wire_path_54.json
-I0517 13:07:22.088943 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/wire_paths/wire_path_55.json
-I0517 13:07:22.090080 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/wire_paths/wire_path_56.json
+I0517 13:07:22.087705 4032524 StaReport.cc:1117] output json file path: /route_ecc/data/sta/wire_paths/wire_path_54.json
+I0517 13:07:22.088943 4032524 StaReport.cc:1117] output json file path: /route_ecc/data/sta/wire_paths/wire_path_55.json
+I0517 13:07:22.090080 4032524 StaReport.cc:1117] output json file path: /route_ecc/data/sta/wire_paths/wire_path_56.json
 I0517 13:07:22.090090 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 W0517 13:07:22.090108 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in0[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:07:22.090148 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
@@ -565,31 +565,31 @@ I0517 13:07:22.090289 4032524 Sta.cc:2167]
 | clk   | min        | 0.000 |
 +-------+------------+-------+
 I0517 13:07:22.090308 4032524 Sta.cc:2171] iSTA total elapsed time: 23.7911 seconds
-I0517 13:07:22.095474 4032524 Sta.cc:2200] JSON report written to: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/gcd.rpt.json
-I0517 13:07:22.109596 4032524 NetlistWriter.cc:52] start write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/gcd.v
-I0517 13:07:22.111073 4032524 NetlistWriter.cc:70] finish write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/route_ecc/data/sta/gcd.v
-I0517 13:07:22.112708 4032524 Sta.cc:3497] used lib: /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
-I0517 13:07:22.112725 4032524 Sta.cc:3497] used lib: /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:22.095474 4032524 Sta.cc:2200] JSON report written to: /route_ecc/data/sta/gcd.rpt.json
+I0517 13:07:22.109596 4032524 NetlistWriter.cc:52] start write verilog file /route_ecc/data/sta/gcd.v
+I0517 13:07:22.111073 4032524 NetlistWriter.cc:70] finish write verilog file /route_ecc/data/sta/gcd.v
+I0517 13:07:22.112708 4032524 Sta.cc:3497] used lib: /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:22.112725 4032524 Sta.cc:3497] used lib: /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
 I0517 13:07:22.112730 4032524 Sta.cc:3449] The timing engine run success.
-I0517 13:07:22.326134 4032524 verilog_write.cpp:59] start write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/output/gcd_drc.v
-I0517 13:07:22.329522 4032524 verilog_write.cpp:77] finish write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/output/gcd_drc.v
+I0517 13:07:22.326134 4032524 verilog_write.cpp:59] start write verilog file /drc_ecc/output/gcd_drc.v
+I0517 13:07:22.329522 4032524 verilog_write.cpp:77] finish write verilog file /drc_ecc/output/gcd_drc.v
 I0517 13:07:22.532399 4032524 Sta.cc:572] load lib start
-I0517 13:07:22.536058 4041004 Sta.cc:550] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start 
-I0517 13:07:22.536065 4040925 Sta.cc:550] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start 
-I0517 13:07:22.536789 4041004 LibParserRustC.cc:1397] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
-I0517 13:07:22.537045 4040925 LibParserRustC.cc:1397] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
-I0517 13:07:27.005808 4040925 LibParserRustC.cc:1406] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
-I0517 13:07:27.005852 4040925 Sta.cc:560] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib end 
-I0517 13:07:27.069154 4041004 LibParserRustC.cc:1406] load liberty file /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
-I0517 13:07:27.069195 4041004 Sta.cc:560] read liberty /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib end 
+I0517 13:07:22.536058 4041004 Sta.cc:550] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start 
+I0517 13:07:22.536065 4040925 Sta.cc:550] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start 
+I0517 13:07:22.536789 4041004 LibParserRustC.cc:1397] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:22.537045 4040925 LibParserRustC.cc:1397] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:27.005808 4040925 LibParserRustC.cc:1406] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
+I0517 13:07:27.005852 4040925 Sta.cc:560] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib end 
+I0517 13:07:27.069154 4041004 LibParserRustC.cc:1406] load liberty file /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
+I0517 13:07:27.069195 4041004 Sta.cc:560] read liberty /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib end 
 I0517 13:07:27.069343 4032524 Sta.cc:591] load lib end
 I0517 13:07:27.074029 4032524 TimingIDBAdapter.cc:747] core area width 47.538um height 47.538um
 I0517 13:07:27.077634 4032524 TimingIDBAdapter.cc:939] build instance num: 334
 I0517 13:07:27.077644 4032524 TimingIDBAdapter.cc:940] build port num: 58
 I0517 13:07:27.077648 4032524 TimingIDBAdapter.cc:941] build net num: 370
-I0517 13:07:27.077657 4032524 Sta.cc:419] read sdc /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/origin/gcd.sdc start 
+I0517 13:07:27.077657 4032524 Sta.cc:419] read sdc /origin/gcd.sdc start 
 I0517 13:07:27.078629 4032524 CmdCreateClock.cc:124] create clock clk for pin/port: clk
-I0517 13:07:27.078644 4032524 Sta.cc:436] read sdc /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/origin/gcd.sdc end 
+I0517 13:07:27.078644 4032524 Sta.cc:436] read sdc /origin/gcd.sdc end 
 I0517 13:07:27.078667 4032524 StaBuildGraph.cc:324] build graph start
 I0517 13:07:27.082333 4032524 StaBuildGraph.cc:341] build graph end
 I0517 13:07:27.082396 4032524 Sta.cc:3161] update timing start
@@ -637,13 +637,13 @@ I0517 13:07:27.119692 4032524 Sta.cc:3222] update timing end
 I0517 13:07:27.119766 4032524 Sta.cc:3225] update timing memory usage 0MB
 I0517 13:07:27.119778 4032524 Sta.cc:3227] update timing time elapsed 0.037384s
 I0517 13:07:27.119815 4032524 Sta.cc:3325] start write sta report.
-I0517 13:07:27.119820 4032524 Sta.cc:3326] output sta report path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta
+I0517 13:07:27.119820 4032524 Sta.cc:3326] output sta report path: /drc_ecc/data/sta
 I0517 13:07:27.121160 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:27.121789 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:27.121811 4032524 StaReport.cc:229] report the clock group clk 1 timing paths.
-I0517 13:07:27.124796 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/wire_paths/wire_path_57.json
-I0517 13:07:27.126025 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/wire_paths/wire_path_58.json
-I0517 13:07:27.127213 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/wire_paths/wire_path_59.json
+I0517 13:07:27.124796 4032524 StaReport.cc:1117] output json file path: /drc_ecc/data/sta/wire_paths/wire_path_57.json
+I0517 13:07:27.126025 4032524 StaReport.cc:1117] output json file path: /drc_ecc/data/sta/wire_paths/wire_path_58.json
+I0517 13:07:27.127213 4032524 StaReport.cc:1117] output json file path: /drc_ecc/data/sta/wire_paths/wire_path_59.json
 I0517 13:07:27.127228 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 W0517 13:07:27.127249 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[10]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:07:27.127331 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[10]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
@@ -652,9 +652,9 @@ I0517 13:07:27.127451 4032524 StaReport.cc:229] report the clock group clk 3 tim
 I0517 13:07:27.127483 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:27.127791 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 I0517 13:07:27.127811 4032524 StaReport.cc:229] report the clock group clk 1 timing paths.
-I0517 13:07:27.128978 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/wire_paths/wire_path_60.json
-I0517 13:07:27.130146 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/wire_paths/wire_path_61.json
-I0517 13:07:27.131350 4032524 StaReport.cc:1117] output json file path: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/wire_paths/wire_path_62.json
+I0517 13:07:27.128978 4032524 StaReport.cc:1117] output json file path: /drc_ecc/data/sta/wire_paths/wire_path_60.json
+I0517 13:07:27.130146 4032524 StaReport.cc:1117] output json file path: /drc_ecc/data/sta/wire_paths/wire_path_61.json
+I0517 13:07:27.131350 4032524 StaReport.cc:1117] output json file path: /drc_ecc/data/sta/wire_paths/wire_path_62.json
 I0517 13:07:27.131361 4032524 StaReport.cc:229] report the clock group clk 3 timing paths.
 W0517 13:07:27.131378 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in0[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:07:27.131409 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
@@ -679,15 +679,15 @@ I0517 13:07:27.131546 4032524 Sta.cc:2167]
 | clk   | min        | 0.000 |
 +-------+------------+-------+
 I0517 13:07:27.131565 4032524 Sta.cc:2171] iSTA total elapsed time: 5.01883 seconds
-I0517 13:07:27.136409 4032524 Sta.cc:2200] JSON report written to: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/gcd.rpt.json
-I0517 13:07:27.149883 4032524 NetlistWriter.cc:52] start write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/gcd.v
-I0517 13:07:27.151366 4032524 NetlistWriter.cc:70] finish write verilog file /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/data/sta/gcd.v
-I0517 13:07:27.153066 4032524 Sta.cc:3497] used lib: /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
-I0517 13:07:27.153072 4032524 Sta.cc:3497] used lib: /nfs/home/huangzengrong/ecos_cloud/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:27.136409 4032524 Sta.cc:2200] JSON report written to: /drc_ecc/data/sta/gcd.rpt.json
+I0517 13:07:27.149883 4032524 NetlistWriter.cc:52] start write verilog file /drc_ecc/data/sta/gcd.v
+I0517 13:07:27.151366 4032524 NetlistWriter.cc:70] finish write verilog file /drc_ecc/data/sta/gcd.v
+I0517 13:07:27.153066 4032524 Sta.cc:3497] used lib: /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0517 13:07:27.153072 4032524 Sta.cc:3497] used lib: /IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
 I0517 13:07:27.153079 4032524 Sta.cc:3449] The timing engine run success.
-I0517 13:07:27.271006 4032524 PLAPI.cc:141] Create folder /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/filler_ecc/output/pl/log for iPL log
-I0517 13:07:27.271720 4032524 PLAPI.cc:148] Create folder /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/filler_ecc/output/pl/report for iPL report
-I0517 13:07:27.272383 4032524 PLAPI.cc:155] Create folder /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/filler_ecc/output/pl/plot for iPL plot
-I0517 13:07:27.273039 4032524 PLAPI.cc:162] Create folder /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/filler_ecc/output/pl/gui for iPL gui
-I0517 13:07:27.273631 4032524 PLAPI.cc:169] Create folder /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/filler_ecc/output/pl/density for iPL density map
-W0517 13:07:27.273654 4032524 Log.cc:71] Google logging is already initialized, re-initialization to log dir: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/filler_ecc/output/pl/log/
+I0517 13:07:27.271006 4032524 PLAPI.cc:141] Create folder /filler_ecc/output/pl/log for iPL log
+I0517 13:07:27.271720 4032524 PLAPI.cc:148] Create folder /filler_ecc/output/pl/report for iPL report
+I0517 13:07:27.272383 4032524 PLAPI.cc:155] Create folder /filler_ecc/output/pl/plot for iPL plot
+I0517 13:07:27.273039 4032524 PLAPI.cc:162] Create folder /filler_ecc/output/pl/gui for iPL gui
+I0517 13:07:27.273631 4032524 PLAPI.cc:169] Create folder /filler_ecc/output/pl/density for iPL density map
+W0517 13:07:27.273654 4032524 Log.cc:71] Google logging is already initialized, re-initialization to log dir: /filler_ecc/output/pl/log/

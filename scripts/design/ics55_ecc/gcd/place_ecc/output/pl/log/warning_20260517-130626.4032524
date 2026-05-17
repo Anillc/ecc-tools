@@ -368,4 +368,4 @@ W0517 13:06:50.235419 4032524 StaReport.cc:855] Cannot extract module name from 
 W0517 13:06:50.239568 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in0[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:06:50.239596 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in1[15]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
 W0517 13:06:50.239620 4032524 StaReport.cc:855] Cannot extract module name from vertex: dpath.a_lt_b$in0[14]_reg:CK (DFFQX1H7L). Hierarchical naming (e.g., 'module/instance') is required , but Yosys may flatten hierarchy.
-W0517 13:06:50.370524 4032524 Log.cc:71] Google logging is already initialized, re-initialization to log dir: /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/legalization_ecc/output/pl/log/
+W0517 13:06:50.370524 4032524 Log.cc:71] Google logging is already initialized, re-initialization to log dir: /legalization_ecc/output/pl/log/

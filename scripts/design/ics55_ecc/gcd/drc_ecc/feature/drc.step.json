@@ -1,5 +1,5 @@
 {
-    "file_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/drc_ecc/feature/drc.step.json",
+    "file_path": "/drc_ecc/feature/drc.step.json",
     "drc": {
         "number": 0,
         "distribution": null
