@@ -1,0 +1,176 @@
+{
+    "header" : "0",
+    "lastModify" : "05/17/2026 13:06:01",
+    "libname" : "",
+    "units" : "0.001 1e-09",
+    "diearea" : {
+        "path" : [[0,0],[47538,0],[47538,47538],[0,47538],[0,0]]
+    },
+    "layerInfo" :[
+        {
+        "id" : 0,
+        "layername" : "OVERLAP"
+        },
+        {
+        "id" : 1,
+        "layername" : "ACT"
+        },
+        {
+        "id" : 2,
+        "layername" : "NP"
+        },
+        {
+        "id" : 3,
+        "layername" : "PP"
+        },
+        {
+        "id" : 4,
+        "layername" : "NW1"
+        },
+        {
+        "id" : 5,
+        "layername" : "POLY"
+        },
+        {
+        "id" : 6,
+        "layername" : "CT"
+        },
+        {
+        "id" : 7,
+        "layername" : "MET1"
+        },
+        {
+        "id" : 8,
+        "layername" : "VIA1"
+        },
+        {
+        "id" : 9,
+        "layername" : "MET2"
+        },
+        {
+        "id" : 10,
+        "layername" : "VIA2"
+        },
+        {
+        "id" : 11,
+        "layername" : "MET3"
+        },
+        {
+        "id" : 12,
+        "layername" : "VIA3"
+        },
+        {
+        "id" : 13,
+        "layername" : "MET4"
+        },
+        {
+        "id" : 14,
+        "layername" : "VIA4"
+        },
+        {
+        "id" : 15,
+        "layername" : "MET5"
+        },
+        {
+        "id" : 16,
+        "layername" : "T4V2"
+        },
+        {
+        "id" : 17,
+        "layername" : "T4M2"
+        },
+        {
+        "id" : 18,
+        "layername" : "RV"
+        },
+        {
+        "id" : 19,
+        "layername" : "RDL"
+        }
+    ],
+        {
+            "type" : "group",
+            "struct name" :"dpath.a_lt_b$in1[4]",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"dpath.a_lt_b$in1[5]",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"dpath.a_lt_b$in1[6]",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"dpath.a_lt_b$in1[7]",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"dpath.a_lt_b$in1[8]",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"dpath.a_lt_b$in1[9]",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"fanout_net_1",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"fanout_net_2",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"fanout_net_3",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"fanout_net_4",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"fanout_net_5",
+            "children":[
+
+            ]
+        },
+        {
+            "type" : "group",
+            "struct name" :"fanout_net_6",
+            "children":[
+
+            ]
+        }
+    ]
+}

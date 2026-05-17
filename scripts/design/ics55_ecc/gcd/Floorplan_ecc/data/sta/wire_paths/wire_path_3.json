@@ -1,0 +1,241 @@
+[
+    {
+        "node_0": {
+            "Point": "dpath.a_lt_b$in1[5]_reg:CK (DFFQX1H7L)",
+            "Capacitance": 0.000895938,
+            "slew": 0.0,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "inst_arc_0": {
+            "Incr": 0.141765
+        }
+    },
+    {
+        "node_1": {
+            "Point": "dpath.a_lt_b$in1[5]_reg:Q (DFFQX1H7L)",
+            "Capacitance": 0.0009447630145587027,
+            "slew": 0.019066,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "node_2": {
+            "Point": "_287_:A (BUFX3P5H7L)",
+            "Capacitance": 0.000944763,
+            "slew": 0.019066,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "inst_arc_2": {
+            "Incr": 0.074225
+        }
+    },
+    {
+        "node_3": {
+            "Point": "_287_:Y (BUFX3P5H7L)",
+            "Capacitance": 0.007184215831981897,
+            "slew": 0.035927,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "node_4": {
+            "Point": "_289_:AN (NAND2BX1H7L)",
+            "Capacitance": 0.00079418,
+            "slew": 0.035927,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "inst_arc_4": {
+            "Incr": 0.093076
+        }
+    },
+    {
+        "node_5": {
+            "Point": "_289_:Y (NAND2BX1H7L)",
+            "Capacitance": 0.004213095824535966,
+            "slew": 0.051987,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "node_6": {
+            "Point": "_292_:B (NAND4X6H7L)",
+            "Capacitance": 0.00290989,
+            "slew": 0.051987,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "inst_arc_6": {
+            "Incr": 0.063816
+        }
+    },
+    {
+        "node_7": {
+            "Point": "_292_:Y (NAND4X6H7L)",
+            "Capacitance": 0.0014957919847482443,
+            "slew": 0.027042,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "node_8": {
+            "Point": "_296_:B0 (AO211X4H7L)",
+            "Capacitance": 0.000872202,
+            "slew": 0.027042,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "inst_arc_8": {
+            "Incr": 0.165529
+        }
+    },
+    {
+        "node_9": {
+            "Point": "_296_:Y (AO211X4H7L)",
+            "Capacitance": 0.003610879977312684,
+            "slew": 0.033633,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "node_10": {
+            "Point": "_365_:A0 (AOAI211X3H7L)",
+            "Capacitance": 0.0015927,
+            "slew": 0.033633,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "inst_arc_10": {
+            "Incr": 0.086371
+        }
+    },
+    {
+        "node_11": {
+            "Point": "_365_:Y (AOAI211X3H7L)",
+            "Capacitance": 0.003075411986230135,
+            "slew": 0.054603,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "node_12": {
+            "Point": "_378_:A1 (AOI21X0P5H7R)",
+            "Capacitance": 0.000655672,
+            "slew": 0.054603,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "inst_arc_12": {
+            "Incr": 0.084751
+        }
+    },
+    {
+        "node_13": {
+            "Point": "_378_:Y (AOI21X0P5H7R)",
+            "Capacitance": 0.0013382249821528493,
+            "slew": 0.047314,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "node_14": {
+            "Point": "_476_:B (XNOR2X0P5H7R)",
+            "Capacitance": 0.000769232,
+            "slew": 0.047314,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "inst_arc_14": {
+            "Incr": 0.192383
+        }
+    },
+    {
+        "node_15": {
+            "Point": "_476_:Y (XNOR2X0P5H7R)",
+            "Capacitance": 0.001360503987646699,
+            "slew": 0.032483,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "node_16": {
+            "Point": "_477_:C (OR3X1P4H7L)",
+            "Capacitance": 0.000701044,
+            "slew": 0.032482,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "inst_arc_16": {
+            "Incr": 0.122654
+        }
+    },
+    {
+        "node_17": {
+            "Point": "_477_:Y (OR3X1P4H7L)",
+            "Capacitance": 0.000815765,
+            "slew": 0.023405,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "node_18": {
+            "Point": "_480_:A1 (AOI31X1P4H7L)",
+            "Capacitance": 0.000815765,
+            "slew": 0.023404,
+            "trans_type": "fall"
+        }
+    },
+    {
+        "inst_arc_18": {
+            "Incr": 0.055098
+        }
+    },
+    {
+        "node_19": {
+            "Point": "_480_:Y (AOI31X1P4H7L)",
+            "Capacitance": 0.000596298,
+            "slew": 0.030074,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "node_20": {
+            "Point": "_481_:A (MUX2X0P5H7L)",
+            "Capacitance": 0.000596298,
+            "slew": 0.030074,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "inst_arc_20": {
+            "Incr": 0.080182
+        }
+    },
+    {
+        "node_21": {
+            "Point": "_481_:Y (MUX2X0P5H7L)",
+            "Capacitance": 0.000726474,
+            "slew": 0.025614,
+            "trans_type": "rise"
+        }
+    },
+    {
+        "node_22": {
+            "Point": "dpath.a_lt_b$in0[9]_reg:D (DFFQX1H7L)",
+            "Capacitance": 0.000726474,
+            "slew": 0.025614,
+            "trans_type": "rise"
+        }
+    }
+]

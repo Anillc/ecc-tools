@@ -127,6 +127,10 @@ class WorkspaceManager
   void writeDefaultSdcIfNeeded();
 
   std::string resolvePathValue(const std::string& path) const;
+  std::string relativeToRoot(const std::string& path, const std::filesystem::path& root) const;
+  std::string workspaceConfigPath(const std::string& path) const;
+  std::string pdkConfigPath(const std::string& path) const;
+  std::vector<std::string> pdkConfigPaths(const std::vector<std::string>& paths) const;
   std::string findOriginFile(const std::string& extension, const std::string& fallback_name) const;
   std::string scalarString(const json& value, const std::string& fallback = "") const;
   std::vector<std::string> stringArray(const json& value) const;

@@ -1,0 +1,11 @@
+{
+    "path": "/nfs/home/huangzengrong/ecos_cloud/ecc/test/examples/ics55_gcd_tool1/home/checklist.json",
+    "checklist": [
+        {
+            "step": "Floorplan",
+            "type": "Area",
+            "item": "check DIE area",
+            "state": "Unstart"
+        }
+    ]
+}

@@ -1,0 +1,23 @@
+{
+    "place": {
+        "bin_number": 16384,
+        "bin_size_x": 1357,
+        "bin_size_y": 1357,
+        "dplace": {
+            "HPWL": 3122408,
+            "STWL": 3695598,
+            "place_density": 0.0
+        },
+        "fix_inst_cnt": 290,
+        "gplace": {
+            "HPWL": 2906279,
+            "STWL": 3460068,
+            "place_density": 0.7975030541419983
+        },
+        "instance_cnt": 621,
+        "net_cnt": 367,
+        "overflow": 0.09883610904216766,
+        "overflow_number": 481,
+        "total_pins": 1263
+    }
+}

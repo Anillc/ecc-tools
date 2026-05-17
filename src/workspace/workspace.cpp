@@ -697,6 +697,48 @@ std::string WorkspaceManager::resolvePathValue(const std::string& path) const
   return pathString(_workspace.directory / fs_path);
 }
 
+std::string WorkspaceManager::relativeToRoot(const std::string& path, const fs::path& root) const
+{
+  if (path.empty()) {
+    return "";
+  }
+
+  fs::path fs_path(path);
+  if (!fs_path.is_absolute()) {
+    return pathString(fs_path);
+  }
+
+  const fs::path normalized_path = fs_path.lexically_normal();
+  const fs::path normalized_root = root.lexically_normal();
+  fs::path relative = normalized_path.lexically_relative(normalized_root);
+  auto first = relative.begin();
+  if (!relative.empty() && first != relative.end() && first->string() != "..") {
+    return "/" + pathString(relative);
+  }
+
+  return pathString(normalized_path);
+}
+
+std::string WorkspaceManager::workspaceConfigPath(const std::string& path) const
+{
+  return relativeToRoot(path, _workspace.directory);
+}
+
+std::string WorkspaceManager::pdkConfigPath(const std::string& path) const
+{
+  return relativeToRoot(path, fs::path(_workspace.pdk.root));
+}
+
+std::vector<std::string> WorkspaceManager::pdkConfigPaths(const std::vector<std::string>& paths) const
+{
+  std::vector<std::string> result;
+  result.reserve(paths.size());
+  for (const auto& path : paths) {
+    result.push_back(pdkConfigPath(path));
+  }
+  return result;
+}
+
 std::string WorkspaceManager::findOriginFile(const std::string& extension, const std::string& fallback_name) const
 {
   const fs::path origin_dir = _workspace.directory / "origin";
@@ -792,27 +834,27 @@ int WorkspaceManager::intValue(const json& value, int fallback) const
 json WorkspaceManager::defaultFlowConfig(const WorkspaceStep& step) const
 {
   return {{"ConfigPath",
-           {{"idb_path", mapValue(step.config, "db")},
-            {"ifp_path", mapValue(step.config, kFloorplan)},
-            {"ipl_path", mapValue(step.config, kPlace)},
-            {"irt_path", mapValue(step.config, kRoute)},
-            {"idrc_path", mapValue(step.config, kDrc)},
-            {"icts_path", mapValue(step.config, kCts)},
-            {"ito_path", mapValue(step.config, kOptDrv)},
-            {"ipnp_path", mapValue(step.config, kPnp)}}}};
+           {{"idb_path", workspaceConfigPath(mapValue(step.config, "db"))},
+            {"ifp_path", workspaceConfigPath(mapValue(step.config, kFloorplan))},
+            {"ipl_path", workspaceConfigPath(mapValue(step.config, kPlace))},
+            {"irt_path", workspaceConfigPath(mapValue(step.config, kRoute))},
+            {"idrc_path", workspaceConfigPath(mapValue(step.config, kDrc))},
+            {"icts_path", workspaceConfigPath(mapValue(step.config, kCts))},
+            {"ito_path", workspaceConfigPath(mapValue(step.config, kOptDrv))},
+            {"ipnp_path", workspaceConfigPath(mapValue(step.config, kPnp))}}}};
 }
 
 json WorkspaceManager::defaultDbConfig(const WorkspaceStep& step) const
 {
   return {{"INPUT",
-           {{"tech_lef_path", _workspace.pdk.tech_lef},
-            {"lef_paths", _workspace.pdk.lef_paths},
-            {"def_path", mapValue(step.input, "def")},
-            {"verilog_path", mapValue(step.input, "verilog")},
-            {"lib_path", _workspace.pdk.lib_paths},
-            {"sdc_path", getValue("pdk.sdc")},
-            {"spef", getValue("pdk.spef")}}},
-          {"OUTPUT", {{"output_dir_path", mapValue(step.output, "dir")}}},
+           {{"tech_lef_path", pdkConfigPath(_workspace.pdk.tech_lef)},
+            {"lef_paths", pdkConfigPaths(_workspace.pdk.lef_paths)},
+            {"def_path", workspaceConfigPath(mapValue(step.input, "def"))},
+            {"verilog_path", workspaceConfigPath(mapValue(step.input, "verilog"))},
+            {"lib_path", pdkConfigPaths(_workspace.pdk.lib_paths)},
+            {"sdc_path", workspaceConfigPath(getValue("pdk.sdc"))},
+            {"spef", workspaceConfigPath(getValue("pdk.spef"))}}},
+          {"OUTPUT", {{"output_dir_path", workspaceConfigPath(mapValue(step.output, "dir"))}}},
           {"LayerSettings", {{"routing_layer_1st", scalarString(_workspace.parameters.value("Bottom layer", ""), "")}}}};
 }
 
@@ -855,14 +897,14 @@ json WorkspaceManager::defaultNoConfig(const WorkspaceStep& step) const
 {
   const std::string insert_buffer = _workspace.pdk.buffers.empty() ? "" : _workspace.pdk.buffers.front();
   return {{"file_path",
-           {{"design_work_space", mapValue(step.data, kFixFanout)},
-            {"sdc_file", getValue("pdk.sdc")},
-            {"lib_files", _workspace.pdk.lib_paths},
-            {"lef_files", _workspace.pdk.lef_paths},
-            {"def_file", mapValue(step.input, "def")},
-            {"output_def", mapValue(step.output, "def")},
-            {"report_file", mapValue(step.report, "step")},
-            {"gds_file", mapValue(step.output, "gds")}}},
+           {{"design_work_space", workspaceConfigPath(mapValue(step.data, kFixFanout))},
+            {"sdc_file", workspaceConfigPath(getValue("pdk.sdc"))},
+            {"lib_files", pdkConfigPaths(_workspace.pdk.lib_paths)},
+            {"lef_files", pdkConfigPaths(_workspace.pdk.lef_paths)},
+            {"def_file", workspaceConfigPath(mapValue(step.input, "def"))},
+            {"output_def", workspaceConfigPath(mapValue(step.output, "def"))},
+            {"report_file", workspaceConfigPath(mapValue(step.report, "step"))},
+            {"gds_file", workspaceConfigPath(mapValue(step.output, "gds"))}}},
           {"insert_buffer", insert_buffer},
           {"max_fanout", intValue(_workspace.parameters.value("Max fanout", 30), 30)}};
 }
@@ -919,7 +961,7 @@ json WorkspaceManager::defaultCtsConfig() const
 json WorkspaceManager::defaultRtConfig(const WorkspaceStep& step) const
 {
   return {{"RT",
-           {{"-temp_directory_path", mapValue(step.data, kRoute)},
+           {{"-temp_directory_path", workspaceConfigPath(mapValue(step.data, kRoute))},
             {"-bottom_routing_layer", scalarString(_workspace.parameters.value("Bottom layer", ""), "")},
             {"-top_routing_layer", scalarString(_workspace.parameters.value("Top layer", ""), "")},
             {"-thread_number", "50"},
@@ -964,9 +1006,9 @@ json WorkspaceManager::defaultToConfig(const std::string& type) const
 {
   return {{"file_path",
            {{"design_work_space", ""},
-            {"sdc_file", getValue("pdk.sdc")},
-            {"lib_files", _workspace.pdk.lib_paths},
-            {"lef_files", _workspace.pdk.lef_paths},
+            {"sdc_file", workspaceConfigPath(getValue("pdk.sdc"))},
+            {"lib_files", pdkConfigPaths(_workspace.pdk.lib_paths)},
+            {"lef_files", pdkConfigPaths(_workspace.pdk.lef_paths)},
             {"def_file", ""},
             {"output_def", ""},
             {"report_file", ""},
@@ -999,16 +1041,22 @@ json WorkspaceManager::defaultRcxConfig(const WorkspaceStep& step) const
   json corners = _workspace.pdk.corners;
   json spefs = json::array();
   for (auto& corner : corners) {
+    for (const auto& key : {"ecc_tf", "itf_file", "captab_file"}) {
+      if (corner.contains(key)) {
+        corner[key] = pdkConfigPath(scalarString(corner[key], ""));
+      }
+    }
+
     const std::string name = scalarString(corner.value("name", ""), "");
     if (!name.empty()) {
-      const std::string spef = mapValue(step.output, "dir") + "/" + _workspace.design_name + "_" + name + ".spef";
+      const std::string spef = workspaceConfigPath(mapValue(step.output, "dir") + "/" + _workspace.design_name + "_" + name + ".spef");
       corner["spef_file"] = spef;
       spefs.push_back(spef);
     }
   }
 
-  return {{"output", mapValue(step.output, "dir")},
-          {"mapping_file", _workspace.pdk.mapping_file},
+  return {{"output", workspaceConfigPath(mapValue(step.output, "dir"))},
+          {"mapping_file", pdkConfigPath(_workspace.pdk.mapping_file)},
           {"corners", corners},
           {"spef", spefs}};
 }

@@ -1,0 +1,52 @@
+{
+    "steps": [
+        {
+            "name": "load data",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "init floorplan",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "create tracks",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "place io pins",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "tap cell",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "PDN",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "set clock net",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        },
+        {
+            "name": "save data",
+            "state": "Unstart",
+            "runtime": "",
+            "info": {}
+        }
+    ]
+}

@@ -1,7 +1,7 @@
 # Tcl implementation for the ecc workspace flow.
 # Usage:
-#   iEDA -script run_workspace.tcl <workspace-home-or-root>
-#   iEDA -script run_workspace.tcl /nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/workspace_test
+#   ecc -script run_workspace.tcl <workspace-home-or-root>
+#   ecc -script run_workspace.tcl workspace_gcd
 
 
 proc ws_get {key} {
@@ -10,6 +10,121 @@ proc ws_get {key} {
 
 proc ws_step_get {step key} {
   return [workspace_step_get -step $step -key $key]
+}
+
+set ::ecc_workspace_root ""
+set ::ecc_pdk_root ""
+
+proc set_workspace {path} {
+  if {$path eq ""} {
+    error "set_workspace requires a non-empty path"
+  }
+  set ::ecc_workspace_root [file normalize $path]
+  return $::ecc_workspace_root
+}
+
+proc set_pdk {path} {
+  if {$path eq ""} {
+    error "set_pdk requires a non-empty path"
+  }
+  set ::ecc_pdk_root [file normalize $path]
+  return $::ecc_pdk_root
+}
+
+proc path_has_prefix {path prefixes} {
+  foreach prefix $prefixes {
+    if {$path eq $prefix || [string first "$prefix/" $path] == 0} {
+      return 1
+    }
+  }
+  return 0
+}
+
+proc workspace_path {path} {
+  if {$path eq ""} {
+    return ""
+  }
+
+  set trimmed [string trimleft $path /]
+  set workspace_prefixes {
+    CTS_ecc Floorplan_ecc fixFanout_ecc place_ecc legalization_ecc
+    route_ecc drc_ecc filler_ecc origin home
+  }
+
+  if {[path_has_prefix $trimmed $workspace_prefixes]} {
+    return [file normalize [file join $::ecc_workspace_root $trimmed]]
+  }
+  if {[file pathtype $path] eq "absolute"} {
+    return [file normalize $path]
+  }
+  return [file normalize [file join $::ecc_workspace_root $path]]
+}
+
+proc pdk_path {path} {
+  if {$path eq ""} {
+    return ""
+  }
+
+  set trimmed [string trimleft $path /]
+  if {[path_has_prefix $trimmed {IP prtech resource}]} {
+    return [file normalize [file join $::ecc_pdk_root $trimmed]]
+  }
+  if {[file pathtype $path] eq "absolute"} {
+    return [file normalize $path]
+  }
+  return [file normalize [file join $::ecc_pdk_root $path]]
+}
+
+proc pdk_path_list {paths} {
+  set result {}
+  foreach path $paths {
+    lappend result [pdk_path $path]
+  }
+  return $result
+}
+
+proc expand_config_text {text} {
+  set replacements {}
+  foreach prefix {
+    CTS_ecc Floorplan_ecc fixFanout_ecc place_ecc legalization_ecc
+    route_ecc drc_ecc filler_ecc origin home
+  } {
+    lappend replacements "\"/$prefix\"" "\"$::ecc_workspace_root/$prefix\""
+    lappend replacements "\"/$prefix/" "\"$::ecc_workspace_root/$prefix/"
+    lappend replacements "\"$prefix\"" "\"$::ecc_workspace_root/$prefix\""
+    lappend replacements "\"$prefix/" "\"$::ecc_workspace_root/$prefix/"
+  }
+  foreach prefix {IP prtech resource} {
+    lappend replacements "\"/$prefix\"" "\"$::ecc_pdk_root/$prefix\""
+    lappend replacements "\"/$prefix/" "\"$::ecc_pdk_root/$prefix/"
+    lappend replacements "\"$prefix\"" "\"$::ecc_pdk_root/$prefix\""
+    lappend replacements "\"$prefix/" "\"$::ecc_pdk_root/$prefix/"
+  }
+  return [string map $replacements $text]
+}
+
+proc config_path {path} {
+  if {$path eq ""} {
+    return ""
+  }
+
+  set source [workspace_path $path]
+  if {![file exists $source]} {
+    return $source
+  }
+
+  set fp [open $source r]
+  set text [read $fp]
+  close $fp
+
+  set expanded_text [expand_config_text $text]
+  if {$expanded_text ne $text} {
+    set fp [open $source w]
+    puts -nonewline $fp $expanded_text
+    close $fp
+  }
+
+  return $source
 }
 
 proc ensure_parent_dir {path} {
@@ -29,14 +144,14 @@ proc safe_eval {script} {
 proc ecc_init_step {step} {
   puts "==> load data for $step"
 
-  set flow_config [ws_step_get $step config.flow]
-  set db_config [ws_step_get $step config.db]
-  set output_dir [ws_step_get $step output.dir]
-  set tech_lef [ws_get pdk.tech_lef]
-  set lefs [ws_get pdk.lefs]
-  set input_def [ws_step_get $step input.def]
-  set input_verilog [ws_step_get $step input.verilog]
-  set input_db [ws_step_get $step input.db]
+  set flow_config [config_path [ws_step_get $step config.flow]]
+  set db_config [config_path [ws_step_get $step config.db]]
+  set output_dir [workspace_path [ws_step_get $step output.dir]]
+  set tech_lef [pdk_path [ws_get pdk.tech_lef]]
+  set lefs [pdk_path_list [ws_get pdk.lefs]]
+  set input_def [workspace_path [ws_step_get $step input.def]]
+  set input_verilog [workspace_path [ws_step_get $step input.verilog]]
+  set input_db [workspace_path [ws_step_get $step input.db]]
   set top [ws_get design.top]
 
   flow_init -config $flow_config
@@ -63,15 +178,15 @@ proc ecc_init_step {step} {
 proc ecc_save_step {step {feature_step 1}} {
   puts "==> save data for $step"
 
-  set output_def [ws_step_get $step output.def]
-  set output_verilog [ws_step_get $step output.verilog]
-  set output_gds [ws_step_get $step output.gds]
-  set output_json [ws_step_get $step output.json]
-  set output_db [ws_step_get $step output.db]
-  set feature_db [ws_step_get $step feature.db]
-  set feature_step_path [ws_step_get $step feature.step]
-  set report_db_path [ws_step_get $step report.db]
-  set sta_dir [ws_step_get $step data.sta]
+  set output_def [workspace_path [ws_step_get $step output.def]]
+  set output_verilog [workspace_path [ws_step_get $step output.verilog]]
+  set output_gds [workspace_path [ws_step_get $step output.gds]]
+  set output_json [workspace_path [ws_step_get $step output.json]]
+  set output_db [workspace_path [ws_step_get $step output.db]]
+  set feature_db [workspace_path [ws_step_get $step feature.db]]
+  set feature_step_path [workspace_path [ws_step_get $step feature.step]]
+  set report_db_path [workspace_path [ws_step_get $step report.db]]
+  set sta_dir [workspace_path [ws_step_get $step data.sta]]
 
   ensure_parent_dir $output_def
   ensure_parent_dir $output_verilog
@@ -174,30 +289,30 @@ proc ecc_run_floorplan {step} {
 
 proc ecc_run_fixfanout {step} {
   ecc_init_step $step
-  run_no_fixfanout -config [ws_step_get $step config.fixFanout]
+  run_no_fixfanout -config [config_path [ws_step_get $step config.fixFanout]]
   ecc_save_step $step
 }
 
 proc ecc_run_place {step} {
   ecc_init_step $step
   safe_eval {destroy_pl}
-  run_placer -config [ws_step_get $step config.place]
-  safe_eval [list feature_eval_map -path [ws_step_get $step feature.map] -bin_cnt_x 256 -bin_cnt_y 256]
+  run_placer -config [config_path [ws_step_get $step config.place]]
+  safe_eval [list feature_eval_map -path [workspace_path [ws_step_get $step feature.map]] -bin_cnt_x 256 -bin_cnt_y 256]
   ecc_save_step $step
   safe_eval {destroy_pl}
 }
 
 proc ecc_run_cts {step} {
   ecc_init_step $step
-  run_cts -config [ws_step_get $step config.CTS] -work_dir [ws_step_get $step data.CTS]
-  cts_report -path [ws_step_get $step data.CTS]
+  run_cts -config [config_path [ws_step_get $step config.CTS]] -work_dir [workspace_path [ws_step_get $step data.CTS]]
+  cts_report -path [workspace_path [ws_step_get $step data.CTS]]
   ecc_save_step $step
 }
 
 proc ecc_run_legalization {step} {
   ecc_init_step $step
   safe_eval {destroy_pl}
-  run_incremental_flow -config [ws_step_get $step config.place]
+  run_incremental_flow -config [config_path [ws_step_get $step config.place]]
   ecc_save_step $step
   safe_eval {destroy_pl}
 }
@@ -207,7 +322,7 @@ proc ecc_run_route {step} {
 
   init_notification
   init_rt \
-    -temp_directory_path [ws_step_get $step data.route] \
+    -temp_directory_path [workspace_path [ws_step_get $step data.route]] \
     -bottom_routing_layer [ws_get {param.Bottom layer}] \
     -top_routing_layer [ws_get {param.Top layer}] \
     -thread_number 50 \
@@ -222,15 +337,15 @@ proc ecc_run_route {step} {
 
 proc ecc_run_drc {step} {
   ecc_init_step $step
-  init_drc -temp_directory_path [ws_step_get $step data.drc] -thread_number 128
-  run_drc -config [ws_step_get $step config.drc] -path [ws_step_get $step report.step]
+  init_drc -temp_directory_path [workspace_path [ws_step_get $step data.drc]] -thread_number 128
+  run_drc -config [config_path [ws_step_get $step config.drc]] -path [workspace_path [ws_step_get $step report.step]]
   ecc_save_step $step
-  save_drc -path [ws_step_get $step feature.step]
+  save_drc -path [workspace_path [ws_step_get $step feature.step]]
 }
 
 proc ecc_run_filler {step} {
   ecc_init_step $step
-  run_filler -config [ws_step_get $step config.filler]
+  run_filler -config [config_path [ws_step_get $step config.filler]]
   ecc_save_step $step
 }
 
@@ -272,7 +387,8 @@ proc ecc_run_step {step} {
 }
 
 set script_dir [file normalize [file dirname [info script]]]
-set default_workspace [file normalize [file join $script_dir .. ics55_gcd_workspace home]]
+set default_workspace [file normalize [file join $script_dir workspace_gcd home]]
+set default_pdk [file normalize [file join $script_dir .. .. .. .. icsprout55-pdk]]
 
 if {[llength $argv] > 0} {
   set workspace_home [file normalize [lindex $argv 0]]
@@ -284,7 +400,17 @@ if {[llength $argv] > 0} {
 
 puts "Workspace: $workspace_home"
 workspace_load -path $workspace_home
-set force_config 1
+set workspace_root [ws_get workspace.dir]
+set_workspace $workspace_root
+
+set pdk_root [ws_get pdk.root]
+if {$pdk_root eq ""} {
+  set pdk_root $default_pdk
+}
+set_pdk $pdk_root
+puts "PDK: $::ecc_pdk_root"
+
+set force_config 0
 if {[info exists ::env(WORKSPACE_FORCE_CONFIG)]} {
   set force_config $::env(WORKSPACE_FORCE_CONFIG)
 }

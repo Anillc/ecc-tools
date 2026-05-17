@@ -1,0 +1,12 @@
+{
+    "ConfigPath": {
+        "idb_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/db_default_config.json",
+        "ifp_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/fp_default_config.json",
+        "ipl_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/pl_default_config.json",
+        "irt_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/rt_default_config.json",
+        "idrc_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/drc_default_config.json",
+        "icts_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/cts_default_config.json",
+        "ito_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/to_default_config_drv.json",
+        "ipnp_path": "/nfs/home/huangzengrong/ecos_cloud/ecc_tools/scripts/design/ics55_ecc/workspace_gcd/CTS_ecc/config/pnp_default_config.json"
+    }
+}

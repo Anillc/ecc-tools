@@ -1,0 +1,64 @@
+{
+    "file_path": {
+        "design_work_space": "",
+        "sdc_file": "/origin/gcd.sdc",
+        "lib_files": [
+            "/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib",
+            "/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib"
+        ],
+        "lef_files": [
+            "/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef",
+            "/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef"
+        ],
+        "def_file": "",
+        "output_def": "",
+        "report_file": "",
+        "gds_file": ""
+    },
+    "specific_prefix": {
+        "drv": {
+            "make_buffer": "drv_buffer_",
+            "make_net": "drv_net_"
+        },
+        "hold": {
+            "make_buffer": "hold_buffer_",
+            "make_net": "hold_net_"
+        },
+        "setup": {
+            "make_buffer": "setup_buffer_",
+            "make_net": "setup_net_"
+        }
+    },
+    "routing_tree": "flute",
+    "setup_target_slack": 0.0,
+    "hold_target_slack": 0.4,
+    "max_insert_instance_percent": 0.2,
+    "max_core_utilization": 0.8,
+    "fix_fanout": false,
+    "optimize_drv": false,
+    "optimize_hold": false,
+    "optimize_setup": true,
+    "DRV_insert_buffers": [
+        "BUFX8H7L",
+        "BUFX12H7L",
+        "BUFX16H7L",
+        "BUFX20H7L"
+    ],
+    "setup_insert_buffers": [
+        "BUFX8H7L",
+        "BUFX12H7L",
+        "BUFX16H7L",
+        "BUFX20H7L"
+    ],
+    "hold_insert_buffers": [
+        "BUFX8H7L",
+        "BUFX12H7L",
+        "BUFX16H7L",
+        "BUFX20H7L"
+    ],
+    "number_of_decreasing_slack_iter": 5,
+    "max_allowed_buffering_fanout": 20,
+    "min_divide_fanout": 8,
+    "optimize_endpoints_percent": 1.0,
+    "drv_optimize_iter_number": 5
+}

@@ -16,7 +16,7 @@
 # ***************************************************************************************
 
 cmake_minimum_required(VERSION 3.11)
-project(iEDA)
+project(ecc)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
@@ -131,6 +131,7 @@ endif()
 
 add_subdirectory(src/third_party)
 add_subdirectory(src/utility)
+add_subdirectory(src/workspace)
 add_subdirectory(src/apps)
 add_subdirectory(src/database)
 add_subdirectory(src/interface)
