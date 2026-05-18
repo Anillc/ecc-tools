@@ -119,44 +119,49 @@ auto routedEdgeDistanceDbu(const ClockSteinerTree<int>::EdgeType& edge) -> int
   return std::max(edge.distance, edge.routed_distance);
 }
 
+auto updateNetLoad(FastStaClockContext& context, FastStaNet& net) -> void
+{
+  if (!net.parasitic.rc_nodes.empty()) {
+    auto& parasitic = net.parasitic;
+    auto load_cap_pf = 0.0;
+    std::unordered_set<FastStaNodeId> rc_terminal_nodes;
+    for (auto& rc_node : parasitic.rc_nodes) {
+      rc_node.wire_cap_pf = std::max(0.0, rc_node.wire_cap_pf);
+      rc_node.pin_cap_pf = 0.0;
+      if (rc_node.terminal_node_id != kInvalidFastStaNodeId && rc_node.terminal_node_id < context.nodes.size()) {
+        rc_node.pin_cap_pf = std::max(0.0, context.nodes.at(rc_node.terminal_node_id).input_cap_pf);
+        rc_terminal_nodes.insert(rc_node.terminal_node_id);
+      }
+      rc_node.cap_pf = rc_node.wire_cap_pf + rc_node.pin_cap_pf;
+      load_cap_pf += rc_node.cap_pf;
+    }
+    for (const auto load_node_id : net.load_node_ids) {
+      if (load_node_id < context.nodes.size() && !rc_terminal_nodes.contains(load_node_id)) {
+        load_cap_pf += std::max(0.0, context.nodes.at(load_node_id).input_cap_pf);
+      }
+    }
+    parasitic.total_cap_pf = load_cap_pf;
+    net.load_cap_pf = load_cap_pf;
+    return;
+  }
+
+  auto load_cap_pf = 0.0;
+  for (const auto load_node_id : net.load_node_ids) {
+    if (load_node_id >= context.nodes.size()) {
+      continue;
+    }
+    load_cap_pf += std::max(0.0, context.nodes.at(load_node_id).input_cap_pf);
+  }
+  load_cap_pf += std::max(0.0, net.wire_cap_pf);
+  net.load_cap_pf = load_cap_pf;
+}
+
 }  // namespace
 
 auto FastStaParasitics::updateNetLoads(FastStaClockContext& context) -> void
 {
   for (auto& net : context.nets) {
-    if (!net.parasitic.rc_nodes.empty()) {
-      auto& parasitic = net.parasitic;
-      auto load_cap_pf = 0.0;
-      std::unordered_set<FastStaNodeId> rc_terminal_nodes;
-      for (auto& rc_node : parasitic.rc_nodes) {
-        rc_node.wire_cap_pf = std::max(0.0, rc_node.wire_cap_pf);
-        rc_node.pin_cap_pf = 0.0;
-        if (rc_node.terminal_node_id != kInvalidFastStaNodeId && rc_node.terminal_node_id < context.nodes.size()) {
-          rc_node.pin_cap_pf = std::max(0.0, context.nodes.at(rc_node.terminal_node_id).input_cap_pf);
-          rc_terminal_nodes.insert(rc_node.terminal_node_id);
-        }
-        rc_node.cap_pf = rc_node.wire_cap_pf + rc_node.pin_cap_pf;
-        load_cap_pf += rc_node.cap_pf;
-      }
-      for (const auto load_node_id : net.load_node_ids) {
-        if (load_node_id < context.nodes.size() && !rc_terminal_nodes.contains(load_node_id)) {
-          load_cap_pf += std::max(0.0, context.nodes.at(load_node_id).input_cap_pf);
-        }
-      }
-      parasitic.total_cap_pf = load_cap_pf;
-      net.load_cap_pf = load_cap_pf;
-    } else {
-      auto load_cap_pf = 0.0;
-      for (const auto load_node_id : net.load_node_ids) {
-        if (load_node_id >= context.nodes.size()) {
-          continue;
-        }
-        const auto& load_node = context.nodes.at(load_node_id);
-        load_cap_pf += std::max(0.0, load_node.input_cap_pf);
-      }
-      load_cap_pf += std::max(0.0, net.wire_cap_pf);
-      net.load_cap_pf = load_cap_pf;
-    }
+    updateNetLoad(context, net);
   }
 }
 
@@ -167,38 +172,7 @@ auto FastStaParasitics::updateNetLoads(FastStaClockContext& context, const std::
       continue;
     }
     auto& net = context.nets.at(net_id);
-    if (!net.parasitic.rc_nodes.empty()) {
-      auto& parasitic = net.parasitic;
-      auto load_cap_pf = 0.0;
-      std::unordered_set<FastStaNodeId> rc_terminal_nodes;
-      for (auto& rc_node : parasitic.rc_nodes) {
-        rc_node.wire_cap_pf = std::max(0.0, rc_node.wire_cap_pf);
-        rc_node.pin_cap_pf = 0.0;
-        if (rc_node.terminal_node_id != kInvalidFastStaNodeId && rc_node.terminal_node_id < context.nodes.size()) {
-          rc_node.pin_cap_pf = std::max(0.0, context.nodes.at(rc_node.terminal_node_id).input_cap_pf);
-          rc_terminal_nodes.insert(rc_node.terminal_node_id);
-        }
-        rc_node.cap_pf = rc_node.wire_cap_pf + rc_node.pin_cap_pf;
-        load_cap_pf += rc_node.cap_pf;
-      }
-      for (const auto load_node_id : net.load_node_ids) {
-        if (load_node_id < context.nodes.size() && !rc_terminal_nodes.contains(load_node_id)) {
-          load_cap_pf += std::max(0.0, context.nodes.at(load_node_id).input_cap_pf);
-        }
-      }
-      parasitic.total_cap_pf = load_cap_pf;
-      net.load_cap_pf = load_cap_pf;
-    } else {
-      auto load_cap_pf = 0.0;
-      for (const auto load_node_id : net.load_node_ids) {
-        if (load_node_id >= context.nodes.size()) {
-          continue;
-        }
-        load_cap_pf += std::max(0.0, context.nodes.at(load_node_id).input_cap_pf);
-      }
-      load_cap_pf += std::max(0.0, net.wire_cap_pf);
-      net.load_cap_pf = load_cap_pf;
-    }
+    updateNetLoad(context, net);
   }
 }
 
@@ -333,7 +307,7 @@ auto FastStaParasitics::buildNetParasiticFromRouteTree(FastStaClockContext& cont
     return false;
   }
   parasitic.root_rc_node_id = rc_node_by_route_node.at(root_route_node_id);
-  updateNetLoads(context);
+  updateNetLoad(context, fast_net);
   return true;
 }
 

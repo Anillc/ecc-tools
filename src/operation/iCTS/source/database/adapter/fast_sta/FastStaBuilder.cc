@@ -23,10 +23,15 @@
 
 #include "FastStaBuilder.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <optional>
+#include <ostream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -34,6 +39,7 @@
 #include "FastStaClockTree.hh"
 #include "FastStaLiberty.hh"
 #include "FastStaParasitics.hh"
+#include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
@@ -43,6 +49,18 @@
 
 namespace icts {
 namespace {
+
+auto elapsedSeconds(std::chrono::steady_clock::time_point start_time) -> double
+{
+  return std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
+}
+
+auto logBuilderStage(const Clock& clock, std::string_view stage_name, double runtime_s, const FastStaClockContext& context) -> void
+{
+  LOG_INFO << "FastStaBuilder: " << stage_name << " for clock \"" << clock.get_clock_name() << "\" finished in " << runtime_s
+           << " s, nodes=" << context.nodes.size() << ", nets=" << context.nets.size()
+           << ", liberty_cells=" << context.liberty_cell_by_master.size() << ".";
+}
 
 auto resolveRoutingLayer() -> int
 {
@@ -111,19 +129,47 @@ auto snapshotSinkPinCaps(const Clock& clock, FastStaClockContext& context) -> vo
 
 auto FastStaBuilder::buildClockContext(const Clock& clock) -> FastStaClockContext
 {
+  const auto total_start = std::chrono::steady_clock::now();
+  auto stage_start = std::chrono::steady_clock::now();
   auto context = FastStaClockTree::buildFromClock(clock);
+  logBuilderStage(clock, "build committed clock-tree graph", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
   applyRuntimeOptions(context);
+  logBuilderStage(clock, "apply runtime options", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
   snapshotSinkPinCaps(clock, context);
+  logBuilderStage(clock, "snapshot sink pin caps", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
   snapshotClockData(context);
+  logBuilderStage(clock, "snapshot liberty and clock data", elapsedSeconds(stage_start), context);
+  LOG_INFO << "FastStaBuilder: build clock context for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(total_start) << " s.";
   return context;
 }
 
 auto FastStaBuilder::buildClockContext(const Clock& clock, const ClockLayout& clock_layout, std::size_t clock_index) -> FastStaClockContext
 {
+  const auto total_start = std::chrono::steady_clock::now();
+  auto stage_start = std::chrono::steady_clock::now();
   auto context = FastStaClockTree::buildFromClockLayout(clock, clock_layout, clock_index);
+  logBuilderStage(clock, "build layout clock-tree graph", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
   applyRuntimeOptions(context);
+  logBuilderStage(clock, "apply runtime options", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
   snapshotSinkPinCaps(clock, context);
+  logBuilderStage(clock, "snapshot sink pin caps", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
   snapshotClockData(context);
+  logBuilderStage(clock, "snapshot liberty and clock data", elapsedSeconds(stage_start), context);
+  LOG_INFO << "FastStaBuilder: build layout clock context for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(total_start) << " s.";
   return context;
 }
 

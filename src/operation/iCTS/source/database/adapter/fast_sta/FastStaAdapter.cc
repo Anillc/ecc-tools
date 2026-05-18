@@ -25,8 +25,10 @@
 
 #include <glog/logging.h>
 
+#include <chrono>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -36,30 +38,79 @@
 #include "FastStaPower.hh"
 #include "FastStaTiming.hh"
 #include "Log.hh"
+#include "design/Clock.hh"
 
 namespace icts {
+namespace {
+
+auto elapsedSeconds(std::chrono::steady_clock::time_point start_time) -> double
+{
+  return std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
+}
+
+auto logContextSize(std::string_view owner, const FastStaClockContext& context) -> void
+{
+  LOG_INFO << owner << ": clock=\"" << context.clock_name << "\", nodes=" << context.nodes.size() << ", nets=" << context.nets.size()
+           << ", liberty_cells=" << context.liberty_cell_by_master.size() << ".";
+}
+
+}  // namespace
 
 auto FastStaAdapter::buildClockContext(const Clock& clock) -> FastStaClockId
 {
   auto& adapter = getInst();
+  const auto total_start = std::chrono::steady_clock::now();
+  auto stage_start = std::chrono::steady_clock::now();
+  LOG_INFO << "FastStaAdapter: start build clock context for clock \"" << clock.get_clock_name() << "\".";
   auto context = FastStaBuilder::buildClockContext(clock);
+  LOG_INFO << "FastStaAdapter: base context build finished in " << elapsedSeconds(stage_start) << " s.";
+  logContextSize("FastStaAdapter base context", context);
   const auto clock_id = adapter._clock_contexts.size();
   adapter._clock_contexts.push_back(std::move(context));
   adapter._clock_context_valid.push_back(true);
+
+  stage_start = std::chrono::steady_clock::now();
+  LOG_INFO << "FastStaAdapter: start initial timing update for clock \"" << clock.get_clock_name() << "\".";
   (void) updateTiming(clock_id);
+  LOG_INFO << "FastStaAdapter: initial timing update for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(stage_start) << " s.";
+
+  stage_start = std::chrono::steady_clock::now();
+  LOG_INFO << "FastStaAdapter: start initial power update for clock \"" << clock.get_clock_name() << "\".";
   (void) updatePower(clock_id);
+  LOG_INFO << "FastStaAdapter: initial power update for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(stage_start) << " s.";
+  LOG_INFO << "FastStaAdapter: build clock context for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(total_start) << " s.";
   return clock_id;
 }
 
 auto FastStaAdapter::buildClockContext(const Clock& clock, const ClockLayout& clock_layout, std::size_t clock_index) -> FastStaClockId
 {
   auto& adapter = getInst();
+  const auto total_start = std::chrono::steady_clock::now();
+  auto stage_start = std::chrono::steady_clock::now();
+  LOG_INFO << "FastStaAdapter: start build layout clock context for clock \"" << clock.get_clock_name() << "\".";
   auto context = FastStaBuilder::buildClockContext(clock, clock_layout, clock_index);
+  LOG_INFO << "FastStaAdapter: layout context build finished in " << elapsedSeconds(stage_start) << " s.";
+  logContextSize("FastStaAdapter layout context", context);
   const auto clock_id = adapter._clock_contexts.size();
   adapter._clock_contexts.push_back(std::move(context));
   adapter._clock_context_valid.push_back(true);
+
+  stage_start = std::chrono::steady_clock::now();
+  LOG_INFO << "FastStaAdapter: start initial timing update for clock \"" << clock.get_clock_name() << "\".";
   (void) updateTiming(clock_id);
+  LOG_INFO << "FastStaAdapter: initial timing update for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(stage_start) << " s.";
+
+  stage_start = std::chrono::steady_clock::now();
+  LOG_INFO << "FastStaAdapter: start initial power update for clock \"" << clock.get_clock_name() << "\".";
   (void) updatePower(clock_id);
+  LOG_INFO << "FastStaAdapter: initial power update for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(stage_start) << " s.";
+  LOG_INFO << "FastStaAdapter: build layout clock context for clock \"" << clock.get_clock_name() << "\" finished in "
+           << elapsedSeconds(total_start) << " s.";
   return clock_id;
 }
 
@@ -164,6 +215,24 @@ auto FastStaAdapter::changeBufferMasters(FastStaClockId clock_id, const std::vec
     return false;
   }
   return FastStaTiming::update(*context) && FastStaPower::update(*context);
+}
+
+auto FastStaAdapter::changeBufferMastersTimingOnly(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool
+{
+  auto* context = mutableClockContext(clock_id);
+  if (context == nullptr) {
+    LOG_ERROR << "FastStaAdapter: timing-only buffer master batch change skipped because clock context id is invalid.";
+    return false;
+  }
+  if (changes.empty()) {
+    return context->timing_valid;
+  }
+  if (!FastStaIncremental::changeBufferMasters(*context, changes)) {
+    return false;
+  }
+  const bool timing_updated = FastStaTiming::update(*context);
+  context->power_valid = false;
+  return timing_updated;
 }
 
 auto FastStaAdapter::updateTiming(FastStaClockId clock_id) -> bool

@@ -64,6 +64,7 @@ class FastStaAdapter
 
   static auto changeBufferMaster(FastStaClockId clock_id, FastStaNodeId node_id, std::string_view cell_master) -> bool;
   static auto changeBufferMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool;
+  static auto changeBufferMastersTimingOnly(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool;
   static auto updateTiming(FastStaClockId clock_id) -> bool;
   static auto updatePower(FastStaClockId clock_id) -> bool;
 
