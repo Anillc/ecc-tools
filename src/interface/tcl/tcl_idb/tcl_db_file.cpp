@@ -416,23 +416,23 @@ unsigned CmdSaveGDS::exec()
 
 CmdSaveJSON::CmdSaveJSON(const char* cmd_name) : TclCmd(cmd_name)
 {
-  auto* option = new TclStringOption(TCL_NAME, 1, nullptr);
-  addOption(option);
+  // auto* option = new TclStringOption(TCL_NAME, 1, nullptr);
+  // addOption(option);
 
   auto* path = new TclStringOption(TCL_PATH, 1);
   addOption(path);
 
-  auto* discard = new TclStringOption(TCL_JSON_OPTION, 1, nullptr);
-  addOption(discard);
+  // auto* discard = new TclStringOption(TCL_JSON_OPTION, 1, nullptr);
+  // addOption(discard);
 }
 
 unsigned CmdSaveJSON::check()
 {
-  TclOption* option = getOptionOrArg(TCL_NAME);
-  LOG_FATAL_IF(!option);
+  // TclOption* option = getOptionOrArg(TCL_NAME);
+  // LOG_FATAL_IF(!option);
 
-  TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
-  LOG_FATAL_IF(!discard);
+  // TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
+  // LOG_FATAL_IF(!discard);
 
   TclOption* path = getOptionOrArg(TCL_PATH);
   LOG_FATAL_IF(!path);
@@ -446,9 +446,9 @@ unsigned CmdSaveJSON::exec()
   }
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
-  TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
+  // TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
   auto str_path = def_path->getStringVal();
-  auto str_option = discard->getStringVal();
+  auto str_option = "";
   // std::cout<<str_path<<std::endl;
   if (str_path != nullptr) {
     dmInst->saveJSON(str_path, str_option);
