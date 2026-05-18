@@ -15,36 +15,34 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Optimization.hh
+ * @file FastStaBuilder.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-05-17
- * @brief CTS post-synthesis optimization flow facade.
+ * @date 2026-05-18
+ * @brief Initialization bridge from committed CTS state to fast STA context.
  */
 
 #pragma once
 
 #include <cstddef>
 
+#include "FastStaTypes.hh"
+
 namespace icts {
 
-class CharacterizationLibrary;
+class Clock;
 class ClockLayout;
+class Net;
+template <typename T>
+class ClockSteinerTree;
 
-struct OptimizationResult
-{
-  bool success = true;
-  bool optimized = false;
-  std::size_t clock_count = 0U;
-  std::size_t optimized_clock_count = 0U;
-  std::size_t accepted_mutation_count = 0U;
-};
-
-class Optimization
+class FastStaBuilder
 {
  public:
-  Optimization() = delete;
+  FastStaBuilder() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& characterization_library) -> OptimizationResult;
+  static auto buildClockContext(const Clock& clock) -> FastStaClockContext;
+  static auto buildClockContext(const Clock& clock, const ClockLayout& clock_layout, std::size_t clock_index) -> FastStaClockContext;
+  static auto injectNetRouteTree(FastStaClockContext& context, const Net& net, const ClockSteinerTree<int>& route_tree) -> bool;
 };
 
 }  // namespace icts

@@ -28,7 +28,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <initializer_list>
 #include <iterator>
@@ -73,8 +75,29 @@
 
 namespace icts::sta_adapter_internal {
 
-const unsigned kStaThreadCount = 80U;
-const unsigned kCharStaThreadCount = 1U;
+namespace {
+
+auto ResolveThreadCount(const char* env_name, unsigned default_value) noexcept -> unsigned
+{
+  constexpr unsigned min_thread_count = 1U;
+  constexpr unsigned max_thread_count = 80U;
+  const auto* value = std::getenv(env_name);
+  if (value == nullptr || *value == '\0') {
+    return default_value;
+  }
+  char* parse_end = nullptr;
+  errno = 0;
+  const auto parsed = std::strtoul(value, &parse_end, 10);
+  if (errno != 0 || parse_end == value || *parse_end != '\0') {
+    return default_value;
+  }
+  return std::clamp(static_cast<unsigned>(parsed), min_thread_count, max_thread_count);
+}
+
+}  // namespace
+
+const unsigned kStaThreadCount = ResolveThreadCount("ICTS_STA_THREADS", 80U);
+const unsigned kCharStaThreadCount = ResolveThreadCount("ICTS_CHAR_STA_THREADS", 1U);
 const unsigned kWorstPathPerClock = 10U;
 constexpr double kMilliOhmPerOhm = 1000.0;
 constexpr const char* kStaAdapterOwner = "STAAdapter";
@@ -253,6 +276,11 @@ auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_
   auto* idb_master = idb_inst->get_cell_master();
   LOG_FATAL_IF(idb_master == nullptr) << "Instance " << normalized_inst_name << " has no iDB cell master.";
   cell_master = idb_master->get_name();
+  return GetStaEngine()->findLibertyCell(cell_master.c_str());
+}
+
+auto FindLibertyCellByMaster(const std::string& cell_master) -> ista::LibCell*
+{
   return GetStaEngine()->findLibertyCell(cell_master.c_str());
 }
 

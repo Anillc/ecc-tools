@@ -21,16 +21,12 @@
  * @brief Characterization STA/iPA sample execution for feasible topologies.
  */
 
-#include <glog/logging.h>
-
 #include <algorithm>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <vector>
 
 #include "CharBuilder.hh"
-#include "Log.hh"
 #include "ValueLattice.hh"
 #include "adapter/sta/STAAdapter.hh"
 
@@ -41,7 +37,6 @@ struct PatternId;
 namespace icts {
 namespace {
 
-constexpr double kCharClockPeriodNs = 10.0;
 constexpr bool kEnableCharPowerSampling = true;
 
 }  // namespace
@@ -51,17 +46,8 @@ auto CharBuilder::sampleFeasibleTopology(unsigned length_idx, const PatternId& p
                                          BuildProgress& build_progress) -> void
 {
   createCharCircuit(topo, buf_masters);
-  STA_ADAPTER_INST.createCharClock(_source_out_pin, _char_clock_name, kCharClockPeriodNs);
-  STA_ADAPTER_INST.prepareCharTimingContext(_source_in_pin, _source_out_pin, _timing_observation_pin);
 
-  std::vector<std::string> power_inst_names = _temp_inst_names;
-  bool power_context_ready = false;
-  if (kEnableCharPowerSampling) {
-    power_context_ready = STA_ADAPTER_INST.prepareCharPower(power_inst_names, _temp_net_names, _source_in_pin);
-    if (!power_context_ready) {
-      LOG_WARNING << "CharBuilder: iPA characterization power is unavailable for this topology; affected samples use zero power.";
-    }
-  }
+  bool power_context_ready = kEnableCharPowerSampling;
 
   for (const double load_pf : _loads_to_test) {
     if (load_pf > feasibility.max_load_pf + kCapFeasibilityEpsilonPf) {
@@ -102,11 +88,6 @@ auto CharBuilder::sampleFeasibleTopology(unsigned length_idx, const PatternId& p
 
     sampleLoadSlews(length_idx, pid, topo, effective_load, load_pf, driven_cap_pf, power_context_ready, build_progress);
   }
-
-  if (kEnableCharPowerSampling) {
-    STA_ADAPTER_INST.destroyCharPower();
-  }
-  STA_ADAPTER_INST.destroyCharClock();
 
   destroyCharCircuit();
 }

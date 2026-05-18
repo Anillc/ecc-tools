@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints for file naming, headers, no exceptions, logging, and final validation."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Defines iCTS database adapter placement, CMake target naming, and source layer boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Defines naming, include, dependency, and validation rules for iCTS backend changes."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Defines database/adapter boundaries and ownership expectations relevant to FastStaAdapter."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Defines iCTS no-exception error-handling and LOG severity expectations."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Defines compact runtime logging expectations for adapter and flow code."}
+{"file": ".trellis/tasks/05-18-cts-fast-sta-timing-power/research.md", "reason": "Captures OpenSTA, iSTA, and iPA timing/power research for the fast STA implementation."}

@@ -783,10 +783,6 @@ class Wrapper::CtsClockIdbWriter
     if (inst == nullptr) {
       return nullptr;
     }
-    if (_wrapper->_cts2idb_inst_map.contains(inst)) {
-      return _wrapper->_cts2idb_inst_map.at(inst);
-    }
-
     if (_wrapper->_idb_layout == nullptr || _wrapper->_idb_layout->get_cell_master_list() == nullptr) {
       LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": iDB layout or cell master list is not ready.";
       return nullptr;
@@ -799,6 +795,20 @@ class Wrapper::CtsClockIdbWriter
       return nullptr;
     }
 
+    if (_wrapper->_cts2idb_inst_map.contains(inst)) {
+      auto* idb_inst = _wrapper->_cts2idb_inst_map.at(inst);
+      if (idb_inst == nullptr) {
+        return nullptr;
+      }
+      idb_inst->set_cell_master(cell_master);
+      idb_inst->set_type(idb::IdbInstanceType::kTiming);
+      idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
+      idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
+      idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
+      bindClockTreeInstPins(idb_inst, inst);
+      return idb_inst;
+    }
+
     auto* idb_inst = idb_inst_list->find_instance(inst->get_name());
     if (idb_inst == nullptr) {
       idb_inst = idb_inst_list->add_instance(inst->get_name());
@@ -809,10 +819,8 @@ class Wrapper::CtsClockIdbWriter
       idb_inst->set_cell_master(cell_master);
       idb_inst->set_type(idb::IdbInstanceType::kTiming);
     } else if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
-      const std::string actual_master = idb_inst->get_cell_master() == nullptr ? "<null>" : idb_inst->get_cell_master()->get_name();
-      LOG_ERROR << "CTS iDB writeback failed: cannot reuse iDB inst \"" << inst->get_name() << "\" with cell master \"" << actual_master
-                << "\" for CTS cell master \"" << inst->get_cell_master() << "\".";
-      return nullptr;
+      idb_inst->set_cell_master(cell_master);
+      idb_inst->set_type(idb::IdbInstanceType::kTiming);
     }
 
     idb_inst->set_orient(idb::IdbOrient::kN_R0, false);

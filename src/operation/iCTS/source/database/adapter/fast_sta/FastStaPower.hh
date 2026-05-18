@@ -15,32 +15,26 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file TreeBufferSizing.hh
+ * @file FastStaPower.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-05-17
- * @brief Critical-branch clock-tree buffer sizing solver.
+ * @date 2026-05-18
+ * @brief CTS fast STA power calculation.
  */
 
 #pragma once
 
-#include <cstddef>
-#include <vector>
+namespace icts {
 
-#include "buffer_sizing/BufferSizingTypes.hh"
+struct FastStaClockContext;
+struct FastStaDirtyRegion;
 
-namespace icts::buffer_sizing {
-
-class CharTimingLookup;
-
-class TreeBufferSizing
+class FastStaPower
 {
  public:
-  TreeBufferSizing() = delete;
+  FastStaPower() = delete;
 
-  static auto evaluate(const TreeSizingProblem& problem, const CharTimingLookup& timing_lookup,
-                       const std::vector<std::size_t>& selected_candidate_by_node) -> TreeEvaluation;
-  static auto solve(const TreeSizingProblem& problem, const CharTimingLookup& timing_lookup) -> TreeSizingSummary;
-  static auto criticalBranchCandidates(const TreeSizingProblem& problem, const TreeEvaluation& evaluation) -> std::vector<std::size_t>;
+  static auto update(FastStaClockContext& context) -> bool;
+  static auto updateRegion(FastStaClockContext& context, const FastStaDirtyRegion& dirty_region) -> bool;
 };
 
-}  // namespace icts::buffer_sizing
+}  // namespace icts

@@ -1,0 +1,105 @@
+library (cts_fast_sta_alignment) {
+  delay_model : "table_lookup";
+  simulation : false;
+  capacitive_load_unit (1,pF);
+  leakage_power_unit : "1mW";
+  current_unit : "1A";
+  pulling_resistance_unit : "1kohm";
+  time_unit : "1ns";
+  voltage_unit : "1v";
+  library_features : "report_delay_calculation";
+  input_threshold_pct_rise : 50;
+  input_threshold_pct_fall : 50;
+  output_threshold_pct_rise : 50;
+  output_threshold_pct_fall : 50;
+  slew_lower_threshold_pct_rise : 30;
+  slew_lower_threshold_pct_fall : 30;
+  slew_upper_threshold_pct_rise : 70;
+  slew_upper_threshold_pct_fall : 70;
+  slew_derate_from_library : 1.0;
+  nom_process : 1.0;
+  nom_temperature : 25.0;
+  nom_voltage : 1.0;
+
+  lu_table_template (delay_template) {
+    variable_1 : input_net_transition;
+    variable_2 : total_output_net_capacitance;
+    index_1 ("0.1, 0.5");
+    index_2 ("0.1, 1.0");
+  }
+
+  power_lut_template (power_template) {
+    variable_1 : input_transition_time;
+    variable_2 : total_output_net_capacitance;
+    index_1 ("0.1, 0.5");
+    index_2 ("0.1, 1.0");
+  }
+
+  cell (BUF_X1) {
+    area : 1.0;
+    cell_leakage_power : 0.01;
+
+    pin (A) {
+      direction : input;
+      capacitance : 0.2;
+    }
+
+    pin (Y) {
+      direction : output;
+      function : "A";
+      max_capacitance : 3.0;
+
+      timing () {
+        related_pin : "A";
+        timing_sense : positive_unate;
+        timing_type : combinational;
+
+        cell_rise (delay_template) {
+          index_1 ("0.1, 0.5");
+          index_2 ("0.1, 1.0");
+          values ("0.110, 0.200", \
+                  "0.150, 0.240");
+        }
+
+        cell_fall (delay_template) {
+          index_1 ("0.1, 0.5");
+          index_2 ("0.1, 1.0");
+          values ("0.110, 0.200", \
+                  "0.150, 0.240");
+        }
+
+        rise_transition (delay_template) {
+          index_1 ("0.1, 0.5");
+          index_2 ("0.1, 1.0");
+          values ("0.210, 0.300", \
+                  "0.250, 0.340");
+        }
+
+        fall_transition (delay_template) {
+          index_1 ("0.1, 0.5");
+          index_2 ("0.1, 1.0");
+          values ("0.210, 0.300", \
+                  "0.250, 0.340");
+        }
+      }
+
+      internal_power () {
+        related_pin : "A";
+
+        rise_power (power_template) {
+          index_1 ("0.1, 0.5");
+          index_2 ("0.1, 1.0");
+          values ("0.510, 0.600", \
+                  "0.550, 0.640");
+        }
+
+        fall_power (power_template) {
+          index_1 ("0.1, 0.5");
+          index_2 ("0.1, 1.0");
+          values ("0.510, 0.600", \
+                  "0.550, 0.640");
+        }
+      }
+    }
+  }
+}

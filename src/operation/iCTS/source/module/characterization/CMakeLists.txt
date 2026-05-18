@@ -19,6 +19,7 @@ target_link_libraries(
   icts_source_module_characterization
   PUBLIC
   icts_source_database_characterization
+  icts_source_database_adapter_fast_sta
   PRIVATE
   icts_source_database_adapter_sta
   icts_source_database_config

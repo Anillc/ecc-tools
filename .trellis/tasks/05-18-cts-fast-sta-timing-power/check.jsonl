@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Final check must verify iCTS hard constraints, final ecc dev policy, and external-module diff boundaries."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Final check must verify fast STA placement and CMake target wiring."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Final check must verify naming, include, dependency, and validation rules."}
+{"file": ".trellis/tasks/05-18-cts-fast-sta-timing-power/prd.md", "reason": "Fast STA acceptance criteria source."}
+{"file": ".trellis/tasks/05-18-cts-fast-sta-timing-power/design.md", "reason": "Fast STA design and boundary source."}
+{"file": ".trellis/tasks/05-18-cts-fast-sta-timing-power/implement.md", "reason": "Fast STA execution and validation checklist source."}
+{"file": ".trellis/tasks/05-18-cts-optimization-fast-sta-migration/prd.md", "reason": "Child optimization acceptance criteria that block parent final completion."}

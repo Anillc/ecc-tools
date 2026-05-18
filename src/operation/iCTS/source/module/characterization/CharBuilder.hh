@@ -34,6 +34,7 @@
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "ValueLattice.hh"
+#include "adapter/fast_sta/FastStaTypes.hh"
 
 namespace icts {
 
@@ -176,7 +177,7 @@ class CharBuilder
   auto characterizeTopology(unsigned length_idx, const TopologyDesc& topo, const std::vector<std::string>& buf_masters,
                             BuildProgress& build_progress) -> void;
   auto createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void;
-  auto setCharParasitics(const TopologyDesc& topo, double load_pf) -> void;
+  auto setCharParasitics(const TopologyDesc& topo, double load_pf) const -> void;
   auto destroyCharCircuit() -> void;
 
   auto findBufferInfo(const std::string& cell_master) const -> const CharBufferInfo*;
@@ -210,6 +211,7 @@ class CharBuilder
   std::vector<std::string> _temp_net_names;
   std::string _char_clock_name;
   unsigned _char_circuit_id = 0;
+  FastStaCharContextId _fast_sta_char_context_id = kInvalidFastStaCharContextId;
 
   std::vector<SegmentChar> _segment_chars;
   std::vector<BufferingPattern> _buffering_patterns;

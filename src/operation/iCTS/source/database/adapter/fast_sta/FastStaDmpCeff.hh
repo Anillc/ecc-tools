@@ -15,36 +15,29 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Optimization.hh
+ * @file FastStaDmpCeff.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-05-17
- * @brief CTS post-synthesis optimization flow facade.
+ * @date 2026-05-18
+ * @brief DMP effective capacitance solver boundary for CTS fast STA.
  */
 
 #pragma once
 
-#include <cstddef>
+#include "FastStaTypes.hh"
 
 namespace icts {
 
-class CharacterizationLibrary;
-class ClockLayout;
-
-struct OptimizationResult
-{
-  bool success = true;
-  bool optimized = false;
-  std::size_t clock_count = 0U;
-  std::size_t optimized_clock_count = 0U;
-  std::size_t accepted_mutation_count = 0U;
-};
-
-class Optimization
+class FastStaDmpCeff
 {
  public:
-  Optimization() = delete;
+  FastStaDmpCeff() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& characterization_library) -> OptimizationResult;
+  static auto calcDriverTiming(const FastStaLibertyCell& driver_cell, const FastStaPiModel& pi, FastStaTransition transition,
+                               double input_slew_ns) -> FastStaDmpDriverResult;
+  static auto calcLoadDelaySlew(const FastStaDmpDriverResult& driver_timing, double elmore_delay_ns, const FastStaLibertyCell* load_cell)
+      -> FastStaDmpLoadResult;
+  static auto calcInputPortDelaySlew(double input_slew_ns, double elmore_delay_ns, FastStaTransition transition,
+                                     const FastStaLibertyCell* load_cell) -> FastStaDmpLoadResult;
 };
 
 }  // namespace icts

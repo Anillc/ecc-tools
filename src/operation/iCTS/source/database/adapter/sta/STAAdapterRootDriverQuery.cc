@@ -201,6 +201,26 @@ auto maxArrivalNs(ista::StaVertex* vertex, const std::string& clock_name) -> std
   return *std::ranges::max_element(arrivals_ns);
 }
 
+auto maxSlewNs(ista::StaVertex* vertex) -> std::optional<double>
+{
+  if (vertex == nullptr) {
+    return std::nullopt;
+  }
+
+  std::vector<double> slews_ns;
+  slews_ns.reserve(2U);
+  for (const auto trans : {ista::TransType::kRise, ista::TransType::kFall}) {
+    const auto slew_ns = vertex->getSlewNs(ista::AnalysisMode::kMax, trans);
+    if (slew_ns.has_value() && std::isfinite(*slew_ns) && *slew_ns > 0.0) {
+      slews_ns.push_back(*slew_ns);
+    }
+  }
+  if (slews_ns.empty()) {
+    return std::nullopt;
+  }
+  return *std::ranges::max_element(slews_ns);
+}
+
 }  // namespace
 
 auto STAAdapter::queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>
@@ -214,6 +234,19 @@ auto STAAdapter::queryPinClockArrival(const Pin* pin, const std::string& clock_n
 
   auto* vertex = sta_adapter_internal::FindStaVertex(Design::getPinFullName(pin));
   return maxArrivalNs(vertex, clock_name);
+}
+
+auto STAAdapter::queryPinSlew(const Pin* pin) -> std::optional<double>
+{
+  if (pin == nullptr) {
+    return std::nullopt;
+  }
+  if (!sta_adapter_internal::HasFullDesignTimingContext()) {
+    return std::nullopt;
+  }
+
+  auto* vertex = sta_adapter_internal::FindStaVertex(Design::getPinFullName(pin));
+  return maxSlewNs(vertex);
 }
 
 auto STAAdapter::queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf,

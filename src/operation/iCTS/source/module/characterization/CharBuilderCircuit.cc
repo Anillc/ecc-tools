@@ -30,20 +30,17 @@
 #include <vector>
 
 #include "CharBuilder.hh"
+#include "FastStaTypes.hh"
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
+#include "adapter/fast_sta/FastStaAdapter.hh"
 
 namespace icts {
-namespace {
-
-constexpr double kMilliOhmPerOhm = 1000.0;
-
-}  // namespace
 
 auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<std::string>& buf_masters) -> void
 {
   _temp_inst_names.clear();
   _temp_net_names.clear();
+  _fast_sta_char_context_id = kInvalidFastStaCharContextId;
 
   const std::string id_prefix = "cts_char_" + std::to_string(_char_circuit_id) + "_";
 
@@ -51,28 +48,22 @@ auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   const auto& sink_buf = _sorted_buffers.front();
 
   _source_inst_name = id_prefix + "source";
-  STA_ADAPTER_INST.createCharInstance(source_buf.cell_master, _source_inst_name);
   _source_in_pin = _source_inst_name + "/" + source_buf.input_pin;
   _source_out_pin = _source_inst_name + "/" + source_buf.output_pin;
   _timing_observation_pin.clear();
 
   _sink_inst_name = id_prefix + "sink";
-  STA_ADAPTER_INST.createCharInstance(sink_buf.cell_master, _sink_inst_name);
   _sink_in_pin = _sink_inst_name + "/" + sink_buf.input_pin;
 
   for (size_t i = 0; i < buf_masters.size(); ++i) {
     const std::string inst_name = id_prefix + "buf_" + std::to_string(i);
-    STA_ADAPTER_INST.createCharInstance(buf_masters.at(i), inst_name);
     _temp_inst_names.push_back(inst_name);
   }
 
   for (size_t i = 0; i < topo.wire_segments_um.size(); ++i) {
     const std::string net_name = id_prefix + "net_" + std::to_string(i);
-    STA_ADAPTER_INST.createCharNet(net_name);
     _temp_net_names.push_back(net_name);
   }
-
-  STA_ADAPTER_INST.attachCharPin(_source_inst_name, source_buf.output_pin, _temp_net_names.front());
 
   for (size_t bi = 0; bi < buf_masters.size(); ++bi) {
     const CharBufferInfo* buf_info = findBufferInfo(buf_masters.at(bi));
@@ -82,42 +73,43 @@ auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
     }
     const auto& buffer_info = *buf_info;
 
-    STA_ADAPTER_INST.attachCharPin(_temp_inst_names.at(bi), buffer_info.input_pin, _temp_net_names.at(bi));
-    STA_ADAPTER_INST.attachCharPin(_temp_inst_names.at(bi), buffer_info.output_pin, _temp_net_names.at(bi + 1));
     if (bi + 1U == buf_masters.size()) {
       _timing_observation_pin = _temp_inst_names.at(bi) + "/" + buffer_info.output_pin;
     }
   }
 
-  STA_ADAPTER_INST.attachCharPin(_sink_inst_name, sink_buf.input_pin, _temp_net_names.back());
   if (_timing_observation_pin.empty()) {
     _timing_observation_pin = _sink_in_pin;
   }
 
-  for (const auto& net_name : _temp_net_names) {
-    STA_ADAPTER_INST.buildCharNetGraph(net_name);
-  }
-
   _char_clock_name = id_prefix + "clk";
+  _fast_sta_char_context_id = FastStaAdapter::buildCharContext(FastStaCharTopologySpec{
+      .source_cell_master = source_buf.cell_master,
+      .sink_cell_master = sink_buf.cell_master,
+      .buffer_cell_masters = buf_masters,
+      .wire_segments_um = topo.wire_segments_um,
+      .routing_layer = _routing_layer,
+      .wire_width_um = _wire_width,
+      .clock_period_ns = 10.0,
+  });
 
   ++_char_circuit_id;
 }
 
-auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) -> void
+auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) const -> void
 {
-  for (size_t i = 0; i < _temp_net_names.size(); ++i) {
-    const double seg_len_um = topo.wire_segments_um.at(i);
-    const double wire_res = STA_ADAPTER_INST.queryWireResistance(_routing_layer, seg_len_um, _wire_width) / kMilliOhmPerOhm;
-    const double wire_cap = STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
-
-    const double seg_load = (i == _temp_net_names.size() - 1) ? load_pf : 0.0;
-    STA_ADAPTER_INST.buildCharRcTree(_temp_net_names.at(i), wire_res, wire_cap, seg_load);
-  }
+  (void) topo;
+  LOG_FATAL_IF(_fast_sta_char_context_id == kInvalidFastStaCharContextId)
+      << "Fast STA characterization context is not prepared before parasitic load update.";
+  (void) FastStaAdapter::setCharLoad(_fast_sta_char_context_id, load_pf);
 }
 
 auto CharBuilder::destroyCharCircuit() -> void
 {
-  STA_ADAPTER_INST.resetCharContext();
+  if (_fast_sta_char_context_id != kInvalidFastStaCharContextId) {
+    (void) FastStaAdapter::eraseCharContext(_fast_sta_char_context_id);
+    _fast_sta_char_context_id = kInvalidFastStaCharContextId;
+  }
   _sink_inst_name.clear();
   _source_inst_name.clear();
   _temp_net_names.clear();

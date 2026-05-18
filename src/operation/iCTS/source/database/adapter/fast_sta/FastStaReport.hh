@@ -15,36 +15,24 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file Optimization.hh
+ * @file FastStaReport.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
- * @date 2026-05-17
- * @brief CTS post-synthesis optimization flow facade.
+ * @date 2026-05-18
+ * @brief Focused diagnostics for CTS fast STA.
  */
 
 #pragma once
 
-#include <cstddef>
-
 namespace icts {
 
-class CharacterizationLibrary;
-class ClockLayout;
+struct FastStaClockContext;
 
-struct OptimizationResult
-{
-  bool success = true;
-  bool optimized = false;
-  std::size_t clock_count = 0U;
-  std::size_t optimized_clock_count = 0U;
-  std::size_t accepted_mutation_count = 0U;
-};
-
-class Optimization
+class FastStaReport
 {
  public:
-  Optimization() = delete;
+  FastStaReport() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& characterization_library) -> OptimizationResult;
+  static auto logClockSummary(const FastStaClockContext& context) -> void;
 };
 
 }  // namespace icts

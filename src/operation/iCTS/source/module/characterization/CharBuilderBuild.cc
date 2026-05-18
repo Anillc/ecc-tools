@@ -34,7 +34,6 @@
 #include "CharBuilder.hh"
 #include "Log.hh"
 #include "SegmentChar.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
 
@@ -92,8 +91,6 @@ auto CharBuilder::build() -> void
     build_stage.skip({{"reason", "unresolved_characterization_limits"}});
     return;
   }
-
-  STA_ADAPTER_INST.initCharOnly();
 
   for (std::size_t wirelength_index = 0; wirelength_index < _wirelengths_um.size(); ++wirelength_index) {
     const unsigned length_idx = _wirelength_indices.at(wirelength_index);
@@ -209,7 +206,6 @@ auto CharBuilder::build() -> void
       {"segment_chars", std::to_string(_segment_chars.size())},
       {"patterns", std::to_string(_buffering_patterns.size())},
   });
-  STA_ADAPTER_INST.finishCharOnly();
 }
 
 }  // namespace icts

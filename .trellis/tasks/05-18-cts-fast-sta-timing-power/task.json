@@ -1,0 +1,28 @@
+{
+  "id": "cts-fast-sta-timing-power",
+  "name": "cts-fast-sta-timing-power",
+  "title": "CTS fast STA timing and power",
+  "description": "Build a CTS-specific fast STA timing/power module under iCTS database adapter, validate against OpenSTA, expose CTS-facing adapter interfaces, compare char/iSTA differences, and migrate CTS char/optimization to incremental fast STA.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-18-cts-optimization-fast-sta-migration"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

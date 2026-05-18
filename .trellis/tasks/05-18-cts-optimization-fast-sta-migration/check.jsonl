@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Final check constraints and no-push/no-exception policy."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify optimization flow/module placement and dependency wiring."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify iCTS code quality rules for optimization changes."}
+{"file": ".trellis/tasks/05-18-cts-optimization-fast-sta-migration/prd.md", "reason": "Optimization migration acceptance criteria source."}
+{"file": ".trellis/tasks/05-18-cts-optimization-fast-sta-migration/design.md", "reason": "Optimization policy boundary and validation design source."}
+{"file": ".trellis/tasks/05-18-cts-optimization-fast-sta-migration/implement.md", "reason": "Optimization implementation and 80ps/40ps/0ps validation checklist source."}

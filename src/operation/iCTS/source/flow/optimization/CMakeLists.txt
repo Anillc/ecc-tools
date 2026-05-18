@@ -7,9 +7,9 @@ target_link_libraries(
   icts_source_flow_optimization
   PRIVATE
   icts_source_database
+  icts_source_database_adapter_fast_sta
   icts_source_database_design
   icts_source_flow_synthesis_htree_characterization_library
-  icts_source_module_buffer_sizing
   icts_source_module_routing
   icts_source_utils
 )

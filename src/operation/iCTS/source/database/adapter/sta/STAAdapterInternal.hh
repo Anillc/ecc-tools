@@ -86,6 +86,7 @@ auto NormalizeInstName(std::string inst_name) -> std::string;
 auto NormalizePortName(const std::string& pin_name) -> std::string;
 auto FindIdbInstance(const std::string& inst_name) -> idb::IdbInstance*;
 auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_master) -> ista::LibCell*;
+auto FindLibertyCellByMaster(const std::string& cell_master) -> ista::LibCell*;
 auto AnnotateCharSourceInputPower(ipower::Power* power, const std::optional<std::string>& source_input_pin_full_name) -> void;
 auto FindBufferArcSet(ista::LibCell* lib_cell) -> std::optional<ista::LibArcSet*>;
 auto ConvertAxisValue(ista::LibLibrary* owner_lib, ista::LibLutTableTemplate::Variable variable, double axis_value) -> double;

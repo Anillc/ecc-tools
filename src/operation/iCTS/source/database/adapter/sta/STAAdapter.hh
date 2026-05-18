@@ -165,6 +165,7 @@ class STAAdapter
   static auto queryCharInputPinCap(const std::string& cell_master) -> double;
   static auto queryPinCapacitance(const Pin* pin) -> double;
   static auto queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>;
+  static auto queryPinSlew(const Pin* pin) -> std::optional<double>;
   static auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns)
       -> RootDriverCost;
   static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;

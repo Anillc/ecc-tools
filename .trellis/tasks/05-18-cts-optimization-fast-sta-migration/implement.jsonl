@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints and no ecc dev during development policy."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Defines flow/module/database dependency placement for optimization migration."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Defines naming, include, dependency, and validation rules for touched iCTS code."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Defines compact optimization logging expectations."}
+{"file": ".trellis/tasks/05-18-cts-fast-sta-timing-power/design.md", "reason": "Defines fast STA APIs and boundaries consumed by optimization."}
+{"file": ".trellis/tasks/05-18-cts-fast-sta-timing-power/research.md", "reason": "Explains why optimization must use fast STA timing instead of char/self-computed timing."}
