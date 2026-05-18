@@ -485,3 +485,36 @@ Implemented topology-aware target-window CTS optimization scoring for huge desig
 ### Next Steps
 
 - None - task complete
+
+
+## Session 59: CTS code structure optimization
+
+**Date**: 2026-05-18
+**Task**: CTS code structure optimization
+**Branch**: `cts_refactor`
+
+### Summary
+
+Committed the iCTS code-structure refactor, tightened fatal runtime semantics for DBU/routing-layer/RC paths, validated the ics55 iCTS dev script, passed ecc dev, and archived completed Trellis tasks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a1de604f8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
