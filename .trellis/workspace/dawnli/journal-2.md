@@ -452,3 +452,36 @@ Optimized ecc_dev_tools iCTS full-check runtime without reducing coverage: paral
 ### Next Steps
 
 - None - task complete
+
+
+## Session 58: CTS huge optimization search
+
+**Date**: 2026-05-18
+**Task**: CTS huge optimization search
+**Branch**: `cts_refactor`
+
+### Summary
+
+Implemented topology-aware target-window CTS optimization scoring for huge designs, validated huge 80ps runtime/QoR, and passed full iCTS ecc dev check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `21b8652d9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
