@@ -176,7 +176,7 @@ proc step_save_design {step_name output_def output_verilog output_gds output_jso
   def_save -path $output_def
   netlist_save -path $output_verilog -exclude_cell_names {}
   step_safe_eval [list gds_save -path $output_gds]
-  json_save -path $output_json
+  # json_save -path $output_json
   # save_data -path $output_db
   feature_summary -path $feature_db
   if {$feature_step_enable} {

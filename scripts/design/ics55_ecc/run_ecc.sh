@@ -4,17 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
-ECC_BINARY="${ECC_BINARY:-${SCRIPT_DIR}/ecc}"
+ECC_BINARY="${ECC_BINARY:-${SCRIPT_DIR}/ecc_bin}"
 WORKSPACE="${WORKSPACE_HOME:-gcd}"
 STEPS=(Floorplan fixFanout place CTS legalization route drc filler)
 
-if [[ ! -x "${ECC_BINARY}" && -x "${REPO_ROOT}/bin/ecc" ]]; then
-  ECC_BINARY="${REPO_ROOT}/bin/ecc"
+if [[ ! -x "${ECC_BINARY}" && -x "${REPO_ROOT}/bin/ecc_bin" ]]; then
+  ECC_BINARY="${REPO_ROOT}/bin/ecc_bin"
 fi
 
 if [[ ! -x "${ECC_BINARY}" ]]; then
   echo "ecc binary is not executable: ${ECC_BINARY}" >&2
-  echo "Set ECC_BINARY or build ${REPO_ROOT}/bin/ecc first." >&2
+  echo "Set ECC_BINARY or build ${REPO_ROOT}/bin/ecc_bin first." >&2
   exit 1
 fi
 

@@ -18,8 +18,8 @@ endif()
 
 add_definitions(-DiEDA_GIT_VERSION="${iEDA_GIT_VERSION}")
 
-add_executable(ecc
+add_executable(ecc_bin
     ieda_main.cpp
 )
 
-target_link_libraries(ecc flow)
+target_link_libraries(ecc_bin flow)
