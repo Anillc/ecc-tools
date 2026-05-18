@@ -109,14 +109,13 @@ auto FormatLevelBufferAreas(const std::vector<HTree::LevelPlan>& levels, bool we
 auto IsDefaultSynthesisSummaryField(const std::string& field) -> bool
 {
   return field == "levels" || field == "depth_candidates" || field == "selected_depth" || field == "selection_engine"
-         || field == "analytical_fallback_reason" || field == "selected_topology_pattern_id"
-         || field == "selected_level_segment_pattern_ids" || field == "selected_terminal_branch_buffered_levels"
-         || field == "final_frontier_count" || field == "inserted_insts" || field == "inserted_nets"
-         || field == "pruned_leaf_single_load_buffers" || field == "power" || field == "delay" || field == "root_driver_compensation"
-         || field == "root_driver_clock_period" || field == "compensated_htree_metric" || field == "selected_root_driver_cell_master"
-         || field == "root_driver_sizing_enabled" || field == "used_boundary_fallback" || field == "boundary_fallback_score"
-         || field == "htree_load_group_count" || field == "htree_load_cap_min" || field == "htree_load_cap_max"
-         || field == "htree_load_cap_mean" || field == "htree_load_cap_median";
+         || field == "analytical_failure_reason" || field == "selected_topology_pattern_id" || field == "selected_level_segment_pattern_ids"
+         || field == "selected_terminal_branch_buffered_levels" || field == "final_frontier_count" || field == "inserted_insts"
+         || field == "inserted_nets" || field == "pruned_leaf_single_load_buffers" || field == "power" || field == "delay"
+         || field == "root_driver_compensation" || field == "root_driver_clock_period" || field == "compensated_htree_metric"
+         || field == "selected_root_driver_cell_master" || field == "root_driver_sizing_enabled" || field == "used_boundary_relaxation"
+         || field == "boundary_relaxation_score" || field == "htree_load_group_count" || field == "htree_load_cap_min"
+         || field == "htree_load_cap_max" || field == "htree_load_cap_mean" || field == "htree_load_cap_median";
 }
 
 auto BuildDefaultSynthesisSummaryFields(const logformat::TableRows& synthesis_summary_rows) -> schema::KeyValueFields
@@ -167,16 +166,16 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
   std::string selection_policy;
   if (result.analytical_mode_selected) {
     selection_policy = "analytical_validated_pareto_power_guarded_min_delay";
-  } else if (result.used_boundary_fallback) {
-    selection_policy = "global_boundary_fallback";
+  } else if (result.used_boundary_relaxation) {
+    selection_policy = "global_boundary_relaxation";
   } else {
     selection_policy = "global_frontier_pareto_power_median";
   }
 
   std::string selection_policy_detail;
-  if (result.used_boundary_fallback) {
+  if (result.used_boundary_relaxation) {
     selection_policy_detail
-        = "the global strict-feasible pool across all depth candidates is empty; fallback selection uses the global "
+        = "the global strict-feasible pool across all depth candidates is empty; relaxed selection uses the global "
           "candidate post-compensation frontier pool with delay-power Pareto power-median ordering";
   } else if (result.analytical_mode_selected) {
     selection_policy_detail
@@ -202,8 +201,8 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
        "global winner across all evaluated depth candidates"},
       {"selection_engine", result.analytical_mode_selected ? "analytical" : "native", selection_engine_detail},
-      {"analytical_fallback_reason", result.analytical_fallback_reason.empty() ? "none" : result.analytical_fallback_reason,
-       result.analytical_mode_enabled ? "analytical failure reason; native fallback is not used in analytical mode"
+      {"analytical_failure_reason", result.analytical_failure_reason.empty() ? "none" : result.analytical_failure_reason,
+       result.analytical_mode_enabled ? "analytical failure reason; native solver is not used in analytical mode"
                                       : "analytical mode disabled"},
       {"analytical_model_sets", std::to_string(result.analytical_model_set_count),
        result.analytical_mode_enabled ? "complete F/D/P/W model sets built from segment characterization" : "not evaluated"},
@@ -226,8 +225,8 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
            ? "min / median / max delay with matching marginal power distribution values over validated candidates"
            : "not evaluated"},
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
-       result.used_boundary_fallback ? "selected fallback topology pattern from candidate frontier selection entries"
-                                     : "selected strict-feasible topology pattern from the global feasible frontier pool"},
+       result.used_boundary_relaxation ? "selected relaxed topology pattern from candidate frontier selection entries"
+                                       : "selected strict-feasible topology pattern from the global feasible frontier pool"},
       {"selected_level_segment_pattern_ids", selected_level_segment_pattern_ids.empty() ? "none" : selected_level_segment_pattern_ids,
        "root-to-leaf selected segment pattern ids for the chosen topology pattern"},
       {"selected_level_buffer_counts", FormatLevelBufferCounts(result.levels, false), "unweighted selected buffer count per H-tree level"},
@@ -315,10 +314,11 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"root_driver_sizing_enabled", logformat::FormatBool(result.root_driver_sizing_enabled),
        result.root_driver_sizing_enabled ? "root driver may be resized when the root is a CTS-owned buffer"
                                          : "root driver sizing is disabled for immutable top-level clock source"},
-      {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback),
-       result.used_boundary_fallback ? result.boundary_fallback_reason : "constraints satisfied without fallback"},
-      {"boundary_fallback_score", result.boundary_fallback_score.has_value() ? std::to_string(*result.boundary_fallback_score) : "none",
-       result.used_boundary_fallback ? "diagnostic normalized active-boundary score of the selected fallback" : "not used"},
+      {"used_boundary_relaxation", logformat::FormatBool(result.used_boundary_relaxation),
+       result.used_boundary_relaxation ? result.boundary_relaxation_reason : "constraints satisfied without relaxation"},
+      {"boundary_relaxation_score",
+       result.boundary_relaxation_score.has_value() ? std::to_string(*result.boundary_relaxation_score) : "none",
+       result.used_boundary_relaxation ? "diagnostic normalized active-boundary score of the selected relaxed candidate" : "not used"},
   };
   {
     const auto is_duplicate_frontier_row = [&](const auto& row) -> bool {

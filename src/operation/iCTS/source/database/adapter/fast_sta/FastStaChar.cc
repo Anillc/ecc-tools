@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -23,10 +23,13 @@
 
 #include "FastStaChar.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -36,6 +39,7 @@
 #include "FastStaParasitics.hh"
 #include "FastStaPower.hh"
 #include "FastStaTiming.hh"
+#include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "io/Wrapper.hh"
@@ -43,13 +47,18 @@
 namespace icts {
 namespace {
 
-constexpr int kCharDbuPerUmFallback = 1000;
 constexpr double kMilliOhmPerOhm = 1000.0;
 
-auto resolveDbuPerUm() -> int
+auto resolveDbuPerUm(const FastStaCharTopologySpec& spec) -> int
 {
+  if (spec.dbu_per_um.has_value()) {
+    LOG_FATAL_IF(*spec.dbu_per_um <= 0) << "FastStaChar: explicit DBU-per-micron must be positive.";
+    return *spec.dbu_per_um;
+  }
+
   const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
-  return dbu_per_um > 0 ? dbu_per_um : kCharDbuPerUmFallback;
+  LOG_FATAL_IF(dbu_per_um <= 0) << "FastStaChar: DBU-per-micron is unavailable; characterization context cannot be built.";
+  return dbu_per_um;
 }
 
 auto makePoint(double x_um, int dbu_per_um) -> FastStaPoint
@@ -118,9 +127,9 @@ auto sourceBoundaryNetId(const FastStaClockContext& context) -> FastStaNetId
 auto makeLinearParasitic(const FastStaClockContext& context, const FastStaNet& net, FastStaNodeId driver_node_id,
                          FastStaNodeId load_node_id, double wirelength_um) -> FastStaNetParasitic
 {
-  const auto wire_cap_pf = STA_ADAPTER_INST.queryWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
+  const auto wire_cap_pf = STA_ADAPTER_INST.queryRequiredWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
   const auto wire_resistance_ohm
-      = STA_ADAPTER_INST.queryWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / kMilliOhmPerOhm;
+      = STA_ADAPTER_INST.queryRequiredWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / kMilliOhmPerOhm;
   FastStaNetParasitic parasitic;
   parasitic.rc_nodes = {
       FastStaRcNode{
@@ -173,10 +182,12 @@ auto selectedBufferLeakagePower(const FastStaClockContext& context) -> double
 auto FastStaChar::buildContext(const FastStaCharTopologySpec& spec) -> FastStaClockContext
 {
   FastStaClockContext context;
+  const auto dbu_per_um = resolveDbuPerUm(spec);
+  LOG_FATAL_IF(spec.routing_layer <= 0) << "FastStaChar: routing layer must be explicitly provided.";
   context.clock_name = "cts_char_clk";
   context.clock_net_name = "cts_char_net_0";
   context.clock_period_ns = spec.clock_period_ns;
-  context.dbu_per_um = resolveDbuPerUm();
+  context.dbu_per_um = dbu_per_um;
   context.routing_layer = spec.routing_layer;
   context.wire_width_um = spec.wire_width_um;
 

@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -23,13 +23,17 @@
 
 #include "FastStaClockTree.hh"
 
+#include <glog/logging.h>
+
 #include <cstddef>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "FastStaParasitics.hh"
+#include "Log.hh"
 #include "design/Clock.hh"
 #include "design/ClockLayout.hh"
 #include "design/Design.hh"
@@ -101,7 +105,7 @@ auto appendLayoutSegments(const ClockLayoutNet& layout_net, FastStaClockContext&
   std::vector<FastStaRcSegment> segments;
   segments.reserve(layout_net.routed_segments.size());
   for (const auto& segment : layout_net.routed_segments) {
-    if (!segment.routed || segment.fallback) {
+    if (!segment.routed || segment.degraded) {
       continue;
     }
     segments.push_back(FastStaRcSegment{
@@ -170,20 +174,29 @@ auto FastStaClockTree::buildFromClock(const Clock& clock) -> FastStaClockContext
   return context;
 }
 
-auto FastStaClockTree::buildFromClockLayout(const Clock& clock, const ClockLayout& clock_layout, std::size_t clock_index)
+auto FastStaClockTree::buildFromClockLayout(const Clock& clock, const ClockLayout& clock_layout, [[maybe_unused]] std::size_t clock_index)
     -> FastStaClockContext
 {
   auto context = buildFromClock(clock);
   context.dbu_per_um = clock_layout.get_design_dbu_per_um();
+  return context;
+}
 
+auto FastStaClockTree::applyLayoutParasitics(FastStaClockContext& context, const ClockLayout& clock_layout, std::size_t clock_index) -> void
+{
+  const auto layout_dbu_per_um = clock_layout.get_design_dbu_per_um();
+  LOG_FATAL_IF(layout_dbu_per_um <= 0) << "FastStaClockTree: ClockLayout DBU-per-micron is invalid.";
+  LOG_FATAL_IF(context.dbu_per_um <= 0) << "FastStaClockTree: Fast STA DBU-per-micron is invalid.";
+  LOG_FATAL_IF(context.dbu_per_um != layout_dbu_per_um) << "FastStaClockTree: Fast STA DBU-per-micron (" << context.dbu_per_um
+                                                        << ") does not match ClockLayout DBU-per-micron (" << layout_dbu_per_um << ").";
+  LOG_FATAL_IF(context.routing_layer <= 0) << "FastStaClockTree: routing layer must be initialized before layout RC extraction.";
   const auto* layout_clock = clock_layout.findClock(clock_index);
   if (layout_clock == nullptr) {
-    return context;
+    return;
   }
   for (const auto& layout_net : layout_clock->nets) {
     appendLayoutSegments(layout_net, context);
   }
-  return context;
 }
 
 }  // namespace icts

@@ -317,7 +317,7 @@ auto EmitSegmentSummary(const SourceTrunkSegment::BuildResult& result, const Sou
                                               "Required Load Cap",
                                               "Source Drive",
                                               "Strict Candidates",
-                                              "Fallback Candidates",
+                                              "Relaxed Candidates",
                                               "Inserted Insts",
                                               "Inserted Nets"};
   logformat::TableRows default_rows = {{
@@ -329,13 +329,13 @@ auto EmitSegmentSummary(const SourceTrunkSegment::BuildResult& result, const Sou
       logformat::FormatWithUnit(options.required_load_cap_pf, "pF"),
       logformat::FormatWithUnit(options.source_drive_cap_pf, "pF"),
       std::to_string(result.strict_candidate_count),
-      std::to_string(result.fallback_candidate_count),
+      std::to_string(result.relaxed_candidate_count),
       std::to_string(result.inserted_insts.size()),
       std::to_string(result.inserted_nets.size()),
   }};
-  if (result.used_boundary_fallback) {
-    default_headers.emplace_back("Fallback Reason");
-    default_rows.front().emplace_back(result.boundary_fallback_reason.empty() ? "unknown" : result.boundary_fallback_reason);
+  if (result.used_boundary_relaxation) {
+    default_headers.emplace_back("Relaxation Reason");
+    default_rows.front().emplace_back(result.boundary_relaxation_reason.empty() ? "unknown" : result.boundary_relaxation_reason);
   }
   if (!result.success) {
     default_headers.emplace_back("Failure");
@@ -359,9 +359,9 @@ auto EmitSegmentSummary(const SourceTrunkSegment::BuildResult& result, const Sou
       {"source_drive_cap_idx", std::to_string(result.source_drive_cap_idx)},
       {"min_input_slew_idx", result.min_input_slew_idx.has_value() ? std::to_string(*result.min_input_slew_idx) : "none"},
       {"strict_candidate_count", std::to_string(result.strict_candidate_count)},
-      {"fallback_candidate_count", std::to_string(result.fallback_candidate_count)},
-      {"used_boundary_fallback", logformat::FormatBool(result.used_boundary_fallback)},
-      {"boundary_fallback_reason", result.boundary_fallback_reason.empty() ? "none" : result.boundary_fallback_reason},
+      {"relaxed_candidate_count", std::to_string(result.relaxed_candidate_count)},
+      {"used_boundary_relaxation", logformat::FormatBool(result.used_boundary_relaxation)},
+      {"boundary_relaxation_reason", result.boundary_relaxation_reason.empty() ? "none" : result.boundary_relaxation_reason},
       {"segment_inserted_insts", std::to_string(result.inserted_insts.size())},
       {"segment_inserted_nets", std::to_string(result.inserted_nets.size())},
   };
@@ -401,14 +401,16 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
   }
 
   const int distance_dbu = geometry::Manhattan(source->get_location(), sink->get_location());
-  const int32_t dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
-  result.length_um = static_cast<double>(std::max(distance_dbu, 0)) / static_cast<double>(dbu_per_um);
-  if (result.length_um <= 0.0) {
+  if (distance_dbu <= 0) {
     ConnectNet(source_net, source, {sink});
     result.success = true;
     EmitSegmentSummary(result, options);
     return result;
   }
+
+  const int32_t dbu_per_um = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(dbu_per_um <= 0) << "SourceTrunkSegment: source-to-root build failed because DBU-per-micron is unavailable.";
+  result.length_um = static_cast<double>(distance_dbu) / static_cast<double>(dbu_per_um);
 
   if (options.required_load_cap_pf <= 0.0) {
     result.failure_reason = "unresolved_required_load_cap";
@@ -515,20 +517,20 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
     result.strict_candidate_count = strict_entries.size();
     result.best_char = SelectBestSegmentEntry(strict_entries);
     if (!result.best_char.has_value() && result.min_input_slew_idx.has_value()) {
-      auto fallback_entries
+      auto relaxed_entries
           = FilterSegmentEntries(*all_frontier_entries, result.required_load_cap_idx, result.source_drive_cap_idx, std::nullopt);
-      result.fallback_candidate_count = fallback_entries.size();
-      result.best_char = SelectBestSegmentEntry(fallback_entries);
+      result.relaxed_candidate_count = relaxed_entries.size();
+      result.best_char = SelectBestSegmentEntry(relaxed_entries);
       if (result.best_char.has_value()) {
-        result.used_boundary_fallback = true;
-        result.boundary_fallback_reason = "dropped_soft_input_slew_boundary";
+        result.used_boundary_relaxation = true;
+        result.boundary_relaxation_reason = "dropped_soft_input_slew_boundary";
       }
     }
     if (result.best_char.has_value()) {
       selection_stage.finished({
           {"strict_candidates", std::to_string(result.strict_candidate_count)},
-          {"fallback_candidates", std::to_string(result.fallback_candidate_count)},
-          {"used_boundary_fallback", result.used_boundary_fallback ? "true" : "false"},
+          {"relaxed_candidates", std::to_string(result.relaxed_candidate_count)},
+          {"used_boundary_relaxation", result.used_boundary_relaxation ? "true" : "false"},
           {"selected_pattern_id", std::to_string(result.best_char->get_pattern_id().pack())},
       });
     } else {

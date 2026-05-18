@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -48,7 +48,7 @@ struct AnalyticalCharacterizationOptions
   AnalyticalModelBasis source_boundary_power_basis = AnalyticalModelBasis::kAffine;
   bool prefer_exact_structural_cap = false;
   double length_unit_um = 0.0;
-  int routing_layer = 1;
+  int routing_layer = 0;
   std::optional<double> wire_width = std::nullopt;
   double max_output_slew_abs_residual_ns = 0.0;
   double max_output_slew_bucket_residual = 0.0;
@@ -59,7 +59,7 @@ struct AnalyticalCharacterizationOptions
   bool require_monotonic_delay = true;
   bool require_monotonic_power = false;
   bool require_monotonic_source_boundary_power = false;
-  bool allow_sparse_constant_fallback = false;
+  bool allow_sparse_constant_model = false;
 };
 
 struct AnalyticalCharacterizationFailure

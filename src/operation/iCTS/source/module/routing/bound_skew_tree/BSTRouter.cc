@@ -95,18 +95,13 @@ auto BuildDefaultParameters(const BSTParameters& parameters) -> BSTParameters
 
 auto NormalizeTopoTypeForBuild(const BSTParameters& parameters) -> TopoType
 {
-  if (parameters.topo_type == TopoType::kInputTopo) {
-    LOG_WARNING << "BSTRouter::buildTree received TopoType::kInputTopo. Falling back to TopoType::kGreedyDist for normal BST construction.";
-    return TopoType::kGreedyDist;
-  }
+  LOG_FATAL_IF(parameters.topo_type == TopoType::kInputTopo)
+      << "BSTRouter::buildTree received TopoType::kInputTopo; call buildTreeFromTopology for input-topology routing.";
   return parameters.topo_type;
 }
 
-auto NormalizeTopoTypeForInputTopology(const BSTParameters& parameters) -> TopoType
+auto NormalizeTopoTypeForInputTopology(const BSTParameters& /*parameters*/) -> TopoType
 {
-  if (parameters.topo_type != TopoType::kInputTopo) {
-    LOG_WARNING << "BSTRouter::buildTreeFromTopology received non-input topology type. Overriding topo_type to TopoType::kInputTopo.";
-  }
   return TopoType::kInputTopo;
 }
 

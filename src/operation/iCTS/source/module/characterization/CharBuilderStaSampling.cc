@@ -66,11 +66,11 @@ auto CharBuilder::sampleFeasibleTopology(unsigned length_idx, const PatternId& p
     double driven_cap_pf = 0.0;
     if (!buf_masters.empty()) {
       driven_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(buf_masters.front());
-      driven_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
+      driven_cap_pf += STA_ADAPTER_INST.queryRequiredWireCapacitance(_routing_layer, topo.wire_segments_um.front(), _wire_width);
     } else {
       driven_cap_pf = load_pf;
       for (const double seg_len_um : topo.wire_segments_um) {
-        driven_cap_pf += STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, seg_len_um, _wire_width);
+        driven_cap_pf += STA_ADAPTER_INST.queryRequiredWireCapacitance(_routing_layer, seg_len_um, _wire_width);
       }
     }
 

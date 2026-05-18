@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -144,13 +144,13 @@ auto MakeFitOptions(AnalyticalMetric metric, const AnalyticalCharacterizationOpt
   return fit_options;
 }
 
-auto CanUseSparseConstantFallback(const std::string& failure_reason) -> bool
+auto CanUseSparseConstantModel(const std::string& failure_reason) -> bool
 {
   return failure_reason == "insufficient_samples" || failure_reason == "singular_normal_equation" || failure_reason == "invalid_domain";
 }
 
-auto BuildSparseConstantFallbackModel(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitOptions& fit_options,
-                                      const UniformValueLattice& slew_lattice, const UniformValueLattice& cap_lattice)
+auto BuildSparseConstantModel(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitOptions& fit_options,
+                              const UniformValueLattice& slew_lattice, const UniformValueLattice& cap_lattice)
     -> std::optional<AnalyticalSurfaceModel>
 {
   if (samples.empty() || !slew_lattice.isValid() || !cap_lattice.isValid()) {
@@ -198,7 +198,7 @@ auto BuildSparseConstantFallbackModel(const std::vector<AnalyticalFitSample>& sa
   quality.monotonicity_passed = true;
   quality.bucket_aware_passed = true;
   quality.accepted = true;
-  quality.failure_reason = "sparse_constant_fallback";
+  quality.failure_reason = "sparse_constant_model";
   return model;
 }
 
@@ -216,10 +216,10 @@ auto FitMetric(const GroupedSegmentChars& group, const UniformValueLattice& slew
     return fit.model;
   }
 
-  if (options.allow_sparse_constant_fallback && CanUseSparseConstantFallback(fit.failure_reason)) {
-    auto fallback_model = BuildSparseConstantFallbackModel(samples, fit_options, slew_lattice, cap_lattice);
-    if (fallback_model.has_value()) {
-      return fallback_model;
+  if (options.allow_sparse_constant_model && CanUseSparseConstantModel(fit.failure_reason)) {
+    auto sparse_model = BuildSparseConstantModel(samples, fit_options, slew_lattice, cap_lattice);
+    if (sparse_model.has_value()) {
+      return sparse_model;
     }
   }
 
@@ -258,8 +258,8 @@ auto MakeExactStructuralCapOperator(const BufferingPattern* pattern, const Analy
   }
 
   if (pattern->isWirePattern()) {
-    auto op
-        = StructuralCapOperator::wire(STA_ADAPTER_INST.queryWireCapacitance(options.routing_layer, total_length_um, options.wire_width));
+    auto op = StructuralCapOperator::wire(
+        STA_ADAPTER_INST.queryRequiredWireCapacitance(options.routing_layer, total_length_um, options.wire_width));
     op.source = "exact_wire";
     return op;
   }
@@ -283,7 +283,7 @@ auto MakeExactStructuralCapOperator(const BufferingPattern* pattern, const Analy
   const double pre_buffer_wire_length_um = total_length_um * first_buffer_position;
   auto op = StructuralCapOperator::buffered(
       first_buffer_input_cap_pf,
-      STA_ADAPTER_INST.queryWireCapacitance(options.routing_layer, pre_buffer_wire_length_um, options.wire_width));
+      STA_ADAPTER_INST.queryRequiredWireCapacitance(options.routing_layer, pre_buffer_wire_length_um, options.wire_width));
   op.source = "exact_buffered";
   return op;
 }

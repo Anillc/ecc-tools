@@ -322,7 +322,7 @@ auto Wrapper::queryDbUnit() const -> int32_t
 {
   if (_idb_design == nullptr || _idb_design->get_units() == nullptr) {
     LOG_ERROR << "iDB design units are not ready in Wrapper.";
-    return 1;
+    return 0;
   }
   return _idb_design->get_units()->get_micron_dbu();
 }

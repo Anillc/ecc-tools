@@ -27,7 +27,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -62,7 +61,7 @@ auto ResolveRoutingLayer(const Router::RCTreeBuildOptions& options) -> int
     return options.routing_layer.value();
   }
 
-  return 1;
+  LOG_FATAL << "Router: routing layer must be explicitly provided for RC-tree construction.";
 }
 
 auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optional<double>
@@ -76,7 +75,8 @@ auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optiona
 
 auto QueryArcParasitics(int wire_distance_dbu, const Router::RCTreeBuildOptions& options) -> std::pair<double, double>
 {
-  const auto db_unit = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
+  const auto db_unit = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(db_unit <= 0) << "Router: DBU-per-micron is unavailable for RC-tree construction.";
   const auto wirelength = static_cast<double>(std::max(wire_distance_dbu, 0)) / db_unit;
   if (wirelength <= 0.0) {
     return {0.0, 0.0};
@@ -84,8 +84,8 @@ auto QueryArcParasitics(int wire_distance_dbu, const Router::RCTreeBuildOptions&
 
   const auto routing_layer = ResolveRoutingLayer(options);
   const auto wire_width = ResolveWireWidth(options);
-  const auto resistance = STA_ADAPTER_INST.queryWireResistance(routing_layer, wirelength, wire_width) / kMilliOhmPerOhm;
-  const auto capacitance = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, wirelength, wire_width);
+  const auto resistance = STA_ADAPTER_INST.queryRequiredWireResistance(routing_layer, wirelength, wire_width) / kMilliOhmPerOhm;
+  const auto capacitance = STA_ADAPTER_INST.queryRequiredWireCapacitance(routing_layer, wirelength, wire_width);
   return {resistance, capacitance};
 }
 

@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -58,15 +58,16 @@ struct CandidateBuildEvaluation
   std::size_t feasible_solution_count = 0U;
   std::vector<HTreeTopologyChar> feasible_frontier_entries;
   std::optional<HTreeTopologyChar> best_char = std::nullopt;
-  bool used_boundary_fallback = false;
-  std::optional<double> boundary_fallback_score = std::nullopt;
-  std::string boundary_fallback_reason;
+  bool used_boundary_relaxation = false;
+  std::optional<double> boundary_relaxation_score = std::nullopt;
+  std::string boundary_relaxation_reason;
   TopologyPatternLibrary topology_pattern_library;
 };
 
 struct HTreeFanoutPruningOptions
 {
   std::size_t max_fanout = 0U;
+  bool allow_boundary_relaxation = false;
 };
 
 struct CandidateCharRef
@@ -92,7 +93,7 @@ auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateChar
                                                  SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterResult;
 auto BuildPerDepthDelayPowerParetoRefs(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>;
 auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>;
-auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)
+auto CalcBoundaryRelaxationScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)
     -> double;
 
 }  // namespace icts::htree

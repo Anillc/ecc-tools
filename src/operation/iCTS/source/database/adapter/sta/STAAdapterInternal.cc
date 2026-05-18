@@ -357,7 +357,8 @@ auto ResolveConfiguredRoutingLayer() -> int
 {
   const auto& routing_layers = CONFIG_INST.get_routing_layers();
   if (routing_layers.empty()) {
-    return 1;
+    LOG_ERROR << kStaAdapterOwner << ": routing layer is not configured.";
+    return 0;
   }
   return static_cast<int>(routing_layers.front());
 }

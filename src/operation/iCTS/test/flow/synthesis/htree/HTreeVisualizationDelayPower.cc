@@ -90,9 +90,9 @@ auto BuildDelayPowerChoiceSummary(const icts::HTree::BuildResult& result) -> std
 
   const auto observation = ObserveHTreeBuild(result);
   const std::size_t frontier_pool_size
-      = observation.used_boundary_fallback ? observation.selected_candidate_solution_count : observation.selected_feasible_solution_count;
-  const std::size_t selection_pool_size = observation.used_boundary_fallback ? observation.selected_candidate_frontier_entry_count
-                                                                             : observation.selected_feasible_frontier_entry_count;
+      = observation.used_boundary_relaxation ? observation.selected_candidate_solution_count : observation.selected_feasible_solution_count;
+  const std::size_t selection_pool_size = observation.used_boundary_relaxation ? observation.selected_candidate_frontier_entry_count
+                                                                               : observation.selected_feasible_frontier_entry_count;
 
   DelayPowerChoiceSummary summary{
       .frontier_selection_pool_size = frontier_pool_size,
@@ -294,7 +294,7 @@ auto BuildReport(const std::string& scenario_name, const std::string& input_summ
   if (selection_summary.has_value()) {
     report << std::setprecision(9);
     report << "delay_power_selection_summary selection_policy="
-           << (observation.used_boundary_fallback ? "boundary_fallback" : "global_frontier_pareto_power_median")
+           << (observation.used_boundary_relaxation ? "boundary_relaxation" : "global_frontier_pareto_power_median")
            << ", frontier_selection_pool_size=" << selection_summary->frontier_selection_pool_size
            << ", selection_pool_size=" << selection_summary->selection_pool_size
            << ", pareto_solution_count=" << selection_summary->pareto_solution_count << ", pareto_power_median_index=";

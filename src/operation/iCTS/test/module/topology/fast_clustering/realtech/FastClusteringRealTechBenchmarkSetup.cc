@@ -211,7 +211,11 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
     return loaded;
   }
 
-  loaded.dbu_per_micron = std::max(1, WRAPPER_INST.queryDbUnit());
+  loaded.dbu_per_micron = WRAPPER_INST.queryDbUnit();
+  if (loaded.dbu_per_micron <= 0) {
+    loaded.error = "DBU-per-micron unavailable after DEF load";
+    return loaded;
+  }
   loaded.inst_count = idb_design->get_instance_list() == nullptr ? 0U : idb_design->get_instance_list()->get_instance_list().size();
   loaded.net_count = idb_design->get_net_list() == nullptr ? 0U : idb_design->get_net_list()->get_net_list().size();
   const auto clocks = DESIGN_INST.get_clocks();

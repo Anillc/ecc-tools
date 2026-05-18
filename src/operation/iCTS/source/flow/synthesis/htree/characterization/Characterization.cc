@@ -115,7 +115,7 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
   }
   const std::string decision_flags = decision_flag_values.empty() ? std::string{"none"} : logformat::JoinStrings(decision_flag_values, "+");
   logformat::TableRows grid_plan_rows = {
-      {"source", grid_source, char_grid_plan.adapted ? "fallback derived from topology level lengths" : "use runtime-configured grid"},
+      {"source", grid_source, char_grid_plan.adapted ? "auto-derived from topology level lengths" : "use runtime-configured grid"},
       {"requested_level_lengths", std::to_string(char_grid_plan.requested_level_lengths),
        "average parent-child segment length per topology level plus caller-supplied source-to-root lengths"},
       {"required_covering_iterations", std::to_string(char_grid_plan.required_covering_iterations),
@@ -123,7 +123,7 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
       {"direct_characterization_bins", std::to_string(char_grid_plan.wirelength_iterations),
        char_grid_plan.adapted ? "direct-char bins after runtime cap" : "0 (disabled)"},
       {"distinct_level_bins", std::to_string(char_grid_plan.unique_level_bins), "aligned-length bins under resolved setup"},
-      {"decision_flags", decision_flags, "fallback/adaptation trigger flags"},
+      {"decision_flags", decision_flags, "auto-derivation/adaptation trigger flags"},
   };
   if (char_grid_plan.adapted) {
     grid_plan_rows.insert(grid_plan_rows.begin() + 1,

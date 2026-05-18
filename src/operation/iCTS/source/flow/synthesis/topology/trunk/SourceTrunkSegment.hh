@@ -57,10 +57,10 @@ class SourceTrunkSegment
     bool success = false;
     std::string failure_reason;
     std::optional<SegmentChar> best_char = std::nullopt;
-    bool used_boundary_fallback = false;
-    std::string boundary_fallback_reason;
+    bool used_boundary_relaxation = false;
+    std::string boundary_relaxation_reason;
     std::size_t strict_candidate_count = 0U;
-    std::size_t fallback_candidate_count = 0U;
+    std::size_t relaxed_candidate_count = 0U;
     double length_um = 0.0;
     unsigned length_idx = 0U;
     unsigned required_load_cap_idx = 0U;

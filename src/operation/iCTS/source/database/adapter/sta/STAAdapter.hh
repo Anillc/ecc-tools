@@ -119,6 +119,8 @@ class STAAdapter
   static auto isFlipFlop(const std::string& inst_name) -> bool;
   static auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
   static auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  static auto queryRequiredWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  static auto queryRequiredWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
   static auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
   static auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double;
   static auto queryClockSourceDriveCapLimit(const Pin* clock_source) -> double;

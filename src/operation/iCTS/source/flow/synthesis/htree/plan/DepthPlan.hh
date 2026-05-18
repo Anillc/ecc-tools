@@ -61,7 +61,7 @@ struct DepthSummary
   std::size_t candidate_frontier_entry_count = 0U;
   std::size_t feasible_solution_count = 0U;
   std::size_t feasible_frontier_entry_count = 0U;
-  bool used_boundary_fallback = false;
+  bool used_boundary_relaxation = false;
   double selected_power_w = 0.0;
   double selected_delay_ns = 0.0;
 };

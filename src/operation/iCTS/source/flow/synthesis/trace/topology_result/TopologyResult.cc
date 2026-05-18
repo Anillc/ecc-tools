@@ -115,7 +115,7 @@ auto RecordSinkHtreeResult(Topology::BuildResult& result) -> void
 
 auto RecordTopSegmentResult(Topology::SourceTrunkBuildResult& result, SourceTrunkSegment::BuildResult& segment_result) -> void
 {
-  result.used_boundary_fallback = segment_result.used_boundary_fallback;
+  result.used_boundary_relaxation = segment_result.used_boundary_relaxation;
   result.inserted_buffer_count = segment_result.inserted_insts.size();
   result.inserted_net_count = segment_result.inserted_nets.size();
   absorbSegmentInsertedObjects(result, segment_result);
@@ -124,7 +124,7 @@ auto RecordTopSegmentResult(Topology::SourceTrunkBuildResult& result, SourceTrun
 
 auto RecordTopHtreeResult(Topology::SourceTrunkBuildResult& result) -> void
 {
-  result.used_boundary_fallback = result.htree_result.used_boundary_fallback;
+  result.used_boundary_relaxation = result.htree_result.used_boundary_relaxation;
   result.inserted_buffer_count = result.htree_result.inserted_insts.size();
   result.inserted_net_count = result.htree_result.inserted_nets.size();
   absorbHtreeInsertedObjects(result);

@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -23,17 +23,21 @@
 
 #include "FastStaParasitics.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <limits>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
+#include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "design/Net.hh"
 #include "routing/SteinerTree.hh"
@@ -74,22 +78,26 @@ auto manhattanDistanceDbu(const FastStaPoint& lhs, const FastStaPoint& rhs) -> i
 
 auto queryWireResistanceOhm(const FastStaClockContext& context, int wire_distance_dbu) -> double
 {
-  const auto dbu_per_um = std::max(context.dbu_per_um, int32_t{1});
+  LOG_FATAL_IF(context.dbu_per_um <= 0) << "FastStaParasitics: DBU-per-micron is invalid.";
+  LOG_FATAL_IF(context.routing_layer <= 0) << "FastStaParasitics: routing layer is invalid.";
+  const auto dbu_per_um = context.dbu_per_um;
   const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(dbu_per_um);
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / 1000.0;
+  return STA_ADAPTER_INST.queryRequiredWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / 1000.0;
 }
 
 auto queryWireCapacitancePf(const FastStaClockContext& context, int wire_distance_dbu) -> double
 {
-  const auto dbu_per_um = std::max(context.dbu_per_um, int32_t{1});
+  LOG_FATAL_IF(context.dbu_per_um <= 0) << "FastStaParasitics: DBU-per-micron is invalid.";
+  LOG_FATAL_IF(context.routing_layer <= 0) << "FastStaParasitics: routing layer is invalid.";
+  const auto dbu_per_um = context.dbu_per_um;
   const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(dbu_per_um);
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
+  return STA_ADAPTER_INST.queryRequiredWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
 }
 
 auto appendRcNode(FastStaClockContext& context, FastStaNet& net, const FastStaPoint& point) -> FastStaRcNodeId

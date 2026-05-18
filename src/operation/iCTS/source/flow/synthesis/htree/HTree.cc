@@ -95,7 +95,7 @@ auto DetailStageReportOptions() -> schema::StageReportOptions
 struct AnalyticalHTreeAttempt
 {
   bool selected = false;
-  std::string fallback_reason;
+  std::string failure_reason;
   htree::CandidateBuildEvaluation selected_evaluation;
   htree::DepthSummary selected_summary;
   htree::RootDriverCompensationDetail selected_compensation_detail;
@@ -263,7 +263,7 @@ auto FormatDepthCandidateStatus(const htree::DepthSummary& summary) -> std::stri
     return "selected";
   }
   if (summary.success) {
-    return summary.used_boundary_fallback ? "fallback" : "feasible";
+    return summary.used_boundary_relaxation ? "relaxed_boundary" : "feasible";
   }
   return "failed";
 }
@@ -284,7 +284,7 @@ auto EmitDepthCandidateSummary(const std::vector<htree::DepthSummary>& depth_sum
         std::to_string(summary.final_frontier_count),
         std::to_string(summary.feasible_frontier_entry_count),
         std::to_string(summary.candidate_frontier_entry_count),
-        summary.used_boundary_fallback ? "true" : "false",
+        summary.used_boundary_relaxation ? "true" : "false",
         summary.selected_delay_ns > 0.0 ? logformat::FormatWithUnit(summary.selected_delay_ns, "ns") : "n/a",
         summary.selected_power_w > 0.0 ? logformat::FormatPowerW(summary.selected_power_w) : "n/a",
         summary.failure_reason.empty() ? "none" : summary.failure_reason,
@@ -293,7 +293,7 @@ auto EmitDepthCandidateSummary(const std::vector<htree::DepthSummary>& depth_sum
 
   SCHEMA_WRITER_INST.emitTableTo("HTree Depth Candidate Summary",
                                  {"Depth", "Leaves", "Status", "Final Frontier", "Feasible Entries", "Candidate Entries",
-                                  "Boundary Fallback", "Best Delay", "Best Power", "Failure"},
+                                  "Boundary Relaxation", "Best Delay", "Best Power", "Failure"},
                                  rows, schema::ReportSink::kBoth);
 }
 
@@ -548,7 +548,7 @@ auto MakeAnalyticalDepthSummary(const htree::CandidateBuildEvaluation& evaluatio
       .candidate_frontier_entry_count = evaluation.candidate_frontier_entries.size(),
       .feasible_solution_count = evaluation.feasible_solution_count,
       .feasible_frontier_entry_count = evaluation.feasible_frontier_entries.size(),
-      .used_boundary_fallback = false,
+      .used_boundary_relaxation = false,
       .selected_power_w = evaluation.best_char.has_value() ? evaluation.best_char->get_power() : 0.0,
       .selected_delay_ns = evaluation.best_char.has_value() ? evaluation.best_char->get_delay() : 0.0,
   };
@@ -574,7 +574,7 @@ auto BuildAnalyticalModelCatalog(const std::vector<SegmentChar>& segment_chars, 
   analytical_options.require_monotonic_delay = false;
   analytical_options.require_monotonic_power = false;
   analytical_options.require_monotonic_source_boundary_power = false;
-  analytical_options.allow_sparse_constant_fallback = false;
+  analytical_options.allow_sparse_constant_model = false;
   analytical_options.prefer_exact_structural_cap = true;
   analytical_options.length_unit_um = char_builder.get_wirelength_unit_um();
   analytical_options.routing_layer = char_builder.get_routing_layer();
@@ -598,7 +598,7 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
 {
   AnalyticalHTreeAttempt attempt;
   if (depth_candidates.empty()) {
-    attempt.fallback_reason = "empty_depth_candidates";
+    attempt.failure_reason = "empty_depth_candidates";
     return attempt;
   }
 
@@ -606,7 +606,7 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
   const auto& analytical_buffering_patterns = char_builder.get_buffering_patterns();
   auto char_result = BuildAnalyticalModelCatalog(analytical_segment_chars, analytical_buffering_patterns, char_builder, attempt);
   if (char_result.catalog.empty()) {
-    attempt.fallback_reason = char_result.failures.empty() ? "empty_analytical_model_catalog" : char_result.failures.front().reason;
+    attempt.failure_reason = char_result.failures.empty() ? "empty_analytical_model_catalog" : char_result.failures.front().reason;
     return attempt;
   }
 
@@ -717,11 +717,11 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
   attempt.root_driver_compensation_stats = compensation_pass.get_stats();
   if (legal_candidates.empty()) {
     if (!first_validation_failure.empty()) {
-      attempt.fallback_reason = first_validation_failure;
+      attempt.failure_reason = first_validation_failure;
     } else if (!first_solver_failure.empty()) {
-      attempt.fallback_reason = first_solver_failure;
+      attempt.failure_reason = first_solver_failure;
     } else {
-      attempt.fallback_reason = "no_legal_analytical_candidate";
+      attempt.failure_reason = "no_legal_analytical_candidate";
     }
     return attempt;
   }
@@ -729,7 +729,7 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
   RecordAnalyticalValidatedDistribution(legal_candidates, attempt);
   const auto* selected_candidate = SelectAnalyticalParetoPowerGuardedMinDelay(legal_candidates, attempt);
   if (selected_candidate == nullptr || !selected_candidate->candidate.materialized_char.has_value()) {
-    attempt.fallback_reason = "missing_best_analytical_candidate";
+    attempt.failure_reason = "missing_best_analytical_candidate";
     return attempt;
   }
 
@@ -783,7 +783,19 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     return result;
   }
   auto build_stage = SCHEMA_WRITER_INST.beginStage("HTree", "build", {}, schema::StageReportOptions{.emit_success_summary = false});
-  const int32_t dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
+  if (loads.size() == 1U) {
+    const auto root = result.topology.create_node();
+    result.topology.set_root(root);
+    if (auto* root_node = result.topology.get_node(root); root_node != nullptr) {
+      root_node->get_position() = options.fixed_topology_root_location.value_or(loads.front()->get_location());
+    }
+    LOG_WARNING << "HTree: topology has no H-tree levels after generation.";
+    build_stage.skip({{"reason", "no_h_tree_levels"}});
+    return result;
+  }
+
+  const int32_t dbu_per_um = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(dbu_per_um <= 0) << "HTree: build failed because DBU-per-micron is unavailable.";
 
   BiPartitionConfig topology_config;
   topology_config.htree_topology_tolerance
@@ -880,11 +892,12 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
       .clock_period_ns = root_driver_clock_period_ns,
       .cap_lattice = char_builder.get_cap_lattice(),
       .slew_lattice = char_builder.get_slew_lattice(),
-      .fallback_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
+      .default_cell_master = result.root_inst != nullptr ? result.root_inst->get_cell_master() : "",
       .strict_boundary_closure = strict_root_boundary_closure,
   };
   const htree::HTreeFanoutPruningOptions fanout_pruning_options{
       .max_fanout = CONFIG_INST.get_max_fanout(),
+      .allow_boundary_relaxation = options.allow_boundary_relaxation,
   };
   result.analytical_mode_enabled = options.enable_analytical_solver;
   if (options.enable_analytical_solver) {
@@ -1035,11 +1048,11 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
       return result;
     }
 
-    result.analytical_fallback_reason
-        = analytical_attempt.fallback_reason.empty() ? "analytical_candidate_unavailable" : analytical_attempt.fallback_reason;
+    result.analytical_failure_reason
+        = analytical_attempt.failure_reason.empty() ? "analytical_candidate_unavailable" : analytical_attempt.failure_reason;
     analytical_stage.failed({
         {"selected_depth", "none"},
-        {"reason", result.analytical_fallback_reason},
+        {"reason", result.analytical_failure_reason},
         {"model_sets", std::to_string(analytical_attempt.model_set_count)},
         {"rejected_fits", std::to_string(analytical_attempt.rejected_fit_count)},
         {"evaluated_segments", std::to_string(analytical_attempt.evaluated_segment_count)},
@@ -1088,12 +1101,12 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "HTree",
                            "analytical H-tree candidate selection did not produce a validated candidate.",
                            {
-                               {"reason", result.analytical_fallback_reason},
+                               {"reason", result.analytical_failure_reason},
                                {"model_sets", std::to_string(result.analytical_model_set_count)},
                                {"generated_candidates", std::to_string(result.analytical_generated_candidate_count)},
                                {"validated_candidates", std::to_string(result.analytical_validated_candidate_count)},
                            });
-    result.failure_reason = result.analytical_fallback_reason;
+    result.failure_reason = result.analytical_failure_reason;
     build_stage.failed({{"reason", result.failure_reason}, {"selection_engine", "analytical"}});
     return result;
   }
@@ -1149,7 +1162,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
 
   std::vector<htree::CandidateCharRef> per_depth_feasible_pareto_pool;
   std::optional<htree::CandidateCharRef> selected_feasible_ref;
-  std::optional<htree::CandidateCharRef> selected_fallback_ref;
+  std::optional<htree::CandidateCharRef> selected_relaxed_ref;
   {
     auto selection_stage
         = SCHEMA_WRITER_INST.beginStage("HTree", "Select global topology",
@@ -1161,16 +1174,16 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.entries);
     selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
     std::size_t per_depth_candidate_pareto_count = 0U;
-    if (!selected_feasible_ref.has_value()) {
+    if (!selected_feasible_ref.has_value() && options.allow_boundary_relaxation) {
       const auto per_depth_candidate_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_candidate_pool.entries);
       per_depth_candidate_pareto_count = per_depth_candidate_pareto_pool.size();
-      selected_fallback_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
+      selected_relaxed_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
     }
     std::string selected_from = "none";
     if (selected_feasible_ref.has_value()) {
       selected_from = "strict_feasible";
-    } else if (selected_fallback_ref.has_value()) {
-      selected_from = "fallback";
+    } else if (selected_relaxed_ref.has_value()) {
+      selected_from = "relaxed_boundary";
     }
     selection_stage.finished({
         {"feasible_pareto_refs", std::to_string(per_depth_feasible_pareto_pool.size())},
@@ -1178,14 +1191,16 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
         {"selected_from", selected_from},
     });
   }
-  const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_fallback_ref;
+  const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_relaxed_ref;
   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
-    if (!covered_global_candidate_pool.first_failure_reason.empty()) {
+    if (!selected_feasible_ref.has_value() && !options.allow_boundary_relaxation) {
+      result.failure_reason = "no_strict_boundary_feasible_solution_any_depth";
+    } else if (!covered_global_candidate_pool.first_failure_reason.empty()) {
       result.failure_reason = covered_global_candidate_pool.first_failure_reason;
     } else {
       result.failure_reason = exploration.global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
     }
-    LOG_WARNING << "HTree: failed to select a best H-tree characterization entry across depth candidates.";
+    LOG_WARNING << "HTree: failed to select a strict-feasible H-tree characterization entry across depth candidates.";
     build_stage.failed({{"reason", result.failure_reason}, {"depth_candidates", std::to_string(depth_candidates.size())}});
     return result;
   }
@@ -1267,21 +1282,20 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
   result.htree_load_cap_median_pf = selected_summary.htree_load_cap_median_pf;
 
   if (!selected_feasible_ref.has_value()) {
-    result.used_boundary_fallback = true;
-    result.boundary_fallback_reason = "no_strict_boundary_feasible_solution_any_depth";
-    result.boundary_fallback_score
-        = htree::CalcBoundaryFallbackScore(*result.best_char, selected_evaluation.boundary_constraints, result.char_slew_steps);
+    result.used_boundary_relaxation = true;
+    result.boundary_relaxation_reason = "no_strict_boundary_feasible_solution_any_depth";
+    result.boundary_relaxation_score
+        = htree::CalcBoundaryRelaxationScore(*result.best_char, selected_evaluation.boundary_constraints, result.char_slew_steps);
 
-    schema::EmitDiagnostic(
-        schema::DiagnosticLevel::kFallback, "HTree",
-        "no depth candidate satisfied caller boundary constraints; selected fallback solution from the global candidate pool.",
-        {
-            {"reason", result.boundary_fallback_reason},
-            {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
-            {"fallback_score", std::to_string(result.boundary_fallback_score.value_or(0.0))},
-            {"selected_top_input_slew_idx", std::to_string(result.best_char->get_input_slew_idx())},
-            {"selected_leaf_load_cap_idx", std::to_string(result.best_char->get_leaf_load_cap_idx())},
-        });
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "HTree",
+                           "boundary relaxation is enabled; selected a relaxed solution from the global candidate pool.",
+                           {
+                               {"reason", result.boundary_relaxation_reason},
+                               {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
+                               {"relaxation_score", std::to_string(result.boundary_relaxation_score.value_or(0.0))},
+                               {"selected_top_input_slew_idx", std::to_string(result.best_char->get_input_slew_idx())},
+                               {"selected_leaf_load_cap_idx", std::to_string(result.best_char->get_leaf_load_cap_idx())},
+                           });
   }
 
   result.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.best_char->get_pattern_id());

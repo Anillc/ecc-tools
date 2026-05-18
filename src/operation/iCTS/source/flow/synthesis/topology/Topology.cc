@@ -26,7 +26,6 @@
 #include <glog/logging.h>
 
 #include <algorithm>
-#include <cstdint>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -131,7 +130,9 @@ auto collectSourceTrunkLengthsUm(Pin* clock_source, const std::vector<Pin*>& roo
     return lengths_um;
   }
 
-  const double dbu_per_um = static_cast<double>(std::max(WRAPPER_INST.queryDbUnit(), int32_t{1}));
+  const auto dbu_per_um_value = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(dbu_per_um_value <= 0) << "Topology: DBU-per-micron is unavailable for characterization length estimation.";
+  const auto dbu_per_um = static_cast<double>(dbu_per_um_value);
   lengths_um.reserve(root_inputs.size());
   for (const auto* root_input : root_inputs) {
     if (root_input == nullptr) {
@@ -281,7 +282,7 @@ class ClockTopologyFormation
             {"stage", ToString(source_trunk_result.stage)},
             {"inserted_insts", std::to_string(source_trunk_result.inserted_insts.size())},
             {"inserted_nets", std::to_string(source_trunk_result.inserted_nets.size())},
-            {"used_boundary_fallback", source_trunk_result.used_boundary_fallback ? "true" : "false"},
+            {"used_boundary_relaxation", source_trunk_result.used_boundary_relaxation ? "true" : "false"},
         });
       } else {
         build_stage.failed({{"reason", source_trunk_result.failure_reason.empty() ? "source_trunk_formation_failed"

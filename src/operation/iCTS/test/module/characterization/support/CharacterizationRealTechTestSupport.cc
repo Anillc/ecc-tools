@@ -124,7 +124,9 @@ auto MakeRuntimeCharBuilderInitOptions() -> icts::CharBuilder::InitOptions
   options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
 
   const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  if (!routing_layers.empty()) {
+    options.routing_layer = static_cast<int>(routing_layers.front());
+  }
   if (CONFIG_INST.get_wire_width() > 0.0) {
     options.wire_width = CONFIG_INST.get_wire_width();
   }

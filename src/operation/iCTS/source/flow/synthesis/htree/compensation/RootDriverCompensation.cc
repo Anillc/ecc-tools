@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -67,7 +67,7 @@ constexpr const char* kRootDriverCompensationMethod = "direct";
 constexpr const char* kRootDriverCompensationLoadSource = "root_closure_physical_estimate";
 constexpr const char* kRootClosureFluteEstimator = "flute_clock_steiner_tree";
 constexpr const char* kRootClosureSingleLoadEstimator = "single_load_manhattan";
-constexpr const char* kRootClosureHpwlFallbackEstimator = "hpwl_bbox_fallback";
+constexpr const char* kRootClosureHpwlEstimate = "hpwl_bbox_estimate";
 
 struct RootClosureTerminal
 {
@@ -145,9 +145,8 @@ auto HashCombine(std::size_t seed, std::size_t value) -> std::size_t
 auto ResolveRoutingLayer() -> int
 {
   const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  if (routing_layers.empty()) {
-    return 1;
-  }
+  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
+      << "HTree: routing layer is not configured for root-driver compensation.";
   return static_cast<int>(routing_layers.front());
 }
 
@@ -159,7 +158,8 @@ auto ResolveWireWidth() -> std::optional<double>
 
 auto DbuToUm(int64_t dbu) -> double
 {
-  const auto dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
+  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(dbu_per_um <= 0) << "HTree: DBU-per-micron is unavailable for root-driver compensation.";
   return static_cast<double>(std::max<int64_t>(dbu, 0)) / static_cast<double>(dbu_per_um);
 }
 
@@ -170,7 +170,7 @@ auto QueryWireCapForDbuLength(int64_t length_dbu) -> double
     return 0.0;
   }
 
-  const double wire_cap_pf = STA_ADAPTER_INST.queryWireCapacitance(ResolveRoutingLayer(), length_um, ResolveWireWidth());
+  const double wire_cap_pf = STA_ADAPTER_INST.queryRequiredWireCapacitance(ResolveRoutingLayer(), length_um, ResolveWireWidth());
   if (!std::isfinite(wire_cap_pf) || wire_cap_pf < 0.0) {
     LOG_WARNING << "HTree: root-closure wire-cap query returned an invalid value for length " << length_um << " um.";
     return 0.0;
@@ -209,8 +209,8 @@ auto InterpolateRootClosurePoint(const Point<int>& source, const Point<int>& sin
   return Point<int>(x, y);
 }
 
-auto EstimateHpwlFallbackWire(const Point<int>& root_location, const std::vector<RootClosureTerminal>& terminals,
-                              RootDriverCompensationStats& stats) -> RootClosureWireEstimate
+auto EstimateHpwlWire(const Point<int>& root_location, const std::vector<RootClosureTerminal>& terminals,
+                      RootDriverCompensationStats& stats) -> RootClosureWireEstimate
 {
   int min_x = root_location.get_x();
   int max_x = root_location.get_x();
@@ -224,9 +224,9 @@ auto EstimateHpwlFallbackWire(const Point<int>& root_location, const std::vector
   }
 
   const auto hpwl_dbu = static_cast<int64_t>(max_x - min_x) + static_cast<int64_t>(max_y - min_y);
-  ++stats.fallback_route_estimate_count;
+  ++stats.hpwl_route_estimate_count;
   return RootClosureWireEstimate{
-      .route_estimator = kRootClosureHpwlFallbackEstimator,
+      .route_estimator = kRootClosureHpwlEstimate,
       .wire_cap_pf = QueryWireCapForDbuLength(hpwl_dbu),
       .routed_wirelength_um = DbuToUm(hpwl_dbu),
   };
@@ -241,7 +241,7 @@ auto EstimateRootClosureWire(const Point<int>& root_location, const std::vector<
 
   if (terminals.size() == 1U) {
     const auto length_dbu = CalcManhattanDbu(root_location, terminals.front().location);
-    ++stats.fallback_route_estimate_count;
+    ++stats.hpwl_route_estimate_count;
     return RootClosureWireEstimate{
         .route_estimator = kRootClosureSingleLoadEstimator,
         .wire_cap_pf = QueryWireCapForDbuLength(length_dbu),
@@ -281,8 +281,8 @@ auto EstimateRootClosureWire(const Point<int>& root_location, const std::vector<
     };
   }
 
-  LOG_WARNING << "HTree: root-closure FLUTE estimate was unavailable; using HPWL fallback.";
-  return EstimateHpwlFallbackWire(root_location, terminals, stats);
+  LOG_WARNING << "HTree: root-closure FLUTE estimate was unavailable; using HPWL estimate.";
+  return EstimateHpwlWire(root_location, terminals, stats);
 }
 
 auto MakeBufferRootClosureTerminal(const TreeNode& parent_node, const TreeNode& child_node, const BufferingPattern& segment_pattern,
@@ -478,8 +478,7 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
 }
 
 auto ResolveRootDriverCellMaster(PatternId topology_pattern_id, const TopologyPatternLibrary& topology_library,
-                                 const BufferPatternLibrary& segment_pattern_library, const std::string& fallback_cell_master)
-    -> std::string
+                                 const BufferPatternLibrary& segment_pattern_library, const std::string& default_cell_master) -> std::string
 {
   const auto topology_pattern = topology_library.materialize(topology_pattern_id);
   for (const auto segment_pattern_id : topology_pattern.get_level_segment_pattern_ids()) {
@@ -490,7 +489,7 @@ auto ResolveRootDriverCellMaster(PatternId topology_pattern_id, const TopologyPa
       return cell_masters.back();
     }
   }
-  return fallback_cell_master;
+  return default_cell_master;
 }
 
 auto MakeRootDriverCompensationDetail(const STAAdapter::RootDriverCost& cost, double input_slew_ns,
@@ -608,7 +607,7 @@ auto EvaluateRootDriverCompensation(PatternId pattern_id, const TopologyPatternL
   }
 
   const auto cell_master
-      = ResolveRootDriverCellMaster(pattern_id, topology_library, segment_pattern_library, compensation_state.options.fallback_cell_master);
+      = ResolveRootDriverCellMaster(pattern_id, topology_library, segment_pattern_library, compensation_state.options.default_cell_master);
   if (cell_master.empty()) {
     return {};
   }
@@ -729,7 +728,7 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
   const auto load_resolution_count_before = compensation_state.stats.load_resolution_count;
   const auto load_resolution_cache_hit_count_before = compensation_state.stats.load_resolution_cache_hit_count;
   const auto flute_route_estimate_count_before = compensation_state.stats.flute_route_estimate_count;
-  const auto fallback_route_estimate_count_before = compensation_state.stats.fallback_route_estimate_count;
+  const auto hpwl_route_estimate_count_before = compensation_state.stats.hpwl_route_estimate_count;
   const auto compensated_candidate_count_before = compensation_state.stats.compensated_candidate_count;
   const auto boundary_input_candidate_count_before = compensation_state.stats.boundary_input_candidate_count;
   const auto boundary_closed_candidate_count_before = compensation_state.stats.boundary_closed_candidate_count;
@@ -808,8 +807,7 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
       {"load_resolution_cache_hits",
        std::to_string(compensation_state.stats.load_resolution_cache_hit_count - load_resolution_cache_hit_count_before)},
       {"flute_route_estimates", std::to_string(compensation_state.stats.flute_route_estimate_count - flute_route_estimate_count_before)},
-      {"fallback_route_estimates",
-       std::to_string(compensation_state.stats.fallback_route_estimate_count - fallback_route_estimate_count_before)},
+      {"hpwl_route_estimates", std::to_string(compensation_state.stats.hpwl_route_estimate_count - hpwl_route_estimate_count_before)},
   });
   return apply_result;
 }

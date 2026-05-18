@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -327,8 +327,8 @@ struct FastStaClockContext
   std::string clock_name;
   std::string clock_net_name;
   double clock_period_ns = 0.0;
-  int32_t dbu_per_um = 1;
-  int routing_layer = 1;
+  int32_t dbu_per_um = 0;
+  int routing_layer = 0;
   std::optional<double> wire_width_um;
   FastStaNodeId source_node_id = kInvalidFastStaNodeId;
   std::vector<FastStaNode> nodes;
@@ -355,7 +355,8 @@ struct FastStaCharTopologySpec
   std::string sink_cell_master;
   std::vector<std::string> buffer_cell_masters;
   std::vector<double> wire_segments_um;
-  int routing_layer = 1;
+  std::optional<int32_t> dbu_per_um = std::nullopt;
+  int routing_layer = 0;
   std::optional<double> wire_width_um = std::nullopt;
   double clock_period_ns = 0.0;
 };

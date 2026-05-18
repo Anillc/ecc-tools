@@ -256,9 +256,9 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagateWhenFea
   ASSERT_TRUE(impossible_top_boundary_result.top_input_slew_covering_idx.has_value());
   EXPECT_EQ(impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U), baseline_result.char_slew_steps + 1U);
   const auto impossible_observation = htree::ObserveHTreeBuild(impossible_top_boundary_result);
-  EXPECT_TRUE(impossible_observation.used_boundary_fallback);
-  EXPECT_FALSE(impossible_observation.boundary_fallback_reason.empty());
-  ASSERT_TRUE(impossible_observation.boundary_fallback_score.has_value());
+  EXPECT_TRUE(impossible_observation.used_boundary_relaxation);
+  EXPECT_FALSE(impossible_observation.boundary_relaxation_reason.empty());
+  ASSERT_TRUE(impossible_observation.boundary_relaxation_score.has_value());
   EXPECT_EQ(impossible_observation.selected_feasible_solution_count, 0U);
   ASSERT_GT(impossible_observation.selected_candidate_solution_count, 0U);
   ASSERT_GT(impossible_observation.selected_candidate_frontier_entry_count, 0U);
@@ -271,9 +271,9 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagateWhenFea
   const unsigned impossible_top_covering_idx = impossible_top_boundary_result.top_input_slew_covering_idx.value_or(0U);
   ASSERT_GT(impossible_top_covering_idx, 0U);
   EXPECT_LT(impossible_top_best_char.get_input_slew_idx(), impossible_top_covering_idx);
-  const double expected_top_boundary_fallback_score
+  const double expected_top_boundary_relaxation_score
       = static_cast<double>(impossible_top_best_char.get_input_slew_idx()) / static_cast<double>(baseline_result.char_slew_steps);
-  EXPECT_DOUBLE_EQ(impossible_observation.boundary_fallback_score.value_or(0.0), expected_top_boundary_fallback_score);
+  EXPECT_DOUBLE_EQ(impossible_observation.boundary_relaxation_score.value_or(0.0), expected_top_boundary_relaxation_score);
 }
 
 }  // namespace

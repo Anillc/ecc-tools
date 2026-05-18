@@ -48,7 +48,7 @@ enum class DiagnosticLevel
   kInfo,
   kWarning,
   kError,
-  kFallback
+  kDegraded
 };
 
 enum class ReportSink

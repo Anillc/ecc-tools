@@ -143,7 +143,7 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
     auto segment_result = SourceTrunkSegment::build(source_net, clock_source, valid_root_inputs.front(), segment_options);
     if (!segment_result.success) {
       result.failure_reason = segment_result.failure_reason.empty() ? "top_segment_failed" : segment_result.failure_reason;
-      result.used_boundary_fallback = segment_result.used_boundary_fallback;
+      result.used_boundary_relaxation = segment_result.used_boundary_relaxation;
       source_net_side_effects.restore();
       dispatch_stage.failed({{"reason", result.failure_reason}});
       return result;
@@ -153,7 +153,7 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
         {"stage", ToString(result.stage)},
         {"inserted_insts", std::to_string(result.inserted_insts.size())},
         {"inserted_nets", std::to_string(result.inserted_nets.size())},
-        {"used_boundary_fallback", result.used_boundary_fallback ? "true" : "false"},
+        {"used_boundary_relaxation", result.used_boundary_relaxation ? "true" : "false"},
     });
     return result;
   }
@@ -174,7 +174,7 @@ auto BuildSourceTrunkTree(Net& source_net, Pin* clock_source, const std::vector<
       {"selected_depth", std::to_string(result.htree_result.selected_depth.value_or(0U))},
       {"inserted_insts", std::to_string(result.inserted_insts.size())},
       {"inserted_nets", std::to_string(result.inserted_nets.size())},
-      {"used_boundary_fallback", result.used_boundary_fallback ? "true" : "false"},
+      {"used_boundary_relaxation", result.used_boundary_relaxation ? "true" : "false"},
   });
   return result;
 }

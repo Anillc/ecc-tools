@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -64,7 +64,7 @@ auto findInsertedNetLevel(const std::vector<HTree::InsertedNetLevel>& levels, co
   return iter->topology_level;
 }
 
-auto fallbackNetTopologyLevel(LayoutNetRole role, ClockLayoutPhase synthesis_phase, int selected_depth) -> int
+auto inferNetTopologyLevel(LayoutNetRole role, ClockLayoutPhase synthesis_phase, int selected_depth) -> int
 {
   if (role == LayoutNetRole::kSinkTree) {
     return selected_depth >= 0 ? selected_depth : 0;
@@ -82,7 +82,7 @@ auto resolveNetTopologyLevel(const std::vector<HTree::InsertedNetLevel>& levels,
   if (inserted_level.has_value()) {
     return *inserted_level;
   }
-  return fallbackNetTopologyLevel(role, synthesis_phase, selected_depth);
+  return inferNetTopologyLevel(role, synthesis_phase, selected_depth);
 }
 
 }  // namespace

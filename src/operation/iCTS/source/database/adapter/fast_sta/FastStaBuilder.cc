@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -25,7 +25,6 @@
 
 #include <glog/logging.h>
 
-#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <optional>
@@ -68,7 +67,8 @@ auto resolveRoutingLayer() -> int
   if (!routing_layers.empty() && routing_layers.front() > 0U) {
     return static_cast<int>(routing_layers.front());
   }
-  return 1;
+  LOG_FATAL << "FastStaBuilder: routing layer is not configured.";
+  return 0;
 }
 
 auto resolveWireWidth() -> std::optional<double>
@@ -78,7 +78,9 @@ auto resolveWireWidth() -> std::optional<double>
 
 auto applyRuntimeOptions(FastStaClockContext& context) -> void
 {
-  context.dbu_per_um = std::max(context.dbu_per_um, WRAPPER_INST.queryDbUnit());
+  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(dbu_per_um <= 0) << "FastStaBuilder: DBU-per-micron is unavailable.";
+  context.dbu_per_um = dbu_per_um;
   context.routing_layer = resolveRoutingLayer();
   context.wire_width_um = resolveWireWidth();
 }
@@ -160,6 +162,10 @@ auto FastStaBuilder::buildClockContext(const Clock& clock, const ClockLayout& cl
   stage_start = std::chrono::steady_clock::now();
   applyRuntimeOptions(context);
   logBuilderStage(clock, "apply runtime options", elapsedSeconds(stage_start), context);
+
+  stage_start = std::chrono::steady_clock::now();
+  FastStaClockTree::applyLayoutParasitics(context, clock_layout, clock_index);
+  logBuilderStage(clock, "apply layout parasitics", elapsedSeconds(stage_start), context);
 
   stage_start = std::chrono::steady_clock::now();
   snapshotSinkPinCaps(clock, context);

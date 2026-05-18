@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -69,7 +69,7 @@ auto makeSegment(const ClockLayoutClock& clock, const ClockLayoutSegment& segmen
       .topology_depth = segment.topology_depth,
       .topology_level = segment.topology_level,
       .routed = segment.routed,
-      .fallback = segment.fallback,
+      .degraded = segment.degraded,
   };
 }
 
@@ -113,7 +113,7 @@ auto appendViewInsts(const ClockLayout& clock_layout, Drawing& model) -> void
   }
 }
 
-auto appendFallbackRouteTreeSegments(const Clock& clock, std::size_t clock_index, const Net& net, LayoutNetRole role,
+auto appendDegradedRouteTreeSegments(const Clock& clock, std::size_t clock_index, const Net& net, LayoutNetRole role,
                                      std::vector<DrawingSegment>& segments) -> bool
 {
   auto route_tree = Router::buildClockNetTree(net);
@@ -141,14 +141,14 @@ auto appendFallbackRouteTreeSegments(const Clock& clock, std::size_t clock_index
         .topology_depth = -1,
         .topology_level = 0,
         .routed = true,
-        .fallback = false,
+        .degraded = false,
     });
     appended = true;
   }
   return appended;
 }
 
-auto appendFallbackPinSegments(const Clock& clock, std::size_t clock_index, const Net& net, LayoutNetRole role, ClockLayoutMode view,
+auto appendDegradedPinSegments(const Clock& clock, std::size_t clock_index, const Net& net, LayoutNetRole role, ClockLayoutMode view,
                                std::vector<DrawingSegment>& segments) -> bool
 {
   auto* driver = net.get_driver();
@@ -175,7 +175,7 @@ auto appendFallbackPinSegments(const Clock& clock, std::size_t clock_index, cons
         .topology_depth = -1,
         .topology_level = 0,
         .routed = false,
-        .fallback = view == ClockLayoutMode::kDesign,
+        .degraded = view == ClockLayoutMode::kDesign,
     });
     appended = true;
   }
@@ -210,7 +210,7 @@ auto collectClockNets(const Clock& clock) -> std::vector<Net*>
   return nets;
 }
 
-auto appendFallbackSegments(Drawing& model) -> void
+auto appendDegradedSegments(Drawing& model) -> void
 {
   const auto clocks = DESIGN_INST.get_clocks();
   for (std::size_t clock_index = 0U; clock_index < clocks.size(); ++clock_index) {
@@ -223,13 +223,13 @@ auto appendFallbackSegments(Drawing& model) -> void
         continue;
       }
       const auto role = net == clock->get_clock_source_net() ? LayoutNetRole::kSourceToRoot : LayoutNetRole::kSinkTree;
-      if (!appendFallbackRouteTreeSegments(*clock, clock_index, *net, role, model.design_segments)) {
-        const bool appended = appendFallbackPinSegments(*clock, clock_index, *net, role, ClockLayoutMode::kDesign, model.design_segments);
+      if (!appendDegradedRouteTreeSegments(*clock, clock_index, *net, role, model.design_segments)) {
+        const bool appended = appendDegradedPinSegments(*clock, clock_index, *net, role, ClockLayoutMode::kDesign, model.design_segments);
         if (appended) {
-          LOG_WARNING << "CTS visualization model: design view falls back to driver-to-load segments for net " << net->get_name();
+          LOG_WARNING << "CTS visualization model: design view uses degraded driver-to-load segments for net " << net->get_name();
         }
       }
-      (void) appendFallbackPinSegments(*clock, clock_index, *net, role, ClockLayoutMode::kFlyline, model.flyline_segments);
+      (void) appendDegradedPinSegments(*clock, clock_index, *net, role, ClockLayoutMode::kFlyline, model.flyline_segments);
     }
   }
 }
@@ -258,7 +258,7 @@ auto appendPinMarkers(Drawing& model) -> void
   }
 }
 
-auto appendFallbackInsts(Drawing& model) -> void
+auto appendDegradedInsts(Drawing& model) -> void
 {
   if (!model.insts.empty()) {
     return;
@@ -351,9 +351,9 @@ auto DrawingBuilder::build(const ClockLayout& clock_layout) -> Drawing
   appendViewSegments(clock_layout, model);
   appendViewInsts(clock_layout, model);
   if (model.design_segments.empty() || model.flyline_segments.empty()) {
-    appendFallbackSegments(model);
+    appendDegradedSegments(model);
   }
-  appendFallbackInsts(model);
+  appendDegradedInsts(model);
   fillInstGeometry(model);
   appendLogicCells(model);
   appendPinMarkers(model);

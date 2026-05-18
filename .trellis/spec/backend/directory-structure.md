@@ -36,23 +36,21 @@ Use these top-level categories under `source/`:
 
 ### CTS Flow Framework
 
-Keep CTS flow code aligned with the current CTS architecture:
+Keep CTS flow code aligned with:
+`setup -> synthesis -> optimization -> instantiation -> evaluation -> report`
 
-```text
-setup -> synthesis -> instantiation -> evaluation -> report
-```
-
-Use these placement boundaries:
-- `api/`: stable external `CTSAPI` entry points only.
-- `source/flow/`: root CTS lifecycle ownership. The root exposes only `Flow.hh`, `Flow.cc`, and build metadata; `Flow` owns flow state and delegates stage work to the subflow entries.
-- `source/flow/setup/`: config readiness, work/log/statistics/visualization directories, schema/log initialization, and adapter initialization.
-- `source/flow/synthesis/`: CTS algorithm orchestration. The root contains only `Synthesis.hh`, `Synthesis.cc`, and build metadata; helpers live under `distribution/`, `topology/`, `htree/`, or `trace/`.
-- `source/flow/synthesis/topology/`: CTS topology formation boundary. The root exposes `Topology.hh/.cc`; sink-side branch code lives under `sink/`, source-trunk code under `trunk/`, and temporary buffer/net insertion under `buffer/`.
-- `source/flow/synthesis/htree/`: H-tree topology implementation. The root exposes `HTree.hh/.cc`; internals live under `characterization/`, `pattern/`, and `embedding/`.
-  - Keep `htree/characterization/` limited to characterization grid, library, and flow concepts. Topology-side H-tree option assembly belongs with the topology callers, pattern-search boundary constraints belong under `htree/pattern/`, and buffer port/object lookup tables belong under `htree/embedding/`.
-- `source/flow/instantiation/`: materialization of synthesized CTS topology into committed design/iDB state, split into `design_conversion/DesignConversion` and `idb_conversion/IdbConversion` when needed.
-- `source/flow/evaluation/`: readonly metric computation over committed CTS results. The root exposes `Evaluation.hh/.cc`; metric helpers live under responsibility subfolders.
-- `source/flow/report/`: final output generation. The root exposes `Report.hh/.cc`; output responsibilities live under `summary/`, `statistics/`, `export/`, and `visualization/`.
+| Directory | Responsibility | Boundary |
+|-----------|----------------|----------|
+| `api/` | Stable external `CTSAPI` entry points | No internal flow lifecycle logic |
+| `source/flow/` | Root CTS lifecycle and flow state | Root exposes only `Flow.hh`, `Flow.cc`, and build metadata |
+| `source/flow/setup/` | Config readiness, output directories, schema/log setup, adapter initialization | Owns flow startup validation |
+| `source/flow/synthesis/` | CTS synthesis orchestration | Root exposes `Synthesis.hh/.cc`; helpers live under `distribution/`, `topology/`, `htree/`, or `trace/` |
+| `source/flow/synthesis/topology/` | CTS topology formation | Root exposes `Topology.hh/.cc`; sink, trunk, and temporary buffer/net helpers stay in subdirectories |
+| `source/flow/synthesis/htree/` | H-tree topology implementation | Root exposes `HTree.hh/.cc`; characterization, pattern constraints, and embedding helpers stay in their subdirectories |
+| `source/flow/optimization/` | Post-synthesis optimization over committed CTS design and fast STA state | Search knobs stay in optimizer-owned options unless a user-facing config decision is separately approved |
+| `source/flow/instantiation/` | Materialize synthesized CTS topology into committed design/iDB state | Split design and iDB conversion when needed |
+| `source/flow/evaluation/` | Readonly metric computation over committed CTS results | Root exposes `Evaluation.hh/.cc`; metric helpers stay under responsibility subfolders |
+| `source/flow/report/` | Final output generation | Root exposes `Report.hh/.cc`; summary, statistics, export, and visualization stay in subdirectories |
 
 Do not reintroduce top-level peer architecture directories under `source/flow/` named `run_setup`, `stage`, `htree`, `clock_tree_view`, `netlist`, or `visualization`.
 
@@ -107,7 +105,7 @@ Before handoff, verify:
 - [ ] Parent `CMakeLists.txt` files include the new subdirectory or target
 - [ ] Dependencies are expressed through target links, not duplicated include paths
 - [ ] Tests mirror the source layout where needed
-- [ ] Flow changes preserve `setup -> synthesis -> instantiation -> evaluation -> report`
+- [ ] Flow changes preserve `setup -> synthesis -> optimization -> instantiation -> evaluation -> report`
 - [ ] The affected build targets still compile
 
 ## Related Docs

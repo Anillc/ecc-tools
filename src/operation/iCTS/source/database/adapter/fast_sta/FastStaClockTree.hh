@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -39,6 +39,7 @@ class FastStaClockTree
 
   static auto buildFromClock(const Clock& clock) -> FastStaClockContext;
   static auto buildFromClockLayout(const Clock& clock, const ClockLayout& clock_layout, std::size_t clock_index) -> FastStaClockContext;
+  static auto applyLayoutParasitics(FastStaClockContext& context, const ClockLayout& clock_layout, std::size_t clock_index) -> void;
 };
 
 }  // namespace icts

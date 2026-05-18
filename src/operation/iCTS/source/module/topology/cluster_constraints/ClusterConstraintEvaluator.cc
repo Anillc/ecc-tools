@@ -69,25 +69,24 @@ auto BuildRcOptions(const ClusterConfig& config) -> Router::RCTreeBuildOptions
 auto BuildBstParameters(const ClusterConfig& config, const Point<int>& routing_root) -> BSTParameters
 {
   BSTParameters parameters;
-  parameters.db_unit = std::max<int>(WRAPPER_INST.queryDbUnit(), 1);
+  parameters.db_unit = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(parameters.db_unit <= 0) << "ClusterConstraintEvaluator: DBU-per-micron is unavailable.";
   parameters.skew_bound = 0.0;
   parameters.pattern = RCPattern::kHV;
   parameters.topo_type = TopoType::kGreedyDist;
   parameters.root_guide = routing_root;
 
   auto routing_layer = config.routing_layer;
-  if (routing_layer <= 0) {
-    routing_layer = 1;
-  }
+  LOG_FATAL_IF(routing_layer <= 0) << "ClusterConstraintEvaluator: routing layer must be explicitly provided.";
 
   std::optional<double> wire_width = std::nullopt;
   if (config.wire_width > 0.0) {
     wire_width = config.wire_width;
   }
 
-  parameters.unit_h_cap = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, 1.0, wire_width);
+  parameters.unit_h_cap = STA_ADAPTER_INST.queryRequiredWireCapacitance(routing_layer, 1.0, wire_width);
   parameters.unit_v_cap = parameters.unit_h_cap;
-  parameters.unit_h_res = STA_ADAPTER_INST.queryWireResistance(routing_layer, 1.0, wire_width) / kMilliOhmPerOhm;
+  parameters.unit_h_res = STA_ADAPTER_INST.queryRequiredWireResistance(routing_layer, 1.0, wire_width) / kMilliOhmPerOhm;
   parameters.unit_v_res = parameters.unit_h_res;
   return parameters;
 }

@@ -99,7 +99,7 @@ auto queryLibOutputPinCapLimitPf(const Pin* pin) -> double
   const auto cap_limit = lib_port->get_port_cap_limit(ista::AnalysisMode::kMax);
   if (!cap_limit.has_value() || *cap_limit <= 0.0) {
     LOG_WARNING << "Clock-source drive-cap query found no max-cap limit on liberty port \"" << port_name << "\" of cell " << cell_master
-                << "; caller may use a configured fallback.";
+                << "; caller may use configured max_cap policy.";
     return 0.0;
   }
   return sta_adapter_internal::ConvertLibCapToPf(lib_cell, *cap_limit);
@@ -145,7 +145,7 @@ auto queryStaVertexCapLimitPf(const std::string& pin_full_name, bool allow_refre
   });
 }
 
-auto queryConfiguredMaxCapFallbackPf(const Pin* clock_source) -> double
+auto queryConfiguredMaxCapBoundaryPf(const Pin* clock_source) -> double
 {
   if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
     LOG_WARNING << "Clock-source drive-cap query uses runtime max_cap=" << CONFIG_INST.get_max_cap()
@@ -163,7 +163,7 @@ auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> doub
   auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("output pin cap limit", cell_master)
-                << " failed: liberty cell not found; caller may fallback to table-axis max.";
+                << " failed: liberty cell not found; caller may use table-axis max policy.";
     return 0.0;
   }
 
@@ -172,14 +172,14 @@ auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> doub
   lib_cell->bufferPorts(input, output);
   if (output == nullptr) {
     LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("output pin cap limit", cell_master)
-                << " failed: output pin is unavailable; caller may fallback to table-axis max.";
+                << " failed: output pin is unavailable; caller may use table-axis max policy.";
     return 0.0;
   }
 
   auto cap_limit = output->get_port_cap_limit(ista::AnalysisMode::kMax);
   if (!cap_limit.has_value()) {
     LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("output pin cap limit", cell_master)
-                << " failed: max cap limit is not defined on output pin; caller may fallback to table-axis max.";
+                << " failed: max cap limit is not defined on output pin; caller may use table-axis max policy.";
     return 0.0;
   }
   return sta_adapter_internal::ConvertLibCapToPf(lib_cell, *cap_limit);
@@ -215,7 +215,7 @@ auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> doubl
     if (sta_cap_limit_pf > 0.0) {
       return sta_cap_limit_pf;
     }
-    const double configured_cap_limit_pf = queryConfiguredMaxCapFallbackPf(clock_source);
+    const double configured_cap_limit_pf = queryConfiguredMaxCapBoundaryPf(clock_source);
     if (configured_cap_limit_pf > 0.0) {
       return configured_cap_limit_pf;
     }
@@ -228,7 +228,7 @@ auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> doubl
     return sta_cap_limit_pf;
   }
 
-  const double configured_cap_limit_pf = queryConfiguredMaxCapFallbackPf(clock_source);
+  const double configured_cap_limit_pf = queryConfiguredMaxCapBoundaryPf(clock_source);
   if (configured_cap_limit_pf > 0.0) {
     return configured_cap_limit_pf;
   }
@@ -250,7 +250,7 @@ auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> doub
   auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("input pin slew limit", cell_master)
-                << " failed: liberty cell not found; caller may fallback to table-axis max.";
+                << " failed: liberty cell not found; caller may use table-axis max policy.";
     return 0.0;
   }
 
@@ -259,14 +259,14 @@ auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> doub
   lib_cell->bufferPorts(input, output);
   if (input == nullptr) {
     LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("input pin slew limit", cell_master)
-                << " failed: input pin is unavailable; caller may fallback to table-axis max.";
+                << " failed: input pin is unavailable; caller may use table-axis max policy.";
     return 0.0;
   }
 
   auto slew_limit = input->get_port_slew_limit(ista::AnalysisMode::kMax);
   if (!slew_limit.has_value()) {
     LOG_WARNING << sta_adapter_internal::MakeCharQueryContext("input pin slew limit", cell_master)
-                << " failed: max slew limit is not defined on input pin; caller may fallback to table-axis max.";
+                << " failed: max slew limit is not defined on input pin; caller may use table-axis max policy.";
     return 0.0;
   }
   return sta_adapter_internal::ConvertLibTimeToNs(lib_cell, *slew_limit);

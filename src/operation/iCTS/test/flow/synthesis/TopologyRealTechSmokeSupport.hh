@@ -71,7 +71,7 @@ struct TopologyExperimentRecord
   double char_wirelength_unit_um = 0.0;
   unsigned char_wirelength_iterations = 0U;
   bool char_grid_adapted = false;
-  bool used_boundary_fallback = false;
+  bool used_boundary_relaxation = false;
   std::string failure_reason;
 };
 

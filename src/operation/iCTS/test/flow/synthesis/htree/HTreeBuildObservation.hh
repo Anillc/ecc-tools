@@ -52,9 +52,9 @@ struct HTreeBuildObservation
   double htree_load_cap_max_pf = 0.0;
   double htree_load_cap_mean_pf = 0.0;
   double htree_load_cap_median_pf = 0.0;
-  bool used_boundary_fallback = false;
-  std::optional<double> boundary_fallback_score = std::nullopt;
-  std::string boundary_fallback_reason;
+  bool used_boundary_relaxation = false;
+  std::optional<double> boundary_relaxation_score = std::nullopt;
+  std::string boundary_relaxation_reason;
 };
 
 inline auto ObserveHTreeBuild(const icts::HTree::BuildResult& result) -> HTreeBuildObservation
@@ -76,9 +76,9 @@ inline auto ObserveHTreeBuild(const icts::HTree::BuildResult& result) -> HTreeBu
       .htree_load_cap_max_pf = result.htree_load_cap_max_pf,
       .htree_load_cap_mean_pf = result.htree_load_cap_mean_pf,
       .htree_load_cap_median_pf = result.htree_load_cap_median_pf,
-      .used_boundary_fallback = result.used_boundary_fallback,
-      .boundary_fallback_score = result.boundary_fallback_score,
-      .boundary_fallback_reason = result.boundary_fallback_reason,
+      .used_boundary_relaxation = result.used_boundary_relaxation,
+      .boundary_relaxation_score = result.boundary_relaxation_score,
+      .boundary_relaxation_reason = result.boundary_relaxation_reason,
   };
   if (result.best_char.has_value()) {
     observation.best_pattern_id = result.best_char->get_pattern_id().local_id;

@@ -65,6 +65,7 @@ class HTree
     CharacterizationLibrary* characterization_library = nullptr;
     std::vector<double> additional_characterization_lengths_um;
     bool enable_root_driver_sizing = true;
+    bool allow_boundary_relaxation = false;
     bool topology_loads_are_local_buffers = false;
     double clock_period_ns = 0.0;
     std::string clock_period_source;
@@ -175,13 +176,13 @@ class HTree
     double htree_load_cap_median_pf = 0.0;
     std::string selected_root_driver_cell_master;
     RootDriverCompensationReport root_driver_compensation;
-    bool used_boundary_fallback = false;
-    std::optional<double> boundary_fallback_score = std::nullopt;
-    std::string boundary_fallback_reason;
+    bool used_boundary_relaxation = false;
+    std::optional<double> boundary_relaxation_score = std::nullopt;
+    std::string boundary_relaxation_reason;
     std::size_t pruned_leaf_single_load_buffers = 0U;
     bool analytical_mode_enabled = false;
     bool analytical_mode_selected = false;
-    std::string analytical_fallback_reason;
+    std::string analytical_failure_reason;
     std::size_t analytical_model_set_count = 0U;
     std::size_t analytical_rejected_fit_count = 0U;
     std::size_t analytical_structural_cap_operator_count = 0U;

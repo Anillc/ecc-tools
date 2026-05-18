@@ -90,7 +90,9 @@ auto CharacterizationLibrary::buildRuntimeOptions() -> CharBuilder::InitOptions
   options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
 
   const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  options.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
+      << "CharacterizationLibrary: routing layer must be configured before characterization.";
+  options.routing_layer = static_cast<int>(routing_layers.front());
   if (CONFIG_INST.get_wire_width() > 0.0) {
     options.wire_width = CONFIG_INST.get_wire_width();
   }

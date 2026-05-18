@@ -110,18 +110,18 @@ auto findStaTerminal(ista::Net* sta_net, const std::string& cts_pin_name) -> ist
 auto resolveDbUnit() -> int32_t
 {
   auto* idb_layout = dmInst->get_idb_layout();
-  if (idb_layout == nullptr || idb_layout->get_units() == nullptr) {
-    return 1;
-  }
-  return std::max(idb_layout->get_units()->get_micron_dbu(), int32_t{1});
+  LOG_FATAL_IF(idb_layout == nullptr || idb_layout->get_units() == nullptr)
+      << "STAAdapter: iDB units are unavailable for RC-tree installation.";
+  const auto dbu_per_um = idb_layout->get_units()->get_micron_dbu();
+  LOG_FATAL_IF(dbu_per_um <= 0) << "STAAdapter: iDB DBU-per-micron is invalid for RC-tree installation.";
+  return dbu_per_um;
 }
 
 auto resolveRoutingLayer() -> int
 {
   const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  if (routing_layers.empty()) {
-    return 1;
-  }
+  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
+      << "STAAdapter: routing layer is not configured for RC-tree installation.";
   return static_cast<int>(routing_layers.front());
 }
 
@@ -142,7 +142,7 @@ auto queryWireResistanceOhm(int wire_distance_dbu) -> double
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryWireResistance(resolveRoutingLayer(), wirelength_um, resolveWireWidth()) / kMilliOhmPerOhm;
+  return STA_ADAPTER_INST.queryRequiredWireResistance(resolveRoutingLayer(), wirelength_um, resolveWireWidth()) / kMilliOhmPerOhm;
 }
 
 auto queryWireCapacitancePf(int wire_distance_dbu) -> double
@@ -151,7 +151,7 @@ auto queryWireCapacitancePf(int wire_distance_dbu) -> double
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryWireCapacitance(resolveRoutingLayer(), wirelength_um, resolveWireWidth());
+  return STA_ADAPTER_INST.queryRequiredWireCapacitance(resolveRoutingLayer(), wirelength_um, resolveWireWidth());
 }
 
 }  // namespace

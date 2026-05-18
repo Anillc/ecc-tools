@@ -725,6 +725,10 @@ auto BuildPhysicalStructuralCapOperators(const realtech_support::SegmentFrontier
     -> std::unordered_map<std::string, StructuralCapOperator>
 {
   std::unordered_map<std::string, StructuralCapOperator> operators;
+  if (!options.routing_layer.has_value() || *options.routing_layer <= 0) {
+    return operators;
+  }
+  const int routing_layer = *options.routing_layer;
   for (const auto& [pattern_id, pattern] : segment_context.patterns) {
     (void) pattern_id;
     if (pattern.get_length_idx() != 1U) {
@@ -739,13 +743,13 @@ auto BuildPhysicalStructuralCapOperators(const realtech_support::SegmentFrontier
 
     const double unit_length_um = static_cast<double>(pattern.get_length_idx()) * grid.length_step_um;
     double alpha = 1.0;
-    double eta_pf = STA_ADAPTER_INST.queryWireCapacitance(options.routing_layer.value_or(1), unit_length_um, options.wire_width);
+    double eta_pf = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, unit_length_um, options.wire_width);
     if (!cell_masters.empty()) {
       alpha = 0.0;
       const double first_buffer_position = buffer_positions.front();
       const double prewire_length_um = std::clamp(first_buffer_position, 0.0, 1.0) * unit_length_um;
       eta_pf = STA_ADAPTER_INST.queryCharInputPinCap(cell_masters.front());
-      eta_pf += STA_ADAPTER_INST.queryWireCapacitance(options.routing_layer.value_or(1), prewire_length_um, options.wire_width);
+      eta_pf += STA_ADAPTER_INST.queryWireCapacitance(routing_layer, prewire_length_um, options.wire_width);
     }
 
     if (!std::isfinite(eta_pf) || eta_pf < 0.0) {

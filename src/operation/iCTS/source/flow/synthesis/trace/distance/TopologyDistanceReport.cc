@@ -23,6 +23,8 @@
 
 #include "synthesis/trace/distance/TopologyDistanceReport.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -32,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "Net.hh"
 #include "Pin.hh"
 #include "Point.hh"
@@ -59,14 +62,19 @@ auto formatDecimal(double value) -> std::string
   return stream.str();
 }
 
-auto resolveDbuPerUm() -> double
+auto resolveDbuPerUm() -> std::optional<double>
 {
-  return static_cast<double>(std::max(WRAPPER_INST.queryDbUnit(), 1));
+  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+  if (dbu_per_um <= 0) {
+    LOG_WARNING << "Topology distance report skipped: DBU-per-micron is unavailable.";
+    return std::nullopt;
+  }
+  return static_cast<double>(dbu_per_um);
 }
 
-auto dbuToUm(double value_dbu) -> double
+auto dbuToUm(double value_dbu, double dbu_per_um) -> double
 {
-  return value_dbu / resolveDbuPerUm();
+  return value_dbu / dbu_per_um;
 }
 
 auto resolveDistanceReportPath() -> std::filesystem::path
@@ -95,6 +103,16 @@ auto EmitClusterLeafDistanceTables(const Topology::BuildResult& result) -> std::
 
   constexpr const char* run_title = "iCTS Report";
   constexpr const char* summary_title = "Cluster Center vs H-Tree Leaf Distance Overview";
+  const auto dbu_per_um = resolveDbuPerUm();
+  if (!dbu_per_um.has_value()) {
+    const schema::KeyValueFields summary_fields = {
+        {"count", "0"},
+        {"status", "dbu_per_micron_unavailable"},
+    };
+    schema::SchemaWriter::appendStandaloneKeyValueTable(report_path, run_title, summary_title, summary_fields);
+    return std::nullopt;
+  }
+
   std::vector<double> distances;
   distances.reserve(result.cluster_buffers.size());
 
@@ -114,7 +132,7 @@ auto EmitClusterLeafDistanceTables(const Topology::BuildResult& result) -> std::
     }
 
     const int distance_dbu = calcManhattanDistance(cluster_buffer.location, leaf_location);
-    const double distance_um = dbuToUm(distance_dbu);
+    const double distance_um = dbuToUm(distance_dbu, *dbu_per_um);
     distances.push_back(distance_um);
     total_distance += distance_um;
   }

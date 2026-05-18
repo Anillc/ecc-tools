@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -196,7 +196,9 @@ auto Synthesis::run(ClockLayout& clock_layout, CharacterizationLibrary& char_lib
   SCHEMA_WRITER_INST.emitSection("## Synthesis Overview");
 
   clock_layout.reset();
-  clock_layout.set_design_dbu_per_um(WRAPPER_INST.queryDbUnit());
+  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+  LOG_FATAL_IF(dbu_per_um <= 0) << "Synthesis: DBU-per-micron is unavailable.";
+  clock_layout.set_design_dbu_per_um(dbu_per_um);
   SynthesisTraceSummary summary;
   auto clocks = DESIGN_INST.get_clocks();
   const std::size_t total_clocks = clocks.size();

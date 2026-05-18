@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -75,7 +75,7 @@ struct RootDriverCompensationOptions
   double clock_period_ns = 0.0;
   UniformValueLattice cap_lattice;
   UniformValueLattice slew_lattice;
-  std::string fallback_cell_master;
+  std::string default_cell_master;
   bool strict_boundary_closure = false;
   bool strict_slew_boundary_closure = true;
 };
@@ -100,7 +100,7 @@ struct RootDriverCompensationStats
   std::size_t load_resolution_cache_hit_count = 0U;
   std::size_t load_resolution_failure_count = 0U;
   std::size_t flute_route_estimate_count = 0U;
-  std::size_t fallback_route_estimate_count = 0U;
+  std::size_t hpwl_route_estimate_count = 0U;
   double load_resolution_runtime_ms = 0.0;
   double total_runtime_ms = 0.0;
 };

@@ -211,7 +211,7 @@ auto ResolveNetStrokeColor(bool is_root_net, bool reaches_sink) -> std::string
   if (reaches_sink) {
     return icts::visualization::detail::kSvgColorRoutedSinkNet;
   }
-  return icts::visualization::detail::kSvgColorFallbackInternalNet;
+  return icts::visualization::detail::kSvgColorDegradedInternalNet;
 }
 
 auto ResolveNetStrokeWidth(bool is_root_net, bool reaches_sink) -> double
@@ -390,7 +390,7 @@ auto WriteLegend(std::ofstream& output_stream, const icts::visualization::detail
 
   output_stream << R"(<line x1=")" << FormatSvgNumber(legend_x) << R"(" y1=")" << FormatSvgNumber(row_y(next_row) - 4.0) << R"(" x2=")"
                 << FormatSvgNumber(legend_x + 12.0) << R"(" y2=")" << FormatSvgNumber(row_y(next_row) - 4.0) << R"(" stroke=")"
-                << icts::visualization::detail::kSvgColorFallbackInternalNet << R"(" stroke-width="1.6" />)";
+                << icts::visualization::detail::kSvgColorDegradedInternalNet << R"(" stroke-width="1.6" />)";
   output_stream << R"(<text x=")" << FormatSvgNumber(legend_x + 18.0) << R"(" y=")" << FormatSvgNumber(row_y(next_row))
                 << R"(">internal fanout net</text>)";
   next_row += 1.0;

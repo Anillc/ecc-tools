@@ -171,8 +171,7 @@ TEST(HTreeRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
   EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*distinct_level_bins\s*\|)")));
   EXPECT_TRUE(std::regex_search(htree_grid_plan, std::regex(R"(\|\s*decision_flags\s*\|)")));
   EXPECT_EQ(cts_log_content.find("characterization grid was capped below direct topology coverage"), std::string::npos);
-  EXPECT_EQ(cts_log_content.find("wirelength unit is absent in runtime config; fallback to auto-derived topology grid unit"),
-            std::string::npos);
+  EXPECT_EQ(cts_log_content.find("wirelength unit is absent in CharBuilder options; explicit auto-derivation policy"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("configured wirelength unit collapses level bins to <=1"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("CharBuilder Runtime Configuration"), std::string::npos);
   EXPECT_EQ(cts_log_content.find("CharBuilder Routing / Wire RC"), std::string::npos);

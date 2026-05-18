@@ -59,7 +59,7 @@
 namespace icts {
 namespace {
 
-auto makeSafeNameToken(const std::string& value, const std::string& fallback) -> std::string
+auto makeSafeNameToken(const std::string& value, const std::string& default_token) -> std::string
 {
   std::string token;
   token.reserve(value.size());
@@ -79,7 +79,7 @@ auto makeSafeNameToken(const std::string& value, const std::string& fallback) ->
   while (!token.empty() && token.back() == '_') {
     token.pop_back();
   }
-  return token.empty() ? fallback : token;
+  return token.empty() ? default_token : token;
 }
 
 auto makeClockPrefix(const Clock& clock, std::size_t clock_index) -> std::string

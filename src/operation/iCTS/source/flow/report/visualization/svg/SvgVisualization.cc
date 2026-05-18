@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -56,7 +56,7 @@ enum class WireKind
   kRouted,
   kSourceToRoot,
   kFlyline,
-  kFallback
+  kDegraded
 };
 
 struct VisualizationReportStatus
@@ -192,7 +192,7 @@ auto EscapeXml(const std::string& text) -> std::string
   return escaped;
 }
 
-auto ResolveSegmentStyle(WireKind kind, bool fallback, bool flyline_view) -> std::tuple<const char*, double, double, std::string>
+auto ResolveSegmentStyle(WireKind kind, bool degraded, bool flyline_view) -> std::tuple<const char*, double, double, std::string>
 {
   const char* stroke_color = visualization::detail::kSvgColorRoutedSinkNet;
   double stroke_width = 1.8;
@@ -203,8 +203,8 @@ auto ResolveSegmentStyle(WireKind kind, bool fallback, bool flyline_view) -> std
     stroke_width = 1.2;
     stroke_opacity = 0.62;
     dash_array = "8,5";
-  } else if (fallback || kind == WireKind::kFallback) {
-    stroke_color = visualization::detail::kSvgColorFallbackInternalNet;
+  } else if (degraded || kind == WireKind::kDegraded) {
+    stroke_color = visualization::detail::kSvgColorDegradedInternalNet;
     stroke_width = 1.4;
     stroke_opacity = 0.74;
     dash_array = "5,3";
@@ -227,7 +227,7 @@ auto WriteSvgSegments(std::ofstream& output_stream, const visualization::detail:
     const auto end_x = FormatSvgNumber(visualization::detail::MapX(transform, segment.end.get_x()));
     const auto end_y = FormatSvgNumber(visualization::detail::MapY(transform, segment.end.get_y()));
     const auto wire_kind = wireKindFromRole(segment.net_role, flyline_view);
-    const auto [stroke_color, stroke_width, stroke_opacity, dash_array] = ResolveSegmentStyle(wire_kind, segment.fallback, flyline_view);
+    const auto [stroke_color, stroke_width, stroke_opacity, dash_array] = ResolveSegmentStyle(wire_kind, segment.degraded, flyline_view);
     output_stream << R"(<line x1=")" << begin_x << R"(" y1=")" << begin_y << R"(" x2=")" << end_x << R"(" y2=")" << end_y << R"(" stroke=")"
                   << stroke_color << R"(" stroke-width=")" << FormatSvgNumber(stroke_width) << R"(" stroke-opacity=")"
                   << FormatSvgNumber(stroke_opacity) << '"';
@@ -325,9 +325,9 @@ auto WriteSvgLegend(std::ofstream& output_stream, const visualization::detail::S
 
   output_stream << R"(<line x1=")" << FormatSvgNumber(legend_x) << R"(" y1=")" << FormatSvgNumber(row_y(3.0) - 4.0) << R"(" x2=")"
                 << FormatSvgNumber(legend_x + 14.0) << R"(" y2=")" << FormatSvgNumber(row_y(3.0) - 4.0) << R"(" stroke=")"
-                << visualization::detail::kSvgColorFallbackInternalNet << R"(" stroke-width="1.4" stroke-dasharray="5,3" />)";
+                << visualization::detail::kSvgColorDegradedInternalNet << R"(" stroke-width="1.4" stroke-dasharray="5,3" />)";
   output_stream << R"(<text x=")" << FormatSvgNumber(legend_x + 20.0) << R"(" y=")" << FormatSvgNumber(row_y(3.0))
-                << R"(">fallback segment</text>)";
+                << R"(">degraded segment</text>)";
 
   output_stream << R"(<circle cx=")" << FormatSvgNumber(legend_x + 7.0) << R"(" cy=")" << FormatSvgNumber(row_y(4.0) - 4.0) << R"(" r=")"
                 << FormatSvgNumber(visualization::detail::kReportDriverRadius) << R"(" fill=")"

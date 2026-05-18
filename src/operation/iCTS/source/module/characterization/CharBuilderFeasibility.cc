@@ -63,7 +63,8 @@ auto CharBuilder::analyzePatternFeasibility(const TopologyDesc& topo, const std:
       return {};
     }
 
-    const double wire_cap_pf = STA_ADAPTER_INST.queryWireCapacitance(_routing_layer, topo.wire_segments_um.at(segment_index), _wire_width);
+    const double wire_cap_pf
+        = STA_ADAPTER_INST.queryRequiredWireCapacitance(_routing_layer, topo.wire_segments_um.at(segment_index), _wire_width);
     const bool is_last_segment = (segment_index + 1U == topo.wire_segments_um.size());
     const CharBufferInfo* next_buffer = is_last_segment ? sink_buffer : findBufferInfo(buf_masters.at(segment_index));
     const double next_input_cap_pf = next_buffer != nullptr ? next_buffer->input_cap_pf : 0.0;

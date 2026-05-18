@@ -93,7 +93,9 @@ auto BuildLeafElectricalConfig() -> ClusterConfig
   const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
   auto config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
   const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  config.routing_layer = routing_layers.empty() ? 1 : static_cast<int>(routing_layers.front());
+  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
+      << "HTree: routing layer is not configured for sink-load-region checks.";
+  config.routing_layer = static_cast<int>(routing_layers.front());
   config.wire_width = CONFIG_INST.get_wire_width();
   config.enable_exact_cap = true;
   config.always_build_exact_cap = true;

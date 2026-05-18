@@ -188,7 +188,10 @@ auto buildRcOptionsFromRuntimeConfig() -> Router::RCTreeBuildOptions
 
 auto dbuToUm(int64_t dbu, const QorSummary& summary) -> double
 {
-  const double dbu_per_um = static_cast<double>(std::max(summary.design_dbu_per_um, int32_t{1}));
+  if (summary.design_dbu_per_um <= 0) {
+    return 0.0;
+  }
+  const auto dbu_per_um = static_cast<double>(summary.design_dbu_per_um);
   return static_cast<double>(dbu) / dbu_per_um;
 }
 
@@ -753,7 +756,8 @@ auto appendClockTimings(bool query_sta_timing, QorSummary& summary) -> void
   const auto timing_records = STA_ADAPTER_INST.queryClockTimings();
   if (timing_records.empty()) {
     schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CTS Evaluation",
-                           "clock timing metrics are unavailable from STA; no fallback values are reported.", {{"timing_source", "STA"}});
+                           "clock timing metrics are unavailable from STA; timing fields are reported as unavailable.",
+                           {{"timing_source", "STA"}});
     return;
   }
   summary.clocks_timing.reserve(summary.clocks_timing.size() + timing_records.size());
@@ -870,7 +874,13 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
   clearStatistics(statistics);
 
   auto clocks = DESIGN_INST.get_clocks();
-  summary.design_dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), int32_t{1});
+  summary.design_dbu_per_um = WRAPPER_INST.queryDbUnit();
+  if (summary.design_dbu_per_um <= 0) {
+    summary.design_dbu_per_um = 0;
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CTS Evaluation",
+                           "CTS evaluation reports degraded wirelength metrics because DBU-per-micron is unavailable.",
+                           {{"wirelength_metric_status", "degraded"}});
+  }
   const bool clock_dag_valid = DESIGN_INST.rebuildClockDAG();
   const auto& clock_dag = DESIGN_INST.get_clock_dag();
   appendPathDepthStats(clock_dag.pathBufferStats(), summary);

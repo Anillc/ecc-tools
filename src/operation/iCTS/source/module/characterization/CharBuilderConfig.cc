@@ -127,9 +127,12 @@ auto makeWirelengths(double unit_um, const std::vector<unsigned>& indices) -> st
   return wirelengths_um;
 }
 
-auto resolveRoutingLayer(const CharBuilder::InitOptions& options) -> int
+auto resolveRoutingLayer(const CharBuilder::InitOptions& options) -> std::optional<int>
 {
-  return options.routing_layer.has_value() && *options.routing_layer > 0 ? *options.routing_layer : 1;
+  if (options.routing_layer.has_value() && *options.routing_layer > 0) {
+    return options.routing_layer;
+  }
+  LOG_FATAL << "CharBuilder: routing_layer must be explicitly provided.";
 }
 
 auto resolveWireWidth(const CharBuilder::InitOptions& options) -> std::optional<double>
@@ -338,14 +341,14 @@ auto resolveWirelengthUnitUm(const std::vector<CharBufferInfo>& sorted_buffers) 
     };
   }
 
-  const double fallback_unit_um = strongest_height_um * 10.0;
-  schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "CharBuilder",
-                         "wirelength unit is absent in CharBuilder options, fallback to auto-derived strongest-buffer height.",
+  const double auto_derived_unit_um = strongest_height_um * 10.0;
+  schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
+                         "wirelength unit is absent in CharBuilder options; explicit auto-derivation policy uses strongest-buffer height.",
                          {{"strongest_buffer", strongest_master},
                           {"buffer_height", logformat::FormatWithUnit(strongest_height_um, "um")},
-                          {"derived_wirelength_unit", logformat::FormatWithUnit(fallback_unit_um, "um")}});
+                          {"derived_wirelength_unit", logformat::FormatWithUnit(auto_derived_unit_um, "um")}});
   return ResolvedValue{
-      .value = fallback_unit_um,
+      .value = auto_derived_unit_um,
       .source = ResolutionSource::kAutoDerived,
       .detail = "strongest buffer " + strongest_master + " height=" + logformat::FormatWithUnit(strongest_height_um, "um") + " x10",
   };
@@ -359,6 +362,17 @@ auto resolveWirelengthUnitUm(const CharBuilder::InitOptions& options, const std:
         .value = *options.wirelength_unit_um,
         .source = caller_override ? ResolutionSource::kCallerOverride : ResolutionSource::kRuntimeConfig,
         .detail = caller_override ? "CharBuilder caller override: wirelength unit" : "runtime configuration",
+    };
+  }
+
+  if (!options.allow_auto_wirelength_unit) {
+    LOG_ERROR << "CharBuilder: wirelength_unit_um must be explicitly provided or allow_auto_wirelength_unit must be enabled.";
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CharBuilder",
+                           "wirelength unit is absent and auto-derivation is disabled by policy.", {{"reason", "missing_wirelength_unit"}});
+    return ResolvedValue{
+        .value = 0.0,
+        .source = ResolutionSource::kUnresolved,
+        .detail = "missing explicit wirelength unit",
     };
   }
 
@@ -405,6 +419,7 @@ auto CharBuilder::init(const InitOptions& options) -> void
   const ResolvedValue max_cap_resolution = resolveMaxCap(effective_options);
   const ResolvedValue wirelength_unit_resolution
       = resolveWirelengthUnitUm(effective_options, _sorted_buffers, options.wirelength_unit_um.has_value());
+  const auto routing_layer_resolution = resolveRoutingLayer(effective_options);
   _max_slew = max_slew_resolution.value;
   _max_cap = max_cap_resolution.value;
   _length_unit_um = wirelength_unit_resolution.value;
@@ -413,6 +428,18 @@ auto CharBuilder::init(const InitOptions& options) -> void
   _wirelength_iterations = std::max(1U, effective_options.wirelength_iterations.value_or(kDefaultWirelengthIterations));
   _slew_steps = effective_options.slew_steps.value_or(15U);
   _cap_steps = effective_options.cap_steps.value_or(15U);
+  if (_max_slew <= 0.0 || _max_cap <= 0.0 || _length_unit_um <= 0.0 || !routing_layer_resolution.has_value()) {
+    std::string reason = "max_cap_unresolved";
+    if (_length_unit_um <= 0.0) {
+      reason = "wirelength_unit_unresolved";
+    } else if (!routing_layer_resolution.has_value()) {
+      reason = "routing_layer_unresolved";
+    } else if (_max_slew <= 0.0) {
+      reason = "max_slew_unresolved";
+    }
+    init_stage.failed({{"reason", reason}});
+    return;
+  }
   bool wirelength_indices_truncated = false;
   if (effective_options.wirelength_indices.has_value()) {
     auto [clamped_indices, truncated] = clampWirelengthIndices(*effective_options.wirelength_indices, _wirelength_iterations);
@@ -426,12 +453,12 @@ auto CharBuilder::init(const InitOptions& options) -> void
   _max_length = _wirelengths_um.empty() ? 0.0 : _wirelengths_um.back();
   _slews_to_test = get_slew_lattice().sampleValues();
   _loads_to_test = get_cap_lattice().sampleValues();
-  _routing_layer = resolveRoutingLayer(effective_options);
+  _routing_layer = *routing_layer_resolution;
   _wire_width = resolveWireWidth(effective_options);
   _sink_input_cap_pf = _sorted_buffers.empty() ? 0.0 : _sorted_buffers.front().input_cap_pf;
 
   if (wirelength_indices_truncated) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kFallback, "CharBuilder",
+    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
                            "wirelength_indices exceeded wirelength_iterations; clamp direct characterization to the configured max iter.",
                            {
                                {"wirelength_iterations", std::to_string(_wirelength_iterations)},

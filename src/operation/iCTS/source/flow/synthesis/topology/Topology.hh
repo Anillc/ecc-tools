@@ -125,7 +125,7 @@ class Topology
     HTree::BuildResult htree_result;
     std::size_t inserted_buffer_count = 0U;
     std::size_t inserted_net_count = 0U;
-    bool used_boundary_fallback = false;
+    bool used_boundary_relaxation = false;
 
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;

@@ -99,7 +99,7 @@ auto MakeArm9ExperimentRecord(unsigned wirelength_iterations, unsigned slew_cap_
       .char_wirelength_unit_um = result.char_wirelength_unit_um,
       .char_wirelength_iterations = result.char_wirelength_iterations,
       .char_grid_adapted = result.char_grid_adapted,
-      .used_boundary_fallback = observation.used_boundary_fallback,
+      .used_boundary_relaxation = observation.used_boundary_relaxation,
       .failure_reason = result.failure_reason,
   };
 

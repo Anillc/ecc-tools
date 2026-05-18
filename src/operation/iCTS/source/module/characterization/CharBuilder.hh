@@ -41,7 +41,7 @@ namespace icts {
 struct CharBufferInfo
 {
   std::string cell_master;
-  double max_cap_pf = 0.0;  // Drive-strength proxy used for ordering and fallback selection.
+  double max_cap_pf = 0.0;  // Drive-strength proxy used for ordering and explicit auto-derivation.
   double input_cap_pf = 0.0;
   std::string input_pin;
   std::string output_pin;
@@ -62,6 +62,7 @@ class CharBuilder
     std::optional<double> wirelength_unit_um = std::nullopt;
     std::optional<unsigned> wirelength_iterations = std::nullopt;
     std::optional<std::vector<unsigned>> wirelength_indices = std::nullopt;
+    bool allow_auto_wirelength_unit = false;
     std::optional<double> max_slew_ns = std::nullopt;
     std::optional<double> max_cap_pf = std::nullopt;
     std::vector<std::string> buffer_types;
@@ -188,7 +189,7 @@ class CharBuilder
   std::vector<double> _wirelengths_um;
   std::vector<double> _slews_to_test;
   std::vector<double> _loads_to_test;
-  int _routing_layer = 1;
+  int _routing_layer = 0;
   std::optional<double> _wire_width = std::nullopt;
   double _max_slew = 0.0;
   double _max_cap = 0.0;

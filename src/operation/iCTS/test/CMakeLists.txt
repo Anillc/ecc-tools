@@ -29,7 +29,8 @@ target_link_libraries(
 add_library(icts_test_main OBJECT ${ICTS_TEST}/main.cc)
 target_link_libraries(icts_test_main PUBLIC icts_test_base)
 
-option(ICTS_BUILD_SLOW_REALTECH_TESTS "Build slow iCTS real-tech regression tests" OFF)
+option(ICTS_BUILD_REALTECH_TESTS "Build opt-in iCTS real-tech smoke tests" OFF)
+option(ICTS_BUILD_SLOW_REALTECH_TESTS "Build opt-in slow iCTS real-tech regression and benchmark tests" OFF)
 
 function(icts_add_test_executable target_name)
   set(options REALTECH)

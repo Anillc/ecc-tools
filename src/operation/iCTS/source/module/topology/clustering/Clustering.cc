@@ -149,8 +149,8 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
 
   auto centers = kmeans_result.centers;
   if (centers.size() < 2) {
-    auto fallback_clusters = SplitByPosition(loads, safe_min);
-    centers = CalcCenters(fallback_clusters);
+    auto position_split_clusters = SplitByPosition(loads, safe_min);
+    centers = CalcCenters(position_split_clusters);
   }
 
   std::vector<std::vector<Pin*>> clusters;

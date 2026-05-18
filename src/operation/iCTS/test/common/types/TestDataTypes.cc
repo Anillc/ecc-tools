@@ -16,6 +16,8 @@
 // ***************************************************************************************
 /**
  * @file TestDataTypes.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-05-18
  * @brief Out-of-line ownership operations for shared iCTS test data types.
  */
 

@@ -422,7 +422,7 @@ auto BuildDelayPowerParetoFront(const std::vector<CandidateCharRef>& entries) ->
 
 }  // namespace
 
-auto CalcBoundaryFallbackScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)
+auto CalcBoundaryRelaxationScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)
     -> double
 {
   double score = 0.0;
@@ -558,18 +558,20 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const S
   }
   if (!result.feasible_frontier_entries.empty()) {
     result.best_char = SelectBestHTreeChar(result.feasible_frontier_entries);
-  } else if (has_boundary_constraints) {
+  } else if (has_boundary_constraints && fanout_options.allow_boundary_relaxation) {
     result.best_char = SelectBestHTreeChar(result.candidate_frontier_entries);
     if (result.best_char.has_value()) {
-      result.used_boundary_fallback = true;
-      result.boundary_fallback_reason = "no_strict_boundary_feasible_solution";
-      result.boundary_fallback_score = CalcBoundaryFallbackScore(*result.best_char, boundary_constraints, char_slew_steps);
+      result.used_boundary_relaxation = true;
+      result.boundary_relaxation_reason = "no_strict_boundary_feasible_solution";
+      result.boundary_relaxation_score = CalcBoundaryRelaxationScore(*result.best_char, boundary_constraints, char_slew_steps);
     }
   }
 
   result.success = result.best_char.has_value();
   if (!result.success && result.failure_reason.empty()) {
-    result.failure_reason = "no_sink_load_region_legal_frontier_entries";
+    result.failure_reason = has_boundary_constraints && !fanout_options.allow_boundary_relaxation
+                                ? "no_strict_boundary_feasible_solution"
+                                : "no_sink_load_region_legal_frontier_entries";
   }
   return result;
 }

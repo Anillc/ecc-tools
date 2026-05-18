@@ -458,7 +458,7 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> TopologyMatrixRunR
           .char_wirelength_unit_um = result.htree_result.char_wirelength_unit_um,
           .char_wirelength_iterations = result.htree_result.char_wirelength_iterations,
           .char_grid_adapted = result.htree_result.char_grid_adapted,
-          .used_boundary_fallback = htree_observation.used_boundary_fallback,
+          .used_boundary_relaxation = htree_observation.used_boundary_relaxation,
           .failure_reason = result.htree_result.failure_reason,
       };
 

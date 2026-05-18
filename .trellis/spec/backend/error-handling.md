@@ -24,6 +24,35 @@ This document covers the no-exception policy, severity decisions, and return-vs-
 | Input is empty, zero, or intentionally skippable | `LOG_WARNING` + early return |
 | Non-critical inconsistency with a fallback path | `LOG_WARNING` / `LOG_WARNING_IF` |
 
+### CTS Algorithm Unit and RC Preconditions
+
+For CTS algorithm paths that produce topology, RC trees, timing, sizing, legality, or QoR decisions, the following are required preconditions:
+
+- `DBU-per-micron > 0`
+- RC-producing algorithms have a positive routing layer
+- required STA/iDB adapter state is initialized before wire RC queries
+- geometry projections such as `ClockLayout` are converted to RC only after the target fast-STA or algorithm context has validated runtime options
+
+Use `LOG_FATAL` / `LOG_FATAL_IF` at the first algorithm boundary when one of these is missing. Do not continue with sentinels such as `dbu = 0`, `routing_layer = 0`, zero RC from unavailable infrastructure, or `std::max(dbu, 1)` masking.
+
+Shared query facades may remain fallible for report/probe paths, but algorithm callers must use required wrappers or immediately translate invalid results into fatal/typed stage failure. `wire_width` may remain optional when the technology/library default width is the intended behavior.
+
+Wrong:
+
+```cpp
+const auto dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), 1);
+const auto res = STA_ADAPTER_INST.queryWireResistance(routing_layer, length_um);
+```
+
+Correct:
+
+```cpp
+const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+LOG_FATAL_IF(dbu_per_um <= 0) << "CTS stage: DBU-per-micron is unavailable.";
+LOG_FATAL_IF(routing_layer <= 0) << "CTS stage: routing layer is not configured.";
+const auto res = STA_ADAPTER_INST.queryRequiredWireResistance(routing_layer, length_um, wire_width_um);
+```
+
 ### Return vs Terminate
 
 Use `LOG_ERROR` plus a safe return for cases such as:

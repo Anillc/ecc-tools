@@ -140,8 +140,8 @@ auto BuildDiagnosticFields(DiagnosticLevel level, const std::string& owner, cons
     case DiagnosticLevel::kError:
       severity = "error";
       break;
-    case DiagnosticLevel::kFallback:
-      severity = "fallback";
+    case DiagnosticLevel::kDegraded:
+      severity = "degraded";
       break;
   }
 
@@ -787,7 +787,7 @@ auto EmitDiagnostic(DiagnosticLevel level, const std::string& owner, const std::
       LOG_INFO << owner << ": " << summary;
       break;
     case DiagnosticLevel::kWarning:
-    case DiagnosticLevel::kFallback:
+    case DiagnosticLevel::kDegraded:
       LOG_WARNING << owner << ": " << summary;
       break;
     case DiagnosticLevel::kError:

@@ -23,16 +23,20 @@
 
 #include "synthesis/htree/plan/Plan.hh"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "PatternId.hh"
 #include "Tree.hh"
 #include "ValueLattice.hh"
@@ -51,6 +55,7 @@ auto MakeCoveringLengthIndex(double length_um, double length_step_um) -> unsigne
 
 auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_per_um) -> std::vector<HTree::LevelPlan>
 {
+  LOG_FATAL_IF(dbu_per_um <= 0) << "HTree: DBU-per-micron must be positive when building level plans.";
   std::vector<HTree::LevelPlan> plans;
   const auto levels = topology.levels();
   if (levels.size() <= 1U || length_step_um <= 0.0) {
@@ -83,8 +88,7 @@ auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_pe
 
     const int requested_length_dbu
         = static_cast<int>(std::llround(static_cast<double>(distance_sum) / static_cast<double>(distance_count)));
-    const double requested_length_um
-        = static_cast<double>(std::max(requested_length_dbu, 0)) / static_cast<double>(std::max(dbu_per_um, int32_t{1}));
+    const double requested_length_um = static_cast<double>(std::max(requested_length_dbu, 0)) / static_cast<double>(dbu_per_um);
     const unsigned aligned_length_idx = MakeCoveringLengthIndex(requested_length_um, length_step_um);
     plans.push_back(HTree::LevelPlan{
         .requested_length_dbu = requested_length_dbu,

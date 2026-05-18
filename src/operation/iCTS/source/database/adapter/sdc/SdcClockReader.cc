@@ -148,7 +148,7 @@ auto makeObjectValue(SdcObjectKind kind, const std::vector<std::string>& pattern
   return value;
 }
 
-auto appendRefsFromValue(std::vector<SdcObjectRef>& refs, const SdcValue& value, SdcObjectKind fallback_kind) -> void
+auto appendRefsFromValue(std::vector<SdcObjectRef>& refs, const SdcValue& value, SdcObjectKind default_kind) -> void
 {
   if (!value.objects.empty()) {
     refs.insert(refs.end(), value.objects.begin(), value.objects.end());
@@ -156,7 +156,7 @@ auto appendRefsFromValue(std::vector<SdcObjectRef>& refs, const SdcValue& value,
   }
   for (const auto& text : value.strings) {
     for (const auto& item : splitListText(text)) {
-      refs.emplace_back(SdcObjectRef{fallback_kind, item, false});
+      refs.emplace_back(SdcObjectRef{default_kind, item, false});
     }
   }
 }

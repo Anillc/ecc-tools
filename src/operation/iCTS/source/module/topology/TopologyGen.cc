@@ -96,7 +96,8 @@ auto FormatPoint(double x, double y) -> std::string
 
 auto NormalizeDbuPerUm(int32_t dbu_per_um) -> double
 {
-  return static_cast<double>(std::max(dbu_per_um, int32_t{1}));
+  LOG_FATAL_IF(dbu_per_um <= 0) << "TopologyGen: DBU-per-micron must be positive.";
+  return static_cast<double>(dbu_per_um);
 }
 
 auto ResolveMaxNodeLoadCount(std::size_t leaf_need, const BiPartitionConfig& config) -> std::size_t

@@ -95,8 +95,7 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 
   auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master_name.c_str());
   if (lib_cell == nullptr) {
-    LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master_name
-                << "\" is not found; fallback to iDB-only type heuristics.";
+    LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master_name << "\" is not found; using iDB-only type heuristics.";
   } else if (lib_cell->isSequentialCell()) {
     inst_type = icts::InstType::kFlipFlop;
   } else if (lib_cell->isBuffer()) {
