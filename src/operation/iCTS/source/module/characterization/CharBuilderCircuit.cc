@@ -32,7 +32,7 @@
 #include "CharBuilder.hh"
 #include "FastStaTypes.hh"
 #include "Log.hh"
-#include "adapter/fast_sta/FastStaAdapter.hh"
+#include "adapter/fast_sta/FastSta.hh"
 
 namespace icts {
 
@@ -83,7 +83,7 @@ auto CharBuilder::createCharCircuit(const TopologyDesc& topo, const std::vector<
   }
 
   _char_clock_name = id_prefix + "clk";
-  _fast_sta_char_context_id = FastStaAdapter::buildCharContext(FastStaCharTopologySpec{
+  _fast_sta_char_context_id = FastSTA::buildCharContext(FastStaCharTopologySpec{
       .source_cell_master = source_buf.cell_master,
       .sink_cell_master = sink_buf.cell_master,
       .buffer_cell_masters = buf_masters,
@@ -101,13 +101,13 @@ auto CharBuilder::setCharParasitics(const TopologyDesc& topo, double load_pf) co
   (void) topo;
   LOG_FATAL_IF(_fast_sta_char_context_id == kInvalidFastStaCharContextId)
       << "Fast STA characterization context is not prepared before parasitic load update.";
-  (void) FastStaAdapter::setCharLoad(_fast_sta_char_context_id, load_pf);
+  (void) FastSTA::setCharLoad(_fast_sta_char_context_id, load_pf);
 }
 
 auto CharBuilder::destroyCharCircuit() -> void
 {
   if (_fast_sta_char_context_id != kInvalidFastStaCharContextId) {
-    (void) FastStaAdapter::eraseCharContext(_fast_sta_char_context_id);
+    (void) FastSTA::eraseCharContext(_fast_sta_char_context_id);
     _fast_sta_char_context_id = kInvalidFastStaCharContextId;
   }
   _sink_inst_name.clear();

@@ -82,6 +82,13 @@ enum class FastStaDmpAlgorithm
   kZeroC2
 };
 
+enum class FastStaSlewRole
+{
+  kUnknown,
+  kBufferInput,
+  kSink
+};
+
 struct FastStaPoint
 {
   int x_dbu = 0;
@@ -267,6 +274,7 @@ struct FastStaSlewStatus
 {
   FastStaNodeId node_id = kInvalidFastStaNodeId;
   std::string node_name;
+  FastStaSlewRole role = FastStaSlewRole::kUnknown;
   double slew_ns = 0.0;
   double max_slew_ns = 0.0;
   bool violated = false;
@@ -327,6 +335,7 @@ struct FastStaClockContext
   std::string clock_name;
   std::string clock_net_name;
   double clock_period_ns = 0.0;
+  double root_input_slew_ns = 0.0;
   int32_t dbu_per_um = 0;
   int routing_layer = 0;
   std::optional<double> wire_width_um;

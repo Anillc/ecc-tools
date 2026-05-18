@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastStaAdapter.hh"
+#include "FastSta.hh"
 #include "Log.hh"
 #include "config/Config.hh"
 #include "design/Clock.hh"
@@ -95,10 +95,10 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
     oi::OptimizationRuntimeProfile outer_profile;
     outer_profile.build_route_tree_cache_s = route_tree_cache_runtime_s;
     stage_start = std::chrono::steady_clock::now();
-    const auto clock_id = FastStaAdapter::buildClockContext(*clock, clock_layout, clock_index);
+    const auto clock_id = FastSTA::buildClockContext(*clock, clock_layout, clock_index);
     outer_profile.build_fast_sta_context_s = oi::ElapsedSeconds(stage_start);
 
-    if (const auto* context = FastStaAdapter::queryClockContext(clock_id); context != nullptr) {
+    if (const auto* context = FastSTA::queryClockContext(clock_id); context != nullptr) {
       auto graph_profile = oi::CaptureGraphProfile(*context);
       graph_profile.build_route_tree_cache_s = outer_profile.build_route_tree_cache_s;
       graph_profile.build_fast_sta_context_s = outer_profile.build_fast_sta_context_s;
@@ -110,7 +110,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
       outer_profile.inject_route_trees_s = oi::ElapsedSeconds(stage_start);
       oi::EmitClockProfile(*clock, outer_profile);
       LOG_WARNING << "Optimization: skip clock \"" << clock->get_clock_name() << "\" because fast STA context build failed.";
-      (void) FastStaAdapter::eraseClockContext(clock_id);
+      (void) FastSTA::eraseClockContext(clock_id);
       no_op_reason = "fast_sta_context_failed";
       continue;
     }
@@ -123,7 +123,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
     if (buffers.empty()) {
       oi::EmitClockProfile(*clock, outer_profile);
       LOG_WARNING << "Optimization: skip clock \"" << clock->get_clock_name() << "\" because no resizable buffers are available.";
-      (void) FastStaAdapter::eraseClockContext(clock_id);
+      (void) FastSTA::eraseClockContext(clock_id);
       no_op_reason = "no_resizable_buffers";
       continue;
     }
@@ -148,7 +148,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
       oi::EmitClockProfile(*clock, summary.profile);
       LOG_WARNING << "Optimization: skip clock \"" << clock->get_clock_name() << "\" because fast STA solver failed with reason "
                   << summary.stop_reason << ".";
-      (void) FastStaAdapter::eraseClockContext(clock_id);
+      (void) FastSTA::eraseClockContext(clock_id);
       no_op_reason = summary.stop_reason.empty() ? "solver_failed" : summary.stop_reason;
       continue;
     }
@@ -169,7 +169,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
     result.optimized = result.optimized || !summary.mutations.empty();
     result.optimized_clock_count += summary.mutations.empty() ? 0U : 1U;
     result.accepted_mutation_count += summary.accepted_mutation_count;
-    (void) FastStaAdapter::eraseClockContext(clock_id);
+    (void) FastSTA::eraseClockContext(clock_id);
   }
 
   const auto end_time = std::chrono::steady_clock::now();

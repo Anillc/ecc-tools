@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FastStaAdapter.hh
+ * @file FastSta.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-18
  * @brief CTS-facing facade for fast timing and power calculation.
@@ -35,21 +35,21 @@ namespace icts {
 class Clock;
 class ClockLayout;
 
-#define FAST_STA_ADAPTER_INST (icts::FastStaAdapter::getInst())
+#define FAST_STA_INST (icts::FastSTA::getInst())
 
-class FastStaAdapter
+class FastSTA
 {
  public:
-  static auto getInst() -> FastStaAdapter&
+  static auto getInst() -> FastSTA&
   {
-    static FastStaAdapter inst;
+    static FastSTA inst;
     return inst;
   }
 
-  FastStaAdapter(const FastStaAdapter& rhs) = delete;
-  FastStaAdapter(FastStaAdapter&& rhs) = delete;
-  auto operator=(const FastStaAdapter& rhs) -> FastStaAdapter& = delete;
-  auto operator=(FastStaAdapter&& rhs) -> FastStaAdapter& = delete;
+  FastSTA(const FastSTA& rhs) = delete;
+  FastSTA(FastSTA&& rhs) = delete;
+  auto operator=(const FastSTA& rhs) -> FastSTA& = delete;
+  auto operator=(FastSTA&& rhs) -> FastSTA& = delete;
 
   static auto buildClockContext(const Clock& clock) -> FastStaClockId;
   static auto buildClockContext(const Clock& clock, const ClockLayout& clock_layout, std::size_t clock_index) -> FastStaClockId;
@@ -81,8 +81,8 @@ class FastStaAdapter
   static auto queryClockIds() -> std::vector<FastStaClockId>;
 
  private:
-  FastStaAdapter() = default;
-  ~FastStaAdapter() = default;
+  FastSTA() = default;
+  ~FastSTA() = default;
 
   std::vector<FastStaClockContext> _clock_contexts;
   std::vector<bool> _clock_context_valid;

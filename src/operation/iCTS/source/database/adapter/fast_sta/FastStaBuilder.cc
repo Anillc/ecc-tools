@@ -25,6 +25,7 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <optional>
@@ -47,6 +48,9 @@
 #include "io/Wrapper.hh"
 
 namespace icts {
+
+class Pin;
+
 namespace {
 
 auto elapsedSeconds(std::chrono::steady_clock::time_point start_time) -> double
@@ -83,9 +87,36 @@ auto applyRuntimeOptions(FastStaClockContext& context) -> void
   context.dbu_per_um = dbu_per_um;
   context.routing_layer = resolveRoutingLayer();
   context.wire_width_um = resolveWireWidth();
+  context.root_input_slew_ns = std::max(0.0, CONFIG_INST.get_root_input_slew());
 }
 
-auto snapshotClockData(FastStaClockContext& context) -> void
+// FastSTA snapshots CTS-owned topology here, while Liberty and pin limits remain STA-backed
+// because the parsed technology data is owned by STAAdapter/iSTA.
+auto queryStaBackedSinkPinCap(const Pin* pin) -> double
+{
+  return STA_ADAPTER_INST.queryPinCapacitance(pin);
+}
+
+auto queryStaBackedSinkSlewLimit(const Pin* pin) -> double
+{
+  return STA_ADAPTER_INST.queryPinSlewLimit(pin);
+}
+
+auto queryStaBackedSourceCapLimit(const Clock& clock) -> double
+{
+  return STA_ADAPTER_INST.queryClockSourceDriveCapLimit(clock.get_clock_source());
+}
+
+auto isSourceBoundaryNet(const Clock& clock, const FastStaClockContext& context, const FastStaNet& net) -> bool
+{
+  if (net.driver_node_id == context.source_node_id) {
+    return true;
+  }
+  const auto* source_net = clock.get_clock_source_net();
+  return source_net != nullptr && net.name == source_net->get_name();
+}
+
+auto snapshotClockData(const Clock& clock, FastStaClockContext& context) -> void
 {
   for (auto& node : context.nodes) {
     if (node.cell_master.empty()) {
@@ -103,11 +134,21 @@ auto snapshotClockData(FastStaClockContext& context) -> void
   for (auto& net : context.nets) {
     if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
       net.max_cap_pf = CONFIG_INST.get_max_cap();
-    } else if (net.driver_node_id != kInvalidFastStaNodeId) {
-      const auto& driver = context.nodes.at(net.driver_node_id);
-      if (const auto iter = context.liberty_cell_by_master.find(driver.cell_master); iter != context.liberty_cell_by_master.end()) {
-        net.max_cap_pf = iter->second.output_cap_limit_pf;
+      continue;
+    }
+    if (isSourceBoundaryNet(clock, context, net)) {
+      const double source_cap_limit_pf = queryStaBackedSourceCapLimit(clock);
+      if (source_cap_limit_pf > 0.0) {
+        net.max_cap_pf = source_cap_limit_pf;
+        continue;
       }
+    }
+    if (net.driver_node_id == kInvalidFastStaNodeId) {
+      continue;
+    }
+    const auto& driver = context.nodes.at(net.driver_node_id);
+    if (const auto iter = context.liberty_cell_by_master.find(driver.cell_master); iter != context.liberty_cell_by_master.end()) {
+      net.max_cap_pf = iter->second.output_cap_limit_pf;
     }
   }
   FastStaParasitics::updateNetLoads(context);
@@ -123,7 +164,9 @@ auto snapshotSinkPinCaps(const Clock& clock, FastStaClockContext& context) -> vo
     if (node_iter == context.node_id_by_name.end() || node_iter->second >= context.nodes.size()) {
       continue;
     }
-    context.nodes.at(node_iter->second).input_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(pin);
+    auto& node = context.nodes.at(node_iter->second);
+    node.input_cap_pf = queryStaBackedSinkPinCap(pin);
+    node.max_slew_ns = queryStaBackedSinkSlewLimit(pin);
   }
 }
 
@@ -145,7 +188,7 @@ auto FastStaBuilder::buildClockContext(const Clock& clock) -> FastStaClockContex
   logBuilderStage(clock, "snapshot sink pin caps", elapsedSeconds(stage_start), context);
 
   stage_start = std::chrono::steady_clock::now();
-  snapshotClockData(context);
+  snapshotClockData(clock, context);
   logBuilderStage(clock, "snapshot liberty and clock data", elapsedSeconds(stage_start), context);
   LOG_INFO << "FastStaBuilder: build clock context for clock \"" << clock.get_clock_name() << "\" finished in "
            << elapsedSeconds(total_start) << " s.";
@@ -172,7 +215,7 @@ auto FastStaBuilder::buildClockContext(const Clock& clock, const ClockLayout& cl
   logBuilderStage(clock, "snapshot sink pin caps", elapsedSeconds(stage_start), context);
 
   stage_start = std::chrono::steady_clock::now();
-  snapshotClockData(context);
+  snapshotClockData(clock, context);
   logBuilderStage(clock, "snapshot liberty and clock data", elapsedSeconds(stage_start), context);
   LOG_INFO << "FastStaBuilder: build layout clock context for clock \"" << clock.get_clock_name() << "\" finished in "
            << elapsedSeconds(total_start) << " s.";

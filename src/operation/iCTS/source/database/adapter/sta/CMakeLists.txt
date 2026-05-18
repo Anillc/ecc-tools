@@ -2,9 +2,6 @@ add_library(
   icts_source_database_adapter_sta
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapter.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterCellQuery.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterCharCircuit.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterCharPower.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterCharTiming.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterClockLookup.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterInternal.cc
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapterRcTree.cc

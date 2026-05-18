@@ -198,8 +198,6 @@ auto buildClockTimingMetrics(ista::TimingEngine* timing_engine, ista::StaClock* 
 
 auto STAAdapter::updateTiming() -> void
 {
-  LOG_FATAL_IF(getInst()._is_char_only_active)
-      << "STA timing update requires a full-design context; char-only characterization runtime is active.";
   LOG_FATAL_IF(!sta_adapter_internal::HasFullDesignTimingContext()) << "STA full-design context is not ready before timing update; call "
                                                                        "STAAdapter::refreshFullDesignTimingContext() after iDB projection.";
   sta_adapter_internal::GetStaEngine()->updateTiming();
@@ -207,10 +205,6 @@ auto STAAdapter::updateTiming() -> void
 
 auto STAAdapter::reportTiming() -> bool
 {
-  if (getInst()._is_char_only_active) {
-    LOG_WARNING << "STA timing report skipped: char-only characterization runtime is active.";
-    return false;
-  }
   if (!sta_adapter_internal::HasFullDesignTimingContext()) {
     LOG_WARNING << "STA timing report skipped: full-design context is not ready.";
     return false;
@@ -223,14 +217,12 @@ auto STAAdapter::reportTiming() -> bool
 
 auto STAAdapter::refreshFullDesignTimingContext() -> void
 {
-  auto& adapter = getInst();
   auto* timing_engine = sta_adapter_internal::GetStaEngine();
   LOG_FATAL_IF(timing_engine->get_db_adapter() == nullptr) << "STA full-design refresh requires STAAdapter::init() first.";
 
-  adapter._is_char_only_active = false;
   timing_engine->set_num_threads(sta_adapter_internal::kStaThreadCount);
   sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta");
-  adapter.resetStaTransientState();
+  getInst().resetStaTransientState();
   timing_engine->get_db_adapter()->convertDBToTimingNetlist();
   sta_adapter_internal::LoadConfiguredSdcIfPresent(timing_engine);
   timing_engine->buildGraph();
@@ -240,10 +232,6 @@ auto STAAdapter::refreshFullDesignTimingContext() -> void
 
 auto STAAdapter::setPropagatedClocks() -> std::size_t
 {
-  if (getInst()._is_char_only_active) {
-    LOG_WARNING << "Propagated-clock setup skipped: char-only characterization runtime is active.";
-    return 0U;
-  }
   if (!sta_adapter_internal::HasFullDesignTimingContext()) {
     LOG_WARNING << "Propagated-clock setup skipped: STA full-design context is not ready.";
     return 0U;
@@ -279,10 +267,6 @@ auto STAAdapter::queryClockTiming(const std::string& clock_name) -> std::optiona
     LOG_WARNING << "Clock timing query skipped: clock name is empty.";
     return std::nullopt;
   }
-  if (getInst()._is_char_only_active) {
-    LOG_WARNING << "Clock timing query skipped for \"" << clock_name << "\": char-only characterization runtime is active.";
-    return std::nullopt;
-  }
   if (!sta_adapter_internal::HasFullDesignTimingContext()) {
     LOG_WARNING << "Clock timing query skipped for \"" << clock_name << "\": STA full-design context is not ready.";
     return std::nullopt;
@@ -308,13 +292,9 @@ auto STAAdapter::queryClockTiming(const std::string& clock_name) -> std::optiona
   return buildClockTimingMetrics(timing_engine, sta_clock);
 }
 
-auto STAAdapter::queryClockTimings() const -> std::vector<ClockTimingRecord>
+auto STAAdapter::queryClockTimings() -> std::vector<ClockTimingRecord>
 {
   std::vector<ClockTimingRecord> records;
-  if (_is_char_only_active) {
-    LOG_WARNING << "Clock timing query skipped: char-only characterization runtime is active.";
-    return records;
-  }
   if (!sta_adapter_internal::HasFullDesignTimingContext()) {
     LOG_WARNING << "Clock timing query skipped: STA full-design context is not ready.";
     return records;
@@ -339,13 +319,9 @@ auto STAAdapter::queryClockTimings() const -> std::vector<ClockTimingRecord>
   return records;
 }
 
-auto STAAdapter::queryClockLatencySkew() const -> std::vector<ClockLatencySkewMetrics>
+auto STAAdapter::queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>
 {
   std::vector<ClockLatencySkewMetrics> metrics;
-  if (_is_char_only_active) {
-    LOG_WARNING << "Clock latency/skew query skipped: char-only characterization runtime is active.";
-    return metrics;
-  }
   if (!sta_adapter_internal::HasFullDesignTimingContext()) {
     LOG_WARNING << "Clock latency/skew query skipped: STA full-design context is not ready.";
     return metrics;
@@ -378,20 +354,6 @@ auto STAAdapter::queryClockLatencySkew() const -> std::vector<ClockLatencySkewMe
     }
   }
   return metrics;
-}
-
-auto STAAdapter::queryCharClockAT(const std::string& clock_name) -> double
-{
-  auto& runtime = getInst()._char_timing_state;
-  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before clock-arrival query.";
-  return sta_adapter_internal::QueryCharClockATFromVertex(runtime.sink_vertex, clock_name);
-}
-
-auto STAAdapter::queryCharSlew() -> double
-{
-  auto& runtime = getInst()._char_timing_state;
-  LOG_FATAL_IF(!runtime.is_ready) << "Characterization timing runtime is not prepared before slew query.";
-  return sta_adapter_internal::QueryCharSlewFromVertex(runtime.sink_vertex);
 }
 
 auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
@@ -466,22 +428,8 @@ auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<s
   return {in_name, out_name};
 }
 
-auto STAAdapter::destroyCharInstance(const std::string& inst_name) -> void
-{
-  (void) inst_name;
-  resetCharContext();
-}
-
-auto STAAdapter::destroyCharNet(const std::string& net_name) -> void
-{
-  (void) net_name;
-  resetCharContext();
-}
-
 auto STAAdapter::resetStaTransientState() -> void
 {
-  resetCharTimingState();
-  resetCharPowerState();
   ipower::Power::destroyPower();
 
   auto* timing_engine = sta_adapter_internal::GetStaEngine();
@@ -492,16 +440,6 @@ auto STAAdapter::resetStaTransientState() -> void
   }
   timing_engine->resetNetlist();
   timing_engine->resetGraph();
-}
-
-auto STAAdapter::resetCharTimingState() -> void
-{
-  _char_timing_state = CharTimingState{};
-}
-
-auto STAAdapter::resetCharPowerState() -> void
-{
-  _char_power_state = CharPowerState{};
 }
 
 }  // namespace icts

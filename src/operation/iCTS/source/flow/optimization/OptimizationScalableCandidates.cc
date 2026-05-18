@@ -37,7 +37,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastStaAdapter.hh"
+#include "FastSta.hh"
 #include "FastStaTypes.hh"
 #include "Log.hh"
 #include "optimization/OptimizationInternal.hh"
@@ -130,7 +130,7 @@ auto BuildTopologyWindowStats(FastStaClockId clock_id, const std::vector<Optimiz
                               const ArrivalWindow& window) -> TopologyWindowStats
 {
   TopologyWindowStats stats;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     return stats;
   }

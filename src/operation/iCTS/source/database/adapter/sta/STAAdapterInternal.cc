@@ -24,7 +24,6 @@
 #include "STAAdapterInternal.hh"
 
 #include <glog/logging.h>
-#include <stdint.h>
 
 #include <algorithm>
 #include <array>
@@ -46,19 +45,14 @@
 #include "IdbDesign.h"
 #include "IdbInstance.h"
 #include "Log.hh"
-#include "PwrConfig.hh"
-#include "PwrType.hh"
+#include "STAAdapter.hh"
 #include "TimingDBAdapter.hh"
 #include "Type.hh"
 #include "Vector.hh"
-#include "api/Power.hh"
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
 #include "builder.h"
 #include "config/Config.hh"
-#include "core/PwrClock.hh"
-#include "core/PwrGraph.hh"
-#include "core/PwrVertex.hh"
 #include "def_service.h"
 #include "delay/ElmoreDelayCalc.hh"
 #include "dm_config.h"
@@ -69,9 +63,6 @@
 #include "netlist/Net.hh"
 #include "netlist/Pin.hh"
 #include "sta/Sta.hh"
-#include "sta/StaClock.hh"
-#include "sta/StaData.hh"
-#include "sta/StaVertex.hh"
 
 namespace icts::sta_adapter_internal {
 
@@ -97,7 +88,6 @@ auto ResolveThreadCount(const char* env_name, unsigned default_value) noexcept -
 }  // namespace
 
 const unsigned kStaThreadCount = ResolveThreadCount("ICTS_STA_THREADS", 80U);
-const unsigned kCharStaThreadCount = ResolveThreadCount("ICTS_CHAR_STA_THREADS", 1U);
 const unsigned kWorstPathPerClock = 10U;
 constexpr double kMilliOhmPerOhm = 1000.0;
 constexpr const char* kStaAdapterOwner = "STAAdapter";
@@ -120,53 +110,6 @@ auto GetDbConfig() -> decltype(auto)
 auto GetStaEngine() -> ista::TimingEngine*
 {
   return ista::TimingEngine::getOrCreateTimingEngine();
-}
-
-auto BuildCharPower() -> IctsCharPowerPtr
-{
-  auto* timing_engine = GetStaEngine();
-  auto* ista = timing_engine != nullptr ? timing_engine->get_ista() : nullptr;
-  auto* char_graph = ista != nullptr ? &(ista->get_graph()) : nullptr;
-  if (char_graph == nullptr) {
-    LOG_WARNING << "Characterization power setup skipped: char-only STA graph is not ready.";
-    return nullptr;
-  }
-
-  auto clocks = ista->getClocks();
-  if (clocks.empty()) {
-    LOG_WARNING << "Characterization power setup skipped: char-only STA has no clock objects.";
-    return nullptr;
-  }
-
-  ista::StaClock* fastest_clock = nullptr;
-  for (auto* clock : clocks) {
-    if (clock == nullptr) {
-      continue;
-    }
-    if (fastest_clock == nullptr || clock->getPeriodNs() < fastest_clock->getPeriodNs()) {
-      fastest_clock = clock;
-    }
-  }
-  if (fastest_clock == nullptr) {
-    LOG_WARNING << "Characterization power setup skipped: propagated char-only clock is null.";
-    return nullptr;
-  }
-
-  ipower::Power::destroyPower();
-  auto* power = ipower::Power::getOrCreatePower(char_graph);
-  if (power == nullptr) {
-    LOG_WARNING << "Characterization power setup skipped: failed to create iPA context.";
-    return nullptr;
-  }
-
-  ipower::PwrClock pwr_fastest_clock(fastest_clock->get_clock_name(), fastest_clock->getPeriodNs());
-  power->setupClock(std::move(pwr_fastest_clock), std::move(clocks));
-  power->buildGraph();
-  power->buildSeqGraph();
-  if (power->initToggleSPData() == 0U) {
-    return nullptr;
-  }
-  return IctsCharPowerPtr(power, [](ipower::Power*) -> void {});
 }
 
 auto ConfigureStaWorkspace(ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void
@@ -233,11 +176,6 @@ auto HasStaBaseContext() -> bool
   return timing_engine->get_db_adapter() != nullptr && ista != nullptr && !ista->getAllLib().empty();
 }
 
-auto PrimeCharPower(ipower::Power* power) -> bool
-{
-  return power != nullptr && power->isBuildGraph() != 0U;
-}
-
 auto FindStaVertex(const std::string& pin_full_name) -> ista::StaVertex*
 {
   return GetStaEngine()->findVertex(pin_full_name.c_str());
@@ -282,35 +220,6 @@ auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_
 auto FindLibertyCellByMaster(const std::string& cell_master) -> ista::LibCell*
 {
   return GetStaEngine()->findLibertyCell(cell_master.c_str());
-}
-
-auto AnnotateCharSourceInputPower(ipower::Power* power, const std::optional<std::string>& source_input_pin_full_name) -> void
-{
-  if (power == nullptr || !source_input_pin_full_name.has_value() || source_input_pin_full_name->empty()) {
-    return;
-  }
-
-  auto* source_vertex = FindStaVertex(*source_input_pin_full_name);
-  if (source_vertex == nullptr) {
-    LOG_WARNING << "Characterization power source pin is not found: " << *source_input_pin_full_name;
-    return;
-  }
-
-  auto* pwr_vertex = power->get_power_graph().staToPwrVertex(source_vertex);
-  if (pwr_vertex == nullptr) {
-    LOG_WARNING << "Characterization power source vertex is not found in iPA graph: " << *source_input_pin_full_name;
-    return;
-  }
-
-  const double clock_period_ns = power->get_power_graph().get_fastest_clock().get_clock_period_ns();
-  if (clock_period_ns <= 0.0) {
-    LOG_WARNING << "Characterization power source pin cannot be annotated because clock period is invalid.";
-    return;
-  }
-
-  auto* fastest_clock = &(power->get_power_graph().get_fastest_clock());
-  pwr_vertex->addData(c_default_clock_toggle / clock_period_ns, c_default_clock_sp, ipower::PwrDataSource::kClockPropagation,
-                      fastest_clock);
 }
 
 auto FindBufferArcSet(ista::LibCell* lib_cell) -> std::optional<ista::LibArcSet*>
@@ -544,109 +453,6 @@ auto QueryLibPortCapacitancePf(ista::LibCell* lib_cell, ista::LibPort* lib_port)
   cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMin, ista::TransType::kRise).value_or(0.0));
   cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMin, ista::TransType::kFall).value_or(0.0));
   return ConvertLibCapToPf(lib_cell, cap_value);
-}
-
-namespace {
-
-auto AddCharSlewData(ista::StaVertex* vertex, ista::TransType trans_type, double slew_ns,
-                     std::unique_ptr<ista::LibCurrentData> output_current_data = nullptr) -> void
-{
-  LOG_FATAL_IF(vertex == nullptr) << "Null STA vertex when installing characterization slew data.";
-  const int slew_fs = static_cast<int>(NS_TO_FS(slew_ns));
-  auto slew_data = std::make_unique<ista::StaSlewData>(ista::AnalysisMode::kMax, trans_type, vertex, slew_fs);
-  slew_data->set_output_current_data(std::move(output_current_data));
-  vertex->addData(slew_data.release());
-}
-
-}  // namespace
-
-auto ApplyCharBufferInputSlew(ista::StaVertex* input_vertex, ista::Pin* output_pin, ista::StaVertex* output_vertex,
-                              ista::Instance* source_inst, ista::LibCell* lib_cell, ista::LibArcSet* source_arc_set, ista::LibArc* lib_arc,
-                              double slew_ns) -> void
-{
-  LOG_FATAL_IF(input_vertex == nullptr) << "Null source input STA vertex in characterization slew update.";
-  LOG_FATAL_IF(output_pin == nullptr) << "Null source output STA pin in characterization slew update.";
-  LOG_FATAL_IF(output_vertex == nullptr) << "Null source output STA vertex in characterization slew update.";
-  LOG_FATAL_IF(source_inst == nullptr) << "Null source STA instance in characterization slew update.";
-  LOG_FATAL_IF(lib_cell == nullptr) << "Null source liberty cell in characterization slew update.";
-  LOG_FATAL_IF(source_arc_set == nullptr || source_arc_set->get_arcs().empty())
-      << "Missing source buffer timing arc set for characterization slew update.";
-  LOG_FATAL_IF(lib_arc == nullptr) << "Missing source liberty arc in characterization slew update.";
-
-  AddCharSlewData(input_vertex, ista::TransType::kRise, slew_ns);
-  AddCharSlewData(input_vertex, ista::TransType::kFall, slew_ns);
-
-  const bool is_negative_arc = source_arc_set->isNegativeArc() != 0U;
-  const auto apply_output_model = [&](ista::TransType input_trans_type) -> void {
-    auto output_trans_type = input_trans_type;
-    if (is_negative_arc) {
-      output_trans_type = (input_trans_type == ista::TransType::kRise) ? ista::TransType::kFall : ista::TransType::kRise;
-    }
-    if (!source_arc_set->isMatchTimingType(output_trans_type)) {
-      return;
-    }
-
-    const double output_load_pf = QueryOutputNetLoadPf(output_pin, output_trans_type);
-    const double output_load = ConvertPfLoadToLibUnit(lib_cell, output_load_pf);
-    const auto slew_values = source_arc_set->getSlewNs(input_trans_type, output_trans_type, slew_ns, output_load);
-    if (slew_values.empty()) {
-      LOG_WARNING << "Characterization source output slew lookup is empty for " << output_pin->getFullName();
-      return;
-    }
-
-    const double output_slew_ns = slew_values.front();
-    auto output_current = lib_arc->getOutputCurrent(output_trans_type, slew_ns, output_load);
-    AddCharSlewData(output_vertex, output_trans_type, output_slew_ns, std::move(output_current));
-  };
-
-  apply_output_model(ista::TransType::kRise);
-  apply_output_model(ista::TransType::kFall);
-}
-
-auto QueryCharClockATFromVertex(ista::StaVertex* vertex, const std::string& clock_name) -> double
-{
-  LOG_FATAL_IF(vertex == nullptr) << "Null sink STA vertex in characterization clock-arrival query.";
-
-  const auto pick_max_value = [](const std::optional<int64_t>& lhs, const std::optional<int64_t>& rhs) -> double {
-    const auto to_ns = [](const std::optional<int64_t>& value) -> double {
-      return value.has_value() ? static_cast<double>(value.value()) / static_cast<double>(ista::g_ns2fs) : 0.0;
-    };
-    const double lhs_value = to_ns(lhs);
-    const double rhs_value = to_ns(rhs);
-    return std::max(lhs_value, rhs_value);
-  };
-
-  double delay_ns = pick_max_value(vertex->getClockArriveTime(ista::AnalysisMode::kMax, ista::TransType::kRise, clock_name),
-                                   vertex->getClockArriveTime(ista::AnalysisMode::kMax, ista::TransType::kFall, clock_name));
-  if (delay_ns > 0.0) {
-    return delay_ns;
-  }
-
-  delay_ns = pick_max_value(vertex->getArriveTime(ista::AnalysisMode::kMax, ista::TransType::kRise),
-                            vertex->getArriveTime(ista::AnalysisMode::kMax, ista::TransType::kFall));
-  if (delay_ns > 0.0) {
-    return delay_ns;
-  }
-
-  LOG_WARNING << "No characterization arrival time at pin: " << vertex->getName() << " for clock: " << clock_name;
-  return 0.0;
-}
-
-auto QueryCharSlewFromVertex(ista::StaVertex* vertex) -> double
-{
-  LOG_FATAL_IF(vertex == nullptr) << "Null sink STA vertex in characterization slew query.";
-
-  const double rise_slew = vertex->getSlewNs(ista::AnalysisMode::kMax, ista::TransType::kRise).value_or(0.0);
-  const double fall_slew = vertex->getSlewNs(ista::AnalysisMode::kMax, ista::TransType::kFall).value_or(0.0);
-  if (rise_slew > 0.0 && fall_slew > 0.0) {
-    return std::max(rise_slew, fall_slew);
-  }
-
-  const double slew_ns = rise_slew > 0.0 ? rise_slew : fall_slew;
-  if (slew_ns == 0.0) {
-    LOG_WARNING << "No characterization slew is available at pin: " << vertex->getName();
-  }
-  return slew_ns;
 }
 
 auto MakeCharQueryContext(const char* query_name, const std::string& cell_master) -> std::string

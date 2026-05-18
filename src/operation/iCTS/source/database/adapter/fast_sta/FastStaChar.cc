@@ -187,6 +187,7 @@ auto FastStaChar::buildContext(const FastStaCharTopologySpec& spec) -> FastStaCl
   context.clock_name = "cts_char_clk";
   context.clock_net_name = "cts_char_net_0";
   context.clock_period_ns = spec.clock_period_ns;
+  context.root_input_slew_ns = std::max(0.0, CONFIG_INST.get_root_input_slew());
   context.dbu_per_um = dbu_per_um;
   context.routing_layer = spec.routing_layer;
   context.wire_width_um = spec.wire_width_um;
@@ -199,17 +200,19 @@ auto FastStaChar::buildContext(const FastStaCharTopologySpec& spec) -> FastStaCl
     }
   }
 
-  const auto source_input = appendNode(context, FastStaNode{
-                                                    .kind = FastStaNodeKind::kBufferInput,
-                                                    .name = "cts_char_source/A",
-                                                    .inst_name = "cts_char_source",
-                                                    .pin_name = "A",
-                                                    .cell_master = spec.source_cell_master,
-                                                    .location = makePoint(0.0, context.dbu_per_um),
-                                                    .input_cap_pf = context.liberty_cell_by_master.at(spec.source_cell_master).input_cap_pf,
-                                                    .output_net_ids = {},
-                                                    .timing = {},
-                                                });
+  const auto source_input
+      = appendNode(context, FastStaNode{
+                                .kind = FastStaNodeKind::kBufferInput,
+                                .name = "cts_char_source/A",
+                                .inst_name = "cts_char_source",
+                                .pin_name = "A",
+                                .cell_master = spec.source_cell_master,
+                                .location = makePoint(0.0, context.dbu_per_um),
+                                .input_cap_pf = context.liberty_cell_by_master.at(spec.source_cell_master).input_cap_pf,
+                                .max_slew_ns = context.liberty_cell_by_master.at(spec.source_cell_master).input_slew_limit_ns,
+                                .output_net_ids = {},
+                                .timing = {},
+                            });
   const auto source_output = appendNode(context, FastStaNode{
                                                      .kind = FastStaNodeKind::kBufferOutput,
                                                      .name = "cts_char_source/Y",
@@ -241,6 +244,7 @@ auto FastStaChar::buildContext(const FastStaCharTopologySpec& spec) -> FastStaCl
                                              .cell_master = cell_master,
                                              .location = makePoint(current_x_um, context.dbu_per_um),
                                              .input_cap_pf = context.liberty_cell_by_master.at(cell_master).input_cap_pf,
+                                             .max_slew_ns = context.liberty_cell_by_master.at(cell_master).input_slew_limit_ns,
                                              .output_net_ids = {},
                                              .timing = {},
                                          });
@@ -263,6 +267,7 @@ auto FastStaChar::buildContext(const FastStaCharTopologySpec& spec) -> FastStaCl
                                              .cell_master = spec.sink_cell_master,
                                              .location = makePoint(current_x_um, context.dbu_per_um),
                                              .input_cap_pf = context.liberty_cell_by_master.at(spec.sink_cell_master).input_cap_pf,
+                                             .max_slew_ns = context.liberty_cell_by_master.at(spec.sink_cell_master).input_slew_limit_ns,
                                              .output_net_ids = {},
                                              .timing = {},
                                          });
@@ -314,10 +319,8 @@ auto FastStaChar::setLoad(FastStaClockContext& context, double effective_load_pf
 
 auto FastStaChar::runSample(FastStaClockContext& context, double input_slew_ns) -> FastStaCharSampleResult
 {
-  const auto original_root_input_slew = CONFIG_INST.get_root_input_slew();
-  CONFIG_INST.set_root_input_slew(input_slew_ns);
+  context.root_input_slew_ns = std::max(0.0, input_slew_ns);
   const auto timing_updated = FastStaTiming::update(context);
-  CONFIG_INST.set_root_input_slew(original_root_input_slew);
   if (!timing_updated) {
     return {};
   }

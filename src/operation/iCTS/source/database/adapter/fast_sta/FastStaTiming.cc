@@ -35,7 +35,6 @@
 
 #include "FastStaDmpCeff.hh"
 #include "FastStaParasitics.hh"
-#include "config/Config.hh"
 
 namespace icts {
 namespace {
@@ -232,7 +231,7 @@ auto FastStaTiming::update(FastStaClockContext& context) -> bool
   }
   if (context.source_node_id < context.nodes.size()) {
     context.nodes.at(context.source_node_id).timing
-        = FastStaTimingPoint{.arrival_ns = 0.0, .slew_ns = std::max(0.0, CONFIG_INST.get_root_input_slew()), .valid = true};
+        = FastStaTimingPoint{.arrival_ns = 0.0, .slew_ns = std::max(0.0, context.root_input_slew_ns), .valid = true};
   }
 
   std::queue<FastStaNodeId> ready_nodes;

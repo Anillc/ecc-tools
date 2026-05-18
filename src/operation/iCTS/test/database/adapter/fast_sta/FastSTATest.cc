@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FastStaAdapterTest.cc
+ * @file FastSTATest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-18
  * @brief Unit tests for CTS fast STA data, timing, power, and incremental APIs.
@@ -35,7 +35,7 @@
 #include "FastStaPower.hh"
 #include "FastStaTiming.hh"
 #include "FastStaTypes.hh"
-#include "config/Config.hh"
+#include "database/config/Config.hh"
 
 namespace icts_test {
 namespace {
@@ -176,6 +176,25 @@ auto MakeNet(std::string name, icts::FastStaNodeId driver_node_id, std::vector<i
   return net;
 }
 
+class ScopedRootInputSlew
+{
+ public:
+  explicit ScopedRootInputSlew(double root_input_slew_ns) : _original_root_input_slew_ns(CONFIG_INST.get_root_input_slew())
+  {
+    CONFIG_INST.set_root_input_slew(root_input_slew_ns);
+  }
+
+  ~ScopedRootInputSlew() { CONFIG_INST.set_root_input_slew(_original_root_input_slew_ns); }
+
+  ScopedRootInputSlew(const ScopedRootInputSlew& rhs) = delete;
+  ScopedRootInputSlew(ScopedRootInputSlew&& rhs) = delete;
+  auto operator=(const ScopedRootInputSlew& rhs) -> ScopedRootInputSlew& = delete;
+  auto operator=(ScopedRootInputSlew&& rhs) -> ScopedRootInputSlew& = delete;
+
+ private:
+  double _original_root_input_slew_ns = 0.0;
+};
+
 auto MakeTinyContext() -> icts::FastStaClockContext
 {
   icts::FastStaClockContext context;
@@ -276,7 +295,7 @@ auto MakeOpenStaAlignmentPathContext() -> icts::FastStaClockContext
   return context;
 }
 
-TEST(FastStaAdapterTest, LibertyTableBilinearLookupInterpolates)
+TEST(FastSTATest, LibertyTableBilinearLookupInterpolates)
 {
   const auto table = MakeTable(icts::FastStaLibertyTableKind::kCellDelay, 1.0);
   const auto value = table.lookup(0.5, 1.0);
@@ -288,7 +307,7 @@ TEST(FastStaAdapterTest, LibertyTableBilinearLookupInterpolates)
   EXPECT_NEAR(*value, 1.15, 1e-12);
 }
 
-TEST(FastStaAdapterTest, DmpDriverTimingProducesCeffAndLoadSlew)
+TEST(FastSTATest, DmpDriverTimingProducesCeffAndLoadSlew)
 {
   const icts::FastStaPiModel pi{.near_cap_pf = 0.2, .resistance_ohm = 1000.0, .far_cap_pf = 0.8};
   const auto cell = MakeCell("BUF_X1", 0.20, 1.5, 0.01);
@@ -307,7 +326,7 @@ TEST(FastStaAdapterTest, DmpDriverTimingProducesCeffAndLoadSlew)
   EXPECT_GE(load_timing.load_slew_ns, driver_timing.driver_slew_ns);
 }
 
-TEST(FastStaAdapterTest, DmpDriverTimingMatchesOpenStaMicroCase)
+TEST(FastSTATest, DmpDriverTimingMatchesOpenStaMicroCase)
 {
   const auto cell = MakeOpenStaAlignmentCell();
   const icts::FastStaPiModel pi{.near_cap_pf = 0.2, .resistance_ohm = 1000.0, .far_cap_pf = 0.8};
@@ -325,15 +344,11 @@ TEST(FastStaAdapterTest, DmpDriverTimingMatchesOpenStaMicroCase)
   EXPECT_NEAR(load_timing.load_slew_ns, 0.278977, 1e-6) << "actual=" << load_timing.load_slew_ns;
 }
 
-TEST(FastStaAdapterTest, TimingPropagationMatchesOpenStaTwoLevelPath)
+TEST(FastSTATest, TimingPropagationMatchesOpenStaTwoLevelPath)
 {
-  const auto previous_root_input_slew = CONFIG_INST.get_root_input_slew();
-  CONFIG_INST.set_root_input_slew(0.2);
-
   auto context = MakeOpenStaAlignmentPathContext();
+  context.root_input_slew_ns = 0.2;
   ASSERT_TRUE(icts::FastStaTiming::update(context));
-
-  CONFIG_INST.set_root_input_slew(previous_root_input_slew);
 
   ASSERT_TRUE(context.nodes.at(1U).timing.valid);
   ASSERT_TRUE(context.nodes.at(2U).timing.valid);
@@ -353,7 +368,38 @@ TEST(FastStaAdapterTest, TimingPropagationMatchesOpenStaTwoLevelPath)
   EXPECT_NEAR(context.nodes.at(5U).timing.slew_ns, 0.257477403, 1e-6);
 }
 
-TEST(FastStaAdapterTest, PiElmoreReductionPropagatesDownstreamCapAndElmore)
+TEST(FastSTATest, TimingUsesContextRootSlewWithoutConfigMutation)
+{
+  const ScopedRootInputSlew root_input_slew_guard(0.777);
+
+  auto fast_context = MakeOpenStaAlignmentPathContext();
+  fast_context.root_input_slew_ns = 0.12;
+  ASSERT_TRUE(icts::FastStaTiming::update(fast_context));
+
+  auto slow_context = MakeOpenStaAlignmentPathContext();
+  slow_context.root_input_slew_ns = 0.48;
+  ASSERT_TRUE(icts::FastStaTiming::update(slow_context));
+
+  EXPECT_NEAR(fast_context.nodes.at(1U).timing.slew_ns, 0.12, 1e-12);
+  EXPECT_NEAR(slow_context.nodes.at(1U).timing.slew_ns, 0.48, 1e-12);
+  EXPECT_NEAR(CONFIG_INST.get_root_input_slew(), 0.777, 1e-12);
+}
+
+TEST(FastSTATest, SourceBoundaryNetUsesNormalNetLoadAndCapFields)
+{
+  auto context = MakeTinyContext();
+  context.nets.at(0U).max_cap_pf = 0.15;
+
+  icts::FastStaParasitics::updateNetLoads(context);
+
+  const auto& source_boundary_net = context.nets.at(0U);
+  EXPECT_EQ(source_boundary_net.driver_node_id, context.source_node_id);
+  EXPECT_NEAR(source_boundary_net.load_cap_pf, 0.20, 1e-12);
+  EXPECT_NEAR(source_boundary_net.max_cap_pf, 0.15, 1e-12);
+  EXPECT_GT(source_boundary_net.load_cap_pf, source_boundary_net.max_cap_pf);
+}
+
+TEST(FastSTATest, PiElmoreReductionPropagatesDownstreamCapAndElmore)
 {
   auto context = MakeTinyContext();
   icts::FastStaParasitics::updateNetLoads(context);
@@ -367,7 +413,7 @@ TEST(FastStaAdapterTest, PiElmoreReductionPropagatesDownstreamCapAndElmore)
   EXPECT_NEAR(parasitic.rc_nodes.at(1U).elmore_delay_ns, 0.02, 1e-12);
 }
 
-TEST(FastStaAdapterTest, TimingPowerAndMasterChangeUpdateContext)
+TEST(FastSTATest, TimingPowerAndMasterChangeUpdateContext)
 {
   auto context = MakeTinyContext();
 
@@ -391,7 +437,7 @@ TEST(FastStaAdapterTest, TimingPowerAndMasterChangeUpdateContext)
   EXPECT_NEAR(context.power.leakage_power_w, 0.02, 1e-12);
 }
 
-TEST(FastStaAdapterTest, IncrementalMasterChangeMatchesFullRecompute)
+TEST(FastSTATest, IncrementalMasterChangeMatchesFullRecompute)
 {
   auto incremental_context = MakeTwoLevelContext();
   ASSERT_TRUE(icts::FastStaTiming::update(incremental_context));

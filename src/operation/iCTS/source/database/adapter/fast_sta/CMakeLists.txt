@@ -1,6 +1,6 @@
 add_library(
   icts_source_database_adapter_fast_sta
-  ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaAdapter.cc
+  ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastSta.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaBuilder.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaChar.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaClockTree.cc

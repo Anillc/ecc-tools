@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastStaAdapter.hh"
+#include "FastSta.hh"
 #include "FastStaBuilder.hh"
 #include "FastStaTypes.hh"
 #include "Log.hh"
@@ -176,13 +176,13 @@ auto FindMasterInfo(const std::vector<BufferMasterInfo>& master_infos, std::stri
 auto CollectCapBaseline(FastStaClockId clock_id) -> std::vector<CapBaseline>
 {
   std::vector<CapBaseline> baseline;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     return baseline;
   }
   baseline.reserve(context->nets.size());
   for (FastStaNetId net_id = 0U; net_id < context->nets.size(); ++net_id) {
-    const auto cap_status = FastStaAdapter::queryCapStatus(clock_id, net_id);
+    const auto cap_status = FastSTA::queryCapStatus(clock_id, net_id);
     baseline.push_back(CapBaseline{.load_cap_pf = cap_status.has_value() ? cap_status->load_cap_pf : 0.0,
                                    .max_cap_pf = cap_status.has_value() ? cap_status->max_cap_pf : 0.0,
                                    .violated = cap_status.has_value() && cap_status->violated});
@@ -193,15 +193,16 @@ auto CollectCapBaseline(FastStaClockId clock_id) -> std::vector<CapBaseline>
 auto CollectSlewBaseline(FastStaClockId clock_id) -> std::vector<SlewBaseline>
 {
   std::vector<SlewBaseline> baseline;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     return baseline;
   }
   baseline.reserve(context->nodes.size());
   for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
-    const auto slew_status = FastStaAdapter::querySlewStatus(clock_id, node_id);
+    const auto slew_status = FastSTA::querySlewStatus(clock_id, node_id);
     baseline.push_back(SlewBaseline{.slew_ns = slew_status.has_value() ? slew_status->slew_ns : 0.0,
                                     .max_slew_ns = slew_status.has_value() ? slew_status->max_slew_ns : 0.0,
+                                    .role = slew_status.has_value() ? slew_status->role : FastStaSlewRole::kUnknown,
                                     .available = slew_status.has_value(),
                                     .violated = slew_status.has_value() && slew_status->violated});
   }
@@ -211,7 +212,7 @@ auto CollectSlewBaseline(FastStaClockId clock_id) -> std::vector<SlewBaseline>
 auto CollectOptimizableBuffers(FastStaClockId clock_id, const std::vector<BufferMasterInfo>& master_infos) -> std::vector<OptimizableBuffer>
 {
   std::vector<OptimizableBuffer> buffers;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr || master_infos.empty()) {
     return buffers;
   }
@@ -233,7 +234,7 @@ auto CollectOptimizableBuffers(FastStaClockId clock_id, const std::vector<Buffer
 
 auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const RouteTreeCache& route_tree_by_net) -> bool
 {
-  auto* context = FastStaAdapter::mutableClockContext(clock_id);
+  auto* context = FastSTA::mutableClockContext(clock_id);
   const auto* graph = DESIGN_INST.get_clock_dag().graphForClock(&clock);
   if (context == nullptr || graph == nullptr) {
     return false;
@@ -294,7 +295,7 @@ auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const RouteTr
 
   auto update_start = std::chrono::steady_clock::now();
   LOG_INFO << "Optimization: start post-injection timing update for clock \"" << clock.get_clock_name() << "\".";
-  if (!FastStaAdapter::updateTiming(clock_id)) {
+  if (!FastSTA::updateTiming(clock_id)) {
     return false;
   }
   LOG_INFO << "Optimization: post-injection timing update for clock \"" << clock.get_clock_name() << "\" finished in "
@@ -302,7 +303,7 @@ auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const RouteTr
 
   update_start = std::chrono::steady_clock::now();
   LOG_INFO << "Optimization: start post-injection power update for clock \"" << clock.get_clock_name() << "\".";
-  if (!FastStaAdapter::updatePower(clock_id)) {
+  if (!FastSTA::updatePower(clock_id)) {
     return false;
   }
   LOG_INFO << "Optimization: post-injection power update for clock \"" << clock.get_clock_name() << "\" finished in "

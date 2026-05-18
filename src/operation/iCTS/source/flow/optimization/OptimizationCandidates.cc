@@ -34,7 +34,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastStaAdapter.hh"
+#include "FastSta.hh"
 #include "FastStaTypes.hh"
 #include "optimization/OptimizationInternal.hh"
 #include "optimization/OptimizationOptions.hh"
@@ -54,7 +54,7 @@ auto DriveStep(const BufferMasterInfo& from, const BufferMasterInfo& to) -> int
 auto BuildTopologyIndex(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers) -> TopologyIndex
 {
   TopologyIndex topology;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     return topology;
   }
@@ -100,7 +100,7 @@ namespace {
 auto CollectFrontierSinks(FastStaClockId clock_id, const FastState& current, FrontierSide side) -> std::vector<FastStaNodeId>
 {
   std::vector<std::pair<FastStaNodeId, double>> sinks;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr || !current.skew.valid) {
     return {};
   }

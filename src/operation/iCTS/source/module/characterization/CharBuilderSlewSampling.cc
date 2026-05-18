@@ -30,7 +30,7 @@
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "ValueLattice.hh"
-#include "adapter/fast_sta/FastStaAdapter.hh"
+#include "adapter/fast_sta/FastSta.hh"
 
 namespace icts {
 namespace {
@@ -46,7 +46,7 @@ auto CharBuilder::sampleLoadSlews(unsigned length_idx, const PatternId& pid, con
 
   const unsigned load_cap_idx = get_cap_lattice().coveringIndex(load_pf);
   for (const double input_slew_ns : _slews_to_test) {
-    const auto sample_result = FastStaAdapter::runCharSample(_fast_sta_char_context_id, input_slew_ns);
+    const auto sample_result = FastSTA::runCharSample(_fast_sta_char_context_id, input_slew_ns);
     ++build_progress.executed_sta_samples;
     const unsigned input_slew_idx = get_slew_lattice().coveringIndex(input_slew_ns);
 

@@ -76,6 +76,7 @@ struct SlewBaseline
 {
   double slew_ns = 0.0;
   double max_slew_ns = 0.0;
+  FastStaSlewRole role = FastStaSlewRole::kUnknown;
   bool available = false;
   bool violated = false;
 };
@@ -84,6 +85,8 @@ struct SlewCheckResult
 {
   bool legal = true;
   std::size_t violation_count = 0U;
+  std::size_t buffer_violation_count = 0U;
+  std::size_t sink_violation_count = 0U;
 };
 
 struct FastState

@@ -34,7 +34,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastStaAdapter.hh"
+#include "FastSta.hh"
 #include "FastStaTypes.hh"
 #include "Log.hh"
 #include "optimization/OptimizationInternal.hh"
@@ -48,13 +48,13 @@ namespace {
 auto CheckCapLegality(FastStaClockId clock_id, const std::vector<CapBaseline>& baseline) -> CapCheckResult
 {
   CapCheckResult result;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     result.legal = false;
     return result;
   }
   for (FastStaNetId net_id = 0U; net_id < context->nets.size(); ++net_id) {
-    const auto cap_status = FastStaAdapter::queryCapStatus(clock_id, net_id);
+    const auto cap_status = FastSTA::queryCapStatus(clock_id, net_id);
     if (!cap_status.has_value()) {
       result.legal = false;
       ++result.violation_count;
@@ -74,16 +74,43 @@ auto CheckCapLegality(FastStaClockId clock_id, const std::vector<CapBaseline>& b
   return result;
 }
 
+auto ResolveSlewRole(const std::optional<FastStaSlewStatus>& slew_status, FastStaNodeId node_id, const std::vector<SlewBaseline>& baseline)
+    -> FastStaSlewRole
+{
+  if (slew_status.has_value()) {
+    return slew_status->role;
+  }
+  if (node_id < baseline.size()) {
+    return baseline.at(node_id).role;
+  }
+  return FastStaSlewRole::kUnknown;
+}
+
+auto CountSlewViolationRole(SlewCheckResult& result, FastStaSlewRole role) -> void
+{
+  ++result.violation_count;
+  switch (role) {
+    case FastStaSlewRole::kBufferInput:
+      ++result.buffer_violation_count;
+      break;
+    case FastStaSlewRole::kSink:
+      ++result.sink_violation_count;
+      break;
+    case FastStaSlewRole::kUnknown:
+      break;
+  }
+}
+
 auto CheckSlewLegality(FastStaClockId clock_id, const std::vector<SlewBaseline>& baseline) -> SlewCheckResult
 {
   SlewCheckResult result;
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     result.legal = false;
     return result;
   }
   for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
-    const auto slew_status = FastStaAdapter::querySlewStatus(clock_id, node_id);
+    const auto slew_status = FastSTA::querySlewStatus(clock_id, node_id);
     const auto baseline_available = node_id < baseline.size() && baseline.at(node_id).available;
     auto max_slew_ns = 0.0;
     if (slew_status.has_value()) {
@@ -94,9 +121,10 @@ auto CheckSlewLegality(FastStaClockId clock_id, const std::vector<SlewBaseline>&
     if (max_slew_ns <= 0.0) {
       continue;
     }
+    const auto role = ResolveSlewRole(slew_status, node_id, baseline);
     if (!slew_status.has_value()) {
       result.legal = false;
-      ++result.violation_count;
+      CountSlewViolationRole(result, role);
       continue;
     }
     const auto baseline_slew = baseline_available ? baseline.at(node_id).slew_ns : 0.0;
@@ -104,7 +132,7 @@ auto CheckSlewLegality(FastStaClockId clock_id, const std::vector<SlewBaseline>&
     const bool legal = baseline_violated ? slew_status->slew_ns <= baseline_slew + kOptimizationEpsilon : !slew_status->violated;
     if (!legal) {
       result.legal = false;
-      ++result.violation_count;
+      CountSlewViolationRole(result, role);
     }
   }
   return result;
@@ -114,8 +142,8 @@ auto CaptureState(FastStaClockId clock_id, const std::vector<CapBaseline>& cap_b
     -> FastState
 {
   FastState state;
-  state.skew = FastStaAdapter::querySkew(clock_id);
-  state.power = FastStaAdapter::queryPower(clock_id);
+  state.skew = FastSTA::querySkew(clock_id);
+  state.power = FastSTA::queryPower(clock_id);
   state.cap = CheckCapLegality(clock_id, cap_baseline);
   state.slew = CheckSlewLegality(clock_id, slew_baseline);
   state.valid = state.skew.valid && state.cap.legal && state.slew.legal;
@@ -230,19 +258,19 @@ auto PreferTrial(const BatchTrial& candidate, const BatchTrial& incumbent, const
 
 auto ChangeFastStaMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool
 {
-  if (!FastStaAdapter::changeBufferMasters(clock_id, changes)) {
+  if (!FastSTA::changeBufferMasters(clock_id, changes)) {
     return false;
   }
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   return context != nullptr && context->timing_valid && context->power_valid;
 }
 
 auto ChangeFastStaMastersTimingOnly(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool
 {
-  if (!FastStaAdapter::changeBufferMastersTimingOnly(clock_id, changes)) {
+  if (!FastSTA::changeBufferMastersTimingOnly(clock_id, changes)) {
     return false;
   }
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   return context != nullptr && context->timing_valid;
 }
 
@@ -563,7 +591,7 @@ auto SolveClockScalable(FastStaClockId clock_id, std::vector<OptimizableBuffer>&
              << " um^2, total_trials=" << summary.trial_count << ".";
   }
 
-  if (!FastStaAdapter::updatePower(clock_id)) {
+  if (!FastSTA::updatePower(clock_id)) {
     summary.after = current;
     summary.valid = false;
     if (summary.stop_reason.empty()) {
@@ -584,7 +612,7 @@ auto SolveClockScalable(FastStaClockId clock_id, std::vector<OptimizableBuffer>&
 
 auto ShouldUseScalableSolver(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers) -> bool
 {
-  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  const auto* context = FastSTA::queryClockContext(clock_id);
   if (context == nullptr) {
     return false;
   }

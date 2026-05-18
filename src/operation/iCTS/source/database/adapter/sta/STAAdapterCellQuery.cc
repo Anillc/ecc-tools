@@ -64,6 +64,18 @@ auto ResolvePositiveMin(const std::vector<std::optional<double>>& values) -> dou
   return found_value ? min_value : 0.0;
 }
 
+auto ResolvePositiveMax(const std::vector<std::optional<double>>& values) -> double
+{
+  double max_value = 0.0;
+  for (const auto& value : values) {
+    if (!value.has_value() || *value <= 0.0) {
+      continue;
+    }
+    max_value = std::max(max_value, *value);
+  }
+  return max_value;
+}
+
 auto queryLibOutputPinCapLimitPf(const Pin* pin) -> double
 {
   if (pin == nullptr || pin->get_inst() == nullptr) {
@@ -219,7 +231,7 @@ auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> doubl
     if (configured_cap_limit_pf > 0.0) {
       return configured_cap_limit_pf;
     }
-    sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, !getInst()._is_char_only_active);
+    sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, true);
     return sta_cap_limit_pf > 0.0 ? sta_cap_limit_pf : 0.0;
   }
 
@@ -233,7 +245,7 @@ auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> doubl
     return configured_cap_limit_pf;
   }
 
-  sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, !getInst()._is_char_only_active);
+  sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, true);
   if (sta_cap_limit_pf > 0.0) {
     return sta_cap_limit_pf;
   }
@@ -278,6 +290,66 @@ auto STAAdapter::queryCellInPinSlewTableAxisMax(const std::string& cell_master) 
       cell_master, "input pin slew table-axis max",
       {ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION, ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION,
        ista::LibLutTableTemplate::Variable::INPUT_TRANSITION_TIME, ista::LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION});
+}
+
+auto STAAdapter::queryPinSlewLimit(const Pin* pin) -> double
+{
+  if (pin == nullptr) {
+    LOG_WARNING << "Pin-slew-limit query skipped: CTS pin is null.";
+    return 0.0;
+  }
+
+  const auto pin_full_name = Design::getPinFullName(pin);
+  if (sta_adapter_internal::HasFullDesignTimingContext()) {
+    auto* vertex = sta_adapter_internal::FindStaVertex(pin_full_name);
+    auto* ista = sta_adapter_internal::GetStaEngine()->get_ista();
+    if (vertex != nullptr && ista != nullptr) {
+      const double sta_slew_limit_ns
+          = ResolvePositiveMin({ista->getVertexSlewLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kRise),
+                                ista->getVertexSlewLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kFall)});
+      if (sta_slew_limit_ns > 0.0) {
+        return sta_slew_limit_ns;
+      }
+    }
+  }
+
+  auto* inst = pin->get_inst();
+  if (inst == nullptr) {
+    const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+    return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
+  }
+
+  const auto& cell_master = inst->get_cell_master();
+  if (cell_master.empty()) {
+    const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+    return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
+  }
+
+  auto* lib_cell = sta_adapter_internal::GetStaEngine()->findLibertyCell(cell_master.c_str());
+  if (lib_cell == nullptr) {
+    LOG_WARNING << "Pin-slew-limit query skipped: liberty cell \"" << cell_master << "\" is not found for " << pin_full_name << ".";
+    const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+    return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
+  }
+
+  const auto port_name = sta_adapter_internal::NormalizePortName(pin->get_name());
+  auto* lib_port = lib_cell->get_cell_port_or_port_bus(port_name.c_str());
+  if (lib_port != nullptr && lib_port->isInput() != 0U) {
+    if (auto slew_limit_ns = lib_port->get_port_slew_limit(ista::AnalysisMode::kMax); slew_limit_ns.has_value() && *slew_limit_ns > 0.0) {
+      return sta_adapter_internal::ConvertLibTimeToNs(lib_cell, *slew_limit_ns);
+    }
+  }
+
+  auto* owner_lib = lib_cell->get_owner_lib();
+  if (owner_lib != nullptr) {
+    const double default_max_transition_ns = ResolvePositiveMax({owner_lib->get_default_max_transition()});
+    if (default_max_transition_ns > 0.0) {
+      return sta_adapter_internal::ConvertLibTimeToNs(lib_cell, default_max_transition_ns);
+    }
+  }
+
+  const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+  return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
 }
 
 auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
