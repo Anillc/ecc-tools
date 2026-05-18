@@ -263,6 +263,21 @@ struct FastStaCapStatus
   bool violated = false;
 };
 
+struct FastStaSlewStatus
+{
+  FastStaNodeId node_id = kInvalidFastStaNodeId;
+  std::string node_name;
+  double slew_ns = 0.0;
+  double max_slew_ns = 0.0;
+  bool violated = false;
+};
+
+struct FastStaBufferMasterChange
+{
+  FastStaNodeId node_id = kInvalidFastStaNodeId;
+  std::string cell_master;
+};
+
 struct FastStaSkewSummary
 {
   bool valid = false;

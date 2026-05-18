@@ -25,6 +25,7 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "FastStaTypes.hh"
 
@@ -36,6 +37,7 @@ class FastStaIncremental
   FastStaIncremental() = delete;
 
   static auto changeBufferMaster(FastStaClockContext& context, FastStaNodeId node_id, std::string_view cell_master) -> bool;
+  static auto changeBufferMasters(FastStaClockContext& context, const std::vector<FastStaBufferMasterChange>& changes) -> bool;
   static auto changeBufferMasterIncremental(FastStaClockContext& context, FastStaNodeId node_id, std::string_view cell_master)
       -> std::optional<FastStaDirtyRegion>;
 };

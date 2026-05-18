@@ -1,0 +1,28 @@
+{
+  "id": "cts-optimization-critical-frontier-batch-sizing",
+  "name": "cts-optimization-critical-frontier-batch-sizing",
+  "title": "CTS optimization fast STA search quality",
+  "description": "Improve CTS fast STA-backed fixed-topology buffer sizing search quality and validate ics55_dev at 80ps/40ps/0ps after recording the current fast STA baseline.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-17",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-18-cts-optimization-runtime-bottleneck"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

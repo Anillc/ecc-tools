@@ -63,6 +63,7 @@ class FastStaAdapter
   static auto runCharSample(FastStaCharContextId char_context_id, double input_slew_ns) -> FastStaCharSampleResult;
 
   static auto changeBufferMaster(FastStaClockId clock_id, FastStaNodeId node_id, std::string_view cell_master) -> bool;
+  static auto changeBufferMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool;
   static auto updateTiming(FastStaClockId clock_id) -> bool;
   static auto updatePower(FastStaClockId clock_id) -> bool;
 
@@ -71,6 +72,7 @@ class FastStaAdapter
   static auto queryNodeSlew(FastStaClockId clock_id, FastStaNodeId node_id) -> std::optional<double>;
   static auto queryNetLoad(FastStaClockId clock_id, FastStaNetId net_id) -> std::optional<double>;
   static auto queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id) -> std::optional<FastStaCapStatus>;
+  static auto querySlewStatus(FastStaClockId clock_id, FastStaNodeId node_id) -> std::optional<FastStaSlewStatus>;
   static auto queryPower(FastStaClockId clock_id) -> FastStaPowerSummary;
   static auto queryArea(FastStaClockId clock_id) -> double;
   static auto queryClockContext(FastStaClockId clock_id) -> const FastStaClockContext*;

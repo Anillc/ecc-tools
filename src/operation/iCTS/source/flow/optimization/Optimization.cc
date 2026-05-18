@@ -27,16 +27,20 @@
 #include <stdlib.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <compare>
 #include <cstddef>
+#include <initializer_list>
+#include <limits>
 #include <map>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -63,6 +67,9 @@ namespace {
 constexpr double kEpsilon = 1e-12;
 constexpr unsigned kMaxOptimizationIterations = 64U;
 constexpr unsigned kMaxOptimizationTrials = 20000U;
+constexpr std::size_t kMaxFrontierSinks = 64U;
+constexpr std::size_t kMaxBatchActions = 16U;
+constexpr std::size_t kMaxBatchTrialsPerIteration = 1600U;
 
 struct BufferMasterInfo
 {
@@ -95,21 +102,42 @@ struct CapCheckResult
   std::size_t violation_count = 0U;
 };
 
+struct SlewBaseline
+{
+  double slew_ns = 0.0;
+  double max_slew_ns = 0.0;
+  bool available = false;
+  bool violated = false;
+};
+
+struct SlewCheckResult
+{
+  bool legal = true;
+  std::size_t violation_count = 0U;
+};
+
 struct FastState
 {
   bool valid = false;
   FastStaSkewSummary skew;
   FastStaPowerSummary power;
   CapCheckResult cap;
+  SlewCheckResult slew;
 };
 
-struct CandidateTrial
+struct SizingAction
 {
-  bool valid = false;
   std::size_t buffer_index = 0U;
   std::string from_master;
   std::string to_master;
   int drive_step = 0;
+  double area_delta_um2 = 0.0;
+};
+
+struct BatchTrial
+{
+  bool valid = false;
+  std::vector<SizingAction> actions;
   FastState state;
 };
 
@@ -131,10 +159,26 @@ struct ClockOptimizationSummary
   FastState after;
   unsigned iteration_count = 0U;
   unsigned trial_count = 0U;
+  unsigned batch_trial_count = 0U;
   unsigned accepted_mutation_count = 0U;
+  unsigned accepted_batch_count = 0U;
   unsigned rejected_candidate_count = 0U;
   unsigned cap_rejected_count = 0U;
+  unsigned slew_rejected_count = 0U;
   std::vector<OptimizationMutation> mutations;
+};
+
+struct TopologyIndex
+{
+  std::vector<FastStaNodeId> parent_by_node;
+  std::unordered_map<FastStaNodeId, FastStaNodeId> buffer_input_by_output;
+  std::unordered_map<FastStaNodeId, std::size_t> buffer_index_by_output_node;
+};
+
+enum class FrontierSide
+{
+  kLate,
+  kEarly
 };
 
 using RouteTreeCache = std::unordered_map<const Net*, Router::ClockSteinerTreeType>;
@@ -306,6 +350,24 @@ auto collectCapBaseline(FastStaClockId clock_id) -> std::vector<CapBaseline>
   return baseline;
 }
 
+auto collectSlewBaseline(FastStaClockId clock_id) -> std::vector<SlewBaseline>
+{
+  std::vector<SlewBaseline> baseline;
+  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  if (context == nullptr) {
+    return baseline;
+  }
+  baseline.reserve(context->nodes.size());
+  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
+    const auto slew_status = FastStaAdapter::querySlewStatus(clock_id, node_id);
+    baseline.push_back(SlewBaseline{.slew_ns = slew_status.has_value() ? slew_status->slew_ns : 0.0,
+                                    .max_slew_ns = slew_status.has_value() ? slew_status->max_slew_ns : 0.0,
+                                    .available = slew_status.has_value(),
+                                    .violated = slew_status.has_value() && slew_status->violated});
+  }
+  return baseline;
+}
+
 auto checkCapLegality(FastStaClockId clock_id, const std::vector<CapBaseline>& baseline) -> CapCheckResult
 {
   CapCheckResult result;
@@ -335,13 +397,51 @@ auto checkCapLegality(FastStaClockId clock_id, const std::vector<CapBaseline>& b
   return result;
 }
 
-auto captureState(FastStaClockId clock_id, const std::vector<CapBaseline>& baseline) -> FastState
+auto checkSlewLegality(FastStaClockId clock_id, const std::vector<SlewBaseline>& baseline) -> SlewCheckResult
+{
+  SlewCheckResult result;
+  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  if (context == nullptr) {
+    result.legal = false;
+    return result;
+  }
+  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
+    const auto slew_status = FastStaAdapter::querySlewStatus(clock_id, node_id);
+    const auto baseline_available = node_id < baseline.size() && baseline.at(node_id).available;
+    auto max_slew_ns = 0.0;
+    if (slew_status.has_value()) {
+      max_slew_ns = slew_status->max_slew_ns;
+    } else if (baseline_available) {
+      max_slew_ns = baseline.at(node_id).max_slew_ns;
+    }
+    if (max_slew_ns <= 0.0) {
+      continue;
+    }
+    if (!slew_status.has_value()) {
+      result.legal = false;
+      ++result.violation_count;
+      continue;
+    }
+    const auto baseline_slew = baseline_available ? baseline.at(node_id).slew_ns : 0.0;
+    const auto baseline_violated = baseline_available && baseline.at(node_id).violated;
+    const bool legal = baseline_violated ? slew_status->slew_ns <= baseline_slew + kEpsilon : !slew_status->violated;
+    if (!legal) {
+      result.legal = false;
+      ++result.violation_count;
+    }
+  }
+  return result;
+}
+
+auto captureState(FastStaClockId clock_id, const std::vector<CapBaseline>& cap_baseline, const std::vector<SlewBaseline>& slew_baseline)
+    -> FastState
 {
   FastState state;
   state.skew = FastStaAdapter::querySkew(clock_id);
   state.power = FastStaAdapter::queryPower(clock_id);
-  state.cap = checkCapLegality(clock_id, baseline);
-  state.valid = state.skew.valid && state.cap.legal;
+  state.cap = checkCapLegality(clock_id, cap_baseline);
+  state.slew = checkSlewLegality(clock_id, slew_baseline);
+  state.valid = state.skew.valid && state.cap.legal && state.slew.legal;
   return state;
 }
 
@@ -373,7 +473,25 @@ auto stateImproves(const FastState& current, const FastState& candidate, double 
   return candidate.skew.skew_ns < current.skew.skew_ns - kEpsilon;
 }
 
-auto preferTrial(const CandidateTrial& candidate, const CandidateTrial& incumbent, const FastState& current, double target_skew_ns) -> bool
+auto actionDriveMagnitude(const std::vector<SizingAction>& actions) -> int
+{
+  int magnitude = 0;
+  for (const auto& action : actions) {
+    magnitude += std::abs(action.drive_step);
+  }
+  return magnitude;
+}
+
+auto firstActionBufferIndex(const std::vector<SizingAction>& actions) -> std::size_t
+{
+  auto first_index = std::numeric_limits<std::size_t>::max();
+  for (const auto& action : actions) {
+    first_index = std::min(first_index, action.buffer_index);
+  }
+  return first_index;
+}
+
+auto preferTrial(const BatchTrial& candidate, const BatchTrial& incumbent, const FastState& current, double target_skew_ns) -> bool
 {
   if (!candidate.valid) {
     return false;
@@ -410,39 +528,60 @@ auto preferTrial(const CandidateTrial& candidate, const CandidateTrial& incumben
   if (std::abs(candidate.state.power.area_um2 - incumbent.state.power.area_um2) > kEpsilon) {
     return false;
   }
-  if (std::abs(candidate.drive_step) != std::abs(incumbent.drive_step)) {
-    return std::abs(candidate.drive_step) < std::abs(incumbent.drive_step);
+  if (candidate.actions.size() != incumbent.actions.size()) {
+    return candidate.actions.size() < incumbent.actions.size();
   }
-  return candidate.buffer_index < incumbent.buffer_index;
+  const auto candidate_drive_magnitude = actionDriveMagnitude(candidate.actions);
+  const auto incumbent_drive_magnitude = actionDriveMagnitude(incumbent.actions);
+  if (candidate_drive_magnitude != incumbent_drive_magnitude) {
+    return candidate_drive_magnitude < incumbent_drive_magnitude;
+  }
+  return firstActionBufferIndex(candidate.actions) < firstActionBufferIndex(incumbent.actions);
 }
 
-auto changeFastStaMaster(FastStaClockId clock_id, FastStaNodeId node_id, std::string_view cell_master) -> bool
+auto changeFastStaMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool
 {
-  if (!FastStaAdapter::changeBufferMaster(clock_id, node_id, cell_master)) {
+  if (!FastStaAdapter::changeBufferMasters(clock_id, changes)) {
     return false;
   }
   const auto* context = FastStaAdapter::queryClockContext(clock_id);
   return context != nullptr && context->timing_valid && context->power_valid;
 }
 
-auto tryCandidate(FastStaClockId clock_id, const OptimizableBuffer& buffer, std::size_t buffer_index, const BufferMasterInfo& from,
-                  const BufferMasterInfo& to, const FastState& current, const std::vector<CapBaseline>& cap_baseline, double target_skew_ns)
-    -> CandidateTrial
+auto buildMasterChanges(const std::vector<OptimizableBuffer>& buffers, const std::vector<SizingAction>& actions, bool restore)
+    -> std::vector<FastStaBufferMasterChange>
 {
-  CandidateTrial trial;
-  trial.buffer_index = buffer_index;
-  trial.from_master = from.cell_master;
-  trial.to_master = to.cell_master;
-  trial.drive_step = driveStep(from, to);
+  std::vector<FastStaBufferMasterChange> changes;
+  changes.reserve(actions.size());
+  for (const auto& action : actions) {
+    if (action.buffer_index >= buffers.size()) {
+      continue;
+    }
+    changes.push_back(FastStaBufferMasterChange{
+        .node_id = buffers.at(action.buffer_index).node_id,
+        .cell_master = restore ? action.from_master : action.to_master,
+    });
+  }
+  return changes;
+}
 
-  if (!changeFastStaMaster(clock_id, buffer.node_id, to.cell_master)) {
+auto tryBatch(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const std::vector<SizingAction>& actions,
+              const FastState& current, const std::vector<CapBaseline>& cap_baseline, const std::vector<SlewBaseline>& slew_baseline,
+              double target_skew_ns) -> BatchTrial
+{
+  BatchTrial trial;
+  trial.actions = actions;
+  if (trial.actions.empty()) {
     return trial;
   }
-  trial.state = captureState(clock_id, cap_baseline);
+
+  if (!changeFastStaMasters(clock_id, buildMasterChanges(buffers, trial.actions, false))) {
+    return trial;
+  }
+  trial.state = captureState(clock_id, cap_baseline, slew_baseline);
   trial.valid = stateImproves(current, trial.state, target_skew_ns);
-  if (!changeFastStaMaster(clock_id, buffer.node_id, from.cell_master)) {
-    LOG_FATAL << "Optimization: failed to restore fast STA trial buffer \"" << buffer.inst_name << "\" to master \"" << from.cell_master
-              << "\".";
+  if (!changeFastStaMasters(clock_id, buildMasterChanges(buffers, trial.actions, true))) {
+    LOG_FATAL << "Optimization: failed to restore fast STA batch trial.";
   }
   return trial;
 }
@@ -468,6 +607,281 @@ auto collectOptimizableBuffers(FastStaClockId clock_id, const std::vector<Buffer
         .node_id = node_id, .inst = inst, .inst_name = node.inst_name, .current_master = node.cell_master, .candidates = master_infos});
   }
   return buffers;
+}
+
+auto buildTopologyIndex(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers) -> TopologyIndex
+{
+  TopologyIndex topology;
+  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  if (context == nullptr) {
+    return topology;
+  }
+
+  topology.parent_by_node.assign(context->nodes.size(), kInvalidFastStaNodeId);
+  std::unordered_map<std::string, FastStaNodeId> input_by_inst;
+  input_by_inst.reserve(context->nodes.size());
+  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
+    const auto& node = context->nodes.at(node_id);
+    if (node.kind == FastStaNodeKind::kBufferInput && !node.inst_name.empty()) {
+      input_by_inst[node.inst_name] = node_id;
+    }
+  }
+  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
+    const auto& node = context->nodes.at(node_id);
+    if (node.kind == FastStaNodeKind::kBufferOutput) {
+      const auto input_iter = input_by_inst.find(node.inst_name);
+      if (input_iter != input_by_inst.end()) {
+        topology.parent_by_node.at(node_id) = input_iter->second;
+        topology.buffer_input_by_output[node_id] = input_iter->second;
+      }
+      continue;
+    }
+    if (node.incoming_net_id < context->nets.size()) {
+      topology.parent_by_node.at(node_id) = context->nets.at(node.incoming_net_id).driver_node_id;
+    }
+  }
+  for (std::size_t buffer_index = 0U; buffer_index < buffers.size(); ++buffer_index) {
+    topology.buffer_index_by_output_node[buffers.at(buffer_index).node_id] = buffer_index;
+  }
+  return topology;
+}
+
+auto collectFrontierSinks(FastStaClockId clock_id, const FastState& current, FrontierSide side) -> std::vector<FastStaNodeId>
+{
+  std::vector<std::pair<FastStaNodeId, double>> sinks;
+  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  if (context == nullptr || !current.skew.valid) {
+    return {};
+  }
+
+  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
+    const auto& node = context->nodes.at(node_id);
+    if (node.kind != FastStaNodeKind::kSink || !node.timing.valid) {
+      continue;
+    }
+    sinks.emplace_back(node_id, node.timing.arrival_ns);
+  }
+  if (sinks.empty()) {
+    const auto fallback_id = side == FrontierSide::kLate ? current.skew.max_sink_node_id : current.skew.min_sink_node_id;
+    if (fallback_id < context->nodes.size()) {
+      sinks.emplace_back(fallback_id, context->nodes.at(fallback_id).timing.arrival_ns);
+    }
+  }
+
+  std::ranges::sort(sinks, [context, side](const auto& lhs, const auto& rhs) -> bool {
+    if (std::abs(lhs.second - rhs.second) > kEpsilon) {
+      return side == FrontierSide::kLate ? lhs.second > rhs.second : lhs.second < rhs.second;
+    }
+    return context->nodes.at(lhs.first).name < context->nodes.at(rhs.first).name;
+  });
+  if (sinks.size() > kMaxFrontierSinks) {
+    sinks.resize(kMaxFrontierSinks);
+  }
+
+  std::vector<FastStaNodeId> sink_ids;
+  sink_ids.reserve(sinks.size());
+  for (const auto& [node_id, _] : sinks) {
+    sink_ids.push_back(node_id);
+  }
+  return sink_ids;
+}
+
+auto collectPathBufferIndices(const TopologyIndex& topology, FastStaNodeId sink_node_id) -> std::vector<std::size_t>
+{
+  std::vector<std::size_t> path;
+  FastStaNodeId node_id = sink_node_id;
+  std::unordered_set<FastStaNodeId> visited;
+  while (node_id < topology.parent_by_node.size() && !visited.contains(node_id)) {
+    visited.insert(node_id);
+    const auto buffer_iter = topology.buffer_index_by_output_node.find(node_id);
+    if (buffer_iter != topology.buffer_index_by_output_node.end()) {
+      path.push_back(buffer_iter->second);
+    }
+    node_id = topology.parent_by_node.at(node_id);
+  }
+  std::ranges::reverse(path);
+  return path;
+}
+
+auto makeSizingAction(const std::vector<OptimizableBuffer>& buffers, std::size_t buffer_index, FrontierSide side, unsigned rank_step)
+    -> std::optional<SizingAction>
+{
+  if (buffer_index >= buffers.size() || rank_step == 0U) {
+    return std::nullopt;
+  }
+  const auto& buffer = buffers.at(buffer_index);
+  const auto* from = findMasterInfo(buffer.candidates, buffer.current_master);
+  if (from == nullptr) {
+    return std::nullopt;
+  }
+  const auto from_rank = static_cast<int>(from->drive_rank);
+  const auto target_rank = side == FrontierSide::kLate ? from_rank + static_cast<int>(rank_step) : from_rank - static_cast<int>(rank_step);
+  if (target_rank < 0 || static_cast<std::size_t>(target_rank) >= buffer.candidates.size()) {
+    return std::nullopt;
+  }
+  const auto& to = buffer.candidates.at(static_cast<std::size_t>(target_rank));
+  if (to.cell_master == from->cell_master) {
+    return std::nullopt;
+  }
+  return SizingAction{.buffer_index = buffer_index,
+                      .from_master = from->cell_master,
+                      .to_master = to.cell_master,
+                      .drive_step = driveStep(*from, to),
+                      .area_delta_um2 = to.area_um2 - from->area_um2};
+}
+
+auto appendBatchCandidate(std::vector<std::vector<SizingAction>>& candidates, std::unordered_set<std::string>& seen,
+                          std::vector<SizingAction> actions) -> void
+{
+  if (actions.empty() || candidates.size() >= kMaxBatchTrialsPerIteration) {
+    return;
+  }
+  std::ranges::sort(actions, [](const SizingAction& lhs, const SizingAction& rhs) -> bool {
+    if (lhs.buffer_index != rhs.buffer_index) {
+      return lhs.buffer_index < rhs.buffer_index;
+    }
+    return lhs.to_master < rhs.to_master;
+  });
+
+  std::vector<SizingAction> compact;
+  compact.reserve(std::min(actions.size(), kMaxBatchActions));
+  std::unordered_set<std::size_t> used_buffers;
+  for (const auto& action : actions) {
+    if (used_buffers.contains(action.buffer_index)) {
+      continue;
+    }
+    used_buffers.insert(action.buffer_index);
+    compact.push_back(action);
+    if (compact.size() >= kMaxBatchActions) {
+      break;
+    }
+  }
+  if (compact.empty()) {
+    return;
+  }
+
+  std::string key;
+  for (const auto& action : compact) {
+    key += std::to_string(action.buffer_index);
+    key += ':';
+    key += action.to_master;
+    key += ';';
+  }
+  if (!seen.insert(key).second) {
+    return;
+  }
+  candidates.push_back(std::move(compact));
+}
+
+auto generatePathSegmentBatches(const std::vector<OptimizableBuffer>& buffers, const std::vector<std::size_t>& path, FrontierSide side,
+                                unsigned rank_step, std::vector<std::vector<SizingAction>>& candidates,
+                                std::unordered_set<std::string>& seen) -> void
+{
+  constexpr std::array<std::size_t, 6U> segment_lengths = {1U, 2U, 4U, 6U, 8U, 12U};
+  for (std::size_t start = 0U; start < path.size() && candidates.size() < kMaxBatchTrialsPerIteration; ++start) {
+    for (const auto length : segment_lengths) {
+      std::vector<SizingAction> actions;
+      for (std::size_t offset = 0U; offset < length && start + offset < path.size(); ++offset) {
+        auto action = makeSizingAction(buffers, path.at(start + offset), side, rank_step);
+        if (action.has_value()) {
+          actions.push_back(std::move(*action));
+        }
+      }
+      appendBatchCandidate(candidates, seen, std::move(actions));
+      if (candidates.size() >= kMaxBatchTrialsPerIteration) {
+        break;
+      }
+    }
+  }
+}
+
+auto generateFrontierLevelBatches(const std::vector<OptimizableBuffer>& buffers, const std::vector<std::vector<std::size_t>>& paths,
+                                  FrontierSide side, unsigned rank_step, std::vector<std::vector<SizingAction>>& candidates,
+                                  std::unordered_set<std::string>& seen) -> void
+{
+  std::size_t max_path_size = 0U;
+  for (const auto& path : paths) {
+    max_path_size = std::max(max_path_size, path.size());
+  }
+  for (std::size_t depth_index = 0U; depth_index < max_path_size && candidates.size() < kMaxBatchTrialsPerIteration; ++depth_index) {
+    std::vector<SizingAction> actions;
+    for (const auto& path : paths) {
+      if (depth_index >= path.size()) {
+        continue;
+      }
+      auto action = makeSizingAction(buffers, path.at(depth_index), side, rank_step);
+      if (action.has_value()) {
+        actions.push_back(std::move(*action));
+      }
+    }
+    appendBatchCandidate(candidates, seen, std::move(actions));
+  }
+}
+
+auto generateFrontierPrefixBatches(const std::vector<OptimizableBuffer>& buffers, const std::vector<std::vector<std::size_t>>& paths,
+                                   FrontierSide side, unsigned rank_step, std::vector<std::vector<SizingAction>>& candidates,
+                                   std::unordered_set<std::string>& seen) -> void
+{
+  constexpr std::array<std::size_t, 5U> path_counts = {4U, 8U, 16U, 32U, 64U};
+  constexpr std::array<std::size_t, 6U> prefix_lengths = {1U, 2U, 3U, 4U, 6U, 8U};
+  for (const auto path_count : path_counts) {
+    if (candidates.size() >= kMaxBatchTrialsPerIteration) {
+      break;
+    }
+    const auto selected_path_count = std::min(path_count, paths.size());
+    if (selected_path_count == 0U) {
+      continue;
+    }
+    for (const auto prefix_length : prefix_lengths) {
+      std::vector<SizingAction> actions;
+      for (std::size_t path_index = 0U; path_index < selected_path_count && actions.size() < kMaxBatchActions; ++path_index) {
+        const auto& path = paths.at(path_index);
+        for (std::size_t depth_index = 0U; depth_index < prefix_length && depth_index < path.size(); ++depth_index) {
+          auto action = makeSizingAction(buffers, path.at(depth_index), side, rank_step);
+          if (action.has_value()) {
+            actions.push_back(std::move(*action));
+          }
+        }
+      }
+      appendBatchCandidate(candidates, seen, std::move(actions));
+      if (candidates.size() >= kMaxBatchTrialsPerIteration) {
+        break;
+      }
+    }
+  }
+}
+
+auto generateBatchCandidates(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
+                             const FastState& current) -> std::vector<std::vector<SizingAction>>
+{
+  std::vector<std::vector<SizingAction>> candidates;
+  std::unordered_set<std::string> seen;
+  constexpr std::array<unsigned, 3U> rank_steps = {1U, 2U, 3U};
+  for (const auto side : {FrontierSide::kLate, FrontierSide::kEarly}) {
+    const auto frontier_sinks = collectFrontierSinks(clock_id, current, side);
+    std::vector<std::vector<std::size_t>> paths;
+    paths.reserve(frontier_sinks.size());
+    for (const auto sink_id : frontier_sinks) {
+      auto path = collectPathBufferIndices(topology, sink_id);
+      if (!path.empty()) {
+        paths.push_back(std::move(path));
+      }
+    }
+    for (const auto rank_step : rank_steps) {
+      generateFrontierPrefixBatches(buffers, paths, side, rank_step, candidates, seen);
+      generateFrontierLevelBatches(buffers, paths, side, rank_step, candidates, seen);
+      for (const auto& path : paths) {
+        generatePathSegmentBatches(buffers, path, side, rank_step, candidates, seen);
+        if (candidates.size() >= kMaxBatchTrialsPerIteration) {
+          break;
+        }
+      }
+      if (candidates.size() >= kMaxBatchTrialsPerIteration) {
+        break;
+      }
+    }
+  }
+  return candidates;
 }
 
 auto injectRouteTrees(FastStaClockId clock_id, const Clock& clock, const RouteTreeCache& route_tree_by_net) -> bool
@@ -581,10 +995,14 @@ auto emitClockSummary(const Clock& clock, const ClockOptimizationSummary& summar
       {"area_delta", logformat::FormatWithUnit(summary.after.power.area_um2 - summary.before.power.area_um2, "um^2")},
       {"iteration_count", std::to_string(summary.iteration_count)},
       {"trial_count", std::to_string(summary.trial_count)},
+      {"batch_trial_count", std::to_string(summary.batch_trial_count)},
+      {"accepted_batch_count", std::to_string(summary.accepted_batch_count)},
       {"accepted_mutation_count", std::to_string(summary.accepted_mutation_count)},
       {"rejected_candidate_count", std::to_string(summary.rejected_candidate_count)},
       {"cap_rejected_count", std::to_string(summary.cap_rejected_count)},
+      {"slew_rejected_count", std::to_string(summary.slew_rejected_count)},
       {"cap_legal", summary.after.cap.legal ? "true" : "false"},
+      {"slew_legal", summary.after.slew.legal ? "true" : "false"},
       {"target_met", summary.target_met ? "true" : "false"},
       {"stop_reason", summary.stop_reason.empty() ? "n/a" : summary.stop_reason},
   };
@@ -601,74 +1019,80 @@ auto emitClockSummary(const Clock& clock, const ClockOptimizationSummary& summar
   }
 }
 
-auto findBestTrial(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const FastState& current,
-                   const std::vector<CapBaseline>& cap_baseline, double target_skew_ns, ClockOptimizationSummary& summary) -> CandidateTrial
+auto findBestBatchTrial(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
+                        const FastState& current, const std::vector<CapBaseline>& cap_baseline,
+                        const std::vector<SlewBaseline>& slew_baseline, double target_skew_ns, ClockOptimizationSummary& summary)
+    -> BatchTrial
 {
-  CandidateTrial best;
-  for (std::size_t buffer_index = 0U; buffer_index < buffers.size(); ++buffer_index) {
+  BatchTrial best;
+  const auto candidates = generateBatchCandidates(clock_id, buffers, topology, current);
+  for (const auto& actions : candidates) {
     if (summary.trial_count >= kMaxOptimizationTrials) {
       break;
     }
-    const auto& buffer = buffers.at(buffer_index);
-    const auto* from = findMasterInfo(buffer.candidates, buffer.current_master);
-    if (from == nullptr) {
+    ++summary.trial_count;
+    ++summary.batch_trial_count;
+    auto trial = tryBatch(clock_id, buffers, actions, current, cap_baseline, slew_baseline, target_skew_ns);
+    if (!trial.state.cap.legal) {
+      ++summary.cap_rejected_count;
+    }
+    if (!trial.state.slew.legal) {
+      ++summary.slew_rejected_count;
+    }
+    if (!trial.valid) {
+      ++summary.rejected_candidate_count;
       continue;
     }
-    for (const auto& to : buffer.candidates) {
-      if (summary.trial_count >= kMaxOptimizationTrials) {
-        break;
-      }
-      if (to.cell_master == buffer.current_master) {
-        continue;
-      }
-      ++summary.trial_count;
-      auto trial = tryCandidate(clock_id, buffer, buffer_index, *from, to, current, cap_baseline, target_skew_ns);
-      if (!trial.state.cap.legal) {
-        ++summary.cap_rejected_count;
-      }
-      if (!trial.valid) {
-        ++summary.rejected_candidate_count;
-        continue;
-      }
-      if (preferTrial(trial, best, current, target_skew_ns)) {
-        best = std::move(trial);
-      }
+    if (preferTrial(trial, best, current, target_skew_ns)) {
+      best = std::move(trial);
     }
   }
   return best;
 }
 
 auto solveClock(FastStaClockId clock_id, std::vector<OptimizableBuffer>& buffers, const std::vector<CapBaseline>& cap_baseline,
-                double target_skew_ns) -> ClockOptimizationSummary
+                const std::vector<SlewBaseline>& slew_baseline, double target_skew_ns) -> ClockOptimizationSummary
 {
   ClockOptimizationSummary summary;
-  summary.before = captureState(clock_id, cap_baseline);
+  summary.before = captureState(clock_id, cap_baseline, slew_baseline);
   if (!summary.before.valid) {
-    summary.stop_reason = summary.before.skew.valid ? "initial_cap_violation" : "initial_skew_unavailable";
+    if (!summary.before.skew.valid) {
+      summary.stop_reason = "initial_skew_unavailable";
+    } else if (!summary.before.cap.legal) {
+      summary.stop_reason = "initial_cap_worse_than_baseline";
+    } else {
+      summary.stop_reason = "initial_slew_worse_than_baseline";
+    }
     summary.after = summary.before;
     return summary;
   }
 
+  const auto topology = buildTopologyIndex(clock_id, buffers);
   auto current = summary.before;
   while (summary.iteration_count < kMaxOptimizationIterations && summary.trial_count < kMaxOptimizationTrials) {
-    auto best = findBestTrial(clock_id, buffers, current, cap_baseline, target_skew_ns, summary);
+    auto best = findBestBatchTrial(clock_id, buffers, topology, current, cap_baseline, slew_baseline, target_skew_ns, summary);
     if (!best.valid) {
       summary.stop_reason = summary.trial_count >= kMaxOptimizationTrials ? "trial_limit" : "no_improving_candidate";
       break;
     }
-    auto& buffer = buffers.at(best.buffer_index);
-    if (!changeFastStaMaster(clock_id, buffer.node_id, best.to_master)) {
+    if (!changeFastStaMasters(clock_id, buildMasterChanges(buffers, best.actions, false))) {
       summary.stop_reason = "accepted_mutation_apply_failed";
       break;
     }
-    const auto area_before = current.power.area_um2;
-    current = captureState(clock_id, cap_baseline);
-    summary.mutations.push_back(OptimizationMutation{.inst_name = buffer.inst_name,
-                                                     .from_master = best.from_master,
-                                                     .to_master = best.to_master,
-                                                     .area_delta_um2 = current.power.area_um2 - area_before});
-    buffer.current_master = best.to_master;
-    ++summary.accepted_mutation_count;
+    current = captureState(clock_id, cap_baseline, slew_baseline);
+    for (const auto& action : best.actions) {
+      if (action.buffer_index >= buffers.size()) {
+        continue;
+      }
+      auto& buffer = buffers.at(action.buffer_index);
+      summary.mutations.push_back(OptimizationMutation{.inst_name = buffer.inst_name,
+                                                       .from_master = action.from_master,
+                                                       .to_master = action.to_master,
+                                                       .area_delta_um2 = action.area_delta_um2});
+      buffer.current_master = action.to_master;
+    }
+    summary.accepted_mutation_count += static_cast<unsigned>(best.actions.size());
+    ++summary.accepted_batch_count;
     ++summary.iteration_count;
   }
 
@@ -734,7 +1158,8 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
     }
 
     const auto cap_baseline = collectCapBaseline(clock_id);
-    auto summary = solveClock(clock_id, buffers, cap_baseline, target_skew_ns);
+    const auto slew_baseline = collectSlewBaseline(clock_id);
+    auto summary = solveClock(clock_id, buffers, cap_baseline, slew_baseline, target_skew_ns);
     const auto clock_end = std::chrono::steady_clock::now();
     const double clock_runtime_s = std::chrono::duration<double>(clock_end - clock_start).count();
     if (!summary.valid) {

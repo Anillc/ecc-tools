@@ -150,6 +150,22 @@ auto FastStaAdapter::changeBufferMaster(FastStaClockId clock_id, FastStaNodeId n
   return FastStaTiming::updateRegion(*context, *dirty_region) && FastStaPower::updateRegion(*context, *dirty_region);
 }
 
+auto FastStaAdapter::changeBufferMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool
+{
+  auto* context = mutableClockContext(clock_id);
+  if (context == nullptr) {
+    LOG_ERROR << "FastStaAdapter: buffer master batch change skipped because clock context id is invalid.";
+    return false;
+  }
+  if (changes.empty()) {
+    return context->timing_valid && context->power_valid;
+  }
+  if (!FastStaIncremental::changeBufferMasters(*context, changes)) {
+    return false;
+  }
+  return FastStaTiming::update(*context) && FastStaPower::update(*context);
+}
+
 auto FastStaAdapter::updateTiming(FastStaClockId clock_id) -> bool
 {
   auto* context = mutableClockContext(clock_id);
@@ -223,6 +239,23 @@ auto FastStaAdapter::queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id
                           .load_cap_pf = net.load_cap_pf,
                           .max_cap_pf = net.max_cap_pf,
                           .violated = net.max_cap_pf > 0.0 && net.load_cap_pf > net.max_cap_pf};
+}
+
+auto FastStaAdapter::querySlewStatus(FastStaClockId clock_id, FastStaNodeId node_id) -> std::optional<FastStaSlewStatus>
+{
+  const auto* context = queryClockContext(clock_id);
+  if (context == nullptr || node_id >= context->nodes.size()) {
+    return std::nullopt;
+  }
+  const auto& node = context->nodes.at(node_id);
+  if (!node.timing.valid) {
+    return std::nullopt;
+  }
+  return FastStaSlewStatus{.node_id = node_id,
+                           .node_name = node.name,
+                           .slew_ns = node.timing.slew_ns,
+                           .max_slew_ns = node.max_slew_ns,
+                           .violated = node.max_slew_ns > 0.0 && node.timing.slew_ns > node.max_slew_ns};
 }
 
 auto FastStaAdapter::queryPower(FastStaClockId clock_id) -> FastStaPowerSummary

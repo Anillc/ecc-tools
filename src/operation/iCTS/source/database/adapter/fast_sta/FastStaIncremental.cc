@@ -166,11 +166,52 @@ auto applyBufferMasterChange(FastStaClockContext& context, FastStaNodeId node_id
   return input_node_id;
 }
 
+auto validateBufferMasterChange(const FastStaClockContext& context, const FastStaBufferMasterChange& change) -> bool
+{
+  if (change.node_id >= context.nodes.size()) {
+    LOG_ERROR << "FastStaIncremental: buffer master change skipped because node id is invalid.";
+    return false;
+  }
+  const auto& node = context.nodes.at(change.node_id);
+  if (node.kind != FastStaNodeKind::kBufferInput && node.kind != FastStaNodeKind::kBufferOutput) {
+    LOG_ERROR << "FastStaIncremental: node \"" << node.name << "\" is not a buffer node.";
+    return false;
+  }
+  if (normalizeBufferInputNodeId(context, change.node_id) == kInvalidFastStaNodeId) {
+    LOG_ERROR << "FastStaIncremental: buffer master change skipped because buffer input node is unavailable for \"" << node.name << "\".";
+    return false;
+  }
+  if (change.cell_master.empty()) {
+    LOG_ERROR << "FastStaIncremental: buffer master change skipped because target master is empty for \"" << node.name << "\".";
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 auto FastStaIncremental::changeBufferMaster(FastStaClockContext& context, FastStaNodeId node_id, std::string_view cell_master) -> bool
 {
   return applyBufferMasterChange(context, node_id, cell_master, true) != kInvalidFastStaNodeId;
+}
+
+auto FastStaIncremental::changeBufferMasters(FastStaClockContext& context, const std::vector<FastStaBufferMasterChange>& changes) -> bool
+{
+  for (const auto& change : changes) {
+    if (!validateBufferMasterChange(context, change)) {
+      return false;
+    }
+  }
+  for (const auto& change : changes) {
+    if (applyBufferMasterChange(context, change.node_id, change.cell_master, false) == kInvalidFastStaNodeId) {
+      context.timing_valid = false;
+      context.power_valid = false;
+      return false;
+    }
+  }
+  context.timing_valid = false;
+  context.power_valid = false;
+  return true;
 }
 
 auto FastStaIncremental::changeBufferMasterIncremental(FastStaClockContext& context, FastStaNodeId node_id, std::string_view cell_master)
