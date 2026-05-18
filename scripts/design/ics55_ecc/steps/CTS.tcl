@@ -8,19 +8,14 @@ source [file normalize [file join $script_dir step_common.tcl]]
 set flow_dir [file normalize [file join $script_dir ..]]
 set default_workspace [file normalize [file join $flow_dir gcd home]]
 set default_pdk [file normalize [file join $flow_dir .. .. .. .. icsprout55-pdk]]
+
 lassign [step_setup_workspace $default_workspace $default_pdk] workspace_root pdk_root
 set step_dir [file join $workspace_root CTS_ecc]
 
 set design_name "gcd"
 set top_module "gcd"
 
-set tech_lef [file join $pdk_root prtech techLEF N551P6M_ecos.lef]
-set lef_files [list \
-  [file join $pdk_root IP STD_cell ics55_LLSC_H7C_V1p10C100 ics55_LLSC_H7CR lef ics55_LLSC_H7CR_ecos.lef] \
-  [file join $pdk_root IP STD_cell ics55_LLSC_H7C_V1p10C100 ics55_LLSC_H7CL lef ics55_LLSC_H7CL_ecos.lef]]
-set lib_files [list \
-  [file join $pdk_root IP STD_cell ics55_LLSC_H7C_V1p10C100 ics55_LLSC_H7CR liberty ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib] \
-  [file join $pdk_root IP STD_cell ics55_LLSC_H7C_V1p10C100 ics55_LLSC_H7CL liberty ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib]]
+source [file normalize [file join $script_dir pdk.tcl]]
 
 set flow_config [file join $step_dir config flow_config.json]
 set db_config [file join $step_dir config db_default_config.json]
