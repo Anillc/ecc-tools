@@ -518,3 +518,36 @@ Committed the iCTS code-structure refactor, tightened fatal runtime semantics fo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 60: Refactor CTS FastSTA and STAAdapter boundaries
+
+**Date**: 2026-05-19
+**Task**: Refactor CTS FastSTA and STAAdapter boundaries
+**Branch**: `cts_refactor`
+
+### Summary
+
+Renamed the CTS FastSTA facade, removed stale STAAdapter char-runtime APIs, unified net-cap and buffer/sink slew legality semantics, made root slew explicit, deleted the obsolete critical-branch char sizing task, and archived completed CTS FastSTA optimization/refactor tasks after validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8d78fa42f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
