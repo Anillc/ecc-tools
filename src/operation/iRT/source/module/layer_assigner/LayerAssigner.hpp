@@ -43,8 +43,12 @@ class LayerAssigner
     PlanarCoord first_coord;
     PlanarCoord second_coord;
     int32_t layer_idx = -1;
-    double total_cost = 0;
-    double max_cost = 0;
+    bool has_true_overflow = false;
+    double total_true_overflow = 0.0;
+    double max_true_overflow = 0.0;
+    double total_soft_congestion = 0.0;
+    double max_soft_congestion = 0.0;
+    double max_usage_ratio = 0.0;
     std::vector<PlanarCoord> split_coord_list;
   };
   struct LARefineLayerHint

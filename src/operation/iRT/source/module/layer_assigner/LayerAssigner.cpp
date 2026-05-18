@@ -428,9 +428,10 @@ void LayerAssigner::insertMidPoint(LAModel& la_model, TNode<LayerCoord>* planar_
 std::vector<LayerAssigner::LAOverflowEdge> LayerAssigner::getOverflowEdgeList(LAModel& la_model)
 {
   constexpr int32_t max_refine_edge_num = 6;
+  constexpr double soft_start_ratio = 0.80;
+  constexpr double min_soft_score = 0.25;
 
   std::vector<GridMap<LANode>>& layer_node_map = la_model.get_layer_node_map();
-  double overflow_unit = la_model.get_la_com_param().get_overflow_unit();
   int32_t curr_net_idx = la_model.get_curr_la_task()->get_net_idx();
 
   std::vector<LAOverflowEdge> overflow_edge_list;
@@ -450,18 +451,18 @@ std::vector<LayerAssigner::LAOverflowEdge> LayerAssigner::getOverflowEdgeList(LA
       Direction direction = RTUTIL.getDirection(parent_coord, child_coord);
       int32_t layer_idx = child_node->value().get_layer_idx();
 
-      std::vector<std::pair<PlanarCoord, double>> coord_cost_pair_list;
+      std::vector<std::pair<PlanarCoord, LAOverflowMetric>> coord_metric_pair_list;
       if (RTUTIL.isHorizontal(parent_coord, child_coord)) {
         int32_t step = (parent_coord.get_x() < child_coord.get_x()) ? 1 : -1;
         for (int32_t x = parent_coord.get_x(); x != child_coord.get_x() + step; x += step) {
-          double cost = layer_node_map[layer_idx][x][parent_coord.get_y()].getOverflowCost(curr_net_idx, direction, overflow_unit);
-          coord_cost_pair_list.emplace_back(PlanarCoord(x, parent_coord.get_y()), cost);
+          LAOverflowMetric metric = layer_node_map[layer_idx][x][parent_coord.get_y()].getOverflowMetric(curr_net_idx, direction);
+          coord_metric_pair_list.emplace_back(PlanarCoord(x, parent_coord.get_y()), metric);
         }
       } else {
         int32_t step = (parent_coord.get_y() < child_coord.get_y()) ? 1 : -1;
         for (int32_t y = parent_coord.get_y(); y != child_coord.get_y() + step; y += step) {
-          double cost = layer_node_map[layer_idx][parent_coord.get_x()][y].getOverflowCost(curr_net_idx, direction, overflow_unit);
-          coord_cost_pair_list.emplace_back(PlanarCoord(parent_coord.get_x(), y), cost);
+          LAOverflowMetric metric = layer_node_map[layer_idx][parent_coord.get_x()][y].getOverflowMetric(curr_net_idx, direction);
+          coord_metric_pair_list.emplace_back(PlanarCoord(parent_coord.get_x(), y), metric);
         }
       }
 
@@ -469,35 +470,56 @@ std::vector<LayerAssigner::LAOverflowEdge> LayerAssigner::getOverflowEdgeList(LA
       overflow_edge.first_coord = parent_coord;
       overflow_edge.second_coord = child_coord;
       overflow_edge.layer_idx = layer_idx;
-      int32_t max_cost_idx = -1;
-      for (size_t i = 0; i < coord_cost_pair_list.size(); i++) {
-        double cost = coord_cost_pair_list[i].second;
-        overflow_edge.total_cost += cost;
-        if (cost > overflow_edge.max_cost) {
-          overflow_edge.max_cost = cost;
-          max_cost_idx = static_cast<int32_t>(i);
-        }
+      for (auto& coord_metric_pair : coord_metric_pair_list) {
+        LAOverflowMetric& metric = coord_metric_pair.second;
+        overflow_edge.total_true_overflow += metric.true_overflow;
+        overflow_edge.max_true_overflow = std::max(overflow_edge.max_true_overflow, metric.true_overflow);
+        overflow_edge.total_soft_congestion += metric.soft_congestion;
+        overflow_edge.max_soft_congestion = std::max(overflow_edge.max_soft_congestion, metric.soft_congestion);
+        overflow_edge.max_usage_ratio = std::max(overflow_edge.max_usage_ratio, metric.max_usage_ratio);
       }
-      double avg_cost = overflow_edge.total_cost / std::max<int32_t>(1, static_cast<int32_t>(coord_cost_pair_list.size()));
-      if (max_cost_idx == -1 || (overflow_edge.max_cost < overflow_unit * 4.0 && avg_cost < overflow_unit * 2.0)) {
+      overflow_edge.has_true_overflow = (overflow_edge.max_true_overflow > RT_ERROR);
+      bool hard_trigger = overflow_edge.has_true_overflow;
+      bool soft_trigger = (!hard_trigger && overflow_edge.max_usage_ratio >= soft_start_ratio
+                           && overflow_edge.max_soft_congestion >= min_soft_score);
+      if (!hard_trigger && !soft_trigger) {
         continue;
       }
 
-      double hotspot_threshold = std::max(overflow_unit * 2.0, overflow_edge.max_cost * 0.5);
-      int32_t hotspot_first_idx = max_cost_idx;
-      int32_t hotspot_second_idx = max_cost_idx;
-      while (hotspot_first_idx > 0 && coord_cost_pair_list[hotspot_first_idx - 1].second >= hotspot_threshold) {
+      auto getScore = [&overflow_edge](const LAOverflowMetric& metric) {
+        if (overflow_edge.has_true_overflow) {
+          return metric.true_overflow;
+        }
+        return metric.soft_congestion;
+      };
+      int32_t max_score_idx = -1;
+      double max_score = -1.0;
+      for (size_t i = 0; i < coord_metric_pair_list.size(); i++) {
+        double score = getScore(coord_metric_pair_list[i].second);
+        if (score > max_score) {
+          max_score = score;
+          max_score_idx = static_cast<int32_t>(i);
+        }
+      }
+      if (max_score_idx == -1 || max_score <= 0) {
+        continue;
+      }
+
+      double hotspot_threshold = overflow_edge.has_true_overflow ? std::max(RT_ERROR, max_score * 0.5) : std::max(min_soft_score, max_score * 0.5);
+      int32_t hotspot_first_idx = max_score_idx;
+      int32_t hotspot_second_idx = max_score_idx;
+      while (hotspot_first_idx > 0 && getScore(coord_metric_pair_list[hotspot_first_idx - 1].second) >= hotspot_threshold) {
         hotspot_first_idx--;
       }
-      while (hotspot_second_idx + 1 < static_cast<int32_t>(coord_cost_pair_list.size())
-             && coord_cost_pair_list[hotspot_second_idx + 1].second >= hotspot_threshold) {
+      while (hotspot_second_idx + 1 < static_cast<int32_t>(coord_metric_pair_list.size())
+             && getScore(coord_metric_pair_list[hotspot_second_idx + 1].second) >= hotspot_threshold) {
         hotspot_second_idx++;
       }
       auto pushSplitCoord = [&](int32_t coord_idx) {
-        if (coord_idx <= 0 || coord_idx >= static_cast<int32_t>(coord_cost_pair_list.size()) - 1) {
+        if (coord_idx <= 0 || coord_idx >= static_cast<int32_t>(coord_metric_pair_list.size()) - 1) {
           return;
         }
-        PlanarCoord split_coord = coord_cost_pair_list[coord_idx].first;
+        PlanarCoord split_coord = coord_metric_pair_list[coord_idx].first;
         if (split_coord == parent_coord || split_coord == child_coord) {
           return;
         }
@@ -515,11 +537,20 @@ std::vector<LayerAssigner::LAOverflowEdge> LayerAssigner::getOverflowEdgeList(LA
     RTUTIL.addListToQueue(pillar_node_queue, parent_pillar_node->get_child_list());
   }
 
-  std::sort(overflow_edge_list.begin(), overflow_edge_list.end(), [](LAOverflowEdge& a, LAOverflowEdge& b) {
-    if (a.max_cost == b.max_cost) {
-      return a.total_cost > b.total_cost;
+  std::sort(overflow_edge_list.begin(), overflow_edge_list.end(), [](const LAOverflowEdge& a, const LAOverflowEdge& b) {
+    if (a.has_true_overflow != b.has_true_overflow) {
+      return a.has_true_overflow;
     }
-    return a.max_cost > b.max_cost;
+    if (a.has_true_overflow) {
+      if (a.max_true_overflow == b.max_true_overflow) {
+        return a.total_true_overflow > b.total_true_overflow;
+      }
+      return a.max_true_overflow > b.max_true_overflow;
+    }
+    if (a.max_soft_congestion == b.max_soft_congestion) {
+      return a.total_soft_congestion > b.total_soft_congestion;
+    }
+    return a.max_soft_congestion > b.max_soft_congestion;
   });
   if (static_cast<int32_t>(overflow_edge_list.size()) > max_refine_edge_num) {
     overflow_edge_list.resize(max_refine_edge_num);
