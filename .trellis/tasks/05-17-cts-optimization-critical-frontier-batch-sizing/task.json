@@ -19,7 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "05-18-cts-optimization-runtime-bottleneck"
+    "05-18-cts-optimization-runtime-bottleneck",
+    "05-18-cts-huge-design-optimization-performance"
   ],
   "parent": null,
   "relatedFiles": [],

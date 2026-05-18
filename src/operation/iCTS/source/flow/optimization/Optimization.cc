@@ -77,7 +77,10 @@ constexpr double kSlowTrialLogThresholdS = 5.0;
 constexpr std::size_t kScalableNodeThreshold = 50000U;
 constexpr std::size_t kScalableBufferThreshold = 5000U;
 constexpr std::size_t kMaxScalableBatchActions = 48U;
-constexpr std::size_t kMaxScalableExactTrialsPerIteration = 16U;
+constexpr std::size_t kMaxScalableExactTrialsPerIteration = 8U;
+constexpr double kTargetWindowShrinkRatio = 0.8;
+constexpr double kMinBranchPurity = 0.8;
+constexpr double kMaxOppositeViolationRatio = 0.25;
 
 struct BufferMasterInfo
 {
@@ -205,14 +208,17 @@ struct ClockOptimizationSummary
 struct TopologyIndex
 {
   std::vector<FastStaNodeId> parent_by_node;
+  std::vector<std::vector<FastStaNodeId>> children_by_node;
   std::unordered_map<FastStaNodeId, FastStaNodeId> buffer_input_by_output;
   std::unordered_map<FastStaNodeId, std::size_t> buffer_index_by_output_node;
 };
 
-struct FrontierCoverage
+struct ArrivalWindow
 {
-  std::vector<std::size_t> late_count_by_buffer;
-  std::vector<std::size_t> early_count_by_buffer;
+  double center_ns = 0.0;
+  double lower_ns = 0.0;
+  double upper_ns = 0.0;
+  double staged_skew_ns = 0.0;
 };
 
 struct ScoredSizingAction
@@ -221,10 +227,33 @@ struct ScoredSizingAction
   double score = 0.0;
 };
 
+struct ScoredActionCollection
+{
+  std::vector<ScoredSizingAction> actions;
+  std::size_t raw_action_count = 0U;
+  std::size_t mixed_rejected_count = 0U;
+  std::size_t no_window_rejected_count = 0U;
+};
+
 struct ScoredBatchCandidate
 {
   std::vector<SizingAction> actions;
   double score = 0.0;
+};
+
+struct TopologyWindowStats
+{
+  std::vector<std::size_t> sink_count_by_node;
+  std::vector<std::size_t> late_count_by_node;
+  std::vector<std::size_t> early_count_by_node;
+  std::vector<double> late_violation_by_node;
+  std::vector<double> early_violation_by_node;
+  std::vector<double> min_arrival_by_node;
+  std::vector<double> max_arrival_by_node;
+  std::size_t late_pure_buffer_count = 0U;
+  std::size_t early_pure_buffer_count = 0U;
+  std::size_t mixed_buffer_count = 0U;
+  std::size_t neutral_buffer_count = 0U;
 };
 
 enum class FrontierSide
@@ -793,6 +822,13 @@ auto buildTopologyIndex(FastStaClockId clock_id, const std::vector<OptimizableBu
   for (std::size_t buffer_index = 0U; buffer_index < buffers.size(); ++buffer_index) {
     topology.buffer_index_by_output_node[buffers.at(buffer_index).node_id] = buffer_index;
   }
+  topology.children_by_node.assign(context->nodes.size(), {});
+  for (FastStaNodeId node_id = 0U; node_id < topology.parent_by_node.size(); ++node_id) {
+    const auto parent_id = topology.parent_by_node.at(node_id);
+    if (parent_id < topology.children_by_node.size()) {
+      topology.children_by_node.at(parent_id).push_back(node_id);
+    }
+  }
   return topology;
 }
 
@@ -1034,62 +1070,191 @@ auto generateBatchCandidates(FastStaClockId clock_id, const std::vector<Optimiza
   return candidates;
 }
 
-auto collectFrontierCoverage(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
-                             const FastState& current) -> FrontierCoverage
+auto makeArrivalWindow(const FastState& current, double target_skew_ns) -> ArrivalWindow
 {
-  FrontierCoverage coverage;
-  coverage.late_count_by_buffer.assign(buffers.size(), 0U);
-  coverage.early_count_by_buffer.assign(buffers.size(), 0U);
-  for (const auto side : {FrontierSide::kLate, FrontierSide::kEarly}) {
-    auto& count_by_buffer = side == FrontierSide::kLate ? coverage.late_count_by_buffer : coverage.early_count_by_buffer;
-    const auto frontier_sinks = collectFrontierSinks(clock_id, current, side);
-    for (const auto sink_id : frontier_sinks) {
-      const auto path = collectPathBufferIndices(topology, sink_id);
-      std::unordered_set<std::size_t> visited_buffers;
-      for (const auto buffer_index : path) {
-        if (buffer_index >= count_by_buffer.size() || visited_buffers.contains(buffer_index)) {
-          continue;
-        }
-        visited_buffers.insert(buffer_index);
-        ++count_by_buffer.at(buffer_index);
+  ArrivalWindow window;
+  if (!current.skew.valid) {
+    return window;
+  }
+  window.center_ns = 0.5 * (current.skew.min_arrival_ns + current.skew.max_arrival_ns);
+  window.staged_skew_ns = std::max(target_skew_ns, current.skew.skew_ns * kTargetWindowShrinkRatio);
+  const double half_window_ns = 0.5 * window.staged_skew_ns;
+  window.lower_ns = window.center_ns - half_window_ns;
+  window.upper_ns = window.center_ns + half_window_ns;
+  return window;
+}
+
+auto appendPostOrderFromRoot(FastStaNodeId root_id, const TopologyIndex& topology, std::vector<unsigned char>& visit_state,
+                             std::vector<FastStaNodeId>& post_order) -> void
+{
+  if (root_id >= topology.children_by_node.size() || root_id >= visit_state.size()) {
+    return;
+  }
+  std::vector<std::pair<FastStaNodeId, bool>> pending;
+  pending.emplace_back(root_id, false);
+  while (!pending.empty()) {
+    const auto [node_id, expanded] = pending.back();
+    pending.pop_back();
+    if (node_id >= visit_state.size()) {
+      continue;
+    }
+    if (expanded) {
+      visit_state.at(node_id) = 2U;
+      post_order.push_back(node_id);
+      continue;
+    }
+    if (visit_state.at(node_id) != 0U) {
+      continue;
+    }
+    visit_state.at(node_id) = 1U;
+    pending.emplace_back(node_id, true);
+    if (node_id >= topology.children_by_node.size()) {
+      continue;
+    }
+    const auto& children = topology.children_by_node.at(node_id);
+    for (const auto child_id : children) {
+      if (child_id < visit_state.size() && visit_state.at(child_id) == 0U) {
+        pending.emplace_back(child_id, false);
       }
     }
   }
-  return coverage;
 }
 
-auto scoreSizingAction(const SizingAction& action, const FrontierCoverage& coverage) -> double
+auto collectTopologyPostOrder(const FastStaClockContext& context, const TopologyIndex& topology) -> std::vector<FastStaNodeId>
 {
-  if (action.drive_step == 0 || action.buffer_index >= coverage.late_count_by_buffer.size()
-      || action.buffer_index >= coverage.early_count_by_buffer.size()) {
-    return 0.0;
+  std::vector<FastStaNodeId> post_order;
+  post_order.reserve(context.nodes.size());
+  std::vector<unsigned char> visit_state(context.nodes.size(), 0U);
+  appendPostOrderFromRoot(context.source_node_id, topology, visit_state, post_order);
+  for (FastStaNodeId node_id = 0U; node_id < context.nodes.size(); ++node_id) {
+    if (visit_state.at(node_id) == 0U) {
+      appendPostOrderFromRoot(node_id, topology, visit_state, post_order);
+    }
   }
-  const auto late_count = coverage.late_count_by_buffer.at(action.buffer_index);
-  const auto early_count = coverage.early_count_by_buffer.at(action.buffer_index);
-  const bool late_action = action.drive_step > 0;
-  const auto primary_count = late_action ? late_count : early_count;
-  const auto opposite_count = late_action ? early_count : late_count;
-  if (primary_count == 0U) {
-    return 0.0;
-  }
-
-  const double focus = static_cast<double>(primary_count + 1U) / static_cast<double>(opposite_count + 1U);
-  const auto coverage_weight = static_cast<double>(primary_count);
-  const double drive_weight = 1.0 + 0.25 * static_cast<double>(std::abs(action.drive_step));
-  if (late_action) {
-    const double area_cost = 1.0 + 0.01 * std::max(0.0, action.area_delta_um2);
-    return coverage_weight * focus * drive_weight / area_cost;
-  }
-
-  const double area_bonus = 1.0 + 0.02 * std::max(0.0, -action.area_delta_um2);
-  return coverage_weight * focus * drive_weight * area_bonus;
+  return post_order;
 }
 
-auto scoreScalableBatch(const std::vector<SizingAction>& actions, const FrontierCoverage& coverage) -> double
+auto accumulateWindowStatsFromChild(TopologyWindowStats& stats, FastStaNodeId node_id, FastStaNodeId child_id) -> void
+{
+  if (node_id >= stats.sink_count_by_node.size() || child_id >= stats.sink_count_by_node.size()) {
+    return;
+  }
+  stats.sink_count_by_node.at(node_id) += stats.sink_count_by_node.at(child_id);
+  stats.late_count_by_node.at(node_id) += stats.late_count_by_node.at(child_id);
+  stats.early_count_by_node.at(node_id) += stats.early_count_by_node.at(child_id);
+  stats.late_violation_by_node.at(node_id) += stats.late_violation_by_node.at(child_id);
+  stats.early_violation_by_node.at(node_id) += stats.early_violation_by_node.at(child_id);
+  stats.min_arrival_by_node.at(node_id) = std::min(stats.min_arrival_by_node.at(node_id), stats.min_arrival_by_node.at(child_id));
+  stats.max_arrival_by_node.at(node_id) = std::max(stats.max_arrival_by_node.at(node_id), stats.max_arrival_by_node.at(child_id));
+}
+
+auto buildTopologyWindowStats(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
+                              const ArrivalWindow& window) -> TopologyWindowStats
+{
+  TopologyWindowStats stats;
+  const auto* context = FastStaAdapter::queryClockContext(clock_id);
+  if (context == nullptr) {
+    return stats;
+  }
+
+  const auto node_count = context->nodes.size();
+  stats.sink_count_by_node.assign(node_count, 0U);
+  stats.late_count_by_node.assign(node_count, 0U);
+  stats.early_count_by_node.assign(node_count, 0U);
+  stats.late_violation_by_node.assign(node_count, 0.0);
+  stats.early_violation_by_node.assign(node_count, 0.0);
+  stats.min_arrival_by_node.assign(node_count, std::numeric_limits<double>::infinity());
+  stats.max_arrival_by_node.assign(node_count, -std::numeric_limits<double>::infinity());
+
+  const auto post_order = collectTopologyPostOrder(*context, topology);
+  for (const auto node_id : post_order) {
+    if (node_id >= context->nodes.size()) {
+      continue;
+    }
+    const auto& node = context->nodes.at(node_id);
+    if (node.kind == FastStaNodeKind::kSink && node.timing.valid) {
+      stats.sink_count_by_node.at(node_id) = 1U;
+      stats.min_arrival_by_node.at(node_id) = node.timing.arrival_ns;
+      stats.max_arrival_by_node.at(node_id) = node.timing.arrival_ns;
+      if (node.timing.arrival_ns > window.upper_ns + kEpsilon) {
+        stats.late_count_by_node.at(node_id) = 1U;
+        stats.late_violation_by_node.at(node_id) = node.timing.arrival_ns - window.upper_ns;
+      } else if (node.timing.arrival_ns < window.lower_ns - kEpsilon) {
+        stats.early_count_by_node.at(node_id) = 1U;
+        stats.early_violation_by_node.at(node_id) = window.lower_ns - node.timing.arrival_ns;
+      }
+    }
+    if (node_id >= topology.children_by_node.size()) {
+      continue;
+    }
+    for (const auto child_id : topology.children_by_node.at(node_id)) {
+      accumulateWindowStatsFromChild(stats, node_id, child_id);
+    }
+  }
+
+  for (const auto& buffer : buffers) {
+    const auto node_id = buffer.node_id;
+    if (node_id >= stats.sink_count_by_node.size() || stats.sink_count_by_node.at(node_id) == 0U) {
+      continue;
+    }
+    const auto late_count = stats.late_count_by_node.at(node_id);
+    const auto early_count = stats.early_count_by_node.at(node_id);
+    if (late_count == 0U && early_count == 0U) {
+      ++stats.neutral_buffer_count;
+    } else if (late_count > 0U && early_count == 0U) {
+      ++stats.late_pure_buffer_count;
+    } else if (early_count > 0U && late_count == 0U) {
+      ++stats.early_pure_buffer_count;
+    } else {
+      ++stats.mixed_buffer_count;
+    }
+  }
+  return stats;
+}
+
+auto scoreWindowSizingAction(const SizingAction& action, const std::vector<OptimizableBuffer>& buffers, const TopologyWindowStats& stats,
+                             bool& mixed_rejected) -> double
+{
+  mixed_rejected = false;
+  if (action.drive_step == 0 || action.buffer_index >= buffers.size()) {
+    return 0.0;
+  }
+  const auto node_id = buffers.at(action.buffer_index).node_id;
+  if (node_id >= stats.sink_count_by_node.size() || stats.sink_count_by_node.at(node_id) == 0U) {
+    return 0.0;
+  }
+
+  const bool late_action = action.drive_step > 0;
+  const auto primary_count = late_action ? stats.late_count_by_node.at(node_id) : stats.early_count_by_node.at(node_id);
+  const auto opposite_count = late_action ? stats.early_count_by_node.at(node_id) : stats.late_count_by_node.at(node_id);
+  const double primary_violation = late_action ? stats.late_violation_by_node.at(node_id) : stats.early_violation_by_node.at(node_id);
+  const double opposite_violation = late_action ? stats.early_violation_by_node.at(node_id) : stats.late_violation_by_node.at(node_id);
+  if (primary_count == 0U || primary_violation <= kEpsilon) {
+    return 0.0;
+  }
+
+  const auto active_count = static_cast<double>(primary_count + opposite_count);
+  const double purity = active_count <= 0.0 ? 0.0 : static_cast<double>(primary_count) / active_count;
+  if (opposite_count > 0U
+      && (purity < kMinBranchPurity || opposite_violation > primary_violation * kMaxOppositeViolationRatio + kEpsilon)) {
+    mixed_rejected = true;
+    return 0.0;
+  }
+
+  const double drive_weight = 1.0 + 0.2 * static_cast<double>(std::max(0, std::abs(action.drive_step) - 1));
+  const double count_weight = 1.0 + std::log1p(static_cast<double>(primary_count));
+  const double pure_bonus = opposite_count == 0U ? 1.2 : 1.0;
+  const double area_cost = late_action ? 1.0 + 0.005 * std::max(0.0, action.area_delta_um2) : 1.0;
+  return primary_violation * count_weight * drive_weight * pure_bonus * purity / area_cost;
+}
+
+auto scoreScalableBatch(const std::vector<SizingAction>& actions, const std::vector<OptimizableBuffer>& buffers,
+                        const TopologyWindowStats& stats) -> double
 {
   double score = 0.0;
   for (const auto& action : actions) {
-    score += scoreSizingAction(action, coverage);
+    bool mixed_rejected = false;
+    score += scoreWindowSizingAction(action, buffers, stats, mixed_rejected);
   }
   return score;
 }
@@ -1115,8 +1280,8 @@ auto batchKey(const std::vector<SizingAction>& actions) -> std::string
 }
 
 auto appendScoredBatch(std::vector<ScoredBatchCandidate>& candidates, std::unordered_set<std::string>& seen,
-                       const std::vector<SizingAction>& actions, const FrontierCoverage& coverage,
-                       std::size_t max_action_count = kMaxScalableBatchActions) -> void
+                       const std::vector<SizingAction>& actions, const std::vector<OptimizableBuffer>& buffers,
+                       const TopologyWindowStats& stats, std::size_t max_action_count = kMaxScalableBatchActions) -> void
 {
   if (actions.empty()) {
     return;
@@ -1143,18 +1308,17 @@ auto appendScoredBatch(std::vector<ScoredBatchCandidate>& candidates, std::unord
   if (!seen.insert(key).second) {
     return;
   }
-  const double score = scoreScalableBatch(compact, coverage);
+  const double score = scoreScalableBatch(compact, buffers, stats);
   if (score <= 0.0) {
     return;
   }
   candidates.push_back(ScoredBatchCandidate{.actions = std::move(compact), .score = score});
 }
 
-auto collectScoredActions(const std::vector<OptimizableBuffer>& buffers, const FrontierCoverage& coverage)
-    -> std::vector<ScoredSizingAction>
+auto collectScoredActions(const std::vector<OptimizableBuffer>& buffers, const TopologyWindowStats& stats) -> ScoredActionCollection
 {
-  std::vector<ScoredSizingAction> scored_actions;
-  scored_actions.reserve(buffers.size() * 4U);
+  ScoredActionCollection collection;
+  collection.actions.reserve(buffers.size() * 4U);
   constexpr std::array<unsigned, 3U> rank_steps = {1U, 2U, 3U};
   for (std::size_t buffer_index = 0U; buffer_index < buffers.size(); ++buffer_index) {
     for (const auto rank_step : rank_steps) {
@@ -1163,15 +1327,21 @@ auto collectScoredActions(const std::vector<OptimizableBuffer>& buffers, const F
         if (!action.has_value()) {
           continue;
         }
-        const double score = scoreSizingAction(*action, coverage);
+        ++collection.raw_action_count;
+        bool mixed_rejected = false;
+        const double score = scoreWindowSizingAction(*action, buffers, stats, mixed_rejected);
         if (score > 0.0) {
-          scored_actions.push_back(ScoredSizingAction{.action = std::move(*action), .score = score});
+          collection.actions.push_back(ScoredSizingAction{.action = std::move(*action), .score = score});
+        } else if (mixed_rejected) {
+          ++collection.mixed_rejected_count;
+        } else {
+          ++collection.no_window_rejected_count;
         }
       }
     }
   }
 
-  std::ranges::sort(scored_actions, [](const ScoredSizingAction& lhs, const ScoredSizingAction& rhs) -> bool {
+  std::ranges::sort(collection.actions, [](const ScoredSizingAction& lhs, const ScoredSizingAction& rhs) -> bool {
     if (std::abs(lhs.score - rhs.score) > kEpsilon) {
       return lhs.score > rhs.score;
     }
@@ -1183,15 +1353,50 @@ auto collectScoredActions(const std::vector<OptimizableBuffer>& buffers, const F
     }
     return lhs.action.to_master < rhs.action.to_master;
   });
-  return scored_actions;
+  return collection;
 }
 
-auto selectTopActions(const std::vector<ScoredSizingAction>& scored_actions, int drive_sign, std::size_t max_action_count)
+auto isTopologyAncestor(const TopologyIndex& topology, FastStaNodeId ancestor_id, FastStaNodeId node_id) -> bool
+{
+  if (ancestor_id >= topology.parent_by_node.size() || node_id >= topology.parent_by_node.size()) {
+    return false;
+  }
+  std::size_t step_count = 0U;
+  while (node_id < topology.parent_by_node.size() && step_count <= topology.parent_by_node.size()) {
+    if (node_id == ancestor_id) {
+      return true;
+    }
+    node_id = topology.parent_by_node.at(node_id);
+    ++step_count;
+  }
+  return false;
+}
+
+auto hasTopologySelectionConflict(const TopologyIndex& topology, const std::vector<OptimizableBuffer>& buffers, const SizingAction& action,
+                                  const std::vector<FastStaNodeId>& selected_nodes) -> bool
+{
+  if (action.buffer_index >= buffers.size()) {
+    return true;
+  }
+  const auto candidate_node_id = buffers.at(action.buffer_index).node_id;
+  for (const auto selected_node_id : selected_nodes) {
+    if (selected_node_id == candidate_node_id || isTopologyAncestor(topology, selected_node_id, candidate_node_id)
+        || isTopologyAncestor(topology, candidate_node_id, selected_node_id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+auto selectTopActions(const std::vector<ScoredSizingAction>& scored_actions, const TopologyIndex& topology,
+                      const std::vector<OptimizableBuffer>& buffers, int drive_sign, std::size_t max_action_count)
     -> std::vector<SizingAction>
 {
   std::vector<SizingAction> actions;
   actions.reserve(max_action_count);
   std::unordered_set<std::size_t> used_buffers;
+  std::vector<FastStaNodeId> selected_nodes;
+  selected_nodes.reserve(max_action_count);
   for (const auto& scored_action : scored_actions) {
     if (drive_sign > 0 && scored_action.action.drive_step <= 0) {
       continue;
@@ -1202,7 +1407,11 @@ auto selectTopActions(const std::vector<ScoredSizingAction>& scored_actions, int
     if (used_buffers.contains(scored_action.action.buffer_index)) {
       continue;
     }
+    if (hasTopologySelectionConflict(topology, buffers, scored_action.action, selected_nodes)) {
+      continue;
+    }
     used_buffers.insert(scored_action.action.buffer_index);
+    selected_nodes.push_back(buffers.at(scored_action.action.buffer_index).node_id);
     actions.push_back(scored_action.action);
     if (actions.size() >= max_action_count) {
       break;
@@ -1211,36 +1420,32 @@ auto selectTopActions(const std::vector<ScoredSizingAction>& scored_actions, int
   return actions;
 }
 
-auto mergeActionVectors(std::vector<SizingAction> lhs, const std::vector<SizingAction>& rhs) -> std::vector<SizingAction>
-{
-  lhs.insert(lhs.end(), rhs.begin(), rhs.end());
-  return lhs;
-}
-
 auto normalizedBatchScore(const ScoredBatchCandidate& candidate) -> double
 {
   return candidate.actions.empty() ? 0.0 : candidate.score / std::sqrt(static_cast<double>(candidate.actions.size()));
 }
 
 auto generateScalableBatchCandidates(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
-                                     const FastState& current) -> std::vector<ScoredBatchCandidate>
+                                     const FastState& current, double target_skew_ns) -> std::vector<ScoredBatchCandidate>
 {
   std::vector<ScoredBatchCandidate> candidates;
   std::unordered_set<std::string> seen;
-  const auto coverage = collectFrontierCoverage(clock_id, buffers, topology, current);
-  const auto scored_actions = collectScoredActions(buffers, coverage);
-  constexpr std::array<std::size_t, 7U> batch_sizes = {kMaxScalableBatchActions, 32U, 16U, 8U, 4U, 2U, 1U};
-  for (const auto batch_size : batch_sizes) {
-    appendScoredBatch(candidates, seen, selectTopActions(scored_actions, 1, batch_size), coverage);
-    appendScoredBatch(candidates, seen, selectTopActions(scored_actions, -1, batch_size), coverage);
-    const auto late_actions = selectTopActions(scored_actions, 1, batch_size / 2U);
-    const auto early_actions = selectTopActions(scored_actions, -1, batch_size - late_actions.size());
-    appendScoredBatch(candidates, seen, mergeActionVectors(late_actions, early_actions), coverage);
-  }
+  const auto window = makeArrivalWindow(current, target_skew_ns);
+  const auto stats = buildTopologyWindowStats(clock_id, buffers, topology, window);
+  const auto scored_action_collection = collectScoredActions(buffers, stats);
+  const auto& scored_actions = scored_action_collection.actions;
+  LOG_INFO << "Optimization: scalable target window lower=" << window.lower_ns << " ns, upper=" << window.upper_ns
+           << " ns, staged_skew=" << window.staged_skew_ns << " ns, late_pure_buffers=" << stats.late_pure_buffer_count
+           << ", early_pure_buffers=" << stats.early_pure_buffer_count << ", mixed_buffers=" << stats.mixed_buffer_count
+           << ", neutral_buffers=" << stats.neutral_buffer_count << ", raw_actions=" << scored_action_collection.raw_action_count
+           << ", scored_actions=" << scored_actions.size() << ", mixed_rejected_actions=" << scored_action_collection.mixed_rejected_count
+           << ".";
 
-  const auto conventional_candidates = generateBatchCandidates(clock_id, buffers, topology, current);
-  for (const auto& actions : conventional_candidates) {
-    appendScoredBatch(candidates, seen, actions, coverage, kMaxBatchActions);
+  constexpr std::array<std::size_t, 8U> batch_sizes = {kMaxScalableBatchActions, 32U, 24U, 16U, 8U, 4U, 2U, 1U};
+  for (const auto batch_size : batch_sizes) {
+    appendScoredBatch(candidates, seen, selectTopActions(scored_actions, topology, buffers, 0, batch_size), buffers, stats);
+    appendScoredBatch(candidates, seen, selectTopActions(scored_actions, topology, buffers, 1, batch_size), buffers, stats);
+    appendScoredBatch(candidates, seen, selectTopActions(scored_actions, topology, buffers, -1, batch_size), buffers, stats);
   }
 
   std::ranges::sort(candidates, [](const ScoredBatchCandidate& lhs, const ScoredBatchCandidate& rhs) -> bool {
@@ -1541,7 +1746,7 @@ auto findBestScalableBatchTrial(FastStaClockId clock_id, const std::vector<Optim
 {
   BatchTrial best;
   const auto candidate_start = std::chrono::steady_clock::now();
-  const auto candidates = generateScalableBatchCandidates(clock_id, buffers, topology, current);
+  const auto candidates = generateScalableBatchCandidates(clock_id, buffers, topology, current, target_skew_ns);
   summary.profile.generate_batch_candidates_s += elapsedSeconds(candidate_start);
   summary.profile.generated_candidate_count += candidates.size();
   LOG_INFO << "Optimization: scalable solve iteration " << (summary.iteration_count + 1U)
