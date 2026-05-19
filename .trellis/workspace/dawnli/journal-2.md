@@ -551,3 +551,36 @@ Renamed the CTS FastSTA facade, removed stale STAAdapter char-runtime APIs, unif
 ### Next Steps
 
 - None - task complete
+
+
+## Session 61: Close iCTS code structure optimization follow-ups
+
+**Date**: 2026-05-19
+**Task**: Close iCTS code structure optimization follow-ups
+**Branch**: `cts_refactor`
+
+### Summary
+
+Closed iCTS code-structure follow-ups: kept HTree and optimization root facades minimal, moved internals into semantic subdirectories, updated CMake target wiring and tests, and validated with iCTS dev script plus ecc dev check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `145000a24` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
