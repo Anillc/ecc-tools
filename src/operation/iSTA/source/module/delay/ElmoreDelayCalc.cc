@@ -860,59 +860,31 @@ size_t RcNet::numPins() const { return _net->get_pin_ports().size() - 1; }
  * steps:1、create a rctree 2、insert the node and their capacitance
  * 3、insert the segment(sub net)and resistance
  */
-void RcNet::makeRct(RustSpefNet* rust_spef_net) {
+void RcNet::makeRct(const spef::Net& spef_net) {
   auto& rct = _rct.emplace<RcTree>();
 
   static auto* rc_net_common_info = RcNet::get_rc_net_common_info();
   static auto spef_cap_unit = rc_net_common_info->get_spef_cap_unit();
   static auto uniform_cap_unit = CapacitiveUnit::kPF;
 
-  {
-    void* spef_net_conn;
-    FOREACH_VEC_ELEM(&(rust_spef_net->_conns), void, spef_net_conn) {
-      auto* rust_spef_conn = static_cast<RustSpefConnEntry*>(
-          rust_convert_spef_conn(spef_net_conn));
+  FOREACH_SPEF_CONN(spef_net, conn) {
+    rct.insertNode(conn.pin_port_name,
+                   ConvertCapUnit(spef_cap_unit, uniform_cap_unit,
+                                  conn.load));
+  }
 
-      rct.insertNode(rust_spef_conn->_name,
-                     ConvertCapUnit(spef_cap_unit, uniform_cap_unit,
-                                    rust_spef_conn->_load));
-      rust_free_spef_conn(rust_spef_conn);
+  FOREACH_SPEF_CAP(spef_net, cap) {
+    // Ground cap, otherwise couple cap.
+    if (cap.node2.empty()) {
+      rct.insertNode(cap.node1, ConvertCapUnit(spef_cap_unit, uniform_cap_unit,
+                                               cap.res_or_cap));
+    } else {
+      rct.insertNode(cap.node1, cap.node2, cap.res_or_cap);
     }
   }
 
-  {
-    void* spef_net_cap;
-    FOREACH_VEC_ELEM(&(rust_spef_net->_caps), void, spef_net_cap) {
-      auto* rust_spef_cap = static_cast<RustSpefResCap*>(
-          rust_convert_spef_net_cap_res(spef_net_cap));
-
-      // Ground cap, otherwise couple cap
-      std::string node1 = rust_spef_cap->_node1;
-      std::string node2 = rust_spef_cap->_node2;
-      if (node2.empty()) {
-        rct.insertNode(node1, ConvertCapUnit(spef_cap_unit, uniform_cap_unit,
-                                             rust_spef_cap->_res_or_cap));
-      } else {
-        rct.insertNode(node1, node2, rust_spef_cap->_res_or_cap);
-      }
-
-      rust_free_spef_net_cap_res(rust_spef_cap);
-    }
-  }
-
-  {
-    void* spef_net_res;
-    FOREACH_VEC_ELEM(&(rust_spef_net->_ress), void, spef_net_res) {
-      auto* rust_spef_res = static_cast<RustSpefResCap*>(
-          rust_convert_spef_net_cap_res(spef_net_res));
-
-      std::string node1 = rust_spef_res->_node1;
-      std::string node2 = rust_spef_res->_node2;
-
-      rct.insertSegment(node1, node2, rust_spef_res->_res_or_cap);
-
-      rust_free_spef_net_cap_res(rust_spef_res);
-    }
+  FOREACH_SPEF_RES(spef_net, res) {
+    rct.insertSegment(res.node1, res.node2, res.res_or_cap);
   }
 }
 
@@ -1126,7 +1098,7 @@ void RcNet::updateRcTreeInfo() {
  * @return upadate the delay of each rctree node
  * steps: 1、construce rctree 2、determine the root of rctree 3.update timing
  */
-void RcNet::updateRcTiming(RustSpefNet* spef_net) {
+void RcNet::updateRcTiming(const spef::Net& spef_net) {
   makeRct(spef_net);
   updateRcTreeInfo();
 

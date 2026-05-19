@@ -64,7 +64,7 @@
 #include <memory>
 
 #include "Type.hh"
-#include "spef/SpefParserRustC.hh"
+#include "spef/SpefParser.hh"
 #include "WaveformApproximation.hh"
 #include "log/Log.hh"
 
@@ -667,12 +667,12 @@ class RcNet {
 
   RcTree* rct() { return std::get_if<RcTree>(&_rct); }
   void makeRct() { _rct.emplace<RcTree>(); }
-  virtual void makeRct(RustSpefNet* spef_net);
+  virtual void makeRct(const spef::Net& spef_net);
   void updateRcTreeInfo();
   virtual void dfsTranverse(RctNode* parent, RctNode& node);
   virtual void checkLoop();
   virtual void breakLoop();
-  virtual void updateRcTiming(RustSpefNet* spef_net);
+  virtual void updateRcTiming(const spef::Net& spef_net);
 
   double load();
   double load(AnalysisMode mode, TransType trans_type);
