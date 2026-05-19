@@ -65,6 +65,13 @@ bool staInit(const std::string& output)
   return run_ok;
 }
 
+bool releaseSta()
+{
+  ista::TimingEngine::destroyTimingEngine();
+  ista::Sta::destroySta();
+  return true;
+}
+
 bool staReport(const std::string& output)
 {
   bool run_ok = iplf::tmInst->runSTA(output);
