@@ -53,13 +53,22 @@ void FixFanout::fixIO() {
         idb_design->disconnectPinFromNet(instance_pin);
       }
       // 构建新的net
-      idb::IdbNet *new_net = idb_design->createOrFindNet("fixio_net_" + std::to_string(new_net_idx++));
+      idb::IdbNet *new_net = idb_design->createOrFindNet(idb_design->makeUniqueNetName("fixio_net_" + std::to_string(new_net_idx++)),
+                                                         idb::IdbConnectType::kSignal, idb::IdbCreatePolicy::kErrorIfExists);
+      if (new_net == nullptr) {
+        continue;
+      }
       // 将原instance pin加入新net
       for (idb::IdbPin *instance_pin : instance_pin_list) {
         idb_design->connectPinToNet(instance_pin, new_net);
       }
       // 生成buf
-      idb::IdbInstance *new_buf = idb_design->createInstance("fixio_buf_" + std::to_string(new_buf_idx++), buffer_name);
+      idb::IdbInstance *new_buf = idb_design->createInstance(idb_design->makeUniqueInstanceName("fixio_buf_" + std::to_string(new_buf_idx++)),
+                                                             buffer_name, idb::IdbInstanceType::kTiming, idb::IdbPlacementStatus::kNone,
+                                                             idb::IdbOrient::kNone, 0, 0, idb::IdbCreatePolicy::kErrorIfExists);
+      if (new_buf == nullptr) {
+        continue;
+      }
       // 插入buf
       for (idb::IdbPin *buf_pin : new_buf->get_pin_list()->get_pin_list()) {
         if (buf_pin->get_term()->get_direction() == idb::IdbConnectDirection::kInput ||
@@ -78,10 +87,18 @@ void FixFanout::fixIO() {
       // 在origin net中解开io pin
       idb_design->disconnectPinFromNet(idb_io_pin);
       // 加入原来的io net
-      idb::IdbNet *io_net = idb_design->createOrFindNet(idb_io_pin->get_pin_name());
+      idb::IdbNet *io_net = idb_design->createOrFindNet(idb_io_pin->get_pin_name(), idb::IdbConnectType::kSignal);
+      if (io_net == nullptr) {
+        continue;
+      }
       idb_design->connectPinToNet(idb_io_pin, io_net);
       // 生成buf
-      idb::IdbInstance *new_buf = idb_design->createInstance("fixio_buf_" + std::to_string(new_buf_idx++), buffer_name);
+      idb::IdbInstance *new_buf = idb_design->createInstance(idb_design->makeUniqueInstanceName("fixio_buf_" + std::to_string(new_buf_idx++)),
+                                                             buffer_name, idb::IdbInstanceType::kTiming, idb::IdbPlacementStatus::kNone,
+                                                             idb::IdbOrient::kNone, 0, 0, idb::IdbCreatePolicy::kErrorIfExists);
+      if (new_buf == nullptr) {
+        continue;
+      }
       // 插入buf
       for (idb::IdbPin *buf_pin : new_buf->get_pin_list()->get_pin_list()) {
         if (buf_pin->get_term()->get_direction() == idb::IdbConnectDirection::kInput ||
@@ -115,7 +132,7 @@ void FixFanout::fixFanout() {
         dynamic_cast<ista::TimingIDBAdapter *>(_timing_engine->get_db_adapter());
     IdbNet *db_net = idb_adpat->staToDb(sta_net);
     if (sta_net->isClockNet()) {
-      db_net->set_connect_type(idb::IdbConnectType::kClock);
+      _idb_design->setNetConnectType(db_net->get_net_name(), idb::IdbConnectType::kClock);
       continue;
     }
     if (fanout > _max_fanout) {
@@ -153,7 +170,9 @@ void FixFanout::fixFanout(IdbNet *net) {
     string net_name = ("fanout_net_" + std::to_string(_make_net_index));
     _make_net_index++;
     out_net = makeNet(net_name.c_str());
-    out_net->set_connect_type(idb::IdbConnectType::kSignal);
+    if (out_net == nullptr) {
+      return;
+    }
 
     string buf_name = ("fanout_buf_" + std::to_string(_insert_instance_index));
     _insert_instance_index++;
@@ -161,6 +180,9 @@ void FixFanout::fixFanout(IdbNet *net) {
     auto         insert_buffer = _db_interface->get_insert_buffer();
     IdbInstance *insert_buf = makeInstance(insert_buffer, buf_name.c_str());
     LOG_ERROR_IF(!insert_buf) << "insert buffer uninitialized.";
+    if (insert_buf == nullptr) {
+      return;
+    }
 
     // get buf input_pin and output_pin
     IdbPin  *buf_input_pin = nullptr;
@@ -188,9 +210,17 @@ void FixFanout::fixFanout(IdbNet *net) {
         string out_net_name = out_net->get_net_name();
         const string temp_net_name = "__ino_fanout_swap_" + std::to_string(_make_net_index) + "_"
                                      + std::to_string(_insert_instance_index);
-        _idb_design->renameNet(in_net, temp_net_name);
-        _idb_design->renameNet(out_net, in_net_name);
-        _idb_design->renameNet(in_net, out_net_name);
+        auto* idb_adpat =
+            dynamic_cast<ista::TimingIDBAdapter *>(_timing_engine->get_db_adapter());
+        auto* in_sta_net = idb_adpat == nullptr ? nullptr : idb_adpat->dbToSta(in_net);
+        auto* out_sta_net = idb_adpat == nullptr ? nullptr : idb_adpat->dbToSta(out_net);
+        if (idb_adpat != nullptr && in_sta_net != nullptr && out_sta_net != nullptr) {
+          idb_adpat->swapNetNames(in_sta_net, out_sta_net);
+        } else {
+          _idb_design->renameNet(in_net, temp_net_name);
+          _idb_design->renameNet(out_net, in_net_name);
+          _idb_design->renameNet(in_net, out_net_name);
+        }
         have_switch_name = true;
       }
       // 1
@@ -203,12 +233,14 @@ void FixFanout::fixFanout(IdbNet *net) {
 }
 
 IdbNet *FixFanout::makeNet(const char *name) {
-  string str_name = name;
-  return _idb_design->createOrFindNet(str_name, idb::IdbConnectType::kSignal);
+  string str_name = _idb_design->makeUniqueNetName(name == nullptr ? "fanout_net_" : name);
+  return _idb_design->createOrFindNet(str_name, idb::IdbConnectType::kSignal, idb::IdbCreatePolicy::kErrorIfExists);
 }
 
 IdbInstance *FixFanout::makeInstance(string master_name, string inst_name) {
-  return _idb_design->createInstance(inst_name, master_name);
+  return _idb_design->createInstance(_idb_design->makeUniqueInstanceName(inst_name), master_name, idb::IdbInstanceType::kTiming,
+                                     idb::IdbPlacementStatus::kNone, idb::IdbOrient::kNone, 0, 0,
+                                     idb::IdbCreatePolicy::kErrorIfExists);
 }
 
 void FixFanout::disconnectPin(IdbPin *dpin, IdbNet *dnet) {

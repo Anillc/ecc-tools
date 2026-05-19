@@ -133,9 +133,13 @@ class IdbDesign
                               IdbCreatePolicy policy = IdbCreatePolicy::kReturnExisting);
   bool placeInstance(const std::string& inst_name, int32_t coord_x, int32_t coord_y, IdbOrient orient,
                      IdbPlacementStatus status = IdbPlacementStatus::kPlaced);
+  bool replaceInstanceMaster(const std::string& inst_name, const std::string& master_name, bool preserve_connection = true);
   bool removeInstanceSafe(const std::string& inst_name);
+  std::string makeUniqueInstanceName(const std::string& prefix) const;
   IdbNet* createOrFindNet(const std::string& net_name, IdbConnectType type = IdbConnectType::kNone,
                           IdbCreatePolicy policy = IdbCreatePolicy::kReturnExisting);
+  std::string makeUniqueNetName(const std::string& prefix) const;
+  bool setNetConnectType(const std::string& net_name, IdbConnectType type);
   bool connectPinToNet(IdbPin* pin, IdbNet* net);
   bool connectIoPinToNet(const std::string& io_pin_name, const std::string& net_name);
   bool connectInstancePinToNet(const std::string& inst_name, const std::string& pin_name, const std::string& net_name);

@@ -256,15 +256,14 @@ void RTInterface::cleanDef()
   // 删除net: 虚拟的io_pin与io_cell连接的PAD
   std::vector<std::string> remove_net_list;
   for (idb::IdbNet* idb_net : idb_net_list->get_net_list()) {
-    bool has_io_pin = false;
-    if (idb_net->get_io_pins() != nullptr) {
-      has_io_pin = true;
-    }
+    bool has_io_pin = idb_net != nullptr && idb_net->has_io_pins();
     bool has_io_cell = false;
-    for (idb::IdbInstance* instance : idb_net->get_instance_list()->get_instance_list()) {
-      if (instance->get_cell_master()->is_pad()) {
-        has_io_cell = true;
-        break;
+    if (idb_net != nullptr && idb_net->get_instance_list() != nullptr) {
+      for (idb::IdbInstance* instance : idb_net->get_instance_list()->get_instance_list()) {
+        if (instance != nullptr && instance->get_cell_master() != nullptr && instance->get_cell_master()->is_pad()) {
+          has_io_cell = true;
+          break;
+        }
       }
     }
     if (has_io_pin && has_io_cell) {
@@ -312,9 +311,16 @@ void RTInterface::fixFanout()
       for (std::vector<idb::IdbPin*>& load_pin_list : load_pin_list_list) {
         static size_t new_idx = 0;
         // 生成net
-        idb::IdbNet* new_net = idb_design->createOrFindNet(RTUTIL.getString("rt_fanout_net_", new_idx++));
+        idb::IdbNet* new_net = idb_design->createOrFindNet(idb_design->makeUniqueNetName(RTUTIL.getString("rt_fanout_net_", new_idx++)),
+                                                           idb::IdbConnectType::kSignal, idb::IdbCreatePolicy::kErrorIfExists);
         // 生成buf
-        idb::IdbInstance* new_buf = idb_design->createInstance(RTUTIL.getString("rt_fanout_buf_", new_idx++), RTUTIL.getString("BUFFD3BWP35P140LVT"));
+        idb::IdbInstance* new_buf = idb_design->createInstance(idb_design->makeUniqueInstanceName(RTUTIL.getString("rt_fanout_buf_", new_idx++)),
+                                                               RTUTIL.getString("BUFFD3BWP35P140LVT"), idb::IdbInstanceType::kTiming,
+                                                               idb::IdbPlacementStatus::kNone, idb::IdbOrient::kNone, 0, 0,
+                                                               idb::IdbCreatePolicy::kErrorIfExists);
+        if (new_net == nullptr || new_buf == nullptr) {
+          continue;
+        }
         // 连接buf
         for (idb::IdbPin* buf_pin : new_buf->get_pin_list()->get_pin_list()) {
           if (buf_pin->get_term()->get_type() == idb::IdbConnectType::kPower || buf_pin->get_term()->get_type() == idb::IdbConnectType::kGround) {
@@ -942,9 +948,13 @@ bool RTInterface::isSkipping(idb::IdbNet* idb_net, bool with_log)
     has_io_pin = true;
   }
   bool has_io_cell = false;
-  std::vector<idb::IdbInstance*>& idb_instance_list = idb_net->get_instance_list()->get_instance_list();
-  if (idb_instance_list.size() == 1 && idb_instance_list.front()->get_cell_master()->is_pad()) {
-    has_io_cell = true;
+  if (idb_net->get_instance_list() != nullptr) {
+    std::vector<idb::IdbInstance*>& idb_instance_list = idb_net->get_instance_list()->get_instance_list();
+    if (idb_instance_list.size() == 1) {
+      auto* instance = idb_instance_list.front();
+      auto* cell_master = instance == nullptr ? nullptr : instance->get_cell_master();
+      has_io_cell = cell_master != nullptr && cell_master->is_pad();
+    }
   }
   if (has_io_pin && has_io_cell) {
     return true;
@@ -952,13 +962,13 @@ bool RTInterface::isSkipping(idb::IdbNet* idb_net, bool with_log)
 
   int32_t pin_num = 0;
   for (idb::IdbPin* idb_pin : idb_net->get_instance_pin_list()->get_pin_list()) {
-    if (idb_pin->get_term()->get_port_number() <= 0) {
+    if (idb_pin == nullptr || idb_pin->get_term() == nullptr || idb_pin->get_term()->get_port_number() <= 0) {
       continue;
     }
     pin_num++;
   }
   for (idb::IdbPin* idb_pin : idb_net->get_io_pins()->get_pin_list()) {
-    if (idb_pin->get_term()->get_port_number() <= 0) {
+    if (idb_pin == nullptr || idb_pin->get_term() == nullptr || idb_pin->get_term()->get_port_number() <= 0) {
       continue;
     }
     pin_num++;

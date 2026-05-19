@@ -1,3 +1,6 @@
+# Usage:
+#   ecc -script steps/rtl2gds.tcl gcd
+
 set RTL2GDS 1
 
 set script_dir [file normalize [file dirname [info script]]]

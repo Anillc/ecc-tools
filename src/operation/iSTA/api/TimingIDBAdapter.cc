@@ -413,8 +413,15 @@ Instance* TimingIDBAdapter::createInstance(LibCell* cell, const char* name) {
   IdbCellMasterList* master_list = idb_layout->get_cell_master_list();
   IdbCellMaster* master = master_list->find_cell_master(cell_name);
   if (master) {
+    auto* design_netlist = getNetlist();
+    if (design_netlist->hasInstance(name)) {
+      return nullptr;
+    }
+
     IdbDesign* idb_design = _idb_def_service->get_design();
-    IdbInstance* idb_inst = idb_design->createInstance(name, master->get_name());
+    IdbInstance* idb_inst = idb_design->createInstance(name, master->get_name(), idb::IdbInstanceType::kNone,
+                                                       idb::IdbPlacementStatus::kNone, idb::IdbOrient::kNone, 0, 0,
+                                                       idb::IdbCreatePolicy::kErrorIfExists);
     if (idb_inst == nullptr) {
       return nullptr;
     }
@@ -428,7 +435,6 @@ Instance* TimingIDBAdapter::createInstance(LibCell* cell, const char* name) {
       auto idb_pin = idb_inst->get_pin_list()->find_pin_by_term(pin_name);
       crossRef(inst_pin, idb_pin);
     }
-    auto* design_netlist = getNetlist();
     auto& created_inst = design_netlist->addInstance(std::move(sta_inst));
     crossRef(&created_inst, idb_inst);
 
@@ -490,7 +496,24 @@ void TimingIDBAdapter::substituteCell(Instance* inst, LibCell* cell) {
     return;
   }
 
-  idb_inst->set_cell_master(idb_master);  // TODO: dinst->swapMaster(master)
+  if (!_idb_design->replaceInstanceMaster(idb_inst->get_name(), idb_master->get_name())) {
+    return;
+  }
+
+  Pin* pin;
+  FOREACH_INSTANCE_PIN(inst, pin) {
+    auto* old_dpin = staToDb(pin);
+    if (old_dpin != nullptr) {
+      removeCrossRef(pin, old_dpin);
+    }
+    auto* new_dpin = idb_inst->get_pin_list()->find_pin_by_term(pin->get_name());
+    if (new_dpin == nullptr) {
+      new_dpin = idb_inst->get_pin_list()->find_pin(pin->get_name());
+    }
+    if (new_dpin != nullptr) {
+      crossRef(pin, new_dpin);
+    }
+  }
 }
 
 /**
@@ -718,7 +741,7 @@ Net* TimingIDBAdapter::createNet(const char* name, Instance* /*parent*/) {
   }
 
   std::string str_name = name;
-  IdbNet* dnet = _idb_design->createOrFindNet(str_name, idb::IdbConnectType::kClock);
+  IdbNet* dnet = _idb_design->createOrFindNet(str_name, idb::IdbConnectType::kSignal);
   if (dnet == nullptr) {
     return nullptr;
   }
@@ -865,6 +888,90 @@ void TimingIDBAdapter::deleteNet(Net* sta_net) {
   removeCrossRef(sta_net, dnet);
   design_netlist->removeNet(sta_net);
   _idb_design->removeNetSafe(dnet_name);
+}
+
+bool TimingIDBAdapter::renameNet(Net* sta_net, const std::string& new_name) {
+  if (sta_net == nullptr || new_name.empty()) {
+    return false;
+  }
+
+  IdbNet* dnet = staToDb(sta_net);
+  if (dnet == nullptr) {
+    dnet = _idb_design->get_net_list()->find_net(sta_net->get_name());
+  }
+  if (dnet == nullptr) {
+    return false;
+  }
+
+  const std::string old_name = sta_net->get_name();
+  if (old_name == new_name) {
+    return true;
+  }
+
+  auto* design_netlist = getNetlist();
+  if (design_netlist->findNet(new_name.c_str()) != nullptr) {
+    return false;
+  }
+
+  if (!_idb_design->renameNet(dnet, new_name)) {
+    return false;
+  }
+
+  if (!design_netlist->renameNet(sta_net, new_name.c_str())) {
+    _idb_design->renameNet(dnet, old_name);
+    return false;
+  }
+
+  crossRef(sta_net, dnet);
+  return true;
+}
+
+bool TimingIDBAdapter::swapNetNames(Net* left, Net* right) {
+  if (left == nullptr || right == nullptr || left == right) {
+    return false;
+  }
+
+  const std::string left_name = left->get_name();
+  const std::string right_name = right->get_name();
+  const std::string temp_base = "__ista_swap_net_";
+  std::string temp_name = _idb_design == nullptr ? temp_base : _idb_design->makeUniqueNetName(temp_base);
+  auto* design_netlist = getNetlist();
+  for (uint64_t index = 0; design_netlist->findNet(temp_name.c_str()) != nullptr
+                           || (_idb_design != nullptr && _idb_design->get_net_list()->find_net(temp_name) != nullptr);
+       ++index) {
+    temp_name = temp_base + "_" + std::to_string(index);
+  }
+  if (!renameNet(left, temp_name)) {
+    return false;
+  }
+  if (!renameNet(right, left_name)) {
+    renameNet(left, left_name);
+    return false;
+  }
+  if (!renameNet(left, right_name)) {
+    renameNet(right, right_name);
+    renameNet(left, left_name);
+    return false;
+  }
+
+  return true;
+}
+
+bool TimingIDBAdapter::placeInstance(Instance* inst, int32_t coord_x, int32_t coord_y,
+                                     idb::IdbOrient orient, idb::IdbPlacementStatus status) {
+  if (inst == nullptr) {
+    return false;
+  }
+
+  IdbInstance* idb_inst = staToDb(inst);
+  if (idb_inst == nullptr) {
+    idb_inst = _idb_design->get_instance_list()->find_instance(inst->get_name());
+    if (idb_inst != nullptr) {
+      crossRef(inst, idb_inst);
+    }
+  }
+
+  return idb_inst != nullptr && _idb_design->placeInstance(idb_inst->get_name(), coord_x, coord_y, orient, status);
 }
 
 /**

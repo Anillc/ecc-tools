@@ -250,14 +250,12 @@ bool DataManager::connectNet(IdbNet* net)
 
 bool DataManager::setNetType(string net_name, string type)
 {
-  IdbNetList* net_list_ptr = _design->get_net_list();
-  auto net = net_list_ptr->find_net(net_name);
-  if (net != nullptr) {
-    net->set_connect_type(type);
-    return true;
+  if (_design == nullptr) {
+    return false;
   }
 
-  return false;
+  IdbConnectType connect_type = IdbEnum::GetInstance()->get_connect_property()->get_type(type);
+  return _design->setNetConnectType(net_name, connect_type);
 }
 
 IdbInstance* DataManager::getIoCellByIoPin(IdbPin* io_pin)

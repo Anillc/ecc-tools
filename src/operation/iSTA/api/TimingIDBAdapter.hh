@@ -170,6 +170,10 @@ class TimingIDBAdapter : public TimingDBAdapter {
   Net* createNet(const char* name, std::vector<std::string>& sink_pin_list,
                  idb::IdbConnectType connect_type);
   void deleteNet(Net* sta_net);
+  bool renameNet(Net* sta_net, const std::string& new_name);
+  bool swapNetNames(Net* left, Net* right);
+  bool placeInstance(Instance* inst, int32_t coord_x, int32_t coord_y,
+                     idb::IdbOrient orient, idb::IdbPlacementStatus status);
 
   void crossRef(Instance* sta_inst, IdbInstance* db_inst) {
     _sta2dbInst[sta_inst] = db_inst;

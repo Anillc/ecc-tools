@@ -302,6 +302,104 @@ bool IdbDesign::placeInstance(const std::string& inst_name, int32_t coord_x, int
   return true;
 }
 
+bool IdbDesign::replaceInstanceMaster(const std::string& inst_name, const std::string& master_name, bool preserve_connection)
+{
+  if (_layout == nullptr || _layout->get_cell_master_list() == nullptr || _instance_list == nullptr || inst_name.empty()
+      || master_name.empty()) {
+    return false;
+  }
+
+  IdbInstance* instance = _instance_list->find_instance(inst_name);
+  IdbCellMaster* cell_master = _layout->get_cell_master_list()->find_cell_master(master_name);
+  if (instance == nullptr || cell_master == nullptr) {
+    return false;
+  }
+
+  struct PinConnection
+  {
+    std::string pin_name;
+    std::string term_name;
+    IdbNet* regular_net = nullptr;
+    IdbSpecialNet* special_net = nullptr;
+  };
+
+  std::vector<PinConnection> pin_connections;
+  if (preserve_connection && instance->get_pin_list() != nullptr) {
+    for (auto* pin : instance->get_pin_list()->get_pin_list()) {
+      if (pin == nullptr) {
+        continue;
+      }
+      PinConnection connection;
+      connection.pin_name = pin->get_pin_name();
+      if (pin->get_term() != nullptr) {
+        connection.term_name = pin->get_term_name();
+      }
+      connection.regular_net = pin->get_net();
+      connection.special_net = pin->get_special_net();
+      pin_connections.emplace_back(connection);
+    }
+  }
+
+  if (instance->get_pin_list() != nullptr) {
+    std::vector<IdbPin*> old_pins = instance->get_pin_list()->get_pin_list();
+    for (auto* pin : old_pins) {
+      disconnectPinFromNet(pin);
+      disconnectPinFromSpecialNet(pin);
+    }
+    instance->get_pin_list()->reset();
+  }
+
+  instance->set_cell_master(cell_master);
+  if (preserve_connection && instance->get_pin_list() != nullptr) {
+    for (const auto& connection : pin_connections) {
+      IdbPin* new_pin = nullptr;
+      if (!connection.term_name.empty()) {
+        new_pin = instance->get_pin_by_term(connection.term_name);
+      }
+      if (new_pin == nullptr && !connection.pin_name.empty()) {
+        new_pin = instance->get_pin(connection.pin_name);
+      }
+      if (new_pin == nullptr) {
+        continue;
+      }
+      if (connection.regular_net != nullptr) {
+        connectPinToNet(new_pin, connection.regular_net);
+      }
+      if (connection.special_net != nullptr) {
+        connectPinToSpecialNet(new_pin, connection.special_net);
+      }
+    }
+  }
+
+  if (instance->get_orient() != IdbOrient::kNone && instance->get_status() != IdbPlacementStatus::kNone) {
+    instance->set_bounding_box();
+    instance->set_pin_list_coodinate();
+    instance->set_halo_coodinate();
+    instance->set_obs_box_list();
+  }
+
+  return true;
+}
+
+std::string IdbDesign::makeUniqueInstanceName(const std::string& prefix) const
+{
+  if (_instance_list == nullptr) {
+    return prefix;
+  }
+
+  std::string base_name = prefix.empty() ? "inst" : prefix;
+  if (_instance_list->find_instance(base_name) == nullptr) {
+    return base_name;
+  }
+
+  for (uint64_t index = 0;; ++index) {
+    std::string candidate = base_name + std::to_string(index);
+    if (_instance_list->find_instance(candidate) == nullptr) {
+      return candidate;
+    }
+  }
+}
+
 bool IdbDesign::removeInstanceSafe(const std::string& inst_name)
 {
   if (_instance_list == nullptr) {
@@ -361,6 +459,40 @@ IdbNet* IdbDesign::createOrFindNet(const std::string& net_name, IdbConnectType t
   }
 
   return _net_list->add_net(net_name, type);
+}
+
+std::string IdbDesign::makeUniqueNetName(const std::string& prefix) const
+{
+  if (_net_list == nullptr) {
+    return prefix;
+  }
+
+  std::string base_name = prefix.empty() ? "net" : prefix;
+  if (_net_list->find_net(base_name) == nullptr) {
+    return base_name;
+  }
+
+  for (uint64_t index = 0;; ++index) {
+    std::string candidate = base_name + std::to_string(index);
+    if (_net_list->find_net(candidate) == nullptr) {
+      return candidate;
+    }
+  }
+}
+
+bool IdbDesign::setNetConnectType(const std::string& net_name, IdbConnectType type)
+{
+  if (_net_list == nullptr) {
+    return false;
+  }
+
+  IdbNet* net = _net_list->find_net(net_name);
+  if (net == nullptr) {
+    return false;
+  }
+
+  net->set_connect_type(type);
+  return true;
 }
 
 bool IdbDesign::disconnectPinFromNet(IdbPin* pin)

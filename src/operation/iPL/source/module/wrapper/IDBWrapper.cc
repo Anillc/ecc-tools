@@ -83,9 +83,7 @@ void updateIdbInstancePlacement(IdbDesign* idb_design, IdbInstance* idb_inst, In
   const auto orient = convertToIdbOrient(pl_inst->get_orient());
   const auto coord = pl_inst->get_coordi();
   if (!idb_design->placeInstance(idb_inst->get_name(), coord.get_x(), coord.get_y(), orient, status)) {
-    idb_inst->set_status(status);
-    idb_inst->set_orient(orient);
-    idb_inst->set_coodinate(coord.get_x(), coord.get_y());
+    LOG_ERROR << "[updateIdbInstancePlacement] failed to place iDB inst. inst=" << idb_inst->get_name();
   }
 }
 
