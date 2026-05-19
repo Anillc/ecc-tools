@@ -13,9 +13,7 @@ target_link_libraries(
   icts_source_flow_instantiation_design_conversion
   icts_source_flow_synthesis_htree_characterization_library
   icts_source_flow_synthesis_htree_characterization_wirelength
-  icts_source_flow_synthesis_htree_constraint
   icts_source_flow_synthesis_htree_embedding
-  icts_source_flow_synthesis_htree_segment_pruning
   icts_source_flow_synthesis_trace_topology_result
   icts_source_module
   icts_source_module_topology

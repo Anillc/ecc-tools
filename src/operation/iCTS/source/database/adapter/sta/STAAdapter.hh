@@ -132,7 +132,7 @@ class STAAdapter
  private:
   STAAdapter() = default;
   ~STAAdapter() = default;
-  auto resetStaTransientState() -> void;
+  static auto resetStaTransientState() -> void;
 };
 
 }  // namespace icts

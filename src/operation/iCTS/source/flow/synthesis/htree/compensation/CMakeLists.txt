@@ -1,6 +1,7 @@
 add_library(
   icts_source_flow_synthesis_htree_compensation
   ${ICTS_FLOW_SYNTHESIS_HTREE_COMPENSATION}/RootDriverCompensation.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_COMPENSATION}/RootDriverCompensationLoad.cc
 )
 
 target_link_libraries(

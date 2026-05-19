@@ -45,7 +45,7 @@ auto STAAdapter::init() -> void
 
   timing_engine->set_num_threads(sta_adapter_internal::kStaThreadCount);
   sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta");
-  getInst().resetStaTransientState();
+  resetStaTransientState();
   timing_engine->get_ista()->set_n_worst_path_per_clock(sta_adapter_internal::kWorstPathPerClock);
 }
 

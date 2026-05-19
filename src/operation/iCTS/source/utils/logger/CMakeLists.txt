@@ -1,4 +1,8 @@
-add_library(icts_source_utils_logger ${ICTS_LOGGER}/Schema.cc)
+add_library(
+  icts_source_utils_logger
+  ${ICTS_LOGGER}/Schema.cc
+  ${ICTS_LOGGER}/SchemaScope.cc
+)
 
 target_include_directories(icts_source_utils_logger PUBLIC ${ICTS_LOGGER})
 

@@ -37,6 +37,14 @@ class ClockLayout;
 
 #define FAST_STA_INST (icts::FastSTA::getInst())
 
+}  // namespace icts
+
+namespace icts_test {
+class FastStaTestAccess;
+}  // namespace icts_test
+
+namespace icts {
+
 class FastSTA
 {
  public:
@@ -81,6 +89,8 @@ class FastSTA
   static auto queryClockIds() -> std::vector<FastStaClockId>;
 
  private:
+  friend class ::icts_test::FastStaTestAccess;
+
   FastSTA() = default;
   ~FastSTA() = default;
 

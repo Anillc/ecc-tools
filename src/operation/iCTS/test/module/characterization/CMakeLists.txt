@@ -34,8 +34,14 @@ if(ICTS_BUILD_REALTECH_TESTS AND ICTS_BUILD_SLOW_REALTECH_TESTS)
     REALTECH
     SOURCES
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechSmokeTest.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechComposeSupport.cc
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechExactRegressionTest.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFitSupport.cc
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechFallbackTest.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionComposeRegressionTest.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionGapSupport.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionModelSupport.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechPowerAccountingTest.cc
     LIBS
       icts_test_module_characterization_support
       icts_test_common_realtech_support

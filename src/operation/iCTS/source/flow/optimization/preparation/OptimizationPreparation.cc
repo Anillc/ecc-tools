@@ -21,6 +21,8 @@
  * @brief Preparation helpers for CTS post-synthesis optimization.
  */
 
+#include "optimization/preparation/OptimizationPreparation.hh"
+
 #include <glog/logging.h>
 
 #include <algorithm>
@@ -48,9 +50,9 @@
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
-#include "optimization/OptimizationInternal.hh"
-#include "optimization/OptimizationOptions.hh"
-#include "optimization/OptimizationTypes.hh"
+#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/options/OptimizationOptions.hh"
+#include "optimization/report/OptimizationReport.hh"
 #include "router/Router.hh"
 
 namespace icts::optimization_internal {

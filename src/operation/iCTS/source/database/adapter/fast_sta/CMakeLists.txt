@@ -5,6 +5,9 @@ add_library(
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaChar.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaClockTree.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaDmpCeff.cc
+  ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaDmpCeffEquations.cc
+  ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaDmpCeffShared.cc
+  ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaDmpCeffSolver.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaIncremental.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaLiberty.cc
   ${ICTS_DATABASE_ADAPTER_FAST_STA}/FastStaParasitics.cc

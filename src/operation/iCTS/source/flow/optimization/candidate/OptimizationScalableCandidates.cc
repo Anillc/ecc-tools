@@ -40,9 +40,10 @@
 #include "FastSta.hh"
 #include "FastStaTypes.hh"
 #include "Log.hh"
-#include "optimization/OptimizationInternal.hh"
-#include "optimization/OptimizationOptions.hh"
-#include "optimization/OptimizationTypes.hh"
+#include "optimization/candidate/OptimizationCandidates.hh"
+#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/options/OptimizationOptions.hh"
+#include "optimization/state/OptimizationState.hh"
 
 namespace icts::optimization_internal {
 

@@ -20,7 +20,10 @@ add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SEGMENT_PRUNING})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_TOPOLOGY_PRUNING})
 
-add_library(icts_source_flow_synthesis_htree ${ICTS_FLOW_SYNTHESIS_HTREE}/HTree.cc)
+add_library(
+  icts_source_flow_synthesis_htree
+  ${ICTS_FLOW_SYNTHESIS_HTREE}/HTree.cc
+)
 
 target_link_libraries(
   icts_source_flow_synthesis_htree
@@ -30,19 +33,8 @@ target_link_libraries(
   icts_source_utils
   PRIVATE
   icts_source_flow_synthesis_htree_characterization
-  icts_source_flow_synthesis_htree_analytical_solver
-  icts_source_flow_synthesis_htree_characterization_library
-  icts_source_flow_synthesis_htree_constraint
-  icts_source_flow_synthesis_htree_embedding
   icts_source_flow_synthesis_htree_plan
-  icts_source_flow_synthesis_htree_region
-  icts_source_flow_synthesis_htree_segment_pruning
   icts_source_flow_synthesis_htree_solution
-  icts_source_flow_synthesis_htree_topology_pruning
-  icts_source_flow_synthesis_htree_compensation
-  icts_source_module_analytical_characterization
-  icts_source_module_topology
-  icts_source_module_topology_clustering
 )
 
 target_include_directories(

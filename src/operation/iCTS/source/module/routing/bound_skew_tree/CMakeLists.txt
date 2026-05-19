@@ -1,10 +1,13 @@
 add_library(
   icts_source_module_routing_bst
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouter.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouterBinaryTopology.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouterExport.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTree.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeBalance.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeEmbedding.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeFlow.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeInfeasibleMerge.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeJoining.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeTopology.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/Components.cc

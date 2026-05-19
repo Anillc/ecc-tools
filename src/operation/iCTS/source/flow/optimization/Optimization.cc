@@ -39,9 +39,12 @@
 #include "design/Design.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "optimization/OptimizationInternal.hh"
-#include "optimization/OptimizationOptions.hh"
-#include "optimization/OptimizationTypes.hh"
+#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/mutation/OptimizationMutation.hh"
+#include "optimization/options/OptimizationOptions.hh"
+#include "optimization/preparation/OptimizationPreparation.hh"
+#include "optimization/report/OptimizationReport.hh"
+#include "optimization/solver/OptimizationSolver.hh"
 
 namespace icts {
 namespace oi = optimization_internal;

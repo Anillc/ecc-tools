@@ -26,9 +26,11 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ValueLattice.hh"
+#include "synthesis/htree/HTree.hh"
 
 namespace icts {
 class HTreeTopologyChar;
@@ -39,6 +41,7 @@ class Tree;
 namespace icts::htree {
 
 struct BufferPatternLibrary;
+struct DepthSearchResult;
 struct TopologyPatternLibrary;
 
 struct RootDriverCompensationDetail
@@ -154,5 +157,13 @@ class RootDriverCompensationPass
   struct Impl;
   std::unique_ptr<Impl> _impl;
 };
+
+inline constexpr double kRootDriverCompensationClockPeriodNs = 10.0;
+
+auto ResolveRootDriverCompensationInputSlewNs(const HTree::BuildOptions& options, double max_slew_ns) -> double;
+auto ResolveRootDriverClockPeriod(const HTree::BuildOptions& options) -> std::pair<double, std::string>;
+auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const DepthSearchResult& exploration,
+                                       const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
+    -> void;
 
 }  // namespace icts::htree

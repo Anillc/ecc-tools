@@ -99,5 +99,6 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
                                    const UniformValueLattice& cap_lattice, unsigned char_slew_steps, bool used_explicit_target_depth,
                                    const RootDriverCompensationOptions& compensation_options,
                                    const HTreeFanoutPruningOptions& fanout_options) -> DepthSearchResult;
+auto EmitDepthCandidateSummary(const std::vector<DepthSummary>& depth_summaries) -> void;
 
 }  // namespace icts::htree

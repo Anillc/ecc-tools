@@ -1,23 +1,39 @@
+set(ICTS_FLOW_OPTIMIZATION_CANDIDATE ${ICTS_FLOW_OPTIMIZATION}/candidate)
+set(ICTS_FLOW_OPTIMIZATION_MODEL ${ICTS_FLOW_OPTIMIZATION}/model)
+set(ICTS_FLOW_OPTIMIZATION_MUTATION ${ICTS_FLOW_OPTIMIZATION}/mutation)
+set(ICTS_FLOW_OPTIMIZATION_OPTIONS ${ICTS_FLOW_OPTIMIZATION}/options)
+set(ICTS_FLOW_OPTIMIZATION_PREPARATION ${ICTS_FLOW_OPTIMIZATION}/preparation)
+set(ICTS_FLOW_OPTIMIZATION_REPORT ${ICTS_FLOW_OPTIMIZATION}/report)
+set(ICTS_FLOW_OPTIMIZATION_SOLVER ${ICTS_FLOW_OPTIMIZATION}/solver)
+set(ICTS_FLOW_OPTIMIZATION_STATE ${ICTS_FLOW_OPTIMIZATION}/state)
+
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_MODEL})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_OPTIONS})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_REPORT})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_PREPARATION})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_CANDIDATE})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_STATE})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_SOLVER})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_MUTATION})
+
 add_library(
   icts_source_flow_optimization
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationCandidates.cc
   ${ICTS_FLOW_OPTIMIZATION}/Optimization.cc
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationMutation.cc
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationOptions.cc
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationPreparation.cc
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationReport.cc
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationScalableCandidates.cc
-  ${ICTS_FLOW_OPTIMIZATION}/OptimizationSolver.cc
 )
 
 target_link_libraries(
   icts_source_flow_optimization
-  PUBLIC
+  PRIVATE
   icts_source_database_adapter_fast_sta
   icts_source_module_routing
-  PRIVATE
   icts_source_database
   icts_source_database_design
+  icts_source_flow_optimization_model
+  icts_source_flow_optimization_mutation
+  icts_source_flow_optimization_options
+  icts_source_flow_optimization_preparation
+  icts_source_flow_optimization_report
+  icts_source_flow_optimization_solver
   icts_source_flow_synthesis_htree_characterization_library
   icts_source_utils
 )

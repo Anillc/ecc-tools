@@ -1,6 +1,12 @@
 set(ICTS_FLOW_SYNTHESIS_HTREE_ANALYTICAL_SOLVER_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalCandidate.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSelection.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolver.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverCandidateBuild.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverModel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverRequest.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverShortlist.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverTrim.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalValidation.cc
 )
 
@@ -15,6 +21,7 @@ target_link_libraries(
   icts_source_database_spatial
   icts_source_module_analytical_characterization
   PRIVATE
+  icts_source_utils
 )
 
 target_include_directories(

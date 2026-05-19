@@ -21,6 +21,8 @@
  * @brief Committed design mutation helpers for CTS post-synthesis optimization.
  */
 
+#include "optimization/mutation/OptimizationMutation.hh"
+
 #include <glog/logging.h>
 
 #include <map>
@@ -36,8 +38,7 @@
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Pin.hh"
-#include "optimization/OptimizationInternal.hh"
-#include "optimization/OptimizationTypes.hh"
+#include "optimization/model/OptimizationTypes.hh"
 
 namespace icts::optimization_internal {
 

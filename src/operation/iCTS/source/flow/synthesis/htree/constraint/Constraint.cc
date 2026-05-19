@@ -62,4 +62,14 @@ auto HasBoundaryConstraints(const BoundaryConstraints& constraints) -> bool
   return constraints.top_input_slew_covering_idx.has_value();
 }
 
+auto ResolvePatternSearchBoundaryConstraints(const BoundaryConstraints& base_constraints, bool strict_root_boundary_closure)
+    -> BoundaryConstraints
+{
+  auto constraints = base_constraints;
+  if (strict_root_boundary_closure) {
+    constraints.top_input_slew_covering_idx = std::nullopt;
+  }
+  return constraints;
+}
+
 }  // namespace icts::htree

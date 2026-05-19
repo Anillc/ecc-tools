@@ -21,6 +21,8 @@
  * @brief Candidate generation helpers for CTS post-synthesis optimization.
  */
 
+#include "optimization/candidate/OptimizationCandidates.hh"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -36,9 +38,9 @@
 
 #include "FastSta.hh"
 #include "FastStaTypes.hh"
-#include "optimization/OptimizationInternal.hh"
-#include "optimization/OptimizationOptions.hh"
-#include "optimization/OptimizationTypes.hh"
+#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/options/OptimizationOptions.hh"
+#include "optimization/preparation/OptimizationPreparation.hh"
 
 namespace icts::optimization_internal {
 

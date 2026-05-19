@@ -222,7 +222,7 @@ auto STAAdapter::refreshFullDesignTimingContext() -> void
 
   timing_engine->set_num_threads(sta_adapter_internal::kStaThreadCount);
   sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta");
-  getInst().resetStaTransientState();
+  resetStaTransientState();
   timing_engine->get_db_adapter()->convertDBToTimingNetlist();
   sta_adapter_internal::LoadConfiguredSdcIfPresent(timing_engine);
   timing_engine->buildGraph();

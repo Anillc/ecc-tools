@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <limits>
 #include <ostream>
 #include <utility>
 #include <vector>
@@ -579,93 +578,4 @@ auto BoundSkewTree::calcSkewSlope(const Area& current_area) const -> double
   LOG_FATAL << "line is not horizontal or vertical";
   return 0.0;
 }
-auto BoundSkewTree::constructInfeasibleMergeRegion(Area* parent) const -> void
-{
-  calcMinSkewSection(parent);
-  calcDetourEdgeLength(parent);
-  refineMergeRegionDelay(parent);
-}
-auto BoundSkewTree::calcMinSkewSection(Area* current_area) const -> void
-{
-  auto min_skew = std::numeric_limits<double>::max();
-  auto min_skew_side = kLeft;
-  FOR_EACH_BST_SIDE(side)
-  {
-    auto min_side_point_skew = std::numeric_limits<double>::max();
-    std::ranges::for_each(joiningRegionPoints(side),
-                          [&](const Point& point) -> void { min_side_point_skew = std::min(min_side_point_skew, pointSkew(point)); });
-    if (min_side_point_skew < min_skew) {
-      min_skew = min_side_point_skew;
-      min_skew_side = side;
-    }
-  }
-  std::ranges::for_each(joiningRegionPoints(min_skew_side), [&](const Point& point) -> void {
-    if (Equal(pointSkew(point), min_skew)) {
-      current_area->add_merge_region_point(point);
-    }
-  });
-}
-auto BoundSkewTree::calcDetourEdgeLength(Area* current_area) const -> void
-{
-  const auto left_line = current_area->get_line(kLeft);
-  const auto right_line = current_area->get_line(kRight);
-  auto left_point = linePoint(left_line, kHead);
-  auto right_point = linePoint(right_line, kHead);
-  left_point.val = current_area->get_left()->get_cap_load();
-  right_point.val = current_area->get_right()->get_cap_load();
-  auto delta = pointSkew(current_area->get_merge_region().front()) - _skew_bound;
-  LOG_FATAL_IF(delta <= 0) << "remain skew less than 0";
-  auto [horizontal_distance, vertical_distance] = calcManhattanDistanceComponents(left_point, right_point);
-  if (left_point.max > right_point.max) {
-    right_point.max = left_point.max - delta - calcDelayIncrease(horizontal_distance, vertical_distance, right_point.val, _pattern);
-    BalancePointResult result;
-    calcBalanceBetweenPoints(BalancePointQuery{.first_point = left_point,
-                                               .second_point = right_point,
-                                               .timing_type = kMax,
-                                               .balance_ref_axis = BalanceRefAxis::kX,
-                                               .pattern = _pattern},
-                             result);
-    LOG_FATAL_IF(result.distance_to_first > kEpsilon) << "dist to left_point should be zero";
-    current_area->set_edge_len(kLeft, 0);
-    current_area->set_edge_len(kRight, result.distance_to_second);
-  } else {
-    left_point.max = right_point.max - delta - calcDelayIncrease(horizontal_distance, vertical_distance, left_point.val, _pattern);
-    BalancePointResult result;
-    calcBalanceBetweenPoints(BalancePointQuery{.first_point = left_point,
-                                               .second_point = right_point,
-                                               .timing_type = kMax,
-                                               .balance_ref_axis = BalanceRefAxis::kX,
-                                               .pattern = _pattern},
-                             result);
-    LOG_FATAL_IF(result.distance_to_second > kEpsilon) << "dist to right_point should be zero";
-    current_area->set_edge_len(kLeft, result.distance_to_first);
-    current_area->set_edge_len(kRight, 0);
-  }
-}
-auto BoundSkewTree::refineMergeRegionDelay(Area* current_area) const -> void
-{
-  auto merge_region = current_area->get_merge_region();
-  std::ranges::for_each(merge_region, [&](Point& point) -> void { point.min = point.max - _skew_bound; });
-  current_area->set_merge_region(merge_region);
-}
-auto BoundSkewTree::constructTransformedRectMergeRegion(Area* current_area) const -> void
-{
-  TransformedRect left_transformed_rect;
-  Geom::buildTransformedRect(mergeSegment(kLeft), current_area->get_edge_len(kLeft), left_transformed_rect);
-  TransformedRect right_transformed_rect;
-  Geom::buildTransformedRect(mergeSegment(kRight), current_area->get_edge_len(kRight), right_transformed_rect);
-
-  TransformedRect intersect;
-  Geom::makeIntersection(left_transformed_rect, right_transformed_rect, intersect);
-  Geom::transformedRectCore(intersect, intersect);
-  Region merge_region;
-  Geom::transformedRectToRegion(intersect, merge_region);
-  const auto reference_point = current_area->get_merge_region().front();
-  std::ranges::for_each(merge_region, [&](Point& point) -> void {
-    point.min = reference_point.min;
-    point.max = reference_point.max;
-  });
-  current_area->set_merge_region(merge_region);
-}
-
 }  // namespace icts::bst

@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "FastSta.hh"
 #include "FastStaDmpCeff.hh"
 #include "FastStaIncremental.hh"
 #include "FastStaParasitics.hh"
@@ -36,8 +37,24 @@
 #include "FastStaTiming.hh"
 #include "FastStaTypes.hh"
 #include "database/config/Config.hh"
+#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/preparation/OptimizationPreparation.hh"
 
 namespace icts_test {
+
+class FastStaTestAccess
+{
+ public:
+  static auto registerClockContext(icts::FastStaClockContext context) -> icts::FastStaClockId
+  {
+    auto& fast_sta = icts::FastSTA::getInst();
+    const auto clock_id = fast_sta._clock_contexts.size();
+    fast_sta._clock_contexts.push_back(std::move(context));
+    fast_sta._clock_context_valid.push_back(true);
+    return clock_id;
+  }
+};
+
 namespace {
 
 auto MakeAxis(icts::FastStaLibertyAxisKind kind, std::vector<double> values) -> icts::FastStaLibertyAxis
@@ -194,6 +211,23 @@ class ScopedRootInputSlew
  private:
   double _original_root_input_slew_ns = 0.0;
 };
+
+class ScopedFastSTAContexts
+{
+ public:
+  ScopedFastSTAContexts() { icts::FastSTA::clear(); }
+  ~ScopedFastSTAContexts() { icts::FastSTA::clear(); }
+
+  ScopedFastSTAContexts(const ScopedFastSTAContexts& rhs) = delete;
+  ScopedFastSTAContexts(ScopedFastSTAContexts&& rhs) = delete;
+  auto operator=(const ScopedFastSTAContexts& rhs) -> ScopedFastSTAContexts& = delete;
+  auto operator=(ScopedFastSTAContexts&& rhs) -> ScopedFastSTAContexts& = delete;
+};
+
+auto RegisterClockContext(icts::FastStaClockContext context) -> icts::FastStaClockId
+{
+  return FastStaTestAccess::registerClockContext(std::move(context));
+}
 
 auto MakeTinyContext() -> icts::FastStaClockContext
 {
@@ -397,6 +431,83 @@ TEST(FastSTATest, SourceBoundaryNetUsesNormalNetLoadAndCapFields)
   EXPECT_NEAR(source_boundary_net.load_cap_pf, 0.20, 1e-12);
   EXPECT_NEAR(source_boundary_net.max_cap_pf, 0.15, 1e-12);
   EXPECT_GT(source_boundary_net.load_cap_pf, source_boundary_net.max_cap_pf);
+}
+
+TEST(FastSTATest, QueryCapStatusReportsSourceBoundaryAsNormalNetCap)
+{
+  const ScopedFastSTAContexts fast_sta_contexts;
+  auto context = MakeTinyContext();
+  context.nets.at(0U).load_cap_pf = 0.20;
+  context.nets.at(0U).max_cap_pf = 0.15;
+
+  const auto clock_id = RegisterClockContext(std::move(context));
+  const auto cap_status = icts::FastSTA::queryCapStatus(clock_id, 0U);
+
+  if (!cap_status.has_value()) {
+    ADD_FAILURE() << "Expected source-boundary cap status.";
+    return;
+  }
+  const auto& cap = *cap_status;
+  EXPECT_EQ(cap.net_id, 0U);
+  EXPECT_EQ(cap.net_name, "clk_net");
+  EXPECT_NEAR(cap.load_cap_pf, 0.20, 1e-12);
+  EXPECT_NEAR(cap.max_cap_pf, 0.15, 1e-12);
+  EXPECT_TRUE(cap.violated);
+}
+
+TEST(FastSTATest, QuerySlewStatusDistinguishesBufferInputAndSinkRoles)
+{
+  const ScopedFastSTAContexts fast_sta_contexts;
+  auto context = MakeTinyContext();
+  context.nodes.at(1U).max_slew_ns = 0.50;
+  context.nodes.at(1U).timing = icts::FastStaTimingPoint{.arrival_ns = 0.1, .slew_ns = 0.60, .valid = true};
+  context.nodes.at(3U).max_slew_ns = 0.30;
+  context.nodes.at(3U).timing = icts::FastStaTimingPoint{.arrival_ns = 0.8, .slew_ns = 0.35, .valid = true};
+
+  const auto clock_id = RegisterClockContext(std::move(context));
+  const auto buffer_status = icts::FastSTA::querySlewStatus(clock_id, 1U);
+  const auto sink_status = icts::FastSTA::querySlewStatus(clock_id, 3U);
+
+  if (!buffer_status.has_value()) {
+    ADD_FAILURE() << "Expected buffer input slew status.";
+    return;
+  }
+  const auto& buffer = *buffer_status;
+  EXPECT_EQ(buffer.role, icts::FastStaSlewRole::kBufferInput);
+  EXPECT_NEAR(buffer.slew_ns, 0.60, 1e-12);
+  EXPECT_NEAR(buffer.max_slew_ns, 0.50, 1e-12);
+  EXPECT_TRUE(buffer.violated);
+
+  if (!sink_status.has_value()) {
+    ADD_FAILURE() << "Expected sink slew status.";
+    return;
+  }
+  const auto& sink = *sink_status;
+  EXPECT_EQ(sink.role, icts::FastStaSlewRole::kSink);
+  EXPECT_NEAR(sink.slew_ns, 0.35, 1e-12);
+  EXPECT_NEAR(sink.max_slew_ns, 0.30, 1e-12);
+  EXPECT_TRUE(sink.violated);
+}
+
+TEST(FastSTATest, CollectSlewBaselinePreservesBufferInputAndSinkRoles)
+{
+  const ScopedFastSTAContexts fast_sta_contexts;
+  auto context = MakeTinyContext();
+  context.nodes.at(1U).max_slew_ns = 0.50;
+  context.nodes.at(1U).timing = icts::FastStaTimingPoint{.arrival_ns = 0.1, .slew_ns = 0.60, .valid = true};
+  context.nodes.at(3U).max_slew_ns = 0.30;
+  context.nodes.at(3U).timing = icts::FastStaTimingPoint{.arrival_ns = 0.8, .slew_ns = 0.25, .valid = true};
+
+  const auto clock_id = RegisterClockContext(std::move(context));
+  const auto baseline = icts::optimization_internal::CollectSlewBaseline(clock_id);
+
+  ASSERT_GT(baseline.size(), 3U);
+  EXPECT_TRUE(baseline.at(1U).available);
+  EXPECT_EQ(baseline.at(1U).role, icts::FastStaSlewRole::kBufferInput);
+  EXPECT_TRUE(baseline.at(1U).violated);
+  EXPECT_TRUE(baseline.at(3U).available);
+  EXPECT_EQ(baseline.at(3U).role, icts::FastStaSlewRole::kSink);
+  EXPECT_FALSE(baseline.at(3U).violated);
 }
 
 TEST(FastSTATest, PiElmoreReductionPropagatesDownstreamCapAndElmore)

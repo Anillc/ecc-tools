@@ -1,4 +1,10 @@
-add_library(icts_source_database_io ${ICTS_DATABASE_IO}/Wrapper.cc)
+add_library(
+  icts_source_database_io
+  ${ICTS_DATABASE_IO}/Wrapper.cc
+  ${ICTS_DATABASE_IO}/WrapperClockReader.cc
+  ${ICTS_DATABASE_IO}/WrapperClockWriter.cc
+  ${ICTS_DATABASE_IO}/WrapperClockWriterSupport.cc
+)
 
 target_include_directories(
   icts_source_database_io

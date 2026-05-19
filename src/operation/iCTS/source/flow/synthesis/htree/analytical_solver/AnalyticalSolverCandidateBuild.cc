@@ -1,0 +1,307 @@
+// ***************************************************************************************
+// Copyright (c) 2023-2025 Peng Cheng Laboratory
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
+// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+//
+// iEDA is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+// http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+//
+// See the Mulan PSL v2 for more details.
+// ***************************************************************************************
+/**
+ * @file AnalyticalSolverCandidateBuild.cc
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-05-19
+ * @brief Analytical H-tree solver beam candidate construction.
+ */
+
+#include <algorithm>
+#include <cstddef>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "AnalyticalModel.hh"
+#include "Frontier.hh"
+#include "HTreeTopologyChar.hh"
+#include "PatternId.hh"
+#include "synthesis/htree/HTree.hh"
+#include "synthesis/htree/analytical_solver/AnalyticalCandidate.hh"
+#include "synthesis/htree/analytical_solver/AnalyticalSolver.hh"
+#include "synthesis/htree/analytical_solver/AnalyticalSolverInternal.hh"
+#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/topology_pruning/TopologyPruning.hh"
+
+namespace icts::htree::analytical_solver {
+namespace {
+
+auto EvaluatePartialRootToLeaf(const AnalyticalSolverRequest& request, PartialAnalyticalCandidate& partial, AnalyticalSolverResult& result)
+    -> bool
+{
+  if (partial.level_segment_pattern_ids.size() != request.levels->size() || partial.level_load_caps_pf.size() != request.levels->size()) {
+    return false;
+  }
+  if (request.options.use_functional_unit_compose && partial.level_unit_pattern_ids.size() != request.levels->size()) {
+    return false;
+  }
+
+  double current_slew_ns = ResolveModelInputRootSlewNs(request);
+  double accumulated_delay_ns = 0.0;
+  double accumulated_power_w = 0.0;
+  double conservative_delay_ns = 0.0;
+  double conservative_power_w = 0.0;
+  double root_source_cap_pf = 0.0;
+  std::vector<AnalyticalSegmentChoice> trace;
+  trace.reserve(partial.level_segment_pattern_ids.size());
+
+  for (std::size_t level_index = 0U; level_index < partial.level_segment_pattern_ids.size(); ++level_index) {
+    const auto pattern_id = partial.level_segment_pattern_ids.at(level_index);
+    const auto length_idx = request.levels->at(level_index).aligned_length_idx;
+    const double load_cap_pf = partial.level_load_caps_pf.at(level_index);
+    std::optional<ScoredSegment> scored;
+    if (request.options.use_functional_unit_compose) {
+      scored = ScoreFunctionalUnitSequence(request, partial.level_unit_pattern_ids.at(level_index), pattern_id, length_idx, current_slew_ns,
+                                           load_cap_pf, false, result);
+    } else {
+      const auto* model_set = request.model_catalog->find(AnalyticalModelKey{
+          .pattern_id = pattern_id,
+          .length_idx = length_idx,
+      });
+      if (model_set == nullptr || !model_set->isComplete()) {
+        ++result.missing_model_count;
+        return false;
+      }
+      scored = ScoreModelSet(pattern_id, length_idx, *model_set, current_slew_ns, load_cap_pf, false);
+    }
+    if (!scored.has_value()) {
+      if (!request.options.use_functional_unit_compose) {
+        ++result.metric_evaluation_rejected_count;
+      }
+      return false;
+    }
+
+    if (level_index == 0U) {
+      root_source_cap_pf = scored->source_cap_pf;
+    }
+    trace.push_back(MakeSegmentChoice(level_index, *scored));
+    accumulated_delay_ns += scored->delay_ns;
+    accumulated_power_w = AccumulateHTreePower(accumulated_power_w, level_index, *scored);
+    conservative_delay_ns += scored->delay_upper_ns;
+    conservative_power_w = AccumulateHTreePower(conservative_power_w, level_index, *scored);
+    current_slew_ns = scored->output_slew_ns;
+  }
+
+  partial.current_slew_ns = current_slew_ns;
+  partial.root_source_cap_pf = root_source_cap_pf;
+  partial.accumulated_delay_ns = accumulated_delay_ns;
+  partial.accumulated_power_w = accumulated_power_w;
+  partial.conservative_delay_ns = conservative_delay_ns;
+  partial.conservative_power_w = conservative_power_w;
+  partial.trace = std::move(trace);
+  return true;
+}
+
+auto BuildCandidateFromPartial(const AnalyticalSolverRequest& request, PartialAnalyticalCandidate partial, AnalyticalSolverResult& result)
+    -> std::optional<AnalyticalCandidate>
+{
+  ++result.materialization_attempt_count;
+  if (!EvaluatePartialRootToLeaf(request, partial, result)) {
+    return std::nullopt;
+  }
+
+  AnalyticalCandidate candidate;
+  candidate.depth = static_cast<unsigned>(request.levels->size());
+  candidate.leaf_load_cap_pf = request.options.representative_leaf_load_cap_pf;
+  candidate.root_input_slew_ns = request.options.root_input_slew_ns;
+  candidate.leaf_count = candidate.depth >= sizeof(std::size_t) * 8U ? 0U : (std::size_t{1U} << candidate.depth);
+  candidate.level_segment_pattern_ids = std::move(partial.level_segment_pattern_ids);
+  candidate.trace = std::move(partial.trace);
+  candidate.output_slew_ns = partial.current_slew_ns;
+  candidate.root_source_cap_pf = partial.root_source_cap_pf;
+  candidate.raw_delay_ns = partial.accumulated_delay_ns;
+  candidate.raw_power_w = partial.accumulated_power_w;
+  candidate.conservative_slew_ns = partial.current_slew_ns;
+  candidate.conservative_delay_ns = partial.conservative_delay_ns;
+  candidate.conservative_power_w = partial.conservative_power_w;
+  candidate.branch_buffer_legal = true;
+  const auto* segment_pattern_library = ResolveSegmentPatternLibrary(request);
+  if (segment_pattern_library == nullptr) {
+    candidate.rejection_reason = "missing_segment_pattern_library";
+    return std::nullopt;
+  }
+  auto topology_pattern_library
+      = BuildAnalyticalTopologyPattern(candidate.level_segment_pattern_ids, *segment_pattern_library, request.fanout_options.max_fanout);
+  if (!topology_pattern_library.has_value()) {
+    candidate.rejection_reason = "topology_pattern_composition_illegal";
+    ++result.root_fanout_rejected_count;
+    return std::nullopt;
+  }
+  candidate.topology_pattern_library = std::move(*topology_pattern_library);
+  const PatternId topology_pattern_id = PatternId::topology(
+      candidate.topology_pattern_library.nodes.empty() ? 0U : static_cast<unsigned>(candidate.topology_pattern_library.nodes.size() - 1U));
+  const auto composition_state = candidate.topology_pattern_library.getCompositionState(topology_pattern_id);
+  candidate.fanout_legal = IsBinarySourceFanoutLegal(composition_state.source_exposed_load_count, request.fanout_options.max_fanout);
+  if (!candidate.fanout_legal) {
+    candidate.rejection_reason = "root_fanout_illegal";
+    ++result.root_fanout_rejected_count;
+    return std::nullopt;
+  }
+  candidate.materialized_char = MaterializeAnalyticalTopologyChar(candidate, request.slew_lattice, request.cap_lattice);
+  if (!candidate.materialized_char.has_value()) {
+    candidate.rejection_reason = "materialized_char_out_of_lattice";
+    ++result.lattice_rejected_count;
+    return std::nullopt;
+  }
+  return candidate;
+}
+
+auto BuildDiagnosticDirectCandidate(const AnalyticalSolverRequest& request, FunctionalComposeContext& functional_context,
+                                    AnalyticalSolverResult& result) -> std::optional<AnalyticalCandidate>
+{
+  if (!request.options.use_functional_unit_compose || request.options.diagnostic_segment_pattern_ids.empty() || request.levels == nullptr
+      || request.options.diagnostic_segment_pattern_ids.size() != request.levels->size()) {
+    return std::nullopt;
+  }
+
+  PartialAnalyticalCandidate partial;
+  partial.current_slew_ns = ResolveModelInputRootSlewNs(request);
+  partial.upstream_load_cap_pf = request.options.representative_leaf_load_cap_pf;
+  for (std::size_t reverse_level_index = request.levels->size(); reverse_level_index > 0U; --reverse_level_index) {
+    const std::size_t level_index = reverse_level_index - 1U;
+    const auto pattern_id = request.options.diagnostic_segment_pattern_ids.at(level_index);
+    const auto unit_pattern_ids = DecomposePatternToUnitSequence(pattern_id, request, functional_context);
+    if (unit_pattern_ids.empty()) {
+      return std::nullopt;
+    }
+    auto composition_state = TryPrependCompositionState(request, partial, pattern_id);
+    if (!composition_state.has_value()) {
+      return std::nullopt;
+    }
+    partial.has_composition_state = true;
+    partial.composition_state = *composition_state;
+    partial.level_segment_pattern_ids.insert(partial.level_segment_pattern_ids.begin(), pattern_id);
+    partial.level_unit_pattern_ids.insert(partial.level_unit_pattern_ids.begin(), unit_pattern_ids);
+    partial.level_load_caps_pf.insert(partial.level_load_caps_pf.begin(), partial.upstream_load_cap_pf);
+    auto scored = ScoreFunctionalUnitSequence(request, unit_pattern_ids, pattern_id, request.levels->at(level_index).aligned_length_idx,
+                                              ResolveModelInputRootSlewNs(request), partial.upstream_load_cap_pf,
+                                              request.options.use_conservative_scoring, result);
+    if (!scored.has_value()) {
+      return std::nullopt;
+    }
+    partial.upstream_load_cap_pf = scored->source_cap_pf * 2.0;
+  }
+
+  auto candidate = BuildCandidateFromPartial(request, std::move(partial), result);
+  if (!candidate.has_value() || !candidate->materialized_char.has_value()) {
+    return std::nullopt;
+  }
+  ++result.diagnostic_direct_candidate_count;
+  result.diagnostic_direct_delay_ns = candidate->materialized_char->get_delay();
+  result.diagnostic_direct_power_w = candidate->materialized_char->get_power();
+  result.diagnostic_direct_root_cap_pf = candidate->root_source_cap_pf;
+  result.diagnostic_direct_input_slew_idx = candidate->materialized_char->get_input_slew_idx();
+  result.diagnostic_direct_output_slew_idx = candidate->materialized_char->get_output_slew_idx();
+  result.diagnostic_direct_driven_cap_idx = candidate->materialized_char->get_driven_cap_idx();
+  return candidate;
+}
+
+}  // namespace
+
+auto BuildBeamCandidates(const AnalyticalSolverRequest& request, AnalyticalSolverResult& result) -> std::vector<AnalyticalCandidate>
+{
+  const double model_input_root_slew_ns = ResolveModelInputRootSlewNs(request);
+  FunctionalComposeContext functional_context;
+  FunctionalComposeContext* functional_context_ptr = nullptr;
+  if (request.options.use_functional_unit_compose) {
+    functional_context.unit_models = CollectUnitModelRefs(request);
+    if (functional_context.unit_models.empty()) {
+      result.first_empty_reason = "empty_unit_model_catalog";
+      return {};
+    }
+    functional_context.unit_pattern_by_cell_master_and_terminal_semantic
+        = BuildUnitPatternByCellMaster(request, functional_context.unit_models);
+    const auto* segment_pattern_library = ResolveSegmentPatternLibrary(request);
+    functional_context.next_segment_pattern_id
+        = segment_pattern_library == nullptr ? 0U : ResolveNextSegmentPatternId(*segment_pattern_library);
+    functional_context_ptr = &functional_context;
+    (void) BuildDiagnosticDirectCandidate(request, functional_context, result);
+  }
+  PartialAnalyticalCandidate seed_candidate;
+  seed_candidate.current_slew_ns = model_input_root_slew_ns;
+  seed_candidate.upstream_load_cap_pf = request.options.representative_leaf_load_cap_pf;
+  std::vector<PartialAnalyticalCandidate> beam = {std::move(seed_candidate)};
+
+  const std::size_t beam_width = std::max<std::size_t>(1U, request.options.top_k_per_depth);
+  for (std::size_t reverse_level_index = request.levels->size(); reverse_level_index > 0U; --reverse_level_index) {
+    const std::size_t level_index = reverse_level_index - 1U;
+    const auto& level = request.levels->at(level_index);
+    std::vector<PartialAnalyticalCandidate> next_beam;
+    for (const auto& partial : beam) {
+      const double level_load_cap_pf = partial.upstream_load_cap_pf;
+      auto shortlist = ShortlistSegmentsForLevel(request, level, model_input_root_slew_ns, level_index, level_load_cap_pf,
+                                                 functional_context_ptr, result);
+      if (shortlist.empty()) {
+        ++result.empty_shortlist_count;
+        if (result.first_empty_reason.empty()) {
+          result.first_empty_level_index = static_cast<unsigned>(level_index);
+          result.first_empty_length_idx = level.aligned_length_idx;
+          result.first_empty_reason = "empty_level_shortlist";
+        }
+      }
+      for (const auto& selected : shortlist) {
+        auto composition_state = TryPrependCompositionState(request, partial, selected.pattern_id);
+        if (!composition_state.has_value()) {
+          ++result.root_fanout_rejected_count;
+          continue;
+        }
+        auto expanded = partial;
+        expanded.has_composition_state = true;
+        expanded.composition_state = *composition_state;
+        expanded.level_segment_pattern_ids.insert(expanded.level_segment_pattern_ids.begin(), selected.pattern_id);
+        if (request.options.use_functional_unit_compose) {
+          expanded.level_unit_pattern_ids.insert(expanded.level_unit_pattern_ids.begin(), selected.unit_pattern_ids);
+        }
+        expanded.level_load_caps_pf.insert(expanded.level_load_caps_pf.begin(), level_load_cap_pf);
+        expanded.accumulated_delay_ns += selected.delay_ns;
+        expanded.accumulated_power_w += selected.power_w;
+        expanded.conservative_delay_ns += selected.delay_upper_ns;
+        expanded.conservative_power_w += selected.power_upper_w;
+        expanded.current_slew_ns = selected.output_slew_ns;
+        expanded.upstream_load_cap_pf = selected.source_cap_pf * 2.0;
+        next_beam.push_back(std::move(expanded));
+      }
+    }
+    beam = TrimPartialCandidates(std::move(next_beam), beam_width);
+    if (beam.empty()) {
+      return {};
+    }
+  }
+
+  std::vector<AnalyticalCandidate> candidates;
+  candidates.reserve(beam.size());
+  for (auto& partial : beam) {
+    auto candidate = BuildCandidateFromPartial(request, std::move(partial), result);
+    if (candidate.has_value()) {
+      if (candidate->level_segment_pattern_ids == request.options.diagnostic_segment_pattern_ids) {
+        ++result.diagnostic_generated_candidate_count;
+      }
+      candidates.push_back(std::move(*candidate));
+      ++result.generated_candidate_count;
+    }
+  }
+  std::ranges::sort(candidates, PreferAnalyticalCandidate);
+  if (request.options.top_k_per_depth > 0U && candidates.size() > request.options.top_k_per_depth) {
+    candidates.resize(request.options.top_k_per_depth);
+  }
+  return candidates;
+}
+
+}  // namespace icts::htree::analytical_solver

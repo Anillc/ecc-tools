@@ -46,5 +46,7 @@ struct BoundaryConstraints
 auto CoveringBoundaryIndex(double value, const UniformValueLattice& lattice) -> std::optional<unsigned>;
 auto ResolveBoundaryConstraints(const HTree::BuildOptions& options, const CharBuilder& char_builder) -> BoundaryConstraints;
 auto HasBoundaryConstraints(const BoundaryConstraints& constraints) -> bool;
+auto ResolvePatternSearchBoundaryConstraints(const BoundaryConstraints& base_constraints, bool strict_root_boundary_closure)
+    -> BoundaryConstraints;
 
 }  // namespace icts::htree

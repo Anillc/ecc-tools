@@ -2,6 +2,7 @@ add_library(
   icts_source_flow_synthesis_htree_plan
   ${ICTS_FLOW_SYNTHESIS_HTREE_PLAN}/Plan.cc
   ${ICTS_FLOW_SYNTHESIS_HTREE_PLAN}/DepthPlan.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_PLAN}/DepthPlanReport.cc
 )
 
 target_link_libraries(

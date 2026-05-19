@@ -1,4 +1,9 @@
-add_library(icts_source_flow_evaluation_qor ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluation.cc)
+add_library(
+  icts_source_flow_evaluation_qor
+  ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluation.cc
+  ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluationMetrics.cc
+  ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluationRootProbe.cc
+)
 
 target_link_libraries(
   icts_source_flow_evaluation_qor

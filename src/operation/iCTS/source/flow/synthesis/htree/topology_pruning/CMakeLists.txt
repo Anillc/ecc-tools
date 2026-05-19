@@ -1,6 +1,7 @@
 add_library(
   icts_source_flow_synthesis_htree_topology_pruning
   ${ICTS_FLOW_SYNTHESIS_HTREE_TOPOLOGY_PRUNING}/TopologyPruning.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_TOPOLOGY_PRUNING}/TopologyPruningGlobalSelection.cc
 )
 
 target_link_libraries(

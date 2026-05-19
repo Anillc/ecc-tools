@@ -4,4 +4,5 @@ icts_add_test_executable(
     ${ICTS_TEST}/database/adapter/fast_sta/FastSTATest.cc
   LIBS
     icts_source_database_adapter_fast_sta
+    icts_source_flow_optimization_preparation
 )

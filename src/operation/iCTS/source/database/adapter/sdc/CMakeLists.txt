@@ -1,7 +1,14 @@
 add_library(
   icts_source_database_adapter_sdc
+  ${ICTS_SOURCE}/database/adapter/sdc/ClockTracePins.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/ClockTraceReport.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/ClockTraceResolve.cc
   ${ICTS_SOURCE}/database/adapter/sdc/ClockTraceResolver.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockCommands.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockEvaluator.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockParser.cc
   ${ICTS_SOURCE}/database/adapter/sdc/SdcClockReader.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockValue.cc
 )
 
 target_include_directories(

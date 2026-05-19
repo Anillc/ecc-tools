@@ -2,6 +2,7 @@ add_library(
   icts_test_common_realtech_asset_loader
   STATIC
   ${ICTS_TEST}/common/realtech/asset/RealTechAssetLoader.cc
+  ${ICTS_TEST}/common/realtech/asset/RealTechPinCapProbe.cc
 )
 
 target_link_libraries(

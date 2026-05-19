@@ -21,7 +21,7 @@
  * @brief Optimizer-owned policy defaults for CTS post-synthesis optimization.
  */
 
-#include "optimization/OptimizationOptions.hh"
+#include "optimization/options/OptimizationOptions.hh"
 
 namespace icts::optimization_internal {
 

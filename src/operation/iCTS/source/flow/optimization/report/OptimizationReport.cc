@@ -21,6 +21,8 @@
  * @brief Report and schema helpers for CTS post-synthesis optimization.
  */
 
+#include "optimization/report/OptimizationReport.hh"
+
 #include <chrono>
 #include <cstddef>
 #include <map>
@@ -32,8 +34,7 @@
 #include "design/Clock.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "optimization/OptimizationInternal.hh"
-#include "optimization/OptimizationTypes.hh"
+#include "optimization/model/OptimizationTypes.hh"
 
 namespace icts::optimization_internal {
 

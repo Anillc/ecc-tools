@@ -12,6 +12,7 @@ if(ICTS_BUILD_REALTECH_TESTS)
     REALTECH
     SOURCES
       ${ICTS_TEST}/flow/synthesis/TopologyVisualizationSupport.cc
+      ${ICTS_TEST}/flow/synthesis/TopologyVisualizationSvg.cc
       ${ICTS_TEST}/flow/synthesis/TopologyNonClusteredRealTechSmokeTest.cc
       ${ICTS_TEST}/flow/synthesis/TopologyRealTechMatrixSupport.cc
       ${ICTS_TEST}/flow/synthesis/TopologyRealTechMatrixTest.cc
