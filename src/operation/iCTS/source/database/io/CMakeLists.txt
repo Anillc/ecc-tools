@@ -1,3 +1,4 @@
+set(CMAKE_BUILD_TYPE "Debug")
 add_library(icts_source_database_io ${ICTS_DATABASE_IO}/Wrapper.cc)
 
 target_include_directories(

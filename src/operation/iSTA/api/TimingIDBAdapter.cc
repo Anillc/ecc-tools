@@ -32,6 +32,36 @@
 
 namespace ista {
 
+namespace {
+
+void detachStaPinPort(DesignObject* pin_or_port) {
+  if (pin_or_port == nullptr) {
+    return;
+  }
+
+  if (auto* old_net = pin_or_port->get_net(); old_net != nullptr) {
+    old_net->removePinPort(pin_or_port);
+  }
+}
+
+bool attachStaPinPort(Net* net, DesignObject* pin_or_port) {
+  if (net == nullptr || pin_or_port == nullptr) {
+    return false;
+  }
+
+  if (auto* old_net = pin_or_port->get_net(); old_net != nullptr && old_net != net) {
+    old_net->removePinPort(pin_or_port);
+  }
+
+  if (!net->isNetPinPort(pin_or_port)) {
+    net->addPinPort(pin_or_port);
+  }
+
+  return true;
+}
+
+}  // namespace
+
 bool TimingIDBAdapter::isPlaced(DesignObject* pin_or_port) {
   IdbPlacementStatus status = IdbPlacementStatus::kUnplaced;
   if (pin_or_port->isPin()) {
@@ -374,6 +404,10 @@ IdbTerm* TimingIDBAdapter::staToDb(LibPort* port) const {
  *
  */
 Instance* TimingIDBAdapter::createInstance(LibCell* cell, const char* name) {
+  if (cell == nullptr || name == nullptr) {
+    return nullptr;
+  }
+
   const char* cell_name = cell->get_cell_name();
   IdbLayout* idb_layout = _idb_lef_service->get_layout();
   IdbCellMasterList* master_list = idb_layout->get_cell_master_list();
@@ -381,6 +415,9 @@ Instance* TimingIDBAdapter::createInstance(LibCell* cell, const char* name) {
   if (master) {
     IdbDesign* idb_design = _idb_def_service->get_design();
     IdbInstance* idb_inst = idb_design->createInstance(name, master->get_name());
+    if (idb_inst == nullptr) {
+      return nullptr;
+    }
 
     Instance sta_inst(name, cell);
     LibPort* library_port;
@@ -406,8 +443,15 @@ Instance* TimingIDBAdapter::createInstance(LibCell* cell, const char* name) {
  * @param instance_name
  */
 void TimingIDBAdapter::deleteInstance(const char* instance_name) {
+  if (instance_name == nullptr) {
+    return;
+  }
+
   auto* design_netlist = getNetlist();
   auto* the_instance = design_netlist->findInstance(instance_name);
+  if (the_instance == nullptr) {
+    return;
+  }
 
   IdbDesign* idb_design = _idb_def_service->get_design();
   IdbInstance* idb_instance = staToDb(the_instance);
@@ -416,12 +460,17 @@ void TimingIDBAdapter::deleteInstance(const char* instance_name) {
   Pin* pin;
   FOREACH_INSTANCE_PIN(the_instance, pin) {
     auto* db_pin = staToDb(pin);
-    removeCrossRef(pin, db_pin);
+    detachStaPinPort(pin);
+    if (db_pin != nullptr) {
+      removeCrossRef(pin, db_pin);
+    }
   }
 
+  if (idb_instance != nullptr) {
+    removeCrossRef(the_instance, idb_instance);
+  }
   design_netlist->removeInstance(instance_name);
   idb_design->removeInstanceSafe(idb_inst_name);
-  removeCrossRef(the_instance, idb_instance);
 }
 
 /**
@@ -431,8 +480,16 @@ void TimingIDBAdapter::deleteInstance(const char* instance_name) {
  * @param cell
  */
 void TimingIDBAdapter::substituteCell(Instance* inst, LibCell* cell) {
+  if (inst == nullptr || cell == nullptr) {
+    return;
+  }
+
   IdbCellMaster* idb_master = staToDb(cell);
   IdbInstance* idb_inst = staToDb(inst);
+  if (idb_inst == nullptr || idb_master == nullptr) {
+    return;
+  }
+
   idb_inst->set_cell_master(idb_master);  // TODO: dinst->swapMaster(master)
 }
 
@@ -445,6 +502,10 @@ void TimingIDBAdapter::substituteCell(Instance* inst, LibCell* cell) {
  * @return Pin*
  */
 Pin* TimingIDBAdapter::attach(Instance* inst, const char* port_name, Net* net) {
+  if (inst == nullptr || port_name == nullptr || net == nullptr) {
+    return nullptr;
+  }
+
   IdbNet* dnet = staToDb(net);
   if (!dnet) {
     dnet = _idb_design->get_net_list()->find_net(net->get_name());
@@ -454,6 +515,9 @@ Pin* TimingIDBAdapter::attach(Instance* inst, const char* port_name, Net* net) {
       dnet = _idb_design->get_net_list()->find_net(idb_net_name);
       LOG_FATAL_IF(!dnet) << "idb net " << net->get_name() << "is not found.";
     }
+    if (dnet != nullptr) {
+      crossRef(net, dnet);
+    }
   }
   // const char* port_name = port->get_port_name();
   Pin* pin = nullptr;
@@ -461,12 +525,26 @@ Pin* TimingIDBAdapter::attach(Instance* inst, const char* port_name, Net* net) {
   if (!dinst) {
     dinst = _idb_design->get_instance_list()->find_instance(inst->get_name());
   }
+  if (dinst == nullptr) {
+    return nullptr;
+  }
+
   auto& dpin_list = dinst->get_pin_list()->get_pin_list();
   for (auto dpin : dpin_list) {
     if (dpin->get_pin_name() == port_name) {
-      _idb_design->connectPinToNet(dpin, dnet);
       pin = dbToStaPin(dpin);
-      net->addPinPort(pin);
+      if (pin == nullptr) {
+        auto sta_pin = inst->getPin(port_name);
+        if (sta_pin) {
+          pin = *sta_pin;
+          crossRef(pin, dpin);
+        }
+      }
+      if (pin == nullptr || !_idb_design->connectPinToNet(dpin, dnet)) {
+        return nullptr;
+      }
+
+      attachStaPinPort(net, pin);
       break;
     }
   }
@@ -483,16 +561,34 @@ Pin* TimingIDBAdapter::attach(Instance* inst, const char* port_name, Net* net) {
  * @return Port*
  */
 Port* TimingIDBAdapter::attach(Port* port, const char* port_name, Net* net) {
+  if (port == nullptr || port_name == nullptr || net == nullptr) {
+    return nullptr;
+  }
+
   IdbNet* dnet = staToDb(net);
   if (!dnet) {
     dnet = _idb_design->get_net_list()->find_net(net->get_name());
+    if (dnet != nullptr) {
+      crossRef(net, dnet);
+    }
   }
+  if (dnet == nullptr) {
+    return nullptr;
+  }
+
   // const char* port_name = port->get_port_name();
   IdbPin* dport = staToDb(port);
+  if (dport == nullptr) {
+    dport = _idb_design->get_io_pin_list()->find_pin(port->get_name());
+    if (dport != nullptr) {
+      crossRef(port, dport);
+    }
+  }
 
-  if (dport->get_pin_name() == port_name) {
-    _idb_design->connectPinToNet(dport, dnet);
-    net->addPinPort(port);
+  if (dport != nullptr && dport->get_pin_name() == port_name && _idb_design->connectPinToNet(dport, dnet)) {
+    attachStaPinPort(net, port);
+  } else {
+    return nullptr;
   }
 
   return port;
@@ -504,26 +600,34 @@ Port* TimingIDBAdapter::attach(Port* port, const char* port_name, Net* net) {
  * @param pin
  */
 void TimingIDBAdapter::disattachPin(Pin* pin) {
+  if (pin == nullptr) {
+    return;
+  }
+
   auto* sta_net = pin->get_net();
-  sta_net->removePinPort(pin);
   IdbPin* dpin = staToDb(pin);
 
   if (!dpin) {
-    auto* dnet = _idb_design->get_net_list()->find_net(sta_net->get_name());
-    if (!dnet) {
-      std::string sta_net_name = sta_net->get_name();
-      std::string idb_net_name = changeStaBusNetNameToIdb(sta_net_name);
-      dnet = _idb_design->get_net_list()->find_net(idb_net_name);
-      LOG_FATAL_IF(!dnet) << "idb net " << sta_net->get_name()
-                          << "is not found.";
+    if (auto* sta_inst = pin->get_own_instance(); sta_inst != nullptr) {
+      auto* idb_instance = _idb_design->get_instance_list()->find_instance(sta_inst->getFullName());
+      if (idb_instance == nullptr) {
+        idb_instance = _idb_design->get_instance_list()->find_instance(sta_inst->get_name());
+      }
+      if (idb_instance != nullptr) {
+        dpin = idb_instance->get_pin_list()->find_pin_by_term(pin->get_name());
+        if (dpin != nullptr) {
+          crossRef(pin, dpin);
+        }
+      }
     }
-    auto* idb_instance = _idb_design->get_instance_list()->find_instance(
-        pin->get_own_instance()->getFullName());
-    dpin = idb_instance->get_pin_list()->find_pin_by_term(pin->get_name());
-    _idb_design->disconnectPinFromNet(dpin);
+  }
 
-  } else {
+  if (dpin != nullptr) {
     _idb_design->disconnectPinFromNet(dpin);
+  }
+
+  if (sta_net != nullptr) {
+    sta_net->removePinPort(pin);
   }
 }
 
@@ -533,6 +637,10 @@ void TimingIDBAdapter::disattachPin(Pin* pin) {
  * @param pin
  */
 void TimingIDBAdapter::disattachPinPort(DesignObject* pin_or_port) {
+  if (pin_or_port == nullptr) {
+    return;
+  }
+
   if (pin_or_port->isPin()) {
     disattachPin(dynamic_cast<Pin*>(pin_or_port));
   } else {
@@ -546,9 +654,11 @@ void TimingIDBAdapter::disattachPinPort(DesignObject* pin_or_port) {
     LOG_FATAL_IF(!dpin) << "dpin " << pin_or_port->get_name()
                         << " is not found.";
 
-    _idb_design->disconnectPinFromNet(dpin);
+    if (dpin != nullptr) {
+      _idb_design->disconnectPinFromNet(dpin);
+    }
 
-    pin_or_port->get_net()->removePinPort(pin_or_port);
+    detachStaPinPort(pin_or_port);
   }
 }
 
@@ -560,17 +670,38 @@ void TimingIDBAdapter::disattachPinPort(DesignObject* pin_or_port) {
  */
 void TimingIDBAdapter::reattachPin(Net* net, Pin* old_connect_pin,
                                    std::vector<Pin*> new_connect_pins) {
+  if (net == nullptr) {
+    return;
+  }
+
   IdbNet* dnet = staToDb(net);
+  if (dnet == nullptr) {
+    dnet = _idb_design->get_net_list()->find_net(net->get_name());
+  }
+  if (dnet == nullptr) {
+    return;
+  }
+
   IdbPin* old_dpin = staToDb(old_connect_pin);
 
-  old_connect_pin->set_net(nullptr);
-  net->removePinPort(old_connect_pin);
+  if (old_dpin != nullptr) {
+    _idb_design->disconnectPinFromNet(old_dpin);
+  }
+  detachStaPinPort(old_connect_pin);
 
-  _idb_design->disconnectPinFromNet(old_dpin);
   for (auto* new_connect_pin : new_connect_pins) {
+    if (new_connect_pin == nullptr) {
+      continue;
+    }
+
     IdbPin* new_dpin = staToDb(new_connect_pin);
-    _idb_design->connectPinToNet(new_dpin, dnet);
-    net->addPinPort(new_connect_pin);
+    if (new_dpin == nullptr) {
+      continue;
+    }
+
+    if (_idb_design->connectPinToNet(new_dpin, dnet)) {
+      attachStaPinPort(net, new_connect_pin);
+    }
   }
 }
 
@@ -582,9 +713,22 @@ void TimingIDBAdapter::reattachPin(Net* net, Pin* old_connect_pin,
  * @return Net*
  */
 Net* TimingIDBAdapter::createNet(const char* name, Instance* /*parent*/) {
+  if (name == nullptr) {
+    return nullptr;
+  }
+
   std::string str_name = name;
   IdbNet* dnet = _idb_design->createOrFindNet(str_name, idb::IdbConnectType::kClock);
+  if (dnet == nullptr) {
+    return nullptr;
+  }
+
   auto* design_netlist = getNetlist();
+  if (auto* existed_net = design_netlist->findNet(name); existed_net != nullptr) {
+    crossRef(existed_net, dnet);
+    return existed_net;
+  }
+
   auto& created_net = design_netlist->addNet(Net(name));
   crossRef(&created_net, dnet);
   return &created_net;
@@ -599,9 +743,22 @@ Net* TimingIDBAdapter::createNet(const char* name, Instance* /*parent*/) {
  */
 Net* TimingIDBAdapter::createNet(const char* name, Instance* /*parent*/,
                                  idb::IdbConnectType connect_type) {
+  if (name == nullptr) {
+    return nullptr;
+  }
+
   std::string str_name = name;
   IdbNet* dnet = _idb_design->createOrFindNet(str_name, connect_type);
+  if (dnet == nullptr) {
+    return nullptr;
+  }
+
   auto* design_netlist = getNetlist();
+  if (auto* existed_net = design_netlist->findNet(name); existed_net != nullptr) {
+    crossRef(existed_net, dnet);
+    return existed_net;
+  }
+
   auto& created_net = design_netlist->addNet(Net(name));
   crossRef(&created_net, dnet);
   return &created_net;
@@ -618,9 +775,28 @@ Net* TimingIDBAdapter::createNet(const char* name, Instance* /*parent*/,
 Net* TimingIDBAdapter::createNet(const char* name,
                                  std::vector<std::string>& sink_pin_list,
                                  idb::IdbConnectType connect_type) {
+  if (name == nullptr) {
+    return nullptr;
+  }
+
   std::string str_name = name;
   IdbNet* dnet = _idb_design->createOrFindNet(str_name, connect_type);
+  if (dnet == nullptr) {
+    return nullptr;
+  }
+
   auto* design_netlist = getNetlist();
+  if (auto* existed_net = design_netlist->findNet(name); existed_net != nullptr) {
+    for (auto* pin_port : existed_net->get_pin_ports()) {
+      if (auto* db_pin = pin_port->isPin() ? staToDb(dynamic_cast<Pin*>(pin_port)) : staToDb(dynamic_cast<Port*>(pin_port));
+          db_pin != nullptr) {
+        _idb_design->connectPinToNet(db_pin, dnet);
+      }
+    }
+    crossRef(existed_net, dnet);
+    return existed_net;
+  }
+
   Net new_net = Net(name);
   for (const auto& sink_pin_name : sink_pin_list) {
     auto [instance_name, instance_pin_name] =
@@ -628,23 +804,32 @@ Net* TimingIDBAdapter::createNet(const char* name,
     if (!instance_pin_name.empty()) {
       Instance* instance = design_netlist->findInstance(instance_name.c_str());
       LOG_FATAL_IF(!instance)
-          << "instance: " << instance->getFullName() << " not found.";
+          << "instance: " << instance_name << " not found.";
       std::optional<Pin*> pin = instance->getPin(instance_pin_name.c_str());
-      if (pin) {
-        new_net.addPinPort(*pin);
-      } else {
-        LOG_FATAL << "pin: " << (*pin)->getFullName() << " not found.";
-      }
+      LOG_FATAL_IF(!pin)
+          << "pin: " << instance_name << "/" << instance_pin_name
+          << " not found.";
 
       auto* idb_instance =
           _idb_design->get_instance_list()->find_instance(instance_name);
+      LOG_FATAL_IF(!idb_instance)
+          << "idb instance: " << instance_name << " not found.";
       auto* idb_pin =
           idb_instance->get_pin_list()->find_pin_by_term(instance_pin_name);
 
-      _idb_design->connectPinToNet(idb_pin, dnet);
+      if (_idb_design->connectPinToNet(idb_pin, dnet)) {
+        new_net.addPinPort(*pin);
+        crossRef(*pin, idb_pin);
+      }
     } else {
       auto* idb_pin = _idb_design->get_io_pin_list()->find_pin(sink_pin_name);
-      _idb_design->connectPinToNet(idb_pin, dnet);
+      if (_idb_design->connectPinToNet(idb_pin, dnet)) {
+        auto* design_port = design_netlist->findPort(sink_pin_name.c_str());
+        if (design_port != nullptr) {
+          new_net.addPinPort(design_port);
+          crossRef(design_port, idb_pin);
+        }
+      }
     }
   }
   auto& created_net = design_netlist->addNet(std::move(new_net));
@@ -658,13 +843,27 @@ Net* TimingIDBAdapter::createNet(const char* name,
  * @param sta_net
  */
 void TimingIDBAdapter::deleteNet(Net* sta_net) {
-  IdbNet* dnet = _idb_design->get_net_list()->find_net(sta_net->get_name());
+  if (sta_net == nullptr) {
+    return;
+  }
+
+  IdbNet* dnet = staToDb(sta_net);
+  if (dnet == nullptr) {
+    dnet = _idb_design->get_net_list()->find_net(sta_net->get_name());
+  }
+  if (dnet == nullptr) {
+    return;
+  }
+
+  const std::string dnet_name = dnet->get_net_name();
+  auto pin_ports = sta_net->get_pin_ports();
+  for (auto* pin_port : pin_ports) {
+    detachStaPinPort(pin_port);
+  }
 
   auto* design_netlist = getNetlist();
-  design_netlist->removeNet(sta_net);
   removeCrossRef(sta_net, dnet);
-
-  std::string dnet_name = dnet->get_net_name();
+  design_netlist->removeNet(sta_net);
   _idb_design->removeNetSafe(dnet_name);
 }
 

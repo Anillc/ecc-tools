@@ -146,6 +146,7 @@ class IdbDesign
   IdbSpecialNet* createOrFindSpecialNet(const std::string& net_name, IdbConnectType type = IdbConnectType::kNone,
                                         IdbCreatePolicy policy = IdbCreatePolicy::kReturnExisting);
   bool connectPinToSpecialNet(IdbPin* pin, IdbSpecialNet* net);
+  int32_t connectInstancePinsToSpecialNet(const std::vector<std::string>& pin_name_list, IdbSpecialNet* net);
   bool disconnectPinFromSpecialNet(IdbPin* pin);
   bool removeSpecialNetSafe(const std::string& net_name);
   void mergeAllNetWires();

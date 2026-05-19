@@ -598,6 +598,34 @@ bool IdbDesign::connectPinToSpecialNet(IdbPin* pin, IdbSpecialNet* net)
   return true;
 }
 
+int32_t IdbDesign::connectInstancePinsToSpecialNet(const std::vector<std::string>& pin_name_list, IdbSpecialNet* net)
+{
+  if (_instance_list == nullptr || net == nullptr || pin_name_list.empty()) {
+    return 0;
+  }
+
+  int32_t number = 0;
+  for (auto* instance : _instance_list->get_instance_list()) {
+    if (instance == nullptr || instance->get_pin_list() == nullptr) {
+      continue;
+    }
+
+    for (auto* pin : instance->get_pin_list()->get_pin_list()) {
+      if (pin == nullptr) {
+        continue;
+      }
+
+      if (std::find(pin_name_list.begin(), pin_name_list.end(), pin->get_term_name()) != pin_name_list.end()
+          && connectPinToSpecialNet(pin, net)) {
+        ++number;
+        break;
+      }
+    }
+  }
+
+  return number;
+}
+
 bool IdbDesign::removeSpecialNetSafe(const std::string& net_name)
 {
   if (_special_net_list == nullptr) {

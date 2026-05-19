@@ -3,6 +3,10 @@
 set ::ecc_workspace_root ""
 set ::ecc_pdk_root ""
 
+if {![info exists RTL2GDS]} {
+  set RTL2GDS 0
+}
+
 proc set_workspace {path} {
   if {$path eq ""} {
     error "set_workspace requires a non-empty path"
@@ -188,9 +192,9 @@ proc step_save_design {step_name output_def output_verilog output_gds output_jso
   }
   report_db -path $report_db_path
 
-  if {[step_safe_eval [list init_sta -output $sta_dir]]} {
-    step_safe_eval {report_timing -json}
-  }
+  # if {[step_safe_eval [list init_sta -output $sta_dir]]} {
+  #   step_safe_eval {report_timing -json}
+  # }
 }
 
 proc step_maybe_flow_exit {} {

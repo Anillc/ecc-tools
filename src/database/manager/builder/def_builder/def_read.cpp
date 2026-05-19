@@ -1359,7 +1359,7 @@ int32_t DefRead::parse_pdn(defiNet* def_net)
 
   vector<string> io_name_array = net->get_pin_string_list();
   if (io_name_array.size() > 0) {
-    instance_list->get_pin_list_by_names(io_name_array, net->get_instance_pin_list(), net->get_instance_list());
+    design->connectInstancePinsToSpecialNet(io_name_array, net);
   }
 
   IdbSpecialWireList* wire_list = net->get_wire_list();

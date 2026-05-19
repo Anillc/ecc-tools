@@ -46,10 +46,18 @@ step_print_list "lib_files" $lib_files
 step_print_path "place_config" $place_config
 step_print_path "feature_map" $feature_map
 
-step_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, loading data."
+  step_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module
+}
+
 step_safe_eval {destroy_pl}
 run_placer -config $place_config
 step_safe_eval [list feature_eval_map -path $feature_map -bin_cnt_x 256 -bin_cnt_y 256]
 step_save_design $step_name $output_def $output_verilog $output_gds $output_json $output_db $feature_db $feature_step $report_db $sta_dir
 step_safe_eval {destroy_pl}
-step_maybe_flow_exit
+
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, exiting flow."
+  step_maybe_flow_exit
+}
