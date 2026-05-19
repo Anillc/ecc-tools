@@ -30,7 +30,15 @@ rpt*/
 target/
 *-stamp/
 tmp/
-/scripts
+/scripts/*
+!/scripts/design/
+/scripts/design/*
+!/scripts/design/ics55_ecc/
+/scripts/design/ics55_ecc/*
+!/scripts/design/ics55_ecc/run_ecc.sh
+!/scripts/design/ics55_ecc/run_workspace.tcl
+# !/scripts/design/ics55_ecc/gcd
+!/scripts/design/ics55_ecc/steps
 *.patch
 CMakePresets.json
 .venv/
@@ -40,6 +48,3 @@ mcp_iEDA.egg-info/
 
 # Prevent accidental re-addition of removed submodules
 src/third_party/mt-kahypar/
-
-# ics55 dev
-ics55_dev

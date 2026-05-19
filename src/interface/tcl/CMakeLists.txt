@@ -1,4 +1,5 @@
 add_subdirectory(tcl_util)
+add_subdirectory(tcl_workspace)
 add_subdirectory(tcl_config)
 add_subdirectory(tcl_idb)
 add_subdirectory(tcl_flow)
@@ -39,6 +40,7 @@ target_link_libraries(ieda_tcl
         tool_manager
         tcl 
         shell-cmd 
+        tcl_workspace
         tcl_config
         tcl_idb
         tcl_flow
@@ -66,6 +68,7 @@ target_link_libraries(ieda_tcl
 target_include_directories(ieda_tcl 
     PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/tcl_workspace
     ${CMAKE_CURRENT_SOURCE_DIR}/tcl_ipnp
 
     ${HOME_UTILITY}/tcl
@@ -93,4 +96,3 @@ if(CONTEST)
     ${HOME_INTERFACE}/tcl/tcl_contest
   )
 endif()
-

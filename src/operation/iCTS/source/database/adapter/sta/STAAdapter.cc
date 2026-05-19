@@ -48,14 +48,17 @@ auto STAAdapter::init() -> void
   adapter.resetCharPowerState();
   adapter._is_char_only_active = false;
   auto* timing_engine = sta_adapter_internal::GetStaEngine();
-  if (!sta_adapter_internal::HasStaBaseContext()) {
+  const bool has_loaded_liberty = timing_engine->get_ista() != nullptr && !timing_engine->get_ista()->getAllLib().empty();
+  if (!has_loaded_liberty) {
     ipower::Power::destroyPower();
     ista::TimingEngine::destroyTimingEngine();
     timing_engine = sta_adapter_internal::GetStaEngine();
-    sta_adapter_internal::InstallTimingIDBAdapter(timing_engine);
     sta_adapter_internal::LoadConfiguredLiberty(timing_engine);
   }
 
+  // The global TimingEngine can outlive iDB reloads between flow steps.
+  // Always rebind the adapter to the current dmInst builder before CTS queries RC.
+  sta_adapter_internal::InstallTimingIDBAdapter(timing_engine);
   timing_engine->set_num_threads(sta_adapter_internal::kStaThreadCount);
   sta_adapter_internal::ConfigureStaWorkspace(timing_engine, "sta");
   adapter.resetStaTransientState();
