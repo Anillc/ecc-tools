@@ -96,7 +96,7 @@ class ArnoldiNet : public RcNet {
   auto* getIDNode(unsigned id) { return _id_to_node[id]; }
   void assignRcNodeID();
 
-  void updateRcTiming(RustSpefNet* spef_net) override;
+  void updateRcTiming(const spef::Net& spef_net) override;
 
   void set_nodal_caps(std::vector<double>&& nodal_caps) {
     _nodal_caps = std::move(nodal_caps);
