@@ -80,28 +80,13 @@ auto convertIdbPinType(idb::IdbConnectType idb_pin_type, idb::IdbConnectDirectio
   return PinType::kOther;
 }
 
-auto appendIdbPinToNet(idb::IdbNet* idb_net, idb::IdbPin* idb_pin) -> void
+auto appendIdbPinToNet(idb::IdbDesign* idb_design, idb::IdbNet* idb_net, idb::IdbPin* idb_pin) -> bool
 {
-  if (idb_net == nullptr || idb_pin == nullptr) {
-    return;
+  if (idb_design == nullptr || idb_net == nullptr || idb_pin == nullptr) {
+    return false;
   }
 
-  auto* old_net = idb_pin->get_net();
-  if (old_net != nullptr && old_net != idb_net) {
-    old_net->remove_pin(idb_pin);
-  }
-
-  idb_pin->set_net(idb_net);
-  idb_pin->set_net_name(idb_net->get_net_name());
-
-  auto* pin_list = idb_pin->is_io_pin() ? idb_net->get_io_pins() : idb_net->get_instance_pin_list();
-  if (pin_list != nullptr && pin_list->find_pin(idb_pin) == nullptr) {
-    if (idb_pin->is_io_pin()) {
-      idb_net->add_io_pin(idb_pin);
-    } else {
-      idb_net->add_instance_pin(idb_pin);
-    }
-  }
+  return idb_design->connectPinToNet(idb_pin, idb_net);
 }
 
 auto BuildCellGeometry(idb::IdbInstance* idb_inst) -> WrapperCellGeometry
@@ -130,9 +115,9 @@ auto BuildCellGeometry(idb::IdbInstance* idb_inst) -> WrapperCellGeometry
   return geometry;
 }
 
-auto clearIdbNetPins(idb::IdbNet* idb_net) -> void
+auto clearIdbNetPins(idb::IdbDesign* idb_design, idb::IdbNet* idb_net) -> void
 {
-  if (idb_net == nullptr) {
+  if (idb_design == nullptr || idb_net == nullptr) {
     return;
   }
 
@@ -147,7 +132,7 @@ auto clearIdbNetPins(idb::IdbNet* idb_net) -> void
   }
 
   for (auto* pin : pins) {
-    idb_net->remove_pin(pin);
+    idb_design->disconnectPinFromNet(pin);
   }
 }
 
@@ -787,7 +772,6 @@ class Wrapper::CtsClockIdbWriter
       LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": iDB layout or cell master list is not ready.";
       return nullptr;
     }
-    auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
     auto* cell_master = _wrapper->_idb_layout->get_cell_master_list()->find_cell_master(inst->get_cell_master());
     if (cell_master == nullptr) {
       LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": cell master \"" << inst->get_cell_master()
@@ -795,15 +779,13 @@ class Wrapper::CtsClockIdbWriter
       return nullptr;
     }
 
-    auto* idb_inst = idb_inst_list->find_instance(inst->get_name());
+    auto* idb_inst = _wrapper->_idb_design->get_instance_list()->find_instance(inst->get_name());
     if (idb_inst == nullptr) {
-      idb_inst = idb_inst_list->add_instance(inst->get_name());
+      idb_inst = _wrapper->_idb_design->createInstance(inst->get_name(), inst->get_cell_master(), idb::IdbInstanceType::kTiming);
       if (idb_inst == nullptr) {
         LOG_ERROR << "CTS iDB writeback failed: failed to allocate iDB inst \"" << inst->get_name() << "\".";
         return nullptr;
       }
-      idb_inst->set_cell_master(cell_master);
-      idb_inst->set_type(idb::IdbInstanceType::kTiming);
     } else if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
       const std::string actual_master = idb_inst->get_cell_master() == nullptr ? "<null>" : idb_inst->get_cell_master()->get_name();
       LOG_ERROR << "CTS iDB writeback failed: cannot reuse iDB inst \"" << inst->get_name() << "\" with cell master \"" << actual_master
@@ -811,9 +793,9 @@ class Wrapper::CtsClockIdbWriter
       return nullptr;
     }
 
-    idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
-    idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
-    idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
+    _wrapper->_idb_design->placeInstance(inst->get_name(), inst->get_location().get_x(), inst->get_location().get_y(),
+                                         idb::IdbOrient::kN_R0, idb::IdbPlacementStatus::kPlaced);
+    idb_inst->set_type(idb::IdbInstanceType::kTiming);
     _wrapper->crossRef(idb_inst, inst);
     bindClockTreeInstPins(idb_inst, inst);
     return idb_inst;
@@ -897,10 +879,7 @@ class Wrapper::CtsClockIdbWriter
       LOG_ERROR << "CTS iDB writeback failed: clock tree net name is empty.";
       return nullptr;
     }
-    auto* idb_net = _wrapper->_idb_design->get_net_list()->find_net(net_name);
-    if (idb_net == nullptr) {
-      idb_net = _wrapper->_idb_design->get_net_list()->add_net(net_name, idb::IdbConnectType::kClock);
-    }
+    auto* idb_net = _wrapper->_idb_design->createOrFindNet(net_name, idb::IdbConnectType::kClock);
     if (idb_net == nullptr) {
       _failure_reason = "create_clock_tree_net_failed";
       LOG_ERROR << "CTS iDB writeback failed: failed to create iDB net \"" << net_name << "\".";
@@ -973,10 +952,16 @@ class Wrapper::CtsClockIdbWriter
       idb_loads.push_back(idb_load);
     }
 
-    clearIdbNetPins(idb_net);
-    appendIdbPinToNet(idb_net, idb_driver);
+    clearIdbNetPins(_wrapper->_idb_design, idb_net);
+    if (!appendIdbPinToNet(_wrapper->_idb_design, idb_net, idb_driver)) {
+      _failure_reason = "clock_tree_driver_pin_connect_failed";
+      return false;
+    }
     for (auto* idb_load : idb_loads) {
-      appendIdbPinToNet(idb_net, idb_load);
+      if (!appendIdbPinToNet(_wrapper->_idb_design, idb_net, idb_load)) {
+        _failure_reason = "clock_tree_load_pin_connect_failed";
+        return false;
+      }
     }
     return true;
   }
@@ -994,8 +979,8 @@ class Wrapper::CtsClockIdbWriter
       if (created_net == nullptr) {
         continue;
       }
-      clearIdbNetPins(created_net);
-      rollback_done = idb_net_list->remove_net(net_name) && rollback_done;
+      clearIdbNetPins(_wrapper->_idb_design, created_net);
+      rollback_done = _wrapper->_idb_design->removeNetSafe(net_name) && rollback_done;
     }
 
     for (const auto& [net_name, snapshot] : backup.net_pin_membership_by_name) {
@@ -1004,12 +989,12 @@ class Wrapper::CtsClockIdbWriter
         rollback_done = false;
         continue;
       }
-      clearIdbNetPins(idb_net);
+      clearIdbNetPins(_wrapper->_idb_design, idb_net);
       for (auto* io_pin : snapshot.io_pins) {
-        appendIdbPinToNet(idb_net, io_pin);
+        rollback_done = appendIdbPinToNet(_wrapper->_idb_design, idb_net, io_pin) && rollback_done;
       }
       for (auto* inst_pin : snapshot.inst_pins) {
-        appendIdbPinToNet(idb_net, inst_pin);
+        rollback_done = appendIdbPinToNet(_wrapper->_idb_design, idb_net, inst_pin) && rollback_done;
       }
     }
 
@@ -1017,7 +1002,7 @@ class Wrapper::CtsClockIdbWriter
       if (backup.pre_existing_inst_names.contains(inst_name) || idb_inst_list->find_instance(inst_name) == nullptr) {
         continue;
       }
-      rollback_done = idb_inst_list->remove_instance(inst_name) && rollback_done;
+      rollback_done = _wrapper->_idb_design->removeInstanceSafe(inst_name) && rollback_done;
     }
 
     _wrapper->_cts2idb_inst_map.clear();

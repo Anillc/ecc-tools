@@ -178,6 +178,10 @@ proc step_save_design {step_name output_def output_verilog output_gds output_jso
   step_safe_eval [list gds_save -path $output_gds]
   # json_save -path $output_json
   # save_data -path $output_db
+  set validate_path [file join [file dirname $report_db_path] "${step_name}.idb_validate.json"]
+  if {[llength [info commands idb_validate]] > 0} {
+    step_safe_eval [list idb_validate -path $validate_path]
+  }
   feature_summary -path $feature_db
   if {$feature_step_enable} {
     feature_tool -path $feature_step_path -step $step_name

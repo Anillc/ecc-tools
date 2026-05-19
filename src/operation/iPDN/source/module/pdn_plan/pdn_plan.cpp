@@ -46,34 +46,29 @@ int32_t PdnPlan::transUnitDB(double value)
 void PdnPlan::addIOPin(std::string pin_name, std::string net_name, std::string direction, bool is_power)
 {
   auto idb_design = dmInst->get_idb_design();
+  idb::IdbConnectType power_type = is_power ? idb::IdbConnectType::kPower : idb::IdbConnectType::kGround;
   idb::IdbSpecialNet* power_net = idb_design->get_special_net_list()->find_net(net_name);
 
   if (power_net == nullptr) {
     std::cout << "[iPDN info]: add net = " << net_name << std::endl;
-    power_net = new idb::IdbSpecialNet();
-    power_net->set_net_name(net_name);
-    idb::IdbConnectType power_type = is_power ? idb::IdbConnectType::kPower : idb::IdbConnectType::kGround;
-    power_net->set_connect_type(power_type);
-    idb_design->get_special_net_list()->add_net(power_net);
   }
+  power_net = idb_design->createOrFindSpecialNet(net_name, power_type);
   idb::IdbPin* io_pin = idb_design->get_io_pin_list()->find_pin(pin_name);
   if (io_pin == nullptr) {
-    io_pin = new idb::IdbPin();
-    idb_design->get_io_pin_list()->add_pin_list(io_pin);
+    io_pin = idb_design->createOrFindIoPin(pin_name);
   }
   idb::IdbTerm* io_term = io_pin->get_term();
   if (io_term == nullptr) {
-    io_term = new IdbTerm();
+    io_term = io_pin->set_term();
   }
   io_pin->set_as_io();
-  io_pin->set_special_net(power_net);
-  io_pin->set_net_name(net_name);
   io_pin->set_term(io_term);
   io_pin->set_pin_name(pin_name);
   //   idb::IdbConnectDirection direct = transferStringToConnectDirection(direction);
   idb::IdbConnectDirection direct = idb::IdbEnum::GetInstance()->get_connect_property()->get_direction(direction);
   io_term->set_direction(direct);
   io_term->set_type(power_net->get_connect_type());
+  idb_design->connectPinToSpecialNet(io_pin, power_net);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -81,20 +76,9 @@ void PdnPlan::addIOPin(std::string pin_name, std::string net_name, std::string d
 void PdnPlan::globalConnect(const std::string pdn_net_name, const std::string instance_pdn_pin_name, bool is_power)
 {
   auto idb_design = dmInst->get_idb_design();
-  auto idb_pdn_list = idb_design->get_special_net_list();
-
-  idb::IdbSpecialNet* special_net = idb_pdn_list->find_net(pdn_net_name);
-  if (special_net == nullptr) {
-    special_net = new idb::IdbSpecialNet();
-    idb_pdn_list->add_net(special_net);
-    special_net->set_net_name(pdn_net_name);
-  }
+  idb::IdbConnectType type = is_power ? idb::IdbConnectType::kPower : idb::IdbConnectType::kGround;
+  idb::IdbSpecialNet* special_net = idb_design->createOrFindSpecialNet(pdn_net_name, type);
   special_net->add_pin_string(instance_pdn_pin_name);
-  if (is_power) {
-    special_net->set_connect_type(idb::IdbConnectType::kPower);
-  } else {
-    special_net->set_connect_type(idb::IdbConnectType::kGround);
-  }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

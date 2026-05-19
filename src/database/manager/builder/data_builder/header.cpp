@@ -1819,10 +1819,12 @@ void read_design_instances(const std::string& folder, IdbDesign* design, IdbLayo
   reader.read(instance_count);
   instances->init(static_cast<int32_t>(instance_count));
   for (uint64_t i = 0; i < instance_count; ++i) {
-    auto* instance = instances->add_instance(reader.read_string());
-    auto* master = layout->get_cell_master_list()->find_cell_master(reader.read_string());
-    if (master != nullptr) {
-      instance->set_cell_master(master);
+    const std::string instance_name = reader.read_string();
+    const std::string master_name = reader.read_string();
+    auto* master = layout->get_cell_master_list()->find_cell_master(master_name);
+    auto* instance = master != nullptr ? design->createInstance(instance_name, master_name) : nullptr;
+    if (instance == nullptr) {
+      throw std::runtime_error("read design instance failed: instance=" + instance_name + ", master=" + master_name);
     }
     instance->set_type(reader.read_enum<IdbInstanceType>());
     instance->set_status(reader.read_enum<IdbPlacementStatus>());
@@ -1909,8 +1911,11 @@ void read_design_io_pins(const std::string& folder, IdbDesign* design, IdbLayout
   reader.read(pin_count);
   pins->init(static_cast<int32_t>(pin_count));
   for (uint64_t i = 0; i < pin_count; ++i) {
-    auto* pin = pins->add_pin_list(reader.read_string());
-    pin->set_as_io();
+    const auto pin_name = reader.read_string();
+    auto* pin = design->createOrFindIoPin(pin_name, IdbCreatePolicy::kErrorIfExists);
+    if (pin == nullptr) {
+      throw std::runtime_error("read design io pin failed: pin=" + pin_name);
+    }
     pin->set_net_name(reader.read_string());
     pin->set_orient(reader.read_enum<IdbOrient>());
     std::unique_ptr<IdbCoordinate<int32_t>> average(read_coord(reader));
@@ -2011,7 +2016,7 @@ void read_design_nets(const std::string& folder, IdbDesign* design, IdbLayout* l
     std::string net_name_value;
     try {
       net_name_value = reader.read_string();
-      auto* net = nets->add_net(net_name_value);
+      auto* net = design->createOrFindNet(net_name_value);
       net->set_connect_type(reader.read_enum<IdbConnectType>());
       net->set_source_type(IdbEnum::GetInstance()->get_instance_property()->get_type_str(reader.read_enum<IdbInstanceType>()));
       int32_t value = 0;
@@ -2030,17 +2035,13 @@ void read_design_nets(const std::string& folder, IdbDesign* design, IdbLayout* l
       reader.read(pin_count);
       for (uint64_t j = 0; j < pin_count; ++j) {
         if (auto* pin = read_pin_ref(reader, design)) {
-          net->add_io_pin(pin);
-          pin->set_net(net);
-          pin->set_net_name(net->get_net_name());
+          design->connectPinToNet(pin, net);
         }
       }
       reader.read(pin_count);
       for (uint64_t j = 0; j < pin_count; ++j) {
         if (auto* pin = read_pin_ref(reader, design)) {
-          net->add_instance_pin(pin);
-          pin->set_net(net);
-          pin->set_net_name(net->get_net_name());
+          design->connectPinToNet(pin, net);
         }
       }
       uint64_t wire_count = 0;
@@ -2107,7 +2108,7 @@ void read_design_special_nets(const std::string& folder, IdbDesign* design, IdbL
   reader.read(net_count);
   nets->resize(static_cast<size_t>(net_count));
   for (uint64_t i = 0; i < net_count; ++i) {
-    auto* net = nets->add_net(reader.read_string());
+    auto* net = design->createOrFindSpecialNet(reader.read_string());
     net->set_connect_type(reader.read_enum<IdbConnectType>());
     net->set_source_type(IdbEnum::GetInstance()->get_instance_property()->get_type_str(reader.read_enum<IdbInstanceType>()));
     net->set_original_net_name(reader.read_string());
@@ -2124,15 +2125,13 @@ void read_design_special_nets(const std::string& folder, IdbDesign* design, IdbL
     reader.read(count);
     for (uint64_t j = 0; j < count; ++j) {
       if (auto* pin = read_pin_ref(reader, design)) {
-        net->add_io_pin(pin);
-        pin->set_special_net(net);
+        design->connectPinToSpecialNet(pin, net);
       }
     }
     reader.read(count);
     for (uint64_t j = 0; j < count; ++j) {
       if (auto* pin = read_pin_ref(reader, design)) {
-        net->add_instance_pin(pin);
-        pin->set_special_net(net);
+        design->connectPinToSpecialNet(pin, net);
       }
     }
 
