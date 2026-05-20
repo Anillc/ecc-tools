@@ -36,7 +36,6 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
-#include "CharBuilder.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
 #include "Inst.hh"
@@ -49,6 +48,7 @@
 #include "TopologyConfig.hh"
 #include "TopologyGen.hh"
 #include "Tree.hh"
+#include "characterization/Characterization.hh"
 #include "config/Config.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
@@ -60,12 +60,14 @@
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/plan/Plan.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/SegmentPruning.hh"
-#include "synthesis/htree/solution/AnalyticalSolution.hh"
-#include "synthesis/htree/solution/SolutionReport.hh"
-#include "synthesis/htree/solution/SolutionSelection.hh"
-#include "synthesis/htree/solution/StageReport.hh"
+#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
+#include "synthesis/htree/solution/analytical/AnalyticalSolution.hh"
+#include "synthesis/htree/solution/report/SolutionReport.hh"
+#include "synthesis/htree/solution/report/StageReport.hh"
+#include "synthesis/htree/solution/selection/SolutionSelection.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts {
@@ -174,19 +176,19 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     segment_pattern_library.add(pattern);
   }
 
-  auto segment_frontier_request
-      = htree::MakeHTreeSegmentFrontierRequest(htree::CollectRequiredLengthIndices(full_level_plans), search_boundary_constraints);
+  auto required_segment_frontiers
+      = htree::ResolveRequiredSegmentFrontiers(htree::CollectRequiredLengthIndices(full_level_plans), search_boundary_constraints);
   htree::SegmentFrontierCatalog segment_frontier_catalog;
   {
     auto segment_frontier_stage = SCHEMA_WRITER_INST.beginStage(
         "HTree", "Synthesize segment frontiers",
         {
             {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
-            {"required_length_indices", std::to_string(segment_frontier_request.required_length_indices.size())},
+            {"required_length_indices", std::to_string(required_segment_frontiers.required_length_indices.size())},
         },
         htree::DetailStageReportOptions());
     segment_frontier_catalog
-        = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), segment_pattern_library, segment_frontier_request);
+        = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), segment_pattern_library, required_segment_frontiers);
     if (segment_frontier_catalog.empty()) {
       LOG_WARNING << "HTree: segment frontier synthesis failed for the required aligned lengths.";
       segment_frontier_stage.failed({{"reason", "missing_required_segment_frontiers"}});
@@ -195,7 +197,7 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     }
     segment_frontier_stage.finished({
         {"length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
-        {"frontier_entries", std::to_string(segment_frontier_catalog.countEntries(segment_frontier_request.required_kinds))},
+        {"frontier_entries", std::to_string(segment_frontier_catalog.countEntries(required_segment_frontiers.required_kinds))},
     });
   }
 

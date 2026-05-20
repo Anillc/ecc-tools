@@ -37,7 +37,7 @@
 #include <vector>
 
 #include "Log.hh"
-#include "common/types/TestDataTypes.hh"
+#include "common/dataset/TestDataset.hh"
 #include "utils/logger/LogFormat.hh"
 #include "utils/logger/Schema.hh"
 

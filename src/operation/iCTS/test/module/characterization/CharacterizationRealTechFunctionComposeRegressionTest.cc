@@ -27,17 +27,17 @@
 #include <optional>
 #include <sstream>
 
-#include "module/characterization/CharacterizationRealTechExactRegressionSupport.hh"
+#include "module/characterization/CharacterizationRealTechExactRegression.hh"
 
 namespace icts_test {
 namespace {
 
-namespace realtech_support = characterization::realtech;
+namespace realtech_fixture = characterization::realtech;
 
 TEST(CharacterizationRealTechExactRegressionTest, IterOneFunctionComposeGapReport)
 {
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("iter1_function_compose_gap", std::nullopt, 0.0, 0.0); prepare_error.has_value()) {
+  realtech_fixture::RealTechCharFixture char_fixture;
+  if (const auto prepare_error = char_fixture.prepare("iter1_function_compose_gap", std::nullopt, 0.0, 0.0); prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
@@ -48,13 +48,13 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneFunctionComposeGapRepor
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
-  auto segment_context = realtech_support::BuildSegmentFrontierContext(builder.get_buffering_patterns());
-  const auto grid = realtech_support::CalcCharGrid(builder);
+  auto segment_context = realtech_fixture::BuildSegmentFrontierContext(builder.get_buffering_patterns());
+  const auto grid = realtech_fixture::CalcCharGrid(builder);
   ASSERT_GT(grid.length_step_um, 0.0);
   ASSERT_GT(grid.slew_step_ns, 0.0);
   ASSERT_GT(grid.cap_step_pf, 0.0);
 
-  auto direct_frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
+  auto direct_frontier_by_length = realtech_fixture::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
   ASSERT_TRUE(direct_frontier_by_length.contains(2U));
   ASSERT_TRUE(direct_frontier_by_length.contains(3U));
   ASSERT_FALSE(direct_frontier_by_length.at(2U).empty());
@@ -122,13 +122,13 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneFunctionComposeGapRepor
   AppendFunctionComposeGapStats(report_stream, quadratic_frontier_length_three, grid);
 
   ASSERT_TRUE(
-      realtech_support::WriteScenarioLog("iter1_function_compose_gap", "iter1_function_compose_gap_report.txt", report_stream.str()));
+      realtech_fixture::WriteScenarioLog("iter1_function_compose_gap", "iter1_function_compose_gap_report.txt", report_stream.str()));
 }
 
 TEST(CharacterizationRealTechExactRegressionTest, IterOneStructuralCapFunctionComposeGapReport)
 {
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("iter1_structural_cap_function_compose_gap", std::nullopt, 0.0, 0.0);
+  realtech_fixture::RealTechCharFixture char_fixture;
+  if (const auto prepare_error = char_fixture.prepare("iter1_structural_cap_function_compose_gap", std::nullopt, 0.0, 0.0);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -140,13 +140,13 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneStructuralCapFunctionCo
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
-  auto segment_context = realtech_support::BuildSegmentFrontierContext(builder.get_buffering_patterns());
-  const auto grid = realtech_support::CalcCharGrid(builder);
+  auto segment_context = realtech_fixture::BuildSegmentFrontierContext(builder.get_buffering_patterns());
+  const auto grid = realtech_fixture::CalcCharGrid(builder);
   ASSERT_GT(grid.length_step_um, 0.0);
   ASSERT_GT(grid.slew_step_ns, 0.0);
   ASSERT_GT(grid.cap_step_pf, 0.0);
 
-  auto direct_frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
+  auto direct_frontier_by_length = realtech_fixture::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
   ASSERT_TRUE(direct_frontier_by_length.contains(2U));
   ASSERT_TRUE(direct_frontier_by_length.contains(3U));
   ASSERT_FALSE(direct_frontier_by_length.at(2U).empty());
@@ -218,7 +218,7 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneStructuralCapFunctionCo
   AppendFunctionComposeGapStats(report_stream, quadratic_frontier_length_two, grid);
   AppendFunctionComposeGapStats(report_stream, quadratic_frontier_length_three, grid);
 
-  ASSERT_TRUE(realtech_support::WriteScenarioLog("iter1_structural_cap_function_compose_gap",
+  ASSERT_TRUE(realtech_fixture::WriteScenarioLog("iter1_structural_cap_function_compose_gap",
                                                  "iter1_structural_cap_function_compose_gap_report.txt", report_stream.str()));
 }
 

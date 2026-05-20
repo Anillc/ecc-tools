@@ -1,10 +1,10 @@
 add_library(
   icts_source_flow_synthesis_htree_solution
-  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/AnalyticalSolution.cc
   ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/Solution.cc
-  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/SolutionReport.cc
-  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/SolutionSelection.cc
-  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/StageReport.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/analytical/AnalyticalSolution.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/report/SolutionReport.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/report/StageReport.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION}/selection/SolutionSelection.cc
 )
 
 target_link_libraries(

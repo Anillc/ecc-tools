@@ -31,12 +31,12 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
-#include "Frontier.hh"
-#include "HashJoinEngine.hh"
 #include "PatternId.hh"
 #include "SegmentChar.hh"
-#include "SegmentTraits.hh"
+#include "characterization/Characterization.hh"
+#include "synthesis/htree/HTreeSynthesisResult.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree {
 namespace {
@@ -361,15 +361,16 @@ auto SolveRequiredLengthState(const RequiredLengthStateKey& state_key,
 }
 
 auto SynthesizeSegmentFrontierSets(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                   const SegmentFrontierRequest& request) -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
+                                   const RequiredSegmentFrontiers& required_frontiers)
+    -> std::unordered_map<unsigned, SegmentCandidateFrontierSet>
 {
-  const SegmentFrontierKindSet required_kinds = request.required_kinds.normalized();
+  const SegmentFrontierKindSet required_kinds = required_frontiers.required_kinds.normalized();
   if (required_kinds.empty()) {
     return {};
   }
 
   auto entry_sets_by_length = BuildBaseSegmentCandidateLengthEntrySets(base_segment_chars, pattern_library, required_kinds);
-  const RequiredLengthStateKey root_state_key = BuildPendingLengthKey(request.required_length_indices, entry_sets_by_length);
+  const RequiredLengthStateKey root_state_key = BuildPendingLengthKey(required_frontiers.required_length_indices, entry_sets_by_length);
   if (root_state_key.pending_lengths.empty()) {
     return entry_sets_by_length;
   }
@@ -402,10 +403,10 @@ auto CollectRequiredLengthIndices(const std::vector<HTree::LevelPlan>& levels) -
   return NormalizeRequiredLengths(std::move(required_lengths));
 }
 
-auto MakeHTreeSegmentFrontierRequest(std::vector<unsigned> required_length_indices, const BoundaryConstraints& boundary_constraints)
-    -> SegmentFrontierRequest
+auto ResolveRequiredSegmentFrontiers(std::vector<unsigned> required_length_indices, const BoundaryConstraints& boundary_constraints)
+    -> RequiredSegmentFrontiers
 {
-  return SegmentFrontierRequest{
+  return RequiredSegmentFrontiers{
       .required_length_indices = std::move(required_length_indices),
       .required_kinds
       = boundary_constraints.force_branch_buffer ? SegmentFrontierKindSet::branchConstrained() : SegmentFrontierKindSet::allOnly(),
@@ -413,9 +414,9 @@ auto MakeHTreeSegmentFrontierRequest(std::vector<unsigned> required_length_indic
 }
 
 auto SynthesizeSegmentFrontiers(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                const SegmentFrontierRequest& request) -> SegmentFrontierCatalog
+                                const RequiredSegmentFrontiers& required_frontiers) -> SegmentFrontierCatalog
 {
-  return SegmentFrontierCatalog(SynthesizeSegmentFrontierSets(base_segment_chars, pattern_library, request));
+  return SegmentFrontierCatalog(SynthesizeSegmentFrontierSets(base_segment_chars, pattern_library, required_frontiers));
 }
 
 }  // namespace icts::htree

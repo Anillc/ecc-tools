@@ -27,7 +27,8 @@
 #include <string>
 #include <vector>
 
-#include "characterization/CharBuilder.hh"
+#include "ClockRouteSegmentRc.hh"
+#include "characterization/Characterization.hh"
 
 namespace icts {
 
@@ -51,7 +52,7 @@ class CharacterizationLibrary
   static auto buildRuntimeOptions() -> CharBuilder::InitOptions;
 
  private:
-  struct RequestKey
+  struct CharacterizationCacheKey
   {
     std::optional<double> wirelength_unit_um = std::nullopt;
     std::optional<unsigned> wirelength_iterations = std::nullopt;
@@ -59,19 +60,21 @@ class CharacterizationLibrary
     std::optional<double> max_slew_ns = std::nullopt;
     std::optional<double> max_cap_pf = std::nullopt;
     std::vector<std::string> buffer_types;
+    std::vector<CharacterizationBufferCell> characterization_buffer_cells;
     std::optional<double> char_buf_redundancy_pct = std::nullopt;
     std::optional<unsigned> slew_steps = std::nullopt;
     std::optional<unsigned> cap_steps = std::nullopt;
     std::optional<int> routing_layer = std::nullopt;
     std::optional<double> wire_width = std::nullopt;
+    ClockRouteSegmentRc clock_route_segment_rc;
 
-    auto operator==(const RequestKey& rhs) const -> bool = default;
+    auto operator==(const CharacterizationCacheKey& rhs) const -> bool = default;
   };
 
-  static auto makeRequestKey(const CharBuilder::InitOptions& options) -> RequestKey;
+  static auto makeCharacterizationCacheKey(const CharBuilder::InitOptions& options) -> CharacterizationCacheKey;
 
   CharBuilder _char_builder;
-  RequestKey _request_key;
+  CharacterizationCacheKey _characterization_cache_key;
   bool _ready = false;
 };
 

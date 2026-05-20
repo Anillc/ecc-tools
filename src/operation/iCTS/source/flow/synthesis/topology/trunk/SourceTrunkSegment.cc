@@ -36,7 +36,6 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
-#include "CharBuilder.hh"
 #include "Inst.hh"
 #include "Log.hh"
 #include "LogFormat.hh"
@@ -46,6 +45,7 @@
 #include "Point.hh"
 #include "SegmentChar.hh"
 #include "ValueLattice.hh"
+#include "characterization/Characterization.hh"
 #include "geometry/Geometry.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
@@ -55,7 +55,8 @@
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/embedding/BufferPortTable.hh"
 #include "synthesis/htree/embedding/Embedding.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/SegmentPruning.hh"
 
 namespace icts {
@@ -484,12 +485,12 @@ auto SourceTrunkSegment::build(Net& source_net, Pin* source, Pin* sink, const Bu
     for (const auto& pattern : char_builder.get_buffering_patterns()) {
       pattern_library.add(pattern);
     }
-    const htree::SegmentFrontierRequest segment_frontier_request{
+    const htree::RequiredSegmentFrontiers required_segment_frontiers{
         .required_length_indices = {result.length_idx},
         .required_kinds = htree::SegmentFrontierKindSet::allOnly(),
     };
     segment_frontier_catalog
-        = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), pattern_library, segment_frontier_request);
+        = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), pattern_library, required_segment_frontiers);
     all_frontier_entries = segment_frontier_catalog.find(result.length_idx, htree::SegmentFrontierKind::kAll);
     if (all_frontier_entries == nullptr || all_frontier_entries->empty()) {
       result.failure_reason = "missing_required_segment_frontier";

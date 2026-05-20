@@ -34,11 +34,11 @@
 
 #include "AnalyticalFit.hh"
 #include "BufferingPattern.hh"
-#include "CharBuilder.hh"
+#include "ClockRouteSegmentRc.hh"
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "ValueLattice.hh"
-#include "adapter/sta/STAAdapter.hh"
+#include "characterization/Characterization.hh"
 
 namespace icts::analytical {
 namespace {
@@ -248,7 +248,8 @@ auto ValidateBucketCompatibility(const StructuralCapOperator& op, const std::vec
 auto MakeExactStructuralCapOperator(const BufferingPattern* pattern, const AnalyticalCharacterizationOptions& options)
     -> std::optional<StructuralCapOperator>
 {
-  if (pattern == nullptr || options.length_unit_um <= 0.0 || options.routing_layer <= 0) {
+  if (pattern == nullptr || options.length_unit_um <= 0.0 || !std::isfinite(options.clock_route_segment_rc.capacitance_per_um_pf)
+      || options.clock_route_segment_rc.capacitance_per_um_pf <= 0.0) {
     return std::nullopt;
   }
 
@@ -257,9 +258,11 @@ auto MakeExactStructuralCapOperator(const BufferingPattern* pattern, const Analy
     return std::nullopt;
   }
 
+  const auto calc_wire_cap_pf
+      = [&](double wirelength_um) -> double { return std::max(0.0, wirelength_um) * options.clock_route_segment_rc.capacitance_per_um_pf; };
+
   if (pattern->isWirePattern()) {
-    auto op = StructuralCapOperator::wire(
-        STA_ADAPTER_INST.queryRequiredWireCapacitance(options.routing_layer, total_length_um, options.wire_width));
+    auto op = StructuralCapOperator::wire(calc_wire_cap_pf(total_length_um));
     op.source = "exact_wire";
     return op;
   }
@@ -275,15 +278,18 @@ auto MakeExactStructuralCapOperator(const BufferingPattern* pattern, const Analy
     return std::nullopt;
   }
 
-  const double first_buffer_input_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(cell_masters.front());
-  if (first_buffer_input_cap_pf <= 0.0) {
+  const auto input_cap_iter = options.buffer_input_cap_pf_by_cell_master.find(cell_masters.front());
+  if (input_cap_iter == options.buffer_input_cap_pf_by_cell_master.end()) {
+    return std::nullopt;
+  }
+
+  const double first_buffer_input_cap_pf = input_cap_iter->second;
+  if (!std::isfinite(first_buffer_input_cap_pf) || first_buffer_input_cap_pf <= 0.0) {
     return std::nullopt;
   }
 
   const double pre_buffer_wire_length_um = total_length_um * first_buffer_position;
-  auto op = StructuralCapOperator::buffered(
-      first_buffer_input_cap_pf,
-      STA_ADAPTER_INST.queryRequiredWireCapacitance(options.routing_layer, pre_buffer_wire_length_um, options.wire_width));
+  auto op = StructuralCapOperator::buffered(first_buffer_input_cap_pf, calc_wire_cap_pf(pre_buffer_wire_length_um));
   op.source = "exact_buffered";
   return op;
 }
@@ -355,8 +361,11 @@ auto AnalyticalCharacterization::buildFromCharBuilder(const CharBuilder& char_bu
   if (builder_options.length_unit_um <= 0.0) {
     builder_options.length_unit_um = char_builder.get_wirelength_unit_um();
   }
-  builder_options.routing_layer = char_builder.get_routing_layer();
-  builder_options.wire_width = char_builder.get_wire_width();
+  builder_options.clock_route_segment_rc = char_builder.get_clock_route_segment_rc();
+  builder_options.buffer_input_cap_pf_by_cell_master.clear();
+  for (const auto& buffer_cell : char_builder.get_characterization_buffer_cells()) {
+    builder_options.buffer_input_cap_pf_by_cell_master[buffer_cell.cell_master] = buffer_cell.input_cap_pf;
+  }
   return buildFromSegmentChars(char_builder.get_segment_chars(), char_builder.get_buffering_patterns(), char_builder.get_slew_lattice(),
                                char_builder.get_cap_lattice(), builder_options);
 }

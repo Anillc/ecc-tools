@@ -30,17 +30,17 @@
 #include <string>
 #include <unordered_map>
 
-#include "module/characterization/CharacterizationRealTechExactRegressionSupport.hh"
+#include "module/characterization/CharacterizationRealTechExactRegression.hh"
 
 namespace icts_test {
 namespace {
 
-namespace realtech_support = characterization::realtech;
+namespace realtech_fixture = characterization::realtech;
 
 TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingProducesComparableDirectReport)
 {
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("exact_compose_power_accounting", std::nullopt, 0.0, 0.0);
+  realtech_fixture::RealTechCharFixture char_fixture;
+  if (const auto prepare_error = char_fixture.prepare("exact_compose_power_accounting", std::nullopt, 0.0, 0.0);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -51,23 +51,23 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingPro
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
-  auto segment_context = realtech_support::BuildSegmentFrontierContext(builder.get_buffering_patterns());
-  const auto grid = realtech_support::CalcCharGrid(builder);
+  auto segment_context = realtech_fixture::BuildSegmentFrontierContext(builder.get_buffering_patterns());
+  const auto grid = realtech_fixture::CalcCharGrid(builder);
   ASSERT_GT(grid.length_step_um, 0.0);
 
-  const unsigned length_50_idx = realtech_support::MakeLengthIndex(realtech_support::kExactMidLevelLengthUm, grid.length_step_um);
-  const unsigned length_100_idx = realtech_support::MakeLengthIndex(realtech_support::kExactRootLevelLengthUm, grid.length_step_um);
+  const unsigned length_50_idx = realtech_fixture::MakeLengthIndex(realtech_fixture::kExactMidLevelLengthUm, grid.length_step_um);
+  const unsigned length_100_idx = realtech_fixture::MakeLengthIndex(realtech_fixture::kExactRootLevelLengthUm, grid.length_step_um);
 
-  auto frontier_by_length = realtech_support::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
+  auto frontier_by_length = realtech_fixture::BuildSegmentLengthFrontiers(builder.get_segment_chars(), segment_context);
   ASSERT_TRUE(frontier_by_length.contains(length_50_idx));
   ASSERT_TRUE(frontier_by_length.contains(length_100_idx));
   ASSERT_FALSE(frontier_by_length.at(length_50_idx).empty());
   ASSERT_FALSE(frontier_by_length.at(length_100_idx).empty());
 
-  auto exact_segment_100_raw = realtech_support::ComposeSegmentEntriesExact(frontier_by_length.at(length_50_idx),
+  auto exact_segment_100_raw = realtech_fixture::ComposeSegmentEntriesExact(frontier_by_length.at(length_50_idx),
                                                                             frontier_by_length.at(length_50_idx), segment_context);
   ASSERT_FALSE(exact_segment_100_raw.empty());
-  auto exact_segment_100_frontier = realtech_support::BuildSegmentStateFrontier(exact_segment_100_raw, segment_context);
+  auto exact_segment_100_frontier = realtech_fixture::BuildSegmentStateFrontier(exact_segment_100_raw, segment_context);
   ASSERT_FALSE(exact_segment_100_frontier.empty());
 
   std::unordered_map<SegmentCompareKey, icts::SegmentChar, SegmentCompareKeyHash> direct_entries;
@@ -112,8 +112,8 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingPro
         std::ostringstream example;
         example << "key{input_slew_idx=" << exact_entry.get_input_slew_idx() << ",output_slew_idx=" << exact_entry.get_output_slew_idx()
                 << ",driven_cap_idx=" << exact_entry.get_driven_cap_idx() << ",load_cap_idx=" << exact_entry.get_load_cap_idx()
-                << "} direct=" << realtech_support::FormatSegmentChar(direct_entry, grid)
-                << " exact=" << realtech_support::FormatSegmentChar(exact_entry, grid);
+                << "} direct=" << realtech_fixture::FormatSegmentChar(direct_entry, grid)
+                << " exact=" << realtech_fixture::FormatSegmentChar(exact_entry, grid);
         worst_power_example = example.str();
       }
     } else if (power_delta_w > 1e-15) {
@@ -129,8 +129,8 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingPro
         std::ostringstream example;
         example << "key{input_slew_idx=" << exact_entry.get_input_slew_idx() << ",output_slew_idx=" << exact_entry.get_output_slew_idx()
                 << ",driven_cap_idx=" << exact_entry.get_driven_cap_idx() << ",load_cap_idx=" << exact_entry.get_load_cap_idx()
-                << "} direct=" << realtech_support::FormatSegmentChar(direct_entry, grid)
-                << " exact=" << realtech_support::FormatSegmentChar(exact_entry, grid);
+                << "} direct=" << realtech_fixture::FormatSegmentChar(direct_entry, grid)
+                << " exact=" << realtech_fixture::FormatSegmentChar(exact_entry, grid);
         worst_delay_example = example.str();
       }
     } else if (delay_delta_ns > 1e-15) {
@@ -165,7 +165,7 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingPro
   report_stream << "worst_delay_underestimate_ns=" << worst_delay_underestimate_ns << "\n";
   report_stream << "worst_delay_underestimate_example=" << worst_delay_example << "\n";
 
-  ASSERT_TRUE(realtech_support::WriteScenarioLog("exact_compose_power_accounting", "exact_compose_power_accounting_report.txt",
+  ASSERT_TRUE(realtech_fixture::WriteScenarioLog("exact_compose_power_accounting", "exact_compose_power_accounting_report.txt",
                                                  report_stream.str()));
 }
 

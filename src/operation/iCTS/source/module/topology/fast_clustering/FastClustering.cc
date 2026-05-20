@@ -34,9 +34,9 @@
 #include <vector>
 
 #include "Clustering.hh"
-#include "FastClusteringInternal.hh"
 #include "Log.hh"
 #include "TopologyConfig.hh"
+#include "cluster_draft/FastClusteringDraft.hh"
 
 namespace icts {
 

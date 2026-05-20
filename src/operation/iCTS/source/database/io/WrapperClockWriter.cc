@@ -18,7 +18,7 @@
  * @file WrapperClockWriter.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-19
- * @brief Clock writeback helpers for the iCTS iDB wrapper
+ * @brief Clock-tree materialization helpers for the iCTS iDB wrapper.
  */
 #include <glog/logging.h>
 
@@ -36,9 +36,9 @@
 #include "IdbLayout.h"
 #include "IdbNet.h"
 #include "IdbPins.h"
+#include "IdbTerm.h"
 #include "Log.hh"
 #include "Wrapper.hh"
-#include "WrapperClockWriterInternal.hh"
 #include "design/Clock.hh"
 #include "design/ClockDAG.hh"
 #include "design/Design.hh"
@@ -49,6 +49,106 @@
 #include "spatial/Point.hh"
 
 namespace icts {
+namespace {
+
+struct ClockTreeIdbNetPins
+{
+  std::vector<idb::IdbPin*> io_pins;
+  std::vector<idb::IdbPin*> inst_pins;
+};
+
+struct ClockTreeIdbMaterializationScope
+{
+  std::set<std::string> touched_net_names;
+  std::set<std::string> clock_tree_inst_names;
+  std::unordered_map<const Clock*, std::vector<Net*>> reachable_nets_by_clock;
+};
+
+struct ClockTreeIdbPreexistingObjects
+{
+  std::set<std::string> net_names;
+  std::unordered_map<std::string, ClockTreeIdbNetPins> pins_by_net_name;
+  std::set<std::string> inst_names;
+};
+
+auto AttachIdbPinToClockTreeNet(idb::IdbNet* idb_net, idb::IdbPin* idb_pin) -> void
+{
+  if (idb_net == nullptr || idb_pin == nullptr) {
+    return;
+  }
+  auto* old_net = idb_pin->get_net();
+  if (old_net != nullptr && old_net != idb_net) {
+    old_net->remove_pin(idb_pin);
+  }
+  idb_pin->set_net(idb_net);
+  idb_pin->set_net_name(idb_net->get_net_name());
+  auto* pin_list = idb_pin->is_io_pin() ? idb_net->get_io_pins() : idb_net->get_instance_pin_list();
+  if (pin_list == nullptr || pin_list->find_pin(idb_pin) != nullptr) {
+    return;
+  }
+  if (idb_pin->is_io_pin()) {
+    idb_net->add_io_pin(idb_pin);
+  } else {
+    idb_net->add_instance_pin(idb_pin);
+  }
+}
+
+auto DetachIdbNetPins(idb::IdbNet* idb_net) -> void
+{
+  if (idb_net == nullptr) {
+    return;
+  }
+  std::vector<idb::IdbPin*> pins;
+  if (idb_net->get_io_pins() != nullptr) {
+    const auto& io_pins = idb_net->get_io_pins()->get_pin_list();
+    pins.insert(pins.end(), io_pins.begin(), io_pins.end());
+  }
+  if (idb_net->get_instance_pin_list() != nullptr) {
+    const auto& inst_pins = idb_net->get_instance_pin_list()->get_pin_list();
+    pins.insert(pins.end(), inst_pins.begin(), inst_pins.end());
+  }
+  for (auto* pin : pins) {
+    idb_net->remove_pin(pin);
+  }
+}
+
+auto FindIdbInstPinByCtsPinName(idb::IdbInstance* idb_inst, const std::string& pin_name) -> idb::IdbPin*
+{
+  if (idb_inst == nullptr || idb_inst->get_pin_list() == nullptr || pin_name.empty()) {
+    return nullptr;
+  }
+  for (auto* idb_pin : idb_inst->get_pin_list()->get_pin_list()) {
+    if (idb_pin == nullptr) {
+      continue;
+    }
+    if (idb_pin->get_pin_name() == pin_name) {
+      return idb_pin;
+    }
+    auto* idb_term = idb_pin->get_term();
+    if (idb_term != nullptr && idb_term->get_name() == pin_name) {
+      return idb_pin;
+    }
+  }
+  return nullptr;
+}
+
+auto CollectClockTreeIdbNetPins(idb::IdbNet* idb_net) -> ClockTreeIdbNetPins
+{
+  ClockTreeIdbNetPins pins;
+  if (idb_net == nullptr) {
+    return pins;
+  }
+  if (idb_net->get_io_pins() != nullptr) {
+    pins.io_pins = idb_net->get_io_pins()->get_pin_list();
+  }
+  if (idb_net->get_instance_pin_list() != nullptr) {
+    pins.inst_pins = idb_net->get_instance_pin_list()->get_pin_list();
+  }
+  return pins;
+}
+
+}  // namespace
+
 class Wrapper::CtsClockIdbWriter
 {
  public:
@@ -61,15 +161,16 @@ class Wrapper::CtsClockIdbWriter
       return result;
     }
 
-    auto scope = collectClockIdbWriteScope(clocks);
+    auto scope = collectClockTreeIdbMaterializationScope(clocks);
     if (scope.touched_net_names.empty() && !clocks.empty()) {
       result.success = false;
       result.reason = "invalid_clock_dag";
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper", "CTS iDB writeback preflight found no reachable clock nets.",
+      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper",
+                             "CTS iDB clock-tree materialization preflight found no reachable clock nets.",
                              {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
       return result;
     }
-    const auto backup = backupClockIdbWriteScope(scope);
+    const auto restore_data = captureClockTreeIdbPreexistingObjects(scope);
 
     for (auto* clock : clocks) {
       if (clock == nullptr) {
@@ -80,19 +181,20 @@ class Wrapper::CtsClockIdbWriter
         result.failed_clock = clock->get_clock_name();
         result.failed_net = _failed_net_name.empty() ? clock->get_clock_net_name() : _failed_net_name;
         result.reason = "write_clock_failed";
-        result.rollback_done = rollbackClockIdbWrite(scope, backup);
-        schema::EmitDiagnostic(result.rollback_done ? schema::DiagnosticLevel::kError : schema::DiagnosticLevel::kWarning, "Wrapper",
-                               "CTS iDB writeback failed and rollback was attempted.",
+        result.idb_clock_tree_restored = restorePreexistingClockTreeIdbObjects(scope, restore_data);
+        schema::EmitDiagnostic(result.idb_clock_tree_restored ? schema::DiagnosticLevel::kError : schema::DiagnosticLevel::kWarning,
+                               "Wrapper",
+                               "CTS iDB clock-tree materialization failed and prior iDB clock pin attachment restoration was attempted.",
                                {{"clock", result.failed_clock},
                                 {"net", result.failed_net},
                                 {"reason", _failure_reason.empty() ? result.reason : _failure_reason},
-                                {"rollback_done", result.rollback_done ? "true" : "false"}});
+                                {"idb_clock_tree_restored", result.idb_clock_tree_restored ? "true" : "false"}});
         return result;
       }
     }
 
     result.success = true;
-    result.rollback_done = false;
+    result.idb_clock_tree_restored = false;
     return result;
   }
 
@@ -103,7 +205,7 @@ class Wrapper::CtsClockIdbWriter
         || _wrapper->_idb_design->get_instance_list() == nullptr) {
       result.success = false;
       result.reason = "idb_design_not_ready";
-      LOG_ERROR << "CTS iDB writeback failed: iDB design, net list, or inst list is not ready.";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed: iDB design, net list, or inst list is not ready.";
       return false;
     }
     return true;
@@ -117,14 +219,14 @@ class Wrapper::CtsClockIdbWriter
     result.success = false;
     result.reason = "invalid_clock_dag";
     schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper",
-                           "CTS iDB writeback preflight failed because committed CTS topology is not a valid clock DAG.",
+                           "CTS iDB clock-tree materialization preflight failed because committed CTS topology is not a valid clock DAG.",
                            {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
     return false;
   }
 
-  static auto collectClockIdbWriteScope(const std::vector<Clock*>& clocks) -> ClockIdbWriteScope
+  static auto collectClockTreeIdbMaterializationScope(const std::vector<Clock*>& clocks) -> ClockTreeIdbMaterializationScope
   {
-    ClockIdbWriteScope scope;
+    ClockTreeIdbMaterializationScope scope;
     const auto& clock_dag = DESIGN_INST.get_clock_dag();
     for (auto* clock : clocks) {
       if (clock == nullptr) {
@@ -148,9 +250,9 @@ class Wrapper::CtsClockIdbWriter
     return scope;
   }
 
-  auto backupClockIdbWriteScope(const ClockIdbWriteScope& scope) -> ClockIdbWriteBackup
+  auto captureClockTreeIdbPreexistingObjects(const ClockTreeIdbMaterializationScope& scope) -> ClockTreeIdbPreexistingObjects
   {
-    ClockIdbWriteBackup backup;
+    ClockTreeIdbPreexistingObjects restore_data;
     auto* idb_net_list = _wrapper->_idb_design->get_net_list();
     auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
 
@@ -159,19 +261,19 @@ class Wrapper::CtsClockIdbWriter
       if (idb_net == nullptr) {
         continue;
       }
-      backup.pre_existing_net_names.insert(net_name);
-      backup.net_pin_membership_by_name[net_name] = SnapshotIdbNetPins(idb_net);
+      restore_data.net_names.insert(net_name);
+      restore_data.pins_by_net_name[net_name] = CollectClockTreeIdbNetPins(idb_net);
     }
 
     for (const auto& inst_name : scope.clock_tree_inst_names) {
       if (idb_inst_list->find_instance(inst_name) != nullptr) {
-        backup.pre_existing_inst_names.insert(inst_name);
+        restore_data.inst_names.insert(inst_name);
       }
     }
-    return backup;
+    return restore_data;
   }
 
-  auto writeClockToIdb(Clock& clock, const ClockIdbWriteScope& scope) -> bool
+  auto writeClockToIdb(Clock& clock, const ClockTreeIdbMaterializationScope& scope) -> bool
   {
     if (!writeClockTreeInstsToIdb(clock)) {
       if (_failed_net_name.empty()) {
@@ -184,7 +286,7 @@ class Wrapper::CtsClockIdbWriter
     if (reachable_iter == scope.reachable_nets_by_clock.end() || reachable_iter->second.empty()) {
       _failed_net_name = clock.get_clock_net_name();
       _failure_reason = "no_reachable_clock_nets";
-      LOG_ERROR << "CTS iDB writeback failed for clock \"" << clock.get_clock_name() << "\": no reachable ClockDAG nets.";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed for clock \"" << clock.get_clock_name() << "\": no reachable ClockDAG nets.";
       return false;
     }
 
@@ -224,14 +326,15 @@ class Wrapper::CtsClockIdbWriter
       return nullptr;
     }
     if (_wrapper->_idb_layout == nullptr || _wrapper->_idb_layout->get_cell_master_list() == nullptr) {
-      LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": iDB layout or cell master list is not ready.";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed for inst \"" << inst->get_name()
+                << "\": iDB layout or cell master list is not ready.";
       return nullptr;
     }
     auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
     auto* cell_master = _wrapper->_idb_layout->get_cell_master_list()->find_cell_master(inst->get_cell_master());
     if (cell_master == nullptr) {
-      LOG_ERROR << "CTS iDB writeback failed for inst \"" << inst->get_name() << "\": cell master \"" << inst->get_cell_master()
-                << "\" is not found.";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed for inst \"" << inst->get_name() << "\": cell master \""
+                << inst->get_cell_master() << "\" is not found.";
       return nullptr;
     }
 
@@ -253,7 +356,7 @@ class Wrapper::CtsClockIdbWriter
     if (idb_inst == nullptr) {
       idb_inst = idb_inst_list->add_instance(inst->get_name());
       if (idb_inst == nullptr) {
-        LOG_ERROR << "CTS iDB writeback failed: failed to allocate iDB inst \"" << inst->get_name() << "\".";
+        LOG_ERROR << "CTS iDB clock-tree materialization failed: failed to allocate iDB inst \"" << inst->get_name() << "\".";
         return nullptr;
       }
       idb_inst->set_cell_master(cell_master);
@@ -280,7 +383,7 @@ class Wrapper::CtsClockIdbWriter
       if (pin == nullptr || _wrapper->_cts2idb_pin_map.contains(pin)) {
         continue;
       }
-      auto* idb_pin = FindIdbPinByTermOrPinName(idb_inst, pin->get_name());
+      auto* idb_pin = FindIdbInstPinByCtsPinName(idb_inst, pin->get_name());
       if (idb_pin != nullptr) {
         _wrapper->crossRef(idb_pin, pin);
       }
@@ -310,7 +413,7 @@ class Wrapper::CtsClockIdbWriter
           _wrapper->crossRef(idb_inst, inst);
         }
       }
-      idb_pin = FindIdbPinByTermOrPinName(idb_inst, pin->get_name());
+      idb_pin = FindIdbInstPinByCtsPinName(idb_inst, pin->get_name());
     }
 
     if (idb_pin != nullptr) {
@@ -346,7 +449,7 @@ class Wrapper::CtsClockIdbWriter
     const auto net_name = net->get_name().empty() ? default_net_name : net->get_name();
     if (net_name.empty()) {
       _failure_reason = "empty_clock_tree_net_name";
-      LOG_ERROR << "CTS iDB writeback failed: clock tree net name is empty.";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed: clock tree net name is empty.";
       return nullptr;
     }
     auto* idb_net = _wrapper->_idb_design->get_net_list()->find_net(net_name);
@@ -355,14 +458,14 @@ class Wrapper::CtsClockIdbWriter
     }
     if (idb_net == nullptr) {
       _failure_reason = "create_clock_tree_net_failed";
-      LOG_ERROR << "CTS iDB writeback failed: failed to create iDB net \"" << net_name << "\".";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed: failed to create iDB net \"" << net_name << "\".";
       return nullptr;
     }
     _wrapper->crossRef(idb_net, net);
     return idb_net;
   }
 
-  auto validatePinCurrentNetInWriteScope(idb::IdbPin* idb_pin, idb::IdbNet* target_net, const ClockIdbWriteScope& scope,
+  auto validatePinCurrentNetInWriteScope(idb::IdbPin* idb_pin, idb::IdbNet* target_net, const ClockTreeIdbMaterializationScope& scope,
                                          const std::string& target_net_name, const std::string& cts_pin_role, Pin* cts_pin) -> bool
   {
     auto* current_net = idb_pin == nullptr ? nullptr : idb_pin->get_net();
@@ -372,12 +475,13 @@ class Wrapper::CtsClockIdbWriter
 
     _failed_net_name = target_net_name;
     _failure_reason = "clock_tree_pin_current_net_out_of_scope";
-    LOG_ERROR << "CTS iDB writeback failed for net \"" << target_net_name << "\": existing iDB pin for CTS " << cts_pin_role << " \""
-              << Design::getPinFullName(cts_pin) << "\" is connected to out-of-scope iDB net \"" << current_net->get_net_name() << "\".";
+    LOG_ERROR << "CTS iDB clock-tree materialization failed for net \"" << target_net_name << "\": existing iDB pin for CTS "
+              << cts_pin_role << " \"" << Design::getPinFullName(cts_pin) << "\" is connected to out-of-scope iDB net \""
+              << current_net->get_net_name() << "\".";
     return false;
   }
 
-  auto rewriteClockTreeIdbNetPins(idb::IdbNet* idb_net, Net* cts_net, const ClockIdbWriteScope& scope) -> bool
+  auto rewriteClockTreeIdbNetPins(idb::IdbNet* idb_net, Net* cts_net, const ClockTreeIdbMaterializationScope& scope) -> bool
   {
     if (idb_net == nullptr || cts_net == nullptr) {
       _failure_reason = "null_clock_tree_net";
@@ -389,14 +493,14 @@ class Wrapper::CtsClockIdbWriter
     auto* driver = cts_net->get_driver();
     if (driver == nullptr) {
       _failure_reason = "clock_tree_net_driver_missing";
-      LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": CTS driver pin is null.";
+      LOG_ERROR << "CTS iDB clock-tree materialization failed for net \"" << net_name << "\": CTS driver pin is null.";
       return false;
     }
 
     auto* idb_driver = findExistingIdbPinForClockNet(driver);
     if (idb_driver == nullptr) {
       _failure_reason = "clock_tree_driver_pin_unresolved";
-      LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": existing iDB pin for CTS driver \""
+      LOG_ERROR << "CTS iDB clock-tree materialization failed for net \"" << net_name << "\": existing iDB pin for CTS driver \""
                 << Design::getPinFullName(driver) << "\" was not found.";
       return false;
     }
@@ -409,13 +513,13 @@ class Wrapper::CtsClockIdbWriter
     for (auto* load : cts_net->get_loads()) {
       if (load == nullptr) {
         _failure_reason = "clock_tree_load_pin_missing";
-        LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": CTS load pin is null.";
+        LOG_ERROR << "CTS iDB clock-tree materialization failed for net \"" << net_name << "\": CTS load pin is null.";
         return false;
       }
       auto* idb_load = findExistingIdbPinForClockNet(load);
       if (idb_load == nullptr) {
         _failure_reason = "clock_tree_load_pin_unresolved";
-        LOG_ERROR << "CTS iDB writeback failed for net \"" << net_name << "\": existing iDB pin for CTS load \""
+        LOG_ERROR << "CTS iDB clock-tree materialization failed for net \"" << net_name << "\": existing iDB pin for CTS load \""
                   << Design::getPinFullName(load) << "\" was not found.";
         return false;
       }
@@ -425,51 +529,52 @@ class Wrapper::CtsClockIdbWriter
       idb_loads.push_back(idb_load);
     }
 
-    ClearIdbNetPins(idb_net);
-    AppendIdbPinToNet(idb_net, idb_driver);
+    DetachIdbNetPins(idb_net);
+    AttachIdbPinToClockTreeNet(idb_net, idb_driver);
     for (auto* idb_load : idb_loads) {
-      AppendIdbPinToNet(idb_net, idb_load);
+      AttachIdbPinToClockTreeNet(idb_net, idb_load);
     }
     return true;
   }
 
-  auto rollbackClockIdbWrite(const ClockIdbWriteScope& scope, const ClockIdbWriteBackup& backup) -> bool
+  auto restorePreexistingClockTreeIdbObjects(const ClockTreeIdbMaterializationScope& scope,
+                                             const ClockTreeIdbPreexistingObjects& restore_data) -> bool
   {
     auto* idb_net_list = _wrapper->_idb_design->get_net_list();
     auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
-    bool rollback_done = true;
+    bool idb_clock_tree_restored = true;
     for (const auto& net_name : scope.touched_net_names) {
-      if (backup.pre_existing_net_names.contains(net_name)) {
+      if (restore_data.net_names.contains(net_name)) {
         continue;
       }
       auto* created_net = idb_net_list->find_net(net_name);
       if (created_net == nullptr) {
         continue;
       }
-      ClearIdbNetPins(created_net);
-      rollback_done = idb_net_list->remove_net(net_name) && rollback_done;
+      DetachIdbNetPins(created_net);
+      idb_clock_tree_restored = idb_net_list->remove_net(net_name) && idb_clock_tree_restored;
     }
 
-    for (const auto& [net_name, snapshot] : backup.net_pin_membership_by_name) {
+    for (const auto& [net_name, net_pins] : restore_data.pins_by_net_name) {
       auto* idb_net = idb_net_list->find_net(net_name);
       if (idb_net == nullptr) {
-        rollback_done = false;
+        idb_clock_tree_restored = false;
         continue;
       }
-      ClearIdbNetPins(idb_net);
-      for (auto* io_pin : snapshot.io_pins) {
-        AppendIdbPinToNet(idb_net, io_pin);
+      DetachIdbNetPins(idb_net);
+      for (auto* io_pin : net_pins.io_pins) {
+        AttachIdbPinToClockTreeNet(idb_net, io_pin);
       }
-      for (auto* inst_pin : snapshot.inst_pins) {
-        AppendIdbPinToNet(idb_net, inst_pin);
+      for (auto* inst_pin : net_pins.inst_pins) {
+        AttachIdbPinToClockTreeNet(idb_net, inst_pin);
       }
     }
 
     for (const auto& inst_name : scope.clock_tree_inst_names) {
-      if (backup.pre_existing_inst_names.contains(inst_name) || idb_inst_list->find_instance(inst_name) == nullptr) {
+      if (restore_data.inst_names.contains(inst_name) || idb_inst_list->find_instance(inst_name) == nullptr) {
         continue;
       }
-      rollback_done = idb_inst_list->remove_instance(inst_name) && rollback_done;
+      idb_clock_tree_restored = idb_inst_list->remove_instance(inst_name) && idb_clock_tree_restored;
     }
 
     _wrapper->_cts2idb_inst_map.clear();
@@ -478,7 +583,7 @@ class Wrapper::CtsClockIdbWriter
     _wrapper->_idb2cts_net_map.clear();
     _wrapper->_cts2idb_pin_map.clear();
     _wrapper->_idb2cts_pin_map.clear();
-    return rollback_done;
+    return idb_clock_tree_restored;
   }
 
   static auto getClockTreeNetName(const Clock& clock, const Net* net) -> std::string

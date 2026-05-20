@@ -30,8 +30,8 @@
 #include <string>
 #include <vector>
 
-#include "TopologyRealTechSmokeSupport.hh"
-#include "flow/synthesis/TopologyVisualizationSupport.hh"
+#include "TopologyRealTechScenario.hh"
+#include "flow/synthesis/TopologyArtifactWriter.hh"
 #include "synthesis/topology/Topology.hh"
 
 namespace icts {

@@ -32,9 +32,9 @@
 #include <utility>
 #include <vector>
 
-#include "CharBuilder.hh"
 #include "Log.hh"
 #include "LogFormat.hh"
+#include "characterization/Characterization.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/htree/characterization/wirelength/WirelengthGrid.hh"

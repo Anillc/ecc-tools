@@ -37,61 +37,42 @@
 #include <vector>
 
 #include "FastSta.hh"
-#include "FastStaTypes.hh"
-#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 #include "optimization/options/OptimizationOptions.hh"
 #include "optimization/preparation/OptimizationPreparation.hh"
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
 namespace {
 
-auto DriveStep(const BufferMasterInfo& from, const BufferMasterInfo& to) -> int
+auto DriveStep(const ClockSizingBufferMaster& from, const ClockSizingBufferMaster& to) -> int
 {
   return static_cast<int>(to.drive_rank) - static_cast<int>(from.drive_rank);
 }
 
 }  // namespace
 
-auto BuildTopologyIndex(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers) -> TopologyIndex
+auto BuildClockSizingTopologyIndex(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers) -> ClockSizingTopologyIndex
 {
-  TopologyIndex topology;
-  const auto* context = FastSTA::queryClockContext(clock_id);
-  if (context == nullptr) {
+  ClockSizingTopologyIndex topology;
+  const auto clock_tree_topology = FastSTA::queryClockTreeTopology(clock_id);
+  if (!clock_tree_topology.has_value()) {
     return topology;
   }
 
-  topology.parent_by_node.assign(context->nodes.size(), kInvalidFastStaNodeId);
-  std::unordered_map<std::string, FastStaNodeId> input_by_inst;
-  input_by_inst.reserve(context->nodes.size());
-  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
-    const auto& node = context->nodes.at(node_id);
-    if (node.kind == FastStaNodeKind::kBufferInput && !node.inst_name.empty()) {
-      input_by_inst[node.inst_name] = node_id;
-    }
-  }
-  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
-    const auto& node = context->nodes.at(node_id);
-    if (node.kind == FastStaNodeKind::kBufferOutput) {
-      const auto input_iter = input_by_inst.find(node.inst_name);
-      if (input_iter != input_by_inst.end()) {
-        topology.parent_by_node.at(node_id) = input_iter->second;
-        topology.buffer_input_by_output[node_id] = input_iter->second;
-      }
-      continue;
-    }
-    if (node.incoming_net_id < context->nets.size()) {
-      topology.parent_by_node.at(node_id) = context->nets.at(node.incoming_net_id).driver_node_id;
-    }
-  }
+  topology.source_node_id = clock_tree_topology->source_node_id;
+  topology.parent_by_node = clock_tree_topology->parent_by_node;
+  topology.children_by_node = clock_tree_topology->children_by_node;
   for (std::size_t buffer_index = 0U; buffer_index < buffers.size(); ++buffer_index) {
     topology.buffer_index_by_output_node[buffers.at(buffer_index).node_id] = buffer_index;
   }
-  topology.children_by_node.assign(context->nodes.size(), {});
-  for (FastStaNodeId node_id = 0U; node_id < topology.parent_by_node.size(); ++node_id) {
-    const auto parent_id = topology.parent_by_node.at(node_id);
-    if (parent_id < topology.children_by_node.size()) {
-      topology.children_by_node.at(parent_id).push_back(node_id);
+  for (const auto& buffer : buffers) {
+    if (buffer.node_id >= topology.parent_by_node.size()) {
+      continue;
+    }
+    const auto buffer_input_id = topology.parent_by_node.at(buffer.node_id);
+    if (buffer_input_id < topology.parent_by_node.size()) {
+      topology.buffer_input_by_output[buffer.node_id] = buffer_input_id;
     }
   }
   return topology;
@@ -99,33 +80,32 @@ auto BuildTopologyIndex(FastStaClockId clock_id, const std::vector<OptimizableBu
 
 namespace {
 
-auto CollectFrontierSinks(FastStaClockId clock_id, const FastState& current, FrontierSide side) -> std::vector<FastStaNodeId>
+auto CollectFrontierSinks(FastStaClockId clock_id, const ClockSizingTimingState& current, ClockSizingFrontierSide side)
+    -> std::vector<FastStaNodeId>
 {
   std::vector<std::pair<FastStaNodeId, double>> sinks;
-  const auto* context = FastSTA::queryClockContext(clock_id);
-  if (context == nullptr || !current.skew.valid) {
+  if (!current.skew.valid) {
     return {};
   }
 
-  for (FastStaNodeId node_id = 0U; node_id < context->nodes.size(); ++node_id) {
-    const auto& node = context->nodes.at(node_id);
-    if (node.kind != FastStaNodeKind::kSink || !node.timing.valid) {
-      continue;
-    }
-    sinks.emplace_back(node_id, node.timing.arrival_ns);
+  const auto sink_arrivals = FastSTA::collectClockSinkArrivals(clock_id);
+  sinks.reserve(sink_arrivals.size());
+  for (const auto& sink_arrival : sink_arrivals) {
+    sinks.emplace_back(sink_arrival.node_id, sink_arrival.arrival_ns);
   }
   if (sinks.empty()) {
-    const auto skew_extreme_sink_id = side == FrontierSide::kLate ? current.skew.max_sink_node_id : current.skew.min_sink_node_id;
-    if (skew_extreme_sink_id < context->nodes.size()) {
-      sinks.emplace_back(skew_extreme_sink_id, context->nodes.at(skew_extreme_sink_id).timing.arrival_ns);
+    const auto skew_extreme_sink_id
+        = side == ClockSizingFrontierSide::kLate ? current.skew.max_sink_node_id : current.skew.min_sink_node_id;
+    if (const auto arrival = FastSTA::queryClockNodeArrival(clock_id, skew_extreme_sink_id); arrival.has_value()) {
+      sinks.emplace_back(skew_extreme_sink_id, *arrival);
     }
   }
 
-  std::ranges::sort(sinks, [context, side](const auto& lhs, const auto& rhs) -> bool {
-    if (std::abs(lhs.second - rhs.second) > kOptimizationEpsilon) {
-      return side == FrontierSide::kLate ? lhs.second > rhs.second : lhs.second < rhs.second;
+  std::ranges::sort(sinks, [side](const auto& lhs, const auto& rhs) -> bool {
+    if (std::abs(lhs.second - rhs.second) > kClockSizingEpsilon) {
+      return side == ClockSizingFrontierSide::kLate ? lhs.second > rhs.second : lhs.second < rhs.second;
     }
-    return context->nodes.at(lhs.first).name < context->nodes.at(rhs.first).name;
+    return lhs.first < rhs.first;
   });
   if (sinks.size() > DefaultOptimizationOptions().max_frontier_sinks) {
     sinks.resize(DefaultOptimizationOptions().max_frontier_sinks);
@@ -139,7 +119,7 @@ auto CollectFrontierSinks(FastStaClockId clock_id, const FastState& current, Fro
   return sink_ids;
 }
 
-auto CollectPathBufferIndices(const TopologyIndex& topology, FastStaNodeId sink_node_id) -> std::vector<std::size_t>
+auto CollectPathBufferIndices(const ClockSizingTopologyIndex& topology, FastStaNodeId sink_node_id) -> std::vector<std::size_t>
 {
   std::vector<std::size_t> path;
   FastStaNodeId node_id = sink_node_id;
@@ -158,8 +138,8 @@ auto CollectPathBufferIndices(const TopologyIndex& topology, FastStaNodeId sink_
 
 }  // namespace
 
-auto MakeSizingAction(const std::vector<OptimizableBuffer>& buffers, std::size_t buffer_index, FrontierSide side, unsigned rank_step)
-    -> std::optional<SizingAction>
+auto MakeClockSizingEdit(const std::vector<ClockSizingBuffer>& buffers, std::size_t buffer_index, ClockSizingFrontierSide side,
+                         unsigned rank_step) -> std::optional<ClockSizingEdit>
 {
   if (buffer_index >= buffers.size() || rank_step == 0U) {
     return std::nullopt;
@@ -170,7 +150,8 @@ auto MakeSizingAction(const std::vector<OptimizableBuffer>& buffers, std::size_t
     return std::nullopt;
   }
   const auto from_rank = static_cast<int>(from->drive_rank);
-  const auto target_rank = side == FrontierSide::kLate ? from_rank + static_cast<int>(rank_step) : from_rank - static_cast<int>(rank_step);
+  const auto target_rank
+      = side == ClockSizingFrontierSide::kLate ? from_rank + static_cast<int>(rank_step) : from_rank - static_cast<int>(rank_step);
   if (target_rank < 0 || static_cast<std::size_t>(target_rank) >= buffer.candidates.size()) {
     return std::nullopt;
   }
@@ -178,38 +159,38 @@ auto MakeSizingAction(const std::vector<OptimizableBuffer>& buffers, std::size_t
   if (to.cell_master == from->cell_master) {
     return std::nullopt;
   }
-  return SizingAction{.buffer_index = buffer_index,
-                      .from_master = from->cell_master,
-                      .to_master = to.cell_master,
-                      .drive_step = DriveStep(*from, to),
-                      .area_delta_um2 = to.area_um2 - from->area_um2};
+  return ClockSizingEdit{.buffer_index = buffer_index,
+                         .from_master = from->cell_master,
+                         .to_master = to.cell_master,
+                         .drive_step = DriveStep(*from, to),
+                         .area_delta_um2 = to.area_um2 - from->area_um2};
 }
 
 namespace {
 
-auto AppendBatchCandidate(std::vector<std::vector<SizingAction>>& candidates, std::unordered_set<std::string>& seen,
-                          std::vector<SizingAction> actions) -> void
+auto AppendBatchCandidate(std::vector<std::vector<ClockSizingEdit>>& candidates, std::unordered_set<std::string>& seen,
+                          std::vector<ClockSizingEdit> edits) -> void
 {
-  if (actions.empty() || candidates.size() >= DefaultOptimizationOptions().max_batch_trials_per_iteration) {
+  if (edits.empty() || candidates.size() >= DefaultOptimizationOptions().max_batch_trials_per_iteration) {
     return;
   }
-  std::ranges::sort(actions, [](const SizingAction& lhs, const SizingAction& rhs) -> bool {
+  std::ranges::sort(edits, [](const ClockSizingEdit& lhs, const ClockSizingEdit& rhs) -> bool {
     if (lhs.buffer_index != rhs.buffer_index) {
       return lhs.buffer_index < rhs.buffer_index;
     }
     return lhs.to_master < rhs.to_master;
   });
 
-  std::vector<SizingAction> compact;
-  compact.reserve(std::min(actions.size(), DefaultOptimizationOptions().max_batch_actions));
+  std::vector<ClockSizingEdit> compact;
+  compact.reserve(std::min(edits.size(), DefaultOptimizationOptions().max_batch_edits));
   std::unordered_set<std::size_t> used_buffers;
-  for (const auto& action : actions) {
-    if (used_buffers.contains(action.buffer_index)) {
+  for (const auto& edit : edits) {
+    if (used_buffers.contains(edit.buffer_index)) {
       continue;
     }
-    used_buffers.insert(action.buffer_index);
-    compact.push_back(action);
-    if (compact.size() >= DefaultOptimizationOptions().max_batch_actions) {
+    used_buffers.insert(edit.buffer_index);
+    compact.push_back(edit);
+    if (compact.size() >= DefaultOptimizationOptions().max_batch_edits) {
       break;
     }
   }
@@ -218,10 +199,10 @@ auto AppendBatchCandidate(std::vector<std::vector<SizingAction>>& candidates, st
   }
 
   std::string key;
-  for (const auto& action : compact) {
-    key += std::to_string(action.buffer_index);
+  for (const auto& edit : compact) {
+    key += std::to_string(edit.buffer_index);
     key += ':';
-    key += action.to_master;
+    key += edit.to_master;
     key += ';';
   }
   if (!seen.insert(key).second) {
@@ -230,22 +211,22 @@ auto AppendBatchCandidate(std::vector<std::vector<SizingAction>>& candidates, st
   candidates.push_back(std::move(compact));
 }
 
-auto GeneratePathSegmentBatches(const std::vector<OptimizableBuffer>& buffers, const std::vector<std::size_t>& path, FrontierSide side,
-                                unsigned rank_step, std::vector<std::vector<SizingAction>>& candidates,
+auto GeneratePathSegmentBatches(const std::vector<ClockSizingBuffer>& buffers, const std::vector<std::size_t>& path,
+                                ClockSizingFrontierSide side, unsigned rank_step, std::vector<std::vector<ClockSizingEdit>>& candidates,
                                 std::unordered_set<std::string>& seen) -> void
 {
   const auto& segment_lengths = DefaultOptimizationOptions().path_segment_lengths;
   for (std::size_t start = 0U; start < path.size() && candidates.size() < DefaultOptimizationOptions().max_batch_trials_per_iteration;
        ++start) {
     for (const auto length : segment_lengths) {
-      std::vector<SizingAction> actions;
+      std::vector<ClockSizingEdit> edits;
       for (std::size_t offset = 0U; offset < length && start + offset < path.size(); ++offset) {
-        auto action = MakeSizingAction(buffers, path.at(start + offset), side, rank_step);
-        if (action.has_value()) {
-          actions.push_back(std::move(*action));
+        auto edit = MakeClockSizingEdit(buffers, path.at(start + offset), side, rank_step);
+        if (edit.has_value()) {
+          edits.push_back(std::move(*edit));
         }
       }
-      AppendBatchCandidate(candidates, seen, std::move(actions));
+      AppendBatchCandidate(candidates, seen, std::move(edits));
       if (candidates.size() >= DefaultOptimizationOptions().max_batch_trials_per_iteration) {
         break;
       }
@@ -253,8 +234,8 @@ auto GeneratePathSegmentBatches(const std::vector<OptimizableBuffer>& buffers, c
   }
 }
 
-auto GenerateFrontierLevelBatches(const std::vector<OptimizableBuffer>& buffers, const std::vector<std::vector<std::size_t>>& paths,
-                                  FrontierSide side, unsigned rank_step, std::vector<std::vector<SizingAction>>& candidates,
+auto GenerateFrontierLevelBatches(const std::vector<ClockSizingBuffer>& buffers, const std::vector<std::vector<std::size_t>>& paths,
+                                  ClockSizingFrontierSide side, unsigned rank_step, std::vector<std::vector<ClockSizingEdit>>& candidates,
                                   std::unordered_set<std::string>& seen) -> void
 {
   std::size_t max_path_size = 0U;
@@ -263,22 +244,22 @@ auto GenerateFrontierLevelBatches(const std::vector<OptimizableBuffer>& buffers,
   }
   for (std::size_t depth_index = 0U;
        depth_index < max_path_size && candidates.size() < DefaultOptimizationOptions().max_batch_trials_per_iteration; ++depth_index) {
-    std::vector<SizingAction> actions;
+    std::vector<ClockSizingEdit> edits;
     for (const auto& path : paths) {
       if (depth_index >= path.size()) {
         continue;
       }
-      auto action = MakeSizingAction(buffers, path.at(depth_index), side, rank_step);
-      if (action.has_value()) {
-        actions.push_back(std::move(*action));
+      auto edit = MakeClockSizingEdit(buffers, path.at(depth_index), side, rank_step);
+      if (edit.has_value()) {
+        edits.push_back(std::move(*edit));
       }
     }
-    AppendBatchCandidate(candidates, seen, std::move(actions));
+    AppendBatchCandidate(candidates, seen, std::move(edits));
   }
 }
 
-auto GenerateFrontierPrefixBatches(const std::vector<OptimizableBuffer>& buffers, const std::vector<std::vector<std::size_t>>& paths,
-                                   FrontierSide side, unsigned rank_step, std::vector<std::vector<SizingAction>>& candidates,
+auto GenerateFrontierPrefixBatches(const std::vector<ClockSizingBuffer>& buffers, const std::vector<std::vector<std::size_t>>& paths,
+                                   ClockSizingFrontierSide side, unsigned rank_step, std::vector<std::vector<ClockSizingEdit>>& candidates,
                                    std::unordered_set<std::string>& seen) -> void
 {
   const auto& path_counts = DefaultOptimizationOptions().frontier_prefix_path_counts;
@@ -292,18 +273,18 @@ auto GenerateFrontierPrefixBatches(const std::vector<OptimizableBuffer>& buffers
       continue;
     }
     for (const auto prefix_length : prefix_lengths) {
-      std::vector<SizingAction> actions;
-      for (std::size_t path_index = 0U; path_index < selected_path_count && actions.size() < DefaultOptimizationOptions().max_batch_actions;
+      std::vector<ClockSizingEdit> edits;
+      for (std::size_t path_index = 0U; path_index < selected_path_count && edits.size() < DefaultOptimizationOptions().max_batch_edits;
            ++path_index) {
         const auto& path = paths.at(path_index);
         for (std::size_t depth_index = 0U; depth_index < prefix_length && depth_index < path.size(); ++depth_index) {
-          auto action = MakeSizingAction(buffers, path.at(depth_index), side, rank_step);
-          if (action.has_value()) {
-            actions.push_back(std::move(*action));
+          auto edit = MakeClockSizingEdit(buffers, path.at(depth_index), side, rank_step);
+          if (edit.has_value()) {
+            edits.push_back(std::move(*edit));
           }
         }
       }
-      AppendBatchCandidate(candidates, seen, std::move(actions));
+      AppendBatchCandidate(candidates, seen, std::move(edits));
       if (candidates.size() >= DefaultOptimizationOptions().max_batch_trials_per_iteration) {
         break;
       }
@@ -313,13 +294,14 @@ auto GenerateFrontierPrefixBatches(const std::vector<OptimizableBuffer>& buffers
 
 }  // namespace
 
-auto GenerateBatchCandidates(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
-                             const FastState& current) -> std::vector<std::vector<SizingAction>>
+auto GenerateClockSizingEditBatches(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
+                                    const ClockSizingTopologyIndex& topology, const ClockSizingTimingState& current)
+    -> std::vector<std::vector<ClockSizingEdit>>
 {
-  std::vector<std::vector<SizingAction>> candidates;
+  std::vector<std::vector<ClockSizingEdit>> candidates;
   std::unordered_set<std::string> seen;
   const auto& rank_steps = DefaultOptimizationOptions().rank_steps;
-  for (const auto side : {FrontierSide::kLate, FrontierSide::kEarly}) {
+  for (const auto side : {ClockSizingFrontierSide::kLate, ClockSizingFrontierSide::kEarly}) {
     const auto frontier_sinks = CollectFrontierSinks(clock_id, current, side);
     std::vector<std::vector<std::size_t>> paths;
     paths.reserve(frontier_sinks.size());
@@ -346,4 +328,4 @@ auto GenerateBatchCandidates(FastStaClockId clock_id, const std::vector<Optimiza
   return candidates;
 }
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

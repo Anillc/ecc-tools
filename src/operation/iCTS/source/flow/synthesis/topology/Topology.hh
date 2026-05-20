@@ -35,6 +35,7 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "synthesis/htree/HTree.hh"
+#include "synthesis/htree/HTreeSynthesisResult.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 
 namespace icts {

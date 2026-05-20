@@ -8,9 +8,7 @@ target_link_libraries(
   PUBLIC
   icts_source_database_spatial
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_design
-  icts_source_database_io
   icts_source_module_routing
   icts_source_module_routing_helper
   icts_source_module_timing

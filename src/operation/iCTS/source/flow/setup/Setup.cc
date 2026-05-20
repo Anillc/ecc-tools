@@ -51,7 +51,7 @@ auto ensureDirectory(const std::filesystem::path& dir) -> void
 
 }  // namespace
 
-auto Setup::initialize(const std::string& config_file, const std::string& work_dir) -> bool
+auto Setup::initializeRuntime(const std::string& config_file, const std::string& work_dir) -> SetupResult
 {
   const std::string generated_on = ieda::Time::getNowWallTime();
 
@@ -84,7 +84,7 @@ auto Setup::initialize(const std::string& config_file, const std::string& work_d
                                                         {"reason", CONFIG_INST.get_last_error()},
                                                     });
     LOG_ERROR << "CTS setup failed for config file " << config_file << ": " << CONFIG_INST.get_last_error();
-    return false;
+    return SetupResult{.setup_ready = false, .reason = CONFIG_INST.get_last_error()};
   }
 
   auto* idb_builder = dmInst->get_idb_builder();
@@ -92,7 +92,12 @@ auto Setup::initialize(const std::string& config_file, const std::string& work_d
   WRAPPER_INST.init(idb_builder);
 
   STA_ADAPTER_INST.init();
-  return true;
+  return SetupResult{.setup_ready = true, .reason = "n/a"};
+}
+
+auto Setup::initialize(const std::string& config_file, const std::string& work_dir) -> bool
+{
+  return initializeRuntime(config_file, work_dir).setup_ready;
 }
 
 auto Setup::emitRuntimeSetup() -> void

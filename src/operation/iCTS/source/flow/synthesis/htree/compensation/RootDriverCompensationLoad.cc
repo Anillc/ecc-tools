@@ -55,8 +55,9 @@
 #include "io/Wrapper.hh"
 #include "routing/router/Router.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
-#include "synthesis/htree/compensation/RootDriverCompensationInternal.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/compensation/RootDriverCompensationState.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
+#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 
 namespace icts::htree {
 namespace {

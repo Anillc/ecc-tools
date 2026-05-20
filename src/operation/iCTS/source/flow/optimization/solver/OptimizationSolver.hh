@@ -25,15 +25,16 @@
 
 #include <vector>
 
-#include "FastStaTypes.hh"
-#include "optimization/model/OptimizationTypes.hh"
+#include "FastSta.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
-auto SolveClock(FastStaClockId clock_id, std::vector<OptimizableBuffer>& buffers, const std::vector<CapBaseline>& cap_baseline,
-                const std::vector<SlewBaseline>& slew_baseline, double target_skew_ns) -> ClockOptimizationSummary;
-auto SolveClockScalable(FastStaClockId clock_id, std::vector<OptimizableBuffer>& buffers, const std::vector<CapBaseline>& cap_baseline,
-                        const std::vector<SlewBaseline>& slew_baseline, double target_skew_ns) -> ClockOptimizationSummary;
-auto ShouldUseScalableSolver(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers) -> bool;
+auto SolveClock(FastStaClockId clock_id, std::vector<ClockSizingBuffer>& buffers, const std::vector<ClockSizingCapLimit>& cap_baseline,
+                const std::vector<ClockSizingSlewLimit>& slew_baseline, double target_skew_ns) -> ClockSizingSummary;
+auto SolveClockScalable(FastStaClockId clock_id, std::vector<ClockSizingBuffer>& buffers,
+                        const std::vector<ClockSizingCapLimit>& cap_baseline, const std::vector<ClockSizingSlewLimit>& slew_baseline,
+                        double target_skew_ns) -> ClockSizingSummary;
+auto ShouldUseScalableSolver(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers) -> bool;
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

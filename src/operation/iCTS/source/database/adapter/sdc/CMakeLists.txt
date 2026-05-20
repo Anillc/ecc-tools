@@ -1,14 +1,14 @@
 add_library(
   icts_source_database_adapter_sdc
-  ${ICTS_SOURCE}/database/adapter/sdc/ClockTracePins.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/ClockTraceReport.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/ClockTraceResolve.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/ClockTraceResolver.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockCommands.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockEvaluator.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockParser.cc
   ${ICTS_SOURCE}/database/adapter/sdc/SdcClockReader.cc
-  ${ICTS_SOURCE}/database/adapter/sdc/SdcClockValue.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_parser/SdcClockParser.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_parser/SdcClockCommands.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_parser/SdcClockEvaluator.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_parser/SdcClockValue.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_trace/ClockTraceResolver.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_trace/ClockTracePins.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_trace/ClockTraceReport.cc
+  ${ICTS_SOURCE}/database/adapter/sdc/clock_trace/ClockTraceResolve.cc
 )
 
 target_include_directories(
@@ -17,6 +17,8 @@ target_include_directories(
   ${ICTS_DATABASE_ADAPTER_SDC}
   ${ICTS_DATABASE_ADAPTER}
   PRIVATE
+  ${ICTS_DATABASE_ADAPTER_SDC}/clock_parser
+  ${ICTS_DATABASE_ADAPTER_SDC}/clock_trace
   ${ICTS_DATABASE}
   ${ICTS_UTILS}
   ${HOME_DATABASE}/data/design

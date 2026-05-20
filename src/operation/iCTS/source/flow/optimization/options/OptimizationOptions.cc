@@ -23,7 +23,7 @@
 
 #include "optimization/options/OptimizationOptions.hh"
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
 auto DefaultOptimizationOptions() -> const OptimizationOptions&
 {
@@ -33,13 +33,13 @@ auto DefaultOptimizationOptions() -> const OptimizationOptions&
 
 auto ValidateOptimizationOptions(const OptimizationOptions& options) -> bool
 {
-  return options.max_iterations > 0U && options.max_trials > 0U && options.max_frontier_sinks > 0U && options.max_batch_actions > 0U
+  return options.max_iterations > 0U && options.max_trials > 0U && options.max_frontier_sinks > 0U && options.max_batch_edits > 0U
          && options.max_batch_trials_per_iteration > 0U && options.trial_progress_interval > 0U && options.initial_detailed_trials > 0U
-         && options.slow_trial_log_threshold_s > 0.0 && options.max_scalable_batch_actions > 0U
+         && options.slow_trial_log_threshold_s > 0.0 && options.max_scalable_batch_edits > 0U
          && options.max_scalable_exact_trials_per_iteration > 0U && options.target_window_shrink_ratio > 0.0
          && options.target_window_shrink_ratio <= 1.0 && options.min_branch_purity >= 0.0 && options.min_branch_purity <= 1.0
          && options.max_opposite_violation_ratio >= 0.0 && options.route_tree_progress_interval > 0U
          && options.route_tree_initial_detail_net_count > 0U && options.route_tree_slow_net_threshold_s > 0.0;
 }
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

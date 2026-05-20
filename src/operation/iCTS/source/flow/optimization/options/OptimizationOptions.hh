@@ -26,21 +26,22 @@
 #include <array>
 #include <cstddef>
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
 struct OptimizationOptions
 {
   unsigned max_iterations = 64U;
   unsigned max_trials = 20000U;
   std::size_t max_frontier_sinks = 64U;
-  std::size_t max_batch_actions = 16U;
+  std::size_t max_batch_edits = 16U;
   std::size_t max_batch_trials_per_iteration = 1600U;
   unsigned trial_progress_interval = 500U;
   unsigned initial_detailed_trials = 3U;
   double slow_trial_log_threshold_s = 5.0;
+  bool stop_at_first_target_skew_batch = true;
   std::size_t scalable_node_threshold = 50000U;
   std::size_t scalable_buffer_threshold = 5000U;
-  std::size_t max_scalable_batch_actions = 48U;
+  std::size_t max_scalable_batch_edits = 48U;
   std::size_t max_scalable_exact_trials_per_iteration = 8U;
   double target_window_shrink_ratio = 0.8;
   double min_branch_purity = 0.8;
@@ -58,4 +59,4 @@ struct OptimizationOptions
 auto DefaultOptimizationOptions() -> const OptimizationOptions&;
 auto ValidateOptimizationOptions(const OptimizationOptions& options) -> bool;
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

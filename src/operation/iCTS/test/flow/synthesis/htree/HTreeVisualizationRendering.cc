@@ -44,7 +44,7 @@
 #include "Pin.hh"
 #include "Point.hh"
 #include "Tree.hh"
-#include "flow/synthesis/htree/HTreeVisualizationInternal.hh"
+#include "flow/synthesis/htree/HTreeSvgRenderer.hh"
 #include "synthesis/htree/HTree.hh"
 #include "visualization/core/SvgCommon.hh"
 

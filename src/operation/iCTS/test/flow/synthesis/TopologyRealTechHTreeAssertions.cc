@@ -33,7 +33,7 @@
 
 #include "Inst.hh"
 #include "Pin.hh"
-#include "TopologyRealTechSmokeSupport.hh"
+#include "TopologyRealTechScenario.hh"
 #include "Tree.hh"
 #include "database/config/Config.hh"
 #include "database/design/Net.hh"

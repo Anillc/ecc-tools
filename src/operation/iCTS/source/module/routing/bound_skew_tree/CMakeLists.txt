@@ -1,20 +1,20 @@
 add_library(
   icts_source_module_routing_bst
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouter.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouterBinaryTopology.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouterExport.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTree.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeBalance.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeEmbedding.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeFlow.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeInfeasibleMerge.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeJoining.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/BoundSkewTreeTopology.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/Components.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/GeomCalc.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/GeomCalcLine.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/GeomCalcPointRegion.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/GeomCalcTransformedRect.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/clock_tree_conversion/BSTRouterBinaryTopology.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/clock_tree_conversion/BSTRouterExport.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/component/Components.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalc.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalcLine.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalcPointRegion.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalcTransformedRect.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTree.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeBalance.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeEmbedding.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeFlow.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeInfeasibleMerge.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeJoining.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeTopology.cc
 )
 
 target_link_libraries(
@@ -22,7 +22,7 @@ target_link_libraries(
   PUBLIC
   icts_source_database
   PRIVATE
-  icts_source_module_routing_database
+  icts_source_database_routing
   icts_source_utils
   log
 )
@@ -30,7 +30,7 @@ target_link_libraries(
 target_include_directories(
   icts_source_module_routing_bst
   PUBLIC
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree
+  ${ICTS_MODULE_ROUTING}
   PRIVATE
   ${ICTS_DATABASE}
   ${ICTS_UTILS}

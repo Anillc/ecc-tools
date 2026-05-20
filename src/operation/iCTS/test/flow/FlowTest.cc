@@ -31,7 +31,7 @@
 #include "ClockLayout.hh"
 #include "Design.hh"
 #include "Flow.hh"
-#include "FlowTestSupport.hh"
+#include "FlowDesignFixture.hh"
 #include "Inst.hh"
 #include "Net.hh"
 #include "Pin.hh"
@@ -57,7 +57,8 @@ TEST(FlowTest, EmptyFlowRunIsCallable)
 {
   const ScopedFlowReset scoped_flow_reset;
 
-  FLOW_INST.run();
+  (void) FLOW_INST.runSynthesis();
+  (void) FLOW_INST.runOptimization();
 
   const auto summary = FLOW_INST.outputRunSummary();
   EXPECT_FALSE(summary.success);
@@ -156,8 +157,9 @@ TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
 {
   const ScopedFlowReset scoped_flow_reset;
 
-  FLOW_INST.run();
-  FLOW_INST.evaluate();
+  (void) FLOW_INST.runSynthesis();
+  (void) FLOW_INST.runOptimization();
+  (void) FLOW_INST.evaluateClockTree();
 
   const auto run_summary = FLOW_INST.outputRunSummary();
   EXPECT_EQ(run_summary.outcome, icts::SynthesisOutcome::kNoOp);
@@ -277,7 +279,7 @@ TEST(FlowTest, RepeatedNetPreparationRestoresClockSourceNetBeforeRebuildingInser
   EXPECT_EQ(pins.regular_sink->get_net()->get_loads().front(), pins.regular_sink);
 }
 
-TEST(FlowTest, RootBufferInsertionFailureRollsBackClockAndRecordsSinkDomainStatus)
+TEST(FlowTest, RootBufferInsertionFailureRestoresClockMembershipAndRecordsSinkDomainStatus)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -298,7 +300,7 @@ TEST(FlowTest, RootBufferInsertionFailureRollsBackClockAndRecordsSinkDomainStatu
   EXPECT_TRUE(clock_layout.get_clocks().empty());
 }
 
-TEST(FlowTest, DownstreamNetCreationFailureRollsBackClockAndRecordsSinkDomainStatus)
+TEST(FlowTest, DownstreamNetCreationFailureRestoresClockMembershipAndRecordsSinkDomainStatus)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -324,7 +326,7 @@ TEST(FlowTest, DownstreamNetCreationFailureRollsBackClockAndRecordsSinkDomainSta
   ExpectClockRestoredToOriginalLoads(pins);
 }
 
-TEST(FlowTest, TopologyResetRollsBackPreparedSinkDomainAndDoesNotMergePendingClockLayout)
+TEST(FlowTest, TopologyResetRestoresPreparedSinkDomainAndKeepsPendingClockLayoutUnmerged)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -346,7 +348,7 @@ TEST(FlowTest, TopologyResetRollsBackPreparedSinkDomainAndDoesNotMergePendingClo
   EXPECT_TRUE(clock_layout.get_clocks().empty());
 }
 
-TEST(FlowTest, SourceToRootFailureRollsBackPreparedSinkDomainsAndRecordsStatus)
+TEST(FlowTest, SourceToRootFailureRestoresPreparedSinkDomainsAndRecordsStatus)
 {
   const ScopedFlowReset scoped_flow_reset;
 
@@ -382,7 +384,7 @@ TEST(FlowTest, EvaluateWithoutSuccessfulInstantiationLeavesSummaryUnavailableAnd
   auto pins = AddClockToDesign(nullptr, reg_inst);
   PrepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
-  FLOW_INST.evaluate();
+  (void) FLOW_INST.evaluateClockTree();
   EXPECT_FALSE(FLOW_INST.outputSummary().has_evaluation_result);
   EXPECT_EQ(FLOW_INST.outputSummary().final_clock_buffer_count, 0);
   EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 0);

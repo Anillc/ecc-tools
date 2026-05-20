@@ -25,15 +25,18 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <limits>
 #include <optional>
 #include <ostream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "ClockRouteSegmentRc.hh"
 #include "Clustering.hh"
 #include "Log.hh"
 #include "Pin.hh"
@@ -131,15 +134,25 @@ auto resolveMinLegalClusterBufferCell(std::string& cell_master, std::string& inp
   return has_resolved_master;
 }
 
-auto buildClusteringConfigFromRuntimeConfig() -> ClusterConfig
+auto collectSinkPinCapPfByPin(const std::vector<Pin*>& loads) -> std::unordered_map<const Pin*, double>
+{
+  std::unordered_map<const Pin*, double> sink_pin_cap_pf_by_pin;
+  sink_pin_cap_pf_by_pin.reserve(loads.size());
+  for (const auto* pin : loads) {
+    if (pin == nullptr) {
+      continue;
+    }
+    sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, STA_ADAPTER_INST.queryPinCapacitance(pin)));
+  }
+  return sink_pin_cap_pf_by_pin;
+}
+
+auto buildClusteringConfigFromRuntimeConfig(const std::vector<Pin*>& root_loads) -> ClusterConfig
 {
   const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
   auto clustering_config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
-      << "Topology: routing layer is not configured for sink-load clustering.";
-  clustering_config.routing_layer = static_cast<int>(routing_layers.front());
-  clustering_config.wire_width = CONFIG_INST.get_wire_width();
+  clustering_config.clock_route_segment_rc = STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc();
+  clustering_config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(root_loads);
   return clustering_config;
 }
 
@@ -200,7 +213,7 @@ auto PrepareSinkTreeLoads(Topology::BuildResult& result, const std::vector<Pin*>
     return preparation;
   }
 
-  auto clustering_config = buildClusteringConfigFromRuntimeConfig();
+  auto clustering_config = buildClusteringConfigFromRuntimeConfig(root_loads);
   auto cluster_result = TopologyGen::defaultFastClustering(root_loads, clustering_config);
   result.cluster_result = std::move(cluster_result);
 

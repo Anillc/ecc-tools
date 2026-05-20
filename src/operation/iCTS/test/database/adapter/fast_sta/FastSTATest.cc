@@ -35,10 +35,14 @@
 #include "FastStaParasitics.hh"
 #include "FastStaPower.hh"
 #include "FastStaTiming.hh"
-#include "FastStaTypes.hh"
+#include "clock_net_parasitic/FastStaClockNetParasitic.hh"
+#include "clock_sizing/FastStaClockSizingEdit.hh"
+#include "clock_state/FastStaClockState.hh"
 #include "database/config/Config.hh"
-#include "optimization/model/OptimizationTypes.hh"
+#include "liberty/FastStaLibertyModel.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 #include "optimization/preparation/OptimizationPreparation.hh"
+#include "timing/FastStaClockTiming.hh"
 
 namespace icts_test {
 
@@ -47,11 +51,7 @@ class FastStaTestAccess
  public:
   static auto registerClockContext(icts::FastStaClockContext context) -> icts::FastStaClockId
   {
-    auto& fast_sta = icts::FastSTA::getInst();
-    const auto clock_id = fast_sta._clock_contexts.size();
-    fast_sta._clock_contexts.push_back(std::move(context));
-    fast_sta._clock_context_valid.push_back(true);
-    return clock_id;
+    return icts::FastSTA::registerClockContextForTest(std::move(context));
   }
 };
 
@@ -489,7 +489,7 @@ TEST(FastSTATest, QuerySlewStatusDistinguishesBufferInputAndSinkRoles)
   EXPECT_TRUE(sink.violated);
 }
 
-TEST(FastSTATest, CollectSlewBaselinePreservesBufferInputAndSinkRoles)
+TEST(FastSTATest, CollectClockSizingSlewLimitsPreservesBufferInputAndSinkRoles)
 {
   const ScopedFastSTAContexts fast_sta_contexts;
   auto context = MakeTinyContext();
@@ -499,7 +499,7 @@ TEST(FastSTATest, CollectSlewBaselinePreservesBufferInputAndSinkRoles)
   context.nodes.at(3U).timing = icts::FastStaTimingPoint{.arrival_ns = 0.8, .slew_ns = 0.25, .valid = true};
 
   const auto clock_id = RegisterClockContext(std::move(context));
-  const auto baseline = icts::optimization_internal::CollectSlewBaseline(clock_id);
+  const auto baseline = icts::clock_sizing_optimization::CollectClockSizingSlewLimits(clock_id);
 
   ASSERT_GT(baseline.size(), 3U);
   EXPECT_TRUE(baseline.at(1U).available);
@@ -508,6 +508,78 @@ TEST(FastSTATest, CollectSlewBaselinePreservesBufferInputAndSinkRoles)
   EXPECT_TRUE(baseline.at(3U).available);
   EXPECT_EQ(baseline.at(3U).role, icts::FastStaSlewRole::kSink);
   EXPECT_FALSE(baseline.at(3U).violated);
+}
+
+TEST(FastSTATest, FacadeClockGraphQueriesHideInternalContextStorage)
+{
+  const ScopedFastSTAContexts fast_sta_contexts;
+  auto context = MakeTwoLevelContext();
+  context.timing_valid = true;
+  context.power_valid = true;
+  context.nodes.at(5U).timing = icts::FastStaTimingPoint{.arrival_ns = 1.25, .slew_ns = 0.30, .valid = true};
+
+  const auto clock_id = RegisterClockContext(std::move(context));
+
+  const auto graph_profile = icts::FastSTA::queryClockGraphProfile(clock_id);
+  if (!graph_profile.has_value()) {
+    ADD_FAILURE() << "Expected clock graph profile.";
+    return;
+  }
+  const auto& graph = graph_profile.value();
+  EXPECT_EQ(graph.node_count, 6U);
+  EXPECT_EQ(graph.net_count, 3U);
+  EXPECT_EQ(graph.sink_count, 1U);
+  EXPECT_EQ(graph.buffer_input_count, 2U);
+  EXPECT_EQ(graph.buffer_output_count, 2U);
+
+  const auto analysis_status = icts::FastSTA::queryClockAnalysisStatus(clock_id);
+  if (!analysis_status.has_value()) {
+    ADD_FAILURE() << "Expected clock analysis status.";
+    return;
+  }
+  const auto& analysis = analysis_status.value();
+  EXPECT_TRUE(analysis.timing_valid);
+  EXPECT_TRUE(analysis.power_valid);
+
+  const auto topology = icts::FastSTA::queryClockTreeTopology(clock_id);
+  if (!topology.has_value()) {
+    ADD_FAILURE() << "Expected clock tree topology.";
+    return;
+  }
+  const auto& clock_tree = topology.value();
+  EXPECT_EQ(clock_tree.source_node_id, 0U);
+  ASSERT_EQ(clock_tree.parent_by_node.size(), 6U);
+  EXPECT_EQ(clock_tree.parent_by_node.at(0U), icts::kInvalidFastStaNodeId);
+  EXPECT_EQ(clock_tree.parent_by_node.at(1U), 0U);
+  EXPECT_EQ(clock_tree.parent_by_node.at(2U), 1U);
+  EXPECT_EQ(clock_tree.parent_by_node.at(3U), 2U);
+  EXPECT_EQ(clock_tree.parent_by_node.at(4U), 3U);
+  EXPECT_EQ(clock_tree.parent_by_node.at(5U), 4U);
+  ASSERT_GT(clock_tree.children_by_node.size(), 4U);
+  ASSERT_EQ(clock_tree.children_by_node.at(4U).size(), 1U);
+  EXPECT_EQ(clock_tree.children_by_node.at(4U).front(), 5U);
+
+  const auto sizing_buffers = icts::FastSTA::collectClockSizingBuffers(clock_id);
+  ASSERT_EQ(sizing_buffers.size(), 2U);
+  EXPECT_EQ(sizing_buffers.at(0U).node_id, 2U);
+  EXPECT_EQ(sizing_buffers.at(0U).inst_name, "buf1");
+  EXPECT_EQ(sizing_buffers.at(0U).cell_master, "BUF_X1");
+  EXPECT_EQ(sizing_buffers.at(1U).node_id, 4U);
+  EXPECT_EQ(sizing_buffers.at(1U).inst_name, "buf2");
+  EXPECT_EQ(sizing_buffers.at(1U).cell_master, "BUF_X1");
+
+  const auto sink_arrivals = icts::FastSTA::collectClockSinkArrivals(clock_id);
+  ASSERT_EQ(sink_arrivals.size(), 1U);
+  EXPECT_EQ(sink_arrivals.front().node_id, 5U);
+  EXPECT_EQ(sink_arrivals.front().sink_name, "sink/CLK");
+  EXPECT_NEAR(sink_arrivals.front().arrival_ns, 1.25, 1e-12);
+
+  const auto sink_arrival = icts::FastSTA::queryClockNodeArrival(clock_id, 5U);
+  if (!sink_arrival.has_value()) {
+    ADD_FAILURE() << "Expected sink arrival.";
+    return;
+  }
+  EXPECT_NEAR(sink_arrival.value(), 1.25, 1e-12);
 }
 
 TEST(FastSTATest, PiElmoreReductionPropagatesDownstreamCapAndElmore)

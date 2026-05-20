@@ -46,9 +46,11 @@
 #include "STAAdapter.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/compensation/RootDriverCompensationInternal.hh"
+#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/compensation/RootDriverCompensationState.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
+#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 
 namespace icts::htree {
 namespace {

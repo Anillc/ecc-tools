@@ -23,13 +23,89 @@
 
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
-#include "SdcClockModel.hh"
+namespace idb {
+class IdbDesign;
+}  // namespace idb
 
 namespace icts {
+
+enum class SdcObjectKind
+{
+  kPort,
+  kPin,
+  kNet,
+  kClock,
+  kUnknown,
+};
+
+struct SdcObjectRef
+{
+  SdcObjectKind kind = SdcObjectKind::kUnknown;
+  std::string pattern;
+  bool from_collection_cmd = false;
+};
+
+struct SdcClockDecl
+{
+  enum class Kind
+  {
+    kPrimary,
+    kGenerated,
+  };
+
+  Kind kind = Kind::kPrimary;
+  std::string clock_name;
+  std::vector<SdcObjectRef> targets;
+  std::vector<SdcObjectRef> generated_sources;
+  std::string master_clock_name;
+  double period_ns = 0.0;
+  bool period_resolved = false;
+  int divide_by = 1;
+  int multiply_by = 1;
+  bool invert = false;
+  bool is_virtual = false;
+};
+
+struct SdcCaseAnalysis
+{
+  int value = 0;
+  std::vector<SdcObjectRef> objects;
+};
+
+struct SdcClockData
+{
+  std::vector<SdcClockDecl> clocks;
+  std::vector<SdcCaseAnalysis> case_analyses;
+  std::vector<std::string> diagnostics;
+};
+
+struct ClockTraceRecord
+{
+  std::string clock_name;
+  std::string net_name;
+  std::string status;
+  std::string target_kind;
+  std::size_t sequential_clock_sinks = 0U;
+  std::size_t macro_clock_sinks = 0U;
+  std::string trace_path;
+  std::string reason;
+  std::string clock_kind = "unknown";
+  std::string master_clock_name = "n/a";
+  std::string dominance = "undetermined";
+};
+
+struct ClockTraceResult
+{
+  std::vector<std::pair<std::string, std::string>> clock_net_pairs;
+  std::vector<ClockTraceRecord> records;
+  std::vector<ClockTraceRecord> unowned_clock_like_records;
+};
 
 class SdcClockReader
 {
@@ -39,6 +115,7 @@ class SdcClockReader
 
   auto readClockData() const -> SdcClockData;
   auto readDeclarationsOnly() const -> std::vector<std::tuple<std::string, std::string, double, bool>>;
+  static auto traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design) -> ClockTraceResult;
 
  private:
   std::string _sdc_path;

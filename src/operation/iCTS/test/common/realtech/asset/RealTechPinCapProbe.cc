@@ -34,7 +34,7 @@
 #include "IdbPins.h"
 #include "IdbTerm.h"
 #include "common/realtech/asset/RealTechAssetLoader.hh"
-#include "common/realtech/support/RealTechSetupSupport.hh"
+#include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"

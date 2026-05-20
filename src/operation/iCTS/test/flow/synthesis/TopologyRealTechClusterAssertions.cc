@@ -27,7 +27,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "TopologyRealTechSmokeSupport.hh"
+#include "TopologyRealTechScenario.hh"
 #include "synthesis/topology/Topology.hh"
 
 namespace icts {

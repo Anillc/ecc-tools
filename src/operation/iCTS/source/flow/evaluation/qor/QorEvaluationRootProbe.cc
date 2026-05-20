@@ -38,7 +38,7 @@
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
-#include "evaluation/qor/QorEvaluationInternal.hh"
+#include "evaluation/qor/ClockQorMetricCollector.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
 

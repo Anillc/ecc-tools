@@ -34,6 +34,15 @@ Names and types in iCTS should reflect EDA/CTS concepts:
 
 - Prefer CTS/physical-design terms such as `clock tree`, `sink domain`, `source-to-root`, `downstream tree`, `root buffer`, `topology level`, `routing segment`, `flyline segment`, and `committed design object`.
 - Avoid generic backend/service terms for CTS flow code unless the code is truly generic infrastructure.
+- Do not introduce source or test names containing `snapshot`; name the CTS object and purpose instead, such as `LibertyCellModel`,
+  `ClockNetMembershipRestore`, `TimingState`, or `ReportSample`.
+- Avoid standalone generic names such as `Internal`, `Support`, `Request`, `Response`, `Types`, `Input`, `Session`, `rollback`, and `fallback`.
+  Replace them with CTS object/action names, such as `ClockWritebackPlan`, `StaWireRcQuery`, `ClockSizingEdit`, `SinkDomainBuild`, or
+  `ClockNetMembershipRestore`.
+- Avoid standalone `Network` in new CTS names because it can be confused with `Net` / clock-net semantics. `ClockNetwork` is allowed when it refers
+  to the established database clock-network model.
+- Domain terms that are not structural placeholders remain valid when they name the actual EDA concept, for example Liberty `internal_power` tables
+  or root-buffer input pins.
 - Use `enum class` or narrow value types for behavioral concepts such as instance role, net role, sink domain, synthesis phase, route role, violation type, and topology level.
 - Strings are allowed for object names, logs, diagnostics, file paths, and display labels.
 - Do not use object-name substrings to decide CTS behavior.

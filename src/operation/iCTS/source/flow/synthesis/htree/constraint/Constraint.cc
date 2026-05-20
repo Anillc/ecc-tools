@@ -25,8 +25,8 @@
 
 #include <algorithm>
 
-#include "CharBuilder.hh"
 #include "ValueLattice.hh"
+#include "characterization/Characterization.hh"
 #include "config/Config.hh"
 
 namespace icts::htree {

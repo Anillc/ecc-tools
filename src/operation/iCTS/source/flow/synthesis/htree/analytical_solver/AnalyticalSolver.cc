@@ -26,21 +26,21 @@
 #include <string>
 #include <vector>
 
-#include "synthesis/htree/analytical_solver/AnalyticalCandidate.hh"
-#include "synthesis/htree/analytical_solver/AnalyticalSolverInternal.hh"
+#include "synthesis/htree/analytical_solver/candidate/AnalyticalCandidate.hh"
+#include "synthesis/htree/analytical_solver/candidate/AnalyticalHTreeCandidateSearch.hh"
 
 namespace icts::htree::analytical_solver {
 
-auto SolveAnalyticalHTreeCandidates(const AnalyticalSolverRequest& request) -> AnalyticalSolverResult
+auto SolveAnalyticalHTreeCandidates(const AnalyticalHTreeSolveProblem& solve_problem) -> AnalyticalSolverResult
 {
-  const auto validation_failure = ValidateRequest(request);
+  const auto validation_failure = ValidateSolveProblem(solve_problem);
   if (!validation_failure.empty()) {
     return MakeFailure(validation_failure);
   }
 
   AnalyticalSolverResult result;
-  RecordDiagnosticLibraryHits(request, result);
-  result.candidates = BuildBeamCandidates(request, result);
+  RecordDiagnosticLibraryHits(solve_problem, result);
+  result.candidates = BuildBeamCandidates(solve_problem, result);
   if (result.candidates.empty()) {
     result.success = false;
     if (result.root_fanout_rejected_count > 0U) {

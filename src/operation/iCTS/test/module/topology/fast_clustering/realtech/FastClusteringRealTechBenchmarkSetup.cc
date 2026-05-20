@@ -30,7 +30,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastClusteringRealTechBenchmarkInternal.hh"
+#include "FastClusteringRealTechBenchmarkFixture.hh"
 #include "IdbDesign.h"
 #include "IdbInstance.h"
 #include "IdbNet.h"
@@ -43,7 +43,7 @@
 #include "database/io/Wrapper.hh"
 #include "dm_config.h"
 #include "idm.h"
-#include "instantiation/design_conversion/DesignConversion.hh"
+#include "setup/clock_data/ClockDataRead.hh"
 
 namespace icts_test::fast_clustering::realtech {
 namespace {
@@ -206,7 +206,7 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
 
   WRAPPER_INST.reset();
   WRAPPER_INST.init(idb_builder);
-  if (!icts::DesignConversion::readClockData()) {
+  if (!icts::ClockDataRead::read()) {
     loaded.error = "readClockData failed for SDC-declared clocks";
     return loaded;
   }

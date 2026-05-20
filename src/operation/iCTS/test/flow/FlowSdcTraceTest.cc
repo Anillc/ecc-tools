@@ -33,7 +33,7 @@
 #include "Clock.hh"
 #include "Config.hh"
 #include "Design.hh"
-#include "FlowTestSupport.hh"
+#include "FlowDesignFixture.hh"
 #include "IdbDesign.h"
 #include "IdbEnum.h"
 #include "IdbInstance.h"
@@ -42,14 +42,14 @@
 #include "Schema.hh"
 #include "Wrapper.hh"
 #include "common/logging/LogText.hh"
-#include "instantiation/design_conversion/DesignConversion.hh"
+#include "setup/clock_data/ClockDataRead.hh"
 
 namespace icts_test {
 namespace {
 
 using namespace flow_test;
 
-TEST(FlowTest, SdcClockResolutionDoesNotFallbackToIdbClockNets)
+TEST(FlowTest, SdcClockResolutionRejectsIdbClockNetSubstitution)
 {
   const ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
@@ -80,14 +80,14 @@ TEST(FlowTest, SdcClockResolutionDoesNotFallbackToIdbClockNets)
   WRAPPER_INST.set_idb_layout(&idb_layout);
 
   const auto empty_sdc_path = WriteTempSdc("icts_empty_clock_resolution.sdc", "");
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
 
   CONFIG_INST.set_use_netlist(true);
   CONFIG_INST.set_net_list({{"LOGICAL_CLK", "physical_clk_net"}});
   const auto mapped_sdc_path
       = WriteTempSdc("icts_mapped_clock_resolution.sdc", "create_clock -name LOGICAL_CLK -period 2 physical_clk_net\n");
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
   auto* mapped_clock = DESIGN_INST.get_clocks().front();
   ASSERT_NE(mapped_clock, nullptr);
@@ -100,7 +100,7 @@ TEST(FlowTest, SdcClockResolutionDoesNotFallbackToIdbClockNets)
   CONFIG_INST.set_net_list({{"DIRECT_CLK", "missing_config_net"}});
   const auto direct_sdc_path
       = WriteTempSdc("icts_direct_clock_resolution.sdc", "create_clock -name DIRECT_CLK -period 3 physical_clk_net\n");
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
   auto* direct_clock = DESIGN_INST.get_clocks().front();
   ASSERT_NE(direct_clock, nullptr);
@@ -113,20 +113,20 @@ TEST(FlowTest, SdcClockResolutionDoesNotFallbackToIdbClockNets)
 create_clock -name DIRECT_CLK -period 3 physical_clk_net
 create_clock -name MISSING_CLK -period 2 missing_physical_net
 )");
-  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_FALSE(icts::ClockDataRead::read());
   EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
 
   CONFIG_INST.set_use_netlist(true);
   CONFIG_INST.set_net_list({{"ABSENT_FROM_SDC", "physical_clk_net"}});
   const auto config_absent_sdc_path
       = WriteTempSdc("icts_config_absent_clock_resolution.sdc", "create_clock -name OTHER_CLK -period 2 physical_clk_net\n");
-  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_FALSE(icts::ClockDataRead::read());
   EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
 
   CONFIG_INST.set_net_list({});
   const auto unresolved_sdc_path
       = WriteTempSdc("icts_missing_clock_resolution.sdc", "create_clock -name MISSING_CLK -period 2 missing_physical_net\n");
-  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_FALSE(icts::ClockDataRead::read());
   EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
 
   std::error_code error_code;
@@ -186,7 +186,7 @@ set clk_port [get_ports $clk_port_name]
 create_clock -name $clk_name -period [expr $clk_period * 2] $clk_port
 )");
 
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
   auto* clock = DESIGN_INST.get_clocks().front();
   ASSERT_NE(clock, nullptr);
@@ -257,7 +257,7 @@ TEST(FlowTest, SdcClockTraceAllowsClockGateLikeCombTarget)
   CONFIG_INST.set_max_fanout(4);
   const auto sdc_path = WriteTempSdc("icts_comb_gate_clock_trace.sdc", "create_clock -name GATED_CLK [get_ports clock] -period 4\n");
 
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
   auto* clock = DESIGN_INST.get_clocks().front();
   ASSERT_NE(clock, nullptr);
@@ -307,7 +307,7 @@ create_clock -name TRACE_CLK [get_ports clock] -period 2
 create_clock -name VIRTUAL_ONLY -period 5
 )");
 
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 2U);
 
   std::vector<std::string> materialized_nets;
@@ -359,7 +359,7 @@ create_clock -name MASTER [get_ports clock] -period 2
 create_generated_clock -name GEN -master_clock MASTER -divide_by 2 -source [get_ports clock] gen_net
 )");
 
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 2U);
 
   std::map<std::string, std::string> net_by_clock;
@@ -410,7 +410,7 @@ TEST(FlowTest, SdcClockTraceReportsUnownedClockLikeNetsWithoutMaterializingThem)
   CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_unowned_clock_like_report.sdc", "create_clock -name CORE_CLK [get_ports clock] -period 2\n");
 
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
   auto* clock = DESIGN_INST.get_clocks().front();
   ASSERT_NE(clock, nullptr);
@@ -463,7 +463,7 @@ create_clock -name CLK_A [get_ports clock_a] -period 2
 create_clock -name CLK_B [get_ports clock_b] -period 3
 )");
 
-  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_FALSE(icts::ClockDataRead::read());
   EXPECT_TRUE(DESIGN_INST.get_clocks().empty());
 
   std::error_code error_code;
@@ -515,7 +515,7 @@ TEST(FlowTest, SdcClockTraceStopsAtClockLikeMuxWithoutCaseAnalysis)
   CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_ambiguous_mux_clock_trace.sdc", "create_clock -name CLK_A [get_ports clock_a] -period 2\n");
 
-  EXPECT_FALSE(icts::DesignConversion::readClockData());
+  EXPECT_FALSE(icts::ClockDataRead::read());
   EXPECT_TRUE(DESIGN_INST.get_clocks().empty());
 
   std::error_code error_code;
@@ -555,7 +555,7 @@ TEST(FlowTest, SdcClockTraceTerminatesOnCombinationalCycle)
   CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_comb_loop_clock_trace.sdc", "create_clock -name LOOP_CLK [get_ports clock] -period 2\n");
 
-  EXPECT_TRUE(icts::DesignConversion::readClockData());
+  EXPECT_TRUE(icts::ClockDataRead::read());
   ASSERT_EQ(DESIGN_INST.get_clocks().size(), 2U);
 
   std::vector<std::string> materialized_nets;

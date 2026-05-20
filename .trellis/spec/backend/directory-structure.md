@@ -66,6 +66,24 @@ Do not reintroduce top-level peer architecture directories under `source/flow/` 
 - Put visualization-only format writers under `source/flow/report/visualization/`.
 - Put stable shared routing database types under `source/database/routing/`; keep routing algorithms under `source/module/routing/`.
 
+### Behavior Directory External Contracts
+
+A behavior directory is a directory whose main responsibility is an operation, adapter, solver, builder, router, or flow step.
+
+Strict behavior directories must keep a single visible root contract:
+
+- Root contains only `CMakeLists.txt` plus the intended facade `.hh/.cc`, such as `FastSta.hh/.cc`, `SdcClockReader.hh/.cc`,
+  `Characterization.hh/.cc`, `BSTRouter.hh/.cc`, `FastClustering.hh/.cc`, `AnalyticalSolver.hh/.cc`, or `Solution.hh/.cc`.
+- Implementation slices live under CTS responsibility subfolders, such as `clock_trace/`, `builder/`, `pruning/`, `tree/`, `geometry/`, or
+  `selection/`.
+- Source outside the behavior directory includes the facade header, not subfolder implementation headers.
+- If a facade intentionally re-exports subfolder contracts, mark the facade includes for IWYU and keep the facade as the external include site.
+- Do not add behavior subfolders as broad `PUBLIC` include roots. Prefer rooted includes such as `characterization/builder/CharBuilder.hh` or
+  `bound_skew_tree/tree/BoundSkewTree.hh`, and remove child-directory include roots when they make IWYU or callers prefer short internal paths.
+
+Stable data-model directories can expose multiple root headers only when each header is a CTS domain object, not a behavior helper. Examples include
+`database/design`, `database/characterization`, `database/routing`, and `database/spatial`.
+
 ### CMake Target Naming
 
 Use hierarchical target names:

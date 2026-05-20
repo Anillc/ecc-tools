@@ -38,20 +38,20 @@
 #include "Pin.hh"
 #include "common/logging/LogText.hh"
 #include "common/logging/ScopedLogFile.hh"
-#include "common/realtech/support/RealTechSetupSupport.hh"
+#include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/config/Config.hh"
 #include "flow/synthesis/htree/HTree.hh"
+#include "flow/synthesis/htree/HTreeArtifactWriter.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
-#include "flow/synthesis/htree/HTreeRealTechSmokeSupport.hh"
-#include "flow/synthesis/htree/HTreeVisualizationSupport.hh"
-#include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
+#include "flow/synthesis/htree/HTreeRealTechScenario.hh"
+#include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
 namespace {
 
 namespace common_realtech = common::realtech;
-namespace realtech_support = characterization::realtech;
+namespace realtech_fixture = characterization::realtech;
 
 TEST(HTreeRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
 {
@@ -67,16 +67,16 @@ TEST(HTreeRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
     return;
   }
 
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("htree_smoke", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf);
+  realtech_fixture::RealTechCharFixture char_fixture;
+  if (const auto prepare_error = char_fixture.prepare("htree_smoke", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
 
-  EXPECT_EQ(CONFIG_INST.get_wirelength_iterations(), realtech_support::kRealTechCharWirelengthIterations);
-  EXPECT_EQ(CONFIG_INST.get_slew_steps(), realtech_support::kRealTechCharSlewSteps);
-  EXPECT_EQ(CONFIG_INST.get_cap_steps(), realtech_support::kRealTechCharCapSteps);
+  EXPECT_EQ(CONFIG_INST.get_wirelength_iterations(), realtech_fixture::kRealTechCharWirelengthIterations);
+  EXPECT_EQ(CONFIG_INST.get_slew_steps(), realtech_fixture::kRealTechCharSlewSteps);
+  EXPECT_EQ(CONFIG_INST.get_cap_steps(), realtech_fixture::kRealTechCharCapSteps);
   EXPECT_TRUE(CONFIG_INST.has_max_buf_tran());
   EXPECT_TRUE(CONFIG_INST.has_max_cap());
   EXPECT_DOUBLE_EQ(CONFIG_INST.get_max_buf_tran(), kHTreeSmokeMaxSlewNs);

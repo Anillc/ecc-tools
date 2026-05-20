@@ -62,9 +62,9 @@ struct ClockDistributionContext
   Pin* root_output = nullptr;
   Net* downstream_net = nullptr;
 
-  auto makeLayoutTopology() const -> SinkDomainLayoutTopology
+  auto makeLayoutTopology() const -> SinkDomainLayoutAnchor
   {
-    return SinkDomainLayoutTopology{
+    return SinkDomainLayoutAnchor{
         .sink_domain = sink_domain,
         .root_buffer = root_buffer,
         .downstream_net = downstream_net,

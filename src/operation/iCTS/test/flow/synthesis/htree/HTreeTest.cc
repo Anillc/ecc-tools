@@ -44,7 +44,8 @@
 #include "flow/synthesis/htree/constraint/Constraint.hh"
 #include "flow/synthesis/htree/segment_pruning/SegmentPruning.hh"
 #include "flow/synthesis/htree/topology_pruning/TopologyPruning.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts_test {
 namespace {
@@ -88,7 +89,7 @@ auto BuildSegmentFrontierTestData(icts::htree::SegmentFrontierKindSet required_k
       MakeSegmentChar(2U, 1.0, 1.0),
   };
   test_data.catalog = icts::htree::SynthesizeSegmentFrontiers(segment_chars, test_data.pattern_library,
-                                                              icts::htree::SegmentFrontierRequest{
+                                                              icts::htree::RequiredSegmentFrontiers{
                                                                   .required_length_indices = {2U},
                                                                   .required_kinds = required_kinds,
                                                               });
@@ -124,7 +125,7 @@ auto BuildSegmentFrontierSignatures(const SegmentFrontierTestData& test_data, ic
   return signatures;
 }
 
-TEST(HTreeTest, SegmentFrontierRequestBuildsOnlyRequestedKinds)
+TEST(HTreeTest, RequiredSegmentFrontiersBuildOnlyRequiredKinds)
 {
   const auto all_only = BuildSegmentFrontierTestData(icts::htree::SegmentFrontierKindSet::allOnly());
   EXPECT_NE(all_only.catalog.find(2U, icts::htree::SegmentFrontierKind::kAll), nullptr);
@@ -149,23 +150,23 @@ TEST(HTreeTest, SegmentFrontierRequestBuildsOnlyRequestedKinds)
             BuildSegmentFrontierSignatures(full, icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
 }
 
-TEST(HTreeTest, HTreeSegmentFrontierRequestFollowsBoundaryConstraints)
+TEST(HTreeTest, HTreeRequiredSegmentFrontiersFollowsBoundaryConstraints)
 {
   const std::vector<unsigned> required_lengths{1U, 2U, 3U};
 
-  const auto unrestricted_request = icts::htree::MakeHTreeSegmentFrontierRequest(required_lengths, icts::htree::BoundaryConstraints{});
-  EXPECT_EQ(unrestricted_request.required_length_indices, required_lengths);
-  EXPECT_TRUE(unrestricted_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kAll));
-  EXPECT_FALSE(unrestricted_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
-  EXPECT_FALSE(unrestricted_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered));
+  const auto unrestricted_frontiers = icts::htree::ResolveRequiredSegmentFrontiers(required_lengths, icts::htree::BoundaryConstraints{});
+  EXPECT_EQ(unrestricted_frontiers.required_length_indices, required_lengths);
+  EXPECT_TRUE(unrestricted_frontiers.required_kinds.contains(icts::htree::SegmentFrontierKind::kAll));
+  EXPECT_FALSE(unrestricted_frontiers.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
+  EXPECT_FALSE(unrestricted_frontiers.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered));
 
-  const auto branch_request = icts::htree::MakeHTreeSegmentFrontierRequest(required_lengths, icts::htree::BoundaryConstraints{
-                                                                                                 .force_branch_buffer = true,
-                                                                                             });
-  EXPECT_EQ(branch_request.required_length_indices, required_lengths);
-  EXPECT_TRUE(branch_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kAll));
-  EXPECT_TRUE(branch_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
-  EXPECT_FALSE(branch_request.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered));
+  const auto branch_frontiers = icts::htree::ResolveRequiredSegmentFrontiers(required_lengths, icts::htree::BoundaryConstraints{
+                                                                                                   .force_branch_buffer = true,
+                                                                                               });
+  EXPECT_EQ(branch_frontiers.required_length_indices, required_lengths);
+  EXPECT_TRUE(branch_frontiers.required_kinds.contains(icts::htree::SegmentFrontierKind::kAll));
+  EXPECT_TRUE(branch_frontiers.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalBranchBuffered));
+  EXPECT_FALSE(branch_frontiers.required_kinds.contains(icts::htree::SegmentFrontierKind::kTerminalLeafUnbuffered));
 }
 
 TEST(HTreeTest, EmptyLoadsReturnsEmptyResult)

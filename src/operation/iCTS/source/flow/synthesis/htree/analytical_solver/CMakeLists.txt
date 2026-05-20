@@ -1,13 +1,13 @@
 set(ICTS_FLOW_SYNTHESIS_HTREE_ANALYTICAL_SOLVER_SRC
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalCandidate.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSelection.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolver.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverCandidateBuild.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverModel.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverRequest.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverShortlist.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolverTrim.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalValidation.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/candidate/AnalyticalCandidate.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/candidate/AnalyticalSolverCandidateBuild.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/model/AnalyticalSolveProblem.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/model/AnalyticalSolverModel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalSelection.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalSolverShortlist.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalSolverTrim.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalValidation.cc
 )
 
 add_library(icts_source_flow_synthesis_htree_analytical_solver ${ICTS_FLOW_SYNTHESIS_HTREE_ANALYTICAL_SOLVER_SRC})
@@ -15,12 +15,12 @@ add_library(icts_source_flow_synthesis_htree_analytical_solver ${ICTS_FLOW_SYNTH
 target_link_libraries(
   icts_source_flow_synthesis_htree_analytical_solver
   PUBLIC
-  icts_source_flow_synthesis_htree_compensation
-  icts_source_flow_synthesis_htree_region
   icts_source_flow_synthesis_htree_topology_pruning
   icts_source_database_spatial
-  icts_source_module_analytical_characterization
   PRIVATE
+  icts_source_flow_synthesis_htree_compensation
+  icts_source_flow_synthesis_htree_region
+  icts_source_module_analytical_characterization
   icts_source_utils
 )
 

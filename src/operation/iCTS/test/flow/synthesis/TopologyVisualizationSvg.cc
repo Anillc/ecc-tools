@@ -32,7 +32,7 @@
 #include "Net.hh"
 #include "Pin.hh"
 #include "Tree.hh"
-#include "flow/synthesis/TopologyVisualizationInternal.hh"
+#include "flow/synthesis/TopologySvgRenderer.hh"
 #include "synthesis/htree/HTree.hh"
 #include "utils/logger/Schema.hh"
 #include "visualization/core/SvgCommon.hh"

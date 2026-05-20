@@ -30,8 +30,8 @@
 #include <system_error>
 #include <vector>
 
-#include "FastClusteringRealTechBenchmarkInternal.hh"
-#include "common/clustering/artifact/ClusterArtifactSupport.hh"
+#include "FastClusteringRealTechBenchmarkFixture.hh"
+#include "common/clustering/artifact/ClusterArtifactWriter.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/visualization/TestVisualization.hh"
 

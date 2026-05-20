@@ -30,13 +30,13 @@
 #include <utility>
 #include <vector>
 
-#include "FastStaTypes.hh"
+#include "FastSta.hh"
 #include "design/Clock.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "optimization/model/OptimizationTypes.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
 auto ElapsedSeconds(std::chrono::steady_clock::time_point start_time) -> double
 {
@@ -55,18 +55,18 @@ auto FormatSeconds(double value) -> std::string
 
 namespace {
 
-auto SummarizeTransitions(const std::vector<OptimizationMutation>& mutations) -> std::map<std::string, std::size_t>
+auto SummarizeTransitions(const std::vector<ClockSizingAcceptedEdit>& accepted_edits) -> std::map<std::string, std::size_t>
 {
   std::map<std::string, std::size_t> counts;
-  for (const auto& mutation : mutations) {
-    ++counts[mutation.from_master + " -> " + mutation.to_master];
+  for (const auto& accepted_edit : accepted_edits) {
+    ++counts[accepted_edit.from_master + " -> " + accepted_edit.to_master];
   }
   return counts;
 }
 
 }  // namespace
 
-auto EmitClockSummary(const Clock& clock, const ClockOptimizationSummary& summary, double target_skew_ns, double runtime_s) -> void
+auto EmitClockSummary(const Clock& clock, const ClockSizingSummary& summary, double target_skew_ns, double runtime_s) -> void
 {
   schema::KeyValueFields fields = {
       {"clock", clock.get_clock_name()},
@@ -82,7 +82,7 @@ auto EmitClockSummary(const Clock& clock, const ClockOptimizationSummary& summar
       {"trial_count", std::to_string(summary.trial_count)},
       {"batch_trial_count", std::to_string(summary.batch_trial_count)},
       {"accepted_batch_count", std::to_string(summary.accepted_batch_count)},
-      {"accepted_mutation_count", std::to_string(summary.accepted_mutation_count)},
+      {"accepted_edit_count", std::to_string(summary.accepted_edit_count)},
       {"rejected_candidate_count", std::to_string(summary.rejected_candidate_count)},
       {"cap_rejected_count", std::to_string(summary.cap_rejected_count)},
       {"slew_rejected_count", std::to_string(summary.slew_rejected_count)},
@@ -100,7 +100,7 @@ auto EmitClockSummary(const Clock& clock, const ClockOptimizationSummary& summar
   };
   schema::EmitKeyValueTable("CTS Optimization Clock Summary", fields);
 
-  const auto transition_counts = SummarizeTransitions(summary.mutations);
+  const auto transition_counts = SummarizeTransitions(summary.accepted_edits);
   schema::TableRows rows;
   rows.reserve(transition_counts.size());
   for (const auto& [transition, count] : transition_counts) {
@@ -111,7 +111,7 @@ auto EmitClockSummary(const Clock& clock, const ClockOptimizationSummary& summar
   }
 }
 
-auto EmitClockProfile(const Clock& clock, const OptimizationRuntimeProfile& profile) -> void
+auto EmitClockProfile(const Clock& clock, const ClockSizingRuntimeProfile& profile) -> void
 {
   schema::EmitKeyValueTable("CTS Optimization Clock Graph Profile",
                             {{"clock", clock.get_clock_name()},
@@ -136,9 +136,9 @@ auto EmitClockProfile(const Clock& clock, const OptimizationRuntimeProfile& prof
       {"generate_batch_candidates", FormatSeconds(profile.generate_batch_candidates_s)},
       {"batch_trial_eval", FormatSeconds(profile.batch_trial_eval_s)},
       {"apply_accepted_batch", FormatSeconds(profile.apply_accepted_batch_s)},
-      {"apply_mutations", FormatSeconds(profile.apply_mutations_s)},
+      {"apply_accepted_edits", FormatSeconds(profile.apply_accepted_edits_s)},
   };
   schema::EmitTable("CTS Optimization Clock Runtime Profile", {"Stage", "Runtime"}, rows);
 }
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

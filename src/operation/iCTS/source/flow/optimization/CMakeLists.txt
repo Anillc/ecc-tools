@@ -1,6 +1,6 @@
 set(ICTS_FLOW_OPTIMIZATION_CANDIDATE ${ICTS_FLOW_OPTIMIZATION}/candidate)
 set(ICTS_FLOW_OPTIMIZATION_MODEL ${ICTS_FLOW_OPTIMIZATION}/model)
-set(ICTS_FLOW_OPTIMIZATION_MUTATION ${ICTS_FLOW_OPTIMIZATION}/mutation)
+set(ICTS_FLOW_OPTIMIZATION_CLOCK_SIZING_EDIT ${ICTS_FLOW_OPTIMIZATION}/clock_sizing_edit)
 set(ICTS_FLOW_OPTIMIZATION_OPTIONS ${ICTS_FLOW_OPTIMIZATION}/options)
 set(ICTS_FLOW_OPTIMIZATION_PREPARATION ${ICTS_FLOW_OPTIMIZATION}/preparation)
 set(ICTS_FLOW_OPTIMIZATION_REPORT ${ICTS_FLOW_OPTIMIZATION}/report)
@@ -14,7 +14,7 @@ add_subdirectory(${ICTS_FLOW_OPTIMIZATION_PREPARATION})
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_CANDIDATE})
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_STATE})
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_SOLVER})
-add_subdirectory(${ICTS_FLOW_OPTIMIZATION_MUTATION})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_CLOCK_SIZING_EDIT})
 
 add_library(
   icts_source_flow_optimization
@@ -29,7 +29,7 @@ target_link_libraries(
   icts_source_database
   icts_source_database_design
   icts_source_flow_optimization_model
-  icts_source_flow_optimization_mutation
+  icts_source_flow_optimization_clock_sizing_edit
   icts_source_flow_optimization_options
   icts_source_flow_optimization_preparation
   icts_source_flow_optimization_report

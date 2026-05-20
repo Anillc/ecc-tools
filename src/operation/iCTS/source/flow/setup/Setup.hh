@@ -27,11 +27,18 @@
 
 namespace icts {
 
+struct SetupResult
+{
+  bool setup_ready = false;
+  std::string reason;
+};
+
 class Setup
 {
  public:
   Setup() = delete;
 
+  static auto initializeRuntime(const std::string& config_file, const std::string& work_dir) -> SetupResult;
   static auto initialize(const std::string& config_file, const std::string& work_dir) -> bool;
   static auto emitRuntimeSetup() -> void;
 };

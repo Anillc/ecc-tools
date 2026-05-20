@@ -24,7 +24,7 @@
 #pragma once
 
 #include "synthesis/topology/Topology.hh"
-#include "synthesis/trace/layout/ClockLayoutSynthesisInput.hh"
+#include "synthesis/trace/layout/ClockLayoutSynthesisTopology.hh"
 
 namespace icts {
 
@@ -35,9 +35,9 @@ class ClockLayoutAdapter
  public:
   ClockLayoutAdapter() = delete;
 
-  static auto makeSinkDomainLayoutInput(const Topology::BuildResult& result) -> SinkDomainLayoutInput;
-  static auto makeSourceTrunkLayoutInput(const Topology::SourceTrunkBuildResult& result, ClockLayoutPhase synthesis_phase)
-      -> SourceToRootLayoutInput;
+  static auto makeSinkDomainLayoutTopology(const Topology::BuildResult& result) -> SinkDomainSynthesisTopology;
+  static auto makeSourceTrunkLayoutTopology(const Topology::SourceTrunkBuildResult& result, ClockLayoutPhase synthesis_phase)
+      -> SourceToRootSynthesisTopology;
 };
 
 }  // namespace icts

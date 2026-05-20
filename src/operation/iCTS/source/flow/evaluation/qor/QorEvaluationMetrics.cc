@@ -30,17 +30,17 @@
 #include <vector>
 
 #include "ClockDAG.hh"
+#include "ClockRouteSegmentRc.hh"
 #include "Point.hh"
 #include "Qor.hh"
 #include "SteinerTree.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "evaluation/qor/ClockQorMetricCollector.hh"
 #include "evaluation/qor/QorEvaluation.hh"
-#include "evaluation/qor/QorEvaluationInternal.hh"
 #include "io/Wrapper.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
@@ -57,19 +57,6 @@ auto calcRouteWirelength(const Router::ClockSteinerTreeType& route_tree) -> int6
     wirelength += std::max(edge.distance, edge.routed_distance);
   }
   return wirelength;
-}
-
-auto buildRcOptionsFromRuntimeConfig() -> Router::RCTreeBuildOptions
-{
-  Router::RCTreeBuildOptions options;
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  if (!routing_layers.empty()) {
-    options.routing_layer = static_cast<int>(routing_layers.front());
-  }
-  if (CONFIG_INST.get_wire_width() > 0.0) {
-    options.wire_width = CONFIG_INST.get_wire_width();
-  }
-  return options;
 }
 
 auto dbuToUm(int64_t dbu, const QorSummary& summary) -> double
@@ -343,7 +330,7 @@ auto InstallClockNetRcTreeAndMeasure(Net* net, ClockNetRole role, bool install_s
   }
 
   if (WRAPPER_INST.is_design_ready()) {
-    auto rc_tree = Router::buildRCTree(route_tree, buildRcOptionsFromRuntimeConfig());
+    auto rc_tree = Router::buildRCTree(route_tree, STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc());
     auto timing_metrics = TimingEngine::update(rc_tree);
     (void) timing_metrics;
   }

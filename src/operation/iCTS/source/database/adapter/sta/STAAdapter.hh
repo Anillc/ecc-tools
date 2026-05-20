@@ -34,6 +34,7 @@ namespace icts {
 enum class InstType;
 class Net;
 class Pin;
+struct ClockRouteSegmentRc;
 template <typename T>
 class ClockSteinerTree;
 
@@ -103,6 +104,7 @@ class STAAdapter
   static auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
   static auto queryRequiredWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
   static auto queryRequiredWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  static auto queryConfiguredClockRouteSegmentRc() -> ClockRouteSegmentRc;
   static auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
   static auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double;
   static auto queryClockSourceDriveCapLimit(const Pin* clock_source) -> double;

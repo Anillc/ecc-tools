@@ -39,15 +39,15 @@
 #include "design/Design.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "optimization/model/OptimizationTypes.hh"
-#include "optimization/mutation/OptimizationMutation.hh"
+#include "optimization/clock_sizing_edit/ClockSizingAcceptedEdit.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 #include "optimization/options/OptimizationOptions.hh"
 #include "optimization/preparation/OptimizationPreparation.hh"
 #include "optimization/report/OptimizationReport.hh"
 #include "optimization/solver/OptimizationSolver.hh"
 
 namespace icts {
-namespace oi = optimization_internal;
+namespace oi = clock_sizing_optimization;
 
 auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& characterization_library) -> OptimizationResult
 {
@@ -70,7 +70,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
   const auto start_time = std::chrono::steady_clock::now();
   const auto clocks = DESIGN_INST.get_clocks();
   result.clock_count = clocks.size();
-  const auto master_infos = oi::CollectBufferMasterInfos();
+  const auto master_infos = oi::CollectClockSizingBufferMasters();
   if (master_infos.empty()) {
     LOG_WARNING << "Optimization: skip because no legal buffer sizing candidates are available.";
     (void) runtime.finish("skipped");
@@ -79,7 +79,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
   }
 
   auto stage_start = std::chrono::steady_clock::now();
-  const auto route_tree_by_net = oi::BuildRouteTreeCache(clocks);
+  const auto route_tree_by_net = oi::BuildClockSizingRouteTrees(clocks);
   const double route_tree_cache_runtime_s = oi::ElapsedSeconds(stage_start);
   const double target_skew_ns = std::max(0.0, CONFIG_INST.get_skew_bound());
   schema::EmitKeyValueTable("CTS Optimization Setup", {{"timing_source", "cts_fast_sta_incremental"},
@@ -95,18 +95,17 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
       continue;
     }
     const auto clock_start = std::chrono::steady_clock::now();
-    oi::OptimizationRuntimeProfile outer_profile;
+    oi::ClockSizingRuntimeProfile outer_profile;
     outer_profile.build_route_tree_cache_s = route_tree_cache_runtime_s;
     stage_start = std::chrono::steady_clock::now();
-    const auto clock_id = FastSTA::buildClockContext(*clock, clock_layout, clock_index);
+    const auto route_geometry = oi::BuildClockRouteGeometry(clock_layout, clock_index);
+    const auto clock_id = FastSTA::buildClockContext(*clock, route_geometry);
     outer_profile.build_fast_sta_context_s = oi::ElapsedSeconds(stage_start);
 
-    if (const auto* context = FastSTA::queryClockContext(clock_id); context != nullptr) {
-      auto graph_profile = oi::CaptureGraphProfile(*context);
-      graph_profile.build_route_tree_cache_s = outer_profile.build_route_tree_cache_s;
-      graph_profile.build_fast_sta_context_s = outer_profile.build_fast_sta_context_s;
-      outer_profile = graph_profile;
-    }
+    auto graph_profile = oi::CaptureGraphProfile(clock_id);
+    graph_profile.build_route_tree_cache_s = outer_profile.build_route_tree_cache_s;
+    graph_profile.build_fast_sta_context_s = outer_profile.build_fast_sta_context_s;
+    outer_profile = graph_profile;
 
     stage_start = std::chrono::steady_clock::now();
     if (!oi::InjectRouteTrees(clock_id, *clock, route_tree_by_net)) {
@@ -120,7 +119,7 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
     outer_profile.inject_route_trees_s = oi::ElapsedSeconds(stage_start);
 
     stage_start = std::chrono::steady_clock::now();
-    auto buffers = oi::CollectOptimizableBuffers(clock_id, master_infos);
+    auto buffers = oi::CollectClockSizingBuffers(clock_id, master_infos);
     outer_profile.collect_optimizable_buffers_s = oi::ElapsedSeconds(stage_start);
     outer_profile.optimizable_buffer_count = buffers.size();
     if (buffers.empty()) {
@@ -132,10 +131,10 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
     }
 
     stage_start = std::chrono::steady_clock::now();
-    const auto cap_baseline = oi::CollectCapBaseline(clock_id);
+    const auto cap_baseline = oi::CollectClockSizingCapLimits(clock_id);
     outer_profile.collect_cap_baseline_s = oi::ElapsedSeconds(stage_start);
     stage_start = std::chrono::steady_clock::now();
-    const auto slew_baseline = oi::CollectSlewBaseline(clock_id);
+    const auto slew_baseline = oi::CollectClockSizingSlewLimits(clock_id);
     outer_profile.collect_slew_baseline_s = oi::ElapsedSeconds(stage_start);
     stage_start = std::chrono::steady_clock::now();
     const bool use_scalable_solver = oi::ShouldUseScalableSolver(clock_id, buffers);
@@ -156,22 +155,22 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
       continue;
     }
     stage_start = std::chrono::steady_clock::now();
-    if (!summary.mutations.empty() && !oi::ApplyMutations(summary.mutations, buffers, clock_layout)) {
+    if (!summary.accepted_edits.empty() && !oi::ApplyClockSizingAcceptedEdits(summary.accepted_edits, buffers, clock_layout)) {
       result.success = false;
       (void) runtime.failed();
-      stage.failed({{"reason", "mutation_apply_failed"}});
+      stage.failed({{"reason", "accepted_edit_apply_failed"}});
       return result;
     }
-    summary.profile.apply_mutations_s = oi::ElapsedSeconds(stage_start);
+    summary.profile.apply_accepted_edits_s = oi::ElapsedSeconds(stage_start);
     oi::EmitClockSummary(*clock, summary, target_skew_ns, clock_runtime_s);
     oi::EmitClockProfile(*clock, summary.profile);
-    if (summary.mutations.empty() && !summary.stop_reason.empty()
+    if (summary.accepted_edits.empty() && !summary.stop_reason.empty()
         && (no_op_reason == "no_optimizable_clock" || no_op_reason == "target_met")) {
       no_op_reason = summary.stop_reason;
     }
-    result.optimized = result.optimized || !summary.mutations.empty();
-    result.optimized_clock_count += summary.mutations.empty() ? 0U : 1U;
-    result.accepted_mutation_count += summary.accepted_mutation_count;
+    result.optimized = result.optimized || !summary.accepted_edits.empty();
+    result.optimized_clock_count += summary.accepted_edits.empty() ? 0U : 1U;
+    result.accepted_edit_count += summary.accepted_edit_count;
     (void) FastSTA::eraseClockContext(clock_id);
   }
 
@@ -181,14 +180,14 @@ auto Optimization::run(ClockLayout& clock_layout, CharacterizationLibrary& chara
                                                             {"runtime", logformat::FormatWithUnit(total_runtime_s, "s")},
                                                             {"clock_count", std::to_string(result.clock_count)},
                                                             {"optimized_clock_count", std::to_string(result.optimized_clock_count)},
-                                                            {"accepted_mutation_count", std::to_string(result.accepted_mutation_count)},
+                                                            {"accepted_edit_count", std::to_string(result.accepted_edit_count)},
                                                             {"status", result.optimized ? "optimized" : "no_op"},
                                                         });
-  LOG_INFO << "CTS optimization finished with " << result.accepted_mutation_count << " accepted sizing mutations across "
+  LOG_INFO << "CTS optimization finished with " << result.accepted_edit_count << " accepted sizing edits across "
            << result.optimized_clock_count << " clocks.";
   if (result.optimized) {
     (void) runtime.finished();
-    stage.finished({{"accepted_mutation_count", std::to_string(result.accepted_mutation_count)}});
+    stage.finished({{"accepted_edit_count", std::to_string(result.accepted_edit_count)}});
   } else {
     (void) runtime.finish("no_op");
     stage.skip({{"reason", no_op_reason}});

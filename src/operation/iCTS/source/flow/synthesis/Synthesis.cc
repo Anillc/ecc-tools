@@ -196,9 +196,6 @@ auto Synthesis::run(ClockLayout& clock_layout, CharacterizationLibrary& char_lib
   SCHEMA_WRITER_INST.emitSection("## Synthesis Overview");
 
   clock_layout.reset();
-  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
-  LOG_FATAL_IF(dbu_per_um <= 0) << "Synthesis: DBU-per-micron is unavailable.";
-  clock_layout.set_design_dbu_per_um(dbu_per_um);
   SynthesisTraceSummary summary;
   auto clocks = DESIGN_INST.get_clocks();
   const std::size_t total_clocks = clocks.size();
@@ -216,6 +213,13 @@ auto Synthesis::run(ClockLayout& clock_layout, CharacterizationLibrary& char_lib
       ++skipped_clocks;
       rows.push_back({"", "", "skipped", "none", "0", "0", "clock pointer is null"});
       continue;
+    }
+
+    const auto sink_partition = ClockDistribution::partitionSinkDomains(*clock);
+    if (sink_partition.valid_sink_count > 0U && WRAPPER_INST.is_design_ready()) {
+      const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+      LOG_FATAL_IF(dbu_per_um <= 0) << "Synthesis: DBU-per-micron is unavailable.";
+      clock_layout.set_design_dbu_per_um(dbu_per_um);
     }
 
     const auto clock_result = synthesizeClock(*clock, clock_index, clock_layout, summary, rows, total_sink_domains, hard_macro_sinks,

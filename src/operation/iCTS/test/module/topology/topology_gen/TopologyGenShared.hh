@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file TopologyGenShared.hh
+ * @file TopologyGenScenario.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-18
  * @brief Compatibility include for topology generation shared test helpers.
@@ -23,4 +23,4 @@
 
 #pragma once
 
-#include "module/topology/topology_gen/support/TopologyGenShared.hh"
+#include "module/topology/topology_gen/fixture/TopologyGenScenario.hh"

@@ -31,7 +31,7 @@
 #include "HTreeTopologyChar.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 
 namespace icts {
 class Tree;
@@ -40,6 +40,8 @@ class Tree;
 namespace icts::htree {
 
 class RootDriverCompensationPass;
+class SegmentFrontierCatalog;
+struct BufferPatternLibrary;
 struct SinkLoadRegionLegalityContext;
 
 struct CandidateBuildEvaluation

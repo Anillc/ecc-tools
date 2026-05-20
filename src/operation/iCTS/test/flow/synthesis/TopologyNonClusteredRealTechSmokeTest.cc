@@ -33,20 +33,20 @@
 
 #include "Clustering.hh"
 #include "Net.hh"
-#include "TopologyRealTechSmokeSupport.hh"
+#include "TopologyRealTechScenario.hh"
 #include "common/logging/ScopedLogFile.hh"
-#include "common/realtech/support/RealTechSetupSupport.hh"
+#include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/config/Config.hh"
-#include "flow/synthesis/TopologyVisualizationSupport.hh"
+#include "flow/synthesis/TopologyArtifactWriter.hh"
 #include "flow/synthesis/topology/Topology.hh"
-#include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
+#include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
 namespace {
 
 namespace common_realtech = common::realtech;
-namespace realtech_support = characterization::realtech;
+namespace realtech_fixture = characterization::realtech;
 namespace smoke = synthesis_realtech_smoke;
 
 TEST(TopologyRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUsesUnrestrictedHTreeFrontier)
@@ -64,8 +64,8 @@ TEST(TopologyRealTechSmokeTest, NonClusteredModeSkipsClusterBuffersAndUsesUnrest
   }
   const auto& selected_clock_data = selected_clock.value();
 
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("topology_non_clustered_smoke", std::nullopt, smoke::kSynthesisSmokeMaxSlewNs,
+  realtech_fixture::RealTechCharFixture char_fixture;
+  if (const auto prepare_error = char_fixture.prepare("topology_non_clustered_smoke", std::nullopt, smoke::kSynthesisSmokeMaxSlewNs,
                                                       smoke::kSynthesisSmokeMaxCapPf, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;

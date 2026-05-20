@@ -26,13 +26,14 @@
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
-#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "ClockRouteSegmentRc.hh"
 #include "Inst.hh"
 #include "Log.hh"
 #include "Net.hh"
@@ -41,51 +42,34 @@
 #include "Point.hh"
 #include "RoutingTerminal.hh"
 #include "SteinerTree.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "bound_skew_tree/BSTRouter.hh"
 #include "concurrent_bst_salt/CBSRouter.hh"
 #include "flute/FLUTERouter.hh"
 #include "geometry/Geometry.hh"
-#include "io/Wrapper.hh"
 #include "local_legalization/LocalLegalization.hh"
 #include "salt/SALTRouter.hh"
 
 namespace icts {
 namespace {
 
-constexpr double kMilliOhmPerOhm = 1000.0;
-
-auto ResolveRoutingLayer(const Router::RCTreeBuildOptions& options) -> int
+auto ValidateClockRouteSegmentRc(const ClockRouteSegmentRc& route_segment_rc) -> void
 {
-  if (options.routing_layer.has_value() && options.routing_layer.value() > 0) {
-    return options.routing_layer.value();
-  }
-
-  LOG_FATAL << "Router: routing layer must be explicitly provided for RC-tree construction.";
+  LOG_FATAL_IF(route_segment_rc.dbu_per_um <= 0) << "Router: DBU-per-micron is unavailable for RC-tree construction.";
+  LOG_FATAL_IF(!std::isfinite(route_segment_rc.resistance_per_um_ohm) || route_segment_rc.resistance_per_um_ohm <= 0.0)
+      << "Router: clock route segment resistance must be positive for RC-tree construction.";
+  LOG_FATAL_IF(!std::isfinite(route_segment_rc.capacitance_per_um_pf) || route_segment_rc.capacitance_per_um_pf <= 0.0)
+      << "Router: clock route segment capacitance must be positive for RC-tree construction.";
 }
 
-auto ResolveWireWidth(const Router::RCTreeBuildOptions& options) -> std::optional<double>
+auto QueryArcParasitics(int route_distance_dbu, const ClockRouteSegmentRc& route_segment_rc) -> std::pair<double, double>
 {
-  if (options.wire_width.has_value() && options.wire_width.value() > 0.0) {
-    return options.wire_width;
-  }
-
-  return std::nullopt;
-}
-
-auto QueryArcParasitics(int wire_distance_dbu, const Router::RCTreeBuildOptions& options) -> std::pair<double, double>
-{
-  const auto db_unit = WRAPPER_INST.queryDbUnit();
-  LOG_FATAL_IF(db_unit <= 0) << "Router: DBU-per-micron is unavailable for RC-tree construction.";
-  const auto wirelength = static_cast<double>(std::max(wire_distance_dbu, 0)) / db_unit;
-  if (wirelength <= 0.0) {
+  const auto route_distance_um = static_cast<double>(std::max(route_distance_dbu, 0)) / static_cast<double>(route_segment_rc.dbu_per_um);
+  if (route_distance_um <= 0.0) {
     return {0.0, 0.0};
   }
 
-  const auto routing_layer = ResolveRoutingLayer(options);
-  const auto wire_width = ResolveWireWidth(options);
-  const auto resistance = STA_ADAPTER_INST.queryRequiredWireResistance(routing_layer, wirelength, wire_width) / kMilliOhmPerOhm;
-  const auto capacitance = STA_ADAPTER_INST.queryRequiredWireCapacitance(routing_layer, wirelength, wire_width);
+  const auto resistance = route_distance_um * route_segment_rc.resistance_per_um_ohm;
+  const auto capacitance = route_distance_um * route_segment_rc.capacitance_per_um_pf;
   return {resistance, capacitance};
 }
 
@@ -228,13 +212,14 @@ auto BuildClockStarTree(const Router::ClockTerminal& driver_terminal, const std:
   return route_tree.validate() ? route_tree : Router::ClockSteinerTreeType{};
 }
 
-auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RCTreeBuildOptions& options) -> Router::RCTreeType
+auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const ClockRouteSegmentRc& route_segment_rc) -> Router::RCTreeType
 {
   Router::RCTreeType rc_tree;
   if (tree.node_count() == 0) {
     return rc_tree;
   }
 
+  ValidateClockRouteSegmentRc(route_segment_rc);
   LOG_FATAL_IF(!tree.validate()) << "Routing tree is invalid before RCTree conversion.";
 
   rc_tree.reserveVertices(tree.node_count());
@@ -256,7 +241,7 @@ auto BuildClockRCTree(const Router::ClockSteinerTreeType& tree, const Router::RC
     LOG_FATAL_IF(source_vertex_id == Router::RCTreeType::kInvalidId || sink_vertex_id == Router::RCTreeType::kInvalidId)
         << "Routing edge endpoint is missing during RCTree conversion.";
 
-    const auto [arc_resistance, arc_capacitance] = QueryArcParasitics(GetWireDistance(edge), options);
+    const auto [arc_resistance, arc_capacitance] = QueryArcParasitics(GetWireDistance(edge), route_segment_rc);
     auto arc_id = rc_tree.addArc(source_vertex_id, sink_vertex_id, arc_resistance, arc_capacitance);
     LOG_FATAL_IF(arc_id == Router::RCTreeType::kInvalidId) << "Failed to add RCTree arc when converting routing tree edge " << edge.id;
   }
@@ -279,12 +264,14 @@ auto Router::buildSaltTree(const ClockTerminal& driver_terminal, const std::vect
   return SALTRouter::buildTree(driver_terminal, load_terminals);
 }
 
-auto Router::buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
+auto Router::buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTRoutingConfig& parameters)
+    -> Router::ClockSteinerTreeType
 {
   return BSTRouter::buildTree(load_terminals, parameters);
 }
 
-auto Router::buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> Router::ClockSteinerTreeType
+auto Router::buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTRoutingConfig& parameters)
+    -> Router::ClockSteinerTreeType
 {
   return CBSRouter::buildTree(load_terminals, parameters);
 }
@@ -336,14 +323,9 @@ auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin
   return result;
 }
 
-auto Router::buildRCTree(const ClockSteinerTreeType& clock_tree) -> Router::RCTreeType
+auto Router::buildRCTree(const ClockSteinerTreeType& clock_tree, const ClockRouteSegmentRc& route_segment_rc) -> Router::RCTreeType
 {
-  return buildRCTree(clock_tree, RCTreeBuildOptions{});
-}
-
-auto Router::buildRCTree(const ClockSteinerTreeType& clock_tree, const RCTreeBuildOptions& options) -> Router::RCTreeType
-{
-  return BuildClockRCTree(clock_tree, options);
+  return BuildClockRCTree(clock_tree, route_segment_rc);
 }
 
 }  // namespace icts

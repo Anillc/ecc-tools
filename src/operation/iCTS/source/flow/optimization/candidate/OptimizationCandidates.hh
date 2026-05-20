@@ -27,17 +27,19 @@
 #include <optional>
 #include <vector>
 
-#include "FastStaTypes.hh"
-#include "optimization/model/OptimizationTypes.hh"
+#include "FastSta.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
-auto BuildTopologyIndex(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers) -> TopologyIndex;
-auto MakeSizingAction(const std::vector<OptimizableBuffer>& buffers, std::size_t buffer_index, FrontierSide side, unsigned rank_step)
-    -> std::optional<SizingAction>;
-auto GenerateBatchCandidates(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
-                             const FastState& current) -> std::vector<std::vector<SizingAction>>;
-auto GenerateScalableBatchCandidates(FastStaClockId clock_id, const std::vector<OptimizableBuffer>& buffers, const TopologyIndex& topology,
-                                     const FastState& current, double target_skew_ns) -> std::vector<ScoredBatchCandidate>;
+auto BuildClockSizingTopologyIndex(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers) -> ClockSizingTopologyIndex;
+auto MakeClockSizingEdit(const std::vector<ClockSizingBuffer>& buffers, std::size_t buffer_index, ClockSizingFrontierSide side,
+                         unsigned rank_step) -> std::optional<ClockSizingEdit>;
+auto GenerateClockSizingEditBatches(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
+                                    const ClockSizingTopologyIndex& topology, const ClockSizingTimingState& current)
+    -> std::vector<std::vector<ClockSizingEdit>>;
+auto GenerateScalableClockSizingEditBatches(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
+                                            const ClockSizingTopologyIndex& topology, const ClockSizingTimingState& current,
+                                            double target_skew_ns) -> std::vector<ScoredClockSizingBatch>;
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

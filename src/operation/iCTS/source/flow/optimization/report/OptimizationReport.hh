@@ -30,15 +30,15 @@ namespace icts {
 class Clock;
 }  // namespace icts
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
-struct ClockOptimizationSummary;
-struct OptimizationRuntimeProfile;
+struct ClockSizingSummary;
+struct ClockSizingRuntimeProfile;
 
 auto ElapsedSeconds(std::chrono::steady_clock::time_point start_time) -> double;
 auto FormatNs(double value) -> std::string;
 auto FormatSeconds(double value) -> std::string;
-auto EmitClockSummary(const Clock& clock, const ClockOptimizationSummary& summary, double target_skew_ns, double runtime_s) -> void;
-auto EmitClockProfile(const Clock& clock, const OptimizationRuntimeProfile& profile) -> void;
+auto EmitClockSummary(const Clock& clock, const ClockSizingSummary& summary, double target_skew_ns, double runtime_s) -> void;
+auto EmitClockProfile(const Clock& clock, const ClockSizingRuntimeProfile& profile) -> void;
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

@@ -28,11 +28,13 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "ClockRouteSegmentRc.hh"
 #include "common/data/pin_factory/PinFactory.hh"
-#include "common/types/TestDataTypes.hh"
+#include "common/dataset/TestDataset.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
 #include "module/topology/TopologyGen.hh"
@@ -86,6 +88,25 @@ auto CountAssignedLoads(const icts::ClusterResult& result) -> std::size_t
   return assigned_count;
 }
 
+auto MakeSyntheticClockRouteSegmentRc() -> icts::ClockRouteSegmentRc
+{
+  return icts::ClockRouteSegmentRc{
+      .dbu_per_um = 1000,
+      .resistance_per_um_ohm = 0.002,
+      .capacitance_per_um_pf = 0.000001,
+  };
+}
+
+auto AddSyntheticLoadPinCaps(const std::vector<icts::Pin*>& loads, icts::ClusterConfig& config) -> void
+{
+  for (const auto* pin : loads) {
+    if (pin == nullptr) {
+      continue;
+    }
+    config.sink_pin_cap_pf_by_pin.emplace(pin, 0.002);
+  }
+}
+
 TEST(FastClusteringSyntheticTest, FacadeProducesCompleteLegalClusters)
 {
   auto generated = common::data::pin_factory::BuildPinsFromPoints(BuildClusteredPoints(), {.width = 5000, .height = 4000}, "fast_pin_");
@@ -111,6 +132,28 @@ TEST(FastClusteringSyntheticTest, FacadeProducesCompleteLegalClusters)
     }
   }
   EXPECT_EQ(seen_pins.size(), generated.loads.size());
+}
+
+TEST(FastClusteringSyntheticTest, ExactCapUsesExplicitClusterLoadPinCaps)
+{
+  auto generated = common::data::pin_factory::BuildPinsFromPoints(BuildClusteredPoints(), {.width = 5000, .height = 4000}, "cap_pin_");
+  icts::ClusterConfig config;
+  config.max_fanout = 8;
+  config.max_cap = 1.0;
+  config.clock_route_segment_rc = MakeSyntheticClockRouteSegmentRc();
+  AddSyntheticLoadPinCaps(generated.loads, config);
+
+  const auto result = icts::TopologyGen::fastClustering(generated.loads, config);
+
+  ASSERT_FALSE(result.clusters.empty());
+  ASSERT_EQ(result.electrical_summaries.size(), result.clusters.size());
+  EXPECT_EQ(CountAssignedLoads(result), generated.loads.size());
+  for (const auto& summary : result.electrical_summaries) {
+    EXPECT_TRUE(summary.exact);
+    EXPECT_TRUE(summary.route_success);
+    EXPECT_GT(summary.pin_cap_pf, 0.0);
+    EXPECT_GE(summary.total_cap_pf, summary.pin_cap_pf);
+  }
 }
 
 TEST(FastClusteringSyntheticTest, ClusteringFacadeMatchesTopologyGenFacade)

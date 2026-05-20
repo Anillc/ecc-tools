@@ -26,7 +26,7 @@
 #include <cstdint>
 #include <string>
 
-#include "characterization/CharBuilder.hh"
+#include "characterization/Characterization.hh"
 #include "synthesis/htree/HTree.hh"
 
 namespace icts {

@@ -18,7 +18,7 @@
  * @file BufferInsertion.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-28
- * @brief Implements temporary CTS object creation and clock-net side-effect rollback helpers.
+ * @brief Implements temporary CTS object creation and clock-net side-effect restoration helpers.
  */
 
 #include "synthesis/topology/buffer/BufferInsertion.hh"

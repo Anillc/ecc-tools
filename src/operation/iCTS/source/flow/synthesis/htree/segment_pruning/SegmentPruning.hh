@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
 
 namespace icts {
 class SegmentChar;
@@ -35,11 +35,12 @@ class SegmentChar;
 namespace icts::htree {
 
 struct BoundaryConstraints;
+struct BufferPatternLibrary;
 
 auto CollectRequiredLengthIndices(const std::vector<HTree::LevelPlan>& levels) -> std::vector<unsigned>;
-auto MakeHTreeSegmentFrontierRequest(std::vector<unsigned> required_length_indices, const BoundaryConstraints& boundary_constraints)
-    -> SegmentFrontierRequest;
+auto ResolveRequiredSegmentFrontiers(std::vector<unsigned> required_length_indices, const BoundaryConstraints& boundary_constraints)
+    -> RequiredSegmentFrontiers;
 auto SynthesizeSegmentFrontiers(const std::vector<SegmentChar>& base_segment_chars, BufferPatternLibrary& pattern_library,
-                                const SegmentFrontierRequest& request) -> SegmentFrontierCatalog;
+                                const RequiredSegmentFrontiers& required_frontiers) -> SegmentFrontierCatalog;
 
 }  // namespace icts::htree

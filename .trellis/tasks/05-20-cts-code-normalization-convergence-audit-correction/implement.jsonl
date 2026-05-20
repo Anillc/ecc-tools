@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Owns iCTS source placement, layer boundaries, and CMake target structure for the convergence refactor."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Owns database, wrapper, adapter, and singleton boundary rules used by FastSTA, SDC, STA, and database/io changes."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Owns CTS semantic naming, include visibility, and banned vague structural terms."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The task crosses flow, database, adapter, module, CMake, and test layers."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "The task moves helper code and CMake targets, so existing reusable contracts must be checked before adding new ones."}
+{"file": ".trellis/tasks/05-20-cts-code-normalization-convergence-audit-correction/prd.md", "reason": "Source requirements, constraints, and acceptance criteria for this convergence task."}
+{"file": ".trellis/tasks/05-20-cts-code-normalization-convergence-audit-correction/research.md", "reason": "Initial audit evidence for directory counts, root exposed headers, and include relationships."}
+{"file": ".trellis/tasks/05-20-cts-code-normalization-convergence-audit-correction/design.md", "reason": "Technical boundary model and proposed target shapes for FastSTA, database/io, characterization, BST, and secondary directories."}

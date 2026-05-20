@@ -1,4 +1,4 @@
-add_subdirectory(support)
+add_subdirectory(fixture)
 
 icts_add_test_executable(
   icts_test_module_characterization
@@ -16,8 +16,8 @@ if(ICTS_BUILD_REALTECH_TESTS)
     SOURCES
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechSmokeTest.cc
     LIBS
-      icts_test_module_characterization_support
-      icts_test_common_realtech_support
+      icts_test_module_characterization_fixture
+      icts_test_common_realtech_setup
       icts_test_common_io
   )
 
@@ -34,17 +34,17 @@ if(ICTS_BUILD_REALTECH_TESTS AND ICTS_BUILD_SLOW_REALTECH_TESTS)
     REALTECH
     SOURCES
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechSmokeTest.cc
-      ${ICTS_TEST}/module/characterization/CharacterizationRealTechComposeSupport.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechComposeGap.cc
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechExactRegressionTest.cc
-      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFitSupport.cc
-      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFallbackTest.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechSurfaceFit.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechLimitResolutionTest.cc
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionComposeRegressionTest.cc
-      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionGapSupport.cc
-      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionModelSupport.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionGap.cc
+      ${ICTS_TEST}/module/characterization/CharacterizationRealTechFunctionModel.cc
       ${ICTS_TEST}/module/characterization/CharacterizationRealTechPowerAccountingTest.cc
     LIBS
-      icts_test_module_characterization_support
-      icts_test_common_realtech_support
+      icts_test_module_characterization_fixture
+      icts_test_common_realtech_setup
       icts_test_common_io
   )
 

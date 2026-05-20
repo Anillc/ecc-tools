@@ -71,7 +71,7 @@ auto CTSAPI::runCTS() -> void
 
 auto CTSAPI::report(const std::string& save_dir) -> void
 {
-  FLOW_INST.report(save_dir);
+  FLOW_INST.emitReports(save_dir);
 }
 
 auto CTSAPI::resetAPI() -> void
@@ -86,9 +86,9 @@ auto CTSAPI::resetAPI() -> void
 auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
 {
   resetAPI();
-  const bool setup_ready = Setup::initialize(config_file, work_dir);
-  FLOW_INST.setSetupReady(setup_ready);
-  if (!setup_ready) {
+  const auto setup_result = Setup::initializeRuntime(config_file, work_dir);
+  FLOW_INST.setSetupReady(setup_result.setup_ready);
+  if (!setup_result.setup_ready) {
     return;
   }
   FLOW_INST.outputRuntimeSetup();

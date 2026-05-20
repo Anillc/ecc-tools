@@ -39,7 +39,7 @@
 #include "IdbLayout.h"
 #include "IdbUnits.h"
 #include "Log.hh"
-#include "adapter/sdc/ClockTraceResolver.hh"
+#include "adapter/sdc/SdcClockReader.hh"
 #include "builder.h"
 #include "def_service.h"
 #include "design/Clock.hh"
@@ -140,7 +140,7 @@ auto Wrapper::traceSdcClocks(const SdcClockData& clock_data) const -> ClockTrace
   if (idb_design == nullptr && _idb != nullptr && _idb->get_def_service() != nullptr) {
     idb_design = _idb->get_def_service()->get_design();
   }
-  return ClockTraceResolver::resolve(clock_data, idb_design);
+  return SdcClockReader::traceClockTargets(clock_data, idb_design);
 }
 
 auto Wrapper::collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>

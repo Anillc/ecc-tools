@@ -117,32 +117,32 @@ auto SchemaWriter::RuntimeMetricScope::operator=(RuntimeMetricScope&& other) noe
 
 SchemaWriter::RuntimeMetricScope::~RuntimeMetricScope() = default;
 
-auto SchemaWriter::RuntimeMetricScope::finish(const std::string& status) -> RuntimeMetricSnapshot
+auto SchemaWriter::RuntimeMetricScope::finish(const std::string& status) -> RuntimeMetricRecord
 {
-  const auto current_snapshot = snapshot();
+  const auto metric_record = measure();
   if (!_finished && _writer != nullptr) {
-    _writer->recordRuntimeMetric(_stage, NormalizeStatus(status), current_snapshot);
+    _writer->recordRuntimeMetric(_stage, NormalizeStatus(status), metric_record);
     _finished = true;
   }
-  return current_snapshot;
+  return metric_record;
 }
 
-auto SchemaWriter::RuntimeMetricScope::finished() -> RuntimeMetricSnapshot
+auto SchemaWriter::RuntimeMetricScope::finished() -> RuntimeMetricRecord
 {
   return finish(kStatusFinished);
 }
 
-auto SchemaWriter::RuntimeMetricScope::failed() -> RuntimeMetricSnapshot
+auto SchemaWriter::RuntimeMetricScope::failed() -> RuntimeMetricRecord
 {
   return finish(kStatusFailed);
 }
 
-auto SchemaWriter::RuntimeMetricScope::snapshot() const -> RuntimeMetricSnapshot
+auto SchemaWriter::RuntimeMetricScope::measure() const -> RuntimeMetricRecord
 {
   if (_stats == nullptr) {
     return {};
   }
-  return RuntimeMetricSnapshot{
+  return RuntimeMetricRecord{
       .elapsed_time_s = _stats->elapsedRunTime(),
       .peak_vmem_delta_mb = _stats->memoryDelta(),
   };
@@ -159,14 +159,14 @@ auto SchemaWriter::beginRuntimeMetric(std::string stage) -> RuntimeMetricScope
   return RuntimeMetricScope(*this, std::move(stage));
 }
 
-auto SchemaWriter::recordRuntimeMetric(std::string stage, std::string status, const RuntimeMetricSnapshot& snapshot) -> void
+auto SchemaWriter::recordRuntimeMetric(std::string stage, std::string status, const RuntimeMetricRecord& metric_record) -> void
 {
   const std::scoped_lock lock(_mutex);
   _runtime_metrics.push_back(RuntimeMetric{
       .stage = std::move(stage),
       .status = std::move(status),
-      .elapsed_time_s = snapshot.elapsed_time_s,
-      .peak_vmem_delta_mb = snapshot.peak_vmem_delta_mb,
+      .elapsed_time_s = metric_record.elapsed_time_s,
+      .peak_vmem_delta_mb = metric_record.peak_vmem_delta_mb,
   });
 }
 
@@ -191,13 +191,13 @@ auto SchemaWriter::emitRuntimeSummary(const std::string& title) -> void
 }
 
 auto SchemaWriter::emitRuntimeMetricTable(const std::string& title, const std::string& stage, const std::string& status,
-                                          const RuntimeMetricSnapshot& snapshot) -> void
+                                          const RuntimeMetricRecord& metric_record) -> void
 {
   const std::string normalized_status = NormalizeStatus(status);
   const std::vector<std::string> headers = {"Stage", "Status", "Elapsed Time (s)", "Peak VMem Delta (MB)"};
   const TableRows rows = {
-      {stage, normalized_status, logformat::FormatFixed(snapshot.elapsed_time_s, 3),
-       logformat::FormatFixed(snapshot.peak_vmem_delta_mb, 3)},
+      {stage, normalized_status, logformat::FormatFixed(metric_record.elapsed_time_s, 3),
+       logformat::FormatFixed(metric_record.peak_vmem_delta_mb, 3)},
   };
 
   LOG_INFO << "";

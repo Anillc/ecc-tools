@@ -1,4 +1,4 @@
-add_subdirectory(support)
+add_subdirectory(fixture)
 
 icts_add_test_executable(
   icts_test_module_topology_gen
@@ -6,5 +6,5 @@ icts_add_test_executable(
     ${ICTS_TEST}/module/topology/topology_gen/TopologyGenTest.cc
     ${ICTS_TEST}/module/topology/topology_gen/TopologyGenDepthTest.cc
   LIBS
-    icts_test_module_topology_gen_support
+    icts_test_module_topology_gen_fixture
 )

@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
+#include "ClockRouteSegmentRc.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
 #include "Log.hh"
@@ -45,10 +46,12 @@
 #include "Point.hh"
 #include "TopologyConfig.hh"
 #include "Tree.hh"
+#include "adapter/sta/STAAdapter.hh"
 #include "clustering/Clustering.hh"
 #include "config/Config.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
+#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 #include "topology/TopologyGen.hh"
 
 namespace icts::htree {
@@ -88,15 +91,30 @@ auto BuildCapDistributionStats(const std::vector<double>& caps_pf) -> CapDistrib
   return stats;
 }
 
-auto BuildLeafElectricalConfig() -> ClusterConfig
+auto collectSinkPinCapPfByPin(const std::vector<SinkLoadRegionBoundaryGroup>& groups) -> std::unordered_map<const Pin*, double>
+{
+  std::unordered_map<const Pin*, double> sink_pin_cap_pf_by_pin;
+  for (const auto& group : groups) {
+    if (group.loads == nullptr) {
+      continue;
+    }
+    sink_pin_cap_pf_by_pin.reserve(sink_pin_cap_pf_by_pin.size() + group.loads->size());
+    for (const auto* pin : *group.loads) {
+      if (pin == nullptr) {
+        continue;
+      }
+      sink_pin_cap_pf_by_pin[pin] = std::max(0.0, STA_ADAPTER_INST.queryPinCapacitance(pin));
+    }
+  }
+  return sink_pin_cap_pf_by_pin;
+}
+
+auto BuildLeafElectricalConfig(const std::vector<SinkLoadRegionBoundaryGroup>& groups) -> ClusterConfig
 {
   const double max_cap = CONFIG_INST.has_max_cap() ? CONFIG_INST.get_max_cap() : std::numeric_limits<double>::infinity();
   auto config = TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), max_cap);
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
-      << "HTree: routing layer is not configured for sink-load-region checks.";
-  config.routing_layer = static_cast<int>(routing_layers.front());
-  config.wire_width = CONFIG_INST.get_wire_width();
+  config.clock_route_segment_rc = STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc();
+  config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(groups);
   config.enable_exact_cap = true;
   config.always_build_exact_cap = true;
   config.scoring_strategy = ClusterScoringStrategy::kTotalWirelength;
@@ -266,7 +284,7 @@ auto EvaluateSinkLoadRegionLegality(const Tree& topology, const SinkLoadRegionLe
     return result;
   }
 
-  const auto electrical_config = BuildLeafElectricalConfig();
+  const auto electrical_config = BuildLeafElectricalConfig(collection.groups);
   const std::size_t max_fanout = CONFIG_INST.get_max_fanout();
   for (const auto& group : collection.groups) {
     const auto* loads = group.loads;

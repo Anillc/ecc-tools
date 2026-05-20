@@ -34,7 +34,8 @@
 #include <vector>
 
 #include "Log.hh"
-#include "SdcClockParser.hh"
+#include "clock_parser/SdcClockParser.hh"
+#include "clock_trace/ClockTraceResolver.hh"
 #include "dm_config.h"
 #include "idm.h"
 #include "logger/Schema.hh"
@@ -94,6 +95,11 @@ auto SdcClockReader::readDeclarationsOnly() const -> std::vector<std::tuple<std:
     declarations.emplace_back(clock.clock_name, sdc_reader::PrimarySourceExpression(clock), clock.period_ns, clock.period_resolved);
   }
   return declarations;
+}
+
+auto SdcClockReader::traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design) -> ClockTraceResult
+{
+  return ClockTraceResolver::resolve(clock_data, idb_design);
 }
 
 }  // namespace icts

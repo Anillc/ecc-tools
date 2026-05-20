@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Check moved source files, subfolders, and CMake target visibility against iCTS structure rules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check database, wrapper, and adapter boundary compliance after the refactor."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check semantic naming, include hygiene, and banned structural terms."}
+{"file": ".trellis/tasks/05-20-cts-code-normalization-convergence-audit-correction/prd.md", "reason": "Verify implementation satisfies the user-facing acceptance criteria."}
+{"file": ".trellis/tasks/05-20-cts-code-normalization-convergence-audit-correction/design.md", "reason": "Verify final source layout follows the approved boundary model and recorded exceptions."}
+{"file": ".trellis/tasks/05-20-cts-code-normalization-convergence-audit-correction/research.md", "reason": "Re-run or update audit evidence before marking the task complete."}

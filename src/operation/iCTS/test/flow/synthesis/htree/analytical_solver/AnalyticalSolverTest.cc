@@ -29,18 +29,20 @@
 #include <vector>
 
 #include "analytical_characterization/AnalyticalModel.hh"
+#include "characterization/Characterization.hh"
 #include "database/characterization/BufferingPattern.hh"
 #include "database/characterization/CharCore.hh"
 #include "database/characterization/HTreeTopologyChar.hh"
 #include "database/characterization/PatternId.hh"
 #include "database/characterization/SegmentChar.hh"
 #include "database/characterization/ValueLattice.hh"
-#include "module/characterization/Frontier.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/analytical_solver/AnalyticalCandidate.hh"
 #include "synthesis/htree/analytical_solver/AnalyticalSolver.hh"
+#include "synthesis/htree/analytical_solver/candidate/AnalyticalCandidate.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
+#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts_test {
@@ -125,18 +127,18 @@ TEST(AnalyticalSolverTest, ProducesDeterministicCandidateFromShortlist)
   std::vector<icts::HTree::LevelPlan> levels = {
       MakeLevelPlan(length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_frontier_catalog = &frontier_catalog;
-  request.segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.02;
-  request.options.representative_leaf_load_cap_pf = 0.05;
-  request.options.top_k_per_depth = 1U;
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_frontier_catalog = &frontier_catalog;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.02;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.options.top_k_per_depth = 1U;
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   ASSERT_EQ(result.candidates.size(), 1U);
@@ -162,17 +164,17 @@ TEST(AnalyticalSolverTest, AcceptsIdealRootInputSlew)
   std::vector<icts::HTree::LevelPlan> levels = {
       MakeLevelPlan(length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_frontier_catalog = &frontier_catalog;
-  request.segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.0;
-  request.options.representative_leaf_load_cap_pf = 0.05;
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_frontier_catalog = &frontier_catalog;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.0;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   ASSERT_EQ(result.candidates.size(), 1U);
@@ -208,19 +210,19 @@ TEST(AnalyticalSolverTest, KeepsTopKBeamCandidates)
       MakeLevelPlan(length_idx),
       MakeLevelPlan(length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_frontier_catalog = &frontier_catalog;
-  request.segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.02;
-  request.options.representative_leaf_load_cap_pf = 0.05;
-  request.options.per_level_shortlist_size = 3U;
-  request.options.top_k_per_depth = 2U;
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_frontier_catalog = &frontier_catalog;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.02;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.options.per_level_shortlist_size = 3U;
+  solve_problem.options.top_k_per_depth = 2U;
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   ASSERT_EQ(result.candidates.size(), 2U);
@@ -244,20 +246,20 @@ TEST(AnalyticalSolverTest, ComposesUnitModelsWithoutSegmentFrontierCatalog)
   std::vector<icts::HTree::LevelPlan> levels = {
       MakeLevelPlan(composed_length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_pattern_library = &segment_patterns;
-  request.mutable_segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.02;
-  request.options.representative_leaf_load_cap_pf = 0.05;
-  request.options.use_functional_unit_compose = true;
-  request.options.unit_length_idx = unit_length_idx;
-  request.options.unit_compose_beam_size = 2U;
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.mutable_segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.02;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.options.use_functional_unit_compose = true;
+  solve_problem.options.unit_length_idx = unit_length_idx;
+  solve_problem.options.unit_compose_beam_size = 2U;
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   ASSERT_EQ(result.candidates.size(), 1U);
@@ -285,20 +287,20 @@ TEST(AnalyticalSolverTest, FunctionalUnitComposeMaterializesNativeSegmentPattern
   std::vector<icts::HTree::LevelPlan> levels = {
       MakeLevelPlan(level_length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_pattern_library = &segment_patterns;
-  request.mutable_segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.02;
-  request.options.representative_leaf_load_cap_pf = 0.05;
-  request.options.use_functional_unit_compose = true;
-  request.options.unit_length_idx = unit_length_idx;
-  request.options.top_k_per_depth = 1U;
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.mutable_segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.02;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.options.use_functional_unit_compose = true;
+  solve_problem.options.unit_length_idx = unit_length_idx;
+  solve_problem.options.top_k_per_depth = 1U;
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   ASSERT_EQ(result.candidates.size(), 1U);
@@ -333,21 +335,21 @@ TEST(AnalyticalSolverTest, DiagnosticSequenceCountersTrackFrontierDecompositionA
   std::vector<icts::HTree::LevelPlan> levels = {
       MakeLevelPlan(level_length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_frontier_catalog = &frontier_catalog;
-  request.segment_pattern_library = &segment_patterns;
-  request.mutable_segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.02;
-  request.options.representative_leaf_load_cap_pf = 0.05;
-  request.options.use_functional_unit_compose = true;
-  request.options.unit_length_idx = unit_length_idx;
-  request.options.diagnostic_segment_pattern_ids = {native_pattern};
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_frontier_catalog = &frontier_catalog;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.mutable_segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.02;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.options.use_functional_unit_compose = true;
+  solve_problem.options.unit_length_idx = unit_length_idx;
+  solve_problem.options.diagnostic_segment_pattern_ids = {native_pattern};
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   EXPECT_EQ(result.diagnostic_library_hit_count, 1U);
@@ -441,20 +443,20 @@ TEST(AnalyticalSolverTest, RespectsBranchBufferAndRootFanoutConstraints)
       MakeLevelPlan(length_idx),
       MakeLevelPlan(length_idx),
   };
-  icts::htree::analytical_solver::AnalyticalSolverRequest request;
-  request.levels = &levels;
-  request.segment_frontier_catalog = &frontier_catalog;
-  request.segment_pattern_library = &segment_patterns;
-  request.model_catalog = &catalog;
-  request.boundary_constraints.force_branch_buffer = true;
-  request.fanout_options.max_fanout = 2U;
-  request.slew_lattice = icts::UniformValueLattice(0.01, 20U);
-  request.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  request.options.root_input_slew_ns = 0.02;
-  request.options.representative_leaf_load_cap_pf = 0.05;
-  request.options.top_k_per_depth = 1U;
+  icts::htree::analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
+  solve_problem.levels = &levels;
+  solve_problem.segment_frontier_catalog = &frontier_catalog;
+  solve_problem.segment_pattern_library = &segment_patterns;
+  solve_problem.model_catalog = &catalog;
+  solve_problem.boundary_constraints.force_branch_buffer = true;
+  solve_problem.fanout_options.max_fanout = 2U;
+  solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
+  solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
+  solve_problem.options.root_input_slew_ns = 0.02;
+  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.options.top_k_per_depth = 1U;
 
-  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(request);
+  const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
   ASSERT_TRUE(result.success) << result.failure_reason;
   ASSERT_EQ(result.candidates.size(), 1U);

@@ -26,14 +26,30 @@
 #include <string>
 
 #include "design/ClockLayout.hh"
+#include "evaluation/Evaluation.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "instantiation/Instantiation.hh"
+#include "optimization/Optimization.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 
 namespace icts {
 
 #define FLOW_INST (icts::Flow::getInst())
+
+enum class FlowStageStatus
+{
+  kFinished,
+  kSkipped,
+  kFailed
+};
+
+struct ClockDataReadResult
+{
+  FlowStageStatus status = FlowStageStatus::kFailed;
+  std::string reason;
+  bool clock_data_ready = false;
+};
 
 class Flow
 {
@@ -45,10 +61,11 @@ class Flow
   }
 
   auto runCTS() -> void;
-  auto readData() -> bool;
-  auto run() -> void;
-  auto evaluate() -> void;
-  auto report(const std::string& save_dir) -> void;
+  auto readClockData() -> ClockDataReadResult;
+  auto runSynthesis() -> SynthesisTraceSummary;
+  auto runOptimization() -> OptimizationResult;
+  auto evaluateClockTree() -> EvaluationResult;
+  auto emitReports(const std::string& save_dir) -> void;
   auto outputRuntimeSetup() -> void;
   auto outputSummary() const -> QorSummary;
   auto outputRunSummary() const -> SynthesisTraceSummary;
@@ -64,7 +81,7 @@ class Flow
   Flow() = default;
   ~Flow() = default;
 
-  auto instantiate() -> void;
+  auto instantiateClockTree() -> InstantiationResult;
   auto emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void;
 
   SynthesisTraceSummary _run_summary;

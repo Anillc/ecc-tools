@@ -1,7 +1,6 @@
 add_library(
   icts_source_flow_instantiation_design_conversion
   ${ICTS_FLOW_INSTANTIATION_DESIGN_CONVERSION}/DesignConversion.cc
-  ${ICTS_FLOW_INSTANTIATION_DESIGN_CONVERSION}/DesignConversionClockData.cc
 )
 
 target_link_libraries(

@@ -126,7 +126,7 @@ auto collectRootInputs(const std::vector<ClockDistributionContext>& sink_domains
 auto collectSourceTrunkLengthsUm(Pin* clock_source, const std::vector<Pin*>& root_inputs) -> std::vector<double>
 {
   std::vector<double> lengths_um;
-  if (clock_source == nullptr) {
+  if (clock_source == nullptr || root_inputs.empty()) {
     return lengths_um;
   }
 
@@ -186,8 +186,8 @@ class ClockTopologyFormation
             {"inserted_nets", std::to_string(synthesis_result.inserted_nets.size())},
         },
         schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .emit_success_summary = false});
-    auto pending_clock_layout = ClockLayoutBuilder::makeSinkDomainLayout(*_clock, _clock_index, context.makeLayoutTopology(),
-                                                                         ClockLayoutAdapter::makeSinkDomainLayoutInput(synthesis_result));
+    auto pending_clock_layout = ClockLayoutBuilder::makeSinkDomainLayout(
+        *_clock, _clock_index, context.makeLayoutTopology(), ClockLayoutAdapter::makeSinkDomainLayoutTopology(synthesis_result));
     if (!DesignConversion::commitInsertedObjects(*_clock, synthesis_result.inserted_insts, synthesis_result.inserted_pins,
                                                  synthesis_result.inserted_nets)) {
       DesignConversion::reconnectNet(*context.downstream_net, context.downstream_net->get_driver(), context.sinks);
@@ -309,8 +309,8 @@ class ClockTopologyFormation
           },
           schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .emit_success_summary = false});
       auto pending_clock_layout = ClockLayoutBuilder::makeSourceToRootLayout(
-          *_clock, _clock_index, *clock_source_net, ClockLayoutAdapter::makeSourceTrunkLayoutInput(source_trunk_result, source_trunk_phase),
-          source_trunk_phase);
+          *_clock, _clock_index, *clock_source_net,
+          ClockLayoutAdapter::makeSourceTrunkLayoutTopology(source_trunk_result, source_trunk_phase), source_trunk_phase);
       if (!DesignConversion::commitInsertedObjects(*_clock, source_trunk_result.inserted_insts, source_trunk_result.inserted_pins,
                                                    source_trunk_result.inserted_nets)) {
         _status_table->append(*_clock, DomainStatus::kFailed, source_trunk_domain, _valid_sinks, root_inputs.size(),

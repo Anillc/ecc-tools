@@ -26,9 +26,11 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "AnalyticalModel.hh"
+#include "routing/ClockRouteSegmentRc.hh"
 
 namespace icts {
 class BufferingPattern;
@@ -48,8 +50,8 @@ struct AnalyticalCharacterizationOptions
   AnalyticalModelBasis source_boundary_power_basis = AnalyticalModelBasis::kAffine;
   bool prefer_exact_structural_cap = false;
   double length_unit_um = 0.0;
-  int routing_layer = 0;
-  std::optional<double> wire_width = std::nullopt;
+  ClockRouteSegmentRc clock_route_segment_rc;
+  std::unordered_map<std::string, double> buffer_input_cap_pf_by_cell_master;
   double max_output_slew_abs_residual_ns = 0.0;
   double max_output_slew_bucket_residual = 0.0;
   double max_delay_relative_residual = 0.0;

@@ -32,7 +32,7 @@
 #include "Inst.hh"
 #include "Pin.hh"
 #include "Point.hh"
-#include "TopologyRealTechSmokeSupport.hh"
+#include "TopologyRealTechScenario.hh"
 #include "database/design/Net.hh"
 #include "synthesis/topology/Topology.hh"
 

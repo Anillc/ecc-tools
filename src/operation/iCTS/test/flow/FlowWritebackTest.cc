@@ -15,10 +15,10 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file FlowWritebackTest.cc
+ * @file FlowClockTreeMaterializationTest.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-18
- * @brief iDB writeback and rollback tests for Flow.
+ * @brief iDB clock-tree materialization and restore tests for Flow.
  */
 
 #include <string>
@@ -27,7 +27,7 @@
 
 #include "Clock.hh"
 #include "Design.hh"
-#include "FlowTestSupport.hh"
+#include "FlowDesignFixture.hh"
 #include "IdbCellMaster.h"
 #include "IdbDesign.h"
 #include "IdbEnum.h"
@@ -47,7 +47,7 @@ namespace {
 
 using namespace flow_test;
 
-TEST(FlowTest, WritebackFailureRemovesCreatedIdbNetsOnRollback)
+TEST(FlowTest, ClockTreeMaterializationFailureRemovesCreatedIdbNetsAfterFailedCommit)
 {
   const ScopedFlowReset scoped_flow_reset;
   idb::IdbDesign idb_design;
@@ -55,7 +55,7 @@ TEST(FlowTest, WritebackFailureRemovesCreatedIdbNetsOnRollback)
 
   auto* clock = DESIGN_INST.makeClock("LOGICAL_CLK", "cts_inserted_clk_net");
   ASSERT_NE(clock, nullptr);
-  BuildClockForWrapperWriteback(*clock, "LOGICAL_CLK_SRC", "rollback_ff", "CLK");
+  BuildClockForWrapperClockTreeMaterialization(*clock, "LOGICAL_CLK_SRC", "restore_ff", "CLK");
   ASSERT_EQ(idb_design.get_net_list()->find_net("cts_inserted_clk_net"), nullptr);
 
   const auto result = WRAPPER_INST.writeClocksDetailed({clock});
@@ -64,7 +64,7 @@ TEST(FlowTest, WritebackFailureRemovesCreatedIdbNetsOnRollback)
   EXPECT_EQ(result.failed_clock, "LOGICAL_CLK");
   EXPECT_EQ(result.failed_net, "cts_inserted_clk_net");
   EXPECT_EQ(result.reason, "write_clock_failed");
-  EXPECT_TRUE(result.rollback_done);
+  EXPECT_TRUE(result.idb_clock_tree_restored);
   EXPECT_EQ(idb_design.get_net_list()->find_net("cts_inserted_clk_net"), nullptr);
 }
 
@@ -116,7 +116,7 @@ TEST(FlowTest, WrapperReadClocksBuildsCtsClockFromSdcDeclaredIdbNet)
   EXPECT_NE(DESIGN_INST.findPin("sink0/CLK"), nullptr);
 }
 
-TEST(FlowTest, WrapperWritebackResolvesExistingPinsAndMaterializesCtsBufferInst)
+TEST(FlowTest, WrapperClockTreeMaterializationResolvesExistingPinsAndMaterializesCtsBufferInst)
 {
   const ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
@@ -208,7 +208,7 @@ TEST(FlowTest, WrapperWritebackResolvesExistingPinsAndMaterializesCtsBufferInst)
   EXPECT_EQ(idb_sink_pin->get_net(), leaf_idb_net);
 }
 
-TEST(FlowTest, WrapperWritebackDoesNotCreateNonCtsInstWhenResolvingClockSinkPin)
+TEST(FlowTest, WrapperClockTreeMaterializationDoesNotCreateNonCtsInstWhenResolvingClockSinkPin)
 {
   const ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
@@ -218,7 +218,7 @@ TEST(FlowTest, WrapperWritebackDoesNotCreateNonCtsInstWhenResolvingClockSinkPin)
 
   auto* clock = DESIGN_INST.makeClock("LOGICAL_CLK", "root_clk_net");
   ASSERT_NE(clock, nullptr);
-  BuildClockForWrapperWriteback(*clock, "clk_port", "missing_sink", "CLK");
+  BuildClockForWrapperClockTreeMaterialization(*clock, "clk_port", "missing_sink", "CLK");
   auto* idb_io_pin = idb_design.get_io_pin_list()->add_pin_list("clk_port");
   ASSERT_NE(idb_io_pin, nullptr);
   idb_io_pin->set_as_io();
@@ -232,12 +232,12 @@ TEST(FlowTest, WrapperWritebackDoesNotCreateNonCtsInstWhenResolvingClockSinkPin)
   const auto result = WRAPPER_INST.writeClocksDetailed({clock});
 
   EXPECT_FALSE(result.success);
-  EXPECT_TRUE(result.rollback_done);
+  EXPECT_TRUE(result.idb_clock_tree_restored);
   EXPECT_EQ(idb_design.get_instance_list()->find_instance("missing_sink"), nullptr);
   EXPECT_EQ(idb_design.get_net_list()->find_net("root_clk_net"), nullptr);
 }
 
-TEST(FlowTest, WrapperWritebackRollbackRemovesNewCtsInstAndRestoresTouchedNetPins)
+TEST(FlowTest, WrapperClockTreeMaterializationFailureRemovesNewCtsInstAndRestoresTouchedNetPins)
 {
   const ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
@@ -283,7 +283,7 @@ TEST(FlowTest, WrapperWritebackRollbackRemovesNewCtsInstAndRestoresTouchedNetPin
   source_pin->set_io(true);
   source_pin->set_net(source_net);
   ASSERT_TRUE(DESIGN_INST.indexPin(source_pin));
-  auto* buf_inst = MakeDesignInst("cts_buf_rollback", "CTS_BUF", icts::InstType::kBuffer, icts::Point<int>(10, 0));
+  auto* buf_inst = MakeDesignInst("cts_buf_restore", "CTS_BUF", icts::InstType::kBuffer, icts::Point<int>(10, 0));
   ASSERT_NE(buf_inst, nullptr);
   auto* buf_in = AddOwnedLoad(*clock, source_net, *buf_inst, "A");
   auto* buf_out = DESIGN_INST.makePin("Y");
@@ -319,8 +319,8 @@ TEST(FlowTest, WrapperWritebackRollbackRemovesNewCtsInstAndRestoresTouchedNetPin
   const auto result = WRAPPER_INST.writeClocksDetailed({clock});
 
   EXPECT_FALSE(result.success);
-  EXPECT_TRUE(result.rollback_done);
-  EXPECT_EQ(idb_design.get_instance_list()->find_instance("cts_buf_rollback"), nullptr);
+  EXPECT_TRUE(result.idb_clock_tree_restored);
+  EXPECT_EQ(idb_design.get_instance_list()->find_instance("cts_buf_restore"), nullptr);
   EXPECT_EQ(idb_design.get_net_list()->find_net("leaf_clk_net"), nullptr);
   EXPECT_EQ(idb_io_pin->get_net(), root_net);
   EXPECT_EQ(old_sink_pin->get_net(), root_net);

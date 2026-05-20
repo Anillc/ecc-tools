@@ -36,7 +36,7 @@ struct OptimizationResult
   bool optimized = false;
   std::size_t clock_count = 0U;
   std::size_t optimized_clock_count = 0U;
-  std::size_t accepted_mutation_count = 0U;
+  std::size_t accepted_edit_count = 0U;
 };
 
 class Optimization

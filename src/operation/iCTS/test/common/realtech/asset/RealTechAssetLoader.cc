@@ -18,7 +18,7 @@
  * @file RealTechAssetLoader.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-11
- * @brief Asset probing and environment bootstrap support for real-tech tests.
+ * @brief Asset probing and environment bootstrap for real-tech tests.
  */
 
 #include "common/realtech/asset/RealTechAssetLoader.hh"
@@ -40,13 +40,13 @@
 
 #include "Log.hh"
 #include "common/io/TestArtifactIO.hh"
-#include "common/realtech/support/RealTechSetupSupport.hh"
+#include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/io/Wrapper.hh"
 #include "dm_config.h"
 #include "idm.h"
-#include "instantiation/design_conversion/DesignConversion.hh"
+#include "setup/clock_data/ClockDataRead.hh"
 
 namespace icts_test::common::realtech::asset {
 namespace {
@@ -454,7 +454,7 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
 
   WRAPPER_INST.reset();
   WRAPPER_INST.init(idb_builder);
-  if (!icts::DesignConversion::readClockData()) {
+  if (!icts::ClockDataRead::read()) {
     error = "readClockData failed for SDC-declared clocks";
     return false;
   }
@@ -501,7 +501,7 @@ auto BuildRealTechSetupState() -> RealTechSetupState
   }
 
   std::ostringstream summary;
-  summary << "fallback to synthetic sweeps";
+  summary << "use synthetic stand-in sweeps";
   if (!probe_errors.empty()) {
     summary << " (";
     for (std::size_t index = 0; index < probe_errors.size(); ++index) {
@@ -514,8 +514,8 @@ auto BuildRealTechSetupState() -> RealTechSetupState
   } else {
     summary << " (no real-tech workspace candidates were found)";
   }
-  state.mode = RealTechMode::kSyntheticFallback;
-  state.source_label = "synthetic_fallback";
+  state.mode = RealTechMode::kSyntheticLoads;
+  state.source_label = "synthetic_standin";
   state.summary = summary.str();
   LOG_WARNING << "RealTechSetup: " << state.summary;
   return state;

@@ -26,17 +26,17 @@
 #include <cstddef>
 #include <vector>
 
-#include "FastStaTypes.hh"
-#include "optimization/model/OptimizationTypes.hh"
+#include "FastSta.hh"
+#include "optimization/model/ClockSizingOptimizationData.hh"
 
-namespace icts::optimization_internal {
+namespace icts::clock_sizing_optimization {
 
-auto FirstActionBufferIndex(const std::vector<SizingAction>& actions) -> std::size_t;
-auto CaptureState(FastStaClockId clock_id, const std::vector<CapBaseline>& cap_baseline, const std::vector<SlewBaseline>& slew_baseline)
-    -> FastState;
-auto CaptureStateWithArea(FastStaClockId clock_id, const std::vector<CapBaseline>& cap_baseline,
-                          const std::vector<SlewBaseline>& slew_baseline, double area_um2) -> FastState;
-auto TargetMet(const FastState& state, double target_skew_ns) -> bool;
-auto StateImproves(const FastState& current, const FastState& candidate, double target_skew_ns) -> bool;
+auto FirstClockSizingEditBufferIndex(const std::vector<ClockSizingEdit>& edits) -> std::size_t;
+auto CaptureState(FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& cap_baseline,
+                  const std::vector<ClockSizingSlewLimit>& slew_baseline) -> ClockSizingTimingState;
+auto CaptureStateWithArea(FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& cap_baseline,
+                          const std::vector<ClockSizingSlewLimit>& slew_baseline, double area_um2) -> ClockSizingTimingState;
+auto TargetMet(const ClockSizingTimingState& state, double target_skew_ns) -> bool;
+auto StateImproves(const ClockSizingTimingState& current, const ClockSizingTimingState& candidate, double target_skew_ns) -> bool;
 
-}  // namespace icts::optimization_internal
+}  // namespace icts::clock_sizing_optimization

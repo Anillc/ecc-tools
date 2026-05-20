@@ -35,16 +35,17 @@
 #include <vector>
 
 #include "CharCore.hh"
-#include "Frontier.hh"
 #include "HTreeTopologyChar.hh"
-#include "HTreeTraits.hh"
-#include "HashJoinEngine.hh"
 #include "Log.hh"
 #include "PatternId.hh"
 #include "SegmentChar.hh"
+#include "characterization/Characterization.hh"
 #include "logger/Schema.hh"
+#include "synthesis/htree/HTreeSynthesisResult.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
+#include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree {
 namespace {

@@ -33,7 +33,7 @@
 #include "design/ClockDAG.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
-#include "evaluation/qor/QorEvaluationInternal.hh"
+#include "evaluation/qor/ClockQorMetricCollector.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "qor/Qor.hh"

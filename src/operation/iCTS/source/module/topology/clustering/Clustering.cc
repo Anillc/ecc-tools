@@ -27,11 +27,12 @@
 #include <cmath>
 #include <cstddef>
 #include <iterator>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "ClusterConstraintEvaluation.hh"
 #include "ClusterConstraintEvaluator.hh"
-#include "ClusterConstraintTypes.hh"
 #include "FastClustering.hh"
 #include "Geometry.hh"
 #include "KMeans.hh"
@@ -226,8 +227,7 @@ auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const
 auto Clustering::evaluateClusterElectrical(const std::vector<Pin*>& loads, const Point<int>& anchor, const ClusterConfig& config,
                                            bool need_exact_cap) -> ClusterElectricalEvaluation
 {
-  ClusterConstraintEvaluator evaluator;
-  const auto evaluation = evaluator.evaluateLoads(loads, anchor, config, need_exact_cap);
+  const auto evaluation = ClusterConstraintEvaluator::evaluateLoads(loads, anchor, config, need_exact_cap);
   const auto& metrics = evaluation.metrics;
   return ClusterElectricalEvaluation{
       .legal = evaluation.legal,

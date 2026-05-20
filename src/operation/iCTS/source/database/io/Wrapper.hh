@@ -67,7 +67,7 @@ struct WrapperWriteResult
   bool success = false;
   std::string failed_clock;
   std::string failed_net;
-  bool rollback_done = false;
+  bool idb_clock_tree_restored = false;
   std::string reason;
 };
 

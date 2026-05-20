@@ -29,10 +29,10 @@
 #include <vector>
 
 #include "Clustering.hh"
-#include "FastClusteringRealTechBenchmarkInternal.hh"
+#include "FastClusteringRealTechBenchmarkFixture.hh"
+#include "common/dataset/TestDataset.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
-#include "common/types/TestDataTypes.hh"
 #include "module/topology/fast_clustering/FastClustering.hh"
 #include "utils/logger/Schema.hh"
 
@@ -78,7 +78,7 @@ TEST(FastClusteringRealTechBenchmarkTest, BenchmarkTwentyPlacementCases)
     common::io::EmitInfoReport(
         InfoReport{.title = "CTS Clustering Case Statistics", .content = BuildLoadedCaseReport(benchmark_case, loaded)});
 
-    auto config = BuildBenchmarkConfig();
+    auto config = BuildBenchmarkConfig(loaded.loads);
     auto fast_run = RunAndMeasure("fast", loaded.loads, config,
                                   [](const std::vector<icts::Pin*>& loads, const auto& run_config) -> icts::ClusterResult {
                                     return icts::FastClustering::runDefault(loads, run_config);

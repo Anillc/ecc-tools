@@ -8,7 +8,7 @@ add_library(
 target_link_libraries(
   icts_test_common_realtech_asset_loader
   PRIVATE
-  icts_test_common_types
+  icts_test_common_dataset
   icts_test_common_io
   icts_test_realtech_base
 )

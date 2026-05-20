@@ -36,9 +36,9 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Tree.hh"
+#include "flow/synthesis/htree/HTreeArtifactWriter.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
-#include "flow/synthesis/htree/HTreeVisualizationInternal.hh"
-#include "flow/synthesis/htree/HTreeVisualizationSupport.hh"
+#include "flow/synthesis/htree/HTreeSvgRenderer.hh"
 #include "synthesis/htree/HTree.hh"
 #include "visualization/core/SvgCommon.hh"
 

@@ -1,13 +1,13 @@
 add_library(
   icts_source_database_adapter_sta
   ${ICTS_SOURCE}/database/adapter/sta/STAAdapter.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterCellQuery.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterClockLookup.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterInternal.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterRcTree.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterRootDriverQuery.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterTimingUpdate.cc
-  ${ICTS_SOURCE}/database/adapter/sta/STAAdapterWireRc.cc
+  ${ICTS_SOURCE}/database/adapter/sta/cell_master/STAAdapterCellQuery.cc
+  ${ICTS_SOURCE}/database/adapter/sta/clock_lookup/STAAdapterClockLookup.cc
+  ${ICTS_SOURCE}/database/adapter/sta/net_rc/STAAdapterWireRc.cc
+  ${ICTS_SOURCE}/database/adapter/sta/net_rc_tree/STAAdapterRcTree.cc
+  ${ICTS_SOURCE}/database/adapter/sta/root_driver/STAAdapterRootDriverQuery.cc
+  ${ICTS_SOURCE}/database/adapter/sta/timing_update/STAAdapterTimingUpdate.cc
+  ${ICTS_SOURCE}/database/adapter/sta/timing_query/STAAdapterTimingQuery.cc
 )
 
 target_include_directories(
@@ -15,6 +15,7 @@ target_include_directories(
   PUBLIC
   ${ICTS_DATABASE_ADAPTER_STA}
   PRIVATE
+  ${ICTS_DATABASE_ADAPTER_STA}/timing_query
   ${ICTS_DATABASE}
   ${ICTS_UTILS}
   ${HOME_DATABASE}/data/design
@@ -24,12 +25,12 @@ target_include_directories(
 
 target_link_libraries(
   icts_source_database_adapter_sta
-  PUBLIC
-  icts_source_utils_logger
   PRIVATE
   icts_source_database_design
   icts_source_database_config
+  icts_source_database_routing
   icts_source_utils
+  icts_source_utils_logger
   power
   icts_api_external_libs
 )

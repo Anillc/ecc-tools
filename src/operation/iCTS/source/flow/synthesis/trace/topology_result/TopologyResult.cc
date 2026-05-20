@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "synthesis/htree/HTree.hh"
+#include "synthesis/htree/HTreeSynthesisResult.hh"
 
 namespace icts::topology {
 namespace {

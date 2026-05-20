@@ -6,7 +6,7 @@ target_link_libraries(
   icts_source_database
   icts_source_utils
   PRIVATE
-  icts_source_module_routing_database
+  icts_source_database_routing
   icts_source_module_routing_helper
   flute
   salt

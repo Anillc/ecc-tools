@@ -38,6 +38,7 @@
 #include "config/Config.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
+#include "synthesis/htree/HTreeSynthesisOptions.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "synthesis/topology/trunk/SourceTrunkSegment.hh"
 #include "synthesis/trace/topology_result/TopologyResult.hh"

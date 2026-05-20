@@ -34,20 +34,20 @@
 #include "Pin.hh"
 #include "Point.hh"
 #include "common/logging/ScopedLogFile.hh"
-#include "common/realtech/support/RealTechSetupSupport.hh"
+#include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/config/Config.hh"
 #include "flow/synthesis/htree/HTree.hh"
+#include "flow/synthesis/htree/HTreeArtifactWriter.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
-#include "flow/synthesis/htree/HTreeRealTechSmokeSupport.hh"
-#include "flow/synthesis/htree/HTreeVisualizationSupport.hh"
-#include "module/characterization/support/CharacterizationRealTechTestSupport.hh"
+#include "flow/synthesis/htree/HTreeRealTechScenario.hh"
+#include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
 namespace {
 
 namespace common_realtech = common::realtech;
-namespace realtech_support = characterization::realtech;
+namespace realtech_fixture = characterization::realtech;
 
 TEST(HTreeRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatternsOnEveryLevel)
 {
@@ -63,17 +63,17 @@ TEST(HTreeRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatternsOnEve
     return;
   }
 
-  realtech_support::RealTechCharSession char_session;
+  realtech_fixture::RealTechCharFixture char_fixture;
   if (const auto prepare_error
-      = char_session.prepare("htree_branch_buffer", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, true);
+      = char_fixture.prepare("htree_branch_buffer", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, true);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
   }
 
   ASSERT_TRUE(CONFIG_INST.is_force_branch_buffer());
-  EXPECT_EQ(CONFIG_INST.get_slew_steps(), realtech_support::kRealTechCharSlewSteps);
-  EXPECT_EQ(CONFIG_INST.get_cap_steps(), realtech_support::kRealTechCharCapSteps);
+  EXPECT_EQ(CONFIG_INST.get_slew_steps(), realtech_fixture::kRealTechCharSlewSteps);
+  EXPECT_EQ(CONFIG_INST.get_cap_steps(), realtech_fixture::kRealTechCharCapSteps);
 
   const auto artifact_paths = htree::PrepareHTreeArtifactPaths("realtech_branch_buffer");
   ASSERT_FALSE(artifact_paths.output_dir.empty());
@@ -97,8 +97,8 @@ TEST(HTreeRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatternsOnEve
   ASSERT_GT(observation.selected_feasible_frontier_entry_count, 0U);
   EXPECT_LE(observation.selected_feasible_frontier_entry_count, observation.selected_feasible_solution_count);
   ASSERT_TRUE(result.best_char.has_value());
-  EXPECT_EQ(result.char_slew_steps, realtech_support::kRealTechCharSlewSteps);
-  EXPECT_EQ(result.char_cap_steps, realtech_support::kRealTechCharCapSteps);
+  EXPECT_EQ(result.char_slew_steps, realtech_fixture::kRealTechCharSlewSteps);
+  EXPECT_EQ(result.char_cap_steps, realtech_fixture::kRealTechCharCapSteps);
   AssertBranchBufferMaterialization(result);
   WriteAndAssertHTreeArtifacts(artifact_paths, "htree_branch_buffer", selected_clock->clock_name, selected_clock->loads, result);
   const auto cts_log_content = ReadTextFile(artifact_paths.cts_log);
@@ -120,9 +120,9 @@ TEST(HTreeRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfigDefaul
     return;
   }
 
-  realtech_support::RealTechCharSession char_session;
+  realtech_fixture::RealTechCharFixture char_fixture;
   if (const auto prepare_error
-      = char_session.prepare("htree_branch_buffer_option_override", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, false);
+      = char_fixture.prepare("htree_branch_buffer_option_override", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf, false, false);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -168,8 +168,8 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagateWhenFea
     return;
   }
 
-  realtech_support::RealTechCharSession char_session;
-  if (const auto prepare_error = char_session.prepare("htree_boundary_options", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf);
+  realtech_fixture::RealTechCharFixture char_fixture;
+  if (const auto prepare_error = char_fixture.prepare("htree_boundary_options", std::nullopt, kHTreeSmokeMaxSlewNs, kHTreeSmokeMaxCapPf);
       prepare_error.has_value()) {
     GTEST_SKIP() << *prepare_error;
     return;
@@ -264,7 +264,7 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryBuildOptionsPropagateWhenFea
   ASSERT_GT(impossible_observation.selected_candidate_frontier_entry_count, 0U);
   EXPECT_LE(impossible_observation.selected_candidate_frontier_entry_count, impossible_observation.selected_candidate_solution_count);
   if (!impossible_top_boundary_result.best_char.has_value()) {
-    FAIL() << "fallback build should keep the best candidate H-tree char";
+    FAIL() << "stand-in build should keep the best candidate H-tree char";
     return;
   }
   const auto& impossible_top_best_char = impossible_top_boundary_result.best_char.value();

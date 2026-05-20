@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <optional>
 #include <vector>
 
 #include "local_legalization/LocalLegalization.hh"
@@ -33,7 +32,8 @@
 
 namespace icts {
 
-struct BSTParameters;
+struct BSTRoutingConfig;
+struct ClockRouteSegmentRc;
 class Net;
 class Pin;
 
@@ -47,20 +47,14 @@ class Router
   using LegalizationOptions = LocalLegalization::Options;
   using LegalizationResult = LocalLegalization::Result;
 
-  struct RCTreeBuildOptions
-  {
-    std::optional<int> routing_layer = std::nullopt;
-    std::optional<double> wire_width = std::nullopt;
-  };
-
   Router() = delete;
   ~Router() = default;
 
   static auto buildFluteTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals)
       -> ClockSteinerTreeType;
   static auto buildSaltTree(const ClockTerminal& driver_terminal, const std::vector<ClockTerminal>& load_terminals) -> ClockSteinerTreeType;
-  static auto buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> ClockSteinerTreeType;
-  static auto buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTParameters& parameters) -> ClockSteinerTreeType;
+  static auto buildBstTree(const std::vector<ClockTerminal>& load_terminals, const BSTRoutingConfig& parameters) -> ClockSteinerTreeType;
+  static auto buildCbsTree(const std::vector<ClockTerminal>& load_terminals, const BSTRoutingConfig& parameters) -> ClockSteinerTreeType;
   static auto buildClockNetTree(const Net& net) -> ClockSteinerTreeType;
 
   static auto legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
@@ -68,8 +62,7 @@ class Router
   static auto legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
                            const LegalizationRegion& block_region, const LegalizationOptions& options) -> LegalizationResult;
 
-  static auto buildRCTree(const ClockSteinerTreeType& clock_tree) -> RCTreeType;
-  static auto buildRCTree(const ClockSteinerTreeType& clock_tree, const RCTreeBuildOptions& options) -> RCTreeType;
+  static auto buildRCTree(const ClockSteinerTreeType& clock_tree, const ClockRouteSegmentRc& route_segment_rc) -> RCTreeType;
 };
 
 }  // namespace icts

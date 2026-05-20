@@ -64,7 +64,7 @@ auto IdbConversion::run() -> IdbConversionResult
   if (!result.idb_conversion_done) {
     overview_fields.emplace_back("failed_clock", write_result.failed_clock.empty() ? "n/a" : write_result.failed_clock);
     overview_fields.emplace_back("failed_net", write_result.failed_net.empty() ? "n/a" : write_result.failed_net);
-    overview_fields.emplace_back("rollback_done", write_result.rollback_done ? "true" : "false");
+    overview_fields.emplace_back("idb_clock_tree_restored", write_result.idb_clock_tree_restored ? "true" : "false");
     overview_fields.emplace_back("failure_reason", write_result.reason.empty() ? "n/a" : write_result.reason);
   }
   schema::EmitKeyValueTable("CTS Instantiation Overview", overview_fields);

@@ -25,8 +25,10 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "ClockRouteSegmentRc.hh"
 #include "analytical_characterization/AnalyticalCharacterization.hh"
 #include "analytical_characterization/AnalyticalModel.hh"
 #include "database/characterization/BufferingPattern.hh"
@@ -85,6 +87,51 @@ TEST(AnalyticalCharacterizationTest, BuildsCatalogFromSyntheticSegmentRows)
   const auto& source_cap_operator = model_set->source_cap_operator.value();
   EXPECT_FALSE(source_cap_operator.physical);
   EXPECT_TRUE(source_cap_operator.bucket_compatible);
+}
+
+TEST(AnalyticalCharacterizationTest, ExactStructuralCapUsesExplicitRouteRcAndBufferCatalog)
+{
+  const auto pattern_id = icts::PatternId::segment(8U);
+  const unsigned length_idx = 2U;
+  const std::vector<icts::BufferingPattern> patterns = {
+      icts::BufferingPattern(length_idx, pattern_id, {0.5}, {"BUF_X1"}, false),
+  };
+
+  std::vector<icts::SegmentChar> chars;
+  for (unsigned slew_idx = 1U; slew_idx <= 3U; ++slew_idx) {
+    for (unsigned cap_idx = 1U; cap_idx <= 3U; ++cap_idx) {
+      chars.push_back(MakeSegmentChar(slew_idx, slew_idx + cap_idx, 2U, cap_idx, pattern_id, length_idx));
+    }
+  }
+
+  icts::analytical::AnalyticalCharacterizationOptions options;
+  options.prefer_exact_structural_cap = true;
+  options.length_unit_um = 10.0;
+  options.clock_route_segment_rc = icts::ClockRouteSegmentRc{
+      .dbu_per_um = 1000,
+      .resistance_per_um_ohm = 0.001,
+      .capacitance_per_um_pf = 0.001,
+  };
+  options.buffer_input_cap_pf_by_cell_master.emplace("BUF_X1", 0.03);
+  options.require_monotonic_power = true;
+  options.require_monotonic_source_boundary_power = true;
+
+  const auto result = icts::analytical::AnalyticalCharacterization::buildFromSegmentChars(
+      chars, patterns, icts::UniformValueLattice(0.01, 16U), icts::UniformValueLattice(0.02, 16U), options);
+
+  ASSERT_TRUE(result.success);
+  const auto* model_set = result.catalog.find(pattern_id, length_idx);
+  ASSERT_NE(model_set, nullptr);
+  if (!model_set->source_cap_operator.has_value()) {
+    ADD_FAILURE() << "Expected exact buffered source-cap operator.";
+    return;
+  }
+  const auto& source_cap_operator = model_set->source_cap_operator.value();
+  EXPECT_TRUE(source_cap_operator.physical);
+  EXPECT_TRUE(source_cap_operator.bucket_compatible);
+  EXPECT_EQ(source_cap_operator.source, "exact_buffered");
+  EXPECT_DOUBLE_EQ(source_cap_operator.alpha, 0.0);
+  EXPECT_NEAR(source_cap_operator.eta_pf, 0.04, 1e-12);
 }
 
 TEST(AnalyticalCharacterizationTest, PreservesPatternAndLengthKey)

@@ -21,7 +21,7 @@
  * @brief Standalone BST router adapter implementation for bounded-skew routing.
  */
 
-#include "BSTRouter.hh"
+#include "bound_skew_tree/BSTRouter.hh"
 
 #include <glog/logging.h>
 
@@ -31,13 +31,12 @@
 #include <utility>
 #include <vector>
 
-#include "BSTRouterInternal.hh"
-#include "BSTTypes.hh"
-#include "BoundSkewTree.hh"
-#include "Components.hh"
 #include "Log.hh"
 #include "Point.hh"
 #include "RoutingTerminal.hh"
+#include "bound_skew_tree/clock_tree_conversion/BstClockTreeConversion.hh"
+#include "bound_skew_tree/component/Components.hh"
+#include "bound_skew_tree/tree/BoundSkewTree.hh"
 
 namespace icts {
 namespace {
@@ -47,11 +46,11 @@ using bst::BoundSkewTree;
 
 using AreaStore = std::vector<std::unique_ptr<Area>>;
 
-auto BuildDefaultParameters(const BSTParameters& parameters) -> BSTParameters
+auto BuildDefaultRoutingConfig(const BSTRoutingConfig& parameters) -> BSTRoutingConfig
 {
   auto normalized = parameters;
-  if (normalized.db_unit <= 0) {
-    normalized.db_unit = 1;
+  if (normalized.dbu_per_um <= 0) {
+    normalized.dbu_per_um = 1;
   }
   if (normalized.skew_bound <= 0) {
     normalized.skew_bound = 0.0;
@@ -59,14 +58,15 @@ auto BuildDefaultParameters(const BSTParameters& parameters) -> BSTParameters
   return normalized;
 }
 
-auto NormalizeTopoTypeForBuild(const BSTParameters& parameters) -> TopoType
+auto ResolveBuildTopologyMode(const BSTRoutingConfig& parameters) -> BSTRoutingTopologyMode
 {
-  LOG_FATAL_IF(parameters.topo_type == TopoType::kInputTopo)
-      << "BSTRouter::buildTree received TopoType::kInputTopo; call buildTreeFromTopology for input-topology routing.";
-  return parameters.topo_type;
+  LOG_FATAL_IF(parameters.topology_mode == BSTRoutingTopologyMode::kSourceRouteTree)
+      << "BSTRouter::buildTree received BSTRoutingTopologyMode::kSourceRouteTree; call buildTreeFromTopology for source-route-tree "
+         "routing.";
+  return parameters.topology_mode;
 }
 
-auto BuildLoadArea(const ClockRoutingTerminal& terminal, const BSTParameters& parameters, AreaStore& owned_areas) -> Area*
+auto BuildLoadArea(const ClockRoutingTerminal& terminal, const BSTRoutingConfig& parameters, AreaStore& owned_areas) -> Area*
 {
   auto min_delay = terminal.insertion_delay;
   auto max_delay = terminal.insertion_delay;
@@ -75,9 +75,9 @@ auto BuildLoadArea(const ClockRoutingTerminal& terminal, const BSTParameters& pa
   }
 
   auto cap_load = terminal.pin_cap;
-  auto area = std::make_unique<Area>(terminal.name, static_cast<double>(terminal.location.get_x()) / parameters.db_unit,
-                                     static_cast<double>(terminal.location.get_y()) / parameters.db_unit, cap_load, min_delay, max_delay,
-                                     0.0, parameters.pattern, true);
+  auto area = std::make_unique<Area>(terminal.name, static_cast<double>(terminal.location.get_x()) / parameters.dbu_per_um,
+                                     static_cast<double>(terminal.location.get_y()) / parameters.dbu_per_um, cap_load, min_delay, max_delay,
+                                     0.0, parameters.rc_pattern, true);
   auto* area_ptr = area.get();
   owned_areas.push_back(std::move(area));
   return area_ptr;
@@ -85,10 +85,11 @@ auto BuildLoadArea(const ClockRoutingTerminal& terminal, const BSTParameters& pa
 
 }  // namespace
 
-auto BSTRouter::buildTree(const std::vector<Terminal>& load_terminals, const BSTParameters& parameters) -> BSTRouter::ClockSteinerTreeType
+auto BSTRouter::buildTree(const std::vector<Terminal>& load_terminals, const BSTRoutingConfig& parameters)
+    -> BSTRouter::ClockSteinerTreeType
 {
-  auto normalized = BuildDefaultParameters(parameters);
-  auto topo_type = NormalizeTopoTypeForBuild(normalized);
+  auto normalized = BuildDefaultRoutingConfig(parameters);
+  auto topology_mode = ResolveBuildTopologyMode(normalized);
 
   const ClockSteinerTreeType empty_tree;
   if (load_terminals.empty()) {
@@ -101,16 +102,16 @@ auto BSTRouter::buildTree(const std::vector<Terminal>& load_terminals, const BST
     BuildLoadArea(terminal, normalized, load_areas);
   }
 
-  BoundSkewTree solver(std::move(load_areas), normalized, topo_type);
+  BoundSkewTree solver(std::move(load_areas), normalized, topology_mode);
   solver.run();
   return ExportBstClockTree(solver.get_root(), normalized);
 }
 
-auto BSTRouter::buildTreeFromTopology(const ClockSteinerTreeType& input_topology, const BSTParameters& parameters)
+auto BSTRouter::buildTreeFromTopology(const ClockSteinerTreeType& source_route_tree, const BSTRoutingConfig& parameters)
     -> BSTRouter::ClockSteinerTreeType
 {
-  auto normalized = BuildDefaultParameters(parameters);
-  return BuildBstFromInputTopology(input_topology, normalized);
+  auto normalized = BuildDefaultRoutingConfig(parameters);
+  return BuildBstFromSourceRouteTree(source_route_tree, normalized);
 }
 
 }  // namespace icts

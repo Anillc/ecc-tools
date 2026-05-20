@@ -41,7 +41,6 @@ class DesignConversion
  public:
   DesignConversion() = delete;
 
-  static auto readClockData() -> bool;
   static auto partitionClockSinks(const std::vector<Pin*>& sinks, std::vector<Pin*>& macro_sinks, std::vector<Pin*>& regular_sinks) -> void;
   static auto makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain) -> std::string;
   static auto addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::vector<Pin*>& sinks, Inst*& root_buffer,

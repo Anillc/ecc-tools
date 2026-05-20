@@ -50,9 +50,10 @@
 #include "Point.hh"
 #include "STAAdapter.hh"
 #include "Tree.hh"
+#include "synthesis/htree/HTreeSynthesisResult.hh"
 #include "synthesis/htree/embedding/BufferPortTable.hh"
 #include "synthesis/htree/embedding/EmbeddingState.hh"
-#include "synthesis/htree/segment_pruning/SegmentLibrary.hh"
+#include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree {
 namespace {
