@@ -15,32 +15,33 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CmdReportSpef.cc
+ * @file tcl_report_rcx.cpp
  * @author Yipei Xu (yipeix@163.com)
  * @brief
  * @version 0.1
  * @date 2025-12-09
  */
-#include <memory>
-
 #include "RCX.hpp"
-#include "rcxShellCmd.hh"
-namespace ircx {
+#include "tcl_ircx.h"
 
-CmdRCXReport::CmdRCXReport(const char* cmd_name) : TclCmd(cmd_name) {
-  auto file_name_option = std::make_unique<TclStringOption>("file_name", 1, nullptr);
-  addOption(file_name_option.release());
-  auto geometry_option = std::make_unique<TclSwitchOption>("-geometry");
-  addOption(geometry_option.release());
+namespace tcl {
+
+TclReportRCX::TclReportRCX(const char* cmd_name) : TclCmd(cmd_name)
+{
+  addOption(new TclStringOption("file_name", 1, nullptr));
+  addOption(new TclSwitchOption("-geometry"));
 }
 
-unsigned CmdRCXReport::check() {
+unsigned TclReportRCX::check()
+{
   TclOption* file_name_option = getOptionOrArg("file_name");
   LOG_FATAL_IF(!file_name_option);
+  LOG_FATAL_IF(!file_name_option->is_set_val());
   return 1;
 }
 
-unsigned CmdRCXReport::exec() {
+unsigned TclReportRCX::exec()
+{
   if (!check()) {
     return 0;
   }
@@ -48,8 +49,8 @@ unsigned CmdRCXReport::exec() {
   TclOption* file_name_option = getOptionOrArg("file_name");
   const char* output_dir = file_name_option->getStringVal();
 
-  RCX& rcx = RCX::getOrCreateInst();
+  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
   return rcx.reportSpef(output_dir ? output_dir : ".");
 }
 
-}  // namespace ircx
+}  // namespace tcl

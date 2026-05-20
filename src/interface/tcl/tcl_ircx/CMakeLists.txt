@@ -1,14 +1,22 @@
-add_library(tcl_ircx INTERFACE)
+add_library(tcl_ircx
+    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_init_rcx.cpp
+    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_run_rcx.cpp
+    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_report_rcx.cpp
+    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_read_corner.cpp
+    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_read_mapping.cpp
+)
 
 target_link_libraries(tcl_ircx
-    INTERFACE
+    PUBLIC
         tool_manager
-        tcl
-        rcx_shell_cmd
+        tcl_util
         str
+    PRIVATE
+        ircx
+        log
 )
 
 target_include_directories(tcl_ircx
-    INTERFACE
-        ${CMAKE_CURRENT_SOURCE_DIR}
+    PUBLIC
+        ${HOME_INTERFACE}/tcl/tcl_ircx/include
 )

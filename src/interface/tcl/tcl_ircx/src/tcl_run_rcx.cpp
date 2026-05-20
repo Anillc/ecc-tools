@@ -15,38 +15,34 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CmdRCXInit.cc
+ * @file tcl_run_rcx.cpp
  * @author Yipei Xu (yipeix@163.com)
  * @brief
  * @version 0.1
  * @date 2025-12-09
  */
-#include <memory>
-
 #include "RCX.hpp"
-#include "rcxShellCmd.hh"
-namespace ircx {
+#include "tcl_ircx.h"
 
-CmdRCXRun::CmdRCXRun(const char* cmd_name) : TclCmd(cmd_name) {
+namespace tcl {
 
+TclRunRCX::TclRunRCX(const char* cmd_name) : TclCmd(cmd_name)
+{
 }
 
-unsigned CmdRCXRun::check() {
-  return 1;
-}
-
-unsigned CmdRCXRun::exec() {
+unsigned TclRunRCX::exec()
+{
   unsigned ret = 1;
 
   if (!check()) {
     return 0;
   }
 
-  RCX& rcx = RCX::getOrCreateInst();
+  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
 
   ret &= rcx.run();
-  
+
   return ret;
 }
 
-}  // namespace ircx
+}  // namespace tcl
