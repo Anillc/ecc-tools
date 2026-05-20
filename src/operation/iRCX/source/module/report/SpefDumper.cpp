@@ -188,7 +188,7 @@ void SpefDumper::writeHeader(std::ofstream& ofs) const
   ofs << "*SPEF \"IEEE 1481-1998\"\n";
   ofs << "*DESIGN \"" << layout_data_->design_name << "\"\n";
   ofs << "*DATE \""   << date_ss.str()    << "\"\n";
-  ofs << "*VENDOR \"iEDA\"\n";
+  ofs << "*VENDOR \"ECOS\"\n";
   ofs << "*PROGRAM \"iRCX\"\n";
   ofs << "*VERSION \"1.0\"\n";
   ofs << "*DESIGN_FLOW \"PIN_CAP NONE\"\n";
