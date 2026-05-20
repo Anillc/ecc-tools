@@ -56,13 +56,13 @@ bool idbGet(const std::string& inst_name, const std::string& net_name, const std
 
 bool idbDeleteInstance(const std::string& inst_name)
 {
-  bool deleted = dmInst->get_idb_design()->get_instance_list()->remove_instance(inst_name);
+  bool deleted = dmInst->get_idb_design()->removeInstanceSafe(inst_name);
   return deleted;
 }
 
 bool idbDeleteNet(const std::string& net_name)
 {
-  bool deleted = dmInst->get_idb_design()->get_net_list()->remove_net(net_name);
+  bool deleted = dmInst->get_idb_design()->removeNetSafe(net_name);
   return deleted;
 }
 

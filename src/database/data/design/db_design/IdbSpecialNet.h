@@ -136,6 +136,11 @@ class IdbSpecialNet
   auto* get_io_pins() { return _io_pin_list; }
   void add_instance_pin(IdbPin* inst_pin);
   void add_instance(IdbInstance* instance);
+  bool has_io_pin(IdbPin* io_pin);
+  bool has_instance_pin(IdbPin* inst_pin);
+  bool has_instance(IdbInstance* instance);
+  bool erase_pin_ref(IdbPin* pin);
+  bool erase_instance_ref(IdbInstance* instance);
 
   void add_pin_string(string pin_name) { _pin_string_list.emplace_back(pin_name); }
 
@@ -178,6 +183,7 @@ class IdbSpecialNetList
   size_t get_num() { return _net_list.size(); }
   IdbSpecialNet* find_net(string name);
   IdbSpecialNet* find_net(size_t index);
+  bool contains(string name) { return find_net(name) != nullptr; }
   IdbSpecialNetEdgeSegmenArray* find_edge_segment_array_by_layer(IdbLayer* layer);
   size_t get_segment_array_num() { return _edge_segment_list.size(); }
   uint64_t get_segment_num()
@@ -205,6 +211,7 @@ class IdbSpecialNetList
   // setter
   IdbSpecialNet* add_net(IdbSpecialNet* net = nullptr);
   IdbSpecialNet* add_net(string name);
+  bool remove_net(string name);
   IdbSpecialNetEdgeSegmenArray* add_edge_segment_array_for_layer(IdbLayerRouting* layer);
   IdbSpecialNetEdgeSegmenArray* add_edge_segment_array(IdbSpecialNetEdgeSegmenArray* edge_segment = nullptr);
   void clear_edge_list();

@@ -461,14 +461,10 @@ bool StaIO::insertBuffer(std::pair<std::string, std::string>& source_sink_net, s
   LOG_FATAL_IF(!insert_buf_out);
 
   // step 5: set buffer location
-  IdbInstance* idb_buffer = idb_adapter->staToDb(buffer);
-  idb_buffer->set_status_placed();
-  idb_buffer->set_coodinate(buffer_center_loc.first, buffer_center_loc.second);
+  idb_adapter->placeInstance(buffer, buffer_center_loc.first, buffer_center_loc.second, IdbOrient::kN_R0, IdbPlacementStatus::kPlaced);
 
   // step 6: update timing engine netlist
   timing_engine->insertBuffer(buffer->get_name());
-
-  idb_buffer->set_orient(IdbOrient::kN_R0);
 
   return insert_buf_in && insert_buf_out ? true : false;
 }

@@ -50,10 +50,18 @@ step_print_path "drc_config" $drc_config
 step_print_path "drc_work_dir" $drc_work_dir
 step_print_path "drc_report" $drc_report
 
-step_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, loading data."
+  step_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module
+}
+
 file mkdir $drc_work_dir
 init_drc -temp_directory_path $drc_work_dir -thread_number $drc_thread_number
 run_drc -config $drc_config -path $drc_report
 step_save_design $step_name $output_def $output_verilog $output_gds $output_json $output_db $feature_db $feature_step $report_db $sta_dir
 save_drc -path $feature_step
-step_maybe_flow_exit
+
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, exiting flow."
+  step_maybe_flow_exit
+}

@@ -110,7 +110,6 @@ bool DataManager::readLef(vector<string> lef_paths, bool b_techlef)
 
 void DataManager::write_placement_back(float* x, float* y, int len)
 {
-  bool flag = false;
   // std::vector<ContestParser::Instance*> inst_list;
   int i = 0;
   printf("write_placement_back start!!! Db address is %p\n", this);
@@ -130,13 +129,20 @@ void DataManager::write_placement_back(float* x, float* y, int len)
     // int node_id = m_mNodeName2Index.find(name)->second;
     float xx = x[i];
     float yy = y[i];
-    inst->set_coodinate(xx, yy);
-    if (!inst->get_cell_master()->is_block()) {
+    auto orient = IdbOrient::kN_R0;
+    auto* cell_master = inst->get_cell_master();
+    if (cell_master == nullptr) {
+      i++;
+      continue;
+    }
+    if (!cell_master->is_block()) {
       auto iter = row_set.lower_bound(std::make_pair(yy, nullptr));
       assert(iter != row_set.end());
-      inst->set_orient(iter->second->get_orient());
+      orient = iter->second->get_orient();
+    } else {
+      orient = inst->get_orient();
     }
-    inst->set_status_placed();
+    this->get_idb_design()->placeInstance(name, static_cast<int32_t>(xx), static_cast<int32_t>(yy), orient, IdbPlacementStatus::kPlaced);
     i++;
     // flag = true;
   }

@@ -63,7 +63,7 @@ void PyPlaceDB::set(idm::DataManager* db, int numRoutingGridsX, int numRoutingGr
         continue;
       }
       if (sta_net->isClockNet()) {
-        net->set_connect_type(IdbConnectType::kClock);
+        db_deisgn->setNetConnectType(net->get_net_name(), IdbConnectType::kClock);
         continue;
       }
     }

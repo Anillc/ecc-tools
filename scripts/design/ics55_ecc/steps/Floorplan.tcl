@@ -125,4 +125,8 @@ if {$clock_name ne ""} {
 }
 
 step_save_design $step_name $output_def $output_verilog $output_gds $output_json $output_db $feature_db $feature_step $report_db $sta_dir 0
-step_maybe_flow_exit
+
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, exiting flow."
+  step_maybe_flow_exit
+}
