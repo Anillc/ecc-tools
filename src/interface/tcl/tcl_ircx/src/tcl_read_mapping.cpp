@@ -53,7 +53,7 @@ unsigned TclReadMapping::exec()
   char* mapping_file = file_name_option->getStringVal();
   LOG_FATAL_IF(!std::filesystem::exists(mapping_file)) << "mapping file not found: " << mapping_file;
 
-  return RCXAPIInst.readMapping(mapping_file);
+  return RCX_API_INST.readMapping(mapping_file);
 }
 
 }  // namespace tcl

@@ -21,7 +21,6 @@
 
 #include "EtchPool.hh"
 #include "LayoutData.hh"
-#include "RCXDefaults.hh"
 #include "RCTable.hh"
 namespace ircx {
 
@@ -75,7 +74,7 @@ class ResistanceCalc
                                                    F64 base_resistance) const;
 
   Micron dbu_to_micron_{1};
-  F64 operating_temperature_{kDefaultOperatingTemperature};
+  F64 operating_temperature_{};
 
   const LayoutData* layout_data_{nullptr};
   const LayerTable* layer_table_{nullptr};

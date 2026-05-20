@@ -21,28 +21,10 @@
 
 namespace ircx {
 
-void RCXAPI::init()
+void RCXAPI::init(const RCXInitOptions& options)
 {
-  RCX_FLOW_INST.set_num_threads(kDefaultThreadCount);
-  RCX_FLOW_INST.set_operating_temperature(kDefaultOperatingTemperature);
-}
-
-void RCXAPI::init(unsigned thread_number)
-{
-  init();
-  RCX_FLOW_INST.set_num_threads(thread_number);
-}
-
-void RCXAPI::init(unsigned thread_number, double temperature)
-{
-  init();
-  RCX_FLOW_INST.set_num_threads(thread_number);
-  RCX_FLOW_INST.set_operating_temperature(temperature);
-}
-
-void RCXAPI::setOperatingTemperature(double temperature)
-{
-  RCX_FLOW_INST.set_operating_temperature(temperature);
+  RCX_FLOW_INST.set_num_threads(options.thread_number);
+  RCX_FLOW_INST.set_operating_temperature(options.operating_temperature);
 }
 
 void RCXAPI::resetAPI()

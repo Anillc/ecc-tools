@@ -49,7 +49,7 @@ unsigned TclReportRCX::exec()
   TclOption* file_name_option = getOptionOrArg("file_name");
   const char* output_dir = file_name_option->getStringVal();
 
-  return RCXAPIInst.reportSpef(output_dir ? output_dir : ".");
+  return RCX_API_INST.reportSpef(output_dir ? output_dir : ".");
 }
 
 }  // namespace tcl

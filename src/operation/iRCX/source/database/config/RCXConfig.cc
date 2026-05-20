@@ -106,7 +106,7 @@ bool RCXConfig::loadFromFile(const std::string& config_path)
 
   _config_path.clear();
   _thread_num = 64U;
-  _operating_temperature = kDefaultOperatingTemperature;
+  _operating_temperature = 25.0;
   _output_dir.clear();
   _mapping_file.clear();
   _corners.clear();

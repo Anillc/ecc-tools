@@ -18,9 +18,11 @@
 
 #include <string>
 
+#include "RCXAPI.hh"
+
 namespace python_interface {
 
-bool init_rcx(unsigned thread_number, double temperature = 25.0);
+bool init_rcx(unsigned thread_number, double temperature = ircx::kDefaultOperatingTemperature);
 bool read_rcx_corner(const std::string& corner_name,
                      const std::string& itf_file,
                      const std::string& captab_file);

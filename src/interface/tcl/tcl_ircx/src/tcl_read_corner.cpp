@@ -75,7 +75,7 @@ unsigned TclReadCorner::exec()
   LOG_FATAL_IF(!std::filesystem::exists(captab_file))
       << "captab file not found: " << captab_file;
 
-  return RCXAPIInst.readCorner(corner_name, itf_file, captab_file);
+  return RCX_API_INST.readCorner(corner_name, itf_file, captab_file);
 }
 
 }  // namespace tcl

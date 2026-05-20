@@ -21,7 +21,6 @@
 
 #include "Environment.hh"
 #include "ProcessVariation.hh"
-#include "RCXDefaults.hh"
 #include "Types.hh"
 
 namespace ircx {
@@ -77,8 +76,8 @@ class Flow final {
 
  private:
   // running settings
-  unsigned num_threads_ = kDefaultThreadCount;
-  F64 operating_temperature_ = kDefaultOperatingTemperature;
+  unsigned num_threads_{};
+  F64 operating_temperature_{};
   Str output_dir_{"."};
 
   Environment environment_;

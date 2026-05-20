@@ -38,7 +38,7 @@ unsigned TclRunRCX::exec()
     return 0;
   }
 
-  ret &= RCXAPIInst.run();
+  ret &= RCX_API_INST.run();
 
   return ret;
 }

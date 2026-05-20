@@ -36,8 +36,8 @@ void Flow::reset()
   RCX_DATA_INST.reset();
   environment_.reset();
   process_variation_.reset();
-  num_threads_ = kDefaultThreadCount;
-  operating_temperature_ = kDefaultOperatingTemperature;
+  num_threads_ = 0;
+  operating_temperature_ = 0.0;
   output_dir_ = ".";
 }
 

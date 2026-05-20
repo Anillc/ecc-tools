@@ -21,7 +21,15 @@
 namespace ircx {
 
 #define RCX_API_INST (ircx::RCXAPI::getInst())
-#define RCXAPIInst RCX_API_INST
+
+inline constexpr unsigned kDefaultThreadCount = 64U;
+inline constexpr double kDefaultOperatingTemperature = 25.0F;
+
+struct RCXInitOptions
+{
+  unsigned thread_number = kDefaultThreadCount;
+  double operating_temperature = kDefaultOperatingTemperature;
+};
 
 class RCXAPI final {
  public:
@@ -30,10 +38,7 @@ class RCXAPI final {
     return inst;
   }
 
-  void init();
-  void init(unsigned thread_number);
-  void init(unsigned thread_number, double temperature);
-  void setOperatingTemperature(double temperature);
+  void init(const RCXInitOptions& options = {});
   void resetAPI();
 
   [[nodiscard]] unsigned readCorner(const std::string& corner_name,
