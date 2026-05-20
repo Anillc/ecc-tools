@@ -23,7 +23,7 @@
  */
 #include <filesystem>
 
-#include "RCX.hpp"
+#include "RCXAPI.hh"
 #include "log/Log.hh"
 #include "tcl_ircx.h"
 #include "tcl_util.h"
@@ -75,8 +75,7 @@ unsigned TclReadCorner::exec()
   LOG_FATAL_IF(!std::filesystem::exists(captab_file))
       << "captab file not found: " << captab_file;
 
-  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
-  return rcx.readCorner(corner_name, itf_file, captab_file);
+  return RCXAPIInst.readCorner(corner_name, itf_file, captab_file);
 }
 
 }  // namespace tcl

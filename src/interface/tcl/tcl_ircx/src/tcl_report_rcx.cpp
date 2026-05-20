@@ -21,7 +21,7 @@
  * @version 0.1
  * @date 2025-12-09
  */
-#include "RCX.hpp"
+#include "RCXAPI.hh"
 #include "tcl_ircx.h"
 
 namespace tcl {
@@ -49,8 +49,7 @@ unsigned TclReportRCX::exec()
   TclOption* file_name_option = getOptionOrArg("file_name");
   const char* output_dir = file_name_option->getStringVal();
 
-  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
-  return rcx.reportSpef(output_dir ? output_dir : ".");
+  return RCXAPIInst.reportSpef(output_dir ? output_dir : ".");
 }
 
 }  // namespace tcl

@@ -23,7 +23,7 @@
  */
 #include <iostream>
 
-#include "RCX.hpp"
+#include "RCXAPI.hh"
 #include "tcl_ircx.h"
 #include "tcl_util.h"
 
@@ -32,6 +32,7 @@ namespace tcl {
 TclInitRCX::TclInitRCX(const char* cmd_name) : TclCmd(cmd_name)
 {
   _config_list.push_back(std::make_pair("-thread", ValueType::kInt));
+  _config_list.push_back(std::make_pair("-temperature", ValueType::kDouble));
 
   TclUtil::addOption(this, _config_list);
 }
@@ -54,12 +55,17 @@ unsigned TclInitRCX::exec()
       "WELCOME TO iRCX TCL-shell interface. \e[0m";
   std::cout << hello_info << std::endl;
 
-  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
+  RCXAPIInst.init();
 
   TclOption* thread_option = getOptionOrArg("-thread");
   if (thread_option && thread_option->is_set_val()) {
     unsigned thread_count = thread_option->getIntVal();
-    rcx.set_num_threads(thread_count);
+    RCXAPIInst.init(thread_count);
+  }
+
+  TclOption* temperature_option = getOptionOrArg("-temperature");
+  if (temperature_option && temperature_option->is_set_val()) {
+    RCXAPIInst.setOperatingTemperature(temperature_option->getDoubleVal());
   }
 
   return 1;

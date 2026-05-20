@@ -21,7 +21,7 @@
  * @version 0.1
  * @date 2025-12-09
  */
-#include "RCX.hpp"
+#include "RCXAPI.hh"
 #include "tcl_ircx.h"
 
 namespace tcl {
@@ -38,9 +38,7 @@ unsigned TclRunRCX::exec()
     return 0;
   }
 
-  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
-
-  ret &= rcx.run();
+  ret &= RCXAPIInst.run();
 
   return ret;
 }
