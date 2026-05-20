@@ -23,7 +23,7 @@
  */
 #include <filesystem>
 
-#include "RCX.hpp"
+#include "RCXAPI.hh"
 #include "log/Log.hh"
 #include "tcl_ircx.h"
 #include "tcl_util.h"
@@ -53,8 +53,7 @@ unsigned TclReadMapping::exec()
   char* mapping_file = file_name_option->getStringVal();
   LOG_FATAL_IF(!std::filesystem::exists(mapping_file)) << "mapping file not found: " << mapping_file;
 
-  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
-  return rcx.readMapping(mapping_file);
+  return RCXAPIInst.readMapping(mapping_file);
 }
 
 }  // namespace tcl

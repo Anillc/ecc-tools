@@ -12,7 +12,7 @@ target_link_libraries(tcl_ircx
         tcl_util
         str
     PRIVATE
-        ircx
+        ircx_api
         log
 )
 
