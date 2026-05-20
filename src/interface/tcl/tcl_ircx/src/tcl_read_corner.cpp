@@ -15,36 +15,42 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CmdReadCorner.cc
+ * @file tcl_read_corner.cpp
  * @author Yipei Xu (yipeix@163.com)
  * @brief Tcl command wrapper for binding one ITF with one captab.
  * @version 0.1
  * @date 2025-12-08
  */
 #include <filesystem>
-#include <memory>
 
 #include "RCX.hpp"
-#include "rcxShellCmd.hh"
 #include "log/Log.hh"
-namespace ircx {
+#include "tcl_ircx.h"
+#include "tcl_util.h"
 
-CmdReadCorner::CmdReadCorner(const char* cmd_name) : TclCmd(cmd_name)
+namespace tcl {
+
+TclReadCorner::TclReadCorner(const char* cmd_name) : TclCmd(cmd_name)
 {
-  addOption(new TclStringOption("-name", 1, nullptr));
-  addOption(new TclStringOption("-itf", 1, nullptr));
-  addOption(new TclStringOption("-captab", 1, nullptr));
+  _config_list.push_back(std::make_pair("-name", ValueType::kString));
+  _config_list.push_back(std::make_pair("-itf", ValueType::kString));
+  _config_list.push_back(std::make_pair("-captab", ValueType::kString));
+
+  TclUtil::addOption(this, _config_list);
 }
 
-unsigned CmdReadCorner::check()
+unsigned TclReadCorner::check()
 {
   LOG_FATAL_IF(!getOptionOrArg("-name"));
   LOG_FATAL_IF(!getOptionOrArg("-itf"));
   LOG_FATAL_IF(!getOptionOrArg("-captab"));
+  LOG_FATAL_IF(!getOptionOrArg("-name")->is_set_val());
+  LOG_FATAL_IF(!getOptionOrArg("-itf")->is_set_val());
+  LOG_FATAL_IF(!getOptionOrArg("-captab")->is_set_val());
   return 1;
 }
 
-unsigned CmdReadCorner::exec()
+unsigned TclReadCorner::exec()
 {
   if (!check()) {
     return 0;
@@ -69,8 +75,8 @@ unsigned CmdReadCorner::exec()
   LOG_FATAL_IF(!std::filesystem::exists(captab_file))
       << "captab file not found: " << captab_file;
 
-  RCX& rcx = RCX::getOrCreateInst();
+  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
   return rcx.readCorner(corner_name, itf_file, captab_file);
 }
 
-}  // namespace ircx
+}  // namespace tcl

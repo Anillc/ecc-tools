@@ -15,29 +15,29 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CmdRCXInit.cc
+ * @file tcl_init_rcx.cpp
  * @author Yipei Xu (yipeix@163.com)
  * @brief
  * @version 0.1
  * @date 2025-12-09
  */
 #include <iostream>
-#include <memory>
 
 #include "RCX.hpp"
-#include "rcxShellCmd.hh"
-namespace ircx {
+#include "tcl_ircx.h"
+#include "tcl_util.h"
 
-CmdRCXInit::CmdRCXInit(const char* cmd_name) : TclCmd(cmd_name) {
-  auto thread_option = std::make_unique<TclIntOption>("-thread", 1, kDefaultThreadCount);
-  addOption(thread_option.release());
+namespace tcl {
+
+TclInitRCX::TclInitRCX(const char* cmd_name) : TclCmd(cmd_name)
+{
+  _config_list.push_back(std::make_pair("-thread", ValueType::kInt));
+
+  TclUtil::addOption(this, _config_list);
 }
 
-unsigned CmdRCXInit::check() {
-  return 1;
-}
-
-unsigned CmdRCXInit::exec() {
+unsigned TclInitRCX::exec()
+{
   if (!check()) {
     return 0;
   }
@@ -54,10 +54,10 @@ unsigned CmdRCXInit::exec() {
       "WELCOME TO iRCX TCL-shell interface. \e[0m";
   std::cout << hello_info << std::endl;
 
-  RCX& rcx = RCX::getOrCreateInst();
+  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
 
   TclOption* thread_option = getOptionOrArg("-thread");
-  if (thread_option) {
+  if (thread_option && thread_option->is_set_val()) {
     unsigned thread_count = thread_option->getIntVal();
     rcx.set_num_threads(thread_count);
   }
@@ -65,4 +65,4 @@ unsigned CmdRCXInit::exec() {
   return 1;
 }
 
-}  // namespace ircx
+}  // namespace tcl

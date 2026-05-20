@@ -15,43 +15,46 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file CmdReadMapping.cc
+ * @file tcl_read_mapping.cpp
  * @author Yipei Xu (yipeix@163.com)
  * @brief
  * @version 0.1
  * @date 2025-12-08
  */
 #include <filesystem>
-#include <memory>
 
 #include "RCX.hpp"
-#include "rcxShellCmd.hh"
 #include "log/Log.hh"
-namespace ircx {
+#include "tcl_ircx.h"
+#include "tcl_util.h"
 
-CmdReadMapping::CmdReadMapping(const char* cmd_name) : TclCmd(cmd_name) {
-  auto file_name_option = std::make_unique<TclStringOption>("file_name", 1, nullptr);
-  addOption(file_name_option.release());
+namespace tcl {
+
+TclReadMapping::TclReadMapping(const char* cmd_name) : TclCmd(cmd_name)
+{
+  addOption(new TclStringOption("file_name", 1, nullptr));
 }
 
-unsigned CmdReadMapping::check() {
+unsigned TclReadMapping::check()
+{
   TclOption* file_name_option = getOptionOrArg("file_name");
   LOG_FATAL_IF(!file_name_option);
+  LOG_FATAL_IF(!file_name_option->is_set_val());
   return 1;
 }
 
-unsigned CmdReadMapping::exec() {
+unsigned TclReadMapping::exec()
+{
   if (!check()) {
     return 0;
   }
 
   TclOption* file_name_option = getOptionOrArg("file_name");
   char* mapping_file = file_name_option->getStringVal();
-  LOG_FATAL_IF(!std::filesystem::exists(mapping_file)) <<
-                            "mapping file not found: " << mapping_file;
+  LOG_FATAL_IF(!std::filesystem::exists(mapping_file)) << "mapping file not found: " << mapping_file;
 
-  RCX& rcx = RCX::getOrCreateInst();
+  ircx::RCX& rcx = ircx::RCX::getOrCreateInst();
   return rcx.readMapping(mapping_file);
 }
 
-}  // namespace ircx
+}  // namespace tcl
