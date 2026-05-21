@@ -92,8 +92,6 @@ auto applyRuntimeOptions(FastStaClockContext& context) -> void
   context.root_input_slew_ns = std::max(0.0, CONFIG_INST.get_root_input_slew());
 }
 
-// FastSTA builds CTS-owned topology here, while Liberty and pin limits remain
-// STA-backed because the parsed technology data is owned by STAAdapter/iSTA.
 auto queryStaBackedSinkPinCap(const Pin* pin) -> double
 {
   return STA_ADAPTER_INST.queryPinCapacitance(pin);

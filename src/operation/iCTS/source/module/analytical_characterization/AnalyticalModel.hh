@@ -75,13 +75,10 @@ struct AnalyticalFitQuality
   std::string failure_reason;
 };
 
-// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
 struct AnalyticalSurfaceModel
 {
-  AnalyticalSurfaceModel();
-
-  AnalyticalMetric metric;
-  AnalyticalModelBasis basis;
+  AnalyticalMetric metric = AnalyticalMetric::kDelay;
+  AnalyticalModelBasis basis = AnalyticalModelBasis::kAffine;
   AnalyticalDomain domain;
   std::vector<double> coefficients;
   AnalyticalFitQuality quality;
@@ -92,11 +89,8 @@ struct AnalyticalSurfaceModel
   auto evaluateConservativeUpper(double input_slew_ns, double load_cap_pf) const -> std::optional<double>;
 };
 
-// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
 struct StructuralCapOperator
 {
-  StructuralCapOperator() = default;
-
   double alpha = 1.0;
   double eta_pf = 0.0;
   bool physical = true;
@@ -129,11 +123,11 @@ struct AnalyticalModelKeyHash
 struct AnalyticalModelSet
 {
   AnalyticalModelKey key;
-  std::optional<AnalyticalSurfaceModel> output_slew_model;
-  std::optional<AnalyticalSurfaceModel> delay_model;
-  std::optional<AnalyticalSurfaceModel> power_model;
-  std::optional<AnalyticalSurfaceModel> source_boundary_power_model;
-  std::optional<StructuralCapOperator> source_cap_operator;
+  std::optional<AnalyticalSurfaceModel> output_slew_model = std::nullopt;
+  std::optional<AnalyticalSurfaceModel> delay_model = std::nullopt;
+  std::optional<AnalyticalSurfaceModel> power_model = std::nullopt;
+  std::optional<AnalyticalSurfaceModel> source_boundary_power_model = std::nullopt;
+  std::optional<StructuralCapOperator> source_cap_operator = std::nullopt;
 
   auto isComplete() const -> bool;
   auto findMetric(AnalyticalMetric metric) const -> const AnalyticalSurfaceModel*;

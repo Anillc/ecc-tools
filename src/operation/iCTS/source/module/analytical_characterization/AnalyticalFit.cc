@@ -222,7 +222,7 @@ auto FitAnalyticalSurface(const std::vector<AnalyticalFitSample>& samples, const
     return MakeFailure("singular_normal_equation");
   }
 
-  AnalyticalSurfaceModel model;
+  AnalyticalSurfaceModel model{};
   model.metric = options.metric;
   model.basis = options.basis;
   model.domain = domain;

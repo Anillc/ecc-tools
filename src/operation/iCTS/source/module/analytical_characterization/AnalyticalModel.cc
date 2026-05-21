@@ -65,11 +65,6 @@ auto AnalyticalDomain::capScale() const -> double
   return SafeScale(cap_max_pf);
 }
 
-AnalyticalSurfaceModel::AnalyticalSurfaceModel()
-    : metric(AnalyticalMetric::kDelay), basis(AnalyticalModelBasis::kAffine), domain(), quality()
-{
-}
-
 auto AnalyticalSurfaceModel::isValid() const -> bool
 {
   return domain.isValid() && coefficients.size() == AnalyticalBasisTermCount(basis) && quality.accepted;
@@ -114,14 +109,14 @@ auto StructuralCapOperator::apply(double downstream_cap_pf) const -> double
 
 auto StructuralCapOperator::identity() -> StructuralCapOperator
 {
-  StructuralCapOperator op;
+  StructuralCapOperator op{};
   op.source = "identity";
   return op;
 }
 
 auto StructuralCapOperator::wire(double wire_cap_pf) -> StructuralCapOperator
 {
-  StructuralCapOperator op;
+  StructuralCapOperator op{};
   op.eta_pf = std::max(0.0, wire_cap_pf);
   op.source = "wire";
   return op;
@@ -129,7 +124,7 @@ auto StructuralCapOperator::wire(double wire_cap_pf) -> StructuralCapOperator
 
 auto StructuralCapOperator::buffered(double first_buffer_input_cap_pf, double pre_buffer_wire_cap_pf) -> StructuralCapOperator
 {
-  StructuralCapOperator op;
+  StructuralCapOperator op{};
   op.alpha = 0.0;
   op.eta_pf = std::max(0.0, first_buffer_input_cap_pf + pre_buffer_wire_cap_pf);
   op.source = "buffered";
@@ -138,7 +133,7 @@ auto StructuralCapOperator::buffered(double first_buffer_input_cap_pf, double pr
 
 auto StructuralCapOperator::fanout(double fanout, double junction_cap_pf) -> StructuralCapOperator
 {
-  StructuralCapOperator op;
+  StructuralCapOperator op{};
   op.alpha = std::max(0.0, fanout);
   op.eta_pf = std::max(0.0, junction_cap_pf);
   op.source = "fanout";
@@ -147,7 +142,7 @@ auto StructuralCapOperator::fanout(double fanout, double junction_cap_pf) -> Str
 
 auto StructuralCapOperator::compose(const StructuralCapOperator& upstream, const StructuralCapOperator& downstream) -> StructuralCapOperator
 {
-  StructuralCapOperator op;
+  StructuralCapOperator op{};
   op.alpha = upstream.alpha * downstream.alpha;
   op.eta_pf = upstream.alpha * downstream.eta_pf + upstream.eta_pf;
   op.physical = upstream.physical && downstream.physical;

@@ -149,6 +149,24 @@ auto CanUseSparseConstantModel(const std::string& failure_reason) -> bool
   return failure_reason == "insufficient_samples" || failure_reason == "singular_normal_equation" || failure_reason == "invalid_domain";
 }
 
+auto AssignAnalyticalSurfaceModel(AnalyticalSurfaceModel& dst, const AnalyticalSurfaceModel& src) -> void
+{
+  dst.metric = src.metric;
+  dst.basis = src.basis;
+  dst.domain = src.domain;
+  dst.coefficients = src.coefficients;
+  dst.quality = src.quality;
+}
+
+auto AssignStructuralCapOperator(StructuralCapOperator& dst, const StructuralCapOperator& src) -> void
+{
+  dst.alpha = src.alpha;
+  dst.eta_pf = src.eta_pf;
+  dst.physical = src.physical;
+  dst.bucket_compatible = src.bucket_compatible;
+  dst.source = src.source;
+}
+
 auto BuildSparseConstantModel(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitOptions& fit_options,
                               const UniformValueLattice& slew_lattice, const UniformValueLattice& cap_lattice)
     -> std::optional<AnalyticalSurfaceModel>
@@ -163,7 +181,7 @@ auto BuildSparseConstantModel(const std::vector<AnalyticalFitSample>& samples, c
   }
   const double mean_value = total_value / static_cast<double>(samples.size());
 
-  AnalyticalSurfaceModel model;
+  AnalyticalSurfaceModel model{};
   model.metric = fit_options.metric;
   model.basis = fit_options.basis;
   model.domain = AnalyticalDomain{
@@ -203,8 +221,8 @@ auto BuildSparseConstantModel(const std::vector<AnalyticalFitSample>& samples, c
 }
 
 auto FitMetric(const GroupedSegmentChars& group, const UniformValueLattice& slew_lattice, const UniformValueLattice& cap_lattice,
-               AnalyticalMetric metric, const AnalyticalCharacterizationOptions& options, AnalyticalCharacterizationResult& result)
-    -> std::optional<AnalyticalSurfaceModel>
+               AnalyticalMetric metric, const AnalyticalCharacterizationOptions& options, AnalyticalCharacterizationResult& result,
+               std::optional<AnalyticalSurfaceModel>& model_slot) -> void
 {
   auto fit_options = MakeFitOptions(metric, options);
   if (metric == AnalyticalMetric::kOutputSlew) {
@@ -213,13 +231,15 @@ auto FitMetric(const GroupedSegmentChars& group, const UniformValueLattice& slew
   auto samples = BuildSamples(group.chars, slew_lattice, cap_lattice, metric);
   auto fit = FitAnalyticalSurface(samples, fit_options);
   if (fit.success && fit.model.has_value()) {
-    return fit.model;
+    AssignAnalyticalSurfaceModel(model_slot.emplace(), *fit.model);
+    return;
   }
 
   if (options.allow_sparse_constant_model && CanUseSparseConstantModel(fit.failure_reason)) {
     auto sparse_model = BuildSparseConstantModel(samples, fit_options, slew_lattice, cap_lattice);
     if (sparse_model.has_value()) {
-      return sparse_model;
+      AssignAnalyticalSurfaceModel(model_slot.emplace(), *sparse_model);
+      return;
     }
   }
 
@@ -229,7 +249,6 @@ auto FitMetric(const GroupedSegmentChars& group, const UniformValueLattice& slew
       .metric = metric,
       .reason = fit.failure_reason.empty() ? std::string{"fit_rejected"} : fit.failure_reason,
   });
-  return std::nullopt;
 }
 
 auto ValidateBucketCompatibility(const StructuralCapOperator& op, const std::vector<SegmentChar>& grouped_chars,
@@ -301,7 +320,7 @@ auto MakeBucketRepresentativeOperator(const BufferingPattern* pattern, const std
     return std::nullopt;
   }
 
-  StructuralCapOperator op;
+  StructuralCapOperator op{};
   op.physical = false;
   op.source = "bucket_representative";
   if (pattern != nullptr && pattern->isBufferPattern()) {
@@ -323,20 +342,21 @@ auto MakeBucketRepresentativeOperator(const BufferingPattern* pattern, const std
 
 auto BuildStructuralCapOperator(PatternId pattern_id, const std::vector<BufferingPattern>& buffering_patterns,
                                 const std::vector<SegmentChar>& grouped_chars, const UniformValueLattice& cap_lattice,
-                                const AnalyticalCharacterizationOptions& options) -> std::optional<StructuralCapOperator>
+                                const AnalyticalCharacterizationOptions& options, std::optional<StructuralCapOperator>& operator_slot)
+    -> void
 {
   const auto* pattern = FindPattern(pattern_id, buffering_patterns);
   auto op = options.prefer_exact_structural_cap ? MakeExactStructuralCapOperator(pattern, options)
                                                 : MakeBucketRepresentativeOperator(pattern, grouped_chars, cap_lattice);
   if (!op.has_value() && !options.prefer_exact_structural_cap) {
-    return std::nullopt;
+    return;
   }
   if (!op.has_value()) {
-    return std::nullopt;
+    return;
   }
 
   op->bucket_compatible = ValidateBucketCompatibility(*op, grouped_chars, cap_lattice);
-  return op;
+  AssignStructuralCapOperator(operator_slot.emplace(), *op);
 }
 
 }  // namespace
@@ -388,12 +408,12 @@ auto AnalyticalCharacterization::buildFromSegmentChars(const std::vector<Segment
   for (const auto& group : GroupSegmentChars(segment_chars)) {
     AnalyticalModelSet model_set;
     model_set.key = group.key;
-    model_set.output_slew_model = FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kOutputSlew, options, result);
-    model_set.delay_model = FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kDelay, options, result);
-    model_set.power_model = FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kPower, options, result);
-    model_set.source_boundary_power_model
-        = FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kSourceBoundaryNetSwitchPower, options, result);
-    model_set.source_cap_operator = BuildStructuralCapOperator(group.key.pattern_id, buffering_patterns, group.chars, cap_lattice, options);
+    FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kOutputSlew, options, result, model_set.output_slew_model);
+    FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kDelay, options, result, model_set.delay_model);
+    FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kPower, options, result, model_set.power_model);
+    FitMetric(group, slew_lattice, cap_lattice, AnalyticalMetric::kSourceBoundaryNetSwitchPower, options, result,
+              model_set.source_boundary_power_model);
+    BuildStructuralCapOperator(group.key.pattern_id, buffering_patterns, group.chars, cap_lattice, options, model_set.source_cap_operator);
     if (model_set.source_cap_operator.has_value()) {
       ++result.structural_cap_operator_count;
       if (!model_set.source_cap_operator->bucket_compatible) {

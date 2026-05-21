@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "database/adapter/fast_sta/FastSta.hh"
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
@@ -79,6 +80,7 @@ auto CTSAPI::resetAPI() -> void
   CONFIG_INST.reset();
   DESIGN_INST.reset();
   WRAPPER_INST.reset();
+  FAST_STA_INST.reset();
   FLOW_INST.reset();
   SCHEMA_WRITER_INST.reset();
 }

@@ -44,10 +44,6 @@ class ClockSteinerTree;
 
 }  // namespace icts
 
-namespace icts_test {
-class FastStaTestAccess;
-}  // namespace icts_test
-
 namespace icts {
 
 using FastStaClockId = std::size_t;
@@ -226,7 +222,7 @@ class FastSTA
   static auto buildClockContext(const Clock& clock, const FastStaClockRouteGeometry& route_geometry) -> FastStaClockId;
   static auto rebuildClockContext(FastStaClockId clock_id) -> bool;
   static auto eraseClockContext(FastStaClockId clock_id) -> bool;
-  static auto clear() -> void;
+  auto reset() -> void;
 
   static auto buildCharContext(const FastStaCharTopologySpec& spec) -> FastStaCharContextId;
   static auto eraseCharContext(FastStaCharContextId char_context_id) -> bool;
@@ -258,16 +254,15 @@ class FastSTA
   static auto queryArea(FastStaClockId clock_id) -> double;
   static auto queryClockIds() -> std::vector<FastStaClockId>;
 
+  static auto queryClockContext(FastStaClockId clock_id) -> const FastStaClockContext*;
+  static auto mutableClockContext(FastStaClockId clock_id) -> FastStaClockContext*;
+  static auto registerClockContext(FastStaClockContext context) -> FastStaClockId;
+
  private:
   struct ContextStore;
-  friend class ::icts_test::FastStaTestAccess;
 
   FastSTA();
   ~FastSTA();
-
-  static auto queryClockContext(FastStaClockId clock_id) -> const FastStaClockContext*;
-  static auto mutableClockContext(FastStaClockId clock_id) -> FastStaClockContext*;
-  static auto registerClockContextForTest(FastStaClockContext context) -> FastStaClockId;
 
   std::unique_ptr<ContextStore> _contexts;
 };

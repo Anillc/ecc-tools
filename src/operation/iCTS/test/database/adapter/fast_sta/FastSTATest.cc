@@ -45,16 +45,6 @@
 #include "timing/FastStaClockTiming.hh"
 
 namespace icts_test {
-
-class FastStaTestAccess
-{
- public:
-  static auto registerClockContext(icts::FastStaClockContext context) -> icts::FastStaClockId
-  {
-    return icts::FastSTA::registerClockContextForTest(std::move(context));
-  }
-};
-
 namespace {
 
 auto MakeAxis(icts::FastStaLibertyAxisKind kind, std::vector<double> values) -> icts::FastStaLibertyAxis
@@ -215,8 +205,8 @@ class ScopedRootInputSlew
 class ScopedFastSTAContexts
 {
  public:
-  ScopedFastSTAContexts() { icts::FastSTA::clear(); }
-  ~ScopedFastSTAContexts() { icts::FastSTA::clear(); }
+  ScopedFastSTAContexts() { icts::FastSTA::getInst().reset(); }
+  ~ScopedFastSTAContexts() { icts::FastSTA::getInst().reset(); }
 
   ScopedFastSTAContexts(const ScopedFastSTAContexts& rhs) = delete;
   ScopedFastSTAContexts(ScopedFastSTAContexts&& rhs) = delete;
@@ -226,7 +216,7 @@ class ScopedFastSTAContexts
 
 auto RegisterClockContext(icts::FastStaClockContext context) -> icts::FastStaClockId
 {
-  return FastStaTestAccess::registerClockContext(std::move(context));
+  return icts::FastSTA::registerClockContext(std::move(context));
 }
 
 auto MakeTinyContext() -> icts::FastStaClockContext

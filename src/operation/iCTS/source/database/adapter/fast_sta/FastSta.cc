@@ -232,13 +232,12 @@ auto FastSTA::eraseClockContext(FastStaClockId clock_id) -> bool
   return true;
 }
 
-auto FastSTA::clear() -> void
+auto FastSTA::reset() -> void
 {
-  auto& adapter = getInst();
-  adapter._contexts->clock_contexts.clear();
-  adapter._contexts->clock_context_valid.clear();
-  adapter._contexts->char_contexts.clear();
-  adapter._contexts->char_context_valid.clear();
+  _contexts->clock_contexts.clear();
+  _contexts->clock_context_valid.clear();
+  _contexts->char_contexts.clear();
+  _contexts->char_context_valid.clear();
 }
 
 auto FastSTA::buildCharContext(const FastStaCharTopologySpec& spec) -> FastStaCharContextId
@@ -572,7 +571,7 @@ auto FastSTA::queryClockIds() -> std::vector<FastStaClockId>
   return ids;
 }
 
-auto FastSTA::registerClockContextForTest(FastStaClockContext context) -> FastStaClockId
+auto FastSTA::registerClockContext(FastStaClockContext context) -> FastStaClockId
 {
   auto& adapter = getInst();
   const auto clock_id = adapter._contexts->clock_contexts.size();
