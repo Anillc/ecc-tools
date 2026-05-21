@@ -617,3 +617,37 @@ Closed CTS code normalization convergence work, fanout-4 runtime follow-up, vali
 ### Next Steps
 
 - None - task complete
+
+
+## Session 63: iCTS FastSTA reset normalization
+
+**Date**: 2026-05-22
+**Task**: iCTS FastSTA reset normalization
+**Branch**: `cts_refactor`
+
+### Summary
+
+Committed the incremental iCTS structure port and FastSTA reset/test-isolation cleanup, resolved all in-scope ecc_dev findings for src/operation/iCTS, and archived the completed 05-20 and 05-21 Trellis tasks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ddaa6c50` | (see git log) |
+| `592f49841` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
