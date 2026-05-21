@@ -34,9 +34,9 @@
 #include "Log.hh"
 #include "Point.hh"
 #include "RoutingTerminal.hh"
+#include "bound_skew_tree/algorithm/BoundSkewTree.hh"
 #include "bound_skew_tree/clock_tree_conversion/BstClockTreeConversion.hh"
 #include "bound_skew_tree/component/Components.hh"
-#include "bound_skew_tree/tree/BoundSkewTree.hh"
 
 namespace icts {
 namespace {

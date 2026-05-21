@@ -40,9 +40,9 @@
 #include "Point.hh"
 #include "SteinerTree.hh"
 #include "bound_skew_tree/BSTRouter.hh"
+#include "bound_skew_tree/algorithm/BoundSkewTree.hh"
 #include "bound_skew_tree/clock_tree_conversion/BstClockTreeConversion.hh"
 #include "bound_skew_tree/component/Components.hh"
-#include "bound_skew_tree/tree/BoundSkewTree.hh"
 
 namespace icts {
 namespace {

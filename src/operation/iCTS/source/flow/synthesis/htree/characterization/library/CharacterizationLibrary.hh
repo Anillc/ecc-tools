@@ -44,6 +44,10 @@ class CharacterizationLibrary
 
   CharacterizationLibrary() = default;
   ~CharacterizationLibrary() = default;
+  CharacterizationLibrary(const CharacterizationLibrary&) = delete;
+  CharacterizationLibrary(CharacterizationLibrary&&) noexcept = default;
+  auto operator=(const CharacterizationLibrary&) -> CharacterizationLibrary& = delete;
+  auto operator=(CharacterizationLibrary&&) noexcept -> CharacterizationLibrary& = default;
 
   auto ensure(const CharBuilder::InitOptions& options) -> EnsureResult;
   auto getCharBuilder() const -> const CharBuilder& { return _char_builder; }

@@ -1,6 +1,14 @@
 add_library(
   icts_source_module_routing_bst
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/BSTRouter.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BinaryTopology.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BottomUpMergeBalance.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BottomUpMergeInfeasibility.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BottomUpMergeJoining.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BoundSkewTree.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BoundSkewTreeImpl.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/BstPipeline.cc
+  ${ICTS_MODULE_ROUTING}/bound_skew_tree/algorithm/TopDownEmbedding.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/clock_tree_conversion/BSTRouterBinaryTopology.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/clock_tree_conversion/BSTRouterExport.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/component/Components.cc
@@ -8,13 +16,6 @@ add_library(
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalcLine.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalcPointRegion.cc
   ${ICTS_MODULE_ROUTING}/bound_skew_tree/geometry/GeomCalcTransformedRect.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTree.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeBalance.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeEmbedding.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeFlow.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeInfeasibleMerge.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeJoining.cc
-  ${ICTS_MODULE_ROUTING}/bound_skew_tree/tree/BoundSkewTreeTopology.cc
 )
 
 target_link_libraries(

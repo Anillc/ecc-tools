@@ -1,17 +1,15 @@
 set(ICTS_MODULE_CHAR_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/Characterization.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuilder.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuilderBuild.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuilderConfig.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuilderFeasibility.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuilderTopology.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/circuit/CharBuilderCircuit.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/pattern/CharBuilderPatternEnumeration.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/pattern/CharBuilderPatternStorage.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/sampling/CharBuilderSampleStorage.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/sampling/CharBuilderSampling.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/sampling/CharBuilderSlewSampling.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/sampling/CharBuilderStaSampling.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuilderImpl.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharBuildOrchestrator.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharFeasibilityChecker.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharSetupConfigurator.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/builder/CharTopologyPlanner.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/circuit/CharCircuitBuilder.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/pattern/CharPatternEnumerator.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/pattern/CharPatternStorage.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/sampling/CharStaSampler.cc
 )
 
 add_library(icts_source_module_characterization ${ICTS_MODULE_CHAR_SRC})
