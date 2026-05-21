@@ -25,15 +25,17 @@
 
 #include "StaBuildRCTree.hh"
 
+#include <atomic>
+#include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "ThreadPool/ThreadPool.h"
 #include "delay/ElmoreDelayCalc.hh"
 #include "delay/ReduceDelayCal.hh"
 #include "log/Log.hh"
 #include "netlist/Netlist.hh"
-#include "spef/SpefParserRustC.hh"
 
 // #define CUDA_DELAY 1
 
@@ -72,7 +74,7 @@ unsigned StaBuildRCTree::operator()(StaGraph* the_graph) {
   LOG_INFO << "build rc tree start";
 
   LOG_INFO << "read spef " << _spef_file_name << " start";
-  SpefRustReader spef_parser;
+  spef::SpefReader spef_parser;
   if (!spef_parser.read(_spef_file_name)) {
     LOG_FATAL << "Parse the spef file error.";
     return 0;
@@ -108,65 +110,59 @@ unsigned StaBuildRCTree::operator()(StaGraph* the_graph) {
 #endif
   {
     ThreadPool pool(getNumThreads());
-    auto* spef_file = spef_parser.get_spef_file();
+    auto* spef_file = spef_parser.getSpefFile();
 
     std::mutex all_nets_mutex;
-    void* spef_net;
-    FOREACH_VEC_ELEM(&(spef_file->_nets), void, spef_net) {
-      auto* rust_spef_net =
-          static_cast<RustSpefNet*>(rust_convert_spef_net(spef_net));
-
+    FOREACH_SPEF_NET(spef_file, spef_net) {
+      const auto cap_size = static_cast<unsigned>(spef_net.caps.size());
       // record max node net name.
-      if (rust_spef_net->_caps.len > max_node) {
-        max_node = rust_spef_net->_caps.len;
-        net_name = rust_spef_net->_name;
+      if (cap_size > max_node) {
+        max_node = cap_size;
+        net_name = spef_net.name;
       }
 
-      if (rust_spef_net->_caps.len > 100) {
+      if (cap_size > 100) {
         LOG_INFO_FIRST_N(10)
-            << "beyond node num 100 net name " << rust_spef_net->_name
-            << " node num " << rust_spef_net->_caps.len;
+            << "beyond node num 100 net name " << spef_net.name
+            << " node num " << cap_size;
       }
 
 #if CUDA_DELAY
       // enqueue and store future
       pool.enqueue(
-          [design_nl, &spef_parser, &all_nets, &all_nets_mutex,
-           this](const auto& spef_net) {
-            auto* design_net = design_nl->findNet(spef_net->_name);
+          [design_nl, &all_nets, &all_nets_mutex,
+           this](const spef::Net* spef_net) {
+            auto* design_net = design_nl->findNet(spef_net->name.c_str());
             if (design_net) {
               auto* rc_net = getSta()->getRcNet(design_net);
-              rc_net->updateRcTiming(spef_net);
+              rc_net->updateRcTiming(*spef_net);
               if (rc_net->rct() && rc_net->rct()->get_root()) {
                 std::lock_guard<std::mutex> lock(all_nets_mutex);
                 if (rc_net) {
                   all_nets.emplace_back(rc_net);
                 }
               }
-              // DLOG_INFO << "Update Rc tree timing " << spef_name;
-              rust_free_spef_net(spef_net);
             } else {
               LOG_FATAL << "build rc tree not found design net "
-                        << spef_net->_name;
+                        << spef_net->name;
             }
           },
-          rust_spef_net);
+          &spef_net);
 #else
       // enqueue and store future
       pool.enqueue(
-          [design_nl, &spef_parser, this](const auto& spef_net) {
-            auto* design_net = design_nl->findNet(spef_net->_name);
+          [design_nl, this](const spef::Net* spef_net) {
+            auto* design_net = design_nl->findNet(spef_net->name.c_str());
             if (design_net) {
               auto* rc_net = getSta()->getRcNet(design_net);
               // DLOG_INFO << "Update Rc tree timing " << spef_name;
-              rc_net->updateRcTiming(spef_net);
-              rust_free_spef_net(spef_net);
+              rc_net->updateRcTiming(*spef_net);
             } else {
               LOG_FATAL << "build rc tree not found design net "
-                        << spef_net->_name;
+                        << spef_net->name;
             }
           },
-          rust_spef_net);
+          &spef_net);
 #endif
     }
   }
@@ -183,33 +179,30 @@ unsigned StaBuildRCTree::operator()(StaGraph* the_graph) {
   // }
 #endif
 #else
-  auto* spef_file = spef_parser.get_spef_file();
+  auto* spef_file = spef_parser.getSpefFile();
 #if CUDA_DELAY
   std::vector<RcNet*> all_nets;
 #endif
-  void* spef_net;
-  FOREACH_VEC_ELEM(&(spef_file->_nets), void, spef_net) {
-    auto* rust_spef_net =
-        static_cast<RustSpefNet*>(rust_convert_spef_net(spef_net));
+  FOREACH_SPEF_NET(spef_file, spef_net) {
+    const auto cap_size = static_cast<unsigned>(spef_net.caps.size());
     // record max node net name.
-    if (rust_spef_net->_caps.len > max_node) {
-      max_node = rust_spef_net->_caps.len;
-      net_name = rust_spef_net->_name;
+    if (cap_size > max_node) {
+      max_node = cap_size;
+      net_name = spef_net.name;
     }
 
-    std::string spef_name = rust_spef_net->_name;
+    std::string spef_name = spef_net.name;
     auto* design_net = design_nl->findNet(spef_name.c_str());
     if (design_net) {
       auto* rc_net = getSta()->getRcNet(design_net);
       // DLOG_INFO << "Update Rc tree timing " << spef_name;
-      rc_net->updateRcTiming(rust_spef_net);
+      rc_net->updateRcTiming(spef_net);
 #if CUDA_DELAY
       if (rc_net->rct()) {
         all_nets.emplace_back(rc_net);
       }
 #endif
-      // printYaml(*rust_spef_net);
-      rust_free_spef_net(rust_spef_net);
+      // printYaml(spef_net);
 
     } else {
       LOG_FATAL << "build rc tree not found design net " << spef_name;
@@ -251,7 +244,7 @@ unsigned StaBuildRCTree::operator()(StaGraph* the_graph) {
  * @param top_node
  * @param spef_net
  */
-void StaBuildRCTree::printYaml(RustSpefNet& spef_net) {
+void StaBuildRCTree::printYaml(const spef::Net& spef_net) {
   static int node_id = 0;
   static std::map<int, std::string> layer_index_to_name{
       {1, "M1"},    {2, "M2"},    {3, "M3"},    {4, "M4"},    {5, "M5"},
@@ -264,82 +257,63 @@ void StaBuildRCTree::printYaml(RustSpefNet& spef_net) {
   YAML::Node net_node;
   _top_node[net_id] = net_node;
 
-  net_node["NAME"] = spef_net._name;
+  net_node["NAME"] = spef_net.name;
 
   // print connection.
   YAML::Node conn_node;
   net_node["CONN"] = conn_node;
   unsigned i = 0;
-  void* spef_net_conn;
-  FOREACH_VEC_ELEM(&(spef_net._conns), void, spef_net_conn) {
-    auto* rust_spef_conn =
-        static_cast<RustSpefConnEntry*>(rust_convert_spef_conn(spef_net_conn));
-
+  FOREACH_SPEF_CONN(spef_net, conn) {
     std::string conn_id = Str::printf("conn_%d", i++);
     YAML::Node one_node;
     conn_node[conn_id] = one_node;
     one_node["type"] =
-        (rust_spef_conn->_conn_type == RustConnectionType::kINTERNAL) ? "I"
-                                                                      : "P";
-    one_node["node_name"] = rust_spef_conn->_name;
+        (conn.conn_type == spef::ConnectionType::kInternal) ? "I" : "P";
+    one_node["node_name"] = conn.pin_port_name;
     one_node["direction"] =
-        (rust_spef_conn->_conn_direction == RustConnectionDirection::kOUTPUT)
+        (conn.conn_direction == spef::ConnectionDirection::kOutput)
             ? "O"
-            : (rust_spef_conn->_conn_direction ==
-               RustConnectionDirection::kINPUT)
+            : (conn.conn_direction == spef::ConnectionDirection::kInput)
                   ? "I"
                   : "IO";
-    one_node["coordinate_x"] = rust_spef_conn->_coordinate._x;
-    one_node["coordinate_y"] = rust_spef_conn->_coordinate._y;
-    one_node["load"] = rust_spef_conn->_load;
-    one_node["cell"] = rust_spef_conn->_driving_cell;
+    one_node["coordinate_x"] = conn.coordinate.x;
+    one_node["coordinate_y"] = conn.coordinate.y;
+    one_node["load"] = conn.load;
+    one_node["cell"] = conn.driving_cell;
 
-    one_node["ll_coordinate_x"] = rust_spef_conn->_ll_coordinate._x;
-    one_node["ll_coordinate_y"] = rust_spef_conn->_ll_coordinate._y;
+    one_node["ll_coordinate_x"] = conn.ll_coordinate.x;
+    one_node["ll_coordinate_y"] = conn.ll_coordinate.y;
 
-    one_node["ur_coordinate_x"] = rust_spef_conn->_ur_coordinate._x;
-    one_node["ur_coordinate_y"] = rust_spef_conn->_ur_coordinate._y;
+    one_node["ur_coordinate_x"] = conn.ur_coordinate.x;
+    one_node["ur_coordinate_y"] = conn.ur_coordinate.y;
 
-    one_node["layer"] = rust_spef_conn->_layer;
-
-    rust_free_spef_conn(rust_spef_conn);
+    one_node["layer"] = conn.layer;
   }
 
   // print cap.
   YAML::Node cap_node;
   net_node["CAP"] = cap_node;
-  void* spef_net_cap;
   i = 0;
-  FOREACH_VEC_ELEM(&(spef_net._caps), void, spef_net_cap) {
-    auto* rust_spef_cap = static_cast<RustSpefResCap*>(
-        rust_convert_spef_net_cap_res(spef_net_cap));
-
+  FOREACH_SPEF_CAP(spef_net, cap) {
     std::string cap_id = Str::printf("cap_%d", i++);
     YAML::Node one_node;
     cap_node[cap_id] = one_node;
-    one_node["node1_name"] = rust_spef_cap->_node1;
-    one_node["node2_name"] = rust_spef_cap->_node2;
-    one_node["capacitance"] = rust_spef_cap->_res_or_cap;
-
-    rust_free_spef_net_cap_res(rust_spef_cap);
+    one_node["node1_name"] = cap.node1;
+    one_node["node2_name"] = cap.node2;
+    one_node["capacitance"] = cap.res_or_cap;
   }
 
   // print resistance
   YAML::Node resistance_node;
   net_node["RES"] = resistance_node;
   i = 0;
-  void* spef_net_res;
-  FOREACH_VEC_ELEM(&(spef_net._ress), void, spef_net_res) {
-    auto* rust_spef_res = static_cast<RustSpefResCap*>(
-        rust_convert_spef_net_cap_res(spef_net_res));
+  FOREACH_SPEF_RES(spef_net, res) {
     std::string res_id = Str::printf("resistance_%d", i++);
     YAML::Node one_node;
     resistance_node[res_id] = one_node;
-    one_node["node1_name"] = rust_spef_res->_node1;
-    one_node["node2_name"] = rust_spef_res->_node2;
-    one_node["resistance"] = rust_spef_res->_res_or_cap;
-
-    rust_free_spef_net_cap_res(rust_spef_res);
+    one_node["node1_name"] = res.node1;
+    one_node["node2_name"] = res.node2;
+    one_node["resistance"] = res.res_or_cap;
   }
 }
 

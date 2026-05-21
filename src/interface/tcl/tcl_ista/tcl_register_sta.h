@@ -41,6 +41,7 @@ int registerCmdSTA()
 {
   registerTclCmd(CmdSTARun, "run_sta");
   registerTclCmd(CmdSTAInit, "init_sta");
+  registerTclCmd(CmdSTARelease, "release_sta");
   registerTclCmd(CmdSTAReport, "report_sta");
   registerTclCmd(CmdBuildClockTree, "build_clock_tree");
 

@@ -19,18 +19,13 @@
 #include <filesystem>
 #include <stdexcept>
 
-#include "RCX.hpp"
+#include "RCXAPI.hh"
 
 namespace python_interface {
 
 namespace {
 
 namespace fs = std::filesystem;
-
-ircx::RCX& rcx()
-{
-  return ircx::RCX::getOrCreateInst();
-}
 
 void require_non_empty(const std::string& value, const char* field_name)
 {
@@ -49,9 +44,9 @@ void require_file_exists(const std::string& path, const char* file_kind)
 
 }  // namespace
 
-bool init_rcx(unsigned thread_number)
+bool init_rcx(unsigned thread_number, double temperature)
 {
-  rcx().set_num_threads(thread_number == 0 ? 1U : thread_number);
+  RCXAPIInst.init(thread_number == 0 ? 1U : thread_number, temperature);
   return true;
 }
 
@@ -63,49 +58,49 @@ bool read_rcx_corner(const std::string& corner_name,
   require_file_exists(itf_file, "itf_file");
   require_file_exists(captab_file, "captab_file");
 
-  return rcx().readCorner(corner_name, itf_file.c_str(), captab_file.c_str());
+  return RCXAPIInst.readCorner(corner_name, itf_file.c_str(), captab_file.c_str());
 }
 
 bool read_rcx_mapping(const std::string& mapping_file)
 {
   require_file_exists(mapping_file, "mapping_file");
-  return rcx().readMapping(mapping_file.c_str());
+  return RCXAPIInst.readMapping(mapping_file.c_str());
 }
 
 bool adapt_rcx_db()
 {
-  return rcx().adaptDB();
+  return RCXAPIInst.adaptDB();
 }
 
 bool build_rcx_topology()
 {
-  return rcx().buildTopology();
+  return RCXAPIInst.buildTopology();
 }
 
 bool build_rcx_environment()
 {
-  return rcx().buildEnvironment();
+  return RCXAPIInst.buildEnvironment();
 }
 
 bool build_rcx_process_variation()
 {
-  return rcx().buildProcessVariation();
+  return RCXAPIInst.buildProcessVariation();
 }
 
 bool extract_rcx_parasitics()
 {
-  return rcx().extractParasitics();
+  return RCXAPIInst.extractParasitics();
 }
 
 bool run_rcx(const std::string& config)
 {
   require_file_exists(config, "config");
-  return rcx().runFromConfig(config);
+  return RCXAPIInst.runFromConfig(config);
 }
 
 bool report_rcx(const std::string& output_dir)
 {
-  return rcx().reportSpef(output_dir);
+  return RCXAPIInst.reportSpef(output_dir);
 }
 
 }  // namespace python_interface

@@ -46,9 +46,17 @@ step_print_list "lib_files" $lib_files
 step_print_path "cts_config" $cts_config
 step_print_path "cts_work_dir" $cts_work_dir
 
-step_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, loading data."
+  step_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module
+}
+
 file mkdir $cts_work_dir
 run_cts -config $cts_config -work_dir $cts_work_dir
 cts_report -path $cts_work_dir
 step_save_design $step_name $output_def $output_verilog $output_gds $output_json $output_db $feature_db $feature_step $report_db $sta_dir
-step_maybe_flow_exit
+
+if {$RTL2GDS == 0} {
+  puts "RTL2GDS is disabled, exiting flow."
+  step_maybe_flow_exit
+}

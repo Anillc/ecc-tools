@@ -134,6 +134,22 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
   width_step = width_step / manufacture_grid * manufacture_grid;
   height_step = height_step / manufacture_grid * manufacture_grid;
   int pin_index = 0;
+
+  auto sync_pin_location = [](idb::IdbPin* pin, idb::IdbPort* port, int x, int y) {
+    if (pin == nullptr || port == nullptr || pin->get_term() == nullptr) {
+      return;
+    }
+
+    if (pin->get_term()->is_port_exist() || pin->is_special_net_pin()) {
+      port->set_placement_status_place();
+      port->set_coordinate(x, y);
+    } else {
+      pin->set_location(x, y);
+    }
+    pin->set_average_coordinate(x, y);
+    pin->set_orient();
+  };
+
   /// left
   if (has_side("left")) {
     for (int i = 0; i < edge_num; ++i) {
@@ -149,12 +165,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
       auto io_term = pin->get_term();
       io_term->set_placement_status_place();
       auto port = io_term->add_port(nullptr);
-      if (pin->get_term()->is_port_exist() || pin->is_special_net_pin()) {
-        port->set_placement_status_place();
-        port->set_coordinate(x, y);
-      } else {
-        pin->set_location(x, y);
-      }
+      sync_pin_location(pin, port, x, y);
       auto shape = port->add_layer_shape();
       shape->set_type_rect();
 
@@ -168,6 +179,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
 
       shape->add_rect(shape_llx - x, shape_lly - y, shape_urx - x, shape_ury - y);
       shape->set_layer(horizontal_layer);
+      pin->set_bounding_box();
     }
   }
 
@@ -186,12 +198,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
       auto io_term = pin->get_term();
       io_term->set_placement_status_place();
       auto port = io_term->add_port(nullptr);
-      if (pin->get_term()->is_port_exist() || pin->is_special_net_pin()) {
-        port->set_placement_status_place();
-        port->set_coordinate(x, y);
-      } else {
-        pin->set_location(x, y);
-      }
+      sync_pin_location(pin, port, x, y);
 
       auto shape = port->add_layer_shape();
       shape->set_type_rect();
@@ -206,6 +213,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
 
       shape->add_rect(shape_llx - x, shape_lly - y, shape_urx - x, shape_ury - y);
       shape->set_layer(horizontal_layer);
+      pin->set_bounding_box();
     }
   }
 
@@ -224,12 +232,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
       auto io_term = pin->get_term();
       io_term->set_placement_status_place();
       auto port = io_term->add_port(nullptr);
-      if (pin->get_term()->is_port_exist() || pin->is_special_net_pin()) {
-        port->set_placement_status_place();
-        port->set_coordinate(x, y);
-      } else {
-        pin->set_location(x, y);
-      }
+      sync_pin_location(pin, port, x, y);
 
       auto shape = port->add_layer_shape();
       shape->set_type_rect();
@@ -244,6 +247,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
 
       shape->add_rect(shape_llx - x, shape_lly - y, shape_urx - x, shape_ury - y);
       shape->set_layer(vertical_layer);
+      pin->set_bounding_box();
     }
   }
 
@@ -263,12 +267,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
       io_term->set_placement_status_place();
 
       auto port = io_term->add_port(nullptr);
-      if (pin->get_term()->is_port_exist() || pin->is_special_net_pin()) {
-        port->set_placement_status_place();
-        port->set_coordinate(x, y);
-      } else {
-        pin->set_location(x, y);
-      }
+      sync_pin_location(pin, port, x, y);
 
       auto shape = port->add_layer_shape();
       shape->set_type_rect();
@@ -283,6 +282,7 @@ bool IoPlacer::autoPlacePins(std::string layer_name, int width, int height, std:
 
       shape->add_rect(shape_llx - x, shape_lly - y, shape_urx - x, shape_ury - y);
       shape->set_layer(vertical_layer);
+      pin->set_bounding_box();
     }
   }
 
@@ -576,7 +576,8 @@ void IoPlacer::set_pad_coords(vector<string> conner_masters)
  */
 bool IoPlacer::autoPlacePad(std::vector<std::string> pad_masters, std::vector<std::string> conner_masters)
 {
-  auto place_pad = [](std::vector<IdbInstance*>& pad_list, int& index_begin, PadCoordinate& pad_coord, int step) {
+  auto* idb_design = dmInst->get_idb_design();
+  auto place_pad = [idb_design](std::vector<IdbInstance*>& pad_list, int& index_begin, PadCoordinate& pad_coord, int step) {
     int coord_offset = pad_coord.begin + step;
     for (; index_begin < (int) pad_list.size() && coord_offset < pad_coord.end; index_begin++) {
       int pad_witdh = pad_list[index_begin]->get_cell_master()->get_width();
@@ -590,25 +591,20 @@ bool IoPlacer::autoPlacePad(std::vector<std::string> pad_masters, std::vector<st
         int coord_y = pad_coord.coord;
         auto orient = pad_coord.orient;
 
-        pad_list[index_begin]->set_coodinate(coord_x, coord_y, false);
-        pad_list[index_begin]->set_orient(orient);
-        pad_list[index_begin]->set_status_placed();
+        idb_design->placeInstance(pad_list[index_begin]->get_name(), coord_x, coord_y, orient, idb::IdbPlacementStatus::kPlaced);
 
       } else {
         int coord_x = pad_coord.coord;
         int coord_y = coord_offset;
         auto orient = pad_coord.orient;
 
-        pad_list[index_begin]->set_coodinate(coord_x, coord_y, false);
-        pad_list[index_begin]->set_orient(orient);
-        pad_list[index_begin]->set_status_placed();
+        idb_design->placeInstance(pad_list[index_begin]->get_name(), coord_x, coord_y, orient, idb::IdbPlacementStatus::kPlaced);
       }
 
       coord_offset = coord_offset + pad_witdh + step;
     }
   };
 
-  auto* idb_design = dmInst->get_idb_design();
   auto* idb_layout = idb_design->get_layout();
   int io_site_width = idb_layout->get_sites()->get_io_site()->get_width();
   auto* inst_list = idb_design->get_instance_list();

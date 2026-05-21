@@ -570,6 +570,56 @@ unsigned CmdLoadData::exec()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdValidateIdb::CmdValidateIdb(const char* cmd_name) : TclCmd(cmd_name)
+{
+  addOption(new TclStringOption(TCL_PATH, 1, nullptr));
+  addOption(new TclIntOption("-check_floating", 1, 0));
+}
+
+unsigned CmdValidateIdb::check()
+{
+  return 1;
+}
+
+unsigned CmdValidateIdb::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  auto* design = dmInst->get_idb_design();
+  if (design == nullptr) {
+    std::cout << "iDB validate failed: design is null." << std::endl;
+    return 0;
+  }
+
+  const bool check_floating = getOptionOrArg("-check_floating")->getIntVal() != 0;
+  auto result = design->validateConnectivity(check_floating);
+
+  TclOption* path_option = getOptionOrArg(TCL_PATH);
+  const char* path = path_option == nullptr ? nullptr : path_option->getStringVal();
+  if (path != nullptr && path[0] != '\0' && !design->writeConnectivitySnapshot(path, check_floating)) {
+    std::cout << "iDB validate failed: cannot write snapshot " << path << std::endl;
+    return 0;
+  }
+
+  std::cout << "iDB validate " << (result.ok ? "passed" : "failed") << ": duplicate_net=" << result.duplicate_net_count
+            << ", duplicate_instance=" << result.duplicate_instance_count << ", duplicate_io_pin=" << result.duplicate_io_pin_count
+            << ", stale_regular_pin_ref=" << result.stale_regular_pin_ref_count
+            << ", stale_special_pin_ref=" << result.stale_special_pin_ref_count
+            << ", pin_reverse_mismatch=" << result.pin_reverse_mismatch_count
+            << ", net_instance_mismatch=" << result.net_instance_mismatch_count
+            << ", duplicate_pin_ref=" << result.duplicate_pin_ref_count << ", floating_pin=" << result.floating_pin_count << std::endl;
+  for (const auto& message : result.messages) {
+    std::cout << "  " << message << std::endl;
+  }
+
+  return result.ok ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 CmdGenerateMPScript::CmdGenerateMPScript(const char* cmd_name) : TclCmd(cmd_name)
 {
   auto* dir = new TclStringOption(TCL_DIRECTORY, 1);

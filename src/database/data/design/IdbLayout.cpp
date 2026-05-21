@@ -134,4 +134,30 @@ IdbCore* IdbLayout::get_core()
   return _core;
 }
 
+void IdbLayout::initDie(int32_t ll_x, int32_t ll_y, int32_t ur_x, int32_t ur_y)
+{
+  if (_die == nullptr) {
+    _die = new IdbDie();
+  }
+
+  _die->reset();
+  _die->add_point(ll_x, ll_y);
+  _die->add_point(ur_x, ur_y);
+}
+
+IdbRow* IdbLayout::createRow(std::string row_name, std::string site_name, int32_t orig_x, int32_t orig_y, IdbOrient site_orient,
+                             int32_t num_x, int32_t num_y, int32_t step_x, int32_t step_y)
+{
+  if (_rows == nullptr || _sites == nullptr) {
+    return nullptr;
+  }
+
+  IdbSite* site = _sites->find_site(site_name);
+  if (site == nullptr) {
+    return nullptr;
+  }
+
+  return _rows->createRow(row_name, site, orig_x, orig_y, site_orient, num_x, num_y, step_x, step_y);
+}
+
 }  // namespace idb

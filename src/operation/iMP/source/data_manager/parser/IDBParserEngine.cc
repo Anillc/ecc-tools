@@ -391,13 +391,8 @@ bool IDBParser::write(std::shared_ptr<Instance> inst, idb::IdbInstance* idb_inst
   auto coordi = inst->get_min_corner();
   if (coordi.x() > 0 || coordi.y() > 0) {
     auto orient = orientTransform(inst->get_orient());
-    idb_inst->set_coodinate(coordi.x(), coordi.y());
-    idb_inst->set_orient(orient);
-    if (inst->get_cell_master().isMacro()) {
-      idb_inst->set_status_fixed();
-    } else {
-      idb_inst->set_status_placed();
-    }
+    auto status = inst->get_cell_master().isMacro() ? idb::IdbPlacementStatus::kFixed : idb::IdbPlacementStatus::kPlaced;
+    return _idb_design != nullptr && _idb_design->placeInstance(idb_inst->get_name(), coordi.x(), coordi.y(), orient, status);
   }
 
   return true;

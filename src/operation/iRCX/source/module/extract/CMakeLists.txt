@@ -1,30 +1,22 @@
 set(IRCX_EXTRACT_SRC
-  RCX.cpp
-  resistance/ResistanceCalc.cpp
-  capacitance/CapacitanceCalc.cpp
+  resistance/ResistanceCalc.cc
+  capacitance/CapacitanceCalc.cc
 )
 
-add_library(ircx ${IRCX_EXTRACT_SRC})
+add_library(ircx_extract ${IRCX_EXTRACT_SRC})
 
-target_link_libraries(ircx
+target_link_libraries(ircx_extract
   PUBLIC
     ircx_cap_table
-    ircx_config
+    ircx_database_design
     ircx_headers
-    ircx_mapping
     OpenMP::OpenMP_CXX
   PRIVATE
-    idm
-    ircx_engine
-    ircx_environment
-    ircx_process
     ircx_topology
-    ircx_report
-    itf_builder
     log
 )
 
-target_include_directories(ircx
+target_include_directories(ircx_extract
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
