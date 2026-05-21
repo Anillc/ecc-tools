@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 63
+- **Total Sessions**: 64
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~653 | Active |
+| `journal-2.md` | ~686 | Active |
 | `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 64 | 2026-05-22 | iCTS CTS benchmark fixes | `2fde72076` | `cts_refactor` |
 | 63 | 2026-05-22 | iCTS FastSTA reset normalization | `6ddaa6c50`, `592f49841` | `cts_refactor` |
 | 62 | 2026-05-20 | CTS code normalization convergence | `597cc31b8` | `cts_refactor` |
 | 61 | 2026-05-19 | Close iCTS code structure optimization follow-ups | `145000a24` | `cts_refactor` |

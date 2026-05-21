@@ -651,3 +651,36 @@ Committed the incremental iCTS structure port and FastSTA reset/test-isolation c
 ### Next Steps
 
 - None - task complete
+
+
+## Session 64: iCTS CTS benchmark fixes
+
+**Date**: 2026-05-22
+**Task**: iCTS CTS benchmark fixes
+**Branch**: `cts_refactor`
+
+### Summary
+
+Migrated CTS benchmark fixes onto latest cts_refactor, added reproducible ics55 benchmark tooling/results, removed use_netlist config/code, implemented structural clock precluster reuse and H-tree fixes, verified 93/93 benchmark pass and clean ecc_dev_tools check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2fde72076` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
