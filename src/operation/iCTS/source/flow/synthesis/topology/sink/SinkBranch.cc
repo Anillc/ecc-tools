@@ -55,7 +55,7 @@ auto BuildSinkHtreeOptions(bool enable_sink_clustering, const Topology::BuildOpt
 {
   HTree::BuildOptions htree_options;
   ApplyMinTopInputSlew(htree_options);
-  htree_options.topology_loads_are_local_buffers = enable_sink_clustering;
+  htree_options.topology_loads_are_local_buffers = enable_sink_clustering || options.htree_loads_are_local_buffers;
   htree_options.characterization_library = options.characterization_library;
   htree_options.additional_characterization_lengths_um = options.additional_characterization_lengths_um;
   htree_options.clock_period_ns = options.clock_period_ns;

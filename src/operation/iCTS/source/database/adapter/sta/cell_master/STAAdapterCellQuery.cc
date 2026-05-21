@@ -305,9 +305,9 @@ auto STAAdapter::queryPinSlewLimit(const Pin* pin) -> double
     auto* vertex = sta_adapter_timing_query::FindStaVertex(pin_full_name);
     auto* ista = sta_adapter_timing_query::GetStaEngine()->get_ista();
     if (vertex != nullptr && ista != nullptr) {
-      const double sta_slew_limit_ns
-          = ResolvePositiveMin({ista->getVertexSlewLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kRise),
-                                ista->getVertexSlewLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kFall)});
+      const auto rise_slew_limit_ns = ista->getVertexSlewLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kRise);
+      const auto fall_slew_limit_ns = ista->getVertexSlewLimit(vertex, ista::AnalysisMode::kMax, ista::TransType::kFall);
+      const auto sta_slew_limit_ns = ResolvePositiveMin({rise_slew_limit_ns, fall_slew_limit_ns});
       if (sta_slew_limit_ns > 0.0) {
         return sta_slew_limit_ns;
       }
@@ -343,7 +343,8 @@ auto STAAdapter::queryPinSlewLimit(const Pin* pin) -> double
 
   auto* owner_lib = lib_cell->get_owner_lib();
   if (owner_lib != nullptr) {
-    const double default_max_transition_ns = ResolvePositiveMax({owner_lib->get_default_max_transition()});
+    const auto default_max_transition = owner_lib->get_default_max_transition();
+    const auto default_max_transition_ns = ResolvePositiveMax({default_max_transition});
     if (default_max_transition_ns > 0.0) {
       return sta_adapter_timing_query::ConvertLibTimeToNs(lib_cell, default_max_transition_ns);
     }

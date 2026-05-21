@@ -357,8 +357,7 @@ TEST(TopologyTest, ConfigBoolParsingAcceptsTypedNumericAndStringTokens)
     ASSERT_TRUE(output_stream.is_open());
     output_stream << R"({
       "force_branch_buffer": true,
-      "enable_sink_clustering": 0,
-      "use_netlist": "yes"
+      "enable_sink_clustering": 0
     })";
   }
 
@@ -366,7 +365,6 @@ TEST(TopologyTest, ConfigBoolParsingAcceptsTypedNumericAndStringTokens)
 
   EXPECT_TRUE(CONFIG_INST.is_force_branch_buffer());
   EXPECT_FALSE(CONFIG_INST.is_enable_sink_clustering());
-  EXPECT_TRUE(CONFIG_INST.is_use_netlist());
   EXPECT_TRUE(CONFIG_INST.get_last_error().empty());
 
   std::error_code error_code;
@@ -380,15 +378,14 @@ TEST(TopologyTest, InvalidStringBoolFailsWithoutSilentFalse)
   {
     std::ofstream output_stream(json_path);
     ASSERT_TRUE(output_stream.is_open());
-    output_stream << R"({"use_netlist": "maybe"})";
+    output_stream << R"({"force_branch_buffer": "maybe"})";
   }
 
   EXPECT_FALSE(CONFIG_INST.parse(json_path.string()));
 
   EXPECT_NE(CONFIG_INST.get_last_error().find("invalid boolean value"), std::string::npos);
-  EXPECT_NE(CONFIG_INST.get_last_error().find("use_netlist"), std::string::npos);
+  EXPECT_NE(CONFIG_INST.get_last_error().find("force_branch_buffer"), std::string::npos);
   EXPECT_NE(CONFIG_INST.get_last_error().find("maybe"), std::string::npos);
-  EXPECT_FALSE(CONFIG_INST.is_use_netlist());
 
   std::error_code error_code;
   std::filesystem::remove(json_path, error_code);

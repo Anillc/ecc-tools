@@ -214,7 +214,8 @@ class ClockTopologyFormation
 
     Topology::BuildOptions synthesis_options;
     synthesis_options.object_name_prefix = context.domain_prefix;
-    synthesis_options.enable_sink_clustering = CONFIG_INST.is_enable_sink_clustering();
+    synthesis_options.enable_sink_clustering = _clock->is_preclustered_sink_reuse() ? false : CONFIG_INST.is_enable_sink_clustering();
+    synthesis_options.htree_loads_are_local_buffers = _clock->is_preclustered_sink_reuse();
     synthesis_options.characterization_library = _characterization_library;
     synthesis_options.additional_characterization_lengths_um = source_trunk_lengths_um;
     synthesis_options.clock_period_ns = _clock->get_clock_period_ns();

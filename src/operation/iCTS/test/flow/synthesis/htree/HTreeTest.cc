@@ -251,7 +251,7 @@ TEST(HTreeTest, MissingRootDriverStopsBeforeTopology)
   EXPECT_EQ(load->get_net(), nullptr);
 }
 
-TEST(HTreeTest, SingleLoadStopsBeforeCharacterization)
+TEST(HTreeTest, SingleLoadBuildsTrivialTopology)
 {
   icts::Pin root_driver("root_out", icts::PinType::kOut, icts::Point<int>(0, 0));
   icts::Net root_net("root_net");
@@ -262,11 +262,14 @@ TEST(HTreeTest, SingleLoadStopsBeforeCharacterization)
   const auto result = icts::HTree::build(root_net);
   const auto observation = htree::ObserveHTreeBuild(result);
 
-  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.success);
+  EXPECT_TRUE(result.failure_reason.empty());
   EXPECT_EQ(result.topology.get_size(), 1U);
   EXPECT_TRUE(result.levels.empty());
   EXPECT_FALSE(result.best_char.has_value());
   EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_TRUE(observation.has_selected_depth);
+  EXPECT_EQ(observation.selected_depth, 0U);
   EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
   EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
   EXPECT_TRUE(result.inserted_insts.empty());

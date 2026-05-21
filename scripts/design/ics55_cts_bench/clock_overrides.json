@@ -1,0 +1,26 @@
+{
+  "ad_top": {
+    "clock_name": "AD_inst.clk",
+    "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+    "target_kind": "pin",
+    "target_name": "AD_inst.cnt_0__reg_p/CK"
+  },
+  "mpw_asic_top": {
+    "clock_name": "fanout_net_1",
+    "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+    "target_kind": "pin",
+    "target_name": "u_TopForXip.sc32b.jtagBridge_1._zz_jtag_tap_isBypass[0]_reg_p/CK"
+  },
+  "retrosoc_asic": {
+    "clock_name": "net7538",
+    "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+    "target_kind": "pin",
+    "target_name": "u_retrosoc.u_ip_natv_wrapper.u_nmi_i2s.u_rx_async_fifo.r_mem[90][4]_reg_p/CK"
+  },
+  "top": {
+    "clock_name": "fixio_net_11",
+    "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+    "target_kind": "pin",
+    "target_name": "capture.addr_0__reg_p/CK"
+  }
+}

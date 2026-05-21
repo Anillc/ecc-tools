@@ -40,6 +40,7 @@
 #include "IdbTerm.h"
 #include "Log.hh"
 #include "Wrapper.hh"
+#include "adapter/sdc/SdcClockReader.hh"
 #include "builder.h"
 #include "def_service.h"
 #include "design/Clock.hh"
@@ -170,6 +171,21 @@ auto inferCtsInstTypeFromIdbInst(idb::IdbInstance* idb_inst) -> InstType
   return InstType::kUnknown;
 }
 
+auto idbPinTermName(idb::IdbPin* idb_pin) -> std::string
+{
+  auto* term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+  return term == nullptr ? std::string{} : term->get_name();
+}
+
+auto ctsPinFullName(idb::IdbPin* idb_pin, Inst* cts_inst) -> std::string
+{
+  const auto pin_name = idbPinTermName(idb_pin);
+  if (pin_name.empty()) {
+    return {};
+  }
+  return cts_inst == nullptr ? pin_name : cts_inst->get_name() + "/" + pin_name;
+}
+
 }  // namespace
 
 class Wrapper::CtsClockReader
@@ -195,6 +211,41 @@ class Wrapper::CtsClockReader
     for (const auto& [clock_name, clock_net_name] : clock_net_pairs) {
       auto* idb_net = findSdcClockNetOrError(clock_name, clock_net_name, idb_net_list);
       if (idb_net == nullptr || buildClockFromIdbNet(clock_name, clock_net_name, idb_net) == nullptr) {
+        clearClockReadData();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  auto readTraceClockTargets(const std::vector<ClockTraceClockTarget>& clock_targets) -> bool
+  {
+    auto* idb_design = findIdbDesign();
+    if (idb_design == nullptr) {
+      LOG_ERROR << "CTS clock read failed: iDB design is null.";
+      return false;
+    }
+
+    auto* idb_net_list = idb_design->get_net_list();
+    if (idb_net_list == nullptr) {
+      LOG_ERROR << "CTS clock read failed: iDB net list is null.";
+      return false;
+    }
+
+    clearClockReadData();
+    for (const auto& clock_target : clock_targets) {
+      auto* idb_net = findSdcClockNetOrError(clock_target.clock_name, clock_target.clock_net_name, idb_net_list);
+      if (idb_net == nullptr) {
+        clearClockReadData();
+        return false;
+      }
+      Clock* clock = nullptr;
+      if (clock_target.preclustered_sink_reuse) {
+        clock = buildPreclusteredClockFromTraceTarget(clock_target, idb_net);
+      } else {
+        clock = buildClockFromIdbNet(clock_target.clock_name, clock_target.clock_net_name, idb_net);
+      }
+      if (clock == nullptr) {
         clearClockReadData();
         return false;
       }
@@ -254,6 +305,8 @@ class Wrapper::CtsClockReader
     clock->set_clock_net_name(clock_net_name);
     clock->set_clock_source(nullptr);
     clock->set_clock_source_net(nullptr);
+    clock->set_preclustered_sink_reuse(false);
+    clock->clear_preclustered_anchor_input_net_names();
     clock->clear_loads();
     clock->clearMembership();
 
@@ -333,6 +386,97 @@ class Wrapper::CtsClockReader
     return clock;
   }
 
+  auto buildPreclusteredClockFromTraceTarget(const ClockTraceClockTarget& clock_target, idb::IdbNet* source_idb_net) -> Clock*
+  {
+    if (source_idb_net == nullptr || clock_target.preclustered_sink_anchors.empty()) {
+      return nullptr;
+    }
+
+    auto* clock = DESIGN_INST.makeClock(clock_target.clock_name, clock_target.clock_net_name);
+    if (clock == nullptr) {
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_target.clock_name << "\": failed to create CTS clock object.";
+      return nullptr;
+    }
+    clock->set_clock_name(clock_target.clock_name);
+    clock->set_clock_net_name(clock_target.clock_net_name);
+    clock->set_clock_source(nullptr);
+    clock->set_clock_source_net(nullptr);
+    clock->set_preclustered_sink_reuse(true);
+    clock->clear_preclustered_anchor_input_net_names();
+    clock->clear_loads();
+    clock->clearMembership();
+
+    auto* cts_net = buildNetFromIdbNet(source_idb_net);
+    if (cts_net == nullptr) {
+      return nullptr;
+    }
+    cts_net->set_driver(nullptr);
+    cts_net->set_loads({});
+    clock->set_clock_source_net(cts_net);
+
+    const auto source_pins = collectIdbClockNetPins(source_idb_net);
+    if (source_pins.driver == nullptr) {
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_target.clock_name << "\": source iDB net \"" << clock_target.clock_net_name
+                << "\" has no resolvable driver pin.";
+      return nullptr;
+    }
+
+    Inst* source_cts_inst = nullptr;
+    if (auto* source_idb_inst = source_pins.driver->get_instance(); source_idb_inst != nullptr) {
+      source_cts_inst = buildInstFromIdbInst(source_idb_inst);
+      if (source_cts_inst == nullptr) {
+        return nullptr;
+      }
+    }
+    auto* source_pin = buildOrFindPinFromIdbPin(source_pins.driver, source_cts_inst);
+    if (source_pin == nullptr) {
+      return nullptr;
+    }
+    source_pin->set_net(cts_net);
+    if (source_cts_inst != nullptr) {
+      source_cts_inst->insertDriverPin(source_pin);
+    }
+    clock->set_clock_source(source_pin);
+    cts_net->set_driver(source_pin);
+
+    std::vector<Pin*> cts_loads;
+    cts_loads.reserve(clock_target.preclustered_sink_anchors.size());
+    for (const auto& anchor : clock_target.preclustered_sink_anchors) {
+      auto* idb_inst = findIdbInstOrError(clock_target.clock_name, anchor.driver_inst_name);
+      if (idb_inst == nullptr) {
+        return nullptr;
+      }
+      auto* cts_inst = buildInstFromIdbInst(idb_inst);
+      if (cts_inst == nullptr) {
+        return nullptr;
+      }
+
+      auto* output_idb_pin = findIdbInstPinOrError(clock_target.clock_name, idb_inst, anchor.output_pin_name);
+      auto* input_idb_pin = findIdbInstPinOrError(clock_target.clock_name, idb_inst, anchor.input_pin_name);
+      if (output_idb_pin == nullptr || input_idb_pin == nullptr) {
+        return nullptr;
+      }
+
+      auto* output_pin = buildOrFindPinFromIdbPin(output_idb_pin, cts_inst);
+      auto* input_pin = buildOrFindPinFromIdbPin(input_idb_pin, cts_inst);
+      if (output_pin == nullptr || input_pin == nullptr) {
+        return nullptr;
+      }
+      output_pin->set_net(nullptr);
+      input_pin->set_net(cts_net);
+      cts_inst->insertDriverPin(output_pin);
+      cts_inst->add_pin(input_pin);
+      cts_loads.push_back(input_pin);
+      clock->add_preclustered_anchor_input_net_name(anchor.input_net_name);
+    }
+
+    clock->set_loads(cts_loads);
+    cts_net->set_loads(cts_loads);
+    LOG_INFO << "CTS clock read: clock \"" << clock_target.clock_name << "\" reuses " << clock_target.preclustered_sink_anchors.size()
+             << " preclustered sink buffer anchor(s).";
+    return clock;
+  }
+
   auto buildInstFromIdbInst(idb::IdbInstance* idb_inst) -> Inst*
   {
     if (idb_inst == nullptr) {
@@ -357,6 +501,33 @@ class Wrapper::CtsClockReader
     cts_inst->set_location(Wrapper::idbToCts(*coord));
     bindIdbInst(idb_inst, cts_inst);
     return cts_inst;
+  }
+
+  auto buildOrFindPinFromIdbPin(idb::IdbPin* idb_pin, Inst* cts_inst) -> Pin*
+  {
+    if (idb_pin == nullptr) {
+      return nullptr;
+    }
+    if (_wrapper->_idb2cts_pin_map.contains(idb_pin)) {
+      return _wrapper->_idb2cts_pin_map.at(idb_pin);
+    }
+    const auto pin_full_name = ctsPinFullName(idb_pin, cts_inst);
+    if (!pin_full_name.empty()) {
+      auto* existing_pin = DESIGN_INST.findPin(pin_full_name);
+      if (existing_pin != nullptr) {
+        bindIdbPin(idb_pin, existing_pin);
+        return existing_pin;
+      }
+    }
+    auto* cts_pin = buildPinFromIdbPin(idb_pin, cts_inst);
+    if (cts_pin == nullptr) {
+      return nullptr;
+    }
+    if (!DESIGN_INST.indexPin(cts_pin)) {
+      LOG_ERROR << "CTS clock read failed: failed to index CTS pin \"" << Design::getPinFullName(cts_pin) << "\".";
+      return nullptr;
+    }
+    return cts_pin;
   }
 
   auto buildPinFromIdbPin(idb::IdbPin* idb_pin, Inst* cts_inst) -> Pin*
@@ -392,6 +563,37 @@ class Wrapper::CtsClockReader
     return cts_pin;
   }
 
+  auto findIdbInstOrError(const std::string& clock_name, const std::string& inst_name) -> idb::IdbInstance*
+  {
+    auto* idb_design = findIdbDesign();
+    auto* inst_list = idb_design == nullptr ? nullptr : idb_design->get_instance_list();
+    auto* idb_inst = inst_list == nullptr ? nullptr : inst_list->find_instance(inst_name);
+    if (idb_inst == nullptr) {
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": preclustered sink anchor inst \"" << inst_name
+                << "\" is not found in iDB.";
+      return nullptr;
+    }
+    return idb_inst;
+  }
+
+  static auto findIdbInstPinOrError(const std::string& clock_name, idb::IdbInstance* idb_inst, const std::string& pin_name) -> idb::IdbPin*
+  {
+    auto* idb_pin = idb_inst == nullptr ? nullptr : idb_inst->get_pin_by_term(pin_name);
+    if (idb_pin == nullptr && idb_inst != nullptr && idb_inst->get_pin_list() != nullptr) {
+      for (auto* candidate_pin : idb_inst->get_pin_list()->get_pin_list()) {
+        if (candidate_pin != nullptr && candidate_pin->get_pin_name() == pin_name) {
+          idb_pin = candidate_pin;
+          break;
+        }
+      }
+    }
+    if (idb_pin == nullptr) {
+      LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": preclustered sink anchor pin \"" << pin_name
+                << "\" is not found in iDB inst \"" << (idb_inst == nullptr ? "" : idb_inst->get_name()) << "\".";
+    }
+    return idb_pin;
+  }
+
   auto buildNetFromIdbNet(idb::IdbNet* idb_net) -> Net*
   {
     if (idb_net == nullptr) {
@@ -417,6 +619,11 @@ class Wrapper::CtsClockReader
 auto Wrapper::readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool
 {
   return CtsClockReader(*this).readClocks(clock_net_pairs);
+}
+
+auto Wrapper::readTraceClockTargets(const std::vector<ClockTraceClockTarget>& clock_targets) -> bool
+{
+  return CtsClockReader(*this).readTraceClockTargets(clock_targets);
 }
 
 }  // namespace icts

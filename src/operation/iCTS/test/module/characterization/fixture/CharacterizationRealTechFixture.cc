@@ -96,8 +96,6 @@ auto CaptureConfigState() -> ConfigState
   state.log_file = CONFIG_INST.get_log_file();
   state.visualization_dir = CONFIG_INST.get_visualization_dir();
   state.statistics_dir = CONFIG_INST.get_statistics_dir();
-  state.use_netlist = CONFIG_INST.is_use_netlist();
-  state.net_list = CONFIG_INST.get_net_list();
   return state;
 }
 
@@ -130,8 +128,6 @@ auto ApplyConfigState(const ConfigState& state) -> void
   CONFIG_INST.set_log_file(state.log_file);
   CONFIG_INST.set_visualization_dir(state.visualization_dir);
   CONFIG_INST.set_statistics_dir(state.statistics_dir);
-  CONFIG_INST.set_use_netlist(state.use_netlist);
-  CONFIG_INST.set_net_list(state.net_list);
 }
 
 auto MakeRuntimeCharBuilderInitOptions() -> icts::CharBuilder::InitOptions

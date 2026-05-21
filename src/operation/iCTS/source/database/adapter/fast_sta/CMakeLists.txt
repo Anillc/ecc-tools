@@ -206,6 +206,7 @@ add_library(
 target_link_libraries(
   icts_source_database_adapter_fast_sta_report
   PRIVATE
+  icts_source_database_adapter_fast_sta_clock_state
   log
   icts_source_utils_logger
 )

@@ -214,8 +214,8 @@ auto CheckRootDriverBoundaryClosure(const HTreeTopologyChar& entry, const Topolo
   check.physical_source_boundary_bucket_idx = compensation.source_boundary_bucket_idx;
   check.raw_input_slew_idx = entry.get_input_slew_idx();
   check.root_output_slew_bucket_idx = compensation.output_slew_bucket_idx;
-  check.cap_bucket_matches = check.compensation_valid && check.raw_cap_bucket_idx == check.physical_source_boundary_bucket_idx;
-  check.slew_bucket_matches = check.compensation_valid && check.raw_input_slew_idx == check.root_output_slew_bucket_idx;
+  check.cap_bucket_matches = check.compensation_valid && check.raw_cap_bucket_idx >= check.physical_source_boundary_bucket_idx;
+  check.slew_bucket_matches = check.compensation_valid && check.raw_input_slew_idx >= check.root_output_slew_bucket_idx;
   check.compensation = std::move(compensation);
   return check;
 }

@@ -19,12 +19,5 @@
     "sg13g2_buf_4",
     "sg13g2_buf_8",
     "sg13g2_buf_16"
-  ],
-  "use_netlist": "OFF",
-  "net_list": [
-    {
-      "clock_name": "core_clock",
-      "net_name": "clk"
-    }
   ]
 }

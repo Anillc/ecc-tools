@@ -46,7 +46,7 @@ namespace icts {
 auto ClockDataRead::read() -> bool
 {
   std::string clock_source = "sdc";
-  std::vector<std::pair<std::string, std::string>> clock_net_pairs;
+  std::vector<ClockTraceClockTarget> clock_targets;
 
   const auto sdc_clock_data = SdcClockReader().readClockData();
   std::set<std::string> sdc_clock_names;
@@ -70,50 +70,14 @@ auto ClockDataRead::read() -> bool
                            "no SDC clocks were declared; CTS clock read will be an explicit no-op.", {{"clock_source", "sdc"}});
   }
 
-  std::map<std::string, std::vector<std::string>> configured_nets_by_clock;
-  std::size_t active_configured_mapping_count = 0U;
   bool preflight_failed = false;
   std::string failure_reason = "n/a";
-  if (CONFIG_INST.is_use_netlist()) {
-    for (const auto& [clock_name, net_name] : CONFIG_INST.get_net_list()) {
-      if (!sdc_clock_names.contains(clock_name)) {
-        preflight_failed = true;
-        failure_reason = "configured_clock_not_declared_in_sdc";
-        schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "ClockDataRead",
-                               "configured CTS clock net mapping is rejected because the clock is not declared in SDC.",
-                               {{"clock", clock_name}, {"net", net_name}, {"clock_source", "sdc"}});
-        LOG_ERROR << "ClockDataRead: reject configured clock mapping for \"" << clock_name << "\" because it is not declared in SDC.";
-        continue;
-      }
-      configured_nets_by_clock[clock_name].push_back(net_name);
-    }
-
-    for (const auto& [clock_name, net_names] : configured_nets_by_clock) {
-      for (const auto& net_name : net_names) {
-        clock_net_pairs.emplace_back(clock_name, net_name);
-        ++active_configured_mapping_count;
-      }
-    }
-    for (const auto& clock_name : sdc_clock_names) {
-      if (configured_nets_by_clock.contains(clock_name)) {
-        continue;
-      }
-      preflight_failed = true;
-      if (failure_reason == "n/a") {
-        failure_reason = "configured_clock_net_mapping_missing";
-      }
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "ClockDataRead",
-                             "manual CTS clock net mode requires a configured net mapping for each SDC clock.",
-                             {{"clock", clock_name}, {"clock_source", "sdc"}});
-      LOG_ERROR << "ClockDataRead: SDC clock \"" << clock_name << "\" has no configured clock net mapping while use_netlist is enabled.";
-    }
-  } else if (!sdc_clock_data.clocks.empty()) {
+  if (!sdc_clock_data.clocks.empty()) {
     const auto trace_result = WRAPPER_INST.traceSdcClocks(sdc_clock_data);
-    clock_net_pairs = trace_result.clock_net_pairs;
+    clock_targets = trace_result.clock_targets;
     std::set<std::string> accepted_trace_clock_names;
-    for (const auto& [clock_name, net_name] : clock_net_pairs) {
-      (void) net_name;
-      accepted_trace_clock_names.insert(clock_name);
+    for (const auto& clock_target : clock_targets) {
+      accepted_trace_clock_names.insert(clock_target.clock_name);
     }
     for (const auto& clock_name : traceable_sdc_clock_names) {
       if (accepted_trace_clock_names.contains(clock_name)) {
@@ -130,7 +94,7 @@ auto ClockDataRead::read() -> bool
     }
   }
 
-  if (!preflight_failed && !clock_net_pairs.empty() && !WRAPPER_INST.readClocks(clock_net_pairs)) {
+  if (!preflight_failed && !clock_targets.empty() && !WRAPPER_INST.readTraceClockTargets(clock_targets)) {
     preflight_failed = true;
     failure_reason = "clock_materialization_failed";
   }
@@ -161,7 +125,6 @@ auto ClockDataRead::read() -> bool
   }
   read_data_fields.insert(read_data_fields.end(), {
                                                       {"sdc_declared_clocks", std::to_string(sdc_clock_names.size())},
-                                                      {"configured_clock_net_mappings", std::to_string(active_configured_mapping_count)},
                                                       {"added_clock_nets", std::to_string(materialized_clock_count)},
                                                       {"total_clock_nets", std::to_string(materialized_clock_count)},
                                                   });

@@ -104,8 +104,16 @@ auto HTree::build(Net& root_net, const BuildOptions& options) -> BuildResult
     if (auto* root_node = result.topology.get_node(root); root_node != nullptr) {
       root_node->get_position() = options.fixed_topology_root_location.value_or(loads.front()->get_location());
     }
-    LOG_WARNING << "HTree: topology has no H-tree levels after generation.";
-    build_stage.skip({{"reason", "no_h_tree_levels"}});
+    result.selected_depth = 0U;
+    result.root_driver_sizing_enabled = options.enable_root_driver_sizing;
+    result.target_depth = options.target_depth;
+    result.success = true;
+    build_stage.finished({
+        {"reason", "trivial_single_load"},
+        {"selected_depth", "0"},
+        {"inserted_insts", "0"},
+        {"inserted_nets", "0"},
+    });
     return result;
   }
 

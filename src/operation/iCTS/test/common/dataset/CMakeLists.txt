@@ -7,5 +7,6 @@ add_library(
 target_link_libraries(
   icts_test_common_dataset
   PUBLIC
+  icts_source_database_spatial
   icts_test_base
 )

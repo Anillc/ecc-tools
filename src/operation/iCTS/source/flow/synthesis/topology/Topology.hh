@@ -58,6 +58,7 @@ class Topology
     double clock_period_ns = 0.0;
     std::string clock_period_source;
     HTree::LogContext log_context;
+    bool htree_loads_are_local_buffers = false;
   };
 
   struct SourceTrunkBuildOptions

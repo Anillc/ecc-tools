@@ -1,0 +1,31 @@
+{
+    "INPUT": {
+        "tech_lef_path": "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/N551P6M_ecos.lef",
+        "lef_paths": [
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/ics55_LLSC_H7CH_ecos.lef",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/ics55_LLSC_H7CL_ecos.lef",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/ics55_LLSC_H7CR_ecos.lef",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/ICS55_512X32_WW.lef",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/ICS55_64X84_BW.lef",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lef/ICS55_64X88_BW.lef"
+        ],
+        "def_path": "/nfs/share/home/huangzhipeng/code-new/benchmark_ecc/benchmark_run/ics55_300W/rocketchip_400W/artifacts/innovus/post_pl/design.def",
+        "verilog_path": "/nfs/share/home/huangzhipeng/code-new/benchmark_ecc/benchmark_run/ics55_300W/rocketchip_400W/artifacts/innovus/post_pl/design.v",
+        "lib_path": [
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lib/ics55_LLSC_H7CH_typ_tt_1p2_25_nldm.lib",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lib/ics55_LLSC_H7CL_typ_tt_1p2_25_nldm.lib",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lib/ics55_LLSC_H7CR_typ_tt_1p2_25_nldm.lib",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lib/ICS55_64X84_BW_tt1p2v25cctyp.lib",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lib/ICS55_64X88_BW_tt1p2v25cctyp.lib",
+            "/nfs/share/home/huangzhipeng/code-new/icsprout55-pdk/lib/ICS55_512X32_WW_tt1p2v25cctyp.lib"
+        ],
+        "sdc_path": "/nfs/share/home/huangzhipeng/code-new/benchmark_ecc/benchmark_run/ics55_300W/rocketchip_400W/artifacts/innovus/post_pl/constraints.sdc",
+        "spef": ""
+    },
+    "OUTPUT": {
+        "output_dir_path": "./output/cts"
+    },
+    "LayerSettings": {
+        "routing_layer_1st": "MET2"
+    }
+}

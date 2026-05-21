@@ -60,6 +60,7 @@ struct ClockTreeIdbNetPins
 struct ClockTreeIdbMaterializationScope
 {
   std::set<std::string> touched_net_names;
+  std::set<std::string> detachable_net_names;
   std::set<std::string> clock_tree_inst_names;
   std::unordered_map<const Clock*, std::vector<Net*>> reachable_nets_by_clock;
 };
@@ -246,6 +247,11 @@ class Wrapper::CtsClockIdbWriter
           scope.clock_tree_inst_names.insert(inst->get_name());
         }
       }
+      for (const auto& net_name : clock->get_preclustered_anchor_input_net_names()) {
+        if (!net_name.empty()) {
+          scope.detachable_net_names.insert(net_name);
+        }
+      }
     }
     return scope;
   }
@@ -256,7 +262,9 @@ class Wrapper::CtsClockIdbWriter
     auto* idb_net_list = _wrapper->_idb_design->get_net_list();
     auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
 
-    for (const auto& net_name : scope.touched_net_names) {
+    std::set<std::string> net_names_to_capture = scope.touched_net_names;
+    net_names_to_capture.insert(scope.detachable_net_names.begin(), scope.detachable_net_names.end());
+    for (const auto& net_name : net_names_to_capture) {
       auto* idb_net = idb_net_list->find_net(net_name);
       if (idb_net == nullptr) {
         continue;
@@ -469,7 +477,8 @@ class Wrapper::CtsClockIdbWriter
                                          const std::string& target_net_name, const std::string& cts_pin_role, Pin* cts_pin) -> bool
   {
     auto* current_net = idb_pin == nullptr ? nullptr : idb_pin->get_net();
-    if (current_net == nullptr || current_net == target_net || scope.touched_net_names.contains(current_net->get_net_name())) {
+    if (current_net == nullptr || current_net == target_net || scope.touched_net_names.contains(current_net->get_net_name())
+        || scope.detachable_net_names.contains(current_net->get_net_name())) {
       return true;
     }
 

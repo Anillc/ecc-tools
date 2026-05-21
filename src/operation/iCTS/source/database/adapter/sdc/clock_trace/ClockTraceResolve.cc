@@ -22,6 +22,7 @@
  */
 
 #include <algorithm>
+#include <cstddef>
 #include <deque>
 #include <ranges>
 #include <set>
@@ -32,13 +33,263 @@
 #include <vector>
 
 #include "IdbDesign.h"
+#include "IdbEnum.h"
 #include "IdbInstance.h"
 #include "IdbNet.h"
 #include "IdbPins.h"
+#include "IdbTerm.h"
+#include "LibParserRustC.hh"
 #include "SdcClockReader.hh"
 #include "SdcClockTraceAlgorithm.hh"
+#include "liberty/Lib.hh"
 
 namespace icts::clock_trace {
+
+namespace {
+
+auto CollectOutputPins(idb::IdbInstance* inst) -> std::vector<idb::IdbPin*>
+{
+  std::vector<idb::IdbPin*> outputs;
+  if (inst == nullptr || inst->get_pin_list() == nullptr) {
+    return outputs;
+  }
+  for (auto* pin : inst->get_pin_list()->get_pin_list()) {
+    if (IsOutputLike(pin)) {
+      outputs.push_back(pin);
+    }
+  }
+  return outputs;
+}
+
+auto CollectInputPins(idb::IdbInstance* inst) -> std::vector<idb::IdbPin*>
+{
+  std::vector<idb::IdbPin*> inputs;
+  if (inst == nullptr || inst->get_pin_list() == nullptr) {
+    return inputs;
+  }
+  for (auto* pin : inst->get_pin_list()->get_pin_list()) {
+    if (IsInputLike(pin)) {
+      inputs.push_back(pin);
+    }
+  }
+  return inputs;
+}
+
+auto IsCaseConstrained(idb::IdbPin* pin, const CaseConstraintSet& case_constraints) -> bool
+{
+  if (pin == nullptr) {
+    return false;
+  }
+  const auto full_name = PinFullName(pin);
+  if (case_constraints.pin_names.contains(full_name) || case_constraints.pin_names.contains(TermName(pin))) {
+    return true;
+  }
+  auto* net = pin->get_net();
+  return net != nullptr && case_constraints.net_names.contains(net->get_net_name());
+}
+
+auto OtherInputsCaseConstrained(idb::IdbInstance* inst, idb::IdbPin* clock_input_pin, const CaseConstraintSet& case_constraints) -> bool
+{
+  bool has_other_input = false;
+  for (auto* input_pin : CollectInputPins(inst)) {
+    if (input_pin == nullptr || input_pin == clock_input_pin) {
+      continue;
+    }
+    has_other_input = true;
+    if (!IsCaseConstrained(input_pin, case_constraints)) {
+      return false;
+    }
+  }
+  return has_other_input;
+}
+
+auto LibertyExpressionUsesPort(RustLibertyExpr* expression, const std::string& port_name) -> bool
+{
+  if (expression == nullptr || port_name.empty()) {
+    return false;
+  }
+  std::vector<RustLibertyExpr*> pending_expressions = {expression};
+  while (!pending_expressions.empty()) {
+    auto* current = pending_expressions.back();
+    pending_expressions.pop_back();
+    if (current == nullptr) {
+      continue;
+    }
+    if (current->port_name != nullptr && port_name == current->port_name) {
+      return true;
+    }
+    if (current->left != nullptr) {
+      pending_expressions.push_back(current->left);
+    }
+    if (current->right != nullptr) {
+      pending_expressions.push_back(current->right);
+    }
+  }
+  return false;
+}
+
+auto OutputFunctionUsesInput(ista::LibCell* lib_cell, idb::IdbPin* output_pin, idb::IdbPin* input_pin) -> bool
+{
+  if (lib_cell == nullptr) {
+    return true;
+  }
+  auto* output_port = FindLibPort(lib_cell, output_pin);
+  if (output_port == nullptr || output_port->get_func_expr() == nullptr) {
+    return true;
+  }
+  return LibertyExpressionUsesPort(output_port->get_func_expr(), TermName(input_pin));
+}
+
+auto NetHasDirectClockSinks(idb::IdbNet* net) -> bool
+{
+  return net != nullptr && IsClockTarget(CountDirectClockSinks(net));
+}
+
+auto CountInputPinsOnNet(idb::IdbInstance* inst, idb::IdbNet* net) -> std::size_t
+{
+  if (inst == nullptr || net == nullptr) {
+    return 0U;
+  }
+  std::size_t input_pin_count = 0U;
+  for (auto* input_pin : CollectInputPins(inst)) {
+    if (input_pin != nullptr && input_pin->get_net() == net) {
+      ++input_pin_count;
+    }
+  }
+  return input_pin_count;
+}
+
+auto CountClockTargetOutputs(const std::vector<idb::IdbPin*>& output_pins) -> std::size_t
+{
+  std::size_t clock_target_output_count = 0U;
+  for (auto* output_pin : output_pins) {
+    auto* output_net = output_pin == nullptr ? nullptr : output_pin->get_net();
+    if (NetHasDirectClockSinks(output_net)) {
+      ++clock_target_output_count;
+    }
+  }
+  return clock_target_output_count;
+}
+
+auto LibertyMarksClockInput(idb::IdbPin* input_pin, ista::LibCell* lib_cell) -> bool
+{
+  if (input_pin == nullptr || lib_cell == nullptr) {
+    return false;
+  }
+  auto* lib_port = FindLibPort(lib_cell, input_pin);
+  return lib_port != nullptr && (lib_port->isClock() || lib_port->get_clock_gate_clock_pin());
+}
+
+auto OtherInputsAreControlCandidates(idb::IdbInstance* inst, idb::IdbPin* clock_input_pin, ista::LibCell* lib_cell,
+                                     const CaseConstraintSet& case_constraints) -> bool
+{
+  bool has_other_input = false;
+  for (auto* input_pin : CollectInputPins(inst)) {
+    if (input_pin == nullptr || input_pin == clock_input_pin) {
+      continue;
+    }
+    has_other_input = true;
+    if (IsCaseConstrained(input_pin, case_constraints)) {
+      continue;
+    }
+    if (LibertyMarksClockInput(input_pin, lib_cell) || NetHasDirectClockSinks(input_pin->get_net())) {
+      return false;
+    }
+  }
+  return has_other_input;
+}
+
+auto AddOutputTransition(std::vector<TraceTransition>& transitions, idb::IdbPin* output_pin, const std::string& reason) -> void
+{
+  if (output_pin == nullptr || output_pin->get_net() == nullptr) {
+    return;
+  }
+  transitions.push_back({
+      output_pin->get_net(),
+      PinDisplayName(output_pin) + "->" + output_pin->get_net()->get_net_name(),
+      reason,
+  });
+}
+
+auto CollectSafeTransitions(idb::IdbNet* net, const CaseConstraintSet& case_constraints) -> std::vector<TraceTransition>
+{
+  std::vector<TraceTransition> transitions;
+  const auto net_pins = CollectNetPins(net);
+  for (auto* load_pin : net_pins.loads) {
+    if (load_pin == nullptr || load_pin->is_io_pin() || !IsInputLike(load_pin)) {
+      continue;
+    }
+    auto* inst = load_pin->get_instance();
+    auto* lib_cell = FindLibCell(inst);
+    if (inst == nullptr || IsSequentialCell(inst, lib_cell)) {
+      continue;
+    }
+
+    if (lib_cell != nullptr && (lib_cell->isBuffer() || lib_cell->isInverter())) {
+      ista::LibPort* input_port = nullptr;
+      ista::LibPort* output_port = nullptr;
+      lib_cell->bufferPorts(input_port, output_port);
+      if (input_port != nullptr && output_port != nullptr) {
+        auto* input_pin = ResolveInstPinByLibPort(inst, input_port);
+        auto* output_pin = ResolveInstPinByLibPort(inst, output_port);
+        if (input_pin == load_pin) {
+          AddOutputTransition(transitions, output_pin, lib_cell->isBuffer() ? "buffer" : "inverter");
+        }
+      }
+      continue;
+    }
+
+    if (lib_cell != nullptr && lib_cell->isICG()) {
+      auto* input_port = FindLibPort(lib_cell, load_pin);
+      const bool is_clock_gate_clock_pin = input_port != nullptr && (input_port->get_clock_gate_clock_pin() || input_port->isClock());
+      auto* term = load_pin->get_term();
+      if (is_clock_gate_clock_pin || (term != nullptr && term->get_type() == idb::IdbConnectType::kClock)) {
+        for (auto* output_pin : CollectOutputPins(inst)) {
+          AddOutputTransition(transitions, output_pin, "clock_gate");
+        }
+      }
+      continue;
+    }
+
+    const auto input_pins = CollectInputPins(inst);
+    const auto output_pins = CollectOutputPins(inst);
+    const bool single_input_output_trace = input_pins.size() == 1U && input_pins.front() == load_pin && output_pins.size() == 1U;
+    const bool constrained_gate = OtherInputsCaseConstrained(inst, load_pin, case_constraints);
+    const bool single_clock_provenance_input = CountInputPinsOnNet(inst, net) == 1U && load_pin->get_net() == net;
+    const auto clock_target_output_count = CountClockTargetOutputs(output_pins);
+    const bool constrained_output_count = output_pins.size() == 1U || clock_target_output_count == 1U;
+    const bool control_candidate_gate = constrained_output_count && single_clock_provenance_input
+                                        && OtherInputsAreControlCandidates(inst, load_pin, lib_cell, case_constraints);
+    if (!single_input_output_trace && !constrained_gate && !control_candidate_gate) {
+      continue;
+    }
+
+    for (auto* output_pin : output_pins) {
+      auto* output_net = output_pin == nullptr ? nullptr : output_pin->get_net();
+      if (output_net == nullptr) {
+        continue;
+      }
+      const auto output_stats = CountDirectClockSinks(output_net);
+      if (!OutputFunctionUsesInput(lib_cell, output_pin, load_pin) && !(control_candidate_gate && IsClockTarget(output_stats))) {
+        continue;
+      }
+      if (IsClockTarget(output_stats)) {
+        std::string reason = "single_input_clock_buffer_like";
+        if (constrained_gate) {
+          reason = "case_constrained_comb_clock_gate";
+        } else if (control_candidate_gate) {
+          reason = "comb_output_direct_clock_sinks";
+        }
+        AddOutputTransition(transitions, output_pin, reason);
+      } else if (output_net->is_clock() && constrained_gate) {
+        AddOutputTransition(transitions, output_pin, "case_constrained_clock_net");
+      }
+    }
+  }
+  return transitions;
+}
+
+}  // namespace
 
 auto ObjectKindName(SdcObjectKind kind) -> std::string
 {

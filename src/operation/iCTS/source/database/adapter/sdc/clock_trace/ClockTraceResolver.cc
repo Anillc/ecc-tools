@@ -25,14 +25,18 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <map>
+#include <optional>
 #include <ostream>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "IdbDesign.h"
+#include "IdbNet.h"
 #include "Log.hh"
 #include "SdcClockReader.hh"
 #include "clock_trace/SdcClockTraceAlgorithm.hh"
@@ -40,6 +44,69 @@
 #include "logger/Schema.hh"
 
 namespace icts {
+namespace {
+
+auto findIdbNet(idb::IdbDesign* idb_design, const std::string& net_name) -> idb::IdbNet*
+{
+  auto* net_list = idb_design == nullptr ? nullptr : idb_design->get_net_list();
+  return net_list == nullptr ? nullptr : net_list->find_net(net_name);
+}
+
+auto resolveSingleSeedNet(idb::IdbDesign* idb_design, const SdcClockDecl& clock) -> idb::IdbNet*
+{
+  std::vector<idb::IdbNet*> seed_nets;
+  for (const auto& target : clock.targets) {
+    auto resolved_nets = clock_trace::ResolveRefNets(idb_design, target);
+    seed_nets.insert(seed_nets.end(), resolved_nets.begin(), resolved_nets.end());
+  }
+  std::ranges::sort(seed_nets);
+  const auto unique_seed_nets = std::ranges::unique(seed_nets);
+  seed_nets.erase(unique_seed_nets.begin(), unique_seed_nets.end());
+  return seed_nets.size() == 1U ? seed_nets.front() : nullptr;
+}
+
+auto makeDirectClockTarget(const std::string& clock_name, const std::string& net_name) -> ClockTraceClockTarget
+{
+  return ClockTraceClockTarget{
+      .clock_name = clock_name,
+      .clock_net_name = net_name,
+      .preclustered_sink_reuse = false,
+      .preclustered_sink_anchors = {},
+  };
+}
+
+auto tryBuildPreclusteredClockTarget(idb::IdbDesign* idb_design, const SdcClockDecl& clock,
+                                     const std::vector<ClockTraceRecord>& accepted_records) -> std::optional<ClockTraceClockTarget>
+{
+  if (clock.kind != SdcClockDecl::Kind::kPrimary || accepted_records.size() < 2U) {
+    return std::nullopt;
+  }
+  auto* source_net = resolveSingleSeedNet(idb_design, clock);
+  if (source_net == nullptr) {
+    return std::nullopt;
+  }
+
+  std::vector<ClockTracePreclusteredSinkAnchor> anchors;
+  anchors.reserve(accepted_records.size());
+  std::set<std::string> anchor_input_pins;
+  for (const auto& record : accepted_records) {
+    auto* leaf_net = findIdbNet(idb_design, record.net_name);
+    auto anchor = clock_trace::BuildPreclusteredSinkAnchor(leaf_net);
+    if (!anchor.has_value() || !anchor_input_pins.insert(anchor->driver_inst_name + "/" + anchor->input_pin_name).second) {
+      return std::nullopt;
+    }
+    anchors.push_back(std::move(*anchor));
+  }
+
+  return ClockTraceClockTarget{
+      .clock_name = clock.clock_name,
+      .clock_net_name = source_net->get_net_name(),
+      .preclustered_sink_reuse = true,
+      .preclustered_sink_anchors = std::move(anchors),
+  };
+}
+
+}  // namespace
 
 auto ClockTraceResolver::resolve(const SdcClockData& clock_data) -> ClockTraceResult
 {
@@ -59,6 +126,13 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
   const auto case_constraints = clock_trace::BuildCaseConstraintSet(clock_data);
   const auto generated_boundary_owner_by_net = clock_trace::BuildGeneratedBoundaryOwners(idb_design, clock_data);
   const auto clock_view_by_name = clock_trace::BuildClockDeclViews(idb_design, clock_data);
+  std::unordered_map<std::string, const SdcClockDecl*> clock_decl_by_name;
+  clock_decl_by_name.reserve(clock_data.clocks.size());
+  for (const auto& clock : clock_data.clocks) {
+    if (!clock.clock_name.empty()) {
+      clock_decl_by_name[clock.clock_name] = &clock;
+    }
+  }
 
   std::vector<ClockTraceRecord> candidate_records;
   for (const auto& clock : clock_data.clocks) {
@@ -77,7 +151,8 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
     }
   }
 
-  std::set<std::pair<std::string, std::string>> emitted_pairs;
+  std::vector<ClockTraceRecord> resolved_records;
+  resolved_records.reserve(candidate_records.size());
   for (auto record : candidate_records) {
     if (record.status == "accepted" && has_strong_target_by_clock[record.clock_name]
         && !clock_trace::IsStrongClockTarget(record, sink_threshold)) {
@@ -88,13 +163,40 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
       record.status = "ambiguous";
       record.reason = "target_net_reachable_from_multiple_sdc_clocks";
     }
-    if (record.status == "accepted" && emitted_pairs.insert({record.clock_name, record.net_name}).second) {
-      result.clock_net_pairs.emplace_back(record.clock_name, record.net_name);
-    }
     clock_trace::AnnotateRecordOwnership(record, clock_view_by_name);
-    result.records.push_back(std::move(record));
+    resolved_records.push_back(std::move(record));
   }
 
+  std::map<std::string, std::vector<ClockTraceRecord>> accepted_records_by_clock;
+  for (const auto& record : resolved_records) {
+    if (record.status == "accepted" && !record.clock_name.empty() && !record.net_name.empty()) {
+      accepted_records_by_clock[record.clock_name].push_back(record);
+    }
+  }
+
+  std::set<std::pair<std::string, std::string>> emitted_pairs;
+  for (const auto& [clock_name, accepted_records] : accepted_records_by_clock) {
+    const auto decl_iter = clock_decl_by_name.find(clock_name);
+    if (decl_iter != clock_decl_by_name.end()) {
+      auto preclustered_target = tryBuildPreclusteredClockTarget(idb_design, *decl_iter->second, accepted_records);
+      if (preclustered_target.has_value()) {
+        if (emitted_pairs.insert({preclustered_target->clock_name, preclustered_target->clock_net_name}).second) {
+          result.clock_net_pairs.emplace_back(preclustered_target->clock_name, preclustered_target->clock_net_name);
+          result.clock_targets.push_back(std::move(*preclustered_target));
+        }
+        continue;
+      }
+    }
+
+    for (const auto& record : accepted_records) {
+      if (emitted_pairs.insert({record.clock_name, record.net_name}).second) {
+        result.clock_net_pairs.emplace_back(record.clock_name, record.net_name);
+        result.clock_targets.push_back(makeDirectClockTarget(record.clock_name, record.net_name));
+      }
+    }
+  }
+
+  result.records = std::move(resolved_records);
   result.unowned_clock_like_records = clock_trace::CollectUnownedClockLikeRecords(idb_design, result.records);
   clock_trace::EmitClockTraceReport(result.records);
   clock_trace::EmitSdcClockOwnershipReport(clock_data, clock_view_by_name, result.records);

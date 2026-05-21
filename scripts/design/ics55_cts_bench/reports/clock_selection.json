@@ -1,0 +1,2469 @@
+[
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "APU",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "Clk",
+        "pin_name": "Clk"
+      }
+    ],
+    "case_name": "BM64",
+    "sdc_target": {
+      "clock_name": "Clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "Clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "Clk",
+      "pin_name": "Clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "Clk",
+        "pin_name": "Clk"
+      }
+    ],
+    "case_name": "Booth_Multiplier",
+    "sdc_target": {
+      "clock_name": "Clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "Clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "Clk",
+      "pin_name": "Clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "CORDIC",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "FFT",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "PPU",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "Sync_FIFO",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "Top",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 3,
+        "match_reason": "contains_clock",
+        "net_connection_count": 4,
+        "net_name": "soc_clock",
+        "pin_name": "soc_clock"
+      },
+      {
+        "load_count": 17,
+        "match_reason": "contains_clock",
+        "net_connection_count": 18,
+        "net_name": "noc_clock",
+        "pin_name": "noc_clock"
+      },
+      {
+        "load_count": 0,
+        "match_reason": "contains_clk",
+        "net_connection_count": 1,
+        "net_name": "io_dft_ram_bp_clken",
+        "pin_name": "io_dft_ram_bp_clken"
+      },
+      {
+        "load_count": 0,
+        "match_reason": "contains_clk",
+        "net_connection_count": 1,
+        "net_name": "io_dft_ram_aux_clk",
+        "pin_name": "io_dft_ram_aux_clk"
+      },
+      {
+        "load_count": 5,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 6,
+        "net_name": "clock",
+        "pin_name": "clock"
+      },
+      {
+        "load_count": 3,
+        "match_reason": "contains_clock",
+        "net_connection_count": 4,
+        "net_name": "clint_clock",
+        "pin_name": "clint_clock"
+      }
+    ],
+    "case_name": "XSTop",
+    "sdc_target": {
+      "clock_name": "noc_clock",
+      "selection_reason": "contains_clock",
+      "target_kind": "port",
+      "target_name": "noc_clock"
+    },
+    "selected_clock": {
+      "load_count": 17,
+      "match_reason": "contains_clock",
+      "net_connection_count": 18,
+      "net_name": "noc_clock",
+      "pin_name": "noc_clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "ad_top",
+    "sdc_target": {
+      "clock_name": "AD_inst.clk",
+      "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+      "target_kind": "pin",
+      "target_name": "AD_inst.cnt_0__reg_p/CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "aes_cipher_top",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "arbiter",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "ascon",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "clk_i",
+        "pin_name": "clk_i"
+      }
+    ],
+    "case_name": "asram16_axi4",
+    "sdc_target": {
+      "clock_name": "clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "clk_i",
+      "pin_name": "clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "blake2s",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "clk_i",
+        "pin_name": "clk_i"
+      }
+    ],
+    "case_name": "bp_fe_top",
+    "sdc_target": {
+      "clock_name": "clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "clk_i",
+      "pin_name": "clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "E_CLK",
+        "pin_name": "E_CLK"
+      }
+    ],
+    "case_name": "cia",
+    "sdc_target": {
+      "clock_name": "E_CLK",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "E_CLK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "E_CLK",
+      "pin_name": "E_CLK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "cpu",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "clk_i",
+        "pin_name": "clk_i"
+      }
+    ],
+    "case_name": "dbg_bridge",
+    "sdc_target": {
+      "clock_name": "clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "clk_i",
+      "pin_name": "clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "dcpu16_cpu",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "gcd",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "clk_i",
+        "pin_name": "clk_i"
+      }
+    ],
+    "case_name": "gpio",
+    "sdc_target": {
+      "clock_name": "clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "clk_i",
+      "pin_name": "clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "wb_clk_i",
+        "pin_name": "wb_clk_i"
+      }
+    ],
+    "case_name": "i2c",
+    "sdc_target": {
+      "clock_name": "wb_clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "wb_clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "wb_clk_i",
+      "pin_name": "wb_clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "sys_clk_i",
+        "pin_name": "sys_clk_i"
+      }
+    ],
+    "case_name": "ip0_digi_top",
+    "sdc_target": {
+      "clock_name": "sys_clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "sys_clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "sys_clk_i",
+      "pin_name": "sys_clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ip1_SimpleEdgeAiSoC",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "ip2_TJUT_TOP",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "ip4_SynapticChip",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "ip5_riscv_npu_top",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "minirv",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "mos6502",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 0,
+        "match_reason": "contains_clk",
+        "net_connection_count": 1,
+        "net_name": "mpw_clk_i_pad",
+        "pin_name": "mpw_clk_i_pad"
+      }
+    ],
+    "case_name": "mpw_asic_top",
+    "sdc_target": {
+      "clock_name": "fanout_net_1",
+      "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+      "target_kind": "pin",
+      "target_name": "u_TopForXip.sc32b.jtagBridge_1._zz_jtag_tap_isBypass[0]_reg_p/CK"
+    },
+    "selected_clock": {
+      "load_count": 0,
+      "match_reason": "contains_clk",
+      "net_connection_count": 1,
+      "net_name": "mpw_clk_i_pad",
+      "pin_name": "mpw_clk_i_pad"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "picorv32a",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "prince",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "r8051",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 0,
+        "match_reason": "fallback_largest_input",
+        "net_connection_count": 1,
+        "net_name": "xi_i_pad",
+        "pin_name": "xi_i_pad"
+      }
+    ],
+    "case_name": "retrosoc_asic",
+    "sdc_target": {
+      "clock_name": "net7538",
+      "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+      "target_kind": "pin",
+      "target_name": "u_retrosoc.u_ip_natv_wrapper.u_nmi_i2s.u_rx_async_fifo.r_mem[90][4]_reg_p/CK"
+    },
+    "selected_clock": {
+      "load_count": 0,
+      "match_reason": "fallback_largest_input",
+      "net_connection_count": 1,
+      "net_name": "xi_i_pad",
+      "pin_name": "xi_i_pad"
+    },
+    "selection_policy": "fallback_largest_input"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s1238",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s13207",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s1488",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s15850",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s38417",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "config_clk",
+        "pin_name": "config_clk"
+      }
+    ],
+    "case_name": "s44",
+    "sdc_target": {
+      "clock_name": "config_clk",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "config_clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "config_clk",
+      "pin_name": "config_clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s5378",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s713",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "CK",
+        "pin_name": "CK"
+      }
+    ],
+    "case_name": "s9234",
+    "sdc_target": {
+      "clock_name": "CK",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "CK"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "CK",
+      "pin_name": "CK"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "salsa20",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "serdes_top",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "serv_top",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "sha256",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "clk_i",
+        "pin_name": "clk_i"
+      }
+    ],
+    "case_name": "simpleuart",
+    "sdc_target": {
+      "clock_name": "clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "clk_i",
+      "pin_name": "clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "raw_clk",
+        "pin_name": "raw_clk"
+      }
+    ],
+    "case_name": "spi",
+    "sdc_target": {
+      "clock_name": "raw_clk",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "raw_clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "raw_clk",
+      "pin_name": "raw_clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "spm",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "tcam",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "pclk",
+        "pin_name": "pclk"
+      },
+      {
+        "load_count": 2,
+        "match_reason": "contains_clk",
+        "net_connection_count": 3,
+        "net_name": "clk_12mhz",
+        "pin_name": "clk_12mhz"
+      },
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "top",
+    "sdc_target": {
+      "clock_name": "fixio_net_11",
+      "selection_reason": "internal_clock_sink_net_selected_from_cts_trace",
+      "target_kind": "pin",
+      "target_name": "capture.addr_0__reg_p/CK"
+    },
+    "selected_clock": {
+      "load_count": 2,
+      "match_reason": "contains_clk",
+      "net_connection_count": 3,
+      "net_name": "clk_12mhz",
+      "pin_name": "clk_12mhz"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "trng",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "uart",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "clk_48",
+        "pin_name": "clk_48"
+      }
+    ],
+    "case_name": "usb",
+    "sdc_target": {
+      "clock_name": "clk_48",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "clk_48"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "clk_48",
+      "pin_name": "clk_48"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "wb_clk_i",
+        "pin_name": "wb_clk_i"
+      }
+    ],
+    "case_name": "vm80_wb",
+    "sdc_target": {
+      "clock_name": "wb_clk_i",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "wb_clk_i"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "wb_clk_i",
+      "pin_name": "wb_clk_i"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clk",
+        "pin_name": "clk"
+      }
+    ],
+    "case_name": "ws2811",
+    "sdc_target": {
+      "clock_name": "clk",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clk",
+      "pin_name": "clk"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "xtea",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyxSoCASIC",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_22050110",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_23060170",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_23060203",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_23060229",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_23060246",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24070003",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24080018",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24080032",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24090003",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24090010",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24090015",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24100012",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24110017",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_24120011",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25010003",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25010008",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25010009",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25010028",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25010030",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25020037",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25020039",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25020042",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25030085",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25030093",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25040111",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25040129",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25070194",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25070198",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25080201",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25080202",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_25080207",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "exact_clock_name",
+        "net_connection_count": 2,
+        "net_name": "clock",
+        "pin_name": "clock"
+      }
+    ],
+    "case_name": "ysyx_core1",
+    "sdc_target": {
+      "clock_name": "clock",
+      "selection_reason": "exact_clock_name",
+      "target_kind": "port",
+      "target_name": "clock"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "exact_clock_name",
+      "net_connection_count": 2,
+      "net_name": "clock",
+      "pin_name": "clock"
+    },
+    "selection_policy": "clock_name_match"
+  },
+  {
+    "candidates": [
+      {
+        "load_count": 1,
+        "match_reason": "contains_clk",
+        "net_connection_count": 2,
+        "net_name": "i_clk",
+        "pin_name": "i_clk"
+      }
+    ],
+    "case_name": "zipdiv",
+    "sdc_target": {
+      "clock_name": "i_clk",
+      "selection_reason": "contains_clk",
+      "target_kind": "port",
+      "target_name": "i_clk"
+    },
+    "selected_clock": {
+      "load_count": 1,
+      "match_reason": "contains_clk",
+      "net_connection_count": 2,
+      "net_name": "i_clk",
+      "pin_name": "i_clk"
+    },
+    "selection_policy": "clock_name_match"
+  }
+]

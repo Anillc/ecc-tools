@@ -1,0 +1,1 @@
+case_name,clock_name,Latency (ps),Skew (ps),#Buffer,Buf-Area (um^2),Pow. (uW),Clk-Cap (fF),Clk-WL (um),Runtime (s),#Fanout Vio.,#Cap Vio.,#Slew Vio.,WNS (ps),TNS (ps),clock_port,status,error,power_source,clk_cap_source,violation_source,clock_pin_cap_fF,clock_wire_cap_fF,metric_notes

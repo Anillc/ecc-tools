@@ -29,7 +29,6 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "Log.hh"
@@ -207,38 +206,6 @@ auto ApplyBufferTypesIfPresent(const nlohmann::json& json, Config& config) -> vo
   }
 }
 
-auto ParseNetList(const nlohmann::json& value) -> std::vector<std::pair<std::string, std::string>>
-{
-  std::vector<std::pair<std::string, std::string>> clock_net_list;
-  if (!value.is_array()) {
-    return clock_net_list;
-  }
-
-  for (const auto& item : value) {
-    if (!item.is_object()) {
-      continue;
-    }
-    if (!item.contains("clock_name") || !item.contains("net_name")) {
-      continue;
-    }
-
-    auto clock_name = parse_string(item.at("clock_name"), "");
-    auto net_name = parse_string(item.at("net_name"), "");
-    if (!clock_name.empty() && !net_name.empty()) {
-      clock_net_list.emplace_back(clock_name, net_name);
-    }
-  }
-
-  return clock_net_list;
-}
-
-auto ApplyNetListIfPresent(const nlohmann::json& json, Config& config) -> void
-{
-  if (json.contains("net_list") && json.at("net_list").is_array()) {
-    config.set_net_list(ParseNetList(json.at("net_list")));
-  }
-}
-
 }  // namespace
 
 auto Config::init(const std::string& config_file) -> bool
@@ -297,10 +264,6 @@ auto Config::parse(const std::string& json_file) -> bool
                           json_file)) {
     return false;
   }
-  if (!ApplyBoolIfPresent(json, "use_netlist", false, *this, &Config::set_use_netlist, json_file)) {
-    return false;
-  }
-  ApplyNetListIfPresent(json, *this);
   return true;
 }
 
@@ -347,8 +310,6 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
                                     : "native discrete H-tree search is used"},
       {"enable_sink_clustering", logformat::FormatBool(is_enable_sink_clustering()),
        is_enable_sink_clustering() ? "run sink linear clustering before H-tree synthesis" : "build H-tree directly on original sinks"},
-      {"use_netlist", logformat::FormatBool(is_use_netlist()),
-       is_use_netlist() ? "configured net pairs: " + std::to_string(get_net_list().size()) : "clock net pairs resolved from SDC"},
   };
 }
 

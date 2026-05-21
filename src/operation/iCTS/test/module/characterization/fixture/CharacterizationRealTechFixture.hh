@@ -83,8 +83,6 @@ struct ConfigState
   std::string log_file;
   std::string visualization_dir;
   std::string statistics_dir;
-  bool use_netlist = false;
-  std::vector<std::pair<std::string, std::string>> net_list;
 };
 
 auto CaptureConfigState() -> ConfigState;

@@ -25,6 +25,7 @@
 
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -113,21 +114,8 @@ auto MasterClockName(const SdcClockDecl& clock) -> std::string;
 auto DominanceForRecord(const ClockTraceRecord& record, const std::string& clock_kind) -> std::string;
 auto StrongTargetSinkThreshold() -> std::size_t;
 auto IsStrongClockTarget(const ClockTraceRecord& record, std::size_t sink_threshold) -> bool;
-auto FindInstPinByLibPort(idb::IdbInstance* inst, ista::LibPort* lib_port) -> idb::IdbPin*;
-auto CollectOutputPins(idb::IdbInstance* inst) -> std::vector<idb::IdbPin*>;
-auto CollectInputPins(idb::IdbInstance* inst) -> std::vector<idb::IdbPin*>;
-auto IsCaseConstrained(idb::IdbPin* pin, const CaseConstraintSet& case_constraints) -> bool;
-auto OtherInputsCaseConstrained(idb::IdbInstance* inst, idb::IdbPin* clock_input_pin, const CaseConstraintSet& case_constraints) -> bool;
-auto LibertyExpressionUsesPort(RustLibertyExpr* expression, const std::string& port_name) -> bool;
-auto OutputFunctionUsesInput(ista::LibCell* lib_cell, idb::IdbPin* output_pin, idb::IdbPin* input_pin) -> bool;
-auto NetHasDirectClockSinks(idb::IdbNet* net) -> bool;
-auto CountInputPinsOnNet(idb::IdbInstance* inst, idb::IdbNet* net) -> std::size_t;
-auto CountClockTargetOutputs(const std::vector<idb::IdbPin*>& output_pins) -> std::size_t;
-auto LibertyMarksClockInput(idb::IdbPin* input_pin, ista::LibCell* lib_cell) -> bool;
-auto OtherInputsAreControlCandidates(idb::IdbInstance* inst, idb::IdbPin* clock_input_pin, ista::LibCell* lib_cell,
-                                     const CaseConstraintSet& case_constraints) -> bool;
-auto AddOutputTransition(std::vector<TraceTransition>& transitions, idb::IdbPin* output_pin, const std::string& reason) -> void;
-auto CollectSafeTransitions(idb::IdbNet* net, const CaseConstraintSet& case_constraints) -> std::vector<TraceTransition>;
+auto ResolveInstPinByLibPort(idb::IdbInstance* inst, ista::LibPort* lib_port) -> idb::IdbPin*;
+auto BuildPreclusteredSinkAnchor(idb::IdbNet* leaf_net) -> std::optional<ClockTracePreclusteredSinkAnchor>;
 
 auto ObjectKindName(SdcObjectKind kind) -> std::string;
 auto ResolvePortNet(idb::IdbDesign* idb_design, const std::string& port_name) -> idb::IdbNet*;

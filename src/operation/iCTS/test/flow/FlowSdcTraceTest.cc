@@ -49,7 +49,7 @@ namespace {
 
 using namespace flow_test;
 
-TEST(FlowTest, SdcClockResolutionRejectsIdbClockNetSubstitution)
+TEST(FlowTest, SdcClockResolutionUsesSdcReachableTargets)
 {
   const ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
@@ -83,21 +83,6 @@ TEST(FlowTest, SdcClockResolutionRejectsIdbClockNetSubstitution)
   EXPECT_TRUE(icts::ClockDataRead::read());
   EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
 
-  CONFIG_INST.set_use_netlist(true);
-  CONFIG_INST.set_net_list({{"LOGICAL_CLK", "physical_clk_net"}});
-  const auto mapped_sdc_path
-      = WriteTempSdc("icts_mapped_clock_resolution.sdc", "create_clock -name LOGICAL_CLK -period 2 physical_clk_net\n");
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
-  auto* mapped_clock = DESIGN_INST.get_clocks().front();
-  ASSERT_NE(mapped_clock, nullptr);
-  EXPECT_EQ(mapped_clock->get_clock_name(), "LOGICAL_CLK");
-  EXPECT_EQ(mapped_clock->get_clock_net_name(), "physical_clk_net");
-  EXPECT_DOUBLE_EQ(mapped_clock->get_clock_period_ns(), 2.0);
-  EXPECT_EQ(mapped_clock->get_clock_period_source(), "sdc");
-
-  CONFIG_INST.set_use_netlist(false);
-  CONFIG_INST.set_net_list({{"DIRECT_CLK", "missing_config_net"}});
   const auto direct_sdc_path
       = WriteTempSdc("icts_direct_clock_resolution.sdc", "create_clock -name DIRECT_CLK -period 3 physical_clk_net\n");
   EXPECT_TRUE(icts::ClockDataRead::read());
@@ -116,14 +101,6 @@ create_clock -name MISSING_CLK -period 2 missing_physical_net
   EXPECT_FALSE(icts::ClockDataRead::read());
   EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
 
-  CONFIG_INST.set_use_netlist(true);
-  CONFIG_INST.set_net_list({{"ABSENT_FROM_SDC", "physical_clk_net"}});
-  const auto config_absent_sdc_path
-      = WriteTempSdc("icts_config_absent_clock_resolution.sdc", "create_clock -name OTHER_CLK -period 2 physical_clk_net\n");
-  EXPECT_FALSE(icts::ClockDataRead::read());
-  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
-
-  CONFIG_INST.set_net_list({});
   const auto unresolved_sdc_path
       = WriteTempSdc("icts_missing_clock_resolution.sdc", "create_clock -name MISSING_CLK -period 2 missing_physical_net\n");
   EXPECT_FALSE(icts::ClockDataRead::read());
@@ -131,10 +108,8 @@ create_clock -name MISSING_CLK -period 2 missing_physical_net
 
   std::error_code error_code;
   std::filesystem::remove(empty_sdc_path, error_code);
-  std::filesystem::remove(mapped_sdc_path, error_code);
   std::filesystem::remove(direct_sdc_path, error_code);
   std::filesystem::remove(partial_unresolved_sdc_path, error_code);
-  std::filesystem::remove(config_absent_sdc_path, error_code);
   std::filesystem::remove(unresolved_sdc_path, error_code);
 }
 
@@ -177,7 +152,6 @@ TEST(FlowTest, SdcClockTraceResolvesVariableGetPortsToDownstreamClockTarget)
   ASSERT_NE(sink_pin, nullptr);
   AttachIdbPinToNet(*leaf_net, *sink_pin);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_variable_get_ports_clock_trace.sdc", R"(
 set clk_name TRACE_CLK
 set clk_period 1.5
@@ -253,7 +227,6 @@ TEST(FlowTest, SdcClockTraceAllowsClockGateLikeCombTarget)
     AttachIdbPinToNet(*gated_net, *sink_pin);
   }
 
-  CONFIG_INST.set_use_netlist(false);
   CONFIG_INST.set_max_fanout(4);
   const auto sdc_path = WriteTempSdc("icts_comb_gate_clock_trace.sdc", "create_clock -name GATED_CLK [get_ports clock] -period 4\n");
 
@@ -301,7 +274,6 @@ TEST(FlowTest, SdcClockTraceMaterializesAllTargetsAndSkipsVirtualClock)
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *branch_a_net, "sink_a", 100), nullptr);
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *branch_b_net, "sink_b", 200), nullptr);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_multi_target_virtual_clock_trace.sdc", R"(
 create_clock -name TRACE_CLK [get_ports clock] -period 2
 create_clock -name VIRTUAL_ONLY -period 5
@@ -353,7 +325,6 @@ TEST(FlowTest, SdcGeneratedClockBoundaryKeepsMasterAndGeneratedOwnershipSeparate
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *root_net, "master_sink", 100), nullptr);
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *generated_net, "generated_sink", 200), nullptr);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_generated_boundary_clock_trace.sdc", R"(
 create_clock -name MASTER [get_ports clock] -period 2
 create_generated_clock -name GEN -master_clock MASTER -divide_by 2 -source [get_ports clock] gen_net
@@ -407,7 +378,6 @@ TEST(FlowTest, SdcClockTraceReportsUnownedClockLikeNetsWithoutMaterializingThem)
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *clock_net, "core_sink", 100), nullptr);
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *noc_clock_net, "noc_sink", 200), nullptr);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_unowned_clock_like_report.sdc", "create_clock -name CORE_CLK [get_ports clock] -period 2\n");
 
   EXPECT_TRUE(icts::ClockDataRead::read());
@@ -457,7 +427,6 @@ TEST(FlowTest, SdcClockTraceRejectsAmbiguousSharedTargetNet)
   ASSERT_NE(AddIdbTerm(*reg_master, "CLK", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *shared_net, "shared_sink", 100), nullptr);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_ambiguous_shared_clock_trace.sdc", R"(
 create_clock -name CLK_A [get_ports clock_a] -period 2
 create_clock -name CLK_B [get_ports clock_b] -period 3
@@ -512,7 +481,6 @@ TEST(FlowTest, SdcClockTraceStopsAtClockLikeMuxWithoutCaseAnalysis)
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *clock_b_net, "clock_b_sink", 100), nullptr);
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *mux_out_net, "mux_sink", 200), nullptr);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_ambiguous_mux_clock_trace.sdc", "create_clock -name CLK_A [get_ports clock_a] -period 2\n");
 
   EXPECT_FALSE(icts::ClockDataRead::read());
@@ -552,7 +520,6 @@ TEST(FlowTest, SdcClockTraceTerminatesOnCombinationalCycle)
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *root_net, "root_sink", 100), nullptr);
   ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *loop_net, "loop_sink", 200), nullptr);
 
-  CONFIG_INST.set_use_netlist(false);
   const auto sdc_path = WriteTempSdc("icts_comb_loop_clock_trace.sdc", "create_clock -name LOOP_CLK [get_ports clock] -period 2\n");
 
   EXPECT_TRUE(icts::ClockDataRead::read());
