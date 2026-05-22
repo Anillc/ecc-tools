@@ -111,7 +111,7 @@
     ".codex/hooks/session-start.py": "1c951ff35f490c5fbf576b4764ec190895df7c2a48e279fb20625209f51c321a",
     ".codex/hooks/inject-workflow-state.py": "f7fa9389ed7aa264597fff5de6277bec186e89a3ef539192997c6d026d88d5ec",
     ".codex/hooks.json": "522ba3c488c100027783e52ecff84c0bd799852dd77ad3f1936e86db105f01d6",
-    ".codex/config.toml": "cd29d64a44b4631593aca8ff4b071f1156f914fc9dfb976450af6f91b735bb57",
+    ".codex/config.toml": "4224eb7df6802a623cb1bee522aed0a23ba6be862b90f1b597a313fc16864b06",
     ".agent/workflows/continue.md": "885ae97f66967ad28d40426a3a606038791c46159a37206783b0ea8592091650",
     ".agent/workflows/finish-work.md": "d23e96116cd24ea156ab582255792fe5e37338c9702df15ce46f07b584fee14d",
     ".agent/workflows/start.md": "ff3653188c5bc76be68272ec504fe9b1b5a908d34b8cdb878c692f5f1aee160d",
