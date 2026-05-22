@@ -25,10 +25,10 @@
 #include "ItfBuilder.hpp"
 #include "LayerTable.hh"
 #include "LayoutData.hh"
+#include "RCXConfig.hh"
 #include "IdbAdapter.hh"
 #include "ProcessCorner.hpp"
 #include "RCXData.hh"
-#include "RCXConfig.hh"
 #include "SpefContext.hh"
 #include "PathUtils.hh"
 #include "idm.h"
@@ -38,8 +38,8 @@ namespace ircx {
 
 namespace {
 
-std::unique_ptr<::itf::ProcessCorner> loadProcessCorner(const Str& corner_name,
-                                                        const Str& itf_file)
+auto loadProcessCorner(const Str& corner_name,
+                       const Str& itf_file) -> std::unique_ptr<::itf::ProcessCorner>
 {
   if (!ensureNonEmpty(corner_name, "corner name")) {
     return nullptr;
@@ -92,8 +92,8 @@ std::unique_ptr<::itf::ProcessCorner> loadProcessCorner(const Str& corner_name,
   return loaded_corner;
 }
 
-std::optional<parser::CapTable> loadCapTable(const Str& corner_name,
-                                             const Str& captab_file)
+auto loadCapTable(const Str& corner_name,
+                  const Str& captab_file) -> std::optional<parser::CapTable>
 {
   if (!ensureNonEmpty(corner_name, "corner name")) {
     return std::nullopt;
@@ -117,7 +117,7 @@ std::optional<parser::CapTable> loadCapTable(const Str& corner_name,
   return cap_table;
 }
 
-void registerProcessLayers(const ::itf::ProcessCorner& pc)
+auto registerProcessLayers(const ::itf::ProcessCorner& pc) -> void
 {
   RCXData& data = RCX_DATA_INST;
   if (data.processLayersRegistered()) {
@@ -136,7 +136,7 @@ void registerProcessLayers(const ::itf::ProcessCorner& pc)
   data.setProcessLayersRegistered(true);
 }
 
-bool validateProcessLayers(const ::itf::ProcessCorner& pc)
+auto validateProcessLayers(const ::itf::ProcessCorner& pc) -> bool
 {
   const auto& corner_data = RCX_DATA_INST.corner_data();
   if (corner_data.empty()) {
@@ -198,7 +198,7 @@ bool validateProcessLayers(const ::itf::ProcessCorner& pc)
 auto Setup::initialize(const std::string& config) -> bool
 {
   RCXConfig rcx_config;
-  if (!rcx_config.loadFromFile(config)) {
+  if (!rcx_config.init(config)) {
     return false;
   }
 

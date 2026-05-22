@@ -21,6 +21,7 @@
 
 #include "Types.hh"
 #include "builder.h"
+
 namespace ircx {
 
 class Net;
@@ -40,31 +41,34 @@ class IdbAdapter
   IdbAdapter() = delete;
   ~IdbAdapter() = default;
 
-  bool adapt(LayoutData&, LayerTable&, SpefContext&);
+  auto adapt(LayoutData& layout_data,
+             LayerTable& layer_table,
+             SpefContext& spef_context) -> bool;
 
  private:
-  void adaptLayerTable(::idb::IdbLayers* idb_layers);
-  void adaptRoutingLayer(::idb::IdbLayers* idb_layers);
+  auto adaptLayerTable(::idb::IdbLayers* idb_layers) -> void;
+  auto adaptRoutingLayer(::idb::IdbLayers* idb_layers) -> void;
 
-  void adaptSpefContext(::idb::IdbDesign* idb_design);
+  auto adaptSpefContext(::idb::IdbDesign* idb_design) -> void;
 
-  void adaptNet(::idb::IdbNetList* idb_netlist);
-  Pin adaptPin(::idb::IdbPin* idb_pin, bool is_driving);
-  std::optional<Segment> adaptSegments(::idb::IdbRegularWireSegment* idb_seg);
-  std::optional<Patch> adaptPatch(::idb::IdbRegularWireSegment* idb_seg);
-  std::optional<Via> adaptVia(::idb::IdbVia* idb_via);
+  auto adaptNet(::idb::IdbNetList* idb_netlist) -> void;
+  auto adaptPin(::idb::IdbPin* idb_pin, bool is_driving) -> Pin;
+  auto adaptSegments(::idb::IdbRegularWireSegment* idb_seg) -> std::optional<Segment>;
+  auto adaptPatch(::idb::IdbRegularWireSegment* idb_seg) -> std::optional<Patch>;
+  auto adaptVia(::idb::IdbVia* idb_via) -> std::optional<Via>;
 
-  void adaptSpecialNet(::idb::IdbSpecialNetList* idb_special_netlist);
+  auto adaptSpecialNet(::idb::IdbSpecialNetList* idb_special_netlist) -> void;
 
-  //idb
+  // iDB source
   ::idb::IdbBuilder* idb_{nullptr};
-  // from outside
+
+  // RCX targets
   LayoutData* layout_data_{nullptr};
   LayerTable* layer_table_{nullptr};
   SpefContext* spef_context_{nullptr};
 
-  GtlRectI IdbRectToGtlRect(::idb::IdbRect*) const;
-  GtlPointI IdbPointToGtlPoint(::idb::IdbCoordinate<int32_t>*) const;
+  auto idbRectToGtlRect(::idb::IdbRect* idb_rect) const -> GtlRectI;
+  auto idbPointToGtlPoint(::idb::IdbCoordinate<int32_t>* idb_point) const -> GtlPointI;
 };
 
-} // namespace ircx
+}  // namespace ircx

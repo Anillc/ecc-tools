@@ -36,14 +36,17 @@ class RCXConfig
   RCXConfig() = default;
   ~RCXConfig() = default;
 
-  [[nodiscard]] bool loadFromFile(const std::string& config_path);
+  auto init(const std::string& config_file) -> bool;
+  auto reset() -> void;
 
-  [[nodiscard]] const std::string& get_config_path() const { return _config_path; }
-  [[nodiscard]] unsigned get_thread_num() const { return _thread_num; }
-  [[nodiscard]] F64 get_operating_temperature() const { return _operating_temperature; }
-  [[nodiscard]] const std::string& get_output_dir() const { return _output_dir; }
-  [[nodiscard]] const std::string& get_mapping_file() const { return _mapping_file; }
-  [[nodiscard]] const std::vector<CornerConfig>& get_corners() const { return _corners; }
+  auto get_config_path() const -> const std::string& { return _config_path; }
+  auto get_thread_num() const -> unsigned { return _thread_num; }
+  auto get_operating_temperature() const -> F64 { return _operating_temperature; }
+  auto get_output_dir() const -> const std::string& { return _output_dir; }
+  auto get_mapping_file() const -> const std::string& { return _mapping_file; }
+  auto get_corners() const -> const std::vector<CornerConfig>& { return _corners; }
+
+  auto parse(const std::string& json_file) -> bool;
 
  private:
   std::string _config_path;

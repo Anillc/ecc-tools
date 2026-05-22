@@ -31,10 +31,10 @@ namespace fs = std::filesystem;
 
 namespace {
 
-bool parse_corner_config(const nlohmann::json& corner_json,
-                         const fs::path& config_dir,
-                         std::string_view field_name,
-                         RCXConfig::CornerConfig& corner_config)
+auto parseCornerConfig(const nlohmann::json& corner_json,
+                       const fs::path& config_dir,
+                       std::string_view field_name,
+                       RCXConfig::CornerConfig& corner_config) -> bool
 {
   if (!corner_json.is_object()) {
     LOG_ERROR << "RCX config field must be an object: " << field_name;
@@ -73,23 +73,32 @@ bool parse_corner_config(const nlohmann::json& corner_json,
 
 }  // namespace
 
-bool RCXConfig::loadFromFile(const std::string& config_path)
+auto RCXConfig::init(const std::string& config_file) -> bool
 {
-  if (config_path.empty()) {
-    LOG_ERROR << "RCX config path is empty.";
-    return false;
-  }
+  reset();
+  return parse(config_file);
+}
 
+auto RCXConfig::reset() -> void
+{
   _config_path.clear();
   _thread_num = 64U;
   _operating_temperature = 25.0;
   _output_dir.clear();
   _mapping_file.clear();
   _corners.clear();
+}
 
-  std::ifstream config_stream(config_path);
+auto RCXConfig::parse(const std::string& json_file) -> bool
+{
+  if (json_file.empty()) {
+    LOG_ERROR << "RCX config path is empty.";
+    return false;
+  }
+
+  std::ifstream config_stream(json_file);
   if (!config_stream.is_open()) {
-    LOG_ERROR << "Cannot open RCX config file: " << config_path;
+    LOG_ERROR << "Cannot open RCX config file: " << json_file;
     return false;
   }
 
@@ -97,7 +106,7 @@ bool RCXConfig::loadFromFile(const std::string& config_path)
     nlohmann::json json;
     config_stream >> json;
 
-    const fs::path absolute_config_path = fs::absolute(config_path).lexically_normal();
+    const fs::path absolute_config_path = fs::absolute(json_file).lexically_normal();
     const fs::path config_dir = absolute_config_path.parent_path();
 
     if (!json.contains("thread_num") || !json["thread_num"].is_number_integer()) {
@@ -151,13 +160,13 @@ bool RCXConfig::loadFromFile(const std::string& config_path)
       _corners.reserve(corners_json.size());
       for (size_t idx = 0; idx < corners_json.size(); ++idx) {
         CornerConfig corner_config;
-        valid &= parse_corner_config(corners_json[idx], config_dir,
-                                     "corner[" + std::to_string(idx) + "]", corner_config);
+        valid &= parseCornerConfig(corners_json[idx], config_dir,
+                                   "corner[" + std::to_string(idx) + "]", corner_config);
         _corners.emplace_back(std::move(corner_config));
       }
     } else if (corners_json.is_object()) {
       CornerConfig corner_config;
-      valid &= parse_corner_config(corners_json, config_dir, "corner", corner_config);
+      valid &= parseCornerConfig(corners_json, config_dir, "corner", corner_config);
       _corners.emplace_back(std::move(corner_config));
     } else {
       LOG_ERROR << "RCX config field corners must be an object or array.";
@@ -170,7 +179,7 @@ bool RCXConfig::loadFromFile(const std::string& config_path)
 
     return valid;
   } catch (const std::exception& e) {
-    LOG_ERROR << "Failed to parse RCX config " << config_path << ": " << e.what();
+    LOG_ERROR << "Failed to parse RCX config " << json_file << ": " << e.what();
     return false;
   }
 }
