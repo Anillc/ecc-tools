@@ -32,15 +32,12 @@ TclRunRCX::TclRunRCX(const char* cmd_name) : TclCmd(cmd_name)
 
 unsigned TclRunRCX::exec()
 {
-  unsigned ret = 1;
-
   if (!check()) {
     return 0;
   }
 
-  ret &= RCX_API_INST.run();
-
-  return ret;
+  RCX_API_INST.runRCX();
+  return RCX_API_INST.runSuccess() ? 1U : 0U;
 }
 
 }  // namespace tcl

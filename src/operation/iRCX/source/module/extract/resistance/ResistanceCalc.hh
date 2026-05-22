@@ -60,7 +60,7 @@ class ResistanceCalc
   void set_corners(const std::vector<itf::ProcessCorner*>& v) { corners_ = v; }
   void set_operating_temperature(F64 v) { operating_temperature_ = v; }
 
-  void calc();
+  [[nodiscard]] bool calc();
   std::pair<Micron, Micron> node_range(const TopoEdge& e) const;
 
  private:

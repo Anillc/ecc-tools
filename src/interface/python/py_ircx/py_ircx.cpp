@@ -68,12 +68,14 @@ bool extract_rcx_parasitics()
 
 bool run_rcx(const std::string& config)
 {
-  return RCX_API_INST.runFromConfig(config);
+  RCX_API_INST.init(config);
+  RCX_API_INST.runRCX();
+  return RCX_API_INST.runSuccess();
 }
 
-bool report_rcx(const std::string& output_dir)
+void report_rcx(const std::string& output_dir)
 {
-  return RCX_API_INST.reportSpef(output_dir);
+  RCX_API_INST.report(output_dir);
 }
 
 }  // namespace python_interface
