@@ -194,6 +194,46 @@ TEST(ClockDAGTest, DirectSourceToFlipFlopPathReportsZeroBuffers)
   EXPECT_EQ(stats.max_buffer_count, 0);
 }
 
+TEST(ClockDAGTest, BoundaryLoadDoesNotRequireBufferInputArc)
+{
+  const ScopedDesignReset scoped_design_reset;
+
+  auto clock_pins = makeClock("clk", "clk_net");
+  auto* boundary_load = makeSink("comb_boundary", icts::InstType::kBoundaryLoad, 10);
+  auto* latch_sink = makeSink("latch_sink", icts::InstType::kLatch, 20);
+  connectNet("clk_net", clock_pins.source, {boundary_load, latch_sink});
+  clock_pins.clock->set_clock_source_net(clock_pins.source_net);
+  clock_pins.clock->add_load(boundary_load);
+  clock_pins.clock->add_load(latch_sink);
+
+  ASSERT_TRUE(DESIGN_INST.rebuildClockDAG());
+  const auto stats = DESIGN_INST.get_clock_dag().pathBufferStats(clock_pins.clock);
+  EXPECT_TRUE(stats.available);
+  EXPECT_EQ(stats.status, "available");
+  EXPECT_EQ(stats.min_buffer_count, 0);
+  EXPECT_EQ(stats.max_buffer_count, 0);
+  EXPECT_EQ(stats.ff_sink_terminal_count, 1U);
+}
+
+TEST(ClockDAGTest, MalformedTrueBufferInvalidatesTopology)
+{
+  const ScopedDesignReset scoped_design_reset;
+
+  auto clock_pins = makeClock("clk", "clk_net");
+  auto* buffer_inst = makeInst("malformed_buffer", icts::InstType::kBuffer, icts::Point<int>(10, 0));
+  auto* buffer_output = makePin("Y", icts::PinType::kOut, buffer_inst, buffer_inst->get_location());
+  auto* latch_sink = makeSink("latch_sink", icts::InstType::kLatch, 20);
+  connectNet("clk_net", clock_pins.source, {buffer_output});
+  clock_pins.clock->set_clock_source_net(clock_pins.source_net);
+  auto* leaf_net = connectNet("leaf_net", buffer_output, {latch_sink});
+  clock_pins.clock->add_inst(buffer_inst);
+  clock_pins.clock->add_net(leaf_net);
+  clock_pins.clock->add_load(latch_sink);
+
+  EXPECT_FALSE(DESIGN_INST.rebuildClockDAG());
+  EXPECT_NE(DESIGN_INST.get_clock_dag().get_status().find("clock_cell_input_pin_is_null"), std::string::npos);
+}
+
 TEST(ClockDAGTest, NoFlipFlopTerminalIsUnavailableAndDoesNotReuseTotalBufferCount)
 {
   const ScopedDesignReset scoped_design_reset;

@@ -23,7 +23,9 @@
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
+#include <map>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -38,9 +40,11 @@
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "IdbTerm.h"
+#include "LibParserRustC.hh"
 #include "Log.hh"
 #include "Wrapper.hh"
 #include "adapter/sdc/SdcClockReader.hh"
+#include "api/TimingEngine.hh"
 #include "builder.h"
 #include "def_service.h"
 #include "design/Clock.hh"
@@ -48,6 +52,7 @@
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "liberty/Lib.hh"
 #include "logger/Schema.hh"
 
 namespace icts {
@@ -74,6 +79,15 @@ struct IdbClockNetPins
 {
   idb::IdbPin* driver = nullptr;
   std::vector<idb::IdbPin*> loads;
+};
+
+struct CtsInstClassification
+{
+  InstType type = InstType::kUnknown;
+  std::string role = "unknown_boundary";
+  std::string reason = "unclassified";
+  std::string input_pin_name;
+  std::string output_pin_name;
 };
 
 auto appendUniqueIdbPin(std::vector<idb::IdbPin*>& pins, std::unordered_set<idb::IdbPin*>& seen_pins, idb::IdbPin* idb_pin) -> void
@@ -153,33 +167,375 @@ auto collectIdbClockNetPins(idb::IdbNet* idb_net) -> IdbClockNetPins
   return net_pins;
 }
 
-auto inferCtsInstTypeFromIdbInst(idb::IdbInstance* idb_inst) -> InstType
-{
-  if (idb_inst == nullptr) {
-    return InstType::kUnknown;
-  }
-  auto* cell_master = idb_inst->get_cell_master();
-  if (cell_master != nullptr && cell_master->is_block()) {
-    return InstType::kMacroBlock;
-  }
-  if (idb_inst->is_flip_flop()) {
-    return InstType::kFlipFlop;
-  }
-  if (idb_inst->is_clock_instance()) {
-    return InstType::kBuffer;
-  }
-  return InstType::kUnknown;
-}
-
-auto idbPinTermName(idb::IdbPin* idb_pin) -> std::string
+auto termName(idb::IdbPin* idb_pin) -> std::string
 {
   auto* term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
   return term == nullptr ? std::string{} : term->get_name();
 }
 
+auto isInputLike(idb::IdbPin* idb_pin) -> bool
+{
+  auto* term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+  if (term == nullptr) {
+    return false;
+  }
+  return term->get_direction() == idb::IdbConnectDirection::kInput || term->get_direction() == idb::IdbConnectDirection::kInOut;
+}
+
+auto isOutputLike(idb::IdbPin* idb_pin) -> bool
+{
+  auto* term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+  if (term == nullptr) {
+    return false;
+  }
+  return term->get_direction() == idb::IdbConnectDirection::kOutput || term->get_direction() == idb::IdbConnectDirection::kOutputTriState
+         || term->get_direction() == idb::IdbConnectDirection::kInOut;
+}
+
+auto findLibCell(idb::IdbInstance* idb_inst) -> ista::LibCell*
+{
+  auto* cell_master = idb_inst == nullptr ? nullptr : idb_inst->get_cell_master();
+  if (cell_master == nullptr) {
+    return nullptr;
+  }
+  auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
+  if (timing_engine == nullptr) {
+    return nullptr;
+  }
+  return timing_engine->findLibertyCell(cell_master->get_name().c_str());
+}
+
+auto findLibPort(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> ista::LibPort*
+{
+  if (lib_cell == nullptr || idb_pin == nullptr) {
+    return nullptr;
+  }
+  const auto port_name = termName(idb_pin);
+  if (port_name.empty()) {
+    return nullptr;
+  }
+  return lib_cell->get_cell_port_or_port_bus(port_name.c_str());
+}
+
+auto resolveInstPinByLibPort(idb::IdbInstance* idb_inst, ista::LibPort* lib_port) -> idb::IdbPin*
+{
+  if (idb_inst == nullptr || lib_port == nullptr || idb_inst->get_pin_list() == nullptr) {
+    return nullptr;
+  }
+  const std::string port_name = lib_port->get_port_name();
+  for (auto* idb_pin : idb_inst->get_pin_list()->get_pin_list()) {
+    if (idb_pin == nullptr) {
+      continue;
+    }
+    if (termName(idb_pin) == port_name || idb_pin->get_pin_name() == port_name) {
+      return idb_pin;
+    }
+  }
+  return nullptr;
+}
+
+auto libertyExpressionUsesPort(RustLibertyExpr* expression, const std::string& port_name) -> bool
+{
+  if (expression == nullptr || port_name.empty()) {
+    return false;
+  }
+  std::vector<RustLibertyExpr*> pending_expressions = {expression};
+  while (!pending_expressions.empty()) {
+    auto* current = pending_expressions.back();
+    pending_expressions.pop_back();
+    if (current == nullptr) {
+      continue;
+    }
+    if (current->port_name != nullptr && port_name == current->port_name) {
+      return true;
+    }
+    if (current->left != nullptr) {
+      pending_expressions.push_back(current->left);
+    }
+    if (current->right != nullptr) {
+      pending_expressions.push_back(current->right);
+    }
+  }
+  return false;
+}
+
+auto outputFunctionUsesInput(ista::LibCell* lib_cell, idb::IdbPin* output_pin, idb::IdbPin* input_pin) -> bool
+{
+  if (lib_cell == nullptr || output_pin == nullptr || input_pin == nullptr) {
+    return false;
+  }
+  auto* output_port = findLibPort(lib_cell, output_pin);
+  if (output_port == nullptr || output_port->get_func_expr() == nullptr) {
+    return false;
+  }
+  return libertyExpressionUsesPort(output_port->get_func_expr(), termName(input_pin));
+}
+
+auto collectInputPins(idb::IdbInstance* idb_inst) -> std::vector<idb::IdbPin*>
+{
+  std::vector<idb::IdbPin*> input_pins;
+  if (idb_inst == nullptr || idb_inst->get_pin_list() == nullptr) {
+    return input_pins;
+  }
+  for (auto* idb_pin : idb_inst->get_pin_list()->get_pin_list()) {
+    if (isInputLike(idb_pin)) {
+      input_pins.push_back(idb_pin);
+    }
+  }
+  return input_pins;
+}
+
+auto collectOutputPins(idb::IdbInstance* idb_inst) -> std::vector<idb::IdbPin*>
+{
+  std::vector<idb::IdbPin*> output_pins;
+  if (idb_inst == nullptr || idb_inst->get_pin_list() == nullptr) {
+    return output_pins;
+  }
+  for (auto* idb_pin : idb_inst->get_pin_list()->get_pin_list()) {
+    if (isOutputLike(idb_pin)) {
+      output_pins.push_back(idb_pin);
+    }
+  }
+  return output_pins;
+}
+
+auto collectClockInputPins(idb::IdbInstance* idb_inst) -> std::vector<idb::IdbPin*>
+{
+  std::vector<idb::IdbPin*> clock_input_pins;
+  for (auto* idb_pin : collectInputPins(idb_inst)) {
+    auto* idb_net = idb_pin == nullptr ? nullptr : idb_pin->get_net();
+    if (idb_net != nullptr && idb_net->is_clock()) {
+      clock_input_pins.push_back(idb_pin);
+    }
+  }
+  return clock_input_pins;
+}
+
+auto isLibertyClockPin(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> bool
+{
+  auto* lib_port = findLibPort(lib_cell, idb_pin);
+  return lib_port != nullptr && (lib_port->isClock() || lib_port->get_is_clock_pin());
+}
+
+auto isClockGateClockPin(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> bool
+{
+  auto* lib_port = findLibPort(lib_cell, idb_pin);
+  return lib_port != nullptr && (lib_port->get_clock_gate_clock_pin() || lib_port->isClock());
+}
+
+auto isSequentialCheckClockPin(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> bool
+{
+  if (lib_cell == nullptr || idb_pin == nullptr) {
+    return false;
+  }
+  const auto pin_name = termName(idb_pin);
+  if (pin_name.empty()) {
+    return false;
+  }
+  for (auto& arc_set : lib_cell->get_cell_arcs()) {
+    if (arc_set == nullptr) {
+      continue;
+    }
+    for (auto& arc : arc_set->get_arcs()) {
+      auto* lib_arc = arc.get();
+      if (lib_arc != nullptr && lib_arc->isCheckArc() && pin_name == lib_arc->get_src_port()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+auto isSequentialClockToOutputArc(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> bool
+{
+  if (lib_cell == nullptr || idb_pin == nullptr) {
+    return false;
+  }
+  const auto pin_name = termName(idb_pin);
+  if (pin_name.empty()) {
+    return false;
+  }
+  for (auto& arc_set : lib_cell->get_cell_arcs()) {
+    if (arc_set == nullptr) {
+      continue;
+    }
+    for (auto& arc : arc_set->get_arcs()) {
+      auto* lib_arc = arc.get();
+      if (lib_arc == nullptr || pin_name != lib_arc->get_src_port()) {
+        continue;
+      }
+      const auto timing_type = lib_arc->get_timing_type();
+      if (timing_type != ista::LibArc::TimingType::kRisingEdge && timing_type != ista::LibArc::TimingType::kFallingEdge) {
+        continue;
+      }
+      auto* output_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_snk_port());
+      if (output_port != nullptr && output_port->isOutput()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+auto isCombinationalTimingType(ista::LibArc::TimingType timing_type) -> bool
+{
+  return timing_type == ista::LibArc::TimingType::kComb || timing_type == ista::LibArc::TimingType::kCombRise
+         || timing_type == ista::LibArc::TimingType::kCombFall || timing_type == ista::LibArc::TimingType::kDefault;
+}
+
+auto hasTransparentDataArcForClockPin(ista::LibCell* lib_cell, idb::IdbPin* clock_pin) -> bool
+{
+  if (lib_cell == nullptr || clock_pin == nullptr) {
+    return false;
+  }
+  const auto clock_pin_name = termName(clock_pin);
+  if (clock_pin_name.empty()) {
+    return false;
+  }
+  for (auto& arc_set : lib_cell->get_cell_arcs()) {
+    if (arc_set == nullptr) {
+      continue;
+    }
+    for (auto& arc : arc_set->get_arcs()) {
+      auto* lib_arc = arc.get();
+      if (lib_arc == nullptr || !isCombinationalTimingType(lib_arc->get_timing_type())) {
+        continue;
+      }
+      if (clock_pin_name == lib_arc->get_src_port()) {
+        continue;
+      }
+      auto* src_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_src_port());
+      auto* snk_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_snk_port());
+      if (src_port != nullptr && src_port->isInput() && snk_port != nullptr && snk_port->isOutput()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+auto hasSequentialClockPinEvidence(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> bool
+{
+  return isLibertyClockPin(lib_cell, idb_pin) || isSequentialCheckClockPin(lib_cell, idb_pin)
+         || isSequentialClockToOutputArc(lib_cell, idb_pin) || (idb_pin != nullptr && idb_pin->is_flip_flop_clk());
+}
+
+auto classifySequentialInst(ista::LibCell* lib_cell, idb::IdbPin* primary_clock_pin) -> CtsInstClassification
+{
+  if (primary_clock_pin != nullptr && hasTransparentDataArcForClockPin(lib_cell, primary_clock_pin)) {
+    return {.type = InstType::kLatch, .role = "latch_sink", .reason = "liberty_latch_transparent_data_arc"};
+  }
+  if (primary_clock_pin != nullptr && hasSequentialClockPinEvidence(lib_cell, primary_clock_pin)) {
+    return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "liberty_sequential_clock_pin"};
+  }
+  return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "liberty_sequential_cell"};
+}
+
+auto countDirectClockSinks(idb::IdbNet* idb_net) -> std::size_t
+{
+  std::size_t sink_count = 0U;
+  if (idb_net == nullptr || idb_net->get_instance_pin_list() == nullptr) {
+    return sink_count;
+  }
+  for (auto* idb_pin : idb_net->get_instance_pin_list()->get_pin_list()) {
+    if (idb_pin == nullptr || idb_pin->is_io_pin() || !isInputLike(idb_pin)) {
+      continue;
+    }
+    auto* inst = idb_pin->get_instance();
+    auto* lib_cell = findLibCell(inst);
+    auto* cell_master = inst == nullptr ? nullptr : inst->get_cell_master();
+    if ((lib_cell != nullptr && lib_cell->isSequentialCell() && !lib_cell->isICG() && hasSequentialClockPinEvidence(lib_cell, idb_pin))
+        || (cell_master != nullptr && cell_master->is_block() && isLibertyClockPin(lib_cell, idb_pin)) || idb_pin->is_flip_flop_clk()) {
+      ++sink_count;
+    }
+  }
+  return sink_count;
+}
+
+auto hasClockSinkOutput(ista::LibCell* lib_cell, idb::IdbInstance* idb_inst, idb::IdbPin* clock_input_pin) -> bool
+{
+  for (auto* output_pin : collectOutputPins(idb_inst)) {
+    if (!outputFunctionUsesInput(lib_cell, output_pin, clock_input_pin)) {
+      continue;
+    }
+    auto* output_net = output_pin == nullptr ? nullptr : output_pin->get_net();
+    if (countDirectClockSinks(output_net) > 0U) {
+      return true;
+    }
+  }
+  return false;
+}
+
+auto makeBoundaryClassification(const std::string& role, const std::string& reason) -> CtsInstClassification
+{
+  return CtsInstClassification{
+      .type = role == "clock_logic_boundary" ? InstType::kClockLogic : InstType::kBoundaryLoad,
+      .role = role,
+      .reason = reason,
+  };
+}
+
+auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassification
+{
+  if (idb_inst == nullptr) {
+    return {.type = InstType::kUnknown, .role = "unknown_boundary", .reason = "null_idb_inst"};
+  }
+  auto* cell_master = idb_inst->get_cell_master();
+  if (cell_master != nullptr && cell_master->is_block()) {
+    return {.type = InstType::kMacroBlock, .role = "macro_clock_sink", .reason = "idb_macro_block"};
+  }
+
+  auto* lib_cell = findLibCell(idb_inst);
+  const auto clock_input_pins = collectClockInputPins(idb_inst);
+  auto* primary_clock_pin = clock_input_pins.empty() ? nullptr : clock_input_pins.front();
+
+  if (lib_cell != nullptr && lib_cell->isICG()) {
+    return {.type = InstType::kClockGate,
+            .role = "integrated_clock_gate",
+            .reason = primary_clock_pin == nullptr || isClockGateClockPin(lib_cell, primary_clock_pin) ? "liberty_clock_gate"
+                                                                                                       : "liberty_clock_gate_cell"};
+  }
+
+  if (lib_cell != nullptr && lib_cell->isSequentialCell()) {
+    return classifySequentialInst(lib_cell, primary_clock_pin);
+  }
+
+  if (lib_cell != nullptr && (lib_cell->isBuffer() || lib_cell->isInverter())) {
+    ista::LibPort* input_port = nullptr;
+    ista::LibPort* output_port = nullptr;
+    lib_cell->bufferPorts(input_port, output_port);
+    auto* input_pin = resolveInstPinByLibPort(idb_inst, input_port);
+    auto* output_pin = resolveInstPinByLibPort(idb_inst, output_port);
+    if (input_pin != nullptr && output_pin != nullptr) {
+      return {.type = lib_cell->isBuffer() ? InstType::kBuffer : InstType::kInverter,
+              .role = lib_cell->isBuffer() ? "clock_buffer" : "clock_inverter",
+              .reason = lib_cell->isBuffer() ? "liberty_buffer" : "liberty_inverter",
+              .input_pin_name = termName(input_pin),
+              .output_pin_name = termName(output_pin)};
+    }
+  }
+
+  if (clock_input_pins.size() > 1U) {
+    return {.type = InstType::kMux, .role = "clock_mux", .reason = "multi_clock_input_boundary"};
+  }
+
+  if (primary_clock_pin != nullptr && hasClockSinkOutput(lib_cell, idb_inst, primary_clock_pin)) {
+    return makeBoundaryClassification("clock_logic_boundary", "clock_dependent_output_feeds_clock_sinks");
+  }
+
+  if (idb_inst->is_flip_flop()) {
+    return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "idb_flip_flop"};
+  }
+
+  if (idb_inst->is_clock_instance()) {
+    return makeBoundaryClassification("clock_load_boundary", "clock_net_boundary_load");
+  }
+  return {.type = InstType::kUnknown, .role = "non_clock_unknown", .reason = "non_clock_unknown"};
+}
+
 auto ctsPinFullName(idb::IdbPin* idb_pin, Inst* cts_inst) -> std::string
 {
-  const auto pin_name = idbPinTermName(idb_pin);
+  const auto pin_name = termName(idb_pin);
   if (pin_name.empty()) {
     return {};
   }
@@ -215,6 +571,7 @@ class Wrapper::CtsClockReader
         return false;
       }
     }
+    emitInstClassificationSummary(_classification_count_by_key);
     return true;
   }
 
@@ -250,6 +607,7 @@ class Wrapper::CtsClockReader
         return false;
       }
     }
+    emitInstClassificationSummary(_classification_count_by_key);
     return true;
   }
 
@@ -264,6 +622,28 @@ class Wrapper::CtsClockReader
     _wrapper->_idb2cts_pin_map.clear();
     DESIGN_INST.clearClocks();
     DESIGN_INST.clearTopologyObjects();
+    _classification_count_by_key.clear();
+  }
+
+  auto recordInstClassification(const CtsInstClassification& classification) -> void
+  {
+    ++_classification_count_by_key[classification.role + ":" + classification.reason];
+  }
+
+  static auto emitInstClassificationSummary(const std::map<std::string, std::size_t>& classification_count_by_key) -> void
+  {
+    if (classification_count_by_key.empty()) {
+      return;
+    }
+    schema::TableRows rows;
+    rows.reserve(classification_count_by_key.size());
+    for (const auto& [key, count] : classification_count_by_key) {
+      const auto separator_pos = key.find(':');
+      const auto role = separator_pos == std::string::npos ? key : key.substr(0U, separator_pos);
+      const auto reason = separator_pos == std::string::npos ? std::string{} : key.substr(separator_pos + 1U);
+      rows.push_back({role, reason, std::to_string(count)});
+    }
+    schema::EmitTable("CTS Inst Classification Summary", {"Role", "Reason", "Count"}, rows);
   }
 
   auto findIdbDesign() -> idb::IdbDesign*
@@ -497,7 +877,9 @@ class Wrapper::CtsClockReader
     }
     cts_inst->set_name(inst_name);
     cts_inst->set_cell_master(cell_master->get_name());
-    cts_inst->set_type(inferCtsInstTypeFromIdbInst(idb_inst));
+    const auto classification = classifyCtsInstFromIdbInst(idb_inst);
+    cts_inst->set_type(classification.type);
+    recordInstClassification(classification);
     cts_inst->set_location(Wrapper::idbToCts(*coord));
     bindIdbInst(idb_inst, cts_inst);
     return cts_inst;
@@ -614,6 +996,7 @@ class Wrapper::CtsClockReader
   auto bindIdbNet(idb::IdbNet* idb_net, Net* cts_net) -> void { _wrapper->crossRef(idb_net, cts_net); }
 
   Wrapper* _wrapper = nullptr;
+  std::map<std::string, std::size_t> _classification_count_by_key = {};
 };
 
 auto Wrapper::readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool

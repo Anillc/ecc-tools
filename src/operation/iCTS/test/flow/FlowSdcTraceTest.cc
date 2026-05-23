@@ -39,15 +39,110 @@
 #include "IdbInstance.h"
 #include "IdbLayout.h"
 #include "IdbNet.h"
+#include "LibParserRustC.hh"
 #include "Schema.hh"
 #include "Wrapper.hh"
+#include "api/TimingEngine.hh"
 #include "common/logging/LogText.hh"
+#include "liberty/Lib.hh"
 #include "setup/clock_data/ClockDataRead.hh"
 
 namespace icts_test {
 namespace {
 
 using namespace flow_test;
+
+class ScopedTestLiberty
+{
+ public:
+  ScopedTestLiberty() : _timing_engine(resetTimingEngine()), _lib(std::make_unique<ista::LibLibrary>("icts_clock_type_test_lib")) {}
+
+  ~ScopedTestLiberty()
+  {
+    _lib = nullptr;
+    ista::TimingEngine::destroyTimingEngine();
+  }
+
+  auto addCell(std::unique_ptr<ista::LibCell> cell) -> void { _lib->addLibertyCell(std::move(cell)); }
+
+  auto publish() -> void
+  {
+    ASSERT_NE(_timing_engine, nullptr);
+    _timing_engine->get_ista()->addLib(std::move(_lib));
+  }
+
+ private:
+  static auto resetTimingEngine() -> ista::TimingEngine*
+  {
+    ista::TimingEngine::destroyTimingEngine();
+    return ista::TimingEngine::getOrCreateTimingEngine();
+  }
+
+  ista::TimingEngine* _timing_engine = nullptr;
+  std::unique_ptr<ista::LibLibrary> _lib = nullptr;
+};
+
+auto MakeLibPort(ista::LibCell& cell, const std::string& port_name, ista::LibPort::LibertyPortType port_type, bool is_clock = false)
+    -> ista::LibPort*
+{
+  auto port = std::make_unique<ista::LibPort>(port_name.c_str());
+  auto* port_ptr = port.get();
+  port_ptr->set_port_type(port_type);
+  port_ptr->set_ower_cell(&cell);
+  port_ptr->set_is_clock_pin(is_clock);
+  cell.addLibertyPort(std::move(port));
+  return port_ptr;
+}
+
+auto AddLibArc(ista::LibCell& cell, const std::string& src_port, const std::string& snk_port, const std::string& timing_type) -> void
+{
+  auto arc = std::make_unique<ista::LibArc>();
+  arc->set_src_port(src_port.c_str());
+  arc->set_snk_port(snk_port.c_str());
+  arc->set_owner_cell(&cell);
+  arc->set_timing_type(timing_type.c_str());
+  cell.addLibertyArc(std::move(arc));
+}
+
+auto MakeFlipFlopLibCell(const std::string& cell_name, const std::string& clock_pin_name) -> std::unique_ptr<ista::LibCell>
+{
+  auto cell = std::make_unique<ista::LibCell>(cell_name.c_str(), nullptr);
+  MakeLibPort(*cell, "D", ista::LibPort::LibertyPortType::kInput);
+  MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput, true);
+  MakeLibPort(*cell, "Q", ista::LibPort::LibertyPortType::kOutput);
+  AddLibArc(*cell, clock_pin_name, "Q", "rising_edge");
+  AddLibArc(*cell, clock_pin_name, "D", "setup_rising");
+  AddLibArc(*cell, clock_pin_name, "D", "hold_rising");
+  return cell;
+}
+
+auto MakeLatchLibCell(const std::string& cell_name, const std::string& clock_pin_name) -> std::unique_ptr<ista::LibCell>
+{
+  auto cell = std::make_unique<ista::LibCell>(cell_name.c_str(), nullptr);
+  MakeLibPort(*cell, "D", ista::LibPort::LibertyPortType::kInput);
+  MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput, true);
+  MakeLibPort(*cell, "Q", ista::LibPort::LibertyPortType::kOutput);
+  AddLibArc(*cell, "D", "Q", "combinational");
+  AddLibArc(*cell, clock_pin_name, "Q", "falling_edge");
+  AddLibArc(*cell, clock_pin_name, "D", "setup_rising");
+  AddLibArc(*cell, clock_pin_name, "D", "hold_rising");
+  return cell;
+}
+
+auto MakeClockLogicLibCell(const std::string& cell_name, const std::string& clock_pin_name) -> std::unique_ptr<ista::LibCell>
+{
+  auto cell = std::make_unique<ista::LibCell>(cell_name.c_str(), nullptr);
+  MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput);
+  MakeLibPort(*cell, "EN", ista::LibPort::LibertyPortType::kInput);
+  auto* out_port = MakeLibPort(*cell, "Y", ista::LibPort::LibertyPortType::kOutput);
+  RustLibertyExprBuilder expr_builder(clock_pin_name.c_str());
+  expr_builder.execute();
+  out_port->set_func_expr(expr_builder.get_result_expr());
+  out_port->set_func_expr_str(clock_pin_name.c_str());
+  AddLibArc(*cell, clock_pin_name, "Y", "combinational");
+  AddLibArc(*cell, "EN", "Y", "combinational");
+  return cell;
+}
 
 TEST(FlowTest, SdcClockResolutionUsesSdcReachableTargets)
 {
@@ -240,6 +335,168 @@ TEST(FlowTest, SdcClockTraceAllowsClockGateLikeCombTarget)
 
   std::error_code error_code;
   std::filesystem::remove(sdc_path, error_code);
+}
+
+TEST(FlowTest, ClockReadClassifiesCombinationalClockLoadAsBoundaryLoad)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kClock);
+  auto* data_net = idb_design.get_net_list()->add_net("data_out", idb::IdbConnectType::kSignal);
+  ASSERT_NE(clock_net, nullptr);
+  ASSERT_NE(data_net, nullptr);
+
+  auto* io_pin = AddIdbIoPin(idb_design, "clock", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock);
+  ASSERT_NE(io_pin, nullptr);
+  AttachIdbPinToNet(*clock_net, *io_pin);
+
+  auto* logic_master = AddIdbCellMaster(idb_layout, "CLOCK_LOAD_LOGIC");
+  ASSERT_NE(logic_master, nullptr);
+  ASSERT_NE(AddIdbTerm(*logic_master, "A", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*logic_master, "Y", idb::IdbConnectDirection::kOutput), nullptr);
+  auto* logic_inst = AddIdbInst(idb_design, "logic_load", *logic_master, 50, 0);
+  ASSERT_NE(logic_inst, nullptr);
+  auto* logic_input = logic_inst->get_pin_by_term("A");
+  auto* logic_output = logic_inst->get_pin_by_term("Y");
+  ASSERT_NE(logic_input, nullptr);
+  ASSERT_NE(logic_output, nullptr);
+  AttachIdbPinToNet(*clock_net, *logic_input);
+  AttachIdbPinToNet(*data_net, *logic_output);
+
+  auto* reg_master = AddIdbCellMaster(idb_layout, "REG_CELL");
+  ASSERT_NE(reg_master, nullptr);
+  ASSERT_NE(AddIdbTerm(*reg_master, "CLK", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock), nullptr);
+  ASSERT_NE(AddIdbClockSink(idb_design, *reg_master, *clock_net, "sink0", 100), nullptr);
+
+  const auto sdc_path = WriteTempSdc("icts_clock_load_boundary_classification.sdc", "create_clock -name CLK [get_ports clock] -period 2\n");
+
+  EXPECT_TRUE(icts::ClockDataRead::read());
+  auto* cts_inst = DESIGN_INST.findInst("logic_load");
+  ASSERT_NE(cts_inst, nullptr);
+  EXPECT_EQ(cts_inst->get_type(), icts::InstType::kBoundaryLoad);
+  EXPECT_TRUE(DESIGN_INST.rebuildClockDAG());
+
+  std::error_code error_code;
+  std::filesystem::remove(sdc_path, error_code);
+}
+
+TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  ScopedTestLiberty test_liberty;
+  test_liberty.addCell(MakeFlipFlopLibCell("TEST_DFF", "CK"));
+  test_liberty.addCell(MakeLatchLibCell("TEST_LATCH", "GN"));
+  test_liberty.publish();
+
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kClock);
+  ASSERT_NE(clock_net, nullptr);
+  auto* io_pin = AddIdbIoPin(idb_design, "clock", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock);
+  ASSERT_NE(io_pin, nullptr);
+  AttachIdbPinToNet(*clock_net, *io_pin);
+
+  auto* ff_master = AddIdbCellMaster(idb_layout, "TEST_DFF");
+  ASSERT_NE(ff_master, nullptr);
+  ASSERT_NE(AddIdbTerm(*ff_master, "CK", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*ff_master, "D", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*ff_master, "Q", idb::IdbConnectDirection::kOutput), nullptr);
+  auto* ff_inst = AddIdbInst(idb_design, "ff_sink", *ff_master, 50, 0);
+  ASSERT_NE(ff_inst, nullptr);
+  auto* ff_clock_pin = ff_inst->get_pin_by_term("CK");
+  ASSERT_NE(ff_clock_pin, nullptr);
+  AttachIdbPinToNet(*clock_net, *ff_clock_pin);
+
+  auto* latch_master = AddIdbCellMaster(idb_layout, "TEST_LATCH");
+  ASSERT_NE(latch_master, nullptr);
+  ASSERT_NE(AddIdbTerm(*latch_master, "GN", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*latch_master, "D", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*latch_master, "Q", idb::IdbConnectDirection::kOutput), nullptr);
+  auto* latch_inst = AddIdbInst(idb_design, "latch_sink", *latch_master, 100, 0);
+  ASSERT_NE(latch_inst, nullptr);
+  auto* latch_clock_pin = latch_inst->get_pin_by_term("GN");
+  ASSERT_NE(latch_clock_pin, nullptr);
+  AttachIdbPinToNet(*clock_net, *latch_clock_pin);
+
+  const auto sdc_path = WriteTempSdc("icts_sequential_type_classification.sdc", "create_clock -name CLK [get_ports clock] -period 2\n");
+
+  EXPECT_TRUE(icts::ClockDataRead::read());
+  auto* cts_ff = DESIGN_INST.findInst("ff_sink");
+  auto* cts_latch = DESIGN_INST.findInst("latch_sink");
+  ASSERT_NE(cts_ff, nullptr);
+  ASSERT_NE(cts_latch, nullptr);
+  EXPECT_EQ(cts_ff->get_type(), icts::InstType::kFlipFlop);
+  EXPECT_EQ(cts_latch->get_type(), icts::InstType::kLatch);
+  EXPECT_TRUE(DESIGN_INST.rebuildClockDAG());
+
+  std::error_code error_code;
+  std::filesystem::remove(sdc_path, error_code);
+}
+
+TEST(FlowTest, ClockReadClassifiesClockDependentLogicAsClockLogicBoundary)
+{
+  const ScopedFlowReset scoped_flow_reset;
+  ScopedTestLiberty test_liberty;
+  test_liberty.addCell(MakeClockLogicLibCell("TEST_CLOCK_AND", "CLK"));
+  test_liberty.addCell(MakeFlipFlopLibCell("TEST_DFF", "CK"));
+  test_liberty.publish();
+
+  idb::IdbLayout idb_layout;
+  idb::IdbDesign idb_design(&idb_layout);
+  WRAPPER_INST.set_idb_design(&idb_design);
+  WRAPPER_INST.set_idb_layout(&idb_layout);
+
+  auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kClock);
+  auto* enable_net = idb_design.get_net_list()->add_net("enable", idb::IdbConnectType::kSignal);
+  auto* gated_net = idb_design.get_net_list()->add_net("gated_clock", idb::IdbConnectType::kClock);
+  ASSERT_NE(clock_net, nullptr);
+  ASSERT_NE(enable_net, nullptr);
+  ASSERT_NE(gated_net, nullptr);
+
+  auto* io_pin = AddIdbIoPin(idb_design, "clock", idb::IdbConnectDirection::kInput, idb::IdbConnectType::kClock);
+  ASSERT_NE(io_pin, nullptr);
+  AttachIdbPinToNet(*clock_net, *io_pin);
+
+  auto* logic_master = AddIdbCellMaster(idb_layout, "TEST_CLOCK_AND");
+  ASSERT_NE(logic_master, nullptr);
+  ASSERT_NE(AddIdbTerm(*logic_master, "CLK", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*logic_master, "EN", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*logic_master, "Y", idb::IdbConnectDirection::kOutput), nullptr);
+  auto* logic_inst = AddIdbInst(idb_design, "clock_logic", *logic_master, 50, 0);
+  ASSERT_NE(logic_inst, nullptr);
+  auto* logic_clock = logic_inst->get_pin_by_term("CLK");
+  auto* logic_enable = logic_inst->get_pin_by_term("EN");
+  auto* logic_output = logic_inst->get_pin_by_term("Y");
+  ASSERT_NE(logic_clock, nullptr);
+  ASSERT_NE(logic_enable, nullptr);
+  ASSERT_NE(logic_output, nullptr);
+  AttachIdbPinToNet(*clock_net, *logic_clock);
+  AttachIdbPinToNet(*enable_net, *logic_enable);
+  AttachIdbPinToNet(*gated_net, *logic_output);
+
+  auto* ff_master = AddIdbCellMaster(idb_layout, "TEST_DFF");
+  ASSERT_NE(ff_master, nullptr);
+  ASSERT_NE(AddIdbTerm(*ff_master, "CK", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*ff_master, "D", idb::IdbConnectDirection::kInput), nullptr);
+  ASSERT_NE(AddIdbTerm(*ff_master, "Q", idb::IdbConnectDirection::kOutput), nullptr);
+  auto* sink_inst = AddIdbInst(idb_design, "downstream_ff", *ff_master, 100, 0);
+  ASSERT_NE(sink_inst, nullptr);
+  auto* sink_clock = sink_inst->get_pin_by_term("CK");
+  ASSERT_NE(sink_clock, nullptr);
+  AttachIdbPinToNet(*gated_net, *sink_clock);
+
+  EXPECT_TRUE(WRAPPER_INST.readClocks({{"CLK", "clock"}}));
+  auto* cts_logic = DESIGN_INST.findInst("clock_logic");
+  ASSERT_NE(cts_logic, nullptr);
+  EXPECT_EQ(cts_logic->get_type(), icts::InstType::kClockLogic);
+  EXPECT_TRUE(DESIGN_INST.rebuildClockDAG());
 }
 
 TEST(FlowTest, SdcClockTraceMaterializesAllTargetsAndSkipsVirtualClock)

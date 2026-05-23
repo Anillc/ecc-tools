@@ -153,6 +153,15 @@ auto instTypeName(const Inst& inst) -> std::string
   if (inst.is_flipflop()) {
     return "FlipFlop";
   }
+  if (inst.is_latch()) {
+    return "Latch";
+  }
+  if (inst.is_clock_logic()) {
+    return "ClockLogic";
+  }
+  if (inst.is_boundary_load()) {
+    return "BoundaryLoad";
+  }
   return "Others";
 }
 
@@ -282,7 +291,7 @@ auto ClassifyClockNet(const Clock& clock, const Net* net) -> ClockNetRole
       continue;
     }
     const auto* inst = load->get_inst();
-    if (containsClockLoad(clock, load) || inst == nullptr || !inst->is_buffer()) {
+    if (containsClockLoad(clock, load) || inst == nullptr || !inst->is_clock_propagation_cell()) {
       return ClockNetRole::kLeaf;
     }
   }

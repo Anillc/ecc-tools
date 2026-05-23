@@ -81,7 +81,7 @@ auto summarizeClockGroup(const std::vector<Clock*>& clocks) -> ClockDistribution
       const auto* inst = pin->get_inst();
       if (inst == nullptr) {
         ++stats.no_inst_sinks;
-      } else if (inst->is_flipflop()) {
+      } else if (inst->is_sequential_sink()) {
         ++stats.flipflop_sinks;
       } else {
         // TBD: maybe mux but not macro block

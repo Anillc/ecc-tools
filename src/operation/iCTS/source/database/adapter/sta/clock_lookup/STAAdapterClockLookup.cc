@@ -69,6 +69,129 @@ auto CountClockInputPins(idb::IdbPins* pin_list) -> std::size_t
   return clock_input_pins;
 }
 
+auto TermName(idb::IdbPin* idb_pin) -> std::string
+{
+  auto* term = idb_pin == nullptr ? nullptr : idb_pin->get_term();
+  return term == nullptr ? std::string{} : term->get_name();
+}
+
+auto FindLibPort(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> ista::LibPort*
+{
+  if (lib_cell == nullptr || idb_pin == nullptr) {
+    return nullptr;
+  }
+  const auto port_name = TermName(idb_pin);
+  if (port_name.empty()) {
+    return nullptr;
+  }
+  return lib_cell->get_cell_port_or_port_bus(port_name.c_str());
+}
+
+auto CollectClockInputPins(idb::IdbPins* pin_list) -> std::vector<idb::IdbPin*>
+{
+  std::vector<idb::IdbPin*> clock_input_pins;
+  if (pin_list == nullptr) {
+    return clock_input_pins;
+  }
+  for (auto* idb_pin : pin_list->get_pin_list()) {
+    if (idb_pin == nullptr || idb_pin->get_term() == nullptr) {
+      continue;
+    }
+    auto* term = idb_pin->get_term();
+    auto direction = term->get_direction();
+    if (direction != idb::IdbConnectDirection::kInput && direction != idb::IdbConnectDirection::kInOut) {
+      continue;
+    }
+    auto* idb_net = idb_pin->get_net();
+    if (idb_net != nullptr && idb_net->is_clock()) {
+      clock_input_pins.push_back(idb_pin);
+    }
+  }
+  return clock_input_pins;
+}
+
+auto IsCombinationalTimingType(ista::LibArc::TimingType timing_type) -> bool
+{
+  return timing_type == ista::LibArc::TimingType::kComb || timing_type == ista::LibArc::TimingType::kCombRise
+         || timing_type == ista::LibArc::TimingType::kCombFall || timing_type == ista::LibArc::TimingType::kDefault;
+}
+
+auto HasTransparentDataArcForClockPin(ista::LibCell* lib_cell, idb::IdbPin* clock_pin) -> bool
+{
+  if (lib_cell == nullptr || clock_pin == nullptr) {
+    return false;
+  }
+  const auto clock_pin_name = TermName(clock_pin);
+  if (clock_pin_name.empty()) {
+    return false;
+  }
+  for (auto& arc_set : lib_cell->get_cell_arcs()) {
+    if (arc_set == nullptr) {
+      continue;
+    }
+    for (auto& arc : arc_set->get_arcs()) {
+      auto* lib_arc = arc.get();
+      if (lib_arc == nullptr || !IsCombinationalTimingType(lib_arc->get_timing_type())) {
+        continue;
+      }
+      if (clock_pin_name == lib_arc->get_src_port()) {
+        continue;
+      }
+      auto* src_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_src_port());
+      auto* snk_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_snk_port());
+      if (src_port != nullptr && src_port->isInput() && snk_port != nullptr && snk_port->isOutput()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+auto IsLibertySequentialSinkPin(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> bool
+{
+  if (lib_cell == nullptr || idb_pin == nullptr) {
+    return false;
+  }
+  auto* lib_port = FindLibPort(lib_cell, idb_pin);
+  if (lib_port != nullptr && (lib_port->isClock() || lib_port->get_is_clock_pin())) {
+    return true;
+  }
+  const auto pin_name = TermName(idb_pin);
+  if (pin_name.empty()) {
+    return false;
+  }
+  for (auto& arc_set : lib_cell->get_cell_arcs()) {
+    if (arc_set == nullptr) {
+      continue;
+    }
+    for (auto& arc : arc_set->get_arcs()) {
+      auto* lib_arc = arc.get();
+      if (lib_arc == nullptr || pin_name != lib_arc->get_src_port()) {
+        continue;
+      }
+      const auto timing_type = lib_arc->get_timing_type();
+      if (lib_arc->isCheckArc() || timing_type == ista::LibArc::TimingType::kRisingEdge
+          || timing_type == ista::LibArc::TimingType::kFallingEdge) {
+        return true;
+      }
+    }
+  }
+  return idb_pin->is_flip_flop_clk();
+}
+
+auto ClassifySequentialInst(ista::LibCell* lib_cell, idb::IdbPins* pin_list) -> icts::InstType
+{
+  const auto clock_input_pins = CollectClockInputPins(pin_list);
+  auto* primary_clock_pin = clock_input_pins.empty() ? nullptr : clock_input_pins.front();
+  if (primary_clock_pin != nullptr && HasTransparentDataArcForClockPin(lib_cell, primary_clock_pin)) {
+    return icts::InstType::kLatch;
+  }
+  if (primary_clock_pin == nullptr || IsLibertySequentialSinkPin(lib_cell, primary_clock_pin)) {
+    return icts::InstType::kFlipFlop;
+  }
+  return icts::InstType::kFlipFlop;
+}
+
 }  // namespace
 
 auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
@@ -97,7 +220,7 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
   if (lib_cell == nullptr) {
     LOG_WARNING << "Instance " << name << " liberty cell \"" << cell_master_name << "\" is not found; using iDB-only type heuristics.";
   } else if (lib_cell->isSequentialCell()) {
-    inst_type = icts::InstType::kFlipFlop;
+    inst_type = ClassifySequentialInst(lib_cell, pin_list);
   } else if (lib_cell->isBuffer()) {
     inst_type = icts::InstType::kBuffer;
   } else if (lib_cell->isInverter()) {
@@ -115,13 +238,19 @@ auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
     return inst_type;
   }
 
+  if (idb_inst->is_clock_instance()) {
+    inst_type = icts::InstType::kBoundaryLoad;
+    return inst_type;
+  }
+
   LOG_WARNING_IF(inst_type == icts::InstType::kUnknown) << "Instance " << name << " type is unknown which cell is " << cell_master_name;
   return inst_type;
 }
 
 auto STAAdapter::isFlipFlop(const std::string& inst_name) -> bool
 {
-  return queryInstType(inst_name) == icts::InstType::kFlipFlop;
+  const auto inst_type = queryInstType(inst_name);
+  return inst_type == icts::InstType::kFlipFlop || inst_type == icts::InstType::kLatch;
 }
 
 }  // namespace icts
