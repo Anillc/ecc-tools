@@ -22,15 +22,6 @@ namespace ircx {
 
 #define RCX_API_INST (ircx::RCXAPI::getInst())
 
-inline constexpr unsigned kDefaultThreadCount = 64U;
-inline constexpr double kDefaultOperatingTemperature = 25.0F;
-
-struct RCXInitOptions
-{
-  unsigned thread_number = kDefaultThreadCount;
-  double operating_temperature = kDefaultOperatingTemperature;
-};
-
 class RCXAPI
 {
  public:
@@ -40,29 +31,19 @@ class RCXAPI
     return inst;
   }
 
-  static auto init(const RCXInitOptions& options = {}) -> void;
-  static auto init(const std::string& config_file) -> void;
-  static auto resetAPI() -> void;
+  static auto init(const std::string& config_file) -> bool;
+  static auto run() -> bool;
+  static auto report() -> bool;
 
+  // init
   static auto readCorner(const std::string& corner_name,
                          const char* itf_file,
                          const char* captab_file) -> bool;
   static auto readMapping(const char* mapping_file) -> bool;
 
+  // run
   static auto adaptDB() -> bool;
-
-  static auto checkShortOpen() -> bool;
-  static auto buildTopology() -> bool;
-  static auto buildEnvironment() -> bool;
-  static auto buildProcessVariation() -> bool;
-  static auto extractParasitics() -> bool;
-  static auto run() -> void;
-  static auto runRCX() -> void;
-
-  static auto report(const std::string& output_dir) -> void;
-
-  [[nodiscard]] static auto runSuccess() -> bool;
-  [[nodiscard]] static auto reportSuccess() -> bool;
+  static auto calculate() -> bool;
 
   RCXAPI(const RCXAPI& other) = delete;
   RCXAPI(RCXAPI&& other) = delete;

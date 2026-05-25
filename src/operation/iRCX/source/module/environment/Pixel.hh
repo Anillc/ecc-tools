@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "IntervalUtils.hh"
 #include "TopoPool.hh"
 #include "log/Log.hh"
 namespace ircx {
@@ -60,7 +61,7 @@ class Pixel
   Dbu idxToXCoord(Dbu idx) const { return x0_ + idx * dx_; }
   Dbu idxToYCoord(Dbu idx) const { return y0_ + idx * dy_; }
 
-  [[nodiscard]] bool initPixel()
+  bool initPixel()
   {
     if (nx_ <= 0 || ny_ <= 0 || dx_ <= 0 || dy_ <= 0) {
       LOG_ERROR << "Grid parameters are not initialized!";
@@ -119,7 +120,7 @@ class Pixel
     Dbu a0 = line_seg.a0;
     Dbu a1 = line_seg.a1;
 
-    normalizeInterval(a0, a1);
+    ircx::normalizeInterval(a0, a1);
 
     if (is_horz) {
       const Dbu fixed_y_idx = coordToYIdx(fixed);
@@ -151,18 +152,6 @@ class Pixel
   }
 
  private:
-  static void normalizeInterval(Dbu& a0, Dbu& a1)
-  {
-    if (a0 > a1) {
-      std::swap(a0, a1);
-    }
-  }
-
-  static Dbu midpoint(Dbu coord0, Dbu coord1)
-  {
-    return coord0 + (coord1 - coord0) / 2;
-  }
-
   template <typename CoordToIdx,
             typename IdxValid,
             typename CellGetter,

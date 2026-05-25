@@ -26,9 +26,6 @@ int registerCmdRCX()
   registerTclCmd(TclInitRCX, "init_rcx");
   registerTclCmd(TclReportRCX, "report_rcx");
 
-  registerTclCmd(TclReadCorner, "read_corner");
-  registerTclCmd(TclReadMapping, "read_mapping");
-
   return EXIT_SUCCESS;
 }
 

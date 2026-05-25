@@ -21,6 +21,7 @@
 
 #include "LayerTable.hh"
 #include "LayoutData.hh"
+#include "RCXConfig.hh"
 #include "TopoPool.hh"
 #include "ProcessCorner.hpp"
 #include "ResistanceTemperature.hh"
@@ -237,7 +238,7 @@ F64 ResistanceCalc::apply_conductor_temperature_derating(
   const F64 nominal_temperature = layer.has_t0()
                                       ? static_cast<F64>(layer.get_t0())
                                       : static_cast<F64>(corner.get_global_temperature());
-  return applyResistanceTemperatureDerating(base_resistance, operating_temperature_,
+  return applyResistanceTemperatureDerating(base_resistance, RCX_CONFIG_INST.get_operating_temperature(),
                                             nominal_temperature, coefficients.crt1,
                                             coefficients.crt2);
 }
@@ -257,7 +258,7 @@ F64 ResistanceCalc::apply_via_temperature_derating(
   const F64 nominal_temperature = layer.has_t0()
                                       ? static_cast<F64>(layer.get_t0())
                                       : static_cast<F64>(corner.get_global_temperature());
-  return applyResistanceTemperatureDerating(base_resistance, operating_temperature_,
+  return applyResistanceTemperatureDerating(base_resistance, RCX_CONFIG_INST.get_operating_temperature(),
                                             nominal_temperature, coefficients.crt1,
                                             coefficients.crt2);
 }

@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "CapTable.hpp"
+#include "EtchPool.hh"
+#include "EnvPool.hh"
 #include "LayerTable.hh"
 #include "LayoutData.hh"
 #include "MappingBuilder.hpp"
@@ -65,11 +67,6 @@ class RCXData final {
     return inst;
   }
 
-  RCXData(const RCXData&) = delete;
-  RCXData& operator=(const RCXData&) = delete;
-  RCXData(RCXData&&) = delete;
-  RCXData& operator=(RCXData&&) = delete;
-
   void reset();
   void setDBData(LayoutData layout_data,
                  const LayerTable& design_layer_table,
@@ -87,6 +84,10 @@ class RCXData final {
   const TopoPool& topo_pool() const { return topo_pool_; }
   RCTable& rc_table() { return rc_table_; }
   const RCTable& rc_table() const { return rc_table_; }
+  std::vector<EnvPool>& net_env_pools() { return net_env_pools_; }
+  const std::vector<EnvPool>& net_env_pools() const { return net_env_pools_; }
+  std::vector<EtchPool>& corner_net_etch_pools() { return corner_net_etch_pools_; }
+  const std::vector<EtchPool>& corner_net_etch_pools() const { return corner_net_etch_pools_; }
   std::vector<CornerData>& corner_data() { return corners_; }
   const std::vector<CornerData>& corner_data() const { return corners_; }
 
@@ -94,9 +95,14 @@ class RCXData final {
   std::vector<const ::itf::ProcessCorner*> corners() const;
   std::vector<const parser::CapTable*> corner_cap_tables() const;
 
-  [[nodiscard]] bool hasCorner(const Str& corner_name) const;
+  bool hasCorner(const Str& corner_name) const;
   void setProcessLayersRegistered(bool value) { process_layers_registered_ = value; }
-  [[nodiscard]] bool processLayersRegistered() const { return process_layers_registered_; }
+  bool processLayersRegistered() const { return process_layers_registered_; }
+
+  RCXData(const RCXData&) = delete;
+  RCXData(RCXData&&) = delete;
+  auto operator=(const RCXData&) -> RCXData& = delete;
+  auto operator=(RCXData&&) -> RCXData& = delete;
 
  private:
   RCXData() = default;
@@ -109,6 +115,8 @@ class RCXData final {
   parser::MappingBuilder mapping_builder_;
   TopoPool topo_pool_;
   RCTable rc_table_;
+  std::vector<EnvPool> net_env_pools_;
+  std::vector<EtchPool> corner_net_etch_pools_;
   bool process_layers_registered_{false};
 };
 

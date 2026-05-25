@@ -14,29 +14,25 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-/**
- * @file tcl_run_rcx.cpp
- * @author Yipei Xu (yipeix@163.com)
- * @brief
- * @version 0.1
- * @date 2025-12-09
- */
-#include "RCXAPI.hh"
-#include "tcl_ircx.h"
+#pragma once
 
-namespace tcl {
+#include "Types.hh"
 
-TclRunRCX::TclRunRCX(const char* cmd_name) : TclCmd(cmd_name)
+namespace ircx {
+
+inline Micron dbuToMicronScale(Dbu micron_to_dbu)
 {
+  return Micron(1.0) / static_cast<Micron>(micron_to_dbu);
 }
 
-unsigned TclRunRCX::exec()
+inline Micron dbuToMicron(Dbu value, Dbu micron_to_dbu)
 {
-  if (!check()) {
-    return 0;
-  }
-
-  return RCX_API_INST.run() ? 1U : 0U;
+  return static_cast<Micron>(value) * dbuToMicronScale(micron_to_dbu);
 }
 
-}  // namespace tcl
+inline Dbu micronToDbu(Micron value, Dbu micron_to_dbu)
+{
+  return static_cast<Dbu>(value * static_cast<Micron>(micron_to_dbu));
+}
+
+}  // namespace ircx

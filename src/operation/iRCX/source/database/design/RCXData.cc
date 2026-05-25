@@ -39,6 +39,8 @@ void RCXData::reset()
   mapping_builder_.clear();
   topo_pool_.clear();
   rc_table_.clear();
+  net_env_pools_.clear();
+  corner_net_etch_pools_.clear();
   process_layers_registered_ = false;
 }
 
@@ -51,6 +53,8 @@ void RCXData::setDBData(LayoutData layout_data,
   spef_context_ = std::move(spef_context);
   topo_pool_.clear();
   rc_table_.clear();
+  net_env_pools_.clear();
+  corner_net_etch_pools_.clear();
 }
 
 std::vector<::itf::ProcessCorner*> RCXData::corners()

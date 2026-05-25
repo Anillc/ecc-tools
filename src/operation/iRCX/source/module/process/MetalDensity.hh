@@ -60,13 +60,10 @@ class MetalDensity
            static_cast<double>(gtl::area(box));
   }
 
- private:
-  // copy
   MetalDensity(const MetalDensity&) = delete;
-  MetalDensity& operator=(const MetalDensity&) = delete;
-  // move
   MetalDensity(MetalDensity&&) = delete;
-  MetalDensity& operator=(MetalDensity&&) = delete;
+  auto operator=(const MetalDensity&) -> MetalDensity& = delete;
+  auto operator=(MetalDensity&&) -> MetalDensity& = delete;
 
  private:
   const TopoPool* topo_pool_{nullptr};

@@ -91,6 +91,7 @@ class SpefDumper {
   void writePorts(std::ofstream& ofs) const;
 
   void writeDNet(std::ostream& os, Size corner_idx, Size net_idx) const;
+  void writeGeometry(std::ostream& os, Size net_idx) const;
 
   const SpefContext* spef_context_{nullptr};
   const LayoutData* layout_data_{nullptr};

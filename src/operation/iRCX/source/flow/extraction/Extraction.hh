@@ -14,29 +14,25 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-/**
- * @file tcl_run_rcx.cpp
- * @author Yipei Xu (yipeix@163.com)
- * @brief
- * @version 0.1
- * @date 2025-12-09
- */
-#include "RCXAPI.hh"
-#include "tcl_ircx.h"
+#pragma once
 
-namespace tcl {
+#include "Types.hh"
 
-TclRunRCX::TclRunRCX(const char* cmd_name) : TclCmd(cmd_name)
+namespace ircx {
+
+class Extraction
 {
-}
+ public:
+  Extraction() = default;
+  ~Extraction() = default;
 
-unsigned TclRunRCX::exec()
-{
-  if (!check()) {
-    return 0;
-  }
+  auto run() -> bool;
 
-  return RCX_API_INST.run() ? 1U : 0U;
-}
+ private:
+  auto buildTopology() -> bool;
+  auto buildEnvironment() -> bool;
+  auto buildProcessVariation() -> bool;
+  auto calculateParasitics() -> bool;
+};
 
-}  // namespace tcl
+}  // namespace ircx

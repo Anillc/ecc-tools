@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "Environment.hh"
+#include "IntervalUtils.hh"
 #include "LayoutData.hh"
 #include "TopoPool.hh"
 #include "IntervalEngine.hh"
@@ -33,7 +34,6 @@ void Environment::reset()
   layer_to_pixel_nonprefer_dir_.clear();
   layer_to_track_.clear();
   layer_to_search_track_num_.clear();
-  net_env_pools_.clear();
 }
 
 bool Environment::buildTracks()
@@ -238,7 +238,7 @@ void Environment::buildSearchTrackNumMap()
   }
 }
 
-bool Environment::buildNetEnvPools()
+bool Environment::buildNetEnvPools(std::vector<EnvPool>& net_env_pools)
 {
   if (!layout_data_) {
     LOG_ERROR << "build environment failed: LayoutData not initialized.";
@@ -255,8 +255,8 @@ bool Environment::buildNetEnvPools()
   buildSearchTrackNumMap();
 
   Size net_num = layout_data_->regular_net_count();
-  net_env_pools_.clear();
-  net_env_pools_.resize(net_num);
+  net_env_pools.clear();
+  net_env_pools.resize(net_num);
 
   const std::map<Size, RoutingLayer>& routing_layers = layout_data_->routing_layers;
   const Size min_lid = routing_layers.empty() ? 0 : routing_layers.begin()->first;
@@ -270,34 +270,13 @@ bool Environment::buildNetEnvPools()
   };
 
   auto clip_cross_segs = [](const std::vector<CrossOverlapSub>& full, Dbu a0, Dbu a1) {
-    std::vector<CrossOverlapSub> clipped;
-    if (!(a0 < a1)) {
-      return clipped;
-    }
-
-    for (const auto& seg : full) {
-      const Dbu s = std::max(a0, seg.a0);
-      const Dbu t = std::min(a1, seg.a1);
-      if (!(s < t)) {
-        continue;
-      }
-
-      if (!clipped.empty() &&
-          clipped.back().a1 == s &&
-          clipped.back().blw_layer == seg.blw_layer &&
-          clipped.back().abv_layer == seg.abv_layer) {
-        clipped.back().a1 = t;
-      } else {
-        CrossOverlapSub sub;
-        sub.a0 = s;
-        sub.a1 = t;
-        sub.blw_layer = seg.blw_layer;
-        sub.abv_layer = seg.abv_layer;
-        clipped.push_back(sub);
-      }
-    }
-
-    return clipped;
+    return clipIntervals(
+        full,
+        a0,
+        a1,
+        [](const CrossOverlapSub& lhs, const CrossOverlapSub& rhs) {
+          return lhs.blw_layer == rhs.blw_layer && lhs.abv_layer == rhs.abv_layer;
+        });
   };
 
   TrackOverlapMerge track_merger;
@@ -354,7 +333,7 @@ bool Environment::buildNetEnvPools()
 
   #pragma omp parallel for schedule(dynamic)
   for (Size nid = 0; nid < net_num; nid++) {
-    EnvPool& net_env_pool = net_env_pools_[nid];
+    EnvPool& net_env_pool = net_env_pools[nid];
     net_env_pool.clear();
 
     for (const TopoEdge& edge : topo_pool_->net_edges(nid)) {

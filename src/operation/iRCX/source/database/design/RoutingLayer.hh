@@ -22,12 +22,11 @@ namespace ircx {
 class RoutingLayer {
  public:
   RoutingLayer() = default;
-  ~RoutingLayer() = default;
-
   RoutingLayer(const RoutingLayer&) = default;
-  RoutingLayer& operator=(const RoutingLayer&) = default;
+  auto operator=(const RoutingLayer&) -> RoutingLayer& = default;
   RoutingLayer(RoutingLayer&&) = default;
-  RoutingLayer& operator=(RoutingLayer&&) = default;
+  auto operator=(RoutingLayer&&) -> RoutingLayer& = default;
+  ~RoutingLayer() = default;
 
   struct TrackInfo {
     Dbu x0{};

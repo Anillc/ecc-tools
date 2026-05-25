@@ -14,29 +14,31 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-/**
- * @file tcl_run_rcx.cpp
- * @author Yipei Xu (yipeix@163.com)
- * @brief
- * @version 0.1
- * @date 2025-12-09
- */
-#include "RCXAPI.hh"
-#include "tcl_ircx.h"
+#pragma once
 
-namespace tcl {
+#include "Types.hh"
 
-TclRunRCX::TclRunRCX(const char* cmd_name) : TclCmd(cmd_name)
+namespace ircx {
+
+inline Str escapeSpefIdentifier(Str name)
 {
-}
-
-unsigned TclRunRCX::exec()
-{
-  if (!check()) {
-    return 0;
+  if (name.find('.') == Str::npos) {
+    return name;
   }
 
-  return RCX_API_INST.run() ? 1U : 0U;
+  Str escaped_name;
+  escaped_name.reserve(name.size());
+  for (Size idx = 0; idx < name.size(); ++idx) {
+    const char current_char = name[idx];
+    const bool needs_escape =
+        current_char == '.' || current_char == '[' || current_char == ']';
+    if (needs_escape && (idx == 0 || name[idx - 1] != '\\')) {
+      escaped_name.push_back('\\');
+    }
+    escaped_name.push_back(current_char);
+  }
+
+  return escaped_name;
 }
 
-}  // namespace tcl
+}  // namespace ircx

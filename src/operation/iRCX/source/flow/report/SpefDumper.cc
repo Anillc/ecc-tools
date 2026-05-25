@@ -22,10 +22,12 @@
 #include "SpefDumper.hh"
 #include "Geometry.hh"
 #include "LayoutData.hh"
+#include "RCXConfig.hh"
 #include "SpefContext.hh"
 #include "TopoPool.hh"
 #include "ProcessCorner.hpp"
 #include "RCTable.hh"
+#include "UnitUtils.hh"
 #include "log/Log.hh"
 #include "usage/usage.hh"
 namespace ircx {
@@ -235,6 +237,13 @@ void SpefDumper::writePorts(std::ofstream& ofs) const
   }
 }
 
+void SpefDumper::writeGeometry(std::ostream& /*os*/, Size /*net_idx*/) const
+{
+  if (!RCX_CONFIG_INST.get_report_geometry()) {
+    return;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // writeDNet
 // ─────────────────────────────────────────────────────────────────────────────
@@ -263,7 +272,7 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   const Size node_num = nodes.size();
   if (node_num == 0) return;
 
-  const Micron dbu_to_micron = Micron(1.0) / layout_data_->micron_to_dbu;
+  const Micron dbu_to_micron = dbuToMicronScale(layout_data_->micron_to_dbu);
 
   // Aggregate ground cap to nodes
   // Ground cap per edge is split equally to its two endpoint nodes.
@@ -401,6 +410,8 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
        << " " << node_spef_name[edge.v()]
        << " " << std::setprecision(6) << resistance << "\n";
   }
+
+  writeGeometry(os, net_idx);
 
   os << "*END\n";
 }

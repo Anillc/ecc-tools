@@ -16,11 +16,10 @@
 // ***************************************************************************************
 #pragma once
 
-#include <iterator>
 #include <span>
-#include <utility>
 #include <vector>
 
+#include "SpanPool.hh"
 #include "Types.hh"
 
 namespace ircx {
@@ -34,47 +33,26 @@ class IntervalPool
 
   void append_edge_intervals(std::vector<Interval> intervals)
   {
-    edge_interval_ranges_.emplace_back(interval_pool_.size(), intervals.size());
-    interval_pool_.insert(interval_pool_.end(),
-                          std::make_move_iterator(intervals.begin()),
-                          std::make_move_iterator(intervals.end()));
+    intervals_.append_group(std::move(intervals));
   }
 
-  [[nodiscard]] std::span<const Interval> edge_intervals(Size edge_id) const
+  std::span<const Interval> edge_intervals(Size edge_id) const
   {
-    if (edge_id >= edge_interval_ranges_.size()) {
-      return {};
-    }
-
-    const auto& [offset, length] = edge_interval_ranges_[edge_id];
-    if (length == 0) {
-      return {};
-    }
-    return std::span<const Interval>(interval_pool_.data() + offset, length);
+    return intervals_.group_items(edge_id);
   }
 
-  [[nodiscard]] std::span<Interval> edge_intervals(Size edge_id)
+  std::span<Interval> edge_intervals(Size edge_id)
   {
-    if (edge_id >= edge_interval_ranges_.size()) {
-      return {};
-    }
-
-    const auto& [offset, length] = edge_interval_ranges_[edge_id];
-    if (length == 0) {
-      return {};
-    }
-    return std::span<Interval>(interval_pool_.data() + offset, length);
+    return intervals_.group_items(edge_id);
   }
 
   void clear()
   {
-    interval_pool_.clear();
-    edge_interval_ranges_.clear();
+    intervals_.clear();
   }
 
  private:
-  std::vector<Interval> interval_pool_;
-  std::vector<std::pair<Size, Size>> edge_interval_ranges_;
+  SpanPool<Interval> intervals_;
 };
 
 }  // namespace ircx
