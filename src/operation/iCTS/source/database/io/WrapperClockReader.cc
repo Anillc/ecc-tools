@@ -56,7 +56,6 @@
 #include "design/Pin.hh"
 #include "liberty/Lib.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -687,7 +686,7 @@ class Wrapper::CtsClockReader
     auto* idb_net = idb_net_list->find_net(clock_net_name);
     if (idb_net == nullptr) {
       EmitDiagnostic(*_reporter, DiagnosticLevel::kError, "Wrapper", "failed to resolve SDC-declared clock net in iDB.",
-                             {{"clock", clock_name}, {"net", clock_net_name}, {"reason", "unresolved_sdc_clock_source"}});
+                     {{"clock", clock_name}, {"net", clock_net_name}, {"reason", "unresolved_sdc_clock_source"}});
       LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": SDC-declared net \"" << clock_net_name
                 << "\" is not found in iDB.";
       return nullptr;

@@ -176,8 +176,8 @@ auto emitSynthesisOverview(SchemaWriter& reporter, const SynthesisTraceSummary& 
   EmitKeyValueTable(reporter, "CTS Clock Tree Synthesis Overview", fields);
 
   if (!rows.empty()) {
-    EmitTable(reporter, "CTS Clock Tree Sink Domains",
-                      {"Clock", "Net", "Status", "Sink Domain", "Valid Sinks", "Domain Sinks", "Detail"}, rows);
+    EmitTable(reporter, "CTS Clock Tree Sink Domains", {"Clock", "Net", "Status", "Sink Domain", "Valid Sinks", "Domain Sinks", "Detail"},
+              rows);
   }
 }
 

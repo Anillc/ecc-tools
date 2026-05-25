@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include "synthesis/htree/HTree.hh"
-
 namespace icts {
 class SchemaWriter;
 }  // namespace icts
@@ -33,8 +31,9 @@ namespace icts::htree {
 
 struct CandidateBuildEvaluation;
 struct DepthSummary;
+struct DiagnosticBuild;
 
-auto LogSynthesisSummary(SchemaWriter& reporter, const HTree::DiagnosticBuild& result, const CandidateBuildEvaluation& selected_evaluation,
+auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& result, const CandidateBuildEvaluation& selected_evaluation,
                          const DepthSummary& selected_summary) -> void;
 
 }  // namespace icts::htree

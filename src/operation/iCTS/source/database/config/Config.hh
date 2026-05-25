@@ -28,9 +28,10 @@
 #include <vector>
 
 #include "LogFormat.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
+
+class SchemaWriter;
 
 class Config
 {

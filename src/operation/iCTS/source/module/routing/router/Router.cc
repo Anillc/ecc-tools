@@ -46,7 +46,7 @@
 #include "concurrent_bst_salt/CBSRouter.hh"
 #include "flute/FLUTERouter.hh"
 #include "geometry/Geometry.hh"
-#include "local_legalization/LocalLegalization.hh"
+#include "module/routing/local_legalization/LocalLegalization.hh"
 #include "salt/SALTRouter.hh"
 
 namespace icts {

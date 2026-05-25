@@ -25,12 +25,11 @@
 
 #include <filesystem>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 class ClockLayout;
 class Config;
 class Design;
+class SchemaWriter;
 class Wrapper;
 
 }  // namespace icts

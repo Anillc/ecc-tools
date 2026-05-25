@@ -44,7 +44,6 @@
 #include "characterization/builder/CharBuilderImpl.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts::char_builder::detail {
 namespace {
@@ -341,8 +340,8 @@ auto resolveWirelengthUnitUm(SchemaWriter* reporter, const std::vector<::icts::C
     LOG_WARNING << "CharBuilder: failed to resolve wirelength_unit from Input/Config or strongest buffer height";
     if (reporter != nullptr) {
       EmitDiagnostic(*reporter, DiagnosticLevel::kWarning, "CharBuilder",
-                             "wirelength unit is absent in CharBuilder Input/Config and auto-derivation failed.",
-                             {{"reason", "no_valid_strongest_buffer_height"}});
+                     "wirelength unit is absent in CharBuilder Input/Config and auto-derivation failed.",
+                     {{"reason", "no_valid_strongest_buffer_height"}});
     }
     return ResolvedValue{
         .value = 0.0,
@@ -353,12 +352,11 @@ auto resolveWirelengthUnitUm(SchemaWriter* reporter, const std::vector<::icts::C
 
   const double auto_derived_unit_um = strongest_height_um * 10.0;
   if (reporter != nullptr) {
-    EmitDiagnostic(
-        *reporter, DiagnosticLevel::kWarning, "CharBuilder",
-        "wirelength unit is absent in CharBuilder Input/Config; explicit auto-derivation policy uses strongest-buffer height.",
-        {{"strongest_buffer", strongest_master},
-         {"buffer_height", logformat::FormatWithUnit(strongest_height_um, "um")},
-         {"derived_wirelength_unit", logformat::FormatWithUnit(auto_derived_unit_um, "um")}});
+    EmitDiagnostic(*reporter, DiagnosticLevel::kWarning, "CharBuilder",
+                   "wirelength unit is absent in CharBuilder Input/Config; explicit auto-derivation policy uses strongest-buffer height.",
+                   {{"strongest_buffer", strongest_master},
+                    {"buffer_height", logformat::FormatWithUnit(strongest_height_um, "um")},
+                    {"derived_wirelength_unit", logformat::FormatWithUnit(auto_derived_unit_um, "um")}});
   }
   return ResolvedValue{
       .value = auto_derived_unit_um,
@@ -382,8 +380,7 @@ auto resolveWirelengthUnitUm(SchemaWriter* reporter, const ::icts::CharBuilder::
     LOG_ERROR << "CharBuilder: wirelength_unit_um must be explicitly provided or allow_auto_wirelength_unit must be enabled.";
     if (reporter != nullptr) {
       EmitDiagnostic(*reporter, DiagnosticLevel::kError, "CharBuilder",
-                             "wirelength unit is absent and auto-derivation is disabled by policy.",
-                             {{"reason", "missing_wirelength_unit"}});
+                     "wirelength unit is absent and auto-derivation is disabled by policy.", {{"reason", "missing_wirelength_unit"}});
     }
     return ResolvedValue{
         .value = 0.0,
@@ -494,11 +491,11 @@ auto CharSetupConfigurator::init(const ::icts::CharBuilder::Input& input, const 
   if (wirelength_indices_truncated) {
     if (reporter != nullptr) {
       EmitDiagnostic(*reporter, DiagnosticLevel::kWarning, "CharBuilder",
-                             "wirelength_indices exceeded wirelength_iterations; clamp direct characterization to the configured max iter.",
-                             {
-                                 {"wirelength_iterations", std::to_string(_impl._wirelength_iterations)},
-                                 {"wirelength_points", std::to_string(_impl._wirelength_indices.size())},
-                             });
+                     "wirelength_indices exceeded wirelength_iterations; clamp direct characterization to the configured max iter.",
+                     {
+                         {"wirelength_iterations", std::to_string(_impl._wirelength_iterations)},
+                         {"wirelength_points", std::to_string(_impl._wirelength_indices.size())},
+                     });
     }
   }
 

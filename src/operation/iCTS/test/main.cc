@@ -28,7 +28,7 @@
 #include <string>
 #include <utility>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "common/CTSTestRuntime.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "utils/logger/Schema.hh"

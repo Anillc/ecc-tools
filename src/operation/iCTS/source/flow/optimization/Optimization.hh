@@ -26,8 +26,6 @@
 #include <cstddef>
 #include <string>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
 class CharacterizationLibrary;
@@ -35,6 +33,7 @@ class ClockLayout;
 class Config;
 class Design;
 class FastSTA;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 struct OptimizationInput

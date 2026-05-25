@@ -10,9 +10,9 @@ target_link_libraries(
   icts_source_database_design
   PUBLIC
   icts_source_database_spatial
-  icts_source_utils_logger
   PRIVATE
   icts_source_database_config
+  icts_source_utils_logger
 )
 
 target_include_directories(

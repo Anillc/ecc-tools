@@ -30,8 +30,8 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
-#include "CTSRuntime.hh"
 #include "CharCore.hh"
+#include "Flow.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
 #include "Net.hh"
@@ -44,9 +44,9 @@
 #include "flow/synthesis/htree/HTree.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/htree/constraint/Constraint.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "flow/synthesis/htree/segment_pruning/SegmentPruning.hh"
 #include "flow/synthesis/htree/topology_pruning/TopologyPruning.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
@@ -187,7 +187,7 @@ TEST(HTreeTest, EmptyLoadsReturnsEmptyResult)
   icts::Net root_net("root_net");
   ConnectRootNet(root_net, root_driver, {});
 
-  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
+  const auto result = icts::htree::BuildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
   const auto observation = htree::ObserveHTreeBuild(result);
 
   EXPECT_FALSE(result.summary.success);
@@ -210,7 +210,7 @@ TEST(HTreeTest, EmptyLoadsAcceptExplicitInputConfig)
   icts::Net root_net("root_net");
   ConnectRootNet(root_net, root_driver, {});
 
-  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{
+  const auto result = icts::htree::BuildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{
                                                                                           .force_branch_buffer = true,
                                                                                           .min_top_input_slew_ns = 0.05,
                                                                                       });
@@ -236,7 +236,7 @@ TEST(HTreeTest, MissingRootDriverStopsBeforeTopology)
   icts::Net root_net("root_net");
   root_net.set_loads({load.get()});
 
-  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
+  const auto result = icts::htree::BuildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
   const auto observation = htree::ObserveHTreeBuild(result);
 
   EXPECT_FALSE(result.summary.success);
@@ -259,7 +259,7 @@ TEST(HTreeTest, SingleLoadBuildsTrivialTopology)
   std::vector<icts::Pin*> loads{load.get()};
   ConnectRootNet(root_net, root_driver, loads);
 
-  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
+  const auto result = icts::htree::BuildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
   const auto observation = htree::ObserveHTreeBuild(result);
 
   EXPECT_TRUE(result.summary.success);

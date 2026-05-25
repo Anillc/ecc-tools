@@ -23,10 +23,9 @@
 
 #pragma once
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
+class SchemaWriter;
 struct ReportExportPaths;
 
 class Overview

@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include "logger/SchemaForward.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 
 namespace icts {
@@ -33,6 +32,7 @@ class ClockLayout;
 class Config;
 class Design;
 class FastSTA;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 

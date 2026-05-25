@@ -35,6 +35,7 @@
 #include "HTreeTopologyChar.hh"
 #include "Inst.hh"
 #include "flow/synthesis/htree/HTreeArtifactWriter.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "visualization/core/SvgCommon.hh"
 
 namespace icts {
@@ -81,13 +82,13 @@ auto FormatSvgNumber(double value) -> std::string;
 auto EscapeXml(const std::string& text) -> std::string;
 auto WriteTooltip(std::ofstream& output_stream, const std::string& text) -> void;
 auto CollectBufferMasterSummaries(const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts) -> std::vector<BufferMasterSummary>;
-auto BuildDelayPowerPoints(const icts::HTree::DiagnosticBuild& result) -> std::vector<DelayPowerPoint>;
-auto BuildDelayPowerChoiceSummary(const icts::HTree::DiagnosticBuild& result) -> std::optional<DelayPowerChoiceSummary>;
+auto BuildDelayPowerPoints(const icts::htree::DiagnosticBuild& result) -> std::vector<DelayPowerPoint>;
+auto BuildDelayPowerChoiceSummary(const icts::htree::DiagnosticBuild& result) -> std::optional<DelayPowerChoiceSummary>;
 
 auto WriteMaterializedSvg(const std::filesystem::path& path, const std::vector<icts::Pin*>& loads,
-                          const icts::HTree::DiagnosticBuild& result) -> bool;
-auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTree::DiagnosticBuild& result) -> bool;
+                          const icts::htree::DiagnosticBuild& result) -> bool;
+auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::htree::DiagnosticBuild& result) -> bool;
 auto BuildReport(const std::string& scenario_name, const std::string& input_summary, const HTreeArtifactPaths& paths,
-                 const std::vector<icts::Pin*>& loads, const icts::HTree::DiagnosticBuild& result) -> std::string;
+                 const std::vector<icts::Pin*>& loads, const icts::htree::DiagnosticBuild& result) -> std::string;
 
 }  // namespace icts_test::htree

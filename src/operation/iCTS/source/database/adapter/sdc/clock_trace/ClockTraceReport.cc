@@ -36,7 +36,6 @@
 #include "SdcClockReader.hh"
 #include "SdcClockTraceAlgorithm.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts::clock_trace {
 
@@ -171,9 +170,9 @@ auto EmitClockTraceReport(SchemaWriter& reporter, const std::vector<ClockTraceRe
     rows.push_back({"n/a", "n/a", "n/a", "n/a", "skipped", "undetermined", "n/a", "0", "0", "", "no_sdc_clock_trace_records"});
   }
   EmitTable(reporter, "Clock Trace Overview",
-                    {"Clock", "Kind", "Master Clock", "Net", "Status", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks",
-                     "Trace Path", "Reason"},
-                    rows);
+            {"Clock", "Kind", "Master Clock", "Net", "Status", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks", "Trace Path",
+             "Reason"},
+            rows);
 }
 
 auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<std::string, ClockDeclView>& clock_view_by_name,
@@ -214,8 +213,7 @@ auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<
     rows.push_back({"n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "0", "0"});
   }
   EmitTable(reporter, "SDC Clock Ownership Overview",
-                    {"Clock", "Kind", "Master Clock", "SDC Target Nets", "Owned Nets", "CTS Target Nets", "Seq CK Sinks", "Macro CK Sinks"},
-                    rows);
+            {"Clock", "Kind", "Master Clock", "SDC Target Nets", "Owned Nets", "CTS Target Nets", "Seq CK Sinks", "Macro CK Sinks"}, rows);
 }
 
 auto EmitUnownedClockLikeNetReport(SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void
@@ -229,8 +227,7 @@ auto EmitUnownedClockLikeNetReport(SchemaWriter& reporter, const std::vector<Clo
   if (rows.empty()) {
     rows.push_back({"n/a", "none", "n/a", "0", "0", "no_unowned_clock_like_nets"});
   }
-  EmitTable(reporter, "Unowned Clock-like Nets", {"Net", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks", "Reason"},
-                    rows);
+  EmitTable(reporter, "Unowned Clock-like Nets", {"Net", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks", "Reason"}, rows);
 }
 
 }  // namespace icts::clock_trace

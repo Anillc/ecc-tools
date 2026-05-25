@@ -28,7 +28,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "analytical_characterization/AnalyticalModel.hh"
 #include "characterization/Characterization.hh"
 #include "common/CTSTestRuntime.hh"

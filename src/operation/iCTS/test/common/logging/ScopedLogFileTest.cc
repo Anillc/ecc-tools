@@ -29,7 +29,7 @@
 #include <string>
 #include <utility>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "common/CTSTestRuntime.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/LogText.hh"
@@ -62,20 +62,20 @@ TEST(ScopedLogFileTest, NestedScopedLogFilesRestoreOuterDestination)
     const common::logging::ScopedLogFile outer_guard(outer_log, "Outer CTS Report");
     auto& reporter = icts_test::runtime::CurrentRuntime().reporter;
     icts::EmitKeyValueTable(reporter, "Outer Before",
-                                    {
-                                        {"phase", "before"},
-                                    });
+                            {
+                                {"phase", "before"},
+                            });
     {
       const common::logging::ScopedLogFile inner_guard(inner_log, "Inner CTS Report");
       icts::EmitKeyValueTable(reporter, "Inner Body",
-                                      {
-                                          {"phase", "inside"},
-                                      });
+                              {
+                                  {"phase", "inside"},
+                              });
     }
     icts::EmitKeyValueTable(reporter, "Outer After",
-                                    {
-                                        {"phase", "after"},
-                                    });
+                            {
+                                {"phase", "after"},
+                            });
   }
 
   const auto outer_content = ReadTextFile(outer_log);
@@ -120,23 +120,19 @@ TEST(ScopedLogFileTest, DetailReportReceivesDetailOnlyTablesAndSharedDiagnostics
   const auto detail_log_path = output_dir / "cts_detail.log";
   {
     const common::logging::ScopedLogFile log_guard(log_path, "Detail Routing CTS Report");
-    icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTableTo("Default Only", {{"scope", "default"}},
-                                                                      icts::ReportSink::kDefault);
-    icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTableTo("Detail Only", {{"scope", "detail"}},
-                                                                      icts::ReportSink::kDetail);
+    icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTableTo("Default Only", {{"scope", "default"}}, icts::ReportSink::kDefault);
+    icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTableTo("Detail Only", {{"scope", "detail"}}, icts::ReportSink::kDetail);
     icts::EmitDiagnostic(icts_test::runtime::CurrentRuntime().reporter, icts::DiagnosticLevel::kWarning, "DetailRouting",
-                                 "shared diagnostic", {{"case", "detail_report"}});
+                         "shared diagnostic", {{"case", "detail_report"}});
 
     auto detail_stage = icts_test::runtime::CurrentRuntime().reporter.beginStage(
         "DetailStage", "trace", {{"phase", "detail"}},
-        icts::StageReportOptions{.context_sink = icts::ReportSink::kDetail,
-                                         .summary_sink = icts::ReportSink::kDetail});
+        icts::StageReportOptions{.context_sink = icts::ReportSink::kDetail, .summary_sink = icts::ReportSink::kDetail});
     detail_stage.finished({{"count", "1"}});
 
     auto failed_detail_stage = icts_test::runtime::CurrentRuntime().reporter.beginStage(
         "DetailStage", "failure trace", {{"phase", "detail"}},
-        icts::StageReportOptions{.context_sink = icts::ReportSink::kDetail,
-                                         .summary_sink = icts::ReportSink::kDetail});
+        icts::StageReportOptions{.context_sink = icts::ReportSink::kDetail, .summary_sink = icts::ReportSink::kDetail});
     failed_detail_stage.failed({{"reason", "unit_failure"}});
   }
 

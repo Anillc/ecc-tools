@@ -25,10 +25,9 @@
 
 #include <filesystem>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
+class SchemaWriter;
 struct Qor;
 
 class QorFiles

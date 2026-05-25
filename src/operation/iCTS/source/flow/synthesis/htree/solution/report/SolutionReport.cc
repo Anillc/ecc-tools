@@ -41,8 +41,9 @@
 #include "LogFormat.hh"
 #include "PatternId.hh"
 #include "logger/Schema.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
+#include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
@@ -55,7 +56,7 @@ auto FormatDelayPower(double delay_ns, double power_w) -> std::string
   return logformat::FormatWithUnit(delay_ns, "ns") + " / " + logformat::FormatPowerW(power_w);
 }
 
-auto FormatRootLoadDetail(const HTree::RootDriverCompensationReport& compensation) -> std::string
+auto FormatRootLoadDetail(const htree::RootDriverCompensationReport& compensation) -> std::string
 {
   if (compensation.load_cap_pf <= 0.0) {
     return "physical root-closure load unavailable";
@@ -119,8 +120,7 @@ auto IsDefaultSynthesisSummaryField(const std::string& field) -> bool
          || field == "htree_load_cap_max" || field == "htree_load_cap_mean" || field == "htree_load_cap_median";
 }
 
-auto BuildDefaultSynthesisSummaryFields(SchemaWriter& reporter, const logformat::TableRows& synthesis_summary_rows)
-    -> KeyValueFields
+auto BuildDefaultSynthesisSummaryFields(SchemaWriter& reporter, const logformat::TableRows& synthesis_summary_rows) -> KeyValueFields
 {
   KeyValueFields default_fields;
   default_fields.reserve(synthesis_summary_rows.size());
@@ -136,7 +136,7 @@ auto BuildDefaultSynthesisSummaryFields(SchemaWriter& reporter, const logformat:
 
 }  // namespace
 
-auto LogSynthesisSummary(SchemaWriter& reporter, const HTree::DiagnosticBuild& result, const CandidateBuildEvaluation& selected_evaluation,
+auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& result, const CandidateBuildEvaluation& selected_evaluation,
                          const DepthSummary& selected_summary) -> void
 {
   const bool selected_has_boundary_constraints = HasBoundaryConstraints(selected_evaluation.boundary_constraints);

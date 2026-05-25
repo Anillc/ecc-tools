@@ -38,10 +38,10 @@
 #include "Log.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/analytical_solver/selection/AnalyticalSelection.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
+#include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/embedding/Embedding.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
@@ -53,7 +53,7 @@
 namespace icts::htree::analytical_solution {
 namespace as = analytical_selection;
 
-auto TryBuildAnalyticalHTree(HTree::DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
+auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
                              SchemaWriter::StageScope& build_stage, unsigned max_depth,
                              const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
                              const htree::SegmentFrontierCatalog& segment_frontier_catalog,
@@ -211,8 +211,7 @@ auto TryBuildAnalyticalHTree(HTree::DiagnosticBuild& result, const HTree::Input&
     }
 
     {
-      auto summary_stage
-          = reporter.beginStage("HTree", "Emit synthesis summary", {}, StageReportOptions{.emit_success_summary = false});
+      auto summary_stage = reporter.beginStage("HTree", "Emit synthesis summary", {}, StageReportOptions{.emit_success_summary = false});
       htree::LogSynthesisSummary(reporter, result, selected_evaluation, selected_summary);
       summary_stage.finished();
     }
@@ -275,14 +274,13 @@ auto TryBuildAnalyticalHTree(HTree::DiagnosticBuild& result, const HTree::Input&
       {"validated_power_median_w", std::to_string(analytical_attempt.validated_power_median_w)},
       {"validated_power_max_w", std::to_string(analytical_attempt.validated_power_max_w)},
   });
-  EmitDiagnostic(reporter, DiagnosticLevel::kError, "HTree",
-                         "analytical H-tree candidate selection did not produce a validated candidate.",
-                         {
-                             {"reason", result.diagnostics.analytical_failure_reason},
-                             {"model_sets", std::to_string(result.diagnostics.analytical_model_set_count)},
-                             {"generated_candidates", std::to_string(result.diagnostics.analytical_generated_candidate_count)},
-                             {"validated_candidates", std::to_string(result.diagnostics.analytical_validated_candidate_count)},
-                         });
+  EmitDiagnostic(reporter, DiagnosticLevel::kError, "HTree", "analytical H-tree candidate selection did not produce a validated candidate.",
+                 {
+                     {"reason", result.diagnostics.analytical_failure_reason},
+                     {"model_sets", std::to_string(result.diagnostics.analytical_model_set_count)},
+                     {"generated_candidates", std::to_string(result.diagnostics.analytical_generated_candidate_count)},
+                     {"validated_candidates", std::to_string(result.diagnostics.analytical_validated_candidate_count)},
+                 });
   result.summary.failure_reason = result.diagnostics.analytical_failure_reason;
   build_stage.failed({{"reason", result.summary.failure_reason}, {"selection_engine", "analytical"}});
   return true;

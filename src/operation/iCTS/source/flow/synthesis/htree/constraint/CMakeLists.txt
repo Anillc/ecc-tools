@@ -13,5 +13,6 @@ target_link_libraries(
 target_include_directories(
   icts_source_flow_synthesis_htree_constraint
   PUBLIC
+  ${ICTS_SOURCE}
   ${ICTS_FLOW}
 )

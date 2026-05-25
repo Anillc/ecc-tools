@@ -33,7 +33,6 @@
 
 #include "ClockTraceResolver.hh"
 #include "SdcClockReader.hh"
-#include "logger/SchemaForward.hh"
 
 struct RustLibertyExpr;
 
@@ -48,6 +47,10 @@ namespace ista {
 class LibCell;
 class LibPort;
 }  // namespace ista
+
+namespace icts {
+class SchemaWriter;
+}  // namespace icts
 
 namespace icts::clock_trace {
 

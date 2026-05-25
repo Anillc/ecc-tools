@@ -26,10 +26,9 @@
 #include <chrono>
 #include <string>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 class Clock;
+class SchemaWriter;
 }  // namespace icts
 
 namespace icts::clock_sizing_optimization {

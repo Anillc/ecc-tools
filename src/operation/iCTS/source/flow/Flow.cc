@@ -28,10 +28,8 @@
 #include <utility>
 #include <vector>
 
-#include "CTSRuntime.hh"
 #include "ClockDAG.hh"
 #include "ClockLayout.hh"
-#include "characterization/Characterization.hh"
 #include "design/Design.hh"
 #include "evaluation/Evaluation.hh"
 #include "instantiation/Instantiation.hh"
@@ -139,7 +137,7 @@ auto Flow::runCTS() -> void
   emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
 }
 
-auto Flow::readClockData() -> ClockDataReadSummary
+auto Flow::readClockData() -> Flow::ClockDataReadSummary
 {
   _run_summary = SynthesisTraceSummary{};
   _clock_layout.reset();
@@ -162,11 +160,11 @@ auto Flow::readClockData() -> ClockDataReadSummary
   if (read_data_ready) {
     (void) runtime.finished();
     read_stage.finished();
-    return ClockDataReadSummary{.status = FlowStageStatus::kFinished, .reason = "n/a", .success = true};
+    return ClockDataReadSummary{.reason = "n/a", .success = true};
   } else {
     (void) runtime.failed();
     read_stage.failed({{"reason", "sdc_clock_resolution_failed"}});
-    return ClockDataReadSummary{.status = FlowStageStatus::kFailed, .reason = "read_data_failed", .success = false};
+    return ClockDataReadSummary{.reason = "read_data_failed", .success = false};
   }
 }
 
@@ -190,8 +188,8 @@ auto Flow::runSynthesis() -> SynthesisTraceSummary
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
     EmitDiagnostic(_runtime.reporter, DiagnosticLevel::kError, "CTSFlow",
-                           "synthesized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
-                           {{"reason", _runtime.design.get_clock_dag().get_status()}});
+                   "synthesized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
+                   {{"reason", _runtime.design.get_clock_dag().get_status()}});
     return _run_summary;
   }
   return _run_summary;
@@ -219,8 +217,8 @@ auto Flow::runOptimization() -> OptimizationSummary
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
     EmitDiagnostic(_runtime.reporter, DiagnosticLevel::kError, "CTSFlow",
-                           "optimized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
-                           {{"reason", _runtime.design.get_clock_dag().get_status()}});
+                   "optimized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
+                   {{"reason", _runtime.design.get_clock_dag().get_status()}});
   }
   return optimization_summary;
 }

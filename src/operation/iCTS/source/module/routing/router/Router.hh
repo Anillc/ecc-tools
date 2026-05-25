@@ -25,7 +25,7 @@
 
 #include <vector>
 
-#include "local_legalization/LocalLegalization.hh"
+#include "module/routing/local_legalization/LocalLegalization.hh"
 #include "routing/RoutingTerminal.hh"
 #include "routing/SteinerTree.hh"
 #include "timing/RCTree.hh"

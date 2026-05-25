@@ -34,6 +34,7 @@
 
 #include "Pin.hh"
 #include "flow/synthesis/htree/HTree.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 
 namespace icts {
 class Net;
@@ -107,17 +108,17 @@ auto MakeExplicitHTreeInput(icts::Net& root_net) -> icts::HTree::Input;
 auto MakeExplicitHTreeConfig(std::optional<bool> force_branch_buffer = std::nullopt,
                              std::optional<double> min_top_input_slew_ns = std::nullopt) -> icts::HTree::Config;
 auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pin*>;
-auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::DiagnosticBuild& result) -> void;
+auto AssertNoSingleLoadExternalLeafBuffer(const icts::htree::DiagnosticBuild& result) -> void;
 auto ReadTextFile(const std::filesystem::path& path) -> std::string;
-auto AssertDepthCandidateCoverage(const icts::HTree::DiagnosticBuild& result) -> void;
-auto AssertSelectedHTreeLoadDistribution(const icts::HTree::DiagnosticBuild& result) -> void;
+auto AssertDepthCandidateCoverage(const icts::htree::DiagnosticBuild& result) -> void;
+auto AssertSelectedHTreeLoadDistribution(const icts::htree::DiagnosticBuild& result) -> void;
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
-                                  const icts::HTree::DiagnosticBuild& result) -> void;
+                                  const icts::htree::DiagnosticBuild& result) -> void;
 auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wirelength_unit) -> Arm9ExperimentMatrixRunResult;
 
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
-auto AssertBranchBufferMaterialization(const icts::HTree::DiagnosticBuild& result) -> void;
+auto AssertBranchBufferMaterialization(const icts::htree::DiagnosticBuild& result) -> void;
 #endif
 
 }  // namespace icts_test

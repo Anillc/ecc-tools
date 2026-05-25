@@ -41,7 +41,7 @@
 #include "Tree.hh"
 #include "ValueLattice.hh"
 #include "geometry/Geometry.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
 
 namespace icts::htree {
 namespace {

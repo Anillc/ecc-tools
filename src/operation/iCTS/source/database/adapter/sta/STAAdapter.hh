@@ -29,14 +29,13 @@
 #include <utility>
 #include <vector>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
 enum class InstType;
 class Config;
 class Net;
 class Pin;
+class SchemaWriter;
 struct ClockRouteSegmentRc;
 template <typename T>
 class ClockSteinerTree;

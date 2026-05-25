@@ -35,12 +35,12 @@
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
-#include "logger/SchemaForward.hh"
 #include "synthesis/htree/HTree.hh"
 
 namespace icts {
 
 class CharacterizationLibrary;
+class SchemaWriter;
 class STAAdapter;
 class SourceTrunkSegment
 {

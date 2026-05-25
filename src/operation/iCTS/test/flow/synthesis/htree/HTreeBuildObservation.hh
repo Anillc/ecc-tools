@@ -28,6 +28,7 @@
 #include <string>
 
 #include "flow/synthesis/htree/HTree.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 
 namespace icts_test::htree {
 
@@ -57,7 +58,7 @@ struct HTreeBuildObservation
   std::string boundary_relaxation_reason;
 };
 
-inline auto ObserveHTreeBuild(const icts::HTree::DiagnosticBuild& result) -> HTreeBuildObservation
+inline auto ObserveHTreeBuild(const icts::htree::DiagnosticBuild& result) -> HTreeBuildObservation
 {
   HTreeBuildObservation observation{
       .success = result.summary.success,

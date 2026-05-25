@@ -50,7 +50,8 @@
 #include "Point.hh"
 #include "STAAdapter.hh"
 #include "Tree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
+#include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/embedding/BufferPortTable.hh"
 #include "synthesis/htree/embedding/EmbeddingState.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
@@ -435,7 +436,7 @@ auto ValidateRootDriverSizing(Design& design, STAAdapter& sta_adapter, const HTr
   return true;
 }
 
-auto ApplyRootDriverSizing(Design& design, STAAdapter& sta_adapter, HTree::DiagnosticBuild& result, const std::string& cell_master) -> bool
+auto ApplyRootDriverSizing(Design& design, STAAdapter& sta_adapter, htree::DiagnosticBuild& result, const std::string& cell_master) -> bool
 {
   if (cell_master.empty() || result.output.root_inst == nullptr) {
     return true;
@@ -469,7 +470,7 @@ auto ApplyRootDriverSizing(Design& design, STAAdapter& sta_adapter, HTree::Diagn
   return true;
 }
 
-auto BuildEmbedding(Design& design, STAAdapter& sta_adapter, HTree::DiagnosticBuild& result,
+auto BuildEmbedding(Design& design, STAAdapter& sta_adapter, htree::DiagnosticBuild& result,
                     const BufferPatternLibrary& segment_pattern_library) -> void
 {
   (void) design;

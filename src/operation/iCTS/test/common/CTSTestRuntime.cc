@@ -24,7 +24,6 @@
 #include "common/CTSTestRuntime.hh"
 
 #include "Log.hh"
-#include "flow/CTSRuntime.hh"
 #include "flow/Flow.hh"
 
 namespace icts_test::runtime {

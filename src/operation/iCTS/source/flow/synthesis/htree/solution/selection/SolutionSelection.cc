@@ -39,7 +39,6 @@
 #include "PatternId.hh"
 #include "STAAdapter.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree {

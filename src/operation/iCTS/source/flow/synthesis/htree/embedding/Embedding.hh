@@ -36,13 +36,14 @@ class STAAdapter;
 namespace icts::htree {
 
 struct BufferPatternLibrary;
+struct DiagnosticBuild;
 
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
 auto ValidateRootDriverSizing(icts::Design& design, STAAdapter& sta_adapter, const HTree::Build& result, const std::string& cell_master)
     -> bool;
-auto ApplyRootDriverSizing(icts::Design& design, STAAdapter& sta_adapter, HTree::DiagnosticBuild& result, const std::string& cell_master)
+auto ApplyRootDriverSizing(icts::Design& design, STAAdapter& sta_adapter, htree::DiagnosticBuild& result, const std::string& cell_master)
     -> bool;
-auto BuildEmbedding(icts::Design& design, STAAdapter& sta_adapter, HTree::DiagnosticBuild& result,
+auto BuildEmbedding(icts::Design& design, STAAdapter& sta_adapter, htree::DiagnosticBuild& result,
                     const BufferPatternLibrary& segment_pattern_library) -> void;
 
 }  // namespace icts::htree

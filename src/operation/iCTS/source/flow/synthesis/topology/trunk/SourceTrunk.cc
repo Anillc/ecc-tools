@@ -43,7 +43,6 @@
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "synthesis/topology/trunk/SourceTrunkSegment.hh"
@@ -57,7 +56,7 @@ namespace icts::topology {
 
 namespace {
 
-auto ResolveSourceDriveCap(const Topology::SourceTrunkInput& input, Pin* clock_source) -> double
+auto ResolveSourceDriveCap(const SourceTrunkInput& input, Pin* clock_source) -> double
 {
   const auto& config = *input.config;
   auto& sta_adapter = *input.sta_adapter;
@@ -94,7 +93,7 @@ auto BuildTopSegmentConfig(const Config& config) -> SourceTrunkSegment::Config
   };
 }
 
-auto BuildTopSegmentInput(const Topology::SourceTrunkInput& input, Pin* clock_source, Pin* root_input) -> SourceTrunkSegment::Input
+auto BuildTopSegmentInput(const SourceTrunkInput& input, Pin* clock_source, Pin* root_input) -> SourceTrunkSegment::Input
 {
   const auto& config = *input.config;
   auto& wrapper = *input.wrapper;
@@ -137,7 +136,7 @@ auto BuildTopSegmentInput(const Topology::SourceTrunkInput& input, Pin* clock_so
   return segment_input;
 }
 
-auto BuildTopHtreeInput(const Topology::SourceTrunkInput& input, Net& source_net, Pin* clock_source) -> HTree::Input
+auto BuildTopHtreeInput(const SourceTrunkInput& input, Net& source_net, Pin* clock_source) -> HTree::Input
 {
   const auto& config = *input.config;
   auto& design = *input.design;
@@ -167,7 +166,7 @@ auto BuildTopHtreeInput(const Topology::SourceTrunkInput& input, Net& source_net
       .clock_period_source = input.clock_period_source,
       .log_context = log_context,
       .object_name_prefix = input.object_name_prefix,
-      .load_role = HTreeLoadRole::kSink,
+      .load_role = HTree::LoadRole::kSink,
   };
 }
 
@@ -197,7 +196,7 @@ auto DetailStageReportOptions() -> StageReportOptions
 
 }  // namespace
 
-auto BuildSourceTrunkTree(const Topology::SourceTrunkInput& input) -> Topology::SourceTrunkBuild
+auto BuildSourceTrunkTree(const SourceTrunkInput& input) -> SourceTrunkBuild
 {
   LOG_FATAL_IF(input.config == nullptr) << "Topology source trunk build requires an explicit config.";
   LOG_FATAL_IF(input.design == nullptr) << "Topology source trunk build requires an explicit design.";
@@ -212,7 +211,7 @@ auto BuildSourceTrunkTree(const Topology::SourceTrunkInput& input) -> Topology::
   auto* clock_source = input.clock_source;
   const auto& root_inputs = input.root_inputs;
 
-  Topology::SourceTrunkBuild result;
+  SourceTrunkBuild result;
   if (clock_source == nullptr) {
     result.summary.failure_reason = "clock_source_is_null";
     LOG_ERROR << "Topology: top-level source-to-root synthesis failed because clock source is null.";

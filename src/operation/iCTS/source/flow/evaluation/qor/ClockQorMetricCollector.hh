@@ -29,7 +29,6 @@
 
 #include "design/ClockDAG.hh"
 #include "evaluation/qor/QorEvaluation.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 
@@ -38,6 +37,7 @@ class ClockLayout;
 class Design;
 class Inst;
 class Net;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 

@@ -53,7 +53,7 @@ auto PrepareHTreeArtifactPaths(const std::string& case_name) -> HTreeArtifactPat
 }
 
 auto WriteHTreeArtifacts(const HTreeArtifactPaths& paths, const std::string& scenario_name, const std::string& input_summary,
-                         const std::vector<icts::Pin*>& loads, const icts::HTree::DiagnosticBuild& result) -> bool
+                         const std::vector<icts::Pin*>& loads, const icts::htree::DiagnosticBuild& result) -> bool
 {
   if (paths.output_dir.empty()) {
     return false;

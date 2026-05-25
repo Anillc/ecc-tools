@@ -29,16 +29,18 @@ target_link_libraries(
   icts_source_flow_synthesis_htree
   PUBLIC
   icts_source_database
-  icts_source_module
+  icts_source_module_characterization
   icts_source_utils
   PRIVATE
   icts_source_flow_synthesis_htree_characterization
   icts_source_flow_synthesis_htree_plan
   icts_source_flow_synthesis_htree_solution
+  icts_source_module_topology
 )
 
 target_include_directories(
   icts_source_flow_synthesis_htree
   PUBLIC
+  ${ICTS_SOURCE}
   ${ICTS_FLOW}
 )

@@ -46,7 +46,6 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -170,8 +169,8 @@ class Wrapper::CtsClockIdbWriter
       result.success = false;
       result.reason = "invalid_clock_dag";
       EmitDiagnostic(*_reporter, DiagnosticLevel::kError, "Wrapper",
-                             "CTS iDB clock-tree materialization preflight found no reachable clock nets.",
-                             {{"reason", _design->get_clock_dag().get_status()}});
+                     "CTS iDB clock-tree materialization preflight found no reachable clock nets.",
+                     {{"reason", _design->get_clock_dag().get_status()}});
       return result;
     }
     const auto restore_data = captureClockTreeIdbPreexistingObjects(scope);
@@ -186,13 +185,12 @@ class Wrapper::CtsClockIdbWriter
         result.failed_net = _failed_net_name.empty() ? clock->get_clock_net_name() : _failed_net_name;
         result.reason = "write_clock_failed";
         result.idb_clock_tree_restored = restorePreexistingClockTreeIdbObjects(scope, restore_data);
-        EmitDiagnostic(
-            *_reporter, result.idb_clock_tree_restored ? DiagnosticLevel::kError : DiagnosticLevel::kWarning, "Wrapper",
-            "CTS iDB clock-tree materialization failed and prior iDB clock pin attachment restoration was attempted.",
-            {{"clock", result.failed_clock},
-             {"net", result.failed_net},
-             {"reason", _failure_reason.empty() ? result.reason : _failure_reason},
-             {"idb_clock_tree_restored", result.idb_clock_tree_restored ? "true" : "false"}});
+        EmitDiagnostic(*_reporter, result.idb_clock_tree_restored ? DiagnosticLevel::kError : DiagnosticLevel::kWarning, "Wrapper",
+                       "CTS iDB clock-tree materialization failed and prior iDB clock pin attachment restoration was attempted.",
+                       {{"clock", result.failed_clock},
+                        {"net", result.failed_net},
+                        {"reason", _failure_reason.empty() ? result.reason : _failure_reason},
+                        {"idb_clock_tree_restored", result.idb_clock_tree_restored ? "true" : "false"}});
         return result;
       }
     }
@@ -223,8 +221,8 @@ class Wrapper::CtsClockIdbWriter
     result.success = false;
     result.reason = "invalid_clock_dag";
     EmitDiagnostic(*_reporter, DiagnosticLevel::kError, "Wrapper",
-                           "CTS iDB clock-tree materialization preflight failed because committed CTS topology is not a valid clock DAG.",
-                           {{"reason", _design->get_clock_dag().get_status()}});
+                   "CTS iDB clock-tree materialization preflight failed because committed CTS topology is not a valid clock DAG.",
+                   {{"reason", _design->get_clock_dag().get_status()}});
     return false;
   }
 

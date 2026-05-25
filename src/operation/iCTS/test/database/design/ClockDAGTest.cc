@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "common/CTSTestRuntime.hh"
 #include "database/design/Clock.hh"
 #include "database/design/ClockDAG.hh"

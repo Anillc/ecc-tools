@@ -41,7 +41,7 @@
 #include "SegmentChar.hh"
 #include "characterization/Characterization.hh"
 #include "logger/Schema.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 #include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
@@ -232,13 +232,13 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels, const Segme
                         const Tree& topology, RootDriverCompensationPass& compensation_pass, SchemaWriter& reporter,
                         const HTreeFanoutPruningConfig& fanout_config) -> PatternSearchBuild
 {
-  auto pattern_search_stage = reporter.beginStage(
-      "HTreeDepth", "Build pattern frontier",
-      {
-          {"levels", std::to_string(levels.size())},
-          {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
-      },
-      StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
+  auto pattern_search_stage
+      = reporter.beginStage("HTreeDepth", "Build pattern frontier",
+                            {
+                                {"levels", std::to_string(levels.size())},
+                                {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
+                            },
+                            StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
   PatternSearchBuild result;
   unsigned next_topology_pattern_id = 0U;
   std::vector<HTreeTopologyChar> current_frontier_entries;
@@ -397,14 +397,13 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const S
     SinkLoadRegionEntryFilterBuild feasible_sink_load_region_filter;
     std::vector<HTreeTopologyChar> feasible_raw_frontier;
     {
-      auto filter_stage = reporter.beginStage(
-          "HTreeDepth", "Filter sink-load region",
-          {
-              {"depth", std::to_string(depth)},
-              {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
-              {"has_boundary_constraints", "true"},
-          },
-          StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
+      auto filter_stage = reporter.beginStage("HTreeDepth", "Filter sink-load region",
+                                              {
+                                                  {"depth", std::to_string(depth)},
+                                                  {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
+                                                  {"has_boundary_constraints", "true"},
+                                              },
+                                              StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
       candidate_sink_load_region_filter
           = FilterSinkLoadRegionLegalEntries(topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library,
                                              sink_load_region_legality_context);
@@ -431,14 +430,13 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const S
     result.feasible_solution_count = result.candidate_solution_count;
     SinkLoadRegionEntryFilterBuild feasible_sink_load_region_filter;
     {
-      auto filter_stage = reporter.beginStage(
-          "HTreeDepth", "Filter sink-load region",
-          {
-              {"depth", std::to_string(depth)},
-              {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
-              {"has_boundary_constraints", "false"},
-          },
-          StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
+      auto filter_stage = reporter.beginStage("HTreeDepth", "Filter sink-load region",
+                                              {
+                                                  {"depth", std::to_string(depth)},
+                                                  {"raw_frontier_entries", std::to_string(topology_assembly.frontier.size())},
+                                                  {"has_boundary_constraints", "false"},
+                                              },
+                                              StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
       feasible_sink_load_region_filter
           = FilterSinkLoadRegionLegalEntries(topology_assembly.frontier, topology, result.topology_pattern_library, segment_pattern_library,
                                              sink_load_region_legality_context);

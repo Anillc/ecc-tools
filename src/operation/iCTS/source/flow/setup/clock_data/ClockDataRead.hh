@@ -23,12 +23,11 @@
 
 #pragma once
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
 class Config;
 class Design;
+class SchemaWriter;
 class Wrapper;
 
 struct ClockDataReadInput

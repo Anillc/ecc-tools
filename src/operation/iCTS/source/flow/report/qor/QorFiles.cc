@@ -41,7 +41,6 @@
 #include "Qor.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -159,11 +158,11 @@ auto QorFiles::emitLogTables(SchemaWriter& reporter, const Qor& statistics) -> v
 {
   reporter.emitSection("### Statistics Reports");
   EmitTable(reporter, "CTS Statistics Wirelength Report", {"Metric", "Routed Wirelength (um)", "HPWL Wirelength (um)"},
-                    buildWirelengthReportRows(statistics));
+            buildWirelengthReportRows(statistics));
   EmitTable(reporter, "CTS Statistics Cell Stats Report", {"Cell Type", "Count", "Total Area (um^2)", "Total Cap (pF)"},
-                    buildCellStatsReportRows(statistics));
+            buildCellStatsReportRows(statistics));
   EmitTable(reporter, "CTS Statistics Library Cell Distribution Report", {"Cell Master", "Cell Type", "Count", "Total Area (um^2)"},
-                    buildLibCellDistReportRows(statistics));
+            buildLibCellDistReportRows(statistics));
 }
 
 }  // namespace icts

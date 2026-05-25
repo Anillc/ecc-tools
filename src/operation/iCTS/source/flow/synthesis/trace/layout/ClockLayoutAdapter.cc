@@ -30,7 +30,7 @@
 
 #include "ClockLayout.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/topology/trunk/SourceTrunk.hh"
 
 namespace icts {
 
@@ -120,7 +120,7 @@ auto ClockLayoutAdapter::makeSinkDomainLayoutTopology(const Topology::Build& res
   return layout_topology;
 }
 
-auto ClockLayoutAdapter::makeSourceTrunkLayoutTopology(const Topology::SourceTrunkBuild& result, ClockLayoutPhase synthesis_phase)
+auto ClockLayoutAdapter::makeSourceTrunkLayoutTopology(const topology::SourceTrunkBuild& result, ClockLayoutPhase synthesis_phase)
     -> SourceToRootSynthesisTopology
 {
   SourceToRootSynthesisTopology layout_topology{

@@ -56,6 +56,7 @@
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
+#include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/embedding/Embedding.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/plan/Plan.hh"
@@ -79,14 +80,14 @@ class HTreeBuilder
  public:
   HTreeBuilder(const HTree::Input& input, const HTree::Config& config) : _input(&input), _config(&config) {}
 
-  auto build() -> HTree::DiagnosticBuild;
+  auto build() -> htree::DiagnosticBuild;
 
  private:
   const HTree::Input* _input = nullptr;
   const HTree::Config* _config = nullptr;
 };
 
-auto ExtractProductionBuild(HTree::DiagnosticBuild diagnostic_build) -> HTree::Build
+auto ExtractProductionBuild(htree::DiagnosticBuild diagnostic_build) -> HTree::Build
 {
   HTree::Build build;
   build.output = std::move(diagnostic_build.output);
@@ -96,11 +97,11 @@ auto ExtractProductionBuild(HTree::DiagnosticBuild diagnostic_build) -> HTree::B
 
 }  // namespace
 
-auto HTreeBuilder::build() -> HTree::DiagnosticBuild
+auto HTreeBuilder::build() -> htree::DiagnosticBuild
 {
   const auto& input = *_input;
   const auto& config = *_config;
-  HTree::DiagnosticBuild result;
+  htree::DiagnosticBuild result;
   LOG_FATAL_IF(input.root_net == nullptr) << "HTree build requires an explicit root net.";
   auto& root_net = *input.root_net;
   result.diagnostics.log_context = input.log_context;
@@ -158,20 +159,20 @@ auto HTreeBuilder::build() -> HTree::DiagnosticBuild
   BiPartitionConfig topology_config;
   topology_config.htree_topology_tolerance = std::max(0.0, config.topology_tolerance);
   topology_config.max_leaf_load_count = config.max_fanout;
-  result.output.topology
-      = TopologyGen::build(loads,
-                           TopologyGen::Input{
-                               .fixed_root_location = input.fixed_topology_root_location,
-                               .dbu_per_um = dbu_per_um,
-                               .load_count_kind = input.load_role == HTreeLoadRole::kLocalBuffer ? TopologyGen::LoadCountKind::kLocalBuffer
-                                                                                                 : TopologyGen::LoadCountKind::kSink,
-                               .clock_name = input.log_context.clock_name,
-                               .clock_net_name = input.log_context.clock_net_name,
-                               .sink_domain = input.log_context.sink_domain,
-                               .stage = input.log_context.stage,
-                               .reporter = &reporter,
-                           },
-                           TopologyGen::Config{.partition_config = topology_config});
+  result.output.topology = TopologyGen::build(
+      loads,
+      TopologyGen::Input{
+          .fixed_root_location = input.fixed_topology_root_location,
+          .dbu_per_um = dbu_per_um,
+          .load_count_kind
+          = input.load_role == HTree::LoadRole::kLocalBuffer ? TopologyGen::LoadCountKind::kLocalBuffer : TopologyGen::LoadCountKind::kSink,
+          .clock_name = input.log_context.clock_name,
+          .clock_net_name = input.log_context.clock_net_name,
+          .sink_domain = input.log_context.sink_domain,
+          .stage = input.log_context.stage,
+          .reporter = &reporter,
+      },
+      TopologyGen::Config{.partition_config = topology_config});
   const auto levels = result.output.topology.levels();
   if (levels.size() <= 1U) {
     LOG_WARNING << "HTree: topology has no H-tree levels after generation.";
@@ -460,14 +461,14 @@ auto HTreeBuilder::build() -> HTree::DiagnosticBuild
         *result.output.best_char, selected_evaluation.boundary_constraints, result.diagnostics.char_slew_steps);
 
     EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "HTree",
-                           "boundary relaxation is enabled; selected a relaxed solution from the global candidate pool.",
-                           {
-                               {"reason", result.diagnostics.boundary_relaxation_reason},
-                               {"selected_depth", std::to_string(result.summary.selected_depth.value_or(0U))},
-                               {"relaxation_score", std::to_string(result.diagnostics.boundary_relaxation_score.value_or(0.0))},
-                               {"selected_top_input_slew_idx", std::to_string(result.output.best_char->get_input_slew_idx())},
-                               {"selected_leaf_load_cap_idx", std::to_string(result.output.best_char->get_leaf_load_cap_idx())},
-                           });
+                   "boundary relaxation is enabled; selected a relaxed solution from the global candidate pool.",
+                   {
+                       {"reason", result.diagnostics.boundary_relaxation_reason},
+                       {"selected_depth", std::to_string(result.summary.selected_depth.value_or(0U))},
+                       {"relaxation_score", std::to_string(result.diagnostics.boundary_relaxation_score.value_or(0.0))},
+                       {"selected_top_input_slew_idx", std::to_string(result.output.best_char->get_input_slew_idx())},
+                       {"selected_leaf_load_cap_idx", std::to_string(result.output.best_char->get_leaf_load_cap_idx())},
+                   });
   }
 
   result.output.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.output.best_char->get_pattern_id());
@@ -510,8 +511,7 @@ auto HTreeBuilder::build() -> HTree::DiagnosticBuild
   }
 
   {
-    auto summary_stage
-        = reporter.beginStage("HTree", "Emit synthesis summary", {}, StageReportOptions{.emit_success_summary = false});
+    auto summary_stage = reporter.beginStage("HTree", "Emit synthesis summary", {}, StageReportOptions{.emit_success_summary = false});
     htree::LogSynthesisSummary(reporter, result, selected_evaluation, selected_summary);
     summary_stage.finished();
   }
@@ -525,10 +525,10 @@ auto HTreeBuilder::build() -> HTree::DiagnosticBuild
 
 auto HTree::build(const Input& input, const Config& config) -> Build
 {
-  return ExtractProductionBuild(buildWithDiagnostics(input, config));
+  return ExtractProductionBuild(htree::BuildWithDiagnostics(input, config));
 }
 
-auto HTree::buildWithDiagnostics(const Input& input, const Config& config) -> DiagnosticBuild
+auto htree::BuildWithDiagnostics(const HTree::Input& input, const HTree::Config& config) -> htree::DiagnosticBuild
 {
   HTreeBuilder builder(input, config);
   return builder.build();

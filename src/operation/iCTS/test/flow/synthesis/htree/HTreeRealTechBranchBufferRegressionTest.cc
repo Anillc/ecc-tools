@@ -40,6 +40,7 @@
 #include "flow/synthesis/htree/HTreeArtifactWriter.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/htree/HTreeRealTechScenario.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 #include "utils/logger/Schema.hh"
 
@@ -89,7 +90,7 @@ TEST(HTreeRealTechSmokeTest, ForceBranchBufferSelectsTerminalBranchPatternsOnEve
   icts::Net root_net("htree_branch_buffer_root_net");
   ConnectRootNetForHTreeTest(root_net, root_driver, selected_clock->loads);
 
-  auto result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
+  auto result = icts::htree::BuildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
 
   ASSERT_TRUE(result.summary.success);
   EXPECT_TRUE(result.summary.failure_reason.empty());
@@ -135,7 +136,7 @@ TEST(HTreeRealTechSmokeTest, CallerFacingBranchBufferOptionOverridesConfigDefaul
   icts::Net root_net("htree_branch_buffer_override_root_net");
   ConnectRootNetForHTreeTest(root_net, root_driver, selected_clock->loads);
 
-  const auto result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig(true));
+  const auto result = icts::htree::BuildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig(true));
 
   AssertBranchBufferMaterialization(result);
 }
@@ -164,7 +165,7 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryInputConfigPropagatesWhenFea
   icts::Pin baseline_root_driver("htree_boundary_baseline_root_out", icts::PinType::kOut);
   icts::Net baseline_root_net("htree_boundary_baseline_root_net");
   ConnectRootNetForHTreeTest(baseline_root_net, baseline_root_driver, selected_clock->loads);
-  const auto baseline_result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(baseline_root_net), MakeExplicitHTreeConfig());
+  const auto baseline_result = icts::htree::BuildWithDiagnostics(MakeExplicitHTreeInput(baseline_root_net), MakeExplicitHTreeConfig());
   ASSERT_TRUE(baseline_result.summary.success);
   ASSERT_FALSE(baseline_result.output.levels.empty());
   ASSERT_GT(baseline_result.diagnostics.char_slew_steps, 0U);
@@ -185,7 +186,7 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryInputConfigPropagatesWhenFea
   icts::Pin top_boundary_root_driver("htree_boundary_root_out", icts::PinType::kOut);
   icts::Net top_boundary_root_net("htree_boundary_root_net");
   ConnectRootNetForHTreeTest(top_boundary_root_net, top_boundary_root_driver, selected_clock->loads);
-  auto top_boundary_result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(top_boundary_root_net),
+  auto top_boundary_result = icts::htree::BuildWithDiagnostics(MakeExplicitHTreeInput(top_boundary_root_net),
                                                                MakeExplicitHTreeConfig(std::nullopt, top_input_slew_ns));
   ASSERT_TRUE(top_boundary_result.summary.success);
   ASSERT_TRUE(top_boundary_result.diagnostics.min_top_input_slew_ns.has_value());
@@ -207,7 +208,7 @@ TEST(HTreeRealTechSmokeTest, CallerFacingTopBoundaryInputConfigPropagatesWhenFea
   icts::Pin impossible_root_driver("htree_boundary_impossible_root_out", icts::PinType::kOut);
   icts::Net impossible_root_net("htree_boundary_impossible_root_net");
   ConnectRootNetForHTreeTest(impossible_root_net, impossible_root_driver, selected_clock->loads);
-  auto impossible_top_boundary_result = icts::HTree::buildWithDiagnostics(
+  auto impossible_top_boundary_result = icts::htree::BuildWithDiagnostics(
       MakeExplicitHTreeInput(impossible_root_net), MakeExplicitHTreeConfig(std::nullopt, impossible_top_input_slew_ns));
   ASSERT_TRUE(impossible_top_boundary_result.summary.success);
   ASSERT_TRUE(impossible_top_boundary_result.diagnostics.min_top_input_slew_ns.has_value());

@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "CTSAPI.hh"
-#include "CTSRuntime.hh"
 #include "Clock.hh"
 #include "ClockLayout.hh"
 #include "Config.hh"
@@ -61,8 +60,8 @@ TEST(FlowTest, EmptyFlowRunIsCallable)
 {
   ScopedFlowReset scoped_flow_reset;
 
-  (void) scoped_flow_reset.flow.runSynthesis();
-  (void) scoped_flow_reset.flow.runOptimization();
+  scoped_flow_reset.flow.setSetupReady(true);
+  scoped_flow_reset.flow.runCTS();
 
   const auto summary = scoped_flow_reset.flow.outputRunSummary();
   EXPECT_FALSE(summary.success);
@@ -171,9 +170,8 @@ TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
 {
   ScopedFlowReset scoped_flow_reset;
 
-  (void) scoped_flow_reset.flow.runSynthesis();
-  (void) scoped_flow_reset.flow.runOptimization();
-  (void) scoped_flow_reset.flow.evaluateClockTree();
+  scoped_flow_reset.flow.setSetupReady(true);
+  scoped_flow_reset.flow.runCTS();
 
   const auto run_summary = scoped_flow_reset.flow.outputRunSummary();
   EXPECT_EQ(run_summary.outcome, icts::SynthesisOutcome::kNoOp);
@@ -417,10 +415,9 @@ TEST(FlowTest, SourceToRootFailureRestoresPreparedSinkDomainsAndRecordsStatus)
       .root_buffer_spec = &root_spec,
   });
   if (!context.has_value()) {
-    FAIL() << "Clock distribution context should be prepared.";
-    return;
+    GTEST_FAIL() << std::string("Clock distribution context should be prepared.");
   }
-  auto prepared_context = *context;
+  auto prepared_context = context.value();
   ASSERT_FALSE(pins.clock->get_insts().empty());
   ASSERT_FALSE(pins.clock->get_nets().empty());
 
@@ -459,7 +456,6 @@ TEST(FlowTest, EvaluateWithoutSuccessfulInstantiationLeavesSummaryUnavailableAnd
   auto pins = AddClockToDesign(nullptr, reg_inst);
   PrepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
-  (void) scoped_flow_reset.flow.evaluateClockTree();
   EXPECT_FALSE(scoped_flow_reset.flow.outputSummary().has_evaluation_result);
   EXPECT_EQ(scoped_flow_reset.flow.outputSummary().final_clock_buffer_count, 0);
   EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 0);

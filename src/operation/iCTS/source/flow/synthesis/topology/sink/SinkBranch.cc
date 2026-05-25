@@ -43,7 +43,6 @@
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "synthesis/topology/sink/SinkLoadClustering.hh"
@@ -116,7 +115,7 @@ auto BuildSinkHtreeInput(const Topology::Input& input, Net& root_net, bool enabl
       .clock_period_source = input.clock_period_source,
       .log_context = input.log_context,
       .object_name_prefix = input.object_name_prefix,
-      .load_role = (enable_sink_clustering || input.htree_loads_are_local_buffers) ? HTreeLoadRole::kLocalBuffer : HTreeLoadRole::kSink,
+      .load_role = (enable_sink_clustering || input.htree_loads_are_local_buffers) ? HTree::LoadRole::kLocalBuffer : HTree::LoadRole::kSink,
   };
 }
 

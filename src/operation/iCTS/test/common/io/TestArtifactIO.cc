@@ -36,13 +36,12 @@
 #include <utility>
 #include <vector>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "Log.hh"
 #include "common/CTSTestRuntime.hh"
 #include "common/dataset/TestDataset.hh"
 #include "utils/logger/LogFormat.hh"
 #include "utils/logger/Schema.hh"
-#include "utils/logger/SchemaForward.hh"
 
 namespace icts_test::common::io {
 namespace {
@@ -206,8 +205,7 @@ auto IsActiveReportPath(const std::filesystem::path& path) -> bool
   return schema_writer.isOpen() && schema_writer.getActivePath() == path;
 }
 
-auto EmitOrAppendTestKeyValueTable(const std::filesystem::path& path, const std::string& title, const icts::KeyValueFields& fields)
-    -> void
+auto EmitOrAppendTestKeyValueTable(const std::filesystem::path& path, const std::string& title, const icts::KeyValueFields& fields) -> void
 {
   if (IsActiveReportPath(path)) {
     icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTable(title, fields);

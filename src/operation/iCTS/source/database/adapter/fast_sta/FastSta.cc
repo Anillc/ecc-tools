@@ -40,7 +40,6 @@
 #include "FastStaTiming.hh"
 #include "Log.hh"
 #include "clock_net_parasitic/FastStaClockNetParasitic.hh"
-#include "clock_sizing/FastStaClockSizingEdit.hh"
 #include "clock_state/FastStaClockState.hh"
 #include "design/Clock.hh"
 #include "design/Net.hh"
@@ -200,18 +199,6 @@ auto FastSTA::buildClockContext(const FastStaClockBuildInput& input) -> FastStaC
   return clock_id;
 }
 
-auto FastSTA::rebuildClockContext(FastStaClockId clock_id) -> bool
-{
-  auto* context = mutableClockContext(clock_id);
-  if (context == nullptr) {
-    LOG_ERROR << "FastSTA: rebuild skipped because clock context id is invalid.";
-    return false;
-  }
-  context->timing_valid = false;
-  context->power_valid = false;
-  return updateTiming(clock_id) && updatePower(clock_id);
-}
-
 auto FastSTA::eraseClockContext(FastStaClockId clock_id) -> bool
 {
   if (clock_id >= _contexts->clock_context_valid.size() || !_contexts->clock_context_valid.at(clock_id)) {
@@ -268,20 +255,6 @@ auto FastSTA::runCharSample(FastStaCharContextId char_context_id, double input_s
   return FastStaChar::runSample(*_contexts->char_contexts.at(char_context_id), input_slew_ns);
 }
 
-auto FastSTA::changeBufferMaster(FastStaClockId clock_id, FastStaNodeId node_id, std::string_view cell_master) -> bool
-{
-  auto* context = mutableClockContext(clock_id);
-  if (context == nullptr) {
-    LOG_ERROR << "FastSTA: buffer master change skipped because clock context id is invalid.";
-    return false;
-  }
-  const auto dirty_region = FastStaIncremental::changeBufferMasterIncremental(*context, node_id, cell_master);
-  if (!dirty_region.has_value()) {
-    return false;
-  }
-  return FastStaTiming::updateRegion(*context, *dirty_region) && FastStaPower::updateRegion(*context, *dirty_region);
-}
-
 auto FastSTA::changeBufferMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool
 {
   auto* context = mutableClockContext(clock_id);
@@ -334,16 +307,6 @@ auto FastSTA::updatePower(FastStaClockId clock_id) -> bool
     return false;
   }
   return FastStaPower::update(*context);
-}
-
-auto FastSTA::injectNetRouteTree(FastStaClockId clock_id, const Net& net, const ClockSteinerTree<int>& route_tree) -> bool
-{
-  auto* context = mutableClockContext(clock_id);
-  if (context == nullptr) {
-    LOG_ERROR << "FastSTA: route-tree injection skipped because clock context id is invalid.";
-    return false;
-  }
-  return FastStaBuilder::injectNetRouteTree(*context, net, route_tree);
 }
 
 auto FastSTA::injectNetRouteTree(FastStaClockId clock_id, const Net& net, const ClockSteinerTree<int>& route_tree,
@@ -440,45 +403,10 @@ auto FastSTA::queryClockNodeArrival(FastStaClockId clock_id, FastStaNodeId node_
   return context->nodes.at(node_id).timing.arrival_ns;
 }
 
-auto FastSTA::querySinkArrival(FastStaClockId clock_id, std::string_view sink_pin_name) const -> std::optional<double>
-{
-  const auto* context = queryClockContext(clock_id);
-  if (context == nullptr) {
-    return std::nullopt;
-  }
-  const auto iter = context->node_id_by_name.find(std::string(sink_pin_name));
-  if (iter == context->node_id_by_name.end() || iter->second >= context->nodes.size()) {
-    return std::nullopt;
-  }
-  const auto& node = context->nodes.at(iter->second);
-  if (node.kind != FastStaNodeKind::kSink || !node.timing.valid) {
-    return std::nullopt;
-  }
-  return node.timing.arrival_ns;
-}
-
 auto FastSTA::querySkew(FastStaClockId clock_id) const -> FastStaSkewSummary
 {
   const auto* context = queryClockContext(clock_id);
   return context == nullptr ? FastStaSkewSummary{} : context->skew;
-}
-
-auto FastSTA::queryNodeSlew(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<double>
-{
-  const auto* context = queryClockContext(clock_id);
-  if (context == nullptr || node_id >= context->nodes.size() || !context->nodes.at(node_id).timing.valid) {
-    return std::nullopt;
-  }
-  return context->nodes.at(node_id).timing.slew_ns;
-}
-
-auto FastSTA::queryNetLoad(FastStaClockId clock_id, FastStaNetId net_id) const -> std::optional<double>
-{
-  const auto* context = queryClockContext(clock_id);
-  if (context == nullptr || net_id >= context->nets.size()) {
-    return std::nullopt;
-  }
-  return context->nets.at(net_id).load_cap_pf;
 }
 
 auto FastSTA::queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id) const -> std::optional<FastStaCapStatus>
@@ -519,11 +447,6 @@ auto FastSTA::queryPower(FastStaClockId clock_id) const -> FastStaPowerSummary
   return context == nullptr ? FastStaPowerSummary{} : context->power;
 }
 
-auto FastSTA::queryArea(FastStaClockId clock_id) const -> double
-{
-  return queryPower(clock_id).area_um2;
-}
-
 auto FastSTA::queryClockContext(FastStaClockId clock_id) const -> const FastStaClockContext*
 {
   if (clock_id >= _contexts->clock_contexts.size() || clock_id >= _contexts->clock_context_valid.size()
@@ -540,26 +463,6 @@ auto FastSTA::mutableClockContext(FastStaClockId clock_id) -> FastStaClockContex
     return nullptr;
   }
   return _contexts->clock_contexts.at(clock_id).get();
-}
-
-auto FastSTA::queryClockIds() const -> std::vector<FastStaClockId>
-{
-  std::vector<FastStaClockId> ids;
-  ids.reserve(_contexts->clock_contexts.size());
-  for (FastStaClockId id = 0U; id < _contexts->clock_contexts.size(); ++id) {
-    if (id < _contexts->clock_context_valid.size() && _contexts->clock_context_valid.at(id)) {
-      ids.push_back(id);
-    }
-  }
-  return ids;
-}
-
-auto FastSTA::registerClockContext(FastStaClockContext context) -> FastStaClockId
-{
-  const auto clock_id = _contexts->clock_contexts.size();
-  _contexts->clock_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
-  _contexts->clock_context_valid.push_back(true);
-  return clock_id;
 }
 
 }  // namespace icts

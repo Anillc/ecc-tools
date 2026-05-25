@@ -38,7 +38,6 @@
 #include "design/Clock.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "optimization/model/ClockSizingOptimizationData.hh"
 
 namespace icts::clock_sizing_optimization {
@@ -126,14 +125,14 @@ auto EmitClockProfile(const ClockSizingProfileReportInput& input) -> void
   const auto& clock = *input.clock;
   const auto& profile = *input.profile;
   EmitKeyValueTable(reporter, "CTS Optimization Clock Graph Profile",
-                            {{"clock", clock.get_clock_name()},
-                             {"node_count", std::to_string(profile.node_count)},
-                             {"net_count", std::to_string(profile.net_count)},
-                             {"sink_count", std::to_string(profile.sink_count)},
-                             {"buffer_input_count", std::to_string(profile.buffer_input_count)},
-                             {"buffer_output_count", std::to_string(profile.buffer_output_count)},
-                             {"optimizable_buffer_count", std::to_string(profile.optimizable_buffer_count)},
-                             {"generated_candidate_count", std::to_string(profile.generated_candidate_count)}});
+                    {{"clock", clock.get_clock_name()},
+                     {"node_count", std::to_string(profile.node_count)},
+                     {"net_count", std::to_string(profile.net_count)},
+                     {"sink_count", std::to_string(profile.sink_count)},
+                     {"buffer_input_count", std::to_string(profile.buffer_input_count)},
+                     {"buffer_output_count", std::to_string(profile.buffer_output_count)},
+                     {"optimizable_buffer_count", std::to_string(profile.optimizable_buffer_count)},
+                     {"generated_candidate_count", std::to_string(profile.generated_candidate_count)}});
 
   TableRows rows = {
       {"build_route_tree_cache", FormatSeconds(profile.build_route_tree_cache_s)},

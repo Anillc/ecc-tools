@@ -36,9 +36,10 @@
 #include "LogFormat.hh"
 #include "characterization/Characterization.hh"
 #include "logger/Schema.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/htree/characterization/wirelength/WirelengthGrid.hh"
+#include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 
 namespace icts {
 class Tree;
@@ -89,7 +90,7 @@ auto MakeContextFields(const HTree::LogContext& context, const std::string& obje
 }  // namespace
 
 auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::Input& base_char_input,
-                             const CharBuilder::Config& base_char_config, HTree::DiagnosticBuild& result,
+                             const CharBuilder::Config& base_char_config, htree::DiagnosticBuild& result,
                              CharacterizationLibrary& char_library, const HTree::Input& input, const HTree::Config& config)
     -> CharacterizationSummary
 {
@@ -135,8 +136,7 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
                            "effective unit for the adapted characterization grid"});
   }
   reporter.emitSection("### H-Tree Characterization");
-  reporter.emitKeyValueTableTo("HTree Build Scope", MakeContextFields(input.log_context, input.object_name_prefix),
-                               ReportSink::kBoth);
+  reporter.emitKeyValueTableTo("HTree Build Scope", MakeContextFields(input.log_context, input.object_name_prefix), ReportSink::kBoth);
   EmitTable(reporter, "HTree Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
 
   auto char_config = base_char_config;

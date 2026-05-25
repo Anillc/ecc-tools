@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/topology/trunk/SourceTrunk.hh"
 
 namespace icts::topology {
 namespace {
@@ -56,7 +56,7 @@ auto absorbHtreeInsertedObjects(Topology::Build& build, HTree::Output& htree_out
   absorbOwnedObjects(build.output.inserted_nets, htree_output.inserted_nets);
 }
 
-auto absorbHtreeInsertedObjects(Topology::SourceTrunkBuild& build, HTree::Output& htree_output) -> void
+auto absorbHtreeInsertedObjects(SourceTrunkBuild& build, HTree::Output& htree_output) -> void
 {
   build.output.inserted_inst_levels.insert(build.output.inserted_inst_levels.end(), htree_output.inserted_inst_levels.begin(),
                                            htree_output.inserted_inst_levels.end());
@@ -67,7 +67,7 @@ auto absorbHtreeInsertedObjects(Topology::SourceTrunkBuild& build, HTree::Output
   absorbOwnedObjects(build.output.inserted_nets, htree_output.inserted_nets);
 }
 
-auto absorbSegmentInsertedObjects(Topology::SourceTrunkBuild& build, SourceTrunkSegment::Build& segment_build) -> void
+auto absorbSegmentInsertedObjects(SourceTrunkBuild& build, SourceTrunkSegment::Build& segment_build) -> void
 {
   build.output.inserted_inst_levels.insert(build.output.inserted_inst_levels.end(), segment_build.output.inserted_inst_levels.begin(),
                                            segment_build.output.inserted_inst_levels.end());
@@ -115,7 +115,7 @@ auto RecordSinkHtreeBuild(Topology::Build& build, HTree::Build htree_build) -> v
   absorbHtreeInsertedObjects(build, build.output.htree_output);
 }
 
-auto RecordTopSegmentBuild(Topology::SourceTrunkBuild& build, SourceTrunkSegment::Build& segment_build) -> void
+auto RecordTopSegmentBuild(SourceTrunkBuild& build, SourceTrunkSegment::Build& segment_build) -> void
 {
   build.summary.used_boundary_relaxation = segment_build.summary.used_boundary_relaxation;
   build.summary.selected_level_count = segment_build.output.inserted_insts.size();
@@ -125,7 +125,7 @@ auto RecordTopSegmentBuild(Topology::SourceTrunkBuild& build, SourceTrunkSegment
   build.summary.success = true;
 }
 
-auto RecordTopHtreeBuild(Topology::SourceTrunkBuild& build, HTree::Build htree_build) -> void
+auto RecordTopHtreeBuild(SourceTrunkBuild& build, HTree::Build htree_build) -> void
 {
   build.summary.selected_depth = htree_build.summary.selected_depth;
   build.summary.selected_level_count = htree_build.output.levels.size();

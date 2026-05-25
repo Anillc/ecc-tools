@@ -41,7 +41,6 @@
 #include "config/Config.hh"
 #include "design/ClockLayout.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "report/visualization/drawing/Drawing.hh"
 #include "spatial/Point.hh"
 #include "visualization/core/SvgCommon.hh"
@@ -416,9 +415,8 @@ auto EmitReportStatusTable(SchemaWriter& reporter, const std::vector<Visualizati
         status.reason,
     });
     if (!status.success) {
-      EmitDiagnostic(
-          reporter, DiagnosticLevel::kWarning, "CTS Report Visualization", "visualization report generation failed",
-          {{"report", status.label}, {"path", status.path.string()}, {"view", status.view_label}, {"reason", status.reason}});
+      EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Report Visualization", "visualization report generation failed",
+                     {{"report", status.label}, {"path", status.path.string()}, {"view", status.view_label}, {"reason", status.reason}});
     }
   }
   EmitTable(reporter, "CTS Visualization Reports", {"Report", "Path", "View", "Status", "Detail"}, rows);

@@ -12,6 +12,7 @@ target_link_libraries(
   icts_source_flow_synthesis_topology
   PUBLIC
   icts_source_flow_synthesis_htree
+  icts_source_module_topology_clustering
   icts_source_module_topology
   PRIVATE
   icts_source_database
@@ -25,5 +26,6 @@ target_link_libraries(
 target_include_directories(
   icts_source_flow_synthesis_topology
   PUBLIC
+  ${ICTS_SOURCE}
   ${ICTS_FLOW}
 )

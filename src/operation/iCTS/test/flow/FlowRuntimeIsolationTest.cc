@@ -27,13 +27,12 @@
 #include <memory>
 #include <string>
 
-#include "CTSRuntime.hh"
 #include "Config.hh"
 #include "Design.hh"
+#include "Flow.hh"
 #include "Schema.hh"
 #include "common/CTSTestRuntime.hh"
 #include "database/design/Inst.hh"
-#include "flow/Flow.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 
 namespace icts_test {
@@ -80,7 +79,8 @@ TEST(CTSTestRuntime, LocalRuntimeFlowPairsDoNotShareCTSState)
   EXPECT_NE(first_runtime.reporter.getActivePath(), second_runtime.reporter.getActivePath());
 
   first.flow->runCTS();
-  second.flow->runSynthesis();
+  second.flow->setSetupReady(true);
+  second.flow->runCTS();
   EXPECT_FALSE(first.flow->outputRunSummary().success);
   EXPECT_FALSE(second.flow->outputRunSummary().success);
   EXPECT_EQ(first.flow->outputRunSummary().outcome, icts::SynthesisOutcome::kFailed);

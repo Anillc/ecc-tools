@@ -32,11 +32,12 @@
 #include "Inst.hh"
 #include "Net.hh"
 #include "Pin.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 
 class Clock;
+class SchemaWriter;
+
 class Design
 {
  public:

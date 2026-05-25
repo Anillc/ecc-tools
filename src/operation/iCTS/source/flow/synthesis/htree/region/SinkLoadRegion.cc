@@ -48,10 +48,10 @@
 #include "Tree.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "clustering/Clustering.hh"
+#include "fast_clustering/FastClustering.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
-#include "topology/TopologyGen.hh"
 
 namespace icts::htree {
 namespace {
@@ -114,7 +114,7 @@ auto BuildLeafElectricalConfig(const SinkLoadRegionLegalityInput& input, const s
 {
   const double max_cap = input.has_max_cap ? input.max_cap_pf : std::numeric_limits<double>::infinity();
   LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for sink-load-region legality.";
-  auto config = TopologyGen::buildFastClusteringElectricalConfig(input.max_fanout, max_cap);
+  auto config = FastClustering::buildElectricalBaseConfig(input.max_fanout, max_cap);
   config.clock_route_segment_rc = input.clock_route_segment_rc;
   config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(*input.sta_adapter, groups);
   config.enable_exact_cap = true;

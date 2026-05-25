@@ -34,7 +34,7 @@
 #include "PatternId.hh"
 #include "SegmentChar.hh"
 #include "characterization/Characterization.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 

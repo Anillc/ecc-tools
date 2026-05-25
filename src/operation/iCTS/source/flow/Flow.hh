@@ -25,6 +25,11 @@
 
 #include <string>
 
+#include "database/adapter/fast_sta/FastSta.hh"
+#include "database/adapter/sta/STAAdapter.hh"
+#include "database/config/Config.hh"
+#include "database/design/Design.hh"
+#include "database/io/Wrapper.hh"
 #include "design/ClockLayout.hh"
 #include "evaluation/Evaluation.hh"
 #include "evaluation/qor/QorEvaluation.hh"
@@ -32,23 +37,27 @@
 #include "optimization/Optimization.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
+#include "utils/logger/Schema.hh"
 
 namespace icts {
 
-struct CTSRuntime;
-
-enum class FlowStageStatus
+struct CTSRuntime
 {
-  kFinished,
-  kSkipped,
-  kFailed
-};
+  Config config;
+  Design design;
+  Wrapper wrapper;
+  STAAdapter sta_adapter;
+  FastSTA fast_sta;
+  SchemaWriter reporter;
 
-struct ClockDataReadSummary
-{
-  FlowStageStatus status = FlowStageStatus::kFailed;
-  std::string reason;
-  bool success = false;
+  auto reset() -> void
+  {
+    config.reset();
+    design.reset();
+    wrapper.reset();
+    fast_sta.reset();
+    reporter.reset();
+  }
 };
 
 class Flow
@@ -58,10 +67,6 @@ class Flow
   ~Flow() = default;
 
   auto runCTS() -> void;
-  auto readClockData() -> ClockDataReadSummary;
-  auto runSynthesis() -> SynthesisTraceSummary;
-  auto runOptimization() -> OptimizationSummary;
-  auto evaluateClockTree() -> EvaluationBuild;
   auto emitReports(const std::string& save_dir) -> void;
   auto outputRuntimeSetup() -> void;
   auto outputSummary() const -> QorSummary;
@@ -75,7 +80,17 @@ class Flow
   auto operator=(Flow&& other) -> Flow& = delete;
 
  private:
+  struct ClockDataReadSummary
+  {
+    std::string reason;
+    bool success = false;
+  };
+
+  auto readClockData() -> ClockDataReadSummary;
+  auto runSynthesis() -> SynthesisTraceSummary;
+  auto runOptimization() -> OptimizationSummary;
   auto instantiateClockTree() -> InstantiationSummary;
+  auto evaluateClockTree() -> EvaluationBuild;
   auto emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void;
 
   CTSRuntime& _runtime;

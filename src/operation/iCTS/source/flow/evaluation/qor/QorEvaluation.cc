@@ -66,16 +66,16 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationInput& inpu
   if (summary.design_dbu_per_um <= 0) {
     summary.design_dbu_per_um = 0;
     EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
-                           "CTS evaluation reports degraded wirelength metrics because DBU-per-micron is unavailable.",
-                           {{"wirelength_metric_status", "degraded"}});
+                   "CTS evaluation reports degraded wirelength metrics because DBU-per-micron is unavailable.",
+                   {{"wirelength_metric_status", "degraded"}});
   }
   const bool clock_dag_valid = design.rebuildClockDAG();
   const auto& clock_dag = design.get_clock_dag();
   qor_evaluation::AppendPathDepthStats(clock_dag.pathBufferStats(), summary);
   if (!clock_dag_valid) {
     EmitDiagnostic(reporter, DiagnosticLevel::kError, "CTS Evaluation",
-                           "CTS evaluation skipped because committed topology is not a valid clock DAG.",
-                           {{"path_depth_metric_status", summary.path_depth_metric_status}, {"reason", clock_dag.get_status()}});
+                   "CTS evaluation skipped because committed topology is not a valid clock DAG.",
+                   {{"path_depth_metric_status", summary.path_depth_metric_status}, {"reason", clock_dag.get_status()}});
     qor_evaluation::SyncCompatibilityAliases(summary);
     qor_evaluation::EmitEvaluationSummary(reporter, summary, false);
     return;

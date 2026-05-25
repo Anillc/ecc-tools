@@ -44,7 +44,7 @@
 #include "TopologyConfig.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
-#include "topology/TopologyGen.hh"
+#include "topology/fast_clustering/FastClustering.hh"
 
 namespace icts::topology {
 namespace {
@@ -151,7 +151,7 @@ auto collectSinkPinCapPfByPin(STAAdapter& sta_adapter, const std::vector<Pin*>& 
 auto buildClusteringConfigFromPolicy(STAAdapter& sta_adapter, const SinkTreeLoadPreparationPolicy& policy,
                                      const std::vector<Pin*>& root_loads) -> ClusterConfig
 {
-  auto clustering_config = TopologyGen::buildFastClusteringElectricalConfig(policy.max_fanout, policy.max_cap_pf);
+  auto clustering_config = FastClustering::buildElectricalBaseConfig(policy.max_fanout, policy.max_cap_pf);
   clustering_config.clock_route_segment_rc = policy.clock_route_segment_rc;
   clustering_config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(sta_adapter, root_loads);
   return clustering_config;
@@ -218,7 +218,7 @@ auto PrepareSinkTreeLoads(const SinkTreeLoadPreparationInput& input) -> SinkTree
   }
 
   auto clustering_config = buildClusteringConfigFromPolicy(sta_adapter, input.policy, root_loads);
-  auto cluster_output = TopologyGen::defaultFastClustering(root_loads, clustering_config);
+  auto cluster_output = Clustering::defaultFastClustering(root_loads, clustering_config);
   result.output.cluster_output = std::move(cluster_output);
 
   std::string cluster_buffer_cell_master;

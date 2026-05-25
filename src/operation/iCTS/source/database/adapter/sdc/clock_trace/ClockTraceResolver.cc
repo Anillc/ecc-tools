@@ -42,7 +42,6 @@
 #include "SdcClockReader.hh"
 #include "clock_trace/SdcClockTraceAlgorithm.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -114,8 +113,8 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
 {
   ClockTraceBuild build;
   if (idb_design == nullptr || idb_design->get_net_list() == nullptr) {
-    EmitDiagnostic(reporter, DiagnosticLevel::kError, "ClockTraceResolver",
-                           "clock tracing skipped because iDB design is not ready.", {{"clock_source", "sdc"}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kError, "ClockTraceResolver", "clock tracing skipped because iDB design is not ready.",
+                   {{"clock_source", "sdc"}});
     LOG_ERROR << "ClockTraceResolver: iDB design or net list is null.";
     return build;
   }

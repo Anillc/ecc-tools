@@ -31,13 +31,12 @@
 
 #include "Point.hh"
 #include "Tree.hh"
-#include "clustering/Clustering.hh"
 #include "config/TopologyConfig.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 
 class Pin;
+class SchemaWriter;
 enum class TopologyGenLoadCountKind
 {
   kSink,
@@ -72,13 +71,7 @@ class TopologyGen
   TopologyGen() = delete;
   ~TopologyGen() = default;
 
-  static auto build(const std::vector<Pin*>& loads) -> Tree;
   static auto build(const std::vector<Pin*>& loads, const Input& input, const Config& config) -> Tree;
-  static auto build(const std::vector<Pin*>& loads, const BiPartitionConfig& config) -> Tree;
-  static auto buildFastClusteringElectricalConfig(std::size_t max_fanout, double max_cap) -> ClusterConfig;
-  static auto fastClustering(const std::vector<Pin*>& loads) -> ClusterOutput;
-  static auto defaultFastClustering(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterOutput;
-  static auto fastClustering(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterOutput;
 
  private:
   struct BuildCursor

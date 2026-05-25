@@ -30,12 +30,12 @@
 #include <unordered_set>
 #include <vector>
 
-#include "TopologyConfig.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
 #include "database/spatial/Tree.hh"
 #include "geometry/Geometry.hh"
 #include "module/topology/TopologyGen.hh"
+#include "module/topology/config/TopologyConfig.hh"
 
 namespace icts_test::topology_gen {
 namespace {
@@ -101,7 +101,7 @@ TEST(TopologyGenDepthTest, DefaultBuildUsesDeepestPowerOfTwoDepth)
   const auto storage = BuildLoads();
   const auto loads = BorrowLoads(storage);
 
-  const auto tree = icts::TopologyGen::build(loads);
+  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::Input{}, icts::TopologyGen::Config{});
   const auto levels = tree.levels();
 
   ASSERT_EQ(levels.size(), 4U);
@@ -171,14 +171,16 @@ TEST(TopologyGenDepthTest, TopologyToleranceKeepsEdgesInsideBaselineWindow)
 
   icts::BiPartitionConfig exact_config;
   exact_config.htree_topology_tolerance = 0.0;
-  const auto exact_tree = icts::TopologyGen::build(loads, exact_config);
+  const auto exact_tree
+      = icts::TopologyGen::build(loads, icts::TopologyGen::Input{}, icts::TopologyGen::Config{.partition_config = exact_config});
   const auto exact_distances = CollectFirstLevelDistances(exact_tree);
   ASSERT_EQ(exact_distances.size(), 2U);
   EXPECT_NEAR(exact_distances.at(0), exact_distances.at(1), 1);
 
   icts::BiPartitionConfig tolerant_config;
   tolerant_config.htree_topology_tolerance = 1.0;
-  const auto tolerant_tree = icts::TopologyGen::build(loads, tolerant_config);
+  const auto tolerant_tree
+      = icts::TopologyGen::build(loads, icts::TopologyGen::Input{}, icts::TopologyGen::Config{.partition_config = tolerant_config});
   const auto tolerant_distances = CollectFirstLevelDistances(tolerant_tree);
   ASSERT_EQ(tolerant_distances.size(), 2U);
   EXPECT_TRUE(std::ranges::any_of(tolerant_distances, [](int distance) -> bool { return distance == 0; }));

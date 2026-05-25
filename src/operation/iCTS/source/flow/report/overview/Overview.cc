@@ -27,7 +27,6 @@
 #include <utility>
 
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 
@@ -35,9 +34,9 @@ auto Overview::emitReportMode(SchemaWriter& reporter, bool reused_evaluation_sta
 {
   (void) paths;
   EmitKeyValueTable(reporter, "CTS Report Mode",
-                            {
-                                {"mode", reused_evaluation_state ? "reuse_evaluation_state" : "rebuild_evaluation_state"},
-                            });
+                    {
+                        {"mode", reused_evaluation_state ? "reuse_evaluation_state" : "rebuild_evaluation_state"},
+                    });
 }
 
 }  // namespace icts

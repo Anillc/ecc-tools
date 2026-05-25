@@ -138,7 +138,7 @@ auto FindRenderableLocation(const icts::Pin* pin) -> icts::Point<int>
   return {-1, -1};
 }
 
-auto CollectExtraPoints(const icts::HTree::DiagnosticBuild& result) -> std::vector<icts::Point<int>>
+auto CollectExtraPoints(const icts::htree::DiagnosticBuild& result) -> std::vector<icts::Point<int>>
 {
   std::vector<icts::Point<int>> extra_points;
   extra_points.reserve(result.output.topology.get_size() + result.output.inserted_insts.size() + result.output.inserted_pins.size());
@@ -383,7 +383,7 @@ auto WriteTopologyOverlay(std::ofstream& output_stream, const icts::visualizatio
 }
 
 auto WriteMaterializedNets(std::ofstream& output_stream, const icts::visualization::detail::SvgTransform& transform,
-                           const std::unordered_set<const icts::Pin*>& original_loads, const icts::HTree::DiagnosticBuild& result) -> void
+                           const std::unordered_set<const icts::Pin*>& original_loads, const icts::htree::DiagnosticBuild& result) -> void
 {
   for (const auto& net_owner : result.output.inserted_nets) {
     const auto* net = net_owner.get();
@@ -489,7 +489,7 @@ auto WriteLoads(std::ofstream& output_stream, const icts::visualization::detail:
 }
 
 auto WriteRootMarker(std::ofstream& output_stream, const icts::visualization::detail::SvgTransform& transform,
-                     const icts::HTree::DiagnosticBuild& result) -> void
+                     const icts::htree::DiagnosticBuild& result) -> void
 {
   const auto root_location = FindRenderableLocation(result.output.root_output_pin);
   if (!HasValidLocation(root_location)) {
@@ -508,7 +508,7 @@ auto WriteRootMarker(std::ofstream& output_stream, const icts::visualization::de
 }  // namespace
 
 auto WriteMaterializedSvg(const std::filesystem::path& path, const std::vector<icts::Pin*>& loads,
-                          const icts::HTree::DiagnosticBuild& result) -> bool
+                          const icts::htree::DiagnosticBuild& result) -> bool
 {
   const auto extra_points = CollectExtraPoints(result);
   const auto bounds = ComputeBounds(loads, extra_points);

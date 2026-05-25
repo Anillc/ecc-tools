@@ -232,7 +232,7 @@ auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pi
   return leaf_loads;
 }
 
-auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::DiagnosticBuild& result) -> void
+auto AssertNoSingleLoadExternalLeafBuffer(const icts::htree::DiagnosticBuild& result) -> void
 {
   std::unordered_set<const icts::Inst*> inserted_insts;
   inserted_insts.reserve(result.output.inserted_insts.size());
@@ -273,7 +273,7 @@ auto ReadTextFile(const std::filesystem::path& path) -> std::string
   return content_stream.str();
 }
 
-auto AssertDepthCandidateCoverage(const icts::HTree::DiagnosticBuild& result) -> void
+auto AssertDepthCandidateCoverage(const icts::htree::DiagnosticBuild& result) -> void
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   ASSERT_GT(observation.depth_candidate_count, 0U);
@@ -291,7 +291,7 @@ auto AssertDepthCandidateCoverage(const icts::HTree::DiagnosticBuild& result) ->
   EXPECT_GT(observation.selected_final_frontier_count, 0U);
 }
 
-auto AssertSelectedHTreeLoadDistribution(const icts::HTree::DiagnosticBuild& result) -> void
+auto AssertSelectedHTreeLoadDistribution(const icts::htree::DiagnosticBuild& result) -> void
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   ASSERT_GT(observation.htree_load_group_count, 0U);
@@ -303,7 +303,7 @@ auto AssertSelectedHTreeLoadDistribution(const icts::HTree::DiagnosticBuild& res
 
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
-                                  const icts::HTree::DiagnosticBuild& result) -> void
+                                  const icts::htree::DiagnosticBuild& result) -> void
 {
   ASSERT_FALSE(artifact_paths.output_dir.empty());
   EXPECT_TRUE(htree::WriteHTreeArtifacts(artifact_paths, scenario_name, clock_name, loads, result));
@@ -315,7 +315,7 @@ auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_path
 }
 
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
-auto AssertBranchBufferMaterialization(const icts::HTree::DiagnosticBuild& result) -> void
+auto AssertBranchBufferMaterialization(const icts::htree::DiagnosticBuild& result) -> void
 {
   ASSERT_TRUE(result.summary.success);
   ASSERT_FALSE(result.output.levels.empty());

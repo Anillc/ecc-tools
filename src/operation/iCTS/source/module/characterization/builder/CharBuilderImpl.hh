@@ -38,11 +38,11 @@
 #include <vector>
 
 #include "ClockRouteSegmentRc.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 class BufferingPattern;
 class FastSTA;
+class SchemaWriter;
 class SegmentChar;
 class STAAdapter;
 struct CharacterizationBufferCell;

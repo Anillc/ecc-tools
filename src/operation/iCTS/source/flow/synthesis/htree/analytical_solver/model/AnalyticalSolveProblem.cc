@@ -34,6 +34,7 @@
 #include "BufferingPattern.hh"
 #include "PatternId.hh"
 #include "ValueLattice.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/analytical_solver/AnalyticalSolver.hh"
 #include "synthesis/htree/analytical_solver/candidate/AnalyticalHTreeCandidateSearch.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"

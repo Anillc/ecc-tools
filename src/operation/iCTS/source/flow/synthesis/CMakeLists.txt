@@ -20,7 +20,6 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_characterization_library
   icts_source_flow_synthesis_topology
   icts_source_flow_synthesis_trace_layout
-  icts_source_module
   icts_source_utils
 )
 

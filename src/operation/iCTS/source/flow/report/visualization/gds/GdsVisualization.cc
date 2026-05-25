@@ -38,7 +38,6 @@
 #include "config/Config.hh"
 #include "design/ClockLayout.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "report/visualization/drawing/Drawing.hh"
 #include "report/visualization/gds/layer/LayerPolicy.hh"
 #include "report/visualization/gds/writer/GdsStream.hh"

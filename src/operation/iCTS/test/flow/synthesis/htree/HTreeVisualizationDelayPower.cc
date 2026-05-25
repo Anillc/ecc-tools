@@ -55,7 +55,7 @@ auto NormalizeMetric(double value, double min_value, double max_value) -> double
 
 }  // namespace
 
-auto BuildDelayPowerPoints(const icts::HTree::DiagnosticBuild& result) -> std::vector<DelayPowerPoint>
+auto BuildDelayPowerPoints(const icts::htree::DiagnosticBuild& result) -> std::vector<DelayPowerPoint>
 {
   if (!result.output.best_char.has_value()) {
     return {};
@@ -84,7 +84,7 @@ auto BuildDelayPowerPoints(const icts::HTree::DiagnosticBuild& result) -> std::v
   return points;
 }
 
-auto BuildDelayPowerChoiceSummary(const icts::HTree::DiagnosticBuild& result) -> std::optional<DelayPowerChoiceSummary>
+auto BuildDelayPowerChoiceSummary(const icts::htree::DiagnosticBuild& result) -> std::optional<DelayPowerChoiceSummary>
 {
   if (!result.output.best_char.has_value()) {
     return std::nullopt;
@@ -136,7 +136,7 @@ auto BuildDelayPowerTooltip(const DelayPowerPoint& point) -> std::string
 
 }  // namespace
 
-auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTree::DiagnosticBuild& result) -> bool
+auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::htree::DiagnosticBuild& result) -> bool
 {
   const auto points = BuildDelayPowerPoints(result);
   if (points.empty()) {
@@ -267,7 +267,7 @@ auto WriteDelayPowerParetoSvg(const std::filesystem::path& path, const icts::HTr
 }
 
 auto BuildReport(const std::string& scenario_name, const std::string& input_summary, const HTreeArtifactPaths& paths,
-                 const std::vector<icts::Pin*>& loads, const icts::HTree::DiagnosticBuild& result) -> std::string
+                 const std::vector<icts::Pin*>& loads, const icts::htree::DiagnosticBuild& result) -> std::string
 {
   const auto delay_power_points = BuildDelayPowerPoints(result);
   const auto observation = ObserveHTreeBuild(result);

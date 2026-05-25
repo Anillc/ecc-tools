@@ -31,9 +31,10 @@ namespace idb {
 class IdbDesign;
 }  // namespace idb
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
+
+class SchemaWriter;
+
 class ClockTraceResolver
 {
  public:

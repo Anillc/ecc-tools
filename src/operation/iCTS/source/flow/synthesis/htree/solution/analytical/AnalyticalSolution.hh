@@ -36,6 +36,7 @@ class CharBuilder;
 namespace htree {
 struct BoundaryConstraints;
 struct BufferPatternLibrary;
+struct DiagnosticBuild;
 struct HTreeFanoutPruningConfig;
 struct RootDriverCompensationInput;
 struct SinkLoadRegionLegalityInput;
@@ -44,7 +45,7 @@ class SegmentFrontierCatalog;
 
 namespace htree::analytical_solution {
 
-auto TryBuildAnalyticalHTree(HTree::DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
+auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
                              SchemaWriter::StageScope& build_stage, unsigned max_depth,
                              const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
                              const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,

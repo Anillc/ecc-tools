@@ -31,7 +31,6 @@
 #include "Log.hh"
 #include "Qor.hh"
 #include "evaluation/qor/QorEvaluation.hh"
-#include "logger/SchemaForward.hh"
 #include "report/qor/QorFiles.hh"
 
 namespace icts {

@@ -40,7 +40,6 @@
 #include "database/design/Pin.hh"
 #include "log/Log.hh"
 #include "utils/logger/Schema.hh"
-#include "utils/logger/SchemaForward.hh"
 
 namespace icts {
 namespace {

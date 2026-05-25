@@ -39,6 +39,7 @@
 #include "flow/synthesis/htree/HTree.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/htree/HTreeRealTechScenario.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 
 namespace icts_test {
@@ -82,7 +83,7 @@ auto MakeArm9CaseScenarioName(bool omit_wirelength_unit, unsigned wirelength_ite
 }
 
 auto MakeArm9ExperimentRecord(unsigned wirelength_iterations, unsigned slew_cap_steps, double runtime_s,
-                              const icts::HTree::DiagnosticBuild& result, std::size_t load_count) -> Arm9ExperimentRecord
+                              const icts::htree::DiagnosticBuild& result, std::size_t load_count) -> Arm9ExperimentRecord
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   Arm9ExperimentRecord record{
@@ -107,7 +108,7 @@ auto MakeArm9ExperimentRecord(unsigned wirelength_iterations, unsigned slew_cap_
 }
 
 auto AppendArm9CaseFailures(unsigned wirelength_iterations, unsigned slew_cap_steps, bool omit_wirelength_unit, double runtime_s,
-                            const icts::HTree::DiagnosticBuild& result, const Arm9ExperimentRecord& record,
+                            const icts::htree::DiagnosticBuild& result, const Arm9ExperimentRecord& record,
                             std::vector<std::string>& failure_messages) -> void
 {
   const std::string prefix = MakeCasePrefix(wirelength_iterations, slew_cap_steps);
@@ -192,7 +193,7 @@ auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wirelength_unit) -> Arm9Expe
       ConnectRootNetForHTreeTest(root_net, root_driver, matrix_result.selection.loads);
 
       const auto runtime_start = std::chrono::steady_clock::now();
-      const auto result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
+      const auto result = icts::htree::BuildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
       const auto runtime_end = std::chrono::steady_clock::now();
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
 

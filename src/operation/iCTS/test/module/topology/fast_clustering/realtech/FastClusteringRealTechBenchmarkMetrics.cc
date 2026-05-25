@@ -32,9 +32,9 @@
 #include "database/config/Config.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
-#include "module/topology/TopologyGen.hh"
 #include "module/topology/clustering/Clustering.hh"
 #include "module/topology/config/TopologyConfig.hh"
+#include "module/topology/fast_clustering/FastClustering.hh"
 
 namespace icts_test::fast_clustering::realtech {
 
@@ -173,8 +173,8 @@ auto ScoreCluster(const std::vector<icts::Pin*>& cluster, const icts::ClusterEle
 
 auto BuildBenchmarkConfig(const std::vector<icts::Pin*>& loads) -> icts::ClusterConfig
 {
-  auto config = icts::TopologyGen::buildFastClusteringElectricalConfig(icts_test::runtime::CurrentRuntime().config.get_max_fanout(),
-                                                                       icts_test::runtime::CurrentRuntime().config.get_max_cap());
+  auto config = icts::FastClustering::buildElectricalBaseConfig(icts_test::runtime::CurrentRuntime().config.get_max_fanout(),
+                                                                icts_test::runtime::CurrentRuntime().config.get_max_cap());
   config.clock_route_segment_rc
       = icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
   config.sink_pin_cap_pf_by_pin.reserve(loads.size());

@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "CTSAPI.hh"
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "IdbCellMaster.h"
 #include "IdbDesign.h"
 #include "IdbEnum.h"
@@ -398,13 +398,17 @@ inline auto AddIdbClockSink(idb::IdbDesign& idb_design, idb::IdbCellMaster& reg_
                             int32_t loc_x) -> idb::IdbPin*
 {
   auto* inst = AddIdbInst(idb_design, inst_name, reg_master, loc_x, 0);
-  if (inst == nullptr) {
-    ADD_FAILURE() << "failed to add clock sink inst " << inst_name;
+  const bool has_inst = inst != nullptr;
+  if (!has_inst) {
+    const std::string failure = "failed to add clock sink inst " + inst_name;
+    ADD_FAILURE() << failure;
     return nullptr;
   }
   auto* pin = inst->get_pin_by_term("CLK");
-  if (pin == nullptr) {
-    ADD_FAILURE() << "failed to find clock sink pin for " << inst_name;
+  const bool has_pin = pin != nullptr;
+  if (!has_pin) {
+    const std::string failure = "failed to find clock sink pin for " + inst_name;
+    ADD_FAILURE() << failure;
     return nullptr;
   }
   AttachIdbPinToNet(net, *pin);
@@ -415,14 +419,25 @@ inline auto AddIdbPassCell(idb::IdbDesign& idb_design, idb::IdbCellMaster& pass_
                            const std::string& inst_name, int32_t loc_x) -> idb::IdbInstance*
 {
   auto* inst = AddIdbInst(idb_design, inst_name, pass_master, loc_x, 0);
-  if (inst == nullptr) {
-    ADD_FAILURE() << "failed to add pass cell inst " << inst_name;
+  const bool has_inst = inst != nullptr;
+  if (!has_inst) {
+    const std::string failure = "failed to add pass cell inst " + inst_name;
+    ADD_FAILURE() << failure;
     return nullptr;
   }
   auto* input_pin = inst->get_pin_by_term("A");
   auto* output_pin = inst->get_pin_by_term("Y");
-  if (input_pin == nullptr || output_pin == nullptr) {
-    ADD_FAILURE() << "failed to find pass cell pins for " << inst_name;
+  const bool has_input_pin = input_pin != nullptr;
+  const bool has_output_pin = output_pin != nullptr;
+  if (!has_input_pin || !has_output_pin) {
+    if (!has_input_pin) {
+      const std::string failure = "failed to find pass cell input pin for " + inst_name;
+      ADD_FAILURE() << failure;
+    }
+    if (!has_output_pin) {
+      const std::string failure = "failed to find pass cell output pin for " + inst_name;
+      ADD_FAILURE() << failure;
+    }
     return nullptr;
   }
   AttachIdbPinToNet(input_net, *input_pin);

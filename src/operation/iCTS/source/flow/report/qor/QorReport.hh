@@ -25,10 +25,9 @@
 
 #include <string>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
+class SchemaWriter;
 struct EvaluationState;
 
 class QorReport

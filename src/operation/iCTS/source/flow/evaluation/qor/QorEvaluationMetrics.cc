@@ -48,7 +48,6 @@
 #include "io/Wrapper.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "routing/router/Router.hh"
 #include "timing/TimingEngine.hh"
 
@@ -198,7 +197,7 @@ auto emitClockTimingTables(SchemaWriter& reporter, const QorSummary& summary) ->
       });
     }
     EmitTable(reporter, "CTS Clock Timing Overview",
-                      {"Clock", "Setup TNS (ns)", "Setup WNS (ns)", "Hold TNS (ns)", "Hold WNS (ns)", "Suggested Frequency (MHz)"}, rows);
+              {"Clock", "Setup TNS (ns)", "Setup WNS (ns)", "Hold TNS (ns)", "Hold WNS (ns)", "Suggested Frequency (MHz)"}, rows);
   }
 
   if (!summary.clocks_latency_skew.empty()) {
@@ -219,9 +218,9 @@ auto emitClockTimingTables(SchemaWriter& reporter, const QorSummary& summary) ->
       });
     }
     EmitTable(reporter, "CTS Clock Latency Skew Overview",
-                      {"Clock", "Mode", "Launch Pin", "Capture Pin", "Launch Latency (ns)", "Capture Latency (ns)", "Worst Skew (ns)",
-                       "Average Worst Skew (ns)", "Path Count", "Average Sample Count"},
-                      rows);
+              {"Clock", "Mode", "Launch Pin", "Capture Pin", "Launch Latency (ns)", "Capture Latency (ns)", "Worst Skew (ns)",
+               "Average Worst Skew (ns)", "Path Count", "Average Sample Count"},
+              rows);
   }
 }
 
@@ -389,15 +388,14 @@ auto AppendClockTimings(const ClockTimingAppendInput& input) -> void
 
   if (!input.query_sta_timing) {
     EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
-                           "clock timing metrics were not queried because STA timing context is unavailable.", {{"timing_source", "STA"}});
+                   "clock timing metrics were not queried because STA timing context is unavailable.", {{"timing_source", "STA"}});
     return;
   }
 
   const auto timing_records = sta_adapter.queryClockTimings();
   if (timing_records.empty()) {
     EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
-                           "clock timing metrics are unavailable from STA; timing fields are reported as unavailable.",
-                           {{"timing_source", "STA"}});
+                   "clock timing metrics are unavailable from STA; timing fields are reported as unavailable.", {{"timing_source", "STA"}});
     return;
   }
   summary.clocks_timing.reserve(summary.clocks_timing.size() + timing_records.size());
@@ -436,23 +434,22 @@ auto AppendClockLatencySkew(STAAdapter& sta_adapter, QorSummary& summary) -> voi
 auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary, bool refreshed_sta) -> void
 {
   const bool path_depth_available = summary.path_depth_metric_status == "available";
-  EmitKeyValueTable(
-      reporter, "CTS Evaluation Overview",
-      {
-          {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
-          {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
-          {"propagated_clock_count", std::to_string(summary.propagated_clock_count)},
-          {"qor_metric_status", summary.qor_metric_status},
-          {"timing_metric_source", summary.timing_metric_source},
-          {"physical_metric_source", summary.physical_metric_source},
-          {"clock_member_buffer_count", std::to_string(summary.clock_member_buffer_count)},
-          {"path_depth_metric_status", summary.path_depth_metric_status},
-          {"clock_path_min_buffer", path_depth_available ? std::to_string(summary.clock_path_min_buffer) : "n/a"},
-          {"clock_path_max_buffer", path_depth_available ? std::to_string(summary.clock_path_max_buffer) : "n/a"},
-          {"max_level_of_clock_tree", path_depth_available ? std::to_string(summary.feature_max_clock_network_level) : "n/a"},
-          {"design_units", std::to_string(summary.design_dbu_per_um) + " DBU/um"},
-          {"statistics_reports", "wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt"},
-      });
+  EmitKeyValueTable(reporter, "CTS Evaluation Overview",
+                    {
+                        {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
+                        {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
+                        {"propagated_clock_count", std::to_string(summary.propagated_clock_count)},
+                        {"qor_metric_status", summary.qor_metric_status},
+                        {"timing_metric_source", summary.timing_metric_source},
+                        {"physical_metric_source", summary.physical_metric_source},
+                        {"clock_member_buffer_count", std::to_string(summary.clock_member_buffer_count)},
+                        {"path_depth_metric_status", summary.path_depth_metric_status},
+                        {"clock_path_min_buffer", path_depth_available ? std::to_string(summary.clock_path_min_buffer) : "n/a"},
+                        {"clock_path_max_buffer", path_depth_available ? std::to_string(summary.clock_path_max_buffer) : "n/a"},
+                        {"max_level_of_clock_tree", path_depth_available ? std::to_string(summary.feature_max_clock_network_level) : "n/a"},
+                        {"design_units", std::to_string(summary.design_dbu_per_um) + " DBU/um"},
+                        {"statistics_reports", "wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt"},
+                    });
   emitClockTimingTables(reporter, summary);
 }
 

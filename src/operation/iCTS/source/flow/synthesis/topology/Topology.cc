@@ -65,7 +65,7 @@ auto recordSynthesisBuild(SynthesisTraceSummary& summary, const Topology::Build&
   summary.htree_inserted_net_count += build.summary.htree_inserted_net_count;
 }
 
-auto recordSourceTrunkBuild(SynthesisTraceSummary& summary, const Topology::SourceTrunkBuild& build) -> void
+auto recordSourceTrunkBuild(SynthesisTraceSummary& summary, const topology::SourceTrunkBuild& build) -> void
 {
   if (build.summary.selected_depth.has_value()) {
     summary.selected_htree_depth = std::max(summary.selected_htree_depth, *build.summary.selected_depth);
@@ -183,14 +183,13 @@ class ClockTopologySynthesis
  private:
   auto commitSinkDomainBuild(const ClockDistributionContext& context, Topology::Build& synthesis_build, std::string& failure_reason) -> bool
   {
-    auto commit_stage
-        = _reporter->beginStage("Topology", "Commit sink domain layout",
-                                {
-                                    {"sink_domain", ToString(context.sink_domain)},
-                                    {"inserted_insts", std::to_string(synthesis_build.output.inserted_insts.size())},
-                                    {"inserted_nets", std::to_string(synthesis_build.output.inserted_nets.size())},
-                                },
-                                StageReportOptions{.context_sink = ReportSink::kDetail, .emit_success_summary = false});
+    auto commit_stage = _reporter->beginStage("Topology", "Commit sink domain layout",
+                                              {
+                                                  {"sink_domain", ToString(context.sink_domain)},
+                                                  {"inserted_insts", std::to_string(synthesis_build.output.inserted_insts.size())},
+                                                  {"inserted_nets", std::to_string(synthesis_build.output.inserted_nets.size())},
+                                              },
+                                              StageReportOptions{.context_sink = ReportSink::kDetail, .emit_success_summary = false});
     auto pending_clock_layout = ClockLayoutBuilder::makeSinkDomainLayout(*_clock, _clock_index, context.makeLayoutTopology(),
                                                                          ClockLayoutAdapter::makeSinkDomainLayoutTopology(synthesis_build));
     if (!DesignConversion::commitInsertedObjects(InsertedObjectCommitInput{
@@ -287,7 +286,7 @@ class ClockTopologySynthesis
     }
 
     const auto source_trunk_prefix = DesignConversion::makeSinkDomainPrefix(*_clock, _clock_index, source_trunk_domain);
-    Topology::SourceTrunkInput source_trunk_input{
+    topology::SourceTrunkInput source_trunk_input{
         .config = _config,
         .design = _design,
         .wrapper = _wrapper,
@@ -303,7 +302,7 @@ class ClockTopologySynthesis
         .clock_period_source = _clock->get_clock_period_source(),
         .log_context = makeLogContext(*_clock, source_trunk_label, "source_to_root", source_trunk_prefix),
     };
-    Topology::SourceTrunkBuild source_trunk_build;
+    topology::SourceTrunkBuild source_trunk_build;
     {
       auto build_stage = _reporter->beginStage("Topology", "Build source trunk",
                                                {
@@ -311,7 +310,7 @@ class ClockTopologySynthesis
                                                    {"object_name_prefix", source_trunk_prefix},
                                                },
                                                DetailStageReportOptions());
-      source_trunk_build = Topology::buildSourceTrunk(source_trunk_input);
+      source_trunk_build = topology::BuildSourceTrunkTree(source_trunk_input);
       if (source_trunk_build.summary.success) {
         build_stage.finished({
             {"stage", ToString(source_trunk_build.summary.stage)},
@@ -335,14 +334,13 @@ class ClockTopologySynthesis
     }
 
     {
-      auto commit_stage
-          = _reporter->beginStage("Topology", "Commit source trunk layout",
-                                  {
-                                      {"stage", ToString(source_trunk_build.summary.stage)},
-                                      {"inserted_insts", std::to_string(source_trunk_build.output.inserted_insts.size())},
-                                      {"inserted_nets", std::to_string(source_trunk_build.output.inserted_nets.size())},
-                                  },
-                                  StageReportOptions{.context_sink = ReportSink::kDetail, .emit_success_summary = false});
+      auto commit_stage = _reporter->beginStage("Topology", "Commit source trunk layout",
+                                                {
+                                                    {"stage", ToString(source_trunk_build.summary.stage)},
+                                                    {"inserted_insts", std::to_string(source_trunk_build.output.inserted_insts.size())},
+                                                    {"inserted_nets", std::to_string(source_trunk_build.output.inserted_nets.size())},
+                                                },
+                                                StageReportOptions{.context_sink = ReportSink::kDetail, .emit_success_summary = false});
       auto pending_clock_layout = ClockLayoutBuilder::makeSourceToRootLayout(
           *_clock, _clock_index, *clock_source_net,
           ClockLayoutAdapter::makeSourceTrunkLayoutTopology(source_trunk_build, source_trunk_phase), source_trunk_phase);
@@ -392,11 +390,6 @@ class ClockTopologySynthesis
 auto Topology::build(const Input& input, const Config& config) -> Build
 {
   return topology::BuildSinkTree(input, config);
-}
-
-auto Topology::buildSourceTrunk(const SourceTrunkInput& input) -> SourceTrunkBuild
-{
-  return topology::BuildSourceTrunkTree(input);
 }
 
 auto Topology::resetClockTopology(Clock& clock) -> void

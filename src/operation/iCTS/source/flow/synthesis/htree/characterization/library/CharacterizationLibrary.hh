@@ -30,12 +30,12 @@
 
 #include "ClockRouteSegmentRc.hh"
 #include "characterization/Characterization.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 
 class Config;
 class FastSTA;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 

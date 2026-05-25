@@ -29,8 +29,10 @@
 
 namespace icts::topology {
 
+struct SourceTrunkBuild;
+
 auto RecordSinkHtreeBuild(Topology::Build& build, HTree::Build htree_build) -> void;
-auto RecordTopSegmentBuild(Topology::SourceTrunkBuild& build, SourceTrunkSegment::Build& segment_build) -> void;
-auto RecordTopHtreeBuild(Topology::SourceTrunkBuild& build, HTree::Build htree_build) -> void;
+auto RecordTopSegmentBuild(SourceTrunkBuild& build, SourceTrunkSegment::Build& segment_build) -> void;
+auto RecordTopHtreeBuild(SourceTrunkBuild& build, HTree::Build htree_build) -> void;
 
 }  // namespace icts::topology

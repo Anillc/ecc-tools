@@ -39,7 +39,6 @@
 #include "dm_config.h"
 #include "idm.h"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -63,13 +62,13 @@ auto SdcClockReader::readClockData(SchemaWriter& reporter) const -> SdcClockData
 {
   SdcClockData data;
   if (_sdc_path.empty()) {
-    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "SdcClockReader",
-                           "SDC clock read skipped because SDC path is empty.", {{"clock_source", "sdc"}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "SdcClockReader", "SDC clock read skipped because SDC path is empty.",
+                   {{"clock_source", "sdc"}});
     return data;
   }
   if (!std::filesystem::exists(_sdc_path)) {
-    EmitDiagnostic(reporter, DiagnosticLevel::kError, "SdcClockReader",
-                           "SDC clock read skipped because SDC file does not exist.", {{"clock_source", "sdc"}, {"sdc_path", _sdc_path}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kError, "SdcClockReader", "SDC clock read skipped because SDC file does not exist.",
+                   {{"clock_source", "sdc"}, {"sdc_path", _sdc_path}});
     LOG_ERROR << "SdcClockReader: SDC file does not exist: " << _sdc_path;
     return data;
   }
@@ -79,8 +78,7 @@ auto SdcClockReader::readClockData(SchemaWriter& reporter) const -> SdcClockData
     if (diagnostic.starts_with("ignored_sdc_command:")) {
       continue;
     }
-    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "SdcClockReader", "SDC clock subset parser diagnostic.",
-                           {{"detail", diagnostic}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "SdcClockReader", "SDC clock subset parser diagnostic.", {{"detail", diagnostic}});
   }
   LOG_INFO << "SdcClockReader: parsed " << data.clocks.size() << " clock declaration(s) and " << data.case_analyses.size()
            << " case-analysis record(s) from " << _sdc_path;

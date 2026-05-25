@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "flow/synthesis/htree/HTree.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 
 namespace icts {
 class Pin;
@@ -47,6 +48,6 @@ struct HTreeArtifactPaths
 
 auto PrepareHTreeArtifactPaths(const std::string& case_name) -> HTreeArtifactPaths;
 auto WriteHTreeArtifacts(const HTreeArtifactPaths& paths, const std::string& scenario_name, const std::string& input_summary,
-                         const std::vector<icts::Pin*>& loads, const icts::HTree::DiagnosticBuild& result) -> bool;
+                         const std::vector<icts::Pin*>& loads, const icts::htree::DiagnosticBuild& result) -> bool;
 
 }  // namespace icts_test::htree

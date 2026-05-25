@@ -25,12 +25,11 @@
 
 #include <string>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
 class Config;
 class Design;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 

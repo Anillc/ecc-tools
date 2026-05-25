@@ -31,7 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "Log.hh"
 #include "common/CTSTestRuntime.hh"
 #include "common/dataset/TestDataset.hh"
@@ -66,7 +66,7 @@ auto RunBuildAndVisualize(const TopologyCase& test_case) -> void
   auto data = detail::GenerateCase(test_case);
   ASSERT_EQ(data.loads.size(), test_case.count);
 
-  const auto tree = icts::TopologyGen::build(data.loads);
+  const auto tree = icts::TopologyGen::build(data.loads, icts::TopologyGen::Input{}, icts::TopologyGen::Config{});
   detail::TopologyArtifacts artifacts;
   detail::AnalyzeBuiltTopology(tree, data.loads, artifacts);
   detail::LogTopologySummary(artifacts.stats);

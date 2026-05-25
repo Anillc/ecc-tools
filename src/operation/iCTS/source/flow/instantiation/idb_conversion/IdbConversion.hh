@@ -26,11 +26,10 @@
 #include <cstddef>
 #include <string>
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
 class Design;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 

@@ -30,7 +30,6 @@
 #include "liberty/Lib.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace idb {
 class IdbInstance;

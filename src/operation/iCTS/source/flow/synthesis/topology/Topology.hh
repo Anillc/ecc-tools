@@ -30,12 +30,11 @@
 #include <vector>
 
 #include "Point.hh"
-#include "clustering/Clustering.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "module/topology/clustering/Clustering.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 
 namespace icts {
 
@@ -91,24 +90,6 @@ struct TopologyInput
 struct TopologyConfig
 {
   std::optional<bool> enable_sink_clustering = std::nullopt;
-};
-
-struct SourceTrunkInput
-{
-  const Config* config = nullptr;
-  Design* design = nullptr;
-  Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
-  FastSTA* fast_sta = nullptr;
-  SchemaWriter* reporter = nullptr;
-  Net* source_net = nullptr;
-  Pin* clock_source = nullptr;
-  std::vector<Pin*> root_inputs;
-  std::string object_name_prefix;
-  CharacterizationLibrary* characterization_library = nullptr;
-  double clock_period_ns = 0.0;
-  std::string clock_period_source;
-  HTree::LogContext log_context;
 };
 
 class Topology
@@ -180,51 +161,12 @@ class Topology
     Summary summary;
   };
 
-  struct SourceTrunkOutput
-  {
-    HTree::Output htree_output;
-
-    std::vector<std::unique_ptr<Inst>> inserted_insts;
-    std::vector<std::unique_ptr<Pin>> inserted_pins;
-    std::vector<std::unique_ptr<Net>> inserted_nets;
-    std::vector<HTree::InsertedInstLevel> inserted_inst_levels;
-    std::vector<HTree::InsertedNetLevel> inserted_net_levels;
-  };
-
-  struct SourceTrunkSummary
-  {
-    bool success = false;
-    std::string failure_reason;
-    SourceTrunkStage stage = SourceTrunkStage::kUnknown;
-    std::optional<unsigned> selected_depth = std::nullopt;
-    std::size_t selected_level_count = 0U;
-    std::size_t inserted_buffer_count = 0U;
-    std::size_t inserted_net_count = 0U;
-    bool used_boundary_relaxation = false;
-  };
-
-  struct SourceTrunkBuild
-  {
-    SourceTrunkBuild() = default;
-
-    SourceTrunkBuild(const SourceTrunkBuild&) = delete;
-    auto operator=(const SourceTrunkBuild&) -> SourceTrunkBuild& = delete;
-
-    SourceTrunkBuild(SourceTrunkBuild&& rhs) noexcept = default;
-    auto operator=(SourceTrunkBuild&& rhs) noexcept -> SourceTrunkBuild& = default;
-
-    SourceTrunkOutput output;
-    SourceTrunkSummary summary;
-  };
-
   Topology() = delete;
 
   using Input = TopologyInput;
   using Config = TopologyConfig;
-  using SourceTrunkInput = icts::SourceTrunkInput;
 
   static auto build(const Input& input, const Config& config) -> Build;
-  static auto buildSourceTrunk(const SourceTrunkInput& input) -> SourceTrunkBuild;
   static auto resetClockTopology(Clock& clock) -> void;
   static auto resetClockTopology(Design& design, Clock& clock) -> void;
   static auto formClock(const ClockTopologyInput& input) -> bool;

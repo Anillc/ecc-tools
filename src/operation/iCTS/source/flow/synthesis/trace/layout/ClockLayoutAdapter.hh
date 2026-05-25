@@ -29,6 +29,9 @@
 namespace icts {
 
 enum class ClockLayoutPhase;
+namespace topology {
+struct SourceTrunkBuild;
+}  // namespace topology
 
 class ClockLayoutAdapter
 {
@@ -36,7 +39,7 @@ class ClockLayoutAdapter
   ClockLayoutAdapter() = delete;
 
   static auto makeSinkDomainLayoutTopology(const Topology::Build& result) -> SinkDomainSynthesisTopology;
-  static auto makeSourceTrunkLayoutTopology(const Topology::SourceTrunkBuild& result, ClockLayoutPhase synthesis_phase)
+  static auto makeSourceTrunkLayoutTopology(const topology::SourceTrunkBuild& result, ClockLayoutPhase synthesis_phase)
       -> SourceToRootSynthesisTopology;
 };
 

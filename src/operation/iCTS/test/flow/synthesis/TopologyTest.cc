@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "common/CTSTestRuntime.hh"
 #include "database/config/Config.hh"
@@ -44,6 +44,7 @@
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
 #include "flow/synthesis/topology/Topology.hh"
+#include "flow/synthesis/topology/trunk/SourceTrunk.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test {
@@ -427,20 +428,20 @@ TEST(TopologyTest, SourceTrunkWithEmptyRootsFailsWithoutChangingSourceNet)
   original_load.set_net(&source_net);
 
   auto& runtime = icts_test::runtime::CurrentRuntime();
-  const auto result = icts::Topology::buildSourceTrunk(icts::Topology::SourceTrunkInput{.config = &runtime.config,
-                                                                                        .design = &runtime.design,
-                                                                                        .wrapper = &runtime.wrapper,
-                                                                                        .sta_adapter = &runtime.sta_adapter,
-                                                                                        .fast_sta = &runtime.fast_sta,
-                                                                                        .reporter = &runtime.reporter,
-                                                                                        .source_net = &source_net,
-                                                                                        .clock_source = &source,
-                                                                                        .root_inputs = {},
-                                                                                        .object_name_prefix = {},
-                                                                                        .characterization_library = nullptr,
-                                                                                        .clock_period_ns = 0.0,
-                                                                                        .clock_period_source = {},
-                                                                                        .log_context = {}});
+  const auto result = icts::topology::BuildSourceTrunkTree(icts::topology::SourceTrunkInput{.config = &runtime.config,
+                                                                                            .design = &runtime.design,
+                                                                                            .wrapper = &runtime.wrapper,
+                                                                                            .sta_adapter = &runtime.sta_adapter,
+                                                                                            .fast_sta = &runtime.fast_sta,
+                                                                                            .reporter = &runtime.reporter,
+                                                                                            .source_net = &source_net,
+                                                                                            .clock_source = &source,
+                                                                                            .root_inputs = {},
+                                                                                            .object_name_prefix = {},
+                                                                                            .characterization_library = nullptr,
+                                                                                            .clock_period_ns = 0.0,
+                                                                                            .clock_period_source = {},
+                                                                                            .log_context = {}});
 
   EXPECT_FALSE(result.summary.success);
   EXPECT_FALSE(result.summary.failure_reason.empty());
@@ -461,20 +462,20 @@ TEST(TopologyTest, SourceTrunkSingleRootSameLocationDirectConnectsWithoutInserte
   source.set_net(&source_net);
 
   auto& runtime = icts_test::runtime::CurrentRuntime();
-  const auto result = icts::Topology::buildSourceTrunk(icts::Topology::SourceTrunkInput{.config = &runtime.config,
-                                                                                        .design = &runtime.design,
-                                                                                        .wrapper = &runtime.wrapper,
-                                                                                        .sta_adapter = &runtime.sta_adapter,
-                                                                                        .fast_sta = &runtime.fast_sta,
-                                                                                        .reporter = &runtime.reporter,
-                                                                                        .source_net = &source_net,
-                                                                                        .clock_source = &source,
-                                                                                        .root_inputs = {&root_input},
-                                                                                        .object_name_prefix = {},
-                                                                                        .characterization_library = nullptr,
-                                                                                        .clock_period_ns = 0.0,
-                                                                                        .clock_period_source = {},
-                                                                                        .log_context = {}});
+  const auto result = icts::topology::BuildSourceTrunkTree(icts::topology::SourceTrunkInput{.config = &runtime.config,
+                                                                                            .design = &runtime.design,
+                                                                                            .wrapper = &runtime.wrapper,
+                                                                                            .sta_adapter = &runtime.sta_adapter,
+                                                                                            .fast_sta = &runtime.fast_sta,
+                                                                                            .reporter = &runtime.reporter,
+                                                                                            .source_net = &source_net,
+                                                                                            .clock_source = &source,
+                                                                                            .root_inputs = {&root_input},
+                                                                                            .object_name_prefix = {},
+                                                                                            .characterization_library = nullptr,
+                                                                                            .clock_period_ns = 0.0,
+                                                                                            .clock_period_source = {},
+                                                                                            .log_context = {}});
 
   EXPECT_TRUE(result.summary.success);
   EXPECT_EQ(result.summary.stage, icts::Topology::SourceTrunkStage::kSegment);

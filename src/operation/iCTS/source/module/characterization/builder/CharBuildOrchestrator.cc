@@ -40,7 +40,6 @@
 #include "characterization/pattern/CharPatternEnumerator.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts::char_builder::detail {
 namespace {
@@ -211,15 +210,14 @@ auto CharBuildOrchestrator::build() -> void
   }
   if (_impl._output_slew_overflow_samples > 0U) {
     if (reporter != nullptr) {
-      EmitDiagnostic(
-          *reporter, output_slew_overflow_ratio >= 0.10 ? DiagnosticLevel::kWarning : DiagnosticLevel::kInfo, "CharBuilder",
-          "output slew overflow occurred during characterization; samples were capped to the configured slew lattice.",
-          {
-              {"output_slew_overflow_samples", std::to_string(_impl._output_slew_overflow_samples)},
-              {"max_observed_output_slew", logformat::FormatWithUnit(_impl._max_observed_output_slew_ns, "ns")},
-              {"overflow_ratio_source", "CharBuilder Results"},
-              {"slew_lattice_source", "CharBuilder Setup"},
-          });
+      EmitDiagnostic(*reporter, output_slew_overflow_ratio >= 0.10 ? DiagnosticLevel::kWarning : DiagnosticLevel::kInfo, "CharBuilder",
+                     "output slew overflow occurred during characterization; samples were capped to the configured slew lattice.",
+                     {
+                         {"output_slew_overflow_samples", std::to_string(_impl._output_slew_overflow_samples)},
+                         {"max_observed_output_slew", logformat::FormatWithUnit(_impl._max_observed_output_slew_ns, "ns")},
+                         {"overflow_ratio_source", "CharBuilder Results"},
+                         {"slew_lattice_source", "CharBuilder Setup"},
+                     });
     }
   }
 

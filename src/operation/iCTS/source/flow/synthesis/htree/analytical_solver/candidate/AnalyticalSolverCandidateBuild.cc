@@ -33,7 +33,7 @@
 #include "HTreeTopologyChar.hh"
 #include "PatternId.hh"
 #include "characterization/Characterization.hh"
-#include "synthesis/htree/HTreeContracts.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/analytical_solver/AnalyticalSolver.hh"
 #include "synthesis/htree/analytical_solver/candidate/AnalyticalCandidate.hh"
 #include "synthesis/htree/analytical_solver/candidate/AnalyticalHTreeCandidateSearch.hh"

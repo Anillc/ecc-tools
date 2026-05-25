@@ -44,6 +44,7 @@
 #include "flow/synthesis/htree/HTreeArtifactWriter.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/htree/HTreeRealTechScenario.hh"
+#include "flow/synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 #include "utils/logger/Schema.hh"
 
@@ -102,7 +103,7 @@ TEST(HTreeRealTechSmokeTest, SynthesizesMaterializedHTreeFromRealClockLoads)
   icts::Net root_net("htree_smoke_root_net");
   ConnectRootNetForHTreeTest(root_net, root_driver, real_loads);
 
-  auto result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
+  auto result = icts::htree::BuildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
 
   ASSERT_TRUE(result.summary.success);
   EXPECT_TRUE(result.summary.failure_reason.empty());

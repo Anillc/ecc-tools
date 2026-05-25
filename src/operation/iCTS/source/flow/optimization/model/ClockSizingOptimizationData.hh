@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "FastSta.hh"
-#include "router/Router.hh"
+#include "module/routing/router/Router.hh"
 
 namespace icts {
 

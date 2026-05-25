@@ -38,7 +38,7 @@
 #include <utility>
 #include <vector>
 
-#include "CTSRuntime.hh"
+#include "Flow.hh"
 #include "Log.hh"
 #include "common/CTSTestRuntime.hh"
 #include "common/io/TestArtifactIO.hh"

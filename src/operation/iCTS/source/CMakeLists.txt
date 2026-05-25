@@ -16,7 +16,6 @@ target_link_libraries(
   icts_source_database
   icts_source_utils
   icts_source_flow
-  icts_source_module
 )
 
 target_include_directories(icts_source INTERFACE ${ICTS_SOURCE})

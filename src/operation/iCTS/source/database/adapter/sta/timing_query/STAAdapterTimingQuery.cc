@@ -60,7 +60,6 @@
 #include "liberty/Lib.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "netlist/Net.hh"
 #include "netlist/Pin.hh"
 #include "sta/Sta.hh"

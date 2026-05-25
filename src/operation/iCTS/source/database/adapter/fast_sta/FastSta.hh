@@ -29,7 +29,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace icts {
@@ -176,12 +175,6 @@ struct FastStaBufferMasterChange
   std::string cell_master;
 };
 
-struct FastStaCharSegmentSpec
-{
-  double wirelength_um = 0.0;
-  double effective_load_pf = 0.0;
-};
-
 struct FastStaCharTopologySpec
 {
   STAAdapter* sta_adapter = nullptr;
@@ -241,7 +234,6 @@ class FastSTA
 
   auto bindEnvironment(const FastStaEnvironment& environment) -> void;
   auto buildClockContext(const FastStaClockBuildInput& input) -> FastStaClockId;
-  auto rebuildClockContext(FastStaClockId clock_id) -> bool;
   auto eraseClockContext(FastStaClockId clock_id) -> bool;
   auto reset() -> void;
 
@@ -250,12 +242,10 @@ class FastSTA
   auto setCharLoad(FastStaCharContextId char_context_id, double effective_load_pf) -> bool;
   auto runCharSample(FastStaCharContextId char_context_id, double input_slew_ns) -> FastStaCharSampleResult;
 
-  auto changeBufferMaster(FastStaClockId clock_id, FastStaNodeId node_id, std::string_view cell_master) -> bool;
   auto changeBufferMasters(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool;
   auto changeBufferMastersTimingOnly(FastStaClockId clock_id, const std::vector<FastStaBufferMasterChange>& changes) -> bool;
   auto updateTiming(FastStaClockId clock_id) -> bool;
   auto updatePower(FastStaClockId clock_id) -> bool;
-  auto injectNetRouteTree(FastStaClockId clock_id, const Net& net, const ClockSteinerTree<int>& route_tree) -> bool;
   auto injectNetRouteTree(FastStaClockId clock_id, const Net& net, const ClockSteinerTree<int>& route_tree,
                           FastStaClockNetRcTreeCounts& rc_tree_counts) -> bool;
 
@@ -265,22 +255,16 @@ class FastSTA
   auto collectClockSizingBuffers(FastStaClockId clock_id) const -> std::vector<FastStaClockSizingBuffer>;
   auto collectClockSinkArrivals(FastStaClockId clock_id) const -> std::vector<FastStaClockSinkArrival>;
   auto queryClockNodeArrival(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<double>;
-  auto querySinkArrival(FastStaClockId clock_id, std::string_view sink_pin_name) const -> std::optional<double>;
   auto querySkew(FastStaClockId clock_id) const -> FastStaSkewSummary;
-  auto queryNodeSlew(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<double>;
-  auto queryNetLoad(FastStaClockId clock_id, FastStaNetId net_id) const -> std::optional<double>;
   auto queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id) const -> std::optional<FastStaCapStatus>;
   auto querySlewStatus(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<FastStaSlewStatus>;
   auto queryPower(FastStaClockId clock_id) const -> FastStaPowerSummary;
-  auto queryArea(FastStaClockId clock_id) const -> double;
-  auto queryClockIds() const -> std::vector<FastStaClockId>;
-
-  auto queryClockContext(FastStaClockId clock_id) const -> const FastStaClockContext*;
-  auto mutableClockContext(FastStaClockId clock_id) -> FastStaClockContext*;
-  auto registerClockContext(FastStaClockContext context) -> FastStaClockId;
 
  private:
   struct ContextStore;
+
+  auto queryClockContext(FastStaClockId clock_id) const -> const FastStaClockContext*;
+  auto mutableClockContext(FastStaClockId clock_id) -> FastStaClockContext*;
 
   std::unique_ptr<ContextStore> _contexts;
   std::optional<FastStaEnvironment> _environment = std::nullopt;

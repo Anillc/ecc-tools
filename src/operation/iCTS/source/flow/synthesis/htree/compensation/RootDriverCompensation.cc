@@ -46,8 +46,8 @@
 #include "STAAdapter.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/compensation/RootDriverCompensationState.hh"
+#include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
@@ -240,7 +240,7 @@ auto ResolveRootDriverClockPeriod(const HTree::Input& input) -> std::pair<double
   return {kRootDriverCompensationClockPeriodNs, "default_10ns"};
 }
 
-auto ApplyRootDriverCompensationSummary(HTree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
+auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
                                         const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
     -> void
 {
@@ -330,14 +330,14 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
   }
   LOG_FATAL_IF(compensation_state.input.reporter == nullptr) << "HTree root-driver compensation requires an explicit reporter.";
   auto& reporter = *compensation_state.input.reporter;
-  auto compensation_stage = reporter.beginStage(
-      "HTreeDepth", "Apply root-driver compensation",
-      {
-          {"entries", std::to_string(entries.size())},
-          {"input_slew_ns", std::to_string(compensation_state.input.input_slew_ns)},
-          {"clock_period_ns", std::to_string(compensation_state.input.clock_period_ns)},
-      },
-      StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
+  auto compensation_stage
+      = reporter.beginStage("HTreeDepth", "Apply root-driver compensation",
+                            {
+                                {"entries", std::to_string(entries.size())},
+                                {"input_slew_ns", std::to_string(compensation_state.input.input_slew_ns)},
+                                {"clock_period_ns", std::to_string(compensation_state.input.clock_period_ns)},
+                            },
+                            StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
   if (!CompensationInputIsValid(compensation_state)) {
     compensation_stage.skip({{"reason", "invalid_compensation_options"}});
     return apply_result;

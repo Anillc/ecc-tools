@@ -45,7 +45,6 @@
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "lef_service.h"
-#include "logger/SchemaForward.hh"
 #include "spatial/Point.hh"
 
 namespace icts {

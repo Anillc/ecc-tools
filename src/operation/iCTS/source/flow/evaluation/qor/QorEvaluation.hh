@@ -28,7 +28,6 @@
 #include <string>
 #include <vector>
 
-#include "logger/SchemaForward.hh"
 #include "qor/Qor.hh"
 
 namespace icts {
@@ -36,6 +35,7 @@ namespace icts {
 class ClockLayout;
 class Config;
 class Design;
+class SchemaWriter;
 class STAAdapter;
 class Wrapper;
 

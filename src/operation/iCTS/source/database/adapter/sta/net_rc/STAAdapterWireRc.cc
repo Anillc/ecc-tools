@@ -34,7 +34,6 @@
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 #include "timing_query/STAAdapterTimingQuery.hh"
 
 namespace icts {

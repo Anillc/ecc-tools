@@ -76,7 +76,7 @@ auto ClockDataRead::read(const ClockDataReadInput& input) -> bool
 
   if (sdc_clock_names.empty()) {
     EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "ClockDataRead",
-                           "no SDC clocks were declared; CTS clock read will be an explicit no-op.", {{"clock_source", "sdc"}});
+                   "no SDC clocks were declared; CTS clock read will be an explicit no-op.", {{"clock_source", "sdc"}});
   }
 
   bool preflight_failed = false;
@@ -101,8 +101,8 @@ auto ClockDataRead::read(const ClockDataReadInput& input) -> bool
         failure_reason = "clock_trace_no_targets";
       }
       EmitDiagnostic(reporter, DiagnosticLevel::kError, "ClockDataRead",
-                             "SDC clock tracing found no CTS target net for a traceable SDC clock.",
-                             {{"clock", clock_name}, {"clock_source", "sdc"}});
+                     "SDC clock tracing found no CTS target net for a traceable SDC clock.",
+                     {{"clock", clock_name}, {"clock_source", "sdc"}});
       LOG_ERROR << "ClockDataRead: SDC clock tracing found no CTS target net for \"" << clock_name << "\".";
     }
   }

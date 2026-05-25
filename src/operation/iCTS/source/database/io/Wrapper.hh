@@ -42,8 +42,6 @@ template <typename T>
 class IdbCoordinate;
 }  // namespace idb
 
-#include "logger/SchemaForward.hh"
-
 namespace icts {
 
 class Clock;
@@ -51,6 +49,7 @@ class Design;
 class Inst;
 class Net;
 class Pin;
+class SchemaWriter;
 struct SdcClockTraceInput;
 struct ClockTraceBuild;
 struct ClockTraceClockTarget;

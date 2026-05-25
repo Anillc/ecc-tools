@@ -35,7 +35,6 @@
 #include "LogFormat.hh"
 #include "json.hpp"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {

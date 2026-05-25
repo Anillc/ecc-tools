@@ -186,12 +186,12 @@ auto Optimization::run(const OptimizationInput& input) -> OptimizationSummary
   const double route_tree_cache_runtime_s = oi::ElapsedSeconds(stage_start);
   const double target_skew_ns = std::max(0.0, config.get_skew_bound());
   EmitKeyValueTable(reporter, "CTS Optimization Setup",
-                            {{"timing_source", "cts_fast_sta_incremental"},
-                             {"target_skew", oi::FormatNs(target_skew_ns)},
-                             {"candidate_master_count", std::to_string(master_infos.size())}});
+                    {{"timing_source", "cts_fast_sta_incremental"},
+                     {"target_skew", oi::FormatNs(target_skew_ns)},
+                     {"candidate_master_count", std::to_string(master_infos.size())}});
   EmitKeyValueTable(reporter, "CTS Optimization Global Profile",
-                            {{"build_route_tree_cache", oi::FormatSeconds(route_tree_cache_runtime_s)},
-                             {"cached_route_tree_count", std::to_string(route_tree_by_net.size())}});
+                    {{"build_route_tree_cache", oi::FormatSeconds(route_tree_cache_runtime_s)},
+                     {"cached_route_tree_count", std::to_string(route_tree_by_net.size())}});
 
   std::string no_op_reason = "no_optimizable_clock";
   for (std::size_t clock_index = 0U; clock_index < clocks.size(); ++clock_index) {
@@ -305,13 +305,13 @@ auto Optimization::run(const OptimizationInput& input) -> OptimizationSummary
   const auto end_time = std::chrono::steady_clock::now();
   const double total_runtime_s = std::chrono::duration<double>(end_time - start_time).count();
   EmitKeyValueTable(reporter, "CTS Optimization Summary",
-                            {
-                                {"runtime", logformat::FormatWithUnit(total_runtime_s, "s")},
-                                {"clock_count", std::to_string(optimization_summary.clock_count)},
-                                {"optimized_clock_count", std::to_string(optimization_summary.optimized_clock_count)},
-                                {"accepted_edit_count", std::to_string(optimization_summary.accepted_edit_count)},
-                                {"status", optimization_summary.optimized ? "optimized" : "no_op"},
-                            });
+                    {
+                        {"runtime", logformat::FormatWithUnit(total_runtime_s, "s")},
+                        {"clock_count", std::to_string(optimization_summary.clock_count)},
+                        {"optimized_clock_count", std::to_string(optimization_summary.optimized_clock_count)},
+                        {"accepted_edit_count", std::to_string(optimization_summary.accepted_edit_count)},
+                        {"status", optimization_summary.optimized ? "optimized" : "no_op"},
+                    });
   LOG_INFO << "CTS optimization finished with " << optimization_summary.accepted_edit_count << " accepted sizing edits across "
            << optimization_summary.optimized_clock_count << " clocks.";
   if (optimization_summary.optimized) {

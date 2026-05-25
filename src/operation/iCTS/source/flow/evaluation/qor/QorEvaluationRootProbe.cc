@@ -45,7 +45,6 @@
 #include "evaluation/qor/ClockQorMetricCollector.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "logger/SchemaForward.hh"
 
 namespace icts::qor_evaluation {
 namespace {
@@ -404,8 +403,8 @@ auto emitRootInputToLeafOutputProbeTable(SchemaWriter& reporter, const std::vect
 {
   if (probes.empty()) {
     EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS HTree Evaluation",
-                           "no H-tree root driver buffers were discovered from clock source nets.",
-                           {{"discovery_rule", "clock source net load buffer input"}});
+                   "no H-tree root driver buffers were discovered from clock source nets.",
+                   {{"discovery_rule", "clock source net load buffer input"}});
     return;
   }
 
@@ -439,19 +438,19 @@ auto emitRootInputToLeafOutputProbeTable(SchemaWriter& reporter, const std::vect
   }
 
   EmitTable(reporter, "CTS Root Input To HTree Leaf Buffer Output Evaluation",
-                    {"Clock", "Root Input", "Root Output", "Leaf Sample Role", "Leaf Role Detail", "HTree Leaf Buffer Output Pin Count",
-                     "Leaf Pin Examples", "Arrival Samples", "Root AT (ns)", "Min (ns)", "Max (ns)", "Mean (ns)", "Median (ns)"},
-                    arrival_rows);
+            {"Clock", "Root Input", "Root Output", "Leaf Sample Role", "Leaf Role Detail", "HTree Leaf Buffer Output Pin Count",
+             "Leaf Pin Examples", "Arrival Samples", "Root AT (ns)", "Min (ns)", "Max (ns)", "Mean (ns)", "Median (ns)"},
+            arrival_rows);
 
   EmitKeyValueTable(reporter, "CTS Root Input To HTree Leaf Buffer Output Summary",
-                            {
-                                {"sta_timing_available", query_sta_timing ? "true" : "false"},
-                                {"root_driver_count", std::to_string(probes.size())},
-                                {"leaf_buffer_output_pin_count", std::to_string(leaf_output_pin_count)},
-                                {"arrival_sample_count", std::to_string(arrival_sample_count)},
-                                {"leaf_output_detection", "ClockLayout downstream H-tree buffer role metadata with topology_level >= 0"},
-                                {"probe_scope", "STA h-tree root input pin to h-tree leaf buffer output pin propagation"},
-                            });
+                    {
+                        {"sta_timing_available", query_sta_timing ? "true" : "false"},
+                        {"root_driver_count", std::to_string(probes.size())},
+                        {"leaf_buffer_output_pin_count", std::to_string(leaf_output_pin_count)},
+                        {"arrival_sample_count", std::to_string(arrival_sample_count)},
+                        {"leaf_output_detection", "ClockLayout downstream H-tree buffer role metadata with topology_level >= 0"},
+                        {"probe_scope", "STA h-tree root input pin to h-tree leaf buffer output pin propagation"},
+                    });
 }
 
 }  // namespace

@@ -37,9 +37,9 @@
 #include "common/dataset/TestDataset.hh"
 #include "database/design/Pin.hh"
 #include "database/spatial/Point.hh"
-#include "module/topology/TopologyGen.hh"
 #include "module/topology/clustering/Clustering.hh"
 #include "module/topology/config/TopologyConfig.hh"
+#include "module/topology/fast_clustering/FastClustering.hh"
 
 namespace icts_test::fast_clustering::synthetic {
 namespace {
@@ -116,7 +116,7 @@ TEST(FastClusteringSyntheticTest, FacadeProducesCompleteLegalClusters)
   config.max_cap = std::numeric_limits<double>::infinity();
   config.enable_exact_cap = false;
 
-  const auto result = icts::TopologyGen::fastClustering(generated.loads, config);
+  const auto result = icts::FastClustering::run(generated.loads, config);
 
   ASSERT_FALSE(result.clusters.empty());
   EXPECT_EQ(CountAssignedLoads(result), generated.loads.size());
@@ -143,7 +143,7 @@ TEST(FastClusteringSyntheticTest, ExactCapUsesExplicitClusterLoadPinCaps)
   config.clock_route_segment_rc = MakeSyntheticClockRouteSegmentRc();
   AddSyntheticLoadPinCaps(generated.loads, config);
 
-  const auto result = icts::TopologyGen::fastClustering(generated.loads, config);
+  const auto result = icts::FastClustering::run(generated.loads, config);
 
   ASSERT_FALSE(result.clusters.empty());
   ASSERT_EQ(result.electrical_summaries.size(), result.clusters.size());
@@ -156,7 +156,7 @@ TEST(FastClusteringSyntheticTest, ExactCapUsesExplicitClusterLoadPinCaps)
   }
 }
 
-TEST(FastClusteringSyntheticTest, ClusteringFacadeMatchesTopologyGenFacade)
+TEST(FastClusteringSyntheticTest, ClusteringFacadeMatchesFastClusteringFacade)
 {
   auto generated = common::data::pin_factory::BuildPinsFromPoints(BuildClusteredPoints(), {.width = 5000, .height = 4000}, "facade_pin_");
   icts::ClusterConfig config;
@@ -164,7 +164,7 @@ TEST(FastClusteringSyntheticTest, ClusteringFacadeMatchesTopologyGenFacade)
   config.max_cap = std::numeric_limits<double>::infinity();
   config.enable_exact_cap = false;
 
-  const auto topology_result = icts::TopologyGen::fastClustering(generated.loads, config);
+  const auto topology_result = icts::FastClustering::run(generated.loads, config);
   const auto clustering_result = icts::Clustering::fastClustering(generated.loads, config);
 
   EXPECT_EQ(topology_result.clusters.size(), clustering_result.clusters.size());
