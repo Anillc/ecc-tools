@@ -717,3 +717,36 @@ Committed and archived CTS desingleton/runtime-boundary refactor; moved CTS repo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 66: CTS cleanup normalization refactor
+
+**Date**: 2026-05-25
+**Task**: CTS cleanup normalization refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Normalized iCTS public contracts, narrowed module facades, folded runtime and HTree contracts into owned boundaries, ran full ecc_dev_tools validation before committing, and archived the cleanup normalization task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e34820f21` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
