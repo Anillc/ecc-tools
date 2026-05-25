@@ -24,6 +24,7 @@
 #include <glog/logging.h>
 
 #include <cstddef>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -36,6 +37,7 @@
 #include "IdbTerm.h"
 #include "Log.hh"
 #include "STAAdapter.hh"
+#include "Vector.hh"
 #include "api/TimingEngine.hh"
 #include "design/Inst.hh"
 #include "liberty/Lib.hh"
@@ -139,7 +141,7 @@ auto HasTransparentDataArcForClockPin(ista::LibCell* lib_cell, idb::IdbPin* cloc
       }
       auto* src_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_src_port());
       auto* snk_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_snk_port());
-      if (src_port != nullptr && src_port->isInput() && snk_port != nullptr && snk_port->isOutput()) {
+      if (src_port != nullptr && src_port->isInput() != 0U && snk_port != nullptr && snk_port->isOutput() != 0U) {
         return true;
       }
     }
@@ -170,7 +172,7 @@ auto IsLibertySequentialSinkPin(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -
         continue;
       }
       const auto timing_type = lib_arc->get_timing_type();
-      if (lib_arc->isCheckArc() || timing_type == ista::LibArc::TimingType::kRisingEdge
+      if (lib_arc->isCheckArc() != 0U || timing_type == ista::LibArc::TimingType::kRisingEdge
           || timing_type == ista::LibArc::TimingType::kFallingEdge) {
         return true;
       }
@@ -196,6 +198,7 @@ auto ClassifySequentialInst(ista::LibCell* lib_cell, idb::IdbPins* pin_list) -> 
 
 auto STAAdapter::queryInstType(const std::string& inst_name) -> icts::InstType
 {
+  observeQueryFacade();
   auto inst_type = icts::InstType::kUnknown;
   const auto name = sta_adapter_timing_query::NormalizeInstName(inst_name);
 

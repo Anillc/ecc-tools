@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "IdbCellMaster.h"
 #include "IdbDesign.h"
 #include "IdbEnum.h"
@@ -33,6 +34,7 @@
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "IdbTerm.h"
+#include "common/CTSTestRuntime.hh"
 #include "common/realtech/asset/RealTechAssetLoader.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/adapter/sta/STAAdapter.hh"
@@ -70,7 +72,7 @@ auto TryMakeRealPinCapProbe(idb::IdbPin* idb_pin, const std::string& net_name, b
 
   icts::Inst probe_inst(idb_inst->get_name(), cell_master->get_name(), icts::InstType::kUnknown, icts::Point<int>(-1, -1));
   icts::Pin probe_pin(idb_pin->get_pin_name(), icts::PinType::kIn, icts::Point<int>(-1, -1), &probe_inst);
-  const double pin_cap_pf = std::max(0.0, STA_ADAPTER_INST.queryPinCapacitance(&probe_pin));
+  const double pin_cap_pf = std::max(0.0, icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(&probe_pin));
   if (pin_cap_pf <= 0.0) {
     return std::nullopt;
   }

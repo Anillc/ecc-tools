@@ -29,6 +29,7 @@
 #include <map>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -40,8 +41,8 @@
 #include "Log.hh"
 #include "SdcClockReader.hh"
 #include "clock_trace/SdcClockTraceAlgorithm.hh"
-#include "idm.h"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -108,19 +109,15 @@ auto tryBuildPreclusteredClockTarget(idb::IdbDesign* idb_design, const SdcClockD
 
 }  // namespace
 
-auto ClockTraceResolver::resolve(const SdcClockData& clock_data) -> ClockTraceResult
+auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout, SchemaWriter& reporter)
+    -> ClockTraceBuild
 {
-  return resolve(clock_data, dmInst->get_idb_design());
-}
-
-auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design) -> ClockTraceResult
-{
-  ClockTraceResult result;
+  ClockTraceBuild build;
   if (idb_design == nullptr || idb_design->get_net_list() == nullptr) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "ClockTraceResolver", "clock tracing skipped because iDB design is not ready.",
-                           {{"clock_source", "sdc"}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kError, "ClockTraceResolver",
+                           "clock tracing skipped because iDB design is not ready.", {{"clock_source", "sdc"}});
     LOG_ERROR << "ClockTraceResolver: iDB design or net list is null.";
-    return result;
+    return build;
   }
 
   const auto case_constraints = clock_trace::BuildCaseConstraintSet(clock_data);
@@ -142,7 +139,7 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
 
   std::map<std::string, std::set<std::string>> accepted_clock_names_by_net;
   std::map<std::string, bool> has_strong_target_by_clock;
-  const auto sink_threshold = clock_trace::StrongTargetSinkThreshold();
+  const auto sink_threshold = clock_trace::StrongTargetSinkThreshold(max_fanout);
   for (const auto& record : candidate_records) {
     if (record.status == "accepted" && !record.net_name.empty()) {
       accepted_clock_names_by_net[record.net_name].insert(record.clock_name);
@@ -181,8 +178,7 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
       auto preclustered_target = tryBuildPreclusteredClockTarget(idb_design, *decl_iter->second, accepted_records);
       if (preclustered_target.has_value()) {
         if (emitted_pairs.insert({preclustered_target->clock_name, preclustered_target->clock_net_name}).second) {
-          result.clock_net_pairs.emplace_back(preclustered_target->clock_name, preclustered_target->clock_net_name);
-          result.clock_targets.push_back(std::move(*preclustered_target));
+          build.output.clock_targets.push_back(std::move(*preclustered_target));
         }
         continue;
       }
@@ -190,21 +186,20 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
 
     for (const auto& record : accepted_records) {
       if (emitted_pairs.insert({record.clock_name, record.net_name}).second) {
-        result.clock_net_pairs.emplace_back(record.clock_name, record.net_name);
-        result.clock_targets.push_back(makeDirectClockTarget(record.clock_name, record.net_name));
+        build.output.clock_targets.push_back(makeDirectClockTarget(record.clock_name, record.net_name));
       }
     }
   }
 
-  result.records = std::move(resolved_records);
-  result.unowned_clock_like_records = clock_trace::CollectUnownedClockLikeRecords(idb_design, result.records);
-  clock_trace::EmitClockTraceReport(result.records);
-  clock_trace::EmitSdcClockOwnershipReport(clock_data, clock_view_by_name, result.records);
-  clock_trace::EmitUnownedClockLikeNetReport(result.unowned_clock_like_records);
-  LOG_INFO << "ClockTraceResolver: accepted " << result.clock_net_pairs.size() << " CTS clock target net(s) from "
-           << clock_data.clocks.size() << " SDC clock declaration(s); reported " << result.unowned_clock_like_records.size()
+  build.summary.records = std::move(resolved_records);
+  build.summary.unowned_clock_like_records = clock_trace::CollectUnownedClockLikeRecords(idb_design, build.summary.records);
+  clock_trace::EmitClockTraceReport(reporter, build.summary.records);
+  clock_trace::EmitSdcClockOwnershipReport(clock_data, clock_view_by_name, reporter, build.summary.records);
+  clock_trace::EmitUnownedClockLikeNetReport(reporter, build.summary.unowned_clock_like_records);
+  LOG_INFO << "ClockTraceResolver: accepted " << build.output.clock_targets.size() << " CTS clock target net(s) from "
+           << clock_data.clocks.size() << " SDC clock declaration(s); reported " << build.summary.unowned_clock_like_records.size()
            << " unowned clock-like net(s).";
-  return result;
+  return build;
 }
 
 }  // namespace icts

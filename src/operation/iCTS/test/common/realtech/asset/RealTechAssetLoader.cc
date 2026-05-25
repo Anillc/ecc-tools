@@ -38,7 +38,9 @@
 #include <utility>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "Log.hh"
+#include "common/CTSTestRuntime.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/adapter/sta/STAAdapter.hh"
@@ -380,7 +382,7 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
     error = "cts config is missing: " + assets.cts_config_path.string();
     return false;
   }
-  CONFIG_INST.init(assets.cts_config_path.string());
+  icts_test::runtime::CurrentRuntime().config.init(assets.cts_config_path.string());
 
   const std::vector<std::string> tech_lef_paths = {assets.tech_lef_path.string()};
   if (!dmInst->readLef(tech_lef_paths, true)) {
@@ -443,7 +445,7 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
     error = "cannot create work dir: " + work_dir.string();
     return false;
   }
-  CONFIG_INST.set_work_dir(work_dir.string());
+  icts_test::runtime::CurrentRuntime().config.set_work_dir(work_dir.string());
   dm_config.set_output_path((io::ResolveClusteringOutputDir() / "real_tech_output").string());
 
   auto* idb_builder = dmInst->get_idb_builder();
@@ -452,13 +454,19 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
     return false;
   }
 
-  WRAPPER_INST.reset();
-  WRAPPER_INST.init(idb_builder);
-  if (!icts::ClockDataRead::read()) {
+  icts_test::runtime::CurrentRuntime().wrapper.reset();
+  icts_test::runtime::CurrentRuntime().wrapper.init(idb_builder);
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  if (!icts::ClockDataRead::read(icts::ClockDataReadInput{
+          .config = &runtime.config,
+          .design = &runtime.design,
+          .wrapper = &runtime.wrapper,
+          .reporter = &runtime.reporter,
+      })) {
     error = "readClockData failed for SDC-declared clocks";
     return false;
   }
-  STA_ADAPTER_INST.init();
+  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
   return true;
 }
 

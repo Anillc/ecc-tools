@@ -45,6 +45,7 @@
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "lef_service.h"
+#include "logger/SchemaForward.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -110,16 +111,16 @@ auto Wrapper::withinCore(int32_t point_x, int32_t point_y) const -> bool
          && point_y <= core_box->get_high_y();
 }
 
-auto Wrapper::read() -> void
+auto Wrapper::read(Design& design, SchemaWriter& reporter) -> void
 {
   std::vector<std::pair<std::string, std::string>> clock_net_pairs;
-  for (const auto* clock : DESIGN_INST.get_clocks()) {
+  for (const auto* clock : design.get_clocks()) {
     if (clock == nullptr) {
       continue;
     }
     clock_net_pairs.emplace_back(clock->get_clock_name(), clock->get_clock_net_name());
   }
-  if (!readClocks(clock_net_pairs)) {
+  if (!readClocks(design, reporter, clock_net_pairs)) {
     LOG_WARNING << "Wrapper read failed while materializing predeclared CTS clocks.";
   }
 }
@@ -134,13 +135,15 @@ auto Wrapper::ctsToIdb(const Point<int>& loc) -> idb::IdbCoordinate<int32_t>
   return {loc.get_x(), loc.get_y()};
 }
 
-auto Wrapper::traceSdcClocks(const SdcClockData& clock_data) const -> ClockTraceResult
+auto Wrapper::traceSdcClocks(const SdcClockTraceInput& input) const -> ClockTraceBuild
 {
+  LOG_FATAL_IF(input.clock_data == nullptr) << "Wrapper: SDC clock trace requires clock data.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "Wrapper: SDC clock trace requires reporter.";
   auto* idb_design = _idb_design;
   if (idb_design == nullptr && _idb != nullptr && _idb->get_def_service() != nullptr) {
     idb_design = _idb->get_def_service()->get_design();
   }
-  return SdcClockReader::traceClockTargets(clock_data, idb_design);
+  return SdcClockReader::traceClockTargets(*input.clock_data, idb_design, input.max_fanout, *input.reporter);
 }
 
 auto Wrapper::collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>

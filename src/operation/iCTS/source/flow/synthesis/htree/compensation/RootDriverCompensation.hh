@@ -24,7 +24,9 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,7 +35,10 @@
 #include "synthesis/htree/HTree.hh"
 
 namespace icts {
+
 class HTreeTopologyChar;
+class SchemaWriter;
+class STAAdapter;
 struct PatternId;
 class Tree;
 }  // namespace icts
@@ -41,7 +46,7 @@ class Tree;
 namespace icts::htree {
 
 struct BufferPatternLibrary;
-struct DepthSearchResult;
+struct DepthSearchBuild;
 struct TopologyPatternLibrary;
 
 struct RootDriverCompensationDetail
@@ -71,14 +76,19 @@ struct RootDriverCompensationDetail
   double cell_power_w = 0.0;
 };
 
-struct RootDriverCompensationOptions
+struct RootDriverCompensationInput
 {
   bool enabled = false;
+  STAAdapter* sta_adapter = nullptr;
   double input_slew_ns = 0.0;
   double clock_period_ns = 0.0;
   UniformValueLattice cap_lattice;
   UniformValueLattice slew_lattice;
   std::string default_cell_master;
+  int routing_layer = 0;
+  std::optional<double> wire_width_um = std::nullopt;
+  std::int32_t dbu_per_um = 0;
+  SchemaWriter* reporter = nullptr;
   bool strict_boundary_closure = false;
   bool strict_slew_boundary_closure = true;
 };
@@ -126,7 +136,7 @@ struct RootDriverBoundaryClosureCheck
   }
 };
 
-struct RootDriverCompensationApplyResult
+struct RootDriverCompensationApplySummary
 {
   std::size_t input_candidate_count = 0U;
   std::size_t closed_candidate_count = 0U;
@@ -138,7 +148,7 @@ struct RootDriverCompensationApplyResult
 class RootDriverCompensationPass
 {
  public:
-  explicit RootDriverCompensationPass(RootDriverCompensationOptions options);
+  explicit RootDriverCompensationPass(RootDriverCompensationInput input);
   ~RootDriverCompensationPass();
 
   RootDriverCompensationPass(const RootDriverCompensationPass&) = delete;
@@ -148,7 +158,7 @@ class RootDriverCompensationPass
 
   auto beginCandidateBuild() -> void;
   auto apply(std::vector<HTreeTopologyChar>& entries, const TopologyPatternLibrary& topology_library,
-             const BufferPatternLibrary& segment_pattern_library, const Tree& topology) -> RootDriverCompensationApplyResult;
+             const BufferPatternLibrary& segment_pattern_library, const Tree& topology) -> RootDriverCompensationApplySummary;
   auto evaluate(PatternId pattern_id, const TopologyPatternLibrary& topology_library, const BufferPatternLibrary& segment_pattern_library,
                 const Tree& topology) -> RootDriverCompensationDetail;
   auto get_stats() const -> const RootDriverCompensationStats&;
@@ -160,10 +170,10 @@ class RootDriverCompensationPass
 
 inline constexpr double kRootDriverCompensationClockPeriodNs = 10.0;
 
-auto ResolveRootDriverCompensationInputSlewNs(const HTree::BuildOptions& options, double max_slew_ns) -> double;
-auto ResolveRootDriverClockPeriod(const HTree::BuildOptions& options) -> std::pair<double, std::string>;
-auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const DepthSearchResult& exploration,
-                                       const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
+auto ResolveRootDriverCompensationInputSlewNs(const HTree::Config& config, double max_slew_ns) -> double;
+auto ResolveRootDriverClockPeriod(const HTree::Input& input) -> std::pair<double, std::string>;
+auto ApplyRootDriverCompensationSummary(HTree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
+                                        const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
     -> void;
 
 }  // namespace icts::htree

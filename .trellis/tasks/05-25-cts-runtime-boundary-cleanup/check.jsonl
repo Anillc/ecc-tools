@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Final naming, overload, include, and checker compliance criteria."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Final runtime ownership and no-service-locator criteria."}
+{"file": ".trellis/tasks/05-25-cts-runtime-boundary-cleanup/prd.md", "reason": "Acceptance criteria for same-class cleanup completeness."}
+{"file": ".trellis/tasks/05-25-cts-runtime-boundary-cleanup/design.md", "reason": "Architecture contract for environment binding and per-call inputs."}
+{"file": ".trellis/tasks/05-25-cts-runtime-boundary-cleanup/research/runtime-boundary-audit.md", "reason": "Final audit evidence for remaining allowed and cleaned signatures."}

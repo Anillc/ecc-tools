@@ -24,19 +24,40 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
+
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 
 class CharacterizationLibrary;
 class ClockLayout;
+class Config;
+class Design;
+class FastSTA;
+class STAAdapter;
+class Wrapper;
+struct OptimizationInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  FastSTA* fast_sta = nullptr;
+  SchemaWriter* reporter = nullptr;
+  ClockLayout* clock_layout = nullptr;
+  CharacterizationLibrary* characterization_library = nullptr;
+};
 
-struct OptimizationResult
+struct OptimizationSummary
 {
   bool success = true;
   bool optimized = false;
   std::size_t clock_count = 0U;
   std::size_t optimized_clock_count = 0U;
   std::size_t accepted_edit_count = 0U;
+  std::string status = "no_op";
+  std::string reason = "n/a";
 };
 
 class Optimization
@@ -44,7 +65,7 @@ class Optimization
  public:
   Optimization() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& characterization_library) -> OptimizationResult;
+  static auto run(const OptimizationInput& input) -> OptimizationSummary;
 };
 
 }  // namespace icts

@@ -163,10 +163,10 @@ auto LegalizeFluteLoadTerminals(const Router::ClockTerminal& driver_terminal, co
     movable_points.push_back(load_terminal.location);
   }
 
-  LocalLegalization::Options options;
-  options.failure_policy = LocalLegalization::FailurePolicy::kKeepOriginal;
+  LocalLegalization::Config legalization_config;
+  legalization_config.failure_policy = LocalLegalization::FailurePolicy::kKeepOriginal;
   auto result = LocalLegalization::legalize(movable_points, std::vector<Point<int>>{driver_terminal.location},
-                                            LocalLegalization::RegionType{}, LocalLegalization::RegionType{}, options);
+                                            LocalLegalization::RegionType{}, LocalLegalization::RegionType{}, legalization_config);
   if (result.legalized_points.size() != legalized_terminals.size()) {
     LOG_WARNING << "Router: terminal legalization before FLUTE returned an unexpected point count; continuing with original locations.";
     return load_terminals;
@@ -303,21 +303,21 @@ auto Router::buildClockNetTree(const Net& net) -> Router::ClockSteinerTreeType
 }
 
 auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
-                          const LegalizationRegion& block_region) -> Router::LegalizationResult
+                          const LegalizationRegion& block_region) -> Router::LegalizationOutput
 {
-  return legalizePins(movable_pins, fixed_pins, feasible_region, block_region, LegalizationOptions{});
+  return legalizePins(movable_pins, fixed_pins, feasible_region, block_region, LegalizationConfig{});
 }
 
 auto Router::legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
-                          const LegalizationRegion& block_region, const LegalizationOptions& options) -> Router::LegalizationResult
+                          const LegalizationRegion& block_region, const LegalizationConfig& config) -> Router::LegalizationOutput
 {
   auto movable_points = CollectPinLocations(movable_pins);
   const auto fixed_points = CollectPinLocations(fixed_pins);
-  auto result = LocalLegalization::legalize(movable_points, fixed_points, feasible_region, block_region, options);
+  auto result = LocalLegalization::legalize(movable_points, fixed_points, feasible_region, block_region, config);
   if (!result.success) {
     LOG_WARNING << "Router::legalizePins did not produce a successful legalization result.";
   }
-  if (result.success || options.failure_policy == LocalLegalization::FailurePolicy::kKeepOriginal) {
+  if (result.success || config.failure_policy == LocalLegalization::FailurePolicy::kKeepOriginal) {
     WriteBackPinLocations(movable_pins, result.legalized_points);
   }
   return result;

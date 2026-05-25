@@ -47,7 +47,8 @@ TEST(CharacterizationRealTechExactRegressionTest, ExactComposePowerAccountingPro
   }
 
   icts::CharBuilder builder;
-  builder.init(MakeExactRegressionCharBuilderInitOptions());
+  const auto contract = MakeExactRegressionCharBuilderContract();
+  builder.init(contract.input, contract.config);
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());

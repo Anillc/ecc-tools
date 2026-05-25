@@ -29,20 +29,20 @@
 #include <utility>
 #include <vector>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
 enum class InstType;
+class Config;
 class Net;
 class Pin;
 struct ClockRouteSegmentRc;
 template <typename T>
 class ClockSteinerTree;
-
 }  // namespace icts
 
 namespace icts {
-
-#define STA_ADAPTER_INST (icts::STAAdapter::getInst())
 
 class STAAdapter
 {
@@ -86,55 +86,73 @@ class STAAdapter
     double leakage_power_w = 0.0;
     double cell_power_w = 0.0;
   };
-  static auto getInst() -> STAAdapter&
+  struct StaTimingRefreshConfig
   {
-    static STAAdapter inst;
-    return inst;
-  }
+    std::string work_dir;
+  };
+  struct ClockSourceDriveCapLimitInput
+  {
+    const Pin* clock_source = nullptr;
+    std::optional<double> configured_max_cap_pf = std::nullopt;
+    std::optional<StaTimingRefreshConfig> refresh_config = std::nullopt;
+  };
+  struct PinSlewLimitInput
+  {
+    const Pin* pin = nullptr;
+    double configured_max_sink_tran_ns = 0.0;
+  };
+  STAAdapter() = default;
+  ~STAAdapter() = default;
 
   STAAdapter(const STAAdapter& rhs) = delete;
   STAAdapter(STAAdapter&& rhs) = delete;
   auto operator=(const STAAdapter& rhs) -> STAAdapter& = delete;
   auto operator=(STAAdapter&& rhs) -> STAAdapter& = delete;
 
-  static auto init() -> void;
-  static auto queryInstType(const std::string& inst_name) -> icts::InstType;
-  static auto isFlipFlop(const std::string& inst_name) -> bool;
-  static auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
-  static auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
-  static auto queryRequiredWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
-  static auto queryRequiredWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
-  static auto queryConfiguredClockRouteSegmentRc() -> ClockRouteSegmentRc;
-  static auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
-  static auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double;
-  static auto queryClockSourceDriveCapLimit(const Pin* clock_source) -> double;
-  static auto queryCellInPinSlewLimit(const std::string& cell_master) -> double;
-  static auto queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double;
-  static auto queryCellHeightUm(const std::string& cell_master) -> double;
-  static auto queryCellAreaUm2(const std::string& cell_master) -> double;
-  static auto setPropagatedClocks() -> std::size_t;
-  static auto updateTiming() -> void;
-  static auto reportTiming() -> bool;
-  static auto refreshFullDesignTimingContext() -> void;
-  static auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
-  static auto queryClockTimings() -> std::vector<ClockTimingRecord>;
-  static auto queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>;
-  static auto installClockNetRcTree(const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
-  static auto queryCharInputPinCap(const std::string& cell_master) -> double;
-  static auto queryPinCapacitance(const Pin* pin) -> double;
-  static auto queryPinSlewLimit(const Pin* pin) -> double;
-  static auto queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>;
-  static auto queryPinSlew(const Pin* pin) -> std::optional<double>;
-  static auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns)
+  auto init(const Config& config) -> void;
+  auto queryInstType(const std::string& inst_name) -> icts::InstType;
+  auto isFlipFlop(const std::string& inst_name) -> bool;
+  auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryRequiredWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryRequiredWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryConfiguredClockRouteSegmentRc(const Config& config) -> ClockRouteSegmentRc;
+  auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
+  auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double;
+  auto queryClockSourceDriveCapLimit(const ClockSourceDriveCapLimitInput& input) -> double;
+  auto queryClockSourceDriveCapLimit(const Config& config, const Pin* clock_source) -> double;
+  auto queryCellInPinSlewLimit(const std::string& cell_master) -> double;
+  auto queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double;
+  auto queryCellHeightUm(const std::string& cell_master) -> double;
+  auto queryCellAreaUm2(const std::string& cell_master) -> double;
+  auto setPropagatedClocks() -> std::size_t;
+  auto updateTiming() -> void;
+  auto reportTiming() -> bool;
+  auto refreshFullDesignTimingContext(const StaTimingRefreshConfig& config) -> void;
+  auto refreshFullDesignTimingContext(const Config& config) -> void;
+  auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
+  auto queryClockTimings() -> std::vector<ClockTimingRecord>;
+  auto queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>;
+  auto installClockNetRcTree(const Config& config, const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
+  auto queryCharInputPinCap(const std::string& cell_master) -> double;
+  auto queryPinCapacitance(const Pin* pin) -> double;
+  auto queryPinSlewLimit(const PinSlewLimitInput& input) -> double;
+  auto queryPinSlewLimit(const Config& config, const Pin* pin) -> double;
+  auto queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>;
+  auto queryPinSlew(const Pin* pin) -> std::optional<double>;
+  auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns)
       -> RootDriverCost;
-  static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
-  static auto emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width = std::nullopt) -> void;
-  static auto emitConfiguredUnitWireRcReport(const std::string& title) -> void;
+  auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
+  auto emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width = std::nullopt) -> void;
+  auto emitConfiguredUnitWireRcReport(SchemaWriter& reporter, const Config& config, const std::string& title) -> void;
 
  private:
-  STAAdapter() = default;
-  ~STAAdapter() = default;
-  static auto resetStaTransientState() -> void;
+  auto observeQueryFacade() const -> void;
+  auto hasFullDesignTimingContext() const -> bool;
+  auto resetStaTransientState() -> void;
+
+  bool _base_context_ready = false;
+  bool _full_design_context_ready = false;
 };
 
 }  // namespace icts

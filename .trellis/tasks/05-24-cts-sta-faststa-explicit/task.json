@@ -1,0 +1,33 @@
+{
+  "id": "cts-sta-faststa-explicit",
+  "name": "cts-sta-faststa-explicit",
+  "title": "CTS explicit STA and FastSTA dependencies",
+  "description": "Remove global STAAdapter and FastSTA access, making timing dependencies explicit service references.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "backend",
+  "package": "iCTS",
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-24",
+  "completedAt": "2026-05-24",
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-24-cts-desingleton-refactor",
+  "relatedFiles": [
+    "src/operation/iCTS/source/database/adapter/sta/STAAdapter.hh",
+    "src/operation/iCTS/source/database/adapter/sta/STAAdapter.cc",
+    "src/operation/iCTS/source/database/adapter/fast_sta/FastSta.hh",
+    "src/operation/iCTS/source/database/adapter/fast_sta/FastSta.cc",
+    "src/operation/iCTS/source/database/adapter/fast_sta/clock_state/FastStaBuilder.cc",
+    "src/operation/iCTS/source/database/adapter/fast_sta/liberty/FastStaLiberty.cc"
+  ],
+  "notes": "",
+  "meta": {}
+}

@@ -41,6 +41,7 @@
 #include "config/Config.hh"
 #include "design/ClockLayout.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 #include "report/visualization/drawing/Drawing.hh"
 #include "spatial/Point.hh"
 #include "visualization/core/SvgCommon.hh"
@@ -68,12 +69,12 @@ struct VisualizationReportStatus
   std::string reason;
 };
 
-auto ResolveVisualizationDir(const std::filesystem::path& visualization_dir) -> std::filesystem::path
+auto ResolveVisualizationDir(const Config& config, const std::filesystem::path& visualization_dir) -> std::filesystem::path
 {
   if (!visualization_dir.empty()) {
     return visualization_dir;
   }
-  return std::filesystem::path(CONFIG_INST.get_visualization_dir());
+  return std::filesystem::path(config.get_visualization_dir());
 }
 
 auto HasValidLocation(const Point<int>& point) -> bool
@@ -402,9 +403,9 @@ auto BuildUnavailableStatuses(const std::filesystem::path& output_dir, const std
   };
 }
 
-auto EmitReportStatusTable(const std::vector<VisualizationReportStatus>& statuses) -> void
+auto EmitReportStatusTable(SchemaWriter& reporter, const std::vector<VisualizationReportStatus>& statuses) -> void
 {
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(statuses.size());
   for (const auto& status : statuses) {
     rows.push_back({
@@ -415,39 +416,48 @@ auto EmitReportStatusTable(const std::vector<VisualizationReportStatus>& statuse
         status.reason,
     });
     if (!status.success) {
-      schema::EmitDiagnostic(
-          schema::DiagnosticLevel::kWarning, "CTS Report Visualization", "visualization report generation failed",
+      EmitDiagnostic(
+          reporter, DiagnosticLevel::kWarning, "CTS Report Visualization", "visualization report generation failed",
           {{"report", status.label}, {"path", status.path.string()}, {"view", status.view_label}, {"reason", status.reason}});
     }
   }
-  schema::EmitTable("CTS Visualization Reports", {"Report", "Path", "View", "Status", "Detail"}, rows);
+  EmitTable(reporter, "CTS Visualization Reports", {"Report", "Path", "View", "Status", "Detail"}, rows);
 }
 
 }  // namespace
 
-auto EmitSvgVisualizations(const std::filesystem::path& visualization_dir, const ClockLayout& clock_layout) -> SvgVisualizationResult
+auto EmitSvgVisualizations(const SvgVisualizationInput& input) -> SvgVisualizationSummary
 {
-  const auto output_dir = ResolveVisualizationDir(visualization_dir) / "svg";
-  const auto model = DrawingBuilder::build(clock_layout);
+  LOG_FATAL_IF(input.config == nullptr) << "SVG visualization requires config.";
+  LOG_FATAL_IF(input.design == nullptr) << "SVG visualization requires design.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "SVG visualization requires wrapper.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "SVG visualization requires reporter.";
+  LOG_FATAL_IF(input.clock_layout == nullptr) << "SVG visualization requires clock layout.";
+  const auto output_dir = ResolveVisualizationDir(*input.config, input.visualization_dir) / "svg";
+  const auto model = DrawingBuilder::build(DrawingInput{
+      .design = input.design,
+      .wrapper = input.wrapper,
+      .clock_layout = input.clock_layout,
+  });
 
   std::vector<VisualizationReportStatus> statuses;
   if (!model.has_clocks) {
     statuses = BuildUnavailableStatuses(output_dir, "CTS design contains no clocks; run CTS or initialize clock data before report");
-    EmitReportStatusTable(statuses);
-    return SvgVisualizationResult{.success = false};
+    EmitReportStatusTable(*input.reporter, statuses);
+    return SvgVisualizationSummary{.success = false};
   }
   if (model.design_segments.empty() && model.flyline_segments.empty()) {
     statuses = BuildUnavailableStatuses(output_dir, "CTS design contains no clock nets to visualize");
-    EmitReportStatusTable(statuses);
-    return SvgVisualizationResult{.success = false};
+    EmitReportStatusTable(*input.reporter, statuses);
+    return SvgVisualizationSummary{.success = false};
   }
 
   statuses.push_back(WriteSvgFile(output_dir / kDesignSvgLabel, kDesignSvgLabel, "svg/design", model, model.design_segments, false));
   statuses.push_back(WriteSvgFile(output_dir / kFlylineSvgLabel, kFlylineSvgLabel, "svg/flyline", model, model.flyline_segments, true));
 
-  EmitReportStatusTable(statuses);
+  EmitReportStatusTable(*input.reporter, statuses);
   const bool success = std::ranges::all_of(statuses, [](const auto& status) -> bool { return status.success; });
-  return SvgVisualizationResult{.success = success};
+  return SvgVisualizationSummary{.success = success};
 }
 
 }  // namespace icts::visualization

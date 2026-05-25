@@ -18,7 +18,7 @@
  * @file Characterization.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-28
- * @brief H-tree characterization grid options and flow result types.
+ * @brief H-tree characterization grid config and flow summary contracts.
  */
 
 #pragma once
@@ -59,15 +59,16 @@ struct CharacterizationGridPlan
   CharGridSource source = CharGridSource::kNone;
 };
 
-struct CharacterizationResult
+struct CharacterizationSummary
 {
   bool success = false;
   std::string failure_reason;
   double length_step_um = 0.0;
 };
 
-auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
-                             HTree::BuildResult& result, CharacterizationLibrary& char_library, const HTree::BuildOptions& options)
-    -> CharacterizationResult;
+auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::Input& base_char_input,
+                             const CharBuilder::Config& base_char_config, HTree::DiagnosticBuild& result,
+                             CharacterizationLibrary& char_library, const HTree::Input& input, const HTree::Config& config)
+    -> CharacterizationSummary;
 
 }  // namespace icts::htree

@@ -21,16 +21,20 @@
  * @brief CTS QoR evaluation metric and summary helpers.
  */
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "ClockDAG.hh"
 #include "ClockRouteSegmentRc.hh"
+#include "Log.hh"
 #include "Point.hh"
 #include "Qor.hh"
 #include "SteinerTree.hh"
@@ -44,6 +48,7 @@
 #include "io/Wrapper.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 #include "routing/router/Router.hh"
 #include "timing/TimingEngine.hh"
 
@@ -165,22 +170,22 @@ auto instTypeName(const Inst& inst) -> std::string
   return "Others";
 }
 
-auto calcInstInputPinCapPf(const Inst& inst) -> double
+auto calcInstInputPinCapPf(STAAdapter& sta_adapter, const Inst& inst) -> double
 {
   double total_cap_pf = 0.0;
   for (const auto* pin : inst.get_pins()) {
     if (pin == nullptr || pin->get_inst() != &inst) {
       continue;
     }
-    total_cap_pf += STA_ADAPTER_INST.queryPinCapacitance(pin);
+    total_cap_pf += sta_adapter.queryPinCapacitance(pin);
   }
   return total_cap_pf;
 }
 
-auto emitClockTimingTables(const QorSummary& summary) -> void
+auto emitClockTimingTables(SchemaWriter& reporter, const QorSummary& summary) -> void
 {
   if (!summary.clocks_timing.empty()) {
-    schema::TableRows rows;
+    TableRows rows;
     rows.reserve(summary.clocks_timing.size());
     for (const auto& timing : summary.clocks_timing) {
       rows.push_back({
@@ -192,12 +197,12 @@ auto emitClockTimingTables(const QorSummary& summary) -> void
           logformat::FormatFixed(timing.suggest_freq, 3),
       });
     }
-    schema::EmitTable("CTS Clock Timing Overview",
+    EmitTable(reporter, "CTS Clock Timing Overview",
                       {"Clock", "Setup TNS (ns)", "Setup WNS (ns)", "Hold TNS (ns)", "Hold WNS (ns)", "Suggested Frequency (MHz)"}, rows);
   }
 
   if (!summary.clocks_latency_skew.empty()) {
-    schema::TableRows rows;
+    TableRows rows;
     rows.reserve(summary.clocks_latency_skew.size());
     for (const auto& metric : summary.clocks_latency_skew) {
       rows.push_back({
@@ -213,7 +218,7 @@ auto emitClockTimingTables(const QorSummary& summary) -> void
           std::to_string(metric.average_sample_count),
       });
     }
-    schema::EmitTable("CTS Clock Latency Skew Overview",
+    EmitTable(reporter, "CTS Clock Latency Skew Overview",
                       {"Clock", "Mode", "Launch Pin", "Capture Pin", "Launch Latency (ns)", "Capture Latency (ns)", "Worst Skew (ns)",
                        "Average Worst Skew (ns)", "Path Count", "Average Sample Count"},
                       rows);
@@ -298,7 +303,7 @@ auto ClassifyClockNet(const Clock& clock, const Net* net) -> ClockNetRole
   return ClockNetRole::kTrunk;
 }
 
-auto AccumulateInstStatistics(const Inst& inst, Qor& statistics) -> void
+auto AccumulateInstStatistics(STAAdapter& sta_adapter, const Inst& inst, Qor& statistics) -> void
 {
   if (!inst.is_buffer()) {
     return;
@@ -310,8 +315,8 @@ auto AccumulateInstStatistics(const Inst& inst, Qor& statistics) -> void
   }
 
   const std::string cell_type = instTypeName(inst);
-  const double area_um2 = STA_ADAPTER_INST.queryCellAreaUm2(cell_master);
-  const double cap_pf = calcInstInputPinCapPf(inst);
+  const double area_um2 = sta_adapter.queryCellAreaUm2(cell_master);
+  const double cap_pf = calcInstInputPinCapPf(sta_adapter, inst);
 
   auto& cell_stat = statistics.cell_stats[cell_type];
   ++cell_stat.count;
@@ -324,8 +329,15 @@ auto AccumulateInstStatistics(const Inst& inst, Qor& statistics) -> void
   lib_dist.total_area_um2 += area_um2;
 }
 
-auto InstallClockNetRcTreeAndMeasure(Net* net, ClockNetRole role, bool install_sta_rc_tree) -> std::optional<ClockNetMeasurement>
+auto InstallClockNetRcTreeAndMeasure(const ClockNetMeasurementInput& input) -> std::optional<ClockNetMeasurement>
 {
+  LOG_FATAL_IF(input.config == nullptr) << "CTS QoR clock-net measurement requires config.";
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "CTS QoR clock-net measurement requires STA adapter.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "CTS QoR clock-net measurement requires wrapper.";
+  const auto& config = *input.config;
+  auto& sta_adapter = *input.sta_adapter;
+  auto& wrapper = *input.wrapper;
+  auto* net = input.net;
   auto route_tree = net == nullptr ? Router::ClockSteinerTreeType{} : Router::buildClockNetTree(*net);
   if (route_tree.node_count() == 0 || route_tree.edge_count() == 0) {
     return std::nullopt;
@@ -334,18 +346,18 @@ auto InstallClockNetRcTreeAndMeasure(Net* net, ClockNetRole role, bool install_s
   const auto wirelength = calcRouteWirelength(route_tree);
   const auto hpwl = calcHpwlDbu(net);
 
-  if (install_sta_rc_tree && net != nullptr) {
-    (void) STA_ADAPTER_INST.installClockNetRcTree(*net, route_tree);
+  if (input.install_sta_rc_tree && net != nullptr) {
+    (void) sta_adapter.installClockNetRcTree(config, *net, route_tree);
   }
 
-  if (WRAPPER_INST.is_design_ready()) {
-    auto rc_tree = Router::buildRCTree(route_tree, STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc());
+  if (wrapper.is_design_ready()) {
+    auto rc_tree = Router::buildRCTree(route_tree, sta_adapter.queryConfiguredClockRouteSegmentRc(config));
     auto timing_metrics = TimingEngine::update(rc_tree);
     (void) timing_metrics;
   }
 
   return ClockNetMeasurement{
-      .role = role,
+      .role = input.role,
       .wirelength_dbu = wirelength,
       .hpwl_dbu = hpwl,
   };
@@ -366,17 +378,24 @@ auto AppendClockNetStatistics(const std::vector<ClockNetMeasurement>& measuremen
   }
 }
 
-auto AppendClockTimings(bool query_sta_timing, QorSummary& summary) -> void
+auto AppendClockTimings(const ClockTimingAppendInput& input) -> void
 {
-  if (!query_sta_timing) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CTS Evaluation",
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "CTS QoR timing append requires STA adapter.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "CTS QoR timing append requires reporter.";
+  LOG_FATAL_IF(input.summary == nullptr) << "CTS QoR timing append requires summary.";
+  auto& sta_adapter = *input.sta_adapter;
+  auto& reporter = *input.reporter;
+  auto& summary = *input.summary;
+
+  if (!input.query_sta_timing) {
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
                            "clock timing metrics were not queried because STA timing context is unavailable.", {{"timing_source", "STA"}});
     return;
   }
 
-  const auto timing_records = STA_ADAPTER_INST.queryClockTimings();
+  const auto timing_records = sta_adapter.queryClockTimings();
   if (timing_records.empty()) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CTS Evaluation",
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
                            "clock timing metrics are unavailable from STA; timing fields are reported as unavailable.",
                            {{"timing_source", "STA"}});
     return;
@@ -394,9 +413,9 @@ auto AppendClockTimings(bool query_sta_timing, QorSummary& summary) -> void
   }
 }
 
-auto AppendClockLatencySkew(QorSummary& summary) -> void
+auto AppendClockLatencySkew(STAAdapter& sta_adapter, QorSummary& summary) -> void
 {
-  auto latency_skew_metrics = STA_ADAPTER_INST.queryClockLatencySkew();
+  auto latency_skew_metrics = sta_adapter.queryClockLatencySkew();
   summary.clocks_latency_skew.reserve(summary.clocks_latency_skew.size() + latency_skew_metrics.size());
   for (const auto& metric : latency_skew_metrics) {
     summary.clocks_latency_skew.push_back(QorSummary::ClockLatencySkew{
@@ -414,11 +433,11 @@ auto AppendClockLatencySkew(QorSummary& summary) -> void
   }
 }
 
-auto EmitEvaluationSummary(const QorSummary& summary, bool refreshed_sta) -> void
+auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary, bool refreshed_sta) -> void
 {
   const bool path_depth_available = summary.path_depth_metric_status == "available";
-  schema::EmitKeyValueTable(
-      "CTS Evaluation Overview",
+  EmitKeyValueTable(
+      reporter, "CTS Evaluation Overview",
       {
           {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
           {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
@@ -434,7 +453,7 @@ auto EmitEvaluationSummary(const QorSummary& summary, bool refreshed_sta) -> voi
           {"design_units", std::to_string(summary.design_dbu_per_um) + " DBU/um"},
           {"statistics_reports", "wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt"},
       });
-  emitClockTimingTables(summary);
+  emitClockTimingTables(reporter, summary);
 }
 
 }  // namespace icts::qor_evaluation

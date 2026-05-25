@@ -41,8 +41,7 @@
 #include "LogFormat.hh"
 #include "PatternId.hh"
 #include "logger/Schema.hh"
-#include "synthesis/htree/HTreeSynthesisOptions.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
@@ -120,9 +119,10 @@ auto IsDefaultSynthesisSummaryField(const std::string& field) -> bool
          || field == "htree_load_cap_max" || field == "htree_load_cap_mean" || field == "htree_load_cap_median";
 }
 
-auto BuildDefaultSynthesisSummaryFields(const logformat::TableRows& synthesis_summary_rows) -> schema::KeyValueFields
+auto BuildDefaultSynthesisSummaryFields(SchemaWriter& reporter, const logformat::TableRows& synthesis_summary_rows)
+    -> KeyValueFields
 {
-  schema::KeyValueFields default_fields;
+  KeyValueFields default_fields;
   default_fields.reserve(synthesis_summary_rows.size());
   for (const auto& row : synthesis_summary_rows) {
     if (row.size() < 2U || !IsDefaultSynthesisSummaryField(row.at(0))) {
@@ -130,56 +130,55 @@ auto BuildDefaultSynthesisSummaryFields(const logformat::TableRows& synthesis_su
     }
     default_fields.emplace_back(row.at(0), row.at(1));
   }
-  default_fields.emplace_back("detail_report",
-                              SCHEMA_WRITER_INST.getDetailPath().empty() ? "unavailable" : SCHEMA_WRITER_INST.getDetailPath().string());
+  default_fields.emplace_back("detail_report", reporter.getDetailPath().empty() ? "unavailable" : reporter.getDetailPath().string());
   return default_fields;
 }
 
 }  // namespace
 
-auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildEvaluation& selected_evaluation,
+auto LogSynthesisSummary(SchemaWriter& reporter, const HTree::DiagnosticBuild& result, const CandidateBuildEvaluation& selected_evaluation,
                          const DepthSummary& selected_summary) -> void
 {
   const bool selected_has_boundary_constraints = HasBoundaryConstraints(selected_evaluation.boundary_constraints);
-  if (!result.best_char.has_value()) {
+  if (!result.output.best_char.has_value()) {
     LOG_WARNING << "HTree: synthesis summary skipped because no selected topology char is available.";
     return;
   }
-  const auto& best_char = *result.best_char;
+  const auto& best_char = *result.output.best_char;
   const auto selected_terminal_branch_buffered_levels = static_cast<std::size_t>(std::ranges::count_if(
-      result.levels, [](const HTree::LevelPlan& level) -> bool { return level.selected_has_terminal_branch_buffer; }));
-  const auto& root_compensation_report = result.root_driver_compensation;
+      result.output.levels, [](const HTree::LevelPlan& level) -> bool { return level.selected_has_terminal_branch_buffer; }));
+  const auto& root_compensation_report = result.diagnostics.root_driver_compensation;
   std::string selected_level_segment_pattern_ids;
-  for (const auto& level : result.levels) {
+  for (const auto& level : result.output.levels) {
     if (!selected_level_segment_pattern_ids.empty()) {
       selected_level_segment_pattern_ids += ",";
     }
     selected_level_segment_pattern_ids += std::to_string(level.segment_pattern_id.local_id);
   }
   std::string selection_engine_detail;
-  if (!result.analytical_mode_enabled) {
+  if (!result.diagnostics.analytical_mode_enabled) {
     selection_engine_detail = "analytical mode disabled";
-  } else if (result.analytical_mode_selected) {
+  } else if (result.diagnostics.analytical_mode_selected) {
     selection_engine_detail = "experimental analytical candidate selection produced the embedded H-tree";
   } else {
     selection_engine_detail = "analytical mode was enabled but did not select a candidate";
   }
 
   std::string selection_policy;
-  if (result.analytical_mode_selected) {
+  if (result.diagnostics.analytical_mode_selected) {
     selection_policy = "analytical_validated_pareto_power_guarded_min_delay";
-  } else if (result.used_boundary_relaxation) {
+  } else if (result.summary.used_boundary_relaxation) {
     selection_policy = "global_boundary_relaxation";
   } else {
     selection_policy = "global_frontier_pareto_power_median";
   }
 
   std::string selection_policy_detail;
-  if (result.used_boundary_relaxation) {
+  if (result.summary.used_boundary_relaxation) {
     selection_policy_detail
         = "the global strict-feasible pool across all depth candidates is empty; relaxed selection uses the global "
           "candidate post-compensation frontier pool with delay-power Pareto power-median ordering";
-  } else if (result.analytical_mode_selected) {
+  } else if (result.diagnostics.analytical_mode_selected) {
     selection_policy_detail
         = "the validated analytical pool is delay-power Pareto filtered; the lowest-delay entry within the low-power "
           "guard band is selected";
@@ -188,54 +187,64 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
         = "the global feasible post-compensation frontier pool is Pareto filtered and the lower power-ordered median entry is selected";
   }
 
-  SCHEMA_WRITER_INST.emitSection("### H-Tree Selection");
+  reporter.emitSection("### H-Tree Selection");
   logformat::TableRows synthesis_summary_rows = {
-      {"clock_name", result.log_context.clock_name.empty() ? "n/a" : result.log_context.clock_name,
+      {"clock_name", result.diagnostics.log_context.clock_name.empty() ? "n/a" : result.diagnostics.log_context.clock_name,
        "context for repeated H-tree/top-level sections"},
-      {"clock_net_name", result.log_context.clock_net_name.empty() ? "n/a" : result.log_context.clock_net_name,
+      {"clock_net_name", result.diagnostics.log_context.clock_net_name.empty() ? "n/a" : result.diagnostics.log_context.clock_net_name,
        "context for repeated H-tree/top-level sections"},
-      {"sink_domain", result.log_context.sink_domain.empty() ? "n/a" : result.log_context.sink_domain,
+      {"sink_domain", result.diagnostics.log_context.sink_domain.empty() ? "n/a" : result.diagnostics.log_context.sink_domain,
        "context for repeated H-tree/top-level sections"},
-      {"stage", result.log_context.stage.empty() ? "n/a" : result.log_context.stage, "context for repeated H-tree/top-level sections"},
-      {"object_name_prefix", result.object_name_prefix.empty() ? "n/a" : result.object_name_prefix, "context for inserted object names"},
-      {"levels", std::to_string(result.levels.size()), "selected H-tree levels"},
-      {"depth_candidates", std::to_string(result.depth_candidate_count), "evaluated descending depth candidates"},
-      {"selected_depth", result.selected_depth.has_value() ? std::to_string(*result.selected_depth) : "none",
+      {"stage", result.diagnostics.log_context.stage.empty() ? "n/a" : result.diagnostics.log_context.stage,
+       "context for repeated H-tree/top-level sections"},
+      {"object_name_prefix", result.diagnostics.object_name_prefix.empty() ? "n/a" : result.diagnostics.object_name_prefix,
+       "context for inserted object names"},
+      {"levels", std::to_string(result.output.levels.size()), "selected H-tree levels"},
+      {"depth_candidates", std::to_string(result.diagnostics.depth_candidate_count), "evaluated descending depth candidates"},
+      {"selected_depth", result.summary.selected_depth.has_value() ? std::to_string(*result.summary.selected_depth) : "none",
        "global winner across all evaluated depth candidates"},
-      {"selection_engine", result.analytical_mode_selected ? "analytical" : "native", selection_engine_detail},
-      {"analytical_failure_reason", result.analytical_failure_reason.empty() ? "none" : result.analytical_failure_reason,
-       result.analytical_mode_enabled ? "analytical failure reason; native solver is not used in analytical mode"
-                                      : "analytical mode disabled"},
-      {"analytical_model_sets", std::to_string(result.analytical_model_set_count),
-       result.analytical_mode_enabled ? "complete F/D/P/W model sets built from segment characterization" : "not evaluated"},
-      {"analytical_rejected_fits", std::to_string(result.analytical_rejected_fit_count),
-       result.analytical_mode_enabled ? "fit failures while building analytical model catalog" : "not evaluated"},
-      {"analytical_candidates", std::to_string(result.analytical_generated_candidate_count),
-       result.analytical_mode_enabled ? "materializable analytical candidates generated before native validation" : "not evaluated"},
-      {"analytical_validated_candidates", std::to_string(result.analytical_validated_candidate_count),
-       result.analytical_mode_enabled ? "analytical candidates accepted by native legality/compensation validation" : "not evaluated"},
-      {"analytical_validated_pareto_candidates", std::to_string(result.analytical_validated_pareto_count),
-       result.analytical_mode_enabled ? "validated analytical candidates remaining on the delay-power Pareto frontier" : "not evaluated"},
-      {"analytical_selected_pareto_power_rank", std::to_string(result.analytical_selected_pareto_power_rank),
-       result.analytical_mode_selected ? "1-based selected rank by power after delay-first analytical Pareto selection"
-                                       : "not selected analytically"},
+      {"selection_engine", result.diagnostics.analytical_mode_selected ? "analytical" : "native", selection_engine_detail},
+      {"analytical_failure_reason",
+       result.diagnostics.analytical_failure_reason.empty() ? "none" : result.diagnostics.analytical_failure_reason,
+       result.diagnostics.analytical_mode_enabled ? "analytical failure reason; native solver is not used in analytical mode"
+                                                  : "analytical mode disabled"},
+      {"analytical_model_sets", std::to_string(result.diagnostics.analytical_model_set_count),
+       result.diagnostics.analytical_mode_enabled ? "complete F/D/P/W model sets built from segment characterization" : "not evaluated"},
+      {"analytical_rejected_fits", std::to_string(result.diagnostics.analytical_rejected_fit_count),
+       result.diagnostics.analytical_mode_enabled ? "fit failures while building analytical model catalog" : "not evaluated"},
+      {"analytical_candidates", std::to_string(result.diagnostics.analytical_generated_candidate_count),
+       result.diagnostics.analytical_mode_enabled ? "materializable analytical candidates generated before native validation"
+                                                  : "not evaluated"},
+      {"analytical_validated_candidates", std::to_string(result.diagnostics.analytical_validated_candidate_count),
+       result.diagnostics.analytical_mode_enabled ? "analytical candidates accepted by native legality/compensation validation"
+                                                  : "not evaluated"},
+      {"analytical_validated_pareto_candidates", std::to_string(result.diagnostics.analytical_validated_pareto_count),
+       result.diagnostics.analytical_mode_enabled ? "validated analytical candidates remaining on the delay-power Pareto frontier"
+                                                  : "not evaluated"},
+      {"analytical_selected_pareto_power_rank", std::to_string(result.diagnostics.analytical_selected_pareto_power_rank),
+       result.diagnostics.analytical_mode_selected ? "1-based selected rank by power after delay-first analytical Pareto selection"
+                                                   : "not selected analytically"},
       {"analytical_validated_delay_range",
-       FormatDelayPower(result.analytical_validated_delay_min_ns, result.analytical_validated_power_min_w) + " .. "
-           + FormatDelayPower(result.analytical_validated_delay_median_ns, result.analytical_validated_power_median_w) + " .. "
-           + FormatDelayPower(result.analytical_validated_delay_max_ns, result.analytical_validated_power_max_w),
-       result.analytical_mode_enabled
+       FormatDelayPower(result.diagnostics.analytical_validated_delay_min_ns, result.diagnostics.analytical_validated_power_min_w) + " .. "
+           + FormatDelayPower(result.diagnostics.analytical_validated_delay_median_ns,
+                              result.diagnostics.analytical_validated_power_median_w)
+           + " .. "
+           + FormatDelayPower(result.diagnostics.analytical_validated_delay_max_ns, result.diagnostics.analytical_validated_power_max_w),
+       result.diagnostics.analytical_mode_enabled
            ? "min / median / max delay with matching marginal power distribution values over validated candidates"
            : "not evaluated"},
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
-       result.used_boundary_relaxation ? "selected relaxed topology pattern from candidate frontier selection entries"
-                                       : "selected strict-feasible topology pattern from the global feasible frontier pool"},
+       result.summary.used_boundary_relaxation ? "selected relaxed topology pattern from candidate frontier selection entries"
+                                               : "selected strict-feasible topology pattern from the global feasible frontier pool"},
       {"selected_level_segment_pattern_ids", selected_level_segment_pattern_ids.empty() ? "none" : selected_level_segment_pattern_ids,
        "root-to-leaf selected segment pattern ids for the chosen topology pattern"},
-      {"selected_level_buffer_counts", FormatLevelBufferCounts(result.levels, false), "unweighted selected buffer count per H-tree level"},
-      {"selected_weighted_level_buffer_counts", FormatLevelBufferCounts(result.levels, true),
+      {"selected_level_buffer_counts", FormatLevelBufferCounts(result.output.levels, false),
+       "unweighted selected buffer count per H-tree level"},
+      {"selected_weighted_level_buffer_counts", FormatLevelBufferCounts(result.output.levels, true),
        "selected buffer count multiplied by H-tree level multiplicity; this explains physical H-tree buffer pressure"},
-      {"selected_level_buffer_area", FormatLevelBufferAreas(result.levels, false), "unweighted selected buffer area per H-tree level"},
-      {"selected_weighted_level_buffer_area", FormatLevelBufferAreas(result.levels, true),
+      {"selected_level_buffer_area", FormatLevelBufferAreas(result.output.levels, false),
+       "unweighted selected buffer area per H-tree level"},
+      {"selected_weighted_level_buffer_area", FormatLevelBufferAreas(result.output.levels, true),
        "selected buffer area multiplied by H-tree level multiplicity"},
       {"selection_policy", selection_policy, selection_policy_detail},
       {"final_frontier_count", std::to_string(selected_summary.final_frontier_count),
@@ -251,9 +260,9 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
                                          : "same as post-compensation frontier"},
       {"feasible_frontier_entry_count", std::to_string(selected_summary.feasible_frontier_entry_count),
        "selected-depth sink-load-region-legal frontier entries after feasible filtering"},
-      {"inserted_insts", std::to_string(result.inserted_insts.size()), "built CTS buffer instances"},
-      {"inserted_nets", std::to_string(result.inserted_nets.size()), "built CTS nets"},
-      {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers),
+      {"inserted_insts", std::to_string(result.output.inserted_insts.size()), "built CTS buffer instances"},
+      {"inserted_nets", std::to_string(result.output.inserted_nets.size()), "built CTS nets"},
+      {"pruned_leaf_single_load_buffers", std::to_string(result.diagnostics.pruned_leaf_single_load_buffers),
        "post-clock-tree object construction redundant leaf buffers removed when a leaf buffer directly drove one external load"},
       {"power", logformat::FormatPowerW(best_char.get_power()), "selected pattern metric (total power)"},
       {"delay", logformat::FormatWithUnit(best_char.get_delay(), "ns"), "selected pattern metric"},
@@ -291,7 +300,7 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"leaf_output_slew_idx", std::to_string(best_char.get_output_slew_idx()), "selected pattern metric"},
       {"raw_char_downstream_load_cap_idx", std::to_string(best_char.get_load_cap_idx()), "raw H-tree downstream/leaf-side load cap bucket"},
       {"selected_terminal_branch_buffered_levels",
-       std::to_string(selected_terminal_branch_buffered_levels) + "/" + std::to_string(result.levels.size()),
+       std::to_string(selected_terminal_branch_buffered_levels) + "/" + std::to_string(result.output.levels.size()),
        "actual selected H-tree levels whose segment pattern includes a terminal branch buffer"},
       {"raw_top_input_slew_constraint_idx",
        selected_evaluation.boundary_constraints.top_input_slew_covering_idx.has_value()
@@ -311,16 +320,18 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
       {"htree_load_cap_median", logformat::FormatWithUnit(selected_summary.htree_load_cap_median_pf, "pF"),
        "selected H-tree external-load total-cap median across real driven-load groups"},
       {"selected_root_driver_cell_master",
-       result.selected_root_driver_cell_master.empty() ? "none" : result.selected_root_driver_cell_master,
+       result.diagnostics.selected_root_driver_cell_master.empty() ? "none" : result.diagnostics.selected_root_driver_cell_master,
        "root driver master applied to the input root-net driver inst"},
-      {"root_driver_sizing_enabled", logformat::FormatBool(result.root_driver_sizing_enabled),
-       result.root_driver_sizing_enabled ? "root driver may be resized when the root is a CTS-owned buffer"
-                                         : "root driver sizing is disabled for immutable top-level clock source"},
-      {"used_boundary_relaxation", logformat::FormatBool(result.used_boundary_relaxation),
-       result.used_boundary_relaxation ? result.boundary_relaxation_reason : "constraints satisfied without relaxation"},
+      {"root_driver_sizing_enabled", logformat::FormatBool(result.diagnostics.root_driver_sizing_enabled),
+       result.diagnostics.root_driver_sizing_enabled ? "root driver may be resized when the root is a CTS-owned buffer"
+                                                     : "root driver sizing is disabled for immutable top-level clock source"},
+      {"used_boundary_relaxation", logformat::FormatBool(result.summary.used_boundary_relaxation),
+       result.summary.used_boundary_relaxation ? result.diagnostics.boundary_relaxation_reason
+                                               : "constraints satisfied without relaxation"},
       {"boundary_relaxation_score",
-       result.boundary_relaxation_score.has_value() ? std::to_string(*result.boundary_relaxation_score) : "none",
-       result.used_boundary_relaxation ? "diagnostic normalized active-boundary score of the selected relaxed candidate" : "not used"},
+       result.diagnostics.boundary_relaxation_score.has_value() ? std::to_string(*result.diagnostics.boundary_relaxation_score) : "none",
+       result.summary.used_boundary_relaxation ? "diagnostic normalized active-boundary score of the selected relaxed candidate"
+                                               : "not used"},
   };
   {
     const auto is_duplicate_frontier_row = [&](const auto& row) -> bool {
@@ -352,10 +363,9 @@ auto LogSynthesisSummary(const HTree::BuildResult& result, const CandidateBuildE
     auto duplicate_rows = std::ranges::remove_if(synthesis_summary_rows, is_duplicate_frontier_row);
     synthesis_summary_rows.erase(duplicate_rows.begin(), duplicate_rows.end());
   }
-  SCHEMA_WRITER_INST.emitKeyValueTableTo("HTree Synthesis Overview", BuildDefaultSynthesisSummaryFields(synthesis_summary_rows),
-                                         schema::ReportSink::kDefault);
-  SCHEMA_WRITER_INST.emitTableTo("HTree Synthesis Detail", {"Item", "Value", "Detail"}, synthesis_summary_rows,
-                                 schema::ReportSink::kDetail);
+  reporter.emitKeyValueTableTo("HTree Synthesis Overview", BuildDefaultSynthesisSummaryFields(reporter, synthesis_summary_rows),
+                               ReportSink::kDefault);
+  reporter.emitTableTo("HTree Synthesis Detail", {"Item", "Value", "Detail"}, synthesis_summary_rows, ReportSink::kDetail);
 }
 
 }  // namespace icts::htree

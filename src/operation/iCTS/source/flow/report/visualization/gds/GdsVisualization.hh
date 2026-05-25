@@ -25,17 +25,33 @@
 
 #include <filesystem>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 class ClockLayout;
-}
+class Config;
+class Design;
+class Wrapper;
+
+}  // namespace icts
 
 namespace icts::visualization {
 
-struct GdsVisualizationResult
+struct GdsVisualizationInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  SchemaWriter* reporter = nullptr;
+  std::filesystem::path visualization_dir;
+  const ClockLayout* clock_layout = nullptr;
+};
+
+struct GdsVisualizationSummary
 {
   bool success = false;
 };
 
-auto EmitGdsVisualizations(const std::filesystem::path& visualization_dir, const ClockLayout& clock_layout) -> GdsVisualizationResult;
+auto EmitGdsVisualizations(const GdsVisualizationInput& input) -> GdsVisualizationSummary;
 
 }  // namespace icts::visualization

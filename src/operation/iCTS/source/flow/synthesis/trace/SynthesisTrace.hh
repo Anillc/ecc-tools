@@ -74,6 +74,4 @@ class SynthesisTrace
   static auto reset(SynthesisTraceSummary& trace) -> void;
 };
 
-using SynthesisTraceSummary = SynthesisTraceSummary;
-
 }  // namespace icts

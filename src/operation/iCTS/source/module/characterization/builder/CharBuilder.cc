@@ -49,9 +49,9 @@ CharBuilder::CharBuilder(CharBuilder&&) noexcept = default;
 
 auto CharBuilder::operator=(CharBuilder&&) noexcept -> CharBuilder& = default;
 
-auto CharBuilder::init(const InitOptions& options) -> void
+auto CharBuilder::init(const Input& input, const Config& config) -> void
 {
-  _impl->setupConfigurator().init(options);
+  _impl->setupConfigurator().init(input, config);
 }
 
 auto CharBuilder::build() -> void

@@ -46,7 +46,7 @@
 #include "STAAdapter.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/compensation/RootDriverCompensationState.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
@@ -137,35 +137,37 @@ auto QueryRootDriverCompensation(const RootDriverCompensationCacheKey& key, cons
   }
 
   const auto lookup_start = std::chrono::steady_clock::now();
-  const auto cost = STA_ADAPTER_INST.queryRootDriverCostDirect(key.cell_master, key.input_slew_ns, key.load_cap_pf, key.clock_period_ns);
+  LOG_FATAL_IF(state.input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver compensation.";
+  const auto cost
+      = state.input.sta_adapter->queryRootDriverCostDirect(key.cell_master, key.input_slew_ns, key.load_cap_pf, key.clock_period_ns);
   stats.total_runtime_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - lookup_start).count();
   ++stats.unique_direct_lookup_count;
   auto compensation
-      = MakeRootDriverCompensationDetail(cost, key.input_slew_ns, load_estimate, key.clock_period_ns, state.options.slew_lattice);
+      = MakeRootDriverCompensationDetail(cost, key.input_slew_ns, load_estimate, key.clock_period_ns, state.input.slew_lattice);
   return state.cost_by_key.emplace(key, std::move(compensation)).first->second;
 }
 
 auto RefreshCompensationStats(RootDriverCompensationState& state) -> void
 {
   auto& stats = state.stats;
-  stats.enabled = state.options.enabled;
-  stats.method = state.options.enabled ? kRootDriverCompensationMethod : "disabled";
-  stats.input_slew_ns = state.options.input_slew_ns;
-  stats.clock_period_ns = state.options.clock_period_ns;
-  stats.load_source = state.options.enabled ? kRootDriverCompensationLoadSource : "none";
+  stats.enabled = state.input.enabled;
+  stats.method = state.input.enabled ? kRootDriverCompensationMethod : "disabled";
+  stats.input_slew_ns = state.input.input_slew_ns;
+  stats.clock_period_ns = state.input.clock_period_ns;
+  stats.load_source = state.input.enabled ? kRootDriverCompensationLoadSource : "none";
 }
 
-auto CompensationOptionsAreValid(RootDriverCompensationState& state) -> bool
+auto CompensationInputIsValid(RootDriverCompensationState& state) -> bool
 {
-  if (state.options.input_slew_ns >= 0.0 && state.options.clock_period_ns > 0.0 && state.options.cap_lattice.isValid()
-      && (!state.options.strict_boundary_closure || state.options.slew_lattice.isValid())) {
+  if (state.input.input_slew_ns >= 0.0 && state.input.clock_period_ns > 0.0 && state.input.cap_lattice.isValid()
+      && (!state.input.strict_boundary_closure || state.input.slew_lattice.isValid())) {
     return true;
   }
 
-  if (!state.warned_invalid_options) {
-    LOG_WARNING << "HTree: root-driver direct compensation skipped because input slew, clock period, or cap/slew lattice options "
+  if (!state.warned_invalid_input) {
+    LOG_WARNING << "HTree: root-driver direct compensation skipped because input slew, clock period, or cap/slew lattice input "
                    "are invalid.";
-    state.warned_invalid_options = true;
+    state.warned_invalid_input = true;
   }
   return false;
 }
@@ -174,12 +176,12 @@ auto EvaluateRootDriverCompensation(PatternId pattern_id, const TopologyPatternL
                                     const BufferPatternLibrary& segment_pattern_library, const Tree& topology,
                                     RootDriverCompensationState& compensation_state) -> RootDriverCompensationDetail
 {
-  if (!compensation_state.options.enabled || !CompensationOptionsAreValid(compensation_state)) {
+  if (!compensation_state.input.enabled || !CompensationInputIsValid(compensation_state)) {
     return {};
   }
 
   const auto cell_master
-      = ResolveRootDriverCellMaster(pattern_id, topology_library, segment_pattern_library, compensation_state.options.default_cell_master);
+      = ResolveRootDriverCellMaster(pattern_id, topology_library, segment_pattern_library, compensation_state.input.default_cell_master);
   if (cell_master.empty()) {
     return {};
   }
@@ -192,10 +194,10 @@ auto EvaluateRootDriverCompensation(PatternId pattern_id, const TopologyPatternL
 
   const RootDriverCompensationCacheKey key{
       .cell_master = cell_master,
-      .input_slew_ns = compensation_state.options.input_slew_ns,
+      .input_slew_ns = compensation_state.input.input_slew_ns,
       .load_bucket_idx = load_estimate.bucket_idx,
       .load_cap_pf = load_estimate.total_load_cap_pf,
-      .clock_period_ns = compensation_state.options.clock_period_ns,
+      .clock_period_ns = compensation_state.input.clock_period_ns,
   };
   return QueryRootDriverCompensation(key, load_estimate, compensation_state);
 }
@@ -222,36 +224,37 @@ auto CheckRootDriverBoundaryClosure(const HTreeTopologyChar& entry, const Topolo
 
 }  // namespace
 
-auto ResolveRootDriverCompensationInputSlewNs(const HTree::BuildOptions& options, double max_slew_ns) -> double
+auto ResolveRootDriverCompensationInputSlewNs(const HTree::Config& config, double max_slew_ns) -> double
 {
-  if (options.min_top_input_slew_ns.has_value() && *options.min_top_input_slew_ns >= 0.0) {
-    return *options.min_top_input_slew_ns;
+  if (config.min_top_input_slew_ns.has_value() && *config.min_top_input_slew_ns >= 0.0) {
+    return *config.min_top_input_slew_ns;
   }
   return max_slew_ns > 0.0 ? max_slew_ns * 0.5 : 0.0;
 }
 
-auto ResolveRootDriverClockPeriod(const HTree::BuildOptions& options) -> std::pair<double, std::string>
+auto ResolveRootDriverClockPeriod(const HTree::Input& input) -> std::pair<double, std::string>
 {
-  if (options.clock_period_ns > 0.0) {
-    return {options.clock_period_ns, options.clock_period_source.empty() ? "caller" : options.clock_period_source};
+  if (input.clock_period_ns > 0.0) {
+    return {input.clock_period_ns, input.clock_period_source.empty() ? "caller" : input.clock_period_source};
   }
   return {kRootDriverCompensationClockPeriodNs, "default_10ns"};
 }
 
-auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const DepthSearchResult& exploration,
-                                       const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
+auto ApplyRootDriverCompensationSummary(HTree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
+                                        const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
     -> void
 {
-  auto& report = result.root_driver_compensation;
-  report.enabled = exploration.root_driver_compensation_stats.enabled;
+  auto& report = build.diagnostics.root_driver_compensation;
+  report.enabled = exploration.summary.root_driver_compensation_stats.enabled;
   report.valid = compensation_detail.valid;
-  report.method = compensation_detail.method.empty() ? exploration.root_driver_compensation_stats.method : compensation_detail.method;
+  report.method
+      = compensation_detail.method.empty() ? exploration.summary.root_driver_compensation_stats.method : compensation_detail.method;
   report.cell_master = compensation_detail.cell_master;
-  report.load_source
-      = compensation_detail.load_source.empty() ? exploration.root_driver_compensation_stats.load_source : compensation_detail.load_source;
+  report.load_source = compensation_detail.load_source.empty() ? exploration.summary.root_driver_compensation_stats.load_source
+                                                               : compensation_detail.load_source;
   report.route_estimator = compensation_detail.route_estimator;
   report.input_slew_ns = compensation_detail.input_slew_ns > 0.0 ? compensation_detail.input_slew_ns
-                                                                 : exploration.root_driver_compensation_stats.input_slew_ns;
+                                                                 : exploration.summary.root_driver_compensation_stats.input_slew_ns;
   report.load_bucket_idx = compensation_detail.load_bucket_idx;
   report.load_cap_pf = compensation_detail.load_cap_pf;
   report.source_boundary_bucket_idx = compensation_detail.source_boundary_bucket_idx;
@@ -262,7 +265,7 @@ auto ApplyRootDriverCompensationResult(HTree::BuildResult& result, const DepthSe
   report.routed_wirelength_um = compensation_detail.routed_wirelength_um;
   report.terminal_count = compensation_detail.terminal_count;
   report.clock_period_ns = compensation_detail.clock_period_ns > 0.0 ? compensation_detail.clock_period_ns
-                                                                     : exploration.root_driver_compensation_stats.clock_period_ns;
+                                                                     : exploration.summary.root_driver_compensation_stats.clock_period_ns;
   report.output_slew_ns = compensation_detail.output_slew_ns;
   report.output_slew_bucket_idx = compensation_detail.output_slew_bucket_idx;
   report.cell_delay_ns = compensation_detail.cell_delay_ns;
@@ -287,21 +290,20 @@ auto RootDriverCompensationCacheKeyHash::operator()(const RootDriverCompensation
 
 struct RootDriverCompensationPass::Impl
 {
-  explicit Impl(RootDriverCompensationOptions input_options)
+  explicit Impl(RootDriverCompensationInput input)
   {
-    state.options = std::move(input_options);
-    state.stats.enabled = state.options.enabled;
-    state.stats.method = state.options.enabled ? kRootDriverCompensationMethod : "disabled";
-    state.stats.input_slew_ns = state.options.input_slew_ns;
-    state.stats.clock_period_ns = state.options.clock_period_ns;
-    state.stats.load_source = state.options.enabled ? kRootDriverCompensationLoadSource : "none";
+    state.input = std::move(input);
+    state.stats.enabled = state.input.enabled;
+    state.stats.method = state.input.enabled ? kRootDriverCompensationMethod : "disabled";
+    state.stats.input_slew_ns = state.input.input_slew_ns;
+    state.stats.clock_period_ns = state.input.clock_period_ns;
+    state.stats.load_source = state.input.enabled ? kRootDriverCompensationLoadSource : "none";
   }
 
   RootDriverCompensationState state;
 };
 
-RootDriverCompensationPass::RootDriverCompensationPass(RootDriverCompensationOptions options)
-    : _impl(std::make_unique<Impl>(std::move(options)))
+RootDriverCompensationPass::RootDriverCompensationPass(RootDriverCompensationInput input) : _impl(std::make_unique<Impl>(std::move(input)))
 {
 }
 
@@ -313,28 +315,30 @@ auto RootDriverCompensationPass::operator=(RootDriverCompensationPass&&) noexcep
 
 auto RootDriverCompensationPass::beginCandidateBuild() -> void
 {
-  _impl->state.warned_invalid_options = false;
+  _impl->state.warned_invalid_input = false;
 }
 
 auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, const TopologyPatternLibrary& topology_library,
                                        const BufferPatternLibrary& segment_pattern_library, const Tree& topology)
-    -> RootDriverCompensationApplyResult
+    -> RootDriverCompensationApplySummary
 {
-  RootDriverCompensationApplyResult apply_result;
+  RootDriverCompensationApplySummary apply_result;
   auto& compensation_state = _impl->state;
   RefreshCompensationStats(compensation_state);
-  if (!compensation_state.options.enabled || entries.empty()) {
+  if (!compensation_state.input.enabled || entries.empty()) {
     return apply_result;
   }
-  auto compensation_stage = SCHEMA_WRITER_INST.beginStage(
+  LOG_FATAL_IF(compensation_state.input.reporter == nullptr) << "HTree root-driver compensation requires an explicit reporter.";
+  auto& reporter = *compensation_state.input.reporter;
+  auto compensation_stage = reporter.beginStage(
       "HTreeDepth", "Apply root-driver compensation",
       {
           {"entries", std::to_string(entries.size())},
-          {"input_slew_ns", std::to_string(compensation_state.options.input_slew_ns)},
-          {"clock_period_ns", std::to_string(compensation_state.options.clock_period_ns)},
+          {"input_slew_ns", std::to_string(compensation_state.input.input_slew_ns)},
+          {"clock_period_ns", std::to_string(compensation_state.input.clock_period_ns)},
       },
-      schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail});
-  if (!CompensationOptionsAreValid(compensation_state)) {
+      StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail});
+  if (!CompensationInputIsValid(compensation_state)) {
     compensation_stage.skip({{"reason", "invalid_compensation_options"}});
     return apply_result;
   }
@@ -353,7 +357,7 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
   const auto boundary_slew_bucket_mismatch_count_before = compensation_state.stats.boundary_slew_bucket_mismatch_count;
   const auto invalid_compensation_count_before = compensation_state.stats.invalid_compensation_count;
   std::vector<HTreeTopologyChar> boundary_closed_entries;
-  if (compensation_state.options.strict_boundary_closure) {
+  if (compensation_state.input.strict_boundary_closure) {
     boundary_closed_entries.reserve(entries.size());
   }
   for (auto& entry : entries) {
@@ -362,7 +366,7 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
     auto boundary_check = CheckRootDriverBoundaryClosure(entry, topology_library, segment_pattern_library, topology, compensation_state);
     if (!boundary_check.compensation_valid) {
       ++compensation_state.stats.invalid_compensation_count;
-      if (compensation_state.options.strict_boundary_closure) {
+      if (compensation_state.input.strict_boundary_closure) {
         ++compensation_state.stats.boundary_rejected_candidate_count;
         ++apply_result.rejected_candidate_count;
         if (!apply_result.has_first_rejected_boundary) {
@@ -371,14 +375,14 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
         }
         continue;
       }
-    } else if (compensation_state.options.strict_boundary_closure) {
+    } else if (compensation_state.input.strict_boundary_closure) {
       if (!boundary_check.cap_bucket_matches) {
         ++compensation_state.stats.boundary_cap_bucket_mismatch_count;
       }
       if (!boundary_check.slew_bucket_matches) {
         ++compensation_state.stats.boundary_slew_bucket_mismatch_count;
       }
-      if (!boundary_check.isClosed(compensation_state.options.strict_slew_boundary_closure)) {
+      if (!boundary_check.isClosed(compensation_state.input.strict_slew_boundary_closure)) {
         ++compensation_state.stats.boundary_rejected_candidate_count;
         ++apply_result.rejected_candidate_count;
         if (!apply_result.has_first_rejected_boundary) {
@@ -395,17 +399,17 @@ auto RootDriverCompensationPass::apply(std::vector<HTreeTopologyChar>& entries, 
     }
     entry.set_root_driver_compensation(boundary_check.compensation.cell_delay_ns, boundary_check.compensation.cell_power_w);
     ++compensation_state.stats.compensated_candidate_count;
-    if (compensation_state.options.strict_boundary_closure) {
+    if (compensation_state.input.strict_boundary_closure) {
       boundary_closed_entries.push_back(std::move(entry));
     }
   }
-  if (compensation_state.options.strict_boundary_closure) {
+  if (compensation_state.input.strict_boundary_closure) {
     entries = std::move(boundary_closed_entries);
   }
   compensation_stage.finished({
       {"compensated_candidates", std::to_string(compensation_state.stats.compensated_candidate_count - compensated_candidate_count_before)},
-      {"strict_boundary_closure", compensation_state.options.strict_boundary_closure ? "true" : "false"},
-      {"strict_slew_boundary_closure", compensation_state.options.strict_slew_boundary_closure ? "true" : "false"},
+      {"strict_boundary_closure", compensation_state.input.strict_boundary_closure ? "true" : "false"},
+      {"strict_slew_boundary_closure", compensation_state.input.strict_slew_boundary_closure ? "true" : "false"},
       {"boundary_input_candidates",
        std::to_string(compensation_state.stats.boundary_input_candidate_count - boundary_input_candidate_count_before)},
       {"boundary_closed_candidates",

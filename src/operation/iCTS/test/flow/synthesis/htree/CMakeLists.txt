@@ -2,6 +2,7 @@ add_subdirectory(analytical_solver)
 
 icts_add_test_executable(
   icts_test_flow_synthesis_htree
+  PUBLIC_RUNTIME
   SOURCES
     ${ICTS_TEST}/flow/synthesis/htree/HTreeTest.cc
   LIBS

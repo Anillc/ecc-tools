@@ -4,7 +4,12 @@ add_library(
   ${ICTS_LOGGER}/SchemaScope.cc
 )
 
-target_include_directories(icts_source_utils_logger PUBLIC ${ICTS_LOGGER})
+target_include_directories(
+  icts_source_utils_logger
+  PUBLIC
+  ${ICTS_UTILS}
+  ${ICTS_LOGGER}
+)
 
 target_link_libraries(
   icts_source_utils_logger

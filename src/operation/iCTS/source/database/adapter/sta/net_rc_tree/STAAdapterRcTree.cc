@@ -57,6 +57,13 @@ namespace {
 
 constexpr double kMilliOhmPerOhm = 1000.0;
 
+struct ClockNetRcTreeInstallPolicy
+{
+  int32_t dbu_per_um = 0;
+  int routing_layer = 0;
+  std::optional<double> wire_width_um = std::nullopt;
+};
+
 auto normalizePinName(std::string name) -> std::string
 {
   std::ranges::replace(name, ':', '/');
@@ -118,17 +125,17 @@ auto resolveDbUnit() -> int32_t
   return dbu_per_um;
 }
 
-auto resolveRoutingLayer() -> int
+auto resolveRoutingLayer(const Config& config) -> int
 {
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  const auto& routing_layers = config.get_routing_layers();
   LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
       << "STAAdapter: routing layer is not configured for RC-tree installation.";
   return static_cast<int>(routing_layers.front());
 }
 
-auto resolveWireWidth() -> std::optional<double>
+auto resolveWireWidth(const Config& config) -> std::optional<double>
 {
-  const auto wire_width = CONFIG_INST.get_wire_width();
+  const auto wire_width = config.get_wire_width();
   return wire_width > 0.0 ? std::optional<double>{wire_width} : std::nullopt;
 }
 
@@ -137,31 +144,40 @@ auto getWireDistance(const ClockSteinerTree<int>::EdgeType& edge) -> int
   return std::max(edge.distance, edge.routed_distance);
 }
 
-auto queryWireResistanceOhm(int wire_distance_dbu) -> double
+auto buildClockNetRcTreeInstallPolicy(const Config& config) -> ClockNetRcTreeInstallPolicy
 {
-  const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(resolveDbUnit());
-  if (wirelength_um <= 0.0) {
-    return 0.0;
-  }
-  return STA_ADAPTER_INST.queryRequiredWireResistance(resolveRoutingLayer(), wirelength_um, resolveWireWidth()) / kMilliOhmPerOhm;
+  return ClockNetRcTreeInstallPolicy{
+      .dbu_per_um = resolveDbUnit(),
+      .routing_layer = resolveRoutingLayer(config),
+      .wire_width_um = resolveWireWidth(config),
+  };
 }
 
-auto queryWireCapacitancePf(int wire_distance_dbu) -> double
+auto queryWireResistanceOhm(STAAdapter& sta_adapter, const ClockNetRcTreeInstallPolicy& policy, int wire_distance_dbu) -> double
 {
-  const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(resolveDbUnit());
+  const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(policy.dbu_per_um);
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryRequiredWireCapacitance(resolveRoutingLayer(), wirelength_um, resolveWireWidth());
+  return sta_adapter.queryRequiredWireResistance(policy.routing_layer, wirelength_um, policy.wire_width_um) / kMilliOhmPerOhm;
+}
+
+auto queryWireCapacitancePf(STAAdapter& sta_adapter, const ClockNetRcTreeInstallPolicy& policy, int wire_distance_dbu) -> double
+{
+  const auto wirelength_um = static_cast<double>(std::max(wire_distance_dbu, 0)) / static_cast<double>(policy.dbu_per_um);
+  if (wirelength_um <= 0.0) {
+    return 0.0;
+  }
+  return sta_adapter.queryRequiredWireCapacitance(policy.routing_layer, wirelength_um, policy.wire_width_um);
 }
 
 }  // namespace
 
-auto STAAdapter::queryConfiguredClockRouteSegmentRc() -> ClockRouteSegmentRc
+auto STAAdapter::queryConfiguredClockRouteSegmentRc(const Config& config) -> ClockRouteSegmentRc
 {
   const auto dbu_per_um = resolveDbUnit();
-  const auto routing_layer = resolveRoutingLayer();
-  const auto wire_width = resolveWireWidth();
+  const auto routing_layer = resolveRoutingLayer(config);
+  const auto wire_width = resolveWireWidth(config);
   return ClockRouteSegmentRc{
       .dbu_per_um = dbu_per_um,
       .resistance_per_um_ohm = queryRequiredWireResistance(routing_layer, 1.0, wire_width) / kMilliOhmPerOhm,
@@ -169,7 +185,7 @@ auto STAAdapter::queryConfiguredClockRouteSegmentRc() -> ClockRouteSegmentRc
   };
 }
 
-auto STAAdapter::installClockNetRcTree(const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool
+auto STAAdapter::installClockNetRcTree(const Config& config, const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool
 {
   if (clock_tree.node_count() == 0 || clock_tree.edge_count() == 0) {
     return true;
@@ -194,6 +210,7 @@ auto STAAdapter::installClockNetRcTree(const Net& cts_net, const ClockSteinerTre
 
   timing_engine->resetRcTree(sta_net);
   timing_engine->initRcTree(sta_net);
+  const auto install_policy = buildClockNetRcTreeInstallPolicy(config);
 
   std::unordered_map<std::size_t, ista::RctNode*> rc_node_by_route_node;
   rc_node_by_route_node.reserve(clock_tree.node_count());
@@ -221,8 +238,8 @@ auto STAAdapter::installClockNetRcTree(const Net& cts_net, const ClockSteinerTre
     }
 
     const auto wire_distance = getWireDistance(route_edge);
-    const auto resistance = queryWireResistanceOhm(wire_distance);
-    const auto capacitance = queryWireCapacitancePf(wire_distance);
+    const auto resistance = queryWireResistanceOhm(*this, install_policy, wire_distance);
+    const auto capacitance = queryWireCapacitancePf(*this, install_policy, wire_distance);
     timing_engine->makeResistor(sta_net, from_node, to_node, resistance);
     timing_engine->incrCap(from_node, capacitance / 2.0, true);
     timing_engine->incrCap(to_node, capacitance / 2.0, true);

@@ -105,7 +105,8 @@ TEST(CharacterizationRealTechLimitResolutionTest, UsesStrongestBufferHeightWhenW
   ASSERT_GT(expected_unit_um, 0.0);
 
   icts::CharBuilder builder;
-  builder.init(realtech_fixture::MakeRuntimeCharBuilderInitOptions());
+  const auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+  builder.init(contract.input, contract.config);
   EXPECT_DOUBLE_EQ(builder.get_wirelength_unit_um(), expected_unit_um);
   EXPECT_EQ(builder.get_wirelength_iterations(), realtech_fixture::kRealTechCharWirelengthIterations);
 
@@ -148,7 +149,7 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsSta
     return;
   }
 
-  STA_ADAPTER_INST.init();
+  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
 
   const auto buffer_cells = realtech_fixture::CollectConfiguredBufferLimitInfo();
   ASSERT_FALSE(buffer_cells.empty());
@@ -164,11 +165,12 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsSta
   icts::Inst probe_inst(probe->inst_name, probe->cell_master, icts::InstType::kUnknown, icts::Point<int>(-1, -1));
   icts::Pin probe_pin(probe->pin_name, icts::PinType::kIn, icts::Point<int>(-1, -1), &probe_inst);
 
-  ASSERT_FALSE(DESIGN_INST.get_clocks().empty()) << "Real-tech setup should materialize at least one SDC-declared clock.";
+  ASSERT_FALSE(icts_test::runtime::CurrentRuntime().design.get_clocks().empty())
+      << "Real-tech setup should materialize at least one SDC-declared clock.";
 
-  STA_ADAPTER_INST.refreshFullDesignTimingContext();
-  STA_ADAPTER_INST.updateTiming();
-  const double post_timing_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(&probe_pin);
+  icts_test::runtime::CurrentRuntime().sta_adapter.refreshFullDesignTimingContext(icts_test::runtime::CurrentRuntime().config);
+  icts_test::runtime::CurrentRuntime().sta_adapter.updateTiming();
+  const double post_timing_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(&probe_pin);
   EXPECT_GT(post_timing_cap_pf, 0.0);
   const double cap_tolerance_pf = probe->pre_timing_cap_pf * 1e-6 + 1e-6;
   EXPECT_NEAR(post_timing_cap_pf, probe->pre_timing_cap_pf, cap_tolerance_pf);
@@ -184,7 +186,7 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsSta
   report_stream << "pin_name=" << probe->pin_name << "\n";
   report_stream << "pre_timing_cap_pf=" << probe->pre_timing_cap_pf << "\n";
   report_stream << "post_timing_cap_pf=" << post_timing_cap_pf << "\n";
-  report_stream << "clock_count=" << DESIGN_INST.get_clocks().size() << "\n";
+  report_stream << "clock_count=" << icts_test::runtime::CurrentRuntime().design.get_clocks().size() << "\n";
   ASSERT_TRUE(realtech_fixture::WriteScenarioLog("explicit_pin_cap_probe", "explicit_pin_cap_probe_report.txt", report_stream.str()));
 }
 
@@ -231,7 +233,8 @@ TEST(CharacterizationRealTechLimitResolutionTest, TableAxisLimitsMatchAvailableA
     ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
 
     icts::CharBuilder builder;
-    builder.init(realtech_fixture::MakeRuntimeCharBuilderInitOptions());
+    const auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+    builder.init(contract.input, contract.config);
     const double expected_cap = realtech_fixture::MinPositiveResolvedLimit(buffer_cells, cap_table_only_buffers, false);
     ASSERT_GT(expected_cap, 0.0);
     EXPECT_DOUBLE_EQ(builder.get_max_cap(), expected_cap);
@@ -253,7 +256,8 @@ TEST(CharacterizationRealTechLimitResolutionTest, TableAxisLimitsMatchAvailableA
     ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
 
     icts::CharBuilder builder;
-    builder.init(realtech_fixture::MakeRuntimeCharBuilderInitOptions());
+    const auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+    builder.init(contract.input, contract.config);
     const double expected_slew = realtech_fixture::MinPositiveResolvedLimit(buffer_cells, slew_table_only_buffers, true);
     ASSERT_GT(expected_slew, 0.0);
     EXPECT_DOUBLE_EQ(builder.get_max_slew(), expected_slew);
@@ -312,7 +316,8 @@ TEST(CharacterizationRealTechLimitResolutionTest, OverflowSamplesAreSkippedAndRe
   ASSERT_FALSE(prepare_error.has_value()) << (prepare_error.has_value() ? *prepare_error : "");
 
   icts::CharBuilder builder;
-  builder.init(realtech_fixture::MakeRuntimeCharBuilderInitOptions());
+  const auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+  builder.init(contract.input, contract.config);
   EXPECT_DOUBLE_EQ(builder.get_max_slew(), constrained_max_slew);
   EXPECT_DOUBLE_EQ(builder.get_max_cap(), constrained_max_cap);
   builder.build();
@@ -391,33 +396,34 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepeatedReducedBuildsRemainUsa
     return;
   }
 
-  auto reduced_options = realtech_fixture::MakeRuntimeCharBuilderInitOptions();
-  reduced_options.wirelength_iterations = 2U;
+  auto reduced_contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+  reduced_contract.config.wirelength_iterations = 2U;
 
   icts::CharBuilder first_builder;
-  first_builder.init(reduced_options);
+  first_builder.init(reduced_contract.input, reduced_contract.config);
   first_builder.build();
   ASSERT_FALSE(first_builder.get_segment_chars().empty());
   const auto first_summary = realtech_fixture::SummarizeSegmentCharLattice(first_builder.get_segment_chars(), first_builder);
   EXPECT_EQ(first_summary.out_of_range_entries, 0U) << realtech_fixture::FormatSegmentCharLatticeSummary(first_summary, first_builder);
 
   icts::CharBuilder second_builder;
-  second_builder.init(reduced_options);
+  second_builder.init(reduced_contract.input, reduced_contract.config);
   second_builder.build();
   ASSERT_FALSE(second_builder.get_segment_chars().empty());
   const auto second_summary = realtech_fixture::SummarizeSegmentCharLattice(second_builder.get_segment_chars(), second_builder);
   EXPECT_EQ(second_summary.out_of_range_entries, 0U) << realtech_fixture::FormatSegmentCharLatticeSummary(second_summary, second_builder);
 
-  EXPECT_EQ(first_builder.get_wirelength_iterations(), reduced_options.wirelength_iterations.value_or(0U));
-  EXPECT_EQ(second_builder.get_wirelength_iterations(), reduced_options.wirelength_iterations.value_or(0U));
+  EXPECT_EQ(first_builder.get_wirelength_iterations(), reduced_contract.config.wirelength_iterations.value_or(0U));
+  EXPECT_EQ(second_builder.get_wirelength_iterations(), reduced_contract.config.wirelength_iterations.value_or(0U));
   EXPECT_EQ(first_builder.get_segment_chars().size(), second_builder.get_segment_chars().size());
   EXPECT_EQ(first_builder.get_buffering_patterns().size(), second_builder.get_buffering_patterns().size());
   EXPECT_EQ(first_summary.total_entries, second_summary.total_entries);
   EXPECT_EQ(first_summary.max_length_idx, second_summary.max_length_idx);
   EXPECT_EQ(first_summary.max_input_slew_idx, second_summary.max_input_slew_idx);
-  STA_ADAPTER_INST.refreshFullDesignTimingContext();
-  STA_ADAPTER_INST.updateTiming();
-  EXPECT_FALSE(DESIGN_INST.get_clocks().empty()) << "Full-design STA should remain usable after repeated char-only builds.";
+  icts_test::runtime::CurrentRuntime().sta_adapter.refreshFullDesignTimingContext(icts_test::runtime::CurrentRuntime().config);
+  icts_test::runtime::CurrentRuntime().sta_adapter.updateTiming();
+  EXPECT_FALSE(icts_test::runtime::CurrentRuntime().design.get_clocks().empty())
+      << "Full-design STA should remain usable after repeated char-only builds.";
   EXPECT_EQ(first_summary.max_output_slew_idx, second_summary.max_output_slew_idx);
   EXPECT_EQ(first_summary.max_driven_cap_idx, second_summary.max_driven_cap_idx);
   EXPECT_EQ(first_summary.max_load_cap_idx, second_summary.max_load_cap_idx);
@@ -425,7 +431,7 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepeatedReducedBuildsRemainUsa
   std::ostringstream report_stream;
   report_stream << "scenario=repeat_reduced_builds\n";
   report_stream << "selected_buffer=" << usable_buffers.front() << "\n";
-  report_stream << "wirelength_iterations=" << reduced_options.wirelength_iterations.value_or(0U) << "\n";
+  report_stream << "wirelength_iterations=" << reduced_contract.config.wirelength_iterations.value_or(0U) << "\n";
   report_stream << "first_segment_chars=" << first_builder.get_segment_chars().size() << "\n";
   report_stream << "second_segment_chars=" << second_builder.get_segment_chars().size() << "\n";
   report_stream << "first_patterns=" << first_builder.get_buffering_patterns().size() << "\n";

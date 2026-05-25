@@ -44,6 +44,9 @@ Names and types in iCTS should reflect EDA/CTS concepts:
 - Domain terms that are not structural placeholders remain valid when they name the actual EDA concept, for example Liberty `internal_power` tables
   or root-buffer input pins.
 - Use `enum class` or narrow value types for behavioral concepts such as instance role, net role, sink domain, synthesis phase, route role, violation type, and topology level.
+- Module-qualified flow contracts such as `HTreeInput`, `HTreeConfig`, `HTreeOutput`, and `HTreeSummary` are preferred when they define a stable
+  algorithm or stage boundary. Avoid standalone generic `Input`, `Output`, `Options`, or `Result` names unless they are nested in a narrow class
+  or are private local helper types.
 - Strings are allowed for object names, logs, diagnostics, file paths, and display labels.
 - Do not use object-name substrings to decide CTS behavior.
 

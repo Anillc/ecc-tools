@@ -44,6 +44,7 @@
 #include "Type.hh"
 #include "api/Power.hh"
 #include "api/TimingEngine.hh"
+#include "config/Config.hh"
 #include "design/Inst.hh"
 #include "design/Pin.hh"
 #include "liberty/Lib.hh"
@@ -57,6 +58,7 @@
 #include "timing_query/STAAdapterTimingQuery.hh"
 
 namespace icts {
+
 namespace {
 
 constexpr std::size_t kWorstSkewAverageLimit = 10U;
@@ -196,17 +198,21 @@ auto buildClockTimingMetrics(ista::TimingEngine* timing_engine, ista::StaClock* 
 
 }  // namespace
 
+auto STAAdapter::hasFullDesignTimingContext() const -> bool
+{
+  return _full_design_context_ready && sta_adapter_timing_query::HasFullDesignTimingContext();
+}
+
 auto STAAdapter::updateTiming() -> void
 {
-  LOG_FATAL_IF(!sta_adapter_timing_query::HasFullDesignTimingContext())
-      << "STA full-design context is not ready before timing update; call "
-         "STAAdapter::refreshFullDesignTimingContext() after iDB projection.";
+  LOG_FATAL_IF(!hasFullDesignTimingContext()) << "STA full-design context is not ready before timing update; call "
+                                                 "STAAdapter::refreshFullDesignTimingContext() after iDB projection.";
   sta_adapter_timing_query::GetStaEngine()->updateTiming();
 }
 
 auto STAAdapter::reportTiming() -> bool
 {
-  if (!sta_adapter_timing_query::HasFullDesignTimingContext()) {
+  if (!hasFullDesignTimingContext()) {
     LOG_WARNING << "STA timing report skipped: full-design context is not ready.";
     return false;
   }
@@ -216,24 +222,31 @@ auto STAAdapter::reportTiming() -> bool
   return true;
 }
 
-auto STAAdapter::refreshFullDesignTimingContext() -> void
+auto STAAdapter::refreshFullDesignTimingContext(const StaTimingRefreshConfig& config) -> void
 {
   auto* timing_engine = sta_adapter_timing_query::GetStaEngine();
-  LOG_FATAL_IF(timing_engine->get_db_adapter() == nullptr) << "STA full-design refresh requires STAAdapter::init() first.";
+  LOG_FATAL_IF(!_base_context_ready || timing_engine->get_db_adapter() == nullptr)
+      << "STA full-design refresh requires STAAdapter::init() first.";
 
   timing_engine->set_num_threads(sta_adapter_timing_query::kStaThreadCount);
-  sta_adapter_timing_query::ConfigureStaWorkspace(timing_engine, "sta");
+  sta_adapter_timing_query::ConfigureStaWorkspace(config.work_dir, timing_engine, "sta");
   resetStaTransientState();
   timing_engine->get_db_adapter()->convertDBToTimingNetlist();
   sta_adapter_timing_query::LoadConfiguredSdcIfPresent(timing_engine);
   timing_engine->buildGraph();
   timing_engine->initRcTree();
   timing_engine->get_ista()->set_n_worst_path_per_clock(sta_adapter_timing_query::kWorstPathPerClock);
+  _full_design_context_ready = true;
+}
+
+auto STAAdapter::refreshFullDesignTimingContext(const Config& config) -> void
+{
+  refreshFullDesignTimingContext(StaTimingRefreshConfig{.work_dir = config.get_work_dir()});
 }
 
 auto STAAdapter::setPropagatedClocks() -> std::size_t
 {
-  if (!sta_adapter_timing_query::HasFullDesignTimingContext()) {
+  if (!hasFullDesignTimingContext()) {
     LOG_WARNING << "Propagated-clock setup skipped: STA full-design context is not ready.";
     return 0U;
   }
@@ -268,7 +281,7 @@ auto STAAdapter::queryClockTiming(const std::string& clock_name) -> std::optiona
     LOG_WARNING << "Clock timing query skipped: clock name is empty.";
     return std::nullopt;
   }
-  if (!sta_adapter_timing_query::HasFullDesignTimingContext()) {
+  if (!hasFullDesignTimingContext()) {
     LOG_WARNING << "Clock timing query skipped for \"" << clock_name << "\": STA full-design context is not ready.";
     return std::nullopt;
   }
@@ -296,7 +309,7 @@ auto STAAdapter::queryClockTiming(const std::string& clock_name) -> std::optiona
 auto STAAdapter::queryClockTimings() -> std::vector<ClockTimingRecord>
 {
   std::vector<ClockTimingRecord> records;
-  if (!sta_adapter_timing_query::HasFullDesignTimingContext()) {
+  if (!hasFullDesignTimingContext()) {
     LOG_WARNING << "Clock timing query skipped: STA full-design context is not ready.";
     return records;
   }
@@ -323,7 +336,7 @@ auto STAAdapter::queryClockTimings() -> std::vector<ClockTimingRecord>
 auto STAAdapter::queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>
 {
   std::vector<ClockLatencySkewMetrics> metrics;
-  if (!sta_adapter_timing_query::HasFullDesignTimingContext()) {
+  if (!hasFullDesignTimingContext()) {
     LOG_WARNING << "Clock latency/skew query skipped: STA full-design context is not ready.";
     return metrics;
   }
@@ -359,6 +372,7 @@ auto STAAdapter::queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>
 
 auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   auto* lib_cell = sta_adapter_timing_query::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << sta_adapter_timing_query::MakeCharQueryContext("input pin cap", cell_master)
@@ -376,6 +390,7 @@ auto STAAdapter::queryCharInputPinCap(const std::string& cell_master) -> double
 
 auto STAAdapter::queryPinCapacitance(const Pin* pin) -> double
 {
+  observeQueryFacade();
   if (pin == nullptr) {
     LOG_WARNING << "Null pin provided when querying pin capacitance.";
     return 0.0;
@@ -415,6 +430,7 @@ auto STAAdapter::queryPinCapacitance(const Pin* pin) -> double
 
 auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>
 {
+  observeQueryFacade();
   auto* lib_cell = sta_adapter_timing_query::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << sta_adapter_timing_query::MakeCharQueryContext("buffer ports", cell_master)
@@ -431,6 +447,8 @@ auto STAAdapter::queryBufferPorts(const std::string& cell_master) -> std::pair<s
 
 auto STAAdapter::resetStaTransientState() -> void
 {
+  _full_design_context_ready = false;
+
   ipower::Power::destroyPower();
 
   auto* timing_engine = sta_adapter_timing_query::GetStaEngine();

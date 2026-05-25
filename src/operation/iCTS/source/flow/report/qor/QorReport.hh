@@ -25,6 +25,8 @@
 
 #include <string>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
 struct EvaluationState;
@@ -34,7 +36,8 @@ class QorReport
  public:
   QorReport() = delete;
 
-  static auto write(const EvaluationState& evaluation_state, const std::string& statistics_dir, bool emit_log_tables) -> bool;
+  static auto write(SchemaWriter& reporter, const EvaluationState& evaluation_state, const std::string& statistics_dir,
+                    bool emit_log_tables) -> bool;
 };
 
 }  // namespace icts

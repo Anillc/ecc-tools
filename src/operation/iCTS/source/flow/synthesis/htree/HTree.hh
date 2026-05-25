@@ -23,28 +23,29 @@
 
 #pragma once
 
-#include "synthesis/htree/HTreeSynthesisOptions.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 
 namespace icts {
-
-class Net;
 
 class HTree
 {
  public:
-  using LogContext = HTreeSynthesisLogContext;
-  using BuildOptions = HTreeSynthesisOptions;
+  using LogContext = HTreeLogContext;
+  using Input = HTreeInput;
+  using Config = HTreeConfig;
+  using Output = HTreeOutput;
+  using Summary = HTreeSummary;
   using LevelPlan = HTreeLevelPlan;
   using InsertedInstLevel = HTreeInsertedInstLevel;
   using InsertedNetLevel = HTreeInsertedNetLevel;
   using RootDriverCompensationReport = HTreeRootDriverCompensationReport;
-  using BuildResult = HTreeSynthesisResult;
+  using Build = HTreeBuild;
+  using DiagnosticBuild = HTreeDiagnosticBuild;
 
   HTree() = delete;
 
-  static auto build(Net& root_net) -> BuildResult;
-  static auto build(Net& root_net, const BuildOptions& options) -> BuildResult;
+  static auto build(const Input& input, const Config& config) -> Build;
+  static auto buildWithDiagnostics(const Input& input, const Config& config) -> DiagnosticBuild;
 };
 
 }  // namespace icts

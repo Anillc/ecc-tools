@@ -35,8 +35,8 @@ class ClockLayoutAdapter
  public:
   ClockLayoutAdapter() = delete;
 
-  static auto makeSinkDomainLayoutTopology(const Topology::BuildResult& result) -> SinkDomainSynthesisTopology;
-  static auto makeSourceTrunkLayoutTopology(const Topology::SourceTrunkBuildResult& result, ClockLayoutPhase synthesis_phase)
+  static auto makeSinkDomainLayoutTopology(const Topology::Build& result) -> SinkDomainSynthesisTopology;
+  static auto makeSourceTrunkLayoutTopology(const Topology::SourceTrunkBuild& result, ClockLayoutPhase synthesis_phase)
       -> SourceToRootSynthesisTopology;
 };
 

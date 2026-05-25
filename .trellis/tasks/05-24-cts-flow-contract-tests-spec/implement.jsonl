@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide constraints for final checks"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Flow/source/test placement rules"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Spec section to update and verify"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Spec section to update and verify"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Reporter rules to verify"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Final cross-layer verification checklist"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/design.md", "reason": "Parent architecture and final acceptance design"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "Full singleton and contract inventory for final cleanup"}

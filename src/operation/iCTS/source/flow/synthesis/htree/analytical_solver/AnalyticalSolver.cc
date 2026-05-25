@@ -31,29 +31,29 @@
 
 namespace icts::htree::analytical_solver {
 
-auto SolveAnalyticalHTreeCandidates(const AnalyticalHTreeSolveProblem& solve_problem) -> AnalyticalSolverResult
+auto SolveAnalyticalHTreeCandidates(const AnalyticalHTreeSolveProblem& solve_problem) -> AnalyticalSolverBuild
 {
   const auto validation_failure = ValidateSolveProblem(solve_problem);
   if (!validation_failure.empty()) {
     return MakeFailure(validation_failure);
   }
 
-  AnalyticalSolverResult result;
+  AnalyticalSolverBuild result;
   RecordDiagnosticLibraryHits(solve_problem, result);
-  result.candidates = BuildBeamCandidates(solve_problem, result);
-  if (result.candidates.empty()) {
-    result.success = false;
-    if (result.root_fanout_rejected_count > 0U) {
-      result.failure_reason = "root_fanout_illegal";
-    } else if (result.lattice_rejected_count > 0U) {
-      result.failure_reason = "materialized_char_out_of_lattice";
+  result.output.candidates = BuildBeamCandidates(solve_problem, result);
+  if (result.output.candidates.empty()) {
+    result.summary.success = false;
+    if (result.summary.root_fanout_rejected_count > 0U) {
+      result.summary.failure_reason = "root_fanout_illegal";
+    } else if (result.summary.lattice_rejected_count > 0U) {
+      result.summary.failure_reason = "materialized_char_out_of_lattice";
     } else {
-      result.failure_reason = "no_analytical_candidate";
+      result.summary.failure_reason = "no_analytical_candidate";
     }
     return result;
   }
 
-  result.success = true;
+  result.summary.success = true;
   return result;
 }
 

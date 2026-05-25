@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Flow/source layer boundaries"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming and contract conventions"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Current singleton/database rules to update"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Reporter boundary rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer ownership and adapter checklist"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "Singleton inventory and problem code evidence"}

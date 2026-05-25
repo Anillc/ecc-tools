@@ -268,7 +268,7 @@ auto MakeAnalyticalCandidateEvaluation(const analytical_solver::AnalyticalCandid
   return evaluation;
 }
 
-auto MakeAnalyticalDepthSummary(const CandidateBuildEvaluation& evaluation, const SinkLoadRegionLegalityResult& sink_legality)
+auto MakeAnalyticalDepthSummary(const CandidateBuildEvaluation& evaluation, const SinkLoadRegionLegalitySummary& sink_legality)
     -> DepthSummary
 {
   return htree::DepthSummary{
@@ -307,9 +307,9 @@ auto CollectAnalyticalUnitSegmentChars(const CharBuilder& char_builder, unsigned
 
 auto BuildAnalyticalModelCatalog(const std::vector<SegmentChar>& segment_chars, const std::vector<BufferingPattern>& buffering_patterns,
                                  const CharBuilder& char_builder, AnalyticalHTreeAttempt& attempt)
-    -> analytical::AnalyticalCharacterizationResult
+    -> analytical::AnalyticalCharacterizationBuild
 {
-  analytical::AnalyticalCharacterizationOptions analytical_options;
+  analytical::AnalyticalCharacterizationConfig analytical_options;
   analytical_options.require_monotonic_output_slew = false;
   analytical_options.require_monotonic_delay = false;
   analytical_options.require_monotonic_power = false;
@@ -324,9 +324,9 @@ auto BuildAnalyticalModelCatalog(const std::vector<SegmentChar>& segment_chars, 
 
   auto char_result = analytical::AnalyticalCharacterization::buildFromSegmentChars(
       segment_chars, buffering_patterns, char_builder.get_slew_lattice(), char_builder.get_cap_lattice(), analytical_options);
-  attempt.model_set_count = char_result.model_set_count;
-  attempt.rejected_fit_count = char_result.rejected_fit_count;
-  attempt.structural_cap_operator_count = char_result.structural_cap_operator_count;
+  attempt.model_set_count = char_result.summary.model_set_count;
+  attempt.rejected_fit_count = char_result.summary.rejected_fit_count;
+  attempt.structural_cap_operator_count = char_result.summary.structural_cap_operator_count;
   return char_result;
 }
 
@@ -335,8 +335,9 @@ auto BuildAnalyticalModelCatalog(const std::vector<SegmentChar>& segment_chars, 
 auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans,
                              const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
                              BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& search_boundary_constraints,
-                             const HTreeFanoutPruningOptions& fanout_pruning_options,
-                             const RootDriverCompensationOptions& root_driver_compensation_options, const CharBuilder& char_builder,
+                             const HTreeFanoutPruningConfig& fanout_pruning_config,
+                             const RootDriverCompensationInput& root_driver_compensation_input,
+                             const SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
                              unsigned char_slew_steps) -> AnalyticalHTreeAttempt
 {
   AnalyticalHTreeAttempt attempt;
@@ -348,8 +349,9 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
   const auto analytical_segment_chars = CollectAnalyticalUnitSegmentChars(char_builder, kAnalyticalUnitLengthIdx);
   const auto& analytical_buffering_patterns = char_builder.get_buffering_patterns();
   auto char_result = BuildAnalyticalModelCatalog(analytical_segment_chars, analytical_buffering_patterns, char_builder, attempt);
-  if (char_result.catalog.empty()) {
-    attempt.failure_reason = char_result.failures.empty() ? "empty_analytical_model_catalog" : char_result.failures.front().reason;
+  if (char_result.output.catalog.empty()) {
+    attempt.failure_reason
+        = char_result.summary.failures.empty() ? "empty_analytical_model_catalog" : char_result.summary.failures.front().reason;
     return attempt;
   }
 
@@ -357,8 +359,9 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
       .result_by_signature = {},
       .max_monotone_failed_level = std::numeric_limits<int>::min(),
       .cap_lattice = char_builder.get_cap_lattice(),
+      .input = sink_load_region_input,
   };
-  htree::RootDriverCompensationPass compensation_pass(root_driver_compensation_options);
+  htree::RootDriverCompensationPass compensation_pass(root_driver_compensation_input);
   std::vector<AnalyticalValidatedCandidate> legal_candidates;
   std::string first_solver_failure;
   std::string first_validation_failure;
@@ -370,64 +373,65 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
     solve_problem.segment_frontier_catalog = &segment_frontier_catalog;
     solve_problem.segment_pattern_library = &segment_pattern_library;
     solve_problem.mutable_segment_pattern_library = &segment_pattern_library;
-    solve_problem.model_catalog = &char_result.catalog;
+    solve_problem.model_catalog = &char_result.output.catalog;
     solve_problem.boundary_constraints = search_boundary_constraints;
-    solve_problem.fanout_options = fanout_pruning_options;
+    solve_problem.fanout_config = fanout_pruning_config;
     solve_problem.slew_lattice = char_builder.get_slew_lattice();
     solve_problem.cap_lattice = char_builder.get_cap_lattice();
-    solve_problem.options.per_level_shortlist_size = kAnalyticalPerLevelShortlistSize;
-    solve_problem.options.top_k_per_depth = kAnalyticalTopKPerDepth;
-    solve_problem.options.unit_compose_beam_size = kAnalyticalUnitComposeBeamSize;
-    solve_problem.options.root_input_slew_ns = root_driver_compensation_options.input_slew_ns;
-    solve_problem.options.representative_leaf_load_cap_pf = ResolveAnalyticalRepresentativeLeafLoadCapPf(char_builder.get_cap_lattice());
-    solve_problem.options.use_functional_unit_compose = true;
-    solve_problem.options.unit_length_idx = kAnalyticalUnitLengthIdx;
+    solve_problem.config.per_level_shortlist_size = kAnalyticalPerLevelShortlistSize;
+    solve_problem.config.top_k_per_depth = kAnalyticalTopKPerDepth;
+    solve_problem.config.unit_compose_beam_size = kAnalyticalUnitComposeBeamSize;
+    solve_problem.config.root_input_slew_ns = root_driver_compensation_input.input_slew_ns;
+    solve_problem.config.representative_leaf_load_cap_pf = ResolveAnalyticalRepresentativeLeafLoadCapPf(char_builder.get_cap_lattice());
+    solve_problem.config.use_functional_unit_compose = true;
+    solve_problem.config.unit_length_idx = kAnalyticalUnitLengthIdx;
 
     auto solver_result = analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
-    attempt.evaluated_segment_count += solver_result.evaluated_segment_count;
-    attempt.generated_candidate_count += solver_result.generated_candidate_count;
-    attempt.scored_segment_count += solver_result.scored_segment_count;
-    attempt.missing_model_count += solver_result.missing_model_count;
-    attempt.decomposition_rejected_count += solver_result.decomposition_rejected_count;
-    attempt.metric_evaluation_rejected_count += solver_result.metric_evaluation_rejected_count;
-    attempt.domain_slew_rejected_count += solver_result.domain_slew_rejected_count;
-    attempt.domain_cap_rejected_count += solver_result.domain_cap_rejected_count;
-    attempt.domain_slew_floor_count += solver_result.domain_slew_floor_count;
-    attempt.domain_cap_floor_count += solver_result.domain_cap_floor_count;
-    attempt.max_domain_rejected_cap_pf = std::max(attempt.max_domain_rejected_cap_pf, solver_result.max_domain_rejected_cap_pf);
-    attempt.empty_shortlist_count += solver_result.empty_shortlist_count;
-    attempt.materialization_attempt_count += solver_result.materialization_attempt_count;
-    attempt.root_fanout_rejected_count += solver_result.root_fanout_rejected_count;
-    attempt.lattice_rejected_count += solver_result.lattice_rejected_count;
-    attempt.diagnostic_library_hit_count += solver_result.diagnostic_library_hit_count;
-    attempt.diagnostic_frontier_hit_count += solver_result.diagnostic_frontier_hit_count;
-    attempt.diagnostic_decomposed_count += solver_result.diagnostic_decomposed_count;
-    attempt.diagnostic_scored_count += solver_result.diagnostic_scored_count;
-    attempt.diagnostic_shortlisted_count += solver_result.diagnostic_shortlisted_count;
-    attempt.diagnostic_generated_candidate_count += solver_result.diagnostic_generated_candidate_count;
-    attempt.diagnostic_direct_candidate_count += solver_result.diagnostic_direct_candidate_count;
-    if (solver_result.diagnostic_direct_candidate_count > 0U) {
-      attempt.diagnostic_direct_delay_ns = solver_result.diagnostic_direct_delay_ns;
-      attempt.diagnostic_direct_power_w = solver_result.diagnostic_direct_power_w;
-      attempt.diagnostic_direct_root_cap_pf = solver_result.diagnostic_direct_root_cap_pf;
-      attempt.diagnostic_direct_input_slew_idx = solver_result.diagnostic_direct_input_slew_idx;
-      attempt.diagnostic_direct_output_slew_idx = solver_result.diagnostic_direct_output_slew_idx;
-      attempt.diagnostic_direct_driven_cap_idx = solver_result.diagnostic_direct_driven_cap_idx;
+    attempt.evaluated_segment_count += solver_result.summary.evaluated_segment_count;
+    attempt.generated_candidate_count += solver_result.summary.generated_candidate_count;
+    attempt.scored_segment_count += solver_result.summary.scored_segment_count;
+    attempt.missing_model_count += solver_result.summary.missing_model_count;
+    attempt.decomposition_rejected_count += solver_result.summary.decomposition_rejected_count;
+    attempt.metric_evaluation_rejected_count += solver_result.summary.metric_evaluation_rejected_count;
+    attempt.domain_slew_rejected_count += solver_result.summary.domain_slew_rejected_count;
+    attempt.domain_cap_rejected_count += solver_result.summary.domain_cap_rejected_count;
+    attempt.domain_slew_floor_count += solver_result.summary.domain_slew_floor_count;
+    attempt.domain_cap_floor_count += solver_result.summary.domain_cap_floor_count;
+    attempt.max_domain_rejected_cap_pf = std::max(attempt.max_domain_rejected_cap_pf, solver_result.summary.max_domain_rejected_cap_pf);
+    attempt.empty_shortlist_count += solver_result.summary.empty_shortlist_count;
+    attempt.materialization_attempt_count += solver_result.summary.materialization_attempt_count;
+    attempt.root_fanout_rejected_count += solver_result.summary.root_fanout_rejected_count;
+    attempt.lattice_rejected_count += solver_result.summary.lattice_rejected_count;
+    attempt.diagnostic_library_hit_count += solver_result.summary.diagnostic_library_hit_count;
+    attempt.diagnostic_frontier_hit_count += solver_result.summary.diagnostic_frontier_hit_count;
+    attempt.diagnostic_decomposed_count += solver_result.summary.diagnostic_decomposed_count;
+    attempt.diagnostic_scored_count += solver_result.summary.diagnostic_scored_count;
+    attempt.diagnostic_shortlisted_count += solver_result.summary.diagnostic_shortlisted_count;
+    attempt.diagnostic_generated_candidate_count += solver_result.summary.diagnostic_generated_candidate_count;
+    attempt.diagnostic_direct_candidate_count += solver_result.summary.diagnostic_direct_candidate_count;
+    if (solver_result.summary.diagnostic_direct_candidate_count > 0U) {
+      attempt.diagnostic_direct_delay_ns = solver_result.summary.diagnostic_direct_delay_ns;
+      attempt.diagnostic_direct_power_w = solver_result.summary.diagnostic_direct_power_w;
+      attempt.diagnostic_direct_root_cap_pf = solver_result.summary.diagnostic_direct_root_cap_pf;
+      attempt.diagnostic_direct_input_slew_idx = solver_result.summary.diagnostic_direct_input_slew_idx;
+      attempt.diagnostic_direct_output_slew_idx = solver_result.summary.diagnostic_direct_output_slew_idx;
+      attempt.diagnostic_direct_driven_cap_idx = solver_result.summary.diagnostic_direct_driven_cap_idx;
     }
-    if (attempt.first_empty_reason.empty() && !solver_result.first_empty_reason.empty()) {
-      attempt.first_empty_level_index = solver_result.first_empty_level_index;
-      attempt.first_empty_length_idx = solver_result.first_empty_length_idx;
-      attempt.first_empty_reason = solver_result.first_empty_reason;
+    if (attempt.first_empty_reason.empty() && !solver_result.summary.first_empty_reason.empty()) {
+      attempt.first_empty_level_index = solver_result.summary.first_empty_level_index;
+      attempt.first_empty_length_idx = solver_result.summary.first_empty_length_idx;
+      attempt.first_empty_reason = solver_result.summary.first_empty_reason;
     }
-    if (!solver_result.success) {
+    if (!solver_result.summary.success) {
       if (first_solver_failure.empty()) {
-        first_solver_failure = solver_result.failure_reason.empty() ? "analytical_solver_failed" : solver_result.failure_reason;
+        first_solver_failure
+            = solver_result.summary.failure_reason.empty() ? "analytical_solver_failed" : solver_result.summary.failure_reason;
       }
       continue;
     }
 
-    for (auto& candidate : solver_result.candidates) {
-      htree::RootDriverCompensationPass candidate_compensation_pass(root_driver_compensation_options);
+    for (auto& candidate : solver_result.output.candidates) {
+      htree::RootDriverCompensationPass candidate_compensation_pass(root_driver_compensation_input);
       auto validation = analytical_solver::ValidateAnalyticalCandidate(
           candidate, analytical_solver::AnalyticalCandidateLegalityCheck{
                          .topology = &topology,
@@ -435,7 +439,7 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
                          .sink_load_region_legality_context = &sink_load_region_legality_context,
                          .root_driver_compensation_pass = &candidate_compensation_pass,
                          .validate_sink_load_region = true,
-                         .validate_root_driver_compensation = root_driver_compensation_options.enabled,
+                         .validate_root_driver_compensation = root_driver_compensation_input.enabled,
                      });
       if (!validation.legal) {
         if (first_validation_failure.empty()) {
@@ -488,14 +492,14 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
   return attempt;
 }
 
-auto ApplyAnalyticalRootDriverStats(DepthSearchResult& exploration, const AnalyticalHTreeAttempt& attempt,
-                                    const RootDriverCompensationOptions& compensation_options) -> void
+auto ApplyAnalyticalRootDriverStats(DepthSearchBuild& exploration, const AnalyticalHTreeAttempt& attempt,
+                                    const RootDriverCompensationInput& compensation_input) -> void
 {
-  exploration.root_driver_compensation_stats = attempt.root_driver_compensation_stats;
-  exploration.root_driver_compensation_stats.enabled = compensation_options.enabled;
-  exploration.root_driver_compensation_stats.input_slew_ns = compensation_options.input_slew_ns;
-  exploration.root_driver_compensation_stats.clock_period_ns = compensation_options.clock_period_ns;
-  exploration.root_driver_compensation_stats.method = compensation_options.enabled ? "direct" : "disabled";
+  exploration.summary.root_driver_compensation_stats = attempt.root_driver_compensation_stats;
+  exploration.summary.root_driver_compensation_stats.enabled = compensation_input.enabled;
+  exploration.summary.root_driver_compensation_stats.input_slew_ns = compensation_input.input_slew_ns;
+  exploration.summary.root_driver_compensation_stats.clock_period_ns = compensation_input.clock_period_ns;
+  exploration.summary.root_driver_compensation_stats.method = compensation_input.enabled ? "direct" : "disabled";
 }
 
 }  // namespace icts::htree::analytical_selection

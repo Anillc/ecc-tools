@@ -24,15 +24,34 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
+
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 
-struct IdbConversionResult
+class Design;
+class STAAdapter;
+class Wrapper;
+
+struct IdbConversionInput
+{
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  SchemaWriter* reporter = nullptr;
+};
+
+struct IdbConversionSummary
 {
   bool attempted = false;
   bool design_ready = false;
-  bool idb_conversion_done = false;
+  bool success = false;
   std::size_t clock_count = 0U;
+  bool idb_clock_tree_restored = false;
+  std::string failed_clock;
+  std::string failed_net;
+  std::string failure_reason = "n/a";
 };
 
 class IdbConversion
@@ -40,7 +59,7 @@ class IdbConversion
  public:
   IdbConversion() = delete;
 
-  static auto run() -> IdbConversionResult;
+  static auto run(const IdbConversionInput& input) -> IdbConversionSummary;
 };
 
 }  // namespace icts

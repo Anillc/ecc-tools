@@ -43,11 +43,9 @@
 #include "FastStaParasitics.hh"
 #include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "design/Net.hh"
-#include "io/Wrapper.hh"
 
 namespace icts {
 
@@ -67,44 +65,42 @@ auto logBuilderStage(const Clock& clock, std::string_view stage_name, double run
            << ", liberty_cells=" << context.liberty_cell_by_master.size() << ".";
 }
 
-auto resolveRoutingLayer() -> int
+auto applyEnvironment(const FastStaEnvironment& environment, FastStaClockContext& context) -> void
 {
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  if (!routing_layers.empty() && routing_layers.front() > 0U) {
-    return static_cast<int>(routing_layers.front());
-  }
-  LOG_FATAL << "FastStaBuilder: routing layer is not configured.";
-  return 0;
+  LOG_FATAL_IF(environment.sta_adapter == nullptr) << "FastStaBuilder: STA adapter is not bound.";
+  LOG_FATAL_IF(environment.dbu_per_um <= 0) << "FastStaBuilder: DBU-per-micron is unavailable.";
+  LOG_FATAL_IF(environment.routing_layer <= 0) << "FastStaBuilder: routing layer is not configured.";
+  context.sta_adapter = environment.sta_adapter;
+  context.dbu_per_um = environment.dbu_per_um;
+  context.routing_layer = environment.routing_layer;
+  context.wire_width_um = environment.wire_width_um;
+  context.root_input_slew_ns = std::max(0.0, environment.root_input_slew_ns);
 }
 
-auto resolveWireWidth() -> std::optional<double>
+auto queryStaBackedSinkPinCap(STAAdapter& sta_adapter, const Pin* pin) -> double
 {
-  return CONFIG_INST.get_wire_width() > 0.0 ? std::optional<double>{CONFIG_INST.get_wire_width()} : std::nullopt;
+  return sta_adapter.queryPinCapacitance(pin);
 }
 
-auto applyRuntimeOptions(FastStaClockContext& context) -> void
+auto queryStaBackedSinkSlewLimit(const FastStaEnvironment& environment, const Pin* pin) -> double
 {
-  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
-  LOG_FATAL_IF(dbu_per_um <= 0) << "FastStaBuilder: DBU-per-micron is unavailable.";
-  context.dbu_per_um = dbu_per_um;
-  context.routing_layer = resolveRoutingLayer();
-  context.wire_width_um = resolveWireWidth();
-  context.root_input_slew_ns = std::max(0.0, CONFIG_INST.get_root_input_slew());
+  return environment.sta_adapter->queryPinSlewLimit(STAAdapter::PinSlewLimitInput{
+      .pin = pin,
+      .configured_max_sink_tran_ns = environment.max_sink_tran_ns,
+  });
 }
 
-auto queryStaBackedSinkPinCap(const Pin* pin) -> double
+auto queryStaBackedSourceCapLimit(const FastStaEnvironment& environment, const Clock& clock) -> double
 {
-  return STA_ADAPTER_INST.queryPinCapacitance(pin);
-}
-
-auto queryStaBackedSinkSlewLimit(const Pin* pin) -> double
-{
-  return STA_ADAPTER_INST.queryPinSlewLimit(pin);
-}
-
-auto queryStaBackedSourceCapLimit(const Clock& clock) -> double
-{
-  return STA_ADAPTER_INST.queryClockSourceDriveCapLimit(clock.get_clock_source());
+  const auto refresh_config = environment.sta_timing_refresh.has_value()
+                                  ? std::optional<STAAdapter::StaTimingRefreshConfig>{STAAdapter::StaTimingRefreshConfig{
+                                        .work_dir = environment.sta_timing_refresh->work_dir}}
+                                  : std::nullopt;
+  return environment.sta_adapter->queryClockSourceDriveCapLimit(STAAdapter::ClockSourceDriveCapLimitInput{
+      .clock_source = clock.get_clock_source(),
+      .configured_max_cap_pf = environment.max_cap_pf,
+      .refresh_config = refresh_config,
+  });
 }
 
 auto isSourceBoundaryNet(const Clock& clock, const FastStaClockContext& context, const FastStaNet& net) -> bool
@@ -116,14 +112,15 @@ auto isSourceBoundaryNet(const Clock& clock, const FastStaClockContext& context,
   return source_net != nullptr && net.name == source_net->get_name();
 }
 
-auto collectClockCellTimingData(const Clock& clock, FastStaClockContext& context) -> void
+auto collectClockCellTimingData(const FastStaEnvironment& environment, const Clock& clock, FastStaClockContext& context) -> void
 {
+  auto& sta_adapter = *environment.sta_adapter;
   for (auto& node : context.nodes) {
     if (node.cell_master.empty()) {
       continue;
     }
     if (!context.liberty_cell_by_master.contains(node.cell_master)) {
-      context.liberty_cell_by_master[node.cell_master] = FastStaLiberty::extractBufferCell(node.cell_master);
+      context.liberty_cell_by_master[node.cell_master] = FastStaLiberty::extractBufferCell(sta_adapter, node.cell_master);
     }
     const auto& liberty_cell = context.liberty_cell_by_master.at(node.cell_master);
     if (node.kind == FastStaNodeKind::kBufferInput) {
@@ -132,12 +129,12 @@ auto collectClockCellTimingData(const Clock& clock, FastStaClockContext& context
     }
   }
   for (auto& net : context.nets) {
-    if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
-      net.max_cap_pf = CONFIG_INST.get_max_cap();
+    if (environment.max_cap_pf.has_value() && *environment.max_cap_pf > 0.0) {
+      net.max_cap_pf = *environment.max_cap_pf;
       continue;
     }
     if (isSourceBoundaryNet(clock, context, net)) {
-      const double source_cap_limit_pf = queryStaBackedSourceCapLimit(clock);
+      const double source_cap_limit_pf = queryStaBackedSourceCapLimit(environment, clock);
       if (source_cap_limit_pf > 0.0) {
         net.max_cap_pf = source_cap_limit_pf;
         continue;
@@ -154,8 +151,9 @@ auto collectClockCellTimingData(const Clock& clock, FastStaClockContext& context
   FastStaParasitics::updateNetLoads(context);
 }
 
-auto collectSinkPinCaps(const Clock& clock, FastStaClockContext& context) -> void
+auto collectSinkPinCaps(const FastStaEnvironment& environment, const Clock& clock, FastStaClockContext& context) -> void
 {
+  auto& sta_adapter = *environment.sta_adapter;
   for (auto* pin : clock.get_loads()) {
     if (pin == nullptr) {
       continue;
@@ -165,59 +163,42 @@ auto collectSinkPinCaps(const Clock& clock, FastStaClockContext& context) -> voi
       continue;
     }
     auto& node = context.nodes.at(node_iter->second);
-    node.input_cap_pf = queryStaBackedSinkPinCap(pin);
-    node.max_slew_ns = queryStaBackedSinkSlewLimit(pin);
+    node.input_cap_pf = queryStaBackedSinkPinCap(sta_adapter, pin);
+    node.max_slew_ns = queryStaBackedSinkSlewLimit(environment, pin);
   }
 }
 
 }  // namespace
 
-auto FastStaBuilder::buildClockContext(const Clock& clock) -> FastStaClockContext
+auto FastStaBuilder::buildClockContext(const FastStaEnvironment& environment, const FastStaClockBuildInput& input) -> FastStaClockContext
 {
+  LOG_FATAL_IF(input.clock == nullptr) << "FastStaBuilder: clock build input is null.";
+  const auto& clock = *input.clock;
   const auto total_start = std::chrono::steady_clock::now();
   auto stage_start = std::chrono::steady_clock::now();
-  auto context = FastStaClockTree::buildFromClock(clock);
-  logBuilderStage(clock, "build committed clock-tree graph", elapsedSeconds(stage_start), context);
+  auto context = input.route_geometry == nullptr ? FastStaClockTree::buildFromClock(clock)
+                                                 : FastStaClockTree::buildFromClockRouteGeometry(clock, *input.route_geometry);
+  logBuilderStage(clock, input.route_geometry == nullptr ? "build committed clock-tree graph" : "build clock route geometry graph",
+                  elapsedSeconds(stage_start), context);
 
   stage_start = std::chrono::steady_clock::now();
-  applyRuntimeOptions(context);
-  logBuilderStage(clock, "apply runtime options", elapsedSeconds(stage_start), context);
+  applyEnvironment(environment, context);
+  logBuilderStage(clock, "apply bound environment", elapsedSeconds(stage_start), context);
+
+  if (input.route_geometry != nullptr) {
+    stage_start = std::chrono::steady_clock::now();
+    FastStaClockTree::applyRouteGeometry(context, *input.route_geometry);
+    logBuilderStage(clock, "apply route geometry parasitics", elapsedSeconds(stage_start), context);
+  }
 
   stage_start = std::chrono::steady_clock::now();
-  collectSinkPinCaps(clock, context);
+  collectSinkPinCaps(environment, clock, context);
   logBuilderStage(clock, "collect sink pin caps", elapsedSeconds(stage_start), context);
 
   stage_start = std::chrono::steady_clock::now();
-  collectClockCellTimingData(clock, context);
+  collectClockCellTimingData(environment, clock, context);
   logBuilderStage(clock, "collect Liberty and clock timing records", elapsedSeconds(stage_start), context);
   LOG_INFO << "FastStaBuilder: build clock context for clock \"" << clock.get_clock_name() << "\" finished in "
-           << elapsedSeconds(total_start) << " s.";
-  return context;
-}
-
-auto FastStaBuilder::buildClockContext(const Clock& clock, const FastStaClockRouteGeometry& route_geometry) -> FastStaClockContext
-{
-  const auto total_start = std::chrono::steady_clock::now();
-  auto stage_start = std::chrono::steady_clock::now();
-  auto context = FastStaClockTree::buildFromClockRouteGeometry(clock, route_geometry);
-  logBuilderStage(clock, "build clock route geometry graph", elapsedSeconds(stage_start), context);
-
-  stage_start = std::chrono::steady_clock::now();
-  applyRuntimeOptions(context);
-  logBuilderStage(clock, "apply runtime options", elapsedSeconds(stage_start), context);
-
-  stage_start = std::chrono::steady_clock::now();
-  FastStaClockTree::applyRouteGeometry(context, route_geometry);
-  logBuilderStage(clock, "apply route geometry parasitics", elapsedSeconds(stage_start), context);
-
-  stage_start = std::chrono::steady_clock::now();
-  collectSinkPinCaps(clock, context);
-  logBuilderStage(clock, "collect sink pin caps", elapsedSeconds(stage_start), context);
-
-  stage_start = std::chrono::steady_clock::now();
-  collectClockCellTimingData(clock, context);
-  logBuilderStage(clock, "collect Liberty and clock timing records", elapsedSeconds(stage_start), context);
-  LOG_INFO << "FastStaBuilder: build route geometry clock context for clock \"" << clock.get_clock_name() << "\" finished in "
            << elapsedSeconds(total_start) << " s.";
   return context;
 }

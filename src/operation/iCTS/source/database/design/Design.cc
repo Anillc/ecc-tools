@@ -40,6 +40,7 @@
 #include "database/design/Pin.hh"
 #include "log/Log.hh"
 #include "utils/logger/Schema.hh"
+#include "utils/logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -468,7 +469,7 @@ auto Design::clearClockDAG() -> void
   _clock_dag.clear();
 }
 
-auto Design::emitClockDistributionSummary(const std::string& title) const -> void
+auto Design::emitClockDistributionSummary(SchemaWriter& reporter, const std::string& title) const -> void
 {
   std::map<std::string, std::vector<Clock*>> clock_groups;
   for (auto* clock : get_clocks()) {
@@ -479,11 +480,11 @@ auto Design::emitClockDistributionSummary(const std::string& title) const -> voi
   }
 
   if (clock_groups.empty()) {
-    schema::EmitTable(title, {"status"}, {{"No clocks available for distribution summary."}});
+    EmitTable(reporter, title, {"status"}, {{"No clocks available for distribution summary."}});
     return;
   }
 
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(clock_groups.size() + 1U);
 
   ClockDistributionStats total_stats;
@@ -514,7 +515,7 @@ auto Design::emitClockDistributionSummary(const std::string& title) const -> voi
       std::to_string(total_stats.no_inst_sinks),
   });
 
-  schema::EmitTable(title, {"Clock", "Nets", "Total Sinks", "FlipFlop Sinks", "Macro Sinks", "No-Inst Sinks"}, rows);
+  EmitTable(reporter, title, {"Clock", "Nets", "Total Sinks", "FlipFlop Sinks", "Macro Sinks", "No-Inst Sinks"}, rows);
 }
 
 }  // namespace icts

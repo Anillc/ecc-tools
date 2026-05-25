@@ -225,6 +225,7 @@ auto maxSlewNs(ista::StaVertex* vertex) -> std::optional<double>
 
 auto STAAdapter::queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>
 {
+  observeQueryFacade();
   if (pin == nullptr || clock_name.empty()) {
     return std::nullopt;
   }
@@ -238,6 +239,7 @@ auto STAAdapter::queryPinClockArrival(const Pin* pin, const std::string& clock_n
 
 auto STAAdapter::queryPinSlew(const Pin* pin) -> std::optional<double>
 {
+  observeQueryFacade();
   if (pin == nullptr) {
     return std::nullopt;
   }
@@ -252,6 +254,7 @@ auto STAAdapter::queryPinSlew(const Pin* pin) -> std::optional<double>
 auto STAAdapter::queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf,
                                            double clock_period_ns) -> RootDriverCost
 {
+  observeQueryFacade();
   auto cost = makeInvalidCost("direct", cell_master, input_slew_ns, output_load_pf);
   auto* lib_cell = sta_adapter_timing_query::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {

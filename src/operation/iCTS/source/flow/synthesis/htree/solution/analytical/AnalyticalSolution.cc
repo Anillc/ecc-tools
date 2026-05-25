@@ -38,7 +38,7 @@
 #include "Log.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/analytical_solver/selection/AnalyticalSelection.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
@@ -53,47 +53,55 @@
 namespace icts::htree::analytical_solution {
 namespace as = analytical_selection;
 
-auto TryBuildAnalyticalHTreeResult(HTree::BuildResult& result, const HTree::BuildOptions& options,
-                                   schema::SchemaWriter::StageScope& build_stage, unsigned max_depth,
-                                   const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
-                                   const htree::SegmentFrontierCatalog& segment_frontier_catalog,
-                                   htree::BufferPatternLibrary& segment_pattern_library,
-                                   const htree::BoundaryConstraints& search_boundary_constraints,
-                                   const htree::HTreeFanoutPruningOptions& fanout_pruning_options,
-                                   const htree::RootDriverCompensationOptions& root_driver_compensation_options,
-                                   const CharBuilder& char_builder, const std::string& root_driver_clock_period_source) -> bool
+auto TryBuildAnalyticalHTree(HTree::DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
+                             SchemaWriter::StageScope& build_stage, unsigned max_depth,
+                             const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
+                             const htree::SegmentFrontierCatalog& segment_frontier_catalog,
+                             htree::BufferPatternLibrary& segment_pattern_library,
+                             const htree::BoundaryConstraints& search_boundary_constraints,
+                             const htree::HTreeFanoutPruningConfig& fanout_pruning_config,
+                             const htree::RootDriverCompensationInput& root_driver_compensation_input,
+                             const htree::SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
+                             const std::string& root_driver_clock_period_source) -> bool
 {
-  if (!options.enable_analytical_solver) {
+  if (!config.enable_analytical_solver) {
     return false;
   }
-  auto analytical_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Try analytical topology candidates",
-                                                        {
-                                                            {"depth_candidates", std::to_string(depth_candidates.size())},
-                                                            {"max_depth", std::to_string(max_depth)},
-                                                            {"per_level_shortlist", std::to_string(as::kAnalyticalPerLevelShortlistSize)},
-                                                            {"top_k_per_depth", std::to_string(as::kAnalyticalTopKPerDepth)},
-                                                        },
-                                                        DetailStageReportOptions());
-  const auto analytical_attempt = as::TrySolveAnalyticalHTree(result.topology, full_level_plans, depth_candidates, segment_frontier_catalog,
-                                                              segment_pattern_library, search_boundary_constraints, fanout_pruning_options,
-                                                              root_driver_compensation_options, char_builder, result.char_slew_steps);
-  result.analytical_model_set_count = analytical_attempt.model_set_count;
-  result.analytical_rejected_fit_count = analytical_attempt.rejected_fit_count;
-  result.analytical_structural_cap_operator_count = analytical_attempt.structural_cap_operator_count;
-  result.analytical_evaluated_segment_count = analytical_attempt.evaluated_segment_count;
-  result.analytical_generated_candidate_count = analytical_attempt.generated_candidate_count;
-  result.analytical_validated_candidate_count = analytical_attempt.validated_candidate_count;
-  result.analytical_validated_pareto_count = analytical_attempt.validated_pareto_count;
-  result.analytical_selected_pareto_power_rank = analytical_attempt.selected_pareto_power_rank;
-  result.analytical_validated_delay_min_ns = analytical_attempt.validated_delay_min_ns;
-  result.analytical_validated_delay_median_ns = analytical_attempt.validated_delay_median_ns;
-  result.analytical_validated_delay_max_ns = analytical_attempt.validated_delay_max_ns;
-  result.analytical_validated_power_min_w = analytical_attempt.validated_power_min_w;
-  result.analytical_validated_power_median_w = analytical_attempt.validated_power_median_w;
-  result.analytical_validated_power_max_w = analytical_attempt.validated_power_max_w;
+  LOG_FATAL_IF(input.design == nullptr) << "HTree analytical solution requires explicit Design dependency.";
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree analytical solution requires explicit STAAdapter dependency.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "HTree analytical solution requires explicit reporter dependency.";
+  auto& design = *input.design;
+  auto& sta_adapter = *input.sta_adapter;
+  auto& reporter = *input.reporter;
+  auto analytical_stage = reporter.beginStage("HTree", "Try analytical topology candidates",
+                                              {
+                                                  {"depth_candidates", std::to_string(depth_candidates.size())},
+                                                  {"max_depth", std::to_string(max_depth)},
+                                                  {"per_level_shortlist", std::to_string(as::kAnalyticalPerLevelShortlistSize)},
+                                                  {"top_k_per_depth", std::to_string(as::kAnalyticalTopKPerDepth)},
+                                              },
+                                              DetailStageReportOptions());
+  const auto analytical_attempt = as::TrySolveAnalyticalHTree(
+      result.output.topology, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library,
+      search_boundary_constraints, fanout_pruning_config, root_driver_compensation_input, sink_load_region_input, char_builder,
+      result.diagnostics.char_slew_steps);
+  result.diagnostics.analytical_model_set_count = analytical_attempt.model_set_count;
+  result.diagnostics.analytical_rejected_fit_count = analytical_attempt.rejected_fit_count;
+  result.diagnostics.analytical_structural_cap_operator_count = analytical_attempt.structural_cap_operator_count;
+  result.diagnostics.analytical_evaluated_segment_count = analytical_attempt.evaluated_segment_count;
+  result.diagnostics.analytical_generated_candidate_count = analytical_attempt.generated_candidate_count;
+  result.diagnostics.analytical_validated_candidate_count = analytical_attempt.validated_candidate_count;
+  result.diagnostics.analytical_validated_pareto_count = analytical_attempt.validated_pareto_count;
+  result.diagnostics.analytical_selected_pareto_power_rank = analytical_attempt.selected_pareto_power_rank;
+  result.diagnostics.analytical_validated_delay_min_ns = analytical_attempt.validated_delay_min_ns;
+  result.diagnostics.analytical_validated_delay_median_ns = analytical_attempt.validated_delay_median_ns;
+  result.diagnostics.analytical_validated_delay_max_ns = analytical_attempt.validated_delay_max_ns;
+  result.diagnostics.analytical_validated_power_min_w = analytical_attempt.validated_power_min_w;
+  result.diagnostics.analytical_validated_power_median_w = analytical_attempt.validated_power_median_w;
+  result.diagnostics.analytical_validated_power_max_w = analytical_attempt.validated_power_max_w;
 
   if (analytical_attempt.selected && analytical_attempt.selected_evaluation.best_char.has_value()) {
-    result.analytical_mode_selected = true;
+    result.diagnostics.analytical_mode_selected = true;
     analytical_stage.finished({
         {"selected_depth", std::to_string(analytical_attempt.selected_evaluation.depth)},
         {"model_sets", std::to_string(analytical_attempt.model_set_count)},
@@ -139,85 +147,89 @@ auto TryBuildAnalyticalHTreeResult(HTree::BuildResult& result, const HTree::Buil
 
     auto selected_evaluation = analytical_attempt.selected_evaluation;
     auto selected_summary = analytical_attempt.selected_summary;
-    result.depth_candidate_count = depth_candidates.size();
-    result.selected_depth = selected_evaluation.depth;
-    result.best_char = *selected_evaluation.best_char;
+    result.diagnostics.depth_candidate_count = depth_candidates.size();
+    result.summary.selected_depth = selected_evaluation.depth;
+    result.output.best_char = *selected_evaluation.best_char;
 
-    htree::DepthSearchResult analytical_exploration;
-    as::ApplyAnalyticalRootDriverStats(analytical_exploration, analytical_attempt, root_driver_compensation_options);
-    ApplyRootDriverCompensationResult(result, analytical_exploration, analytical_attempt.selected_compensation_detail, *result.best_char);
-    result.root_driver_compensation.clock_period_source = root_driver_clock_period_source;
-    result.levels = selected_evaluation.levels;
-    result.selected_final_frontier_count = selected_summary.final_frontier_count;
-    result.selected_candidate_solution_count = selected_summary.candidate_solution_count;
-    result.selected_candidate_frontier_entry_count = selected_summary.candidate_frontier_entry_count;
-    result.selected_feasible_solution_count = selected_summary.feasible_solution_count;
-    result.selected_feasible_frontier_entry_count = selected_summary.feasible_frontier_entry_count;
-    result.min_top_input_slew_ns = selected_evaluation.boundary_constraints.min_top_input_slew_ns;
-    result.top_input_slew_covering_idx = selected_evaluation.boundary_constraints.top_input_slew_covering_idx;
-    result.htree_load_group_count = selected_summary.htree_load_group_count;
-    result.htree_load_cap_min_pf = selected_summary.htree_load_cap_min_pf;
-    result.htree_load_cap_max_pf = selected_summary.htree_load_cap_max_pf;
-    result.htree_load_cap_mean_pf = selected_summary.htree_load_cap_mean_pf;
-    result.htree_load_cap_median_pf = selected_summary.htree_load_cap_median_pf;
+    htree::DepthSearchBuild analytical_exploration;
+    as::ApplyAnalyticalRootDriverStats(analytical_exploration, analytical_attempt, root_driver_compensation_input);
+    ApplyRootDriverCompensationSummary(result, analytical_exploration, analytical_attempt.selected_compensation_detail,
+                                       *result.output.best_char);
+    result.diagnostics.root_driver_compensation.clock_period_source = root_driver_clock_period_source;
+    result.output.levels = selected_evaluation.levels;
+    result.diagnostics.selected_final_frontier_count = selected_summary.final_frontier_count;
+    result.diagnostics.selected_candidate_solution_count = selected_summary.candidate_solution_count;
+    result.diagnostics.selected_candidate_frontier_entry_count = selected_summary.candidate_frontier_entry_count;
+    result.diagnostics.selected_feasible_solution_count = selected_summary.feasible_solution_count;
+    result.diagnostics.selected_feasible_frontier_entry_count = selected_summary.feasible_frontier_entry_count;
+    result.diagnostics.min_top_input_slew_ns = selected_evaluation.boundary_constraints.min_top_input_slew_ns;
+    result.diagnostics.top_input_slew_covering_idx = selected_evaluation.boundary_constraints.top_input_slew_covering_idx;
+    result.diagnostics.htree_load_group_count = selected_summary.htree_load_group_count;
+    result.diagnostics.htree_load_cap_min_pf = selected_summary.htree_load_cap_min_pf;
+    result.diagnostics.htree_load_cap_max_pf = selected_summary.htree_load_cap_max_pf;
+    result.diagnostics.htree_load_cap_mean_pf = selected_summary.htree_load_cap_mean_pf;
+    result.diagnostics.htree_load_cap_median_pf = selected_summary.htree_load_cap_median_pf;
 
-    result.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.best_char->get_pattern_id());
-    ApplySelectedPatternToLevelPlans(result, segment_pattern_library);
-    const std::string selected_root_driver_cell_master = ResolveSelectedRootDriverCellMaster(result.levels);
-    if (options.enable_root_driver_sizing && !htree::ValidateRootDriverSizing(result, selected_root_driver_cell_master)) {
-      result.failure_reason = "root_driver_sizing_precheck_failed";
-      build_stage.failed({{"reason", result.failure_reason}});
+    result.output.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.output.best_char->get_pattern_id());
+    ApplySelectedPatternToLevelPlans(sta_adapter, result, segment_pattern_library);
+    const std::string selected_root_driver_cell_master = ResolveSelectedRootDriverCellMaster(result.output.levels);
+    if (config.enable_root_driver_sizing
+        && !htree::ValidateRootDriverSizing(design, sta_adapter, result, selected_root_driver_cell_master)) {
+      result.summary.failure_reason = "root_driver_sizing_precheck_failed";
+      build_stage.failed({{"reason", result.summary.failure_reason}});
       return true;
     }
 
     {
-      auto embedding_stage = SCHEMA_WRITER_INST.beginStage("HTree", "Build selected embedding",
-                                                           {
-                                                               {"selected_depth", std::to_string(result.selected_depth.value_or(0U))},
-                                                               {"selected_levels", std::to_string(result.levels.size())},
-                                                               {"selection_engine", "analytical"},
-                                                           },
-                                                           DetailStageReportOptions());
-      htree::BuildEmbedding(result, segment_pattern_library);
-      result.success = result.failure_reason.empty() && result.best_char.has_value() && result.best_pattern.has_value()
-                       && result.root_output_pin != nullptr && result.root_net != nullptr;
-      if (result.success && options.enable_root_driver_sizing) {
-        LOG_FATAL_IF(!htree::ApplyRootDriverSizing(result, selected_root_driver_cell_master))
+      auto embedding_stage = reporter.beginStage("HTree", "Build selected embedding",
+                                                 {
+                                                     {"selected_depth", std::to_string(result.summary.selected_depth.value_or(0U))},
+                                                     {"selected_levels", std::to_string(result.output.levels.size())},
+                                                     {"selection_engine", "analytical"},
+                                                 },
+                                                 DetailStageReportOptions());
+      htree::BuildEmbedding(design, sta_adapter, result, segment_pattern_library);
+      result.summary.success = result.summary.failure_reason.empty() && result.output.best_char.has_value()
+                               && result.output.best_pattern.has_value() && result.output.root_output_pin != nullptr
+                               && result.output.root_net != nullptr;
+      if (result.summary.success && config.enable_root_driver_sizing) {
+        LOG_FATAL_IF(!htree::ApplyRootDriverSizing(design, sta_adapter, result, selected_root_driver_cell_master))
             << "HTree: prevalidated root-driver sizing failed during analytical embedding construction.";
-      } else if (result.success && result.root_inst != nullptr) {
-        result.selected_root_driver_cell_master = result.root_inst->get_cell_master();
+      } else if (result.summary.success && result.output.root_inst != nullptr) {
+        result.diagnostics.selected_root_driver_cell_master = result.output.root_inst->get_cell_master();
       }
-      if (result.success) {
+      if (result.summary.success) {
         embedding_stage.finished({
-            {"inserted_insts", std::to_string(result.inserted_insts.size())},
-            {"inserted_nets", std::to_string(result.inserted_nets.size())},
-            {"pruned_leaf_single_load_buffers", std::to_string(result.pruned_leaf_single_load_buffers)},
+            {"inserted_insts", std::to_string(result.output.inserted_insts.size())},
+            {"inserted_nets", std::to_string(result.output.inserted_nets.size())},
+            {"pruned_leaf_single_load_buffers", std::to_string(result.diagnostics.pruned_leaf_single_load_buffers)},
         });
       } else {
-        embedding_stage.failed({{"reason", result.failure_reason.empty() ? "incomplete_embedding_build" : result.failure_reason}});
+        embedding_stage.failed(
+            {{"reason", result.summary.failure_reason.empty() ? "incomplete_embedding_build" : result.summary.failure_reason}});
       }
     }
 
     {
       auto summary_stage
-          = SCHEMA_WRITER_INST.beginStage("HTree", "Emit synthesis summary", {}, schema::StageReportOptions{.emit_success_summary = false});
-      htree::LogSynthesisSummary(result, selected_evaluation, selected_summary);
+          = reporter.beginStage("HTree", "Emit synthesis summary", {}, StageReportOptions{.emit_success_summary = false});
+      htree::LogSynthesisSummary(reporter, result, selected_evaluation, selected_summary);
       summary_stage.finished();
     }
-    if (result.success) {
+    if (result.summary.success) {
       build_stage.finished({{"selection_engine", "analytical"}});
     } else {
-      build_stage.failed({{"reason", result.failure_reason.empty() ? "incomplete_embedding_build" : result.failure_reason},
+      build_stage.failed({{"reason", result.summary.failure_reason.empty() ? "incomplete_embedding_build" : result.summary.failure_reason},
                           {"selection_engine", "analytical"}});
     }
     return true;
   }
 
-  result.analytical_failure_reason
+  result.diagnostics.analytical_failure_reason
       = analytical_attempt.failure_reason.empty() ? "analytical_candidate_unavailable" : analytical_attempt.failure_reason;
   analytical_stage.failed({
       {"selected_depth", "none"},
-      {"reason", result.analytical_failure_reason},
+      {"reason", result.diagnostics.analytical_failure_reason},
       {"model_sets", std::to_string(analytical_attempt.model_set_count)},
       {"rejected_fits", std::to_string(analytical_attempt.rejected_fit_count)},
       {"evaluated_segments", std::to_string(analytical_attempt.evaluated_segment_count)},
@@ -263,16 +275,16 @@ auto TryBuildAnalyticalHTreeResult(HTree::BuildResult& result, const HTree::Buil
       {"validated_power_median_w", std::to_string(analytical_attempt.validated_power_median_w)},
       {"validated_power_max_w", std::to_string(analytical_attempt.validated_power_max_w)},
   });
-  schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "HTree",
+  EmitDiagnostic(reporter, DiagnosticLevel::kError, "HTree",
                          "analytical H-tree candidate selection did not produce a validated candidate.",
                          {
-                             {"reason", result.analytical_failure_reason},
-                             {"model_sets", std::to_string(result.analytical_model_set_count)},
-                             {"generated_candidates", std::to_string(result.analytical_generated_candidate_count)},
-                             {"validated_candidates", std::to_string(result.analytical_validated_candidate_count)},
+                             {"reason", result.diagnostics.analytical_failure_reason},
+                             {"model_sets", std::to_string(result.diagnostics.analytical_model_set_count)},
+                             {"generated_candidates", std::to_string(result.diagnostics.analytical_generated_candidate_count)},
+                             {"validated_candidates", std::to_string(result.diagnostics.analytical_validated_candidate_count)},
                          });
-  result.failure_reason = result.analytical_failure_reason;
-  build_stage.failed({{"reason", result.failure_reason}, {"selection_engine", "analytical"}});
+  result.summary.failure_reason = result.diagnostics.analytical_failure_reason;
+  build_stage.failed({{"reason", result.summary.failure_reason}, {"selection_engine", "analytical"}});
   return true;
 }
 

@@ -87,14 +87,19 @@ auto CharCircuitBuilder::createCharCircuit(const TopologyDesc& topo, const std::
   }
 
   _impl._char_clock_name = id_prefix + "clk";
-  _impl._fast_sta_char_context_id = ::icts::FastSTA::buildCharContext(::icts::FastStaCharTopologySpec{
+  LOG_FATAL_IF(_impl._sta_adapter == nullptr) << "CharCircuitBuilder: STAAdapter dependency is not configured.";
+  LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharCircuitBuilder: FastSTA dependency is not configured.";
+  _impl._fast_sta_char_context_id = _impl._fast_sta->buildCharContext(::icts::FastStaCharTopologySpec{
+      .sta_adapter = _impl._sta_adapter,
       .source_cell_master = source_buf.cell_master,
       .sink_cell_master = sink_buf.cell_master,
       .buffer_cell_masters = buf_masters,
       .wire_segments_um = topo.wire_segments_um,
+      .dbu_per_um = _impl._dbu_per_um,
       .routing_layer = _impl._routing_layer,
-      .wire_width_um = _impl._wire_width,
+      .wire_width_um = _impl._wire_width_um,
       .clock_period_ns = 10.0,
+      .root_input_slew_ns = _impl._root_input_slew_ns,
   });
 
   ++_impl._char_circuit_id;
@@ -105,13 +110,15 @@ auto CharCircuitBuilder::setCharParasitics(const TopologyDesc& topo, double load
   (void) topo;
   LOG_FATAL_IF(_impl._fast_sta_char_context_id == ::icts::kInvalidFastStaCharContextId)
       << "Fast STA characterization context is not prepared before parasitic load update.";
-  (void) ::icts::FastSTA::setCharLoad(_impl._fast_sta_char_context_id, load_pf);
+  LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharCircuitBuilder: FastSTA dependency is not configured.";
+  (void) _impl._fast_sta->setCharLoad(_impl._fast_sta_char_context_id, load_pf);
 }
 
 auto CharCircuitBuilder::destroyCharCircuit() -> void
 {
   if (_impl._fast_sta_char_context_id != ::icts::kInvalidFastStaCharContextId) {
-    (void) ::icts::FastSTA::eraseCharContext(_impl._fast_sta_char_context_id);
+    LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharCircuitBuilder: FastSTA dependency is not configured.";
+    (void) _impl._fast_sta->eraseCharContext(_impl._fast_sta_char_context_id);
     _impl._fast_sta_char_context_id = ::icts::kInvalidFastStaCharContextId;
   }
   _impl._sink_inst_name.clear();

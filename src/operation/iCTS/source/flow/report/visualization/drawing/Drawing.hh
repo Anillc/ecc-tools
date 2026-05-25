@@ -33,6 +33,9 @@
 
 namespace icts {
 
+class Design;
+class Wrapper;
+
 struct DrawingSegment
 {
   std::string clock_name;
@@ -91,12 +94,19 @@ struct Drawing
   std::vector<DrawingPin> pins;
 };
 
+struct DrawingInput
+{
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  const ClockLayout* clock_layout = nullptr;
+};
+
 class DrawingBuilder
 {
  public:
   DrawingBuilder() = delete;
 
-  static auto build(const ClockLayout& clock_layout) -> Drawing;
+  static auto build(const DrawingInput& input) -> Drawing;
 };
 
 }  // namespace icts

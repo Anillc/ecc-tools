@@ -35,41 +35,85 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
-#include "synthesis/trace/SynthesisTrace.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 
 namespace icts {
 
 class CharacterizationLibrary;
 class Clock;
+class Config;
+class Design;
 class DomainStatusTable;
+class FastSTA;
 class ClockLayout;
+class SchemaWriter;
+class STAAdapter;
+class Wrapper;
 struct ClockDistributionContext;
+struct SynthesisTraceSummary;
+
+struct ClockTopologyInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  FastSTA* fast_sta = nullptr;
+  SchemaWriter* reporter = nullptr;
+  Clock* clock = nullptr;
+  std::size_t clock_index = 0U;
+  ClockLayout* clock_layout = nullptr;
+  SynthesisTraceSummary* summary = nullptr;
+  DomainStatusTable* status_table = nullptr;
+  CharacterizationLibrary* characterization_library = nullptr;
+  std::size_t valid_sinks = 0U;
+  const std::vector<ClockDistributionContext>* sink_domains = nullptr;
+};
+
+struct TopologyInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  FastSTA* fast_sta = nullptr;
+  SchemaWriter* reporter = nullptr;
+  Net* root_net = nullptr;
+  std::string object_name_prefix;
+  CharacterizationLibrary* characterization_library = nullptr;
+  std::vector<double> additional_characterization_lengths_um;
+  double clock_period_ns = 0.0;
+  std::string clock_period_source;
+  HTree::LogContext log_context;
+  bool htree_loads_are_local_buffers = false;
+};
+
+struct TopologyConfig
+{
+  std::optional<bool> enable_sink_clustering = std::nullopt;
+};
+
+struct SourceTrunkInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  FastSTA* fast_sta = nullptr;
+  SchemaWriter* reporter = nullptr;
+  Net* source_net = nullptr;
+  Pin* clock_source = nullptr;
+  std::vector<Pin*> root_inputs;
+  std::string object_name_prefix;
+  CharacterizationLibrary* characterization_library = nullptr;
+  double clock_period_ns = 0.0;
+  std::string clock_period_source;
+  HTree::LogContext log_context;
+};
 
 class Topology
 {
  public:
-  struct BuildOptions
-  {
-    std::optional<bool> enable_sink_clustering = std::nullopt;
-    std::string object_name_prefix;
-    CharacterizationLibrary* characterization_library = nullptr;
-    std::vector<double> additional_characterization_lengths_um;
-    double clock_period_ns = 0.0;
-    std::string clock_period_source;
-    HTree::LogContext log_context;
-    bool htree_loads_are_local_buffers = false;
-  };
-
-  struct SourceTrunkBuildOptions
-  {
-    std::string object_name_prefix;
-    CharacterizationLibrary* characterization_library = nullptr;
-    double clock_period_ns = 0.0;
-    std::string clock_period_source;
-    HTree::LogContext log_context;
-  };
-
   enum class SourceTrunkStage
   {
     kUnknown,
@@ -97,20 +141,48 @@ class Topology
     double median_distance_um = 0.0;
   };
 
-  struct BuildResult
+  struct Output
+  {
+    HTree::Output htree_output;
+    std::optional<ClusterOutput> cluster_output = std::nullopt;
+    std::vector<ClusterBufferMeta> cluster_buffers;
+
+    std::vector<std::unique_ptr<Inst>> inserted_insts;
+    std::vector<std::unique_ptr<Pin>> inserted_pins;
+    std::vector<std::unique_ptr<Net>> inserted_nets;
+    std::vector<HTree::InsertedInstLevel> inserted_inst_levels;
+    std::vector<HTree::InsertedNetLevel> inserted_net_levels;
+  };
+
+  struct Summary
   {
     bool success = false;
     std::string failure_reason;
     bool sink_clustering_enabled = false;
-
-    HTree::BuildResult htree_result;
-    std::optional<ClusterResult> cluster_result = std::nullopt;
-    std::vector<ClusterBufferMeta> cluster_buffers;
     std::optional<ClusterLeafDistanceSummary> cluster_leaf_distance_summary = std::nullopt;
     std::size_t selected_htree_level_count = 0;
     std::optional<unsigned> selected_htree_depth = std::nullopt;
     std::size_t htree_inserted_buffer_count = 0;
     std::size_t htree_inserted_net_count = 0;
+  };
+
+  struct Build
+  {
+    Build() = default;
+
+    Build(const Build&) = delete;
+    auto operator=(const Build&) -> Build& = delete;
+
+    Build(Build&& rhs) noexcept = default;
+    auto operator=(Build&& rhs) noexcept -> Build& = default;
+
+    Output output;
+    Summary summary;
+  };
+
+  struct SourceTrunkOutput
+  {
+    HTree::Output htree_output;
 
     std::vector<std::unique_ptr<Inst>> inserted_insts;
     std::vector<std::unique_ptr<Pin>> inserted_pins;
@@ -119,33 +191,43 @@ class Topology
     std::vector<HTree::InsertedNetLevel> inserted_net_levels;
   };
 
-  struct SourceTrunkBuildResult
+  struct SourceTrunkSummary
   {
     bool success = false;
     std::string failure_reason;
     SourceTrunkStage stage = SourceTrunkStage::kUnknown;
-    HTree::BuildResult htree_result;
+    std::optional<unsigned> selected_depth = std::nullopt;
+    std::size_t selected_level_count = 0U;
     std::size_t inserted_buffer_count = 0U;
     std::size_t inserted_net_count = 0U;
     bool used_boundary_relaxation = false;
+  };
 
-    std::vector<std::unique_ptr<Inst>> inserted_insts;
-    std::vector<std::unique_ptr<Pin>> inserted_pins;
-    std::vector<std::unique_ptr<Net>> inserted_nets;
-    std::vector<HTree::InsertedInstLevel> inserted_inst_levels;
-    std::vector<HTree::InsertedNetLevel> inserted_net_levels;
+  struct SourceTrunkBuild
+  {
+    SourceTrunkBuild() = default;
+
+    SourceTrunkBuild(const SourceTrunkBuild&) = delete;
+    auto operator=(const SourceTrunkBuild&) -> SourceTrunkBuild& = delete;
+
+    SourceTrunkBuild(SourceTrunkBuild&& rhs) noexcept = default;
+    auto operator=(SourceTrunkBuild&& rhs) noexcept -> SourceTrunkBuild& = default;
+
+    SourceTrunkOutput output;
+    SourceTrunkSummary summary;
   };
 
   Topology() = delete;
 
-  static auto build(Net& root_net) -> BuildResult;
-  static auto build(Net& root_net, const BuildOptions& options) -> BuildResult;
-  static auto buildSourceTrunk(Net& source_net, Pin* clock_source, const std::vector<Pin*>& root_inputs,
-                               const SourceTrunkBuildOptions& options) -> SourceTrunkBuildResult;
+  using Input = TopologyInput;
+  using Config = TopologyConfig;
+  using SourceTrunkInput = icts::SourceTrunkInput;
+
+  static auto build(const Input& input, const Config& config) -> Build;
+  static auto buildSourceTrunk(const SourceTrunkInput& input) -> SourceTrunkBuild;
   static auto resetClockTopology(Clock& clock) -> void;
-  static auto formClock(Clock& clock, std::size_t clock_index, ClockLayout& clock_layout, SynthesisTraceSummary& summary,
-                        DomainStatusTable& status_table, CharacterizationLibrary& characterization_library, std::size_t valid_sinks,
-                        const std::vector<ClockDistributionContext>& sink_domains) -> bool;
+  static auto resetClockTopology(Design& design, Clock& clock) -> void;
+  static auto formClock(const ClockTopologyInput& input) -> bool;
 };
 
 auto ToString(Topology::SourceTrunkStage stage) -> const char*;

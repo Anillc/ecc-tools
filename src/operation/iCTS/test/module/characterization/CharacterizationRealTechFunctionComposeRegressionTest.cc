@@ -43,8 +43,8 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneFunctionComposeGapRepor
   }
 
   icts::CharBuilder builder;
-  const auto init_options = MakeIterOneExperimentCharBuilderInitOptions();
-  builder.init(init_options);
+  const auto contract = MakeIterOneExperimentCharBuilderContract();
+  builder.init(contract.input, contract.config);
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
@@ -135,8 +135,8 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneStructuralCapFunctionCo
   }
 
   icts::CharBuilder builder;
-  const auto init_options = MakeIterOneExperimentCharBuilderInitOptions();
-  builder.init(init_options);
+  const auto contract = MakeIterOneExperimentCharBuilderContract();
+  builder.init(contract.input, contract.config);
   builder.build();
 
   ASSERT_FALSE(builder.get_segment_chars().empty());
@@ -154,7 +154,7 @@ TEST(CharacterizationRealTechExactRegressionTest, IterOneStructuralCapFunctionCo
 
   const auto linear_models = BuildFunctionalSurfaceModels(builder.get_segment_chars(), segment_context, grid, FitBasisKind::kLinear);
   const auto quadratic_models = BuildFunctionalSurfaceModels(builder.get_segment_chars(), segment_context, grid, FitBasisKind::kQuadratic);
-  const auto cap_operators = BuildPhysicalStructuralCapOperators(segment_context, init_options, grid);
+  const auto cap_operators = BuildPhysicalStructuralCapOperators(segment_context, contract.config, grid);
   ASSERT_FALSE(linear_models.empty());
   ASSERT_FALSE(quadratic_models.empty());
   ASSERT_FALSE(cap_operators.empty());

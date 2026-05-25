@@ -114,17 +114,9 @@ TEST(TopologyGenDepthTest, FixedRootLocationOverridesLoadMedian)
   const auto loads = BorrowLoads(storage);
   const icts::Point<int> fixed_root(500, 700);
 
-  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::BuildOptions{
-                                                        .partition_config = {},
-                                                        .target_depth = std::nullopt,
-                                                        .fixed_root_location = fixed_root,
-                                                        .dbu_per_um = 1,
-                                                        .load_count_kind = icts::TopologyGen::LoadCountKind::kSink,
-                                                        .clock_name = "",
-                                                        .clock_net_name = "",
-                                                        .sink_domain = "",
-                                                        .stage = "",
-                                                    });
+  icts::TopologyGen::Input input;
+  input.fixed_root_location = fixed_root;
+  const auto tree = icts::TopologyGen::build(loads, input, icts::TopologyGen::Config{});
 
   const auto* root_node = tree.get_node(tree.get_root());
   ASSERT_NE(root_node, nullptr);
@@ -137,17 +129,9 @@ TEST(TopologyGenDepthTest, ExplicitTargetDepthBuildsRequestedLeafCount)
   const auto storage = BuildLoads();
   const auto loads = BorrowLoads(storage);
 
-  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::BuildOptions{
-                                                        .partition_config = {},
-                                                        .target_depth = 2U,
-                                                        .fixed_root_location = std::nullopt,
-                                                        .dbu_per_um = 1,
-                                                        .load_count_kind = icts::TopologyGen::LoadCountKind::kSink,
-                                                        .clock_name = "",
-                                                        .clock_net_name = "",
-                                                        .sink_domain = "",
-                                                        .stage = "",
-                                                    });
+  auto config = icts::TopologyGen::Config{};
+  config.target_depth = 2U;
+  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::Input{}, config);
   const auto levels = tree.levels();
 
   ASSERT_EQ(levels.size(), 3U);
@@ -171,17 +155,9 @@ TEST(TopologyGenDepthTest, ExplicitTargetDepthClampsToMaxDepth)
   const auto storage = BuildLoads();
   const auto loads = BorrowLoads(storage);
 
-  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::BuildOptions{
-                                                        .partition_config = {},
-                                                        .target_depth = 8U,
-                                                        .fixed_root_location = std::nullopt,
-                                                        .dbu_per_um = 1,
-                                                        .load_count_kind = icts::TopologyGen::LoadCountKind::kSink,
-                                                        .clock_name = "",
-                                                        .clock_net_name = "",
-                                                        .sink_domain = "",
-                                                        .stage = "",
-                                                    });
+  auto config = icts::TopologyGen::Config{};
+  config.target_depth = 8U;
+  const auto tree = icts::TopologyGen::build(loads, icts::TopologyGen::Input{}, config);
   const auto levels = tree.levels();
 
   ASSERT_EQ(levels.size(), 4U);

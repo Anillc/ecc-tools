@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
+#include "CTSRuntime.hh"
 #include "CharCore.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
@@ -39,11 +40,13 @@
 #include "Point.hh"
 #include "SegmentChar.hh"
 #include "Tree.hh"
+#include "common/CTSTestRuntime.hh"
 #include "flow/synthesis/htree/HTree.hh"
 #include "flow/synthesis/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/htree/constraint/Constraint.hh"
 #include "flow/synthesis/htree/segment_pruning/SegmentPruning.hh"
 #include "flow/synthesis/htree/topology_pruning/TopologyPruning.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
@@ -74,6 +77,8 @@ auto MakeSegmentChar(unsigned pattern_id, double delay, double power) -> icts::S
 
 struct SegmentFrontierTestData
 {
+  SegmentFrontierTestData() : pattern_library(icts_test::runtime::CurrentRuntime().sta_adapter) {}
+
   icts::htree::BufferPatternLibrary pattern_library;
   icts::htree::SegmentFrontierCatalog catalog;
 };
@@ -123,6 +128,13 @@ auto BuildSegmentFrontierSignatures(const SegmentFrontierTestData& test_data, ic
   }
   std::ranges::sort(signatures);
   return signatures;
+}
+
+auto MakeBareHTreeInput(icts::Net& root_net) -> icts::HTree::Input
+{
+  icts::HTree::Input input;
+  input.root_net = &root_net;
+  return input;
 }
 
 TEST(HTreeTest, RequiredSegmentFrontiersBuildOnlyRequiredKinds)
@@ -175,59 +187,47 @@ TEST(HTreeTest, EmptyLoadsReturnsEmptyResult)
   icts::Net root_net("root_net");
   ConnectRootNet(root_net, root_driver, {});
 
-  const auto result = icts::HTree::build(root_net);
+  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
   const auto observation = htree::ObserveHTreeBuild(result);
 
-  EXPECT_FALSE(result.success);
-  EXPECT_EQ(result.failure_reason, "empty_root_net_loads");
-  EXPECT_EQ(result.topology.get_size(), 0U);
-  EXPECT_TRUE(result.levels.empty());
-  EXPECT_FALSE(result.best_char.has_value());
-  EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_FALSE(result.summary.success);
+  EXPECT_EQ(result.summary.failure_reason, "empty_root_net_loads");
+  EXPECT_EQ(result.output.topology.get_size(), 0U);
+  EXPECT_TRUE(result.output.levels.empty());
+  EXPECT_FALSE(result.output.best_char.has_value());
+  EXPECT_FALSE(result.output.best_pattern.has_value());
   EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
   EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
-  EXPECT_TRUE(result.inserted_insts.empty());
-  EXPECT_TRUE(result.inserted_nets.empty());
-  EXPECT_EQ(result.root_net, &root_net);
-  EXPECT_EQ(result.root_output_pin, &root_driver);
+  EXPECT_TRUE(result.output.inserted_insts.empty());
+  EXPECT_TRUE(result.output.inserted_nets.empty());
+  EXPECT_EQ(result.output.root_net, &root_net);
+  EXPECT_EQ(result.output.root_output_pin, &root_driver);
 }
 
-TEST(HTreeTest, EmptyLoadsAcceptExplicitBuildOptions)
+TEST(HTreeTest, EmptyLoadsAcceptExplicitInputConfig)
 {
   icts::Pin root_driver("root_out", icts::PinType::kOut, icts::Point<int>(0, 0));
   icts::Net root_net("root_net");
   ConnectRootNet(root_net, root_driver, {});
 
-  const auto result = icts::HTree::build(root_net, icts::HTree::BuildOptions{
-                                                       .force_branch_buffer = true,
-                                                       .min_top_input_slew_ns = 0.05,
-                                                       .target_depth = std::nullopt,
-                                                       .depth_explore_window = std::nullopt,
-                                                       .htree_topology_tolerance = std::nullopt,
-                                                       .fixed_topology_root_location = std::nullopt,
-                                                       .characterization_library = nullptr,
-                                                       .additional_characterization_lengths_um = {},
-                                                       .enable_root_driver_sizing = true,
-                                                       .topology_loads_are_local_buffers = false,
-                                                       .clock_period_ns = 0.0,
-                                                       .clock_period_source = "",
-                                                       .log_context = {},
-                                                       .object_name_prefix = "",
-                                                   });
+  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{
+                                                                                          .force_branch_buffer = true,
+                                                                                          .min_top_input_slew_ns = 0.05,
+                                                                                      });
   const auto observation = htree::ObserveHTreeBuild(result);
 
-  EXPECT_FALSE(result.success);
-  EXPECT_EQ(result.failure_reason, "empty_root_net_loads");
-  EXPECT_EQ(result.topology.get_size(), 0U);
-  EXPECT_TRUE(result.levels.empty());
-  EXPECT_FALSE(result.best_char.has_value());
-  EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_FALSE(result.summary.success);
+  EXPECT_EQ(result.summary.failure_reason, "empty_root_net_loads");
+  EXPECT_EQ(result.output.topology.get_size(), 0U);
+  EXPECT_TRUE(result.output.levels.empty());
+  EXPECT_FALSE(result.output.best_char.has_value());
+  EXPECT_FALSE(result.output.best_pattern.has_value());
   EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
   EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
-  EXPECT_TRUE(result.inserted_insts.empty());
-  EXPECT_TRUE(result.inserted_nets.empty());
-  EXPECT_EQ(result.root_net, &root_net);
-  EXPECT_EQ(result.root_output_pin, &root_driver);
+  EXPECT_TRUE(result.output.inserted_insts.empty());
+  EXPECT_TRUE(result.output.inserted_nets.empty());
+  EXPECT_EQ(result.output.root_net, &root_net);
+  EXPECT_EQ(result.output.root_output_pin, &root_driver);
 }
 
 TEST(HTreeTest, MissingRootDriverStopsBeforeTopology)
@@ -236,18 +236,18 @@ TEST(HTreeTest, MissingRootDriverStopsBeforeTopology)
   icts::Net root_net("root_net");
   root_net.set_loads({load.get()});
 
-  const auto result = icts::HTree::build(root_net);
+  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
   const auto observation = htree::ObserveHTreeBuild(result);
 
-  EXPECT_FALSE(result.success);
-  EXPECT_EQ(result.failure_reason, "missing_root_driver_pin");
-  EXPECT_EQ(result.topology.get_size(), 0U);
+  EXPECT_FALSE(result.summary.success);
+  EXPECT_EQ(result.summary.failure_reason, "missing_root_driver_pin");
+  EXPECT_EQ(result.output.topology.get_size(), 0U);
   EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
   EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
-  EXPECT_TRUE(result.inserted_insts.empty());
-  EXPECT_TRUE(result.inserted_nets.empty());
-  EXPECT_EQ(result.root_net, &root_net);
-  EXPECT_EQ(result.root_output_pin, nullptr);
+  EXPECT_TRUE(result.output.inserted_insts.empty());
+  EXPECT_TRUE(result.output.inserted_nets.empty());
+  EXPECT_EQ(result.output.root_net, &root_net);
+  EXPECT_EQ(result.output.root_output_pin, nullptr);
   EXPECT_EQ(load->get_net(), nullptr);
 }
 
@@ -259,23 +259,23 @@ TEST(HTreeTest, SingleLoadBuildsTrivialTopology)
   std::vector<icts::Pin*> loads{load.get()};
   ConnectRootNet(root_net, root_driver, loads);
 
-  const auto result = icts::HTree::build(root_net);
+  const auto result = icts::HTree::buildWithDiagnostics(MakeBareHTreeInput(root_net), icts::HTree::Config{});
   const auto observation = htree::ObserveHTreeBuild(result);
 
-  EXPECT_TRUE(result.success);
-  EXPECT_TRUE(result.failure_reason.empty());
-  EXPECT_EQ(result.topology.get_size(), 1U);
-  EXPECT_TRUE(result.levels.empty());
-  EXPECT_FALSE(result.best_char.has_value());
-  EXPECT_FALSE(result.best_pattern.has_value());
+  EXPECT_TRUE(result.summary.success);
+  EXPECT_TRUE(result.summary.failure_reason.empty());
+  EXPECT_EQ(result.output.topology.get_size(), 1U);
+  EXPECT_TRUE(result.output.levels.empty());
+  EXPECT_FALSE(result.output.best_char.has_value());
+  EXPECT_FALSE(result.output.best_pattern.has_value());
   EXPECT_TRUE(observation.has_selected_depth);
   EXPECT_EQ(observation.selected_depth, 0U);
   EXPECT_EQ(observation.selected_candidate_solution_count, 0U);
   EXPECT_EQ(observation.selected_feasible_solution_count, 0U);
-  EXPECT_TRUE(result.inserted_insts.empty());
-  EXPECT_TRUE(result.inserted_nets.empty());
-  EXPECT_EQ(result.root_net, &root_net);
-  EXPECT_EQ(result.root_output_pin, &root_driver);
+  EXPECT_TRUE(result.output.inserted_insts.empty());
+  EXPECT_TRUE(result.output.inserted_nets.empty());
+  EXPECT_EQ(result.output.root_net, &root_net);
+  EXPECT_EQ(result.output.root_output_pin, &root_driver);
   EXPECT_EQ(root_net.get_driver(), &root_driver);
   ASSERT_EQ(root_net.get_loads().size(), 1U);
   EXPECT_EQ(root_net.get_loads().front(), load.get());

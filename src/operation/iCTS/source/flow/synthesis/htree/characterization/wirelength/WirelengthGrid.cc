@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <ostream>
 #include <ranges>
 #include <vector>
@@ -140,7 +141,18 @@ auto CollectRequestedLevelLengthsUm(const Tree& topology, int32_t dbu_per_um) ->
   return requested_lengths_um;
 }
 
-auto ResolveCharacterizationGridPlan(const std::vector<double>& requested_lengths_um) -> CharacterizationGridPlan
+auto ResolveCharacterizationGridPlan(const Config& config, const std::vector<double>& requested_lengths_um) -> CharacterizationGridPlan
+{
+  CharBuilder::Config char_config;
+  if (config.get_wirelength_unit_um() > 0.0) {
+    char_config.wirelength_unit_um = config.get_wirelength_unit_um();
+  }
+  char_config.wirelength_iterations = config.get_wirelength_iterations();
+  return ResolveCharacterizationGridPlan(char_config, requested_lengths_um);
+}
+
+auto ResolveCharacterizationGridPlan(const CharBuilder::Config& config, const std::vector<double>& requested_lengths_um)
+    -> CharacterizationGridPlan
 {
   CharacterizationGridPlan plan;
   if (requested_lengths_um.empty()) {
@@ -148,8 +160,8 @@ auto ResolveCharacterizationGridPlan(const std::vector<double>& requested_length
   }
   plan.requested_level_lengths = static_cast<unsigned>(requested_lengths_um.size());
 
-  const double configured_unit_um = CONFIG_INST.get_wirelength_unit_um();
-  plan.configured_wirelength_iterations = std::max(1U, CONFIG_INST.get_wirelength_iterations());
+  const double configured_unit_um = config.wirelength_unit_um.value_or(0.0);
+  plan.configured_wirelength_iterations = std::max(1U, config.wirelength_iterations.value_or(1U));
   plan.configured_wirelength_unit_um = configured_unit_um;
   plan.configured_wirelength_missing = configured_unit_um <= 0.0;
 
@@ -181,9 +193,9 @@ auto ResolveCharacterizationGridPlan(const std::vector<double>& requested_length
   return plan;
 }
 
-auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan
+auto ResolveCharacterizationGridPlan(const Config& config, const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan
 {
-  return ResolveCharacterizationGridPlan(CollectRequestedLevelLengthsUm(topology, dbu_per_um));
+  return ResolveCharacterizationGridPlan(config, CollectRequestedLevelLengthsUm(topology, dbu_per_um));
 }
 
 auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const CharacterizationGridPlan& char_grid_plan, int32_t dbu_per_um)

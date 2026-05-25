@@ -27,13 +27,14 @@
 #include <utility>
 
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 
-auto Overview::emitReportMode(bool reused_evaluation_state, const ResultExportPaths& paths) -> void
+auto Overview::emitReportMode(SchemaWriter& reporter, bool reused_evaluation_state, const ReportExportPaths& paths) -> void
 {
   (void) paths;
-  schema::EmitKeyValueTable("CTS Report Mode",
+  EmitKeyValueTable(reporter, "CTS Report Mode",
                             {
                                 {"mode", reused_evaluation_state ? "reuse_evaluation_state" : "rebuild_evaluation_state"},
                             });

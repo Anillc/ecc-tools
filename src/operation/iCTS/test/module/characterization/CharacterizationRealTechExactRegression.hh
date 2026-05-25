@@ -40,8 +40,8 @@ namespace icts_test {
 
 namespace realtech_fixture = characterization::realtech;
 
-auto MakeExactRegressionCharBuilderInitOptions() -> icts::CharBuilder::InitOptions;
-auto MakeIterOneExperimentCharBuilderInitOptions() -> icts::CharBuilder::InitOptions;
+auto MakeExactRegressionCharBuilderContract() -> realtech_fixture::RuntimeCharBuilderContract;
+auto MakeIterOneExperimentCharBuilderContract() -> realtech_fixture::RuntimeCharBuilderContract;
 
 enum class FitBasisKind
 {
@@ -169,7 +169,7 @@ auto BuildFunctionalSurfaceModels(const std::vector<icts::SegmentChar>& entries,
                                   const realtech_fixture::SegmentFrontierContext& segment_context, const realtech_fixture::CharGrid& grid,
                                   FitBasisKind basis_kind) -> std::unordered_map<std::string, FunctionalSurfaceModel>;
 auto BuildPhysicalStructuralCapOperators(const realtech_fixture::SegmentFrontierContext& segment_context,
-                                         const icts::CharBuilder::InitOptions& options, const realtech_fixture::CharGrid& grid)
+                                         const icts::CharBuilder::Config& config, const realtech_fixture::CharGrid& grid)
     -> std::unordered_map<std::string, StructuralCapOperator>;
 auto DecomposeToUnitPatternKeys(const icts::BufferingPattern& pattern, unsigned target_length_idx)
     -> std::optional<std::vector<std::string>>;

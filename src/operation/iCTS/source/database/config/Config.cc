@@ -35,6 +35,7 @@
 #include "LogFormat.hh"
 #include "json.hpp"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -313,9 +314,9 @@ auto Config::buildRuntimeConfigRows() const -> logformat::TableRows
   };
 }
 
-auto Config::emitRuntimeConfigReport(const std::string& title) const -> void
+auto Config::emitRuntimeConfigReport(SchemaWriter& reporter, const std::string& title) const -> void
 {
-  schema::EmitTable(title, {"Item", "Value", "Detail"}, buildRuntimeConfigRows());
+  reporter.emitTable(title, {"Item", "Value", "Detail"}, buildRuntimeConfigRows());
 }
 
 }  // namespace icts

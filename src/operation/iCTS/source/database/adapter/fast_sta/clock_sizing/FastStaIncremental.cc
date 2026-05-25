@@ -149,7 +149,8 @@ auto applyBufferMasterChange(FastStaClockContext& context, FastStaNodeId node_id
   }
   const auto target_master = std::string(cell_master);
   if (!context.liberty_cell_by_master.contains(target_master)) {
-    context.liberty_cell_by_master[target_master] = FastStaLiberty::extractBufferCell(target_master);
+    LOG_FATAL_IF(context.sta_adapter == nullptr) << "FastStaIncremental: STA adapter is unavailable.";
+    context.liberty_cell_by_master[target_master] = FastStaLiberty::extractBufferCell(*context.sta_adapter, target_master);
   }
   const auto inst_name = context.nodes.at(input_node_id).inst_name;
   for (auto& candidate : context.nodes) {

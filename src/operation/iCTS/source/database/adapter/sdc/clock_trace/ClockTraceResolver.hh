@@ -23,19 +23,22 @@
 
 #pragma once
 
+#include <cstddef>
+
 #include "SdcClockReader.hh"
 
 namespace idb {
 class IdbDesign;
 }  // namespace idb
 
-namespace icts {
+#include "logger/SchemaForward.hh"
 
+namespace icts {
 class ClockTraceResolver
 {
  public:
-  static auto resolve(const SdcClockData& clock_data) -> ClockTraceResult;
-  static auto resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design) -> ClockTraceResult;
+  static auto resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout, SchemaWriter& reporter)
+      -> ClockTraceBuild;
 };
 
 }  // namespace icts

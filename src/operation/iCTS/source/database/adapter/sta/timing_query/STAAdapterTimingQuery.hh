@@ -30,6 +30,7 @@
 #include "liberty/Lib.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace idb {
 class IdbInstance;
@@ -41,6 +42,11 @@ class StaVertex;
 class TimingEngine;
 enum class TransType : int;
 }  // namespace ista
+
+namespace icts {
+class Config;
+class STAAdapter;
+}  // namespace icts
 
 namespace icts::sta_adapter_timing_query {
 
@@ -56,14 +62,15 @@ struct WireRcProbe
   double capacitance_per_um_pf = 0.0;
   bool queried = false;
   bool has_diagnostic = false;
-  schema::DiagnosticLevel diagnostic_level = schema::DiagnosticLevel::kInfo;
+  DiagnosticLevel diagnostic_level = DiagnosticLevel::kInfo;
   std::string diagnostic_summary;
   std::string status = "not_queried";
   std::string detail;
 };
 
 auto GetStaEngine() -> ista::TimingEngine*;
-auto ConfigureStaWorkspace(ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void;
+auto ConfigureStaWorkspace(const std::string& work_dir, ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void;
+auto ConfigureStaWorkspace(const Config& config, ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void;
 auto InstallTimingIDBAdapter(ista::TimingEngine* timing_engine) -> void;
 auto LoadConfiguredLiberty(ista::TimingEngine* timing_engine) -> void;
 auto LoadConfiguredSdcIfPresent(ista::TimingEngine* timing_engine) -> void;
@@ -77,11 +84,11 @@ auto FindLibertyCellForInstName(const std::string& inst_name, std::string& cell_
 auto FindLibertyCellByMaster(const std::string& cell_master) -> ista::LibCell*;
 auto FindBufferArcSet(ista::LibCell* lib_cell) -> std::optional<ista::LibArcSet*>;
 auto ConvertAxisValue(ista::LibLibrary* owner_lib, ista::LibLutTableTemplate::Variable variable, double axis_value) -> double;
-auto ResolveConfiguredRoutingLayer() -> int;
-auto ResolveConfiguredWireWidth() -> std::optional<double>;
+auto ResolveConfiguredRoutingLayer(const Config& config) -> int;
+auto ResolveConfiguredWireWidth(const Config& config) -> std::optional<double>;
 auto FormatOptionalWireWidth(std::optional<double> wire_width_um) -> std::string;
-auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) -> WireRcProbe;
-auto EmitWireRcProbeDiagnostic(const WireRcProbe& probe) -> void;
+auto QueryWireRcProbe(STAAdapter& sta_adapter, int routing_layer, std::optional<double> wire_width_um) -> WireRcProbe;
+auto EmitWireRcProbeDiagnostic(SchemaWriter& reporter, const WireRcProbe& probe) -> void;
 auto BuildWireRcRows(const WireRcProbe& probe) -> logformat::TableRows;
 auto ConvertLibCapToPf(ista::LibCell* lib_cell, double cap_value) -> double;
 auto ConvertLibTimeToNs(ista::LibCell* lib_cell, double time_value) -> double;

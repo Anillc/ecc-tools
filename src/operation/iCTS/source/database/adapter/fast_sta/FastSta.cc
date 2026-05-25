@@ -60,6 +60,15 @@ auto logContextSize(std::string_view owner, const FastStaClockContext& context) 
            << ", liberty_cells=" << context.liberty_cell_by_master.size() << ".";
 }
 
+auto requireEnvironment(const std::optional<FastStaEnvironment>& environment) -> const FastStaEnvironment&
+{
+  LOG_FATAL_IF(!environment.has_value()) << "FastSTA: runtime environment is not bound.";
+  LOG_FATAL_IF(environment->sta_adapter == nullptr) << "FastSTA: bound STA adapter is null.";
+  LOG_FATAL_IF(environment->dbu_per_um <= 0) << "FastSTA: bound DBU-per-micron is invalid.";
+  LOG_FATAL_IF(environment->routing_layer <= 0) << "FastSTA: bound routing layer is invalid.";
+  return *environment;
+}
+
 auto toSlewRole(FastStaNodeKind kind) -> FastStaSlewRole
 {
   switch (kind) {
@@ -152,18 +161,28 @@ FastSTA::FastSTA() : _contexts(std::make_unique<ContextStore>())
 
 FastSTA::~FastSTA() = default;
 
-auto FastSTA::buildClockContext(const Clock& clock) -> FastStaClockId
+auto FastSTA::bindEnvironment(const FastStaEnvironment& environment) -> void
 {
-  auto& adapter = getInst();
+  LOG_FATAL_IF(environment.sta_adapter == nullptr) << "FastSTA: cannot bind a null STA adapter.";
+  LOG_FATAL_IF(environment.dbu_per_um <= 0) << "FastSTA: cannot bind invalid DBU-per-micron.";
+  LOG_FATAL_IF(environment.routing_layer <= 0) << "FastSTA: cannot bind invalid routing layer.";
+  _environment = environment;
+}
+
+auto FastSTA::buildClockContext(const FastStaClockBuildInput& input) -> FastStaClockId
+{
+  LOG_FATAL_IF(input.clock == nullptr) << "FastSTA: clock context build input has no clock.";
+  const auto& environment = requireEnvironment(_environment);
+  const auto& clock = *input.clock;
   const auto total_start = std::chrono::steady_clock::now();
   auto stage_start = std::chrono::steady_clock::now();
   LOG_INFO << "FastSTA: start build clock context for clock \"" << clock.get_clock_name() << "\".";
-  auto context = FastStaBuilder::buildClockContext(clock);
-  LOG_INFO << "FastSTA: base context build finished in " << elapsedSeconds(stage_start) << " s.";
-  logContextSize("FastSTA base context", context);
-  const auto clock_id = adapter._contexts->clock_contexts.size();
-  adapter._contexts->clock_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
-  adapter._contexts->clock_context_valid.push_back(true);
+  auto context = FastStaBuilder::buildClockContext(environment, input);
+  LOG_INFO << "FastSTA: clock context build finished in " << elapsedSeconds(stage_start) << " s.";
+  logContextSize(input.route_geometry == nullptr ? "FastSTA committed-tree context" : "FastSTA route geometry context", context);
+  const auto clock_id = _contexts->clock_contexts.size();
+  _contexts->clock_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
+  _contexts->clock_context_valid.push_back(true);
 
   stage_start = std::chrono::steady_clock::now();
   LOG_INFO << "FastSTA: start initial timing update for clock \"" << clock.get_clock_name() << "\".";
@@ -181,35 +200,6 @@ auto FastSTA::buildClockContext(const Clock& clock) -> FastStaClockId
   return clock_id;
 }
 
-auto FastSTA::buildClockContext(const Clock& clock, const FastStaClockRouteGeometry& route_geometry) -> FastStaClockId
-{
-  auto& adapter = getInst();
-  const auto total_start = std::chrono::steady_clock::now();
-  auto stage_start = std::chrono::steady_clock::now();
-  LOG_INFO << "FastSTA: start build route geometry clock context for clock \"" << clock.get_clock_name() << "\".";
-  auto context = FastStaBuilder::buildClockContext(clock, route_geometry);
-  LOG_INFO << "FastSTA: route geometry context build finished in " << elapsedSeconds(stage_start) << " s.";
-  logContextSize("FastSTA route geometry context", context);
-  const auto clock_id = adapter._contexts->clock_contexts.size();
-  adapter._contexts->clock_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
-  adapter._contexts->clock_context_valid.push_back(true);
-
-  stage_start = std::chrono::steady_clock::now();
-  LOG_INFO << "FastSTA: start initial timing update for clock \"" << clock.get_clock_name() << "\".";
-  (void) updateTiming(clock_id);
-  LOG_INFO << "FastSTA: initial timing update for clock \"" << clock.get_clock_name() << "\" finished in " << elapsedSeconds(stage_start)
-           << " s.";
-
-  stage_start = std::chrono::steady_clock::now();
-  LOG_INFO << "FastSTA: start initial power update for clock \"" << clock.get_clock_name() << "\".";
-  (void) updatePower(clock_id);
-  LOG_INFO << "FastSTA: initial power update for clock \"" << clock.get_clock_name() << "\" finished in " << elapsedSeconds(stage_start)
-           << " s.";
-  LOG_INFO << "FastSTA: build route geometry clock context for clock \"" << clock.get_clock_name() << "\" finished in "
-           << elapsedSeconds(total_start) << " s.";
-  return clock_id;
-}
-
 auto FastSTA::rebuildClockContext(FastStaClockId clock_id) -> bool
 {
   auto* context = mutableClockContext(clock_id);
@@ -224,11 +214,10 @@ auto FastSTA::rebuildClockContext(FastStaClockId clock_id) -> bool
 
 auto FastSTA::eraseClockContext(FastStaClockId clock_id) -> bool
 {
-  auto& adapter = getInst();
-  if (clock_id >= adapter._contexts->clock_context_valid.size() || !adapter._contexts->clock_context_valid.at(clock_id)) {
+  if (clock_id >= _contexts->clock_context_valid.size() || !_contexts->clock_context_valid.at(clock_id)) {
     return false;
   }
-  adapter._contexts->clock_context_valid.at(clock_id) = false;
+  _contexts->clock_context_valid.at(clock_id) = false;
   return true;
 }
 
@@ -238,48 +227,45 @@ auto FastSTA::reset() -> void
   _contexts->clock_context_valid.clear();
   _contexts->char_contexts.clear();
   _contexts->char_context_valid.clear();
+  _environment = std::nullopt;
 }
 
 auto FastSTA::buildCharContext(const FastStaCharTopologySpec& spec) -> FastStaCharContextId
 {
-  auto& adapter = getInst();
   auto context = FastStaChar::buildContext(spec);
-  const auto char_context_id = adapter._contexts->char_contexts.size();
-  adapter._contexts->char_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
-  adapter._contexts->char_context_valid.push_back(true);
+  const auto char_context_id = _contexts->char_contexts.size();
+  _contexts->char_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
+  _contexts->char_context_valid.push_back(true);
   return char_context_id;
 }
 
 auto FastSTA::eraseCharContext(FastStaCharContextId char_context_id) -> bool
 {
-  auto& adapter = getInst();
-  if (char_context_id >= adapter._contexts->char_context_valid.size() || !adapter._contexts->char_context_valid.at(char_context_id)) {
+  if (char_context_id >= _contexts->char_context_valid.size() || !_contexts->char_context_valid.at(char_context_id)) {
     return false;
   }
-  adapter._contexts->char_context_valid.at(char_context_id) = false;
+  _contexts->char_context_valid.at(char_context_id) = false;
   return true;
 }
 
 auto FastSTA::setCharLoad(FastStaCharContextId char_context_id, double effective_load_pf) -> bool
 {
-  auto& adapter = getInst();
-  if (char_context_id >= adapter._contexts->char_contexts.size() || char_context_id >= adapter._contexts->char_context_valid.size()
-      || !adapter._contexts->char_context_valid.at(char_context_id)) {
+  if (char_context_id >= _contexts->char_contexts.size() || char_context_id >= _contexts->char_context_valid.size()
+      || !_contexts->char_context_valid.at(char_context_id)) {
     LOG_ERROR << "FastSTA: characterization load update skipped because char context id is invalid.";
     return false;
   }
-  return FastStaChar::setLoad(*adapter._contexts->char_contexts.at(char_context_id), effective_load_pf);
+  return FastStaChar::setLoad(*_contexts->char_contexts.at(char_context_id), effective_load_pf);
 }
 
 auto FastSTA::runCharSample(FastStaCharContextId char_context_id, double input_slew_ns) -> FastStaCharSampleResult
 {
-  auto& adapter = getInst();
-  if (char_context_id >= adapter._contexts->char_contexts.size() || char_context_id >= adapter._contexts->char_context_valid.size()
-      || !adapter._contexts->char_context_valid.at(char_context_id)) {
+  if (char_context_id >= _contexts->char_contexts.size() || char_context_id >= _contexts->char_context_valid.size()
+      || !_contexts->char_context_valid.at(char_context_id)) {
     LOG_ERROR << "FastSTA: characterization sample skipped because char context id is invalid.";
     return {};
   }
-  return FastStaChar::runSample(*adapter._contexts->char_contexts.at(char_context_id), input_slew_ns);
+  return FastStaChar::runSample(*_contexts->char_contexts.at(char_context_id), input_slew_ns);
 }
 
 auto FastSTA::changeBufferMaster(FastStaClockId clock_id, FastStaNodeId node_id, std::string_view cell_master) -> bool
@@ -382,7 +368,7 @@ auto FastSTA::injectNetRouteTree(FastStaClockId clock_id, const Net& net, const 
   return true;
 }
 
-auto FastSTA::queryClockGraphProfile(FastStaClockId clock_id) -> std::optional<FastStaClockGraphProfile>
+auto FastSTA::queryClockGraphProfile(FastStaClockId clock_id) const -> std::optional<FastStaClockGraphProfile>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr) {
@@ -391,7 +377,7 @@ auto FastSTA::queryClockGraphProfile(FastStaClockId clock_id) -> std::optional<F
   return makeClockGraphProfile(*context);
 }
 
-auto FastSTA::queryClockAnalysisStatus(FastStaClockId clock_id) -> std::optional<FastStaClockAnalysisStatus>
+auto FastSTA::queryClockAnalysisStatus(FastStaClockId clock_id) const -> std::optional<FastStaClockAnalysisStatus>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr) {
@@ -400,7 +386,7 @@ auto FastSTA::queryClockAnalysisStatus(FastStaClockId clock_id) -> std::optional
   return FastStaClockAnalysisStatus{.timing_valid = context->timing_valid, .power_valid = context->power_valid};
 }
 
-auto FastSTA::queryClockTreeTopology(FastStaClockId clock_id) -> std::optional<FastStaClockTreeTopology>
+auto FastSTA::queryClockTreeTopology(FastStaClockId clock_id) const -> std::optional<FastStaClockTreeTopology>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr) {
@@ -409,7 +395,7 @@ auto FastSTA::queryClockTreeTopology(FastStaClockId clock_id) -> std::optional<F
   return makeClockTreeTopology(*context);
 }
 
-auto FastSTA::collectClockSizingBuffers(FastStaClockId clock_id) -> std::vector<FastStaClockSizingBuffer>
+auto FastSTA::collectClockSizingBuffers(FastStaClockId clock_id) const -> std::vector<FastStaClockSizingBuffer>
 {
   std::vector<FastStaClockSizingBuffer> buffers;
   const auto* context = queryClockContext(clock_id);
@@ -427,7 +413,7 @@ auto FastSTA::collectClockSizingBuffers(FastStaClockId clock_id) -> std::vector<
   return buffers;
 }
 
-auto FastSTA::collectClockSinkArrivals(FastStaClockId clock_id) -> std::vector<FastStaClockSinkArrival>
+auto FastSTA::collectClockSinkArrivals(FastStaClockId clock_id) const -> std::vector<FastStaClockSinkArrival>
 {
   std::vector<FastStaClockSinkArrival> sinks;
   const auto* context = queryClockContext(clock_id);
@@ -445,7 +431,7 @@ auto FastSTA::collectClockSinkArrivals(FastStaClockId clock_id) -> std::vector<F
   return sinks;
 }
 
-auto FastSTA::queryClockNodeArrival(FastStaClockId clock_id, FastStaNodeId node_id) -> std::optional<double>
+auto FastSTA::queryClockNodeArrival(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<double>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr || node_id >= context->nodes.size() || !context->nodes.at(node_id).timing.valid) {
@@ -454,7 +440,7 @@ auto FastSTA::queryClockNodeArrival(FastStaClockId clock_id, FastStaNodeId node_
   return context->nodes.at(node_id).timing.arrival_ns;
 }
 
-auto FastSTA::querySinkArrival(FastStaClockId clock_id, std::string_view sink_pin_name) -> std::optional<double>
+auto FastSTA::querySinkArrival(FastStaClockId clock_id, std::string_view sink_pin_name) const -> std::optional<double>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr) {
@@ -471,13 +457,13 @@ auto FastSTA::querySinkArrival(FastStaClockId clock_id, std::string_view sink_pi
   return node.timing.arrival_ns;
 }
 
-auto FastSTA::querySkew(FastStaClockId clock_id) -> FastStaSkewSummary
+auto FastSTA::querySkew(FastStaClockId clock_id) const -> FastStaSkewSummary
 {
   const auto* context = queryClockContext(clock_id);
   return context == nullptr ? FastStaSkewSummary{} : context->skew;
 }
 
-auto FastSTA::queryNodeSlew(FastStaClockId clock_id, FastStaNodeId node_id) -> std::optional<double>
+auto FastSTA::queryNodeSlew(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<double>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr || node_id >= context->nodes.size() || !context->nodes.at(node_id).timing.valid) {
@@ -486,7 +472,7 @@ auto FastSTA::queryNodeSlew(FastStaClockId clock_id, FastStaNodeId node_id) -> s
   return context->nodes.at(node_id).timing.slew_ns;
 }
 
-auto FastSTA::queryNetLoad(FastStaClockId clock_id, FastStaNetId net_id) -> std::optional<double>
+auto FastSTA::queryNetLoad(FastStaClockId clock_id, FastStaNetId net_id) const -> std::optional<double>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr || net_id >= context->nets.size()) {
@@ -495,7 +481,7 @@ auto FastSTA::queryNetLoad(FastStaClockId clock_id, FastStaNetId net_id) -> std:
   return context->nets.at(net_id).load_cap_pf;
 }
 
-auto FastSTA::queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id) -> std::optional<FastStaCapStatus>
+auto FastSTA::queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id) const -> std::optional<FastStaCapStatus>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr || net_id >= context->nets.size()) {
@@ -509,7 +495,7 @@ auto FastSTA::queryCapStatus(FastStaClockId clock_id, FastStaNetId net_id) -> st
                           .violated = net.max_cap_pf > 0.0 && net.load_cap_pf > net.max_cap_pf};
 }
 
-auto FastSTA::querySlewStatus(FastStaClockId clock_id, FastStaNodeId node_id) -> std::optional<FastStaSlewStatus>
+auto FastSTA::querySlewStatus(FastStaClockId clock_id, FastStaNodeId node_id) const -> std::optional<FastStaSlewStatus>
 {
   const auto* context = queryClockContext(clock_id);
   if (context == nullptr || node_id >= context->nodes.size()) {
@@ -527,44 +513,41 @@ auto FastSTA::querySlewStatus(FastStaClockId clock_id, FastStaNodeId node_id) ->
                            .violated = node.max_slew_ns > 0.0 && node.timing.slew_ns > node.max_slew_ns};
 }
 
-auto FastSTA::queryPower(FastStaClockId clock_id) -> FastStaPowerSummary
+auto FastSTA::queryPower(FastStaClockId clock_id) const -> FastStaPowerSummary
 {
   const auto* context = queryClockContext(clock_id);
   return context == nullptr ? FastStaPowerSummary{} : context->power;
 }
 
-auto FastSTA::queryArea(FastStaClockId clock_id) -> double
+auto FastSTA::queryArea(FastStaClockId clock_id) const -> double
 {
   return queryPower(clock_id).area_um2;
 }
 
-auto FastSTA::queryClockContext(FastStaClockId clock_id) -> const FastStaClockContext*
+auto FastSTA::queryClockContext(FastStaClockId clock_id) const -> const FastStaClockContext*
 {
-  const auto& adapter = getInst();
-  if (clock_id >= adapter._contexts->clock_contexts.size() || clock_id >= adapter._contexts->clock_context_valid.size()
-      || !adapter._contexts->clock_context_valid.at(clock_id)) {
+  if (clock_id >= _contexts->clock_contexts.size() || clock_id >= _contexts->clock_context_valid.size()
+      || !_contexts->clock_context_valid.at(clock_id)) {
     return nullptr;
   }
-  return adapter._contexts->clock_contexts.at(clock_id).get();
+  return _contexts->clock_contexts.at(clock_id).get();
 }
 
 auto FastSTA::mutableClockContext(FastStaClockId clock_id) -> FastStaClockContext*
 {
-  auto& adapter = getInst();
-  if (clock_id >= adapter._contexts->clock_contexts.size() || clock_id >= adapter._contexts->clock_context_valid.size()
-      || !adapter._contexts->clock_context_valid.at(clock_id)) {
+  if (clock_id >= _contexts->clock_contexts.size() || clock_id >= _contexts->clock_context_valid.size()
+      || !_contexts->clock_context_valid.at(clock_id)) {
     return nullptr;
   }
-  return adapter._contexts->clock_contexts.at(clock_id).get();
+  return _contexts->clock_contexts.at(clock_id).get();
 }
 
-auto FastSTA::queryClockIds() -> std::vector<FastStaClockId>
+auto FastSTA::queryClockIds() const -> std::vector<FastStaClockId>
 {
-  const auto& adapter = getInst();
   std::vector<FastStaClockId> ids;
-  ids.reserve(adapter._contexts->clock_contexts.size());
-  for (FastStaClockId id = 0U; id < adapter._contexts->clock_contexts.size(); ++id) {
-    if (id < adapter._contexts->clock_context_valid.size() && adapter._contexts->clock_context_valid.at(id)) {
+  ids.reserve(_contexts->clock_contexts.size());
+  for (FastStaClockId id = 0U; id < _contexts->clock_contexts.size(); ++id) {
+    if (id < _contexts->clock_context_valid.size() && _contexts->clock_context_valid.at(id)) {
       ids.push_back(id);
     }
   }
@@ -573,10 +556,9 @@ auto FastSTA::queryClockIds() -> std::vector<FastStaClockId>
 
 auto FastSTA::registerClockContext(FastStaClockContext context) -> FastStaClockId
 {
-  auto& adapter = getInst();
-  const auto clock_id = adapter._contexts->clock_contexts.size();
-  adapter._contexts->clock_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
-  adapter._contexts->clock_context_valid.push_back(true);
+  const auto clock_id = _contexts->clock_contexts.size();
+  _contexts->clock_contexts.push_back(std::make_unique<FastStaClockContext>(std::move(context)));
+  _contexts->clock_context_valid.push_back(true);
   return clock_id;
 }
 

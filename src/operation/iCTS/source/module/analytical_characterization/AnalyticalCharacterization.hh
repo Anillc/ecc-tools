@@ -42,7 +42,7 @@ struct PatternId;
 
 namespace icts::analytical {
 
-struct AnalyticalCharacterizationOptions
+struct AnalyticalCharacterizationConfig
 {
   AnalyticalModelBasis output_slew_basis = AnalyticalModelBasis::kAffine;
   AnalyticalModelBasis delay_basis = AnalyticalModelBasis::kAffine;
@@ -71,24 +71,34 @@ struct AnalyticalCharacterizationFailure
   std::string reason;
 };
 
-struct AnalyticalCharacterizationResult
+struct AnalyticalCharacterizationOutput
+{
+  AnalyticalModelCatalog catalog;
+};
+
+struct AnalyticalCharacterizationSummary
 {
   bool success = false;
-  AnalyticalModelCatalog catalog;
   std::size_t model_set_count = 0U;
   std::size_t rejected_fit_count = 0U;
   std::size_t structural_cap_operator_count = 0U;
   std::vector<AnalyticalCharacterizationFailure> failures;
 };
 
+struct AnalyticalCharacterizationBuild
+{
+  AnalyticalCharacterizationOutput output;
+  AnalyticalCharacterizationSummary summary;
+};
+
 class AnalyticalCharacterization
 {
  public:
-  static auto buildFromCharBuilder(const CharBuilder& char_builder, const AnalyticalCharacterizationOptions& options)
-      -> AnalyticalCharacterizationResult;
+  static auto buildFromCharBuilder(const CharBuilder& char_builder, const AnalyticalCharacterizationConfig& config)
+      -> AnalyticalCharacterizationBuild;
   static auto buildFromSegmentChars(const std::vector<SegmentChar>& segment_chars, const std::vector<BufferingPattern>& buffering_patterns,
                                     const UniformValueLattice& slew_lattice, const UniformValueLattice& cap_lattice,
-                                    const AnalyticalCharacterizationOptions& options) -> AnalyticalCharacterizationResult;
+                                    const AnalyticalCharacterizationConfig& config) -> AnalyticalCharacterizationBuild;
 };
 
 auto BuildBucketCompatibleStructuralCapOperator(PatternId pattern_id, const std::vector<BufferingPattern>& buffering_patterns,

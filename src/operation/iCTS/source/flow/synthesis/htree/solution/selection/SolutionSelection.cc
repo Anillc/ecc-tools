@@ -39,7 +39,7 @@
 #include "PatternId.hh"
 #include "STAAdapter.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree {
@@ -78,26 +78,27 @@ auto SaturatingMultiply(std::size_t lhs, std::size_t rhs) -> std::size_t
   return lhs * rhs;
 }
 
-auto CalcCellMastersAreaUm2(const std::vector<std::string>& cell_masters) -> double
+auto CalcCellMastersAreaUm2(STAAdapter& sta_adapter, const std::vector<std::string>& cell_masters) -> double
 {
   double area_um2 = 0.0;
   for (const auto& cell_master : cell_masters) {
-    area_um2 += std::max(0.0, STA_ADAPTER_INST.queryCellAreaUm2(cell_master));
+    area_um2 += std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master));
   }
   return area_um2;
 }
 
 }  // namespace
 
-auto ApplySelectedPatternToLevelPlans(HTree::BuildResult& result, const BufferPatternLibrary& segment_pattern_library) -> void
+auto ApplySelectedPatternToLevelPlans(STAAdapter& sta_adapter, HTree::Build& result, const BufferPatternLibrary& segment_pattern_library)
+    -> void
 {
-  LOG_FATAL_IF(!result.best_pattern.has_value()) << "HTree: selected topology pattern is missing.";
-  const auto& best_level_segment_pattern_ids = result.best_pattern->get_level_segment_pattern_ids();
-  LOG_FATAL_IF(best_level_segment_pattern_ids.size() != result.levels.size())
+  LOG_FATAL_IF(!result.output.best_pattern.has_value()) << "HTree: selected topology pattern is missing.";
+  const auto& best_level_segment_pattern_ids = result.output.best_pattern->get_level_segment_pattern_ids();
+  LOG_FATAL_IF(best_level_segment_pattern_ids.size() != result.output.levels.size())
       << "HTree: best H-tree pattern level count does not match selected depth.";
 
-  for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
-    auto& level = result.levels.at(level_index);
+  for (std::size_t level_index = 0; level_index < result.output.levels.size(); ++level_index) {
+    auto& level = result.output.levels.at(level_index);
     const auto segment_pattern_id = best_level_segment_pattern_ids.at(level_index);
     level.segment_pattern_id = segment_pattern_id;
     const auto* segment_pattern = segment_pattern_library.find(segment_pattern_id);
@@ -110,7 +111,7 @@ auto ApplySelectedPatternToLevelPlans(HTree::BuildResult& result, const BufferPa
     level.selected_has_terminal_branch_buffer = segment_pattern->hasTerminalBranchBuffer();
     level.selected_terminal_cell_master = segment_pattern->hasTerminalBranchBuffer() && !cell_masters.empty() ? cell_masters.back() : "";
     level.selected_buffer_count = cell_masters.size();
-    level.selected_buffer_area_um2 = CalcCellMastersAreaUm2(cell_masters);
+    level.selected_buffer_area_um2 = CalcCellMastersAreaUm2(sta_adapter, cell_masters);
     level.selected_weighted_buffer_count = SaturatingMultiply(level_multiplicity, level.selected_buffer_count);
     level.selected_weighted_buffer_area_um2 = static_cast<double>(level_multiplicity) * level.selected_buffer_area_um2;
   }

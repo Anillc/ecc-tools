@@ -37,7 +37,7 @@
 
 namespace icts {
 class Pin;
-struct ClusterResult;
+struct ClusterOutput;
 }  // namespace icts
 
 namespace icts_test::fast_clustering::realtech {
@@ -77,7 +77,7 @@ auto BuildClusterSvgName(const BenchmarkCase& benchmark_case) -> std::string
 }  // namespace
 
 auto WriteCaseClusterSvg(const std::filesystem::path& svg_dir, const BenchmarkCase& benchmark_case, const std::vector<icts::Pin*>& loads,
-                         const icts::ClusterResult& fast_result, std::string& error) -> std::filesystem::path
+                         const icts::ClusterOutput& fast_result, std::string& error) -> std::filesystem::path
 {
   std::error_code error_code;
   std::filesystem::create_directories(svg_dir, error_code);

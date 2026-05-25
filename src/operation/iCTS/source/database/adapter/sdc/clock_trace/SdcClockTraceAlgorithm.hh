@@ -33,6 +33,7 @@
 
 #include "ClockTraceResolver.hh"
 #include "SdcClockReader.hh"
+#include "logger/SchemaForward.hh"
 
 struct RustLibertyExpr;
 
@@ -112,7 +113,7 @@ auto TargetKind(const ClockSinkStats& stats) -> std::string;
 auto ClockKindName(const SdcClockDecl& clock) -> std::string;
 auto MasterClockName(const SdcClockDecl& clock) -> std::string;
 auto DominanceForRecord(const ClockTraceRecord& record, const std::string& clock_kind) -> std::string;
-auto StrongTargetSinkThreshold() -> std::size_t;
+auto StrongTargetSinkThreshold(std::size_t max_fanout) -> std::size_t;
 auto IsStrongClockTarget(const ClockTraceRecord& record, std::size_t sink_threshold) -> bool;
 auto ResolveInstPinByLibPort(idb::IdbInstance* inst, ista::LibPort* lib_port) -> idb::IdbPin*;
 auto BuildPreclusteredSinkAnchor(idb::IdbNet* leaf_net) -> std::optional<ClockTracePreclusteredSinkAnchor>;
@@ -134,9 +135,9 @@ auto CollectTracedNetNames(const std::vector<ClockTraceRecord>& records) -> std:
 auto CollectUnownedClockLikeRecords(idb::IdbDesign* idb_design, const std::vector<ClockTraceRecord>& records)
     -> std::vector<ClockTraceRecord>;
 auto NumberToString(std::size_t value) -> std::string;
-auto EmitClockTraceReport(const std::vector<ClockTraceRecord>& records) -> void;
+auto EmitClockTraceReport(SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void;
 auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<std::string, ClockDeclView>& clock_view_by_name,
-                                 const std::vector<ClockTraceRecord>& records) -> void;
-auto EmitUnownedClockLikeNetReport(const std::vector<ClockTraceRecord>& records) -> void;
+                                 SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void;
+auto EmitUnownedClockLikeNetReport(SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void;
 
 }  // namespace icts::clock_trace

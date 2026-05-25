@@ -21,8 +21,8 @@ target_link_libraries(
   icts_source_database_routing
   PRIVATE
   icts_source_database_adapter_fast_sta
-  icts_source_utils
   icts_source_utils_logger
+  icts_source_utils
 )
 
 target_include_directories(

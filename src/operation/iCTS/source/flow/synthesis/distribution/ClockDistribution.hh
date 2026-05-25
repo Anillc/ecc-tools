@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -33,10 +34,12 @@
 namespace icts {
 
 class Clock;
+class Design;
 class DomainStatusTable;
 class Inst;
 class Net;
 class Pin;
+class STAAdapter;
 
 struct ClockDistributionRootBufferSpec
 {
@@ -72,15 +75,27 @@ struct ClockDistributionContext
   }
 };
 
+struct ClockDistributionInput
+{
+  Design* design = nullptr;
+  Clock* clock = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  std::size_t clock_index = 0U;
+  SinkDomainKind sink_domain = SinkDomainKind::kUnknown;
+  std::vector<Pin*> sinks;
+  std::size_t valid_sinks = 0U;
+  std::vector<std::string> root_buffer_types;
+  DomainStatusTable* status_table = nullptr;
+  const ClockDistributionRootBufferSpec* root_buffer_spec = nullptr;
+};
+
 class ClockDistribution
 {
  public:
   ClockDistribution() = delete;
 
   static auto partitionSinkDomains(const Clock& clock) -> ClockDistributionPartition;
-  static auto prepare(Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain, const std::vector<Pin*>& sinks,
-                      std::size_t valid_sinks, DomainStatusTable& status_table, ClockDistributionContext& context,
-                      const ClockDistributionRootBufferSpec* root_buffer_spec = nullptr) -> bool;
+  static auto prepare(const ClockDistributionInput& input) -> std::optional<ClockDistributionContext>;
 };
 
 using ClockSinkDomainRootBufferSpec = ClockDistributionRootBufferSpec;

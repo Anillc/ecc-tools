@@ -28,8 +28,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "analytical_characterization/AnalyticalModel.hh"
 #include "characterization/Characterization.hh"
+#include "common/CTSTestRuntime.hh"
 #include "database/characterization/BufferingPattern.hh"
 #include "database/characterization/CharCore.hh"
 #include "database/characterization/HTreeTopologyChar.hh"
@@ -116,7 +118,7 @@ TEST(AnalyticalSolverTest, ProducesDeterministicCandidateFromShortlist)
       = {MakeSegmentChar(pattern_slow, length_idx, 0.30, 2e-6), MakeSegmentChar(pattern_fast, length_idx, 0.10, 1e-6)};
   icts::htree::SegmentFrontierCatalog frontier_catalog({{length_idx, frontier_set}});
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_fast, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_slow, {}, {}, false));
 
@@ -134,16 +136,16 @@ TEST(AnalyticalSolverTest, ProducesDeterministicCandidateFromShortlist)
   solve_problem.model_catalog = &catalog;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.02;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
-  solve_problem.options.top_k_per_depth = 1U;
+  solve_problem.config.root_input_slew_ns = 0.02;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.top_k_per_depth = 1U;
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  ASSERT_EQ(result.candidates.size(), 1U);
-  EXPECT_EQ(result.candidates.front().level_segment_pattern_ids.front(), pattern_fast);
-  EXPECT_TRUE(result.candidates.front().materialized_char.has_value());
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  ASSERT_EQ(result.output.candidates.size(), 1U);
+  EXPECT_EQ(result.output.candidates.front().level_segment_pattern_ids.front(), pattern_fast);
+  EXPECT_TRUE(result.output.candidates.front().materialized_char.has_value());
 }
 
 TEST(AnalyticalSolverTest, AcceptsIdealRootInputSlew)
@@ -155,7 +157,7 @@ TEST(AnalyticalSolverTest, AcceptsIdealRootInputSlew)
   frontier_set.mutableEntries(icts::htree::SegmentFrontierKind::kAll) = {MakeSegmentChar(pattern_id, length_idx, 0.10, 1e-6)};
   icts::htree::SegmentFrontierCatalog frontier_catalog({{length_idx, frontier_set}});
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_id, {}, {}, false));
 
   icts::analytical::AnalyticalModelCatalog catalog;
@@ -171,16 +173,16 @@ TEST(AnalyticalSolverTest, AcceptsIdealRootInputSlew)
   solve_problem.model_catalog = &catalog;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.0;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.root_input_slew_ns = 0.0;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  ASSERT_EQ(result.candidates.size(), 1U);
-  EXPECT_DOUBLE_EQ(result.candidates.front().root_input_slew_ns, 0.0);
-  ASSERT_FALSE(result.candidates.front().trace.empty());
-  EXPECT_NEAR(result.candidates.front().trace.front().input_slew_ns, 0.01, 1e-12);
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  ASSERT_EQ(result.output.candidates.size(), 1U);
+  EXPECT_DOUBLE_EQ(result.output.candidates.front().root_input_slew_ns, 0.0);
+  ASSERT_FALSE(result.output.candidates.front().trace.empty());
+  EXPECT_NEAR(result.output.candidates.front().trace.front().input_slew_ns, 0.01, 1e-12);
 }
 
 TEST(AnalyticalSolverTest, KeepsTopKBeamCandidates)
@@ -196,7 +198,7 @@ TEST(AnalyticalSolverTest, KeepsTopKBeamCandidates)
          MakeSegmentChar(pattern_fast, length_idx, 0.10, 3e-6)};
   icts::htree::SegmentFrontierCatalog frontier_catalog({{length_idx, frontier_set}});
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_fast, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_medium, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_slow, {}, {}, false));
@@ -217,18 +219,18 @@ TEST(AnalyticalSolverTest, KeepsTopKBeamCandidates)
   solve_problem.model_catalog = &catalog;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.02;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
-  solve_problem.options.per_level_shortlist_size = 3U;
-  solve_problem.options.top_k_per_depth = 2U;
+  solve_problem.config.root_input_slew_ns = 0.02;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.per_level_shortlist_size = 3U;
+  solve_problem.config.top_k_per_depth = 2U;
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  ASSERT_EQ(result.candidates.size(), 2U);
-  EXPECT_EQ(result.candidates.at(0).level_segment_pattern_ids, std::vector<icts::PatternId>({pattern_fast, pattern_fast}));
-  EXPECT_NE(result.candidates.at(1).level_segment_pattern_ids, result.candidates.at(0).level_segment_pattern_ids);
-  EXPECT_LE(result.candidates.at(0).raw_delay_ns, result.candidates.at(1).raw_delay_ns);
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  ASSERT_EQ(result.output.candidates.size(), 2U);
+  EXPECT_EQ(result.output.candidates.at(0).level_segment_pattern_ids, std::vector<icts::PatternId>({pattern_fast, pattern_fast}));
+  EXPECT_NE(result.output.candidates.at(1).level_segment_pattern_ids, result.output.candidates.at(0).level_segment_pattern_ids);
+  EXPECT_LE(result.output.candidates.at(0).raw_delay_ns, result.output.candidates.at(1).raw_delay_ns);
 }
 
 TEST(AnalyticalSolverTest, ComposesUnitModelsWithoutSegmentFrontierCatalog)
@@ -237,7 +239,7 @@ TEST(AnalyticalSolverTest, ComposesUnitModelsWithoutSegmentFrontierCatalog)
   const unsigned unit_length_idx = 1U;
   const unsigned composed_length_idx = 2U;
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(unit_length_idx, unit_pattern_id, {}, {}, false));
 
   icts::analytical::AnalyticalModelCatalog catalog;
@@ -253,23 +255,23 @@ TEST(AnalyticalSolverTest, ComposesUnitModelsWithoutSegmentFrontierCatalog)
   solve_problem.model_catalog = &catalog;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.02;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
-  solve_problem.options.use_functional_unit_compose = true;
-  solve_problem.options.unit_length_idx = unit_length_idx;
-  solve_problem.options.unit_compose_beam_size = 2U;
+  solve_problem.config.root_input_slew_ns = 0.02;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.use_functional_unit_compose = true;
+  solve_problem.config.unit_length_idx = unit_length_idx;
+  solve_problem.config.unit_compose_beam_size = 2U;
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  ASSERT_EQ(result.candidates.size(), 1U);
-  const auto composed_pattern_id = result.candidates.front().level_segment_pattern_ids.front();
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  ASSERT_EQ(result.output.candidates.size(), 1U);
+  const auto composed_pattern_id = result.output.candidates.front().level_segment_pattern_ids.front();
   EXPECT_NE(composed_pattern_id, unit_pattern_id);
   const auto* composed_pattern = segment_patterns.find(composed_pattern_id);
   ASSERT_NE(composed_pattern, nullptr);
   EXPECT_EQ(composed_pattern->get_length_idx(), composed_length_idx);
-  EXPECT_NEAR(result.candidates.front().raw_delay_ns, 0.20, 1e-12);
-  EXPECT_TRUE(result.candidates.front().materialized_char.has_value());
+  EXPECT_NEAR(result.output.candidates.front().raw_delay_ns, 0.20, 1e-12);
+  EXPECT_TRUE(result.output.candidates.front().materialized_char.has_value());
 }
 
 TEST(AnalyticalSolverTest, FunctionalUnitComposeMaterializesNativeSegmentPattern)
@@ -278,7 +280,7 @@ TEST(AnalyticalSolverTest, FunctionalUnitComposeMaterializesNativeSegmentPattern
   const unsigned unit_length_idx = 1U;
   const unsigned level_length_idx = 2U;
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(unit_length_idx, unit_pattern, {}, {}, false));
 
   icts::analytical::AnalyticalModelCatalog catalog;
@@ -294,24 +296,24 @@ TEST(AnalyticalSolverTest, FunctionalUnitComposeMaterializesNativeSegmentPattern
   solve_problem.model_catalog = &catalog;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.02;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
-  solve_problem.options.use_functional_unit_compose = true;
-  solve_problem.options.unit_length_idx = unit_length_idx;
-  solve_problem.options.top_k_per_depth = 1U;
+  solve_problem.config.root_input_slew_ns = 0.02;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.use_functional_unit_compose = true;
+  solve_problem.config.unit_length_idx = unit_length_idx;
+  solve_problem.config.top_k_per_depth = 1U;
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  ASSERT_EQ(result.candidates.size(), 1U);
-  const auto materialized_pattern_id = result.candidates.front().level_segment_pattern_ids.front();
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  ASSERT_EQ(result.output.candidates.size(), 1U);
+  const auto materialized_pattern_id = result.output.candidates.front().level_segment_pattern_ids.front();
   EXPECT_NE(materialized_pattern_id, unit_pattern);
   const auto* materialized_pattern = segment_patterns.find(materialized_pattern_id);
   ASSERT_NE(materialized_pattern, nullptr);
   EXPECT_EQ(materialized_pattern->get_length_idx(), level_length_idx);
-  ASSERT_FALSE(result.candidates.front().trace.empty());
-  EXPECT_EQ(result.candidates.front().trace.front().length_idx, level_length_idx);
-  EXPECT_TRUE(result.candidates.front().materialized_char.has_value());
+  ASSERT_FALSE(result.output.candidates.front().trace.empty());
+  EXPECT_EQ(result.output.candidates.front().trace.front().length_idx, level_length_idx);
+  EXPECT_TRUE(result.output.candidates.front().materialized_char.has_value());
 }
 
 TEST(AnalyticalSolverTest, DiagnosticSequenceCountersTrackFrontierDecompositionAndShortlist)
@@ -325,7 +327,7 @@ TEST(AnalyticalSolverTest, DiagnosticSequenceCountersTrackFrontierDecompositionA
   frontier_set.mutableEntries(icts::htree::SegmentFrontierKind::kAll) = {MakeSegmentChar(native_pattern, level_length_idx, 0.20, 2e-6)};
   icts::htree::SegmentFrontierCatalog frontier_catalog({{level_length_idx, frontier_set}});
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(unit_length_idx, unit_pattern, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(level_length_idx, native_pattern, {}, {}, false));
 
@@ -343,21 +345,21 @@ TEST(AnalyticalSolverTest, DiagnosticSequenceCountersTrackFrontierDecompositionA
   solve_problem.model_catalog = &catalog;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.02;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
-  solve_problem.options.use_functional_unit_compose = true;
-  solve_problem.options.unit_length_idx = unit_length_idx;
-  solve_problem.options.diagnostic_segment_pattern_ids = {native_pattern};
+  solve_problem.config.root_input_slew_ns = 0.02;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.use_functional_unit_compose = true;
+  solve_problem.config.unit_length_idx = unit_length_idx;
+  solve_problem.config.diagnostic_segment_pattern_ids = {native_pattern};
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  EXPECT_EQ(result.diagnostic_library_hit_count, 1U);
-  EXPECT_EQ(result.diagnostic_frontier_hit_count, 1U);
-  EXPECT_EQ(result.diagnostic_decomposed_count, 1U);
-  EXPECT_EQ(result.diagnostic_scored_count, 1U);
-  EXPECT_EQ(result.diagnostic_shortlisted_count, 1U);
-  EXPECT_EQ(result.diagnostic_generated_candidate_count, 1U);
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  EXPECT_EQ(result.summary.diagnostic_library_hit_count, 1U);
+  EXPECT_EQ(result.summary.diagnostic_frontier_hit_count, 1U);
+  EXPECT_EQ(result.summary.diagnostic_decomposed_count, 1U);
+  EXPECT_EQ(result.summary.diagnostic_scored_count, 1U);
+  EXPECT_EQ(result.summary.diagnostic_shortlisted_count, 1U);
+  EXPECT_EQ(result.summary.diagnostic_generated_candidate_count, 1U);
 }
 
 TEST(AnalyticalSolverTest, AnalyticalTopologyPatternRejectsInternalFanoutHiddenByRootBuffer)
@@ -366,7 +368,7 @@ TEST(AnalyticalSolverTest, AnalyticalTopologyPatternRejectsInternalFanoutHiddenB
   const auto root_buffer_pattern = icts::PatternId::segment(2U);
   const unsigned length_idx = 1U;
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(length_idx, plain_pattern, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, root_buffer_pattern, {0.1}, {"BUF_X1"}, false, MakeBoundaryState(true, true)));
 
@@ -395,7 +397,7 @@ TEST(AnalyticalSolverTest, PrependsDpSegmentWithStructuralCapBranchAndTrace)
 
   const auto label = icts::htree::analytical_solver::PrependAnalyticalDpSegment(
       suffix, model_set, icts::NormalizePatternCompositionState(icts::TerminalSemantic::kLeafUnbuffered),
-      icts::htree::analytical_solver::AnalyticalDpTransitionOptions{
+      icts::htree::analytical_solver::AnalyticalDpTransitionConfig{
           .leaf_load_cap_pf = 0.05,
           .input_slew_probe_ns = 0.02,
           .branch_fanout = 2.0,
@@ -431,7 +433,7 @@ TEST(AnalyticalSolverTest, RespectsBranchBufferAndRootFanoutConstraints)
       = {MakeSegmentChar(pattern_branch, length_idx, 0.20, 2e-6)};
   icts::htree::SegmentFrontierCatalog frontier_catalog({{length_idx, frontier_set}});
 
-  icts::htree::BufferPatternLibrary segment_patterns;
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_plain, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_branch, {1.0}, {"BUF_X1"}, true));
 
@@ -449,19 +451,19 @@ TEST(AnalyticalSolverTest, RespectsBranchBufferAndRootFanoutConstraints)
   solve_problem.segment_pattern_library = &segment_patterns;
   solve_problem.model_catalog = &catalog;
   solve_problem.boundary_constraints.force_branch_buffer = true;
-  solve_problem.fanout_options.max_fanout = 2U;
+  solve_problem.fanout_config.max_fanout = 2U;
   solve_problem.slew_lattice = icts::UniformValueLattice(0.01, 20U);
   solve_problem.cap_lattice = icts::UniformValueLattice(0.01, 50U);
-  solve_problem.options.root_input_slew_ns = 0.02;
-  solve_problem.options.representative_leaf_load_cap_pf = 0.05;
-  solve_problem.options.top_k_per_depth = 1U;
+  solve_problem.config.root_input_slew_ns = 0.02;
+  solve_problem.config.representative_leaf_load_cap_pf = 0.05;
+  solve_problem.config.top_k_per_depth = 1U;
 
   const auto result = icts::htree::analytical_solver::SolveAnalyticalHTreeCandidates(solve_problem);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  ASSERT_EQ(result.candidates.size(), 1U);
-  EXPECT_EQ(result.candidates.front().level_segment_pattern_ids.front(), pattern_branch);
-  EXPECT_TRUE(result.candidates.front().fanout_legal);
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  ASSERT_EQ(result.output.candidates.size(), 1U);
+  EXPECT_EQ(result.output.candidates.front().level_segment_pattern_ids.front(), pattern_branch);
+  EXPECT_TRUE(result.output.candidates.front().fanout_legal);
 }
 
 TEST(AnalyticalSolverTest, CompressParetoLabelsKeepsIntervalOverlaps)
@@ -490,8 +492,8 @@ TEST(AnalyticalSolverTest, CompressParetoLabelsKeepsIntervalOverlaps)
   dominated.power_upper_w = 1.6;
   dominated.trace_segment_pattern_ids = {icts::PatternId::segment(3U)};
 
-  const auto compressed = icts::htree::analytical_solver::CompressParetoLabels(
-      {left, overlapped, dominated}, icts::htree::analytical_solver::AnalyticalDominanceOptions{});
+  const auto compressed = icts::htree::analytical_solver::CompressParetoLabels({left, overlapped, dominated},
+                                                                               icts::htree::analytical_solver::AnalyticalDominanceConfig{});
 
   ASSERT_EQ(compressed.size(), 2U);
   EXPECT_EQ(compressed.at(0).trace_segment_pattern_ids.front(), icts::PatternId::segment(1U));

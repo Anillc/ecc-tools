@@ -41,6 +41,7 @@
 #include "Qor.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -66,7 +67,7 @@ auto formatCurrentWallTime() -> std::string
   return stream.str();
 }
 
-auto buildWirelengthReportRows(const Qor& statistics) -> schema::TableRows
+auto buildWirelengthReportRows(const Qor& statistics) -> TableRows
 {
   return {
       {"Top", formatReportNumber(statistics.top_wirelength_um), formatReportNumber(statistics.hpwl_top_wirelength_um)},
@@ -77,9 +78,9 @@ auto buildWirelengthReportRows(const Qor& statistics) -> schema::TableRows
   };
 }
 
-auto buildCellStatsReportRows(const Qor& statistics) -> schema::TableRows
+auto buildCellStatsReportRows(const Qor& statistics) -> TableRows
 {
-  schema::TableRows rows;
+  TableRows rows;
   for (const auto& [cell_type, stats] : statistics.cell_stats) {
     rows.push_back({
         cell_type,
@@ -94,9 +95,9 @@ auto buildCellStatsReportRows(const Qor& statistics) -> schema::TableRows
   return rows;
 }
 
-auto buildLibCellDistReportRows(const Qor& statistics) -> schema::TableRows
+auto buildLibCellDistReportRows(const Qor& statistics) -> TableRows
 {
-  schema::TableRows rows;
+  TableRows rows;
   for (const auto& [cell_master, distribution] : statistics.lib_cell_dist) {
     rows.push_back({
         cell_master,
@@ -112,7 +113,7 @@ auto buildLibCellDistReportRows(const Qor& statistics) -> schema::TableRows
 }
 
 auto writeReportFile(const std::filesystem::path& path, const std::string& title, const std::vector<std::string>& headers,
-                     const schema::TableRows& rows) -> bool
+                     const TableRows& rows) -> bool
 {
   std::ofstream stream(path, std::ios::out | std::ios::trunc);
   if (!stream.is_open()) {
@@ -154,14 +155,14 @@ auto QorFiles::writeReports(const std::filesystem::path& statistics_dir, const Q
   return success;
 }
 
-auto QorFiles::emitLogTables(const Qor& statistics) -> void
+auto QorFiles::emitLogTables(SchemaWriter& reporter, const Qor& statistics) -> void
 {
-  SCHEMA_WRITER_INST.emitSection("### Statistics Reports");
-  schema::EmitTable("CTS Statistics Wirelength Report", {"Metric", "Routed Wirelength (um)", "HPWL Wirelength (um)"},
+  reporter.emitSection("### Statistics Reports");
+  EmitTable(reporter, "CTS Statistics Wirelength Report", {"Metric", "Routed Wirelength (um)", "HPWL Wirelength (um)"},
                     buildWirelengthReportRows(statistics));
-  schema::EmitTable("CTS Statistics Cell Stats Report", {"Cell Type", "Count", "Total Area (um^2)", "Total Cap (pF)"},
+  EmitTable(reporter, "CTS Statistics Cell Stats Report", {"Cell Type", "Count", "Total Area (um^2)", "Total Cap (pF)"},
                     buildCellStatsReportRows(statistics));
-  schema::EmitTable("CTS Statistics Library Cell Distribution Report", {"Cell Master", "Cell Type", "Count", "Total Area (um^2)"},
+  EmitTable(reporter, "CTS Statistics Library Cell Distribution Report", {"Cell Master", "Cell Type", "Count", "Total Area (um^2)"},
                     buildLibCellDistReportRows(statistics));
 }
 

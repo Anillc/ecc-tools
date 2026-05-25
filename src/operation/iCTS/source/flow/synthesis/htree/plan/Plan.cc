@@ -40,9 +40,8 @@
 #include "PatternId.hh"
 #include "Tree.hh"
 #include "ValueLattice.hh"
-#include "config/Config.hh"
 #include "geometry/Geometry.hh"
-#include "synthesis/htree/HTreeSynthesisResult.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 
 namespace icts::htree {
 namespace {
@@ -140,18 +139,18 @@ auto CountCandidateLeafNodes(const Tree& topology, unsigned depth) -> std::size_
   return topology_levels.at(depth).size();
 }
 
-auto ResolveDepthCandidates(unsigned max_depth, const HTree::BuildOptions& options) -> std::vector<unsigned>
+auto ResolveDepthCandidates(unsigned max_depth, const HTree::Config& config) -> std::vector<unsigned>
 {
   if (max_depth == 0U) {
     return {};
   }
 
-  if (options.target_depth.has_value()) {
-    const unsigned resolved_depth = std::clamp(*options.target_depth, 1U, max_depth);
+  if (config.target_depth.has_value()) {
+    const unsigned resolved_depth = std::clamp(*config.target_depth, 1U, max_depth);
     return {resolved_depth};
   }
 
-  const unsigned requested_window = options.depth_explore_window.value_or(CONFIG_INST.get_htree_depth_explore_window());
+  const unsigned requested_window = config.depth_explore_window;
   const unsigned resolved_window = std::max(1U, std::min(requested_window, max_depth));
 
   std::vector<unsigned> candidates;

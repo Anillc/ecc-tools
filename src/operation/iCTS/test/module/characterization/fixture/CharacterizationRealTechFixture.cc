@@ -32,13 +32,16 @@
 #include <utility>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "ClockRouteSegmentRc.hh"
 #include "characterization/Characterization.hh"
+#include "common/CTSTestRuntime.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
+#include "io/Wrapper.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test::characterization::realtech {
@@ -50,16 +53,16 @@ auto BuildRuntimeCharacterizationBufferCells(const std::vector<std::string>& buf
   std::vector<icts::CharacterizationBufferCell> buffer_cells;
   buffer_cells.reserve(buffer_types.size());
   for (const auto& cell_master : buffer_types) {
-    auto [input_pin, output_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
+    auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().sta_adapter.queryBufferPorts(cell_master);
     buffer_cells.push_back(icts::CharacterizationBufferCell{
         .cell_master = cell_master,
         .max_cap_pf = 0.0,
-        .input_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(cell_master),
-        .input_slew_limit_ns = STA_ADAPTER_INST.queryCellInPinSlewLimit(cell_master),
-        .input_slew_table_axis_max_ns = STA_ADAPTER_INST.queryCellInPinSlewTableAxisMax(cell_master),
-        .output_cap_limit_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master),
-        .output_cap_table_axis_max_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master),
-        .cell_height_um = STA_ADAPTER_INST.queryCellHeightUm(cell_master),
+        .input_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCharInputPinCap(cell_master),
+        .input_slew_limit_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewLimit(cell_master),
+        .input_slew_table_axis_max_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewTableAxisMax(cell_master),
+        .output_cap_limit_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master),
+        .output_cap_table_axis_max_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master),
+        .cell_height_um = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellHeightUm(cell_master),
         .input_pin = std::move(input_pin),
         .output_pin = std::move(output_pin),
     });
@@ -72,92 +75,102 @@ auto BuildRuntimeCharacterizationBufferCells(const std::vector<std::string>& buf
 auto CaptureConfigState() -> ConfigState
 {
   ConfigState state{};
-  state.skew_bound = CONFIG_INST.get_skew_bound();
-  state.max_buf_tran = CONFIG_INST.get_max_buf_tran();
-  state.root_input_slew = CONFIG_INST.get_root_input_slew();
-  state.max_sink_tran = CONFIG_INST.get_max_sink_tran();
-  state.max_cap = CONFIG_INST.get_max_cap();
-  state.has_max_buf_tran = CONFIG_INST.has_max_buf_tran();
-  state.has_max_cap = CONFIG_INST.has_max_cap();
-  state.max_length = CONFIG_INST.get_max_length();
-  state.wirelength_unit_um = CONFIG_INST.get_wirelength_unit_um();
-  state.wirelength_iterations = CONFIG_INST.get_wirelength_iterations();
-  state.slew_steps = CONFIG_INST.get_slew_steps();
-  state.cap_steps = CONFIG_INST.get_cap_steps();
-  state.wire_width = CONFIG_INST.get_wire_width();
-  state.max_fanout = CONFIG_INST.get_max_fanout();
-  state.routing_layers = CONFIG_INST.get_routing_layers();
-  state.buffer_types = CONFIG_INST.get_buffer_types();
-  state.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
-  state.force_branch_buffer = CONFIG_INST.is_force_branch_buffer();
-  state.htree_depth_explore_window = CONFIG_INST.get_htree_depth_explore_window();
-  state.enable_sink_clustering = CONFIG_INST.is_enable_sink_clustering();
-  state.work_dir = CONFIG_INST.get_work_dir();
-  state.log_file = CONFIG_INST.get_log_file();
-  state.visualization_dir = CONFIG_INST.get_visualization_dir();
-  state.statistics_dir = CONFIG_INST.get_statistics_dir();
+  state.skew_bound = icts_test::runtime::CurrentRuntime().config.get_skew_bound();
+  state.max_buf_tran = icts_test::runtime::CurrentRuntime().config.get_max_buf_tran();
+  state.root_input_slew = icts_test::runtime::CurrentRuntime().config.get_root_input_slew();
+  state.max_sink_tran = icts_test::runtime::CurrentRuntime().config.get_max_sink_tran();
+  state.max_cap = icts_test::runtime::CurrentRuntime().config.get_max_cap();
+  state.has_max_buf_tran = icts_test::runtime::CurrentRuntime().config.has_max_buf_tran();
+  state.has_max_cap = icts_test::runtime::CurrentRuntime().config.has_max_cap();
+  state.max_length = icts_test::runtime::CurrentRuntime().config.get_max_length();
+  state.wirelength_unit_um = icts_test::runtime::CurrentRuntime().config.get_wirelength_unit_um();
+  state.wirelength_iterations = icts_test::runtime::CurrentRuntime().config.get_wirelength_iterations();
+  state.slew_steps = icts_test::runtime::CurrentRuntime().config.get_slew_steps();
+  state.cap_steps = icts_test::runtime::CurrentRuntime().config.get_cap_steps();
+  state.wire_width = icts_test::runtime::CurrentRuntime().config.get_wire_width();
+  state.max_fanout = icts_test::runtime::CurrentRuntime().config.get_max_fanout();
+  state.routing_layers = icts_test::runtime::CurrentRuntime().config.get_routing_layers();
+  state.buffer_types = icts_test::runtime::CurrentRuntime().config.get_buffer_types();
+  state.char_buf_redundancy_pct = icts_test::runtime::CurrentRuntime().config.get_char_buf_redundancy_pct();
+  state.force_branch_buffer = icts_test::runtime::CurrentRuntime().config.is_force_branch_buffer();
+  state.htree_depth_explore_window = icts_test::runtime::CurrentRuntime().config.get_htree_depth_explore_window();
+  state.enable_sink_clustering = icts_test::runtime::CurrentRuntime().config.is_enable_sink_clustering();
+  state.work_dir = icts_test::runtime::CurrentRuntime().config.get_work_dir();
+  state.log_file = icts_test::runtime::CurrentRuntime().config.get_log_file();
+  state.visualization_dir = icts_test::runtime::CurrentRuntime().config.get_visualization_dir();
+  state.statistics_dir = icts_test::runtime::CurrentRuntime().config.get_statistics_dir();
   return state;
 }
 
 auto ApplyConfigState(const ConfigState& state) -> void
 {
-  CONFIG_INST.reset();
-  CONFIG_INST.set_skew_bound(state.skew_bound);
+  icts_test::runtime::CurrentRuntime().config.reset();
+  icts_test::runtime::CurrentRuntime().config.set_skew_bound(state.skew_bound);
   if (state.has_max_buf_tran) {
-    CONFIG_INST.set_max_buf_tran(state.max_buf_tran);
+    icts_test::runtime::CurrentRuntime().config.set_max_buf_tran(state.max_buf_tran);
   }
-  CONFIG_INST.set_root_input_slew(state.root_input_slew);
-  CONFIG_INST.set_max_sink_tran(state.max_sink_tran);
+  icts_test::runtime::CurrentRuntime().config.set_root_input_slew(state.root_input_slew);
+  icts_test::runtime::CurrentRuntime().config.set_max_sink_tran(state.max_sink_tran);
   if (state.has_max_cap) {
-    CONFIG_INST.set_max_cap(state.max_cap);
+    icts_test::runtime::CurrentRuntime().config.set_max_cap(state.max_cap);
   }
-  CONFIG_INST.set_max_length(state.max_length);
-  CONFIG_INST.set_wirelength_unit_um(state.wirelength_unit_um);
-  CONFIG_INST.set_wirelength_iterations(state.wirelength_iterations);
-  CONFIG_INST.set_slew_steps(state.slew_steps);
-  CONFIG_INST.set_cap_steps(state.cap_steps);
-  CONFIG_INST.set_wire_width(state.wire_width);
-  CONFIG_INST.set_max_fanout(state.max_fanout);
-  CONFIG_INST.set_routing_layers(state.routing_layers);
-  CONFIG_INST.set_buffer_types(state.buffer_types);
-  CONFIG_INST.set_char_buf_redundancy_pct(state.char_buf_redundancy_pct);
-  CONFIG_INST.set_force_branch_buffer(state.force_branch_buffer);
-  CONFIG_INST.set_htree_depth_explore_window(state.htree_depth_explore_window);
-  CONFIG_INST.set_enable_sink_clustering(state.enable_sink_clustering);
-  CONFIG_INST.set_work_dir(state.work_dir);
-  CONFIG_INST.set_log_file(state.log_file);
-  CONFIG_INST.set_visualization_dir(state.visualization_dir);
-  CONFIG_INST.set_statistics_dir(state.statistics_dir);
+  icts_test::runtime::CurrentRuntime().config.set_max_length(state.max_length);
+  icts_test::runtime::CurrentRuntime().config.set_wirelength_unit_um(state.wirelength_unit_um);
+  icts_test::runtime::CurrentRuntime().config.set_wirelength_iterations(state.wirelength_iterations);
+  icts_test::runtime::CurrentRuntime().config.set_slew_steps(state.slew_steps);
+  icts_test::runtime::CurrentRuntime().config.set_cap_steps(state.cap_steps);
+  icts_test::runtime::CurrentRuntime().config.set_wire_width(state.wire_width);
+  icts_test::runtime::CurrentRuntime().config.set_max_fanout(state.max_fanout);
+  icts_test::runtime::CurrentRuntime().config.set_routing_layers(state.routing_layers);
+  icts_test::runtime::CurrentRuntime().config.set_buffer_types(state.buffer_types);
+  icts_test::runtime::CurrentRuntime().config.set_char_buf_redundancy_pct(state.char_buf_redundancy_pct);
+  icts_test::runtime::CurrentRuntime().config.set_force_branch_buffer(state.force_branch_buffer);
+  icts_test::runtime::CurrentRuntime().config.set_htree_depth_explore_window(state.htree_depth_explore_window);
+  icts_test::runtime::CurrentRuntime().config.set_enable_sink_clustering(state.enable_sink_clustering);
+  icts_test::runtime::CurrentRuntime().config.set_work_dir(state.work_dir);
+  icts_test::runtime::CurrentRuntime().config.set_log_file(state.log_file);
+  icts_test::runtime::CurrentRuntime().config.set_visualization_dir(state.visualization_dir);
+  icts_test::runtime::CurrentRuntime().config.set_statistics_dir(state.statistics_dir);
 }
 
-auto MakeRuntimeCharBuilderInitOptions() -> icts::CharBuilder::InitOptions
+auto MakeRuntimeCharBuilderContract() -> RuntimeCharBuilderContract
 {
-  icts::CharBuilder::InitOptions options;
-  if (CONFIG_INST.has_max_buf_tran() && CONFIG_INST.get_max_buf_tran() > 0.0) {
-    options.max_slew_ns = CONFIG_INST.get_max_buf_tran();
+  RuntimeCharBuilderContract contract;
+  if (icts_test::runtime::CurrentRuntime().config.has_max_buf_tran()
+      && icts_test::runtime::CurrentRuntime().config.get_max_buf_tran() > 0.0) {
+    contract.config.max_slew_ns = icts_test::runtime::CurrentRuntime().config.get_max_buf_tran();
   }
-  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
-    options.max_cap_pf = CONFIG_INST.get_max_cap();
+  if (icts_test::runtime::CurrentRuntime().config.has_max_cap() && icts_test::runtime::CurrentRuntime().config.get_max_cap() > 0.0) {
+    contract.config.max_cap_pf = icts_test::runtime::CurrentRuntime().config.get_max_cap();
   }
-  if (CONFIG_INST.get_wirelength_unit_um() > 0.0) {
-    options.wirelength_unit_um = CONFIG_INST.get_wirelength_unit_um();
+  if (icts_test::runtime::CurrentRuntime().config.get_wirelength_unit_um() > 0.0) {
+    contract.config.wirelength_unit_um = icts_test::runtime::CurrentRuntime().config.get_wirelength_unit_um();
   }
-  options.wirelength_iterations = CONFIG_INST.get_wirelength_iterations();
-  options.slew_steps = CONFIG_INST.get_slew_steps();
-  options.cap_steps = CONFIG_INST.get_cap_steps();
-  options.buffer_types = CONFIG_INST.get_buffer_types();
-  options.characterization_buffer_cells = BuildRuntimeCharacterizationBufferCells(options.buffer_types);
-  options.char_buf_redundancy_pct = CONFIG_INST.get_char_buf_redundancy_pct();
+  contract.config.wirelength_iterations = icts_test::runtime::CurrentRuntime().config.get_wirelength_iterations();
+  contract.config.slew_steps = icts_test::runtime::CurrentRuntime().config.get_slew_steps();
+  contract.config.cap_steps = icts_test::runtime::CurrentRuntime().config.get_cap_steps();
+  contract.input.buffer_types = icts_test::runtime::CurrentRuntime().config.get_buffer_types();
+  contract.input.characterization_buffer_cells = BuildRuntimeCharacterizationBufferCells(contract.input.buffer_types);
+  contract.config.char_buf_redundancy_pct = icts_test::runtime::CurrentRuntime().config.get_char_buf_redundancy_pct();
 
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  const auto& routing_layers = icts_test::runtime::CurrentRuntime().config.get_routing_layers();
   if (!routing_layers.empty()) {
-    options.routing_layer = static_cast<int>(routing_layers.front());
+    contract.config.routing_layer = static_cast<int>(routing_layers.front());
   }
-  if (CONFIG_INST.get_wire_width() > 0.0) {
-    options.wire_width = CONFIG_INST.get_wire_width();
+  if (icts_test::runtime::CurrentRuntime().config.get_wire_width() > 0.0) {
+    contract.config.wire_width_um = icts_test::runtime::CurrentRuntime().config.get_wire_width();
   }
-  options.clock_route_segment_rc = STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc();
-  return options;
+  contract.input.clock_route_segment_rc
+      = icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
+  const auto dbu_per_um = icts_test::runtime::CurrentRuntime().wrapper.queryDbUnit();
+  if (dbu_per_um > 0) {
+    contract.input.dbu_per_um = dbu_per_um;
+  }
+  contract.input.root_input_slew_ns = std::max(0.0, icts_test::runtime::CurrentRuntime().config.get_root_input_slew());
+  contract.input.sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter;
+  contract.input.fast_sta = &icts_test::runtime::CurrentRuntime().fast_sta;
+  contract.input.reporter = &icts_test::runtime::CurrentRuntime().reporter;
+  return contract;
 }
 
 auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::optional<std::vector<std::string>> buffer_types,
@@ -220,11 +233,12 @@ auto RealTechCharFixture::prepare(const std::string& scenario_name, std::optiona
   }
 
   _cts_log_guard = std::make_unique<icts_test::common::logging::ScopedLogFile>(output_dir / "cts.log", "Characterization Test Report");
-  SCHEMA_WRITER_INST.emitKeyValueTable("Characterization Scenario", {
-                                                                        {"scenario", scenario_name},
-                                                                        {"omit_wirelength_unit", omit_wirelength_unit ? "true" : "false"},
-                                                                        {"force_branch_buffer", force_branch_buffer ? "true" : "false"},
-                                                                    });
+  icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTable("Characterization Scenario",
+                                                                  {
+                                                                      {"scenario", scenario_name},
+                                                                      {"omit_wirelength_unit", omit_wirelength_unit ? "true" : "false"},
+                                                                      {"force_branch_buffer", force_branch_buffer ? "true" : "false"},
+                                                                  });
   _is_prepared = true;
   return std::nullopt;
 }
@@ -236,7 +250,7 @@ auto RealTechCharFixture::restore() -> void
   }
 
   ApplyConfigState(*_original_config_state);
-  STA_ADAPTER_INST.init();
+  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
   _is_prepared = false;
   _original_config_state.reset();
   _cts_log_guard.reset();
@@ -270,12 +284,12 @@ auto CollectConfiguredBufferLimitInfo() -> std::vector<BufferLimitInfo>
   std::vector<BufferLimitInfo> infos;
   std::set<std::string> seen_cell_masters;
 
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  for (const auto& cell_master : icts_test::runtime::CurrentRuntime().config.get_buffer_types()) {
     if (!seen_cell_masters.insert(cell_master).second) {
       continue;
     }
 
-    auto [input_pin, output_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
+    auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().sta_adapter.queryBufferPorts(cell_master);
     if (input_pin.empty() || output_pin.empty()) {
       continue;
     }
@@ -284,10 +298,10 @@ auto CollectConfiguredBufferLimitInfo() -> std::vector<BufferLimitInfo>
         .cell_master = cell_master,
         .input_pin = std::move(input_pin),
         .output_pin = std::move(output_pin),
-        .port_slew_limit_ns = STA_ADAPTER_INST.queryCellInPinSlewLimit(cell_master),
-        .table_slew_limit_ns = STA_ADAPTER_INST.queryCellInPinSlewTableAxisMax(cell_master),
-        .port_cap_limit_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master),
-        .table_cap_limit_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master),
+        .port_slew_limit_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewLimit(cell_master),
+        .table_slew_limit_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewTableAxisMax(cell_master),
+        .port_cap_limit_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master),
+        .table_cap_limit_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master),
     });
   }
 
@@ -360,7 +374,7 @@ auto ResolveDefaultWirelengthUnitUm(const std::vector<BufferLimitInfo>& infos, c
       continue;
     }
 
-    const double cell_height_um = STA_ADAPTER_INST.queryCellHeightUm(cell_master);
+    const double cell_height_um = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellHeightUm(cell_master);
     if (cell_height_um <= 0.0) {
       continue;
     }

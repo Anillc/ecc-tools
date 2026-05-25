@@ -158,7 +158,8 @@ auto CharStaSampler::sampleLoadSlews(unsigned length_idx, const ::icts::PatternI
   const ::icts::UniformValueLattice cap_lattice = ::icts::UniformValueLattice::buildFromMax(_impl._max_cap, _impl._cap_steps);
   const unsigned load_cap_idx = cap_lattice.coveringIndex(load_pf);
   for (const double input_slew_ns : _impl._slews_to_test) {
-    const auto sample_result = ::icts::FastSTA::runCharSample(_impl._fast_sta_char_context_id, input_slew_ns);
+    LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharStaSampler: FastSTA dependency is not configured.";
+    const auto sample_result = _impl._fast_sta->runCharSample(_impl._fast_sta_char_context_id, input_slew_ns);
     ++build_progress.executed_sta_samples;
     const unsigned input_slew_idx = slew_lattice.coveringIndex(input_slew_ns);
 

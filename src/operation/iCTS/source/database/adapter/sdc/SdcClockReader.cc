@@ -39,6 +39,7 @@
 #include "dm_config.h"
 #include "idm.h"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -58,17 +59,17 @@ SdcClockReader::SdcClockReader(std::string sdc_path) : _sdc_path(std::move(sdc_p
 {
 }
 
-auto SdcClockReader::readClockData() const -> SdcClockData
+auto SdcClockReader::readClockData(SchemaWriter& reporter) const -> SdcClockData
 {
   SdcClockData data;
   if (_sdc_path.empty()) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "SdcClockReader", "SDC clock read skipped because SDC path is empty.",
-                           {{"clock_source", "sdc"}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "SdcClockReader",
+                           "SDC clock read skipped because SDC path is empty.", {{"clock_source", "sdc"}});
     return data;
   }
   if (!std::filesystem::exists(_sdc_path)) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "SdcClockReader", "SDC clock read skipped because SDC file does not exist.",
-                           {{"clock_source", "sdc"}, {"sdc_path", _sdc_path}});
+    EmitDiagnostic(reporter, DiagnosticLevel::kError, "SdcClockReader",
+                           "SDC clock read skipped because SDC file does not exist.", {{"clock_source", "sdc"}, {"sdc_path", _sdc_path}});
     LOG_ERROR << "SdcClockReader: SDC file does not exist: " << _sdc_path;
     return data;
   }
@@ -78,7 +79,7 @@ auto SdcClockReader::readClockData() const -> SdcClockData
     if (diagnostic.starts_with("ignored_sdc_command:")) {
       continue;
     }
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "SdcClockReader", "SDC clock subset parser diagnostic.",
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "SdcClockReader", "SDC clock subset parser diagnostic.",
                            {{"detail", diagnostic}});
   }
   LOG_INFO << "SdcClockReader: parsed " << data.clocks.size() << " clock declaration(s) and " << data.case_analyses.size()
@@ -86,10 +87,10 @@ auto SdcClockReader::readClockData() const -> SdcClockData
   return data;
 }
 
-auto SdcClockReader::readDeclarationsOnly() const -> std::vector<std::tuple<std::string, std::string, double, bool>>
+auto SdcClockReader::readDeclarationsOnly(SchemaWriter& reporter) const -> std::vector<std::tuple<std::string, std::string, double, bool>>
 {
   std::vector<std::tuple<std::string, std::string, double, bool>> declarations;
-  const auto data = readClockData();
+  const auto data = readClockData(reporter);
   declarations.reserve(data.clocks.size());
   for (const auto& clock : data.clocks) {
     declarations.emplace_back(clock.clock_name, sdc_reader::PrimarySourceExpression(clock), clock.period_ns, clock.period_resolved);
@@ -97,9 +98,10 @@ auto SdcClockReader::readDeclarationsOnly() const -> std::vector<std::tuple<std:
   return declarations;
 }
 
-auto SdcClockReader::traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design) -> ClockTraceResult
+auto SdcClockReader::traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout,
+                                       SchemaWriter& reporter) -> ClockTraceBuild
 {
-  return ClockTraceResolver::resolve(clock_data, idb_design);
+  return ClockTraceResolver::resolve(clock_data, idb_design, max_fanout, reporter);
 }
 
 }  // namespace icts

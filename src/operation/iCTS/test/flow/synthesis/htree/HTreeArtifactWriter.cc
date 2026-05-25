@@ -53,28 +53,29 @@ auto PrepareHTreeArtifactPaths(const std::string& case_name) -> HTreeArtifactPat
 }
 
 auto WriteHTreeArtifacts(const HTreeArtifactPaths& paths, const std::string& scenario_name, const std::string& input_summary,
-                         const std::vector<icts::Pin*>& loads, const icts::HTree::BuildResult& result) -> bool
+                         const std::vector<icts::Pin*>& loads, const icts::HTree::DiagnosticBuild& result) -> bool
 {
   if (paths.output_dir.empty()) {
     return false;
   }
 
-  const bool wrote_topology = common::visualization::WriteTopologySvg(paths.topology_svg.string(), result.topology, loads);
+  const bool wrote_topology = common::visualization::WriteTopologySvg(paths.topology_svg.string(), result.output.topology, loads);
   const bool wrote_materialized = WriteMaterializedSvg(paths.materialized_svg, loads, result);
   const bool wrote_pareto = WriteDelayPowerParetoSvg(paths.pareto_svg, result);
   const bool wrote_report = common::io::WriteTextLog(paths.report_log, BuildReport(scenario_name, input_summary, paths, loads, result));
+  auto& reporter = icts_test::runtime::CurrentRuntime().reporter;
 
   if (wrote_topology) {
-    icts::schema::EmitArtifact("HTree topology svg", paths.topology_svg);
+    icts::EmitArtifact(reporter, "HTree topology svg", paths.topology_svg);
   }
   if (wrote_materialized) {
-    icts::schema::EmitArtifact("HTree materialized svg", paths.materialized_svg);
+    icts::EmitArtifact(reporter, "HTree materialized svg", paths.materialized_svg);
   }
   if (wrote_pareto) {
-    icts::schema::EmitArtifact("HTree delay-power pareto svg", paths.pareto_svg);
+    icts::EmitArtifact(reporter, "HTree delay-power pareto svg", paths.pareto_svg);
   }
   if (wrote_report) {
-    icts::schema::EmitArtifact("HTree report", paths.report_log);
+    icts::EmitArtifact(reporter, "HTree report", paths.report_log);
   }
 
   return wrote_topology && wrote_materialized && wrote_pareto && wrote_report;

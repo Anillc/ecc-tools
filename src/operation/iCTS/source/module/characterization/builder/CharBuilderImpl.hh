@@ -38,10 +38,13 @@
 #include <vector>
 
 #include "ClockRouteSegmentRc.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 class BufferingPattern;
+class FastSTA;
 class SegmentChar;
+class STAAdapter;
 struct CharacterizationBufferCell;
 }  // namespace icts
 
@@ -156,7 +159,7 @@ class CharBuilderImpl
   auto slewSteps() const -> unsigned { return _slew_steps; }
   auto capSteps() const -> unsigned { return _cap_steps; }
   auto routingLayer() const -> int { return _routing_layer; }
-  auto wireWidth() const -> std::optional<double> { return _wire_width; }
+  auto wireWidth() const -> std::optional<double> { return _wire_width_um; }
   auto clockRouteSegmentRc() const -> const ::icts::ClockRouteSegmentRc& { return _clock_route_segment_rc; }
   auto characterizationBufferCells() const -> const std::vector<::icts::CharacterizationBufferCell>& { return _sorted_buffers; }
   auto executedStaSamples() const -> std::size_t { return _executed_sta_samples; }
@@ -178,8 +181,10 @@ class CharBuilderImpl
   std::vector<double> _slews_to_test;
   std::vector<double> _loads_to_test;
   int _routing_layer = 0;
-  std::optional<double> _wire_width = std::nullopt;
+  std::optional<double> _wire_width_um = std::nullopt;
   ::icts::ClockRouteSegmentRc _clock_route_segment_rc;
+  std::optional<std::int32_t> _dbu_per_um = std::nullopt;
+  double _root_input_slew_ns = 0.0;
   double _max_slew = 0.0;
   double _max_cap = 0.0;
   double _max_length = 0.0;
@@ -202,6 +207,9 @@ class CharBuilderImpl
   std::string _char_clock_name;
   unsigned _char_circuit_id = 0;
   std::size_t _fast_sta_char_context_id = std::numeric_limits<std::size_t>::max();
+  ::icts::STAAdapter* _sta_adapter = nullptr;
+  ::icts::FastSTA* _fast_sta = nullptr;
+  ::icts::SchemaWriter* _reporter = nullptr;
 
   std::vector<::icts::SegmentChar> _segment_chars;
   std::vector<::icts::BufferingPattern> _buffering_patterns;

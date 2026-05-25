@@ -40,7 +40,6 @@
 
 #include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/ClockLayout.hh"
 #include "design/Design.hh"
@@ -95,17 +94,17 @@ auto makeSinkDomainName(SinkDomainKind sink_domain) -> std::string
   return "unknown";
 }
 
-auto resolveBufferDriveCap(const std::string& cell_master) -> double
+auto resolveBufferDriveCap(STAAdapter& sta_adapter, const std::string& cell_master) -> double
 {
-  double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+  double drive_cap_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
   if (drive_cap_pf <= 0.0) {
-    drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+    drive_cap_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return drive_cap_pf;
 }
 
-auto resolveBufferPortsAndDrive(const std::string& cell_master, bool require_output_drive, std::string& input_pin_name,
-                                std::string& output_pin_name, double& output_drive_cap_pf) -> bool
+auto resolveBufferPortsAndDrive(STAAdapter& sta_adapter, const std::string& cell_master, bool require_output_drive,
+                                std::string& input_pin_name, std::string& output_pin_name, double& output_drive_cap_pf) -> bool
 {
   input_pin_name.clear();
   output_pin_name.clear();
@@ -114,14 +113,14 @@ auto resolveBufferPortsAndDrive(const std::string& cell_master, bool require_out
     return false;
   }
 
-  auto [input_pin, output_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
+  auto [input_pin, output_pin] = sta_adapter.queryBufferPorts(cell_master);
   if (input_pin.empty() || output_pin.empty()) {
     LOG_WARNING << "DesignConversion: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
     return false;
   }
 
   if (require_output_drive) {
-    output_drive_cap_pf = resolveBufferDriveCap(cell_master);
+    output_drive_cap_pf = resolveBufferDriveCap(sta_adapter, cell_master);
     if (output_drive_cap_pf <= 0.0) {
       LOG_WARNING << "DesignConversion: skip buffer master \"" << cell_master << "\" because output drive cap is unresolved.";
       return false;
@@ -133,13 +132,13 @@ auto resolveBufferPortsAndDrive(const std::string& cell_master, bool require_out
   return true;
 }
 
-auto resolveMinimumDriveRootBuffer(std::string& cell_master, std::string& input_pin_name, std::string& output_pin_name) -> bool
+auto resolveMinimumDriveRootBuffer(STAAdapter& sta_adapter, const std::vector<std::string>& buffer_types, std::string& cell_master,
+                                   std::string& input_pin_name, std::string& output_pin_name) -> bool
 {
   cell_master.clear();
   input_pin_name.clear();
   output_pin_name.clear();
 
-  const auto& buffer_types = CONFIG_INST.get_buffer_types();
   if (buffer_types.empty()) {
     LOG_ERROR << "DesignConversion: no configured buffer types are available for root-buffer insertion.";
     return false;
@@ -153,7 +152,8 @@ auto resolveMinimumDriveRootBuffer(std::string& cell_master, std::string& input_
     std::string candidate_input_pin;
     std::string candidate_output_pin;
     double candidate_drive_cap_pf = 0.0;
-    if (!resolveBufferPortsAndDrive(candidate_cell_master, true, candidate_input_pin, candidate_output_pin, candidate_drive_cap_pf)) {
+    if (!resolveBufferPortsAndDrive(sta_adapter, candidate_cell_master, true, candidate_input_pin, candidate_output_pin,
+                                    candidate_drive_cap_pf)) {
       continue;
     }
 
@@ -204,9 +204,9 @@ auto resolveSinkDomainLocation(Pin* clock_source, const std::vector<Pin*>& sinks
   return Point<int>(0, 0);
 }
 
-auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std::string& cell_master, const std::string& input_pin_name,
-                          const std::string& output_pin_name, const Point<int>& location, Inst*& buffer, Pin*& input_pin, Pin*& output_pin)
-    -> bool
+auto createInsertedBuffer(Design& design, Clock& clock, const std::string& inst_name, const std::string& cell_master,
+                          const std::string& input_pin_name, const std::string& output_pin_name, const Point<int>& location, Inst*& buffer,
+                          Pin*& input_pin, Pin*& output_pin) -> bool
 {
   buffer = nullptr;
   input_pin = nullptr;
@@ -220,12 +220,12 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
               << "\" because input and output pin names both resolve to \"" << input_pin_name << "\".";
     return false;
   }
-  if (DESIGN_INST.findInst(inst_name) != nullptr) {
+  if (design.findInst(inst_name) != nullptr) {
     LOG_ERROR << "DesignConversion: reject root-buffer insertion because inst \"" << inst_name << "\" already exists.";
     return false;
   }
 
-  buffer = DESIGN_INST.makeInst(inst_name);
+  buffer = design.makeInst(inst_name);
   if (buffer == nullptr) {
     LOG_ERROR << "DesignConversion: failed to create root-buffer inst \"" << inst_name << "\".";
     return false;
@@ -236,7 +236,7 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
   buffer->set_location(location);
   buffer->set_pins({});
 
-  input_pin = DESIGN_INST.makePin(input_pin_name);
+  input_pin = design.makePin(input_pin_name);
   if (input_pin == nullptr) {
     LOG_ERROR << "DesignConversion: failed to create root-buffer input pin \"" << input_pin_name << "\".";
     return false;
@@ -248,11 +248,11 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
   input_pin->set_net(nullptr);
   input_pin->set_io(false);
   buffer->add_pin(input_pin);
-  if (!DESIGN_INST.indexPin(input_pin)) {
+  if (!design.indexPin(input_pin)) {
     return false;
   }
 
-  output_pin = DESIGN_INST.makePin(output_pin_name);
+  output_pin = design.makePin(output_pin_name);
   if (output_pin == nullptr) {
     LOG_ERROR << "DesignConversion: failed to create root-buffer output pin \"" << output_pin_name << "\".";
     return false;
@@ -264,7 +264,7 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
   output_pin->set_net(nullptr);
   output_pin->set_io(false);
   buffer->insertDriverPin(output_pin);
-  if (!DESIGN_INST.indexPin(output_pin)) {
+  if (!design.indexPin(output_pin)) {
     return false;
   }
 
@@ -272,36 +272,38 @@ auto createInsertedBuffer(Clock& clock, const std::string& inst_name, const std:
   return true;
 }
 
-auto createInsertedNet(Clock& clock, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
+auto createInsertedNet(Design& design, Clock& clock, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
 {
   if (net_name.empty()) {
     LOG_ERROR << "DesignConversion: reject inserted net creation because the net name is empty.";
     return nullptr;
   }
-  if (DESIGN_INST.findNet(net_name) != nullptr) {
+  if (design.findNet(net_name) != nullptr) {
     LOG_ERROR << "DesignConversion: reject inserted net creation because net \"" << net_name << "\" already exists.";
     return nullptr;
   }
 
-  auto* net_ptr = DESIGN_INST.makeNet(net_name);
+  auto* net_ptr = design.makeNet(net_name);
   if (net_ptr == nullptr) {
     LOG_ERROR << "DesignConversion: failed to create inserted net \"" << net_name << "\".";
     return nullptr;
   }
-  DesignConversion::reconnectNet(*net_ptr, driver, loads);
+  DesignConversion::reconnectNet(NetConnectionInput{
+      .net = net_ptr,
+      .driver = driver,
+      .loads = loads,
+  });
   clock.add_net(net_ptr);
   return net_ptr;
 }
 
 }  // namespace
 
-auto DesignConversion::partitionClockSinks(const std::vector<Pin*>& sinks, std::vector<Pin*>& macro_sinks, std::vector<Pin*>& regular_sinks)
-    -> void
+auto DesignConversion::partitionClockSinks(const std::vector<Pin*>& sinks) -> ClockSinkPartitionOutput
 {
-  macro_sinks.clear();
-  regular_sinks.clear();
-  macro_sinks.reserve(sinks.size());
-  regular_sinks.reserve(sinks.size());
+  ClockSinkPartitionOutput output;
+  output.macro_sinks.reserve(sinks.size());
+  output.regular_sinks.reserve(sinks.size());
 
   for (auto* sink : sinks) {
     if (sink == nullptr) {
@@ -310,11 +312,12 @@ auto DesignConversion::partitionClockSinks(const std::vector<Pin*>& sinks, std::
 
     const auto* inst = sink->get_inst();
     if (inst != nullptr && inst->is_macro_block()) {
-      macro_sinks.push_back(sink);
+      output.macro_sinks.push_back(sink);
     } else {
-      regular_sinks.push_back(sink);
+      output.regular_sinks.push_back(sink);
     }
   }
+  return output;
 }
 
 auto DesignConversion::makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain) -> std::string
@@ -322,35 +325,49 @@ auto DesignConversion::makeSinkDomainPrefix(const Clock& clock, std::size_t cloc
   return makeClockPrefix(clock, clock_index) + "_" + makeSinkDomainName(sink_domain);
 }
 
-auto DesignConversion::addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::vector<Pin*>& sinks,
-                                                  Inst*& root_buffer, Pin*& root_input, Pin*& root_output) -> bool
+auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferSelectionInput& input) -> SinkDomainRootBufferOutput
 {
+  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: root-buffer insertion design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: root-buffer insertion clock is null.";
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "DesignConversion: root-buffer insertion STA adapter is null.";
+
   std::string cell_master;
   std::string input_pin_name;
   std::string output_pin_name;
-  if (!resolveMinimumDriveRootBuffer(cell_master, input_pin_name, output_pin_name)) {
-    root_buffer = nullptr;
-    root_input = nullptr;
-    root_output = nullptr;
-    return false;
+  if (!resolveMinimumDriveRootBuffer(*input.sta_adapter, input.buffer_types, cell_master, input_pin_name, output_pin_name)) {
+    return SinkDomainRootBufferOutput{};
   }
-  return addRootBufferForSinkDomain(clock, domain_prefix, cell_master, input_pin_name, output_pin_name, sinks, root_buffer, root_input,
-                                    root_output);
+  return addRootBufferForSinkDomain(SinkDomainRootBufferInput{
+      .design = input.design,
+      .clock = input.clock,
+      .domain_prefix = input.domain_prefix,
+      .sinks = input.sinks,
+      .cell_master = cell_master,
+      .input_pin_name = input_pin_name,
+      .output_pin_name = output_pin_name,
+  });
 }
 
-auto DesignConversion::addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::string& cell_master,
-                                                  const std::string& input_pin_name, const std::string& output_pin_name,
-                                                  const std::vector<Pin*>& sinks, Inst*& root_buffer, Pin*& root_input, Pin*& root_output)
-    -> bool
+auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferInput& input) -> SinkDomainRootBufferOutput
 {
-  return createInsertedBuffer(clock, domain_prefix + "_root_buf", cell_master, input_pin_name, output_pin_name,
-                              resolveSinkDomainLocation(clock.get_clock_source(), sinks), root_buffer, root_input, root_output);
+  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: root-buffer insertion design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: root-buffer insertion clock is null.";
+
+  SinkDomainRootBufferOutput output;
+  if (!createInsertedBuffer(*input.design, *input.clock, input.domain_prefix + "_root_buf", input.cell_master, input.input_pin_name,
+                            input.output_pin_name, resolveSinkDomainLocation(input.clock->get_clock_source(), input.sinks),
+                            output.root_buffer, output.root_input, output.root_output)) {
+    return SinkDomainRootBufferOutput{};
+  }
+  return output;
 }
 
-auto DesignConversion::reconnectNet(Net& net, Pin* driver, const std::vector<Pin*>& loads) -> void
+auto DesignConversion::reconnectNet(const NetConnectionInput& input) -> void
 {
+  LOG_FATAL_IF(input.net == nullptr) << "DesignConversion: net reconnection target is null.";
+  auto& net = *input.net;
   auto* old_driver = net.get_driver();
-  if (old_driver != nullptr && old_driver != driver && old_driver->get_net() == &net) {
+  if (old_driver != nullptr && old_driver != input.driver && old_driver->get_net() == &net) {
     old_driver->set_net(nullptr);
   }
 
@@ -359,18 +376,18 @@ auto DesignConversion::reconnectNet(Net& net, Pin* driver, const std::vector<Pin
     if (old_load == nullptr || old_load->get_net() != &net) {
       continue;
     }
-    if (std::ranges::find(loads, old_load) == loads.end()) {
+    if (std::ranges::find(input.loads, old_load) == input.loads.end()) {
       old_load->set_net(nullptr);
     }
   }
 
-  net.set_driver(driver);
-  if (driver != nullptr) {
-    driver->set_net(&net);
+  net.set_driver(input.driver);
+  if (input.driver != nullptr) {
+    input.driver->set_net(&net);
   }
 
   net.set_loads({});
-  for (auto* load : loads) {
+  for (auto* load : input.loads) {
     if (load == nullptr) {
       continue;
     }
@@ -379,10 +396,11 @@ auto DesignConversion::reconnectNet(Net& net, Pin* driver, const std::vector<Pin
   }
 }
 
-auto DesignConversion::connectSinkDomainDownstreamNet(Clock& clock, const std::string& domain_prefix, Pin* root_output,
-                                                      const std::vector<Pin*>& sinks) -> Net*
+auto DesignConversion::connectSinkDomainDownstreamNet(const SinkDomainDownstreamNetInput& input) -> Net*
 {
-  return createInsertedNet(clock, domain_prefix + "_downstream_net", root_output, sinks);
+  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: downstream-net connection design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: downstream-net connection clock is null.";
+  return createInsertedNet(*input.design, *input.clock, input.domain_prefix + "_downstream_net", input.root_output, input.sinks);
 }
 
 auto DesignConversion::restoreClockSourceNetToClockLoads(Clock& clock) -> void
@@ -394,28 +412,47 @@ auto DesignConversion::restoreClockSourceNetToClockLoads(Clock& clock) -> void
     clock.set_clock_source_net(clock_source_net);
   }
   if (clock_source_net != nullptr) {
-    reconnectNet(*clock_source_net, clock_source, clock.get_loads());
+    reconnectNet(NetConnectionInput{
+        .net = clock_source_net,
+        .driver = clock_source,
+        .loads = clock.get_loads(),
+    });
   }
 }
 
-auto DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(Clock& clock, Pin* clock_source,
-                                                                const std::vector<Pin*>& root_buffer_inputs) -> Net*
+auto DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(const SourceToRootNetReuseInput& input) -> Net*
 {
+  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: source-to-root net reuse clock is null.";
+  auto& clock = *input.clock;
+  auto* clock_source = input.clock_source;
   auto* clock_source_net = clock.get_clock_source_net();
   if (clock_source_net == nullptr && clock_source != nullptr) {
     clock_source_net = clock_source->get_net();
     clock.set_clock_source_net(clock_source_net);
   }
   if (clock_source_net != nullptr) {
-    reconnectNet(*clock_source_net, clock_source, root_buffer_inputs);
+    reconnectNet(NetConnectionInput{
+        .net = clock_source_net,
+        .driver = clock_source,
+        .loads = input.root_buffer_inputs,
+    });
   }
   return clock_source_net;
 }
 
-auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::unique_ptr<Inst>>& inserted_insts,
-                                             std::vector<std::unique_ptr<Pin>>& inserted_pins,
-                                             std::vector<std::unique_ptr<Net>>& inserted_nets) -> bool
+auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& input) -> bool
 {
+  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: inserted-object commit design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: inserted-object commit clock is null.";
+  LOG_FATAL_IF(input.inserted_insts == nullptr) << "DesignConversion: inserted-object commit inst payload is null.";
+  LOG_FATAL_IF(input.inserted_pins == nullptr) << "DesignConversion: inserted-object commit pin payload is null.";
+  LOG_FATAL_IF(input.inserted_nets == nullptr) << "DesignConversion: inserted-object commit net payload is null.";
+  auto& design = *input.design;
+  auto& clock = *input.clock;
+  auto& inserted_insts = *input.inserted_insts;
+  auto& inserted_pins = *input.inserted_pins;
+  auto& inserted_nets = *input.inserted_nets;
+
   std::unordered_set<std::string> inst_names;
   for (const auto& inst : inserted_insts) {
     if (inst == nullptr) {
@@ -425,7 +462,7 @@ auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::uniq
       LOG_ERROR << "DesignConversion: reject committing duplicate algorithm inst \"" << inst->get_name() << "\".";
       return false;
     }
-    if (DESIGN_INST.findInst(inst->get_name()) != nullptr) {
+    if (design.findInst(inst->get_name()) != nullptr) {
       LOG_ERROR << "DesignConversion: reject committing algorithm inst \"" << inst->get_name()
                 << "\" because a final inst with the same name already exists.";
       return false;
@@ -446,7 +483,7 @@ auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::uniq
       LOG_ERROR << "DesignConversion: reject committing duplicate algorithm pin \"" << pin_full_name << "\".";
       return false;
     }
-    auto* existing_pin = DESIGN_INST.findPin(pin_full_name);
+    auto* existing_pin = design.findPin(pin_full_name);
     if (existing_pin != nullptr && existing_pin != pin.get()) {
       LOG_ERROR << "DesignConversion: reject committing algorithm pin \"" << pin_full_name
                 << "\" because a final pin with the same full name already exists.";
@@ -463,7 +500,7 @@ auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::uniq
       LOG_ERROR << "DesignConversion: reject committing duplicate algorithm net \"" << net->get_name() << "\".";
       return false;
     }
-    if (DESIGN_INST.findNet(net->get_name()) != nullptr) {
+    if (design.findNet(net->get_name()) != nullptr) {
       LOG_ERROR << "DesignConversion: reject committing algorithm net \"" << net->get_name()
                 << "\" because a final net with the same name already exists.";
       return false;
@@ -474,7 +511,7 @@ auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::uniq
     if (inst == nullptr) {
       continue;
     }
-    auto* committed_inst = DESIGN_INST.commitInst(std::move(inst));
+    auto* committed_inst = design.commitInst(std::move(inst));
     if (committed_inst == nullptr) {
       LOG_ERROR << "DesignConversion: failed to commit algorithm inst.";
       return false;
@@ -487,7 +524,7 @@ auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::uniq
     if (pin == nullptr) {
       continue;
     }
-    if (DESIGN_INST.commitPin(std::move(pin)) == nullptr) {
+    if (design.commitPin(std::move(pin)) == nullptr) {
       LOG_ERROR << "DesignConversion: failed to commit algorithm pin.";
       return false;
     }
@@ -498,7 +535,7 @@ auto DesignConversion::commitInsertedObjects(Clock& clock, std::vector<std::uniq
     if (net == nullptr) {
       continue;
     }
-    auto* committed_net = DESIGN_INST.commitNet(std::move(net));
+    auto* committed_net = design.commitNet(std::move(net));
     if (committed_net == nullptr) {
       LOG_ERROR << "DesignConversion: failed to commit algorithm net.";
       return false;

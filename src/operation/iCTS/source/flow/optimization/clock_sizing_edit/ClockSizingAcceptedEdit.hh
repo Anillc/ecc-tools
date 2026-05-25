@@ -27,6 +27,8 @@
 
 namespace icts {
 class ClockLayout;
+class Design;
+class STAAdapter;
 }  // namespace icts
 
 namespace icts::clock_sizing_optimization {
@@ -34,7 +36,7 @@ namespace icts::clock_sizing_optimization {
 struct ClockSizingBuffer;
 struct ClockSizingAcceptedEdit;
 
-auto ApplyClockSizingAcceptedEdits(const std::vector<ClockSizingAcceptedEdit>& accepted_edits,
+auto ApplyClockSizingAcceptedEdits(Design& design, STAAdapter& sta_adapter, const std::vector<ClockSizingAcceptedEdit>& accepted_edits,
                                    const std::vector<ClockSizingBuffer>& buffers, ClockLayout& clock_layout) -> bool;
 
 }  // namespace icts::clock_sizing_optimization

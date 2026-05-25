@@ -44,8 +44,8 @@ class Router
   using ClockSteinerTreeType = ClockSteinerTree<>;
   using RCTreeType = RCTree;
   using LegalizationRegion = LocalLegalization::RegionType;
-  using LegalizationOptions = LocalLegalization::Options;
-  using LegalizationResult = LocalLegalization::Result;
+  using LegalizationConfig = LocalLegalization::Config;
+  using LegalizationOutput = LocalLegalization::Output;
 
   Router() = delete;
   ~Router() = default;
@@ -58,9 +58,9 @@ class Router
   static auto buildClockNetTree(const Net& net) -> ClockSteinerTreeType;
 
   static auto legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
-                           const LegalizationRegion& block_region) -> LegalizationResult;
+                           const LegalizationRegion& block_region) -> LegalizationOutput;
   static auto legalizePins(std::vector<Pin*>& movable_pins, const std::vector<Pin*>& fixed_pins, const LegalizationRegion& feasible_region,
-                           const LegalizationRegion& block_region, const LegalizationOptions& options) -> LegalizationResult;
+                           const LegalizationRegion& block_region, const LegalizationConfig& config) -> LegalizationOutput;
 
   static auto buildRCTree(const ClockSteinerTreeType& clock_tree, const ClockRouteSegmentRc& route_segment_rc) -> RCTreeType;
 };

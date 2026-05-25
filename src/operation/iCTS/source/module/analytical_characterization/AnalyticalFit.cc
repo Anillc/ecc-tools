@@ -38,9 +38,12 @@ namespace {
 constexpr double kPivotEpsilon = 1e-18;
 constexpr double kVarianceEpsilon = 1e-30;
 
-auto MakeFailure(std::string reason) -> AnalyticalFitResult
+auto MakeFailure(std::string reason) -> AnalyticalFitBuild
 {
-  return AnalyticalFitResult{.success = false, .failure_reason = std::move(reason), .model = std::nullopt};
+  return AnalyticalFitBuild{
+      .output = {},
+      .summary = AnalyticalFitSummary{.success = false, .failure_reason = std::move(reason)},
+  };
 }
 
 auto BuildDomain(const std::vector<AnalyticalFitSample>& samples) -> AnalyticalDomain
@@ -151,7 +154,7 @@ auto CheckMonotonicity(const AnalyticalSurfaceModel& model, const std::vector<An
   return true;
 }
 
-auto EvaluateQuality(AnalyticalSurfaceModel& model, const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitOptions& options)
+auto EvaluateQuality(AnalyticalSurfaceModel& model, const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitConfig& config)
     -> void
 {
   auto& quality = model.quality;
@@ -170,30 +173,30 @@ auto EvaluateQuality(AnalyticalSurfaceModel& model, const std::vector<Analytical
     square_error += residual * residual;
     square_total += (sample.value - mean_value) * (sample.value - mean_value);
     quality.max_abs_residual = std::max(quality.max_abs_residual, abs_residual);
-    const double relative_denominator = std::max(std::abs(sample.value), options.relative_floor);
+    const double relative_denominator = std::max(std::abs(sample.value), config.relative_floor);
     quality.max_relative_residual = std::max(quality.max_relative_residual, abs_residual / relative_denominator);
-    if (options.bucket_size > 0.0) {
-      quality.max_bucket_residual = std::max(quality.max_bucket_residual, abs_residual / options.bucket_size);
+    if (config.bucket_size > 0.0) {
+      quality.max_bucket_residual = std::max(quality.max_bucket_residual, abs_residual / config.bucket_size);
     }
   }
   quality.rmse = std::sqrt(square_error / static_cast<double>(samples.size()));
   quality.r2_valid = square_total > kVarianceEpsilon;
   quality.r2 = quality.r2_valid ? 1.0 - square_error / square_total : 1.0;
-  quality.monotonicity_passed = !options.require_monotonic || CheckMonotonicity(model, samples, options.monotonic_tolerance);
+  quality.monotonicity_passed = !config.require_monotonic || CheckMonotonicity(model, samples, config.monotonic_tolerance);
 }
 
-auto AcceptQuality(const AnalyticalFitQuality& quality, const AnalyticalFitOptions& options) -> std::string
+auto AcceptQuality(const AnalyticalFitQuality& quality, const AnalyticalFitConfig& config) -> std::string
 {
-  if (options.max_abs_residual > 0.0 && quality.max_abs_residual > options.max_abs_residual) {
+  if (config.max_abs_residual > 0.0 && quality.max_abs_residual > config.max_abs_residual) {
     return "max_abs_residual_exceeded";
   }
-  if (options.max_relative_residual > 0.0 && quality.max_relative_residual > options.max_relative_residual) {
+  if (config.max_relative_residual > 0.0 && quality.max_relative_residual > config.max_relative_residual) {
     return "max_relative_residual_exceeded";
   }
-  if (options.max_bucket_residual > 0.0 && quality.max_bucket_residual > options.max_bucket_residual) {
+  if (config.max_bucket_residual > 0.0 && quality.max_bucket_residual > config.max_bucket_residual) {
     return "max_bucket_residual_exceeded";
   }
-  if (options.min_r2 > 0.0 && quality.r2_valid && quality.r2 < options.min_r2) {
+  if (config.min_r2 > 0.0 && quality.r2_valid && quality.r2 < config.min_r2) {
     return "r2_below_threshold";
   }
   if (!quality.monotonicity_passed) {
@@ -204,9 +207,9 @@ auto AcceptQuality(const AnalyticalFitQuality& quality, const AnalyticalFitOptio
 
 }  // namespace
 
-auto FitAnalyticalSurface(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitOptions& options) -> AnalyticalFitResult
+auto FitAnalyticalSurface(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitConfig& config) -> AnalyticalFitBuild
 {
-  const std::size_t term_count = AnalyticalBasisTermCount(options.basis);
+  const std::size_t term_count = AnalyticalBasisTermCount(config.basis);
   if (samples.size() < term_count) {
     return MakeFailure("insufficient_samples");
   }
@@ -216,28 +219,34 @@ auto FitAnalyticalSurface(const std::vector<AnalyticalFitSample>& samples, const
     return MakeFailure("invalid_domain");
   }
 
-  const auto [normal_matrix, normal_rhs] = BuildNormalEquation(samples, options.basis, domain);
+  const auto [normal_matrix, normal_rhs] = BuildNormalEquation(samples, config.basis, domain);
   const auto coefficients = SolveLinearSystem(normal_matrix, normal_rhs);
   if (!coefficients.has_value()) {
     return MakeFailure("singular_normal_equation");
   }
 
   AnalyticalSurfaceModel model{};
-  model.metric = options.metric;
-  model.basis = options.basis;
+  model.metric = config.metric;
+  model.basis = config.basis;
   model.domain = domain;
   model.coefficients = *coefficients;
-  EvaluateQuality(model, samples, options);
+  EvaluateQuality(model, samples, config);
 
-  const auto rejection_reason = AcceptQuality(model.quality, options);
+  const auto rejection_reason = AcceptQuality(model.quality, config);
   if (!rejection_reason.empty()) {
     model.quality.accepted = false;
     model.quality.failure_reason = rejection_reason;
-    return AnalyticalFitResult{.success = false, .failure_reason = rejection_reason, .model = model};
+    return AnalyticalFitBuild{
+        .output = AnalyticalFitOutput{.model = model},
+        .summary = AnalyticalFitSummary{.success = false, .failure_reason = rejection_reason},
+    };
   }
 
   model.quality.accepted = true;
-  return AnalyticalFitResult{.success = true, .failure_reason = {}, .model = model};
+  return AnalyticalFitBuild{
+      .output = AnalyticalFitOutput{.model = model},
+      .summary = AnalyticalFitSummary{.success = true, .failure_reason = {}},
+  };
 }
 
 }  // namespace icts::analytical

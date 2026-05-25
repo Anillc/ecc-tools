@@ -23,19 +23,35 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "ClockRouteSegmentRc.hh"
 #include "characterization/Characterization.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
+
+class Config;
+class FastSTA;
+class STAAdapter;
+class Wrapper;
+
+struct CharacterizationRuntimeInput
+{
+  const Config* config = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  FastSTA* fast_sta = nullptr;
+  SchemaWriter* reporter = nullptr;
+};
 
 class CharacterizationLibrary
 {
  public:
-  struct EnsureResult
+  struct EnsureSummary
   {
     bool success = false;
     bool reused = false;
@@ -49,11 +65,12 @@ class CharacterizationLibrary
   auto operator=(const CharacterizationLibrary&) -> CharacterizationLibrary& = delete;
   auto operator=(CharacterizationLibrary&&) noexcept -> CharacterizationLibrary& = default;
 
-  auto ensure(const CharBuilder::InitOptions& options) -> EnsureResult;
+  auto ensure(const CharBuilder::Input& input, const CharBuilder::Config& config) -> EnsureSummary;
   auto getCharBuilder() const -> const CharBuilder& { return _char_builder; }
   auto isReady() const -> bool { return _ready; }
 
-  static auto buildRuntimeOptions() -> CharBuilder::InitOptions;
+  static auto buildRuntimeInput(const CharacterizationRuntimeInput& input) -> CharBuilder::Input;
+  static auto buildRuntimeConfig(const Config& config) -> CharBuilder::Config;
 
  private:
   struct CharacterizationCacheKey
@@ -69,13 +86,15 @@ class CharacterizationLibrary
     std::optional<unsigned> slew_steps = std::nullopt;
     std::optional<unsigned> cap_steps = std::nullopt;
     std::optional<int> routing_layer = std::nullopt;
-    std::optional<double> wire_width = std::nullopt;
+    std::optional<double> wire_width_um = std::nullopt;
     ClockRouteSegmentRc clock_route_segment_rc;
+    std::optional<std::int32_t> dbu_per_um = std::nullopt;
+    double root_input_slew_ns = 0.0;
 
     auto operator==(const CharacterizationCacheKey& rhs) const -> bool = default;
   };
 
-  static auto makeCharacterizationCacheKey(const CharBuilder::InitOptions& options) -> CharacterizationCacheKey;
+  static auto makeCharacterizationCacheKey(const CharBuilder::Input& input, const CharBuilder::Config& config) -> CharacterizationCacheKey;
 
   CharBuilder _char_builder;
   CharacterizationCacheKey _characterization_cache_key;

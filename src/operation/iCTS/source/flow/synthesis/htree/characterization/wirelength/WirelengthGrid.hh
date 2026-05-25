@@ -26,9 +26,11 @@
 #include <cstdint>
 #include <vector>
 
+#include "characterization/Characterization.hh"
 #include "synthesis/htree/characterization/Characterization.hh"
 
 namespace icts {
+class Config;
 class Tree;
 }  // namespace icts
 
@@ -37,8 +39,10 @@ namespace icts::htree {
 auto ToCharGridSourceName(CharGridSource source) -> const char*;
 auto CountUniqueAlignedLengthBins(const std::vector<double>& requested_lengths_um, double length_step_um) -> unsigned;
 auto CollectRequestedLevelLengthsUm(const Tree& topology, int32_t dbu_per_um) -> std::vector<double>;
-auto ResolveCharacterizationGridPlan(const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan;
-auto ResolveCharacterizationGridPlan(const std::vector<double>& requested_lengths_um) -> CharacterizationGridPlan;
+auto ResolveCharacterizationGridPlan(const Config& config, const Tree& topology, int32_t dbu_per_um) -> CharacterizationGridPlan;
+auto ResolveCharacterizationGridPlan(const Config& config, const std::vector<double>& requested_lengths_um) -> CharacterizationGridPlan;
+auto ResolveCharacterizationGridPlan(const CharBuilder::Config& config, const std::vector<double>& requested_lengths_um)
+    -> CharacterizationGridPlan;
 auto ResolveDirectCharacterizationLengthIndices(const Tree& topology, const CharacterizationGridPlan& char_grid_plan, int32_t dbu_per_um)
     -> std::vector<unsigned>;
 auto ResolveDirectCharacterizationLengthIndices(const std::vector<double>& requested_lengths_um,

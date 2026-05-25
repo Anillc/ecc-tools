@@ -44,6 +44,7 @@
 #include "characterization/builder/CharBuilderImpl.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts::char_builder::detail {
 namespace {
@@ -87,9 +88,12 @@ auto toResolutionSourceName(ResolutionSource source) -> const char*
   return "unresolved";
 }
 
-auto logInfoTable(const std::string& title, const std::vector<std::string>& headers, const logformat::TableRows& rows) -> void
+auto logInfoTable(SchemaWriter* reporter, const std::string& title, const std::vector<std::string>& headers,
+                  const logformat::TableRows& rows) -> void
 {
-  schema::EmitTable(title, headers, rows);
+  if (reporter != nullptr) {
+    EmitTable(*reporter, title, headers, rows);
+  }
 }
 
 auto makeDenseWirelengthIndices(unsigned iterations) -> std::vector<unsigned>
@@ -130,17 +134,17 @@ auto makeWirelengths(double unit_um, const std::vector<unsigned>& indices) -> st
   return wirelengths_um;
 }
 
-auto resolveRoutingLayer(const ::icts::CharBuilder::InitOptions& options) -> std::optional<int>
+auto resolveRoutingLayer(const ::icts::CharBuilder::Config& config) -> std::optional<int>
 {
-  if (options.routing_layer.has_value() && *options.routing_layer > 0) {
-    return options.routing_layer;
+  if (config.routing_layer.has_value() && *config.routing_layer > 0) {
+    return config.routing_layer;
   }
   LOG_FATAL << "CharBuilder: routing_layer must be explicitly provided.";
 }
 
-auto resolveWireWidth(const ::icts::CharBuilder::InitOptions& options) -> std::optional<double>
+auto resolveWireWidth(const ::icts::CharBuilder::Config& config) -> std::optional<double>
 {
-  return options.wire_width.has_value() && *options.wire_width > 0.0 ? options.wire_width : std::nullopt;
+  return config.wire_width_um.has_value() && *config.wire_width_um > 0.0 ? config.wire_width_um : std::nullopt;
 }
 
 auto resolveBufferDriveCap(const ::icts::CharacterizationBufferCell& buffer_cell) -> double
@@ -152,26 +156,26 @@ auto resolveBufferDriveCap(const ::icts::CharacterizationBufferCell& buffer_cell
   return max_cap;
 }
 
-auto resolveClockRouteSegmentRc(const ::icts::CharBuilder::InitOptions& options) -> ::icts::ClockRouteSegmentRc
+auto resolveClockRouteSegmentRc(const ::icts::CharBuilder::Input& input) -> ::icts::ClockRouteSegmentRc
 {
-  LOG_FATAL_IF(options.clock_route_segment_rc.capacitance_per_um_pf <= 0.0)
+  LOG_FATAL_IF(input.clock_route_segment_rc.capacitance_per_um_pf <= 0.0)
       << "CharBuilder: clock_route_segment_rc.capacitance_per_um_pf must be explicitly provided.";
-  return options.clock_route_segment_rc;
+  return input.clock_route_segment_rc;
 }
 
-auto resolveMaxSlew(const ::icts::CharBuilder::InitOptions& options) -> ResolvedValue
+auto resolveMaxSlew(const ::icts::CharBuilder::Input& input, const ::icts::CharBuilder::Config& config) -> ResolvedValue
 {
-  if (options.max_slew_ns.has_value() && *options.max_slew_ns > 0.0) {
+  if (config.max_slew_ns.has_value() && *config.max_slew_ns > 0.0) {
     return ResolvedValue{
-        .value = *options.max_slew_ns,
+        .value = *config.max_slew_ns,
         .source = ResolutionSource::kRuntimeConfig,
-        .detail = "CharBuilder init option: max slew",
+        .detail = "CharBuilder config: max slew",
     };
   }
 
   double liberty_port_min_slew = std::numeric_limits<double>::infinity();
   bool found_port_limit = false;
-  for (const auto& buffer_cell : options.characterization_buffer_cells) {
+  for (const auto& buffer_cell : input.characterization_buffer_cells) {
     if (buffer_cell.input_slew_limit_ns > 0.0) {
       liberty_port_min_slew = std::min(liberty_port_min_slew, buffer_cell.input_slew_limit_ns);
       found_port_limit = true;
@@ -187,7 +191,7 @@ auto resolveMaxSlew(const ::icts::CharBuilder::InitOptions& options) -> Resolved
 
   double liberty_table_min_slew = std::numeric_limits<double>::infinity();
   bool found_table_limit = false;
-  for (const auto& buffer_cell : options.characterization_buffer_cells) {
+  for (const auto& buffer_cell : input.characterization_buffer_cells) {
     if (buffer_cell.input_slew_table_axis_max_ns > 0.0) {
       liberty_table_min_slew = std::min(liberty_table_min_slew, buffer_cell.input_slew_table_axis_max_ns);
       found_table_limit = true;
@@ -201,27 +205,27 @@ auto resolveMaxSlew(const ::icts::CharBuilder::InitOptions& options) -> Resolved
     };
   }
 
-  LOG_WARNING << "CharBuilder: failed to resolve max_slew from InitOptions/liberty limits/liberty tables";
+  LOG_WARNING << "CharBuilder: failed to resolve max_slew from explicit config/liberty limits/liberty tables";
   return ResolvedValue{
       .value = 0.0,
       .source = ResolutionSource::kUnresolved,
-      .detail = "missing InitOptions/liberty slew limits",
+      .detail = "missing explicit config/liberty slew limits",
   };
 }
 
-auto resolveMaxCap(const ::icts::CharBuilder::InitOptions& options) -> ResolvedValue
+auto resolveMaxCap(const ::icts::CharBuilder::Input& input, const ::icts::CharBuilder::Config& config) -> ResolvedValue
 {
-  if (options.max_cap_pf.has_value() && *options.max_cap_pf > 0.0) {
+  if (config.max_cap_pf.has_value() && *config.max_cap_pf > 0.0) {
     return ResolvedValue{
-        .value = *options.max_cap_pf,
+        .value = *config.max_cap_pf,
         .source = ResolutionSource::kRuntimeConfig,
-        .detail = "CharBuilder init option: max cap",
+        .detail = "CharBuilder config: max cap",
     };
   }
 
   double liberty_port_min_cap = std::numeric_limits<double>::infinity();
   bool found_port_limit = false;
-  for (const auto& buffer_cell : options.characterization_buffer_cells) {
+  for (const auto& buffer_cell : input.characterization_buffer_cells) {
     if (buffer_cell.output_cap_limit_pf > 0.0) {
       liberty_port_min_cap = std::min(liberty_port_min_cap, buffer_cell.output_cap_limit_pf);
       found_port_limit = true;
@@ -237,7 +241,7 @@ auto resolveMaxCap(const ::icts::CharBuilder::InitOptions& options) -> ResolvedV
 
   double liberty_table_min_cap = std::numeric_limits<double>::infinity();
   bool found_table_limit = false;
-  for (const auto& buffer_cell : options.characterization_buffer_cells) {
+  for (const auto& buffer_cell : input.characterization_buffer_cells) {
     if (buffer_cell.output_cap_table_axis_max_pf > 0.0) {
       liberty_table_min_cap = std::min(liberty_table_min_cap, buffer_cell.output_cap_table_axis_max_pf);
       found_table_limit = true;
@@ -251,23 +255,24 @@ auto resolveMaxCap(const ::icts::CharBuilder::InitOptions& options) -> ResolvedV
     };
   }
 
-  LOG_WARNING << "CharBuilder: failed to resolve max_cap from InitOptions/liberty limits/liberty tables";
+  LOG_WARNING << "CharBuilder: failed to resolve max_cap from explicit config/liberty limits/liberty tables";
   return ResolvedValue{
       .value = 0.0,
       .source = ResolutionSource::kUnresolved,
-      .detail = "missing InitOptions/liberty cap limits",
+      .detail = "missing explicit config/liberty cap limits",
   };
 }
 
-auto collectSortedBuffers(const ::icts::CharBuilder::InitOptions& options) -> std::vector<::icts::CharacterizationBufferCell>
+auto collectSortedBuffers(const ::icts::CharBuilder::Input& input, const ::icts::CharBuilder::Config& config)
+    -> std::vector<::icts::CharacterizationBufferCell>
 {
   std::vector<::icts::CharacterizationBufferCell> sorted_buffers;
-  if (options.characterization_buffer_cells.empty()) {
-    LOG_WARNING << "CharBuilder: no characterization buffer cells configured in InitOptions";
+  if (input.characterization_buffer_cells.empty()) {
+    LOG_WARNING << "CharBuilder: no characterization buffer cells configured in explicit input";
     return sorted_buffers;
   }
 
-  for (auto buffer_cell : options.characterization_buffer_cells) {
+  for (auto buffer_cell : input.characterization_buffer_cells) {
     const double max_cap = resolveBufferDriveCap(buffer_cell);
     if (max_cap <= 0.0) {
       LOG_WARNING << "CharBuilder: buffer " << buffer_cell.cell_master << " has invalid max_cap (" << max_cap << " pF), skipped";
@@ -293,7 +298,7 @@ auto collectSortedBuffers(const ::icts::CharBuilder::InitOptions& options) -> st
         return lhs_buffer_cell.max_cap_pf < rhs_buffer_cell.max_cap_pf;
       });
 
-  const double buffer_redundancy_pct = options.char_buf_redundancy_pct.value_or(0.0);
+  const double buffer_redundancy_pct = config.char_buf_redundancy_pct.value_or(0.0);
   if (buffer_redundancy_pct > 0.0 && sorted_buffers.size() > 1U) {
     std::vector<::icts::CharacterizationBufferCell> filtered_buffers;
     filtered_buffers.push_back(sorted_buffers.front());
@@ -313,7 +318,7 @@ auto collectSortedBuffers(const ::icts::CharBuilder::InitOptions& options) -> st
   return sorted_buffers;
 }
 
-auto resolveWirelengthUnitUm(const std::vector<::icts::CharacterizationBufferCell>& sorted_buffers) -> ResolvedValue
+auto resolveWirelengthUnitUm(SchemaWriter* reporter, const std::vector<::icts::CharacterizationBufferCell>& sorted_buffers) -> ResolvedValue
 {
   double strongest_cap_pf = -1.0;
   double strongest_height_um = 0.0;
@@ -333,10 +338,12 @@ auto resolveWirelengthUnitUm(const std::vector<::icts::CharacterizationBufferCel
   }
 
   if (strongest_height_um <= 0.0) {
-    LOG_WARNING << "CharBuilder: failed to resolve wirelength_unit from InitOptions or strongest buffer height";
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
-                           "wirelength unit is absent in CharBuilder options and auto-derivation failed.",
-                           {{"reason", "no_valid_strongest_buffer_height"}});
+    LOG_WARNING << "CharBuilder: failed to resolve wirelength_unit from Input/Config or strongest buffer height";
+    if (reporter != nullptr) {
+      EmitDiagnostic(*reporter, DiagnosticLevel::kWarning, "CharBuilder",
+                             "wirelength unit is absent in CharBuilder Input/Config and auto-derivation failed.",
+                             {{"reason", "no_valid_strongest_buffer_height"}});
+    }
     return ResolvedValue{
         .value = 0.0,
         .source = ResolutionSource::kUnresolved,
@@ -345,11 +352,14 @@ auto resolveWirelengthUnitUm(const std::vector<::icts::CharacterizationBufferCel
   }
 
   const double auto_derived_unit_um = strongest_height_um * 10.0;
-  schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
-                         "wirelength unit is absent in CharBuilder options; explicit auto-derivation policy uses strongest-buffer height.",
-                         {{"strongest_buffer", strongest_master},
-                          {"buffer_height", logformat::FormatWithUnit(strongest_height_um, "um")},
-                          {"derived_wirelength_unit", logformat::FormatWithUnit(auto_derived_unit_um, "um")}});
+  if (reporter != nullptr) {
+    EmitDiagnostic(
+        *reporter, DiagnosticLevel::kWarning, "CharBuilder",
+        "wirelength unit is absent in CharBuilder Input/Config; explicit auto-derivation policy uses strongest-buffer height.",
+        {{"strongest_buffer", strongest_master},
+         {"buffer_height", logformat::FormatWithUnit(strongest_height_um, "um")},
+         {"derived_wirelength_unit", logformat::FormatWithUnit(auto_derived_unit_um, "um")}});
+  }
   return ResolvedValue{
       .value = auto_derived_unit_um,
       .source = ResolutionSource::kAutoDerived,
@@ -357,21 +367,24 @@ auto resolveWirelengthUnitUm(const std::vector<::icts::CharacterizationBufferCel
   };
 }
 
-auto resolveWirelengthUnitUm(const ::icts::CharBuilder::InitOptions& options,
+auto resolveWirelengthUnitUm(SchemaWriter* reporter, const ::icts::CharBuilder::Config& config,
                              const std::vector<::icts::CharacterizationBufferCell>& sorted_buffers, bool caller_override) -> ResolvedValue
 {
-  if (options.wirelength_unit_um.has_value() && *options.wirelength_unit_um > 0.0) {
+  if (config.wirelength_unit_um.has_value() && *config.wirelength_unit_um > 0.0) {
     return ResolvedValue{
-        .value = *options.wirelength_unit_um,
+        .value = *config.wirelength_unit_um,
         .source = caller_override ? ResolutionSource::kCallerOverride : ResolutionSource::kRuntimeConfig,
         .detail = caller_override ? "CharBuilder caller override: wirelength unit" : "runtime configuration",
     };
   }
 
-  if (!options.allow_auto_wirelength_unit) {
+  if (!config.allow_auto_wirelength_unit) {
     LOG_ERROR << "CharBuilder: wirelength_unit_um must be explicitly provided or allow_auto_wirelength_unit must be enabled.";
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CharBuilder",
-                           "wirelength unit is absent and auto-derivation is disabled by policy.", {{"reason", "missing_wirelength_unit"}});
+    if (reporter != nullptr) {
+      EmitDiagnostic(*reporter, DiagnosticLevel::kError, "CharBuilder",
+                             "wirelength unit is absent and auto-derivation is disabled by policy.",
+                             {{"reason", "missing_wirelength_unit"}});
+    }
     return ResolvedValue{
         .value = 0.0,
         .source = ResolutionSource::kUnresolved,
@@ -379,20 +392,26 @@ auto resolveWirelengthUnitUm(const ::icts::CharBuilder::InitOptions& options,
     };
   }
 
-  return resolveWirelengthUnitUm(sorted_buffers);
+  return resolveWirelengthUnitUm(reporter, sorted_buffers);
 }
 
-auto DetailStageReportOptions() -> schema::StageReportOptions
+auto DetailStageReportOptions() -> StageReportOptions
 {
-  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+  return StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail};
 }
 
 }  // namespace
 
-auto CharSetupConfigurator::init(const ::icts::CharBuilder::InitOptions& options) -> void
+auto CharSetupConfigurator::init(const ::icts::CharBuilder::Input& input, const ::icts::CharBuilder::Config& config) -> void
 {
-  auto init_stage = SCHEMA_WRITER_INST.beginStage("CharBuilder", "initialization", {}, DetailStageReportOptions());
-  const ::icts::CharBuilder::InitOptions& effective_options = options;
+  const ::icts::CharBuilder::Input& effective_input = input;
+  const ::icts::CharBuilder::Config& effective_config = config;
+  _impl._reporter = effective_input.reporter;
+  auto* reporter = _impl._reporter;
+  std::optional<SchemaWriter::StageScope> init_stage;
+  if (reporter != nullptr) {
+    init_stage.emplace(reporter->beginStage("CharBuilder", "initialization", {}, DetailStageReportOptions()));
+  }
 
   _impl._segment_chars.clear();
   _impl._buffering_patterns.clear();
@@ -416,22 +435,28 @@ auto CharSetupConfigurator::init(const ::icts::CharBuilder::InitOptions& options
   _impl._max_observed_output_slew_idx = 0U;
   _impl._max_observed_driven_cap_pf = 0.0;
   _impl._max_observed_driven_cap_idx = 0U;
+  _impl._fast_sta = effective_input.fast_sta;
+  _impl._sta_adapter = effective_input.sta_adapter;
+  _impl._dbu_per_um = effective_input.dbu_per_um;
+  _impl._root_input_slew_ns = std::max(0.0, effective_input.root_input_slew_ns);
+  LOG_FATAL_IF(_impl._sta_adapter == nullptr) << "CharBuilder: STAAdapter dependency must be explicitly provided.";
+  LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharBuilder: FastSTA dependency must be explicitly provided.";
 
-  _impl._sorted_buffers = collectSortedBuffers(effective_options);
-  const ResolvedValue max_slew_resolution = resolveMaxSlew(effective_options);
-  const ResolvedValue max_cap_resolution = resolveMaxCap(effective_options);
+  _impl._sorted_buffers = collectSortedBuffers(effective_input, effective_config);
+  const ResolvedValue max_slew_resolution = resolveMaxSlew(effective_input, effective_config);
+  const ResolvedValue max_cap_resolution = resolveMaxCap(effective_input, effective_config);
   const ResolvedValue wirelength_unit_resolution
-      = resolveWirelengthUnitUm(effective_options, _impl._sorted_buffers, options.wirelength_unit_um.has_value());
-  const auto routing_layer_resolution = resolveRoutingLayer(effective_options);
-  const auto clock_route_segment_rc = resolveClockRouteSegmentRc(effective_options);
+      = resolveWirelengthUnitUm(reporter, effective_config, _impl._sorted_buffers, config.wirelength_unit_um.has_value());
+  const auto routing_layer_resolution = resolveRoutingLayer(effective_config);
+  const auto clock_route_segment_rc = resolveClockRouteSegmentRc(effective_input);
   _impl._max_slew = max_slew_resolution.value;
   _impl._max_cap = max_cap_resolution.value;
   _impl._length_unit_um = wirelength_unit_resolution.value;
   _impl._wirelength_unit_source = toResolutionSourceName(wirelength_unit_resolution.source);
   _impl._wirelength_unit_detail = wirelength_unit_resolution.detail;
-  _impl._wirelength_iterations = std::max(1U, effective_options.wirelength_iterations.value_or(kDefaultWirelengthIterations));
-  _impl._slew_steps = effective_options.slew_steps.value_or(15U);
-  _impl._cap_steps = effective_options.cap_steps.value_or(15U);
+  _impl._wirelength_iterations = std::max(1U, effective_config.wirelength_iterations.value_or(kDefaultWirelengthIterations));
+  _impl._slew_steps = effective_config.slew_steps.value_or(15U);
+  _impl._cap_steps = effective_config.cap_steps.value_or(15U);
   if (_impl._max_slew <= 0.0 || _impl._max_cap <= 0.0 || _impl._length_unit_um <= 0.0 || !routing_layer_resolution.has_value()) {
     std::string reason = "max_cap_unresolved";
     if (_impl._length_unit_um <= 0.0) {
@@ -441,12 +466,14 @@ auto CharSetupConfigurator::init(const ::icts::CharBuilder::InitOptions& options
     } else if (_impl._max_slew <= 0.0) {
       reason = "max_slew_unresolved";
     }
-    init_stage.failed({{"reason", reason}});
+    if (init_stage.has_value()) {
+      init_stage->failed({{"reason", reason}});
+    }
     return;
   }
   bool wirelength_indices_truncated = false;
-  if (effective_options.wirelength_indices.has_value()) {
-    auto [clamped_indices, truncated] = clampWirelengthIndices(*effective_options.wirelength_indices, _impl._wirelength_iterations);
+  if (effective_config.wirelength_indices.has_value()) {
+    auto [clamped_indices, truncated] = clampWirelengthIndices(*effective_config.wirelength_indices, _impl._wirelength_iterations);
     _impl._wirelength_indices = std::move(clamped_indices);
     wirelength_indices_truncated = truncated;
   }
@@ -460,46 +487,51 @@ auto CharSetupConfigurator::init(const ::icts::CharBuilder::InitOptions& options
   _impl._slews_to_test = slew_lattice.sampleValues();
   _impl._loads_to_test = cap_lattice.sampleValues();
   _impl._routing_layer = *routing_layer_resolution;
-  _impl._wire_width = resolveWireWidth(effective_options);
+  _impl._wire_width_um = resolveWireWidth(effective_config);
   _impl._clock_route_segment_rc = clock_route_segment_rc;
   _impl._sink_input_cap_pf = _impl._sorted_buffers.empty() ? 0.0 : _impl._sorted_buffers.front().input_cap_pf;
 
   if (wirelength_indices_truncated) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CharBuilder",
-                           "wirelength_indices exceeded wirelength_iterations; clamp direct characterization to the configured max iter.",
-                           {
-                               {"wirelength_iterations", std::to_string(_impl._wirelength_iterations)},
-                               {"wirelength_points", std::to_string(_impl._wirelength_indices.size())},
-                           });
+    if (reporter != nullptr) {
+      EmitDiagnostic(*reporter, DiagnosticLevel::kWarning, "CharBuilder",
+                             "wirelength_indices exceeded wirelength_iterations; clamp direct characterization to the configured max iter.",
+                             {
+                                 {"wirelength_iterations", std::to_string(_impl._wirelength_iterations)},
+                                 {"wirelength_points", std::to_string(_impl._wirelength_indices.size())},
+                             });
+    }
   }
 
-  SCHEMA_WRITER_INST.emitSection("### Characterization Setup");
+  if (reporter != nullptr) {
+    reporter->emitSection("### Characterization Setup");
+  }
   logformat::TableRows default_setup_rows;
-  if (!effective_options.wirelength_indices.has_value()) {
+  if (!effective_config.wirelength_indices.has_value()) {
     default_setup_rows.push_back({"resolved_wirelength_unit", logformat::FormatWithUnit(_impl._length_unit_um, "um"),
                                   toResolutionSourceName(wirelength_unit_resolution.source)});
   }
   default_setup_rows.push_back(
       {"wirelength_points", std::to_string(_impl._wirelengths_um.size()),
-       effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan" : wirelength_unit_resolution.detail});
-  default_setup_rows.push_back({"routing_rc", "Runtime Routing / Wire RC", "InitOptions"});
+       effective_config.wirelength_indices.has_value() ? "HTree Characterization Grid Plan" : wirelength_unit_resolution.detail});
+  default_setup_rows.push_back({"routing_rc", "Runtime Routing / Wire RC", "CharBuilderInput"});
   default_setup_rows.push_back({"buffer_count", std::to_string(_impl._sorted_buffers.size()), "resolved_buffers"});
   const logformat::TableRows detail_setup_rows = {
       {"max_slew", logformat::FormatWithUnit(_impl._max_slew, "ns"), toResolutionSourceName(max_slew_resolution.source)},
       {"max_cap", logformat::FormatWithUnit(_impl._max_cap, "pF"), toResolutionSourceName(max_cap_resolution.source)},
       {"resolved_wirelength_unit", logformat::FormatWithUnit(_impl._length_unit_um, "um"),
-       effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan"
-                                                        : toResolutionSourceName(wirelength_unit_resolution.source)},
+       effective_config.wirelength_indices.has_value() ? "HTree Characterization Grid Plan"
+                                                       : toResolutionSourceName(wirelength_unit_resolution.source)},
       {"wirelength_points", std::to_string(_impl._wirelengths_um.size()),
-       effective_options.wirelength_indices.has_value() ? "HTree Characterization Grid Plan" : wirelength_unit_resolution.detail},
+       effective_config.wirelength_indices.has_value() ? "HTree Characterization Grid Plan" : wirelength_unit_resolution.detail},
       {"slew_steps", std::to_string(_impl._slew_steps), "Runtime Configuration"},
       {"cap_steps", std::to_string(_impl._cap_steps), "Runtime Configuration"},
-      {"routing_rc", "Runtime Routing / Wire RC", "InitOptions"},
+      {"routing_rc", "Runtime Routing / Wire RC", "CharBuilderInput"},
       {"buffer_count", std::to_string(_impl._sorted_buffers.size()), "resolved_buffers"},
   };
-  logInfoTable("CharBuilder Setup", {"Parameter", "Value", "Source"}, default_setup_rows);
-  SCHEMA_WRITER_INST.emitTableTo("CharBuilder Setup Detail", {"Parameter", "Value", "Source"}, detail_setup_rows,
-                                 schema::ReportSink::kDetail);
+  logInfoTable(reporter, "CharBuilder Setup", {"Parameter", "Value", "Source"}, default_setup_rows);
+  if (reporter != nullptr) {
+    reporter->emitTableTo("CharBuilder Setup Detail", {"Parameter", "Value", "Source"}, detail_setup_rows, ReportSink::kDetail);
+  }
 
   logformat::TableRows buffer_rows;
   buffer_rows.reserve(_impl._sorted_buffers.size());
@@ -512,14 +544,16 @@ auto CharSetupConfigurator::init(const ::icts::CharBuilder::InitOptions& options
     });
   }
   if (!buffer_rows.empty()) {
-    logInfoTable("CharBuilder Sorted Buffers", {"Index", "Cell Master", "Max Cap", "Input Cap"}, buffer_rows);
+    logInfoTable(reporter, "CharBuilder Sorted Buffers", {"Index", "Cell Master", "Max Cap", "Input Cap"}, buffer_rows);
   }
-  init_stage.finished({
-      {"buffers", std::to_string(_impl._sorted_buffers.size())},
-      {"wirelengths", std::to_string(_impl._wirelengths_um.size())},
-      {"slews", std::to_string(_impl._slews_to_test.size())},
-      {"loads", std::to_string(_impl._loads_to_test.size())},
-  });
+  if (init_stage.has_value()) {
+    init_stage->finished({
+        {"buffers", std::to_string(_impl._sorted_buffers.size())},
+        {"wirelengths", std::to_string(_impl._wirelengths_um.size())},
+        {"slews", std::to_string(_impl._slews_to_test.size())},
+        {"loads", std::to_string(_impl._loads_to_test.size())},
+    });
+  }
 }
 
 }  // namespace icts::char_builder::detail

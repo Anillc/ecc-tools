@@ -144,7 +144,7 @@ struct TopologyPatternLibrary
   std::vector<TopologyPatternNode> nodes;
 };
 
-struct PatternSearchResult
+struct PatternSearchBuild
 {
   bool success = false;
   std::string failure_reason;

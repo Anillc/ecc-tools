@@ -29,7 +29,7 @@ Ask these questions first:
 | Need | Look In |
 |------|---------|
 | geometry helpers | `source/utils/geometry/`, `source/database/spatial/` |
-| singleton access patterns | nearby modules and initialization boundaries |
+| runtime ownership patterns | nearby modules and initialization boundaries |
 | config fallback logic | shared helpers near the first real use site |
 | routing strategy dispatch | existing router facade patterns |
 | include/CMake reuse | existing targets and INTERFACE libraries |

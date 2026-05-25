@@ -37,10 +37,12 @@
 #include <vector>
 
 #include "BufferingPattern.hh"
+#include "CTSRuntime.hh"
 #include "HTreeTopologyChar.hh"
 #include "Log.hh"
 #include "SegmentChar.hh"
 #include "characterization/Characterization.hh"
+#include "common/CTSTestRuntime.hh"
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/characterization/CharCore.hh"
 #include "database/characterization/PatternId.hh"
@@ -60,9 +62,9 @@ class BufferStrengthTable
     }
 
     if (!_drive_caps.contains(cell_master)) {
-      double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+      double drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master);
       if (drive_cap_pf <= 0.0) {
-        drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+        drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
       }
       _drive_caps[cell_master] = drive_cap_pf;
       _ranks_dirty = true;

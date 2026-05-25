@@ -35,7 +35,7 @@
 
 namespace icts_test::common::clustering {
 
-auto BuildClusterArtifacts(const icts::ClusterResult& result, const std::vector<icts::Pin*>& loads,
+auto BuildClusterArtifacts(const icts::ClusterOutput& result, const std::vector<icts::Pin*>& loads,
                            std::unordered_map<const icts::Pin*, std::size_t>& cluster_map, std::vector<icts::Point<int>>& centers,
                            std::vector<std::size_t>& cluster_sizes, std::string& error) -> bool
 {

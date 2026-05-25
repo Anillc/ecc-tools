@@ -21,15 +21,19 @@
  * @brief CTS QoR H-tree root input to leaf output probe helpers.
  */
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/ClockDAG.hh"
@@ -41,6 +45,7 @@
 #include "evaluation/qor/ClockQorMetricCollector.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts::qor_evaluation {
 namespace {
@@ -180,7 +185,7 @@ auto isStructuredHTreeBufferLayoutInst(const ClockLayoutInst& layout_inst) -> bo
          && layout_inst.topology_level >= 0 && !layout_inst.inst_name.empty();
 }
 
-auto makeHTreeBufferRoleIndex(const Clock& clock, const ClockLayout* clock_layout) -> HTreeBufferRoleIndex
+auto makeHTreeBufferRoleIndex(Design& design, const Clock& clock, const ClockLayout* clock_layout) -> HTreeBufferRoleIndex
 {
   HTreeBufferRoleIndex index;
   const auto* layout_clock = findLayoutClock(clock_layout, clock);
@@ -195,7 +200,7 @@ auto makeHTreeBufferRoleIndex(const Clock& clock, const ClockLayout* clock_layou
     }
 
     ++index.layout_record_count;
-    auto* design_inst = DESIGN_INST.findInst(layout_inst.inst_name);
+    auto* design_inst = design.findInst(layout_inst.inst_name);
     if (design_inst == nullptr) {
       ++index.missing_design_inst_count;
       continue;
@@ -253,7 +258,8 @@ auto hasDownstreamStructuredHTreeBufferInputLoad(const Net* net, const HTreeBuff
   return false;
 }
 
-auto collectLeafBufferOutputs(const Clock& clock, Pin* root_output_pin, const HTreeBufferRoleIndex& role_index) -> LeafOutputCollection
+auto collectLeafBufferOutputs(Design& design, const Clock& clock, Pin* root_output_pin, const HTreeBufferRoleIndex& role_index)
+    -> LeafOutputCollection
 {
   LeafOutputCollection collection;
   if (!role_index.metadata_available) {
@@ -274,7 +280,7 @@ auto collectLeafBufferOutputs(const Clock& clock, Pin* root_output_pin, const HT
   }
 
   std::unordered_set<const Pin*> visited_leaf_outputs;
-  const auto reachable_pins = DESIGN_INST.get_clock_dag().reachablePinsFrom(&clock, root_output_pin);
+  const auto reachable_pins = design.get_clock_dag().reachablePinsFrom(&clock, root_output_pin);
   for (auto* pin : reachable_pins) {
     if (pin == nullptr || pin == root_output_pin || !isStructuredHTreeBufferOutputPin(pin, role_index)) {
       continue;
@@ -306,7 +312,8 @@ auto singleBufferInputLoad(Net* net) -> Pin*
   return isBufferInputPin(load) ? load : nullptr;
 }
 
-auto makeRootDriverProbe(const Clock& clock, Pin* root_input, const HTreeBufferRoleIndex& role_index) -> std::optional<RootDriverProbe>
+auto makeRootDriverProbe(Design& design, const Clock& clock, Pin* root_input, const HTreeBufferRoleIndex& role_index)
+    -> std::optional<RootDriverProbe>
 {
   auto* root_inst = root_input != nullptr ? root_input->get_inst() : nullptr;
   auto* root_output = root_inst != nullptr ? root_inst->findDriverPin() : nullptr;
@@ -327,14 +334,14 @@ auto makeRootDriverProbe(const Clock& clock, Pin* root_input, const HTreeBufferR
   probe.root_input_pin = root_input;
   probe.root_output_pin = root_output;
   probe.root_output_net = root_output_net;
-  const auto leaf_outputs = collectLeafBufferOutputs(clock, root_output, role_index);
+  const auto leaf_outputs = collectLeafBufferOutputs(design, clock, root_output, role_index);
   probe.leaf_output_pins = leaf_outputs.output_pins;
   probe.leaf_output_collection_rule = leaf_outputs.rule;
   probe.leaf_output_role_summary = leaf_outputs.role_summary;
   return probe;
 }
 
-auto collectRootDriverProbes(const Clock& clock, const HTreeBufferRoleIndex& role_index) -> std::vector<RootDriverProbe>
+auto collectRootDriverProbes(Design& design, const Clock& clock, const HTreeBufferRoleIndex& role_index) -> std::vector<RootDriverProbe>
 {
   std::vector<RootDriverProbe> probes;
   auto* source_net = clock.get_clock_source_net();
@@ -360,21 +367,21 @@ auto collectRootDriverProbes(const Clock& clock, const HTreeBufferRoleIndex& rol
       root_input = next_input;
     }
 
-    if (auto probe = makeRootDriverProbe(clock, root_input, role_index); probe.has_value()) {
+    if (auto probe = makeRootDriverProbe(design, clock, root_input, role_index); probe.has_value()) {
       probes.push_back(std::move(*probe));
     }
   }
   return probes;
 }
 
-auto evaluateRootInputToLeafOutputProbe(RootDriverProbe& probe, bool query_sta_timing) -> void
+auto evaluateRootInputToLeafOutputProbe(STAAdapter& sta_adapter, RootDriverProbe& probe, bool query_sta_timing) -> void
 {
   if (probe.clock == nullptr || probe.root_inst == nullptr || probe.root_input_pin == nullptr || probe.root_output_pin == nullptr
       || !query_sta_timing) {
     return;
   }
 
-  const auto root_arrival = STA_ADAPTER_INST.queryPinClockArrival(probe.root_input_pin, probe.clock->get_clock_name());
+  const auto root_arrival = sta_adapter.queryPinClockArrival(probe.root_input_pin, probe.clock->get_clock_name());
   if (root_arrival.has_value()) {
     probe.root_arrival_ns = *root_arrival;
     probe.has_root_arrival = true;
@@ -384,7 +391,7 @@ auto evaluateRootInputToLeafOutputProbe(RootDriverProbe& probe, bool query_sta_t
   leaf_arrival_deltas_ns.reserve(probe.leaf_output_pins.size());
   if (root_arrival.has_value()) {
     for (auto* leaf_output : probe.leaf_output_pins) {
-      const auto leaf_arrival = STA_ADAPTER_INST.queryPinClockArrival(leaf_output, probe.clock->get_clock_name());
+      const auto leaf_arrival = sta_adapter.queryPinClockArrival(leaf_output, probe.clock->get_clock_name());
       if (leaf_arrival.has_value() && *leaf_arrival >= *root_arrival) {
         leaf_arrival_deltas_ns.push_back(*leaf_arrival - *root_arrival);
       }
@@ -393,16 +400,16 @@ auto evaluateRootInputToLeafOutputProbe(RootDriverProbe& probe, bool query_sta_t
   probe.arrival_stats = calcStats(std::move(leaf_arrival_deltas_ns));
 }
 
-auto emitRootInputToLeafOutputProbeTable(const std::vector<RootDriverProbe>& probes, bool query_sta_timing) -> void
+auto emitRootInputToLeafOutputProbeTable(SchemaWriter& reporter, const std::vector<RootDriverProbe>& probes, bool query_sta_timing) -> void
 {
   if (probes.empty()) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CTS HTree Evaluation",
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS HTree Evaluation",
                            "no H-tree root driver buffers were discovered from clock source nets.",
                            {{"discovery_rule", "clock source net load buffer input"}});
     return;
   }
 
-  schema::TableRows arrival_rows;
+  TableRows arrival_rows;
   arrival_rows.reserve(probes.size());
   std::size_t leaf_output_pin_count = 0U;
   std::size_t arrival_sample_count = 0U;
@@ -431,12 +438,12 @@ auto emitRootInputToLeafOutputProbeTable(const std::vector<RootDriverProbe>& pro
     });
   }
 
-  schema::EmitTable("CTS Root Input To HTree Leaf Buffer Output Evaluation",
+  EmitTable(reporter, "CTS Root Input To HTree Leaf Buffer Output Evaluation",
                     {"Clock", "Root Input", "Root Output", "Leaf Sample Role", "Leaf Role Detail", "HTree Leaf Buffer Output Pin Count",
                      "Leaf Pin Examples", "Arrival Samples", "Root AT (ns)", "Min (ns)", "Max (ns)", "Mean (ns)", "Median (ns)"},
                     arrival_rows);
 
-  schema::EmitKeyValueTable("CTS Root Input To HTree Leaf Buffer Output Summary",
+  EmitKeyValueTable(reporter, "CTS Root Input To HTree Leaf Buffer Output Summary",
                             {
                                 {"sta_timing_available", query_sta_timing ? "true" : "false"},
                                 {"root_driver_count", std::to_string(probes.size())},
@@ -449,22 +456,31 @@ auto emitRootInputToLeafOutputProbeTable(const std::vector<RootDriverProbe>& pro
 
 }  // namespace
 
-auto EmitRootInputToLeafOutputProbeReport(const std::vector<Clock*>& clocks, const ClockLayout* clock_layout, bool query_sta_timing) -> void
+auto EmitRootInputToLeafOutputProbeReport(const RootInputToLeafOutputProbeReportInput& input) -> void
 {
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "CTS root-input probe report requires STA adapter.";
+  LOG_FATAL_IF(input.design == nullptr) << "CTS root-input probe report requires design.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "CTS root-input probe report requires reporter.";
+  LOG_FATAL_IF(input.clocks == nullptr) << "CTS root-input probe report requires clocks.";
+  auto& sta_adapter = *input.sta_adapter;
+  auto& design = *input.design;
+  auto& reporter = *input.reporter;
+  const auto& clocks = *input.clocks;
+
   std::vector<RootDriverProbe> root_driver_probes;
   for (const auto* clock : clocks) {
     if (clock == nullptr) {
       continue;
     }
-    const auto role_index = makeHTreeBufferRoleIndex(*clock, clock_layout);
-    auto clock_probes = collectRootDriverProbes(*clock, role_index);
+    const auto role_index = makeHTreeBufferRoleIndex(design, *clock, input.clock_layout);
+    auto clock_probes = collectRootDriverProbes(design, *clock, role_index);
     root_driver_probes.insert(root_driver_probes.end(), std::make_move_iterator(clock_probes.begin()),
                               std::make_move_iterator(clock_probes.end()));
   }
   for (auto& probe : root_driver_probes) {
-    evaluateRootInputToLeafOutputProbe(probe, query_sta_timing);
+    evaluateRootInputToLeafOutputProbe(sta_adapter, probe, input.query_sta_timing);
   }
-  emitRootInputToLeafOutputProbeTable(root_driver_probes, query_sta_timing);
+  emitRootInputToLeafOutputProbeTable(reporter, root_driver_probes, input.query_sta_timing);
 }
 
 }  // namespace icts::qor_evaluation

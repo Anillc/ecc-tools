@@ -68,7 +68,8 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeTopologyAssemblyProducesInspe
   ASSERT_GT(expected_max_cap, 0.0);
 
   icts::CharBuilder builder;
-  builder.init(realtech_fixture::MakeRuntimeCharBuilderInitOptions());
+  const auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+  builder.init(contract.input, contract.config);
 
   EXPECT_DOUBLE_EQ(builder.get_max_slew(), expected_max_slew);
   EXPECT_DOUBLE_EQ(builder.get_max_cap(), expected_max_cap);
@@ -172,7 +173,8 @@ TEST(CharacterizationRealTechSmokeTest, ManualHTreeTopologyAssemblyProducesInspe
   report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
   report_stream << std::setprecision(3);
   report_stream << "scenario=smoke_manual_htree\n";
-  report_stream << "configured_buffers=" << realtech_fixture::JoinStrings(CONFIG_INST.get_buffer_types()) << "\n";
+  report_stream << "configured_buffers=" << realtech_fixture::JoinStrings(icts_test::runtime::CurrentRuntime().config.get_buffer_types())
+                << "\n";
   report_stream << "usable_buffers=" << realtech_fixture::JoinStrings(usable_buffers) << "\n";
   report_stream << "resolved_max_slew_ns=" << builder.get_max_slew() << "\n";
   report_stream << "resolved_max_cap_pf=" << builder.get_max_cap() << "\n";
@@ -233,7 +235,8 @@ TEST(CharacterizationRealTechSmokeTest, TerminalBranchBufferedPatternsRemainAvai
     }
 
     icts::CharBuilder builder;
-    builder.init(realtech_fixture::MakeRuntimeCharBuilderInitOptions());
+    const auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+    builder.init(contract.input, contract.config);
     builder.build();
     if (builder.get_segment_chars().empty()) {
       return std::nullopt;

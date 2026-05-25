@@ -48,9 +48,9 @@ namespace {
 
 auto ResolveBufferDriveCap(const std::string& cell_master) -> double
 {
-  double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+  double drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master);
   if (drive_cap_pf <= 0.0) {
-    drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+    drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return drive_cap_pf;
 }
@@ -73,15 +73,13 @@ auto FormatTopologyExperimentReport(std::string_view scenario_name, const RealCl
   report_stream << "sink_clustering_enabled=false\n";
   report_stream << "omit_wirelength_unit=" << (omit_wirelength_unit ? "true" : "false") << "\n";
   report_stream << "runtime_budget_s=" << kBpBeTopSynthesisRuntimeBudgetS << "\n";
-  report_stream << "columns=iter,step,runtime_s,success,frontier_count,selected_depth,best_pattern_id,best_delay_ns,best_power_w,"
-                   "char_wirelength_unit_um,char_wirelength_iterations,char_grid_adapted,used_boundary_relaxation,failure_reason\n";
+  report_stream << "columns=iter,step,runtime_s,success,selected_depth,best_pattern_id,best_delay_ns,best_power_w,"
+                   "used_boundary_relaxation,failure_reason\n";
   for (const auto& record : records) {
     report_stream << record.wirelength_iterations << "," << record.slew_cap_steps << "," << record.runtime_s << ","
-                  << (record.success ? "true" : "false") << "," << record.final_frontier_count << "," << record.selected_depth << ","
-                  << record.best_pattern_id << "," << record.best_delay_ns << "," << record.best_power_w << ","
-                  << record.char_wirelength_unit_um << "," << record.char_wirelength_iterations << ","
-                  << (record.char_grid_adapted ? "true" : "false") << "," << (record.used_boundary_relaxation ? "true" : "false") << ","
-                  << record.failure_reason << "\n";
+                  << (record.success ? "true" : "false") << "," << record.selected_depth << "," << record.best_pattern_id << ","
+                  << record.best_delay_ns << "," << record.best_power_w << "," << (record.used_boundary_relaxation ? "true" : "false")
+                  << "," << record.failure_reason << "\n";
   }
   return report_stream.str();
 }
@@ -131,9 +129,25 @@ auto SelectLargestRealClock(std::size_t max_count, std::size_t min_required_load
   return common::realtech::SelectLargestDefClock(max_count, min_required_load_count);
 }
 
-auto SetEnableSinkClustering(icts::Topology::BuildOptions& options, bool enabled) -> void
+auto SetEnableSinkClustering(icts::Topology::Config& config, bool enabled) -> void
 {
-  options.enable_sink_clustering = enabled;
+  config.enable_sink_clustering = enabled;
+}
+
+auto BuildTopology(icts::Net& root_net, const icts::Topology::Config& config) -> icts::Topology::Build
+{
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  icts::Topology::Input input{
+      .config = &runtime.config,
+      .design = &runtime.design,
+      .wrapper = &runtime.wrapper,
+      .sta_adapter = &runtime.sta_adapter,
+      .fast_sta = &runtime.fast_sta,
+      .reporter = &runtime.reporter,
+      .root_net = &root_net,
+      .object_name_prefix = {},
+  };
+  return icts::Topology::build(input, config);
 }
 
 auto ConnectRootNet(icts::Net& root_net, icts::Pin* source, const std::vector<icts::Pin*>& sinks) -> void
@@ -157,12 +171,12 @@ auto ResolveExpectedMinClusterBufferMaster() -> std::optional<std::string>
 {
   std::optional<std::string> expected_master = std::nullopt;
   double best_drive_cap_pf = std::numeric_limits<double>::infinity();
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  for (const auto& cell_master : icts_test::runtime::CurrentRuntime().config.get_buffer_types()) {
     if (cell_master.empty()) {
       continue;
     }
 
-    const auto [input_pin, output_pin] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
+    const auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().sta_adapter.queryBufferPorts(cell_master);
     if (input_pin.empty() || output_pin.empty()) {
       continue;
     }

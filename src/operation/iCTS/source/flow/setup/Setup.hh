@@ -25,11 +25,36 @@
 
 #include <string>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
-struct SetupResult
+class Config;
+class Design;
+class STAAdapter;
+class Wrapper;
+
+struct SetupInput
 {
-  bool setup_ready = false;
+  Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  SchemaWriter* reporter = nullptr;
+  std::string config_file;
+  std::string work_dir;
+};
+
+struct RuntimeSetupInput
+{
+  const Config* config = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  SchemaWriter* reporter = nullptr;
+};
+
+struct SetupSummary
+{
+  bool success = false;
   std::string reason;
 };
 
@@ -38,9 +63,8 @@ class Setup
  public:
   Setup() = delete;
 
-  static auto initializeRuntime(const std::string& config_file, const std::string& work_dir) -> SetupResult;
-  static auto initialize(const std::string& config_file, const std::string& work_dir) -> bool;
-  static auto emitRuntimeSetup() -> void;
+  static auto initializeRuntime(const SetupInput& input) -> SetupSummary;
+  static auto emitRuntimeSetup(const RuntimeSetupInput& input) -> void;
 };
 
 }  // namespace icts

@@ -37,6 +37,8 @@ namespace icts::htree {
 
 struct BufferPatternLibrary
 {
+  explicit BufferPatternLibrary(STAAdapter& sta_adapter) : _strength_table(sta_adapter) {}
+
   auto add(BufferingPattern pattern) -> void
   {
     pattern = enrichBoundaryState(std::move(pattern));

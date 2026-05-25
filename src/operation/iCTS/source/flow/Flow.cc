@@ -28,8 +28,10 @@
 #include <utility>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "ClockDAG.hh"
 #include "ClockLayout.hh"
+#include "characterization/Characterization.hh"
 #include "design/Design.hh"
 #include "evaluation/Evaluation.hh"
 #include "instantiation/Instantiation.hh"
@@ -79,10 +81,10 @@ auto synthesisOutcomeName(SynthesisOutcome outcome) -> std::string
 
 auto Flow::runCTS() -> void
 {
-  SCHEMA_WRITER_INST.resetRuntimeMetrics();
-  auto total_runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("total");
-  auto run_stage = SCHEMA_WRITER_INST.beginStage("CTS", "Clock tree synthesis API flow", {},
-                                                 schema::StageReportOptions{.emit_success_summary = false});
+  _runtime.reporter.resetRuntimeMetrics();
+  auto total_runtime = _runtime.reporter.beginRuntimeMetric("total");
+  auto run_stage
+      = _runtime.reporter.beginStage("CTS", "Clock tree synthesis API flow", {}, StageReportOptions{.emit_success_summary = false});
 
   if (!_setup_ready) {
     _run_summary = SynthesisTraceSummary{};
@@ -90,21 +92,21 @@ auto Flow::runCTS() -> void
     _run_summary.outcome = SynthesisOutcome::kFailed;
     run_stage.failed({{"reason", "setup_failed"}});
     const auto total_metric = total_runtime.failed();
-    SCHEMA_WRITER_INST.emitSection("## Runtime Overview");
-    SCHEMA_WRITER_INST.emitRuntimeSummary("CTS Runtime Overview");
+    _runtime.reporter.emitSection("## Runtime Overview");
+    _runtime.reporter.emitRuntimeSummary("CTS Runtime Overview");
     emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
     return;
   }
 
-  const auto clock_data_read_result = readClockData();
-  if (!clock_data_read_result.clock_data_ready) {
+  const auto clock_data_read_summary = readClockData();
+  if (!clock_data_read_summary.success) {
     _run_summary = SynthesisTraceSummary{};
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
-    run_stage.failed({{"reason", clock_data_read_result.reason}});
+    run_stage.failed({{"reason", clock_data_read_summary.reason}});
     const auto total_metric = total_runtime.failed();
-    SCHEMA_WRITER_INST.emitSection("## Runtime Overview");
-    SCHEMA_WRITER_INST.emitRuntimeSummary("CTS Runtime Overview");
+    _runtime.reporter.emitSection("## Runtime Overview");
+    _runtime.reporter.emitRuntimeSummary("CTS Runtime Overview");
     emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
     return;
   }
@@ -113,10 +115,9 @@ auto Flow::runCTS() -> void
   (void) instantiateClockTree();
   (void) evaluateClockTree();
 
-  const bool run_success
-      = _run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success && _instantiation_result.instantiation_done;
+  const bool run_success = _run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success && _instantiation_summary.success;
   const bool run_no_op = _run_summary.outcome == SynthesisOutcome::kNoOp;
-  schema::SchemaWriter::RuntimeMetricRecord total_metric;
+  SchemaWriter::RuntimeMetricRecord total_metric;
   if (run_success) {
     total_metric = total_runtime.finished();
   } else if (run_no_op) {
@@ -133,42 +134,39 @@ auto Flow::runCTS() -> void
     run_stage.failed();
   }
 
-  SCHEMA_WRITER_INST.emitSection("## Runtime Overview");
-  SCHEMA_WRITER_INST.emitRuntimeSummary("CTS Runtime Overview");
+  _runtime.reporter.emitSection("## Runtime Overview");
+  _runtime.reporter.emitRuntimeSummary("CTS Runtime Overview");
   emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
 }
 
-auto Flow::readClockData() -> ClockDataReadResult
+auto Flow::readClockData() -> ClockDataReadSummary
 {
   _run_summary = SynthesisTraceSummary{};
   _clock_layout.reset();
   _char_library = CharacterizationLibrary{};
   Evaluation::reset(_evaluation_state);
-  _instantiation_result = InstantiationResult{};
+  _instantiation_summary = InstantiationSummary{};
   _evaluation_ready = false;
 
-  auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("read_data");
+  auto runtime = _runtime.reporter.beginRuntimeMetric("read_data");
   auto read_stage
-      = SCHEMA_WRITER_INST.beginStage("CTSReadData", "Read CTS clock data", {}, schema::StageReportOptions{.emit_success_summary = false});
-  SCHEMA_WRITER_INST.emitSection("## CTS Clock Data Overview");
-  SCHEMA_WRITER_INST.emitSection("### Clock Data");
-  const bool read_data_ready = ClockDataRead::read();
+      = _runtime.reporter.beginStage("CTSReadData", "Read CTS clock data", {}, StageReportOptions{.emit_success_summary = false});
+  _runtime.reporter.emitSection("## CTS Clock Data Overview");
+  _runtime.reporter.emitSection("### Clock Data");
+  const bool read_data_ready = ClockDataRead::read(ClockDataReadInput{
+      .config = &_runtime.config,
+      .design = &_runtime.design,
+      .wrapper = &_runtime.wrapper,
+      .reporter = &_runtime.reporter,
+  });
   if (read_data_ready) {
     (void) runtime.finished();
     read_stage.finished();
-    return ClockDataReadResult{
-        .status = FlowStageStatus::kFinished,
-        .reason = "n/a",
-        .clock_data_ready = true,
-    };
+    return ClockDataReadSummary{.status = FlowStageStatus::kFinished, .reason = "n/a", .success = true};
   } else {
     (void) runtime.failed();
     read_stage.failed({{"reason", "sdc_clock_resolution_failed"}});
-    return ClockDataReadResult{
-        .status = FlowStageStatus::kFailed,
-        .reason = "read_data_failed",
-        .clock_data_ready = false,
-    };
+    return ClockDataReadSummary{.status = FlowStageStatus::kFailed, .reason = "read_data_failed", .success = false};
   }
 }
 
@@ -176,70 +174,108 @@ auto Flow::runSynthesis() -> SynthesisTraceSummary
 {
   Evaluation::reset(_evaluation_state);
   _evaluation_ready = false;
-  _instantiation_result = InstantiationResult{};
-  DESIGN_INST.clearClockDAG();
-  _run_summary = Synthesis::run(_clock_layout, _char_library);
-  if (_run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success && !DESIGN_INST.rebuildClockDAG()) {
+  _instantiation_summary = InstantiationSummary{};
+  _runtime.design.clearClockDAG();
+  _run_summary = Synthesis::run(SynthesisInput{
+      .config = &_runtime.config,
+      .design = &_runtime.design,
+      .wrapper = &_runtime.wrapper,
+      .sta_adapter = &_runtime.sta_adapter,
+      .fast_sta = &_runtime.fast_sta,
+      .reporter = &_runtime.reporter,
+      .clock_layout = &_clock_layout,
+      .characterization_library = &_char_library,
+  });
+  if (_run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success && !_runtime.design.rebuildClockDAG()) {
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CTSFlow",
+    EmitDiagnostic(_runtime.reporter, DiagnosticLevel::kError, "CTSFlow",
                            "synthesized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
-                           {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+                           {{"reason", _runtime.design.get_clock_dag().get_status()}});
     return _run_summary;
   }
   return _run_summary;
 }
 
-auto Flow::runOptimization() -> OptimizationResult
+auto Flow::runOptimization() -> OptimizationSummary
 {
   if (_run_summary.outcome != SynthesisOutcome::kFinished || !_run_summary.success) {
-    return OptimizationResult{};
+    return OptimizationSummary{};
   }
-  const auto optimization_result = Optimization::run(_clock_layout, _char_library);
-  if (!optimization_result.success) {
+  const auto optimization_summary = Optimization::run(OptimizationInput{.config = &_runtime.config,
+                                                                        .design = &_runtime.design,
+                                                                        .wrapper = &_runtime.wrapper,
+                                                                        .sta_adapter = &_runtime.sta_adapter,
+                                                                        .fast_sta = &_runtime.fast_sta,
+                                                                        .reporter = &_runtime.reporter,
+                                                                        .clock_layout = &_clock_layout,
+                                                                        .characterization_library = &_char_library});
+  if (!optimization_summary.success) {
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
-    return optimization_result;
+    return optimization_summary;
   }
-  if (!DESIGN_INST.rebuildClockDAG()) {
+  if (!_runtime.design.rebuildClockDAG()) {
     _run_summary.success = false;
     _run_summary.outcome = SynthesisOutcome::kFailed;
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CTSFlow",
+    EmitDiagnostic(_runtime.reporter, DiagnosticLevel::kError, "CTSFlow",
                            "optimized CTS topology is not a valid clock DAG; instantiation and final evaluation are blocked.",
-                           {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+                           {{"reason", _runtime.design.get_clock_dag().get_status()}});
   }
-  return optimization_result;
+  return optimization_summary;
 }
 
-auto Flow::instantiateClockTree() -> InstantiationResult
+auto Flow::instantiateClockTree() -> InstantiationSummary
 {
-  _instantiation_result = InstantiationResult{};
+  _instantiation_summary = InstantiationSummary{};
   if (_run_summary.outcome == SynthesisOutcome::kFinished && _run_summary.success) {
-    _instantiation_result = Instantiation::run();
-    _clock_layout.markInstantiationDone(_instantiation_result.instantiation_done);
-    _run_summary.success = _instantiation_result.instantiation_done;
+    _instantiation_summary = Instantiation::run(InstantiationInput{
+        .design = &_runtime.design,
+        .wrapper = &_runtime.wrapper,
+        .sta_adapter = &_runtime.sta_adapter,
+        .reporter = &_runtime.reporter,
+    });
+    _clock_layout.markInstantiationDone(_instantiation_summary.success);
+    _run_summary.success = _instantiation_summary.success;
   }
-  return _instantiation_result;
+  return _instantiation_summary;
 }
 
-auto Flow::evaluateClockTree() -> EvaluationResult
+auto Flow::evaluateClockTree() -> EvaluationBuild
 {
-  if (_run_summary.outcome != SynthesisOutcome::kFinished || !_instantiation_result.instantiation_done) {
+  if (_run_summary.outcome != SynthesisOutcome::kFinished || !_instantiation_summary.success) {
     Evaluation::reset(_evaluation_state);
     _evaluation_ready = false;
-    return EvaluationResult{.evaluation_ready = false};
+    return EvaluationBuild{.output = EvaluationOutput{.state = _evaluation_state}, .summary = EvaluationSummary{.evaluation_ready = false}};
   }
-  const auto result = Evaluation::run(
-      _evaluation_state, EvaluationOptions{.refresh_sta_timing = _instantiation_result.instantiation_done, .clock_layout = &_clock_layout});
-  _evaluation_ready = result.evaluation_ready;
-  return result;
+  const auto output = Evaluation::run(_evaluation_state,
+                                      EvaluationInput{
+                                          .config = &_runtime.config,
+                                          .clock_layout = &_clock_layout,
+                                          .design = &_runtime.design,
+                                          .wrapper = &_runtime.wrapper,
+                                          .sta_adapter = &_runtime.sta_adapter,
+                                          .reporter = &_runtime.reporter,
+                                      },
+                                      EvaluationConfig{.refresh_sta_timing = _instantiation_summary.success});
+  _evaluation_state = output.output.state;
+  _evaluation_ready = output.summary.evaluation_ready;
+  return output;
 }
 
 auto Flow::emitReports(const std::string& save_dir) -> void
 {
-  const auto report_result
-      = Report::run(save_dir, _evaluation_ready, _instantiation_result.instantiation_done, _clock_layout, _evaluation_state);
-  _evaluation_ready = report_result.evaluation_ready;
+  const auto report_summary = Report::run(ReportInput{.config = &_runtime.config,
+                                                      .design = &_runtime.design,
+                                                      .wrapper = &_runtime.wrapper,
+                                                      .sta_adapter = &_runtime.sta_adapter,
+                                                      .reporter = &_runtime.reporter,
+                                                      .save_dir = save_dir,
+                                                      .evaluation_ready = _evaluation_ready,
+                                                      .clock_layout = &_clock_layout,
+                                                      .evaluation_state = &_evaluation_state},
+                                          ReportConfig{.refresh_sta_timing = _instantiation_summary.success});
+  _evaluation_ready = report_summary.evaluation_ready;
 }
 
 auto Flow::outputRuntimeSetup() -> void
@@ -249,7 +285,11 @@ auto Flow::outputRuntimeSetup() -> void
   }
   _runtime_setup_emitted = true;
 
-  Setup::emitRuntimeSetup();
+  Setup::emitRuntimeSetup(RuntimeSetupInput{
+      .config = &_runtime.config,
+      .sta_adapter = &_runtime.sta_adapter,
+      .reporter = &_runtime.reporter,
+  });
 }
 
 auto Flow::emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void
@@ -257,7 +297,7 @@ auto Flow::emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) cons
   const auto evaluation_summary = outputSummary();
   const std::size_t sink_count = _run_summary.hard_macro_sinks + _run_summary.regular_sinks;
 
-  schema::KeyValueFields fields = {
+  KeyValueFields fields = {
       {"status", synthesisOutcomeName(_run_summary.outcome)},
   };
   if (!_run_summary.no_op_reason.empty()) {
@@ -281,8 +321,8 @@ auto Flow::emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) cons
                     {"peak_vmem_delta", formatValueWithUnit(logformat::FormatFixed(peak_vmem_delta_mb, 3), "MB")},
                 });
 
-  SCHEMA_WRITER_INST.emitSection("## Run Results");
-  schema::EmitKeyValueTable("CTS Key Results", fields);
+  _runtime.reporter.emitSection("## Run Results");
+  EmitKeyValueTable(_runtime.reporter, "CTS Key Results", fields);
 }
 
 auto Flow::outputSummary() const -> QorSummary
@@ -304,7 +344,7 @@ auto Flow::reset() -> void
   _run_summary = SynthesisTraceSummary{};
   _clock_layout.reset();
   _char_library = CharacterizationLibrary{};
-  _instantiation_result = InstantiationResult{};
+  _instantiation_summary = InstantiationSummary{};
   _runtime_setup_emitted = false;
   _setup_ready = false;
   _evaluation_ready = false;

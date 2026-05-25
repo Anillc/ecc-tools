@@ -25,15 +25,42 @@
 
 #include <string>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
 class ClockLayout;
+class Config;
+class Design;
+class STAAdapter;
+class Wrapper;
 struct EvaluationState;
 
-struct ReportResult
+struct ReportInput
 {
-  bool report_success = false;
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  SchemaWriter* reporter = nullptr;
+  std::string save_dir;
   bool evaluation_ready = false;
+  const ClockLayout* clock_layout = nullptr;
+  EvaluationState* evaluation_state = nullptr;
+};
+
+struct ReportConfig
+{
+  bool refresh_sta_timing = false;
+};
+
+struct ReportSummary
+{
+  bool success = false;
+  bool evaluation_ready = false;
+  bool statistics_success = false;
+  bool svg_success = false;
+  bool gds_success = false;
 };
 
 class Report
@@ -41,8 +68,7 @@ class Report
  public:
   Report() = delete;
 
-  static auto run(const std::string& save_dir, bool evaluation_ready, bool refresh_sta_timing, const ClockLayout& clock_layout,
-                  EvaluationState& evaluation_state) -> ReportResult;
+  static auto run(const ReportInput& input, const ReportConfig& config = {}) -> ReportSummary;
 };
 
 }  // namespace icts

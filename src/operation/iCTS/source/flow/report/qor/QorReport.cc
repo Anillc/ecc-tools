@@ -31,11 +31,13 @@
 #include "Log.hh"
 #include "Qor.hh"
 #include "evaluation/qor/QorEvaluation.hh"
+#include "logger/SchemaForward.hh"
 #include "report/qor/QorFiles.hh"
 
 namespace icts {
 
-auto QorReport::write(const EvaluationState& evaluation_state, const std::string& statistics_dir, bool emit_log_tables) -> bool
+auto QorReport::write(SchemaWriter& reporter, const EvaluationState& evaluation_state, const std::string& statistics_dir,
+                      bool emit_log_tables) -> bool
 {
   if (!evaluation_state.statistics.valid) {
     LOG_WARNING << "QorReport: statistics report skipped because evaluation statistics are not ready.";
@@ -44,7 +46,7 @@ auto QorReport::write(const EvaluationState& evaluation_state, const std::string
 
   const bool success = QorFiles::writeReports(std::filesystem::path(statistics_dir), evaluation_state.statistics);
   if (emit_log_tables) {
-    QorFiles::emitLogTables(evaluation_state.statistics);
+    QorFiles::emitLogTables(reporter, evaluation_state.statistics);
   }
   return success;
 }

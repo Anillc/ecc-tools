@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "FastSta.hh"
 #include "Log.hh"
 #include "clock_state/FastStaClockState.hh"
 

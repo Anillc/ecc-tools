@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Input/config/output/summary naming and clarity rules"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Design/config dependency ownership rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer synthesis/adapter boundary checklist"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/design.md", "reason": "Parent HTree target contract"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "HTree/Topology/Characterization contract problem inventory"}

@@ -23,11 +23,15 @@
 
 #include "evaluation/qor/QorEvaluation.hh"
 
+#include <glog/logging.h>
+
 #include <optional>
+#include <ostream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/ClockDAG.hh"
@@ -40,42 +44,47 @@
 
 namespace icts {
 
-auto QorEvaluation::evaluate(EvaluationState& state) -> void
+auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationInput& input, const EvaluationConfig& evaluation_config) -> void
 {
-  evaluate(state, EvaluationOptions{});
-}
-
-auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& options) -> void
-{
+  LOG_FATAL_IF(input.config == nullptr) << "Evaluation requires config.";
+  LOG_FATAL_IF(input.design == nullptr) << "Evaluation requires design.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "Evaluation requires wrapper.";
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Evaluation requires STA adapter.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "Evaluation requires reporter.";
+  const auto& config = *input.config;
+  auto& design = *input.design;
+  auto& wrapper = *input.wrapper;
+  auto& sta_adapter = *input.sta_adapter;
+  auto& reporter = *input.reporter;
   auto& summary = state.summary;
   auto& statistics = state.statistics;
   qor_evaluation::ClearSummary(summary);
   qor_evaluation::ClearStatistics(statistics);
 
-  auto clocks = DESIGN_INST.get_clocks();
-  summary.design_dbu_per_um = WRAPPER_INST.queryDbUnit();
+  auto clocks = design.get_clocks();
+  summary.design_dbu_per_um = wrapper.queryDbUnit();
   if (summary.design_dbu_per_um <= 0) {
     summary.design_dbu_per_um = 0;
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "CTS Evaluation",
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
                            "CTS evaluation reports degraded wirelength metrics because DBU-per-micron is unavailable.",
                            {{"wirelength_metric_status", "degraded"}});
   }
-  const bool clock_dag_valid = DESIGN_INST.rebuildClockDAG();
-  const auto& clock_dag = DESIGN_INST.get_clock_dag();
+  const bool clock_dag_valid = design.rebuildClockDAG();
+  const auto& clock_dag = design.get_clock_dag();
   qor_evaluation::AppendPathDepthStats(clock_dag.pathBufferStats(), summary);
   if (!clock_dag_valid) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "CTS Evaluation",
+    EmitDiagnostic(reporter, DiagnosticLevel::kError, "CTS Evaluation",
                            "CTS evaluation skipped because committed topology is not a valid clock DAG.",
                            {{"path_depth_metric_status", summary.path_depth_metric_status}, {"reason", clock_dag.get_status()}});
     qor_evaluation::SyncCompatibilityAliases(summary);
-    qor_evaluation::EmitEvaluationSummary(summary, false);
+    qor_evaluation::EmitEvaluationSummary(reporter, summary, false);
     return;
   }
 
-  const bool should_refresh_sta = WRAPPER_INST.is_design_ready() && options.refresh_sta_timing;
+  const bool should_refresh_sta = wrapper.is_design_ready() && evaluation_config.refresh_sta_timing;
   if (should_refresh_sta) {
-    STA_ADAPTER_INST.refreshFullDesignTimingContext();
-    summary.propagated_clock_count = STA_ADAPTER_INST.setPropagatedClocks();
+    sta_adapter.refreshFullDesignTimingContext(config);
+    summary.propagated_clock_count = sta_adapter.setPropagatedClocks();
     summary.sta_clocks_propagated = summary.propagated_clock_count > 0U;
   }
 
@@ -95,10 +104,10 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
       const bool is_new_buffer_inst = counted_buffer_insts.insert(inst).second;
       if (is_new_buffer_inst) {
         ++summary.final_clock_buffer_count;
-        qor_evaluation::AccumulateInstStatistics(*inst, statistics);
+        qor_evaluation::AccumulateInstStatistics(sta_adapter, *inst, statistics);
       }
-      if (WRAPPER_INST.is_layout_ready() && is_new_buffer_inst) {
-        summary.final_buffer_area_um2 += STA_ADAPTER_INST.queryCellAreaUm2(inst->get_cell_master());
+      if (wrapper.is_layout_ready() && is_new_buffer_inst) {
+        summary.final_buffer_area_um2 += sta_adapter.queryCellAreaUm2(inst->get_cell_master());
       }
     }
     summary.clock_member_buffer_count += clock_member_buffer_count;
@@ -107,8 +116,14 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
       if (net == nullptr) {
         continue;
       }
-      if (auto measurement
-          = qor_evaluation::InstallClockNetRcTreeAndMeasure(net, qor_evaluation::ClassifyClockNet(*clock, net), should_refresh_sta);
+      if (auto measurement = qor_evaluation::InstallClockNetRcTreeAndMeasure(qor_evaluation::ClockNetMeasurementInput{
+              .config = &config,
+              .sta_adapter = &sta_adapter,
+              .wrapper = &wrapper,
+              .net = net,
+              .role = qor_evaluation::ClassifyClockNet(*clock, net),
+              .install_sta_rc_tree = should_refresh_sta,
+          });
           measurement.has_value()) {
         clock_net_measurements.push_back(*measurement);
       }
@@ -117,14 +132,26 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
 
   bool timing_updated = false;
   if (should_refresh_sta) {
-    STA_ADAPTER_INST.updateTiming();
+    sta_adapter.updateTiming();
     timing_updated = true;
-    (void) STA_ADAPTER_INST.reportTiming();
-    qor_evaluation::AppendClockLatencySkew(summary);
+    (void) sta_adapter.reportTiming();
+    qor_evaluation::AppendClockLatencySkew(sta_adapter, summary);
   }
-  qor_evaluation::AppendClockTimings(timing_updated, summary);
+  qor_evaluation::AppendClockTimings(qor_evaluation::ClockTimingAppendInput{
+      .sta_adapter = &sta_adapter,
+      .reporter = &reporter,
+      .query_sta_timing = timing_updated,
+      .summary = &summary,
+  });
   if (timing_updated) {
-    qor_evaluation::EmitRootInputToLeafOutputProbeReport(clocks, options.clock_layout, timing_updated);
+    qor_evaluation::EmitRootInputToLeafOutputProbeReport(qor_evaluation::RootInputToLeafOutputProbeReportInput{
+        .sta_adapter = &sta_adapter,
+        .design = &design,
+        .reporter = &reporter,
+        .clocks = &clocks,
+        .clock_layout = input.clock_layout,
+        .query_sta_timing = timing_updated,
+    });
   }
   qor_evaluation::AppendClockNetStatistics(clock_net_measurements, summary, statistics);
   qor_evaluation::SyncCompatibilityAliases(summary);
@@ -145,7 +172,7 @@ auto QorEvaluation::evaluate(EvaluationState& state, const EvaluationOptions& op
   }
   statistics.valid = timing_updated;
   summary.has_evaluation_result = timing_updated;
-  qor_evaluation::EmitEvaluationSummary(summary, timing_updated);
+  qor_evaluation::EmitEvaluationSummary(reporter, summary, timing_updated);
 }
 
 auto QorEvaluation::outputSummary(const EvaluationState& state) -> QorSummary
@@ -153,7 +180,7 @@ auto QorEvaluation::outputSummary(const EvaluationState& state) -> QorSummary
   return state.summary;
 }
 
-auto QorEvaluation::hasEvaluationResult(const EvaluationState& state) -> bool
+auto QorEvaluation::isEvaluationReady(const EvaluationState& state) -> bool
 {
   return state.summary.has_evaluation_result && state.statistics.valid;
 }

@@ -18,7 +18,7 @@
  * @file Schema.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-16
- * @brief Structured report schema writer for iCTS runtime reports and generated artifact references.
+ * @brief Structured report writer for iCTS runtime reports and generated artifact references.
  */
 
 #include "Schema.hh"
@@ -38,7 +38,7 @@
 
 #include "Log.hh"
 
-namespace icts::schema {
+namespace icts {
 namespace {
 
 auto BuildGeneratedOnString() -> std::string
@@ -475,26 +475,27 @@ auto SchemaWriter::appendStandaloneArtifact(const std::filesystem::path& path, c
 
 auto SchemaWriter::appendStandaloneBlock(const std::filesystem::path& path, const std::string& run_title, const std::string& block) -> void
 {
-  auto& schema_writer = SCHEMA_WRITER_INST;
-  const std::scoped_lock lock(schema_writer._mutex);
+  static std::mutex append_mutex;
+  const std::scoped_lock lock(append_mutex);
   AppendBlockToPath(path, run_title, block);
 }
 
-auto EmitTable(const std::string& title, const std::vector<std::string>& headers, const TableRows& rows) -> void
+auto EmitTable(SchemaWriter& writer, const std::string& title, const std::vector<std::string>& headers, const TableRows& rows) -> void
 {
   LOG_INFO << "";
   LOG_INFO << logformat::MakeTitledTable(title, headers, rows);
-  SCHEMA_WRITER_INST.emitTable(title, headers, rows);
+  writer.emitTable(title, headers, rows);
 }
 
-auto EmitKeyValueTable(const std::string& title, const KeyValueFields& fields) -> void
+auto EmitKeyValueTable(SchemaWriter& writer, const std::string& title, const KeyValueFields& fields) -> void
 {
   LOG_INFO << "";
   LOG_INFO << logformat::MakeKeyValueTable(title, fields);
-  SCHEMA_WRITER_INST.emitKeyValueTable(title, fields);
+  writer.emitKeyValueTable(title, fields);
 }
 
-auto EmitDiagnostic(DiagnosticLevel level, const std::string& owner, const std::string& summary, const KeyValueFields& fields) -> void
+auto EmitDiagnostic(SchemaWriter& writer, DiagnosticLevel level, const std::string& owner, const std::string& summary,
+                    const KeyValueFields& fields) -> void
 {
   switch (level) {
     case DiagnosticLevel::kInfo:
@@ -508,13 +509,13 @@ auto EmitDiagnostic(DiagnosticLevel level, const std::string& owner, const std::
       LOG_ERROR << owner << ": " << summary;
       break;
   }
-  SCHEMA_WRITER_INST.emitDiagnostic(level, owner, summary, fields);
+  writer.emitDiagnostic(level, owner, summary, fields);
 }
 
-auto EmitArtifact(const std::string& label, const std::filesystem::path& path, const std::string& detail) -> void
+auto EmitArtifact(SchemaWriter& writer, const std::string& label, const std::filesystem::path& path, const std::string& detail) -> void
 {
   LOG_INFO << label << " saved: " << path.string();
-  SCHEMA_WRITER_INST.emitArtifact(label, path, detail);
+  writer.emitArtifact(label, path, detail);
 }
 
-}  // namespace icts::schema
+}  // namespace icts

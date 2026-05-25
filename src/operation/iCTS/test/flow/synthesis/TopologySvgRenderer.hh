@@ -60,11 +60,11 @@ struct LineSegment
 
 auto HasValidLocation(const icts::Point<int>& location) -> bool;
 auto FindRenderableLocation(const icts::Pin* pin) -> icts::Point<int>;
-auto CollectExtraPoints(const icts::Topology::BuildResult& result) -> std::vector<icts::Point<int>>;
+auto CollectExtraPoints(const icts::Topology::Build& result) -> std::vector<icts::Point<int>>;
 auto CollectBufferMasterSummaries(const std::vector<std::unique_ptr<icts::Inst>>& inserted_insts) -> std::vector<BufferMasterSummary>;
 auto BuildBufferRenderStyles(const std::vector<BufferMasterSummary>& summaries) -> std::unordered_map<std::string, BufferRenderStyle>;
-auto CollectSinkLevelSegments(const icts::Topology::BuildResult& result) -> std::vector<LineSegment>;
+auto CollectSinkLevelSegments(const icts::Topology::Build& result) -> std::vector<LineSegment>;
 auto WriteSynthesisSvg(const std::filesystem::path& path, const std::vector<icts::Pin*>& original_sinks,
-                       const icts::Topology::BuildResult& result) -> bool;
+                       const icts::Topology::Build& result) -> bool;
 
 }  // namespace icts_test::synthesis

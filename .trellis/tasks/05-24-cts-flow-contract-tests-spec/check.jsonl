@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify final singleton rules are reflected"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify contract and naming rules are reflected"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify reporter rules are reflected"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "Verify final grep and hotspot cleanup against original inventory"}

@@ -25,6 +25,8 @@
 
 #include <filesystem>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
 struct Qor;
@@ -35,7 +37,7 @@ class QorFiles
   QorFiles() = delete;
 
   static auto writeReports(const std::filesystem::path& statistics_dir, const Qor& statistics) -> bool;
-  static auto emitLogTables(const Qor& statistics) -> void;
+  static auto emitLogTables(SchemaWriter& reporter, const Qor& statistics) -> void;
 };
 
 }  // namespace icts

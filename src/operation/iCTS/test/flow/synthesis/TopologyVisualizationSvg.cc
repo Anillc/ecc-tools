@@ -125,17 +125,17 @@ auto ResolveNetStrokeWidth(bool is_root_net, bool reaches_sink) -> double
   return 1.6;
 }
 
-auto CollectHtreeTerminalLoads(const std::vector<icts::Pin*>& original_sinks, const icts::Topology::BuildResult& result)
+auto CollectHtreeTerminalLoads(const std::vector<icts::Pin*>& original_sinks, const icts::Topology::Build& result)
     -> std::unordered_set<const icts::Pin*>
 {
   std::unordered_set<const icts::Pin*> terminal_loads;
-  if (result.cluster_buffers.empty()) {
+  if (result.output.cluster_buffers.empty()) {
     terminal_loads.insert(original_sinks.begin(), original_sinks.end());
     return terminal_loads;
   }
 
-  terminal_loads.reserve(result.cluster_buffers.size());
-  for (const auto& cluster_buffer : result.cluster_buffers) {
+  terminal_loads.reserve(result.output.cluster_buffers.size());
+  for (const auto& cluster_buffer : result.output.cluster_buffers) {
     if (cluster_buffer.input_pin != nullptr) {
       terminal_loads.insert(cluster_buffer.input_pin);
     }
@@ -265,17 +265,15 @@ auto WriteTopologyOverlay(std::ofstream& output_stream, const icts::visualizatio
 }
 
 auto WriteHtreeMaterializedNets(std::ofstream& output_stream, const icts::visualization::detail::SvgTransform& transform,
-                                const std::unordered_set<const icts::Pin*>& terminal_loads, const icts::Topology::BuildResult& result)
-    -> void
+                                const std::unordered_set<const icts::Pin*>& terminal_loads, const icts::Topology::Build& result) -> void
 {
-  const auto& htree_result = result.htree_result;
-  for (const auto& net_owner : result.inserted_nets) {
+  for (const auto& net_owner : result.output.inserted_nets) {
     const auto* net = net_owner.get();
     if (net == nullptr || net->get_driver() == nullptr) {
       continue;
     }
-    const bool is_cluster_sink_net
-        = std::ranges::any_of(result.cluster_buffers, [net](const auto& cluster_buffer) -> bool { return cluster_buffer.sink_net == net; });
+    const bool is_cluster_sink_net = std::ranges::any_of(
+        result.output.cluster_buffers, [net](const auto& cluster_buffer) -> bool { return cluster_buffer.sink_net == net; });
     if (is_cluster_sink_net) {
       continue;
     }
@@ -285,7 +283,7 @@ auto WriteHtreeMaterializedNets(std::ofstream& output_stream, const icts::visual
       continue;
     }
 
-    const bool is_root_net = net->get_driver() == htree_result.root_output_pin;
+    const bool is_root_net = net->get_driver() == result.output.htree_output.root_output_pin;
     const bool reaches_sink = std::ranges::any_of(
         net->get_loads(), [&terminal_loads](const icts::Pin* pin) -> bool { return IsOriginalLoadPin(pin, terminal_loads); });
     const std::string stroke_color = ResolveNetStrokeColor(is_root_net, reaches_sink);
@@ -310,9 +308,9 @@ auto WriteHtreeMaterializedNets(std::ofstream& output_stream, const icts::visual
 }
 
 auto WriteSinkLevelNets(std::ofstream& output_stream, const icts::visualization::detail::SvgTransform& transform,
-                        const icts::Topology::BuildResult& result) -> void
+                        const icts::Topology::Build& result) -> void
 {
-  for (const auto& cluster_buffer : result.cluster_buffers) {
+  for (const auto& cluster_buffer : result.output.cluster_buffers) {
     if (cluster_buffer.sink_net == nullptr || cluster_buffer.output_pin == nullptr) {
       continue;
     }
@@ -409,9 +407,9 @@ auto WriteLoads(std::ofstream& output_stream, const icts::visualization::detail:
 }
 
 auto WriteRootMarker(std::ofstream& output_stream, const icts::visualization::detail::SvgTransform& transform,
-                     const icts::HTree::BuildResult& htree_result) -> void
+                     const icts::HTree::Output& htree_output) -> void
 {
-  const auto root_location = FindRenderableLocation(htree_result.root_output_pin);
+  const auto root_location = FindRenderableLocation(htree_output.root_output_pin);
   if (!HasValidLocation(root_location)) {
     return;
   }
@@ -428,15 +426,15 @@ auto WriteRootMarker(std::ofstream& output_stream, const icts::visualization::de
 }  // namespace
 
 auto WriteSynthesisSvg(const std::filesystem::path& path, const std::vector<icts::Pin*>& original_sinks,
-                       const icts::Topology::BuildResult& result) -> bool
+                       const icts::Topology::Build& result) -> bool
 {
   const auto extra_points = CollectExtraPoints(result);
   const auto bounds = ComputeBounds(original_sinks, extra_points);
   const auto transform = MakeTransform(bounds);
-  const auto buffer_summaries = CollectBufferMasterSummaries(result.inserted_insts);
+  const auto buffer_summaries = CollectBufferMasterSummaries(result.output.inserted_insts);
   const auto buffer_styles = BuildBufferRenderStyles(buffer_summaries);
   const auto htree_terminal_loads = CollectHtreeTerminalLoads(original_sinks, result);
-  const bool include_sink_level = !result.cluster_buffers.empty();
+  const bool include_sink_level = !result.output.cluster_buffers.empty();
 
   std::ofstream output_stream(path);
   if (!output_stream.is_open()) {
@@ -448,13 +446,13 @@ auto WriteSynthesisSvg(const std::filesystem::path& path, const std::vector<icts
                 << icts::visualization::detail::kSvgOpenTagSuffix;
   output_stream << icts::visualization::detail::kSvgBackgroundRect;
 
-  WriteTopologyOverlay(output_stream, transform, result.htree_result.topology);
+  WriteTopologyOverlay(output_stream, transform, result.output.htree_output.topology);
   WriteHtreeMaterializedNets(output_stream, transform, htree_terminal_loads, result);
   WriteSinkLevelNets(output_stream, transform, result);
-  WriteTopologyNodes(output_stream, transform, result.htree_result.topology);
-  WriteBuffers(output_stream, transform, result.inserted_insts, buffer_styles);
+  WriteTopologyNodes(output_stream, transform, result.output.htree_output.topology);
+  WriteBuffers(output_stream, transform, result.output.inserted_insts, buffer_styles);
   WriteLoads(output_stream, transform, original_sinks);
-  WriteRootMarker(output_stream, transform, result.htree_result);
+  WriteRootMarker(output_stream, transform, result.output.htree_output);
   WriteLegend(output_stream, transform, buffer_summaries, buffer_styles, include_sink_level);
 
   output_stream << icts::visualization::detail::kSvgClosingTag;

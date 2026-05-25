@@ -34,6 +34,8 @@
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 
 namespace icts {
+
+class SchemaWriter;
 class Tree;
 }  // namespace icts
 
@@ -66,7 +68,7 @@ struct CandidateBuildEvaluation
   TopologyPatternLibrary topology_pattern_library;
 };
 
-struct HTreeFanoutPruningOptions
+struct HTreeFanoutPruningConfig
 {
   std::size_t max_fanout = 0U;
   bool allow_boundary_relaxation = false;
@@ -78,21 +80,31 @@ struct CandidateCharRef
   const HTreeTopologyChar* entry = nullptr;
 };
 
-struct CandidateCharRefFilterResult
+struct CandidateCharRefFilterOutput
 {
   std::vector<CandidateCharRef> entries;
+};
+
+struct CandidateCharRefFilterSummary
+{
   std::string first_failure_reason;
+};
+
+struct CandidateCharRefFilterBuild
+{
+  CandidateCharRefFilterOutput output;
+  CandidateCharRefFilterSummary summary;
 };
 
 auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const SegmentFrontierCatalog& segment_frontier_catalog,
                             const BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& boundary_constraints,
                             const Tree& topology, SinkLoadRegionLegalityContext& sink_load_region_legality_context, std::size_t leaf_count,
-                            unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass,
-                            const HTreeFanoutPruningOptions& fanout_options) -> CandidateBuildEvaluation;
+                            unsigned depth, unsigned char_slew_steps, RootDriverCompensationPass& compensation_pass, SchemaWriter& reporter,
+                            const HTreeFanoutPruningConfig& fanout_config) -> CandidateBuildEvaluation;
 auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateCharRef>& entries,
                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
                                                  const BufferPatternLibrary& segment_pattern_library,
-                                                 SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterResult;
+                                                 SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterBuild;
 auto BuildPerDepthDelayPowerParetoRefs(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>;
 auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>;
 auto CalcBoundaryRelaxationScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)

@@ -13,7 +13,7 @@ target_link_libraries(
   icts_source_database
   icts_source_flow_synthesis_topology_buffer
   icts_source_flow_synthesis_trace_distance
-  icts_source_flow_synthesis_trace_topology_result
+  icts_source_flow_synthesis_trace_topology_build
   icts_source_utils
 )
 

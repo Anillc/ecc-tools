@@ -25,7 +25,6 @@
 
 #include <glog/logging.h>
 
-#include <cstddef>
 #include <map>
 #include <ostream>
 #include <set>
@@ -43,12 +42,22 @@
 
 namespace icts {
 
-auto ClockDataRead::read() -> bool
+auto ClockDataRead::read(const ClockDataReadInput& input) -> bool
 {
+  LOG_FATAL_IF(input.config == nullptr) << "ClockDataRead: config is null.";
+  LOG_FATAL_IF(input.design == nullptr) << "ClockDataRead: design is null.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "ClockDataRead: wrapper is null.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "ClockDataRead: reporter is null.";
+
+  const auto& config = *input.config;
+  auto& design = *input.design;
+  auto& wrapper = *input.wrapper;
+  auto& reporter = *input.reporter;
+
   std::string clock_source = "sdc";
   std::vector<ClockTraceClockTarget> clock_targets;
 
-  const auto sdc_clock_data = SdcClockReader().readClockData();
+  const auto sdc_clock_data = SdcClockReader().readClockData(reporter);
   std::set<std::string> sdc_clock_names;
   std::set<std::string> traceable_sdc_clock_names;
   std::map<std::string, double> sdc_period_by_clock;
@@ -66,15 +75,19 @@ auto ClockDataRead::read() -> bool
   }
 
   if (sdc_clock_names.empty()) {
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kWarning, "ClockDataRead",
+    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "ClockDataRead",
                            "no SDC clocks were declared; CTS clock read will be an explicit no-op.", {{"clock_source", "sdc"}});
   }
 
   bool preflight_failed = false;
   std::string failure_reason = "n/a";
   if (!sdc_clock_data.clocks.empty()) {
-    const auto trace_result = WRAPPER_INST.traceSdcClocks(sdc_clock_data);
-    clock_targets = trace_result.clock_targets;
+    const auto clock_trace_build = wrapper.traceSdcClocks(SdcClockTraceInput{
+        .clock_data = &sdc_clock_data,
+        .max_fanout = config.get_max_fanout(),
+        .reporter = &reporter,
+    });
+    clock_targets = clock_trace_build.output.clock_targets;
     std::set<std::string> accepted_trace_clock_names;
     for (const auto& clock_target : clock_targets) {
       accepted_trace_clock_names.insert(clock_target.clock_name);
@@ -87,19 +100,19 @@ auto ClockDataRead::read() -> bool
       if (failure_reason == "n/a") {
         failure_reason = "clock_trace_no_targets";
       }
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "ClockDataRead",
+      EmitDiagnostic(reporter, DiagnosticLevel::kError, "ClockDataRead",
                              "SDC clock tracing found no CTS target net for a traceable SDC clock.",
                              {{"clock", clock_name}, {"clock_source", "sdc"}});
       LOG_ERROR << "ClockDataRead: SDC clock tracing found no CTS target net for \"" << clock_name << "\".";
     }
   }
 
-  if (!preflight_failed && !clock_targets.empty() && !WRAPPER_INST.readTraceClockTargets(clock_targets)) {
+  if (!preflight_failed && !clock_targets.empty() && !wrapper.readTraceClockTargets(design, reporter, clock_targets)) {
     preflight_failed = true;
     failure_reason = "clock_materialization_failed";
   }
 
-  for (auto* clock : DESIGN_INST.get_clocks()) {
+  for (auto* clock : design.get_clocks()) {
     if (clock == nullptr) {
       continue;
     }
@@ -112,11 +125,11 @@ auto ClockDataRead::read() -> bool
     }
   }
 
-  const auto materialized_clock_count = DESIGN_INST.get_clocks().size();
+  const auto materialized_clock_count = design.get_clocks().size();
   if (!preflight_failed) {
-    DESIGN_INST.emitClockDistributionSummary();
+    design.emitClockDistributionSummary(reporter);
   }
-  schema::KeyValueFields read_data_fields = {
+  KeyValueFields read_data_fields = {
       {"clock_source", clock_source},
       {"status", preflight_failed ? "failed" : "finished"},
   };
@@ -128,10 +141,10 @@ auto ClockDataRead::read() -> bool
                                                       {"added_clock_nets", std::to_string(materialized_clock_count)},
                                                       {"total_clock_nets", std::to_string(materialized_clock_count)},
                                                   });
-  schema::EmitKeyValueTable("ReadData Overview", read_data_fields);
+  EmitKeyValueTable(reporter, "ReadData Overview", read_data_fields);
   if (preflight_failed) {
-    DESIGN_INST.clearClocks();
-    DESIGN_INST.clearTopologyObjects();
+    design.clearClocks();
+    design.clearTopologyObjects();
   }
   return !preflight_failed;
 }

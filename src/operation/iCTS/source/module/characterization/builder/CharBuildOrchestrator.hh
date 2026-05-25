@@ -21,7 +21,7 @@
  * @brief CharBuilder sweep-build orchestrator component. Drives the
  *        wirelength sweep loop: per wirelength delegates topology enumeration
  *        to CharPatternEnumerator, aggregates running statistics, and emits the
- *        characterization-progress and characterization-results schema tables.
+ *        characterization-progress and characterization-results report tables.
  */
 
 #pragma once

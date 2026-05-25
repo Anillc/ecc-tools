@@ -86,11 +86,11 @@ auto LegalizeRoutingRoot(const Point<int>& raw_synthetic_root, const std::vector
   }
 
   std::vector<Point<int>> movable_points{raw_synthetic_root};
-  LocalLegalization::Options options;
-  options.failure_policy = LocalLegalization::FailurePolicy::kKeepOriginal;
+  LocalLegalization::Config legalization_config;
+  legalization_config.failure_policy = LocalLegalization::FailurePolicy::kKeepOriginal;
 
   const auto result = LocalLegalization::legalize(movable_points, load_locations, LocalLegalization::RegionType{},
-                                                  LocalLegalization::RegionType{}, options);
+                                                  LocalLegalization::RegionType{}, legalization_config);
 
   if (result.legalized_points.empty()) {
     LOG_WARNING << "Cluster constraint exact-cap root legalization failed: legalization returned empty points, synthetic root "

@@ -37,16 +37,17 @@ namespace icts::clock_sizing_optimization {
 
 namespace {
 
-auto CheckCapLegality(FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& baseline) -> ClockSizingCapCheck
+auto CheckCapLegality(const FastSTA& fast_sta, FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& baseline)
+    -> ClockSizingCapCheck
 {
   ClockSizingCapCheck result;
-  const auto graph_profile = FastSTA::queryClockGraphProfile(clock_id);
+  const auto graph_profile = fast_sta.queryClockGraphProfile(clock_id);
   if (!graph_profile.has_value()) {
     result.legal = false;
     return result;
   }
   for (FastStaNetId net_id = 0U; net_id < graph_profile->net_count; ++net_id) {
-    const auto cap_status = FastSTA::queryCapStatus(clock_id, net_id);
+    const auto cap_status = fast_sta.queryCapStatus(clock_id, net_id);
     if (!cap_status.has_value()) {
       result.legal = false;
       ++result.violation_count;
@@ -93,16 +94,17 @@ auto CountSlewViolationRole(ClockSizingSlewCheck& result, FastStaSlewRole role) 
   }
 }
 
-auto CheckSlewLegality(FastStaClockId clock_id, const std::vector<ClockSizingSlewLimit>& baseline) -> ClockSizingSlewCheck
+auto CheckSlewLegality(const FastSTA& fast_sta, FastStaClockId clock_id, const std::vector<ClockSizingSlewLimit>& baseline)
+    -> ClockSizingSlewCheck
 {
   ClockSizingSlewCheck result;
-  const auto graph_profile = FastSTA::queryClockGraphProfile(clock_id);
+  const auto graph_profile = fast_sta.queryClockGraphProfile(clock_id);
   if (!graph_profile.has_value()) {
     result.legal = false;
     return result;
   }
   for (FastStaNodeId node_id = 0U; node_id < graph_profile->node_count; ++node_id) {
-    const auto slew_status = FastSTA::querySlewStatus(clock_id, node_id);
+    const auto slew_status = fast_sta.querySlewStatus(clock_id, node_id);
     const auto baseline_available = node_id < baseline.size() && baseline.at(node_id).available;
     auto max_slew_ns = 0.0;
     if (slew_status.has_value()) {
@@ -141,22 +143,22 @@ auto FirstClockSizingEditBufferIndex(const std::vector<ClockSizingEdit>& edits) 
   return first_index;
 }
 
-auto CaptureState(FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& cap_baseline,
+auto CaptureState(const FastSTA& fast_sta, FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& cap_baseline,
                   const std::vector<ClockSizingSlewLimit>& slew_baseline) -> ClockSizingTimingState
 {
   ClockSizingTimingState state;
-  state.skew = FastSTA::querySkew(clock_id);
-  state.power = FastSTA::queryPower(clock_id);
-  state.cap = CheckCapLegality(clock_id, cap_baseline);
-  state.slew = CheckSlewLegality(clock_id, slew_baseline);
+  state.skew = fast_sta.querySkew(clock_id);
+  state.power = fast_sta.queryPower(clock_id);
+  state.cap = CheckCapLegality(fast_sta, clock_id, cap_baseline);
+  state.slew = CheckSlewLegality(fast_sta, clock_id, slew_baseline);
   state.valid = state.skew.valid && state.cap.legal && state.slew.legal;
   return state;
 }
 
-auto CaptureStateWithArea(FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& cap_baseline,
+auto CaptureStateWithArea(const FastSTA& fast_sta, FastStaClockId clock_id, const std::vector<ClockSizingCapLimit>& cap_baseline,
                           const std::vector<ClockSizingSlewLimit>& slew_baseline, double area_um2) -> ClockSizingTimingState
 {
-  auto state = CaptureState(clock_id, cap_baseline, slew_baseline);
+  auto state = CaptureState(fast_sta, clock_id, cap_baseline, slew_baseline);
   state.power.area_um2 = area_um2;
   return state;
 }

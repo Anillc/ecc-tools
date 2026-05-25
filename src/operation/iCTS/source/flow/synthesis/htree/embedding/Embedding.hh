@@ -28,13 +28,21 @@
 #include "Point.hh"
 #include "synthesis/htree/HTree.hh"
 
+namespace icts {
+class Design;
+class STAAdapter;
+}  // namespace icts
+
 namespace icts::htree {
 
 struct BufferPatternLibrary;
 
 auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink, double normalized_position) -> Point<int>;
-auto ValidateRootDriverSizing(const HTree::BuildResult& result, const std::string& cell_master) -> bool;
-auto ApplyRootDriverSizing(HTree::BuildResult& result, const std::string& cell_master) -> bool;
-auto BuildEmbedding(HTree::BuildResult& result, const BufferPatternLibrary& segment_pattern_library) -> void;
+auto ValidateRootDriverSizing(icts::Design& design, STAAdapter& sta_adapter, const HTree::Build& result, const std::string& cell_master)
+    -> bool;
+auto ApplyRootDriverSizing(icts::Design& design, STAAdapter& sta_adapter, HTree::DiagnosticBuild& result, const std::string& cell_master)
+    -> bool;
+auto BuildEmbedding(icts::Design& design, STAAdapter& sta_adapter, HTree::DiagnosticBuild& result,
+                    const BufferPatternLibrary& segment_pattern_library) -> void;
 
 }  // namespace icts::htree

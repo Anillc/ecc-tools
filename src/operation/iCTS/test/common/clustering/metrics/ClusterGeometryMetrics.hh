@@ -30,7 +30,7 @@ namespace icts {
 class Pin;
 template <typename T>
 class Point;
-struct ClusterResult;
+struct ClusterOutput;
 }  // namespace icts
 
 namespace icts_test::common::clustering {
@@ -48,6 +48,6 @@ struct ClusterMetrics
 
 auto CalcClusterDiameter(const std::vector<icts::Pin*>& cluster) -> int;
 auto CalcClusterCenter(const std::vector<icts::Pin*>& cluster) -> icts::Point<int>;
-auto CollectClusterMetrics(const icts::ClusterResult& result) -> ClusterMetrics;
+auto CollectClusterMetrics(const icts::ClusterOutput& result) -> ClusterMetrics;
 
 }  // namespace icts_test::common::clustering

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Adapter ownership rules to update"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer STA adapter checklist"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Explicit dependency and naming checks"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/design.md", "reason": "Parent adapter boundary design"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "STA_ADAPTER_INST and FAST_STA_INST hotspot inventory"}

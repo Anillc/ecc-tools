@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check that any future implementation preserves CTS semantic names and avoids broad generic contexts."}
+{"file": ".trellis/tasks/05-25-cts-refactor-reflection/design.md", "reason": "Architecture acceptance reference for runtime-bound services, stage inputs, and FastSTA boundary cleanup."}
+{"file": ".trellis/tasks/05-25-cts-refactor-reflection/research/faststa-context-audit.md", "reason": "Check reference for redundant FastSTA overloads and public API simplification."}

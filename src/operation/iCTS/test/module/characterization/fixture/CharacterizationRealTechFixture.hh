@@ -30,7 +30,6 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "characterization/Characterization.hh"
@@ -85,9 +84,15 @@ struct ConfigState
   std::string statistics_dir;
 };
 
+struct RuntimeCharBuilderContract
+{
+  icts::CharBuilder::Input input;
+  icts::CharBuilder::Config config;
+};
+
 auto CaptureConfigState() -> ConfigState;
 auto ApplyConfigState(const ConfigState& state) -> void;
-auto MakeRuntimeCharBuilderInitOptions() -> icts::CharBuilder::InitOptions;
+auto MakeRuntimeCharBuilderContract() -> RuntimeCharBuilderContract;
 auto MakeRealTechCharConfigState(const ConfigState& baseline_state, std::optional<std::vector<std::string>> buffer_types,
                                  double max_buf_tran_ns, double max_cap_pf, bool omit_wirelength_unit, bool force_branch_buffer = false)
     -> ConfigState;

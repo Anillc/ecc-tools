@@ -32,21 +32,16 @@
 #include "Inst.hh"
 #include "Net.hh"
 #include "Pin.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 
 class Clock;
-
-#define DESIGN_INST (icts::Design::getInst())
-
 class Design
 {
  public:
-  static auto getInst() -> Design&
-  {
-    static Design inst;
-    return inst;
-  }
+  Design();
+  ~Design();
 
   // Delete copy and move constructors
   Design(const Design& rhs) = delete;
@@ -83,13 +78,10 @@ class Design
   auto get_clock_dag() const -> const ClockDAG& { return _clock_dag; }
   auto rebuildClockDAG() -> bool;
   auto clearClockDAG() -> void;
-  auto emitClockDistributionSummary(const std::string& title = "Clock Distribution Overview") const -> void;
+  auto emitClockDistributionSummary(SchemaWriter& reporter, const std::string& title = "Clock Distribution Overview") const -> void;
   static auto getPinFullName(const Pin* pin) -> std::string;
 
  private:
-  Design();
-  ~Design();
-
   auto removeInst(Inst* inst) -> void;
   auto removePin(Pin* pin) -> void;
   auto removeNet(Net* net) -> void;

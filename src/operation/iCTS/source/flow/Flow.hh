@@ -35,7 +35,7 @@
 
 namespace icts {
 
-#define FLOW_INST (icts::Flow::getInst())
+struct CTSRuntime;
 
 enum class FlowStageStatus
 {
@@ -44,27 +44,24 @@ enum class FlowStageStatus
   kFailed
 };
 
-struct ClockDataReadResult
+struct ClockDataReadSummary
 {
   FlowStageStatus status = FlowStageStatus::kFailed;
   std::string reason;
-  bool clock_data_ready = false;
+  bool success = false;
 };
 
 class Flow
 {
  public:
-  static auto getInst() -> Flow&
-  {
-    static Flow inst;
-    return inst;
-  }
+  explicit Flow(CTSRuntime& runtime) : _runtime(runtime) {}
+  ~Flow() = default;
 
   auto runCTS() -> void;
-  auto readClockData() -> ClockDataReadResult;
+  auto readClockData() -> ClockDataReadSummary;
   auto runSynthesis() -> SynthesisTraceSummary;
-  auto runOptimization() -> OptimizationResult;
-  auto evaluateClockTree() -> EvaluationResult;
+  auto runOptimization() -> OptimizationSummary;
+  auto evaluateClockTree() -> EvaluationBuild;
   auto emitReports(const std::string& save_dir) -> void;
   auto outputRuntimeSetup() -> void;
   auto outputSummary() const -> QorSummary;
@@ -78,16 +75,14 @@ class Flow
   auto operator=(Flow&& other) -> Flow& = delete;
 
  private:
-  Flow() = default;
-  ~Flow() = default;
-
-  auto instantiateClockTree() -> InstantiationResult;
+  auto instantiateClockTree() -> InstantiationSummary;
   auto emitKeyResults(double elapsed_time_s, double peak_vmem_delta_mb) const -> void;
 
+  CTSRuntime& _runtime;
   SynthesisTraceSummary _run_summary;
   ClockLayout _clock_layout;
   EvaluationState _evaluation_state;
-  InstantiationResult _instantiation_result;
+  InstantiationSummary _instantiation_summary;
   CharacterizationLibrary _char_library;
   bool _runtime_setup_emitted = false;
   bool _setup_ready = false;

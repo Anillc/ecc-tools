@@ -68,16 +68,16 @@ TEST(AnalyticalCharacterizationTest, BuildsCatalogFromSyntheticSegmentRows)
     }
   }
 
-  icts::analytical::AnalyticalCharacterizationOptions options;
-  options.require_monotonic_power = true;
-  options.require_monotonic_source_boundary_power = true;
+  icts::analytical::AnalyticalCharacterizationConfig config;
+  config.require_monotonic_power = true;
+  config.require_monotonic_source_boundary_power = true;
   const auto result = icts::analytical::AnalyticalCharacterization::buildFromSegmentChars(
-      chars, patterns, icts::UniformValueLattice(0.01, 16U), icts::UniformValueLattice(0.02, 16U), options);
+      chars, patterns, icts::UniformValueLattice(0.01, 16U), icts::UniformValueLattice(0.02, 16U), config);
 
-  ASSERT_TRUE(result.success);
-  EXPECT_EQ(result.model_set_count, 1U);
-  EXPECT_EQ(result.structural_cap_operator_count, 1U);
-  const auto* model_set = result.catalog.find(pattern_id, length_idx);
+  ASSERT_TRUE(result.summary.success);
+  EXPECT_EQ(result.summary.model_set_count, 1U);
+  EXPECT_EQ(result.summary.structural_cap_operator_count, 1U);
+  const auto* model_set = result.output.catalog.find(pattern_id, length_idx);
   ASSERT_NE(model_set, nullptr);
   ASSERT_TRUE(model_set->isComplete());
   if (!model_set->source_cap_operator.has_value()) {
@@ -104,23 +104,23 @@ TEST(AnalyticalCharacterizationTest, ExactStructuralCapUsesExplicitRouteRcAndBuf
     }
   }
 
-  icts::analytical::AnalyticalCharacterizationOptions options;
-  options.prefer_exact_structural_cap = true;
-  options.length_unit_um = 10.0;
-  options.clock_route_segment_rc = icts::ClockRouteSegmentRc{
+  icts::analytical::AnalyticalCharacterizationConfig config;
+  config.prefer_exact_structural_cap = true;
+  config.length_unit_um = 10.0;
+  config.clock_route_segment_rc = icts::ClockRouteSegmentRc{
       .dbu_per_um = 1000,
       .resistance_per_um_ohm = 0.001,
       .capacitance_per_um_pf = 0.001,
   };
-  options.buffer_input_cap_pf_by_cell_master.emplace("BUF_X1", 0.03);
-  options.require_monotonic_power = true;
-  options.require_monotonic_source_boundary_power = true;
+  config.buffer_input_cap_pf_by_cell_master.emplace("BUF_X1", 0.03);
+  config.require_monotonic_power = true;
+  config.require_monotonic_source_boundary_power = true;
 
   const auto result = icts::analytical::AnalyticalCharacterization::buildFromSegmentChars(
-      chars, patterns, icts::UniformValueLattice(0.01, 16U), icts::UniformValueLattice(0.02, 16U), options);
+      chars, patterns, icts::UniformValueLattice(0.01, 16U), icts::UniformValueLattice(0.02, 16U), config);
 
-  ASSERT_TRUE(result.success);
-  const auto* model_set = result.catalog.find(pattern_id, length_idx);
+  ASSERT_TRUE(result.summary.success);
+  const auto* model_set = result.output.catalog.find(pattern_id, length_idx);
   ASSERT_NE(model_set, nullptr);
   if (!model_set->source_cap_operator.has_value()) {
     ADD_FAILURE() << "Expected exact buffered source-cap operator.";
@@ -153,13 +153,13 @@ TEST(AnalyticalCharacterizationTest, PreservesPatternAndLengthKey)
 
   const auto result = icts::analytical::AnalyticalCharacterization::buildFromSegmentChars(
       chars, patterns, icts::UniformValueLattice(0.01, 16U), icts::UniformValueLattice(0.02, 16U),
-      icts::analytical::AnalyticalCharacterizationOptions{});
+      icts::analytical::AnalyticalCharacterizationConfig{});
 
-  ASSERT_TRUE(result.success);
-  EXPECT_NE(result.catalog.find(pattern_a, 1U), nullptr);
-  EXPECT_NE(result.catalog.find(pattern_b, 2U), nullptr);
-  EXPECT_EQ(result.catalog.find(pattern_a, 2U), nullptr);
-  EXPECT_EQ(result.catalog.find(pattern_b, 1U), nullptr);
+  ASSERT_TRUE(result.summary.success);
+  EXPECT_NE(result.output.catalog.find(pattern_a, 1U), nullptr);
+  EXPECT_NE(result.output.catalog.find(pattern_b, 2U), nullptr);
+  EXPECT_EQ(result.output.catalog.find(pattern_a, 2U), nullptr);
+  EXPECT_EQ(result.output.catalog.find(pattern_b, 1U), nullptr);
 }
 
 }  // namespace

@@ -35,7 +35,7 @@ For each step, ask:
 
 | Boundary | Questions |
 |----------|-----------|
-| API -> Database | Are required singletons initialized before use? |
+| API -> Database | Are runtime-owned dependencies initialized before use? |
 | Database -> Module | Are pointers borrowed safely? Are units still correct? |
 | Wrapper -> iDB | Are external-tool types contained inside the adapter? |
 | STAAdapter -> iSTA | Are timing units and names translated correctly? |

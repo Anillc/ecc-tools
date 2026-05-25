@@ -1,0 +1,31 @@
+{
+  "id": "cts-runtime-flow-desingleton",
+  "name": "cts-runtime-flow-desingleton",
+  "title": "CTS runtime and Flow desingleton",
+  "description": "Introduce explicit CTS runtime ownership and convert Flow from singleton to a normal CTSAPI-owned object.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "backend",
+  "package": "iCTS",
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-24",
+  "completedAt": "2026-05-24",
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-24-cts-desingleton-refactor",
+  "relatedFiles": [
+    "src/operation/iCTS/api/CTSAPI.hh",
+    "src/operation/iCTS/api/CTSAPI.cc",
+    "src/operation/iCTS/source/flow/Flow.hh",
+    "src/operation/iCTS/source/flow/Flow.cc"
+  ],
+  "notes": "",
+  "meta": {}
+}

@@ -192,14 +192,14 @@ auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std:
 auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateCharRef>& entries,
                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
                                                  const BufferPatternLibrary& segment_pattern_library,
-                                                 SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterResult
+                                                 SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterBuild
 {
-  CandidateCharRefFilterResult result;
-  result.entries.reserve(entries.size());
+  CandidateCharRefFilterBuild result;
+  result.output.entries.reserve(entries.size());
   for (const auto& entry_ref : entries) {
     if (entry_ref.entry == nullptr || entry_ref.candidate_index >= evaluations.size()) {
-      if (result.first_failure_reason.empty()) {
-        result.first_failure_reason = "invalid_global_candidate_ref";
+      if (result.summary.first_failure_reason.empty()) {
+        result.summary.first_failure_reason = "invalid_global_candidate_ref";
       }
       continue;
     }
@@ -208,25 +208,25 @@ auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateChar
     const auto legality = ResolveSinkLoadRegionLegality(topology, entry_ref.entry->get_pattern_id(), evaluation.topology_pattern_library,
                                                         segment_pattern_library, legality_context);
     if (!legality.legal) {
-      if (result.first_failure_reason.empty()) {
-        result.first_failure_reason = legality.failure_reason;
+      if (result.summary.first_failure_reason.empty()) {
+        result.summary.first_failure_reason = legality.failure_reason;
       }
       continue;
     }
 
     if (legality.required_leaf_load_cap_covering_idx.has_value()
         && entry_ref.entry->get_leaf_load_cap_idx() < *legality.required_leaf_load_cap_covering_idx) {
-      if (result.first_failure_reason.empty()) {
+      if (result.summary.first_failure_reason.empty()) {
         std::ostringstream detail;
         detail << "sink_load_region_boundary_load_coverage_violation required_leaf_load_cap_idx="
                << *legality.required_leaf_load_cap_covering_idx << ", entry_leaf_load_cap_idx=" << entry_ref.entry->get_leaf_load_cap_idx()
                << ", max_real_load_cap_pf=" << legality.required_leaf_load_cap_pf;
-        result.first_failure_reason = detail.str();
+        result.summary.first_failure_reason = detail.str();
       }
       continue;
     }
 
-    result.entries.push_back(entry_ref);
+    result.output.entries.push_back(entry_ref);
   }
   return result;
 }

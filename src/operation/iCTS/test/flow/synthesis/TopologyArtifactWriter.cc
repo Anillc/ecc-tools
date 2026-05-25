@@ -91,20 +91,21 @@ auto FindRenderableLocation(const icts::Pin* pin) -> icts::Point<int>
   return {-1, -1};
 }
 
-auto CollectExtraPoints(const icts::Topology::BuildResult& result) -> std::vector<icts::Point<int>>
+auto CollectExtraPoints(const icts::Topology::Build& result) -> std::vector<icts::Point<int>>
 {
   std::vector<icts::Point<int>> extra_points;
-  extra_points.reserve(result.htree_result.topology.get_size() + result.inserted_insts.size() + result.inserted_pins.size());
+  extra_points.reserve(result.output.htree_output.topology.get_size() + result.output.inserted_insts.size()
+                       + result.output.inserted_pins.size());
 
-  for (std::size_t node_id = 0; node_id < result.htree_result.topology.get_size(); ++node_id) {
-    const auto* node = result.htree_result.topology.get_node(node_id);
+  for (std::size_t node_id = 0; node_id < result.output.htree_output.topology.get_size(); ++node_id) {
+    const auto* node = result.output.htree_output.topology.get_node(node_id);
     if (node == nullptr || !HasValidLocation(node->get_position())) {
       continue;
     }
     extra_points.push_back(node->get_position());
   }
 
-  for (const auto& inst_owner : result.inserted_insts) {
+  for (const auto& inst_owner : result.output.inserted_insts) {
     const auto* inst = inst_owner.get();
     if (inst == nullptr || !HasValidLocation(inst->get_location())) {
       continue;
@@ -112,7 +113,7 @@ auto CollectExtraPoints(const icts::Topology::BuildResult& result) -> std::vecto
     extra_points.push_back(inst->get_location());
   }
 
-  for (const auto& pin_owner : result.inserted_pins) {
+  for (const auto& pin_owner : result.output.inserted_pins) {
     const auto* pin = pin_owner.get();
     const auto location = FindRenderableLocation(pin);
     if (!HasValidLocation(location)) {
@@ -182,10 +183,10 @@ auto BuildBufferRenderStyles(const std::vector<BufferMasterSummary>& summaries) 
   return styles;
 }
 
-auto CollectSinkLevelSegments(const icts::Topology::BuildResult& result) -> std::vector<LineSegment>
+auto CollectSinkLevelSegments(const icts::Topology::Build& result) -> std::vector<LineSegment>
 {
   std::vector<LineSegment> segments;
-  for (const auto& cluster_buffer : result.cluster_buffers) {
+  for (const auto& cluster_buffer : result.output.cluster_buffers) {
     if (cluster_buffer.sink_net == nullptr || cluster_buffer.output_pin == nullptr) {
       continue;
     }
@@ -207,22 +208,23 @@ auto CollectSinkLevelSegments(const icts::Topology::BuildResult& result) -> std:
 }
 
 auto BuildReport(const std::string& scenario_name, const std::string& clock_name, const TopologyArtifactPaths& paths, icts::Pin* source,
-                 const std::vector<icts::Pin*>& original_sinks, const icts::Topology::BuildResult& result) -> std::string
+                 const std::vector<icts::Pin*>& original_sinks, const icts::Topology::Build& result) -> std::string
 {
   const auto sink_level_segments = CollectSinkLevelSegments(result);
   std::ostringstream report;
   report << "scenario=" << scenario_name << "\n";
   report << "clock=" << clock_name << "\n";
-  report << "success=" << (result.success ? "true" : "false") << "\n";
-  report << "sink_clustering_enabled=" << (result.sink_clustering_enabled ? "true" : "false") << "\n";
+  report << "success=" << (result.summary.success ? "true" : "false") << "\n";
+  report << "sink_clustering_enabled=" << (result.summary.sink_clustering_enabled ? "true" : "false") << "\n";
   report << "input_sink_count=" << original_sinks.size() << "\n";
-  report << "htree_node_count=" << result.htree_result.topology.get_size() << "\n";
-  report << "inserted_inst_count=" << result.inserted_insts.size() << "\n";
-  report << "inserted_net_count=" << result.inserted_nets.size() << "\n";
-  report << "cluster_buffer_count=" << result.cluster_buffers.size() << "\n";
+  report << "htree_node_count=" << result.output.htree_output.topology.get_size() << "\n";
+  report << "inserted_inst_count=" << result.output.inserted_insts.size() << "\n";
+  report << "inserted_net_count=" << result.output.inserted_nets.size() << "\n";
+  report << "cluster_buffer_count=" << result.output.cluster_buffers.size() << "\n";
   report << "sink_level_edge_count=" << sink_level_segments.size() << "\n";
   report << "source_pin=" << (source != nullptr ? source->get_name() : "<null>") << "\n";
-  report << "root_net=" << (result.htree_result.root_net != nullptr ? result.htree_result.root_net->get_name() : "<null>") << "\n";
+  report << "root_net=" << (result.output.htree_output.root_net != nullptr ? result.output.htree_output.root_net->get_name() : "<null>")
+         << "\n";
   report << "artifacts=cts.log,synthesis_topology.svg,report.log\n";
   report << "output_dir=" << paths.output_dir.string() << "\n";
   return report.str();
@@ -244,8 +246,7 @@ auto PrepareTopologyArtifactPaths(const std::string& case_name) -> TopologyArtif
 }
 
 auto WriteTopologyArtifacts(const TopologyArtifactPaths& paths, const std::string& scenario_name, const std::string& clock_name,
-                            icts::Pin* source, const std::vector<icts::Pin*>& original_sinks, const icts::Topology::BuildResult& result)
-    -> bool
+                            icts::Pin* source, const std::vector<icts::Pin*>& original_sinks, const icts::Topology::Build& result) -> bool
 {
   if (paths.output_dir.empty()) {
     return false;
@@ -254,11 +255,12 @@ auto WriteTopologyArtifacts(const TopologyArtifactPaths& paths, const std::strin
   const bool wrote_svg = WriteSynthesisSvg(paths.synthesis_svg, original_sinks, result);
   const bool wrote_report
       = common::io::WriteTextLog(paths.report_log, BuildReport(scenario_name, clock_name, paths, source, original_sinks, result));
+  auto& reporter = icts_test::runtime::CurrentRuntime().reporter;
   if (wrote_svg) {
-    icts::schema::EmitArtifact("Clock synthesis topology svg", paths.synthesis_svg);
+    icts::EmitArtifact(reporter, "Clock synthesis topology svg", paths.synthesis_svg);
   }
   if (wrote_report) {
-    icts::schema::EmitArtifact("Clock synthesis report", paths.report_log);
+    icts::EmitArtifact(reporter, "Clock synthesis report", paths.report_log);
   }
   return wrote_svg && wrote_report;
 }

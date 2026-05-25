@@ -82,37 +82,37 @@ auto MakeArm9CaseScenarioName(bool omit_wirelength_unit, unsigned wirelength_ite
 }
 
 auto MakeArm9ExperimentRecord(unsigned wirelength_iterations, unsigned slew_cap_steps, double runtime_s,
-                              const icts::HTree::BuildResult& result, std::size_t load_count) -> Arm9ExperimentRecord
+                              const icts::HTree::DiagnosticBuild& result, std::size_t load_count) -> Arm9ExperimentRecord
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   Arm9ExperimentRecord record{
       .wirelength_iterations = wirelength_iterations,
       .slew_cap_steps = slew_cap_steps,
       .runtime_s = runtime_s,
-      .success = result.success,
+      .success = result.summary.success,
       .load_count = load_count,
       .final_frontier_count = observation.selected_final_frontier_count,
       .selected_depth = observation.selected_depth,
       .best_pattern_id = observation.best_pattern_id,
       .best_delay_ns = observation.best_delay_ns,
       .best_power_w = observation.best_power_w,
-      .char_wirelength_unit_um = result.char_wirelength_unit_um,
-      .char_wirelength_iterations = result.char_wirelength_iterations,
-      .char_grid_adapted = result.char_grid_adapted,
+      .char_wirelength_unit_um = result.diagnostics.char_wirelength_unit_um,
+      .char_wirelength_iterations = result.diagnostics.char_wirelength_iterations,
+      .char_grid_adapted = result.diagnostics.char_grid_adapted,
       .used_boundary_relaxation = observation.used_boundary_relaxation,
-      .failure_reason = result.failure_reason,
+      .failure_reason = result.summary.failure_reason,
   };
 
   return record;
 }
 
 auto AppendArm9CaseFailures(unsigned wirelength_iterations, unsigned slew_cap_steps, bool omit_wirelength_unit, double runtime_s,
-                            const icts::HTree::BuildResult& result, const Arm9ExperimentRecord& record,
+                            const icts::HTree::DiagnosticBuild& result, const Arm9ExperimentRecord& record,
                             std::vector<std::string>& failure_messages) -> void
 {
   const std::string prefix = MakeCasePrefix(wirelength_iterations, slew_cap_steps);
-  if (!result.success) {
-    failure_messages.push_back(prefix + "failure_reason=" + result.failure_reason);
+  if (!result.summary.success) {
+    failure_messages.push_back(prefix + "failure_reason=" + result.summary.failure_reason);
   }
   if (runtime_s > kArm9ExperimentRuntimeBudgetS) {
     failure_messages.push_back(prefix + "runtime_s=" + std::to_string(runtime_s) + " exceeds budget");
@@ -120,7 +120,7 @@ auto AppendArm9CaseFailures(unsigned wirelength_iterations, unsigned slew_cap_st
   if (record.final_frontier_count == 0U) {
     failure_messages.push_back(prefix + "final frontier count is zero");
   }
-  if (!result.best_char.has_value()) {
+  if (!result.output.best_char.has_value()) {
     failure_messages.push_back(prefix + "best htree char is missing");
   }
   if (omit_wirelength_unit && record.char_wirelength_unit_um <= 0.0) {
@@ -183,16 +183,16 @@ auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wirelength_unit) -> Arm9Expe
         return MakeSkipResult(*prepare_error);
       }
 
-      CONFIG_INST.set_wirelength_iterations(wirelength_iterations);
-      CONFIG_INST.set_slew_steps(slew_cap_steps);
-      CONFIG_INST.set_cap_steps(slew_cap_steps);
+      icts_test::runtime::CurrentRuntime().config.set_wirelength_iterations(wirelength_iterations);
+      icts_test::runtime::CurrentRuntime().config.set_slew_steps(slew_cap_steps);
+      icts_test::runtime::CurrentRuntime().config.set_cap_steps(slew_cap_steps);
 
       icts::Pin root_driver("htree_arm9_matrix_root_out", icts::PinType::kOut);
       icts::Net root_net("htree_arm9_matrix_root_net");
       ConnectRootNetForHTreeTest(root_net, root_driver, matrix_result.selection.loads);
 
       const auto runtime_start = std::chrono::steady_clock::now();
-      const auto result = icts::HTree::build(root_net);
+      const auto result = icts::HTree::buildWithDiagnostics(MakeExplicitHTreeInput(root_net), MakeExplicitHTreeConfig());
       const auto runtime_end = std::chrono::steady_clock::now();
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
 

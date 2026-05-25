@@ -42,7 +42,7 @@
 #include "Log.hh"
 #include "optimization/candidate/OptimizationCandidates.hh"
 #include "optimization/model/ClockSizingOptimizationData.hh"
-#include "optimization/options/OptimizationOptions.hh"
+#include "optimization/policy/OptimizationPolicy.hh"
 #include "optimization/state/OptimizationState.hh"
 
 namespace icts::clock_sizing_optimization {
@@ -56,7 +56,7 @@ auto MakeArrivalWindow(const ClockSizingTimingState& current, double target_skew
     return window;
   }
   window.center_ns = 0.5 * (current.skew.min_arrival_ns + current.skew.max_arrival_ns);
-  window.staged_skew_ns = std::max(target_skew_ns, current.skew.skew_ns * DefaultOptimizationOptions().target_window_shrink_ratio);
+  window.staged_skew_ns = std::max(target_skew_ns, current.skew.skew_ns * DefaultOptimizationPolicy().target_window_shrink_ratio);
   const double half_window_ns = 0.5 * window.staged_skew_ns;
   window.lower_ns = window.center_ns - half_window_ns;
   window.upper_ns = window.center_ns + half_window_ns;
@@ -127,12 +127,12 @@ auto AccumulateWindowStatsFromChild(ClockSizingTopologyWindowStats& stats, FastS
   stats.max_arrival_by_node.at(node_id) = std::max(stats.max_arrival_by_node.at(node_id), stats.max_arrival_by_node.at(child_id));
 }
 
-auto BuildTopologyWindowStats(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
+auto BuildTopologyWindowStats(const FastSTA& fast_sta, FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
                               const ClockSizingTopologyIndex& topology, const ClockSizingArrivalWindow& window)
     -> ClockSizingTopologyWindowStats
 {
   ClockSizingTopologyWindowStats stats;
-  const auto graph_profile = FastSTA::queryClockGraphProfile(clock_id);
+  const auto graph_profile = fast_sta.queryClockGraphProfile(clock_id);
   if (!graph_profile.has_value()) {
     return stats;
   }
@@ -148,7 +148,7 @@ auto BuildTopologyWindowStats(FastStaClockId clock_id, const std::vector<ClockSi
 
   const auto post_order = CollectTopologyPostOrder(topology);
   std::unordered_map<FastStaNodeId, double> arrival_by_sink;
-  for (const auto& sink_arrival : FastSTA::collectClockSinkArrivals(clock_id)) {
+  for (const auto& sink_arrival : fast_sta.collectClockSinkArrivals(clock_id)) {
     arrival_by_sink[sink_arrival.node_id] = sink_arrival.arrival_ns;
   }
   for (const auto node_id : post_order) {
@@ -221,8 +221,8 @@ auto ScoreWindowSizingEdit(const ClockSizingEdit& edit, const std::vector<ClockS
   const auto active_count = static_cast<double>(primary_count + opposite_count);
   const double purity = active_count <= 0.0 ? 0.0 : static_cast<double>(primary_count) / active_count;
   if (opposite_count > 0U
-      && (purity < DefaultOptimizationOptions().min_branch_purity
-          || opposite_violation > primary_violation * DefaultOptimizationOptions().max_opposite_violation_ratio + kClockSizingEpsilon)) {
+      && (purity < DefaultOptimizationPolicy().min_branch_purity
+          || opposite_violation > primary_violation * DefaultOptimizationPolicy().max_opposite_violation_ratio + kClockSizingEpsilon)) {
     mixed_rejected = true;
     return 0.0;
   }
@@ -273,7 +273,7 @@ auto AppendScoredBatch(std::vector<ScoredClockSizingBatch>& candidates, std::uno
     return;
   }
 
-  const auto edit_count_limit = max_edit_count == 0U ? DefaultOptimizationOptions().max_scalable_batch_edits : max_edit_count;
+  const auto edit_count_limit = max_edit_count == 0U ? DefaultOptimizationPolicy().max_scalable_batch_edits : max_edit_count;
   std::vector<ClockSizingEdit> compact;
   compact.reserve(std::min(edits.size(), edit_count_limit));
   std::unordered_set<std::size_t> used_buffers;
@@ -307,7 +307,7 @@ auto CollectScoredClockSizingEdits(const std::vector<ClockSizingBuffer>& buffers
 {
   ClockSizingEditScoreSet collection;
   collection.edits.reserve(buffers.size() * 4U);
-  const auto& rank_steps = DefaultOptimizationOptions().rank_steps;
+  const auto& rank_steps = DefaultOptimizationPolicy().rank_steps;
   for (std::size_t buffer_index = 0U; buffer_index < buffers.size(); ++buffer_index) {
     for (const auto rank_step : rank_steps) {
       for (const auto side : {ClockSizingFrontierSide::kLate, ClockSizingFrontierSide::kEarly}) {
@@ -415,14 +415,14 @@ auto NormalizedBatchScore(const ScoredClockSizingBatch& candidate) -> double
 
 }  // namespace
 
-auto GenerateScalableClockSizingEditBatches(FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
+auto GenerateScalableClockSizingEditBatches(const FastSTA& fast_sta, FastStaClockId clock_id, const std::vector<ClockSizingBuffer>& buffers,
                                             const ClockSizingTopologyIndex& topology, const ClockSizingTimingState& current,
                                             double target_skew_ns) -> std::vector<ScoredClockSizingBatch>
 {
   std::vector<ScoredClockSizingBatch> candidates;
   std::unordered_set<std::string> seen;
   const auto window = MakeArrivalWindow(current, target_skew_ns);
-  const auto stats = BuildTopologyWindowStats(clock_id, buffers, topology, window);
+  const auto stats = BuildTopologyWindowStats(fast_sta, clock_id, buffers, topology, window);
   const auto scored_edit_collection = CollectScoredClockSizingEdits(buffers, stats);
   const auto& scored_edits = scored_edit_collection.edits;
   LOG_INFO << "Optimization: scalable target window lower=" << window.lower_ns << " ns, upper=" << window.upper_ns
@@ -431,7 +431,7 @@ auto GenerateScalableClockSizingEditBatches(FastStaClockId clock_id, const std::
            << ", neutral_buffers=" << stats.neutral_buffer_count << ", raw_edits=" << scored_edit_collection.raw_edit_count
            << ", scored_edits=" << scored_edits.size() << ", mixed_rejected_edits=" << scored_edit_collection.mixed_rejected_count << ".";
 
-  const auto& batch_sizes = DefaultOptimizationOptions().scalable_batch_sizes;
+  const auto& batch_sizes = DefaultOptimizationPolicy().scalable_batch_sizes;
   for (const auto batch_size : batch_sizes) {
     AppendScoredBatch(candidates, seen, SelectTopClockSizingEdits(scored_edits, topology, buffers, 0, batch_size), buffers, stats);
     AppendScoredBatch(candidates, seen, SelectTopClockSizingEdits(scored_edits, topology, buffers, 1, batch_size), buffers, stats);

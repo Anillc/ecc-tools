@@ -79,7 +79,7 @@ auto CalcDiameter(const std::vector<icts::Pin*>& cluster) -> int
   return (max_x - min_x) + (max_y - min_y);
 }
 
-auto CountAssignedLoads(const icts::ClusterResult& result) -> std::size_t
+auto CountAssignedLoads(const icts::ClusterOutput& result) -> std::size_t
 {
   std::size_t assigned_count = 0;
   for (const auto& cluster : result.clusters) {

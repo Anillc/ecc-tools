@@ -12,12 +12,12 @@ target_link_libraries(
   icts_source_flow_synthesis_topology
   PUBLIC
   icts_source_flow_synthesis_htree
-  icts_source_flow_synthesis_trace
   icts_source_module_topology
   PRIVATE
   icts_source_database
   icts_source_flow_synthesis_topology_sink
   icts_source_flow_synthesis_topology_trunk
+  icts_source_flow_synthesis_trace
   icts_source_flow_synthesis_trace_layout
   icts_source_utils
 )

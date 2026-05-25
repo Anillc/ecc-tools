@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS constraints, validation policy, singleton rule, file naming, and required final checker."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "iCTS source/test layer boundaries and flow/synthesis/HTree placement rules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Runtime ownership, desingleton rule, output/summary contract rules, and build-vs-commit ownership."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "CTS semantic naming, include/dependency rules, and final validation expectations."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "SchemaWriter/report ownership and structured report-output rules."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "No-exception policy and fatal-vs-safe-return behavior at algorithm boundaries."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Checklist for flow/database/module/adapter boundary changes."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Checklist for helper extraction, repeated config derivation, and CMake reuse."}
+{"file": ".trellis/tasks/05-25-cts-structural-optimization-refactor/research/structural-audit.md", "reason": "Current post-convergence structural audit and phase targets."}

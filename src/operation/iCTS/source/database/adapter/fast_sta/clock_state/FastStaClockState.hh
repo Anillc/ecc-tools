@@ -79,6 +79,7 @@ struct FastStaNet
 
 struct FastStaClockContext
 {
+  STAAdapter* sta_adapter = nullptr;
   std::string clock_name;
   std::string clock_net_name;
   double clock_period_ns = 0.0;

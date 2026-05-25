@@ -1,32 +1,36 @@
 # Database Guidelines
 
-Ownership, singleton boundaries, and data-model rules for iCTS.
+Runtime ownership, dependency boundaries, and data-model rules for iCTS.
 
 ## Scope
 
-This document covers singleton roles, ownership, lifetime, database-layer placement, and external adapter boundaries.
+This document covers runtime ownership, lifetime, singleton exceptions, database-layer placement, and external adapter boundaries.
 Naming and generic accessor style live in `quality-guidelines.md`.
 
 ## Rules
 
-### Singleton Roles
+### Runtime Ownership
 
-Use the existing singleton boundaries:
+Keep singleton use at the external API boundary:
 
 | Macro | Role |
 |-------|------|
 | `CTS_API_INST` | External API entry point |
-| `DESIGN_INST` | Design database |
-| `CONFIG_INST` | Configuration |
-| `WRAPPER_INST` | iDB adapter |
-| `STA_ADAPTER_INST` | iSTA adapter for internal source-layer use |
-| `LOG_INST` | Logger |
 
 Rules:
 - External callers enter through `CTS_API_INST`.
-- API, flow, database, and adapter boundaries may read `CONFIG_INST` when they own initialization or external-tool setup.
-- Algorithm code under `source/module/` should receive runtime configuration through existing Options/Config parameters instead of reading `CONFIG_INST` directly.
-- Do not introduce new singleton boundaries without a clear cross-module need.
+- `Config`, `Design`, `Wrapper`, `STAAdapter`, `FastSTA`, and `SchemaWriter` are runtime-owned dependencies passed or bound at API/flow boundaries.
+- Modules and algorithms should receive the exact objects or interfaces they need through parameters, narrow input structs, or constructor binding.
+- Do not pass a global service locator or `CTSRuntime&` deep into algorithms as a replacement singleton.
+- Do not introduce new singleton boundaries without a clear external-boundary need.
+
+### Flow Data Shapes
+
+Use explicit `{Name}Input`, `{Name}Config`, `{Name}Output`, and `{Name}Summary` types when a stage needs a stable boundary contract:
+- `{Name}Config` contains only behavior-changing knobs: search space, constraints, heuristics, or enable/disable choices.
+- `{Name}Input` contains design references, adapters, DBU/runtime facts, paths, reporter references, libraries, caches, and other execution context.
+- `{Name}Output` contains design data that the caller will consume or commit.
+- `{Name}Summary` contains metrics, logs, diagnostics, and report rows.
 
 ### Ownership
 
@@ -57,7 +61,7 @@ If a type is shared across modules and is part of the stable data model, prefer 
 
 ### Access Boundaries
 
-- Validate critical singleton state at initialization boundaries.
+- Validate runtime-owned dependencies at API, setup, or flow-stage entry boundaries.
 - Avoid scattering the same null-check pattern across modules.
 - Keep iDB access inside `Wrapper`.
 - Keep iSTA access inside `STAAdapter`.
@@ -91,15 +95,11 @@ When adding a new database-layer type:
 5. Add a real library target only when `.cc` implementation is needed.
 6. Document any non-trivial ownership rule.
 
-### Singleton Implementation
+### Singleton Exception
 
-When a singleton is justified:
-- use the existing Meyers Singleton pattern
-- delete copy and move operations
-- expose access through the established macro alias
-- keep initialization order controlled by the existing API/setup flow
+`CTS_API_INST` is the only allowed iCTS singleton boundary. It exists for external callers and must not be used by source-layer code as an internal dependency path.
 
-Do not introduce ad-hoc global state outside this pattern.
+Do not add new singleton macros, `getInst()` accessors, service locators, global contexts, or reset registries. When a dependency needs shared lifetime, make the owner explicit at the API or flow boundary and pass a narrower reference or input contract to lower layers.
 
 ## Checklist
 
@@ -113,7 +113,7 @@ Before handoff, verify:
 - [ ] Evaluation/report code is readonly with respect to iDB projection
 - [ ] Report-only data is narrow, typed, and not a broad snapshot of database state
 - [ ] Header-only database types use `INTERFACE` targets when appropriate
-- [ ] New singleton usage is truly cross-module and justified
+- [ ] No new singleton, service-locator, or global-context access was introduced
 
 ## Related Docs
 

@@ -10,7 +10,7 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta
   icts_source_flow_optimization_model
   PRIVATE
-  icts_source_flow_optimization_options
+  icts_source_flow_optimization_policy
   icts_source_flow_optimization_preparation
   icts_source_flow_optimization_state
   icts_source_utils

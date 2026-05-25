@@ -38,6 +38,6 @@ namespace icts::htree {
 auto BuildLevelPlans(const Tree& topology, double length_step_um, int32_t dbu_per_um) -> std::vector<HTree::LevelPlan>;
 auto MakeCandidateLevelPlans(const std::vector<HTree::LevelPlan>& full_level_plans, unsigned depth) -> std::vector<HTree::LevelPlan>;
 auto CountCandidateLeafNodes(const Tree& topology, unsigned depth) -> std::size_t;
-auto ResolveDepthCandidates(unsigned max_depth, const HTree::BuildOptions& options) -> std::vector<unsigned>;
+auto ResolveDepthCandidates(unsigned max_depth, const HTree::Config& config) -> std::vector<unsigned>;
 
 }  // namespace icts::htree

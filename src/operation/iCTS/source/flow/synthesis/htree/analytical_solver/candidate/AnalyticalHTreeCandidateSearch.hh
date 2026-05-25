@@ -161,15 +161,15 @@ enum class DiagnosticPatternStage
   kShortlisted,
 };
 
-auto MakeFailure(std::string reason) -> AnalyticalSolverResult;
+auto MakeFailure(std::string reason) -> AnalyticalSolverBuild;
 auto ValidateSolveProblem(const AnalyticalHTreeSolveProblem& solve_problem) -> std::string;
 auto ResolveNextSegmentPatternId(const BufferPatternLibrary& segment_pattern_library) -> unsigned;
 auto MakePatternSequenceKey(const std::vector<PatternId>& pattern_ids) -> PatternSequenceKey;
 auto ResolveSegmentPatternLibrary(const AnalyticalHTreeSolveProblem& solve_problem) -> const BufferPatternLibrary*;
 auto DiagnosticPatternIds(const AnalyticalHTreeSolveProblem& solve_problem, std::size_t level_index) -> std::span<const PatternId>;
 auto RecordDiagnosticPatternStage(std::span<const PatternId> diagnostic_pattern_ids, PatternId pattern_id, DiagnosticPatternStage stage,
-                                  AnalyticalSolverResult& result) -> void;
-auto RecordDiagnosticLibraryHits(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverResult& result) -> void;
+                                  AnalyticalSolverBuild& result) -> void;
+auto RecordDiagnosticLibraryHits(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverBuild& result) -> void;
 auto MaterializeFunctionalSegmentPattern(const std::vector<PatternId>& unit_pattern_ids, FunctionalComposeContext& context,
                                          BufferPatternLibrary& segment_pattern_library) -> std::optional<PatternId>;
 auto ResolveAnalyticalRootProbeSlewNs(const AnalyticalHTreeSolveProblem& solve_problem) -> double;
@@ -184,7 +184,7 @@ auto DecomposePatternToUnitSequence(PatternId pattern_id, const AnalyticalHTreeS
                                     FunctionalComposeContext& context) -> std::vector<PatternId>;
 auto ScoreFunctionalUnitSequence(const AnalyticalHTreeSolveProblem& solve_problem, const std::vector<PatternId>& unit_pattern_ids,
                                  PatternId materialized_pattern_id, unsigned length_idx, double input_slew_ns, double downstream_cap_pf,
-                                 bool conservative, AnalyticalSolverResult& result) -> std::optional<ScoredSegment>;
+                                 bool conservative, AnalyticalSolverBuild& result) -> std::optional<ScoredSegment>;
 auto PreferScoredSegment(const ScoredSegment& lhs, const ScoredSegment& rhs) -> bool;
 auto TrimScoredSegments(std::vector<ScoredSegment> scored_segments, std::size_t max_size) -> std::vector<ScoredSegment>;
 auto TrimPartialCandidates(std::vector<PartialAnalyticalCandidate> candidates, std::size_t max_size)
@@ -200,8 +200,8 @@ auto IsFunctionalSequenceAllowedForLevel(const AnalyticalHTreeSolveProblem& solv
                                          PatternId segment_pattern_id) -> bool;
 auto ShortlistSegmentsForLevel(const AnalyticalHTreeSolveProblem& solve_problem, const HTree::LevelPlan& level, double input_slew_ns,
                                std::size_t level_index, double downstream_cap_pf, FunctionalComposeContext* functional_context,
-                               AnalyticalSolverResult& result) -> std::vector<ScoredSegment>;
-auto BuildBeamCandidates(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverResult& result)
+                               AnalyticalSolverBuild& result) -> std::vector<ScoredSegment>;
+auto BuildBeamCandidates(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverBuild& result)
     -> std::vector<AnalyticalCandidate>;
 
 }  // namespace icts::htree::analytical_solver

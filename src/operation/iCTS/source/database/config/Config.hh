@@ -28,25 +28,20 @@
 #include <vector>
 
 #include "LogFormat.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
-
-#define CONFIG_INST (icts::Config::getInst())
 
 class Config
 {
  public:
-  static auto getInst() -> Config&
-  {
-    static Config inst;
-    return inst;
-  }
+  Config() = default;
+  ~Config() = default;
 
-  // Delete copy and move constructors
-  Config(const Config& rhs) = delete;
-  Config(Config&& rhs) = delete;
-  auto operator=(const Config& rhs) -> Config& = delete;
-  auto operator=(Config&& rhs) -> Config& = delete;
+  Config(const Config& rhs) = default;
+  Config(Config&& rhs) = default;
+  auto operator=(const Config& rhs) -> Config& = default;
+  auto operator=(Config&& rhs) -> Config& = default;
 
   // Initialize from config file
   auto init(const std::string& config_file) -> bool;
@@ -155,13 +150,11 @@ class Config
 
   // parse from json file
   auto parse(const std::string& json_file) -> bool;
-  auto emitRuntimeConfigReport(const std::string& title) const -> void;
+  auto emitRuntimeConfigReport(SchemaWriter& reporter, const std::string& title) const -> void;
 
- private:
-  Config() = default;
-  ~Config() = default;
   auto buildRuntimeConfigRows() const -> logformat::TableRows;
 
+ private:
   // algorithm
   double _skew_bound = 0.0;
   double _max_buf_tran = 0.0;

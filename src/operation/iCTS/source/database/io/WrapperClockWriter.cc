@@ -46,6 +46,7 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -153,11 +154,13 @@ auto CollectClockTreeIdbNetPins(idb::IdbNet* idb_net) -> ClockTreeIdbNetPins
 class Wrapper::CtsClockIdbWriter
 {
  public:
-  explicit CtsClockIdbWriter(Wrapper& wrapper) : _wrapper(&wrapper) {}
-
-  auto writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult
+  CtsClockIdbWriter(Wrapper& wrapper, Design& design, SchemaWriter& reporter) : _wrapper(&wrapper), _design(&design), _reporter(&reporter)
   {
-    WrapperWriteResult result;
+  }
+
+  auto writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteSummary
+  {
+    WrapperWriteSummary result;
     if (!validateIdbWriteBoundary(result) || !rebuildAndValidateClockDAG(result)) {
       return result;
     }
@@ -166,9 +169,9 @@ class Wrapper::CtsClockIdbWriter
     if (scope.touched_net_names.empty() && !clocks.empty()) {
       result.success = false;
       result.reason = "invalid_clock_dag";
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper",
+      EmitDiagnostic(*_reporter, DiagnosticLevel::kError, "Wrapper",
                              "CTS iDB clock-tree materialization preflight found no reachable clock nets.",
-                             {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+                             {{"reason", _design->get_clock_dag().get_status()}});
       return result;
     }
     const auto restore_data = captureClockTreeIdbPreexistingObjects(scope);
@@ -183,13 +186,13 @@ class Wrapper::CtsClockIdbWriter
         result.failed_net = _failed_net_name.empty() ? clock->get_clock_net_name() : _failed_net_name;
         result.reason = "write_clock_failed";
         result.idb_clock_tree_restored = restorePreexistingClockTreeIdbObjects(scope, restore_data);
-        schema::EmitDiagnostic(result.idb_clock_tree_restored ? schema::DiagnosticLevel::kError : schema::DiagnosticLevel::kWarning,
-                               "Wrapper",
-                               "CTS iDB clock-tree materialization failed and prior iDB clock pin attachment restoration was attempted.",
-                               {{"clock", result.failed_clock},
-                                {"net", result.failed_net},
-                                {"reason", _failure_reason.empty() ? result.reason : _failure_reason},
-                                {"idb_clock_tree_restored", result.idb_clock_tree_restored ? "true" : "false"}});
+        EmitDiagnostic(
+            *_reporter, result.idb_clock_tree_restored ? DiagnosticLevel::kError : DiagnosticLevel::kWarning, "Wrapper",
+            "CTS iDB clock-tree materialization failed and prior iDB clock pin attachment restoration was attempted.",
+            {{"clock", result.failed_clock},
+             {"net", result.failed_net},
+             {"reason", _failure_reason.empty() ? result.reason : _failure_reason},
+             {"idb_clock_tree_restored", result.idb_clock_tree_restored ? "true" : "false"}});
         return result;
       }
     }
@@ -200,7 +203,7 @@ class Wrapper::CtsClockIdbWriter
   }
 
  private:
-  auto validateIdbWriteBoundary(WrapperWriteResult& result) -> bool
+  auto validateIdbWriteBoundary(WrapperWriteSummary& result) -> bool
   {
     if (!_wrapper->is_design_ready() || _wrapper->_idb_design->get_net_list() == nullptr
         || _wrapper->_idb_design->get_instance_list() == nullptr) {
@@ -212,23 +215,23 @@ class Wrapper::CtsClockIdbWriter
     return true;
   }
 
-  static auto rebuildAndValidateClockDAG(WrapperWriteResult& result) -> bool
+  auto rebuildAndValidateClockDAG(WrapperWriteSummary& result) -> bool
   {
-    if (DESIGN_INST.rebuildClockDAG()) {
+    if (_design->rebuildClockDAG()) {
       return true;
     }
     result.success = false;
     result.reason = "invalid_clock_dag";
-    schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper",
+    EmitDiagnostic(*_reporter, DiagnosticLevel::kError, "Wrapper",
                            "CTS iDB clock-tree materialization preflight failed because committed CTS topology is not a valid clock DAG.",
-                           {{"reason", DESIGN_INST.get_clock_dag().get_status()}});
+                           {{"reason", _design->get_clock_dag().get_status()}});
     return false;
   }
 
-  static auto collectClockTreeIdbMaterializationScope(const std::vector<Clock*>& clocks) -> ClockTreeIdbMaterializationScope
+  auto collectClockTreeIdbMaterializationScope(const std::vector<Clock*>& clocks) const -> ClockTreeIdbMaterializationScope
   {
     ClockTreeIdbMaterializationScope scope;
-    const auto& clock_dag = DESIGN_INST.get_clock_dag();
+    const auto& clock_dag = _design->get_clock_dag();
     for (auto* clock : clocks) {
       if (clock == nullptr) {
         continue;
@@ -604,23 +607,25 @@ class Wrapper::CtsClockIdbWriter
   }
 
   Wrapper* _wrapper = nullptr;
+  Design* _design = nullptr;
+  SchemaWriter* _reporter = nullptr;
   std::string _failed_net_name;
   std::string _failure_reason;
 };
 
-auto Wrapper::writeClock(Clock& clock) -> bool
+auto Wrapper::writeClock(Design& design, SchemaWriter& reporter, Clock& clock) -> bool
 {
-  return CtsClockIdbWriter(*this).writeClocksDetailed({&clock}).success;
+  return CtsClockIdbWriter(*this, design, reporter).writeClocksDetailed({&clock}).success;
 }
 
-auto Wrapper::writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult
+auto Wrapper::writeClocksDetailed(Design& design, SchemaWriter& reporter, const std::vector<Clock*>& clocks) -> WrapperWriteSummary
 {
-  return CtsClockIdbWriter(*this).writeClocksDetailed(clocks);
+  return CtsClockIdbWriter(*this, design, reporter).writeClocksDetailed(clocks);
 }
 
-auto Wrapper::writeClocks(const std::vector<Clock*>& clocks) -> bool
+auto Wrapper::writeClocks(Design& design, SchemaWriter& reporter, const std::vector<Clock*>& clocks) -> bool
 {
-  return writeClocksDetailed(clocks).success;
+  return writeClocksDetailed(design, reporter, clocks).success;
 }
 
 }  // namespace icts

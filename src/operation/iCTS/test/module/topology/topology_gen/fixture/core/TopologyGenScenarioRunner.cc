@@ -31,7 +31,9 @@
 #include <utility>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "Log.hh"
+#include "common/CTSTestRuntime.hh"
 #include "common/dataset/TestDataset.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
@@ -55,11 +57,11 @@ auto RunBuildAndVisualize(const TopologyCase& test_case) -> void
   const common::logging::ScopedLogFile log_guard(log_path, "TopologyGen Test Report");
 
   LOG_INFO << "Topology test start: " << test_case.name << ", count=" << test_case.count << ", seed=" << test_case.seed;
-  SCHEMA_WRITER_INST.emitKeyValueTable("Topology Scenario", {
-                                                                {"name", test_case.name},
-                                                                {"count", std::to_string(test_case.count)},
-                                                                {"seed", std::to_string(test_case.seed)},
-                                                            });
+  icts_test::runtime::CurrentRuntime().reporter.emitKeyValueTable("Topology Scenario", {
+                                                                                           {"name", test_case.name},
+                                                                                           {"count", std::to_string(test_case.count)},
+                                                                                           {"seed", std::to_string(test_case.seed)},
+                                                                                       });
 
   auto data = detail::GenerateCase(test_case);
   ASSERT_EQ(data.loads.size(), test_case.count);

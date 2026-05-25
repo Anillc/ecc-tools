@@ -23,16 +23,18 @@
 
 #pragma once
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
-struct ResultExportPaths;
+struct ReportExportPaths;
 
 class Overview
 {
  public:
   Overview() = delete;
 
-  static auto emitReportMode(bool reused_evaluation_state, const ResultExportPaths& paths) -> void;
+  static auto emitReportMode(SchemaWriter& reporter, bool reused_evaluation_state, const ReportExportPaths& paths) -> void;
 };
 
 }  // namespace icts

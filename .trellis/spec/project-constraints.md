@@ -63,7 +63,7 @@ Immediately after it, add a Doxygen file comment:
 - Format code with the repository `.clang-format`.
 - Do not use exceptions in iCTS code.
 - Use the repository `LOG_*` macros for console logging in iCTS code.
-- Use the iCTS schema/report helpers for structured file output such as `cts.log`.
+- Use the iCTS structured report helpers for file output such as `cts.log`.
 - Do not use global `std::cout`, or `printf`.
 - Follow `backend/quality-guidelines.md` for naming, includes, and dependency visibility.
 - Update CMake before implementing new files or modules.

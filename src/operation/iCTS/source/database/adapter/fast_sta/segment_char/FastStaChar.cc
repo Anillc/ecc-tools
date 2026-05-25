@@ -44,8 +44,6 @@
 #include "Log.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "clock_net_parasitic/FastStaClockNetParasitic.hh"
-#include "config/Config.hh"
-#include "io/Wrapper.hh"
 #include "timing/FastStaClockTiming.hh"
 
 namespace icts {
@@ -60,9 +58,8 @@ auto resolveDbuPerUm(const FastStaCharTopologySpec& spec) -> int
     return *spec.dbu_per_um;
   }
 
-  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
-  LOG_FATAL_IF(dbu_per_um <= 0) << "FastStaChar: DBU-per-micron is unavailable; characterization context cannot be built.";
-  return dbu_per_um;
+  LOG_FATAL << "FastStaChar: DBU-per-micron must be explicitly provided in the characterization topology spec.";
+  return 0;
 }
 
 auto makePoint(double x_um, int dbu_per_um) -> FastStaPoint
@@ -131,23 +128,22 @@ auto sourceBoundaryNetId(const FastStaClockContext& context) -> FastStaNetId
 auto makeLinearParasitic(const FastStaClockContext& context, const FastStaNet& net, FastStaNodeId driver_node_id,
                          FastStaNodeId load_node_id, double wirelength_um) -> FastStaNetParasitic
 {
-  const auto wire_cap_pf = STA_ADAPTER_INST.queryRequiredWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
+  LOG_FATAL_IF(context.sta_adapter == nullptr) << "FastStaChar: STA adapter is unavailable.";
+  const auto wire_cap_pf = context.sta_adapter->queryRequiredWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
   const auto wire_resistance_ohm
-      = STA_ADAPTER_INST.queryRequiredWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / kMilliOhmPerOhm;
+      = context.sta_adapter->queryRequiredWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / kMilliOhmPerOhm;
   FastStaNetParasitic parasitic;
-  parasitic.rc_nodes = {
-      FastStaRcNode{
-          .name = net.name + "@root",
-          .wire_cap_pf = wire_cap_pf / 2.0,
-          .terminal_node_id = driver_node_id,
-      },
-      FastStaRcNode{
-          .name = net.name + "@load",
-          .wire_cap_pf = wire_cap_pf / 2.0,
-          .terminal_node_id = load_node_id,
-      },
-  };
-  parasitic.rc_edges = {FastStaRcEdge{.from = 0U, .to = 1U, .resistance_ohm = wire_resistance_ohm}};
+  parasitic.rc_nodes.push_back(FastStaRcNode{
+      .name = net.name + "@root",
+      .wire_cap_pf = wire_cap_pf / 2.0,
+      .terminal_node_id = driver_node_id,
+  });
+  parasitic.rc_nodes.push_back(FastStaRcNode{
+      .name = net.name + "@load",
+      .wire_cap_pf = wire_cap_pf / 2.0,
+      .terminal_node_id = load_node_id,
+  });
+  parasitic.rc_edges.push_back(FastStaRcEdge{.from = 0U, .to = 1U, .resistance_ohm = wire_resistance_ohm});
   parasitic.rc_node_id_by_name = {{parasitic.rc_nodes.front().name, 0U}, {parasitic.rc_nodes.back().name, 1U}};
   parasitic.root_rc_node_id = 0U;
   return parasitic;
@@ -186,21 +182,23 @@ auto selectedBufferLeakagePower(const FastStaClockContext& context) -> double
 auto FastStaChar::buildContext(const FastStaCharTopologySpec& spec) -> FastStaClockContext
 {
   FastStaClockContext context;
+  LOG_FATAL_IF(spec.sta_adapter == nullptr) << "FastStaChar: STA adapter must be provided.";
   const auto dbu_per_um = resolveDbuPerUm(spec);
   LOG_FATAL_IF(spec.routing_layer <= 0) << "FastStaChar: routing layer must be explicitly provided.";
   context.clock_name = "cts_char_clk";
+  context.sta_adapter = spec.sta_adapter;
   context.clock_net_name = "cts_char_net_0";
   context.clock_period_ns = spec.clock_period_ns;
-  context.root_input_slew_ns = std::max(0.0, CONFIG_INST.get_root_input_slew());
+  context.root_input_slew_ns = std::max(0.0, spec.root_input_slew_ns);
   context.dbu_per_um = dbu_per_um;
   context.routing_layer = spec.routing_layer;
   context.wire_width_um = spec.wire_width_um;
 
-  context.liberty_cell_by_master[spec.source_cell_master] = FastStaLiberty::extractBufferCell(spec.source_cell_master);
-  context.liberty_cell_by_master[spec.sink_cell_master] = FastStaLiberty::extractBufferCell(spec.sink_cell_master);
+  context.liberty_cell_by_master[spec.source_cell_master] = FastStaLiberty::extractBufferCell(*spec.sta_adapter, spec.source_cell_master);
+  context.liberty_cell_by_master[spec.sink_cell_master] = FastStaLiberty::extractBufferCell(*spec.sta_adapter, spec.sink_cell_master);
   for (const auto& cell_master : spec.buffer_cell_masters) {
     if (!context.liberty_cell_by_master.contains(cell_master)) {
-      context.liberty_cell_by_master[cell_master] = FastStaLiberty::extractBufferCell(cell_master);
+      context.liberty_cell_by_master[cell_master] = FastStaLiberty::extractBufferCell(*spec.sta_adapter, cell_master);
     }
   }
 

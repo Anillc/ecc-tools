@@ -34,9 +34,13 @@
 #include "api/TimingEngine.hh"
 #include "api/TimingIDBAdapter.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 #include "timing_query/STAAdapterTimingQuery.hh"
 
 namespace icts {
+
+class Config;
+
 namespace {
 
 auto requireWireRcAdapter(const char* metric) -> ista::TimingIDBAdapter*
@@ -57,6 +61,7 @@ auto requireWireRcQuery(const char* metric, int routing_layer, double length) ->
 
 auto STAAdapter::queryWireResistance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
+  observeQueryFacade();
   auto* idb_adapter = sta_adapter_timing_query::GetStaEngine()->getIDBAdapter();
   if (idb_adapter == nullptr) {
     LOG_ERROR << "STA IDB adapter is not ready.";
@@ -67,6 +72,7 @@ auto STAAdapter::queryWireResistance(int routing_layer, double length, std::opti
 
 auto STAAdapter::queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
+  observeQueryFacade();
   auto* idb_adapter = sta_adapter_timing_query::GetStaEngine()->getIDBAdapter();
   if (idb_adapter == nullptr) {
     LOG_ERROR << "STA IDB adapter is not ready.";
@@ -77,27 +83,33 @@ auto STAAdapter::queryWireCapacitance(int routing_layer, double length, std::opt
 
 auto STAAdapter::queryRequiredWireResistance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
+  observeQueryFacade();
   requireWireRcQuery("resistance", routing_layer, length);
   return requireWireRcAdapter("resistance")->getResistance(routing_layer, length, wire_width);
 }
 
 auto STAAdapter::queryRequiredWireCapacitance(int routing_layer, double length, std::optional<double> wire_width) -> double
 {
+  observeQueryFacade();
   requireWireRcQuery("capacitance", routing_layer, length);
   return requireWireRcAdapter("capacitance")->getCapacitance(routing_layer, length, wire_width);
 }
 
 auto STAAdapter::emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width) -> void
 {
-  const sta_adapter_timing_query::WireRcProbe probe = sta_adapter_timing_query::QueryWireRcProbe(routing_layer, wire_width);
-  sta_adapter_timing_query::EmitWireRcProbeDiagnostic(probe);
-  schema::EmitTable(title, {"Item", "Value", "Detail"}, sta_adapter_timing_query::BuildWireRcRows(probe));
+  const sta_adapter_timing_query::WireRcProbe probe = sta_adapter_timing_query::QueryWireRcProbe(*this, routing_layer, wire_width);
+  if (probe.has_diagnostic) {
+    const char* level = probe.diagnostic_level == DiagnosticLevel::kError ? "error" : "warning";
+    LOG_WARNING << title << ": STAAdapter unit wire RC diagnostic (" << level << "): " << probe.diagnostic_summary;
+  }
 }
 
-auto STAAdapter::emitConfiguredUnitWireRcReport(const std::string& title) -> void
+auto STAAdapter::emitConfiguredUnitWireRcReport(SchemaWriter& reporter, const Config& config, const std::string& title) -> void
 {
-  emitUnitWireRcReport(title, sta_adapter_timing_query::ResolveConfiguredRoutingLayer(),
-                       sta_adapter_timing_query::ResolveConfiguredWireWidth());
+  const sta_adapter_timing_query::WireRcProbe probe = sta_adapter_timing_query::QueryWireRcProbe(
+      *this, sta_adapter_timing_query::ResolveConfiguredRoutingLayer(config), sta_adapter_timing_query::ResolveConfiguredWireWidth(config));
+  sta_adapter_timing_query::EmitWireRcProbeDiagnostic(reporter, probe);
+  EmitTable(reporter, title, {"Item", "Value", "Detail"}, sta_adapter_timing_query::BuildWireRcRows(probe));
 }
 
 }  // namespace icts

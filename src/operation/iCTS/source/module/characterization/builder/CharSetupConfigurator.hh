@@ -19,10 +19,10 @@
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-20
  * @brief CharBuilder sweep-grid configuration component. Implements the
- *        public `init(InitOptions)` entry: validates options, discovers usable
- *        buffer cells, resolves slew / cap / wirelength-unit / routing-layer
- *        limits from runtime configuration or liberty fall-backs, and populates
- *        the sweep grid stored on CharBuilderImpl.
+ *        public `init(input, config)` entry: validates dependencies, discovers
+ *        usable buffer cells, resolves slew / cap / wirelength-unit /
+ *        routing-layer limits from explicit config or liberty fall-backs, and
+ *        populates the sweep grid stored on CharBuilderImpl.
  */
 
 #pragma once
@@ -41,7 +41,7 @@ class CharSetupConfigurator
   CharSetupConfigurator(const CharSetupConfigurator&) = delete;
   auto operator=(const CharSetupConfigurator&) -> CharSetupConfigurator& = delete;
 
-  auto init(const ::icts::CharBuilder::InitOptions& options) -> void;
+  auto init(const ::icts::CharBuilder::Input& input, const ::icts::CharBuilder::Config& config) -> void;
 
  private:
   CharBuilderImpl& _impl;

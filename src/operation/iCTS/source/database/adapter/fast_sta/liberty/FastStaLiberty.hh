@@ -29,12 +29,14 @@
 
 namespace icts {
 
+class STAAdapter;
+
 class FastStaLiberty
 {
  public:
   FastStaLiberty() = delete;
 
-  static auto extractBufferCell(const std::string& cell_master) -> FastStaLibertyCell;
+  static auto extractBufferCell(STAAdapter& sta_adapter, const std::string& cell_master) -> FastStaLibertyCell;
 };
 
 }  // namespace icts

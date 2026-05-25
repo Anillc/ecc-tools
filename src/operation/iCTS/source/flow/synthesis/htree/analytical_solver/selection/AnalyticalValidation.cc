@@ -33,9 +33,9 @@
 namespace icts::htree::analytical_solver {
 namespace {
 
-auto MakeValidationFailure(std::string reason) -> AnalyticalValidationResult
+auto MakeValidationFailure(std::string reason) -> AnalyticalValidationSummary
 {
-  AnalyticalValidationResult result;
+  AnalyticalValidationSummary result;
   result.legal = false;
   result.failure_reason = std::move(reason);
   return result;
@@ -61,7 +61,7 @@ auto ValidateCandidateLegalityCheck(const AnalyticalCandidateLegalityCheck& lega
 }  // namespace
 
 auto ValidateAnalyticalCandidate(AnalyticalCandidate& candidate, const AnalyticalCandidateLegalityCheck& legality_check)
-    -> AnalyticalValidationResult
+    -> AnalyticalValidationSummary
 {
   const auto legality_check_failure = ValidateCandidateLegalityCheck(legality_check);
   if (!legality_check_failure.empty()) {
@@ -71,7 +71,7 @@ auto ValidateAnalyticalCandidate(AnalyticalCandidate& candidate, const Analytica
     return MakeValidationFailure(candidate.rejection_reason.empty() ? "invalid_analytical_candidate" : candidate.rejection_reason);
   }
 
-  AnalyticalValidationResult result;
+  AnalyticalValidationSummary result;
   if (legality_check.validate_sink_load_region) {
     result.sink_load_region = ResolveSinkLoadRegionLegality(*legality_check.topology, candidate.materialized_char->get_pattern_id(),
                                                             candidate.topology_pattern_library, *legality_check.segment_pattern_library,

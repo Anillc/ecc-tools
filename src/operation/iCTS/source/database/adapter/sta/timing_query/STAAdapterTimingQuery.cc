@@ -60,6 +60,7 @@
 #include "liberty/Lib.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 #include "netlist/Net.hh"
 #include "netlist/Pin.hh"
 #include "sta/Sta.hh"
@@ -112,13 +113,18 @@ auto GetStaEngine() -> ista::TimingEngine*
   return ista::TimingEngine::getOrCreateTimingEngine();
 }
 
-auto ConfigureStaWorkspace(ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void
+auto ConfigureStaWorkspace(const std::string& work_dir, ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void
 {
-  auto sta_work_dir = std::filesystem::path(CONFIG_INST.get_work_dir()).append(workspace_dir_name).string();
+  auto sta_work_dir = std::filesystem::path(work_dir).append(workspace_dir_name).string();
   if (!std::filesystem::exists(sta_work_dir)) {
     std::filesystem::create_directories(sta_work_dir);
   }
   timing_engine->set_design_work_space(sta_work_dir.c_str());
+}
+
+auto ConfigureStaWorkspace(const Config& config, ista::TimingEngine* timing_engine, const std::string& workspace_dir_name) -> void
+{
+  ConfigureStaWorkspace(config.get_work_dir(), timing_engine, workspace_dir_name);
 }
 
 namespace {
@@ -262,9 +268,9 @@ auto ConvertAxisValue(ista::LibLibrary* owner_lib, ista::LibLutTableTemplate::Va
   }
 }
 
-auto ResolveConfiguredRoutingLayer() -> int
+auto ResolveConfiguredRoutingLayer(const Config& config) -> int
 {
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
+  const auto& routing_layers = config.get_routing_layers();
   if (routing_layers.empty()) {
     LOG_ERROR << kStaAdapterOwner << ": routing layer is not configured.";
     return 0;
@@ -272,9 +278,9 @@ auto ResolveConfiguredRoutingLayer() -> int
   return static_cast<int>(routing_layers.front());
 }
 
-auto ResolveConfiguredWireWidth() -> std::optional<double>
+auto ResolveConfiguredWireWidth(const Config& config) -> std::optional<double>
 {
-  const double wire_width = CONFIG_INST.get_wire_width();
+  const double wire_width = config.get_wire_width();
   return wire_width > 0.0 ? std::optional<double>(wire_width) : std::nullopt;
 }
 
@@ -283,7 +289,7 @@ auto FormatOptionalWireWidth(std::optional<double> wire_width_um) -> std::string
   return wire_width_um.has_value() ? logformat::FormatWithUnit(*wire_width_um, "um") : "library_default";
 }
 
-auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) -> WireRcProbe
+auto QueryWireRcProbe(STAAdapter& sta_adapter, int routing_layer, std::optional<double> wire_width_um) -> WireRcProbe
 {
   WireRcProbe probe;
   probe.routing_layer = routing_layer;
@@ -291,7 +297,7 @@ auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) ->
 
   if (routing_layer <= 0) {
     probe.has_diagnostic = true;
-    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_level = DiagnosticLevel::kError;
     probe.diagnostic_summary = "effective routing layer is invalid for unit RC probing.";
     probe.status = "invalid_layer";
     probe.detail = "routing layer must be positive";
@@ -300,7 +306,7 @@ auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) ->
 
   if (GetStaEngine()->getIDBAdapter() == nullptr) {
     probe.has_diagnostic = true;
-    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_level = DiagnosticLevel::kError;
     probe.diagnostic_summary = "STA IDB adapter is not ready for unit RC probing.";
     probe.status = "adapter_unavailable";
     probe.detail = "STA IDB adapter must be initialized before RC probing";
@@ -308,12 +314,12 @@ auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) ->
   }
 
   probe.queried = true;
-  probe.resistance_per_um_ohm = STA_ADAPTER_INST.queryWireResistance(routing_layer, probe.query_length_um, wire_width_um) / kMilliOhmPerOhm;
-  probe.capacitance_per_um_pf = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, probe.query_length_um, wire_width_um);
+  probe.resistance_per_um_ohm = sta_adapter.queryWireResistance(routing_layer, probe.query_length_um, wire_width_um) / kMilliOhmPerOhm;
+  probe.capacitance_per_um_pf = sta_adapter.queryWireCapacitance(routing_layer, probe.query_length_um, wire_width_um);
 
   if (!std::isfinite(probe.resistance_per_um_ohm) || !std::isfinite(probe.capacitance_per_um_pf)) {
     probe.has_diagnostic = true;
-    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_level = DiagnosticLevel::kError;
     probe.diagnostic_summary = "unit wire RC query returned non-finite values.";
     probe.status = "invalid_nonfinite";
     probe.detail = "queried unit RC must be finite";
@@ -322,7 +328,7 @@ auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) ->
 
   if (probe.resistance_per_um_ohm < 0.0 || probe.capacitance_per_um_pf < 0.0) {
     probe.has_diagnostic = true;
-    probe.diagnostic_level = schema::DiagnosticLevel::kError;
+    probe.diagnostic_level = DiagnosticLevel::kError;
     probe.diagnostic_summary = "unit wire RC query returned negative values.";
     probe.status = "invalid_negative";
     probe.detail = "negative resistance/capacitance is physically invalid";
@@ -331,7 +337,7 @@ auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) ->
 
   if (probe.resistance_per_um_ohm == 0.0 || probe.capacitance_per_um_pf == 0.0) {
     probe.has_diagnostic = true;
-    probe.diagnostic_level = schema::DiagnosticLevel::kWarning;
+    probe.diagnostic_level = DiagnosticLevel::kWarning;
     probe.diagnostic_summary = "unit wire RC query returned zero on at least one metric.";
     probe.status = "warning_zero";
     probe.detail = "zero unit RC is suspicious; flow continues";
@@ -343,13 +349,13 @@ auto QueryWireRcProbe(int routing_layer, std::optional<double> wire_width_um) ->
   return probe;
 }
 
-auto EmitWireRcProbeDiagnostic(const WireRcProbe& probe) -> void
+auto EmitWireRcProbeDiagnostic(SchemaWriter& reporter, const WireRcProbe& probe) -> void
 {
   if (!probe.has_diagnostic) {
     return;
   }
 
-  if (probe.diagnostic_level == schema::DiagnosticLevel::kError) {
+  if (probe.diagnostic_level == DiagnosticLevel::kError) {
     LOG_ERROR << kStaAdapterOwner << ": " << probe.diagnostic_summary << " layer=" << probe.routing_layer
               << ", wire_width=" << FormatOptionalWireWidth(probe.wire_width_um) << ", resistance="
               << (probe.queried ? logformat::FormatEngineering(probe.resistance_per_um_ohm, "Ohm/um") : std::string{"n/a"})
@@ -362,8 +368,8 @@ auto EmitWireRcProbeDiagnostic(const WireRcProbe& probe) -> void
                 << (probe.queried ? logformat::FormatWithUnit(probe.capacitance_per_um_pf, "pF/um") : std::string{"n/a"});
   }
 
-  schema::EmitDiagnostic(
-      probe.diagnostic_level, kStaAdapterOwner, probe.diagnostic_summary,
+  EmitDiagnostic(
+      reporter, probe.diagnostic_level, kStaAdapterOwner, probe.diagnostic_summary,
       {
           {"routing_setup_source", "Runtime Configuration"},
           {"query_length", logformat::FormatWithUnit(probe.query_length_um, "um")},

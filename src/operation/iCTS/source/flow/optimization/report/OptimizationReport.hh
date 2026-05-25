@@ -26,6 +26,8 @@
 #include <chrono>
 #include <string>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 class Clock;
 }  // namespace icts
@@ -35,10 +37,18 @@ namespace icts::clock_sizing_optimization {
 struct ClockSizingSummary;
 struct ClockSizingRuntimeProfile;
 
+struct ClockSizingProfileReportInput
+{
+  SchemaWriter* reporter = nullptr;
+  const Clock* clock = nullptr;
+  const ClockSizingRuntimeProfile* profile = nullptr;
+};
+
 auto ElapsedSeconds(std::chrono::steady_clock::time_point start_time) -> double;
 auto FormatNs(double value) -> std::string;
 auto FormatSeconds(double value) -> std::string;
-auto EmitClockSummary(const Clock& clock, const ClockSizingSummary& summary, double target_skew_ns, double runtime_s) -> void;
-auto EmitClockProfile(const Clock& clock, const ClockSizingRuntimeProfile& profile) -> void;
+auto EmitClockSummary(SchemaWriter& reporter, const Clock& clock, const ClockSizingSummary& summary, double target_skew_ns,
+                      double runtime_s) -> void;
+auto EmitClockProfile(const ClockSizingProfileReportInput& input) -> void;
 
 }  // namespace icts::clock_sizing_optimization

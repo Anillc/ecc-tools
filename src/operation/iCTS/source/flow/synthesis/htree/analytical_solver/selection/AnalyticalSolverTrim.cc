@@ -381,7 +381,7 @@ auto TryPrependCompositionState(const AnalyticalHTreeSolveProblem& solve_problem
   if (!upstream_state.monotonic_boundary_state.canComposeWith(downstream.composition_state.monotonic_boundary_state)) {
     return std::nullopt;
   }
-  if (!IsBinarySourceFanoutLegal(downstream.composition_state.source_exposed_load_count, solve_problem.fanout_options.max_fanout)) {
+  if (!IsBinarySourceFanoutLegal(downstream.composition_state.source_exposed_load_count, solve_problem.fanout_config.max_fanout)) {
     return std::nullopt;
   }
   return PatternCompositionState{
@@ -421,7 +421,7 @@ auto IsFunctionalSequenceAllowedForLevel(const AnalyticalHTreeSolveProblem& solv
       && segment_pattern_library->getTerminalSemantic(segment_pattern_id) != TerminalSemantic::kBranchBuffered) {
     return false;
   }
-  if (level.is_leaf_level && solve_problem.fanout_options.max_fanout > 0U && !SegmentHasAnyBuffer(solve_problem, segment_pattern_id)) {
+  if (level.is_leaf_level && solve_problem.fanout_config.max_fanout > 0U && !SegmentHasAnyBuffer(solve_problem, segment_pattern_id)) {
     return false;
   }
   return true;

@@ -2,6 +2,7 @@ add_subdirectory(htree)
 
 icts_add_test_executable(
   icts_test_flow_synthesis
+  PUBLIC_RUNTIME
   SOURCES
     ${ICTS_TEST}/flow/synthesis/TopologyTest.cc
 )

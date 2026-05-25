@@ -109,7 +109,7 @@ auto SplitClusterByLongestAxis(std::vector<Pin*> cluster) -> std::pair<std::vect
   return {std::move(lhs), std::move(rhs)};
 }
 
-auto AppendFinalCluster(const std::vector<Pin*>& cluster, const ClusterConfig& config, ClusterResult& result) -> bool
+auto AppendFinalCluster(const std::vector<Pin*>& cluster, const ClusterConfig& config, ClusterOutput& result) -> bool
 {
   std::vector<std::vector<Pin*>> pending;
   pending.push_back(cluster);
@@ -148,9 +148,9 @@ auto AppendFinalCluster(const std::vector<Pin*>& cluster, const ClusterConfig& c
 }  // namespace
 
 auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
-    -> std::optional<ClusterResult>
+    -> std::optional<ClusterOutput>
 {
-  ClusterResult result;
+  ClusterOutput result;
   result.clusters.reserve(drafts.size());
   result.centers.reserve(drafts.size());
   result.electrical_summaries.reserve(drafts.size());
@@ -164,7 +164,7 @@ auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector
   return result;
 }
 
-auto CountAssignedLoads(const ClusterResult& result) -> std::size_t
+auto CountAssignedLoads(const ClusterOutput& result) -> std::size_t
 {
   std::size_t count = 0;
   for (const auto& cluster : result.clusters) {

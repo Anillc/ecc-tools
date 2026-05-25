@@ -43,7 +43,7 @@ enum class DomainStatus
 class DomainStatusTable
 {
  public:
-  explicit DomainStatusTable(schema::TableRows& rows) : _rows(&rows) {}
+  explicit DomainStatusTable(TableRows& rows) : _rows(&rows) {}
 
   auto append(const Clock& clock, DomainStatus status, SinkDomainKind sink_domain, std::size_t valid_sinks, std::size_t sink_domain_sinks,
               const std::string& detail) -> void;
@@ -52,7 +52,7 @@ class DomainStatusTable
   auto appendNullClock(DomainStatus status, const std::string& detail) -> void;
 
  private:
-  schema::TableRows* _rows = nullptr;
+  TableRows* _rows = nullptr;
 };
 
 auto ToString(DomainStatus status) -> const char*;

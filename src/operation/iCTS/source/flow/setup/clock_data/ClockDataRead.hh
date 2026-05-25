@@ -23,14 +23,28 @@
 
 #pragma once
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
+
+class Config;
+class Design;
+class Wrapper;
+
+struct ClockDataReadInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  SchemaWriter* reporter = nullptr;
+};
 
 class ClockDataRead
 {
  public:
   ClockDataRead() = delete;
 
-  static auto read() -> bool;
+  static auto read(const ClockDataReadInput& input) -> bool;
 };
 
 }  // namespace icts

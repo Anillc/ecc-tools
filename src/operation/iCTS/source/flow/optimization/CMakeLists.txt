@@ -1,14 +1,14 @@
 set(ICTS_FLOW_OPTIMIZATION_CANDIDATE ${ICTS_FLOW_OPTIMIZATION}/candidate)
 set(ICTS_FLOW_OPTIMIZATION_MODEL ${ICTS_FLOW_OPTIMIZATION}/model)
 set(ICTS_FLOW_OPTIMIZATION_CLOCK_SIZING_EDIT ${ICTS_FLOW_OPTIMIZATION}/clock_sizing_edit)
-set(ICTS_FLOW_OPTIMIZATION_OPTIONS ${ICTS_FLOW_OPTIMIZATION}/options)
+set(ICTS_FLOW_OPTIMIZATION_POLICY ${ICTS_FLOW_OPTIMIZATION}/policy)
 set(ICTS_FLOW_OPTIMIZATION_PREPARATION ${ICTS_FLOW_OPTIMIZATION}/preparation)
 set(ICTS_FLOW_OPTIMIZATION_REPORT ${ICTS_FLOW_OPTIMIZATION}/report)
 set(ICTS_FLOW_OPTIMIZATION_SOLVER ${ICTS_FLOW_OPTIMIZATION}/solver)
 set(ICTS_FLOW_OPTIMIZATION_STATE ${ICTS_FLOW_OPTIMIZATION}/state)
 
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_MODEL})
-add_subdirectory(${ICTS_FLOW_OPTIMIZATION_OPTIONS})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION_POLICY})
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_REPORT})
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_PREPARATION})
 add_subdirectory(${ICTS_FLOW_OPTIMIZATION_CANDIDATE})
@@ -30,7 +30,7 @@ target_link_libraries(
   icts_source_database_design
   icts_source_flow_optimization_model
   icts_source_flow_optimization_clock_sizing_edit
-  icts_source_flow_optimization_options
+  icts_source_flow_optimization_policy
   icts_source_flow_optimization_preparation
   icts_source_flow_optimization_report
   icts_source_flow_optimization_solver

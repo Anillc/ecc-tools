@@ -27,9 +27,9 @@
 
 namespace icts {
 
-class Clock;
 class Net;
-struct FastStaClockRouteGeometry;
+struct FastStaClockBuildInput;
+struct FastStaEnvironment;
 template <typename T>
 class ClockSteinerTree;
 
@@ -38,8 +38,7 @@ class FastStaBuilder
  public:
   FastStaBuilder() = delete;
 
-  static auto buildClockContext(const Clock& clock) -> FastStaClockContext;
-  static auto buildClockContext(const Clock& clock, const FastStaClockRouteGeometry& route_geometry) -> FastStaClockContext;
+  static auto buildClockContext(const FastStaEnvironment& environment, const FastStaClockBuildInput& input) -> FastStaClockContext;
   static auto injectNetRouteTree(FastStaClockContext& context, const Net& net, const ClockSteinerTree<int>& route_tree) -> bool;
 };
 

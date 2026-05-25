@@ -18,7 +18,7 @@
  * @file StageReport.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-19
- * @brief Shared H-tree stage reporting options.
+ * @brief Shared H-tree stage reporting config.
  */
 
 #pragma once
@@ -27,6 +27,6 @@
 
 namespace icts::htree {
 
-auto DetailStageReportOptions() -> schema::StageReportOptions;
+auto DetailStageReportOptions() -> StageReportOptions;
 
 }  // namespace icts::htree

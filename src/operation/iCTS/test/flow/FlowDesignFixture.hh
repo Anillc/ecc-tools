@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "CTSAPI.hh"
+#include "CTSRuntime.hh"
 #include "IdbCellMaster.h"
 #include "IdbDesign.h"
 #include "IdbEnum.h"
@@ -56,9 +57,7 @@
 #include "database/io/Wrapper.hh"
 #include "database/spatial/Point.hh"
 #include "design/ClockLayout.hh"
-#include "dm_config.h"
 #include "evaluation/qor/QorEvaluation.hh"
-#include "feature_icts.h"
 #include "flow/Flow.hh"
 #include "flow/instantiation/design_conversion/DesignConversion.hh"
 #include "flow/synthesis/Synthesis.hh"
@@ -72,23 +71,41 @@
 
 namespace icts_test::flow_test {
 
+inline auto ResetCurrentRuntimeStateExceptReporter() -> void
+{
+  auto& shared = icts_test::runtime::CurrentRuntime();
+  shared.config.reset();
+  shared.design.reset();
+  shared.wrapper.reset();
+  shared.fast_sta.reset();
+}
+
 class ScopedFlowReset
 {
  public:
-  ScopedFlowReset()
+  ScopedFlowReset() : flow(icts_test::runtime::CurrentRuntime())
   {
-    CONFIG_INST.reset();
-    DESIGN_INST.reset();
-    WRAPPER_INST.reset();
-    FLOW_INST.reset();
+    ResetCurrentRuntimeStateExceptReporter();
+    flow.reset();
   }
   ~ScopedFlowReset()
   {
-    CONFIG_INST.reset();
-    DESIGN_INST.reset();
-    WRAPPER_INST.reset();
-    FLOW_INST.reset();
+    ResetCurrentRuntimeStateExceptReporter();
+    flow.reset();
   }
+
+  icts::Flow flow;
+};
+
+class ScopedCTSAPIReset
+{
+ public:
+  ScopedCTSAPIReset()
+  {
+    ResetCurrentRuntimeStateExceptReporter();
+    icts::CTSAPI::resetAPI();
+  }
+  ~ScopedCTSAPIReset() { ResetCurrentRuntimeStateExceptReporter(); }
 };
 
 struct TestClockPins
@@ -151,7 +168,7 @@ inline auto WriteTempSdc(const std::string& file_name, const std::string& conten
 inline auto MakeDesignInst(const std::string& name, const std::string& cell_master, icts::InstType type, const icts::Point<int>& location)
     -> icts::Inst*
 {
-  auto* inst = DESIGN_INST.makeInst(name);
+  auto* inst = icts_test::runtime::CurrentRuntime().design.makeInst(name);
   if (inst == nullptr) {
     return nullptr;
   }
@@ -164,7 +181,7 @@ inline auto MakeDesignInst(const std::string& name, const std::string& cell_mast
 
 inline auto AddOwnedLoad(icts::Clock& clock, icts::Net* clock_net, icts::Inst& inst, const std::string& pin_name) -> icts::Pin*
 {
-  auto* pin = DESIGN_INST.makePin(pin_name);
+  auto* pin = icts_test::runtime::CurrentRuntime().design.makePin(pin_name);
   if (pin == nullptr) {
     return nullptr;
   }
@@ -179,26 +196,26 @@ inline auto AddOwnedLoad(icts::Clock& clock, icts::Net* clock_net, icts::Inst& i
     clock_net->add_load(pin);
   }
   inst.add_pin(pin);
-  (void) DESIGN_INST.indexPin(pin);
+  (void) icts_test::runtime::CurrentRuntime().design.indexPin(pin);
   return pin;
 }
 
 inline auto AddClockToDesign(icts::Inst* macro_inst, icts::Inst* regular_inst) -> TestClockPins
 {
-  auto* clock_ptr = DESIGN_INST.makeClock("clk", "clk_net");
+  auto* clock_ptr = icts_test::runtime::CurrentRuntime().design.makeClock("clk", "clk_net");
   clock_ptr->set_clock_name("clk");
   clock_ptr->set_clock_net_name("clk_net");
-  auto* clock_net = DESIGN_INST.makeNet("clk_net");
+  auto* clock_net = icts_test::runtime::CurrentRuntime().design.makeNet("clk_net");
   clock_net->set_name("clk_net");
   clock_net->set_loads({});
-  auto* source = DESIGN_INST.makePin("clk");
+  auto* source = icts_test::runtime::CurrentRuntime().design.makePin("clk");
   source->set_name("clk");
   source->set_type(icts::PinType::kOut);
   source->set_location(icts::Point<int>(0, 0));
   source->set_inst(nullptr);
   source->set_net(clock_net);
   source->set_io(false);
-  (void) DESIGN_INST.indexPin(source);
+  (void) icts_test::runtime::CurrentRuntime().design.indexPin(source);
   clock_ptr->set_clock_source_net(clock_net);
   clock_ptr->set_clock_source(source);
   clock_net->set_driver(source);
@@ -224,12 +241,10 @@ inline auto PrepareDirectRootBufferNets(icts::Clock& clock, const std::string& c
                                         const std::string& output_pin_name) -> void
 {
   icts::DesignConversion::restoreClockSourceNetToClockLoads(clock);
-  DESIGN_INST.removeClockMembershipObjects(clock);
+  icts_test::runtime::CurrentRuntime().design.removeClockMembershipObjects(clock);
   clock.clearMembership();
 
-  std::vector<icts::Pin*> macro_sinks;
-  std::vector<icts::Pin*> regular_sinks;
-  icts::DesignConversion::partitionClockSinks(clock.get_loads(), macro_sinks, regular_sinks);
+  auto sink_partition = icts::DesignConversion::partitionClockSinks(clock.get_loads());
 
   std::vector<icts::Pin*> root_inputs;
 
@@ -238,25 +253,41 @@ inline auto PrepareDirectRootBufferNets(icts::Clock& clock, const std::string& c
       return true;
     }
     const auto domain_prefix = icts::DesignConversion::makeSinkDomainPrefix(clock, 0U, sink_domain);
-    icts::Inst* root_buffer = nullptr;
-    icts::Pin* root_input = nullptr;
-    icts::Pin* root_output = nullptr;
-    if (!icts::DesignConversion::addRootBufferForSinkDomain(clock, domain_prefix, cell_master, input_pin_name, output_pin_name, sinks,
-                                                            root_buffer, root_input, root_output)) {
+    const auto root_buffer = icts::DesignConversion::addRootBufferForSinkDomain(icts::SinkDomainRootBufferInput{
+        .design = &icts_test::runtime::CurrentRuntime().design,
+        .clock = &clock,
+        .domain_prefix = domain_prefix,
+        .sinks = sinks,
+        .cell_master = cell_master,
+        .input_pin_name = input_pin_name,
+        .output_pin_name = output_pin_name,
+    });
+    if (root_buffer.root_buffer == nullptr || root_buffer.root_input == nullptr || root_buffer.root_output == nullptr) {
       return false;
     }
-    if (root_input != nullptr) {
-      root_inputs.push_back(root_input);
+    if (root_buffer.root_input != nullptr) {
+      root_inputs.push_back(root_buffer.root_input);
     }
-    return icts::DesignConversion::connectSinkDomainDownstreamNet(clock, domain_prefix, root_output, sinks) != nullptr;
+    return icts::DesignConversion::connectSinkDomainDownstreamNet(icts::SinkDomainDownstreamNetInput{
+               .design = &icts_test::runtime::CurrentRuntime().design,
+               .clock = &clock,
+               .domain_prefix = domain_prefix,
+               .root_output = root_buffer.root_output,
+               .sinks = sinks,
+           })
+           != nullptr;
   };
 
-  ASSERT_TRUE(build_domain(icts::SinkDomainKind::kHardMacro, macro_sinks));
-  ASSERT_TRUE(build_domain(icts::SinkDomainKind::kRegular, regular_sinks));
-  icts::DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(clock, clock.get_clock_source(), root_inputs);
+  ASSERT_TRUE(build_domain(icts::SinkDomainKind::kHardMacro, sink_partition.macro_sinks));
+  ASSERT_TRUE(build_domain(icts::SinkDomainKind::kRegular, sink_partition.regular_sinks));
+  icts::DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(icts::SourceToRootNetReuseInput{
+      .clock = &clock,
+      .clock_source = clock.get_clock_source(),
+      .root_buffer_inputs = root_inputs,
+  });
 }
 
-inline auto StatusRowsContain(const icts::schema::TableRows& rows, const std::string& status, const std::string& sink_domain,
+inline auto StatusRowsContain(const icts::TableRows& rows, const std::string& status, const std::string& sink_domain,
                               const std::string& detail) -> bool
 {
   return std::ranges::any_of(rows, [&](const auto& row) -> bool {
@@ -402,19 +433,19 @@ inline auto AddIdbPassCell(idb::IdbDesign& idb_design, idb::IdbCellMaster& pass_
 inline auto BuildClockForWrapperClockTreeMaterialization(icts::Clock& clock, const std::string& source_pin_name,
                                                          const std::string& sink_inst_name, const std::string& sink_pin_name) -> void
 {
-  auto* clock_net = DESIGN_INST.makeNet(clock.get_clock_net_name());
+  auto* clock_net = icts_test::runtime::CurrentRuntime().design.makeNet(clock.get_clock_net_name());
   ASSERT_NE(clock_net, nullptr);
-  auto* source_pin = DESIGN_INST.makePin(source_pin_name);
+  auto* source_pin = icts_test::runtime::CurrentRuntime().design.makePin(source_pin_name);
   ASSERT_NE(source_pin, nullptr);
   source_pin->set_name(source_pin_name);
   source_pin->set_type(icts::PinType::kOut);
   source_pin->set_location(icts::Point<int>(0, 0));
   source_pin->set_net(clock_net);
-  ASSERT_TRUE(DESIGN_INST.indexPin(source_pin));
+  ASSERT_TRUE(icts_test::runtime::CurrentRuntime().design.indexPin(source_pin));
 
   auto* sink_inst = MakeDesignInst(sink_inst_name, "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   ASSERT_NE(sink_inst, nullptr);
-  auto* sink_pin = DESIGN_INST.makePin(sink_pin_name);
+  auto* sink_pin = icts_test::runtime::CurrentRuntime().design.makePin(sink_pin_name);
   ASSERT_NE(sink_pin, nullptr);
   sink_pin->set_name(sink_pin_name);
   sink_pin->set_type(icts::PinType::kClock);
@@ -422,7 +453,7 @@ inline auto BuildClockForWrapperClockTreeMaterialization(icts::Clock& clock, con
   sink_pin->set_inst(sink_inst);
   sink_pin->set_net(clock_net);
   sink_inst->add_pin(sink_pin);
-  ASSERT_TRUE(DESIGN_INST.indexPin(sink_pin));
+  ASSERT_TRUE(icts_test::runtime::CurrentRuntime().design.indexPin(sink_pin));
 
   clock_net->set_driver(source_pin);
   clock_net->add_load(sink_pin);

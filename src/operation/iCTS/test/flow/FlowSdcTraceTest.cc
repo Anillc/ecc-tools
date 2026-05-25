@@ -24,12 +24,14 @@
 #include <algorithm>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <regex>
 #include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "Clock.hh"
 #include "Config.hh"
 #include "Design.hh"
@@ -39,18 +41,32 @@
 #include "IdbInstance.h"
 #include "IdbLayout.h"
 #include "IdbNet.h"
+#include "Inst.hh"
 #include "LibParserRustC.hh"
 #include "Schema.hh"
 #include "Wrapper.hh"
 #include "api/TimingEngine.hh"
+#include "common/CTSTestRuntime.hh"
 #include "common/logging/LogText.hh"
 #include "liberty/Lib.hh"
 #include "setup/clock_data/ClockDataRead.hh"
+#include "sta/Sta.hh"
 
 namespace icts_test {
 namespace {
 
 using namespace flow_test;
+
+auto ReadCurrentRuntimeClockData() -> bool
+{
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  return icts::ClockDataRead::read(icts::ClockDataReadInput{
+      .config = &runtime.config,
+      .design = &runtime.design,
+      .wrapper = &runtime.wrapper,
+      .reporter = &runtime.reporter,
+  });
+}
 
 class ScopedTestLiberty
 {
@@ -146,7 +162,7 @@ auto MakeClockLogicLibCell(const std::string& cell_name, const std::string& cloc
 
 TEST(FlowTest, SdcClockResolutionUsesSdcReachableTargets)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
   ASSERT_NE(idb_design.get_net_list(), nullptr);
@@ -171,18 +187,18 @@ TEST(FlowTest, SdcClockResolutionUsesSdcReachableTargets)
   AttachIdbPinToNet(*physical_clk_net, *src_pin);
   AttachIdbPinToNet(*physical_clk_net, *sink_pin);
 
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   const auto empty_sdc_path = WriteTempSdc("icts_empty_clock_resolution.sdc", "");
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  EXPECT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 0U);
 
   const auto direct_sdc_path
       = WriteTempSdc("icts_direct_clock_resolution.sdc", "create_clock -name DIRECT_CLK -period 3 physical_clk_net\n");
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
-  auto* direct_clock = DESIGN_INST.get_clocks().front();
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 1U);
+  auto* direct_clock = icts_test::runtime::CurrentRuntime().design.get_clocks().front();
   ASSERT_NE(direct_clock, nullptr);
   EXPECT_EQ(direct_clock->get_clock_name(), "DIRECT_CLK");
   EXPECT_EQ(direct_clock->get_clock_net_name(), "physical_clk_net");
@@ -193,13 +209,13 @@ TEST(FlowTest, SdcClockResolutionUsesSdcReachableTargets)
 create_clock -name DIRECT_CLK -period 3 physical_clk_net
 create_clock -name MISSING_CLK -period 2 missing_physical_net
 )");
-  EXPECT_FALSE(icts::ClockDataRead::read());
-  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
+  EXPECT_FALSE(ReadCurrentRuntimeClockData());
+  EXPECT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 0U);
 
   const auto unresolved_sdc_path
       = WriteTempSdc("icts_missing_clock_resolution.sdc", "create_clock -name MISSING_CLK -period 2 missing_physical_net\n");
-  EXPECT_FALSE(icts::ClockDataRead::read());
-  EXPECT_EQ(DESIGN_INST.get_clocks().size(), 0U);
+  EXPECT_FALSE(ReadCurrentRuntimeClockData());
+  EXPECT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 0U);
 
   std::error_code error_code;
   std::filesystem::remove(empty_sdc_path, error_code);
@@ -210,11 +226,11 @@ create_clock -name MISSING_CLK -period 2 missing_physical_net
 
 TEST(FlowTest, SdcClockTraceResolvesVariableGetPortsToDownstreamClockTarget)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* root_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kSignal);
   auto* leaf_net = idb_design.get_net_list()->add_net("buf_clock_net", idb::IdbConnectType::kSignal);
@@ -255,9 +271,9 @@ set clk_port [get_ports $clk_port_name]
 create_clock -name $clk_name -period [expr $clk_period * 2] $clk_port
 )");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
-  auto* clock = DESIGN_INST.get_clocks().front();
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 1U);
+  auto* clock = icts_test::runtime::CurrentRuntime().design.get_clocks().front();
   ASSERT_NE(clock, nullptr);
   EXPECT_EQ(clock->get_clock_name(), "TRACE_CLK");
   EXPECT_EQ(clock->get_clock_net_name(), "buf_clock_net");
@@ -270,11 +286,11 @@ create_clock -name $clk_name -period [expr $clk_period * 2] $clk_port
 
 TEST(FlowTest, SdcClockTraceAllowsClockGateLikeCombTarget)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* root_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kSignal);
   auto* enable_net = idb_design.get_net_list()->add_net("enable_ctrl", idb::IdbConnectType::kSignal);
@@ -322,12 +338,12 @@ TEST(FlowTest, SdcClockTraceAllowsClockGateLikeCombTarget)
     AttachIdbPinToNet(*gated_net, *sink_pin);
   }
 
-  CONFIG_INST.set_max_fanout(4);
+  icts_test::runtime::CurrentRuntime().config.set_max_fanout(4);
   const auto sdc_path = WriteTempSdc("icts_comb_gate_clock_trace.sdc", "create_clock -name GATED_CLK [get_ports clock] -period 4\n");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
-  auto* clock = DESIGN_INST.get_clocks().front();
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 1U);
+  auto* clock = icts_test::runtime::CurrentRuntime().design.get_clocks().front();
   ASSERT_NE(clock, nullptr);
   EXPECT_EQ(clock->get_clock_name(), "GATED_CLK");
   EXPECT_EQ(clock->get_clock_net_name(), "gated_clock");
@@ -339,11 +355,11 @@ TEST(FlowTest, SdcClockTraceAllowsClockGateLikeCombTarget)
 
 TEST(FlowTest, ClockReadClassifiesCombinationalClockLoadAsBoundaryLoad)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kClock);
   auto* data_net = idb_design.get_net_list()->add_net("data_out", idb::IdbConnectType::kSignal);
@@ -374,11 +390,11 @@ TEST(FlowTest, ClockReadClassifiesCombinationalClockLoadAsBoundaryLoad)
 
   const auto sdc_path = WriteTempSdc("icts_clock_load_boundary_classification.sdc", "create_clock -name CLK [get_ports clock] -period 2\n");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  auto* cts_inst = DESIGN_INST.findInst("logic_load");
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  auto* cts_inst = icts_test::runtime::CurrentRuntime().design.findInst("logic_load");
   ASSERT_NE(cts_inst, nullptr);
   EXPECT_EQ(cts_inst->get_type(), icts::InstType::kBoundaryLoad);
-  EXPECT_TRUE(DESIGN_INST.rebuildClockDAG());
+  EXPECT_TRUE(icts_test::runtime::CurrentRuntime().design.rebuildClockDAG());
 
   std::error_code error_code;
   std::filesystem::remove(sdc_path, error_code);
@@ -386,7 +402,7 @@ TEST(FlowTest, ClockReadClassifiesCombinationalClockLoadAsBoundaryLoad)
 
 TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   ScopedTestLiberty test_liberty;
   test_liberty.addCell(MakeFlipFlopLibCell("TEST_DFF", "CK"));
   test_liberty.addCell(MakeLatchLibCell("TEST_LATCH", "GN"));
@@ -394,8 +410,8 @@ TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
 
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kClock);
   ASSERT_NE(clock_net, nullptr);
@@ -427,14 +443,14 @@ TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
 
   const auto sdc_path = WriteTempSdc("icts_sequential_type_classification.sdc", "create_clock -name CLK [get_ports clock] -period 2\n");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  auto* cts_ff = DESIGN_INST.findInst("ff_sink");
-  auto* cts_latch = DESIGN_INST.findInst("latch_sink");
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  auto* cts_ff = icts_test::runtime::CurrentRuntime().design.findInst("ff_sink");
+  auto* cts_latch = icts_test::runtime::CurrentRuntime().design.findInst("latch_sink");
   ASSERT_NE(cts_ff, nullptr);
   ASSERT_NE(cts_latch, nullptr);
   EXPECT_EQ(cts_ff->get_type(), icts::InstType::kFlipFlop);
   EXPECT_EQ(cts_latch->get_type(), icts::InstType::kLatch);
-  EXPECT_TRUE(DESIGN_INST.rebuildClockDAG());
+  EXPECT_TRUE(icts_test::runtime::CurrentRuntime().design.rebuildClockDAG());
 
   std::error_code error_code;
   std::filesystem::remove(sdc_path, error_code);
@@ -442,7 +458,7 @@ TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
 
 TEST(FlowTest, ClockReadClassifiesClockDependentLogicAsClockLogicBoundary)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   ScopedTestLiberty test_liberty;
   test_liberty.addCell(MakeClockLogicLibCell("TEST_CLOCK_AND", "CLK"));
   test_liberty.addCell(MakeFlipFlopLibCell("TEST_DFF", "CK"));
@@ -450,8 +466,8 @@ TEST(FlowTest, ClockReadClassifiesClockDependentLogicAsClockLogicBoundary)
 
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kClock);
   auto* enable_net = idb_design.get_net_list()->add_net("enable", idb::IdbConnectType::kSignal);
@@ -492,20 +508,21 @@ TEST(FlowTest, ClockReadClassifiesClockDependentLogicAsClockLogicBoundary)
   ASSERT_NE(sink_clock, nullptr);
   AttachIdbPinToNet(*gated_net, *sink_clock);
 
-  EXPECT_TRUE(WRAPPER_INST.readClocks({{"CLK", "clock"}}));
-  auto* cts_logic = DESIGN_INST.findInst("clock_logic");
+  EXPECT_TRUE(icts_test::runtime::CurrentRuntime().wrapper.readClocks(icts_test::runtime::CurrentRuntime().design,
+                                                                      icts_test::runtime::CurrentRuntime().reporter, {{"CLK", "clock"}}));
+  auto* cts_logic = icts_test::runtime::CurrentRuntime().design.findInst("clock_logic");
   ASSERT_NE(cts_logic, nullptr);
   EXPECT_EQ(cts_logic->get_type(), icts::InstType::kClockLogic);
-  EXPECT_TRUE(DESIGN_INST.rebuildClockDAG());
+  EXPECT_TRUE(icts_test::runtime::CurrentRuntime().design.rebuildClockDAG());
 }
 
 TEST(FlowTest, SdcClockTraceMaterializesAllTargetsAndSkipsVirtualClock)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* root_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kSignal);
   auto* branch_a_net = idb_design.get_net_list()->add_net("branch_a_clock", idb::IdbConnectType::kSignal);
@@ -536,11 +553,11 @@ create_clock -name TRACE_CLK [get_ports clock] -period 2
 create_clock -name VIRTUAL_ONLY -period 5
 )");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 2U);
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 2U);
 
   std::vector<std::string> materialized_nets;
-  for (auto* clock : DESIGN_INST.get_clocks()) {
+  for (auto* clock : icts_test::runtime::CurrentRuntime().design.get_clocks()) {
     ASSERT_NE(clock, nullptr);
     EXPECT_EQ(clock->get_clock_name(), "TRACE_CLK");
     EXPECT_DOUBLE_EQ(clock->get_clock_period_ns(), 2.0);
@@ -555,11 +572,11 @@ create_clock -name VIRTUAL_ONLY -period 5
 
 TEST(FlowTest, SdcGeneratedClockBoundaryKeepsMasterAndGeneratedOwnershipSeparate)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* root_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kSignal);
   auto* generated_net = idb_design.get_net_list()->add_net("gen_net", idb::IdbConnectType::kSignal);
@@ -587,12 +604,12 @@ create_clock -name MASTER [get_ports clock] -period 2
 create_generated_clock -name GEN -master_clock MASTER -divide_by 2 -source [get_ports clock] gen_net
 )");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 2U);
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 2U);
 
   std::map<std::string, std::string> net_by_clock;
   std::map<std::string, double> period_by_clock;
-  for (auto* clock : DESIGN_INST.get_clocks()) {
+  for (auto* clock : icts_test::runtime::CurrentRuntime().design.get_clocks()) {
     ASSERT_NE(clock, nullptr);
     net_by_clock[clock->get_clock_name()] = clock->get_clock_net_name();
     period_by_clock[clock->get_clock_name()] = clock->get_clock_period_ns();
@@ -608,14 +625,14 @@ create_generated_clock -name GEN -master_clock MASTER -divide_by 2 -source [get_
 
 TEST(FlowTest, SdcClockTraceReportsUnownedClockLikeNetsWithoutMaterializingThem)
 {
-  const ScopedFlowReset scoped_flow_reset;
-  const auto cts_log_path = SCHEMA_WRITER_INST.getActivePath();
+  ScopedFlowReset scoped_flow_reset;
+  const auto cts_log_path = icts_test::runtime::CurrentRuntime().reporter.getActivePath();
   ASSERT_FALSE(cts_log_path.empty());
 
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* clock_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kSignal);
   auto* noc_clock_net = idb_design.get_net_list()->add_net("noc_clock", idb::IdbConnectType::kSignal);
@@ -637,9 +654,9 @@ TEST(FlowTest, SdcClockTraceReportsUnownedClockLikeNetsWithoutMaterializingThem)
 
   const auto sdc_path = WriteTempSdc("icts_unowned_clock_like_report.sdc", "create_clock -name CORE_CLK [get_ports clock] -period 2\n");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 1U);
-  auto* clock = DESIGN_INST.get_clocks().front();
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 1U);
+  auto* clock = icts_test::runtime::CurrentRuntime().design.get_clocks().front();
   ASSERT_NE(clock, nullptr);
   EXPECT_EQ(clock->get_clock_name(), "CORE_CLK");
   EXPECT_EQ(clock->get_clock_net_name(), "clock");
@@ -664,11 +681,11 @@ TEST(FlowTest, SdcClockTraceReportsUnownedClockLikeNetsWithoutMaterializingThem)
 
 TEST(FlowTest, SdcClockTraceRejectsAmbiguousSharedTargetNet)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* shared_net = idb_design.get_net_list()->add_net("shared_clock", idb::IdbConnectType::kSignal);
   ASSERT_NE(shared_net, nullptr);
@@ -689,8 +706,8 @@ create_clock -name CLK_A [get_ports clock_a] -period 2
 create_clock -name CLK_B [get_ports clock_b] -period 3
 )");
 
-  EXPECT_FALSE(icts::ClockDataRead::read());
-  EXPECT_TRUE(DESIGN_INST.get_clocks().empty());
+  EXPECT_FALSE(ReadCurrentRuntimeClockData());
+  EXPECT_TRUE(icts_test::runtime::CurrentRuntime().design.get_clocks().empty());
 
   std::error_code error_code;
   std::filesystem::remove(sdc_path, error_code);
@@ -698,11 +715,11 @@ create_clock -name CLK_B [get_ports clock_b] -period 3
 
 TEST(FlowTest, SdcClockTraceStopsAtClockLikeMuxWithoutCaseAnalysis)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* clock_a_net = idb_design.get_net_list()->add_net("clock_a", idb::IdbConnectType::kSignal);
   auto* clock_b_net = idb_design.get_net_list()->add_net("clock_b", idb::IdbConnectType::kSignal);
@@ -740,8 +757,8 @@ TEST(FlowTest, SdcClockTraceStopsAtClockLikeMuxWithoutCaseAnalysis)
 
   const auto sdc_path = WriteTempSdc("icts_ambiguous_mux_clock_trace.sdc", "create_clock -name CLK_A [get_ports clock_a] -period 2\n");
 
-  EXPECT_FALSE(icts::ClockDataRead::read());
-  EXPECT_TRUE(DESIGN_INST.get_clocks().empty());
+  EXPECT_FALSE(ReadCurrentRuntimeClockData());
+  EXPECT_TRUE(icts_test::runtime::CurrentRuntime().design.get_clocks().empty());
 
   std::error_code error_code;
   std::filesystem::remove(sdc_path, error_code);
@@ -749,11 +766,11 @@ TEST(FlowTest, SdcClockTraceStopsAtClockLikeMuxWithoutCaseAnalysis)
 
 TEST(FlowTest, SdcClockTraceTerminatesOnCombinationalCycle)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
   idb::IdbLayout idb_layout;
   idb::IdbDesign idb_design(&idb_layout);
-  WRAPPER_INST.set_idb_design(&idb_design);
-  WRAPPER_INST.set_idb_layout(&idb_layout);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_design(&idb_design);
+  icts_test::runtime::CurrentRuntime().wrapper.set_idb_layout(&idb_layout);
 
   auto* root_net = idb_design.get_net_list()->add_net("clock", idb::IdbConnectType::kSignal);
   auto* loop_net = idb_design.get_net_list()->add_net("loop_clock", idb::IdbConnectType::kSignal);
@@ -779,11 +796,11 @@ TEST(FlowTest, SdcClockTraceTerminatesOnCombinationalCycle)
 
   const auto sdc_path = WriteTempSdc("icts_comb_loop_clock_trace.sdc", "create_clock -name LOOP_CLK [get_ports clock] -period 2\n");
 
-  EXPECT_TRUE(icts::ClockDataRead::read());
-  ASSERT_EQ(DESIGN_INST.get_clocks().size(), 2U);
+  EXPECT_TRUE(ReadCurrentRuntimeClockData());
+  ASSERT_EQ(icts_test::runtime::CurrentRuntime().design.get_clocks().size(), 2U);
 
   std::vector<std::string> materialized_nets;
-  for (auto* clock : DESIGN_INST.get_clocks()) {
+  for (auto* clock : icts_test::runtime::CurrentRuntime().design.get_clocks()) {
     ASSERT_NE(clock, nullptr);
     materialized_nets.push_back(clock->get_clock_net_name());
   }

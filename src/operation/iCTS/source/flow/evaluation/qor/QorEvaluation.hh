@@ -28,11 +28,16 @@
 #include <string>
 #include <vector>
 
+#include "logger/SchemaForward.hh"
 #include "qor/Qor.hh"
 
 namespace icts {
 
 class ClockLayout;
+class Config;
+class Design;
+class STAAdapter;
+class Wrapper;
 
 struct QorSummary
 {
@@ -88,10 +93,19 @@ struct QorSummary
   std::vector<ClockLatencySkew> clocks_latency_skew;
 };
 
-struct EvaluationOptions
+struct EvaluationInput
+{
+  const Config* config = nullptr;
+  const ClockLayout* clock_layout = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  SchemaWriter* reporter = nullptr;
+};
+
+struct EvaluationConfig
 {
   bool refresh_sta_timing = false;
-  const ClockLayout* clock_layout = nullptr;
 };
 
 struct EvaluationState
@@ -105,10 +119,9 @@ class QorEvaluation
  public:
   QorEvaluation() = delete;
 
-  static auto evaluate(EvaluationState& state) -> void;
-  static auto evaluate(EvaluationState& state, const EvaluationOptions& options) -> void;
+  static auto evaluate(EvaluationState& state, const EvaluationInput& input, const EvaluationConfig& config) -> void;
   static auto outputSummary(const EvaluationState& state) -> QorSummary;
-  static auto hasEvaluationResult(const EvaluationState& state) -> bool;
+  static auto isEvaluationReady(const EvaluationState& state) -> bool;
   static auto reset(EvaluationState& state) -> void;
 };
 

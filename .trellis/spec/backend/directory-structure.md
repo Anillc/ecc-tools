@@ -43,7 +43,7 @@ Keep CTS flow code aligned with:
 |-----------|----------------|----------|
 | `api/` | Stable external `CTSAPI` entry points | No internal flow lifecycle logic |
 | `source/flow/` | Root CTS lifecycle and flow state | Root exposes only `Flow.hh`, `Flow.cc`, and build metadata |
-| `source/flow/setup/` | Config readiness, output directories, schema/log setup, adapter initialization | Owns flow startup validation |
+| `source/flow/setup/` | Config readiness, output directories, report/log setup, adapter initialization | Owns flow startup validation |
 | `source/flow/synthesis/` | CTS synthesis orchestration | Root exposes `Synthesis.hh/.cc`; helpers live under `distribution/`, `topology/`, `htree/`, or `trace/` |
 | `source/flow/synthesis/topology/` | CTS topology formation | Root exposes `Topology.hh/.cc`; sink, trunk, and temporary buffer/net helpers stay in subdirectories |
 | `source/flow/synthesis/htree/` | H-tree topology implementation | Root exposes `HTree.hh/.cc`; characterization, pattern constraints, and embedding helpers stay in their subdirectories |
@@ -62,7 +62,7 @@ Do not reintroduce top-level peer architecture directories under `source/flow/` 
 - Put reusable helper code in `source/utils/`.
 - Put tests under `test/`, mirroring the source layout as closely as practical.
 - Keep `api/CTSAPI` focused on external entry points; internal CTS flow lifecycle steps belong under `source/flow`.
-- Keep runtime config access at API/flow/database/test boundaries; code under `source/module/` should receive explicit options instead of reading `CONFIG_INST`.
+- Keep runtime config adaptation at API/flow/database/test boundaries; code under `source/module/` should receive explicit `{Name}Input` and `{Name}Config` data, not read global or broad runtime config directly.
 - Put visualization-only format writers under `source/flow/report/visualization/`.
 - Put stable shared routing database types under `source/database/routing/`; keep routing algorithms under `source/module/routing/`.
 

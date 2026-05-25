@@ -34,7 +34,7 @@
 namespace icts_test {
 namespace {
 
-using icts::analytical::AnalyticalFitOptions;
+using icts::analytical::AnalyticalFitConfig;
 using icts::analytical::AnalyticalFitSample;
 using icts::analytical::AnalyticalMetric;
 using icts::analytical::AnalyticalModelBasis;
@@ -49,19 +49,19 @@ TEST(AnalyticalFitTest, FitsExactAffineSurface)
     }
   }
 
-  AnalyticalFitOptions options;
-  options.metric = AnalyticalMetric::kDelay;
-  options.basis = AnalyticalModelBasis::kAffine;
-  options.min_r2 = 0.999999;
-  options.require_monotonic = true;
-  const auto result = FitAnalyticalSurface(samples, options);
+  AnalyticalFitConfig config;
+  config.metric = AnalyticalMetric::kDelay;
+  config.basis = AnalyticalModelBasis::kAffine;
+  config.min_r2 = 0.999999;
+  config.require_monotonic = true;
+  const auto result = FitAnalyticalSurface(samples, config);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  if (!result.model.has_value()) {
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  if (!result.output.model.has_value()) {
     ADD_FAILURE() << "Expected fitted model.";
     return;
   }
-  const auto& model = result.model.value();
+  const auto& model = result.output.model.value();
   const auto predicted = model.evaluate(0.04, 0.02);
   if (!predicted.has_value()) {
     ADD_FAILURE() << "Expected in-domain prediction.";
@@ -85,18 +85,18 @@ TEST(AnalyticalFitTest, FitsExactQuadraticSurface)
     }
   }
 
-  AnalyticalFitOptions options;
-  options.metric = AnalyticalMetric::kPower;
-  options.basis = AnalyticalModelBasis::kQuadratic;
-  options.min_r2 = 0.999999;
-  const auto result = FitAnalyticalSurface(samples, options);
+  AnalyticalFitConfig config;
+  config.metric = AnalyticalMetric::kPower;
+  config.basis = AnalyticalModelBasis::kQuadratic;
+  config.min_r2 = 0.999999;
+  const auto result = FitAnalyticalSurface(samples, config);
 
-  ASSERT_TRUE(result.success) << result.failure_reason;
-  if (!result.model.has_value()) {
+  ASSERT_TRUE(result.summary.success) << result.summary.failure_reason;
+  if (!result.output.model.has_value()) {
     ADD_FAILURE() << "Expected fitted model.";
     return;
   }
-  const auto& model = result.model.value();
+  const auto& model = result.output.model.value();
   const auto predicted = model.evaluate(0.06, 0.03);
   if (!predicted.has_value()) {
     ADD_FAILURE() << "Expected in-domain prediction.";
@@ -112,13 +112,13 @@ TEST(AnalyticalFitTest, RejectsInsufficientSamples)
       {.input_slew_ns = 0.04, .load_cap_pf = 0.02, .value = 0.2},
   };
 
-  AnalyticalFitOptions options;
-  options.metric = AnalyticalMetric::kDelay;
-  options.basis = AnalyticalModelBasis::kAffine;
-  const auto result = FitAnalyticalSurface(samples, options);
+  AnalyticalFitConfig config;
+  config.metric = AnalyticalMetric::kDelay;
+  config.basis = AnalyticalModelBasis::kAffine;
+  const auto result = FitAnalyticalSurface(samples, config);
 
-  EXPECT_FALSE(result.success);
-  EXPECT_EQ(result.failure_reason, "insufficient_samples");
+  EXPECT_FALSE(result.summary.success);
+  EXPECT_EQ(result.summary.failure_reason, "insufficient_samples");
 }
 
 TEST(AnalyticalFitTest, RejectsOutOfDomainEvaluation)
@@ -130,17 +130,17 @@ TEST(AnalyticalFitTest, RejectsOutOfDomainEvaluation)
     }
   }
 
-  AnalyticalFitOptions options;
-  options.metric = AnalyticalMetric::kDelay;
-  options.basis = AnalyticalModelBasis::kAffine;
-  const auto result = FitAnalyticalSurface(samples, options);
+  AnalyticalFitConfig config;
+  config.metric = AnalyticalMetric::kDelay;
+  config.basis = AnalyticalModelBasis::kAffine;
+  const auto result = FitAnalyticalSurface(samples, config);
 
-  ASSERT_TRUE(result.success);
-  if (!result.model.has_value()) {
+  ASSERT_TRUE(result.summary.success);
+  if (!result.output.model.has_value()) {
     ADD_FAILURE() << "Expected fitted model.";
     return;
   }
-  const auto& model = result.model.value();
+  const auto& model = result.output.model.value();
   EXPECT_FALSE(model.evaluate(0.10, 0.02).has_value());
 }
 
@@ -153,14 +153,14 @@ TEST(AnalyticalFitTest, RejectsNonMonotoneSurfaceWhenRequired)
     }
   }
 
-  AnalyticalFitOptions options;
-  options.metric = AnalyticalMetric::kOutputSlew;
-  options.basis = AnalyticalModelBasis::kAffine;
-  options.require_monotonic = true;
-  const auto result = FitAnalyticalSurface(samples, options);
+  AnalyticalFitConfig config;
+  config.metric = AnalyticalMetric::kOutputSlew;
+  config.basis = AnalyticalModelBasis::kAffine;
+  config.require_monotonic = true;
+  const auto result = FitAnalyticalSurface(samples, config);
 
-  EXPECT_FALSE(result.success);
-  EXPECT_EQ(result.failure_reason, "monotonicity_check_failed");
+  EXPECT_FALSE(result.summary.success);
+  EXPECT_EQ(result.summary.failure_reason, "monotonicity_check_failed");
 }
 
 TEST(AnalyticalFitTest, RecordsBucketAwareResidual)
@@ -173,18 +173,18 @@ TEST(AnalyticalFitTest, RecordsBucketAwareResidual)
   }
   samples.back().value = 0.11;
 
-  AnalyticalFitOptions options;
-  options.metric = AnalyticalMetric::kOutputSlew;
-  options.basis = AnalyticalModelBasis::kAffine;
-  options.bucket_size = 0.01;
-  const auto result = FitAnalyticalSurface(samples, options);
+  AnalyticalFitConfig config;
+  config.metric = AnalyticalMetric::kOutputSlew;
+  config.basis = AnalyticalModelBasis::kAffine;
+  config.bucket_size = 0.01;
+  const auto result = FitAnalyticalSurface(samples, config);
 
-  ASSERT_TRUE(result.success);
-  if (!result.model.has_value()) {
+  ASSERT_TRUE(result.summary.success);
+  if (!result.output.model.has_value()) {
     ADD_FAILURE() << "Expected fitted model.";
     return;
   }
-  const auto& model = result.model.value();
+  const auto& model = result.output.model.value();
   EXPECT_GT(model.quality.max_bucket_residual, 0.0);
 }
 

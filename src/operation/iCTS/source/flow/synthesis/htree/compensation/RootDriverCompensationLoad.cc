@@ -50,9 +50,7 @@
 #include "SteinerTree.hh"
 #include "Tree.hh"
 #include "ValueLattice.hh"
-#include "config/Config.hh"
 #include "design/Design.hh"
-#include "io/Wrapper.hh"
 #include "routing/router/Router.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/compensation/RootDriverCompensationState.hh"
@@ -71,35 +69,33 @@ auto HashCombine(std::size_t seed, std::size_t value) -> std::size_t
   return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
 }
 
-auto ResolveRoutingLayer() -> int
+auto ResolveRoutingLayer(const RootDriverCompensationInput& input) -> int
 {
-  const auto& routing_layers = CONFIG_INST.get_routing_layers();
-  LOG_FATAL_IF(routing_layers.empty() || routing_layers.front() == 0U)
-      << "HTree: routing layer is not configured for root-driver compensation.";
-  return static_cast<int>(routing_layers.front());
+  LOG_FATAL_IF(input.routing_layer <= 0) << "HTree: routing layer is not configured for root-driver compensation.";
+  return input.routing_layer;
 }
 
-auto ResolveWireWidth() -> std::optional<double>
+auto ResolveWireWidth(const RootDriverCompensationInput& input) -> std::optional<double>
 {
-  const double wire_width_um = CONFIG_INST.get_wire_width();
-  return wire_width_um > 0.0 ? std::optional<double>(wire_width_um) : std::nullopt;
+  return input.wire_width_um.has_value() && *input.wire_width_um > 0.0 ? input.wire_width_um : std::nullopt;
 }
 
-auto DbuToUm(int64_t dbu) -> double
+auto DbuToUm(const RootDriverCompensationInput& input, int64_t dbu) -> double
 {
-  const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
-  LOG_FATAL_IF(dbu_per_um <= 0) << "HTree: DBU-per-micron is unavailable for root-driver compensation.";
-  return static_cast<double>(std::max<int64_t>(dbu, 0)) / static_cast<double>(dbu_per_um);
+  LOG_FATAL_IF(input.dbu_per_um <= 0) << "HTree: DBU-per-micron is unavailable for root-driver compensation.";
+  return static_cast<double>(std::max<int64_t>(dbu, 0)) / static_cast<double>(input.dbu_per_um);
 }
 
-auto QueryWireCapForDbuLength(int64_t length_dbu) -> double
+auto QueryWireCapForDbuLength(const RootDriverCompensationInput& input, int64_t length_dbu) -> double
 {
-  const double length_um = DbuToUm(length_dbu);
+  const double length_um = DbuToUm(input, length_dbu);
   if (length_um <= 0.0) {
     return 0.0;
   }
 
-  const double wire_cap_pf = STA_ADAPTER_INST.queryRequiredWireCapacitance(ResolveRoutingLayer(), length_um, ResolveWireWidth());
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver compensation.";
+  const double wire_cap_pf
+      = input.sta_adapter->queryRequiredWireCapacitance(ResolveRoutingLayer(input), length_um, ResolveWireWidth(input));
   if (!std::isfinite(wire_cap_pf) || wire_cap_pf < 0.0) {
     LOG_WARNING << "HTree: root-closure wire-cap query returned an invalid value for length " << length_um << " um.";
     return 0.0;
@@ -130,8 +126,8 @@ auto InterpolateRootClosurePoint(const Point<int>& source, const Point<int>& sin
   return Point<int>(x, y);
 }
 
-auto EstimateHpwlWire(const Point<int>& root_location, const std::vector<RootClosureTerminal>& terminals,
-                      RootDriverCompensationStats& stats) -> RootClosureWireEstimate
+auto EstimateHpwlWire(const RootDriverCompensationInput& input, const Point<int>& root_location,
+                      const std::vector<RootClosureTerminal>& terminals, RootDriverCompensationStats& stats) -> RootClosureWireEstimate
 {
   int min_x = root_location.get_x();
   int max_x = root_location.get_x();
@@ -148,13 +144,14 @@ auto EstimateHpwlWire(const Point<int>& root_location, const std::vector<RootClo
   ++stats.hpwl_route_estimate_count;
   return RootClosureWireEstimate{
       .route_estimator = kRootClosureHpwlEstimate,
-      .wire_cap_pf = QueryWireCapForDbuLength(hpwl_dbu),
-      .routed_wirelength_um = DbuToUm(hpwl_dbu),
+      .wire_cap_pf = QueryWireCapForDbuLength(input, hpwl_dbu),
+      .routed_wirelength_um = DbuToUm(input, hpwl_dbu),
   };
 }
 
-auto EstimateRootClosureWire(const Point<int>& root_location, const std::vector<RootClosureTerminal>& terminals,
-                             RootDriverCompensationStats& stats) -> RootClosureWireEstimate
+auto EstimateRootClosureWire(const RootDriverCompensationInput& input, const Point<int>& root_location,
+                             const std::vector<RootClosureTerminal>& terminals, RootDriverCompensationStats& stats)
+    -> RootClosureWireEstimate
 {
   if (terminals.empty()) {
     return RootClosureWireEstimate{.route_estimator = "none"};
@@ -165,8 +162,8 @@ auto EstimateRootClosureWire(const Point<int>& root_location, const std::vector<
     ++stats.hpwl_route_estimate_count;
     return RootClosureWireEstimate{
         .route_estimator = kRootClosureSingleLoadEstimator,
-        .wire_cap_pf = QueryWireCapForDbuLength(length_dbu),
-        .routed_wirelength_um = DbuToUm(length_dbu),
+        .wire_cap_pf = QueryWireCapForDbuLength(input, length_dbu),
+        .routed_wirelength_um = DbuToUm(input, length_dbu),
     };
   }
 
@@ -191,8 +188,8 @@ auto EstimateRootClosureWire(const Point<int>& root_location, const std::vector<
     double routed_wirelength_um = 0.0;
     for (const auto& edge : route_tree.get_edges()) {
       const auto length_dbu = static_cast<int64_t>(std::max(edge.distance, edge.routed_distance));
-      wire_cap_pf += QueryWireCapForDbuLength(length_dbu);
-      routed_wirelength_um += DbuToUm(length_dbu);
+      wire_cap_pf += QueryWireCapForDbuLength(input, length_dbu);
+      routed_wirelength_um += DbuToUm(input, length_dbu);
     }
     ++stats.flute_route_estimate_count;
     return RootClosureWireEstimate{
@@ -203,11 +200,11 @@ auto EstimateRootClosureWire(const Point<int>& root_location, const std::vector<
   }
 
   LOG_WARNING << "HTree: root-closure FLUTE estimate was unavailable; using HPWL estimate.";
-  return EstimateHpwlWire(root_location, terminals, stats);
+  return EstimateHpwlWire(input, root_location, terminals, stats);
 }
 
-auto MakeBufferRootClosureTerminal(const TreeNode& parent_node, const TreeNode& child_node, const BufferingPattern& segment_pattern,
-                                   std::size_t terminal_index) -> RootClosureTerminal
+auto MakeBufferRootClosureTerminal(STAAdapter& sta_adapter, const TreeNode& parent_node, const TreeNode& child_node,
+                                   const BufferingPattern& segment_pattern, std::size_t terminal_index) -> RootClosureTerminal
 {
   const auto& positions = segment_pattern.get_buffer_positions();
   const auto& cell_masters = segment_pattern.get_cell_masters();
@@ -219,7 +216,7 @@ auto MakeBufferRootClosureTerminal(const TreeNode& parent_node, const TreeNode& 
   return RootClosureTerminal{
       .name = "root_closure_buffer_input_" + std::to_string(terminal_index),
       .location = InterpolateRootClosurePoint(parent_node.get_position(), child_node.get_position(), positions.front()),
-      .pin_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(first_buffer_master),
+      .pin_cap_pf = sta_adapter.queryCharInputPinCap(first_buffer_master),
   };
 }
 
@@ -248,7 +245,7 @@ auto BuildRootClosureLoadSignature(PatternId topology_pattern_id, const Topology
   return signature;
 }
 
-auto CollectExternalLoadTerminals(const std::vector<std::size_t>& boundary_node_ids, const Tree& topology)
+auto CollectExternalLoadTerminals(STAAdapter& sta_adapter, const std::vector<std::size_t>& boundary_node_ids, const Tree& topology)
     -> std::vector<RootClosureTerminal>
 {
   std::vector<RootClosureTerminal> terminals;
@@ -265,7 +262,7 @@ auto CollectExternalLoadTerminals(const std::vector<std::size_t>& boundary_node_
       terminals.push_back(RootClosureTerminal{
           .name = Design::getPinFullName(load),
           .location = load->get_location(),
-          .pin_cap_pf = STA_ADAPTER_INST.queryPinCapacitance(load),
+          .pin_cap_pf = sta_adapter.queryPinCapacitance(load),
       });
     }
   }
@@ -296,8 +293,9 @@ auto SetSourceBoundaryLoadEstimate(RootClosureLoadEstimate& estimate, double sou
       = source_boundary_load_cap_pf > 0.0 && cap_lattice.isValid() ? cap_lattice.coveringIndex(source_boundary_load_cap_pf) : 0U;
 }
 
-auto MakeRootClosureLoadEstimate(const Point<int>& root_location, const std::vector<RootClosureTerminal>& terminals,
-                                 const UniformValueLattice& cap_lattice, RootDriverCompensationStats& stats) -> RootClosureLoadEstimate
+auto MakeRootClosureLoadEstimate(const RootDriverCompensationInput& input, const Point<int>& root_location,
+                                 const std::vector<RootClosureTerminal>& terminals, const UniformValueLattice& cap_lattice,
+                                 RootDriverCompensationStats& stats) -> RootClosureLoadEstimate
 {
   RootClosureLoadEstimate estimate;
   estimate.source = kRootDriverCompensationLoadSource;
@@ -310,7 +308,7 @@ auto MakeRootClosureLoadEstimate(const Point<int>& root_location, const std::vec
   for (const auto& terminal : terminals) {
     estimate.terminal_pin_cap_pf += std::max(0.0, terminal.pin_cap_pf);
   }
-  const auto wire_estimate = EstimateRootClosureWire(root_location, terminals, stats);
+  const auto wire_estimate = EstimateRootClosureWire(input, root_location, terminals, stats);
   estimate.route_estimator = wire_estimate.route_estimator;
   estimate.wire_cap_pf = wire_estimate.wire_cap_pf;
   estimate.routed_wirelength_um = wire_estimate.routed_wirelength_um;
@@ -323,7 +321,7 @@ auto MakeRootClosureLoadEstimate(const Point<int>& root_location, const std::vec
 
 auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const TopologyPatternLibrary& topology_library,
                                     const BufferPatternLibrary& segment_pattern_library, const Tree& topology,
-                                    const UniformValueLattice& cap_lattice, RootDriverCompensationStats& stats) -> RootClosureLoadEstimate
+                                    const RootDriverCompensationInput& input, RootDriverCompensationStats& stats) -> RootClosureLoadEstimate
 {
   ++stats.load_resolution_count;
   const auto* root_node = topology.get_node(topology.get_root());
@@ -360,8 +358,9 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
           continue;
         }
         if (segment_has_real_buffer) {
-          buffer_input_terminals.push_back(
-              MakeBufferRootClosureTerminal(*parent_node, *child_node, *segment_pattern, buffer_input_terminals.size()));
+          LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver load resolution.";
+          buffer_input_terminals.push_back(MakeBufferRootClosureTerminal(*input.sta_adapter, *parent_node, *child_node, *segment_pattern,
+                                                                         buffer_input_terminals.size()));
         } else {
           next_active_node_ids.push_back(child_id);
         }
@@ -369,10 +368,10 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
     }
 
     if (segment_has_real_buffer) {
-      auto estimate = MakeRootClosureLoadEstimate(root_node->get_position(), buffer_input_terminals, cap_lattice, stats);
+      auto estimate = MakeRootClosureLoadEstimate(input, root_node->get_position(), buffer_input_terminals, input.cap_lattice, stats);
       if (loaded_root_branch_count > 0U) {
         SetSourceBoundaryLoadEstimate(estimate, estimate.total_load_cap_pf / static_cast<double>(loaded_root_branch_count),
-                                      loaded_root_branch_count, cap_lattice);
+                                      loaded_root_branch_count, input.cap_lattice);
       }
       if (!estimate.valid) {
         ++stats.load_resolution_failure_count;
@@ -386,11 +385,13 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
     }
   }
 
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver load resolution.";
   auto estimate
-      = MakeRootClosureLoadEstimate(root_node->get_position(), CollectExternalLoadTerminals(active_node_ids, topology), cap_lattice, stats);
+      = MakeRootClosureLoadEstimate(input, root_node->get_position(),
+                                    CollectExternalLoadTerminals(*input.sta_adapter, active_node_ids, topology), input.cap_lattice, stats);
   if (loaded_root_branch_count > 0U) {
     SetSourceBoundaryLoadEstimate(estimate, estimate.total_load_cap_pf / static_cast<double>(loaded_root_branch_count),
-                                  loaded_root_branch_count, cap_lattice);
+                                  loaded_root_branch_count, input.cap_lattice);
   }
   if (!estimate.valid) {
     ++stats.load_resolution_failure_count;
@@ -421,8 +422,7 @@ auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLib
   }
 
   const auto resolution_start = std::chrono::steady_clock::now();
-  auto estimate = ResolveRootClosureLoadEstimate(pattern_id, topology_library, segment_pattern_library, topology, state.options.cap_lattice,
-                                                 state.stats);
+  auto estimate = ResolveRootClosureLoadEstimate(pattern_id, topology_library, segment_pattern_library, topology, state.input, state.stats);
   state.stats.load_resolution_runtime_ms
       += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - resolution_start).count();
   return state.root_load_by_signature.emplace(std::move(signature), std::move(estimate)).first->second;

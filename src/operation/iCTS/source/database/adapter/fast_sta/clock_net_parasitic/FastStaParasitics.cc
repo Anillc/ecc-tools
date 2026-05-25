@@ -87,7 +87,8 @@ auto queryWireResistanceOhm(const FastStaClockContext& context, int wire_distanc
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryRequiredWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / 1000.0;
+  LOG_FATAL_IF(context.sta_adapter == nullptr) << "FastStaParasitics: STA adapter is unavailable.";
+  return context.sta_adapter->queryRequiredWireResistance(context.routing_layer, wirelength_um, context.wire_width_um) / 1000.0;
 }
 
 auto queryWireCapacitancePf(const FastStaClockContext& context, int wire_distance_dbu) -> double
@@ -99,7 +100,8 @@ auto queryWireCapacitancePf(const FastStaClockContext& context, int wire_distanc
   if (wirelength_um <= 0.0) {
     return 0.0;
   }
-  return STA_ADAPTER_INST.queryRequiredWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
+  LOG_FATAL_IF(context.sta_adapter == nullptr) << "FastStaParasitics: STA adapter is unavailable.";
+  return context.sta_adapter->queryRequiredWireCapacitance(context.routing_layer, wirelength_um, context.wire_width_um);
 }
 
 auto appendRcNode(FastStaClockContext& context, FastStaNet& net, const FastStaPoint& point) -> FastStaRcNodeId

@@ -66,7 +66,7 @@ auto FindSingleBufferInputPin(Inst* inst) -> Pin*
   return nullptr;
 }
 
-auto CanRenamePin(Pin* pin, const std::string& local_name) -> bool
+auto CanRenamePin(Design& design, Pin* pin, const std::string& local_name) -> bool
 {
   if (pin == nullptr || local_name.empty()) {
     return false;
@@ -76,11 +76,11 @@ auto CanRenamePin(Pin* pin, const std::string& local_name) -> bool
   }
   const auto* inst = pin->get_inst();
   const std::string full_name = inst == nullptr ? local_name : inst->get_name() + "/" + local_name;
-  auto* existing_pin = DESIGN_INST.findPin(full_name);
+  auto* existing_pin = design.findPin(full_name);
   return existing_pin == nullptr || existing_pin == pin;
 }
 
-auto RenamePin(Pin* pin, const std::string& local_name) -> bool
+auto RenamePin(Design& design, Pin* pin, const std::string& local_name) -> bool
 {
   if (pin == nullptr || local_name.empty()) {
     return false;
@@ -88,12 +88,12 @@ auto RenamePin(Pin* pin, const std::string& local_name) -> bool
   if (pin->get_name() == local_name) {
     return true;
   }
-  return DESIGN_INST.renamePin(pin, local_name);
+  return design.renamePin(pin, local_name);
 }
 
-auto ResolveBufferPorts(const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
+auto ResolveBufferPorts(STAAdapter& sta_adapter, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
 {
-  auto [input_pin_name, output_pin_name] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
+  auto [input_pin_name, output_pin_name] = sta_adapter.queryBufferPorts(cell_master);
   if (input_pin_name.empty() || output_pin_name.empty() || input_pin_name == output_pin_name) {
     return std::nullopt;
   }
@@ -113,7 +113,7 @@ auto UpdateClockLayoutInstMaster(ClockLayout& clock_layout, const std::string& i
 
 }  // namespace
 
-auto ApplyClockSizingAcceptedEdits(const std::vector<ClockSizingAcceptedEdit>& accepted_edits,
+auto ApplyClockSizingAcceptedEdits(Design& design, STAAdapter& sta_adapter, const std::vector<ClockSizingAcceptedEdit>& accepted_edits,
                                    const std::vector<ClockSizingBuffer>& buffers, ClockLayout& clock_layout) -> bool
 {
   std::map<std::string, std::string> final_master_by_inst;
@@ -140,12 +140,12 @@ auto ApplyClockSizingAcceptedEdits(const std::vector<ClockSizingAcceptedEdit>& a
   }
 
   for (const auto& [inst_name, final_master] : final_master_by_inst) {
-    auto* inst = DESIGN_INST.findInst(inst_name);
+    auto* inst = design.findInst(inst_name);
     auto* input_pin = FindSingleBufferInputPin(inst);
     auto* output_pin = inst == nullptr ? nullptr : inst->findDriverPin();
-    const auto ports = ResolveBufferPorts(final_master);
-    if (inst == nullptr || input_pin == nullptr || output_pin == nullptr || !ports.has_value() || !CanRenamePin(input_pin, ports->first)
-        || !CanRenamePin(output_pin, ports->second)) {
+    const auto ports = ResolveBufferPorts(sta_adapter, final_master);
+    if (inst == nullptr || input_pin == nullptr || output_pin == nullptr || !ports.has_value()
+        || !CanRenamePin(design, input_pin, ports->first) || !CanRenamePin(design, output_pin, ports->second)) {
       LOG_ERROR << "Optimization: cannot apply final master \"" << final_master << "\" to buffer inst \"" << inst_name
                 << "\" because its pin pair cannot be updated.";
       return false;
@@ -153,19 +153,19 @@ auto ApplyClockSizingAcceptedEdits(const std::vector<ClockSizingAcceptedEdit>& a
   }
 
   for (const auto& [inst_name, final_master] : final_master_by_inst) {
-    auto* inst = DESIGN_INST.findInst(inst_name);
+    auto* inst = design.findInst(inst_name);
     auto* input_pin = FindSingleBufferInputPin(inst);
     auto* output_pin = inst->findDriverPin();
-    const auto ports = ResolveBufferPorts(final_master);
+    const auto ports = ResolveBufferPorts(sta_adapter, final_master);
     if (!ports.has_value()) {
       return false;
     }
     const std::string old_input_name = input_pin->get_name();
-    if (!RenamePin(input_pin, ports->first)) {
+    if (!RenamePin(design, input_pin, ports->first)) {
       return false;
     }
-    if (!RenamePin(output_pin, ports->second)) {
-      LOG_FATAL_IF(!RenamePin(input_pin, old_input_name)) << "Optimization: failed to restore buffer input-pin name.";
+    if (!RenamePin(design, output_pin, ports->second)) {
+      LOG_FATAL_IF(!RenamePin(design, input_pin, old_input_name)) << "Optimization: failed to restore buffer input-pin name.";
       return false;
     }
     inst->set_cell_master(final_master);

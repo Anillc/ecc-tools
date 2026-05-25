@@ -36,6 +36,7 @@
 #include "LogFormat.hh"
 #include "characterization/Characterization.hh"
 #include "logger/Schema.hh"
+#include "synthesis/htree/HTreeContracts.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 #include "synthesis/htree/characterization/wirelength/WirelengthGrid.hh"
 
@@ -74,7 +75,7 @@ auto FormatLogValue(const std::string& value) -> std::string
   return value.empty() ? "n/a" : value;
 }
 
-auto MakeContextFields(const HTree::LogContext& context, const std::string& object_name_prefix) -> schema::KeyValueFields
+auto MakeContextFields(const HTree::LogContext& context, const std::string& object_name_prefix) -> KeyValueFields
 {
   return {
       {"clock_name", FormatLogValue(context.clock_name)},
@@ -87,13 +88,16 @@ auto MakeContextFields(const HTree::LogContext& context, const std::string& obje
 
 }  // namespace
 
-auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::InitOptions& base_char_options,
-                             HTree::BuildResult& result, CharacterizationLibrary& char_library, const HTree::BuildOptions& options)
-    -> CharacterizationResult
+auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const CharBuilder::Input& base_char_input,
+                             const CharBuilder::Config& base_char_config, HTree::DiagnosticBuild& result,
+                             CharacterizationLibrary& char_library, const HTree::Input& input, const HTree::Config& config)
+    -> CharacterizationSummary
 {
   auto requested_lengths_um = CollectRequestedLevelLengthsUm(topology, dbu_per_um);
-  AppendPositiveLengths(requested_lengths_um, options.additional_characterization_lengths_um);
-  const auto char_grid_plan = ResolveCharacterizationGridPlan(requested_lengths_um);
+  AppendPositiveLengths(requested_lengths_um, input.additional_characterization_lengths_um);
+  LOG_FATAL_IF(input.reporter == nullptr) << "HTree characterization requires an explicit reporter.";
+  auto& reporter = *input.reporter;
+  const auto char_grid_plan = ResolveCharacterizationGridPlan(base_char_config, requested_lengths_um);
   std::string grid_source = ToCharGridSourceName(CharGridSource::kNone);
   if (char_grid_plan.adapted) {
     grid_source = ToCharGridSourceName(char_grid_plan.source);
@@ -130,26 +134,26 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
                           {"resolved_wirelength_unit", logformat::FormatWithUnit(char_grid_plan.wirelength_unit_um, "um"),
                            "effective unit for the adapted characterization grid"});
   }
-  SCHEMA_WRITER_INST.emitSection("### H-Tree Characterization");
-  SCHEMA_WRITER_INST.emitKeyValueTableTo("HTree Build Scope", MakeContextFields(options.log_context, options.object_name_prefix),
-                                         schema::ReportSink::kBoth);
-  schema::EmitTable("HTree Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
+  reporter.emitSection("### H-Tree Characterization");
+  reporter.emitKeyValueTableTo("HTree Build Scope", MakeContextFields(input.log_context, input.object_name_prefix),
+                               ReportSink::kBoth);
+  EmitTable(reporter, "HTree Characterization Grid Plan", {"Item", "Value", "Detail"}, grid_plan_rows);
 
-  auto char_options = base_char_options;
+  auto char_config = base_char_config;
   if (char_grid_plan.adapted) {
-    char_options.wirelength_unit_um = char_grid_plan.wirelength_unit_um;
-    char_options.wirelength_iterations = char_grid_plan.wirelength_iterations;
+    char_config.wirelength_unit_um = char_grid_plan.wirelength_unit_um;
+    char_config.wirelength_iterations = char_grid_plan.wirelength_iterations;
     auto direct_length_indices = ResolveDirectCharacterizationLengthIndices(requested_lengths_um, char_grid_plan);
-    if (options.enable_analytical_solver) {
+    if (config.enable_analytical_solver) {
       AppendUniqueLengthIndex(direct_length_indices, 1U);
     }
     if (!direct_length_indices.empty()) {
-      char_options.wirelength_indices = std::move(direct_length_indices);
+      char_config.wirelength_indices = std::move(direct_length_indices);
     }
   }
-  const auto ensure_result = char_library.ensure(char_options);
+  const auto ensure_result = char_library.ensure(base_char_input, char_config);
   if (!ensure_result.success) {
-    return CharacterizationResult{
+    return CharacterizationSummary{
         .success = false,
         .failure_reason = ensure_result.failure_reason.empty() ? "characterization_library_failed" : ensure_result.failure_reason,
         .length_step_um = 0.0};
@@ -160,19 +164,19 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
   const double length_step_um = char_builder.get_wirelength_unit_um();
   if (length_step_um <= 0.0 || char_builder.get_segment_chars().empty()) {
     LOG_WARNING << "HTree: characterization did not produce usable segment chars.";
-    return CharacterizationResult{.success = false, .failure_reason = "no_usable_segment_chars", .length_step_um = length_step_um};
+    return CharacterizationSummary{.success = false, .failure_reason = "no_usable_segment_chars", .length_step_um = length_step_um};
   }
 
-  result.char_wirelength_unit_um = length_step_um;
-  result.char_wirelength_iterations = char_builder.get_wirelength_iterations();
-  result.char_unique_level_bins = char_grid_plan.adapted
-                                      ? char_grid_plan.unique_level_bins
-                                      : CountUniqueAlignedLengthBins(CollectRequestedLevelLengthsUm(topology, dbu_per_um), length_step_um);
-  result.char_grid_adapted = char_grid_plan.adapted;
-  result.char_max_slew_ns = char_builder.get_max_slew();
-  result.char_max_cap_pf = char_builder.get_max_cap();
-  result.char_slew_steps = char_builder.get_slew_steps();
-  result.char_cap_steps = char_builder.get_cap_steps();
+  result.diagnostics.char_wirelength_unit_um = length_step_um;
+  result.diagnostics.char_wirelength_iterations = char_builder.get_wirelength_iterations();
+  result.diagnostics.char_unique_level_bins
+      = char_grid_plan.adapted ? char_grid_plan.unique_level_bins
+                               : CountUniqueAlignedLengthBins(CollectRequestedLevelLengthsUm(topology, dbu_per_um), length_step_um);
+  result.diagnostics.char_grid_adapted = char_grid_plan.adapted;
+  result.diagnostics.char_max_slew_ns = char_builder.get_max_slew();
+  result.diagnostics.char_max_cap_pf = char_builder.get_max_cap();
+  result.diagnostics.char_slew_steps = char_builder.get_slew_steps();
+  result.diagnostics.char_cap_steps = char_builder.get_cap_steps();
   logformat::TableRows char_summary_rows = {
       {"characterization_setup_source", "CharBuilder Setup", "resolved limits, wirelength lattice, buffers, and routing source"},
       {"characterization_results_source", "CharBuilder Results",
@@ -183,10 +187,9 @@ auto RunCharacterizationFlow(const Tree& topology, int32_t dbu_per_um, const Cha
       {"grid_plan_source", grid_source, char_grid_plan.adapted ? "HTree adapted characterization grid" : "no HTree override"},
       {"characterization_library", ensure_result.reused ? "reused" : "built", "shared characterization cache state"},
   };
-  SCHEMA_WRITER_INST.emitTableTo("HTree Characterization Detail", {"Item", "Value", "Detail"}, char_summary_rows,
-                                 schema::ReportSink::kDetail);
+  reporter.emitTableTo("HTree Characterization Detail", {"Item", "Value", "Detail"}, char_summary_rows, ReportSink::kDetail);
 
-  return CharacterizationResult{.success = true, .failure_reason = {}, .length_step_um = length_step_um};
+  return CharacterizationSummary{.success = true, .failure_reason = {}, .length_step_um = length_step_um};
 }
 
 }  // namespace icts::htree

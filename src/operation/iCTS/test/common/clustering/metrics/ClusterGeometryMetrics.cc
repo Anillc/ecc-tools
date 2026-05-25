@@ -89,7 +89,7 @@ auto CalcClusterCenter(const std::vector<icts::Pin*>& cluster) -> icts::Point<in
           static_cast<int>(std::lround(static_cast<double>(sum_y) / static_cast<double>(valid_count)))};
 }
 
-auto CollectClusterMetrics(const icts::ClusterResult& result) -> ClusterMetrics
+auto CollectClusterMetrics(const icts::ClusterOutput& result) -> ClusterMetrics
 {
   ClusterMetrics metrics;
   if (result.clusters.empty()) {

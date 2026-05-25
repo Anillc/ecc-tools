@@ -47,7 +47,6 @@
 #include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Net.hh"
-#include "flow/synthesis/htree/HTreeBuildObservation.hh"
 #include "flow/synthesis/topology/Topology.hh"
 #include "geometry/Geometry.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
@@ -97,7 +96,7 @@ auto FindLeafNodeForLoad(const icts::Tree& topology, const icts::Pin* load) -> c
   return nullptr;
 }
 
-auto CalcLeafLoadDistances(const icts::HTree::BuildResult& htree_result, const std::vector<icts::Pin*>& sinks) -> std::vector<double>
+auto CalcLeafLoadDistances(const icts::HTree::Output& htree_output, const std::vector<icts::Pin*>& sinks) -> std::vector<double>
 {
   std::vector<double> distances;
   distances.reserve(sinks.size());
@@ -106,7 +105,7 @@ auto CalcLeafLoadDistances(const icts::HTree::BuildResult& htree_result, const s
   }
 
   for (const auto* sink : sinks) {
-    const auto* leaf_node = FindLeafNodeForLoad(htree_result.topology, sink);
+    const auto* leaf_node = FindLeafNodeForLoad(htree_output.topology, sink);
     if (leaf_node == nullptr || sink == nullptr) {
       continue;
     }
@@ -166,13 +165,13 @@ auto GetPinCap(const icts::Pin* pin) -> double
   if (pin == nullptr) {
     return 0.0;
   }
-  const double pin_cap = STA_ADAPTER_INST.queryPinCapacitance(pin);
+  const double pin_cap = icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(pin);
   return std::max(0.0, pin_cap);
 }
 
 auto BuildClockRouteSegmentRcFromRealTech() -> icts::ClockRouteSegmentRc
 {
-  return STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc();
+  return icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
 }
 
 auto CalcRouteTreeWirelengthsByName(const icts::Router::ClockSteinerTreeType& route_tree) -> std::unordered_map<std::string, double>
@@ -294,18 +293,18 @@ auto CollectReachableNets(const icts::Pin* root_pin) -> std::vector<const icts::
   return nets;
 }
 
-auto CalcTopologyTimingSummary(const icts::Topology::BuildResult& result, const std::vector<icts::Pin*>& sinks) -> TopologyTimingSummary
+auto CalcTopologyTimingSummary(const icts::Topology::Build& result, const std::vector<icts::Pin*>& sinks) -> TopologyTimingSummary
 {
   TopologyTimingSummary summary;
-  if (result.htree_result.root_output_pin == nullptr || sinks.empty()) {
+  if (result.output.htree_output.root_output_pin == nullptr || sinks.empty()) {
     return summary;
   }
 
-  const auto nets = CollectReachableNets(result.htree_result.root_output_pin);
+  const auto nets = CollectReachableNets(result.output.htree_output.root_output_pin);
   std::unordered_map<const icts::Pin*, double> arrival_by_pin;
   std::unordered_map<const icts::Pin*, double> wirelength_by_pin;
-  arrival_by_pin[result.htree_result.root_output_pin] = 0.0;
-  wirelength_by_pin[result.htree_result.root_output_pin] = 0.0;
+  arrival_by_pin[result.output.htree_output.root_output_pin] = 0.0;
+  wirelength_by_pin[result.output.htree_output.root_output_pin] = 0.0;
 
   for (const auto* net : nets) {
     if (net == nullptr || net->get_driver() == nullptr) {
@@ -358,33 +357,24 @@ auto MakeCasePrefix(unsigned wirelength_iterations, unsigned slew_cap_steps) -> 
   return "iter=" + std::to_string(wirelength_iterations) + ", step=" + std::to_string(slew_cap_steps) + ": ";
 }
 
-auto AppendCaseFailures(unsigned wirelength_iterations, unsigned slew_cap_steps, const icts::Topology::BuildResult& result,
-                        double runtime_s, const TopologyExperimentRecord& record, std::vector<std::string>& failure_messages) -> void
+auto AppendCaseFailures(unsigned wirelength_iterations, unsigned slew_cap_steps, const icts::Topology::Build& result, double runtime_s,
+                        const TopologyExperimentRecord& record, std::vector<std::string>& failure_messages) -> void
 {
   const std::string prefix = MakeCasePrefix(wirelength_iterations, slew_cap_steps);
-  if (!result.success) {
-    failure_messages.push_back(prefix + "failure_reason=" + result.htree_result.failure_reason);
+  if (!result.summary.success) {
+    failure_messages.push_back(prefix + "failure_reason=" + result.summary.failure_reason);
   }
-  if (result.sink_clustering_enabled) {
+  if (result.summary.sink_clustering_enabled) {
     failure_messages.push_back(prefix + "sink clustering should be disabled");
   }
-  if (!result.cluster_buffers.empty()) {
+  if (!result.output.cluster_buffers.empty()) {
     failure_messages.push_back(prefix + "cluster buffers should be empty");
   }
   if (runtime_s > kBpBeTopSynthesisRuntimeBudgetS) {
     failure_messages.push_back(prefix + "runtime_s=" + std::to_string(runtime_s) + " exceeds budget");
   }
-  if (record.final_frontier_count == 0U) {
-    failure_messages.push_back(prefix + "final frontier count is zero");
-  }
-  if (!result.htree_result.best_char.has_value()) {
+  if (!result.output.htree_output.best_char.has_value()) {
     failure_messages.push_back(prefix + "best htree char is missing");
-  }
-  if (record.char_wirelength_unit_um <= 0.0) {
-    failure_messages.push_back(prefix + "char wirelength unit is not positive");
-  }
-  if (record.char_wirelength_iterations > wirelength_iterations) {
-    failure_messages.push_back(prefix + "char wirelength iterations exceed requested iteration count");
   }
 }
 
@@ -438,40 +428,34 @@ auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> TopologyMatrixRunR
         return MakeSkipResult(*prepare_error);
       }
 
-      CONFIG_INST.set_wirelength_iterations(wirelength_iterations);
-      CONFIG_INST.set_slew_steps(slew_cap_steps);
-      CONFIG_INST.set_cap_steps(slew_cap_steps);
+      icts_test::runtime::CurrentRuntime().config.set_wirelength_iterations(wirelength_iterations);
+      icts_test::runtime::CurrentRuntime().config.set_slew_steps(slew_cap_steps);
+      icts_test::runtime::CurrentRuntime().config.set_cap_steps(slew_cap_steps);
 
-      icts::Topology::BuildOptions options;
-      SetEnableSinkClustering(options, false);
+      icts::Topology::Config config;
+      SetEnableSinkClustering(config, false);
 
       const auto runtime_start = std::chrono::steady_clock::now();
       icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_iter" + std::to_string(wirelength_iterations) + "_step"
                          + std::to_string(slew_cap_steps));
       ConnectRootNet(root_net, selected_clock_data.source, selected_clock_data.sinks);
-      const auto result = icts::Topology::build(root_net, options);
+      const auto result = BuildTopology(root_net, config);
       const auto runtime_end = std::chrono::steady_clock::now();
       const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
-      const auto htree_observation = htree::ObserveHTreeBuild(result.htree_result);
-
       TopologyExperimentRecord record{
           .wirelength_iterations = wirelength_iterations,
           .slew_cap_steps = slew_cap_steps,
           .runtime_s = runtime_s,
-          .success = result.success,
+          .success = result.summary.success,
           .sink_count = selected_clock_data.sinks.size(),
-          .char_wirelength_unit_um = result.htree_result.char_wirelength_unit_um,
-          .char_wirelength_iterations = result.htree_result.char_wirelength_iterations,
-          .char_grid_adapted = result.htree_result.char_grid_adapted,
-          .used_boundary_relaxation = htree_observation.used_boundary_relaxation,
-          .failure_reason = result.htree_result.failure_reason,
+          .selected_depth = result.summary.selected_htree_depth.value_or(0U),
+          .failure_reason = result.summary.failure_reason,
       };
-
-      record.final_frontier_count = htree_observation.selected_final_frontier_count;
-      record.selected_depth = htree_observation.selected_depth;
-      record.best_pattern_id = htree_observation.best_pattern_id;
-      record.best_delay_ns = htree_observation.best_delay_ns;
-      record.best_power_w = htree_observation.best_power_w;
+      if (result.output.htree_output.best_char.has_value()) {
+        record.best_pattern_id = result.output.htree_output.best_char->get_pattern_id().local_id;
+        record.best_delay_ns = result.output.htree_output.best_char->get_delay();
+        record.best_power_w = result.output.htree_output.best_char->get_power();
+      }
       matrix_result.records.push_back(record);
       AppendCaseFailures(wirelength_iterations, slew_cap_steps, result, runtime_s, record, matrix_result.failure_messages);
     }
@@ -509,37 +493,38 @@ auto EvaluateArm9FullSinkTopologyToleranceComparison() -> TopologyToleranceCompa
   std::vector<std::vector<double>> distance_sets;
   distance_sets.reserve(2U);
 
-  CONFIG_INST.set_wirelength_iterations(3U);
-  CONFIG_INST.set_slew_steps(15U);
-  CONFIG_INST.set_cap_steps(15U);
+  icts_test::runtime::CurrentRuntime().config.set_wirelength_iterations(3U);
+  icts_test::runtime::CurrentRuntime().config.set_slew_steps(15U);
+  icts_test::runtime::CurrentRuntime().config.set_cap_steps(15U);
 
   for (const double topology_tolerance : {0.1, 0.0}) {
-    CONFIG_INST.set_htree_topology_tolerance(topology_tolerance);
-    icts::Topology::BuildOptions options;
-    SetEnableSinkClustering(options, false);
+    icts_test::runtime::CurrentRuntime().config.set_htree_topology_tolerance(topology_tolerance);
+    icts::Topology::Config config;
+    SetEnableSinkClustering(config, false);
 
     const auto runtime_start = std::chrono::steady_clock::now();
     icts::Net root_net(selected_clock_data.net_name + "_synthesis_root_tol" + std::to_string(topology_tolerance));
     ConnectRootNet(root_net, selected_clock_data.source, selected_clock_data.sinks);
-    const auto result = icts::Topology::build(root_net, options);
+    const auto result = BuildTopology(root_net, config);
     const auto runtime_end = std::chrono::steady_clock::now();
     const double runtime_s = std::chrono::duration<double>(runtime_end - runtime_start).count();
-    const auto leaf_load_distances = CalcLeafLoadDistances(result.htree_result, selected_clock_data.sinks);
+    const auto leaf_load_distances = CalcLeafLoadDistances(result.output.htree_output, selected_clock_data.sinks);
     const auto [leaf_load_distance_mean, leaf_load_distance_max] = CalcDistanceStats(leaf_load_distances);
     const auto timing_summary = CalcTopologyTimingSummary(result, selected_clock_data.sinks);
 
     TopologyToleranceComparisonRecord record{
         .htree_topology_tolerance = topology_tolerance,
         .runtime_s = runtime_s,
-        .success = result.success,
+        .success = result.summary.success,
         .sink_count = selected_clock_data.sinks.size(),
         .leaf_load_distance_mean_dbu = leaf_load_distance_mean,
         .leaf_load_distance_max_dbu = leaf_load_distance_max,
         .sta_arrival_skew_ns = timing_summary.sta_arrival_skew_ns,
         .wirelength_skew_dbu = timing_summary.wirelength_skew_dbu,
         .sta_sink_count = timing_summary.sink_count,
-        .selected_char_delay_ns = result.htree_result.best_char.has_value() ? result.htree_result.best_char->get_delay() : 0.0,
-        .failure_reason = result.htree_result.failure_reason,
+        .selected_char_delay_ns
+        = result.output.htree_output.best_char.has_value() ? result.output.htree_output.best_char->get_delay() : 0.0,
+        .failure_reason = result.summary.failure_reason,
     };
     AppendToleranceCaseFailures(record, comparison_result.failure_messages);
     distance_sets.push_back(leaf_load_distances);

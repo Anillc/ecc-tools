@@ -1,0 +1,43 @@
+{
+  "id": "cts-desingleton-refactor",
+  "name": "cts-desingleton-refactor",
+  "title": "CTS singleton removal refactor",
+  "description": "Plan and implement broad iCTS internal singleton removal, explicit runtime ownership, module input/config/output/summary contracts, and spec updates.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "backend",
+  "package": null,
+  "priority": "P2",
+  "creator": "dawnli",
+  "assignee": "dawnli",
+  "createdAt": "2026-05-24",
+  "completedAt": "2026-05-24",
+  "branch": null,
+  "base_branch": "cts_refactor",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-24-cts-runtime-flow-desingleton",
+    "05-24-cts-reporter-config-explicit",
+    "05-24-cts-design-wrapper-explicit",
+    "05-24-cts-sta-faststa-explicit",
+    "05-24-cts-synthesis-contract-cleanup",
+    "05-24-cts-flow-contract-tests-spec"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "src/operation/iCTS/api/CTSAPI.hh",
+    "src/operation/iCTS/api/CTSAPI.cc",
+    "src/operation/iCTS/source/flow/Flow.hh",
+    "src/operation/iCTS/source/flow/Flow.cc",
+    "src/operation/iCTS/source/flow/synthesis/htree/HTreeSynthesisOptions.hh",
+    "src/operation/iCTS/source/flow/synthesis/htree/HTreeSynthesisResult.hh",
+    "src/operation/iCTS/source/flow/synthesis/htree/HTree.cc",
+    ".trellis/spec/backend/database-guidelines.md",
+    ".trellis/spec/backend/quality-guidelines.md"
+  ],
+  "notes": "",
+  "meta": {}
+}

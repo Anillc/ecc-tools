@@ -23,60 +23,82 @@
 
 #include "instantiation/idb_conversion/IdbConversion.hh"
 
+#include <glog/logging.h>
+
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "Log.hh"
 #include "design/Design.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 
 namespace icts {
 
-auto IdbConversion::run() -> IdbConversionResult
+auto IdbConversion::run(const IdbConversionInput& input) -> IdbConversionSummary
 {
-  auto runtime = SCHEMA_WRITER_INST.beginRuntimeMetric("instantiation");
-  auto instantiation_stage = SCHEMA_WRITER_INST.beginStage("Instantiation", "Instantiate synthesized CTS topology into iDB", {},
-                                                           schema::StageReportOptions{.emit_success_summary = false});
-  SCHEMA_WRITER_INST.emitSection("### iDB Conversion");
+  LOG_FATAL_IF(input.design == nullptr) << "iDB conversion requires a design.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "iDB conversion requires a wrapper.";
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "iDB conversion requires a STA adapter.";
+  LOG_FATAL_IF(input.reporter == nullptr) << "iDB conversion requires a reporter.";
+  auto& design = *input.design;
+  auto& wrapper = *input.wrapper;
+  auto& sta_adapter = *input.sta_adapter;
+  auto& reporter = *input.reporter;
+  (void) sta_adapter;
 
-  auto clocks = DESIGN_INST.get_clocks();
-  IdbConversionResult result{
-      .attempted = true,
-      .design_ready = WRAPPER_INST.is_design_ready(),
-      .idb_conversion_done = false,
-      .clock_count = clocks.size(),
-  };
+  auto runtime = reporter.beginRuntimeMetric("instantiation");
+  auto instantiation_stage = reporter.beginStage("Instantiation", "Instantiate synthesized CTS topology into iDB", {},
+                                                 StageReportOptions{.emit_success_summary = false});
+  reporter.emitSection("### iDB Conversion");
 
-  WrapperWriteResult write_result;
-  if (result.design_ready) {
-    write_result = WRAPPER_INST.writeClocksDetailed(clocks);
-    result.idb_conversion_done = write_result.success;
+  auto clocks = design.get_clocks();
+  IdbConversionSummary summary;
+  summary.attempted = true;
+  summary.design_ready = wrapper.is_design_ready();
+  summary.clock_count = clocks.size();
+
+  WrapperWriteSummary write_summary;
+  if (summary.design_ready) {
+    write_summary = wrapper.writeClocksDetailed(design, reporter, clocks);
+    summary.success = write_summary.success;
+  } else {
+    summary.failure_reason = "design_not_ready";
+  }
+  if (!summary.success) {
+    summary.failed_clock = write_summary.failed_clock;
+    summary.failed_net = write_summary.failed_net;
+    summary.idb_clock_tree_restored = write_summary.idb_clock_tree_restored;
+    if (!write_summary.reason.empty()) {
+      summary.failure_reason = write_summary.reason;
+    }
   }
 
-  const std::string status = result.idb_conversion_done ? "finished" : "failed";
-  schema::KeyValueFields overview_fields = {
+  const std::string status = summary.success ? "finished" : "failed";
+  KeyValueFields overview_fields = {
       {"semantic_owner", "instantiation"},
       {"status", status},
-      {"design_ready", result.design_ready ? "true" : "false"},
-      {"clock_count", std::to_string(result.clock_count)},
+      {"design_ready", summary.design_ready ? "true" : "false"},
+      {"clock_count", std::to_string(summary.clock_count)},
   };
-  if (!result.idb_conversion_done) {
-    overview_fields.emplace_back("failed_clock", write_result.failed_clock.empty() ? "n/a" : write_result.failed_clock);
-    overview_fields.emplace_back("failed_net", write_result.failed_net.empty() ? "n/a" : write_result.failed_net);
-    overview_fields.emplace_back("idb_clock_tree_restored", write_result.idb_clock_tree_restored ? "true" : "false");
-    overview_fields.emplace_back("failure_reason", write_result.reason.empty() ? "n/a" : write_result.reason);
+  if (!summary.success) {
+    overview_fields.emplace_back("failed_clock", summary.failed_clock.empty() ? "n/a" : summary.failed_clock);
+    overview_fields.emplace_back("failed_net", summary.failed_net.empty() ? "n/a" : summary.failed_net);
+    overview_fields.emplace_back("idb_clock_tree_restored", summary.idb_clock_tree_restored ? "true" : "false");
+    overview_fields.emplace_back("failure_reason", summary.failure_reason);
   }
-  schema::EmitKeyValueTable("CTS Instantiation Overview", overview_fields);
+  EmitKeyValueTable(reporter, "CTS Instantiation Overview", overview_fields);
 
-  if (result.idb_conversion_done) {
+  if (summary.success) {
     (void) runtime.finished();
-    instantiation_stage.finished({{"clock_count", std::to_string(result.clock_count)}});
+    instantiation_stage.finished({{"clock_count", std::to_string(summary.clock_count)}});
   } else {
     (void) runtime.failed();
-    instantiation_stage.failed({{"clock_count", std::to_string(result.clock_count)}});
+    instantiation_stage.failed({{"clock_count", std::to_string(summary.clock_count)}});
   }
-  return result;
+  return summary;
 }
 
 }  // namespace icts

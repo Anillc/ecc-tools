@@ -130,7 +130,7 @@ struct CaseResult
 struct ClusterRunResult
 {
   ResultMetrics metrics;
-  icts::ClusterResult result;
+  icts::ClusterOutput result;
 };
 
 struct ClusterSvgArtifacts
@@ -148,10 +148,10 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
     -> LoadedCase;
 auto CalcClusterDiameter(const std::vector<icts::Pin*>& loads) -> int;
 auto BuildBenchmarkConfig(const std::vector<icts::Pin*>& loads) -> icts::ClusterConfig;
-auto EvaluateResult(const std::string& algorithm, const icts::ClusterResult& result, const icts::ClusterConfig& config,
+auto EvaluateResult(const std::string& algorithm, const icts::ClusterOutput& result, const icts::ClusterConfig& config,
                     std::size_t expected_load_count, double runtime_ms) -> ResultMetrics;
 auto WriteCaseClusterSvg(const std::filesystem::path& svg_dir, const BenchmarkCase& benchmark_case, const std::vector<icts::Pin*>& loads,
-                         const icts::ClusterResult& fast_result, std::string& error) -> std::filesystem::path;
+                         const icts::ClusterOutput& fast_result, std::string& error) -> std::filesystem::path;
 auto BuildCasesCsv(const std::vector<CaseResult>& results) -> std::string;
 auto BuildMetricsCsv(const std::vector<CaseResult>& results) -> std::string;
 auto BuildVisualizationCsv(const std::vector<CaseResult>& results) -> std::string;

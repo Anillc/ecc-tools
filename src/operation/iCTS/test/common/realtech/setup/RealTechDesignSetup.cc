@@ -36,10 +36,12 @@
 #include <utility>
 #include <vector>
 
+#include "CTSRuntime.hh"
 #include "IdbDesign.h"
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "Log.hh"
+#include "common/CTSTestRuntime.hh"
 #include "common/dataset/TestDataset.hh"
 #include "common/realtech/asset/RealTechAssetLoader.hh"
 #include "common/realtech/load/RealTechLoadFactory.hh"
@@ -162,15 +164,16 @@ auto SampleLoadsForRealTechClock(const std::vector<icts::Pin*>& loads, std::size
 auto TryMaterializeClockCandidate(const DefClockCandidate& candidate, std::size_t max_count, std::size_t min_required_load_count)
     -> std::optional<RealClockNetSelection>
 {
-  DESIGN_INST.reset();
-  auto* requested_clock = DESIGN_INST.makeClock("def_clock:" + candidate.net_name, candidate.net_name);
+  icts_test::runtime::CurrentRuntime().design.reset();
+  auto* requested_clock = icts_test::runtime::CurrentRuntime().design.makeClock("def_clock:" + candidate.net_name, candidate.net_name);
   if (requested_clock != nullptr) {
     requested_clock->set_clock_name("def_clock:" + candidate.net_name);
     requested_clock->set_clock_net_name(candidate.net_name);
   }
-  WRAPPER_INST.read();
+  icts_test::runtime::CurrentRuntime().wrapper.read(icts_test::runtime::CurrentRuntime().design,
+                                                    icts_test::runtime::CurrentRuntime().reporter);
 
-  const auto clocks = DESIGN_INST.get_clocks();
+  const auto clocks = icts_test::runtime::CurrentRuntime().design.get_clocks();
   if (clocks.empty() || clocks.front() == nullptr) {
     return std::nullopt;
   }

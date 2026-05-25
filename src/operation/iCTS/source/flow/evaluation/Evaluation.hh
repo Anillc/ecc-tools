@@ -23,13 +23,27 @@
 
 #pragma once
 
+#include <string>
+
 #include "evaluation/qor/QorEvaluation.hh"
 
 namespace icts {
 
-struct EvaluationResult
+struct EvaluationSummary
 {
   bool evaluation_ready = false;
+  std::string status = "failed";
+};
+
+struct EvaluationOutput
+{
+  EvaluationState state;
+};
+
+struct EvaluationBuild
+{
+  EvaluationOutput output;
+  EvaluationSummary summary;
 };
 
 class Evaluation
@@ -37,11 +51,10 @@ class Evaluation
  public:
   Evaluation() = delete;
 
-  static auto run(EvaluationState& evaluation_state, bool refresh_sta_timing) -> EvaluationResult;
-  static auto run(EvaluationState& evaluation_state, const EvaluationOptions& options) -> EvaluationResult;
-  static auto evaluate(EvaluationState& state, const EvaluationOptions& options) -> void;
+  static auto run(EvaluationState evaluation_state, const EvaluationInput& input, const EvaluationConfig& config = {}) -> EvaluationBuild;
+  static auto evaluate(EvaluationState& state, const EvaluationInput& input, const EvaluationConfig& config) -> void;
   static auto outputSummary(const EvaluationState& state) -> QorSummary;
-  static auto hasEvaluationResult(const EvaluationState& state) -> bool;
+  static auto isEvaluationReady(const EvaluationState& state) -> bool;
   static auto reset(EvaluationState& state) -> void;
 };
 

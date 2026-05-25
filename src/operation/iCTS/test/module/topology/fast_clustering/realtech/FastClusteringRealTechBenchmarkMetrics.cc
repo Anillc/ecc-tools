@@ -173,21 +173,23 @@ auto ScoreCluster(const std::vector<icts::Pin*>& cluster, const icts::ClusterEle
 
 auto BuildBenchmarkConfig(const std::vector<icts::Pin*>& loads) -> icts::ClusterConfig
 {
-  auto config = icts::TopologyGen::buildFastClusteringElectricalConfig(CONFIG_INST.get_max_fanout(), CONFIG_INST.get_max_cap());
-  config.clock_route_segment_rc = STA_ADAPTER_INST.queryConfiguredClockRouteSegmentRc();
+  auto config = icts::TopologyGen::buildFastClusteringElectricalConfig(icts_test::runtime::CurrentRuntime().config.get_max_fanout(),
+                                                                       icts_test::runtime::CurrentRuntime().config.get_max_cap());
+  config.clock_route_segment_rc
+      = icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
   config.sink_pin_cap_pf_by_pin.reserve(loads.size());
   for (const auto* pin : loads) {
     if (pin == nullptr) {
       continue;
     }
-    config.sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, STA_ADAPTER_INST.queryPinCapacitance(pin)));
+    config.sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(pin)));
   }
   config.enable_exact_cap = false;
   config.always_build_exact_cap = false;
   return config;
 }
 
-auto EvaluateResult(const std::string& algorithm, const icts::ClusterResult& result, const icts::ClusterConfig& config,
+auto EvaluateResult(const std::string& algorithm, const icts::ClusterOutput& result, const icts::ClusterConfig& config,
                     std::size_t expected_load_count, double runtime_ms) -> ResultMetrics
 {
   ResultMetrics metrics;

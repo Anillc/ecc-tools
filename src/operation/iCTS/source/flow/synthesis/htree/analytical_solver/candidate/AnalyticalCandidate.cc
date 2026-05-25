@@ -142,11 +142,11 @@ auto MaterializeAnalyticalTopologyChar(const AnalyticalCandidate& candidate, con
 }
 
 auto PrependAnalyticalDpSegment(const AnalyticalDpLabel& suffix, const icts::analytical::AnalyticalModelSet& model_set,
-                                const PatternCompositionState& segment_state, const AnalyticalDpTransitionOptions& options)
+                                const PatternCompositionState& segment_state, const AnalyticalDpTransitionConfig& config)
     -> std::optional<AnalyticalDpLabel>
 {
-  if (!model_set.isComplete() || !model_set.source_cap_operator.has_value() || options.leaf_load_cap_pf <= 0.0
-      || options.input_slew_probe_ns <= 0.0) {
+  if (!model_set.isComplete() || !model_set.source_cap_operator.has_value() || config.leaf_load_cap_pf <= 0.0
+      || config.input_slew_probe_ns <= 0.0) {
     return std::nullopt;
   }
   if (!suffix.cap_operator.isValid()) {
@@ -158,16 +158,16 @@ auto PrependAnalyticalDpSegment(const AnalyticalDpLabel& suffix, const icts::ana
     return std::nullopt;
   }
 
-  const auto branch_operator = icts::analytical::StructuralCapOperator::fanout(options.branch_fanout, options.branch_junction_cap_pf);
-  const double suffix_cap_pf = suffix.cap_operator.apply(options.leaf_load_cap_pf);
+  const auto branch_operator = icts::analytical::StructuralCapOperator::fanout(config.branch_fanout, config.branch_junction_cap_pf);
+  const double suffix_cap_pf = suffix.cap_operator.apply(config.leaf_load_cap_pf);
   const double downstream_cap_pf = branch_operator.apply(suffix_cap_pf);
   const auto eval_metric = [&](icts::analytical::AnalyticalMetric metric) -> std::optional<double> {
     const auto* model = model_set.findMetric(metric);
     if (model == nullptr) {
       return std::nullopt;
     }
-    return options.use_conservative_metrics ? model->evaluateConservativeUpper(options.input_slew_probe_ns, downstream_cap_pf)
-                                            : model->evaluate(options.input_slew_probe_ns, downstream_cap_pf);
+    return config.use_conservative_metrics ? model->evaluateConservativeUpper(config.input_slew_probe_ns, downstream_cap_pf)
+                                           : model->evaluate(config.input_slew_probe_ns, downstream_cap_pf);
   };
 
   const auto output_slew = eval_metric(icts::analytical::AnalyticalMetric::kOutputSlew);
@@ -191,7 +191,7 @@ auto PrependAnalyticalDpSegment(const AnalyticalDpLabel& suffix, const icts::ana
   label.input_slew_max_ns = output_slew_model->domain.slew_max_ns;
   label.delay_lower_ns = *delay + suffix.delay_lower_ns;
   label.delay_upper_ns = *delay + suffix.delay_upper_ns;
-  const double owned_power = *power - options.source_boundary_power_weight * *source_boundary_power;
+  const double owned_power = *power - config.source_boundary_power_weight * *source_boundary_power;
   label.power_lower_w = owned_power + suffix.power_lower_w;
   label.power_upper_w = owned_power + suffix.power_upper_w;
   label.monotonic_boundary_state = MonotonicBoundaryState::compose(segment_state.monotonic_boundary_state, suffix.monotonic_boundary_state);
@@ -206,20 +206,19 @@ auto PrependAnalyticalDpSegment(const AnalyticalDpLabel& suffix, const icts::ana
   return label;
 }
 
-auto DominatesIntervalSafe(const AnalyticalDpLabel& lhs, const AnalyticalDpLabel& rhs, const AnalyticalDominanceOptions& options) -> bool
+auto DominatesIntervalSafe(const AnalyticalDpLabel& lhs, const AnalyticalDpLabel& rhs, const AnalyticalDominanceConfig& config) -> bool
 {
-  const bool delay_dominates = ApproxLessOrEqual(lhs.delay_upper_ns, rhs.delay_lower_ns, options.delay_epsilon);
-  const bool power_dominates = ApproxLessOrEqual(lhs.power_upper_w, rhs.power_lower_w, options.power_epsilon);
-  const bool cap_dominates = ApproxLessOrEqual(lhs.cap_operator.apply(0.0), rhs.cap_operator.apply(0.0), options.cap_epsilon)
-                             && ApproxLessOrEqual(lhs.cap_operator.alpha, rhs.cap_operator.alpha, options.cap_epsilon);
-  const bool strict = lhs.delay_upper_ns < rhs.delay_lower_ns - options.delay_epsilon
-                      || lhs.power_upper_w < rhs.power_lower_w - options.power_epsilon
-                      || lhs.cap_operator.apply(0.0) < rhs.cap_operator.apply(0.0) - options.cap_epsilon;
+  const bool delay_dominates = ApproxLessOrEqual(lhs.delay_upper_ns, rhs.delay_lower_ns, config.delay_epsilon);
+  const bool power_dominates = ApproxLessOrEqual(lhs.power_upper_w, rhs.power_lower_w, config.power_epsilon);
+  const bool cap_dominates = ApproxLessOrEqual(lhs.cap_operator.apply(0.0), rhs.cap_operator.apply(0.0), config.cap_epsilon)
+                             && ApproxLessOrEqual(lhs.cap_operator.alpha, rhs.cap_operator.alpha, config.cap_epsilon);
+  const bool strict = lhs.delay_upper_ns < rhs.delay_lower_ns - config.delay_epsilon
+                      || lhs.power_upper_w < rhs.power_lower_w - config.power_epsilon
+                      || lhs.cap_operator.apply(0.0) < rhs.cap_operator.apply(0.0) - config.cap_epsilon;
   return delay_dominates && power_dominates && cap_dominates && strict;
 }
 
-auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const AnalyticalDominanceOptions& options)
-    -> std::vector<AnalyticalDpLabel>
+auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const AnalyticalDominanceConfig& config) -> std::vector<AnalyticalDpLabel>
 {
   std::ranges::sort(labels, [](const AnalyticalDpLabel& lhs, const AnalyticalDpLabel& rhs) -> bool {
     if (lhs.delay_upper_ns != rhs.delay_upper_ns) {
@@ -239,7 +238,7 @@ auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const Analytica
   for (const auto& label : labels) {
     bool dominated = false;
     for (const auto& kept : frontier) {
-      if (DominatesIntervalSafe(kept, label, options)) {
+      if (DominatesIntervalSafe(kept, label, config)) {
         dominated = true;
         break;
       }
@@ -248,8 +247,8 @@ auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const Analytica
       frontier.push_back(label);
     }
   }
-  if (options.max_labels > 0U && frontier.size() > options.max_labels) {
-    frontier.resize(options.max_labels);
+  if (config.max_labels > 0U && frontier.size() > config.max_labels) {
+    frontier.resize(config.max_labels);
   }
   return frontier;
 }

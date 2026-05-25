@@ -23,19 +23,37 @@
 
 #pragma once
 
+#include "logger/SchemaForward.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 
 namespace icts {
 
 class CharacterizationLibrary;
 class ClockLayout;
+class Config;
+class Design;
+class FastSTA;
+class STAAdapter;
+class Wrapper;
+
+struct SynthesisInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  FastSTA* fast_sta = nullptr;
+  SchemaWriter* reporter = nullptr;
+  ClockLayout* clock_layout = nullptr;
+  CharacterizationLibrary* characterization_library = nullptr;
+};
 
 class Synthesis
 {
  public:
   Synthesis() = delete;
 
-  static auto run(ClockLayout& clock_layout, CharacterizationLibrary& char_library) -> SynthesisTraceSummary;
+  static auto run(const SynthesisInput& input) -> SynthesisTraceSummary;
 };
 
 }  // namespace icts

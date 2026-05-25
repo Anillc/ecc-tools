@@ -50,15 +50,15 @@ struct AnalyticalCandidateLegalityCheck
   bool validate_root_driver_compensation = true;
 };
 
-struct AnalyticalValidationResult
+struct AnalyticalValidationSummary
 {
   bool legal = false;
   std::string failure_reason;
-  SinkLoadRegionLegalityResult sink_load_region;
+  SinkLoadRegionLegalitySummary sink_load_region;
   RootDriverCompensationDetail root_driver_compensation;
 };
 
 auto ValidateAnalyticalCandidate(AnalyticalCandidate& candidate, const AnalyticalCandidateLegalityCheck& legality_check)
-    -> AnalyticalValidationResult;
+    -> AnalyticalValidationSummary;
 
 }  // namespace icts::htree::analytical_solver

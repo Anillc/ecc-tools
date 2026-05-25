@@ -22,13 +22,16 @@
  */
 
 #include <filesystem>
+#include <optional>
 #include <regex>
 #include <string>
 #include <vector>
 
 #include "CTSAPI.hh"
+#include "CTSRuntime.hh"
 #include "Clock.hh"
 #include "ClockLayout.hh"
+#include "Config.hh"
 #include "Design.hh"
 #include "Flow.hh"
 #include "FlowDesignFixture.hh"
@@ -37,6 +40,7 @@
 #include "Pin.hh"
 #include "Point.hh"
 #include "Schema.hh"
+#include "common/CTSTestRuntime.hh"
 #include "common/logging/LogText.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "feature_icts.h"
@@ -55,12 +59,12 @@ using namespace flow_test;
 
 TEST(FlowTest, EmptyFlowRunIsCallable)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
-  (void) FLOW_INST.runSynthesis();
-  (void) FLOW_INST.runOptimization();
+  (void) scoped_flow_reset.flow.runSynthesis();
+  (void) scoped_flow_reset.flow.runOptimization();
 
-  const auto summary = FLOW_INST.outputRunSummary();
+  const auto summary = scoped_flow_reset.flow.outputRunSummary();
   EXPECT_FALSE(summary.success);
   EXPECT_EQ(summary.outcome, icts::SynthesisOutcome::kNoOp);
   EXPECT_EQ(summary.no_op_reason, "no_clocks_discovered");
@@ -72,11 +76,11 @@ TEST(FlowTest, EmptyFlowRunIsCallable)
 
 TEST(FlowTest, RunWithoutSetupFailsExplicitlyAndSkipsPipelineStages)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
-  const auto cts_log_path = SCHEMA_WRITER_INST.getActivePath();
+  const auto cts_log_path = icts_test::runtime::CurrentRuntime().reporter.getActivePath();
   ASSERT_FALSE(cts_log_path.empty());
-  icts::CTSAPI::runCTS();
+  scoped_flow_reset.flow.runCTS();
 
   const auto cts_log_content = ReadTextFile(cts_log_path);
   ASSERT_FALSE(cts_log_content.empty());
@@ -130,7 +134,7 @@ TEST(FlowTest, RunWithoutSetupFailsExplicitlyAndSkipsPipelineStages)
 
 TEST(FlowTest, AllSkippedSynthesisReportsNoOp)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto pins = AddClockToDesign(nullptr, nullptr);
   ASSERT_NE(pins.clock, nullptr);
@@ -140,7 +144,17 @@ TEST(FlowTest, AllSkippedSynthesisReportsNoOp)
 
   icts::ClockLayout clock_layout;
   icts::CharacterizationLibrary char_library;
-  const auto summary = icts::Synthesis::run(clock_layout, char_library);
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  const auto summary = icts::Synthesis::run(icts::SynthesisInput{
+      .config = &runtime.config,
+      .design = &runtime.design,
+      .wrapper = &runtime.wrapper,
+      .sta_adapter = &runtime.sta_adapter,
+      .fast_sta = &runtime.fast_sta,
+      .reporter = &runtime.reporter,
+      .clock_layout = &clock_layout,
+      .characterization_library = &char_library,
+  });
 
   EXPECT_FALSE(summary.success);
   EXPECT_EQ(summary.outcome, icts::SynthesisOutcome::kNoOp);
@@ -155,16 +169,16 @@ TEST(FlowTest, AllSkippedSynthesisReportsNoOp)
 
 TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
-  (void) FLOW_INST.runSynthesis();
-  (void) FLOW_INST.runOptimization();
-  (void) FLOW_INST.evaluateClockTree();
+  (void) scoped_flow_reset.flow.runSynthesis();
+  (void) scoped_flow_reset.flow.runOptimization();
+  (void) scoped_flow_reset.flow.evaluateClockTree();
 
-  const auto run_summary = FLOW_INST.outputRunSummary();
+  const auto run_summary = scoped_flow_reset.flow.outputRunSummary();
   EXPECT_EQ(run_summary.outcome, icts::SynthesisOutcome::kNoOp);
 
-  const auto qor_summary = FLOW_INST.outputSummary();
+  const auto qor_summary = scoped_flow_reset.flow.outputSummary();
   EXPECT_FALSE(qor_summary.has_evaluation_result);
   EXPECT_EQ(qor_summary.qor_metric_status, "unavailable");
   EXPECT_EQ(qor_summary.timing_metric_source, "unavailable");
@@ -175,9 +189,10 @@ TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
 
 TEST(FlowTest, ClockDistributionSummaryUsesMacroSinkTerminology)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
+  auto& shared = icts_test::runtime::CurrentRuntime();
 
-  const auto cts_log_path = SCHEMA_WRITER_INST.getActivePath();
+  const auto cts_log_path = shared.reporter.getActivePath();
   ASSERT_FALSE(cts_log_path.empty());
 
   auto* macro_inst = MakeDesignInst("macro0", "MACRO_CELL", icts::InstType::kMacroBlock, icts::Point<int>(100, 0));
@@ -187,7 +202,7 @@ TEST(FlowTest, ClockDistributionSummaryUsesMacroSinkTerminology)
   ASSERT_NE(pins.macro_sink, nullptr);
   ASSERT_NE(pins.regular_sink, nullptr);
 
-  DESIGN_INST.emitClockDistributionSummary();
+  shared.design.emitClockDistributionSummary(shared.reporter);
 
   const auto cts_log_content = ReadTextFile(cts_log_path);
   ASSERT_FALSE(cts_log_content.empty());
@@ -200,7 +215,7 @@ TEST(FlowTest, ClockDistributionSummaryUsesMacroSinkTerminology)
 
 TEST(FlowTest, MixedMacroAndRegularSingleSinkDomainsUseSeparateDownstreamNets)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* macro_inst = MakeDesignInst("macro0", "MACRO_CELL", icts::InstType::kMacroBlock, icts::Point<int>(100, 0));
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(200, 0));
@@ -246,7 +261,7 @@ TEST(FlowTest, MixedMacroAndRegularSingleSinkDomainsUseSeparateDownstreamNets)
 
 TEST(FlowTest, RepeatedNetPreparationRestoresClockSourceNetBeforeRebuildingInsertedNets)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   auto pins = AddClockToDesign(nullptr, reg_inst);
@@ -255,14 +270,14 @@ TEST(FlowTest, RepeatedNetPreparationRestoresClockSourceNetBeforeRebuildingInser
   ASSERT_NE(pins.clock, nullptr);
   EXPECT_NE(pins.regular_sink->get_net(), pins.clock_net);
   ASSERT_EQ(pins.clock->get_nets().size(), 1U);
-  const auto first_design_inst_count = DESIGN_INST.get_insts().size();
-  const auto first_design_pin_count = DESIGN_INST.get_pins().size();
-  const auto first_design_net_count = DESIGN_INST.get_nets().size();
+  const auto first_design_inst_count = icts_test::runtime::CurrentRuntime().design.get_insts().size();
+  const auto first_design_pin_count = icts_test::runtime::CurrentRuntime().design.get_pins().size();
+  const auto first_design_net_count = icts_test::runtime::CurrentRuntime().design.get_nets().size();
 
   PrepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
-  EXPECT_EQ(DESIGN_INST.get_insts().size(), first_design_inst_count);
-  EXPECT_EQ(DESIGN_INST.get_pins().size(), first_design_pin_count);
-  EXPECT_EQ(DESIGN_INST.get_nets().size(), first_design_net_count);
+  EXPECT_EQ(icts_test::runtime::CurrentRuntime().design.get_insts().size(), first_design_inst_count);
+  EXPECT_EQ(icts_test::runtime::CurrentRuntime().design.get_pins().size(), first_design_pin_count);
+  EXPECT_EQ(icts_test::runtime::CurrentRuntime().design.get_nets().size(), first_design_net_count);
   ASSERT_EQ(pins.clock->get_insts().size(), 1U);
   ASSERT_EQ(pins.clock->get_nets().size(), 1U);
   auto* root_buffer = pins.clock->get_insts().front();
@@ -281,7 +296,7 @@ TEST(FlowTest, RepeatedNetPreparationRestoresClockSourceNetBeforeRebuildingInser
 
 TEST(FlowTest, RootBufferInsertionFailureRestoresClockMembershipAndRecordsSinkDomainStatus)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   auto pins = AddClockToDesign(nullptr, reg_inst);
@@ -290,7 +305,17 @@ TEST(FlowTest, RootBufferInsertionFailureRestoresClockMembershipAndRecordsSinkDo
 
   icts::ClockLayout clock_layout;
   icts::CharacterizationLibrary char_library;
-  const auto summary = icts::Synthesis::run(clock_layout, char_library);
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  const auto summary = icts::Synthesis::run(icts::SynthesisInput{
+      .config = &runtime.config,
+      .design = &runtime.design,
+      .wrapper = &runtime.wrapper,
+      .sta_adapter = &runtime.sta_adapter,
+      .fast_sta = &runtime.fast_sta,
+      .reporter = &runtime.reporter,
+      .clock_layout = &clock_layout,
+      .characterization_library = &char_library,
+  });
 
   EXPECT_FALSE(summary.success);
   EXPECT_EQ(summary.failed_clocks, 1U);
@@ -302,7 +327,7 @@ TEST(FlowTest, RootBufferInsertionFailureRestoresClockMembershipAndRecordsSinkDo
 
 TEST(FlowTest, DownstreamNetCreationFailureRestoresClockMembershipAndRecordsSinkDomainStatus)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   auto pins = AddClockToDesign(nullptr, reg_inst);
@@ -310,17 +335,26 @@ TEST(FlowTest, DownstreamNetCreationFailureRestoresClockMembershipAndRecordsSink
   ASSERT_NE(pins.regular_sink, nullptr);
 
   const auto domain_prefix = icts::DesignConversion::makeSinkDomainPrefix(*pins.clock, 0U, icts::SinkDomainKind::kRegular);
-  auto* existing_downstream_net = DESIGN_INST.makeNet(domain_prefix + "_downstream_net");
+  auto* existing_downstream_net = icts_test::runtime::CurrentRuntime().design.makeNet(domain_prefix + "_downstream_net");
   ASSERT_NE(existing_downstream_net, nullptr);
 
-  icts::schema::TableRows rows;
+  icts::TableRows rows;
   icts::DomainStatusTable status_table(rows);
-  icts::ClockSinkDomainContext context;
   const auto root_spec = MakeRootBufferSpec();
-  const bool prepared = icts::ClockDistribution::prepare(*pins.clock, 0U, icts::SinkDomainKind::kRegular,
-                                                         std::vector<icts::Pin*>{pins.regular_sink}, 1U, status_table, context, &root_spec);
+  const auto prepared = icts::ClockDistribution::prepare(icts::ClockDistributionInput{
+      .design = &icts_test::runtime::CurrentRuntime().design,
+      .clock = pins.clock,
+      .sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter,
+      .clock_index = 0U,
+      .sink_domain = icts::SinkDomainKind::kRegular,
+      .sinks = std::vector<icts::Pin*>{pins.regular_sink},
+      .valid_sinks = 1U,
+      .root_buffer_types = icts_test::runtime::CurrentRuntime().config.get_buffer_types(),
+      .status_table = &status_table,
+      .root_buffer_spec = &root_spec,
+  });
 
-  EXPECT_FALSE(prepared);
+  EXPECT_FALSE(prepared.has_value());
   EXPECT_TRUE(StatusRowsContain(rows, "failed", "regular", "failed to create downstream net"));
   icts::Topology::resetClockTopology(*pins.clock);
   ExpectClockRestoredToOriginalLoads(pins);
@@ -328,19 +362,29 @@ TEST(FlowTest, DownstreamNetCreationFailureRestoresClockMembershipAndRecordsSink
 
 TEST(FlowTest, TopologyResetRestoresPreparedSinkDomainAndKeepsPendingClockLayoutUnmerged)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   auto pins = AddClockToDesign(nullptr, reg_inst);
   ASSERT_NE(pins.clock, nullptr);
   ASSERT_NE(pins.regular_sink, nullptr);
 
-  icts::schema::TableRows rows;
+  icts::TableRows rows;
   icts::DomainStatusTable status_table(rows);
-  icts::ClockSinkDomainContext context;
   const auto root_spec = MakeRootBufferSpec();
-  ASSERT_TRUE(icts::ClockDistribution::prepare(*pins.clock, 0U, icts::SinkDomainKind::kRegular, std::vector<icts::Pin*>{pins.regular_sink},
-                                               1U, status_table, context, &root_spec));
+  const auto context = icts::ClockDistribution::prepare(icts::ClockDistributionInput{
+      .design = &icts_test::runtime::CurrentRuntime().design,
+      .clock = pins.clock,
+      .sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter,
+      .clock_index = 0U,
+      .sink_domain = icts::SinkDomainKind::kRegular,
+      .sinks = std::vector<icts::Pin*>{pins.regular_sink},
+      .valid_sinks = 1U,
+      .root_buffer_types = icts_test::runtime::CurrentRuntime().config.get_buffer_types(),
+      .status_table = &status_table,
+      .root_buffer_spec = &root_spec,
+  });
+  ASSERT_TRUE(context.has_value());
 
   icts::ClockLayout clock_layout;
   icts::Topology::resetClockTopology(*pins.clock);
@@ -350,43 +394,74 @@ TEST(FlowTest, TopologyResetRestoresPreparedSinkDomainAndKeepsPendingClockLayout
 
 TEST(FlowTest, SourceToRootFailureRestoresPreparedSinkDomainsAndRecordsStatus)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   auto pins = AddClockToDesign(nullptr, reg_inst);
   ASSERT_NE(pins.clock, nullptr);
   ASSERT_NE(pins.regular_sink, nullptr);
 
-  icts::schema::TableRows rows;
+  icts::TableRows rows;
   icts::DomainStatusTable status_table(rows);
-  icts::ClockSinkDomainContext context;
   const auto root_spec = MakeRootBufferSpec();
-  ASSERT_TRUE(icts::ClockDistribution::prepare(*pins.clock, 0U, icts::SinkDomainKind::kRegular, std::vector<icts::Pin*>{pins.regular_sink},
-                                               1U, status_table, context, &root_spec));
+  auto context = icts::ClockDistribution::prepare(icts::ClockDistributionInput{
+      .design = &icts_test::runtime::CurrentRuntime().design,
+      .clock = pins.clock,
+      .sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter,
+      .clock_index = 0U,
+      .sink_domain = icts::SinkDomainKind::kRegular,
+      .sinks = std::vector<icts::Pin*>{pins.regular_sink},
+      .valid_sinks = 1U,
+      .root_buffer_types = icts_test::runtime::CurrentRuntime().config.get_buffer_types(),
+      .status_table = &status_table,
+      .root_buffer_spec = &root_spec,
+  });
+  if (!context.has_value()) {
+    FAIL() << "Clock distribution context should be prepared.";
+    return;
+  }
+  auto prepared_context = *context;
   ASSERT_FALSE(pins.clock->get_insts().empty());
   ASSERT_FALSE(pins.clock->get_nets().empty());
 
   icts::ClockLayout clock_layout;
   icts::SynthesisTraceSummary summary;
   icts::CharacterizationLibrary char_library;
-  context.root_input = nullptr;
+  prepared_context.root_input = nullptr;
+  std::vector<icts::ClockDistributionContext> sink_domains = {prepared_context};
 
-  EXPECT_FALSE(icts::Topology::formClock(*pins.clock, 0U, clock_layout, summary, status_table, char_library, 1U, {context}));
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  EXPECT_FALSE(icts::Topology::formClock(icts::ClockTopologyInput{
+      .config = &runtime.config,
+      .design = &runtime.design,
+      .wrapper = &runtime.wrapper,
+      .sta_adapter = &runtime.sta_adapter,
+      .fast_sta = &runtime.fast_sta,
+      .reporter = &runtime.reporter,
+      .clock = pins.clock,
+      .clock_index = 0U,
+      .clock_layout = &clock_layout,
+      .summary = &summary,
+      .status_table = &status_table,
+      .characterization_library = &char_library,
+      .valid_sinks = 1U,
+      .sink_domains = &sink_domains,
+  }));
   EXPECT_TRUE(StatusRowsContain(rows, "failed", "source_to_root", "empty_root_inputs"));
   ExpectClockRestoredToOriginalLoads(pins);
 }
 
 TEST(FlowTest, EvaluateWithoutSuccessfulInstantiationLeavesSummaryUnavailableAndResetKeepsItCleared)
 {
-  const ScopedFlowReset scoped_flow_reset;
+  ScopedFlowReset scoped_flow_reset;
 
   auto* reg_inst = MakeDesignInst("reg0", "REG_CELL", icts::InstType::kFlipFlop, icts::Point<int>(100, 0));
   auto pins = AddClockToDesign(nullptr, reg_inst);
   PrepareDirectRootBufferNets(*pins.clock, "CTS_TEST_BUF", "A", "Y");
 
-  (void) FLOW_INST.evaluateClockTree();
-  EXPECT_FALSE(FLOW_INST.outputSummary().has_evaluation_result);
-  EXPECT_EQ(FLOW_INST.outputSummary().final_clock_buffer_count, 0);
+  (void) scoped_flow_reset.flow.evaluateClockTree();
+  EXPECT_FALSE(scoped_flow_reset.flow.outputSummary().has_evaluation_result);
+  EXPECT_EQ(scoped_flow_reset.flow.outputSummary().final_clock_buffer_count, 0);
   EXPECT_EQ(icts::CTSAPI::outputSummary().buffer_num, 0);
 
   icts::CTSAPI::resetAPI();

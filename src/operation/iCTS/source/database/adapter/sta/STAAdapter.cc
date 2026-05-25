@@ -32,7 +32,15 @@
 
 namespace icts {
 
-auto STAAdapter::init() -> void
+auto STAAdapter::observeQueryFacade() const -> void
+{
+  // Query methods are intentionally instance calls even when the backing iSTA
+  // storage is process-global: the runtime-owned facade is the dependency
+  // boundary that future parallelization must replace or shard.
+  (void) _base_context_ready;
+}
+
+auto STAAdapter::init(const Config& config) -> void
 {
   auto* timing_engine = sta_adapter_timing_query::GetStaEngine();
   if (!sta_adapter_timing_query::HasStaBaseContext()) {
@@ -43,8 +51,9 @@ auto STAAdapter::init() -> void
     sta_adapter_timing_query::LoadConfiguredLiberty(timing_engine);
   }
 
+  _base_context_ready = true;
   timing_engine->set_num_threads(sta_adapter_timing_query::kStaThreadCount);
-  sta_adapter_timing_query::ConfigureStaWorkspace(timing_engine, "sta");
+  sta_adapter_timing_query::ConfigureStaWorkspace(config, timing_engine, "sta");
   resetStaTransientState();
   timing_engine->get_ista()->set_n_worst_path_per_clock(sta_adapter_timing_query::kWorstPathPerClock);
 }

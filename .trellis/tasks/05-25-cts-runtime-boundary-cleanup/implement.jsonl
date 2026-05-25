@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Runtime ownership and dependency boundary authority for CTSRuntime, Wrapper, STAAdapter, FastSTA, and Design."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "CTS semantic naming, public contract, and forbidden broad context guidance."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The cleanup crosses flow, adapter, FastSTA, and topology boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "The cleanup introduces shared policy/environment concepts and removes duplicate overloads."}
+{"file": ".trellis/tasks/05-25-cts-refactor-reflection/design.md", "reason": "First-principles architecture rationale for runtime-bound services and per-call input separation."}
+{"file": ".trellis/tasks/05-25-cts-refactor-reflection/research/faststa-context-audit.md", "reason": "FastSTA clock-context overload and dependency audit evidence."}
+{"file": ".trellis/tasks/05-25-cts-runtime-boundary-cleanup/research/runtime-boundary-audit.md", "reason": "Initial same-class hotspot audit for this implementation task."}

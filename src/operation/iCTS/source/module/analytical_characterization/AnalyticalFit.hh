@@ -38,7 +38,7 @@ struct AnalyticalFitSample
   double value = 0.0;
 };
 
-struct AnalyticalFitOptions
+struct AnalyticalFitConfig
 {
   AnalyticalMetric metric = AnalyticalMetric::kDelay;
   AnalyticalModelBasis basis = AnalyticalModelBasis::kAffine;
@@ -52,13 +52,23 @@ struct AnalyticalFitOptions
   double monotonic_tolerance = 1e-12;
 };
 
-struct AnalyticalFitResult
+struct AnalyticalFitOutput
 {
-  bool success = false;
-  std::string failure_reason;
   std::optional<AnalyticalSurfaceModel> model = std::nullopt;
 };
 
-auto FitAnalyticalSurface(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitOptions& options) -> AnalyticalFitResult;
+struct AnalyticalFitSummary
+{
+  bool success = false;
+  std::string failure_reason;
+};
+
+struct AnalyticalFitBuild
+{
+  AnalyticalFitOutput output;
+  AnalyticalFitSummary summary;
+};
+
+auto FitAnalyticalSurface(const std::vector<AnalyticalFitSample>& samples, const AnalyticalFitConfig& config) -> AnalyticalFitBuild;
 
 }  // namespace icts::analytical

@@ -36,21 +36,22 @@ class CharBuilder;
 namespace htree {
 struct BoundaryConstraints;
 struct BufferPatternLibrary;
-struct HTreeFanoutPruningOptions;
-struct RootDriverCompensationOptions;
+struct HTreeFanoutPruningConfig;
+struct RootDriverCompensationInput;
+struct SinkLoadRegionLegalityInput;
 class SegmentFrontierCatalog;
 }  // namespace htree
 
 namespace htree::analytical_solution {
 
-auto TryBuildAnalyticalHTreeResult(HTree::BuildResult& result, const HTree::BuildOptions& options,
-                                   schema::SchemaWriter::StageScope& build_stage, unsigned max_depth,
-                                   const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
-                                   const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,
-                                   const BoundaryConstraints& search_boundary_constraints,
-                                   const HTreeFanoutPruningOptions& fanout_pruning_options,
-                                   const RootDriverCompensationOptions& root_driver_compensation_options, const CharBuilder& char_builder,
-                                   const std::string& root_driver_clock_period_source) -> bool;
+auto TryBuildAnalyticalHTree(HTree::DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
+                             SchemaWriter::StageScope& build_stage, unsigned max_depth,
+                             const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
+                             const SegmentFrontierCatalog& segment_frontier_catalog, BufferPatternLibrary& segment_pattern_library,
+                             const BoundaryConstraints& search_boundary_constraints, const HTreeFanoutPruningConfig& fanout_pruning_config,
+                             const RootDriverCompensationInput& root_driver_compensation_input,
+                             const SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
+                             const std::string& root_driver_clock_period_source) -> bool;
 
 }  // namespace htree::analytical_solution
 }  // namespace icts

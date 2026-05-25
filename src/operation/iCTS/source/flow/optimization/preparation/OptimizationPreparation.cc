@@ -43,7 +43,6 @@
 #include "Point.hh"
 #include "SteinerTree.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "config/Config.hh"
 #include "design/Clock.hh"
 #include "design/ClockDAG.hh"
 #include "design/ClockLayout.hh"
@@ -51,7 +50,7 @@
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "optimization/model/ClockSizingOptimizationData.hh"
-#include "optimization/options/OptimizationOptions.hh"
+#include "optimization/policy/OptimizationPolicy.hh"
 #include "optimization/report/OptimizationReport.hh"
 #include "router/Router.hh"
 
@@ -86,10 +85,10 @@ auto BuildClockRouteGeometry(const ClockLayout& clock_layout, std::size_t clock_
   return route_geometry;
 }
 
-auto CaptureGraphProfile(FastStaClockId clock_id) -> ClockSizingRuntimeProfile
+auto CaptureGraphProfile(const FastSTA& fast_sta, FastStaClockId clock_id) -> ClockSizingRuntimeProfile
 {
   ClockSizingRuntimeProfile profile;
-  const auto graph_profile = FastSTA::queryClockGraphProfile(clock_id);
+  const auto graph_profile = fast_sta.queryClockGraphProfile(clock_id);
   if (!graph_profile.has_value()) {
     return profile;
   }
@@ -121,34 +120,37 @@ auto CopyOuterProfile(ClockSizingRuntimeProfile& destination, const ClockSizingR
 
 namespace {
 
-auto ResolveOutputCapLimit(const std::string& cell_master) -> double
+auto ResolveOutputCapLimit(STAAdapter& sta_adapter, const std::string& cell_master) -> double
 {
-  double max_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+  double max_cap_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
   if (max_cap_pf <= 0.0) {
-    max_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+    max_cap_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return max_cap_pf;
 }
 
 }  // namespace
 
-auto CollectClockSizingBufferMasters() -> std::vector<ClockSizingBufferMaster>
+auto CollectClockSizingBufferMasters(const ClockSizingMasterQueryInput& input) -> std::vector<ClockSizingBufferMaster>
 {
+  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Optimization: buffer master query requires STA adapter.";
+  LOG_FATAL_IF(input.buffer_cell_masters == nullptr) << "Optimization: buffer master query requires candidate masters.";
+  auto& sta_adapter = *input.sta_adapter;
   std::vector<ClockSizingBufferMaster> infos;
-  infos.reserve(CONFIG_INST.get_buffer_types().size());
-  for (const auto& cell_master : CONFIG_INST.get_buffer_types()) {
+  infos.reserve(input.buffer_cell_masters->size());
+  for (const auto& cell_master : *input.buffer_cell_masters) {
     if (cell_master.empty()) {
       continue;
     }
-    const double output_cap_limit_pf = ResolveOutputCapLimit(cell_master);
-    const double input_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(cell_master);
+    const double output_cap_limit_pf = ResolveOutputCapLimit(sta_adapter, cell_master);
+    const double input_cap_pf = sta_adapter.queryCharInputPinCap(cell_master);
     if (output_cap_limit_pf <= 0.0 || input_cap_pf <= 0.0) {
       continue;
     }
     infos.push_back(ClockSizingBufferMaster{.cell_master = cell_master,
                                             .input_cap_pf = input_cap_pf,
                                             .output_cap_limit_pf = output_cap_limit_pf,
-                                            .area_um2 = std::max(0.0, STA_ADAPTER_INST.queryCellAreaUm2(cell_master)),
+                                            .area_um2 = std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master)),
                                             .drive_rank = 0U});
   }
 
@@ -167,10 +169,10 @@ auto CollectClockSizingBufferMasters() -> std::vector<ClockSizingBufferMaster>
   return infos;
 }
 
-auto BuildClockSizingRouteTrees(const std::vector<Clock*>& clocks) -> ClockSizingRouteTreeCache
+auto BuildClockSizingRouteTrees(const Design& design, const std::vector<Clock*>& clocks) -> ClockSizingRouteTreeCache
 {
   ClockSizingRouteTreeCache route_tree_by_net;
-  const auto& clock_dag = DESIGN_INST.get_clock_dag();
+  const auto& clock_dag = design.get_clock_dag();
   for (auto* clock : clocks) {
     if (clock == nullptr) {
       continue;
@@ -197,16 +199,16 @@ auto FindMasterInfo(const std::vector<ClockSizingBufferMaster>& master_infos, st
   return iter == master_infos.end() ? nullptr : &(*iter);
 }
 
-auto CollectClockSizingCapLimits(FastStaClockId clock_id) -> std::vector<ClockSizingCapLimit>
+auto CollectClockSizingCapLimits(const FastSTA& fast_sta, FastStaClockId clock_id) -> std::vector<ClockSizingCapLimit>
 {
   std::vector<ClockSizingCapLimit> baseline;
-  const auto graph_profile = FastSTA::queryClockGraphProfile(clock_id);
+  const auto graph_profile = fast_sta.queryClockGraphProfile(clock_id);
   if (!graph_profile.has_value()) {
     return baseline;
   }
   baseline.reserve(graph_profile->net_count);
   for (FastStaNetId net_id = 0U; net_id < graph_profile->net_count; ++net_id) {
-    const auto cap_status = FastSTA::queryCapStatus(clock_id, net_id);
+    const auto cap_status = fast_sta.queryCapStatus(clock_id, net_id);
     baseline.push_back(ClockSizingCapLimit{.load_cap_pf = cap_status.has_value() ? cap_status->load_cap_pf : 0.0,
                                            .max_cap_pf = cap_status.has_value() ? cap_status->max_cap_pf : 0.0,
                                            .violated = cap_status.has_value() && cap_status->violated});
@@ -214,16 +216,16 @@ auto CollectClockSizingCapLimits(FastStaClockId clock_id) -> std::vector<ClockSi
   return baseline;
 }
 
-auto CollectClockSizingSlewLimits(FastStaClockId clock_id) -> std::vector<ClockSizingSlewLimit>
+auto CollectClockSizingSlewLimits(const FastSTA& fast_sta, FastStaClockId clock_id) -> std::vector<ClockSizingSlewLimit>
 {
   std::vector<ClockSizingSlewLimit> baseline;
-  const auto graph_profile = FastSTA::queryClockGraphProfile(clock_id);
+  const auto graph_profile = fast_sta.queryClockGraphProfile(clock_id);
   if (!graph_profile.has_value()) {
     return baseline;
   }
   baseline.reserve(graph_profile->node_count);
   for (FastStaNodeId node_id = 0U; node_id < graph_profile->node_count; ++node_id) {
-    const auto slew_status = FastSTA::querySlewStatus(clock_id, node_id);
+    const auto slew_status = fast_sta.querySlewStatus(clock_id, node_id);
     baseline.push_back(ClockSizingSlewLimit{.slew_ns = slew_status.has_value() ? slew_status->slew_ns : 0.0,
                                             .max_slew_ns = slew_status.has_value() ? slew_status->max_slew_ns : 0.0,
                                             .role = slew_status.has_value() ? slew_status->role : FastStaSlewRole::kUnknown,
@@ -233,17 +235,17 @@ auto CollectClockSizingSlewLimits(FastStaClockId clock_id) -> std::vector<ClockS
   return baseline;
 }
 
-auto CollectClockSizingBuffers(FastStaClockId clock_id, const std::vector<ClockSizingBufferMaster>& master_infos)
-    -> std::vector<ClockSizingBuffer>
+auto CollectClockSizingBuffers(const Design& design, const FastSTA& fast_sta, FastStaClockId clock_id,
+                               const std::vector<ClockSizingBufferMaster>& master_infos) -> std::vector<ClockSizingBuffer>
 {
   std::vector<ClockSizingBuffer> buffers;
   if (master_infos.empty()) {
     return buffers;
   }
-  const auto fast_sta_buffers = FastSTA::collectClockSizingBuffers(clock_id);
+  const auto fast_sta_buffers = fast_sta.collectClockSizingBuffers(clock_id);
   buffers.reserve(fast_sta_buffers.size());
   for (const auto& fast_sta_buffer : fast_sta_buffers) {
-    auto* inst = DESIGN_INST.findInst(fast_sta_buffer.inst_name);
+    auto* inst = design.findInst(fast_sta_buffer.inst_name);
     if (inst == nullptr || !inst->is_buffer() || FindMasterInfo(master_infos, fast_sta_buffer.cell_master) == nullptr) {
       continue;
     }
@@ -256,17 +258,18 @@ auto CollectClockSizingBuffers(FastStaClockId clock_id, const std::vector<ClockS
   return buffers;
 }
 
-auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const ClockSizingRouteTreeCache& route_tree_by_net) -> bool
+auto InjectRouteTrees(const Design& design, FastSTA& fast_sta, FastStaClockId clock_id, const Clock& clock,
+                      const ClockSizingRouteTreeCache& route_tree_by_net) -> bool
 {
-  const auto* graph = DESIGN_INST.get_clock_dag().graphForClock(&clock);
+  const auto* graph = design.get_clock_dag().graphForClock(&clock);
   if (graph == nullptr) {
     return false;
   }
   const auto total_start = std::chrono::steady_clock::now();
   auto progress_start = total_start;
-  const auto progress_interval = DefaultOptimizationOptions().route_tree_progress_interval;
-  const auto initial_detail_net_count = DefaultOptimizationOptions().route_tree_initial_detail_net_count;
-  const auto slow_net_threshold_s = DefaultOptimizationOptions().route_tree_slow_net_threshold_s;
+  const auto progress_interval = DefaultOptimizationPolicy().route_tree_progress_interval;
+  const auto initial_detail_net_count = DefaultOptimizationPolicy().route_tree_initial_detail_net_count;
+  const auto slow_net_threshold_s = DefaultOptimizationPolicy().route_tree_slow_net_threshold_s;
   std::size_t visited_net_count = 0U;
   std::size_t injected_net_count = 0U;
   std::size_t rc_node_count = 0U;
@@ -290,7 +293,7 @@ auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const ClockSi
     }
     const auto net_start = std::chrono::steady_clock::now();
     FastStaClockNetRcTreeCounts rc_tree_counts;
-    if (!FastSTA::injectNetRouteTree(clock_id, *net, route_iter->second, rc_tree_counts)) {
+    if (!fast_sta.injectNetRouteTree(clock_id, *net, route_iter->second, rc_tree_counts)) {
       LOG_ERROR << "Optimization: fast STA route-tree injection failed for net \"" << net->get_name() << "\".";
       return false;
     }
@@ -315,7 +318,7 @@ auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const ClockSi
 
   auto update_start = std::chrono::steady_clock::now();
   LOG_INFO << "Optimization: start post-injection timing update for clock \"" << clock.get_clock_name() << "\".";
-  if (!FastSTA::updateTiming(clock_id)) {
+  if (!fast_sta.updateTiming(clock_id)) {
     return false;
   }
   LOG_INFO << "Optimization: post-injection timing update for clock \"" << clock.get_clock_name() << "\" finished in "
@@ -323,7 +326,7 @@ auto InjectRouteTrees(FastStaClockId clock_id, const Clock& clock, const ClockSi
 
   update_start = std::chrono::steady_clock::now();
   LOG_INFO << "Optimization: start post-injection power update for clock \"" << clock.get_clock_name() << "\".";
-  if (!FastSTA::updatePower(clock_id)) {
+  if (!fast_sta.updatePower(clock_id)) {
     return false;
   }
   LOG_INFO << "Optimization: post-injection power update for clock \"" << clock.get_clock_name() << "\" finished in "

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Use during implementation for hard iCTS coding and validation constraints."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Use during implementation for runtime ownership, build payload, commit, and diagnostics boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Use during implementation for naming, includes, and dependency visibility."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Use during implementation if new files, moved files, or CMake changes become necessary."}
+{"file": ".trellis/tasks/05-25-cts-structural-optimization-refactor/design.md", "reason": "Authoritative current design for HTree diagnostic split and later synthesis/topology phases."}
+{"file": ".trellis/tasks/05-25-cts-structural-optimization-refactor/research/structural-audit.md", "reason": "Concrete audit evidence for files and boundaries to change."}

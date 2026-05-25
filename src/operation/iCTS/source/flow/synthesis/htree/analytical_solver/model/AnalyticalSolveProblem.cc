@@ -40,11 +40,11 @@
 
 namespace icts::htree::analytical_solver {
 
-auto MakeFailure(std::string reason) -> AnalyticalSolverResult
+auto MakeFailure(std::string reason) -> AnalyticalSolverBuild
 {
-  AnalyticalSolverResult result;
-  result.success = false;
-  result.failure_reason = std::move(reason);
+  AnalyticalSolverBuild result;
+  result.summary.success = false;
+  result.summary.failure_reason = std::move(reason);
   return result;
 }
 
@@ -53,13 +53,13 @@ auto ValidateSolveProblem(const AnalyticalHTreeSolveProblem& solve_problem) -> s
   if (solve_problem.levels == nullptr || solve_problem.levels->empty()) {
     return "missing_levels";
   }
-  if (!solve_problem.options.use_functional_unit_compose && solve_problem.segment_frontier_catalog == nullptr) {
+  if (!solve_problem.config.use_functional_unit_compose && solve_problem.segment_frontier_catalog == nullptr) {
     return "missing_segment_frontier_catalog";
   }
   if (solve_problem.segment_pattern_library == nullptr) {
     return "missing_segment_pattern_library";
   }
-  if (solve_problem.options.use_functional_unit_compose && solve_problem.mutable_segment_pattern_library == nullptr) {
+  if (solve_problem.config.use_functional_unit_compose && solve_problem.mutable_segment_pattern_library == nullptr) {
     return "missing_mutable_segment_pattern_library";
   }
   if (solve_problem.model_catalog == nullptr || solve_problem.model_catalog->empty()) {
@@ -68,10 +68,10 @@ auto ValidateSolveProblem(const AnalyticalHTreeSolveProblem& solve_problem) -> s
   if (!solve_problem.slew_lattice.isValid() || !solve_problem.cap_lattice.isValid()) {
     return "invalid_lattice";
   }
-  if (solve_problem.options.root_input_slew_ns < 0.0) {
+  if (solve_problem.config.root_input_slew_ns < 0.0) {
     return "invalid_root_input_slew";
   }
-  if (solve_problem.options.representative_leaf_load_cap_pf <= 0.0) {
+  if (solve_problem.config.representative_leaf_load_cap_pf <= 0.0) {
     return "invalid_representative_leaf_load_cap";
   }
   return {};
@@ -107,14 +107,14 @@ auto ResolveSegmentPatternLibrary(const AnalyticalHTreeSolveProblem& solve_probl
 
 auto DiagnosticPatternIds(const AnalyticalHTreeSolveProblem& solve_problem, std::size_t level_index) -> std::span<const PatternId>
 {
-  if (solve_problem.options.diagnostic_segment_pattern_ids.empty() || solve_problem.levels == nullptr || solve_problem.levels->empty()) {
+  if (solve_problem.config.diagnostic_segment_pattern_ids.empty() || solve_problem.levels == nullptr || solve_problem.levels->empty()) {
     return {};
   }
-  if (solve_problem.options.diagnostic_segment_pattern_ids.size() != solve_problem.levels->size()
+  if (solve_problem.config.diagnostic_segment_pattern_ids.size() != solve_problem.levels->size()
       || level_index >= solve_problem.levels->size()) {
     return {};
   }
-  return std::span<const PatternId>(&solve_problem.options.diagnostic_segment_pattern_ids.at(level_index), 1U);
+  return std::span<const PatternId>(&solve_problem.config.diagnostic_segment_pattern_ids.at(level_index), 1U);
 }
 
 namespace {
@@ -127,36 +127,36 @@ auto ContainsDiagnosticPattern(std::span<const PatternId> diagnostic_pattern_ids
 }  // namespace
 
 auto RecordDiagnosticPatternStage(std::span<const PatternId> diagnostic_pattern_ids, PatternId pattern_id, DiagnosticPatternStage stage,
-                                  AnalyticalSolverResult& result) -> void
+                                  AnalyticalSolverBuild& result) -> void
 {
   if (!ContainsDiagnosticPattern(diagnostic_pattern_ids, pattern_id)) {
     return;
   }
   switch (stage) {
     case DiagnosticPatternStage::kFrontier:
-      ++result.diagnostic_frontier_hit_count;
+      ++result.summary.diagnostic_frontier_hit_count;
       break;
     case DiagnosticPatternStage::kDecomposed:
-      ++result.diagnostic_decomposed_count;
+      ++result.summary.diagnostic_decomposed_count;
       break;
     case DiagnosticPatternStage::kScored:
-      ++result.diagnostic_scored_count;
+      ++result.summary.diagnostic_scored_count;
       break;
     case DiagnosticPatternStage::kShortlisted:
-      ++result.diagnostic_shortlisted_count;
+      ++result.summary.diagnostic_shortlisted_count;
       break;
   }
 }
 
-auto RecordDiagnosticLibraryHits(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverResult& result) -> void
+auto RecordDiagnosticLibraryHits(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverBuild& result) -> void
 {
   const auto* segment_pattern_library = ResolveSegmentPatternLibrary(solve_problem);
   if (segment_pattern_library == nullptr) {
     return;
   }
-  for (const auto pattern_id : solve_problem.options.diagnostic_segment_pattern_ids) {
+  for (const auto pattern_id : solve_problem.config.diagnostic_segment_pattern_ids) {
     if (segment_pattern_library->find(pattern_id) != nullptr) {
-      ++result.diagnostic_library_hit_count;
+      ++result.summary.diagnostic_library_hit_count;
     }
   }
 }

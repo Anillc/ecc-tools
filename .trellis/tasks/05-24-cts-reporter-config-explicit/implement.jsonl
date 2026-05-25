@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Config/database ownership rules to replace"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Reporter boundary rules"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Input/config naming and minimality conventions"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/design.md", "reason": "Parent contract convention"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "CONFIG_INST and SCHEMA_WRITER_INST hotspot inventory"}

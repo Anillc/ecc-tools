@@ -220,7 +220,7 @@ auto appendPowerArcTables(ista::LibCell* lib_cell, ista::LibPowerArcSet* power_a
   }
 }
 
-auto extractBufferCellFromLibCell(ista::LibCell* lib_cell) -> FastStaLibertyCell
+auto extractBufferCellFromLibCell(STAAdapter& sta_adapter, ista::LibCell* lib_cell) -> FastStaLibertyCell
 {
   if (lib_cell == nullptr) {
     return FastStaLibertyCell{};
@@ -241,7 +241,7 @@ auto extractBufferCellFromLibCell(ista::LibCell* lib_cell) -> FastStaLibertyCell
     }
   }
   if (output_cap_limit_pf <= 0.0) {
-    output_cap_limit_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+    output_cap_limit_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
   }
 
   auto input_slew_limit_ns = 0.0;
@@ -251,7 +251,7 @@ auto extractBufferCellFromLibCell(ista::LibCell* lib_cell) -> FastStaLibertyCell
     }
   }
   if (input_slew_limit_ns <= 0.0) {
-    input_slew_limit_ns = STA_ADAPTER_INST.queryCellInPinSlewTableAxisMax(cell_master);
+    input_slew_limit_ns = sta_adapter.queryCellInPinSlewTableAxisMax(cell_master);
   }
 
   FastStaLibertyCell cell{
@@ -272,7 +272,7 @@ auto extractBufferCellFromLibCell(ista::LibCell* lib_cell) -> FastStaLibertyCell
       .slew_derate_from_library = owner_lib != nullptr && owner_lib->get_slew_derate_from_library() > 0.0
                                       ? owner_lib->get_slew_derate_from_library()
                                       : 1.0,
-      .area_um2 = std::max(0.0, STA_ADAPTER_INST.queryCellAreaUm2(cell_master)),
+      .area_um2 = std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master)),
       .voltage_v = owner_lib != nullptr ? owner_lib->get_nom_voltage() : 0.0,
       .leakage_power_w = calcLeakagePowerW(lib_cell),
       .timing_arc = FastStaLibertyArc{
@@ -308,27 +308,27 @@ auto extractBufferCellFromLibCell(ista::LibCell* lib_cell) -> FastStaLibertyCell
 
 }  // namespace
 
-auto FastStaLiberty::extractBufferCell(const std::string& cell_master) -> FastStaLibertyCell
+auto FastStaLiberty::extractBufferCell(STAAdapter& sta_adapter, const std::string& cell_master) -> FastStaLibertyCell
 {
   auto* lib_cell = sta_adapter_timing_query::FindLibertyCellByMaster(cell_master);
   if (lib_cell != nullptr) {
-    return extractBufferCellFromLibCell(lib_cell);
+    return extractBufferCellFromLibCell(sta_adapter, lib_cell);
   }
 
-  auto [input_port, output_port] = STA_ADAPTER_INST.queryBufferPorts(cell_master);
-  auto output_cap_limit_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+  auto [input_port, output_port] = sta_adapter.queryBufferPorts(cell_master);
+  auto output_cap_limit_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
   if (output_cap_limit_pf <= 0.0) {
-    output_cap_limit_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+    output_cap_limit_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
   }
-  auto input_slew_limit_ns = STA_ADAPTER_INST.queryCellInPinSlewLimit(cell_master);
+  auto input_slew_limit_ns = sta_adapter.queryCellInPinSlewLimit(cell_master);
   if (input_slew_limit_ns <= 0.0) {
-    input_slew_limit_ns = STA_ADAPTER_INST.queryCellInPinSlewTableAxisMax(cell_master);
+    input_slew_limit_ns = sta_adapter.queryCellInPinSlewTableAxisMax(cell_master);
   }
   return FastStaLibertyCell{
       .cell_master = cell_master,
       .input_port = input_port,
       .output_port = output_port,
-      .input_cap_pf = STA_ADAPTER_INST.queryCharInputPinCap(cell_master),
+      .input_cap_pf = sta_adapter.queryCharInputPinCap(cell_master),
       .output_cap_limit_pf = output_cap_limit_pf,
       .input_slew_limit_ns = input_slew_limit_ns,
       .input_threshold_rise = 0.5,
@@ -340,7 +340,7 @@ auto FastStaLiberty::extractBufferCell(const std::string& cell_master) -> FastSt
       .slew_upper_threshold_rise = 0.7,
       .slew_upper_threshold_fall = 0.7,
       .slew_derate_from_library = 1.0,
-      .area_um2 = std::max(0.0, STA_ADAPTER_INST.queryCellAreaUm2(cell_master)),
+      .area_um2 = std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master)),
       .voltage_v = 0.0,
       .leakage_power_w = 0.0,
       .timing_arc = FastStaLibertyArc{

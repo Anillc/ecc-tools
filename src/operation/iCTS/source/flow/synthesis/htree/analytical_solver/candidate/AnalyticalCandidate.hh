@@ -100,7 +100,7 @@ struct AnalyticalDpLabel
   std::vector<PatternId> trace_segment_pattern_ids;
 };
 
-struct AnalyticalDpTransitionOptions
+struct AnalyticalDpTransitionConfig
 {
   double leaf_load_cap_pf = 0.0;
   double input_slew_probe_ns = 0.0;
@@ -110,7 +110,7 @@ struct AnalyticalDpTransitionOptions
   bool use_conservative_metrics = true;
 };
 
-struct AnalyticalDominanceOptions
+struct AnalyticalDominanceConfig
 {
   double delay_epsilon = 0.0;
   double power_epsilon = 0.0;
@@ -126,10 +126,9 @@ auto BuildAnalyticalTopologyPattern(const std::vector<PatternId>& level_segment_
 auto MaterializeAnalyticalTopologyChar(const AnalyticalCandidate& candidate, const icts::UniformValueLattice& slew_lattice,
                                        const icts::UniformValueLattice& cap_lattice) -> std::optional<HTreeTopologyChar>;
 auto PrependAnalyticalDpSegment(const AnalyticalDpLabel& suffix, const icts::analytical::AnalyticalModelSet& model_set,
-                                const PatternCompositionState& segment_state, const AnalyticalDpTransitionOptions& options)
+                                const PatternCompositionState& segment_state, const AnalyticalDpTransitionConfig& config)
     -> std::optional<AnalyticalDpLabel>;
-auto DominatesIntervalSafe(const AnalyticalDpLabel& lhs, const AnalyticalDpLabel& rhs, const AnalyticalDominanceOptions& options) -> bool;
-auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const AnalyticalDominanceOptions& options)
-    -> std::vector<AnalyticalDpLabel>;
+auto DominatesIntervalSafe(const AnalyticalDpLabel& lhs, const AnalyticalDpLabel& rhs, const AnalyticalDominanceConfig& config) -> bool;
+auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const AnalyticalDominanceConfig& config) -> std::vector<AnalyticalDpLabel>;
 
 }  // namespace icts::htree::analytical_solver

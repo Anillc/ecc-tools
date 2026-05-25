@@ -111,7 +111,7 @@ auto ToClusterElectricalViolation(ConstraintViolation violation) -> ClusterElect
 
 }  // namespace
 
-auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> ClusterResult
+auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size) -> ClusterOutput
 {
   BiPartitionConfig config;
   config.max_ratio = kDefaultMaxRatio;
@@ -121,9 +121,9 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   return biPartition(loads, min_cluster_size, config);
 }
 
-auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterResult
+auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_cluster_size, const BiPartitionConfig& config) -> ClusterOutput
 {
-  ClusterResult result;
+  ClusterOutput result;
   if (loads.empty()) {
     return result;
   }
@@ -202,17 +202,17 @@ auto Clustering::biPartition(const std::vector<Pin*>& loads, std::size_t min_clu
   return result;
 }
 
-auto Clustering::fastClustering(const std::vector<Pin*>& loads) -> ClusterResult
+auto Clustering::fastClustering(const std::vector<Pin*>& loads) -> ClusterOutput
 {
   return defaultFastClustering(loads, ClusterConfig{});
 }
 
-auto Clustering::defaultFastClustering(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterResult
+auto Clustering::defaultFastClustering(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterOutput
 {
   return FastClustering::runDefault(loads, base_config);
 }
 
-auto Clustering::fastClustering(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterResult
+auto Clustering::fastClustering(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterOutput
 {
   return FastClustering::run(loads, config);
 }

@@ -26,15 +26,15 @@
 #include <cstddef>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <vector>
 
 namespace idb {
 class IdbDesign;
 }  // namespace idb
 
-namespace icts {
+#include "logger/SchemaForward.hh"
 
+namespace icts {
 enum class SdcObjectKind
 {
   kPort,
@@ -117,12 +117,28 @@ struct ClockTraceClockTarget
   std::vector<ClockTracePreclusteredSinkAnchor> preclustered_sink_anchors;
 };
 
-struct ClockTraceResult
+struct ClockTraceOutput
 {
-  std::vector<std::pair<std::string, std::string>> clock_net_pairs;
   std::vector<ClockTraceClockTarget> clock_targets;
+};
+
+struct ClockTraceSummary
+{
   std::vector<ClockTraceRecord> records;
   std::vector<ClockTraceRecord> unowned_clock_like_records;
+};
+
+struct ClockTraceBuild
+{
+  ClockTraceOutput output;
+  ClockTraceSummary summary;
+};
+
+struct SdcClockTraceInput
+{
+  const SdcClockData* clock_data = nullptr;
+  std::size_t max_fanout = 0U;
+  SchemaWriter* reporter = nullptr;
 };
 
 class SdcClockReader
@@ -131,9 +147,10 @@ class SdcClockReader
   SdcClockReader();
   explicit SdcClockReader(std::string sdc_path);
 
-  auto readClockData() const -> SdcClockData;
-  auto readDeclarationsOnly() const -> std::vector<std::tuple<std::string, std::string, double, bool>>;
-  static auto traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design) -> ClockTraceResult;
+  auto readClockData(SchemaWriter& reporter) const -> SdcClockData;
+  auto readDeclarationsOnly(SchemaWriter& reporter) const -> std::vector<std::tuple<std::string, std::string, double, bool>>;
+  static auto traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout, SchemaWriter& reporter)
+      -> ClockTraceBuild;
 
  private:
   std::string _sdc_path;

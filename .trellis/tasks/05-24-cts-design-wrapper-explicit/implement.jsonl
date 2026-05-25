@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Design/wrapper ownership rules to replace"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Adapter and cross-layer data-flow checklist"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Ownership and API clarity checks"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/design.md", "reason": "Parent runtime ownership design"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "DESIGN_INST and WRAPPER_INST hotspot inventory"}

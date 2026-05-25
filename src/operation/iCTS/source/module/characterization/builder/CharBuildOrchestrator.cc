@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -39,6 +40,7 @@
 #include "characterization/pattern/CharPatternEnumerator.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts::char_builder::detail {
 namespace {
@@ -56,16 +58,20 @@ auto calcRatio(std::size_t numerator, std::size_t denominator) -> double
   return static_cast<double>(numerator) / static_cast<double>(denominator);
 }
 
-auto DetailStageReportOptions() -> schema::StageReportOptions
+auto DetailStageReportOptions() -> StageReportOptions
 {
-  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+  return StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail};
 }
 
 }  // namespace
 
 auto CharBuildOrchestrator::build() -> void
 {
-  auto build_stage = SCHEMA_WRITER_INST.beginStage("CharBuilder", "build", {}, DetailStageReportOptions());
+  auto* reporter = _impl._reporter;
+  std::optional<SchemaWriter::StageScope> build_stage;
+  if (reporter != nullptr) {
+    build_stage.emplace(reporter->beginStage("CharBuilder", "build", {}, DetailStageReportOptions()));
+  }
   logformat::TableRows progress_rows;
 
   _impl._executed_sta_samples = 0U;
@@ -79,19 +85,25 @@ auto CharBuildOrchestrator::build() -> void
   _impl._max_observed_driven_cap_idx = 0U;
 
   if (_impl._sorted_buffers.empty()) {
-    LOG_WARNING << "CharBuilder: no usable buffers remain after InitOptions/liberty filtering, skip characterization build";
-    build_stage.skip({{"reason", "no_usable_buffers"}});
+    LOG_WARNING << "CharBuilder: no usable buffers remain after Input/Config/liberty filtering, skip characterization build";
+    if (build_stage.has_value()) {
+      build_stage->skip({{"reason", "no_usable_buffers"}});
+    }
     return;
   }
   if (_impl._wirelengths_um.empty()) {
     LOG_ERROR << "CharBuilder: no wirelengths to enumerate, aborting build";
-    build_stage.failed({{"reason", "no_wirelengths"}});
+    if (build_stage.has_value()) {
+      build_stage->failed({{"reason", "no_wirelengths"}});
+    }
     return;
   }
   if (_impl._slews_to_test.empty() || _impl._loads_to_test.empty()) {
     LOG_WARNING << "CharBuilder: characterization limits are unresolved"
                 << " (max_slew=" << _impl._max_slew << " ns, max_cap=" << _impl._max_cap << " pF), skip characterization build";
-    build_stage.skip({{"reason", "unresolved_characterization_limits"}});
+    if (build_stage.has_value()) {
+      build_stage->skip({{"reason", "unresolved_characterization_limits"}});
+    }
     return;
   }
 
@@ -108,12 +120,14 @@ auto CharBuildOrchestrator::build() -> void
     build_progress.wirelength_um = wirelength_um;
     build_progress.estimated_patterns = estimated_patterns_per_wirelength;
     build_progress.estimated_sta_samples = estimated_sta_samples_per_wirelength;
-    build_stage.markRunning("wirelength=" + formatFixed(wirelength_um) + " um",
-                            {
-                                {"estimated_patterns", std::to_string(estimated_patterns_per_wirelength)},
-                                {"estimated_sta_samples", std::to_string(estimated_sta_samples_per_wirelength)},
-                                {"topology_slots", std::to_string(topology_slots)},
-                            });
+    if (build_stage.has_value()) {
+      build_stage->markRunning("wirelength=" + formatFixed(wirelength_um) + " um",
+                               {
+                                   {"estimated_patterns", std::to_string(estimated_patterns_per_wirelength)},
+                                   {"estimated_sta_samples", std::to_string(estimated_sta_samples_per_wirelength)},
+                                   {"topology_slots", std::to_string(topology_slots)},
+                               });
+    }
     _impl.patternEnumerator().enumerateWirelength(length_idx, wirelength_um, build_progress);
 
     progress_rows.push_back({
@@ -152,17 +166,17 @@ auto CharBuildOrchestrator::build() -> void
              << ", driven_cap_overflow_load_points=" << build_progress.driven_cap_overflow_load_points;
   }
 
-  if (!progress_rows.empty()) {
-    SCHEMA_WRITER_INST.emitTableTo(
+  if (!progress_rows.empty() && reporter != nullptr) {
+    reporter->emitTableTo(
         "CharBuilder Sweep Progress Detail",
         {"Wirelength", "Topology Slots", "Generated Chars", "Generated Patterns", "Feasible Patterns", "Skipped Patterns",
          "Executed STA Samples", "Skipped STA Samples", "Output Slew Overflow", "Driven Cap Overflow", "Driven Cap Overflow Load Points"},
-        progress_rows, schema::ReportSink::kDetail);
+        progress_rows, ReportSink::kDetail);
   }
 
   const double output_slew_overflow_ratio = calcRatio(_impl._output_slew_overflow_samples, _impl._executed_sta_samples);
   const double driven_cap_overflow_ratio = calcRatio(_impl._driven_cap_overflow_samples, _impl._executed_sta_samples);
-  const schema::KeyValueFields default_observed_fields = {
+  const KeyValueFields default_observed_fields = {
       {"segment_chars", std::to_string(_impl._segment_chars.size())},
       {"executed_sta_samples", std::to_string(_impl._executed_sta_samples)},
       {"skipped_sta_samples", std::to_string(_impl._skipped_sta_samples)},
@@ -174,7 +188,7 @@ auto CharBuildOrchestrator::build() -> void
       {"driven_cap_overflow_load_points", std::to_string(_impl._driven_cap_overflow_load_points)},
       {"max_observed_driven_cap", logformat::FormatWithUnit(_impl._max_observed_driven_cap_pf, "pF")},
   };
-  const schema::KeyValueFields detail_observed_fields = {
+  const KeyValueFields detail_observed_fields = {
       {"segment_chars", std::to_string(_impl._segment_chars.size())},
       {"executed_sta_samples", std::to_string(_impl._executed_sta_samples)},
       {"skipped_sta_samples", std::to_string(_impl._skipped_sta_samples)},
@@ -190,25 +204,31 @@ auto CharBuildOrchestrator::build() -> void
       {"max_observed_driven_cap_idx", std::to_string(_impl._max_observed_driven_cap_idx)},
       {"cap_lattice_source", "CharBuilder Setup"},
   };
-  SCHEMA_WRITER_INST.emitSection("### Characterization Results");
-  SCHEMA_WRITER_INST.emitKeyValueTable("CharBuilder Results", default_observed_fields);
-  SCHEMA_WRITER_INST.emitKeyValueTableTo("CharBuilder Results Detail", detail_observed_fields, schema::ReportSink::kDetail);
+  if (reporter != nullptr) {
+    reporter->emitSection("### Characterization Results");
+    reporter->emitKeyValueTable("CharBuilder Results", default_observed_fields);
+    reporter->emitKeyValueTableTo("CharBuilder Build Detail", detail_observed_fields, ReportSink::kDetail);
+  }
   if (_impl._output_slew_overflow_samples > 0U) {
-    schema::EmitDiagnostic(output_slew_overflow_ratio >= 0.10 ? schema::DiagnosticLevel::kWarning : schema::DiagnosticLevel::kInfo,
-                           "CharBuilder",
-                           "output slew overflow occurred during characterization; samples were capped to the configured slew lattice.",
-                           {
-                               {"output_slew_overflow_samples", std::to_string(_impl._output_slew_overflow_samples)},
-                               {"max_observed_output_slew", logformat::FormatWithUnit(_impl._max_observed_output_slew_ns, "ns")},
-                               {"overflow_ratio_source", "CharBuilder Results"},
-                               {"slew_lattice_source", "CharBuilder Setup"},
-                           });
+    if (reporter != nullptr) {
+      EmitDiagnostic(
+          *reporter, output_slew_overflow_ratio >= 0.10 ? DiagnosticLevel::kWarning : DiagnosticLevel::kInfo, "CharBuilder",
+          "output slew overflow occurred during characterization; samples were capped to the configured slew lattice.",
+          {
+              {"output_slew_overflow_samples", std::to_string(_impl._output_slew_overflow_samples)},
+              {"max_observed_output_slew", logformat::FormatWithUnit(_impl._max_observed_output_slew_ns, "ns")},
+              {"overflow_ratio_source", "CharBuilder Results"},
+              {"slew_lattice_source", "CharBuilder Setup"},
+          });
+    }
   }
 
-  build_stage.finished({
-      {"segment_chars", std::to_string(_impl._segment_chars.size())},
-      {"patterns", std::to_string(_impl._buffering_patterns.size())},
-  });
+  if (build_stage.has_value()) {
+    build_stage->finished({
+        {"segment_chars", std::to_string(_impl._segment_chars.size())},
+        {"patterns", std::to_string(_impl._buffering_patterns.size())},
+    });
+  }
 }
 
 }  // namespace icts::char_builder::detail

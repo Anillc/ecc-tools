@@ -18,7 +18,7 @@
  * @file StageReport.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-19
- * @brief Shared H-tree stage reporting options.
+ * @brief Shared H-tree stage reporting config.
  */
 
 #include "synthesis/htree/solution/report/StageReport.hh"
@@ -27,9 +27,9 @@
 
 namespace icts::htree {
 
-auto DetailStageReportOptions() -> schema::StageReportOptions
+auto DetailStageReportOptions() -> StageReportOptions
 {
-  return schema::StageReportOptions{.context_sink = schema::ReportSink::kDetail, .summary_sink = schema::ReportSink::kDetail};
+  return StageReportOptions{.context_sink = ReportSink::kDetail, .summary_sink = ReportSink::kDetail};
 }
 
 }  // namespace icts::htree

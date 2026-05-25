@@ -18,7 +18,7 @@
  * @file SchemaScope.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-19
- * @brief Runtime metric and stage scope helpers for the schema writer.
+ * @brief Runtime metric and stage scope helpers for the structured report writer.
  */
 
 #include <glog/logging.h>
@@ -37,7 +37,7 @@
 #include "Schema.hh"
 #include "usage.hh"
 
-namespace icts::schema {
+namespace icts {
 namespace {
 
 constexpr const char* kStatusFinished = "finished";
@@ -186,7 +186,7 @@ auto SchemaWriter::emitRuntimeSummary(const std::string& title) -> void
     }
   }
   if (!rows.empty()) {
-    EmitTable(title, {"Stage", "Status", "Elapsed Time (s)", "Peak VMem Delta (MB)"}, rows);
+    EmitTable(*this, title, {"Stage", "Status", "Elapsed Time (s)", "Peak VMem Delta (MB)"}, rows);
   }
 }
 
@@ -326,4 +326,4 @@ auto SchemaWriter::StageScope::closeWithStatus(const std::string& status, const 
   }
 }
 
-}  // namespace icts::schema
+}  // namespace icts

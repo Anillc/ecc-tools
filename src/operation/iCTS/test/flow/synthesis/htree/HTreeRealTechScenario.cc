@@ -45,6 +45,7 @@
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
 #include "setup/clock_data/ClockDataRead.hh"
+#include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
 
 namespace icts_test {
 
@@ -112,14 +113,20 @@ auto ConnectRootNetForHTreeTest(icts::Net& root_net, icts::Pin& root_driver, con
 
 auto SelectLargestRealClockLoads(std::size_t max_count) -> std::optional<RealClockLoadSelection>
 {
-  DESIGN_INST.reset();
-  if (!icts::ClockDataRead::read()) {
+  icts_test::runtime::CurrentRuntime().design.reset();
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  if (!icts::ClockDataRead::read(icts::ClockDataReadInput{
+          .config = &runtime.config,
+          .design = &runtime.design,
+          .wrapper = &runtime.wrapper,
+          .reporter = &runtime.reporter,
+      })) {
     return std::nullopt;
   }
 
   RealClockLoadSelection best_selection;
   std::size_t best_source_load_count = 0U;
-  for (auto* clock : DESIGN_INST.get_clocks()) {
+  for (auto* clock : icts_test::runtime::CurrentRuntime().design.get_clocks()) {
     if (clock == nullptr || clock->get_loads().size() < 2U) {
       continue;
     }
@@ -147,6 +154,61 @@ auto CountPinsWithRealContext(const std::vector<icts::Pin*>& loads) -> std::size
   }));
 }
 
+namespace {
+
+auto ResolveRoutingLayerForHTreeTest(const icts::Config& config) -> int
+{
+  const auto& routing_layers = config.get_routing_layers();
+  return routing_layers.empty() ? 0 : static_cast<int>(routing_layers.front());
+}
+
+auto ResolveWireWidthForHTreeTest(const icts::Config& config) -> std::optional<double>
+{
+  const double wire_width_um = config.get_wire_width();
+  return wire_width_um > 0.0 ? std::optional<double>(wire_width_um) : std::nullopt;
+}
+
+}  // namespace
+
+auto MakeExplicitHTreeInput(icts::Net& root_net) -> icts::HTree::Input
+{
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  return icts::HTree::Input{
+      .root_net = &root_net,
+      .design = &runtime.design,
+      .sta_adapter = &runtime.sta_adapter,
+      .reporter = &runtime.reporter,
+      .characterization_input = icts::CharacterizationLibrary::buildRuntimeInput(icts::CharacterizationRuntimeInput{
+          .config = &runtime.config,
+          .wrapper = &runtime.wrapper,
+          .sta_adapter = &runtime.sta_adapter,
+          .fast_sta = &runtime.fast_sta,
+          .reporter = &runtime.reporter,
+      }),
+      .characterization_config = icts::CharacterizationLibrary::buildRuntimeConfig(runtime.config),
+      .additional_characterization_lengths_um = {},
+  };
+}
+
+auto MakeExplicitHTreeConfig(std::optional<bool> force_branch_buffer, std::optional<double> min_top_input_slew_ns) -> icts::HTree::Config
+{
+  auto& runtime = icts_test::runtime::CurrentRuntime();
+  return icts::HTree::Config{
+      .force_branch_buffer = force_branch_buffer.value_or(runtime.config.is_force_branch_buffer()),
+      .min_top_input_slew_ns = min_top_input_slew_ns,
+      .depth_explore_window = std::max(1U, runtime.config.get_htree_depth_explore_window()),
+      .topology_tolerance = runtime.config.get_htree_topology_tolerance(),
+      .max_fanout = runtime.config.get_max_fanout(),
+      .has_max_cap = runtime.config.has_max_cap(),
+      .max_cap_pf = runtime.config.has_max_cap() ? runtime.config.get_max_cap() : 0.0,
+      .enable_root_driver_sizing = true,
+      .allow_boundary_relaxation = true,
+      .enable_analytical_solver = runtime.config.is_enable_analytical_htree(),
+      .routing_layer = ResolveRoutingLayerForHTreeTest(runtime.config),
+      .wire_width_um = ResolveWireWidthForHTreeTest(runtime.config),
+  };
+}
+
 auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pin*>
 {
   std::unordered_set<icts::Pin*> leaf_loads;
@@ -170,15 +232,15 @@ auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pi
   return leaf_loads;
 }
 
-auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::BuildResult& result) -> void
+auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::DiagnosticBuild& result) -> void
 {
   std::unordered_set<const icts::Inst*> inserted_insts;
-  inserted_insts.reserve(result.inserted_insts.size());
-  for (const auto& inst_owner : result.inserted_insts) {
+  inserted_insts.reserve(result.output.inserted_insts.size());
+  for (const auto& inst_owner : result.output.inserted_insts) {
     inserted_insts.insert(inst_owner.get());
   }
 
-  for (const auto& inst_owner : result.inserted_insts) {
+  for (const auto& inst_owner : result.output.inserted_insts) {
     const auto* inst = inst_owner.get();
     if (inst == nullptr || !inst->is_buffer()) {
       continue;
@@ -211,24 +273,25 @@ auto ReadTextFile(const std::filesystem::path& path) -> std::string
   return content_stream.str();
 }
 
-auto AssertDepthCandidateCoverage(const icts::HTree::BuildResult& result) -> void
+auto AssertDepthCandidateCoverage(const icts::HTree::DiagnosticBuild& result) -> void
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   ASSERT_GT(observation.depth_candidate_count, 0U);
   ASSERT_TRUE(observation.has_selected_depth);
 
-  const auto topology_levels = result.topology.levels();
+  const auto topology_levels = result.output.topology.levels();
   ASSERT_GT(topology_levels.size(), 1U);
   const auto max_depth = static_cast<unsigned>(topology_levels.size() - 1U);
-  EXPECT_EQ(observation.depth_candidate_count, std::min<std::size_t>(CONFIG_INST.get_htree_depth_explore_window(), max_depth));
+  EXPECT_EQ(observation.depth_candidate_count,
+            std::min<std::size_t>(icts_test::runtime::CurrentRuntime().config.get_htree_depth_explore_window(), max_depth));
 
-  EXPECT_EQ(observation.selected_depth, result.selected_depth.value_or(0U));
+  EXPECT_EQ(observation.selected_depth, result.summary.selected_depth.value_or(0U));
   EXPECT_EQ(observation.selected_depth, observation.selected_level_count);
   EXPECT_TRUE(observation.success);
   EXPECT_GT(observation.selected_final_frontier_count, 0U);
 }
 
-auto AssertSelectedHTreeLoadDistribution(const icts::HTree::BuildResult& result) -> void
+auto AssertSelectedHTreeLoadDistribution(const icts::HTree::DiagnosticBuild& result) -> void
 {
   const auto observation = htree::ObserveHTreeBuild(result);
   ASSERT_GT(observation.htree_load_group_count, 0U);
@@ -240,7 +303,7 @@ auto AssertSelectedHTreeLoadDistribution(const icts::HTree::BuildResult& result)
 
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
-                                  const icts::HTree::BuildResult& result) -> void
+                                  const icts::HTree::DiagnosticBuild& result) -> void
 {
   ASSERT_FALSE(artifact_paths.output_dir.empty());
   EXPECT_TRUE(htree::WriteHTreeArtifacts(artifact_paths, scenario_name, clock_name, loads, result));
@@ -252,23 +315,23 @@ auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_path
 }
 
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
-auto AssertBranchBufferMaterialization(const icts::HTree::BuildResult& result) -> void
+auto AssertBranchBufferMaterialization(const icts::HTree::DiagnosticBuild& result) -> void
 {
-  ASSERT_TRUE(result.success);
-  ASSERT_FALSE(result.levels.empty());
-  ASSERT_TRUE(result.force_branch_buffer);
+  ASSERT_TRUE(result.summary.success);
+  ASSERT_FALSE(result.output.levels.empty());
+  ASSERT_TRUE(result.diagnostics.force_branch_buffer);
 
   std::vector<icts::Point<int>> required_terminal_positions;
-  const auto topology_levels = result.topology.levels();
-  for (std::size_t level_index = 0; level_index < result.levels.size(); ++level_index) {
-    const auto& level = result.levels.at(level_index);
+  const auto topology_levels = result.output.topology.levels();
+  for (std::size_t level_index = 0; level_index < result.output.levels.size(); ++level_index) {
+    const auto& level = result.output.levels.at(level_index);
     EXPECT_TRUE(level.selected_has_terminal_branch_buffer);
 
     if (!level.is_leaf_level || level_index + 1U >= topology_levels.size()) {
       continue;
     }
     for (const auto node_id : topology_levels.at(level_index + 1U)) {
-      const auto* node = result.topology.get_node(node_id);
+      const auto* node = result.output.topology.get_node(node_id);
       if (node == nullptr || node->get_loads().empty()) {
         continue;
       }
@@ -277,7 +340,7 @@ auto AssertBranchBufferMaterialization(const icts::HTree::BuildResult& result) -
   }
 
   for (const auto& expected_position : required_terminal_positions) {
-    const bool has_terminal_inst = std::ranges::any_of(result.inserted_insts, [&expected_position](const auto& inst_owner) -> bool {
+    const bool has_terminal_inst = std::ranges::any_of(result.output.inserted_insts, [&expected_position](const auto& inst_owner) -> bool {
       const auto* inst = inst_owner.get();
       return inst != nullptr && inst->get_location() == expected_position;
     });

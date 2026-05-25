@@ -146,7 +146,7 @@ auto MergeDraftsIfUseful(std::size_t cluster_id, std::vector<ClusterDraft>& clus
 auto PolishBoundaryLoads(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void;
 auto PolishSmallClusters(std::vector<ClusterDraft>& clusters, const std::vector<LoadEntry>& entries, const ClusterConfig& config) -> void;
 auto FinalizeClusters(const std::vector<ClusterDraft>& drafts, const std::vector<LoadEntry>& entries, const ClusterConfig& config)
-    -> std::optional<ClusterResult>;
-auto CountAssignedLoads(const ClusterResult& result) -> std::size_t;
+    -> std::optional<ClusterOutput>;
+auto CountAssignedLoads(const ClusterOutput& result) -> std::size_t;
 
 }  // namespace icts::fast_clustering

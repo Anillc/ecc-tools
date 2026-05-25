@@ -28,11 +28,16 @@
 
 #include "synthesis/htree/HTree.hh"
 
+namespace icts {
+class STAAdapter;
+}  // namespace icts
+
 namespace icts::htree {
 
 struct BufferPatternLibrary;
 
 auto ResolveSelectedRootDriverCellMaster(const std::vector<HTree::LevelPlan>& levels) -> std::string;
-auto ApplySelectedPatternToLevelPlans(HTree::BuildResult& result, const BufferPatternLibrary& segment_pattern_library) -> void;
+auto ApplySelectedPatternToLevelPlans(STAAdapter& sta_adapter, HTree::Build& result, const BufferPatternLibrary& segment_pattern_library)
+    -> void;
 
 }  // namespace icts::htree

@@ -36,6 +36,7 @@
 #include "SdcClockReader.hh"
 #include "SdcClockTraceAlgorithm.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts::clock_trace {
 
@@ -147,9 +148,9 @@ auto NumberToString(std::size_t value) -> std::string
   return stream.str();
 }
 
-auto EmitClockTraceReport(const std::vector<ClockTraceRecord>& records) -> void
+auto EmitClockTraceReport(SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void
 {
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(records.size());
   for (const auto& record : records) {
     rows.push_back({
@@ -169,14 +170,14 @@ auto EmitClockTraceReport(const std::vector<ClockTraceRecord>& records) -> void
   if (rows.empty()) {
     rows.push_back({"n/a", "n/a", "n/a", "n/a", "skipped", "undetermined", "n/a", "0", "0", "", "no_sdc_clock_trace_records"});
   }
-  schema::EmitTable("Clock Trace Overview",
+  EmitTable(reporter, "Clock Trace Overview",
                     {"Clock", "Kind", "Master Clock", "Net", "Status", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks",
                      "Trace Path", "Reason"},
                     rows);
 }
 
 auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<std::string, ClockDeclView>& clock_view_by_name,
-                                 const std::vector<ClockTraceRecord>& records) -> void
+                                 SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void
 {
   std::map<std::string, std::set<std::string>> owned_net_names_by_clock;
   std::map<std::string, std::set<std::string>> cts_target_net_names_by_clock;
@@ -195,7 +196,7 @@ auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<
     }
   }
 
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(clock_data.clocks.size());
   for (const auto& clock : clock_data.clocks) {
     const auto view_iter = clock_view_by_name.find(clock.clock_name);
@@ -212,14 +213,14 @@ auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<
   if (rows.empty()) {
     rows.push_back({"n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "0", "0"});
   }
-  schema::EmitTable("SDC Clock Ownership Overview",
+  EmitTable(reporter, "SDC Clock Ownership Overview",
                     {"Clock", "Kind", "Master Clock", "SDC Target Nets", "Owned Nets", "CTS Target Nets", "Seq CK Sinks", "Macro CK Sinks"},
                     rows);
 }
 
-auto EmitUnownedClockLikeNetReport(const std::vector<ClockTraceRecord>& records) -> void
+auto EmitUnownedClockLikeNetReport(SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void
 {
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(records.size());
   for (const auto& record : records) {
     rows.push_back({record.net_name, record.dominance, record.target_kind, NumberToString(record.sequential_clock_sinks),
@@ -228,7 +229,8 @@ auto EmitUnownedClockLikeNetReport(const std::vector<ClockTraceRecord>& records)
   if (rows.empty()) {
     rows.push_back({"n/a", "none", "n/a", "0", "0", "no_unowned_clock_like_nets"});
   }
-  schema::EmitTable("Unowned Clock-like Nets", {"Net", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks", "Reason"}, rows);
+  EmitTable(reporter, "Unowned Clock-like Nets", {"Net", "Dominance", "Target Kind", "Seq CK Sinks", "Macro CK Sinks", "Reason"},
+                    rows);
 }
 
 }  // namespace icts::clock_trace

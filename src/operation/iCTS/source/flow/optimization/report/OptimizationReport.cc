@@ -18,22 +18,27 @@
  * @file OptimizationReport.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-18
- * @brief Report and schema helpers for CTS post-synthesis optimization.
+ * @brief Report helpers for CTS post-synthesis optimization.
  */
 
 #include "optimization/report/OptimizationReport.hh"
 
+#include <glog/logging.h>
+
 #include <chrono>
 #include <cstddef>
 #include <map>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "FastSta.hh"
+#include "Log.hh"
 #include "design/Clock.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 #include "optimization/model/ClockSizingOptimizationData.hh"
 
 namespace icts::clock_sizing_optimization {
@@ -66,9 +71,10 @@ auto SummarizeTransitions(const std::vector<ClockSizingAcceptedEdit>& accepted_e
 
 }  // namespace
 
-auto EmitClockSummary(const Clock& clock, const ClockSizingSummary& summary, double target_skew_ns, double runtime_s) -> void
+auto EmitClockSummary(SchemaWriter& reporter, const Clock& clock, const ClockSizingSummary& summary, double target_skew_ns,
+                      double runtime_s) -> void
 {
-  schema::KeyValueFields fields = {
+  KeyValueFields fields = {
       {"clock", clock.get_clock_name()},
       {"runtime", logformat::FormatWithUnit(runtime_s, "s")},
       {"target_skew", FormatNs(target_skew_ns)},
@@ -98,22 +104,28 @@ auto EmitClockSummary(const Clock& clock, const ClockSizingSummary& summary, dou
       {"solve_mode", summary.solve_mode.empty() ? "n/a" : summary.solve_mode},
       {"stop_reason", summary.stop_reason.empty() ? "n/a" : summary.stop_reason},
   };
-  schema::EmitKeyValueTable("CTS Optimization Clock Summary", fields);
+  EmitKeyValueTable(reporter, "CTS Optimization Clock Summary", fields);
 
   const auto transition_counts = SummarizeTransitions(summary.accepted_edits);
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(transition_counts.size());
   for (const auto& [transition, count] : transition_counts) {
     rows.push_back({transition, std::to_string(count)});
   }
   if (!rows.empty()) {
-    schema::EmitTable("CTS Optimization Master Transitions", {"Transition", "Count"}, rows);
+    EmitTable(reporter, "CTS Optimization Master Transitions", {"Transition", "Count"}, rows);
   }
 }
 
-auto EmitClockProfile(const Clock& clock, const ClockSizingRuntimeProfile& profile) -> void
+auto EmitClockProfile(const ClockSizingProfileReportInput& input) -> void
 {
-  schema::EmitKeyValueTable("CTS Optimization Clock Graph Profile",
+  LOG_FATAL_IF(input.reporter == nullptr) << "Optimization profile report requires reporter.";
+  LOG_FATAL_IF(input.clock == nullptr) << "Optimization profile report requires clock.";
+  LOG_FATAL_IF(input.profile == nullptr) << "Optimization profile report requires profile.";
+  auto& reporter = *input.reporter;
+  const auto& clock = *input.clock;
+  const auto& profile = *input.profile;
+  EmitKeyValueTable(reporter, "CTS Optimization Clock Graph Profile",
                             {{"clock", clock.get_clock_name()},
                              {"node_count", std::to_string(profile.node_count)},
                              {"net_count", std::to_string(profile.net_count)},
@@ -123,7 +135,7 @@ auto EmitClockProfile(const Clock& clock, const ClockSizingRuntimeProfile& profi
                              {"optimizable_buffer_count", std::to_string(profile.optimizable_buffer_count)},
                              {"generated_candidate_count", std::to_string(profile.generated_candidate_count)}});
 
-  schema::TableRows rows = {
+  TableRows rows = {
       {"build_route_tree_cache", FormatSeconds(profile.build_route_tree_cache_s)},
       {"build_fast_sta_context", FormatSeconds(profile.build_fast_sta_context_s)},
       {"inject_route_trees", FormatSeconds(profile.inject_route_trees_s)},
@@ -138,7 +150,7 @@ auto EmitClockProfile(const Clock& clock, const ClockSizingRuntimeProfile& profi
       {"apply_accepted_batch", FormatSeconds(profile.apply_accepted_batch_s)},
       {"apply_accepted_edits", FormatSeconds(profile.apply_accepted_edits_s)},
   };
-  schema::EmitTable("CTS Optimization Clock Runtime Profile", {"Stage", "Runtime"}, rows);
+  EmitTable(reporter, "CTS Optimization Clock Runtime Profile", {"Stage", "Runtime"}, rows);
 }
 
 }  // namespace icts::clock_sizing_optimization

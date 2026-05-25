@@ -44,7 +44,7 @@ namespace {
 
 auto ShortlistFrontierFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProblem& solve_problem, const HTree::LevelPlan& level,
                                                  std::size_t level_index, double input_slew_ns, double downstream_cap_pf,
-                                                 FunctionalComposeContext& context, AnalyticalSolverResult& result)
+                                                 FunctionalComposeContext& context, AnalyticalSolverBuild& result)
     -> std::vector<ScoredSegment>
 {
   const ScoredSegmentCacheKey cache_key{
@@ -76,26 +76,26 @@ auto ShortlistFrontierFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProbl
   scored_segments.reserve(frontier->size());
   const auto diagnostic_pattern_ids = DiagnosticPatternIds(solve_problem, level_index);
   for (const auto& segment_char : *frontier) {
-    ++result.evaluated_segment_count;
+    ++result.summary.evaluated_segment_count;
     RecordDiagnosticPatternStage(diagnostic_pattern_ids, segment_char.get_pattern_id(), DiagnosticPatternStage::kFrontier, result);
     if (!IsFunctionalSequenceAllowedForLevel(solve_problem, level, segment_char.get_pattern_id())) {
       continue;
     }
     auto unit_pattern_ids = DecomposePatternToUnitSequence(segment_char.get_pattern_id(), solve_problem, context);
     if (unit_pattern_ids.empty()) {
-      ++result.decomposition_rejected_count;
+      ++result.summary.decomposition_rejected_count;
       continue;
     }
     RecordDiagnosticPatternStage(diagnostic_pattern_ids, segment_char.get_pattern_id(), DiagnosticPatternStage::kDecomposed, result);
     auto scored = ScoreFunctionalUnitSequence(solve_problem, unit_pattern_ids, segment_char.get_pattern_id(), segment_char.get_length_idx(),
-                                              input_slew_ns, downstream_cap_pf, solve_problem.options.use_conservative_scoring, result);
+                                              input_slew_ns, downstream_cap_pf, solve_problem.config.use_conservative_scoring, result);
     if (scored.has_value()) {
       scored_segments.push_back(std::move(*scored));
-      ++result.scored_segment_count;
+      ++result.summary.scored_segment_count;
       RecordDiagnosticPatternStage(diagnostic_pattern_ids, segment_char.get_pattern_id(), DiagnosticPatternStage::kScored, result);
     }
   }
-  auto shortlist = TrimScoredSegments(std::move(scored_segments), solve_problem.options.per_level_shortlist_size);
+  auto shortlist = TrimScoredSegments(std::move(scored_segments), solve_problem.config.per_level_shortlist_size);
   for (const auto& scored : shortlist) {
     RecordDiagnosticPatternStage(diagnostic_pattern_ids, scored.pattern_id, DiagnosticPatternStage::kShortlisted, result);
   }
@@ -104,7 +104,7 @@ auto ShortlistFrontierFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProbl
 
 auto ShortlistFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProblem& solve_problem, const HTree::LevelPlan& level,
                                          double input_slew_ns, std::size_t level_index, double downstream_cap_pf,
-                                         FunctionalComposeContext& context, AnalyticalSolverResult& result) -> std::vector<ScoredSegment>
+                                         FunctionalComposeContext& context, AnalyticalSolverBuild& result) -> std::vector<ScoredSegment>
 {
   if (solve_problem.segment_frontier_catalog != nullptr) {
     auto frontier_segments
@@ -116,11 +116,11 @@ auto ShortlistFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProblem& solv
 
   auto* mutable_segment_pattern_library = solve_problem.mutable_segment_pattern_library;
   if (mutable_segment_pattern_library == nullptr || context.unit_models.empty() || level.aligned_length_idx == 0U
-      || solve_problem.options.unit_length_idx == 0U || level.aligned_length_idx % solve_problem.options.unit_length_idx != 0U) {
+      || solve_problem.config.unit_length_idx == 0U || level.aligned_length_idx % solve_problem.config.unit_length_idx != 0U) {
     return {};
   }
 
-  const unsigned unit_count = level.aligned_length_idx / solve_problem.options.unit_length_idx;
+  const unsigned unit_count = level.aligned_length_idx / solve_problem.config.unit_length_idx;
   struct FunctionalSequenceState
   {
     std::vector<PatternId> unit_pattern_ids;
@@ -129,7 +129,7 @@ auto ShortlistFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProblem& solv
 
   std::vector<FunctionalSequenceState> beam = {FunctionalSequenceState{}};
   const std::size_t beam_width
-      = std::max<std::size_t>(1U, std::min(solve_problem.options.unit_compose_beam_size, solve_problem.options.per_level_shortlist_size));
+      = std::max<std::size_t>(1U, std::min(solve_problem.config.unit_compose_beam_size, solve_problem.config.per_level_shortlist_size));
   for (unsigned unit_index = 0U; unit_index < unit_count; ++unit_index) {
     std::vector<FunctionalSequenceState> next_beam;
     for (const auto& partial : beam) {
@@ -148,14 +148,14 @@ auto ShortlistFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProblem& solv
           }
           scoring_pattern_id = *materialized_pattern_id;
         }
-        ++result.evaluated_segment_count;
+        ++result.summary.evaluated_segment_count;
         auto scored = ScoreFunctionalUnitSequence(solve_problem, unit_pattern_ids, scoring_pattern_id,
-                                                  static_cast<unsigned>(unit_pattern_ids.size() * solve_problem.options.unit_length_idx),
-                                                  input_slew_ns, downstream_cap_pf, solve_problem.options.use_conservative_scoring, result);
+                                                  static_cast<unsigned>(unit_pattern_ids.size() * solve_problem.config.unit_length_idx),
+                                                  input_slew_ns, downstream_cap_pf, solve_problem.config.use_conservative_scoring, result);
         if (!scored.has_value()) {
           continue;
         }
-        ++result.scored_segment_count;
+        ++result.summary.scored_segment_count;
         next_beam.push_back(FunctionalSequenceState{.unit_pattern_ids = std::move(unit_pattern_ids), .scored = std::move(*scored)});
       }
     }
@@ -189,16 +189,16 @@ auto ShortlistFunctionalSegmentsForLevel(const AnalyticalHTreeSolveProblem& solv
       scored_segments.push_back(std::move(state.scored));
     }
   }
-  return TrimScoredSegments(std::move(scored_segments), solve_problem.options.per_level_shortlist_size);
+  return TrimScoredSegments(std::move(scored_segments), solve_problem.config.per_level_shortlist_size);
 }
 
 }  // namespace
 
 auto ShortlistSegmentsForLevel(const AnalyticalHTreeSolveProblem& solve_problem, const HTree::LevelPlan& level, double input_slew_ns,
                                std::size_t level_index, double downstream_cap_pf, FunctionalComposeContext* functional_context,
-                               AnalyticalSolverResult& result) -> std::vector<ScoredSegment>
+                               AnalyticalSolverBuild& result) -> std::vector<ScoredSegment>
 {
-  if (solve_problem.options.use_functional_unit_compose && functional_context != nullptr) {
+  if (solve_problem.config.use_functional_unit_compose && functional_context != nullptr) {
     return ShortlistFunctionalSegmentsForLevel(solve_problem, level, input_slew_ns, level_index, downstream_cap_pf, *functional_context,
                                                result);
   }
@@ -213,8 +213,8 @@ auto ShortlistSegmentsForLevel(const AnalyticalHTreeSolveProblem& solve_problem,
   std::vector<ScoredSegment> scored_segments;
   scored_segments.reserve(frontier->size());
   for (const auto& segment_char : *frontier) {
-    ++result.evaluated_segment_count;
-    if (level.is_leaf_level && solve_problem.fanout_options.max_fanout > 0U
+    ++result.summary.evaluated_segment_count;
+    if (level.is_leaf_level && solve_problem.fanout_config.max_fanout > 0U
         && !SegmentHasAnyBuffer(solve_problem, segment_char.get_pattern_id())) {
       continue;
     }
@@ -223,19 +223,19 @@ auto ShortlistSegmentsForLevel(const AnalyticalHTreeSolveProblem& solve_problem,
         .length_idx = segment_char.get_length_idx(),
     });
     if (model_set == nullptr || !model_set->isComplete()) {
-      ++result.missing_model_count;
+      ++result.summary.missing_model_count;
       continue;
     }
-    auto scored = ScoreSegment(segment_char, *model_set, input_slew_ns, downstream_cap_pf, solve_problem.options.use_conservative_scoring);
+    auto scored = ScoreSegment(segment_char, *model_set, input_slew_ns, downstream_cap_pf, solve_problem.config.use_conservative_scoring);
     if (scored.has_value()) {
       scored_segments.push_back(*scored);
-      ++result.scored_segment_count;
+      ++result.summary.scored_segment_count;
     } else {
-      ++result.metric_evaluation_rejected_count;
+      ++result.summary.metric_evaluation_rejected_count;
     }
   }
 
-  auto shortlist = TrimScoredSegments(std::move(scored_segments), solve_problem.options.per_level_shortlist_size);
+  auto shortlist = TrimScoredSegments(std::move(scored_segments), solve_problem.config.per_level_shortlist_size);
   const auto diagnostic_pattern_ids = DiagnosticPatternIds(solve_problem, level_index);
   for (const auto& scored : shortlist) {
     RecordDiagnosticPatternStage(diagnostic_pattern_ids, scored.pattern_id, DiagnosticPatternStage::kShortlisted, result);

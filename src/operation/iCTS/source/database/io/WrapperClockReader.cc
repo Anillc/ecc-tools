@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -42,6 +43,7 @@
 #include "IdbTerm.h"
 #include "LibParserRustC.hh"
 #include "Log.hh"
+#include "Vector.hh"
 #include "Wrapper.hh"
 #include "adapter/sdc/SdcClockReader.hh"
 #include "api/TimingEngine.hh"
@@ -54,6 +56,7 @@
 #include "design/Pin.hh"
 #include "liberty/Lib.hh"
 #include "logger/Schema.hh"
+#include "logger/SchemaForward.hh"
 
 namespace icts {
 namespace {
@@ -338,7 +341,7 @@ auto isSequentialCheckClockPin(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) ->
     }
     for (auto& arc : arc_set->get_arcs()) {
       auto* lib_arc = arc.get();
-      if (lib_arc != nullptr && lib_arc->isCheckArc() && pin_name == lib_arc->get_src_port()) {
+      if (lib_arc != nullptr && lib_arc->isCheckArc() != 0U && pin_name == lib_arc->get_src_port()) {
         return true;
       }
     }
@@ -369,7 +372,7 @@ auto isSequentialClockToOutputArc(ista::LibCell* lib_cell, idb::IdbPin* idb_pin)
         continue;
       }
       auto* output_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_snk_port());
-      if (output_port != nullptr && output_port->isOutput()) {
+      if (output_port != nullptr && output_port->isOutput() != 0U) {
         return true;
       }
     }
@@ -406,7 +409,7 @@ auto hasTransparentDataArcForClockPin(ista::LibCell* lib_cell, idb::IdbPin* cloc
       }
       auto* src_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_src_port());
       auto* snk_port = lib_cell->get_cell_port_or_port_bus(lib_arc->get_snk_port());
-      if (src_port != nullptr && src_port->isInput() && snk_port != nullptr && snk_port->isOutput()) {
+      if (src_port != nullptr && src_port->isInput() != 0U && snk_port != nullptr && snk_port->isOutput() != 0U) {
         return true;
       }
     }
@@ -423,12 +426,24 @@ auto hasSequentialClockPinEvidence(ista::LibCell* lib_cell, idb::IdbPin* idb_pin
 auto classifySequentialInst(ista::LibCell* lib_cell, idb::IdbPin* primary_clock_pin) -> CtsInstClassification
 {
   if (primary_clock_pin != nullptr && hasTransparentDataArcForClockPin(lib_cell, primary_clock_pin)) {
-    return {.type = InstType::kLatch, .role = "latch_sink", .reason = "liberty_latch_transparent_data_arc"};
+    return {.type = InstType::kLatch,
+            .role = "latch_sink",
+            .reason = "liberty_latch_transparent_data_arc",
+            .input_pin_name = {},
+            .output_pin_name = {}};
   }
   if (primary_clock_pin != nullptr && hasSequentialClockPinEvidence(lib_cell, primary_clock_pin)) {
-    return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "liberty_sequential_clock_pin"};
+    return {.type = InstType::kFlipFlop,
+            .role = "sequential_sink",
+            .reason = "liberty_sequential_clock_pin",
+            .input_pin_name = {},
+            .output_pin_name = {}};
   }
-  return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "liberty_sequential_cell"};
+  return {.type = InstType::kFlipFlop,
+          .role = "sequential_sink",
+          .reason = "liberty_sequential_cell",
+          .input_pin_name = {},
+          .output_pin_name = {}};
 }
 
 auto countDirectClockSinks(idb::IdbNet* idb_net) -> std::size_t
@@ -472,17 +487,23 @@ auto makeBoundaryClassification(const std::string& role, const std::string& reas
       .type = role == "clock_logic_boundary" ? InstType::kClockLogic : InstType::kBoundaryLoad,
       .role = role,
       .reason = reason,
+      .input_pin_name = {},
+      .output_pin_name = {},
   };
 }
 
 auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassification
 {
   if (idb_inst == nullptr) {
-    return {.type = InstType::kUnknown, .role = "unknown_boundary", .reason = "null_idb_inst"};
+    return {.type = InstType::kUnknown, .role = "unknown_boundary", .reason = "null_idb_inst", .input_pin_name = {}, .output_pin_name = {}};
   }
   auto* cell_master = idb_inst->get_cell_master();
   if (cell_master != nullptr && cell_master->is_block()) {
-    return {.type = InstType::kMacroBlock, .role = "macro_clock_sink", .reason = "idb_macro_block"};
+    return {.type = InstType::kMacroBlock,
+            .role = "macro_clock_sink",
+            .reason = "idb_macro_block",
+            .input_pin_name = {},
+            .output_pin_name = {}};
   }
 
   auto* lib_cell = findLibCell(idb_inst);
@@ -493,7 +514,9 @@ auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassifica
     return {.type = InstType::kClockGate,
             .role = "integrated_clock_gate",
             .reason = primary_clock_pin == nullptr || isClockGateClockPin(lib_cell, primary_clock_pin) ? "liberty_clock_gate"
-                                                                                                       : "liberty_clock_gate_cell"};
+                                                                                                       : "liberty_clock_gate_cell",
+            .input_pin_name = {},
+            .output_pin_name = {}};
   }
 
   if (lib_cell != nullptr && lib_cell->isSequentialCell()) {
@@ -516,7 +539,8 @@ auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassifica
   }
 
   if (clock_input_pins.size() > 1U) {
-    return {.type = InstType::kMux, .role = "clock_mux", .reason = "multi_clock_input_boundary"};
+    return {
+        .type = InstType::kMux, .role = "clock_mux", .reason = "multi_clock_input_boundary", .input_pin_name = {}, .output_pin_name = {}};
   }
 
   if (primary_clock_pin != nullptr && hasClockSinkOutput(lib_cell, idb_inst, primary_clock_pin)) {
@@ -524,13 +548,14 @@ auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassifica
   }
 
   if (idb_inst->is_flip_flop()) {
-    return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "idb_flip_flop"};
+    return {.type = InstType::kFlipFlop, .role = "sequential_sink", .reason = "idb_flip_flop", .input_pin_name = {}, .output_pin_name = {}};
   }
 
   if (idb_inst->is_clock_instance()) {
     return makeBoundaryClassification("clock_load_boundary", "clock_net_boundary_load");
   }
-  return {.type = InstType::kUnknown, .role = "non_clock_unknown", .reason = "non_clock_unknown"};
+  return {
+      .type = InstType::kUnknown, .role = "non_clock_unknown", .reason = "non_clock_unknown", .input_pin_name = {}, .output_pin_name = {}};
 }
 
 auto ctsPinFullName(idb::IdbPin* idb_pin, Inst* cts_inst) -> std::string
@@ -547,7 +572,7 @@ auto ctsPinFullName(idb::IdbPin* idb_pin, Inst* cts_inst) -> std::string
 class Wrapper::CtsClockReader
 {
  public:
-  explicit CtsClockReader(Wrapper& wrapper) : _wrapper(&wrapper) {}
+  CtsClockReader(Wrapper& wrapper, Design& design, SchemaWriter& reporter) : _wrapper(&wrapper), _design(&design), _reporter(&reporter) {}
 
   auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool
   {
@@ -620,8 +645,8 @@ class Wrapper::CtsClockReader
     _wrapper->_idb2cts_net_map.clear();
     _wrapper->_cts2idb_pin_map.clear();
     _wrapper->_idb2cts_pin_map.clear();
-    DESIGN_INST.clearClocks();
-    DESIGN_INST.clearTopologyObjects();
+    _design->clearClocks();
+    _design->clearTopologyObjects();
     _classification_count_by_key.clear();
   }
 
@@ -630,12 +655,12 @@ class Wrapper::CtsClockReader
     ++_classification_count_by_key[classification.role + ":" + classification.reason];
   }
 
-  static auto emitInstClassificationSummary(const std::map<std::string, std::size_t>& classification_count_by_key) -> void
+  auto emitInstClassificationSummary(const std::map<std::string, std::size_t>& classification_count_by_key) const -> void
   {
     if (classification_count_by_key.empty()) {
       return;
     }
-    schema::TableRows rows;
+    TableRows rows;
     rows.reserve(classification_count_by_key.size());
     for (const auto& [key, count] : classification_count_by_key) {
       const auto separator_pos = key.find(':');
@@ -643,7 +668,7 @@ class Wrapper::CtsClockReader
       const auto reason = separator_pos == std::string::npos ? std::string{} : key.substr(separator_pos + 1U);
       rows.push_back({role, reason, std::to_string(count)});
     }
-    schema::EmitTable("CTS Inst Classification Summary", {"Role", "Reason", "Count"}, rows);
+    EmitTable(*_reporter, "CTS Inst Classification Summary", {"Role", "Reason", "Count"}, rows);
   }
 
   auto findIdbDesign() -> idb::IdbDesign*
@@ -656,12 +681,12 @@ class Wrapper::CtsClockReader
     return idb_design;
   }
 
-  static auto findSdcClockNetOrError(const std::string& clock_name, const std::string& clock_net_name, idb::IdbNetList* idb_net_list)
+  auto findSdcClockNetOrError(const std::string& clock_name, const std::string& clock_net_name, idb::IdbNetList* idb_net_list) const
       -> idb::IdbNet*
   {
     auto* idb_net = idb_net_list->find_net(clock_net_name);
     if (idb_net == nullptr) {
-      schema::EmitDiagnostic(schema::DiagnosticLevel::kError, "Wrapper", "failed to resolve SDC-declared clock net in iDB.",
+      EmitDiagnostic(*_reporter, DiagnosticLevel::kError, "Wrapper", "failed to resolve SDC-declared clock net in iDB.",
                              {{"clock", clock_name}, {"net", clock_net_name}, {"reason", "unresolved_sdc_clock_source"}});
       LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": SDC-declared net \"" << clock_net_name
                 << "\" is not found in iDB.";
@@ -676,7 +701,7 @@ class Wrapper::CtsClockReader
       return nullptr;
     }
 
-    auto* clock = DESIGN_INST.makeClock(clock_name, clock_net_name);
+    auto* clock = _design->makeClock(clock_name, clock_net_name);
     if (clock == nullptr) {
       LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": failed to create CTS clock object.";
       return nullptr;
@@ -741,7 +766,7 @@ class Wrapper::CtsClockReader
         return nullptr;
       }
       cts_pin->set_net(cts_net);
-      if (!DESIGN_INST.indexPin(cts_pin)) {
+      if (!_design->indexPin(cts_pin)) {
         LOG_ERROR << "CTS clock read failed for clock \"" << clock_name << "\": failed to index CTS pin \""
                   << Design::getPinFullName(cts_pin) << "\".";
         return nullptr;
@@ -772,7 +797,7 @@ class Wrapper::CtsClockReader
       return nullptr;
     }
 
-    auto* clock = DESIGN_INST.makeClock(clock_target.clock_name, clock_target.clock_net_name);
+    auto* clock = _design->makeClock(clock_target.clock_name, clock_target.clock_net_name);
     if (clock == nullptr) {
       LOG_ERROR << "CTS clock read failed for clock \"" << clock_target.clock_name << "\": failed to create CTS clock object.";
       return nullptr;
@@ -870,7 +895,7 @@ class Wrapper::CtsClockReader
     }
 
     const auto inst_name = idb_inst->get_name();
-    auto* cts_inst = DESIGN_INST.makeInst(inst_name);
+    auto* cts_inst = _design->makeInst(inst_name);
     if (cts_inst == nullptr) {
       LOG_ERROR << "CTS clock read failed: failed to create CTS inst \"" << inst_name << "\".";
       return nullptr;
@@ -895,7 +920,7 @@ class Wrapper::CtsClockReader
     }
     const auto pin_full_name = ctsPinFullName(idb_pin, cts_inst);
     if (!pin_full_name.empty()) {
-      auto* existing_pin = DESIGN_INST.findPin(pin_full_name);
+      auto* existing_pin = _design->findPin(pin_full_name);
       if (existing_pin != nullptr) {
         bindIdbPin(idb_pin, existing_pin);
         return existing_pin;
@@ -905,7 +930,7 @@ class Wrapper::CtsClockReader
     if (cts_pin == nullptr) {
       return nullptr;
     }
-    if (!DESIGN_INST.indexPin(cts_pin)) {
+    if (!_design->indexPin(cts_pin)) {
       LOG_ERROR << "CTS clock read failed: failed to index CTS pin \"" << Design::getPinFullName(cts_pin) << "\".";
       return nullptr;
     }
@@ -926,12 +951,12 @@ class Wrapper::CtsClockReader
 
     const auto pin_name = idb_term->get_name();
     const auto pin_full_name = cts_inst == nullptr ? pin_name : cts_inst->get_name() + "/" + pin_name;
-    if (DESIGN_INST.findPin(pin_full_name) != nullptr) {
+    if (_design->findPin(pin_full_name) != nullptr) {
       LOG_ERROR << "CTS clock read failed: duplicate CTS pin \"" << pin_full_name << "\".";
       return nullptr;
     }
 
-    auto* cts_pin = DESIGN_INST.makePin(pin_name);
+    auto* cts_pin = _design->makePin(pin_name);
     if (cts_pin == nullptr) {
       LOG_ERROR << "CTS clock read failed: failed to create CTS pin \"" << pin_full_name << "\".";
       return nullptr;
@@ -981,7 +1006,7 @@ class Wrapper::CtsClockReader
     if (idb_net == nullptr) {
       return nullptr;
     }
-    auto* cts_net = DESIGN_INST.makeNet(idb_net->get_net_name());
+    auto* cts_net = _design->makeNet(idb_net->get_net_name());
     if (cts_net == nullptr) {
       LOG_ERROR << "CTS clock read failed: failed to create CTS net \"" << idb_net->get_net_name() << "\".";
       return nullptr;
@@ -996,17 +1021,20 @@ class Wrapper::CtsClockReader
   auto bindIdbNet(idb::IdbNet* idb_net, Net* cts_net) -> void { _wrapper->crossRef(idb_net, cts_net); }
 
   Wrapper* _wrapper = nullptr;
-  std::map<std::string, std::size_t> _classification_count_by_key = {};
+  Design* _design = nullptr;
+  SchemaWriter* _reporter = nullptr;
+  std::map<std::string, std::size_t> _classification_count_by_key;
 };
 
-auto Wrapper::readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool
+auto Wrapper::readClocks(Design& design, SchemaWriter& reporter, const std::vector<std::pair<std::string, std::string>>& clock_net_pairs)
+    -> bool
 {
-  return CtsClockReader(*this).readClocks(clock_net_pairs);
+  return CtsClockReader(*this, design, reporter).readClocks(clock_net_pairs);
 }
 
-auto Wrapper::readTraceClockTargets(const std::vector<ClockTraceClockTarget>& clock_targets) -> bool
+auto Wrapper::readTraceClockTargets(Design& design, SchemaWriter& reporter, const std::vector<ClockTraceClockTarget>& clock_targets) -> bool
 {
-  return CtsClockReader(*this).readTraceClockTargets(clock_targets);
+  return CtsClockReader(*this, design, reporter).readTraceClockTargets(clock_targets);
 }
 
 }  // namespace icts

@@ -61,7 +61,7 @@ struct AnalyticalHTreeAttempt
   CandidateBuildEvaluation selected_evaluation;
   DepthSummary selected_summary;
   RootDriverCompensationDetail selected_compensation_detail;
-  SinkLoadRegionLegalityResult selected_sink_load_region_legality;
+  SinkLoadRegionLegalitySummary selected_sink_load_region_legality;
   RootDriverCompensationStats root_driver_compensation_stats;
   std::size_t model_set_count = 0U;
   std::size_t rejected_fit_count = 0U;
@@ -111,18 +111,19 @@ struct AnalyticalHTreeAttempt
 struct AnalyticalValidatedCandidate
 {
   analytical_solver::AnalyticalCandidate candidate;
-  analytical_solver::AnalyticalValidationResult validation;
+  analytical_solver::AnalyticalValidationSummary validation;
   std::size_t original_index = 0U;
 };
 
 auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans,
                              const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
                              BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& search_boundary_constraints,
-                             const HTreeFanoutPruningOptions& fanout_pruning_options,
-                             const RootDriverCompensationOptions& root_driver_compensation_options, const CharBuilder& char_builder,
+                             const HTreeFanoutPruningConfig& fanout_pruning_config,
+                             const RootDriverCompensationInput& root_driver_compensation_input,
+                             const SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
                              unsigned char_slew_steps) -> AnalyticalHTreeAttempt;
-auto ApplyAnalyticalRootDriverStats(DepthSearchResult& exploration, const AnalyticalHTreeAttempt& attempt,
-                                    const RootDriverCompensationOptions& compensation_options) -> void;
+auto ApplyAnalyticalRootDriverStats(DepthSearchBuild& exploration, const AnalyticalHTreeAttempt& attempt,
+                                    const RootDriverCompensationInput& compensation_input) -> void;
 
 }  // namespace htree::analytical_selection
 }  // namespace icts

@@ -10,7 +10,7 @@ This document covers the no-exception policy, severity decisions, and return-vs-
 
 ### Core Rules
 
-- iCTS uses logging-based error handling plus schema-based structured reports.
+- iCTS uses logging-based error handling plus structured reports.
 - Do not use exceptions in normal iCTS code.
 - Choose log level based on whether the flow can continue.
 - Return a safe default only when the caller can continue safely.
@@ -40,17 +40,17 @@ Shared query facades may remain fallible for report/probe paths, but algorithm c
 Wrong:
 
 ```cpp
-const auto dbu_per_um = std::max(WRAPPER_INST.queryDbUnit(), 1);
-const auto res = STA_ADAPTER_INST.queryWireResistance(routing_layer, length_um);
+const auto dbu_per_um = std::max(wrapper.queryDbUnit(), 1);
+const auto res = sta_adapter.queryWireResistance(routing_layer, length_um);
 ```
 
 Correct:
 
 ```cpp
-const auto dbu_per_um = WRAPPER_INST.queryDbUnit();
+const auto dbu_per_um = wrapper.queryDbUnit();
 LOG_FATAL_IF(dbu_per_um <= 0) << "CTS stage: DBU-per-micron is unavailable.";
 LOG_FATAL_IF(routing_layer <= 0) << "CTS stage: routing layer is not configured.";
-const auto res = STA_ADAPTER_INST.queryRequiredWireResistance(routing_layer, length_um, wire_width_um);
+const auto res = sta_adapter.queryRequiredWireResistance(routing_layer, length_um, wire_width_um);
 ```
 
 ### Return vs Terminate
@@ -61,7 +61,7 @@ Use `LOG_ERROR` plus a safe return for cases such as:
 - feature paths where the caller already handles failure
 
 Use `LOG_FATAL` for cases such as:
-- null builders or required singletons
+- null builders or required runtime-owned dependencies
 - missing required database objects that indicate a bug
 - invalid state where any continuation would be misleading or unsafe
 

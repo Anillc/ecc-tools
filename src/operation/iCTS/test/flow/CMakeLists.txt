@@ -1,7 +1,9 @@
 icts_add_test_executable(
   icts_test_flow
+  PUBLIC_RUNTIME
   SOURCES
     ${ICTS_TEST}/flow/FlowTest.cc
+    ${ICTS_TEST}/flow/FlowRuntimeIsolationTest.cc
     ${ICTS_TEST}/flow/FlowSdcTraceTest.cc
     ${ICTS_TEST}/flow/FlowWritebackTest.cc
 )

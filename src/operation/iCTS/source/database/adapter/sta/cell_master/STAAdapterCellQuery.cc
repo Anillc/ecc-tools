@@ -117,24 +117,30 @@ auto queryLibOutputPinCapLimitPf(const Pin* pin) -> double
   return sta_adapter_timing_query::ConvertLibCapToPf(lib_cell, *cap_limit);
 }
 
-auto queryBufferOutputTableAxisMaxPf(const Pin* pin) -> double
+auto queryBufferOutputTableAxisMaxPf(STAAdapter& sta_adapter, const Pin* pin) -> double
 {
   const auto* inst = pin != nullptr ? pin->get_inst() : nullptr;
   if (inst == nullptr || inst->get_cell_master().empty()) {
     return 0.0;
   }
-  return STAAdapter::queryCellOutPinCapTableAxisMax(inst->get_cell_master());
+  return sta_adapter.queryCellOutPinCapTableAxisMax(inst->get_cell_master());
 }
 
-auto queryStaVertexCapLimitPf(const std::string& pin_full_name, bool allow_refresh_full_context) -> double
+auto makeStaTimingRefreshConfig(const Config& config) -> STAAdapter::StaTimingRefreshConfig
+{
+  return STAAdapter::StaTimingRefreshConfig{.work_dir = config.get_work_dir()};
+}
+
+auto queryStaVertexCapLimitPf(STAAdapter& sta_adapter, const std::optional<STAAdapter::StaTimingRefreshConfig>& refresh_config,
+                              const std::string& pin_full_name, bool allow_refresh_full_context) -> double
 {
   if (pin_full_name.empty()) {
     return 0.0;
   }
 
-  if (!sta_adapter_timing_query::HasFullDesignTimingContext() && allow_refresh_full_context
-      && sta_adapter_timing_query::HasStaBaseContext()) {
-    STA_ADAPTER_INST.refreshFullDesignTimingContext();
+  if (!sta_adapter_timing_query::HasFullDesignTimingContext() && allow_refresh_full_context && sta_adapter_timing_query::HasStaBaseContext()
+      && refresh_config.has_value()) {
+    sta_adapter.refreshFullDesignTimingContext(*refresh_config);
   }
   if (!sta_adapter_timing_query::HasFullDesignTimingContext()) {
     return 0.0;
@@ -158,13 +164,13 @@ auto queryStaVertexCapLimitPf(const std::string& pin_full_name, bool allow_refre
   });
 }
 
-auto queryConfiguredMaxCapBoundaryPf(const Pin* clock_source) -> double
+auto queryConfiguredMaxCapBoundaryPf(std::optional<double> configured_max_cap_pf, const Pin* clock_source) -> double
 {
-  if (CONFIG_INST.has_max_cap() && CONFIG_INST.get_max_cap() > 0.0) {
-    LOG_WARNING << "Clock-source drive-cap query uses runtime max_cap=" << CONFIG_INST.get_max_cap()
+  if (configured_max_cap_pf.has_value() && *configured_max_cap_pf > 0.0) {
+    LOG_WARNING << "Clock-source drive-cap query uses configured max_cap=" << *configured_max_cap_pf
                 << " pF as the hard source boundary for " << Design::getPinFullName(clock_source)
                 << " because source-specific STA/liberty cap limit is unavailable.";
-    return CONFIG_INST.get_max_cap();
+    return *configured_max_cap_pf;
   }
   return 0.0;
 }
@@ -173,6 +179,7 @@ auto queryConfiguredMaxCapBoundaryPf(const Pin* clock_source) -> double
 
 auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   auto* lib_cell = sta_adapter_timing_query::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << sta_adapter_timing_query::MakeCharQueryContext("output pin cap limit", cell_master)
@@ -200,13 +207,15 @@ auto STAAdapter::queryCellOutPinCapLimit(const std::string& cell_master) -> doub
 
 auto STAAdapter::queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   return sta_adapter_timing_query::QueryBufferTableAxisMax(cell_master, "output pin cap table-axis max",
                                                            {ista::LibLutTableTemplate::Variable::TOTAL_OUTPUT_NET_CAPACITANCE,
                                                             ista::LibLutTableTemplate::Variable::EQUAL_OR_OPPOSITE_OUTPUT_NET_CAPACITANCE});
 }
 
-auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> double
+auto STAAdapter::queryClockSourceDriveCapLimit(const ClockSourceDriveCapLimitInput& input) -> double
 {
+  const auto* clock_source = input.clock_source;
   if (clock_source == nullptr) {
     LOG_WARNING << "Clock-source drive-cap query skipped: clock source pin is null.";
     return 0.0;
@@ -219,34 +228,34 @@ auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> doubl
       return lib_cap_limit_pf;
     }
 
-    const double table_axis_cap_limit_pf = queryBufferOutputTableAxisMaxPf(clock_source);
+    const double table_axis_cap_limit_pf = queryBufferOutputTableAxisMaxPf(*this, clock_source);
     if (table_axis_cap_limit_pf > 0.0) {
       return table_axis_cap_limit_pf;
     }
 
-    double sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, false);
+    double sta_cap_limit_pf = queryStaVertexCapLimitPf(*this, input.refresh_config, pin_full_name, false);
     if (sta_cap_limit_pf > 0.0) {
       return sta_cap_limit_pf;
     }
-    const double configured_cap_limit_pf = queryConfiguredMaxCapBoundaryPf(clock_source);
+    const double configured_cap_limit_pf = queryConfiguredMaxCapBoundaryPf(input.configured_max_cap_pf, clock_source);
     if (configured_cap_limit_pf > 0.0) {
       return configured_cap_limit_pf;
     }
-    sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, true);
+    sta_cap_limit_pf = queryStaVertexCapLimitPf(*this, input.refresh_config, pin_full_name, true);
     return sta_cap_limit_pf > 0.0 ? sta_cap_limit_pf : 0.0;
   }
 
-  double sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, false);
+  double sta_cap_limit_pf = queryStaVertexCapLimitPf(*this, input.refresh_config, pin_full_name, false);
   if (sta_cap_limit_pf > 0.0) {
     return sta_cap_limit_pf;
   }
 
-  const double configured_cap_limit_pf = queryConfiguredMaxCapBoundaryPf(clock_source);
+  const double configured_cap_limit_pf = queryConfiguredMaxCapBoundaryPf(input.configured_max_cap_pf, clock_source);
   if (configured_cap_limit_pf > 0.0) {
     return configured_cap_limit_pf;
   }
 
-  sta_cap_limit_pf = queryStaVertexCapLimitPf(pin_full_name, true);
+  sta_cap_limit_pf = queryStaVertexCapLimitPf(*this, input.refresh_config, pin_full_name, true);
   if (sta_cap_limit_pf > 0.0) {
     return sta_cap_limit_pf;
   }
@@ -258,8 +267,19 @@ auto STAAdapter::queryClockSourceDriveCapLimit(const Pin* clock_source) -> doubl
   return 0.0;
 }
 
+auto STAAdapter::queryClockSourceDriveCapLimit(const Config& config, const Pin* clock_source) -> double
+{
+  return queryClockSourceDriveCapLimit(ClockSourceDriveCapLimitInput{
+      .clock_source = clock_source,
+      .configured_max_cap_pf
+      = config.has_max_cap() && config.get_max_cap() > 0.0 ? std::optional<double>{config.get_max_cap()} : std::nullopt,
+      .refresh_config = makeStaTimingRefreshConfig(config),
+  });
+}
+
 auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   auto* lib_cell = sta_adapter_timing_query::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << sta_adapter_timing_query::MakeCharQueryContext("input pin slew limit", cell_master)
@@ -287,14 +307,17 @@ auto STAAdapter::queryCellInPinSlewLimit(const std::string& cell_master) -> doub
 
 auto STAAdapter::queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   return sta_adapter_timing_query::QueryBufferTableAxisMax(
       cell_master, "input pin slew table-axis max",
       {ista::LibLutTableTemplate::Variable::INPUT_NET_TRANSITION, ista::LibLutTableTemplate::Variable::RELATED_PIN_TRANSITION,
        ista::LibLutTableTemplate::Variable::INPUT_TRANSITION_TIME, ista::LibLutTableTemplate::Variable::CONSTRAINED_PIN_TRANSITION});
 }
 
-auto STAAdapter::queryPinSlewLimit(const Pin* pin) -> double
+auto STAAdapter::queryPinSlewLimit(const PinSlewLimitInput& input) -> double
 {
+  observeQueryFacade();
+  const auto* pin = input.pin;
   if (pin == nullptr) {
     LOG_WARNING << "Pin-slew-limit query skipped: CTS pin is null.";
     return 0.0;
@@ -316,20 +339,20 @@ auto STAAdapter::queryPinSlewLimit(const Pin* pin) -> double
 
   auto* inst = pin->get_inst();
   if (inst == nullptr) {
-    const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+    const double configured_limit_ns = input.configured_max_sink_tran_ns;
     return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
   }
 
   const auto& cell_master = inst->get_cell_master();
   if (cell_master.empty()) {
-    const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+    const double configured_limit_ns = input.configured_max_sink_tran_ns;
     return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
   }
 
   auto* lib_cell = sta_adapter_timing_query::GetStaEngine()->findLibertyCell(cell_master.c_str());
   if (lib_cell == nullptr) {
     LOG_WARNING << "Pin-slew-limit query skipped: liberty cell \"" << cell_master << "\" is not found for " << pin_full_name << ".";
-    const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+    const double configured_limit_ns = input.configured_max_sink_tran_ns;
     return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
   }
 
@@ -350,12 +373,21 @@ auto STAAdapter::queryPinSlewLimit(const Pin* pin) -> double
     }
   }
 
-  const double configured_limit_ns = CONFIG_INST.get_max_sink_tran();
+  const double configured_limit_ns = input.configured_max_sink_tran_ns;
   return configured_limit_ns > 0.0 ? configured_limit_ns : 0.0;
+}
+
+auto STAAdapter::queryPinSlewLimit(const Config& config, const Pin* pin) -> double
+{
+  return queryPinSlewLimit(PinSlewLimitInput{
+      .pin = pin,
+      .configured_max_sink_tran_ns = config.get_max_sink_tran(),
+  });
 }
 
 auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   auto* idb_layout = dmInst->get_idb_layout();
   if (idb_layout == nullptr || idb_layout->get_cell_master_list() == nullptr || idb_layout->get_units() == nullptr) {
     LOG_WARNING << sta_adapter_timing_query::MakeCharQueryContext("cell height", cell_master)
@@ -382,6 +414,7 @@ auto STAAdapter::queryCellHeightUm(const std::string& cell_master) -> double
 
 auto STAAdapter::queryCellAreaUm2(const std::string& cell_master) -> double
 {
+  observeQueryFacade();
   auto* idb_layout = dmInst->get_idb_layout();
   if (idb_layout == nullptr || idb_layout->get_cell_master_list() == nullptr || idb_layout->get_units() == nullptr) {
     LOG_WARNING << sta_adapter_timing_query::MakeCharQueryContext("cell area", cell_master) << " failed: iDB layout metadata is not ready.";

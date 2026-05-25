@@ -103,18 +103,21 @@ auto SampleLoadsForSmoke(const std::vector<icts::Pin*>& loads, std::size_t max_c
 auto ConnectRootNetForHTreeTest(icts::Net& root_net, icts::Pin& root_driver, const std::vector<icts::Pin*>& loads) -> void;
 auto SelectLargestRealClockLoads(std::size_t max_count) -> std::optional<RealClockLoadSelection>;
 auto CountPinsWithRealContext(const std::vector<icts::Pin*>& loads) -> std::size_t;
+auto MakeExplicitHTreeInput(icts::Net& root_net) -> icts::HTree::Input;
+auto MakeExplicitHTreeConfig(std::optional<bool> force_branch_buffer = std::nullopt,
+                             std::optional<double> min_top_input_slew_ns = std::nullopt) -> icts::HTree::Config;
 auto CollectLeafLoads(const icts::Tree& topology) -> std::unordered_set<icts::Pin*>;
-auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::BuildResult& result) -> void;
+auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::DiagnosticBuild& result) -> void;
 auto ReadTextFile(const std::filesystem::path& path) -> std::string;
-auto AssertDepthCandidateCoverage(const icts::HTree::BuildResult& result) -> void;
-auto AssertSelectedHTreeLoadDistribution(const icts::HTree::BuildResult& result) -> void;
+auto AssertDepthCandidateCoverage(const icts::HTree::DiagnosticBuild& result) -> void;
+auto AssertSelectedHTreeLoadDistribution(const icts::HTree::DiagnosticBuild& result) -> void;
 auto WriteAndAssertHTreeArtifacts(const htree::HTreeArtifactPaths& artifact_paths, const std::string& scenario_name,
                                   const std::string& clock_name, const std::vector<icts::Pin*>& loads,
-                                  const icts::HTree::BuildResult& result) -> void;
+                                  const icts::HTree::DiagnosticBuild& result) -> void;
 auto EvaluateArm9FullSinkExperimentMatrix(bool omit_wirelength_unit) -> Arm9ExperimentMatrixRunResult;
 
 #if ICTS_ENABLE_SLOW_REALTECH_REGRESSION
-auto AssertBranchBufferMaterialization(const icts::HTree::BuildResult& result) -> void;
+auto AssertBranchBufferMaterialization(const icts::HTree::DiagnosticBuild& result) -> void;
 #endif
 
 }  // namespace icts_test

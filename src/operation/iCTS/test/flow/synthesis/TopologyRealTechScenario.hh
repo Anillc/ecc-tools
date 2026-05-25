@@ -63,14 +63,10 @@ struct TopologyExperimentRecord
   double runtime_s = 0.0;
   bool success = false;
   std::size_t sink_count = 0U;
-  std::size_t final_frontier_count = 0U;
   unsigned selected_depth = 0U;
   unsigned best_pattern_id = 0U;
   double best_delay_ns = 0.0;
   double best_power_w = 0.0;
-  double char_wirelength_unit_um = 0.0;
-  unsigned char_wirelength_iterations = 0U;
-  bool char_grid_adapted = false;
   bool used_boundary_relaxation = false;
   std::string failure_reason;
 };
@@ -126,32 +122,31 @@ auto FormatTopologyToleranceComparisonReport(std::string_view scenario_name, con
                                              const TopologyToleranceComparisonResult& comparison) -> std::string;
 auto WriteTopologyMatrixReport(std::string_view scenario_name, const std::string& file_name, const std::string& content) -> bool;
 auto SelectLargestRealClock(std::size_t max_count, std::size_t min_required_load_count) -> std::optional<RealClockSelection>;
-auto SetEnableSinkClustering(icts::Topology::BuildOptions& options, bool enabled) -> void;
+auto SetEnableSinkClustering(icts::Topology::Config& config, bool enabled) -> void;
+auto BuildTopology(icts::Net& root_net, const icts::Topology::Config& config) -> icts::Topology::Build;
 auto ConnectRootNet(icts::Net& root_net, icts::Pin* source, const std::vector<icts::Pin*>& sinks) -> void;
 auto ResolveExpectedMinClusterBufferMaster() -> std::optional<std::string>;
-auto CountNonEmptyClusters(const icts::ClusterResult& cluster_result) -> std::size_t;
-auto CollectClusterBufferInsts(const icts::Topology::BuildResult& result) -> std::unordered_set<icts::Inst*>;
+auto CountNonEmptyClusters(const icts::ClusterOutput& cluster_output) -> std::size_t;
+auto CollectClusterBufferInsts(const icts::Topology::Build& result) -> std::unordered_set<icts::Inst*>;
 auto ValidateClusteredSinkConnectivity(const std::vector<icts::Pin*>& sinks, const std::unordered_set<icts::Inst*>& cluster_buffer_insts)
     -> TopologyValidationResult;
-auto ValidateClusterBufferMastersFollowLeafSemantics(const icts::Topology::BuildResult& result, const std::string& min_cluster_master)
+auto ValidateClusterBufferMastersFollowLeafSemantics(const icts::Topology::Build& result, const std::string& min_cluster_master)
     -> TopologyValidationResult;
 auto AssertClusteredSinkConnectivity(const std::vector<icts::Pin*>& sinks, const std::unordered_set<icts::Inst*>& cluster_buffer_insts)
     -> void;
-auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::BuildResult& htree_result) -> void;
-auto AssertClusterBufferMastersFollowLeafSemantics(const icts::Topology::BuildResult& result, const std::string& min_cluster_master)
-    -> void;
-auto AssertUnrestrictedFrontierHTree(const icts::HTree::BuildResult& htree_result) -> void;
-auto AssertBranchBufferedHTree(const icts::HTree::BuildResult& htree_result) -> void;
+auto AssertNoSingleLoadExternalLeafBuffer(const icts::HTree::Output& htree_output) -> void;
+auto AssertClusterBufferMastersFollowLeafSemantics(const icts::Topology::Build& result, const std::string& min_cluster_master) -> void;
+auto AssertTopologyHTreePayload(const icts::Topology::Build& result) -> void;
+auto AssertBranchBufferedHTreePayload(const icts::HTree::Output& htree_output) -> void;
 auto WriteAndAssertSynthesisArtifacts(const std::string& case_name, const std::string& scenario_name, const std::string& clock_name,
                                       const synthesis::TopologyArtifactPaths& artifact_paths, icts::Pin* source,
-                                      const std::vector<icts::Pin*>& sinks, const icts::Topology::BuildResult& result)
+                                      const std::vector<icts::Pin*>& sinks, const icts::Topology::Build& result)
     -> synthesis::TopologyArtifactPaths;
 auto AssertClusteredArtifacts(const synthesis::TopologyArtifactPaths& artifact_paths) -> void;
 auto AssertNonClusteredArtifacts(const synthesis::TopologyArtifactPaths& artifact_paths) -> void;
 auto CalcFloorPowerOfTwo(std::size_t value) -> std::size_t;
 auto CountTopologyLeafNodes(const icts::Tree& topology) -> std::size_t;
-auto AssertDepthCandidateCoverage(const icts::HTree::BuildResult& result) -> void;
-auto AssertSelectedHTreeLoadDistribution(const icts::HTree::BuildResult& result) -> void;
+auto AssertSelectedTopologyDepth(const icts::Topology::Build& result) -> void;
 auto EvaluateBpBeTopFullSinkNonClusteredExperimentMatrix() -> TopologyMatrixRunResult;
 auto EvaluateArm9FullSinkTopologyToleranceComparison() -> TopologyToleranceComparisonResult;
 

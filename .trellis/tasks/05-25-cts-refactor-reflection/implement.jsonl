@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Runtime ownership and dependency-boundary rules for CTSRuntime, Design, Wrapper, STAAdapter, and FastSTA."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "CTS semantic naming and boundary rules for planning future refactors."}
+{"file": ".trellis/tasks/05-25-cts-refactor-reflection/research/faststa-context-audit.md", "reason": "Evidence for FastSTA buildClockContext overload usage and recommended environment-binding direction."}

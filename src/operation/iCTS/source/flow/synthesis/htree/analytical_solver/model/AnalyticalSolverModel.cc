@@ -45,7 +45,7 @@ namespace icts::htree::analytical_solver {
 
 auto ResolveAnalyticalRootProbeSlewNs(const AnalyticalHTreeSolveProblem& solve_problem) -> double
 {
-  return std::max(solve_problem.options.root_input_slew_ns, solve_problem.slew_lattice.stepValue());
+  return std::max(solve_problem.config.root_input_slew_ns, solve_problem.slew_lattice.stepValue());
 }
 
 namespace {
@@ -142,11 +142,11 @@ auto CollectUnitModelRefs(const AnalyticalHTreeSolveProblem& solve_problem) -> s
   std::vector<UnitModelRef> unit_models;
   unit_models.reserve(solve_problem.model_catalog->size());
   for (const auto& [key, model_set] : solve_problem.model_catalog->get_model_sets()) {
-    if (key.length_idx != solve_problem.options.unit_length_idx || !model_set.isComplete() || !model_set.source_cap_operator.has_value()) {
+    if (key.length_idx != solve_problem.config.unit_length_idx || !model_set.isComplete() || !model_set.source_cap_operator.has_value()) {
       continue;
     }
     const auto* pattern = segment_pattern_library->find(key.pattern_id);
-    if (pattern == nullptr || pattern->get_length_idx() != solve_problem.options.unit_length_idx) {
+    if (pattern == nullptr || pattern->get_length_idx() != solve_problem.config.unit_length_idx) {
       continue;
     }
     unit_models.push_back(UnitModelRef{
@@ -220,17 +220,17 @@ auto DecomposePatternToUnitSequence(PatternId pattern_id, const AnalyticalHTreeS
   }
 
   const auto* segment_pattern_library = ResolveSegmentPatternLibrary(solve_problem);
-  if (segment_pattern_library == nullptr || solve_problem.options.unit_length_idx == 0U) {
+  if (segment_pattern_library == nullptr || solve_problem.config.unit_length_idx == 0U) {
     context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
     return {};
   }
   const auto* pattern = segment_pattern_library->find(pattern_id);
-  if (pattern == nullptr || pattern->get_length_idx() == 0U || pattern->get_length_idx() % solve_problem.options.unit_length_idx != 0U) {
+  if (pattern == nullptr || pattern->get_length_idx() == 0U || pattern->get_length_idx() % solve_problem.config.unit_length_idx != 0U) {
     context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
     return {};
   }
 
-  const unsigned unit_count = pattern->get_length_idx() / solve_problem.options.unit_length_idx;
+  const unsigned unit_count = pattern->get_length_idx() / solve_problem.config.unit_length_idx;
   std::vector<PatternId> unit_pattern_ids;
   unit_pattern_ids.reserve(unit_count);
   const auto& buffer_positions = pattern->get_buffer_positions();
@@ -298,14 +298,14 @@ auto FindUnitModel(const AnalyticalHTreeSolveProblem& solve_problem, PatternId p
   }
   return solve_problem.model_catalog->find(AnalyticalModelKey{
       .pattern_id = pattern_id,
-      .length_idx = solve_problem.options.unit_length_idx,
+      .length_idx = solve_problem.config.unit_length_idx,
   });
 }
 
 auto RecordMetricEvaluationRejection(const AnalyticalModelSet& model_set, double input_slew_ns, double load_cap_pf,
-                                     AnalyticalSolverResult& result) -> void
+                                     AnalyticalSolverBuild& result) -> void
 {
-  ++result.metric_evaluation_rejected_count;
+  ++result.summary.metric_evaluation_rejected_count;
   bool slew_rejected = false;
   bool cap_rejected = false;
   for (const auto metric : {AnalyticalMetric::kOutputSlew, AnalyticalMetric::kDelay, AnalyticalMetric::kPower,
@@ -322,11 +322,11 @@ auto RecordMetricEvaluationRejection(const AnalyticalModelSet& model_set, double
     }
   }
   if (slew_rejected) {
-    ++result.domain_slew_rejected_count;
+    ++result.summary.domain_slew_rejected_count;
   }
   if (cap_rejected) {
-    ++result.domain_cap_rejected_count;
-    result.max_domain_rejected_cap_pf = std::max(result.max_domain_rejected_cap_pf, load_cap_pf);
+    ++result.summary.domain_cap_rejected_count;
+    result.summary.max_domain_rejected_cap_pf = std::max(result.summary.max_domain_rejected_cap_pf, load_cap_pf);
   }
 }
 
@@ -334,7 +334,7 @@ auto RecordMetricEvaluationRejection(const AnalyticalModelSet& model_set, double
 
 auto ScoreFunctionalUnitSequence(const AnalyticalHTreeSolveProblem& solve_problem, const std::vector<PatternId>& unit_pattern_ids,
                                  PatternId materialized_pattern_id, unsigned length_idx, double input_slew_ns, double downstream_cap_pf,
-                                 bool conservative, AnalyticalSolverResult& result) -> std::optional<ScoredSegment>
+                                 bool conservative, AnalyticalSolverBuild& result) -> std::optional<ScoredSegment>
 {
   if (unit_pattern_ids.empty()) {
     return std::nullopt;
@@ -348,7 +348,7 @@ auto ScoreFunctionalUnitSequence(const AnalyticalHTreeSolveProblem& solve_proble
     const std::size_t index = reverse_index - 1U;
     const auto* model_set = FindUnitModel(solve_problem, unit_pattern_ids.at(index));
     if (model_set == nullptr || !model_set->isComplete() || !model_set->source_cap_operator.has_value()) {
-      ++result.missing_model_count;
+      ++result.summary.missing_model_count;
       return std::nullopt;
     }
     model_sets.push_back(model_set);
@@ -366,10 +366,10 @@ auto ScoreFunctionalUnitSequence(const AnalyticalHTreeSolveProblem& solve_proble
     const double unit_downstream_cap_pf = unit_downstream_caps.at(index);
     const auto model_probe = ResolveAnalyticalModelProbe(model_set, current_slew_ns, unit_downstream_cap_pf);
     if (model_probe.slew_floored) {
-      ++result.domain_slew_floor_count;
+      ++result.summary.domain_slew_floor_count;
     }
     if (model_probe.cap_floored) {
-      ++result.domain_cap_floor_count;
+      ++result.summary.domain_cap_floor_count;
     }
     const auto output_slew
         = EvaluateMetric(model_set, AnalyticalMetric::kOutputSlew, model_probe.input_slew_ns, model_probe.load_cap_pf, conservative);

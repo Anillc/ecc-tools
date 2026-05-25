@@ -45,7 +45,7 @@ struct BufferPatternLibrary;
 
 namespace icts::htree::analytical_solver {
 
-struct AnalyticalSolverOptions
+struct AnalyticalSolverConfig
 {
   std::size_t per_level_shortlist_size = 8U;
   std::size_t top_k_per_depth = 16U;
@@ -66,13 +66,18 @@ struct AnalyticalHTreeSolveProblem
   BufferPatternLibrary* mutable_segment_pattern_library = nullptr;
   const icts::analytical::AnalyticalModelCatalog* model_catalog = nullptr;
   BoundaryConstraints boundary_constraints;
-  HTreeFanoutPruningOptions fanout_options;
+  HTreeFanoutPruningConfig fanout_config;
   UniformValueLattice slew_lattice;
   UniformValueLattice cap_lattice;
-  AnalyticalSolverOptions options;
+  AnalyticalSolverConfig config;
 };
 
-struct AnalyticalSolverResult
+struct AnalyticalSolverOutput
+{
+  std::vector<AnalyticalCandidate> candidates;
+};
+
+struct AnalyticalSolverSummary
 {
   bool success = false;
   std::string failure_reason;
@@ -107,9 +112,14 @@ struct AnalyticalSolverResult
   unsigned first_empty_level_index = 0U;
   unsigned first_empty_length_idx = 0U;
   std::string first_empty_reason;
-  std::vector<AnalyticalCandidate> candidates;
 };
 
-auto SolveAnalyticalHTreeCandidates(const AnalyticalHTreeSolveProblem& solve_problem) -> AnalyticalSolverResult;
+struct AnalyticalSolverBuild
+{
+  AnalyticalSolverOutput output;
+  AnalyticalSolverSummary summary;
+};
+
+auto SolveAnalyticalHTreeCandidates(const AnalyticalHTreeSolveProblem& solve_problem) -> AnalyticalSolverBuild;
 
 }  // namespace icts::htree::analytical_solver

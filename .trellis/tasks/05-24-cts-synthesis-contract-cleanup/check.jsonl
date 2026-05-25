@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify contract names and minimality"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/design.md", "reason": "Verify HTree target split is followed"}
+{"file": ".trellis/tasks/05-24-cts-desingleton-refactor/research/problem-inventory.md", "reason": "Verify synthesis hotspot categories are addressed"}

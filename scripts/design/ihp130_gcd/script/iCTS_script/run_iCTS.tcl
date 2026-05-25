@@ -23,6 +23,10 @@ set IEDA_TCL_SCRIPT_DIR "$::env(IEDA_TCL_SCRIPT_DIR)"
 #===========================================================
 source $IEDA_TCL_SCRIPT_DIR/DB_script/env_var_setup.tcl
 
+file mkdir [file dirname $DESIGN_STAT_TEXT]
+file mkdir [file dirname $DESIGN_STAT_JSON]
+file mkdir [file dirname $TOOL_METRICS_JSON]
+
 #===========================================================
 ##   init flow config
 #===========================================================

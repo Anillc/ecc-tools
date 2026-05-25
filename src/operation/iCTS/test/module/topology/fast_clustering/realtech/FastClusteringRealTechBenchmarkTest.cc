@@ -80,7 +80,7 @@ TEST(FastClusteringRealTechBenchmarkTest, BenchmarkTwentyPlacementCases)
 
     auto config = BuildBenchmarkConfig(loaded.loads);
     auto fast_run = RunAndMeasure("fast", loaded.loads, config,
-                                  [](const std::vector<icts::Pin*>& loads, const auto& run_config) -> icts::ClusterResult {
+                                  [](const std::vector<icts::Pin*>& loads, const auto& run_config) -> icts::ClusterOutput {
                                     return icts::FastClustering::runDefault(loads, run_config);
                                   });
 
@@ -93,7 +93,7 @@ TEST(FastClusteringRealTechBenchmarkTest, BenchmarkTwentyPlacementCases)
     std::string cluster_svg;
     if (!svg_path.empty()) {
       cluster_svg = (std::filesystem::path(std::string(kClusterSvgDirName)) / svg_path.filename()).string();
-      icts::schema::EmitArtifact("CTS clustering structure svg", svg_path);
+      icts::EmitArtifact(icts_test::runtime::CurrentRuntime().reporter, "CTS clustering structure svg", svg_path);
     }
 
     loaded.loads.clear();

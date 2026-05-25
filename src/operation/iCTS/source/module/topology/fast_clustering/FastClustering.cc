@@ -103,7 +103,7 @@ auto CountDraftClusters(const std::vector<detail::ClusterDraft>& drafts) -> std:
   return cluster_count;
 }
 
-auto BuildResultFanoutHistogram(const ClusterResult& result) -> std::map<std::size_t, std::size_t>
+auto BuildResultFanoutHistogram(const ClusterOutput& result) -> std::map<std::size_t, std::size_t>
 {
   std::map<std::size_t, std::size_t> histogram;
   for (const auto& cluster : result.clusters) {
@@ -134,15 +134,15 @@ auto FastClustering::buildElectricalBaseConfig(std::size_t max_fanout, double ma
   return config;
 }
 
-auto FastClustering::runDefault(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterResult
+auto FastClustering::runDefault(const std::vector<Pin*>& loads, const ClusterConfig& base_config) -> ClusterOutput
 {
   return run(loads, base_config);
 }
 
-auto FastClustering::run(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterResult
+auto FastClustering::run(const std::vector<Pin*>& loads, const ClusterConfig& config) -> ClusterOutput
 {
   const auto run_start = SteadyClock::now();
-  ClusterResult result;
+  ClusterOutput result;
   if (loads.empty()) {
     return result;
   }

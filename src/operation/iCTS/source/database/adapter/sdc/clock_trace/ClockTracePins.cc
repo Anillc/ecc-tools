@@ -24,7 +24,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <optional>
-#include <set>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -36,11 +35,9 @@
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "IdbTerm.h"
-#include "LibParserRustC.hh"
 #include "SdcClockReader.hh"
 #include "SdcClockTraceAlgorithm.hh"
 #include "api/TimingEngine.hh"
-#include "config/Config.hh"
 #include "liberty/Lib.hh"
 
 namespace icts::clock_trace {
@@ -319,10 +316,10 @@ auto DominanceForRecord(const ClockTraceRecord& record, const std::string& clock
   return "undetermined";
 }
 
-auto StrongTargetSinkThreshold() -> std::size_t
+auto StrongTargetSinkThreshold(std::size_t max_fanout) -> std::size_t
 {
   constexpr std::size_t min_clock_target_sinks = 4U;
-  return std::max(min_clock_target_sinks, static_cast<std::size_t>(CONFIG_INST.get_max_fanout()));
+  return std::max(min_clock_target_sinks, max_fanout);
 }
 
 auto IsStrongClockTarget(const ClockTraceRecord& record, std::size_t sink_threshold) -> bool

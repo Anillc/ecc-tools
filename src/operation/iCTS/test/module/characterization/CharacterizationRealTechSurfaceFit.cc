@@ -35,24 +35,24 @@
 
 namespace icts_test {
 
-auto MakeExactRegressionCharBuilderInitOptions() -> icts::CharBuilder::InitOptions
+auto MakeExactRegressionCharBuilderContract() -> realtech_fixture::RuntimeCharBuilderContract
 {
-  auto options = realtech_fixture::MakeRuntimeCharBuilderInitOptions();
-  const double length_step_um = options.wirelength_unit_um.value_or(realtech_fixture::kRealTechCharWirelengthUnitUm);
+  auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+  const double length_step_um = contract.config.wirelength_unit_um.value_or(realtech_fixture::kRealTechCharWirelengthUnitUm);
   if (length_step_um <= 0.0) {
-    return options;
+    return contract;
   }
 
   const unsigned required_iterations = realtech_fixture::MakeLengthIndex(realtech_fixture::kExactRootLevelLengthUm, length_step_um);
-  options.wirelength_iterations = std::max(options.wirelength_iterations.value_or(1U), required_iterations);
-  return options;
+  contract.config.wirelength_iterations = std::max(contract.config.wirelength_iterations.value_or(1U), required_iterations);
+  return contract;
 }
 
-auto MakeIterOneExperimentCharBuilderInitOptions() -> icts::CharBuilder::InitOptions
+auto MakeIterOneExperimentCharBuilderContract() -> realtech_fixture::RuntimeCharBuilderContract
 {
-  auto options = realtech_fixture::MakeRuntimeCharBuilderInitOptions();
-  options.wirelength_iterations = std::max(options.wirelength_iterations.value_or(1U), 3U);
-  return options;
+  auto contract = realtech_fixture::MakeRuntimeCharBuilderContract();
+  contract.config.wirelength_iterations = std::max(contract.config.wirelength_iterations.value_or(1U), 3U);
+  return contract;
 }
 
 auto FitBasisName(FitBasisKind basis_kind) -> std::string

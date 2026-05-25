@@ -3,6 +3,7 @@ add_library(icts_source_flow_synthesis_topology_buffer ${ICTS_FLOW_SYNTHESIS_TOP
 target_link_libraries(
   icts_source_flow_synthesis_topology_buffer
   PRIVATE
+  icts_source_module
   icts_source_module_topology
   icts_source_module_topology_clustering
   icts_source_database

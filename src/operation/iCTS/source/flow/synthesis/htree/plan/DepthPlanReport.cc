@@ -44,13 +44,13 @@ auto FormatDepthCandidateStatus(const DepthSummary& summary) -> std::string
 
 }  // namespace
 
-auto EmitDepthCandidateSummary(const std::vector<DepthSummary>& depth_summaries) -> void
+auto EmitDepthCandidateSummary(SchemaWriter& reporter, const std::vector<DepthSummary>& depth_summaries) -> void
 {
   if (depth_summaries.empty()) {
     return;
   }
 
-  schema::TableRows rows;
+  TableRows rows;
   rows.reserve(depth_summaries.size());
   for (const auto& summary : depth_summaries) {
     rows.push_back({
@@ -67,10 +67,10 @@ auto EmitDepthCandidateSummary(const std::vector<DepthSummary>& depth_summaries)
     });
   }
 
-  SCHEMA_WRITER_INST.emitTableTo("HTree Depth Candidate Summary",
-                                 {"Depth", "Leaves", "Status", "Final Frontier", "Feasible Entries", "Candidate Entries",
-                                  "Boundary Relaxation", "Best Delay", "Best Power", "Failure"},
-                                 rows, schema::ReportSink::kBoth);
+  reporter.emitTableTo("HTree Depth Candidate Summary",
+                       {"Depth", "Leaves", "Status", "Final Frontier", "Feasible Entries", "Candidate Entries", "Boundary Relaxation",
+                        "Best Delay", "Best Power", "Failure"},
+                       rows, ReportSink::kBoth);
 }
 
 }  // namespace icts::htree

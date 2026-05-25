@@ -138,14 +138,14 @@ auto BuildFunctionalSurfaceModels(const std::vector<icts::SegmentChar>& entries,
 }
 
 auto BuildPhysicalStructuralCapOperators(const realtech_fixture::SegmentFrontierContext& segment_context,
-                                         const icts::CharBuilder::InitOptions& options, const realtech_fixture::CharGrid& grid)
+                                         const icts::CharBuilder::Config& config, const realtech_fixture::CharGrid& grid)
     -> std::unordered_map<std::string, StructuralCapOperator>
 {
   std::unordered_map<std::string, StructuralCapOperator> operators;
-  if (!options.routing_layer.has_value() || *options.routing_layer <= 0) {
+  if (!config.routing_layer.has_value() || *config.routing_layer <= 0) {
     return operators;
   }
-  const int routing_layer = *options.routing_layer;
+  const int routing_layer = *config.routing_layer;
   for (const auto& [pattern_id, pattern] : segment_context.patterns) {
     (void) pattern_id;
     if (pattern.get_length_idx() != 1U) {
@@ -160,13 +160,15 @@ auto BuildPhysicalStructuralCapOperators(const realtech_fixture::SegmentFrontier
 
     const double unit_length_um = static_cast<double>(pattern.get_length_idx()) * grid.length_step_um;
     double alpha = 1.0;
-    double eta_pf = STA_ADAPTER_INST.queryWireCapacitance(routing_layer, unit_length_um, options.wire_width);
+    double eta_pf
+        = icts_test::runtime::CurrentRuntime().sta_adapter.queryWireCapacitance(routing_layer, unit_length_um, config.wire_width_um);
     if (!cell_masters.empty()) {
       alpha = 0.0;
       const double first_buffer_position = buffer_positions.front();
       const double prewire_length_um = std::clamp(first_buffer_position, 0.0, 1.0) * unit_length_um;
-      eta_pf = STA_ADAPTER_INST.queryCharInputPinCap(cell_masters.front());
-      eta_pf += STA_ADAPTER_INST.queryWireCapacitance(routing_layer, prewire_length_um, options.wire_width);
+      eta_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCharInputPinCap(cell_masters.front());
+      eta_pf
+          += icts_test::runtime::CurrentRuntime().sta_adapter.queryWireCapacitance(routing_layer, prewire_length_um, config.wire_width_um);
     }
 
     if (!std::isfinite(eta_pf) || eta_pf < 0.0) {

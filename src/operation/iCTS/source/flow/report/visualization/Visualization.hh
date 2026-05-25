@@ -25,11 +25,32 @@
 
 #include <filesystem>
 
+#include "logger/SchemaForward.hh"
+
 namespace icts {
 
 class ClockLayout;
+class Config;
+class Design;
+class Wrapper;
 
-struct VisualizationResult
+struct VisualizationInput
+{
+  const Config* config = nullptr;
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  SchemaWriter* reporter = nullptr;
+  std::filesystem::path visualization_dir;
+  const ClockLayout* clock_layout = nullptr;
+};
+
+struct VisualizationConfig
+{
+  bool emit_svg = true;
+  bool emit_gds = true;
+};
+
+struct VisualizationSummary
 {
   bool svg_success = false;
   bool gds_success = false;
@@ -41,7 +62,7 @@ class Visualization
  public:
   Visualization() = delete;
 
-  static auto emit(const std::filesystem::path& visualization_dir, const ClockLayout& clock_layout) -> VisualizationResult;
+  static auto emit(const VisualizationInput& input, const VisualizationConfig& config = {}) -> VisualizationSummary;
 };
 
 }  // namespace icts

@@ -102,11 +102,11 @@ struct RootClosureLoadSignatureHash
 
 struct RootDriverCompensationState
 {
-  RootDriverCompensationOptions options;
+  RootDriverCompensationInput input;
   std::unordered_map<RootDriverCompensationCacheKey, RootDriverCompensationDetail, RootDriverCompensationCacheKeyHash> cost_by_key;
   std::unordered_map<RootClosureLoadSignature, RootClosureLoadEstimate, RootClosureLoadSignatureHash> root_load_by_signature;
   RootDriverCompensationStats stats;
-  bool warned_invalid_options = false;
+  bool warned_invalid_input = false;
 };
 
 auto QueryRootClosureLoadEstimate(PatternId pattern_id, const TopologyPatternLibrary& topology_library,
