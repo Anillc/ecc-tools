@@ -26,40 +26,13 @@
 #include "IdbAdapter.hh"
 #include "LayerTable.hh"
 #include "LayoutData.hh"
+#include "SpefUtils.hh"
 #include "SpefContext.hh"
 #include "log/Log.hh"
 
 namespace ircx {
 
 using namespace idb;
-
-namespace {
-
-// Escape SPEF-sensitive hierarchy/index tokens once at the adapter boundary so
-// all downstream SPEF-facing names stay consistent without scattering fixes
-// across the pipeline.
-auto escapeSpefIdentifier(Str name) -> Str
-{
-  if (name.find('.') == Str::npos) {
-    return name;
-  }
-
-  Str escaped_name;
-  escaped_name.reserve(name.size());
-  for (Size idx = 0; idx < name.size(); ++idx) {
-    const char current_char = name[idx];
-    const bool needs_escape =
-        current_char == '.' || current_char == '[' || current_char == ']';
-    if (needs_escape && (idx == 0 || name[idx - 1] != '\\')) {
-      escaped_name.push_back('\\');
-    }
-    escaped_name.push_back(current_char);
-  }
-
-  return escaped_name;
-}
-
-}  // namespace
 
 auto IdbAdapter::adapt(LayoutData& layout_data,
                        LayerTable& layer_table,

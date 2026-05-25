@@ -16,70 +16,85 @@
 // ***************************************************************************************
 #pragma once
 
-#include <utility>
+#include <span>
 #include <vector>
 
 #include "EtchPool.hh"
+#include "EnvPool.hh"
 #include "LayoutData.hh"
 #include "RCTable.hh"
+#include "UnitUtils.hh"
 namespace ircx {
 
+namespace parser {
+class CapTable;
+}
+
+class LayoutData;
 class LayerTable;
 class TopoEdge;
 class TopoPool;
 }
 
 namespace itf {
-class LayerConductor;
-class LayerVia;
 class ProcessCorner;
 }
 
 namespace ircx {
 
-class ResistanceCalc
+class CapacitanceCalc
 {
  public:
-  ResistanceCalc() = default;
-  ~ResistanceCalc() = default;
-
-  // Disallow copy/move
-  ResistanceCalc(const ResistanceCalc&) = delete;
-  ResistanceCalc& operator=(const ResistanceCalc&) = delete;
-  ResistanceCalc(ResistanceCalc&&) = delete;
-  ResistanceCalc& operator=(ResistanceCalc&&) = delete;
+  CapacitanceCalc() = default;
+  ~CapacitanceCalc() = default;
 
   void set_layout_data(const LayoutData* v) {
     layout_data_ = v;
-    dbu_to_micron_ = Micron(1.0) / v->micron_to_dbu;
+    dbu_to_micron_ = dbuToMicronScale(v->micron_to_dbu);
   }
+  void set_net_env_pools(const std::vector<EnvPool>* v) { net_env_pools_ = v; }
+  void set_corner_net_etch_pools(const std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
-  void set_corner_net_etch_pools(const std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
-  void set_rc_table(RCTable* v) { rc_table_ = v; }
+  void set_cap_tables(const std::vector<const parser::CapTable*>& v) {
+    cap_tables_ = v;
+  }
   void set_corners(const std::vector<itf::ProcessCorner*>& v) { corners_ = v; }
-  void set_operating_temperature(F64 v) { operating_temperature_ = v; }
+  void set_rc_table(RCTable* v) { rc_table_ = v; }
 
-  [[nodiscard]] bool calc();
-  std::pair<Micron, Micron> node_range(const TopoEdge& e) const;
+  bool calc();
+
+  CapacitanceCalc(const CapacitanceCalc&) = delete;
+  CapacitanceCalc(CapacitanceCalc&&) = delete;
+  auto operator=(const CapacitanceCalc&) -> CapacitanceCalc& = delete;
+  auto operator=(CapacitanceCalc&&) -> CapacitanceCalc& = delete;
 
  private:
-  [[nodiscard]] F64 apply_conductor_temperature_derating(const itf::ProcessCorner& corner,
-                                                         const itf::LayerConductor& layer,
-                                                         Micron width,
-                                                         F64 base_resistance) const;
-  [[nodiscard]] F64 apply_via_temperature_derating(const itf::ProcessCorner& corner,
-                                                   const itf::LayerVia& layer,
-                                                   F64 area,
-                                                   F64 base_resistance) const;
+  bool validateInputs() const;
+  void calcNet(
+      Size corner_idx,
+      Size net_idx,
+      const parser::CapTable& cap_table,
+      const EtchPool& corner_net_etch_pool,
+      const EnvPool& net_env_pool);
+  void calcEdge(
+      Size corner_idx,
+      Size net_idx,
+      Size edge_idx,
+      const TopoEdge& edge,
+      const parser::CapTable& cap_table,
+      std::span<F64> edge_ground_caps,
+      const EnvPool& net_env_pool,
+      const EtchPool& corner_net_etch_pool);
 
   Micron dbu_to_micron_{1};
-  F64 operating_temperature_{};
 
   const LayoutData* layout_data_{nullptr};
+  const std::vector<EnvPool>* net_env_pools_{nullptr};
+  const std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
-  const std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
+  std::vector<const parser::CapTable*> cap_tables_;
   std::vector<itf::ProcessCorner*> corners_;
 
   RCTable* rc_table_{nullptr};

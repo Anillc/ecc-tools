@@ -25,7 +25,7 @@ namespace ircx {
 
 struct Hash
 {
-  [[nodiscard]] static constexpr std::size_t HashCombine(std::size_t seed,
+  static constexpr std::size_t HashCombine(std::size_t seed,
                                                          std::size_t value) noexcept {
     constexpr std::size_t kMagic =
         (sizeof(std::size_t) == 8)
@@ -53,7 +53,7 @@ struct Hash
     DirectedPairKey(T a, T b) noexcept
         : first(std::move(a)), second(std::move(b)) {}
 
-    [[nodiscard]] bool operator==(const DirectedPairKey& o) const noexcept {
+    bool operator==(const DirectedPairKey& o) const noexcept {
       return first == o.first && second == o.second;
     }
   };
@@ -75,14 +75,14 @@ struct Hash
       }
     }
 
-    [[nodiscard]] bool operator==(const UndirectedPairKey& o) const noexcept {
+    bool operator==(const UndirectedPairKey& o) const noexcept {
       return first == o.first && second == o.second;
     }
   };
 
   template <class PairKey, class ElemHash = std::hash<decltype(PairKey{}.first)>>
   struct PairKeyHash {
-    [[nodiscard]] std::size_t operator()(const PairKey& k) const
+    std::size_t operator()(const PairKey& k) const
         noexcept(noexcept(ElemHash{}(k.first)) && noexcept(ElemHash{}(k.second))) {
       std::size_t seed = 0;
       HashAppend<decltype(k.first), ElemHash>(seed, k.first);
@@ -96,7 +96,7 @@ struct Hash
   // ============================================================
 
   struct GtlPointHash {
-    [[nodiscard]] std::size_t operator()(const GtlPointI& p) const noexcept {
+    std::size_t operator()(const GtlPointI& p) const noexcept {
       std::size_t seed = 0;
       HashAppend(seed, gtl::x(p));
       HashAppend(seed, gtl::y(p));
@@ -105,7 +105,7 @@ struct Hash
   };
 
   struct GtlRectHash {
-    [[nodiscard]] std::size_t operator()(const GtlRectI& r) const noexcept {
+    std::size_t operator()(const GtlRectI& r) const noexcept {
       std::size_t seed = 0;
       HashAppend(seed, gtl::xl(r));
       HashAppend(seed, gtl::yl(r));
@@ -116,7 +116,7 @@ struct Hash
   };
 
   struct LayerPointHash {
-    [[nodiscard]] std::size_t operator()(
+    std::size_t operator()(
         const std::pair<Size, GtlPointI>& p) const noexcept {
       std::size_t seed = 0;
       HashAppend(seed, p.first);
@@ -127,7 +127,7 @@ struct Hash
   };
 
   struct LayerRectHash {
-    [[nodiscard]] std::size_t operator()(
+    std::size_t operator()(
         const std::pair<Size, GtlRectI>& p) const noexcept {
       std::size_t seed = 0;
       HashAppend(seed, p.first);
@@ -160,13 +160,13 @@ struct Hash
   //     }
   //   }
 
-  //   [[nodiscard]] bool operator==(const UidPairCornerKey& o) const noexcept {
+  //   bool operator==(const UidPairCornerKey& o) const noexcept {
   //     return uid_lo == o.uid_lo && uid_hi == o.uid_hi && corner == o.corner;
   //   }
   // };
 
   // struct UidPairCornerKeyHash {
-  //   [[nodiscard]] std::size_t operator()(const UidPairCornerKey& k) const noexcept {
+  //   std::size_t operator()(const UidPairCornerKey& k) const noexcept {
   //     std::size_t seed = 0;
   //     HashAppend(seed, k.uid_lo);
   //     HashAppend(seed, k.uid_hi);

@@ -16,11 +16,8 @@ target_link_libraries(ircx_flow
   PRIVATE
     idm
     ircx_database_io
-    ircx_environment
-    ircx_extract
-    ircx_process
+    ircx_flow_extraction
     ircx_report
-    ircx_topology
     itf_builder
     log
 )

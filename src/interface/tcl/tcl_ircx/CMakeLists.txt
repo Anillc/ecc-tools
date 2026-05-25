@@ -2,8 +2,6 @@ add_library(tcl_ircx
     ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_init_rcx.cpp
     ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_run_rcx.cpp
     ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_report_rcx.cpp
-    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_read_corner.cpp
-    ${HOME_INTERFACE}/tcl/tcl_ircx/src/tcl_read_mapping.cpp
 )
 
 target_link_libraries(tcl_ircx

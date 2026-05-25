@@ -23,6 +23,8 @@
 
 namespace ircx {
 
+#define RCX_CONFIG_INST (ircx::RCXConfig::getInst())
+
 class RCXConfig
 {
  public:
@@ -33,28 +35,50 @@ class RCXConfig
     std::string captab_file;
   };
 
-  RCXConfig() = default;
-  ~RCXConfig() = default;
+  static auto getInst() -> RCXConfig&
+  {
+    static RCXConfig inst;
+    return inst;
+  }
 
   auto init(const std::string& config_file) -> bool;
   auto reset() -> void;
+  auto set_initialized(bool initialized) -> void { _initialized = initialized; }
 
+  auto get_initialized() const -> bool { return _initialized; }
   auto get_config_path() const -> const std::string& { return _config_path; }
   auto get_thread_num() const -> unsigned { return _thread_num; }
   auto get_operating_temperature() const -> F64 { return _operating_temperature; }
-  auto get_output_dir() const -> const std::string& { return _output_dir; }
   auto get_mapping_file() const -> const std::string& { return _mapping_file; }
   auto get_corners() const -> const std::vector<CornerConfig>& { return _corners; }
+  auto get_output_dir() const -> const std::string& { return _output_dir; }
+  auto get_report_geometry() const -> bool { return _report_geometry; }
 
   auto parse(const std::string& json_file) -> bool;
 
+  RCXConfig(const RCXConfig& other) = delete;
+  RCXConfig(RCXConfig&& other) = delete;
+  auto operator=(const RCXConfig& other) -> RCXConfig& = delete;
+  auto operator=(RCXConfig&& other) -> RCXConfig& = delete;
+
  private:
+  RCXConfig() = default;
+  ~RCXConfig() = default;
+
+  bool _initialized{false};
   std::string _config_path;
+
+  // settings
   unsigned _thread_num = 64U;
   F64 _operating_temperature = 25.0;
-  std::string _output_dir;
+
+  // read file
   std::string _mapping_file;
   std::vector<CornerConfig> _corners;
+
+  // report spef
+  std::string _output_dir;
+  bool _report_geometry{false};
 };
 
 }  // namespace ircx

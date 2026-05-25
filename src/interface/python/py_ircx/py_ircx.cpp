@@ -20,62 +20,19 @@
 
 namespace python_interface {
 
-bool init_rcx(unsigned thread_number, double temperature)
+bool init_rcx(const std::string& config)
 {
-  ircx::RCXInitOptions options;
-  options.thread_number = thread_number == 0 ? 1U : thread_number;
-  options.operating_temperature = temperature;
-  RCX_API_INST.init(options);
-  return true;
+  return RCX_API_INST.init(config);
 }
 
-bool read_rcx_corner(const std::string& corner_name,
-                     const std::string& itf_file,
-                     const std::string& captab_file)
+bool run_rcx()
 {
-  return RCX_API_INST.readCorner(corner_name, itf_file.c_str(), captab_file.c_str());
+  return RCX_API_INST.run();
 }
 
-bool read_rcx_mapping(const std::string& mapping_file)
+bool report_rcx()
 {
-  return RCX_API_INST.readMapping(mapping_file.c_str());
-}
-
-bool adapt_rcx_db()
-{
-  return RCX_API_INST.adaptDB();
-}
-
-bool build_rcx_topology()
-{
-  return RCX_API_INST.buildTopology();
-}
-
-bool build_rcx_environment()
-{
-  return RCX_API_INST.buildEnvironment();
-}
-
-bool build_rcx_process_variation()
-{
-  return RCX_API_INST.buildProcessVariation();
-}
-
-bool extract_rcx_parasitics()
-{
-  return RCX_API_INST.extractParasitics();
-}
-
-bool run_rcx(const std::string& config)
-{
-  RCX_API_INST.init(config);
-  RCX_API_INST.runRCX();
-  return RCX_API_INST.runSuccess();
-}
-
-void report_rcx(const std::string& output_dir)
-{
-  RCX_API_INST.report(output_dir);
+  return RCX_API_INST.report();
 }
 
 }  // namespace python_interface

@@ -18,12 +18,18 @@
 
 #include <filesystem>
 #include <string_view>
+#include <system_error>
 
 #include "StringUtils.hh"
 #include "Types.hh"
 #include "log/Log.hh"
 
 namespace ircx {
+
+inline std::filesystem::path normalizeAbsolutePath(const std::filesystem::path& path)
+{
+  return std::filesystem::absolute(path).lexically_normal();
+}
 
 inline Str resolvePath(const std::filesystem::path& base_dir, std::string_view raw_path)
 {
@@ -52,6 +58,25 @@ inline bool ensureFileExists(const std::filesystem::path& path, std::string_view
   }
 
   LOG_ERROR << "RCX file not found for " << field_name << ": " << path_string;
+  return false;
+}
+
+inline bool ensureDirectoryExists(const std::filesystem::path& path,
+                                  std::string_view field_name)
+{
+  const Str path_string = path.string();
+  if (!ensureNonEmpty(path_string, field_name)) {
+    return false;
+  }
+
+  std::error_code ec;
+  std::filesystem::create_directories(path, ec);
+  if (!ec) {
+    return true;
+  }
+
+  LOG_ERROR << "Failed to create RCX directory for " << field_name
+            << " " << path_string << ": " << ec.message();
   return false;
 }
 

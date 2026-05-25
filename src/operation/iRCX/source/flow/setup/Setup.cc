@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "CapTable.hpp"
-#include "Flow.hh"
 #include "ItfBuilder.hpp"
 #include "LayerTable.hh"
 #include "LayoutData.hh"
@@ -197,13 +196,10 @@ auto validateProcessLayers(const ::itf::ProcessCorner& pc) -> bool
 
 auto Setup::initialize(const std::string& config) -> bool
 {
-  RCXConfig rcx_config;
+  RCXConfig& rcx_config = RCX_CONFIG_INST;
   if (!rcx_config.init(config)) {
     return false;
   }
-
-  RCX_FLOW_INST.set_num_threads(rcx_config.get_thread_num());
-  RCX_FLOW_INST.set_operating_temperature(rcx_config.get_operating_temperature());
 
   for (const auto& corner : rcx_config.get_corners()) {
     if (!readCorner(corner.name, corner.itf_file.c_str(), corner.captab_file.c_str())) {
@@ -214,7 +210,7 @@ auto Setup::initialize(const std::string& config) -> bool
     return false;
   }
 
-  RCX_FLOW_INST.set_output_dir(rcx_config.get_output_dir());
+  rcx_config.set_initialized(true);
   return true;
 }
 
@@ -302,7 +298,7 @@ auto Setup::readMapping(const char* mapping_file) -> bool
   return true;
 }
 
-auto Setup::readData() -> bool
+auto Setup::adaptDB() -> bool
 {
   if (!dmInst) {
     LOG_ERROR << "adapt db failed: dmInst is null.";

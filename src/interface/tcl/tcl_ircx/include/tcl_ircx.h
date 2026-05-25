@@ -30,11 +30,9 @@ class TclInitRCX : public TclCmd
   explicit TclInitRCX(const char* cmd_name);
   ~TclInitRCX() override = default;
 
-  unsigned check() override { return 1; }
+  unsigned check() override;
   unsigned exec() override;
 
- private:
-  std::vector<std::pair<std::string, ValueType>> _config_list;
 };
 
 /**
@@ -61,45 +59,8 @@ class TclReportRCX : public TclCmd
   explicit TclReportRCX(const char* cmd_name);
   ~TclReportRCX() override = default;
 
-  unsigned check() override;
+  unsigned check() override { return 1; }
   unsigned exec() override;
-
- private:
-  std::vector<std::pair<std::string, ValueType>> _config_list;
-};
-
-/**
- * @brief Read one corner binding.
- *
- */
-class TclReadCorner : public TclCmd
-{
- public:
-  explicit TclReadCorner(const char* cmd_name);
-  ~TclReadCorner() override = default;
-
-  unsigned check() override;
-  unsigned exec() override;
-
- private:
-  std::vector<std::pair<std::string, ValueType>> _config_list;
-};
-
-/**
- * @brief Read mapping file.
- *
- */
-class TclReadMapping : public TclCmd
-{
- public:
-  explicit TclReadMapping(const char* cmd_name);
-  ~TclReadMapping() override = default;
-
-  unsigned check() override;
-  unsigned exec() override;
-
- private:
-  std::vector<std::pair<std::string, ValueType>> _config_list;
 };
 
 }  // namespace tcl

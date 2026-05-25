@@ -183,7 +183,7 @@ class TopoPool {
   //   1. net_id() == kSpecialNetId
   //   2. id() is local only within special_edge_pool_
   //   3. u()/v() stay kMaxSize because special edges do not participate in the RC graph
-  //   4. these edges are used only as extraction context and are excluded from regular
+  //   4. these edges are used only as calculation context and are excluded from regular
   //      per-net traversal and SPEF connectivity output
   std::vector<TopoEdge>&       special_edge_pool()       { return special_edge_pool_; }
   const std::vector<TopoEdge>& special_edge_pool() const { return special_edge_pool_; }

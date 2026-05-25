@@ -42,14 +42,9 @@ class ProcessVariation final
   ProcessVariation() = default;
   ~ProcessVariation() = default;
 
-  // Disallow copy/move
-  ProcessVariation(const ProcessVariation&) = delete;
-  ProcessVariation& operator=(const ProcessVariation&) = delete;
-  ProcessVariation(ProcessVariation&&) = delete;
-  ProcessVariation& operator=(ProcessVariation&&) = delete;
-
   void set_layout_data(const LayoutData* v) { layout_data_ = v; }
   void set_net_env_pools(const std::vector<EnvPool>* v) { net_env_pools_ = v; }
+  void set_corner_net_etch_pools(std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_corners(const std::vector<::itf::ProcessCorner*>& v) { corners_ = v; }
@@ -58,16 +53,17 @@ class ProcessVariation final
   const std::vector<::itf::ProcessCorner*>& corners() const { return corners_; }
   Size corner_num() const { return corner_num_; }
 
-  EtchPool& corner_net_etch_pool(Size corner_idx, Size net_id);
-  const EtchPool& corner_net_etch_pool(Size corner_idx, Size net_id) const;
-  const std::vector<EtchPool>& corner_net_etch_pools() const { return corner_net_etch_pools_; }
-
   // other built data
   const MetalDensity* metal_density() const { return &metal_density_; }
 
   // entry points
   void reset();
-  [[nodiscard]] bool buildEtchPools();
+  bool buildEtchPools();
+
+  ProcessVariation(const ProcessVariation&) = delete;
+  ProcessVariation(ProcessVariation&&) = delete;
+  auto operator=(const ProcessVariation&) -> ProcessVariation& = delete;
+  auto operator=(ProcessVariation&&) -> ProcessVariation& = delete;
 
  private:
   void initMetalDensity();
@@ -80,6 +76,7 @@ class ProcessVariation final
   // set from outside
   const LayoutData* layout_data_{nullptr};
   const std::vector<EnvPool>* net_env_pools_{nullptr};
+  std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   std::vector<::itf::ProcessCorner*> corners_{};
@@ -90,7 +87,6 @@ class ProcessVariation final
   Size corner_num_{0};
 
   Size net_num_{0};
-  std::vector<EtchPool> corner_net_etch_pools_;
 };
 
 } // namespace ircx

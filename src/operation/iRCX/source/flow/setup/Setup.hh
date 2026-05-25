@@ -25,12 +25,12 @@ class Setup
  public:
   Setup() = delete;
 
-  [[nodiscard]] static auto initialize(const std::string& config) -> bool;
-  [[nodiscard]] static auto readCorner(const std::string& corner_name,
-                                       const char* itf_file,
-                                       const char* captab_file) -> bool;
-  [[nodiscard]] static auto readMapping(const char* mapping_file) -> bool;
-  [[nodiscard]] static auto readData() -> bool;
+  static auto initialize(const std::string& config) -> bool;
+  static auto readCorner(const std::string& corner_name,
+                         const char* itf_file,
+                         const char* captab_file) -> bool;
+  static auto readMapping(const char* mapping_file) -> bool;
+  static auto adaptDB() -> bool;
 };
 
 }  // namespace ircx

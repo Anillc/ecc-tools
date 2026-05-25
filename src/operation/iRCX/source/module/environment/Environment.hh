@@ -34,27 +34,20 @@ class Environment final
   Environment() = default;
   ~Environment() = default;
 
-  // Disallow copy/move
-  Environment(const Environment&) = delete;
-  Environment& operator=(const Environment&) = delete;
-  Environment(Environment&&) = delete;
-  Environment& operator=(Environment&&) = delete;
-
   void set_layout_data(const LayoutData* v) { layout_data_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
 
   void reset();
-  [[nodiscard]] bool buildNetEnvPools();
+  bool buildNetEnvPools(std::vector<EnvPool>& net_env_pools);
 
-  // getter
-  const std::vector<EnvPool>& net_env_pools() const { return net_env_pools_; }
-  const EnvPool& net_env_pool(Size net_id) const {
-    LOG_FATAL_IF(net_id >= net_env_pools_.size()) << "net_id out of range.";
-    return net_env_pools_[net_id];
-  }
+  Environment(const Environment&) = delete;
+  Environment(Environment&&) = delete;
+  auto operator=(const Environment&) -> Environment& = delete;
+  auto operator=(Environment&&) -> Environment& = delete;
+
  private:
-  [[nodiscard]] bool buildTracks();
-  [[nodiscard]] bool buildPixels();
+  bool buildTracks();
+  bool buildPixels();
   void buildSearchTrackNumMap();
 
   const LayoutData* layout_data_{nullptr};
@@ -70,7 +63,6 @@ class Environment final
   std::map<Size, Track> layer_to_track_;  // preferred routing direction only
   std::map<Size, Dbu> layer_to_search_track_num_;
 
-  std::vector<EnvPool> net_env_pools_;
 };
 
 } // namespace ircx

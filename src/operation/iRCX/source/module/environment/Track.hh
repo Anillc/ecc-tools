@@ -22,6 +22,7 @@
 #include <set>
 #include <vector>
 
+#include "IntervalUtils.hh"
 #include "Types.hh"
 #include "TopoPool.hh"
 #include "log/Log.hh"
@@ -118,7 +119,7 @@ class Track
   Dbu coordToTrack(Dbu coord) const { return (coord - track_ori_) / track_dlt_; }
   Dbu coordToBucket(Dbu coord) const { return (coord - bucket_ori_) / bucket_dlt_; }
 
-  [[nodiscard]] bool initTrack()
+  bool initTrack()
   {
     if (track_num_ <= 0 || track_dlt_ <= 0) {
       LOG_ERROR << "Track parameters are not initialized!";
@@ -137,7 +138,7 @@ class Track
   {
     Dbu a0 = edge.a0();
     Dbu a1 = edge.a1();
-    normalizeInterval(a0, a1);
+    ircx::normalizeInterval(a0, a1);
 
     const Dbu track_idx = coordToTrack(edge.fixed());
     const Dbu bucket_idx0 = coordToBucket(a0);
@@ -200,7 +201,7 @@ class Track
 
     Dbu a0 = line_seg.a0;
     Dbu a1 = line_seg.a1;
-    normalizeInterval(a0, a1);
+    ircx::normalizeInterval(a0, a1);
     if (!intervalValid({a0, a1})) {
       return result;
     }
@@ -244,66 +245,7 @@ class Track
   }
 
  private:
-  static void normalizeInterval(Dbu& a0, Dbu& a1)
-  {
-    if (a0 > a1) {
-      std::swap(a0, a1);
-    }
-  }
-
   static bool intervalValid(const EnvInterval& iv) { return iv.a0 < iv.a1; }
-
-  // open interval overlap: (a0, a1) overlaps (b0, b1) iff max(a0, b0) < min(a1, b1)
-  static bool overlap(Dbu a0, Dbu a1, Dbu b0, Dbu b1)
-  {
-    normalizeInterval(a0, a1);
-    normalizeInterval(b0, b1);
-    return std::max(a0, b0) < std::min(a1, b1);
-  }
-
-  static Dbu overlapA0(Dbu a0, Dbu a1, Dbu b0, Dbu b1)
-  {
-    normalizeInterval(a0, a1);
-    normalizeInterval(b0, b1);
-    return std::max(a0, b0);
-  }
-
-  static Dbu overlapA1(Dbu a0, Dbu a1, Dbu b0, Dbu b1)
-  {
-    normalizeInterval(a0, a1);
-    normalizeInterval(b0, b1);
-    return std::min(a1, b1);
-  }
-
-  // subtract open interval (cut_a0, cut_a1) from current remaining open intervals
-  static std::vector<EnvInterval> subtractInterval(const std::vector<EnvInterval>& remaining,
-                                                  Dbu cut_a0,
-                                                  Dbu cut_a1)
-  {
-    std::vector<EnvInterval> next;
-    normalizeInterval(cut_a0, cut_a1);
-
-    for (const auto& iv : remaining) {
-      if (!overlap(iv.a0, iv.a1, cut_a0, cut_a1)) {
-        next.push_back(iv);
-        continue;
-      }
-
-      // left residual: (iv.a0, cut_a0)
-      EnvInterval left{iv.a0, std::min(iv.a1, cut_a0)};
-      if (intervalValid(left)) {
-        next.push_back(left);
-      }
-
-      // right residual: (cut_a1, iv.a1)
-      EnvInterval right{std::max(iv.a0, cut_a1), iv.a1};
-      if (intervalValid(right)) {
-        next.push_back(right);
-      }
-    }
-
-    return next;
-  }
 
   static bool edgeIsInSearchDirection(const TopoEdge* edge, const SearchContext& ctx)
   {
@@ -378,10 +320,10 @@ class Track
 
     Dbu edge_a0 = edge->a0();
     Dbu edge_a1 = edge->a1();
-    normalizeInterval(edge_a0, edge_a1);
+    ircx::normalizeInterval(edge_a0, edge_a1);
 
     for (const auto& iv : remaining) {
-      if (overlap(edge_a0, edge_a1, iv.a0, iv.a1)) {
+      if (intervalOverlaps(edge_a0, edge_a1, iv.a0, iv.a1)) {
         return true;
       }
     }
@@ -400,16 +342,16 @@ class Track
 
     Dbu edge_a0 = edge->a0();
     Dbu edge_a1 = edge->a1();
-    normalizeInterval(edge_a0, edge_a1);
+    ircx::normalizeInterval(edge_a0, edge_a1);
 
     for (const auto& iv : remaining) {
-      if (!overlap(edge_a0, edge_a1, iv.a0, iv.a1)) {
+      if (!intervalOverlaps(edge_a0, edge_a1, iv.a0, iv.a1)) {
         continue;
       }
 
       TrackOverlap ov;
-      ov.a0 = overlapA0(edge_a0, edge_a1, iv.a0, iv.a1);
-      ov.a1 = overlapA1(edge_a0, edge_a1, iv.a0, iv.a1);
+      ov.a0 = intervalOverlapBegin(edge_a0, edge_a1, iv.a0, iv.a1);
+      ov.a1 = intervalOverlapEnd(edge_a0, edge_a1, iv.a0, iv.a1);
       ov.sp = std::abs(edge->fixed() - ctx.coord);
       ov.edge = edge;
 
@@ -460,7 +402,7 @@ class Track
 
       auto next_remaining = remaining;
       for (const auto& ov : overlaps) {
-        next_remaining = subtractInterval(next_remaining, ov.a0, ov.a1);
+        next_remaining = ircx::subtractInterval(next_remaining, ov.a0, ov.a1);
         if (next_remaining.empty()) {
           break;
         }
@@ -516,7 +458,7 @@ class Track
       }
 
       result.push_back(ov);
-      remaining = subtractInterval(remaining, ov.a0, ov.a1);
+      remaining = ircx::subtractInterval(remaining, ov.a0, ov.a1);
       if (remaining.empty()) {
         return remaining;
       }

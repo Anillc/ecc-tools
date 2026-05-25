@@ -20,6 +20,7 @@
 #include "ProcessVariation.hh"
 #include "TopoPool.hh"
 #include "ThicknessModel.hh"
+#include "UnitUtils.hh"
 #include "WidthModel.hh"
 #include "log/Log.hh"
 namespace ircx {
@@ -28,13 +29,13 @@ void ProcessVariation::reset()
 {
   layout_data_ = nullptr;
   net_env_pools_ = nullptr;
+  corner_net_etch_pools_ = nullptr;
   layer_table_ = nullptr;
   topo_pool_ = nullptr;
   corners_.clear();
   metal_density_.clear();
   corner_num_ = 0;
   net_num_ = 0;
-  corner_net_etch_pools_.clear();
 }
 
 bool ProcessVariation::buildEtchPools()
@@ -45,6 +46,10 @@ bool ProcessVariation::buildEtchPools()
   }
   if (!net_env_pools_) {
     LOG_ERROR << "build process variation failed: environment pools not set.";
+    return false;
+  }
+  if (!corner_net_etch_pools_) {
+    LOG_ERROR << "build process variation failed: etch pools not set.";
     return false;
   }
   if (!layer_table_) {
@@ -74,7 +79,7 @@ bool ProcessVariation::buildEtchPools()
       wm.apply_width_variation(
           corner_idx,
           net_idx,
-          corner_net_etch_pools_[corner_net_pool_index(corner_idx, net_idx)]);
+          (*corner_net_etch_pools_)[corner_net_pool_index(corner_idx, net_idx)]);
     }
   }
 
@@ -91,7 +96,7 @@ bool ProcessVariation::buildEtchPools()
       tm.apply_thickness_variation(
           corner_idx,
           net_idx,
-          corner_net_etch_pools_[corner_net_pool_index(corner_idx, net_idx)]);
+          (*corner_net_etch_pools_)[corner_net_pool_index(corner_idx, net_idx)]);
     }
   }
 
@@ -108,12 +113,12 @@ void ProcessVariation::initEtchIntervals()
 {
   net_num_ = layout_data_->regular_net_count();
   corner_num_ = corners_.size();
-  corner_net_etch_pools_.clear();
-  corner_net_etch_pools_.resize(net_num_ * corner_num_);
+  corner_net_etch_pools_->clear();
+  corner_net_etch_pools_->resize(net_num_ * corner_num_);
 
   const std::vector<EnvPool>& net_env_pools = *net_env_pools_;
 
-  Micron dbu_to_micron = 1. / layout_data_->micron_to_dbu;
+  Micron dbu_to_micron = dbuToMicronScale(layout_data_->micron_to_dbu);
 
   for (Size corner_idx = 0; corner_idx < corner_num_; ++corner_idx) {
     #pragma omp parallel for schedule(dynamic)
@@ -121,7 +126,7 @@ void ProcessVariation::initEtchIntervals()
       const auto net_edges = topo_pool_->net_edges(net_idx);
       const Size edge_count = net_edges.size();
 
-      EtchPool& etch_pool = corner_net_etch_pools_[corner_net_pool_index(corner_idx, net_idx)];
+      EtchPool& etch_pool = (*corner_net_etch_pools_)[corner_net_pool_index(corner_idx, net_idx)];
       const EnvPool& env_pool = net_env_pools[net_idx];
 
       for (Size edge_idx = 0; edge_idx < edge_count; ++edge_idx) {
@@ -164,22 +169,6 @@ void ProcessVariation::initEtchIntervals()
       }
     }
   }
-}
-
-// accessors
-
-EtchPool&
-ProcessVariation::corner_net_etch_pool(Size corner_idx, Size net_id)
-{
-  Size pool_idx = corner_net_pool_index(corner_idx, net_id);
-  return corner_net_etch_pools_[pool_idx];
-}
-
-const EtchPool&
-ProcessVariation::corner_net_etch_pool(Size corner_idx, Size net_id) const
-{
-  Size pool_idx = corner_net_pool_index(corner_idx, net_id);
-  return corner_net_etch_pools_[pool_idx];
 }
 
 } // namespace ircx

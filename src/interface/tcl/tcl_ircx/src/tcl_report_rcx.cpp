@@ -22,26 +22,11 @@
  * @date 2025-12-09
  */
 #include "RCXAPI.hh"
-#include "log/Log.hh"
 #include "tcl_ircx.h"
 
 namespace tcl {
 
-TclReportRCX::TclReportRCX(const char* cmd_name) : TclCmd(cmd_name)
-{
-  addOption(new TclStringOption("file_name", 1, nullptr));
-  addOption(new TclSwitchOption("-geometry"));
-}
-
-unsigned TclReportRCX::check()
-{
-  TclOption* file_name_option = getOptionOrArg("file_name");
-  if (!file_name_option || !file_name_option->is_set_val()) {
-    LOG_ERROR << "report_rcx requires file_name.";
-    return 0;
-  }
-  return 1;
-}
+TclReportRCX::TclReportRCX(const char* cmd_name) : TclCmd(cmd_name) {}
 
 unsigned TclReportRCX::exec()
 {
@@ -49,11 +34,7 @@ unsigned TclReportRCX::exec()
     return 0;
   }
 
-  TclOption* file_name_option = getOptionOrArg("file_name");
-  const char* output_dir = file_name_option->getStringVal();
-
-  RCX_API_INST.report(output_dir ? output_dir : ".");
-  return RCX_API_INST.reportSuccess() ? 1U : 0U;
+  return RCX_API_INST.report() ? 1U : 0U;
 }
 
 }  // namespace tcl

@@ -81,12 +81,14 @@ auto RCXConfig::init(const std::string& config_file) -> bool
 
 auto RCXConfig::reset() -> void
 {
+  _initialized = false;
   _config_path.clear();
   _thread_num = 64U;
   _operating_temperature = 25.0;
-  _output_dir.clear();
   _mapping_file.clear();
   _corners.clear();
+  _output_dir.clear();
+  _report_geometry = false;
 }
 
 auto RCXConfig::parse(const std::string& json_file) -> bool
@@ -106,8 +108,8 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
     nlohmann::json json;
     config_stream >> json;
 
-    const fs::path absolute_config_path = fs::absolute(json_file).lexically_normal();
-    const fs::path config_dir = absolute_config_path.parent_path();
+    const fs::path absolute_config_path = normalizeAbsolutePath(json_file);
+    const fs::path config_dir = normalizeAbsolutePath(absolute_config_path).parent_path();
 
     if (!json.contains("thread_num") || !json["thread_num"].is_number_integer()) {
       LOG_ERROR << "RCX config missing integer field: thread_num";
@@ -131,10 +133,20 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
       _operating_temperature = json[temperature_field].get<F64>();
     }
 
-    if (json.contains("output") && json["output"].is_string()) {
+    if (json.contains("output")) {
+      if (!json["output"].is_string()) {
+        LOG_ERROR << "RCX config field must be a string: output";
+        return false;
+      }
       _output_dir = resolvePath(config_dir, json["output"].get<std::string>());
-    } else {
-      _output_dir.clear();
+    }
+
+    if (json.contains("report_geometry")) {
+      if (!json["report_geometry"].is_boolean()) {
+        LOG_ERROR << "RCX config field must be a boolean: report_geometry";
+        return false;
+      }
+      _report_geometry = json["report_geometry"].get<bool>();
     }
 
     if (!json.contains("mapping_file") || !json["mapping_file"].is_string()) {

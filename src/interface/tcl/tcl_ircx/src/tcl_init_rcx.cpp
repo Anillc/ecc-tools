@@ -24,6 +24,7 @@
 #include <iostream>
 
 #include "RCXAPI.hh"
+#include "log/Log.hh"
 #include "tcl_ircx.h"
 #include "tcl_util.h"
 
@@ -31,10 +32,24 @@ namespace tcl {
 
 TclInitRCX::TclInitRCX(const char* cmd_name) : TclCmd(cmd_name)
 {
-  _config_list.push_back(std::make_pair("-thread", ValueType::kInt));
-  _config_list.push_back(std::make_pair("-temperature", ValueType::kDouble));
+  addOption(new TclStringOption("-config", 0, nullptr));
+}
 
-  TclUtil::addOption(this, _config_list);
+unsigned TclInitRCX::check()
+{
+  TclOption* config_option = getOptionOrArg("-config");
+  if (!config_option || !config_option->is_set_val()) {
+    LOG_ERROR << "init_rcx requires -config.";
+    return 0;
+  }
+
+  const char* config_file = config_option->getStringVal();
+  if (config_file == nullptr || config_file[0] == '\0') {
+    LOG_ERROR << "init_rcx requires a non-empty -config file.";
+    return 0;
+  }
+
+  return 1;
 }
 
 unsigned TclInitRCX::exec()
@@ -55,21 +70,8 @@ unsigned TclInitRCX::exec()
       "WELCOME TO iRCX TCL-shell interface. \e[0m";
   std::cout << hello_info << std::endl;
 
-  ircx::RCXInitOptions options;
-
-  TclOption* thread_option = getOptionOrArg("-thread");
-  if (thread_option && thread_option->is_set_val()) {
-    options.thread_number = thread_option->getIntVal();
-  }
-
-  TclOption* temperature_option = getOptionOrArg("-temperature");
-  if (temperature_option && temperature_option->is_set_val()) {
-    options.operating_temperature = temperature_option->getDoubleVal();
-  }
-
-  RCX_API_INST.init(options);
-
-  return 1;
+  TclOption* config_option = getOptionOrArg("-config");
+  return RCX_API_INST.init(config_option->getStringVal()) ? 1U : 0U;
 }
 
 }  // namespace tcl
