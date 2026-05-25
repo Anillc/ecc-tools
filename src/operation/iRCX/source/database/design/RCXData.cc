@@ -57,36 +57,6 @@ void RCXData::setDBData(LayoutData layout_data,
   corner_net_etch_pools_.clear();
 }
 
-std::vector<::itf::ProcessCorner*> RCXData::corners()
-{
-  std::vector<::itf::ProcessCorner*> out;
-  out.reserve(corners_.size());
-  for (auto& corner : corners_) {
-    out.push_back(corner.process_corner.get());
-  }
-  return out;
-}
-
-std::vector<const ::itf::ProcessCorner*> RCXData::corners() const
-{
-  std::vector<const ::itf::ProcessCorner*> result;
-  result.reserve(corners_.size());
-  for (const auto& corner : corners_) {
-    result.push_back(corner.process_corner.get());
-  }
-  return result;
-}
-
-std::vector<const parser::CapTable*> RCXData::corner_cap_tables() const
-{
-  std::vector<const parser::CapTable*> result;
-  result.reserve(corners_.size());
-  for (const auto& corner : corners_) {
-    result.push_back(&corner.cap_table);
-  }
-  return result;
-}
-
 bool RCXData::hasCorner(const Str& corner_name) const
 {
   return std::any_of(corners_.begin(), corners_.end(),

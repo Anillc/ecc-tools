@@ -32,7 +32,7 @@ void ProcessVariation::reset()
   corner_net_etch_pools_ = nullptr;
   layer_table_ = nullptr;
   topo_pool_ = nullptr;
-  corners_.clear();
+  corner_data_ = nullptr;
   metal_density_.clear();
   corner_num_ = 0;
   net_num_ = 0;
@@ -60,9 +60,16 @@ bool ProcessVariation::buildEtchPools()
     LOG_ERROR << "build process variation failed: TopoPool not initialized.";
     return false;
   }
-  if (corners_.empty()) {
+  if (corner_data_ == nullptr || corner_data_->empty()) {
     LOG_ERROR << "build process variation failed: process corners not set.";
     return false;
+  }
+  for (const auto& corner : *corner_data_) {
+    if (corner.process_corner == nullptr) {
+      LOG_ERROR << "build process variation failed: null process corner "
+                << corner.name << ".";
+      return false;
+    }
   }
 
   initMetalDensity();
@@ -72,7 +79,7 @@ bool ProcessVariation::buildEtchPools()
   WidthModel wm;
   wm.set_topo_pool(topo_pool_);
   wm.set_layer_table(layer_table_);
-  wm.set_corners(corners());
+  wm.set_corner_data(corner_data_);
   for (Size corner_idx = 0; corner_idx < corner_num_; ++corner_idx) {
     #pragma omp parallel for schedule(dynamic)
     for (Size net_idx = 0; net_idx < net_num_; ++net_idx) {
@@ -87,7 +94,7 @@ bool ProcessVariation::buildEtchPools()
   tm.set_layout_data(layout_data_);
   tm.set_topo_pool(topo_pool_);
   tm.set_layer_table(layer_table_);
-  tm.set_corners(corners());
+  tm.set_corner_data(corner_data_);
   tm.set_metal_density(&metal_density_);
 
   for (Size corner_idx = 0; corner_idx < corner_num_; ++corner_idx) {
@@ -112,7 +119,7 @@ void ProcessVariation::initMetalDensity()
 void ProcessVariation::initEtchIntervals()
 {
   net_num_ = layout_data_->regular_net_count();
-  corner_num_ = corners_.size();
+  corner_num_ = corner_data_->size();
   corner_net_etch_pools_->clear();
   corner_net_etch_pools_->resize(net_num_ * corner_num_);
 

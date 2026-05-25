@@ -22,6 +22,7 @@
 #include "EtchPool.hh"
 #include "EnvPool.hh"
 #include "LayoutData.hh"
+#include "RCXData.hh"
 #include "RCTable.hh"
 #include "UnitUtils.hh"
 namespace ircx {
@@ -56,10 +57,7 @@ class CapacitanceCalc
   void set_corner_net_etch_pools(const std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
-  void set_cap_tables(const std::vector<const parser::CapTable*>& v) {
-    cap_tables_ = v;
-  }
-  void set_corners(const std::vector<itf::ProcessCorner*>& v) { corners_ = v; }
+  void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
   void set_rc_table(RCTable* v) { rc_table_ = v; }
 
   bool calc();
@@ -94,8 +92,7 @@ class CapacitanceCalc
   const std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
-  std::vector<const parser::CapTable*> cap_tables_;
-  std::vector<itf::ProcessCorner*> corners_;
+  const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 
   RCTable* rc_table_{nullptr};
 };

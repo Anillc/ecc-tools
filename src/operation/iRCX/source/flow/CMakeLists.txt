@@ -17,7 +17,7 @@ target_link_libraries(ircx_flow
     idm
     ircx_database_io
     ircx_flow_extraction
-    ircx_report
+    ircx_flow_report
     itf_builder
     log
 )

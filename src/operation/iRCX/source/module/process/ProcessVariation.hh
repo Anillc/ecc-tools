@@ -22,16 +22,12 @@
 #include "EtchPool.hh"
 #include "EnvPool.hh"
 #include "MetalDensity.hh"
+#include "RCXData.hh"
 namespace ircx {
   class LayoutData;
-  class ProcessCorner;
   class LayerTable;
   class MetalDensity;
   class TopoPool;
-}
-
-namespace itf {
-  class ProcessCorner;
 }
 
 namespace ircx {
@@ -47,10 +43,8 @@ class ProcessVariation final
   void set_corner_net_etch_pools(std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
-  void set_corners(const std::vector<::itf::ProcessCorner*>& v) { corners_ = v; }
+  void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
 
-  std::vector<::itf::ProcessCorner*>& corners() { return corners_; }
-  const std::vector<::itf::ProcessCorner*>& corners() const { return corners_; }
   Size corner_num() const { return corner_num_; }
 
   // other built data
@@ -79,7 +73,7 @@ class ProcessVariation final
   std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
-  std::vector<::itf::ProcessCorner*> corners_{};
+  const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 
   // built here
   MetalDensity metal_density_;

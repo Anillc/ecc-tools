@@ -28,6 +28,7 @@ target_include_directories(ircx_headers
     ${HOME_OPERATION}/iRCX/source/module/calculate/capacitance
     ${HOME_OPERATION}/iRCX/source/module/calculate/resistance
     ${HOME_OPERATION}/iRCX/source/module/process
+    ${HOME_OPERATION}/iRCX/source/module/report
     ${HOME_OPERATION}/iRCX/source/module/topology
     ${HOME_OPERATION}/iRCX/source/parser
     ${HOME_OPERATION}/iRCX/source/parser/cap_table
@@ -49,6 +50,7 @@ add_subdirectory(source/module/topology)
 add_subdirectory(source/module/environment)
 add_subdirectory(source/module/process)
 add_subdirectory(source/module/calculate)
+add_subdirectory(source/module/report)
 add_subdirectory(source/flow/extraction)
 add_subdirectory(source/flow/report)
 add_subdirectory(source/flow)

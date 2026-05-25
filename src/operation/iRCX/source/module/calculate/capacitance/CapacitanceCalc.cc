@@ -264,27 +264,23 @@ bool CapacitanceCalc::calc()
     return false;
   }
 
-  const Size corner_count = corners_.size();
+  const Size corner_count = corner_data_->size();
   const Size net_count = layout_data_->regular_net_count();
 
-  if (cap_tables_.size() != corner_count) {
-    LOG_ERROR << "cap table count does not match corner count.";
-    return false;
-  }
-
   for (Size corner_idx = 0; corner_idx < corner_count; ++corner_idx) {
-    const parser::CapTable* cap_table = cap_tables_[corner_idx];
-    if (cap_table == nullptr) {
-      LOG_ERROR << "cap table missing for corner " << corners_[corner_idx]->get_technology();
+    const auto& corner_data = (*corner_data_)[corner_idx];
+    if (corner_data.process_corner == nullptr) {
+      LOG_ERROR << "process corner missing for corner " << corner_data.name;
       return false;
     }
+    const parser::CapTable& cap_table = corner_data.cap_table;
 
     #pragma omp parallel for schedule(dynamic)
     for (Size net_idx = 0; net_idx < net_count; ++net_idx) {
       calcNet(
           corner_idx,
           net_idx,
-          *cap_table,
+          cap_table,
           (*corner_net_etch_pools_)[corner_idx * net_count + net_idx],
           (*net_env_pools_)[net_idx]);
     }
@@ -321,12 +317,8 @@ bool CapacitanceCalc::validateInputs() const
     LOG_ERROR << "calculate capacitance failed: RC table not set.";
     return false;
   }
-  if (corners_.empty()) {
+  if (corner_data_ == nullptr || corner_data_->empty()) {
     LOG_ERROR << "calculate capacitance failed: process corners not set.";
-    return false;
-  }
-  if (cap_tables_.empty()) {
-    LOG_ERROR << "calculate capacitance failed: cap tables not set.";
     return false;
   }
 

@@ -23,6 +23,7 @@
 #include "TopoPool.hh"
 #include "EtchPool.hh"
 #include "ProcessCorner.hpp"
+#include "RCXData.hh"
 namespace ircx {
 
 class WidthModel {
@@ -32,9 +33,10 @@ class WidthModel {
 
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
-  void set_corners(std::vector<::itf::ProcessCorner*> v) { corners_ = std::move(v); }
+  void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
 
   void apply_width_variation(Size corner_idx, Size net_idx, EtchPool& etch_pool) const {
+    const auto& corner = *(*corner_data_)[corner_idx].process_corner;
     const auto net_edges = topo_pool_->net_edges(net_idx);
     const Size edge_count = net_edges.size();
     
@@ -43,7 +45,7 @@ class WidthModel {
       if (edge.is_via()) continue;
 
       const Size process_layer_id = layer_table_->design_to_process_id(edge.layer_id());
-      auto* conductor_layer = corners_[corner_idx]->get_layers()->find_conductor_layer(process_layer_id);
+      auto* conductor_layer = corner.get_layers()->find_conductor_layer(process_layer_id);
       if (!conductor_layer) continue;
 
       std::span<EtchInterval> edge_etch_intervals = etch_pool.edge_etch_interval_pool(edge_idx);
@@ -72,7 +74,7 @@ class WidthModel {
  private:
   const TopoPool* topo_pool_{nullptr};
   const LayerTable* layer_table_{nullptr};
-  std::vector<::itf::ProcessCorner*> corners_{};
+  const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 };
 
 }

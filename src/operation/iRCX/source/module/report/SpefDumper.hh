@@ -22,42 +22,35 @@
 #include <unordered_map>
 #include <vector>
 
+#include "RCXData.hh"
 #include "Types.hh"
-namespace itf {
-  class ProcessCorner;
-}
 
 namespace ircx {
 
 class LayoutData;
 class TopoPool;
-class LayerTable;
 class RCTable;
 class TopoNode;
 class TopoEdge;
 class SpefContext;
 
-class SpefDumper {
+class SpefDumper
+{
  public:
   SpefDumper() = default;
-  ~SpefDumper() = default;
 
   void set_spef_context(const SpefContext* v) { spef_context_ = v; }
   void set_layout_data(const LayoutData* v) { layout_data_ = v; }
-  void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_rc_table(const RCTable* v) { rc_table_ = v; }
-  void set_corners(const std::vector<::itf::ProcessCorner*>& v) { corners_ = v; }
+  void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
 
-  // Dump one .spef file for the given corner.
-  // corner_name: technology string (e.g. "typ", "slow", "fast") used in the
-  //              output filename.
-  // corner_idx:  index into RCTables vectors.
-  void dump(const Str& output_dir, Size corner_idx) const;
+  auto dump(const Str& output_dir) const -> bool;
 
  private:
   // Name-map helpers
-  struct NameMaps {
+  struct NameMaps
+  {
     std::unordered_map<Str, int> net_name_to_id;
     std::unordered_map<Str, int> inst_name_to_id;
     std::unordered_map<Str, int> port_name_to_id;
@@ -67,7 +60,8 @@ class SpefDumper {
     int next_id{1};
   };
 
-  struct CouplingRef {
+  struct CouplingRef
+  {
     Size self_edge_id{kMaxSize};
     Size other_edge_id{kMaxSize};
     double cap_ff{0.0};
@@ -90,15 +84,16 @@ class SpefDumper {
   void writeNameMap(std::ofstream& ofs) const;
   void writePorts(std::ofstream& ofs) const;
 
+  auto dumpCorner(const Str& output_dir, Size corner_idx) const -> bool;
+
   void writeDNet(std::ostream& os, Size corner_idx, Size net_idx) const;
   void writeGeometry(std::ostream& os, Size net_idx) const;
 
   const SpefContext* spef_context_{nullptr};
   const LayoutData* layout_data_{nullptr};
-  const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   const RCTable* rc_table_{nullptr};
-  std::vector<::itf::ProcessCorner*> corners_{};
+  const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 
   mutable NameMaps name_maps_;
   mutable std::unordered_map<Str, char> port_io_;

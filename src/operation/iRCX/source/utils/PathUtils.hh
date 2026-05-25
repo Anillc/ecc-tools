@@ -25,13 +25,14 @@
 #include "log/Log.hh"
 
 namespace ircx {
+namespace path {
 
-inline std::filesystem::path normalizeAbsolutePath(const std::filesystem::path& path)
+inline auto abs(const std::filesystem::path& path) -> std::filesystem::path
 {
   return std::filesystem::absolute(path).lexically_normal();
 }
 
-inline Str resolvePath(const std::filesystem::path& base_dir, std::string_view raw_path)
+inline auto resolve(const std::filesystem::path& base_dir, std::string_view raw_path) -> Str
 {
   const Str trimmed_path = trimCopy(raw_path);
   if (trimmed_path.empty()) {
@@ -46,38 +47,70 @@ inline Str resolvePath(const std::filesystem::path& base_dir, std::string_view r
   return path.lexically_normal().string();
 }
 
-inline bool ensureFileExists(const std::filesystem::path& path, std::string_view field_name)
+inline auto requireFile(const std::filesystem::path& file, std::string_view field_name) -> bool
 {
-  const Str path_string = path.string();
-  if (!ensureNonEmpty(path_string, field_name)) {
+  const Str file_string = file.string();
+  if (!ensureNonEmpty(file_string, field_name)) {
     return false;
   }
 
-  if (std::filesystem::exists(path)) {
+  if (std::filesystem::exists(file)) {
     return true;
   }
 
-  LOG_ERROR << "RCX file not found for " << field_name << ": " << path_string;
+  LOG_ERROR << "RCX file not found for " << field_name << ": " << file_string;
   return false;
 }
 
-inline bool ensureDirectoryExists(const std::filesystem::path& path,
-                                  std::string_view field_name)
+inline auto mkdirs(const std::filesystem::path& dir, std::string_view field_name) -> bool
 {
-  const Str path_string = path.string();
-  if (!ensureNonEmpty(path_string, field_name)) {
+  const Str dir_string = dir.string();
+  if (!ensureNonEmpty(dir_string, field_name)) {
     return false;
   }
 
   std::error_code ec;
-  std::filesystem::create_directories(path, ec);
-  if (!ec) {
+  const bool exists = std::filesystem::exists(dir, ec);
+  if (ec) {
+    LOG_ERROR << "Failed to access RCX directory for " << field_name
+              << " " << dir_string << ": " << ec.message();
+    return false;
+  }
+
+  if (exists) {
+    if (std::filesystem::is_directory(dir, ec)) {
+      return true;
+    }
+    if (ec) {
+      LOG_ERROR << "Failed to inspect RCX directory for " << field_name
+                << " " << dir_string << ": " << ec.message();
+      return false;
+    }
+    LOG_ERROR << "RCX path for " << field_name
+              << " exists but is not a directory: " << dir_string;
+    return false;
+  }
+
+  std::filesystem::create_directories(dir, ec);
+  if (ec) {
+    LOG_ERROR << "Failed to create RCX directory for " << field_name
+              << " " << dir_string << ": " << ec.message();
+    return false;
+  }
+
+  if (std::filesystem::is_directory(dir, ec)) {
     return true;
+  }
+  if (ec) {
+    LOG_ERROR << "Failed to inspect created RCX directory for " << field_name
+              << " " << dir_string << ": " << ec.message();
+    return false;
   }
 
   LOG_ERROR << "Failed to create RCX directory for " << field_name
-            << " " << path_string << ": " << ec.message();
+            << " " << dir_string;
   return false;
 }
 
+}  // namespace path
 }  // namespace ircx

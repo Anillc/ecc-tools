@@ -56,6 +56,7 @@ class RCXData final {
     CornerData& operator=(const CornerData&) = delete;
 
     Str name;
+    F64 temperature{25.0};
     Str itf_file;
     Str captab_file;
     std::unique_ptr<::itf::ProcessCorner> process_corner;
@@ -90,10 +91,6 @@ class RCXData final {
   const std::vector<EtchPool>& corner_net_etch_pools() const { return corner_net_etch_pools_; }
   std::vector<CornerData>& corner_data() { return corners_; }
   const std::vector<CornerData>& corner_data() const { return corners_; }
-
-  std::vector<::itf::ProcessCorner*> corners();
-  std::vector<const ::itf::ProcessCorner*> corners() const;
-  std::vector<const parser::CapTable*> corner_cap_tables() const;
 
   bool hasCorner(const Str& corner_name) const;
   void setProcessLayersRegistered(bool value) { process_layers_registered_ = value; }
