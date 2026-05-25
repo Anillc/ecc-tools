@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS process, file, singleton, and validation constraints."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "iCTS layer, behavior-directory facade, and CMake structure rules."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Runtime ownership, singleton exception, input/config/output/summary, and adapter boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include, dependency visibility, and validation rules for iCTS backend cleanup."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer reasoning for API, flow, database, adapter, and module boundary changes."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Guidance for deciding whether helpers should be shared, private, or folded."}
+{"file": ".trellis/tasks/05-25-cts-cleanup-normalization-refactor/research/public-surface-audit.md", "reason": "Task-specific audit findings and cleanup candidates."}
+{"file": ".trellis/tasks/05-25-cts-cleanup-normalization-refactor/design.md", "reason": "Task-specific target design and boundary principles."}
+{"file": ".trellis/tasks/05-25-cts-cleanup-normalization-refactor/implement.md", "reason": "Task-specific phased implementation checklist and validation plan."}

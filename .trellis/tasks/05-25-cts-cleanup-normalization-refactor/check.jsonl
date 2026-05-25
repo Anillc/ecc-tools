@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Check hard iCTS constraints, singleton exception, and final validation policy."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Check root facade, layer, and CMake visibility compliance."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check runtime ownership and explicit contract compliance."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check naming, include, dependency, and forbidden-pattern compliance."}
+{"file": ".trellis/tasks/05-25-cts-cleanup-normalization-refactor/research/public-surface-audit.md", "reason": "Verify all recorded audit findings are resolved or justified."}
+{"file": ".trellis/tasks/05-25-cts-cleanup-normalization-refactor/design.md", "reason": "Verify implementation matches the intended module-boundary design."}
+{"file": ".trellis/tasks/05-25-cts-cleanup-normalization-refactor/implement.md", "reason": "Verify every checklist item and validation command was addressed."}
