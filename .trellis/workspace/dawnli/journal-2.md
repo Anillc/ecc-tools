@@ -684,3 +684,36 @@ Migrated CTS benchmark fixes onto latest cts_refactor, added reproducible ics55 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 65: CTS runtime boundary cleanup
+
+**Date**: 2026-05-25
+**Task**: CTS runtime boundary cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+Committed and archived CTS desingleton/runtime-boundary refactor; moved CTS report APIs under direct icts namespace; validated iCTS tests and deferred ecc dev per user request.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6c437f228` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
