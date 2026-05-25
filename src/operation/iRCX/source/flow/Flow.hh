@@ -32,12 +32,10 @@ class Flow
   }
 
   auto run() -> bool;
+
   auto adaptDB() -> bool;
+  auto extract() -> bool;
   auto report() -> bool;
-
-  auto calculate() -> bool;
-
-  auto dumpSpef() -> bool;
 
   void reset();
 

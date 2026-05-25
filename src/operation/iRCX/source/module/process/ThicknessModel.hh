@@ -27,6 +27,7 @@
 #include "EtchPool.hh"
 #include "MetalDensity.hh"
 #include "ProcessCorner.hpp"
+#include "RCXData.hh"
 namespace ircx {
 
 class ThicknessModel {
@@ -37,11 +38,11 @@ class ThicknessModel {
   void set_layout_data(const LayoutData* v) { layout_data_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
-  void set_corners(std::vector<::itf::ProcessCorner*> v) { corners_ = std::move(v); }
+  void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
   void set_metal_density(const MetalDensity* v) { metal_density_ = v; }
 
   void apply_thickness_variation(Size corner_idx, Size net_idx, EtchPool& etch_pool) const {
-    const auto& corner = *corners_[corner_idx];
+    const auto& corner = *(*corner_data_)[corner_idx].process_corner;
     const auto net_edges = topo_pool_->net_edges(net_idx);
     const Size edge_count = net_edges.size();
 
@@ -236,7 +237,7 @@ class ThicknessModel {
   const LayoutData* layout_data_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
-  std::vector<::itf::ProcessCorner*> corners_{};
+  const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 
   // built here
   const MetalDensity* metal_density_{nullptr};

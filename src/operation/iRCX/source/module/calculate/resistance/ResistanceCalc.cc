@@ -21,7 +21,6 @@
 
 #include "LayerTable.hh"
 #include "LayoutData.hh"
-#include "RCXConfig.hh"
 #include "TopoPool.hh"
 #include "ProcessCorner.hpp"
 #include "ResistanceTemperature.hh"
@@ -110,15 +109,25 @@ bool ResistanceCalc::calc()
     LOG_ERROR << "calculate resistance failed: RC table not set.";
     return false;
   }
-  if (corners_.empty()) {
+  if (corner_data_ == nullptr || corner_data_->empty()) {
     LOG_ERROR << "calculate resistance failed: process corners not set.";
     return false;
   }
+  for (const auto& corner : *corner_data_) {
+    if (corner.process_corner == nullptr) {
+      LOG_ERROR << "calculate resistance failed: null process corner "
+                << corner.name << ".";
+      return false;
+    }
+  }
 
   const Size regular_net_count = layout_data_->regular_net_count();
-  const Size corner_count = corners_.size();
+  const Size corner_count = corner_data_->size();
 
   for (Size corner_idx = 0; corner_idx < corner_count; corner_idx++) {
+    const auto& corner_data = (*corner_data_)[corner_idx];
+    const auto& process_corner = *corner_data.process_corner;
+    const F64 operating_temperature = corner_data.temperature;
     #pragma omp parallel for schedule(dynamic)
     for (Size net_idx = 0; net_idx < regular_net_count; net_idx++) {
       const auto net_edges = topo_pool_->net_edges(net_idx);
@@ -131,7 +140,7 @@ bool ResistanceCalc::calc()
         const Size process_layer_id = layer_table_->design_to_process_id(edge.layer_id());
 
         if (edge.is_via()) {
-          auto* via_layer = corners_[corner_idx]->get_layers()->find_via_layer(process_layer_id);
+          auto* via_layer = process_corner.get_layers()->find_via_layer(process_layer_id);
 
           F64 via_resistance = 0.0;
           const F64 via_area = geom::Area(edge.shape()) * dbu_to_micron_ * dbu_to_micron_;
@@ -141,11 +150,12 @@ bool ResistanceCalc::calc()
             via_resistance = via_layer->query_rpv_vs_area(via_area);
           }
           edge_resistances[edge_idx] = apply_via_temperature_derating(
-              *corners_[corner_idx], *via_layer, via_area, via_resistance);
+              operating_temperature,
+              process_corner, *via_layer, via_area, via_resistance);
           continue; // via res
         }
 
-        auto* conductor_layer = corners_[corner_idx]->get_layers()->find_conductor_layer(process_layer_id);
+        auto* conductor_layer = process_corner.get_layers()->find_conductor_layer(process_layer_id);
 
         auto [segment_lo, segment_hi] = node_range(edge);
         const auto edge_etch_intervals = corner_net_etch_pool.edge_etch_interval_pool(edge_idx);
@@ -196,7 +206,8 @@ bool ResistanceCalc::calc()
             interval_resistance += sheet_resistance * overlap_length / width;
           }
           resistance += apply_conductor_temperature_derating(
-              *corners_[corner_idx], *conductor_layer, width, interval_resistance);
+              operating_temperature,
+              process_corner, *conductor_layer, width, interval_resistance);
         }
         edge_resistances[edge_idx] = resistance;
       }
@@ -224,6 +235,7 @@ std::pair<Micron, Micron> ResistanceCalc::node_range(const TopoEdge& e) const
 }
 
 F64 ResistanceCalc::apply_conductor_temperature_derating(
+    F64 operating_temperature,
     const itf::ProcessCorner& corner,
     const itf::LayerConductor& layer,
     Micron width,
@@ -238,12 +250,13 @@ F64 ResistanceCalc::apply_conductor_temperature_derating(
   const F64 nominal_temperature = layer.has_t0()
                                       ? static_cast<F64>(layer.get_t0())
                                       : static_cast<F64>(corner.get_global_temperature());
-  return applyResistanceTemperatureDerating(base_resistance, RCX_CONFIG_INST.get_operating_temperature(),
+  return applyResistanceTemperatureDerating(base_resistance, operating_temperature,
                                             nominal_temperature, coefficients.crt1,
                                             coefficients.crt2);
 }
 
 F64 ResistanceCalc::apply_via_temperature_derating(
+    F64 operating_temperature,
     const itf::ProcessCorner& corner,
     const itf::LayerVia& layer,
     F64 area,
@@ -258,7 +271,7 @@ F64 ResistanceCalc::apply_via_temperature_derating(
   const F64 nominal_temperature = layer.has_t0()
                                       ? static_cast<F64>(layer.get_t0())
                                       : static_cast<F64>(corner.get_global_temperature());
-  return applyResistanceTemperatureDerating(base_resistance, RCX_CONFIG_INST.get_operating_temperature(),
+  return applyResistanceTemperatureDerating(base_resistance, operating_temperature,
                                             nominal_temperature, coefficients.crt1,
                                             coefficients.crt2);
 }

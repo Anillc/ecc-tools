@@ -14,22 +14,24 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
+#include "SpefDumper.hh"
+
 #include <algorithm>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
 
-#include "SpefDumper.hh"
 #include "Geometry.hh"
 #include "LayoutData.hh"
+#include "ProcessCorner.hpp"
+#include "RCTable.hh"
 #include "RCXConfig.hh"
 #include "SpefContext.hh"
 #include "TopoPool.hh"
-#include "ProcessCorner.hpp"
-#include "RCTable.hh"
 #include "UnitUtils.hh"
 #include "log/Log.hh"
 #include "usage/usage.hh"
+
 namespace ircx {
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,18 +107,22 @@ void SpefDumper::buildCouplingRefs(Size corner_idx) const
 
   auto for_each_coupling = [&](auto&& fn) {
     for (const auto& [key, cap_vec] : rc_table_->merged_ccap()) {
-      if (corner_idx >= cap_vec.size()) continue;
+      if (corner_idx >= cap_vec.size())
+        continue;
 
       const double cap_ff = static_cast<double>(cap_vec[corner_idx]);
-      if (cap_ff <= 0.0) continue;
+      if (cap_ff <= 0.0)
+        continue;
 
       const Size edge_a_id = key.first;
       const Size edge_b_id = key.second;
-      if (edge_a_id >= edge_pool.size() || edge_b_id >= edge_pool.size()) continue;
+      if (edge_a_id >= edge_pool.size() || edge_b_id >= edge_pool.size())
+        continue;
 
       const TopoEdge& edge_a = edge_pool[edge_a_id];
       const TopoEdge& edge_b = edge_pool[edge_b_id];
-      if (edge_a.net_id() >= net_num || edge_b.net_id() >= net_num) continue;
+      if (edge_a.net_id() >= net_num || edge_b.net_id() >= net_num)
+        continue;
 
       fn(edge_a.net_id(), edge_a_id, edge_b_id, cap_ff);
       if (edge_b.net_id() != edge_a.net_id()) {
@@ -125,9 +131,7 @@ void SpefDumper::buildCouplingRefs(Size corner_idx) const
     }
   };
 
-  for_each_coupling([&](Size net_idx, Size, Size, double) {
-    ++coupling_counts[net_idx];
-  });
+  for_each_coupling([&](Size net_idx, Size, Size, double) { ++coupling_counts[net_idx]; });
 
   net_coupling_refs_.assign(net_num, {});
   for (Size net_idx = 0; net_idx < net_num; ++net_idx) {
@@ -158,7 +162,7 @@ Str SpefDumper::nodeName(const TopoNode& node) const
       // Instance pin: "inst_name:pin_name"
       auto colon = full_name.find(':');
       Str inst_name = full_name.substr(0, colon);
-      Str pin_name  = full_name.substr(colon + 1);
+      Str pin_name = full_name.substr(colon + 1);
       auto it = name_maps_.inst_name_to_id.find(inst_name);
       if (it != name_maps_.inst_name_to_id.end())
         return "*" + std::to_string(it->second) + ":" + pin_name;
@@ -182,14 +186,14 @@ Str SpefDumper::nodeName(const TopoNode& node) const
 
 void SpefDumper::writeHeader(std::ofstream& ofs) const
 {
-  auto t  = std::time(nullptr);
+  auto t = std::time(nullptr);
   auto tm = *std::localtime(&t);
   std::ostringstream date_ss;
   date_ss << std::put_time(&tm, "%a %b %d %H:%M:%S %Y");
 
   ofs << "*SPEF \"IEEE 1481-1998\"\n";
   ofs << "*DESIGN \"" << layout_data_->design_name << "\"\n";
-  ofs << "*DATE \""   << date_ss.str()    << "\"\n";
+  ofs << "*DATE \"" << date_ss.str() << "\"\n";
   ofs << "*VENDOR \"ECOS\"\n";
   ofs << "*PROGRAM \"iRCX\"\n";
   ofs << "*VERSION \"1.0\"\n";
@@ -260,9 +264,12 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   std::unordered_map<Str, char> inst_pin_io;
   inst_pin_io.reserve(net.pins.size());
   for (const Pin& p : net.pins) {
-    if (p.is_input && p.is_output) inst_pin_io[p.name] = 'B';
-    else if (p.is_input) inst_pin_io[p.name] = 'I';
-    else if (p.is_output) inst_pin_io[p.name] = 'O';
+    if (p.is_input && p.is_output)
+      inst_pin_io[p.name] = 'B';
+    else if (p.is_input)
+      inst_pin_io[p.name] = 'I';
+    else if (p.is_output)
+      inst_pin_io[p.name] = 'O';
   }
 
   const auto nodes = topo_pool_->net_nodes(net_idx);
@@ -270,7 +277,8 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   const Size node_offset = topo_pool_->net_node_range(net_idx).first;
 
   const Size node_num = nodes.size();
-  if (node_num == 0) return;
+  if (node_num == 0)
+    return;
 
   const Micron dbu_to_micron = dbuToMicronScale(layout_data_->micron_to_dbu);
 
@@ -281,9 +289,11 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
 
   for (Size edge_idx = 0; edge_idx < edges.size(); ++edge_idx) {
     const TopoEdge& edge = edges[edge_idx];
-    if (edge.is_via()) continue;
+    if (edge.is_via())
+      continue;
     const double ground_cap = gcap_pool[edge_idx];
-    if (ground_cap <= 0.0) continue;
+    if (ground_cap <= 0.0)
+      continue;
     // u()/v() are GLOBAL node indices; subtract node_offset for LOCAL index.
     node_gnd[edge.u() - node_offset] += ground_cap / 2.0;
     node_gnd[edge.v() - node_offset] += ground_cap / 2.0;
@@ -294,12 +304,14 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   std::map<std::pair<Size, Str>, double> node_cc_map;
 
   for (const CouplingRef& coupling : coupling_refs) {
-    const TopoEdge& e_self  = edge_pool[coupling.self_edge_id];
+    const TopoEdge& e_self = edge_pool[coupling.self_edge_id];
     const TopoEdge& e_other = edge_pool[coupling.other_edge_id];
 
     // Guard against edges without valid node assignments.
-    if (e_self.u()  == kMaxSize || e_self.v()  == kMaxSize) continue;
-    if (e_other.u() == kMaxSize || e_other.v() == kMaxSize) continue;
+    if (e_self.u() == kMaxSize || e_self.v() == kMaxSize)
+      continue;
+    if (e_other.u() == kMaxSize || e_other.v() == kMaxSize)
+      continue;
 
     // Find the closest node pair between self and other edges.
     const GtlPointI& pa_u = topo_pool_->node_at(e_self.u()).point();
@@ -307,16 +319,19 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
     const GtlPointI& pb_u = topo_pool_->node_at(e_other.u()).point();
     const GtlPointI& pb_v = topo_pool_->node_at(e_other.v()).point();
 
-    struct Cand { Size self_global; Size other_global; Dbu dist; };
-    const Cand cands[4] = {
-      {e_self.u(), e_other.u(), geom::Manhattan(pa_u, pb_u)},
-      {e_self.u(), e_other.v(), geom::Manhattan(pa_u, pb_v)},
-      {e_self.v(), e_other.u(), geom::Manhattan(pa_v, pb_u)},
-      {e_self.v(), e_other.v(), geom::Manhattan(pa_v, pb_v)},
+    struct Cand
+    {
+      Size self_global;
+      Size other_global;
+      Dbu dist;
     };
-    const auto& best = *std::min_element(
-        std::begin(cands), std::end(cands),
-        [](const Cand& x, const Cand& y){ return x.dist < y.dist; });
+    const Cand cands[4] = {
+        {e_self.u(), e_other.u(), geom::Manhattan(pa_u, pb_u)},
+        {e_self.u(), e_other.v(), geom::Manhattan(pa_u, pb_v)},
+        {e_self.v(), e_other.u(), geom::Manhattan(pa_v, pb_u)},
+        {e_self.v(), e_other.v(), geom::Manhattan(pa_v, pb_v)},
+    };
+    const auto& best = *std::min_element(std::begin(cands), std::end(cands), [](const Cand& x, const Cand& y) { return x.dist < y.dist; });
 
     // Convert GLOBAL ids to LOCAL for array indexing.
     const Size self_local = best.self_global - node_offset;
@@ -329,54 +344,56 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
 
   // Total capacitance
   double tcap = 0.0;
-  for (double ground_cap : node_gnd) tcap += ground_cap;
-  for (const auto& [_, coupling_cap] : node_cc_map) tcap += coupling_cap;
+  for (double ground_cap : node_gnd)
+    tcap += ground_cap;
+  for (const auto& [_, coupling_cap] : node_cc_map)
+    tcap += coupling_cap;
 
   // Write *D_NET
-  os << "\n*D_NET " << net_spef_name << " " << std::fixed
-     << std::setprecision(6) << tcap << "\n\n";
+  os << "\n*D_NET " << net_spef_name << " " << std::fixed << std::setprecision(6) << tcap << "\n\n";
 
   // *CONN section
   os << "*CONN\n";
-  for (Size node_idx = 0; node_idx < node_num; ++node_idx) { // *P
+  for (Size node_idx = 0; node_idx < node_num; ++node_idx) {  // *P
     const TopoNode& node = nodes[node_idx];
-    if (!node.is_pin_node()) continue;
+    if (!node.is_pin_node())
+      continue;
 
-    if (node.pin_name().find(':') == Str::npos) { // port pin node
+    if (node.pin_name().find(':') == Str::npos) {  // port pin node
       Micron x = geom::X(node.point()) * dbu_to_micron;
       Micron y = geom::Y(node.point()) * dbu_to_micron;
 
-      os << "*" << "P" << " " << node_spef_name[topo_pool_->node_index(net_idx, node.id())]
-         << " " << port_io.at(node.pin_name())
-         << " *C " << std::fixed << std::setprecision(3) << x << " " << y << "\n";
+      os << "*" << "P" << " " << node_spef_name[topo_pool_->node_index(net_idx, node.id())] << " " << port_io.at(node.pin_name()) << " *C "
+         << std::fixed << std::setprecision(3) << x << " " << y << "\n";
     }
   }
 
-  for (Size node_idx = 0; node_idx < node_num; ++node_idx) { // *I
+  for (Size node_idx = 0; node_idx < node_num; ++node_idx) {  // *I
     const TopoNode& node = nodes[node_idx];
-    if (!node.is_pin_node()) continue;
+    if (!node.is_pin_node())
+      continue;
 
-    if (node.pin_name().find(':') != Str::npos) { // instance pin node
+    if (node.pin_name().find(':') != Str::npos) {  // instance pin node
       Micron x = geom::X(node.point()) * dbu_to_micron;
       Micron y = geom::Y(node.point()) * dbu_to_micron;
       const auto io_it = inst_pin_io.find(node.pin_name());
       const char pin_io = (io_it != inst_pin_io.end()) ? io_it->second : 'B';
 
-      os << "*" << "I" << " " << node_spef_name[topo_pool_->node_index(net_idx, node.id())]
-         << " " << pin_io
-         << " *C " << std::fixed << std::setprecision(3) << x << " " << y << "\n";
+      os << "*" << "I" << " " << node_spef_name[topo_pool_->node_index(net_idx, node.id())] << " " << pin_io << " *C " << std::fixed
+         << std::setprecision(3) << x << " " << y << "\n";
     }
   }
-  
-  for (Size node_idx = 0; node_idx < node_num; ++node_idx) { // *N
+
+  for (Size node_idx = 0; node_idx < node_num; ++node_idx) {  // *N
     const TopoNode& node = nodes[node_idx];
-    if (node.is_pin_node()) continue;
+    if (node.is_pin_node())
+      continue;
 
     Micron x = geom::X(node.point()) * dbu_to_micron;
     Micron y = geom::Y(node.point()) * dbu_to_micron;
 
-    os << "*" << "N" << " " << node_spef_name[topo_pool_->node_index(net_idx, node.id())]
-       << " *C " << std::fixed << std::setprecision(3) << x << " " << y << "\n";
+    os << "*" << "N" << " " << node_spef_name[topo_pool_->node_index(net_idx, node.id())] << " *C " << std::fixed << std::setprecision(3)
+       << x << " " << y << "\n";
   }
 
   // *CAP section
@@ -384,16 +401,17 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   int cap_id = 1;
   // Coupling caps first.
   for (const auto& [key, coupling_cap] : node_cc_map) {
-    if (coupling_cap <= 0.0) continue;
-    os << cap_id++ << " " << node_spef_name[topo_pool_->node_index(net_idx, key.first)]
-       << " " << key.second
-       << " " << std::setprecision(6) << coupling_cap << "\n";
+    if (coupling_cap <= 0.0)
+      continue;
+    os << cap_id++ << " " << node_spef_name[topo_pool_->node_index(net_idx, key.first)] << " " << key.second << " " << std::setprecision(6)
+       << coupling_cap << "\n";
   }
   // Ground caps.
   for (Size node_idx = 0; node_idx < node_num; ++node_idx) {
-    if (node_gnd[node_idx] <= 0.0) continue;
-    os << cap_id++ << " " << node_spef_name[topo_pool_->node_index(net_idx, node_idx)]
-       << " " << std::setprecision(6) << node_gnd[node_idx] << "\n";
+    if (node_gnd[node_idx] <= 0.0)
+      continue;
+    os << cap_id++ << " " << node_spef_name[topo_pool_->node_index(net_idx, node_idx)] << " " << std::setprecision(6) << node_gnd[node_idx]
+       << "\n";
   }
 
   // *RES section
@@ -402,13 +420,13 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   auto res_pool = rc_table_->corner_net_res_pool(corner_idx, net_idx);
   for (Size edge_idx = 0; edge_idx < edges.size(); ++edge_idx) {
     const TopoEdge& edge = edges[edge_idx];
-    if (edge.u() == kMaxSize || edge.v() == kMaxSize) continue;
+    if (edge.u() == kMaxSize || edge.v() == kMaxSize)
+      continue;
 
     const double resistance = res_pool[edge_idx];
 
-    os << res_id++ << " " << node_spef_name[edge.u()]
-       << " " << node_spef_name[edge.v()]
-       << " " << std::setprecision(6) << resistance << "\n";
+    os << res_id++ << " " << node_spef_name[edge.u()] << " " << node_spef_name[edge.v()] << " " << std::setprecision(6) << resistance
+       << "\n";
   }
 
   writeGeometry(os, net_idx);
@@ -417,18 +435,39 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// dump  (public entry point)
+// dump
 // ─────────────────────────────────────────────────────────────────────────────
 
-void SpefDumper::dump(const Str& output_dir, Size corner_idx) const
+auto SpefDumper::dump(const Str& output_dir) const -> bool
 {
-  Str corner_name = corners_[corner_idx]->get_technology();
-  Str filename = output_dir + "/" + layout_data_->design_name
-                             + "_" + corner_name + ".spef";
+  if (corner_data_ == nullptr || corner_data_->empty()) {
+    LOG_ERROR << "SpefDumper: process corners not set.";
+    return false;
+  }
+
+  for (Size corner_idx = 0; corner_idx < corner_data_->size(); ++corner_idx) {
+    if (!dumpCorner(output_dir, corner_idx)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+auto SpefDumper::dumpCorner(const Str& output_dir, Size corner_idx) const -> bool
+{
+  const auto& corner_data = (*corner_data_)[corner_idx];
+  if (corner_data.process_corner == nullptr) {
+    LOG_ERROR << "SpefDumper: process corner missing for corner " << corner_data.name;
+    return false;
+  }
+
+  Str corner_name = corner_data.process_corner->get_technology();
+  Str filename = output_dir + "/" + layout_data_->design_name + "_" + corner_name + ".spef";
   std::ofstream ofs(filename);
   if (!ofs) {
     LOG_ERROR << "SpefDumper: cannot open output file: " << filename;
-    return;
+    return false;
   }
 
   const Size net_count = layout_data_->regular_net_count();
@@ -444,7 +483,7 @@ void SpefDumper::dump(const Str& output_dir, Size corner_idx) const
   writeNameMap(ofs);
   writePorts(ofs);
 
-  #pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
   for (Size net_idx = 0; net_idx < net_count; ++net_idx) {
     std::ostringstream net_os;
     writeDNet(net_os, corner_idx, net_idx);
@@ -456,6 +495,7 @@ void SpefDumper::dump(const Str& output_dir, Size corner_idx) const
   }
 
   LOG_INFO << "SpefDumper: wrote " << filename;
+  return true;
 }
 
 }  // namespace ircx

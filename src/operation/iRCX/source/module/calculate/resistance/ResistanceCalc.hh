@@ -21,6 +21,7 @@
 
 #include "EtchPool.hh"
 #include "LayoutData.hh"
+#include "RCXData.hh"
 #include "RCTable.hh"
 #include "UnitUtils.hh"
 namespace ircx {
@@ -52,7 +53,7 @@ class ResistanceCalc
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_corner_net_etch_pools(const std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_rc_table(RCTable* v) { rc_table_ = v; }
-  void set_corners(const std::vector<itf::ProcessCorner*>& v) { corners_ = v; }
+  void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
 
   bool calc();
   std::pair<Micron, Micron> node_range(const TopoEdge& e) const;
@@ -63,14 +64,16 @@ class ResistanceCalc
   auto operator=(ResistanceCalc&&) -> ResistanceCalc& = delete;
 
  private:
-  F64 apply_conductor_temperature_derating(const itf::ProcessCorner& corner,
-                                                         const itf::LayerConductor& layer,
-                                                         Micron width,
-                                                         F64 base_resistance) const;
-  F64 apply_via_temperature_derating(const itf::ProcessCorner& corner,
-                                                   const itf::LayerVia& layer,
-                                                   F64 area,
-                                                   F64 base_resistance) const;
+  F64 apply_conductor_temperature_derating(F64 operating_temperature,
+                                           const itf::ProcessCorner& corner,
+                                           const itf::LayerConductor& layer,
+                                           Micron width,
+                                           F64 base_resistance) const;
+  F64 apply_via_temperature_derating(F64 operating_temperature,
+                                     const itf::ProcessCorner& corner,
+                                     const itf::LayerVia& layer,
+                                     F64 area,
+                                     F64 base_resistance) const;
 
   Micron dbu_to_micron_{1};
 
@@ -78,7 +81,7 @@ class ResistanceCalc
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   const std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
-  std::vector<itf::ProcessCorner*> corners_;
+  const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 
   RCTable* rc_table_{nullptr};
 };

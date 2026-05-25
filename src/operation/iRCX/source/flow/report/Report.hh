@@ -16,22 +16,14 @@
 // ***************************************************************************************
 #pragma once
 
-#include "Types.hh"
-
 namespace ircx {
 
-class Extraction
+class Report
 {
  public:
-  Extraction() = delete;
+  Report() = delete;
 
-  static auto run() -> bool;
-
- private:
-  static auto buildTopology() -> bool;
-  static auto buildEnvironment() -> bool;
-  static auto buildProcessVariation() -> bool;
-  static auto calculateParasitics() -> bool;
+  static auto dumpSpef() -> bool;
 };
 
 }  // namespace ircx

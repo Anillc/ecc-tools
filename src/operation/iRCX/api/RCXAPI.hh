@@ -43,7 +43,7 @@ class RCXAPI
 
   // run
   static auto adaptDB() -> bool;
-  static auto calculate() -> bool;
+  static auto extract() -> bool;
 
   RCXAPI(const RCXAPI& other) = delete;
   RCXAPI(RCXAPI&& other) = delete;

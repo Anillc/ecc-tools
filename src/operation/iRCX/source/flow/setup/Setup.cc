@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "Setup.hh"
 
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -43,7 +44,7 @@ auto loadProcessCorner(const Str& corner_name,
   if (!ensureNonEmpty(corner_name, "corner name")) {
     return nullptr;
   }
-  if (!ensureFileExists(itf_file, "itf_file")) {
+  if (!path::requireFile(itf_file, "itf_file")) {
     return nullptr;
   }
 
@@ -97,7 +98,7 @@ auto loadCapTable(const Str& corner_name,
   if (!ensureNonEmpty(corner_name, "corner name")) {
     return std::nullopt;
   }
-  if (!ensureFileExists(captab_file, "captab_file")) {
+  if (!path::requireFile(captab_file, "captab_file")) {
     return std::nullopt;
   }
 
@@ -202,7 +203,7 @@ auto Setup::initialize(const std::string& config) -> bool
   }
 
   for (const auto& corner : rcx_config.get_corners()) {
-    if (!readCorner(corner.name, corner.itf_file.c_str(), corner.captab_file.c_str())) {
+    if (!readCorner(corner.name, corner.temperature, corner.itf_file.c_str(), corner.captab_file.c_str())) {
       return false;
     }
   }
@@ -218,21 +219,27 @@ auto Setup::readCorner(const std::string& corner_name,
                        const char* itf_file,
                        const char* captab_file) -> bool
 {
+  return readCorner(corner_name, 25.0, itf_file, captab_file);
+}
+
+auto Setup::readCorner(const std::string& corner_name,
+                       F64 temperature,
+                       const char* itf_file,
+                       const char* captab_file) -> bool
+{
   if (!ensureNonEmpty(corner_name, "corner name")) {
+    return false;
+  }
+  if (!std::isfinite(temperature)) {
+    LOG_ERROR << "corner temperature is invalid for " << corner_name << ".";
     return false;
   }
   if (itf_file == nullptr) {
     LOG_ERROR << "itf_file is null.";
     return false;
   }
-  if (!ensureFileExists(itf_file, "itf_file")) {
-    return false;
-  }
   if (captab_file == nullptr) {
     LOG_ERROR << "captab_file is null.";
-    return false;
-  }
-  if (!ensureFileExists(captab_file, "captab_file")) {
     return false;
   }
 
@@ -244,6 +251,7 @@ auto Setup::readCorner(const std::string& corner_name,
 
   RCXData::CornerData corner;
   corner.name = corner_name;
+  corner.temperature = temperature;
   corner.itf_file = itf_file;
   corner.captab_file = captab_file;
   corner.process_corner = loadProcessCorner(corner.name, corner.itf_file);
@@ -274,7 +282,7 @@ auto Setup::readMapping(const char* mapping_file) -> bool
     LOG_ERROR << "mapping_file is null.";
     return false;
   }
-  if (!ensureFileExists(mapping_file, "mapping_file")) {
+  if (!path::requireFile(mapping_file, "mapping_file")) {
     return false;
   }
 

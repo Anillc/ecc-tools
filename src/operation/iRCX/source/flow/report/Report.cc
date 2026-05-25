@@ -14,70 +14,45 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "Flow.hh"
+#include "Report.hh"
 
-#include <omp.h>
-
-#include "Extraction.hh"
+#include "PathUtils.hh"
 #include "RCXConfig.hh"
 #include "RCXData.hh"
-#include "Report.hh"
+#include "SpefDumper.hh"
 #include "log/Log.hh"
-#include "setup/Setup.hh"
+
 namespace ircx {
 
-void Flow::reset()
+auto Report::dumpSpef() -> bool
 {
-  RCX_DATA_INST.reset();
-}
+  LOG_INFO << "report spef start";
 
-auto Flow::run() -> bool
-{
-  LOG_INFO << "RCX flow begin...";
-
-  if (!RCX_CONFIG_INST.get_initialized()) {
-    LOG_ERROR << "RCX flow failed: RCX config is not initialized.";
-    LOG_INFO << "RCX flow end.";
+  const Str& config_output_dir = RCX_CONFIG_INST.get_output_dir();
+  const Str resolved_output_dir = config_output_dir.empty() ? "." : config_output_dir;
+  if (!path::mkdirs(resolved_output_dir, "output_dir")) {
     return false;
   }
 
-  if (!adaptDB()) {
-    LOG_INFO << "RCX flow end.";
+  RCXData& data = RCX_DATA_INST;
+  const auto& corner_data = data.corner_data();
+  if (corner_data.empty()) {
+    LOG_ERROR << "report spef failed: process corners not loaded.";
     return false;
   }
 
-  omp_set_num_threads(RCX_CONFIG_INST.get_thread_num());
-
-  if (!extract()) {
-    LOG_INFO << "RCX flow end.";
+  SpefDumper dumper;
+  dumper.set_spef_context(&data.spef_context());
+  dumper.set_layout_data(&data.layout());
+  dumper.set_topo_pool(&data.topo_pool());
+  dumper.set_rc_table(&data.rc_table());
+  dumper.set_corner_data(&corner_data);
+  if (!dumper.dump(resolved_output_dir)) {
     return false;
   }
 
-  LOG_INFO << "RCX flow end.";
+  LOG_INFO << "report spef end";
   return true;
 }
-
-auto Flow::adaptDB() -> bool
-{
-  return Setup::adaptDB();
-}
-
-auto Flow::extract() -> bool
-{
-  return Extraction::run();
-}
-
-auto Flow::report() -> bool
-{
-  return Report::dumpSpef();
-}
-
-Flow::Flow()
-{
-  char config[] = "iRCX";
-  char* argv[] = {config, nullptr};
-  ieda::Log::init(argv);
-}
-Flow::~Flow() = default;
 
 }  // namespace ircx

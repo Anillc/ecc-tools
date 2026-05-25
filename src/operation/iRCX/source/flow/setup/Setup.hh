@@ -18,6 +18,8 @@
 
 #include <string>
 
+#include "Types.hh"
+
 namespace ircx {
 
 class Setup
@@ -26,6 +28,10 @@ class Setup
   Setup() = delete;
 
   static auto initialize(const std::string& config) -> bool;
+  static auto readCorner(const std::string& corner_name,
+                         F64 temperature,
+                         const char* itf_file,
+                         const char* captab_file) -> bool;
   static auto readCorner(const std::string& corner_name,
                          const char* itf_file,
                          const char* captab_file) -> bool;

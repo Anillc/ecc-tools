@@ -31,6 +31,7 @@ class RCXConfig
   struct CornerConfig
   {
     std::string name;
+    F64 temperature{25.0};
     std::string itf_file;
     std::string captab_file;
   };
@@ -48,7 +49,6 @@ class RCXConfig
   auto get_initialized() const -> bool { return _initialized; }
   auto get_config_path() const -> const std::string& { return _config_path; }
   auto get_thread_num() const -> unsigned { return _thread_num; }
-  auto get_operating_temperature() const -> F64 { return _operating_temperature; }
   auto get_mapping_file() const -> const std::string& { return _mapping_file; }
   auto get_corners() const -> const std::vector<CornerConfig>& { return _corners; }
   auto get_output_dir() const -> const std::string& { return _output_dir; }
@@ -70,7 +70,6 @@ class RCXConfig
 
   // settings
   unsigned _thread_num = 64U;
-  F64 _operating_temperature = 25.0;
 
   // read file
   std::string _mapping_file;

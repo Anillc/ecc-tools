@@ -43,11 +43,16 @@ auto parseCornerConfig(const nlohmann::json& corner_json,
 
   const std::string field_name_str(field_name);
   const std::string name_field = field_name_str + ".name";
+  const std::string temperature_field = field_name_str + ".temperature";
   const std::string itf_field = field_name_str + ".itf_file";
   const std::string captab_field = field_name_str + ".captab_file";
 
   if (!corner_json.contains("name") || !corner_json["name"].is_string()) {
     LOG_ERROR << "RCX config missing string field: " << name_field;
+    return false;
+  }
+  if (!corner_json.contains("temperature") || !corner_json["temperature"].is_number()) {
+    LOG_ERROR << "RCX config missing number field: " << temperature_field;
     return false;
   }
   if (!corner_json.contains("itf_file") || !corner_json["itf_file"].is_string()) {
@@ -60,13 +65,14 @@ auto parseCornerConfig(const nlohmann::json& corner_json,
   }
 
   corner_config.name = trimCopy(corner_json["name"].get<std::string>());
-  corner_config.itf_file = resolvePath(config_dir, corner_json["itf_file"].get<std::string>());
-  corner_config.captab_file = resolvePath(config_dir, corner_json["captab_file"].get<std::string>());
+  corner_config.temperature = corner_json["temperature"].get<F64>();
+  corner_config.itf_file = path::resolve(config_dir, corner_json["itf_file"].get<std::string>());
+  corner_config.captab_file = path::resolve(config_dir, corner_json["captab_file"].get<std::string>());
 
   bool valid = true;
   valid &= ensureNonEmpty(corner_config.name, name_field);
-  valid &= ensureFileExists(corner_config.itf_file, itf_field);
-  valid &= ensureFileExists(corner_config.captab_file, captab_field);
+  valid &= ensureNonEmpty(corner_config.itf_file, itf_field);
+  valid &= ensureNonEmpty(corner_config.captab_file, captab_field);
 
   return valid;
 }
@@ -84,7 +90,6 @@ auto RCXConfig::reset() -> void
   _initialized = false;
   _config_path.clear();
   _thread_num = 64U;
-  _operating_temperature = 25.0;
   _mapping_file.clear();
   _corners.clear();
   _output_dir.clear();
@@ -108,8 +113,8 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
     nlohmann::json json;
     config_stream >> json;
 
-    const fs::path absolute_config_path = normalizeAbsolutePath(json_file);
-    const fs::path config_dir = normalizeAbsolutePath(absolute_config_path).parent_path();
+    const fs::path absolute_config_path = path::abs(json_file);
+    const fs::path config_dir = path::abs(absolute_config_path).parent_path();
 
     if (!json.contains("thread_num") || !json["thread_num"].is_number_integer()) {
       LOG_ERROR << "RCX config missing integer field: thread_num";
@@ -118,19 +123,9 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
     const int thread_num = json["thread_num"].get<int>();
     _thread_num = thread_num <= 0 ? 1U : static_cast<unsigned>(thread_num);
 
-    const char* temperature_field = nullptr;
-    if (json.contains("temperature")) {
-      temperature_field = "temperature";
-    } else if (json.contains("operating_temperature")) {
-      temperature_field = "operating_temperature";
-    }
-
-    if (temperature_field != nullptr) {
-      if (!json[temperature_field].is_number()) {
-        LOG_ERROR << "RCX config field must be a number: " << temperature_field;
-        return false;
-      }
-      _operating_temperature = json[temperature_field].get<F64>();
+    if (json.contains("temperature") || json.contains("operating_temperature")) {
+      LOG_ERROR << "RCX config temperature must be set in each corner.";
+      return false;
     }
 
     if (json.contains("output")) {
@@ -138,7 +133,7 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
         LOG_ERROR << "RCX config field must be a string: output";
         return false;
       }
-      _output_dir = resolvePath(config_dir, json["output"].get<std::string>());
+      _output_dir = path::resolve(config_dir, json["output"].get<std::string>());
     }
 
     if (json.contains("report_geometry")) {
@@ -153,7 +148,7 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
       LOG_ERROR << "RCX config missing string field: mapping_file";
       return false;
     }
-    _mapping_file = resolvePath(config_dir, json["mapping_file"].get<std::string>());
+    _mapping_file = path::resolve(config_dir, json["mapping_file"].get<std::string>());
 
     if (!json.contains("corners")) {
       LOG_ERROR << "RCX config missing field: corners";
@@ -187,7 +182,7 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
 
     _config_path = absolute_config_path.string();
 
-    valid &= ensureFileExists(_mapping_file, "mapping_file");
+    valid &= ensureNonEmpty(_mapping_file, "mapping_file");
 
     return valid;
   } catch (const std::exception& e) {

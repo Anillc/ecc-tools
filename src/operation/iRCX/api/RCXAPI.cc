@@ -54,9 +54,9 @@ auto RCXAPI::adaptDB() -> bool
   return RCX_FLOW_INST.adaptDB();
 }
 
-auto RCXAPI::calculate() -> bool
+auto RCXAPI::extract() -> bool
 {
-  return RCX_FLOW_INST.calculate();
+  return RCX_FLOW_INST.extract();
 }
 
 }  // namespace ircx
