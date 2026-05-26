@@ -281,7 +281,7 @@ bool CapacitanceCalc::calc()
           corner_idx,
           net_idx,
           cap_table,
-          (*corner_net_etch_pools_)[corner_idx * net_count + net_idx],
+          corner_net_etch_pools_->at({corner_idx, net_idx}),
           (*net_env_pools_)[net_idx]);
     }
   }
@@ -321,6 +321,11 @@ bool CapacitanceCalc::validateInputs() const
     LOG_ERROR << "calculate capacitance failed: process corners not set.";
     return false;
   }
+  if (corner_net_etch_pools_->corner_num() != corner_data_->size()
+      || corner_net_etch_pools_->net_num() != layout_data_->regular_net_count()) {
+    LOG_ERROR << "calculate capacitance failed: etch pool dimensions mismatch.";
+    return false;
+  }
 
   return true;
 }
@@ -333,7 +338,7 @@ void CapacitanceCalc::calcNet(
     const EnvPool& net_env_pool)
 {
   const auto net_edges = topo_pool_->net_edges(net_idx);
-  auto edge_ground_caps = rc_table_->corner_net_gcap_pool(corner_idx, net_idx);
+  auto edge_ground_caps = rc_table_->corner_net_gcap_pool({corner_idx, net_idx});
 
   for (Size edge_idx = 0; edge_idx < net_edges.size(); ++edge_idx) {
     calcEdge(

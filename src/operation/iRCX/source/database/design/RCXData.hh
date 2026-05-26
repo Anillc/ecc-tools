@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "CapTable.hpp"
+#include "CornerNetPool.hh"
 #include "EtchPool.hh"
 #include "EnvPool.hh"
 #include "LayerTable.hh"
@@ -87,8 +88,8 @@ class RCXData final {
   const RCTable& rc_table() const { return rc_table_; }
   std::vector<EnvPool>& net_env_pools() { return net_env_pools_; }
   const std::vector<EnvPool>& net_env_pools() const { return net_env_pools_; }
-  std::vector<EtchPool>& corner_net_etch_pools() { return corner_net_etch_pools_; }
-  const std::vector<EtchPool>& corner_net_etch_pools() const { return corner_net_etch_pools_; }
+  CornerNetPool<EtchPool>& corner_net_etch_pools() { return corner_net_etch_pools_; }
+  const CornerNetPool<EtchPool>& corner_net_etch_pools() const { return corner_net_etch_pools_; }
   std::vector<CornerData>& corner_data() { return corners_; }
   const std::vector<CornerData>& corner_data() const { return corners_; }
 
@@ -113,7 +114,7 @@ class RCXData final {
   TopoPool topo_pool_;
   RCTable rc_table_;
   std::vector<EnvPool> net_env_pools_;
-  std::vector<EtchPool> corner_net_etch_pools_;
+  CornerNetPool<EtchPool> corner_net_etch_pools_;
   bool process_layers_registered_{false};
 };
 

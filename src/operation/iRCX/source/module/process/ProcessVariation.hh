@@ -18,6 +18,7 @@
 
 #include <vector>
 
+#include "CornerNetPool.hh"
 #include "Types.hh"
 #include "EtchPool.hh"
 #include "EnvPool.hh"
@@ -40,7 +41,7 @@ class ProcessVariation final
 
   void set_layout_data(const LayoutData* v) { layout_data_ = v; }
   void set_net_env_pools(const std::vector<EnvPool>* v) { net_env_pools_ = v; }
-  void set_corner_net_etch_pools(std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
+  void set_corner_net_etch_pools(CornerNetPool<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
@@ -63,14 +64,10 @@ class ProcessVariation final
   void initMetalDensity();
   void initEtchIntervals();
 
-  Size corner_net_pool_index(Size corner_idx, Size net_id) const {
-    return corner_idx * net_num_ + net_id;
-  }
-
   // set from outside
   const LayoutData* layout_data_{nullptr};
   const std::vector<EnvPool>* net_env_pools_{nullptr};
-  std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
+  CornerNetPool<EtchPool>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   const std::vector<RCXData::CornerData>* corner_data_{nullptr};

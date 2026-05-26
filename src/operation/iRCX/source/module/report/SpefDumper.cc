@@ -284,7 +284,7 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
 
   // Aggregate ground cap to nodes
   // Ground cap per edge is split equally to its two endpoint nodes.
-  auto gcap_pool = rc_table_->corner_net_gcap_pool(corner_idx, net_idx);
+  auto gcap_pool = rc_table_->corner_net_gcap_pool({corner_idx, net_idx});
   std::vector<double> node_gnd(node_num, 0.0);
 
   for (Size edge_idx = 0; edge_idx < edges.size(); ++edge_idx) {
@@ -417,7 +417,7 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
   // *RES section
   os << "\n*RES\n";
   int res_id = 1;
-  auto res_pool = rc_table_->corner_net_res_pool(corner_idx, net_idx);
+  auto res_pool = rc_table_->corner_net_res_pool({corner_idx, net_idx});
   for (Size edge_idx = 0; edge_idx < edges.size(); ++edge_idx) {
     const TopoEdge& edge = edges[edge_idx];
     if (edge.u() == kMaxSize || edge.v() == kMaxSize)

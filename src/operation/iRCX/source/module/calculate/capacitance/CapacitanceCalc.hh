@@ -19,6 +19,7 @@
 #include <span>
 #include <vector>
 
+#include "CornerNetPool.hh"
 #include "EtchPool.hh"
 #include "EnvPool.hh"
 #include "LayoutData.hh"
@@ -54,7 +55,7 @@ class CapacitanceCalc
     dbu_to_micron_ = dbuToMicronScale(v->micron_to_dbu);
   }
   void set_net_env_pools(const std::vector<EnvPool>* v) { net_env_pools_ = v; }
-  void set_corner_net_etch_pools(const std::vector<EtchPool>* v) { corner_net_etch_pools_ = v; }
+  void set_corner_net_etch_pools(const CornerNetPool<EtchPool>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
@@ -89,7 +90,7 @@ class CapacitanceCalc
 
   const LayoutData* layout_data_{nullptr};
   const std::vector<EnvPool>* net_env_pools_{nullptr};
-  const std::vector<EtchPool>* corner_net_etch_pools_{nullptr};
+  const CornerNetPool<EtchPool>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   const std::vector<RCXData::CornerData>* corner_data_{nullptr};

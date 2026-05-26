@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "CornerNetPool.hh"
 #include "Hash.hh"
 #include "Types.hh"
 #include "TopoPool.hh"
@@ -55,16 +56,15 @@ class RCTable {
     corner_num_ = corner_num;
     net_num_ = net_num;
 
-    Size total = corner_num_ * net_num_;
-    corner_net_res_pools_.resize(total);
-    corner_net_gcap_pools_.resize(total);
+    corner_net_res_pools_.init(corner_num_, net_num_);
+    corner_net_gcap_pools_.init(corner_num_, net_num_);
 
     for (Size corner_idx = 0; corner_idx < corner_num; ++corner_idx) {
       for (Size net_idx = 0; net_idx < net_num; ++net_idx) {
         const Size edge_count = topo.net_edges(net_idx).size();
-        const Size pool_idx = corner_idx * net_num + net_idx;
-        corner_net_res_pools_[pool_idx].assign(edge_count, 0.0);
-        corner_net_gcap_pools_[pool_idx].assign(edge_count, 0.0);
+        const CornerNetId id{corner_idx, net_idx};
+        corner_net_res_pools_.at(id).assign(edge_count, 0.0);
+        corner_net_gcap_pools_.at(id).assign(edge_count, 0.0);
       }
     }
 
@@ -72,19 +72,19 @@ class RCTable {
   }
 
   // Resistance: writable span per (corner, net)
-  std::span<F64> corner_net_res_pool(Size corner_id, Size net_id) {
-    return corner_net_res_pools_[corner_id * net_num_ + net_id];
+  std::span<F64> corner_net_res_pool(CornerNetId id) {
+    return corner_net_res_pools_.at(id);
   }
-  std::span<const F64> corner_net_res_pool(Size corner_id, Size net_id) const {
-    return corner_net_res_pools_[corner_id * net_num_ + net_id];
+  std::span<const F64> corner_net_res_pool(CornerNetId id) const {
+    return corner_net_res_pools_.at(id);
   }
 
   // Ground cap: writable span per (corner, net)
-  std::span<F64> corner_net_gcap_pool(Size corner_id, Size net_id) {
-    return corner_net_gcap_pools_[corner_id * net_num_ + net_id];
+  std::span<F64> corner_net_gcap_pool(CornerNetId id) {
+    return corner_net_gcap_pools_.at(id);
   }
-  std::span<const F64> corner_net_gcap_pool(Size corner_id, Size net_id) const {
-    return corner_net_gcap_pools_[corner_id * net_num_ + net_id];
+  std::span<const F64> corner_net_gcap_pool(CornerNetId id) const {
+    return corner_net_gcap_pools_.at(id);
   }
 
   // Coupling cap: per-net accumulation (parallel-safe across nets)
@@ -120,9 +120,8 @@ class RCTable {
   Size corner_num_{0};
   Size net_num_{0};
 
-  // indexed by [corner_id * net_num_ + net_id], each vec size = edge count of net
-  std::vector<std::vector<F64>> corner_net_res_pools_;
-  std::vector<std::vector<F64>> corner_net_gcap_pools_;
+  CornerNetPool<std::vector<F64>> corner_net_res_pools_;
+  CornerNetPool<std::vector<F64>> corner_net_gcap_pools_;
 
   // parallel accumulation: indexed by net_id
   std::vector<std::vector<CcapEntry>> net_ccap_entries_;

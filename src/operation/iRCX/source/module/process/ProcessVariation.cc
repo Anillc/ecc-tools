@@ -86,7 +86,7 @@ bool ProcessVariation::buildEtchPools()
       wm.apply_width_variation(
           corner_idx,
           net_idx,
-          (*corner_net_etch_pools_)[corner_net_pool_index(corner_idx, net_idx)]);
+          corner_net_etch_pools_->at({corner_idx, net_idx}));
     }
   }
 
@@ -103,7 +103,7 @@ bool ProcessVariation::buildEtchPools()
       tm.apply_thickness_variation(
           corner_idx,
           net_idx,
-          (*corner_net_etch_pools_)[corner_net_pool_index(corner_idx, net_idx)]);
+          corner_net_etch_pools_->at({corner_idx, net_idx}));
     }
   }
 
@@ -120,8 +120,7 @@ void ProcessVariation::initEtchIntervals()
 {
   net_num_ = layout_data_->regular_net_count();
   corner_num_ = corner_data_->size();
-  corner_net_etch_pools_->clear();
-  corner_net_etch_pools_->resize(net_num_ * corner_num_);
+  corner_net_etch_pools_->init(corner_num_, net_num_);
 
   const std::vector<EnvPool>& net_env_pools = *net_env_pools_;
 
@@ -133,7 +132,7 @@ void ProcessVariation::initEtchIntervals()
       const auto net_edges = topo_pool_->net_edges(net_idx);
       const Size edge_count = net_edges.size();
 
-      EtchPool& etch_pool = (*corner_net_etch_pools_)[corner_net_pool_index(corner_idx, net_idx)];
+      EtchPool& etch_pool = corner_net_etch_pools_->at({corner_idx, net_idx});
       const EnvPool& env_pool = net_env_pools[net_idx];
 
       for (Size edge_idx = 0; edge_idx < edge_count; ++edge_idx) {
