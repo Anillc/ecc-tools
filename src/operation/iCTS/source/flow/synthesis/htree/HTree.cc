@@ -222,10 +222,10 @@ auto HTreeBuilder::build() -> htree::DiagnosticBuild
     segment_pattern_library.add(pattern);
   }
 
-  auto required_segment_frontiers
-      = htree::ResolveRequiredSegmentFrontiers(htree::CollectRequiredLengthIndices(full_level_plans), search_boundary_constraints);
   htree::SegmentFrontierCatalog segment_frontier_catalog;
-  {
+  if (!config.enable_analytical_solver) {
+    auto required_segment_frontiers
+        = htree::ResolveRequiredSegmentFrontiers(htree::CollectRequiredLengthIndices(full_level_plans), search_boundary_constraints);
     auto segment_frontier_stage
         = reporter.beginStage("HTree", "Synthesize segment frontiers",
                               {
@@ -245,6 +245,14 @@ auto HTreeBuilder::build() -> htree::DiagnosticBuild
         {"length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
         {"frontier_entries", std::to_string(segment_frontier_catalog.countEntries(required_segment_frontiers.required_kinds))},
     });
+  } else {
+    auto segment_frontier_stage = reporter.beginStage("HTree", "Synthesize segment frontiers",
+                                                      {
+                                                          {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
+                                                          {"required_length_indices", "0"},
+                                                      },
+                                                      htree::DetailStageReportOptions());
+    segment_frontier_stage.skip({{"reason", "mathematical_analytical_solver_uses_unit_affine_models"}});
   }
 
   const auto [root_driver_clock_period_ns, root_driver_clock_period_source] = htree::ResolveRootDriverClockPeriod(input);

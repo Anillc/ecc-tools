@@ -25,7 +25,9 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "BufferingPattern.hh"
 #include "PatternId.hh"
@@ -64,6 +66,36 @@ struct BufferPatternLibrary
   }
 
   auto getTerminalSemantic(PatternId pattern_id) const -> TerminalSemantic { return getCompositionState(pattern_id).terminal_semantic; }
+
+  auto retainOnly(const std::vector<PatternId>& retained_pattern_ids) -> void
+  {
+    std::unordered_set<PatternId> retained;
+    retained.reserve(retained_pattern_ids.size());
+    for (const auto pattern_id : retained_pattern_ids) {
+      retained.insert(pattern_id);
+    }
+
+    std::unordered_map<PatternId, BufferingPattern> retained_patterns;
+    retained_patterns.reserve(retained.size());
+    for (const auto pattern_id : retained) {
+      auto pattern_it = patterns.find(pattern_id);
+      if (pattern_it != patterns.end()) {
+        retained_patterns.emplace(pattern_id, std::move(pattern_it->second));
+      }
+    }
+
+    std::unordered_map<PatternId, PatternCompositionState> retained_composition_states;
+    retained_composition_states.reserve(retained.size());
+    for (const auto pattern_id : retained) {
+      auto state_it = composition_states.find(pattern_id);
+      if (state_it != composition_states.end()) {
+        retained_composition_states.emplace(pattern_id, state_it->second);
+      }
+    }
+
+    patterns = std::move(retained_patterns);
+    composition_states = std::move(retained_composition_states);
+  }
 
  private:
   static auto resolveBoundaryBufferState(const BoundaryBufferState& explicit_state, const std::string& cell_master,

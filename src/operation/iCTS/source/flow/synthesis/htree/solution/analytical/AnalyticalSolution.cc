@@ -64,6 +64,8 @@ auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input&
                              const htree::SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
                              const std::string& root_driver_clock_period_source) -> bool
 {
+  (void) segment_frontier_catalog;
+
   if (!config.enable_analytical_solver) {
     return false;
   }
@@ -77,14 +79,12 @@ auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input&
                                               {
                                                   {"depth_candidates", std::to_string(depth_candidates.size())},
                                                   {"max_depth", std::to_string(max_depth)},
-                                                  {"per_level_shortlist", std::to_string(as::kAnalyticalPerLevelShortlistSize)},
-                                                  {"top_k_per_depth", std::to_string(as::kAnalyticalTopKPerDepth)},
+                                                  {"solver", "math_milp_normalized_delay_power"},
                                               },
                                               DetailStageReportOptions());
   const auto analytical_attempt = as::TrySolveAnalyticalHTree(
-      result.output.topology, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library,
-      search_boundary_constraints, fanout_pruning_config, root_driver_compensation_input, sink_load_region_input, char_builder,
-      result.diagnostics.char_slew_steps);
+      result.output.topology, full_level_plans, depth_candidates, segment_pattern_library, search_boundary_constraints,
+      fanout_pruning_config, root_driver_compensation_input, sink_load_region_input, char_builder, result.diagnostics.char_slew_steps);
   result.diagnostics.analytical_model_set_count = analytical_attempt.model_set_count;
   result.diagnostics.analytical_rejected_fit_count = analytical_attempt.rejected_fit_count;
   result.diagnostics.analytical_structural_cap_operator_count = analytical_attempt.structural_cap_operator_count;
@@ -99,6 +99,19 @@ auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input&
   result.diagnostics.analytical_validated_power_min_w = analytical_attempt.validated_power_min_w;
   result.diagnostics.analytical_validated_power_median_w = analytical_attempt.validated_power_median_w;
   result.diagnostics.analytical_validated_power_max_w = analytical_attempt.validated_power_max_w;
+  result.diagnostics.analytical_solver_backend = analytical_attempt.backend_name;
+  result.diagnostics.analytical_solver_status = analytical_attempt.solver_status;
+  result.diagnostics.analytical_solver_variable_count = analytical_attempt.solver_variable_count;
+  result.diagnostics.analytical_solver_binary_variable_count = analytical_attempt.solver_binary_variable_count;
+  result.diagnostics.analytical_solver_continuous_variable_count = analytical_attempt.solver_continuous_variable_count;
+  result.diagnostics.analytical_solver_constraint_count = analytical_attempt.solver_constraint_count;
+  result.diagnostics.analytical_solver_wall_time_ms = analytical_attempt.solver_wall_time_ms;
+  result.diagnostics.analytical_solver_objective_value = analytical_attempt.solver_objective_value;
+  result.diagnostics.analytical_solver_optimality_gap = analytical_attempt.solver_optimality_gap;
+  result.diagnostics.analytical_solver_min_delay_anchor_ns = analytical_attempt.solver_min_delay_anchor_ns;
+  result.diagnostics.analytical_solver_min_power_anchor_w = analytical_attempt.solver_min_power_anchor_w;
+  result.diagnostics.analytical_solver_total_delay_ns = analytical_attempt.solver_total_delay_ns;
+  result.diagnostics.analytical_solver_total_power_w = analytical_attempt.solver_total_power_w;
 
   if (analytical_attempt.selected && analytical_attempt.selected_evaluation.best_char.has_value()) {
     result.diagnostics.analytical_mode_selected = true;
@@ -116,23 +129,22 @@ auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input&
         {"domain_slew_floors", std::to_string(analytical_attempt.domain_slew_floor_count)},
         {"domain_cap_floors", std::to_string(analytical_attempt.domain_cap_floor_count)},
         {"max_domain_rejected_cap_pf", std::to_string(analytical_attempt.max_domain_rejected_cap_pf)},
-        {"empty_shortlists", std::to_string(analytical_attempt.empty_shortlist_count)},
         {"materialization_attempts", std::to_string(analytical_attempt.materialization_attempt_count)},
         {"root_fanout_rejections", std::to_string(analytical_attempt.root_fanout_rejected_count)},
         {"lattice_rejections", std::to_string(analytical_attempt.lattice_rejected_count)},
-        {"diagnostic_library_hits", std::to_string(analytical_attempt.diagnostic_library_hit_count)},
-        {"diagnostic_frontier_hits", std::to_string(analytical_attempt.diagnostic_frontier_hit_count)},
-        {"diagnostic_decomposed", std::to_string(analytical_attempt.diagnostic_decomposed_count)},
-        {"diagnostic_scored", std::to_string(analytical_attempt.diagnostic_scored_count)},
-        {"diagnostic_shortlisted", std::to_string(analytical_attempt.diagnostic_shortlisted_count)},
-        {"diagnostic_generated_candidates", std::to_string(analytical_attempt.diagnostic_generated_candidate_count)},
-        {"diagnostic_direct_candidates", std::to_string(analytical_attempt.diagnostic_direct_candidate_count)},
-        {"diagnostic_direct_delay_ns", std::to_string(analytical_attempt.diagnostic_direct_delay_ns)},
-        {"diagnostic_direct_power_w", std::to_string(analytical_attempt.diagnostic_direct_power_w)},
-        {"diagnostic_direct_root_cap_pf", std::to_string(analytical_attempt.diagnostic_direct_root_cap_pf)},
-        {"diagnostic_direct_input_slew_idx", std::to_string(analytical_attempt.diagnostic_direct_input_slew_idx)},
-        {"diagnostic_direct_output_slew_idx", std::to_string(analytical_attempt.diagnostic_direct_output_slew_idx)},
-        {"diagnostic_direct_driven_cap_idx", std::to_string(analytical_attempt.diagnostic_direct_driven_cap_idx)},
+        {"solver_backend", analytical_attempt.backend_name.empty() ? "unknown" : analytical_attempt.backend_name},
+        {"solver_status", analytical_attempt.solver_status.empty() ? "unknown" : analytical_attempt.solver_status},
+        {"solver_variables", std::to_string(analytical_attempt.solver_variable_count)},
+        {"solver_binary_variables", std::to_string(analytical_attempt.solver_binary_variable_count)},
+        {"solver_continuous_variables", std::to_string(analytical_attempt.solver_continuous_variable_count)},
+        {"solver_constraints", std::to_string(analytical_attempt.solver_constraint_count)},
+        {"solver_wall_time_ms", std::to_string(analytical_attempt.solver_wall_time_ms)},
+        {"solver_objective_value", std::to_string(analytical_attempt.solver_objective_value)},
+        {"solver_optimality_gap", std::to_string(analytical_attempt.solver_optimality_gap)},
+        {"solver_min_delay_anchor_ns", std::to_string(analytical_attempt.solver_min_delay_anchor_ns)},
+        {"solver_min_power_anchor_w", std::to_string(analytical_attempt.solver_min_power_anchor_w)},
+        {"solver_total_delay_ns", std::to_string(analytical_attempt.solver_total_delay_ns)},
+        {"solver_total_power_w", std::to_string(analytical_attempt.solver_total_power_w)},
         {"generated_candidates", std::to_string(analytical_attempt.generated_candidate_count)},
         {"validated_candidates", std::to_string(analytical_attempt.validated_candidate_count)},
         {"validated_pareto_candidates", std::to_string(analytical_attempt.validated_pareto_count)},
@@ -241,28 +253,22 @@ auto TryBuildAnalyticalHTree(htree::DiagnosticBuild& result, const HTree::Input&
       {"domain_slew_floors", std::to_string(analytical_attempt.domain_slew_floor_count)},
       {"domain_cap_floors", std::to_string(analytical_attempt.domain_cap_floor_count)},
       {"max_domain_rejected_cap_pf", std::to_string(analytical_attempt.max_domain_rejected_cap_pf)},
-      {"empty_shortlists", std::to_string(analytical_attempt.empty_shortlist_count)},
       {"materialization_attempts", std::to_string(analytical_attempt.materialization_attempt_count)},
       {"root_fanout_rejections", std::to_string(analytical_attempt.root_fanout_rejected_count)},
       {"lattice_rejections", std::to_string(analytical_attempt.lattice_rejected_count)},
-      {"diagnostic_library_hits", std::to_string(analytical_attempt.diagnostic_library_hit_count)},
-      {"diagnostic_frontier_hits", std::to_string(analytical_attempt.diagnostic_frontier_hit_count)},
-      {"diagnostic_decomposed", std::to_string(analytical_attempt.diagnostic_decomposed_count)},
-      {"diagnostic_scored", std::to_string(analytical_attempt.diagnostic_scored_count)},
-      {"diagnostic_shortlisted", std::to_string(analytical_attempt.diagnostic_shortlisted_count)},
-      {"diagnostic_generated_candidates", std::to_string(analytical_attempt.diagnostic_generated_candidate_count)},
-      {"diagnostic_direct_candidates", std::to_string(analytical_attempt.diagnostic_direct_candidate_count)},
-      {"diagnostic_direct_delay_ns", std::to_string(analytical_attempt.diagnostic_direct_delay_ns)},
-      {"diagnostic_direct_power_w", std::to_string(analytical_attempt.diagnostic_direct_power_w)},
-      {"diagnostic_direct_root_cap_pf", std::to_string(analytical_attempt.diagnostic_direct_root_cap_pf)},
-      {"diagnostic_direct_input_slew_idx", std::to_string(analytical_attempt.diagnostic_direct_input_slew_idx)},
-      {"diagnostic_direct_output_slew_idx", std::to_string(analytical_attempt.diagnostic_direct_output_slew_idx)},
-      {"diagnostic_direct_driven_cap_idx", std::to_string(analytical_attempt.diagnostic_direct_driven_cap_idx)},
-      {"first_empty_level",
-       analytical_attempt.first_empty_reason.empty() ? "none" : std::to_string(analytical_attempt.first_empty_level_index)},
-      {"first_empty_length_idx",
-       analytical_attempt.first_empty_reason.empty() ? "none" : std::to_string(analytical_attempt.first_empty_length_idx)},
-      {"first_empty_reason", analytical_attempt.first_empty_reason.empty() ? "none" : analytical_attempt.first_empty_reason},
+      {"solver_backend", analytical_attempt.backend_name.empty() ? "unknown" : analytical_attempt.backend_name},
+      {"solver_status", analytical_attempt.solver_status.empty() ? "unknown" : analytical_attempt.solver_status},
+      {"solver_variables", std::to_string(analytical_attempt.solver_variable_count)},
+      {"solver_binary_variables", std::to_string(analytical_attempt.solver_binary_variable_count)},
+      {"solver_continuous_variables", std::to_string(analytical_attempt.solver_continuous_variable_count)},
+      {"solver_constraints", std::to_string(analytical_attempt.solver_constraint_count)},
+      {"solver_wall_time_ms", std::to_string(analytical_attempt.solver_wall_time_ms)},
+      {"solver_objective_value", std::to_string(analytical_attempt.solver_objective_value)},
+      {"solver_optimality_gap", std::to_string(analytical_attempt.solver_optimality_gap)},
+      {"solver_min_delay_anchor_ns", std::to_string(analytical_attempt.solver_min_delay_anchor_ns)},
+      {"solver_min_power_anchor_w", std::to_string(analytical_attempt.solver_min_power_anchor_w)},
+      {"solver_total_delay_ns", std::to_string(analytical_attempt.solver_total_delay_ns)},
+      {"solver_total_power_w", std::to_string(analytical_attempt.solver_total_power_w)},
       {"generated_candidates", std::to_string(analytical_attempt.generated_candidate_count)},
       {"validated_candidates", std::to_string(analytical_attempt.validated_candidate_count)},
       {"validated_pareto_candidates", std::to_string(analytical_attempt.validated_pareto_count)},

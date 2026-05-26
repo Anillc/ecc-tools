@@ -24,6 +24,7 @@
 #include "synthesis/htree/segment_pruning/SegmentPruning.hh"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <ranges>
 #include <unordered_map>
@@ -82,6 +83,37 @@ auto CountTotalSegmentCandidateFrontierEntries(const std::unordered_map<unsigned
     total_entries += CountSegmentCandidateFrontierEntries(entry_set);
   }
   return total_entries;
+}
+
+auto AppendRetainedSegmentPatternIds(const SegmentCandidateFrontierSet& entry_set, SegmentFrontierKindSet required_kinds,
+                                     std::vector<PatternId>& pattern_ids) -> void
+{
+  static constexpr std::array<SegmentFrontierKind, 3> frontier_kinds
+      = {SegmentFrontierKind::kAll, SegmentFrontierKind::kTerminalBranchBuffered, SegmentFrontierKind::kTerminalLeafUnbuffered};
+  for (const auto kind : frontier_kinds) {
+    if (!required_kinds.contains(kind)) {
+      continue;
+    }
+    const auto* entries = entry_set.find(kind);
+    if (entries == nullptr) {
+      continue;
+    }
+    pattern_ids.reserve(pattern_ids.size() + entries->size());
+    for (const auto& entry : *entries) {
+      pattern_ids.push_back(entry.get_pattern_id());
+    }
+  }
+}
+
+auto RetainSegmentPatternsForEntrySets(const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets,
+                                       SegmentFrontierKindSet required_kinds, BufferPatternLibrary& pattern_library) -> void
+{
+  std::vector<PatternId> retained_pattern_ids;
+  for (const auto& [length_idx, entry_set] : entry_sets) {
+    (void) length_idx;
+    AppendRetainedSegmentPatternIds(entry_set, required_kinds, retained_pattern_ids);
+  }
+  pattern_library.retainOnly(retained_pattern_ids);
 }
 
 auto FindSegmentCandidateFrontierSet(const std::unordered_map<unsigned, SegmentCandidateFrontierSet>& entry_sets, unsigned length_idx)
@@ -372,6 +404,7 @@ auto SynthesizeSegmentFrontierSets(const std::vector<SegmentChar>& base_segment_
   auto entry_sets_by_length = BuildBaseSegmentCandidateLengthEntrySets(base_segment_chars, pattern_library, required_kinds);
   const RequiredLengthStateKey root_state_key = BuildPendingLengthKey(required_frontiers.required_length_indices, entry_sets_by_length);
   if (root_state_key.pending_lengths.empty()) {
+    RetainSegmentPatternsForEntrySets(entry_sets_by_length, required_kinds, pattern_library);
     return entry_sets_by_length;
   }
 
@@ -386,6 +419,7 @@ auto SynthesizeSegmentFrontierSets(const std::vector<SegmentChar>& base_segment_
   for (auto& [length_idx, entry_set] : closure_solution.synthesized_entry_sets) {
     entry_sets_by_length[length_idx] = std::move(entry_set);
   }
+  RetainSegmentPatternsForEntrySets(entry_sets_by_length, required_kinds, pattern_library);
   return entry_sets_by_length;
 }
 

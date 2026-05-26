@@ -122,6 +122,9 @@ auto SearchTopologyDepthCandidates(const Tree& topology, const std::vector<HTree
         topology, full_level_plans, depth, segment_frontier_catalog, segment_pattern_library, base_boundary_constraints,
         exploration.output.sink_load_region_legality_context, char_slew_steps, compensation_pass, reporter, fanout_config);
     RecordTopologyDepthCandidateBuild(depth, used_explicit_target_depth, candidate_result, exploration.summary.depth_summaries);
+    ReduceCandidateBuildEvaluationForGlobalSelection(candidate_result.evaluation, topology, segment_pattern_library,
+                                                     exploration.output.sink_load_region_legality_context,
+                                                     fanout_config.allow_boundary_relaxation);
     exploration.output.candidate_evaluations.push_back(std::move(candidate_result.evaluation));
     const auto candidate_index = exploration.output.candidate_evaluations.size() - 1U;
     AppendGlobalCandidateRefs(candidate_index, exploration.output.candidate_evaluations.back(), exploration.output.global_feasible_pool,

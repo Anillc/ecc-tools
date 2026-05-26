@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -43,14 +44,10 @@ class Tree;
 namespace htree {
 struct BoundaryConstraints;
 struct BufferPatternLibrary;
-class SegmentFrontierCatalog;
 }  // namespace htree
 
 namespace htree::analytical_selection {
 
-inline constexpr std::size_t kAnalyticalPerLevelShortlistSize = 128U;
-inline constexpr std::size_t kAnalyticalTopKPerDepth = 128U;
-inline constexpr std::size_t kAnalyticalUnitComposeBeamSize = 128U;
 inline constexpr unsigned kAnalyticalUnitLengthIdx = 1U;
 inline constexpr double kAnalyticalParetoPowerSlackRatio = 0.20;
 
@@ -78,23 +75,24 @@ struct AnalyticalHTreeAttempt
   std::size_t domain_slew_floor_count = 0U;
   std::size_t domain_cap_floor_count = 0U;
   double max_domain_rejected_cap_pf = 0.0;
-  std::size_t empty_shortlist_count = 0U;
   std::size_t materialization_attempt_count = 0U;
   std::size_t root_fanout_rejected_count = 0U;
   std::size_t lattice_rejected_count = 0U;
-  std::size_t diagnostic_library_hit_count = 0U;
-  std::size_t diagnostic_frontier_hit_count = 0U;
-  std::size_t diagnostic_decomposed_count = 0U;
-  std::size_t diagnostic_scored_count = 0U;
-  std::size_t diagnostic_shortlisted_count = 0U;
-  std::size_t diagnostic_generated_candidate_count = 0U;
-  std::size_t diagnostic_direct_candidate_count = 0U;
-  double diagnostic_direct_delay_ns = 0.0;
-  double diagnostic_direct_power_w = 0.0;
-  double diagnostic_direct_root_cap_pf = 0.0;
-  unsigned diagnostic_direct_input_slew_idx = 0U;
-  unsigned diagnostic_direct_output_slew_idx = 0U;
-  unsigned diagnostic_direct_driven_cap_idx = 0U;
+  std::string backend_name;
+  std::string solver_status;
+  std::size_t solver_variable_count = 0U;
+  std::size_t solver_binary_variable_count = 0U;
+  std::size_t solver_continuous_variable_count = 0U;
+  std::size_t solver_constraint_count = 0U;
+  double solver_wall_time_ms = 0.0;
+  double solver_objective_value = 0.0;
+  double solver_optimality_gap = 0.0;
+  double solver_primal_bound = std::numeric_limits<double>::quiet_NaN();
+  double solver_dual_bound = std::numeric_limits<double>::quiet_NaN();
+  double solver_min_delay_anchor_ns = 0.0;
+  double solver_min_power_anchor_w = 0.0;
+  double solver_total_delay_ns = 0.0;
+  double solver_total_power_w = 0.0;
   std::size_t validated_pareto_count = 0U;
   std::size_t selected_pareto_power_rank = 0U;
   double validated_delay_min_ns = 0.0;
@@ -103,9 +101,6 @@ struct AnalyticalHTreeAttempt
   double validated_power_min_w = 0.0;
   double validated_power_median_w = 0.0;
   double validated_power_max_w = 0.0;
-  unsigned first_empty_level_index = 0U;
-  unsigned first_empty_length_idx = 0U;
-  std::string first_empty_reason;
 };
 
 struct AnalyticalValidatedCandidate
@@ -116,9 +111,8 @@ struct AnalyticalValidatedCandidate
 };
 
 auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans,
-                             const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
-                             BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& search_boundary_constraints,
-                             const HTreeFanoutPruningConfig& fanout_pruning_config,
+                             const std::vector<unsigned>& depth_candidates, BufferPatternLibrary& segment_pattern_library,
+                             const BoundaryConstraints& search_boundary_constraints, const HTreeFanoutPruningConfig& fanout_pruning_config,
                              const RootDriverCompensationInput& root_driver_compensation_input,
                              const SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
                              unsigned char_slew_steps) -> AnalyticalHTreeAttempt;

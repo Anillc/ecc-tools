@@ -27,13 +27,17 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "BufferingPattern.hh"
 #include "CharCore.hh"
 #include "HTreeTopologyChar.hh"
 #include "Log.hh"
@@ -49,6 +53,8 @@
 
 namespace icts::htree {
 namespace {
+
+auto CompactPatternSearchToFrontier(PatternSearchBuild& result, std::vector<HTreeTopologyChar>& frontier_entries) -> void;
 
 auto BuildDelayPowerParetoFront(const std::vector<HTreeTopologyChar>& entries) -> std::vector<const HTreeTopologyChar*>
 {
@@ -197,6 +203,22 @@ auto FilterRootFanoutLegalHTreeChars(const std::vector<HTreeTopologyChar>& entri
   return filtered_entries;
 }
 
+auto BuildHTreeFrontierStateKey(const HTreeTopologyChar& entry, const PatternCompositionState& state) -> HTreeFrontierStateKey
+{
+  const auto normalized_state = NormalizePatternCompositionState(state);
+  return HTreeFrontierStateKey{
+      .input_slew_idx = entry.get_input_slew_idx(),
+      .driven_cap_idx = entry.get_driven_cap_idx(),
+      .leaf_load_cap_idx = entry.get_leaf_load_cap_idx(),
+      .output_slew_idx = entry.get_output_slew_idx(),
+      .load_cap_idx = entry.get_load_cap_idx(),
+      .source_boundary_net_switch_power_w = entry.get_source_boundary_net_switch_power(),
+      .terminal_semantic = normalized_state.terminal_semantic,
+      .monotonic_boundary_state = normalized_state.monotonic_boundary_state,
+      .source_exposed_load_count = normalized_state.source_exposed_load_count,
+  };
+}
+
 auto ComposeHTreeFrontierEntries(const std::vector<HTreeTopologyChar>& upstream, const std::vector<HTreeTopologyChar>& downstream,
                                  TopologyPatternLibrary& topology_library, unsigned start_pattern_id,
                                  const HTreeFanoutPruningConfig& fanout_config) -> std::pair<std::vector<HTreeTopologyChar>, unsigned>
@@ -206,11 +228,63 @@ auto ComposeHTreeFrontierEntries(const std::vector<HTreeTopologyChar>& upstream,
   }
 
   TopologyPatternLibraryCombiner combiner(topology_library, start_pattern_id, fanout_config.max_fanout);
-  auto pruner = MakeHTreeStateFrontierPruner([&](const HTreeTopologyChar& entry) -> PatternCompositionState {
-    return topology_library.getCompositionState(entry.get_pattern_id());
-  });
+  std::unordered_map<unsigned, std::vector<std::size_t>> downstream_entries_by_key;
+  downstream_entries_by_key.reserve(downstream.size());
+  for (std::size_t index = 0U; index < downstream.size(); ++index) {
+    downstream_entries_by_key[HTreeTraits::buildKey(downstream.at(index))].push_back(index);
+  }
+
+  std::unordered_map<HTreeFrontierStateKey, std::vector<HTreeTopologyChar>, HTreeFrontierStateKeyHash> frontier_by_state;
+  frontier_by_state.reserve(upstream.size());
+  for (const auto& upstream_entry : upstream) {
+    const auto downstream_it = downstream_entries_by_key.find(HTreeTraits::probeKey(upstream_entry));
+    if (downstream_it == downstream_entries_by_key.end()) {
+      continue;
+    }
+
+    for (const auto downstream_index : downstream_it->second) {
+      const auto& downstream_entry = downstream.at(downstream_index);
+      if (!combiner.canCompose(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id())) {
+        continue;
+      }
+
+      const auto tentative_pattern_id = PatternId::topology(combiner.get_next_id());
+      auto result = HTreeTopologyChar::compose(upstream_entry, downstream_entry, tentative_pattern_id);
+      const auto composition_state = combiner.composeState(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
+      auto& frontier = frontier_by_state[BuildHTreeFrontierStateKey(result, composition_state)];
+
+      bool dominated = false;
+      for (const auto& existing : frontier) {
+        if (CostDominates(existing, result)) {
+          dominated = true;
+          break;
+        }
+      }
+      if (dominated) {
+        continue;
+      }
+
+      const auto removed_entries
+          = std::ranges::remove_if(frontier, [&](const HTreeTopologyChar& existing) -> bool { return CostDominates(result, existing); });
+      frontier.erase(removed_entries.begin(), removed_entries.end());
+
+      const auto committed_pattern_id = combiner.combine(upstream_entry.get_pattern_id(), downstream_entry.get_pattern_id());
+      LOG_FATAL_IF(committed_pattern_id != tentative_pattern_id) << "HTree: tentative topology pattern ID changed before commit.";
+      frontier.push_back(std::move(result));
+    }
+  }
+
+  std::size_t frontier_size = 0U;
+  for (const auto& [state_key, entries] : frontier_by_state) {
+    (void) state_key;
+    frontier_size += entries.size();
+  }
   std::vector<HTreeTopologyChar> frontier_entries;
-  detail::HashJoinConcat<HTreeTopologyChar, HTreeTraits>(upstream, downstream, combiner, frontier_entries, &pruner);
+  frontier_entries.reserve(frontier_size);
+  for (auto& [state_key, entries] : frontier_by_state) {
+    (void) state_key;
+    frontier_entries.insert(frontier_entries.end(), std::make_move_iterator(entries.begin()), std::make_move_iterator(entries.end()));
+  }
   SortHTreeFrontierEntries(frontier_entries);
   return {std::move(frontier_entries), combiner.get_next_id()};
 }
@@ -290,6 +364,8 @@ auto BuildPatternSearch(const std::vector<HTree::LevelPlan>& levels, const Segme
       });
       return result;
     }
+    CompactPatternSearchToFrontier(result, current_frontier_entries);
+    next_topology_pattern_id = static_cast<unsigned>(result.topology_pattern_library.nodes.size());
   }
 
   result.success = !current_frontier_entries.empty();
@@ -344,6 +420,79 @@ auto FilterBoundaryFeasibleHTreeChars(const std::vector<HTreeTopologyChar>& entr
   return filtered_entries;
 }
 
+auto AppendTopologyPatternIds(const std::vector<HTreeTopologyChar>& entries, std::vector<PatternId>& pattern_ids) -> void
+{
+  pattern_ids.reserve(pattern_ids.size() + entries.size());
+  for (const auto& entry : entries) {
+    pattern_ids.push_back(entry.get_pattern_id());
+  }
+}
+
+auto ReleaseTopologyPatternNodes(TopologyPatternLibrary& topology_pattern_library) -> void
+{
+  std::vector<TopologyPatternNode>().swap(topology_pattern_library.nodes);
+}
+
+auto RemapHTreeTopologyChars(const std::vector<HTreeTopologyChar>& entries, const std::unordered_map<PatternId, PatternId>& pattern_id_map)
+    -> std::vector<HTreeTopologyChar>
+{
+  std::vector<HTreeTopologyChar> remapped_entries;
+  remapped_entries.reserve(entries.size());
+  for (const auto& entry : entries) {
+    const auto map_it = pattern_id_map.find(entry.get_pattern_id());
+    LOG_FATAL_IF(map_it == pattern_id_map.end()) << "HTree: compacted topology library is missing a retained frontier pattern.";
+    remapped_entries.push_back(entry.withPatternId(map_it->second));
+  }
+  return remapped_entries;
+}
+
+auto CompactCandidateEvaluationTopologyPatterns(CandidateBuildEvaluation& evaluation) -> void
+{
+  std::vector<PatternId> retained_pattern_ids;
+  AppendTopologyPatternIds(evaluation.feasible_frontier_entries, retained_pattern_ids);
+  AppendTopologyPatternIds(evaluation.candidate_frontier_entries, retained_pattern_ids);
+  if (evaluation.best_char.has_value()) {
+    retained_pattern_ids.push_back(evaluation.best_char->get_pattern_id());
+  }
+  if (retained_pattern_ids.empty()) {
+    ReleaseTopologyPatternNodes(evaluation.topology_pattern_library);
+    return;
+  }
+
+  auto [compact_library, pattern_id_map] = evaluation.topology_pattern_library.compactReachableFrom(retained_pattern_ids);
+  auto remapped_feasible_entries = RemapHTreeTopologyChars(evaluation.feasible_frontier_entries, pattern_id_map);
+  auto remapped_candidate_entries = RemapHTreeTopologyChars(evaluation.candidate_frontier_entries, pattern_id_map);
+  if (evaluation.best_char.has_value()) {
+    const auto map_it = pattern_id_map.find(evaluation.best_char->get_pattern_id());
+    LOG_FATAL_IF(map_it == pattern_id_map.end()) << "HTree: compacted topology library is missing the selected candidate pattern.";
+    evaluation.best_char = evaluation.best_char->withPatternId(map_it->second);
+  }
+
+  std::vector<HTreeTopologyChar>().swap(evaluation.feasible_frontier_entries);
+  std::vector<HTreeTopologyChar>().swap(evaluation.candidate_frontier_entries);
+  ReleaseTopologyPatternNodes(evaluation.topology_pattern_library);
+  evaluation.feasible_frontier_entries = std::move(remapped_feasible_entries);
+  evaluation.candidate_frontier_entries = std::move(remapped_candidate_entries);
+  evaluation.topology_pattern_library = std::move(compact_library);
+}
+
+auto CompactPatternSearchToFrontier(PatternSearchBuild& result, std::vector<HTreeTopologyChar>& frontier_entries) -> void
+{
+  if (frontier_entries.empty()) {
+    ReleaseTopologyPatternNodes(result.topology_pattern_library);
+    return;
+  }
+
+  std::vector<PatternId> retained_pattern_ids;
+  AppendTopologyPatternIds(frontier_entries, retained_pattern_ids);
+  auto [compact_library, pattern_id_map] = result.topology_pattern_library.compactReachableFrom(retained_pattern_ids);
+  auto remapped_frontier_entries = RemapHTreeTopologyChars(frontier_entries, pattern_id_map);
+  std::vector<HTreeTopologyChar>().swap(frontier_entries);
+  ReleaseTopologyPatternNodes(result.topology_pattern_library);
+  frontier_entries = std::move(remapped_frontier_entries);
+  result.topology_pattern_library = std::move(compact_library);
+}
+
 auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::optional<HTreeTopologyChar>
 {
   if (entries.empty()) {
@@ -362,6 +511,41 @@ auto SelectBestHTreeChar(const std::vector<HTreeTopologyChar>& entries) -> std::
 
   const std::size_t median_index = (pareto_front.size() - 1U) / 2U;
   return *pareto_front.at(median_index);
+}
+
+auto BuildLocalDelayPowerPareto(const std::vector<HTreeTopologyChar>& entries) -> std::vector<HTreeTopologyChar>
+{
+  auto pareto_front = BuildDelayPowerParetoFront(entries);
+  std::vector<HTreeTopologyChar> retained_entries;
+  retained_entries.reserve(pareto_front.size());
+  for (const auto* entry : pareto_front) {
+    if (entry != nullptr) {
+      retained_entries.push_back(*entry);
+    }
+  }
+  return retained_entries;
+}
+
+auto FilterSinkLoadRegionCoveredEntries(const std::vector<HTreeTopologyChar>& entries, const Tree& topology,
+                                        const TopologyPatternLibrary& topology_pattern_library,
+                                        const BufferPatternLibrary& segment_pattern_library,
+                                        SinkLoadRegionLegalityContext& legality_context) -> std::vector<HTreeTopologyChar>
+{
+  std::vector<HTreeTopologyChar> filtered_entries;
+  filtered_entries.reserve(entries.size());
+  for (const auto& entry : entries) {
+    const auto legality = ResolveSinkLoadRegionLegality(topology, entry.get_pattern_id(), topology_pattern_library, segment_pattern_library,
+                                                        legality_context);
+    if (!legality.legal) {
+      continue;
+    }
+    if (legality.required_leaf_load_cap_covering_idx.has_value()
+        && entry.get_leaf_load_cap_idx() < *legality.required_leaf_load_cap_covering_idx) {
+      continue;
+    }
+    filtered_entries.push_back(entry);
+  }
+  return filtered_entries;
 }
 
 }  // namespace
@@ -465,6 +649,22 @@ auto EvaluateCandidateBuild(const std::vector<HTree::LevelPlan>& levels, const S
                                 : "no_sink_load_region_legal_frontier_entries";
   }
   return result;
+}
+
+auto ReduceCandidateBuildEvaluationForGlobalSelection(CandidateBuildEvaluation& evaluation, const Tree& topology,
+                                                      const BufferPatternLibrary& segment_pattern_library,
+                                                      SinkLoadRegionLegalityContext& legality_context, bool retain_relaxed_candidates)
+    -> void
+{
+  evaluation.feasible_frontier_entries = BuildLocalDelayPowerPareto(FilterSinkLoadRegionCoveredEntries(
+      evaluation.feasible_frontier_entries, topology, evaluation.topology_pattern_library, segment_pattern_library, legality_context));
+  if (retain_relaxed_candidates) {
+    evaluation.candidate_frontier_entries = BuildLocalDelayPowerPareto(FilterSinkLoadRegionCoveredEntries(
+        evaluation.candidate_frontier_entries, topology, evaluation.topology_pattern_library, segment_pattern_library, legality_context));
+  } else {
+    std::vector<HTreeTopologyChar>().swap(evaluation.candidate_frontier_entries);
+  }
+  CompactCandidateEvaluationTopologyPatterns(evaluation);
 }
 
 }  // namespace icts::htree

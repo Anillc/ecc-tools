@@ -1,13 +1,13 @@
 set(ICTS_FLOW_SYNTHESIS_HTREE_ANALYTICAL_SOLVER_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/AnalyticalSolver.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/candidate/AnalyticalCandidate.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/candidate/AnalyticalSolverCandidateBuild.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/model/AnalyticalSolveProblem.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/model/AnalyticalSolverModel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/model/MathHtreeModel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/model/MathHtreeProblemBuilder.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalSelection.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalSolverShortlist.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalSolverTrim.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/selection/AnalyticalValidation.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/solver/ScipMathHtreeSolver.cc
 )
 
 add_library(icts_source_flow_synthesis_htree_analytical_solver ${ICTS_FLOW_SYNTHESIS_HTREE_ANALYTICAL_SOLVER_SRC})

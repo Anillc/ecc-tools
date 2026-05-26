@@ -22,9 +22,9 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <optional>
-#include <span>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -36,7 +36,8 @@
 #include "ValueLattice.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/analytical_solver/AnalyticalSolver.hh"
-#include "synthesis/htree/analytical_solver/candidate/AnalyticalHTreeCandidateSearch.hh"
+#include "synthesis/htree/analytical_solver/candidate/AnalyticalCandidate.hh"
+#include "synthesis/htree/analytical_solver/model/AnalyticalSolverModel.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree::analytical_solver {
@@ -53,9 +54,6 @@ auto ValidateSolveProblem(const AnalyticalHTreeSolveProblem& solve_problem) -> s
 {
   if (solve_problem.levels == nullptr || solve_problem.levels->empty()) {
     return "missing_levels";
-  }
-  if (!solve_problem.config.use_functional_unit_compose && solve_problem.segment_frontier_catalog == nullptr) {
-    return "missing_segment_frontier_catalog";
   }
   if (solve_problem.segment_pattern_library == nullptr) {
     return "missing_segment_pattern_library";
@@ -106,62 +104,6 @@ auto ResolveSegmentPatternLibrary(const AnalyticalHTreeSolveProblem& solve_probl
                                                           : solve_problem.mutable_segment_pattern_library;
 }
 
-auto DiagnosticPatternIds(const AnalyticalHTreeSolveProblem& solve_problem, std::size_t level_index) -> std::span<const PatternId>
-{
-  if (solve_problem.config.diagnostic_segment_pattern_ids.empty() || solve_problem.levels == nullptr || solve_problem.levels->empty()) {
-    return {};
-  }
-  if (solve_problem.config.diagnostic_segment_pattern_ids.size() != solve_problem.levels->size()
-      || level_index >= solve_problem.levels->size()) {
-    return {};
-  }
-  return std::span<const PatternId>(&solve_problem.config.diagnostic_segment_pattern_ids.at(level_index), 1U);
-}
-
-namespace {
-
-auto ContainsDiagnosticPattern(std::span<const PatternId> diagnostic_pattern_ids, PatternId pattern_id) -> bool
-{
-  return std::ranges::find(diagnostic_pattern_ids, pattern_id) != diagnostic_pattern_ids.end();
-}
-
-}  // namespace
-
-auto RecordDiagnosticPatternStage(std::span<const PatternId> diagnostic_pattern_ids, PatternId pattern_id, DiagnosticPatternStage stage,
-                                  AnalyticalSolverBuild& result) -> void
-{
-  if (!ContainsDiagnosticPattern(diagnostic_pattern_ids, pattern_id)) {
-    return;
-  }
-  switch (stage) {
-    case DiagnosticPatternStage::kFrontier:
-      ++result.summary.diagnostic_frontier_hit_count;
-      break;
-    case DiagnosticPatternStage::kDecomposed:
-      ++result.summary.diagnostic_decomposed_count;
-      break;
-    case DiagnosticPatternStage::kScored:
-      ++result.summary.diagnostic_scored_count;
-      break;
-    case DiagnosticPatternStage::kShortlisted:
-      ++result.summary.diagnostic_shortlisted_count;
-      break;
-  }
-}
-
-auto RecordDiagnosticLibraryHits(const AnalyticalHTreeSolveProblem& solve_problem, AnalyticalSolverBuild& result) -> void
-{
-  const auto* segment_pattern_library = ResolveSegmentPatternLibrary(solve_problem);
-  if (segment_pattern_library == nullptr) {
-    return;
-  }
-  for (const auto pattern_id : solve_problem.config.diagnostic_segment_pattern_ids) {
-    if (segment_pattern_library->find(pattern_id) != nullptr) {
-      ++result.summary.diagnostic_library_hit_count;
-    }
-  }
-}
-
 auto MaterializeFunctionalSegmentPattern(const std::vector<PatternId>& unit_pattern_ids, FunctionalComposeContext& context,
                                          BufferPatternLibrary& segment_pattern_library) -> std::optional<PatternId>
 {
@@ -193,6 +135,34 @@ auto MaterializeFunctionalSegmentPattern(const std::vector<PatternId>& unit_patt
   context.next_segment_pattern_id = combiner.get_next_id();
   context.materialized_patterns.emplace(key, merged_pattern_id);
   return merged_pattern_id;
+}
+
+auto MakeSegmentChoice(std::size_t level_index, const ScoredSegment& selected) -> AnalyticalSegmentChoice
+{
+  return AnalyticalSegmentChoice{
+      .level_index = level_index,
+      .length_idx = selected.length_idx,
+      .segment_pattern_id = selected.pattern_id,
+      .input_slew_ns = selected.input_slew_ns,
+      .downstream_load_cap_pf = selected.downstream_load_cap_pf,
+      .output_slew_ns = selected.output_slew_ns,
+      .source_cap_pf = selected.source_cap_pf,
+      .delay_ns = selected.delay_ns,
+      .power_w = selected.power_w,
+      .source_boundary_power_w = selected.source_boundary_power_w,
+      .slew_upper_ns = selected.slew_upper_ns,
+      .delay_upper_ns = selected.delay_upper_ns,
+      .power_upper_w = selected.power_upper_w,
+  };
+}
+
+auto AccumulateHTreePower(double accumulated_power_w, std::size_t level_index, const ScoredSegment& selected) -> double
+{
+  if (level_index == 0U) {
+    return accumulated_power_w + selected.power_w;
+  }
+  const double level_multiplicity = std::ldexp(1.0, static_cast<int>(level_index));
+  return accumulated_power_w + level_multiplicity * (selected.power_w - selected.source_boundary_power_w);
 }
 
 }  // namespace icts::htree::analytical_solver

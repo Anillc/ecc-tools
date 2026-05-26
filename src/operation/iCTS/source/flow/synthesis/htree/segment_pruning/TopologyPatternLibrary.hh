@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "HTreeTopologyChar.hh"
@@ -141,6 +142,55 @@ struct TopologyPatternLibrary
     return HTreeTopologyPattern(pattern_id, node->levels, std::move(level_segment_pattern_ids));
   }
 
+  auto compactReachableFrom(const std::vector<PatternId>& root_pattern_ids) const
+      -> std::pair<TopologyPatternLibrary, std::unordered_map<PatternId, PatternId>>
+  {
+    std::vector<char> retained(nodes.size(), 0);
+    std::vector<PatternId> pending_pattern_ids = root_pattern_ids;
+    while (!pending_pattern_ids.empty()) {
+      const PatternId pattern_id = pending_pattern_ids.back();
+      pending_pattern_ids.pop_back();
+      const auto* node = findNode(pattern_id);
+      LOG_FATAL_IF(node == nullptr) << "HTree: missing topology pattern during reachable-library compaction.";
+      if (retained.at(pattern_id.local_id) != 0) {
+        continue;
+      }
+      retained.at(pattern_id.local_id) = 1;
+      if (node->kind == TopologyPatternNodeKind::kConcat) {
+        pending_pattern_ids.push_back(node->downstream_pattern_id);
+        pending_pattern_ids.push_back(node->upstream_pattern_id);
+      }
+    }
+
+    TopologyPatternLibrary compact_library;
+    std::unordered_map<PatternId, PatternId> pattern_id_map;
+    pattern_id_map.reserve(root_pattern_ids.size());
+    for (std::size_t node_index = 0U; node_index < nodes.size(); ++node_index) {
+      if (retained.at(node_index) == 0) {
+        continue;
+      }
+      const PatternId old_pattern_id = PatternId::topology(static_cast<unsigned>(node_index));
+      const PatternId new_pattern_id = PatternId::topology(static_cast<unsigned>(compact_library.nodes.size()));
+      pattern_id_map.emplace(old_pattern_id, new_pattern_id);
+      compact_library.nodes.push_back(nodes.at(node_index));
+      compact_library.nodes.back().pattern_id = new_pattern_id;
+    }
+
+    for (auto& node : compact_library.nodes) {
+      if (node.kind != TopologyPatternNodeKind::kConcat) {
+        continue;
+      }
+      const auto upstream_it = pattern_id_map.find(node.upstream_pattern_id);
+      const auto downstream_it = pattern_id_map.find(node.downstream_pattern_id);
+      LOG_FATAL_IF(upstream_it == pattern_id_map.end() || downstream_it == pattern_id_map.end())
+          << "HTree: compacted topology pattern lost a reachable child pattern.";
+      node.upstream_pattern_id = upstream_it->second;
+      node.downstream_pattern_id = downstream_it->second;
+    }
+
+    return {std::move(compact_library), std::move(pattern_id_map)};
+  }
+
   std::vector<TopologyPatternNode> nodes;
 };
 
@@ -181,6 +231,18 @@ class TopologyPatternLibraryCombiner
            && isBranchFanoutLegal(downstream_state);
   }
 
+  auto composeState(PatternId upstream, PatternId downstream) const -> PatternCompositionState
+  {
+    const auto upstream_state = _library->getCompositionState(upstream);
+    const auto downstream_state = _library->getCompositionState(downstream);
+    return PatternCompositionState{
+        .terminal_semantic = downstream_state.terminal_semantic,
+        .monotonic_boundary_state
+        = MonotonicBoundaryState::compose(upstream_state.monotonic_boundary_state, downstream_state.monotonic_boundary_state),
+        .source_exposed_load_count = resolveMergedSourceLoadCount(upstream_state, downstream_state),
+    };
+  }
+
   auto combine(PatternId upstream, PatternId downstream) const -> PatternId
   {
     const auto* upstream_pattern = _library->findNode(upstream);
@@ -189,15 +251,8 @@ class TopologyPatternLibraryCombiner
     LOG_FATAL_IF(!canCompose(upstream, downstream)) << "HTree: invalid non-monotonic topology pattern composition.";
 
     const PatternId merged_pattern_id = PatternId::topology(_next_id++);
-    const auto upstream_state = _library->getCompositionState(upstream);
-    const auto downstream_state = _library->getCompositionState(downstream);
     _library->addConcat(merged_pattern_id, upstream_pattern->levels + downstream_pattern->levels, upstream, downstream,
-                        PatternCompositionState{
-                            .terminal_semantic = downstream_state.terminal_semantic,
-                            .monotonic_boundary_state = MonotonicBoundaryState::compose(upstream_state.monotonic_boundary_state,
-                                                                                        downstream_state.monotonic_boundary_state),
-                            .source_exposed_load_count = resolveMergedSourceLoadCount(upstream_state, downstream_state),
-                        });
+                        composeState(upstream, downstream));
     return merged_pattern_id;
   }
 

@@ -159,14 +159,14 @@ auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& r
   if (!result.diagnostics.analytical_mode_enabled) {
     selection_engine_detail = "analytical mode disabled";
   } else if (result.diagnostics.analytical_mode_selected) {
-    selection_engine_detail = "experimental analytical candidate selection produced the embedded H-tree";
+    selection_engine_detail = "mathematical analytical optimization produced the embedded H-tree";
   } else {
     selection_engine_detail = "analytical mode was enabled but did not select a candidate";
   }
 
   std::string selection_policy;
   if (result.diagnostics.analytical_mode_selected) {
-    selection_policy = "analytical_validated_pareto_power_guarded_min_delay";
+    selection_policy = "math_milp_normalized_delay_power";
   } else if (result.summary.used_boundary_relaxation) {
     selection_policy = "global_boundary_relaxation";
   } else {
@@ -180,8 +180,7 @@ auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& r
           "candidate post-compensation frontier pool with delay-power Pareto power-median ordering";
   } else if (result.diagnostics.analytical_mode_selected) {
     selection_policy_detail
-        = "the validated analytical pool is delay-power Pareto filtered; the lowest-delay entry within the low-power "
-          "guard band is selected";
+        = "the affine MILP solves minimum-delay and minimum-power anchors, then selects the normalized delay/power tradeoff solution";
   } else {
     selection_policy_detail
         = "the global feasible post-compensation frontier pool is Pareto filtered and the lower power-ordered median entry is selected";
@@ -233,6 +232,30 @@ auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& r
        result.diagnostics.analytical_mode_enabled
            ? "min / median / max delay with matching marginal power distribution values over validated candidates"
            : "not evaluated"},
+      {"analytical_solver_backend",
+       result.diagnostics.analytical_solver_backend.empty() ? "none" : result.diagnostics.analytical_solver_backend,
+       result.diagnostics.analytical_mode_enabled ? "mathematical analytical solver backend" : "not evaluated"},
+      {"analytical_solver_status",
+       result.diagnostics.analytical_solver_status.empty() ? "none" : result.diagnostics.analytical_solver_status,
+       result.diagnostics.analytical_mode_enabled ? "mathematical analytical solver status" : "not evaluated"},
+      {"analytical_solver_model_size",
+       std::to_string(result.diagnostics.analytical_solver_variable_count) + " vars / "
+           + std::to_string(result.diagnostics.analytical_solver_binary_variable_count) + " binaries / "
+           + std::to_string(result.diagnostics.analytical_solver_continuous_variable_count) + " continuous / "
+           + std::to_string(result.diagnostics.analytical_solver_constraint_count) + " constraints",
+       result.diagnostics.analytical_mode_enabled ? "MILP model size" : "not evaluated"},
+      {"analytical_solver_runtime", logformat::FormatWithUnit(result.diagnostics.analytical_solver_wall_time_ms / 1000.0, "s"),
+       result.diagnostics.analytical_mode_enabled ? "external solver wall time" : "not evaluated"},
+      {"analytical_solver_objective",
+       std::to_string(result.diagnostics.analytical_solver_objective_value)
+           + " gap=" + std::to_string(result.diagnostics.analytical_solver_optimality_gap),
+       result.diagnostics.analytical_mode_enabled ? "normalized delay/power objective and parsed optimality gap" : "not evaluated"},
+      {"analytical_solver_anchors",
+       FormatDelayPower(result.diagnostics.analytical_solver_min_delay_anchor_ns, result.diagnostics.analytical_solver_min_power_anchor_w),
+       result.diagnostics.analytical_mode_enabled ? "minimum delay anchor / minimum power anchor" : "not evaluated"},
+      {"analytical_solver_totals",
+       FormatDelayPower(result.diagnostics.analytical_solver_total_delay_ns, result.diagnostics.analytical_solver_total_power_w),
+       result.diagnostics.analytical_mode_enabled ? "solver-selected total delay / total power before native validation" : "not evaluated"},
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
        result.summary.used_boundary_relaxation ? "selected relaxed topology pattern from candidate frontier selection entries"
                                                : "selected strict-feasible topology pattern from the global feasible frontier pool"},

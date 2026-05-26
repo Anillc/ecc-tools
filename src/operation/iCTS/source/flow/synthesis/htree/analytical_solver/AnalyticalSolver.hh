@@ -18,16 +18,16 @@
  * @file AnalyticalSolver.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-14
- * @brief Analytical H-tree shortlist solver entry point and result contracts.
+ * @brief Mathematical analytical H-tree solver entry point and result contracts.
  */
 
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <string>
 #include <vector>
 
-#include "PatternId.hh"
 #include "ValueLattice.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/analytical_solver/candidate/AnalyticalCandidate.hh"
@@ -39,7 +39,6 @@ class AnalyticalModelCatalog;
 }  // namespace icts::analytical
 
 namespace icts::htree {
-class SegmentFrontierCatalog;
 struct BufferPatternLibrary;
 }  // namespace icts::htree
 
@@ -47,21 +46,16 @@ namespace icts::htree::analytical_solver {
 
 struct AnalyticalSolverConfig
 {
-  std::size_t per_level_shortlist_size = 8U;
-  std::size_t top_k_per_depth = 16U;
-  std::size_t unit_compose_beam_size = 32U;
   double root_input_slew_ns = 0.0;
   double representative_leaf_load_cap_pf = 0.0;
   bool use_conservative_scoring = true;
   bool use_functional_unit_compose = false;
   unsigned unit_length_idx = 1U;
-  std::vector<PatternId> diagnostic_segment_pattern_ids;
 };
 
 struct AnalyticalHTreeSolveProblem
 {
   const std::vector<HTree::LevelPlan>* levels = nullptr;
-  const SegmentFrontierCatalog* segment_frontier_catalog = nullptr;
   const BufferPatternLibrary* segment_pattern_library = nullptr;
   BufferPatternLibrary* mutable_segment_pattern_library = nullptr;
   const icts::analytical::AnalyticalModelCatalog* model_catalog = nullptr;
@@ -93,25 +87,23 @@ struct AnalyticalSolverSummary
   std::size_t domain_slew_floor_count = 0U;
   std::size_t domain_cap_floor_count = 0U;
   double max_domain_rejected_cap_pf = 0.0;
-  std::size_t empty_shortlist_count = 0U;
   std::size_t root_fanout_rejected_count = 0U;
   std::size_t lattice_rejected_count = 0U;
-  std::size_t diagnostic_library_hit_count = 0U;
-  std::size_t diagnostic_frontier_hit_count = 0U;
-  std::size_t diagnostic_decomposed_count = 0U;
-  std::size_t diagnostic_scored_count = 0U;
-  std::size_t diagnostic_shortlisted_count = 0U;
-  std::size_t diagnostic_generated_candidate_count = 0U;
-  std::size_t diagnostic_direct_candidate_count = 0U;
-  double diagnostic_direct_delay_ns = 0.0;
-  double diagnostic_direct_power_w = 0.0;
-  double diagnostic_direct_root_cap_pf = 0.0;
-  unsigned diagnostic_direct_input_slew_idx = 0U;
-  unsigned diagnostic_direct_output_slew_idx = 0U;
-  unsigned diagnostic_direct_driven_cap_idx = 0U;
-  unsigned first_empty_level_index = 0U;
-  unsigned first_empty_length_idx = 0U;
-  std::string first_empty_reason;
+  std::string backend_name;
+  std::string solver_status;
+  std::size_t solver_variable_count = 0U;
+  std::size_t solver_binary_variable_count = 0U;
+  std::size_t solver_continuous_variable_count = 0U;
+  std::size_t solver_constraint_count = 0U;
+  double solver_wall_time_ms = 0.0;
+  double solver_objective_value = 0.0;
+  double solver_optimality_gap = 0.0;
+  double solver_primal_bound = std::numeric_limits<double>::quiet_NaN();
+  double solver_dual_bound = std::numeric_limits<double>::quiet_NaN();
+  double solver_min_delay_anchor_ns = 0.0;
+  double solver_min_power_anchor_w = 0.0;
+  double solver_total_delay_ns = 0.0;
+  double solver_total_power_w = 0.0;
 };
 
 struct AnalyticalSolverBuild

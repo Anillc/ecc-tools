@@ -18,7 +18,7 @@
  * @file AnalyticalCandidate.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-14
- * @brief Analytical H-tree candidate and DP label data types.
+ * @brief Mathematical analytical H-tree candidate data types.
  */
 
 #pragma once
@@ -28,14 +28,11 @@
 #include <string>
 #include <vector>
 
-#include "BufferingPattern.hh"
 #include "HTreeTopologyChar.hh"
 #include "PatternId.hh"
-#include "analytical_characterization/AnalyticalModel.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 
 namespace icts {
-struct PatternCompositionState;
 class UniformValueLattice;
 }  // namespace icts
 
@@ -86,38 +83,6 @@ struct AnalyticalCandidate
   auto isValid() const -> bool;
 };
 
-struct AnalyticalDpLabel
-{
-  icts::analytical::StructuralCapOperator cap_operator = icts::analytical::StructuralCapOperator::identity();
-  double input_slew_min_ns = 0.0;
-  double input_slew_max_ns = 0.0;
-  double delay_lower_ns = 0.0;
-  double delay_upper_ns = 0.0;
-  double power_lower_w = 0.0;
-  double power_upper_w = 0.0;
-  MonotonicBoundaryState monotonic_boundary_state{};
-  std::size_t source_exposed_load_count = 1U;
-  std::vector<PatternId> trace_segment_pattern_ids;
-};
-
-struct AnalyticalDpTransitionConfig
-{
-  double leaf_load_cap_pf = 0.0;
-  double input_slew_probe_ns = 0.0;
-  double branch_fanout = 2.0;
-  double branch_junction_cap_pf = 0.0;
-  double source_boundary_power_weight = 0.0;
-  bool use_conservative_metrics = true;
-};
-
-struct AnalyticalDominanceConfig
-{
-  double delay_epsilon = 0.0;
-  double power_epsilon = 0.0;
-  double cap_epsilon = 0.0;
-  std::size_t max_labels = 0U;
-};
-
 auto PreferAnalyticalCandidate(const AnalyticalCandidate& lhs, const AnalyticalCandidate& rhs) -> bool;
 auto LexicographicalPatternIdLess(const std::vector<PatternId>& lhs, const std::vector<PatternId>& rhs) -> bool;
 auto BuildAnalyticalTopologyPattern(const std::vector<PatternId>& level_segment_pattern_ids,
@@ -125,10 +90,5 @@ auto BuildAnalyticalTopologyPattern(const std::vector<PatternId>& level_segment_
     -> std::optional<TopologyPatternLibrary>;
 auto MaterializeAnalyticalTopologyChar(const AnalyticalCandidate& candidate, const icts::UniformValueLattice& slew_lattice,
                                        const icts::UniformValueLattice& cap_lattice) -> std::optional<HTreeTopologyChar>;
-auto PrependAnalyticalDpSegment(const AnalyticalDpLabel& suffix, const icts::analytical::AnalyticalModelSet& model_set,
-                                const PatternCompositionState& segment_state, const AnalyticalDpTransitionConfig& config)
-    -> std::optional<AnalyticalDpLabel>;
-auto DominatesIntervalSafe(const AnalyticalDpLabel& lhs, const AnalyticalDpLabel& rhs, const AnalyticalDominanceConfig& config) -> bool;
-auto CompressParetoLabels(std::vector<AnalyticalDpLabel> labels, const AnalyticalDominanceConfig& config) -> std::vector<AnalyticalDpLabel>;
 
 }  // namespace icts::htree::analytical_solver

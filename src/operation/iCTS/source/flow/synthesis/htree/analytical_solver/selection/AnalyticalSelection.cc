@@ -333,9 +333,8 @@ auto BuildAnalyticalModelCatalog(const std::vector<SegmentChar>& segment_chars, 
 }  // namespace
 
 auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::LevelPlan>& full_level_plans,
-                             const std::vector<unsigned>& depth_candidates, const SegmentFrontierCatalog& segment_frontier_catalog,
-                             BufferPatternLibrary& segment_pattern_library, const BoundaryConstraints& search_boundary_constraints,
-                             const HTreeFanoutPruningConfig& fanout_pruning_config,
+                             const std::vector<unsigned>& depth_candidates, BufferPatternLibrary& segment_pattern_library,
+                             const BoundaryConstraints& search_boundary_constraints, const HTreeFanoutPruningConfig& fanout_pruning_config,
                              const RootDriverCompensationInput& root_driver_compensation_input,
                              const SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
                              unsigned char_slew_steps) -> AnalyticalHTreeAttempt
@@ -365,12 +364,12 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
   std::vector<AnalyticalValidatedCandidate> legal_candidates;
   std::string first_solver_failure;
   std::string first_validation_failure;
+  const std::vector<unsigned> solved_depth_candidates = {depth_candidates.front()};
 
-  for (const unsigned depth : depth_candidates) {
+  for (const unsigned depth : solved_depth_candidates) {
     auto candidate_levels = htree::MakeCandidateLevelPlans(full_level_plans, depth);
     analytical_solver::AnalyticalHTreeSolveProblem solve_problem;
     solve_problem.levels = &candidate_levels;
-    solve_problem.segment_frontier_catalog = &segment_frontier_catalog;
     solve_problem.segment_pattern_library = &segment_pattern_library;
     solve_problem.mutable_segment_pattern_library = &segment_pattern_library;
     solve_problem.model_catalog = &char_result.output.catalog;
@@ -378,9 +377,6 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
     solve_problem.fanout_config = fanout_pruning_config;
     solve_problem.slew_lattice = char_builder.get_slew_lattice();
     solve_problem.cap_lattice = char_builder.get_cap_lattice();
-    solve_problem.config.per_level_shortlist_size = kAnalyticalPerLevelShortlistSize;
-    solve_problem.config.top_k_per_depth = kAnalyticalTopKPerDepth;
-    solve_problem.config.unit_compose_beam_size = kAnalyticalUnitComposeBeamSize;
     solve_problem.config.root_input_slew_ns = root_driver_compensation_input.input_slew_ns;
     solve_problem.config.representative_leaf_load_cap_pf = ResolveAnalyticalRepresentativeLeafLoadCapPf(char_builder.get_cap_lattice());
     solve_problem.config.use_functional_unit_compose = true;
@@ -398,30 +394,28 @@ auto TrySolveAnalyticalHTree(const Tree& topology, const std::vector<HTree::Leve
     attempt.domain_slew_floor_count += solver_result.summary.domain_slew_floor_count;
     attempt.domain_cap_floor_count += solver_result.summary.domain_cap_floor_count;
     attempt.max_domain_rejected_cap_pf = std::max(attempt.max_domain_rejected_cap_pf, solver_result.summary.max_domain_rejected_cap_pf);
-    attempt.empty_shortlist_count += solver_result.summary.empty_shortlist_count;
     attempt.materialization_attempt_count += solver_result.summary.materialization_attempt_count;
     attempt.root_fanout_rejected_count += solver_result.summary.root_fanout_rejected_count;
     attempt.lattice_rejected_count += solver_result.summary.lattice_rejected_count;
-    attempt.diagnostic_library_hit_count += solver_result.summary.diagnostic_library_hit_count;
-    attempt.diagnostic_frontier_hit_count += solver_result.summary.diagnostic_frontier_hit_count;
-    attempt.diagnostic_decomposed_count += solver_result.summary.diagnostic_decomposed_count;
-    attempt.diagnostic_scored_count += solver_result.summary.diagnostic_scored_count;
-    attempt.diagnostic_shortlisted_count += solver_result.summary.diagnostic_shortlisted_count;
-    attempt.diagnostic_generated_candidate_count += solver_result.summary.diagnostic_generated_candidate_count;
-    attempt.diagnostic_direct_candidate_count += solver_result.summary.diagnostic_direct_candidate_count;
-    if (solver_result.summary.diagnostic_direct_candidate_count > 0U) {
-      attempt.diagnostic_direct_delay_ns = solver_result.summary.diagnostic_direct_delay_ns;
-      attempt.diagnostic_direct_power_w = solver_result.summary.diagnostic_direct_power_w;
-      attempt.diagnostic_direct_root_cap_pf = solver_result.summary.diagnostic_direct_root_cap_pf;
-      attempt.diagnostic_direct_input_slew_idx = solver_result.summary.diagnostic_direct_input_slew_idx;
-      attempt.diagnostic_direct_output_slew_idx = solver_result.summary.diagnostic_direct_output_slew_idx;
-      attempt.diagnostic_direct_driven_cap_idx = solver_result.summary.diagnostic_direct_driven_cap_idx;
+    if (!solver_result.summary.backend_name.empty()) {
+      attempt.backend_name = solver_result.summary.backend_name;
     }
-    if (attempt.first_empty_reason.empty() && !solver_result.summary.first_empty_reason.empty()) {
-      attempt.first_empty_level_index = solver_result.summary.first_empty_level_index;
-      attempt.first_empty_length_idx = solver_result.summary.first_empty_length_idx;
-      attempt.first_empty_reason = solver_result.summary.first_empty_reason;
+    if (!solver_result.summary.solver_status.empty()) {
+      attempt.solver_status = solver_result.summary.solver_status;
     }
+    attempt.solver_variable_count += solver_result.summary.solver_variable_count;
+    attempt.solver_binary_variable_count += solver_result.summary.solver_binary_variable_count;
+    attempt.solver_continuous_variable_count += solver_result.summary.solver_continuous_variable_count;
+    attempt.solver_constraint_count += solver_result.summary.solver_constraint_count;
+    attempt.solver_wall_time_ms += solver_result.summary.solver_wall_time_ms;
+    attempt.solver_objective_value = solver_result.summary.solver_objective_value;
+    attempt.solver_optimality_gap = std::max(attempt.solver_optimality_gap, solver_result.summary.solver_optimality_gap);
+    attempt.solver_primal_bound = solver_result.summary.solver_primal_bound;
+    attempt.solver_dual_bound = solver_result.summary.solver_dual_bound;
+    attempt.solver_min_delay_anchor_ns = solver_result.summary.solver_min_delay_anchor_ns;
+    attempt.solver_min_power_anchor_w = solver_result.summary.solver_min_power_anchor_w;
+    attempt.solver_total_delay_ns = solver_result.summary.solver_total_delay_ns;
+    attempt.solver_total_power_w = solver_result.summary.solver_total_power_w;
     if (!solver_result.summary.success) {
       if (first_solver_failure.empty()) {
         first_solver_failure

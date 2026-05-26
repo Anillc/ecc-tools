@@ -105,6 +105,10 @@ auto FilterGlobalEntriesBySinkLoadRegionCoverage(const std::vector<CandidateChar
                                                  const std::vector<CandidateBuildEvaluation>& evaluations, const Tree& topology,
                                                  const BufferPatternLibrary& segment_pattern_library,
                                                  SinkLoadRegionLegalityContext& legality_context) -> CandidateCharRefFilterBuild;
+auto ReduceCandidateBuildEvaluationForGlobalSelection(CandidateBuildEvaluation& evaluation, const Tree& topology,
+                                                      const BufferPatternLibrary& segment_pattern_library,
+                                                      SinkLoadRegionLegalityContext& legality_context, bool retain_relaxed_candidates)
+    -> void;
 auto BuildPerDepthDelayPowerParetoRefs(const std::vector<CandidateCharRef>& entries) -> std::vector<CandidateCharRef>;
 auto SelectBestGlobalEntry(const std::vector<CandidateCharRef>& entries) -> std::optional<CandidateCharRef>;
 auto CalcBoundaryRelaxationScore(const HTreeTopologyChar& entry, const BoundaryConstraints& boundary_constraints, unsigned slew_steps)

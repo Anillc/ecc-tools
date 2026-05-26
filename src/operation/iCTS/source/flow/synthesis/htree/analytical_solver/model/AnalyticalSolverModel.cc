@@ -21,11 +21,11 @@
  * @brief Analytical H-tree solver model scoring and functional unit composition.
  */
 
+#include "synthesis/htree/analytical_solver/model/AnalyticalSolverModel.hh"
+
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <initializer_list>
-#include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -35,13 +35,27 @@
 #include "AnalyticalModel.hh"
 #include "BufferingPattern.hh"
 #include "PatternId.hh"
-#include "SegmentChar.hh"
 #include "ValueLattice.hh"
 #include "synthesis/htree/analytical_solver/AnalyticalSolver.hh"
-#include "synthesis/htree/analytical_solver/candidate/AnalyticalHTreeCandidateSearch.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
 namespace icts::htree::analytical_solver {
+
+using icts::analytical::AnalyticalMetric;
+using icts::analytical::AnalyticalModelKey;
+using icts::analytical::AnalyticalModelSet;
+
+namespace {
+
+struct AnalyticalModelProbe
+{
+  double input_slew_ns = 0.0;
+  double load_cap_pf = 0.0;
+  bool slew_floored = false;
+  bool cap_floored = false;
+};
+
+}  // namespace
 
 auto ResolveAnalyticalRootProbeSlewNs(const AnalyticalHTreeSolveProblem& solve_problem) -> double
 {
@@ -89,48 +103,6 @@ auto ResolveAnalyticalModelProbe(const AnalyticalModelSet& model_set, double inp
 }
 
 }  // namespace
-
-auto ScoreModelSet(PatternId pattern_id, unsigned length_idx, const AnalyticalModelSet& model_set, double input_slew_ns,
-                   double downstream_cap_pf, bool conservative) -> std::optional<ScoredSegment>
-{
-  if (!model_set.source_cap_operator.has_value()) {
-    return std::nullopt;
-  }
-
-  const auto model_probe = ResolveAnalyticalModelProbe(model_set, input_slew_ns, downstream_cap_pf);
-  const auto output_slew
-      = EvaluateMetric(model_set, AnalyticalMetric::kOutputSlew, model_probe.input_slew_ns, model_probe.load_cap_pf, conservative);
-  const auto delay = EvaluateMetric(model_set, AnalyticalMetric::kDelay, model_probe.input_slew_ns, model_probe.load_cap_pf, conservative);
-  const auto power = EvaluateMetric(model_set, AnalyticalMetric::kPower, model_probe.input_slew_ns, model_probe.load_cap_pf, conservative);
-  const auto source_boundary_power = EvaluateMetric(model_set, AnalyticalMetric::kSourceBoundaryNetSwitchPower, model_probe.input_slew_ns,
-                                                    model_probe.load_cap_pf, conservative);
-  if (!output_slew.has_value() || !delay.has_value() || !power.has_value() || !source_boundary_power.has_value()) {
-    return std::nullopt;
-  }
-
-  ScoredSegment scored;
-  scored.pattern_id = pattern_id;
-  scored.length_idx = length_idx;
-  scored.input_slew_ns = input_slew_ns;
-  scored.downstream_load_cap_pf = downstream_cap_pf;
-  scored.output_slew_ns = *output_slew;
-  scored.source_cap_pf = model_set.source_cap_operator->apply(downstream_cap_pf);
-  scored.delay_ns = *delay;
-  scored.power_w = *power;
-  scored.source_boundary_power_w = *source_boundary_power;
-  scored.slew_upper_ns = *output_slew;
-  scored.delay_upper_ns = *delay;
-  scored.power_upper_w = *power;
-  scored.score = scored.delay_upper_ns + scored.power_upper_w;
-  return scored;
-}
-
-auto ScoreSegment(const SegmentChar& segment_char, const AnalyticalModelSet& model_set, double input_slew_ns, double downstream_cap_pf,
-                  bool conservative) -> std::optional<ScoredSegment>
-{
-  return ScoreModelSet(segment_char.get_pattern_id(), segment_char.get_length_idx(), model_set, input_slew_ns, downstream_cap_pf,
-                       conservative);
-}
 
 auto CollectUnitModelRefs(const AnalyticalHTreeSolveProblem& solve_problem) -> std::vector<UnitModelRef>
 {
@@ -182,111 +154,6 @@ auto BuildUnitPatternByCellMaster(const AnalyticalHTreeSolveProblem& solve_probl
     }
   }
   return unit_pattern_by_cell_master;
-}
-
-namespace {
-
-auto MakeUnitPatternLookupKey(const std::string& cell_master, bool terminal_branch_buffer) -> std::string
-{
-  return (terminal_branch_buffer ? "branch:" : "leaf:") + cell_master;
-}
-
-auto FindUnitPatternByCellMasterAndTerminalSemantic(const FunctionalComposeContext& context, const std::string& cell_master,
-                                                    bool terminal_branch_buffer) -> std::optional<PatternId>
-{
-  const auto exact_key = MakeUnitPatternLookupKey(cell_master, terminal_branch_buffer);
-  if (const auto exact_it = context.unit_pattern_by_cell_master_and_terminal_semantic.find(exact_key);
-      exact_it != context.unit_pattern_by_cell_master_and_terminal_semantic.end()) {
-    return exact_it->second;
-  }
-
-  // Unit timing/cap models describe the same physical one-slot segment even when the
-  // terminal branch semantic is only meaningful after composing the full segment.
-  const auto compatible_key = MakeUnitPatternLookupKey(cell_master, !terminal_branch_buffer);
-  if (const auto compatible_it = context.unit_pattern_by_cell_master_and_terminal_semantic.find(compatible_key);
-      compatible_it != context.unit_pattern_by_cell_master_and_terminal_semantic.end()) {
-    return compatible_it->second;
-  }
-  return std::nullopt;
-}
-
-}  // namespace
-
-auto DecomposePatternToUnitSequence(PatternId pattern_id, const AnalyticalHTreeSolveProblem& solve_problem,
-                                    FunctionalComposeContext& context) -> std::vector<PatternId>
-{
-  if (const auto it = context.decomposed_patterns.find(pattern_id); it != context.decomposed_patterns.end()) {
-    return it->second;
-  }
-
-  const auto* segment_pattern_library = ResolveSegmentPatternLibrary(solve_problem);
-  if (segment_pattern_library == nullptr || solve_problem.config.unit_length_idx == 0U) {
-    context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-    return {};
-  }
-  const auto* pattern = segment_pattern_library->find(pattern_id);
-  if (pattern == nullptr || pattern->get_length_idx() == 0U || pattern->get_length_idx() % solve_problem.config.unit_length_idx != 0U) {
-    context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-    return {};
-  }
-
-  const unsigned unit_count = pattern->get_length_idx() / solve_problem.config.unit_length_idx;
-  std::vector<PatternId> unit_pattern_ids;
-  unit_pattern_ids.reserve(unit_count);
-  const auto& buffer_positions = pattern->get_buffer_positions();
-  const auto& cell_masters = pattern->get_cell_masters();
-  if (buffer_positions.size() != cell_masters.size()) {
-    context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-    return {};
-  }
-
-  std::vector<std::string> unit_cell_masters(unit_count);
-  std::vector<unsigned> unit_buffer_counts(unit_count, 0U);
-  const auto unit_count_as_double = static_cast<double>(unit_count);
-
-  for (std::size_t buffer_index = 0U; buffer_index < buffer_positions.size(); ++buffer_index) {
-    const double normalized_position = buffer_positions.at(buffer_index);
-    if (normalized_position <= 0.0 || normalized_position > 1.0 + 1e-9) {
-      context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-      return {};
-    }
-
-    const double scaled_position = normalized_position * unit_count_as_double;
-    const auto slot_boundary = static_cast<unsigned>(std::llround(scaled_position));
-    if (slot_boundary == 0U || slot_boundary > unit_count) {
-      context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-      return {};
-    }
-    const double expected_position = static_cast<double>(slot_boundary) / unit_count_as_double;
-    const double lattice_tolerance = std::max(1e-6, std::numeric_limits<double>::epsilon() * unit_count_as_double * 16.0);
-    if (std::abs(normalized_position - expected_position) > lattice_tolerance) {
-      context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-      return {};
-    }
-
-    const unsigned unit_index = slot_boundary - 1U;
-    ++unit_buffer_counts.at(unit_index);
-    if (unit_buffer_counts.at(unit_index) > 1U) {
-      context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-      return {};
-    }
-    unit_cell_masters.at(unit_index) = cell_masters.at(buffer_index);
-  }
-
-  for (unsigned unit_index = 0U; unit_index < unit_count; ++unit_index) {
-    const bool terminal_branch_buffer
-        = pattern->hasTerminalBranchBuffer() && unit_index + 1U == unit_count && unit_buffer_counts.at(unit_index) > 0U;
-    const auto unit_pattern_id
-        = FindUnitPatternByCellMasterAndTerminalSemantic(context, unit_cell_masters.at(unit_index), terminal_branch_buffer);
-    if (!unit_pattern_id.has_value()) {
-      context.decomposed_patterns.emplace(pattern_id, std::vector<PatternId>{});
-      return {};
-    }
-    unit_pattern_ids.push_back(*unit_pattern_id);
-  }
-
-  context.decomposed_patterns.emplace(pattern_id, unit_pattern_ids);
-  return unit_pattern_ids;
 }
 
 namespace {
