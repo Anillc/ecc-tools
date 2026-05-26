@@ -66,14 +66,9 @@ class TopologyGenerator
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByZPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<int32_t> getMidIndexList(int32_t first_idx, int32_t second_idx);
-  std::vector<int32_t> getSampledMidIndexList(int32_t first_idx, int32_t second_idx, int32_t max_mid_num);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByUPattern(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByInner3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
   std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByOuter3Bends(TGModel& tg_model, Segment<PlanarCoord>& planar_topo);
-  std::vector<std::vector<Segment<PlanarCoord>>> getRoutingSegmentListByLongCorridorWaypointPattern(TGModel& tg_model,
-                                                                                                     Segment<PlanarCoord>& planar_topo);
-  std::vector<int32_t> getLowCostCorridorIndexList(TGModel& tg_model, Segment<PlanarCoord>& planar_topo, Direction direction, int32_t max_num);
-  double getSegmentOverflowCost(TGModel& tg_model, Segment<PlanarCoord>& segment);
   using TGShadowDemandMap = std::map<PlanarCoord, std::set<Orientation>, CmpPlanarCoordByXASC>;
   void updateTGCandidate(TGModel& tg_model, TGCandidate& tg_candidate,
                          const TGShadowDemandMap* shadow_demand_map = nullptr);
