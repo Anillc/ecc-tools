@@ -925,11 +925,17 @@ std::vector<ids::Shape> DRCInterface::buildEnvShapeList()
     }
     return -1;
   };
+  auto should_skip_instance_shape = [](idb::IdbInstance* idb_instance) {
+    return idb_instance->is_unplaced() || idb_instance->get_status() == idb::IdbPlacementStatus::kNone;
+  };
 
   size_t total_env_shape_num = 0;
   {
     // instance
     for (idb::IdbInstance* idb_instance : idb_instance_list) {
+      if (should_skip_instance_shape(idb_instance)) {
+        continue;
+      }
       // instance obs
       for (idb::IdbLayerShape* obs_box : idb_instance->get_obs_box_list()) {
         total_env_shape_num += obs_box->get_rect_list().size();
@@ -957,6 +963,9 @@ std::vector<ids::Shape> DRCInterface::buildEnvShapeList()
   {
     // instance
     for (idb::IdbInstance* idb_instance : idb_instance_list) {
+      if (should_skip_instance_shape(idb_instance)) {
+        continue;
+      }
       // instance obs
       for (idb::IdbLayerShape* obs_box : idb_instance->get_obs_box_list()) {
         for (idb::IdbRect* rect : obs_box->get_rect_list()) {
