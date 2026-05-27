@@ -38,6 +38,7 @@
 #include "Point.hh"
 #include "Qor.hh"
 #include "SteinerTree.hh"
+#include "TimingEngine.hh"
 #include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/Inst.hh"
@@ -48,8 +49,7 @@
 #include "io/Wrapper.hh"
 #include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
-#include "routing/router/Router.hh"
-#include "timing/TimingEngine.hh"
+#include "router/Router.hh"
 
 namespace icts::qor_evaluation {
 namespace {

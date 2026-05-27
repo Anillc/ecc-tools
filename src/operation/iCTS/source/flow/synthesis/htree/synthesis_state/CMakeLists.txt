@@ -13,7 +13,6 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_topology_pruning
   PRIVATE
   icts_source_flow_synthesis_htree_plan
-  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_topology_pruning.a
   icts_source_module_topology
   icts_source_utils
 )

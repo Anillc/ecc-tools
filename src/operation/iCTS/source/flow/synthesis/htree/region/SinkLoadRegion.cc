@@ -39,6 +39,8 @@
 
 #include "BufferingPattern.hh"
 #include "ClockRouteSegmentRc.hh"
+#include "Clustering.hh"
+#include "FastClustering.hh"
 #include "HTreeTopologyChar.hh"
 #include "HTreeTopologyPattern.hh"
 #include "Log.hh"
@@ -47,8 +49,6 @@
 #include "TopologyConfig.hh"
 #include "Tree.hh"
 #include "adapter/sta/STAAdapter.hh"
-#include "clustering/Clustering.hh"
-#include "fast_clustering/FastClustering.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"

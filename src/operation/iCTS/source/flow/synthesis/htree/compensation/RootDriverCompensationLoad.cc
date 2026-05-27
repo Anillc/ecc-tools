@@ -51,7 +51,7 @@
 #include "Tree.hh"
 #include "ValueLattice.hh"
 #include "design/Design.hh"
-#include "routing/router/Router.hh"
+#include "router/Router.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/compensation/RootDriverCompensationState.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"

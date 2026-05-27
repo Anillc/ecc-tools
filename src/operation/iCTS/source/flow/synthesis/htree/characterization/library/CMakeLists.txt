@@ -8,8 +8,7 @@ target_link_libraries(
   PUBLIC
   icts_source_module_characterization
   PRIVATE
-  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_module_characterization.a
-  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_database_adapter_sta.a
+  icts_source_database_adapter_sta
   icts_source_database
   icts_source_utils
 )

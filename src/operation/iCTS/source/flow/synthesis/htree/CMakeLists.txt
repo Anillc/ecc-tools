@@ -25,7 +25,6 @@ add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION})
 add_library(
   icts_source_flow_synthesis_htree
   ${ICTS_FLOW_SYNTHESIS_HTREE}/HTree.cc
-  ${ICTS_FLOW_SYNTHESIS_HTREE_SYNTHESIS_STATE}/SynthesisState.cc
 )
 
 target_link_libraries(
@@ -35,19 +34,8 @@ target_link_libraries(
   icts_source_module_characterization
   icts_source_utils
   PRIVATE
-  icts_source_flow_synthesis_htree_characterization
-  icts_source_flow_synthesis_htree_plan
-  # Keep this archive after plan for the existing static-link graph; the
-  # dependency is otherwise already modeled by the targets above.
-  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_topology_pruning.a
   icts_source_flow_synthesis_htree_solution
-  # Keep these archives after solution because DiscreteSolution objects
-  # introduce references back into plan/topology_pruning during final links.
-  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_plan.a
-  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_topology_pruning.a
   icts_source_flow_synthesis_htree_synthesis_state
-  icts_source_flow_synthesis_htree_topology_pruning
-  icts_source_module_topology
 )
 
 target_include_directories(

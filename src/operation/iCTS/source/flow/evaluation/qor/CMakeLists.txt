@@ -10,7 +10,7 @@ target_link_libraries(
   PUBLIC
   icts_source_database
   PRIVATE
-  icts_source_module
+  icts_source_module_routing
   icts_source_module_timing
   icts_source_utils
 )

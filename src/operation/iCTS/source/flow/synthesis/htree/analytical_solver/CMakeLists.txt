@@ -20,6 +20,7 @@ target_link_libraries(
   icts_source_database_spatial
   PRIVATE
   icts_source_flow_synthesis_htree_compensation
+  icts_source_flow_synthesis_htree_plan
   icts_source_flow_synthesis_htree_region
   icts_source_module_analytical_characterization
   icts_source_utils
