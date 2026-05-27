@@ -783,3 +783,36 @@ Implemented mathematical analytical H-tree MILP solver and native H-tree memory 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 68: Analytical H-tree HiGHS integration
+
+**Date**: 2026-05-27
+**Task**: Analytical H-tree HiGHS integration
+**Branch**: `cts_refactor`
+
+### Summary
+
+Refactored H-tree selection around discrete/analytical sibling engines, added shared finalization, removed OR-Tools/SCIP production paths, vendored HiGHS as ordinary third-party source, and validated focused build/test plus full iCTS checker.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2d4d8f509` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
