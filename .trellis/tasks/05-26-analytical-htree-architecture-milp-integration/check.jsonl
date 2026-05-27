@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Final iCTS validation command and external-module review constraints."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Check that new H-tree and solver adapter targets follow repository structure."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check naming, include cleanup, dependency visibility, and full-module checker pass."}
+{"file": ".trellis/tasks/05-26-analytical-htree-architecture-milp-integration/implement.md", "reason": "Validation targets, risky files, and rollback points for final check."}

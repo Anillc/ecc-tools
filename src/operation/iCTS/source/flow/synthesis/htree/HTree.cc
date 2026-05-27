@@ -27,9 +27,7 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -38,12 +36,9 @@
 
 #include "BufferingPattern.hh"
 #include "ClockRouteSegmentRc.hh"
-#include "HTreeTopologyChar.hh"
-#include "HTreeTopologyPattern.hh"
 #include "Inst.hh"
 #include "Log.hh"
 #include "Net.hh"
-#include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
 #include "SegmentChar.hh"
@@ -57,18 +52,13 @@
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
-#include "synthesis/htree/embedding/Embedding.hh"
-#include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/plan/Plan.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 #include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/SegmentPruning.hh"
-#include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
-#include "synthesis/htree/solution/analytical/AnalyticalSolution.hh"
-#include "synthesis/htree/solution/report/SolutionReport.hh"
+#include "synthesis/htree/solution/Solution.hh"
 #include "synthesis/htree/solution/report/StageReport.hh"
-#include "synthesis/htree/solution/selection/SolutionSelection.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts {
@@ -282,251 +272,32 @@ auto HTreeBuilder::build() -> htree::DiagnosticBuild
       .clock_route_segment_rc = char_builder.get_clock_route_segment_rc(),
   };
   result.diagnostics.analytical_mode_enabled = config.enable_analytical_solver;
-  if (htree::analytical_solution::TryBuildAnalyticalHTree(result, input, config, build_stage, max_depth, full_level_plans, depth_candidates,
-                                                          segment_frontier_catalog, segment_pattern_library, search_boundary_constraints,
-                                                          fanout_pruning_config, root_driver_compensation_input, sink_load_region_input,
-                                                          char_builder, root_driver_clock_period_source)) {
-    return result;
-  }
-
-  htree::DepthSearchBuild exploration;
-  {
-    auto depth_search_stage
-        = reporter.beginStage("HTree", "Search topology depth candidates",
-                              {
-                                  {"depth_candidates", std::to_string(depth_candidates.size())},
-                                  {"max_depth", std::to_string(max_depth)},
-                                  {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
-                              },
-                              htree::DetailStageReportOptions());
-    exploration = htree::SearchTopologyDepthCandidates(
-        result.output.topology, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library,
-        search_boundary_constraints, char_builder.get_cap_lattice(), result.diagnostics.char_slew_steps, config.target_depth.has_value(),
-        root_driver_compensation_input, sink_load_region_input, reporter, fanout_pruning_config);
-    depth_search_stage.finished({
-        {"evaluated_depths", std::to_string(exploration.summary.depth_summaries.size())},
-        {"global_feasible_refs", std::to_string(exploration.output.global_feasible_pool.size())},
-        {"global_candidate_refs", std::to_string(exploration.output.global_candidate_pool.size())},
-        {"compensated_candidates", std::to_string(exploration.summary.root_driver_compensation_stats.compensated_candidate_count)},
-    });
-  }
-  result.diagnostics.depth_candidate_count = exploration.summary.depth_summaries.size();
-
-  htree::CandidateCharRefFilterBuild covered_global_feasible_pool;
-  htree::CandidateCharRefFilterBuild covered_global_candidate_pool;
-  {
-    auto coverage_stage
-        = reporter.beginStage("HTree", "Filter global sink-load coverage",
-                              {
-                                  {"global_feasible_refs", std::to_string(exploration.output.global_feasible_pool.size())},
-                                  {"global_candidate_refs", std::to_string(exploration.output.global_candidate_pool.size())},
-                              },
-                              htree::DetailStageReportOptions());
-    covered_global_feasible_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
-        exploration.output.global_feasible_pool, exploration.output.candidate_evaluations, result.output.topology, segment_pattern_library,
-        exploration.output.sink_load_region_legality_context);
-    covered_global_candidate_pool = htree::FilterGlobalEntriesBySinkLoadRegionCoverage(
-        exploration.output.global_candidate_pool, exploration.output.candidate_evaluations, result.output.topology, segment_pattern_library,
-        exploration.output.sink_load_region_legality_context);
-    coverage_stage.finished({
-        {"covered_feasible_refs", std::to_string(covered_global_feasible_pool.output.entries.size())},
-        {"covered_candidate_refs", std::to_string(covered_global_candidate_pool.output.entries.size())},
-        {"first_feasible_failure", covered_global_feasible_pool.summary.first_failure_reason.empty()
-                                       ? "none"
-                                       : covered_global_feasible_pool.summary.first_failure_reason},
-        {"first_candidate_failure", covered_global_candidate_pool.summary.first_failure_reason.empty()
-                                        ? "none"
-                                        : covered_global_candidate_pool.summary.first_failure_reason},
-    });
-  }
-
-  std::vector<htree::CandidateCharRef> per_depth_feasible_pareto_pool;
-  std::optional<htree::CandidateCharRef> selected_feasible_ref;
-  std::optional<htree::CandidateCharRef> selected_relaxed_ref;
-  {
-    auto selection_stage
-        = reporter.beginStage("HTree", "Select global topology",
-                              {
-                                  {"covered_feasible_refs", std::to_string(covered_global_feasible_pool.output.entries.size())},
-                                  {"covered_candidate_refs", std::to_string(covered_global_candidate_pool.output.entries.size())},
-                              },
-                              htree::DetailStageReportOptions());
-    per_depth_feasible_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_feasible_pool.output.entries);
-    selected_feasible_ref = htree::SelectBestGlobalEntry(per_depth_feasible_pareto_pool);
-    std::size_t per_depth_candidate_pareto_count = 0U;
-    if (!selected_feasible_ref.has_value() && config.allow_boundary_relaxation) {
-      const auto per_depth_candidate_pareto_pool = htree::BuildPerDepthDelayPowerParetoRefs(covered_global_candidate_pool.output.entries);
-      per_depth_candidate_pareto_count = per_depth_candidate_pareto_pool.size();
-      selected_relaxed_ref = htree::SelectBestGlobalEntry(per_depth_candidate_pareto_pool);
-    }
-    std::string selected_from = "none";
-    if (selected_feasible_ref.has_value()) {
-      selected_from = "strict_feasible";
-    } else if (selected_relaxed_ref.has_value()) {
-      selected_from = "relaxed_boundary";
-    }
-    selection_stage.finished({
-        {"feasible_pareto_refs", std::to_string(per_depth_feasible_pareto_pool.size())},
-        {"candidate_pareto_refs", std::to_string(per_depth_candidate_pareto_count)},
-        {"selected_from", selected_from},
-    });
-  }
-  const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_relaxed_ref;
-  if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
-    if (!selected_feasible_ref.has_value() && !config.allow_boundary_relaxation) {
-      result.summary.failure_reason = "no_strict_boundary_feasible_solution_any_depth";
-    } else if (!covered_global_candidate_pool.summary.first_failure_reason.empty()) {
-      result.summary.failure_reason = covered_global_candidate_pool.summary.first_failure_reason;
+  if (config.enable_analytical_solver) {
+    auto analytical_selection = htree::analytical_solution::SelectAnalyticalHTreeSolution(
+        result, input, max_depth, full_level_plans, depth_candidates, segment_pattern_library, search_boundary_constraints,
+        fanout_pruning_config, root_driver_compensation_input, sink_load_region_input, char_builder, root_driver_clock_period_source);
+    if (analytical_selection.selected) {
+      htree::FinalizeSelectedHTreeSolution(result, input, config, build_stage, analytical_selection.selected_solution,
+                                           segment_pattern_library);
     } else {
-      result.summary.failure_reason = exploration.output.global_candidate_pool.empty() ? "no_legal_depth_candidates" : "missing_best_char";
+      result.summary.failure_reason
+          = analytical_selection.failure_reason.empty() ? "analytical_candidate_unavailable" : analytical_selection.failure_reason;
+      build_stage.failed({{"reason", result.summary.failure_reason}, {"selection_engine", "analytical"}});
     }
-    LOG_WARNING << "HTree: failed to select a strict-feasible H-tree characterization entry across depth candidates.";
-    build_stage.failed({{"reason", result.summary.failure_reason}, {"depth_candidates", std::to_string(depth_candidates.size())}});
     return result;
   }
 
-  const std::size_t selected_candidate_index = selected_ref->candidate_index;
-  auto& selected_evaluation = exploration.output.candidate_evaluations.at(selected_candidate_index);
-  auto& selected_summary = exploration.summary.depth_summaries.at(selected_candidate_index);
-  selected_summary.selected = true;
-  selected_summary.selected_power_w = selected_ref->entry->get_power();
-  selected_summary.selected_delay_ns = selected_ref->entry->get_delay();
-  htree::EmitDepthCandidateSummary(reporter, exploration.summary.depth_summaries);
-  htree::SinkLoadRegionLegalitySummary selected_sink_load_region_legality;
-  {
-    auto selected_legality_stage
-        = reporter.beginStage("HTree", "Resolve selected sink-load legality",
-                              {
-                                  {"selected_depth", std::to_string(selected_evaluation.depth)},
-                                  {"selected_pattern_id", std::to_string(selected_ref->entry->get_pattern_id().pack())},
-                              },
-                              htree::DetailStageReportOptions());
-    selected_sink_load_region_legality = htree::ResolveSinkLoadRegionLegality(
-        result.output.topology, selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library,
-        segment_pattern_library, exploration.output.sink_load_region_legality_context);
-    selected_legality_stage.finished({
-        {"legal", selected_sink_load_region_legality.legal ? "true" : "false"},
-        {"required_leaf_load_cap_idx", selected_sink_load_region_legality.required_leaf_load_cap_covering_idx.has_value()
-                                           ? std::to_string(*selected_sink_load_region_legality.required_leaf_load_cap_covering_idx)
-                                           : "none"},
-        {"failure_reason",
-         selected_sink_load_region_legality.failure_reason.empty() ? "none" : selected_sink_load_region_legality.failure_reason},
-    });
-  }
-  if (!selected_sink_load_region_legality.legal) {
-    result.summary.failure_reason = "sink_load_region_legality_missing";
-    LOG_WARNING << "HTree: selected global frontier entry is missing sink-load-region legality coverage.";
-    build_stage.failed({{"reason", result.summary.failure_reason}});
-    return result;
-  }
-  selected_summary.htree_load_group_count = selected_sink_load_region_legality.cap_distribution.group_count;
-  selected_summary.htree_load_cap_min_pf = selected_sink_load_region_legality.cap_distribution.cap_min_pf;
-  selected_summary.htree_load_cap_max_pf = selected_sink_load_region_legality.cap_distribution.cap_max_pf;
-  selected_summary.htree_load_cap_mean_pf = selected_sink_load_region_legality.cap_distribution.cap_mean_pf;
-  selected_summary.htree_load_cap_median_pf = selected_sink_load_region_legality.cap_distribution.cap_median_pf;
-
-  result.summary.selected_depth = selected_evaluation.depth;
-  result.output.best_char = *selected_ref->entry;
-  htree::RootDriverCompensationPass selected_compensation_pass(root_driver_compensation_input);
-  htree::RootDriverCompensationDetail selected_compensation_detail;
-  {
-    auto selected_compensation_stage
-        = reporter.beginStage("HTree", "Resolve selected root-driver compensation",
-                              {
-                                  {"selected_pattern_id", std::to_string(selected_ref->entry->get_pattern_id().pack())},
-                                  {"root_driver_sizing_enabled", config.enable_root_driver_sizing ? "true" : "false"},
-                              },
-                              htree::DetailStageReportOptions());
-    selected_compensation_detail
-        = selected_compensation_pass.evaluate(selected_ref->entry->get_pattern_id(), selected_evaluation.topology_pattern_library,
-                                              segment_pattern_library, result.output.topology);
-    selected_compensation_stage.finished({
-        {"valid", selected_compensation_detail.valid ? "true" : "false"},
-        {"cell_master", selected_compensation_detail.cell_master.empty() ? "none" : selected_compensation_detail.cell_master},
-        {"load_cap_pf", std::to_string(selected_compensation_detail.load_cap_pf)},
-    });
-  }
-  htree::ApplyRootDriverCompensationSummary(result, exploration, selected_compensation_detail, *selected_ref->entry);
-  result.diagnostics.root_driver_compensation.clock_period_source = root_driver_clock_period_source;
-  result.output.levels = selected_evaluation.levels;
-  result.diagnostics.selected_final_frontier_count = selected_summary.final_frontier_count;
-  result.diagnostics.selected_candidate_solution_count = selected_summary.candidate_solution_count;
-  result.diagnostics.selected_candidate_frontier_entry_count = selected_summary.candidate_frontier_entry_count;
-  result.diagnostics.selected_feasible_solution_count = selected_summary.feasible_solution_count;
-  result.diagnostics.selected_feasible_frontier_entry_count = selected_summary.feasible_frontier_entry_count;
-  result.diagnostics.min_top_input_slew_ns = selected_evaluation.boundary_constraints.min_top_input_slew_ns;
-  result.diagnostics.top_input_slew_covering_idx = selected_evaluation.boundary_constraints.top_input_slew_covering_idx;
-  result.diagnostics.htree_load_group_count = selected_summary.htree_load_group_count;
-  result.diagnostics.htree_load_cap_min_pf = selected_summary.htree_load_cap_min_pf;
-  result.diagnostics.htree_load_cap_max_pf = selected_summary.htree_load_cap_max_pf;
-  result.diagnostics.htree_load_cap_mean_pf = selected_summary.htree_load_cap_mean_pf;
-  result.diagnostics.htree_load_cap_median_pf = selected_summary.htree_load_cap_median_pf;
-
-  if (!selected_feasible_ref.has_value()) {
-    result.summary.used_boundary_relaxation = true;
-    result.diagnostics.boundary_relaxation_reason = "no_strict_boundary_feasible_solution_any_depth";
-    result.diagnostics.boundary_relaxation_score = htree::CalcBoundaryRelaxationScore(
-        *result.output.best_char, selected_evaluation.boundary_constraints, result.diagnostics.char_slew_steps);
-
-    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "HTree",
-                   "boundary relaxation is enabled; selected a relaxed solution from the global candidate pool.",
-                   {
-                       {"reason", result.diagnostics.boundary_relaxation_reason},
-                       {"selected_depth", std::to_string(result.summary.selected_depth.value_or(0U))},
-                       {"relaxation_score", std::to_string(result.diagnostics.boundary_relaxation_score.value_or(0.0))},
-                       {"selected_top_input_slew_idx", std::to_string(result.output.best_char->get_input_slew_idx())},
-                       {"selected_leaf_load_cap_idx", std::to_string(result.output.best_char->get_leaf_load_cap_idx())},
-                   });
-  }
-
-  result.output.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.output.best_char->get_pattern_id());
-  htree::ApplySelectedPatternToLevelPlans(*input.sta_adapter, result, segment_pattern_library);
-  const std::string selected_root_driver_cell_master = htree::ResolveSelectedRootDriverCellMaster(result.output.levels);
-  if (config.enable_root_driver_sizing
-      && !htree::ValidateRootDriverSizing(*input.design, *input.sta_adapter, result, selected_root_driver_cell_master)) {
-    result.summary.failure_reason = "root_driver_sizing_precheck_failed";
-    build_stage.failed({{"reason", result.summary.failure_reason}});
-    return result;
-  }
-
-  {
-    auto embedding_stage = reporter.beginStage("HTree", "Build selected embedding",
-                                               {
-                                                   {"selected_depth", std::to_string(result.summary.selected_depth.value_or(0U))},
-                                                   {"selected_levels", std::to_string(result.output.levels.size())},
-                                               },
-                                               htree::DetailStageReportOptions());
-    htree::BuildEmbedding(*input.design, *input.sta_adapter, result, segment_pattern_library);
-    result.summary.success = result.summary.failure_reason.empty() && result.output.best_char.has_value()
-                             && result.output.best_pattern.has_value() && result.output.root_output_pin != nullptr
-                             && result.output.root_net != nullptr;
-    if (result.summary.success && config.enable_root_driver_sizing) {
-      LOG_FATAL_IF(!htree::ApplyRootDriverSizing(*input.design, *input.sta_adapter, result, selected_root_driver_cell_master))
-          << "HTree: prevalidated root-driver sizing failed during embedding construction.";
-    } else if (result.summary.success && result.output.root_inst != nullptr) {
-      result.diagnostics.selected_root_driver_cell_master = result.output.root_inst->get_cell_master();
-    }
-    if (result.summary.success) {
-      embedding_stage.finished({
-          {"inserted_insts", std::to_string(result.output.inserted_insts.size())},
-          {"inserted_nets", std::to_string(result.output.inserted_nets.size())},
-          {"pruned_leaf_single_load_buffers", std::to_string(result.diagnostics.pruned_leaf_single_load_buffers)},
-      });
-    } else {
-      embedding_stage.failed(
-          {{"reason", result.summary.failure_reason.empty() ? "incomplete_embedding_build" : result.summary.failure_reason}});
-    }
-  }
-
-  {
-    auto summary_stage = reporter.beginStage("HTree", "Emit synthesis summary", {}, StageReportOptions{.emit_success_summary = false});
-    htree::LogSynthesisSummary(reporter, result, selected_evaluation, selected_summary);
-    summary_stage.finished();
-  }
-  if (result.summary.success) {
-    build_stage.finished();
+  auto discrete_selection = htree::discrete_solution::SelectDiscreteHTreeSolution(
+      result, config, reporter, max_depth, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library,
+      search_boundary_constraints, fanout_pruning_config, root_driver_compensation_input, sink_load_region_input, char_builder,
+      root_driver_clock_period_source);
+  if (discrete_selection.selected) {
+    htree::FinalizeSelectedHTreeSolution(result, input, config, build_stage, discrete_selection.selected_solution, segment_pattern_library);
   } else {
-    build_stage.failed({{"reason", result.summary.failure_reason.empty() ? "incomplete_embedding_build" : result.summary.failure_reason}});
+    result.summary.failure_reason = discrete_selection.failure_reason.empty() ? "missing_best_char" : discrete_selection.failure_reason;
+    build_stage.failed({{"reason", result.summary.failure_reason},
+                        {"depth_candidates", std::to_string(depth_candidates.size())},
+                        {"selection_engine", "discrete"}});
   }
   return result;
 }

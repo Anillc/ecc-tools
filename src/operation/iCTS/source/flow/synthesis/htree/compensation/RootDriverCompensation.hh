@@ -173,6 +173,9 @@ inline constexpr double kRootDriverCompensationClockPeriodNs = 10.0;
 
 auto ResolveRootDriverCompensationInputSlewNs(const HTree::Config& config, double max_slew_ns) -> double;
 auto ResolveRootDriverClockPeriod(const HTree::Input& input) -> std::pair<double, std::string>;
+auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const RootDriverCompensationStats& compensation_stats,
+                                        const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
+    -> void;
 auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
                                         const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
     -> void;

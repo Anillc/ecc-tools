@@ -202,20 +202,20 @@ auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& r
       {"depth_candidates", std::to_string(result.diagnostics.depth_candidate_count), "evaluated descending depth candidates"},
       {"selected_depth", result.summary.selected_depth.has_value() ? std::to_string(*result.summary.selected_depth) : "none",
        "global winner across all evaluated depth candidates"},
-      {"selection_engine", result.diagnostics.analytical_mode_selected ? "analytical" : "native", selection_engine_detail},
+      {"selection_engine", result.diagnostics.analytical_mode_selected ? "analytical" : "discrete", selection_engine_detail},
       {"analytical_failure_reason",
        result.diagnostics.analytical_failure_reason.empty() ? "none" : result.diagnostics.analytical_failure_reason,
-       result.diagnostics.analytical_mode_enabled ? "analytical failure reason; native solver is not used in analytical mode"
+       result.diagnostics.analytical_mode_enabled ? "analytical failure reason; discrete solver is not used in analytical mode"
                                                   : "analytical mode disabled"},
       {"analytical_model_sets", std::to_string(result.diagnostics.analytical_model_set_count),
        result.diagnostics.analytical_mode_enabled ? "complete F/D/P/W model sets built from segment characterization" : "not evaluated"},
       {"analytical_rejected_fits", std::to_string(result.diagnostics.analytical_rejected_fit_count),
        result.diagnostics.analytical_mode_enabled ? "fit failures while building analytical model catalog" : "not evaluated"},
       {"analytical_candidates", std::to_string(result.diagnostics.analytical_generated_candidate_count),
-       result.diagnostics.analytical_mode_enabled ? "materializable analytical candidates generated before native validation"
+       result.diagnostics.analytical_mode_enabled ? "materializable analytical candidates generated before discrete validation"
                                                   : "not evaluated"},
       {"analytical_validated_candidates", std::to_string(result.diagnostics.analytical_validated_candidate_count),
-       result.diagnostics.analytical_mode_enabled ? "analytical candidates accepted by native legality/compensation validation"
+       result.diagnostics.analytical_mode_enabled ? "analytical candidates accepted by discrete legality/compensation validation"
                                                   : "not evaluated"},
       {"analytical_validated_pareto_candidates", std::to_string(result.diagnostics.analytical_validated_pareto_count),
        result.diagnostics.analytical_mode_enabled ? "validated analytical candidates remaining on the delay-power Pareto frontier"
@@ -255,7 +255,8 @@ auto LogSynthesisSummary(SchemaWriter& reporter, const htree::DiagnosticBuild& r
        result.diagnostics.analytical_mode_enabled ? "minimum delay anchor / minimum power anchor" : "not evaluated"},
       {"analytical_solver_totals",
        FormatDelayPower(result.diagnostics.analytical_solver_total_delay_ns, result.diagnostics.analytical_solver_total_power_w),
-       result.diagnostics.analytical_mode_enabled ? "solver-selected total delay / total power before native validation" : "not evaluated"},
+       result.diagnostics.analytical_mode_enabled ? "solver-selected total delay / total power before discrete validation"
+                                                  : "not evaluated"},
       {"selected_topology_pattern_id", std::to_string(best_char.get_pattern_id().local_id),
        result.summary.used_boundary_relaxation ? "selected relaxed topology pattern from candidate frontier selection entries"
                                                : "selected strict-feasible topology pattern from the global feasible frontier pool"},

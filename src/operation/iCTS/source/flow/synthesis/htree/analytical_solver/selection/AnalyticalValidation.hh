@@ -18,7 +18,7 @@
  * @file AnalyticalValidation.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-05-14
- * @brief Native legality validation bridge for analytical H-tree candidates.
+ * @brief Discrete legality validation bridge for analytical H-tree candidates.
  */
 
 #pragma once

@@ -152,13 +152,13 @@ TEST(AnalyticalSolverTest, SolvesNormalizedTradeoffWithContinuousUnitSlots)
   EXPECT_GT(result.summary.solver_variable_count, 0U);
   EXPECT_GT(result.summary.solver_binary_variable_count, 0U);
   EXPECT_GT(result.summary.solver_constraint_count, 0U);
-  EXPECT_FALSE(result.summary.backend_name.empty());
+  EXPECT_EQ(result.summary.backend_name, "HiGHS in-process");
   EXPECT_FALSE(result.summary.solver_status.empty());
   EXPECT_NEAR(result.summary.solver_min_delay_anchor_ns, 0.10, 1e-9);
   EXPECT_NEAR(result.summary.solver_min_power_anchor_w, 1e-6, 1e-15);
 }
 
-TEST(AnalyticalSolverTest, ComposesUnitSlotsIntoNativeSegmentPattern)
+TEST(AnalyticalSolverTest, ComposesUnitSlotsIntoDiscreteSegmentPattern)
 {
   const auto unit_pattern = icts::PatternId::segment(1U);
   const unsigned unit_length_idx = 1U;

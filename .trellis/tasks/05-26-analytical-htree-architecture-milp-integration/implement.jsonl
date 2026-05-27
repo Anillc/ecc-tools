@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Repository-wide iCTS process, naming, file-header, solver dependency, and validation constraints."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Placement rules for H-tree flow refactor, behavior-directory facades, and CMake target boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Naming, include hygiene, dependency visibility, and final checker expectations for iCTS code."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Runtime ownership and adapter boundary constraints for H-tree context/finalizer refactor."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "The refactor crosses flow, module, database, STA adapter, and external solver boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "The task extracts shared finalization and solver adapter code instead of duplicating behavior."}
+{"file": ".trellis/tasks/05-26-analytical-htree-architecture-milp-integration/research.md", "reason": "Current architecture and solver dependency research for implementation decisions."}

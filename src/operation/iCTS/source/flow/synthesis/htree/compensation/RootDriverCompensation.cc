@@ -240,21 +240,18 @@ auto ResolveRootDriverClockPeriod(const HTree::Input& input) -> std::pair<double
   return {kRootDriverCompensationClockPeriodNs, "default_10ns"};
 }
 
-auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
+auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const RootDriverCompensationStats& compensation_stats,
                                         const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
     -> void
 {
   auto& report = build.diagnostics.root_driver_compensation;
-  report.enabled = exploration.summary.root_driver_compensation_stats.enabled;
+  report.enabled = compensation_stats.enabled;
   report.valid = compensation_detail.valid;
-  report.method
-      = compensation_detail.method.empty() ? exploration.summary.root_driver_compensation_stats.method : compensation_detail.method;
+  report.method = compensation_detail.method.empty() ? compensation_stats.method : compensation_detail.method;
   report.cell_master = compensation_detail.cell_master;
-  report.load_source = compensation_detail.load_source.empty() ? exploration.summary.root_driver_compensation_stats.load_source
-                                                               : compensation_detail.load_source;
+  report.load_source = compensation_detail.load_source.empty() ? compensation_stats.load_source : compensation_detail.load_source;
   report.route_estimator = compensation_detail.route_estimator;
-  report.input_slew_ns = compensation_detail.input_slew_ns > 0.0 ? compensation_detail.input_slew_ns
-                                                                 : exploration.summary.root_driver_compensation_stats.input_slew_ns;
+  report.input_slew_ns = compensation_detail.input_slew_ns > 0.0 ? compensation_detail.input_slew_ns : compensation_stats.input_slew_ns;
   report.load_bucket_idx = compensation_detail.load_bucket_idx;
   report.load_cap_pf = compensation_detail.load_cap_pf;
   report.source_boundary_bucket_idx = compensation_detail.source_boundary_bucket_idx;
@@ -264,8 +261,8 @@ auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const Dep
   report.wire_cap_pf = compensation_detail.wire_cap_pf;
   report.routed_wirelength_um = compensation_detail.routed_wirelength_um;
   report.terminal_count = compensation_detail.terminal_count;
-  report.clock_period_ns = compensation_detail.clock_period_ns > 0.0 ? compensation_detail.clock_period_ns
-                                                                     : exploration.summary.root_driver_compensation_stats.clock_period_ns;
+  report.clock_period_ns
+      = compensation_detail.clock_period_ns > 0.0 ? compensation_detail.clock_period_ns : compensation_stats.clock_period_ns;
   report.output_slew_ns = compensation_detail.output_slew_ns;
   report.output_slew_bucket_idx = compensation_detail.output_slew_bucket_idx;
   report.cell_delay_ns = compensation_detail.cell_delay_ns;
@@ -276,6 +273,13 @@ auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const Dep
   report.raw_power_w = selected_entry.get_raw_power();
   report.compensated_delay_ns = selected_entry.get_delay();
   report.compensated_power_w = selected_entry.get_power();
+}
+
+auto ApplyRootDriverCompensationSummary(htree::DiagnosticBuild& build, const DepthSearchBuild& exploration,
+                                        const RootDriverCompensationDetail& compensation_detail, const HTreeTopologyChar& selected_entry)
+    -> void
+{
+  ApplyRootDriverCompensationSummary(build, exploration.summary.root_driver_compensation_stats, compensation_detail, selected_entry);
 }
 
 auto RootDriverCompensationCacheKeyHash::operator()(const RootDriverCompensationCacheKey& key) const noexcept -> std::size_t

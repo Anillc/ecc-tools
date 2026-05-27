@@ -33,8 +33,9 @@ target_link_libraries(
   icts_source_utils
   PRIVATE
   icts_source_flow_synthesis_htree_characterization
-  icts_source_flow_synthesis_htree_plan
   icts_source_flow_synthesis_htree_solution
+  icts_source_flow_synthesis_htree_plan
+  icts_source_flow_synthesis_htree_topology_pruning
   icts_source_module_topology
 )
 

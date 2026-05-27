@@ -37,7 +37,7 @@
 #include "synthesis/htree/analytical_solver/model/AnalyticalSolverModel.hh"
 #include "synthesis/htree/analytical_solver/model/MathHtreeModel.hh"
 #include "synthesis/htree/analytical_solver/model/MathHtreeProblemBuilder.hh"
-#include "synthesis/htree/analytical_solver/solver/ScipMathHtreeSolver.hh"
+#include "synthesis/htree/analytical_solver/solver/MathHtreeMilpSolver.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
@@ -213,7 +213,7 @@ auto BuildCandidateFromScoredLevels(const AnalyticalHTreeSolveProblem& solve_pro
 
 auto SolveMathHtreeProblem(const MathHtreeProblem& problem) -> MathHtreeSolution
 {
-  ScipMathHtreeSolver solver;
+  MathHtreeMilpSolver solver;
   return solver.solveNormalizedTradeoff(problem);
 }
 
