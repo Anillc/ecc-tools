@@ -816,3 +816,36 @@ Refactored H-tree selection around discrete/analytical sibling engines, added sh
 ### Next Steps
 
 - None - task complete
+
+
+## Session 69: H-tree architecture decomposition
+
+**Date**: 2026-05-27
+**Task**: H-tree architecture decomposition
+**Branch**: `cts_refactor`
+
+### Summary
+
+Extracted H-tree synthesis state assembly, separated discrete-only frontier synthesis from analytical selection, unified selection and finalization contracts, and validated focused builds, tests, iEDA, ics55_dev, ics55_huge_dev, and iCTS checker.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ef4b93b9b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
