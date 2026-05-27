@@ -849,3 +849,36 @@ Extracted H-tree synthesis state assembly, separated discrete-only frontier synt
 ### Next Steps
 
 - None - task complete
+
+
+## Session 70: Clean CTS static archive CMake links
+
+**Date**: 2026-05-27
+**Task**: Clean CTS static archive CMake links
+**Branch**: `cts_refactor`
+
+### Summary
+
+Removed explicit CTS static archive path links, replaced them with target-based dependencies, validated iEDA link, focused H-tree tests, and iCTS checker.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `55cd2834c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
