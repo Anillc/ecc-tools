@@ -26,3 +26,11 @@
 #include "synthesis/htree/solution/analytical/AnalyticalSolution.hh"   // IWYU pragma: export
 #include "synthesis/htree/solution/discrete/DiscreteSolution.hh"       // IWYU pragma: export
 #include "synthesis/htree/solution/finalization/SolutionFinalizer.hh"  // IWYU pragma: export
+
+namespace icts::htree {
+
+struct HTreeSynthesisState;
+
+auto SelectHTreeSolution(HTreeSynthesisState& state) -> HTreeSelectionBuild;
+
+}  // namespace icts::htree

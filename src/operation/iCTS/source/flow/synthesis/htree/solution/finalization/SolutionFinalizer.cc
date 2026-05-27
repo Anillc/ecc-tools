@@ -43,6 +43,7 @@
 #include "synthesis/htree/solution/report/SolutionReport.hh"
 #include "synthesis/htree/solution/report/StageReport.hh"
 #include "synthesis/htree/solution/selection/SolutionSelection.hh"
+#include "synthesis/htree/synthesis_state/SynthesisState.hh"
 
 namespace icts::htree {
 
@@ -57,10 +58,16 @@ auto ToStageValue(HTreeSelectionEngine engine) -> std::string
   return "unknown";
 }
 
-auto FinalizeSelectedHTreeSolution(DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
-                                   SchemaWriter::StageScope& build_stage, const HTreeSelectedSolution& selected_solution,
-                                   BufferPatternLibrary& segment_pattern_library) -> bool
+auto FinalizeSelectedHTreeSolution(HTreeSynthesisState& state, SchemaWriter::StageScope& build_stage,
+                                   const HTreeSelectedSolution& selected_solution) -> bool
 {
+  LOG_FATAL_IF(state.input == nullptr) << "HTree selected-solution finalization requires synthesis input.";
+  LOG_FATAL_IF(state.config == nullptr) << "HTree selected-solution finalization requires synthesis config.";
+  auto& result = state.result;
+  const auto& input = *state.input;
+  const auto& config = *state.config;
+  auto& segment_pattern_library = state.segmentPatterns();
+
   LOG_FATAL_IF(input.design == nullptr) << "HTree selected-solution finalization requires explicit Design dependency.";
   LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree selected-solution finalization requires explicit STAAdapter dependency.";
   LOG_FATAL_IF(input.reporter == nullptr) << "HTree selected-solution finalization requires explicit reporter dependency.";

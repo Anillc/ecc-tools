@@ -12,12 +12,10 @@ add_library(
 target_link_libraries(
   icts_source_flow_synthesis_htree_solution
   PRIVATE
+  icts_source_flow_synthesis_htree_synthesis_state
   icts_source_flow_synthesis_htree_analytical_solver
   icts_source_flow_synthesis_htree_embedding
-  icts_source_flow_synthesis_htree_segment_pruning
   icts_source_flow_synthesis_htree_plan
-  icts_source_flow_synthesis_htree_topology_pruning
-  icts_source_flow_synthesis_htree_compensation
   icts_source_database_adapter_sta
   icts_source_utils
 )

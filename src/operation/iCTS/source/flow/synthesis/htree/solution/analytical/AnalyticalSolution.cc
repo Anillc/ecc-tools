@@ -34,42 +34,45 @@
 #include "HTreeTopologyChar.hh"
 #include "Log.hh"
 #include "logger/Schema.hh"
-#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/analytical_solver/selection/AnalyticalSelection.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/solution/finalization/SolutionFinalizer.hh"
 #include "synthesis/htree/solution/report/StageReport.hh"
+#include "synthesis/htree/synthesis_state/SynthesisState.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts::htree::analytical_solution {
 namespace as = analytical_selection;
 
-auto SelectAnalyticalHTreeSolution(htree::DiagnosticBuild& result, const HTree::Input& input, unsigned max_depth,
-                                   const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
-                                   htree::BufferPatternLibrary& segment_pattern_library,
-                                   const htree::BoundaryConstraints& search_boundary_constraints,
-                                   const htree::HTreeFanoutPruningConfig& fanout_pruning_config,
-                                   const htree::RootDriverCompensationInput& root_driver_compensation_input,
-                                   const htree::SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
-                                   const std::string& root_driver_clock_period_source) -> AnalyticalHTreeSelectionBuild
+auto SelectAnalyticalHTreeSolution(HTreeSynthesisState& state) -> HTreeSelectionBuild
 {
-  AnalyticalHTreeSelectionBuild selection_build;
+  HTreeSelectionBuild selection_build;
+  selection_build.engine = htree::HTreeSelectionEngine::kAnalytical;
+  LOG_FATAL_IF(state.input == nullptr) << "HTree analytical solution requires synthesis input.";
+  LOG_FATAL_IF(state.config == nullptr) << "HTree analytical solution requires synthesis config.";
+
+  auto& result = state.result;
+  const auto& input = *state.input;
+  auto& segment_pattern_library = state.segmentPatterns();
+  const auto& char_builder = state.charBuilder();
+
   LOG_FATAL_IF(input.design == nullptr) << "HTree analytical solution requires explicit Design dependency.";
   LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree analytical solution requires explicit STAAdapter dependency.";
   LOG_FATAL_IF(input.reporter == nullptr) << "HTree analytical solution requires explicit reporter dependency.";
   auto& reporter = *input.reporter;
   auto analytical_stage = reporter.beginStage("HTree", "Select analytical topology candidates",
                                               {
-                                                  {"depth_candidates", std::to_string(depth_candidates.size())},
-                                                  {"max_depth", std::to_string(max_depth)},
+                                                  {"depth_candidates", std::to_string(state.depth_candidates.size())},
+                                                  {"max_depth", std::to_string(state.max_depth)},
                                                   {"solver", "math_milp_normalized_delay_power"},
                                               },
                                               DetailStageReportOptions());
-  const auto analytical_attempt = as::TrySolveAnalyticalHTree(
-      result.output.topology, full_level_plans, depth_candidates, segment_pattern_library, search_boundary_constraints,
-      fanout_pruning_config, root_driver_compensation_input, sink_load_region_input, char_builder, result.diagnostics.char_slew_steps);
+  const auto analytical_attempt
+      = as::TrySolveAnalyticalHTree(result.output.topology, state.full_level_plans, state.depth_candidates, segment_pattern_library,
+                                    state.search_boundary_constraints, state.fanout_pruning_config, state.root_driver_compensation_input,
+                                    state.sink_load_region_input, char_builder, result.diagnostics.char_slew_steps);
   result.diagnostics.analytical_model_set_count = analytical_attempt.model_set_count;
   result.diagnostics.analytical_rejected_fit_count = analytical_attempt.rejected_fit_count;
   result.diagnostics.analytical_structural_cap_operator_count = analytical_attempt.structural_cap_operator_count;
@@ -144,17 +147,17 @@ auto SelectAnalyticalHTreeSolution(htree::DiagnosticBuild& result, const HTree::
 
     auto selected_evaluation = analytical_attempt.selected_evaluation;
     auto selected_summary = analytical_attempt.selected_summary;
-    result.diagnostics.depth_candidate_count = depth_candidates.size();
+    result.diagnostics.depth_candidate_count = state.depth_candidates.size();
 
     htree::DepthSearchBuild analytical_exploration;
-    as::ApplyAnalyticalRootDriverStats(analytical_exploration, analytical_attempt, root_driver_compensation_input);
+    as::ApplyAnalyticalRootDriverStats(analytical_exploration, analytical_attempt, state.root_driver_compensation_input);
     const htree::HTreeSelectedSolution selected_solution{
         .engine = htree::HTreeSelectionEngine::kAnalytical,
         .evaluation = selected_evaluation,
         .summary = selected_summary,
         .compensation_stats = analytical_exploration.summary.root_driver_compensation_stats,
         .compensation_detail = analytical_attempt.selected_compensation_detail,
-        .root_driver_clock_period_source = root_driver_clock_period_source,
+        .root_driver_clock_period_source = state.root_driver_clock_period_source,
         .used_boundary_relaxation = false,
         .boundary_relaxation_reason = "",
         .boundary_relaxation_score = std::nullopt,

@@ -35,43 +35,74 @@
 #include "HTreeTopologyChar.hh"
 #include "Log.hh"
 #include "PatternId.hh"
+#include "SegmentChar.hh"
 #include "characterization/Characterization.hh"
 #include "logger/Schema.hh"
+#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/region/SinkLoadRegion.hh"
 #include "synthesis/htree/segment_pruning/SegmentFrontierCatalog.hh"
+#include "synthesis/htree/segment_pruning/SegmentPruning.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
 #include "synthesis/htree/solution/report/StageReport.hh"
+#include "synthesis/htree/synthesis_state/SynthesisState.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts::htree::discrete_solution {
 
-auto SelectDiscreteHTreeSolution(htree::DiagnosticBuild& result, const HTree::Config& config, SchemaWriter& reporter, unsigned max_depth,
-                                 const std::vector<HTree::LevelPlan>& full_level_plans, const std::vector<unsigned>& depth_candidates,
-                                 const htree::SegmentFrontierCatalog& segment_frontier_catalog,
-                                 htree::BufferPatternLibrary& segment_pattern_library,
-                                 const htree::BoundaryConstraints& search_boundary_constraints,
-                                 const htree::HTreeFanoutPruningConfig& fanout_pruning_config,
-                                 const htree::RootDriverCompensationInput& root_driver_compensation_input,
-                                 const htree::SinkLoadRegionLegalityInput& sink_load_region_input, const CharBuilder& char_builder,
-                                 const std::string& root_driver_clock_period_source) -> DiscreteHTreeSelectionBuild
+auto SelectDiscreteHTreeSolution(HTreeSynthesisState& state) -> HTreeSelectionBuild
 {
+  LOG_FATAL_IF(state.input == nullptr) << "HTree discrete solution requires synthesis input.";
+  LOG_FATAL_IF(state.config == nullptr) << "HTree discrete solution requires synthesis config.";
+  LOG_FATAL_IF(state.input->reporter == nullptr) << "HTree discrete solution requires explicit reporter dependency.";
+
+  auto& result = state.result;
+  const auto& config = *state.config;
+  auto& reporter = *state.input->reporter;
+  auto& segment_pattern_library = state.segmentPatterns();
+  const auto& char_builder = state.charBuilder();
+
+  const auto required_segment_frontiers = htree::ResolveRequiredSegmentFrontiers(
+      htree::CollectRequiredLengthIndices(state.full_level_plans), state.search_boundary_constraints);
+  auto segment_frontier_stage
+      = reporter.beginStage("HTree", "Synthesize segment frontiers",
+                            {
+                                {"segment_chars", std::to_string(char_builder.get_segment_chars().size())},
+                                {"required_length_indices", std::to_string(required_segment_frontiers.required_length_indices.size())},
+                            },
+                            htree::DetailStageReportOptions());
+  const auto segment_frontier_catalog
+      = htree::SynthesizeSegmentFrontiers(char_builder.get_segment_chars(), segment_pattern_library, required_segment_frontiers);
+  if (segment_frontier_catalog.empty()) {
+    LOG_WARNING << "HTree: segment frontier synthesis failed for the required aligned lengths.";
+    segment_frontier_stage.failed({{"reason", "missing_required_segment_frontiers"}});
+    HTreeSelectionBuild selection_build;
+    selection_build.engine = htree::HTreeSelectionEngine::kDiscrete;
+    selection_build.failure_reason = "missing_required_segment_frontiers";
+    return selection_build;
+  }
+  segment_frontier_stage.finished({
+      {"length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
+      {"frontier_entries", std::to_string(segment_frontier_catalog.countEntries(required_segment_frontiers.required_kinds))},
+  });
+
   htree::DepthSearchBuild exploration;
   {
     auto depth_search_stage
         = reporter.beginStage("HTree", "Search topology depth candidates",
                               {
-                                  {"depth_candidates", std::to_string(depth_candidates.size())},
-                                  {"max_depth", std::to_string(max_depth)},
+                                  {"depth_candidates", std::to_string(state.depth_candidates.size())},
+                                  {"max_depth", std::to_string(state.max_depth)},
                                   {"segment_frontier_length_sets", std::to_string(segment_frontier_catalog.lengthCount())},
                               },
                               htree::DetailStageReportOptions());
-    exploration = htree::SearchTopologyDepthCandidates(
-        result.output.topology, full_level_plans, depth_candidates, segment_frontier_catalog, segment_pattern_library,
-        search_boundary_constraints, char_builder.get_cap_lattice(), result.diagnostics.char_slew_steps, config.target_depth.has_value(),
-        root_driver_compensation_input, sink_load_region_input, reporter, fanout_pruning_config);
+    exploration = htree::SearchTopologyDepthCandidates(result.output.topology, state.full_level_plans, state.depth_candidates,
+                                                       segment_frontier_catalog, segment_pattern_library, state.search_boundary_constraints,
+                                                       char_builder.get_cap_lattice(), result.diagnostics.char_slew_steps,
+                                                       config.target_depth.has_value(), state.root_driver_compensation_input,
+                                                       state.sink_load_region_input, reporter, state.fanout_pruning_config);
     depth_search_stage.finished({
         {"evaluated_depths", std::to_string(exploration.summary.depth_summaries.size())},
         {"global_feasible_refs", std::to_string(exploration.output.global_feasible_pool.size())},
@@ -142,7 +173,8 @@ auto SelectDiscreteHTreeSolution(htree::DiagnosticBuild& result, const HTree::Co
   }
   const auto selected_ref = selected_feasible_ref.has_value() ? selected_feasible_ref : selected_relaxed_ref;
   if (!selected_ref.has_value() || selected_ref->entry == nullptr) {
-    DiscreteHTreeSelectionBuild selection_build;
+    HTreeSelectionBuild selection_build;
+    selection_build.engine = htree::HTreeSelectionEngine::kDiscrete;
     if (!selected_feasible_ref.has_value() && !config.allow_boundary_relaxation) {
       selection_build.failure_reason = "no_strict_boundary_feasible_solution_any_depth";
     } else if (!covered_global_candidate_pool.summary.first_failure_reason.empty()) {
@@ -184,9 +216,10 @@ auto SelectDiscreteHTreeSolution(htree::DiagnosticBuild& result, const HTree::Co
   }
   if (!selected_sink_load_region_legality.legal) {
     LOG_WARNING << "HTree: selected global frontier entry is missing sink-load-region legality coverage.";
-    return DiscreteHTreeSelectionBuild{
+    return HTreeSelectionBuild{
         .selected = false,
         .failure_reason = "sink_load_region_legality_missing",
+        .engine = htree::HTreeSelectionEngine::kDiscrete,
         .selected_solution = {},
     };
   }
@@ -197,7 +230,7 @@ auto SelectDiscreteHTreeSolution(htree::DiagnosticBuild& result, const HTree::Co
   selected_summary.htree_load_cap_median_pf = selected_sink_load_region_legality.cap_distribution.cap_median_pf;
   selected_evaluation.best_char = *selected_ref->entry;
 
-  htree::RootDriverCompensationPass selected_compensation_pass(root_driver_compensation_input);
+  htree::RootDriverCompensationPass selected_compensation_pass(state.root_driver_compensation_input);
   htree::RootDriverCompensationDetail selected_compensation_detail;
   {
     auto selected_compensation_stage
@@ -225,15 +258,16 @@ auto SelectDiscreteHTreeSolution(htree::DiagnosticBuild& result, const HTree::Co
                   *selected_evaluation.best_char, selected_evaluation.boundary_constraints, result.diagnostics.char_slew_steps))
             : std::nullopt;
 
-  DiscreteHTreeSelectionBuild selection_build;
+  HTreeSelectionBuild selection_build;
   selection_build.selected = true;
+  selection_build.engine = htree::HTreeSelectionEngine::kDiscrete;
   selection_build.selected_solution = htree::HTreeSelectedSolution{
       .engine = htree::HTreeSelectionEngine::kDiscrete,
       .evaluation = selected_evaluation,
       .summary = selected_summary,
       .compensation_stats = exploration.summary.root_driver_compensation_stats,
       .compensation_detail = selected_compensation_detail,
-      .root_driver_clock_period_source = root_driver_clock_period_source,
+      .root_driver_clock_period_source = state.root_driver_clock_period_source,
       .used_boundary_relaxation = used_boundary_relaxation,
       .boundary_relaxation_reason = boundary_relaxation_reason,
       .boundary_relaxation_score = boundary_relaxation_score,

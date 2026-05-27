@@ -7,6 +7,7 @@ set(ICTS_FLOW_SYNTHESIS_HTREE_PLAN ${ICTS_FLOW_SYNTHESIS_HTREE}/plan)
 set(ICTS_FLOW_SYNTHESIS_HTREE_REGION ${ICTS_FLOW_SYNTHESIS_HTREE}/region)
 set(ICTS_FLOW_SYNTHESIS_HTREE_SEGMENT_PRUNING ${ICTS_FLOW_SYNTHESIS_HTREE}/segment_pruning)
 set(ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION ${ICTS_FLOW_SYNTHESIS_HTREE}/solution)
+set(ICTS_FLOW_SYNTHESIS_HTREE_SYNTHESIS_STATE ${ICTS_FLOW_SYNTHESIS_HTREE}/synthesis_state)
 set(ICTS_FLOW_SYNTHESIS_HTREE_TOPOLOGY_PRUNING ${ICTS_FLOW_SYNTHESIS_HTREE}/topology_pruning)
 
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_CHARACTERIZATION})
@@ -17,12 +18,14 @@ add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_EMBEDDING})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_PLAN})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_REGION})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SEGMENT_PRUNING})
-add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_TOPOLOGY_PRUNING})
+add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SYNTHESIS_STATE})
+add_subdirectory(${ICTS_FLOW_SYNTHESIS_HTREE_SOLUTION})
 
 add_library(
   icts_source_flow_synthesis_htree
   ${ICTS_FLOW_SYNTHESIS_HTREE}/HTree.cc
+  ${ICTS_FLOW_SYNTHESIS_HTREE_SYNTHESIS_STATE}/SynthesisState.cc
 )
 
 target_link_libraries(
@@ -33,8 +36,16 @@ target_link_libraries(
   icts_source_utils
   PRIVATE
   icts_source_flow_synthesis_htree_characterization
-  icts_source_flow_synthesis_htree_solution
   icts_source_flow_synthesis_htree_plan
+  # Keep this archive after plan for the existing static-link graph; the
+  # dependency is otherwise already modeled by the targets above.
+  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_topology_pruning.a
+  icts_source_flow_synthesis_htree_solution
+  # Keep these archives after solution because DiscreteSolution objects
+  # introduce references back into plan/topology_pruning during final links.
+  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_plan.a
+  ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/libicts_source_flow_synthesis_htree_topology_pruning.a
+  icts_source_flow_synthesis_htree_synthesis_state
   icts_source_flow_synthesis_htree_topology_pruning
   icts_source_module_topology
 )

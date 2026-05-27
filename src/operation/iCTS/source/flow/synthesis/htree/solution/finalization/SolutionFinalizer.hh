@@ -27,15 +27,13 @@
 #include <string>
 
 #include "logger/Schema.hh"
-#include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/plan/DepthPlan.hh"
 #include "synthesis/htree/topology_pruning/TopologyPruning.hh"
 
 namespace icts::htree {
 
-struct BufferPatternLibrary;
-struct DiagnosticBuild;
+struct HTreeSynthesisState;
 
 enum class HTreeSelectionEngine
 {
@@ -58,8 +56,15 @@ struct HTreeSelectedSolution
   std::optional<double> boundary_relaxation_score = std::nullopt;
 };
 
-auto FinalizeSelectedHTreeSolution(DiagnosticBuild& result, const HTree::Input& input, const HTree::Config& config,
-                                   SchemaWriter::StageScope& build_stage, const HTreeSelectedSolution& selected_solution,
-                                   BufferPatternLibrary& segment_pattern_library) -> bool;
+struct HTreeSelectionBuild
+{
+  bool selected = false;
+  std::string failure_reason;
+  HTreeSelectionEngine engine = HTreeSelectionEngine::kDiscrete;
+  HTreeSelectedSolution selected_solution;
+};
+
+auto FinalizeSelectedHTreeSolution(HTreeSynthesisState& state, SchemaWriter::StageScope& build_stage,
+                                   const HTreeSelectedSolution& selected_solution) -> bool;
 
 }  // namespace icts::htree

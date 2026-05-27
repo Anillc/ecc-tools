@@ -22,3 +22,23 @@
  */
 
 #include "synthesis/htree/solution/Solution.hh"
+
+#include <glog/logging.h>
+
+#include <ostream>
+
+#include "Log.hh"
+#include "synthesis/htree/synthesis_state/SynthesisState.hh"
+
+namespace icts::htree {
+
+auto SelectHTreeSolution(HTreeSynthesisState& state) -> HTreeSelectionBuild
+{
+  LOG_FATAL_IF(state.config == nullptr) << "HTree solution selection requires synthesis config.";
+  if (state.config->enable_analytical_solver) {
+    return analytical_solution::SelectAnalyticalHTreeSolution(state);
+  }
+  return discrete_solution::SelectDiscreteHTreeSolution(state);
+}
+
+}  // namespace icts::htree
