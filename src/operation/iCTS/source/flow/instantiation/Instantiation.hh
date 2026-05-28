@@ -10,7 +10,7 @@
 //
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 // EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -24,17 +24,32 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 
 namespace icts {
 
-struct InstantiationResult
+class Design;
+class SchemaWriter;
+class STAAdapter;
+class Wrapper;
+
+struct InstantiationInput
+{
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+  STAAdapter* sta_adapter = nullptr;
+  SchemaWriter* reporter = nullptr;
+};
+
+struct InstantiationSummary
 {
   bool attempted = false;
   bool design_ready = false;
+  bool success = false;
   bool design_conversion_done = false;
   bool idb_conversion_done = false;
-  bool instantiation_done = false;
   std::size_t clock_count = 0U;
+  std::string failure_reason = "n/a";
 };
 
 class Instantiation
@@ -42,7 +57,7 @@ class Instantiation
  public:
   Instantiation() = delete;
 
-  static auto run() -> InstantiationResult;
+  static auto run(const InstantiationInput& input) -> InstantiationSummary;
 };
 
 }  // namespace icts

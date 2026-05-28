@@ -1,5 +1,6 @@
 set(ICTS_FLOW_EVALUATION ${ICTS_FLOW}/evaluation)
 set(ICTS_FLOW_INSTANTIATION ${ICTS_FLOW}/instantiation)
+set(ICTS_FLOW_OPTIMIZATION ${ICTS_FLOW}/optimization)
 set(ICTS_FLOW_REPORT ${ICTS_FLOW}/report)
 set(ICTS_FLOW_SETUP ${ICTS_FLOW}/setup)
 set(ICTS_FLOW_SYNTHESIS ${ICTS_FLOW}/synthesis)
@@ -7,6 +8,7 @@ set(ICTS_FLOW_SYNTHESIS ${ICTS_FLOW}/synthesis)
 add_subdirectory(${ICTS_FLOW_EVALUATION})
 add_subdirectory(${ICTS_FLOW_REPORT})
 add_subdirectory(${ICTS_FLOW_INSTANTIATION})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION})
 add_subdirectory(${ICTS_FLOW_SETUP})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS})
 
@@ -15,21 +17,28 @@ add_library(icts_source_flow ${ICTS_FLOW}/Flow.cc)
 target_link_libraries(
   icts_source_flow
   PUBLIC
-  icts_source_database_design
+  icts_source_database_adapter_fast_sta
+  icts_source_database_adapter_sta
+  icts_source_database_config
+  icts_source_database_io
+  icts_source_database_qor
   icts_source_flow_evaluation
   icts_source_flow_instantiation
+  icts_source_flow_optimization
   icts_source_flow_synthesis
+  icts_source_flow_synthesis_htree_characterization_library
   PRIVATE
-  icts_source_database
   icts_source_flow_report
   icts_source_flow_setup
-  icts_source_module
-  icts_source_utils
+  icts_source_flow_setup_clock_data
+  icts_source_module_routing
+  icts_source_module_topology_clustering
 )
 
 target_include_directories(
   icts_source_flow
   PUBLIC
+  ${ICTS_SOURCE}
   ${ICTS_FLOW}
 )
 

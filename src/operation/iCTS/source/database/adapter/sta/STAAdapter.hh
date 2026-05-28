@@ -24,41 +24,24 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace icts {
 
 enum class InstType;
+class Config;
 class Net;
 class Pin;
+class SchemaWriter;
+struct ClockRouteSegmentRc;
 template <typename T>
 class ClockSteinerTree;
-
 }  // namespace icts
 
-namespace ista {
-class Instance;
-class LibArc;
-class LibArcSet;
-class LibCell;
-class Pin;
-class StaVertex;
-}  // namespace ista
-
-namespace ipower {
-class Power;
-}  // namespace ipower
-
 namespace icts {
-
-using IctsCharPowerPtr = std::shared_ptr<ipower::Power>;
-
-#define STA_ADAPTER_INST (icts::STAAdapter::getInst())
 
 class STAAdapter
 {
@@ -102,123 +85,73 @@ class STAAdapter
     double leakage_power_w = 0.0;
     double cell_power_w = 0.0;
   };
-  static auto getInst() -> STAAdapter&
+  struct StaTimingRefreshConfig
   {
-    static STAAdapter inst;
-    return inst;
-  }
+    std::string work_dir;
+  };
+  struct ClockSourceDriveCapLimitInput
+  {
+    const Pin* clock_source = nullptr;
+    std::optional<double> configured_max_cap_pf = std::nullopt;
+    std::optional<StaTimingRefreshConfig> refresh_config = std::nullopt;
+  };
+  struct PinSlewLimitInput
+  {
+    const Pin* pin = nullptr;
+    double configured_max_sink_tran_ns = 0.0;
+  };
+  STAAdapter() = default;
+  ~STAAdapter() = default;
 
   STAAdapter(const STAAdapter& rhs) = delete;
   STAAdapter(STAAdapter&& rhs) = delete;
   auto operator=(const STAAdapter& rhs) -> STAAdapter& = delete;
   auto operator=(STAAdapter&& rhs) -> STAAdapter& = delete;
 
-  static auto init() -> void;
-  static auto initCharOnly() -> void;
-  static auto queryInstType(const std::string& inst_name) -> icts::InstType;
-  static auto isFlipFlop(const std::string& inst_name) -> bool;
-  static auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
-  static auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
-  static auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
-  static auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double;
-  static auto queryClockSourceDriveCapLimit(const Pin* clock_source) -> double;
-  static auto queryCellInPinSlewLimit(const std::string& cell_master) -> double;
-  static auto queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double;
-  static auto queryCellHeightUm(const std::string& cell_master) -> double;
-  static auto queryCellAreaUm2(const std::string& cell_master) -> double;
-
-  static auto createCharInstance(const std::string& cell_master, const std::string& inst_name) -> std::string;
-  static auto createCharNet(const std::string& net_name) -> std::string;
-  static auto attachCharPin(const std::string& inst_name, const std::string& port_name, const std::string& net_name) -> void;
-  static auto buildCharNetGraph(const std::string& net_name) -> void;
-  static auto buildCharRcTree(const std::string& net_name, double wire_res, double wire_cap, double load_cap) -> void;
-  static auto createCharClock(const std::string& source_pin_full_name, const std::string& clock_name, double period_ns) -> void;
-  static auto destroyCharClock() -> void;
-  static auto resetCharContext() -> void;
-
-  // Characterization-only runtime facade used by iCTS CharBuilder.
-  static auto prepareCharTimingContext(const std::string& input_pin_full_name, const std::string& output_pin_full_name,
-                                       const std::string& sink_pin_full_name) -> void;
-  static auto prepareCharTimingSample() -> void;
-  static auto setCharBufferInputSlew(double slew_ns) -> void;
-  static auto setCharBufferInputSlewIncremental(double slew_ns) -> void;
-  static auto updateCharTimingSample() -> void;
-  static auto updateCharTimingIncrementalSample() -> void;
-  auto prepareCharPower(const std::vector<std::string>& inst_names, const std::vector<std::string>& net_names,
-                        const std::optional<std::string>& source_input_pin_full_name = std::nullopt) -> bool;
-  static auto refreshCharPowerLoad() -> bool;
-  static auto updateCharPower() -> bool;
-  static auto queryCharPower() -> double;
-  static auto queryCharNetSwitchPower(const std::string& net_name) -> double;
-  static auto destroyCharPower() -> void;
-  static auto finishCharOnly() -> void;
-  static auto setPropagatedClocks() -> std::size_t;
-  static auto updateTiming() -> void;
-  static auto reportTiming() -> bool;
-  static auto refreshFullDesignTimingContext() -> void;
-  static auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
-  auto queryClockTimings() const -> std::vector<ClockTimingRecord>;
-  auto queryClockLatencySkew() const -> std::vector<ClockLatencySkewMetrics>;
-  static auto installClockNetRcTree(const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
-  static auto queryCharClockAT(const std::string& clock_name) -> double;
-  static auto queryCharSlew() -> double;
-  static auto queryCharInputPinCap(const std::string& cell_master) -> double;
-  static auto queryPinCapacitance(const Pin* pin) -> double;
-  static auto queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>;
-  static auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns)
+  auto init(const Config& config) -> void;
+  auto queryInstType(const std::string& inst_name) -> icts::InstType;
+  auto isFlipFlop(const std::string& inst_name) -> bool;
+  auto queryWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryRequiredWireResistance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryRequiredWireCapacitance(int routing_layer, double length, std::optional<double> wire_width = std::nullopt) -> double;
+  auto queryConfiguredClockRouteSegmentRc(const Config& config) -> ClockRouteSegmentRc;
+  auto queryCellOutPinCapLimit(const std::string& cell_master) -> double;
+  auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) -> double;
+  auto queryClockSourceDriveCapLimit(const ClockSourceDriveCapLimitInput& input) -> double;
+  auto queryClockSourceDriveCapLimit(const Config& config, const Pin* clock_source) -> double;
+  auto queryCellInPinSlewLimit(const std::string& cell_master) -> double;
+  auto queryCellInPinSlewTableAxisMax(const std::string& cell_master) -> double;
+  auto queryCellHeightUm(const std::string& cell_master) -> double;
+  auto queryCellAreaUm2(const std::string& cell_master) -> double;
+  auto setPropagatedClocks() -> std::size_t;
+  auto updateTiming() -> void;
+  auto reportTiming() -> bool;
+  auto refreshFullDesignTimingContext(const StaTimingRefreshConfig& config) -> void;
+  auto refreshFullDesignTimingContext(const Config& config) -> void;
+  auto queryClockTiming(const std::string& clock_name) -> std::optional<ClockTimingMetrics>;
+  auto queryClockTimings() -> std::vector<ClockTimingRecord>;
+  auto queryClockLatencySkew() -> std::vector<ClockLatencySkewMetrics>;
+  auto installClockNetRcTree(const Config& config, const Net& cts_net, const ClockSteinerTree<int>& clock_tree) -> bool;
+  auto queryCharInputPinCap(const std::string& cell_master) -> double;
+  auto queryPinCapacitance(const Pin* pin) -> double;
+  auto queryPinSlewLimit(const PinSlewLimitInput& input) -> double;
+  auto queryPinSlewLimit(const Config& config, const Pin* pin) -> double;
+  auto queryPinClockArrival(const Pin* pin, const std::string& clock_name) -> std::optional<double>;
+  auto queryPinSlew(const Pin* pin) -> std::optional<double>;
+  auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns)
       -> RootDriverCost;
-  static auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
-  static auto emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width = std::nullopt) -> void;
-  static auto emitConfiguredUnitWireRcReport(const std::string& title) -> void;
-  static auto destroyCharInstance(const std::string& inst_name) -> void;
-  static auto destroyCharNet(const std::string& net_name) -> void;
+  auto queryBufferPorts(const std::string& cell_master) -> std::pair<std::string, std::string>;
+  auto emitUnitWireRcReport(const std::string& title, int routing_layer, std::optional<double> wire_width = std::nullopt) -> void;
+  auto emitConfiguredUnitWireRcReport(SchemaWriter& reporter, const Config& config, const std::string& title) -> void;
 
  private:
-  STAAdapter() = default;
-  ~STAAdapter();
-  struct CharTimingState
-  {
-    bool is_ready = false;
-    ista::Pin* source_input_pin = nullptr;
-    ista::Pin* source_output_pin = nullptr;
-    ista::StaVertex* source_input_vertex = nullptr;
-    ista::StaVertex* source_output_vertex = nullptr;
-    ista::StaVertex* sink_vertex = nullptr;
-    ista::Instance* source_inst = nullptr;
-    ista::LibCell* source_lib_cell = nullptr;
-    ista::LibArcSet* source_arc_set = nullptr;
-    ista::LibArc* source_lib_arc = nullptr;
-  };
-
-  struct CharPowerState
-  {
-    CharPowerState() = default;
-    ~CharPowerState();
-    CharPowerState(CharPowerState&& rhs) noexcept = default;
-    auto operator=(CharPowerState&& rhs) noexcept -> CharPowerState& = default;
-    CharPowerState(const CharPowerState& rhs) = delete;
-    auto operator=(const CharPowerState& rhs) -> CharPowerState& = delete;
-
-    std::vector<std::string> inst_names;
-    std::vector<std::string> net_names;
-    std::unordered_set<std::string> inst_name_set;
-    std::unordered_set<std::string> net_name_set;
-    std::optional<std::string> source_input_pin_full_name = std::nullopt;
-    bool is_runtime_ready = false;
-    bool is_switch_power_cached = false;
-    double cached_leakage_power_w = 0.0;
-    double cached_switch_power_w = 0.0;
-    double last_total_power_w = 0.0;
-    IctsCharPowerPtr char_power;
-  };
-
-  auto resetCharTimingState() -> void;
-  auto resetCharPowerState() -> void;
+  auto observeQueryFacade() const -> void;
+  auto hasFullDesignTimingContext() const -> bool;
   auto resetStaTransientState() -> void;
 
-  bool _is_char_only_active = false;
-  CharTimingState _char_timing_state;
-  CharPowerState _char_power_state;
+  bool _base_context_ready = false;
+  bool _full_design_context_ready = false;
 };
 
 }  // namespace icts

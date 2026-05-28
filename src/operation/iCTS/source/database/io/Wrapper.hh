@@ -44,13 +44,15 @@ class IdbCoordinate;
 
 namespace icts {
 
-#define WRAPPER_INST (icts::Wrapper::getInst())
-
 class Clock;
+class Design;
 class Inst;
 class Net;
 class Pin;
-
+class SchemaWriter;
+struct SdcClockTraceInput;
+struct ClockTraceBuild;
+struct ClockTraceClockTarget;
 struct WrapperCellGeometry
 {
   std::string name;
@@ -60,23 +62,20 @@ struct WrapperCellGeometry
   int32_t height_dbu = 0;
 };
 
-struct WrapperWriteResult
+struct WrapperWriteSummary
 {
   bool success = false;
   std::string failed_clock;
   std::string failed_net;
-  bool rollback_done = false;
+  bool idb_clock_tree_restored = false;
   std::string reason;
 };
 
 class Wrapper
 {
  public:
-  static auto getInst() -> Wrapper&
-  {
-    static Wrapper inst;
-    return inst;
-  }
+  Wrapper() = default;
+  ~Wrapper() = default;
 
   // Delete copy and move constructors
   Wrapper(const Wrapper& rhs) = delete;
@@ -110,11 +109,13 @@ class Wrapper
   auto set_idb_layout(idb::IdbLayout* layout) -> void { _idb_layout = layout; }
 
   // Interface
-  auto read() -> void;
-  auto readClocks(const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool;
-  auto writeClock(Clock& clock) -> bool;
-  auto writeClocksDetailed(const std::vector<Clock*>& clocks) -> WrapperWriteResult;
-  auto writeClocks(const std::vector<Clock*>& clocks) -> bool;
+  auto read(Design& design, SchemaWriter& reporter) -> void;
+  auto readClocks(Design& design, SchemaWriter& reporter, const std::vector<std::pair<std::string, std::string>>& clock_net_pairs) -> bool;
+  auto readTraceClockTargets(Design& design, SchemaWriter& reporter, const std::vector<ClockTraceClockTarget>& clock_targets) -> bool;
+  auto traceSdcClocks(const SdcClockTraceInput& input) const -> ClockTraceBuild;
+  auto writeClock(Design& design, SchemaWriter& reporter, Clock& clock) -> bool;
+  auto writeClocksDetailed(Design& design, SchemaWriter& reporter, const std::vector<Clock*>& clocks) -> WrapperWriteSummary;
+  auto writeClocks(Design& design, SchemaWriter& reporter, const std::vector<Clock*>& clocks) -> bool;
   auto collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>;
   auto queryInstGeometry(const std::string& inst_name) const -> std::optional<WrapperCellGeometry>;
   auto withinCore(int32_t point_x, int32_t point_y) const -> bool;
@@ -124,9 +125,6 @@ class Wrapper
   class CtsClockIdbWriter;
   friend class CtsClockReader;
   friend class CtsClockIdbWriter;
-
-  Wrapper() = default;
-  ~Wrapper() = default;
 
   // DB to CTS
   static auto idbToCts(idb::IdbCoordinate<int32_t>& coord) -> Point<int>;

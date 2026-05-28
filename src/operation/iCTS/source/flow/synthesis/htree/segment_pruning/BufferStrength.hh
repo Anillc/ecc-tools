@@ -38,6 +38,8 @@ namespace icts::htree {
 class BufferStrengthTable
 {
  public:
+  explicit BufferStrengthTable(STAAdapter& sta_adapter) : _sta_adapter(&sta_adapter) {}
+
   auto getStrengthRank(const std::string& cell_master) -> unsigned
   {
     if (cell_master.empty()) {
@@ -45,9 +47,10 @@ class BufferStrengthTable
     }
 
     if (!_drive_caps.contains(cell_master)) {
-      double drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapLimit(cell_master);
+      LOG_FATAL_IF(_sta_adapter == nullptr) << "HTree: STA adapter is unavailable for buffer drive-strength ranking.";
+      double drive_cap_pf = _sta_adapter->queryCellOutPinCapLimit(cell_master);
       if (drive_cap_pf <= 0.0) {
-        drive_cap_pf = STA_ADAPTER_INST.queryCellOutPinCapTableAxisMax(cell_master);
+        drive_cap_pf = _sta_adapter->queryCellOutPinCapTableAxisMax(cell_master);
       }
       _drive_caps[cell_master] = drive_cap_pf;
       _ranks_dirty = true;
@@ -102,6 +105,7 @@ class BufferStrengthTable
 
   std::unordered_map<std::string, double> _drive_caps;
   std::unordered_map<std::string, unsigned> _strength_ranks;
+  STAAdapter* _sta_adapter = nullptr;
   bool _ranks_dirty = false;
 };
 
