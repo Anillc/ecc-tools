@@ -24,13 +24,170 @@
 #include "StaAnalyze.hh"
 
 #include <numeric>
+#include <optional>
 #include <queue>
 #include <utility>
+#include <vector>
 
 #include "StaCppr.hh"
 #include "Type.hh"
 
 namespace ista {
+
+namespace {
+
+using PathVertexSignature = std::vector<std::pair<StaVertex*, TransType>>;
+
+template <typename T>
+std::optional<PathVertexSignature> extractPathVertexSignature(
+    std::stack<T*> path_stack) {
+  PathVertexSignature signature;
+  while (!path_stack.empty()) {
+    auto* path_node = path_stack.top();
+    path_stack.pop();
+    if (!path_node || !path_node->get_own_vertex()) {
+      return std::nullopt;
+    }
+    signature.emplace_back(path_node->get_own_vertex(),
+                           path_node->get_trans_type());
+  }
+
+  if (signature.empty()) {
+    return std::nullopt;
+  }
+
+  return signature;
+}
+
+bool pathVertexSignatureMatches(const PathVertexSignature& lhs,
+                                const PathVertexSignature& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < lhs.size(); ++i) {
+    if (lhs[i].first != rhs[i].first || lhs[i].second != rhs[i].second) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+StaSlewData* findExactSlewDataForPath(StaVertex* vertex,
+                                      AnalysisMode analysis_mode,
+                                      TransType trans_type, uint64_t epoch,
+                                      const PathVertexSignature& path_sig) {
+  if (!vertex) {
+    return nullptr;
+  }
+
+  StaSlewData* matched_slew = nullptr;
+  size_t match_count = 0;
+  StaData* data = nullptr;
+  FOREACH_SLEW_DATA(vertex, data) {
+    if (!data || data->get_delay_type() != analysis_mode ||
+        data->get_trans_type() != trans_type ||
+        data->get_data_epoch() != epoch) {
+      continue;
+    }
+
+    auto* slew_data = dynamic_cast<StaSlewData*>(data);
+    if (!slew_data) {
+      continue;
+    }
+
+    auto slew_path_sig = extractPathVertexSignature(slew_data->getPathData());
+    if (!slew_path_sig ||
+        !pathVertexSignatureMatches(*slew_path_sig, path_sig)) {
+      continue;
+    }
+
+    matched_slew = slew_data;
+    ++match_count;
+  }
+
+  return match_count == 1 ? matched_slew : nullptr;
+}
+
+std::optional<StaCheckPairBinding> buildExactSeqCheckPairBinding(
+    StaArc* check_arc, AnalysisMode analysis_mode, StaPathDelayData* delay_data,
+    StaClockData* capture_clock_data) {
+  if (!check_arc || !delay_data || !capture_clock_data) {
+    return std::nullopt;
+  }
+
+  auto data_path_sig = extractPathVertexSignature(delay_data->getPathData());
+  auto clock_path_sig =
+      extractPathVertexSignature(capture_clock_data->getPathData());
+  if (!data_path_sig || !clock_path_sig) {
+    return std::nullopt;
+  }
+
+  auto* data_slew_data =
+      findExactSlewDataForPath(delay_data->get_own_vertex(), analysis_mode,
+                               delay_data->get_trans_type(),
+                               delay_data->get_data_epoch(), *data_path_sig);
+  auto* clock_slew_data = findExactSlewDataForPath(
+      capture_clock_data->get_own_vertex(), capture_clock_data->get_delay_type(),
+      capture_clock_data->get_trans_type(), capture_clock_data->get_data_epoch(),
+      *clock_path_sig);
+  if (!data_slew_data || !clock_slew_data) {
+    return std::nullopt;
+  }
+
+  int64_t sampled_check_margin_fs = 0;
+  if (auto* inst_arc = dynamic_cast<StaInstArc*>(check_arc);
+      inst_arc && inst_arc->get_lib_arc()) {
+    const double clock_slew_ns = FS_TO_NS(clock_slew_data->get_slew());
+    const double data_slew_ns = FS_TO_NS(data_slew_data->get_slew());
+    auto convert_check_slew_for_lookup =
+        [inst_arc](double constrained_slew_ns) -> double {
+      auto* owner_lib =
+          inst_arc && inst_arc->get_lib_arc() &&
+                  inst_arc->get_lib_arc()->get_owner_cell()
+              ? inst_arc->get_lib_arc()->get_owner_cell()->get_owner_lib()
+              : nullptr;
+      if (!owner_lib) {
+        return constrained_slew_ns;
+      }
+
+      switch (owner_lib->get_time_unit()) {
+        case TimeUnit::kPS:
+          return constrained_slew_ns * 1e3;
+        case TimeUnit::kFS:
+          return constrained_slew_ns * 1e6;
+        case TimeUnit::kNS:
+        default:
+          return constrained_slew_ns;
+      }
+    };
+    sampled_check_margin_fs =
+        NS_TO_FS(inst_arc->get_lib_arc()->getDelayOrConstrainCheckNs(
+            delay_data->get_trans_type(), clock_slew_ns,
+            convert_check_slew_for_lookup(data_slew_ns)));
+  } else {
+    sampled_check_margin_fs =
+        check_arc->get_arc_delay(analysis_mode, delay_data->get_trans_type(),
+                                 delay_data->get_data_epoch());
+  }
+
+  StaCheckPairBinding check_pair_binding;
+  check_pair_binding.analysis_mode = analysis_mode;
+  check_pair_binding.check_trans_type = delay_data->get_trans_type();
+  check_pair_binding.clock_trans_type = capture_clock_data->get_trans_type();
+  check_pair_binding.data_trans_type = delay_data->get_trans_type();
+  check_pair_binding.clock_slew_fs = clock_slew_data->get_slew();
+  check_pair_binding.data_slew_fs = data_slew_data->get_slew();
+  check_pair_binding.sampled_check_margin_fs = sampled_check_margin_fs;
+  check_pair_binding.check_arc = check_arc;
+  check_pair_binding.clock_slew_data = clock_slew_data;
+  check_pair_binding.data_slew_data = data_slew_data;
+  check_pair_binding.data_epoch = delay_data->get_data_epoch();
+  return check_pair_binding;
+}
+
+}  // namespace
 
 /**
  * @brief Analyze the launch clock and capture clock relationship.
@@ -254,9 +411,21 @@ unsigned StaAnalyze::analyzeSetupHold(StaVertex* end_vertex, StaArc* check_arc,
           StaClockData* launch_clock_data =
               (dynamic_cast<StaPathDelayData*>(delay_data))
                   ->get_launch_clock_data();
+          if (!launch_clock_data) {
+            DLOG_INFO_FIRST_N(10)
+                << "skip setup/hold analysis without launch clock data at "
+                << end_vertex->getName();
+            continue;
+          }
 
           auto* launch_clock = (dynamic_cast<StaClockData*>(launch_clock_data))
                                    ->get_prop_clock();
+          if (!launch_clock || !capture_clock) {
+            DLOG_INFO_FIRST_N(10)
+                << "skip setup/hold analysis with incomplete clock binding at "
+                << end_vertex->getName();
+            continue;
+          }
 
           std::optional<int> cppr;
           if (launch_clock == capture_clock) {
@@ -281,8 +450,19 @@ unsigned StaAnalyze::analyzeSetupHold(StaVertex* end_vertex, StaArc* check_arc,
               launch_clock_data,
               dynamic_cast<StaClockData*>(capture_clock_data));
 
-          int constrain_value = check_arc->get_arc_delay(
-              analysis_mode, delay_data->get_trans_type());
+          auto* arc_delay_data = check_arc->getArcDelayData(
+              analysis_mode, delay_data->get_trans_type(),
+              delay_data->get_data_epoch());
+          if (!arc_delay_data) {
+            arc_delay_data =
+                check_arc->getArcDelayData(analysis_mode,
+                                           delay_data->get_trans_type());
+          }
+          int constrain_value = arc_delay_data
+                                    ? arc_delay_data->get_arc_delay()
+                                    : check_arc->get_arc_delay(
+                                          analysis_mode,
+                                          delay_data->get_trans_type());
 
           StaSeqPathData* seq_data = new StaSeqPathData(
               dynamic_cast<StaPathDelayData*>(delay_data), launch_clock_data,
@@ -290,6 +470,16 @@ unsigned StaAnalyze::analyzeSetupHold(StaVertex* end_vertex, StaArc* check_arc,
               std::move(clock_pair), cppr, constrain_value);
 
           seq_data->set_check_arc(check_arc);
+          if (auto exact_check_pair_binding = buildExactSeqCheckPairBinding(
+                  check_arc, analysis_mode,
+                  dynamic_cast<StaPathDelayData*>(delay_data),
+                  dynamic_cast<StaClockData*>(capture_clock_data));
+              exact_check_pair_binding) {
+            seq_data->set_check_pair_binding(*exact_check_pair_binding);
+          } else if (arc_delay_data && arc_delay_data->has_check_pair_binding()) {
+            seq_data->set_check_pair_binding(
+                *arc_delay_data->get_check_pair_binding());
+          }
 
           // add the data to path group.
           Sta* ista = getSta();

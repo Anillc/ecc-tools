@@ -1,0 +1,21 @@
+set(ICTS_DATABASE_ADAPTER_STA ${ICTS_DATABASE}/adapter/sta)
+
+add_subdirectory(${ICTS_DATABASE_ADAPTER_STA})
+
+add_library(icts_source_database_adapter INTERFACE)
+
+target_link_libraries(
+  icts_source_database_adapter
+  INTERFACE
+  icts_source_database_adapter_sta
+)
+
+target_include_directories(icts_source_database_adapter INTERFACE ${ICTS_DATABASE}/adapter)
+
+if(DEBUG_ICTS_SOURCE_DATABASE_ADAPTER)
+  if(MSVC)
+    target_compile_options(icts_source_database_adapter INTERFACE /Zi /Od /Ob0)
+  else()
+    target_compile_options(icts_source_database_adapter INTERFACE -g3 -O0 -fno-inline -fno-omit-frame-pointer)
+  endif()
+endif()

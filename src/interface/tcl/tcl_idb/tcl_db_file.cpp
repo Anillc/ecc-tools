@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "tcl_db_file.h"
 
+#include "db_fm/file_soc.h"
 #include "idm.h"
 #include "report_manager.h"
 #include "tool_manager.h"
@@ -370,6 +371,9 @@ CmdSaveGDS::CmdSaveGDS(const char* cmd_name) : TclCmd(cmd_name)
 
   auto* path = new TclStringOption(TCL_PATH, 1);
   addOption(path);
+
+  auto* harden_option = new TclSwitchOption("-harden");
+  addOption(harden_option);
 }
 
 unsigned CmdSaveGDS::check()
@@ -379,6 +383,10 @@ unsigned CmdSaveGDS::check()
 
   TclOption* path = getOptionOrArg(TCL_PATH);
   LOG_FATAL_IF(!path);
+
+  TclOption* harden_option = getOptionOrArg("-harden");
+  LOG_FATAL_IF(!harden_option);
+
   return 1;
 }
 
@@ -390,8 +398,13 @@ unsigned CmdSaveGDS::exec()
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
   auto str_path = def_path->getStringVal();
+  TclOption* harden_option = getOptionOrArg("-harden");
+  bool is_harden = false;
+  if (harden_option->is_set_val()) {
+    is_harden = true;
+  }
   if (str_path != nullptr) {
-    dmInst->saveGDSII(str_path);
+    dmInst->saveGDSII(str_path, is_harden);
     return 1;
   }
   return 1;
@@ -403,23 +416,23 @@ unsigned CmdSaveGDS::exec()
 
 CmdSaveJSON::CmdSaveJSON(const char* cmd_name) : TclCmd(cmd_name)
 {
-  auto* option = new TclStringOption(TCL_NAME, 1, nullptr);
-  addOption(option);
+  // auto* option = new TclStringOption(TCL_NAME, 1, nullptr);
+  // addOption(option);
 
   auto* path = new TclStringOption(TCL_PATH, 1);
   addOption(path);
 
-  auto* discard = new TclStringOption(TCL_JSON_OPTION, 1, nullptr);
-  addOption(discard);
+  // auto* discard = new TclStringOption(TCL_JSON_OPTION, 1, nullptr);
+  // addOption(discard);
 }
 
 unsigned CmdSaveJSON::check()
 {
-  TclOption* option = getOptionOrArg(TCL_NAME);
-  LOG_FATAL_IF(!option);
+  // TclOption* option = getOptionOrArg(TCL_NAME);
+  // LOG_FATAL_IF(!option);
 
-  TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
-  LOG_FATAL_IF(!discard);
+  // TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
+  // LOG_FATAL_IF(!discard);
 
   TclOption* path = getOptionOrArg(TCL_PATH);
   LOG_FATAL_IF(!path);
@@ -433,9 +446,9 @@ unsigned CmdSaveJSON::exec()
   }
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
-  TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
+  // TclOption* discard = getOptionOrArg(TCL_JSON_OPTION);
   auto str_path = def_path->getStringVal();
-  auto str_option = discard->getStringVal();
+  auto str_option = "";
   // std::cout<<str_path<<std::endl;
   if (str_path != nullptr) {
     dmInst->saveJSON(str_path, str_option);
@@ -443,6 +456,187 @@ unsigned CmdSaveJSON::exec()
   }
 
   return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdWriteSocJson::CmdWriteSocJson(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+
+  auto* harden_cores = new TclStringListOption("-harden_cores", 1);
+  addOption(harden_cores);
+}
+
+unsigned CmdWriteSocJson::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  TclOption* harden_cores = getOptionOrArg("-harden_cores");
+  LOG_FATAL_IF(!harden_cores);
+
+  return 1;
+}
+
+unsigned CmdWriteSocJson::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  TclOption* harden_cores = getOptionOrArg("-harden_cores");
+  std::vector<std::string> harden_core_list;
+  if (harden_cores) {
+    harden_core_list = harden_cores->getStringList();
+  }
+
+  idb::JsonSoc soc_file(str_path, harden_core_list);
+  return soc_file.saveFileData() ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdSaveData::CmdSaveData(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+}
+
+unsigned CmdSaveData::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  return 1;
+}
+
+unsigned CmdSaveData::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  return dmInst->saveData(str_path) ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdLoadData::CmdLoadData(const char* cmd_name) : TclCmd(cmd_name)
+{
+  auto* path = new TclStringOption(TCL_PATH, 1);
+  addOption(path);
+}
+
+unsigned CmdLoadData::check()
+{
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  LOG_FATAL_IF(!path);
+
+  return 1;
+}
+
+unsigned CmdLoadData::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  TclOption* path = getOptionOrArg(TCL_PATH);
+  auto* str_path = path->getStringVal();
+  if (str_path == nullptr) {
+    return 0;
+  }
+
+  return dmInst->loadData(str_path) ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdResetData::CmdResetData(const char* cmd_name) : TclCmd(cmd_name)
+{
+}
+
+unsigned CmdResetData::check()
+{
+  return 1;
+}
+
+unsigned CmdResetData::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  dmInst->resetData();
+  return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CmdValidateIdb::CmdValidateIdb(const char* cmd_name) : TclCmd(cmd_name)
+{
+  addOption(new TclStringOption(TCL_PATH, 1, nullptr));
+  addOption(new TclIntOption("-check_floating", 1, 0));
+}
+
+unsigned CmdValidateIdb::check()
+{
+  return 1;
+}
+
+unsigned CmdValidateIdb::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+
+  auto* design = dmInst->get_idb_design();
+  if (design == nullptr) {
+    std::cout << "iDB validate failed: design is null." << std::endl;
+    return 0;
+  }
+
+  const bool check_floating = getOptionOrArg("-check_floating")->getIntVal() != 0;
+  auto result = design->validateConnectivity(check_floating);
+
+  TclOption* path_option = getOptionOrArg(TCL_PATH);
+  const char* path = path_option == nullptr ? nullptr : path_option->getStringVal();
+  if (path != nullptr && path[0] != '\0' && !design->writeConnectivitySnapshot(path, check_floating)) {
+    std::cout << "iDB validate failed: cannot write snapshot " << path << std::endl;
+    return 0;
+  }
+
+  std::cout << "iDB validate " << (result.ok ? "passed" : "failed") << ": duplicate_net=" << result.duplicate_net_count
+            << ", duplicate_instance=" << result.duplicate_instance_count << ", duplicate_io_pin=" << result.duplicate_io_pin_count
+            << ", stale_regular_pin_ref=" << result.stale_regular_pin_ref_count
+            << ", stale_special_pin_ref=" << result.stale_special_pin_ref_count
+            << ", pin_reverse_mismatch=" << result.pin_reverse_mismatch_count
+            << ", net_instance_mismatch=" << result.net_instance_mismatch_count
+            << ", duplicate_pin_ref=" << result.duplicate_pin_ref_count << ", floating_pin=" << result.floating_pin_count << std::endl;
+  for (const auto& message : result.messages) {
+    std::cout << "  " << message << std::endl;
+  }
+
+  return result.ok ? 1 : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -50,6 +50,8 @@ bool staRun(const std::string& output);
 
 bool staInit(const std::string& output);
 
+bool releaseSta();
+
 bool staReport(const std::string& output);
 bool setDesignWorkSpace(const std::string& design_workspace);
 
@@ -76,6 +78,8 @@ std::string makeRCTreeObjNode(const std::string& pin_port_name, float cap);
 bool makeRCTreeEdge(const std::string& net_name, std::string& node1, std::string& node2, float res);
 bool updateRCTreeInfo(const std::string& net_name);
 bool updateTiming();
+bool writeTimingModel(const std::string& output_lib_path,
+                      const std::string& analysis_mode = "max");
 bool reportSta();
 
 std::vector<PathWireTimingData> getWireTimingData(unsigned n_worst_path_per_clock);

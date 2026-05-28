@@ -11,6 +11,7 @@ target_link_libraries(tcl_idb
         shell-cmd
         str
         idm
+        file_manager_db
         ieda_report
 )
 

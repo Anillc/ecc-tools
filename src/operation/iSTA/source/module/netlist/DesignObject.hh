@@ -1,16 +1,16 @@
 // ***************************************************************************************
 // Copyright (c) 2023-2025 Peng Cheng Laboratory
-// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of Sciences
-// Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2025 Institute of Computing Technology, Chinese Academy of
+// Sciences Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan PSL v2.
-// You may obtain a copy of Mulan PSL v2 at:
+// You can use this software according to the terms and conditions of the Mulan
+// PSL v2. You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
@@ -42,9 +42,11 @@ class Net;
  */
 class DesignObject {
  public:
+  DesignObject() = default;
   explicit DesignObject(const char* name);
   virtual ~DesignObject() = default;
 
+  DesignObject(const DesignObject& other);
   DesignObject(DesignObject&& other) noexcept;
   DesignObject& operator=(DesignObject&& rhs) noexcept;
 
@@ -118,8 +120,16 @@ class DesignObject {
   virtual void set_coordinate(double /*x*/, double /*y*/) { LOG_FATAL << "The func is not defined."; }
   virtual std::optional<Coordinate> get_coordinate() { return std::nullopt; }
 
+  // set_ideal_network support.
+  // Note: this flag currently records the SDC object tagging only.
+  // The existing clock ideal/propagated behavior in STA is still driven by
+  // StaClock::ClockType via create_clock / set_propagated_clock.
+  void set_ideal_network(bool is_ideal = true) { _is_ideal_network = is_ideal; }
+  bool is_ideal_network() const { return _is_ideal_network; }
+
  private:
   std::string _name;
+  bool _is_ideal_network = false;
 };
 
 }  // namespace ista

@@ -318,51 +318,91 @@ void StaVertex::addData(StaPathDelayData* delay_data) {
 }
 
 /**
+ * @brief set path based propagatd, all path data would be stored in data
+ * bucket.
+ *
+ */
+void StaVertex::setPathBasedPropagated() {
+  _slew_bucket.set_is_path_based();
+  _path_delay_bucket.set_is_path_based();
+}
+
+/**
  * @brief Init slew data, if not create zero slew default.
  */
-void StaVertex::initSlewData() {
+void StaVertex::initSlewData(int init_slew, bool is_set_launch_data,
+                             bool force_create, uint64_t data_epoch) {
   auto& slew_bucket = getSlewBucket();
-  if (!slew_bucket.empty()) {
+  if (!force_create && !slew_bucket.empty()) {
     return;
   }
 
-  auto construct_slew_data = [](AnalysisMode delay_type, TransType trans_type,
-                                StaVertex* own_vertex, int slew) {
+  auto construct_slew_data = [is_set_launch_data, data_epoch](
+                                 AnalysisMode delay_type, TransType trans_type,
+                                 StaVertex* own_vertex, int slew) {
     StaSlewData* slew_data =
         new StaSlewData(delay_type, trans_type, own_vertex, slew);
+    slew_data->set_data_epoch(data_epoch);
+    if (is_set_launch_data) {
+      slew_data->set_launch_slew_data(
+          slew_data);  // set origin launch slew data for propagate compare.
+    }
+
     own_vertex->addData(slew_data);
   };
 
   /*if not, create default zero slew.*/
-  construct_slew_data(AnalysisMode::kMax, TransType::kRise, this, 0);
-  construct_slew_data(AnalysisMode::kMax, TransType::kFall, this, 0);
-  construct_slew_data(AnalysisMode::kMin, TransType::kRise, this, 0);
-  construct_slew_data(AnalysisMode::kMin, TransType::kFall, this, 0);
+  construct_slew_data(AnalysisMode::kMax, TransType::kRise, this, init_slew);
+  construct_slew_data(AnalysisMode::kMax, TransType::kFall, this, init_slew);
+  construct_slew_data(AnalysisMode::kMin, TransType::kRise, this, init_slew);
+  construct_slew_data(AnalysisMode::kMin, TransType::kFall, this, init_slew);
 }
 
 /**
- * @brief Init at data, if not create zero at default.
- * 
+ * @brief Init path delay data.
+ *
+ * @param init_at
  */
-void StaVertex::initPathDelayData() {
-  auto& data_bucket = getDataBucket();
-  if (!data_bucket.empty()) {
+void StaVertex::initPathDelayData(int init_at, bool force_create,
+                                  uint64_t data_epoch) {
+  auto& path_delay_bucket = getDataBucket();
+  if (!force_create && !path_delay_bucket.empty()) {
     return;
   }
 
-  auto construct_path_delay_data = [](AnalysisMode delay_type, TransType trans_type,
-                                StaVertex* own_vertex, int at) {
-    auto* path_delay_data =
-        new StaPathDelayData(delay_type, trans_type, at, nullptr, own_vertex);
-    own_vertex->addData(path_delay_data);
-  };
+  auto construct_path_delay_data = [this, data_epoch](
+                                       AnalysisMode delay_type,
+                                       TransType trans_type, double init_at) {
+        StaPathDelayData* path_delay_data = new StaPathDelayData(
+            delay_type, trans_type, NS_TO_FS(init_at), nullptr, this);
+        path_delay_data->set_data_epoch(data_epoch);
+        // path_delay_data->set_is_need_keep();
+        path_delay_data->set_launch_delay_data(
+            path_delay_data);  // set origin launch delay data for propagate
+                               // compare.
+        addData(path_delay_data);
+      };
 
-  /*if not, create default zero path delay.*/
-  construct_path_delay_data(AnalysisMode::kMax, TransType::kRise, this, 0);
-  construct_path_delay_data(AnalysisMode::kMax, TransType::kFall, this, 0);
-  construct_path_delay_data(AnalysisMode::kMin, TransType::kRise, this, 0);
-  construct_path_delay_data(AnalysisMode::kMin, TransType::kFall, this, 0);
+  construct_path_delay_data(AnalysisMode::kMax, TransType::kRise, init_at);
+  construct_path_delay_data(AnalysisMode::kMax, TransType::kFall, init_at);
+  construct_path_delay_data(AnalysisMode::kMin, TransType::kRise, init_at);
+  construct_path_delay_data(AnalysisMode::kMin, TransType::kFall, init_at);
+}
 
+/**
+ * @brief Set constrain time for character timing.
+ *
+ * @param constrain_rt
+ */
+void StaVertex::setConstainTime(AnalysisMode analysis_mode,
+                                TransType trans_type, int constrain_rt) {
+  StaData* delay_data;
+  FOREACH_DELAY_DATA(this, delay_data) {
+    if ((analysis_mode == delay_data->get_delay_type()) &&
+        (trans_type == delay_data->get_trans_type())) {
+      delay_data->set_req_time(constrain_rt);
+    }
+  }
 }
 
 /**
@@ -798,6 +838,65 @@ StaSlewData* StaVertex::getSlewData(AnalysisMode analysis_mode,
 }
 
 /**
+ * @brief get worst slew data.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return StaSlewData*
+ */
+StaSlewData* StaVertex::getWorstSlewData(AnalysisMode analysis_mode,
+                                        TransType trans_type) {
+  std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
+      data_queue(sta_data_cmp);
+
+  StaData* data;
+  FOREACH_SLEW_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      data_queue.push(data);
+    }
+  }
+
+  if (data_queue.empty()) {
+    return nullptr;
+  }
+
+  return dynamic_cast<StaSlewData*>(data_queue.top());
+}
+
+/**
+ * @brief get worst slew data propagated from start vertex.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return StaSlewData*
+ */
+StaSlewData* StaVertex::getWorstSlewDataFromStart(AnalysisMode analysis_mode,
+                                                  TransType trans_type,
+                                                  StaVertex* start_vertex) {
+  std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
+      data_queue(sta_data_cmp);
+
+  StaData* data;
+  FOREACH_SLEW_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      auto path_data = data->getPathData();
+      auto* path_start_vertex = path_data.top()->get_own_vertex();
+      if (path_start_vertex == start_vertex) {
+        data_queue.push(data);
+      }
+    }
+  }
+
+  if (data_queue.empty()) {
+    return nullptr;
+  }
+
+  return dynamic_cast<StaSlewData*>(data_queue.top());
+}
+
+/**
  * @brief Find the exist path delay data.
  *
  * @param analysis_mode
@@ -820,6 +919,76 @@ StaPathDelayData* StaVertex::getPathDelayData(AnalysisMode analysis_mode,
 
   return nullptr;
 }
+
+/**
+ * @brief Find the worst path delay data.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return StaPathDelayDatea*
+ */
+StaPathDelayData* StaVertex::getWorstPathDelayData(AnalysisMode analysis_mode,
+                                                   TransType trans_type) {
+  std::priority_queue<StaData*, std::vector<StaData*>, decltype(sta_data_cmp)>
+      data_queue(sta_data_cmp);
+
+  StaData* data;
+  FOREACH_DELAY_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      data_queue.push(data);
+    }
+  }
+
+  if (data_queue.empty()) {
+    return nullptr;
+  }
+
+  return dynamic_cast<StaPathDelayData*>(data_queue.top());
+}
+
+/**
+ * @brief get the worst delay path data which from differenct start vertex to
+ * the vertex.
+ *
+ * @param analysis_mode
+ * @param trans_type
+ * @return std::map<StaVertex, StaPathDelayData*>
+ */
+std::map<StaVertex*, StaPathDelayData*>
+StaVertex::getDifferentStartPathDelayData(AnalysisMode analysis_mode,
+                                          TransType trans_type) {
+  using PathDataQueue = std::priority_queue<StaData*, std::vector<StaData*>,
+                                            decltype(sta_data_cmp)>;
+  std::map<StaVertex*, PathDataQueue> start_vertex_path_data_queue;
+
+  StaData* data;
+  FOREACH_DELAY_DATA(this, data) {
+    if ((data->get_delay_type() == analysis_mode) &&
+        (data->get_trans_type() == trans_type)) {
+      auto path_data = dynamic_cast<StaPathDelayData*>(data)->getPathData();
+      auto* path_start_vertex = path_data.top()->get_own_vertex();
+
+      if (!start_vertex_path_data_queue.contains(path_start_vertex)) {
+        PathDataQueue data_queue(sta_data_cmp);
+        start_vertex_path_data_queue.emplace(path_start_vertex, data_queue);
+      }
+
+      auto& data_queue = start_vertex_path_data_queue[path_start_vertex];
+
+      data_queue.push(data);
+    }
+  }
+
+  std::map<StaVertex*, StaPathDelayData*> start_vertex_to_worst_data;
+
+  for (auto& [start_vertex, data_queue] : start_vertex_path_data_queue) {
+    auto* path_delay_data = dynamic_cast<StaPathDelayData*>(data_queue.top());
+    start_vertex_to_worst_data[start_vertex] = path_delay_data;
+  }
+
+  return start_vertex_to_worst_data;
+}  // namespace ista
 
 /**
  * @brief Get the cap for the driver node, or pin cap for the load node.

@@ -31,6 +31,14 @@
 
 namespace ista {
 
+Netlist::~Netlist() {
+  for (auto* hier_sub_netlist : _hier_sub_netlists) {
+    if (hier_sub_netlist != nullptr) {
+      delete hier_sub_netlist;
+      hier_sub_netlist = nullptr;
+    }
+  }
+}
 /**
  * @brief find port accord port pattern, thas maybe regexp, wildcard, nocase.
  *
@@ -163,9 +171,17 @@ void Netlist::reset() {
  * @param include_pwr_gnd_pins
  */
 void Netlist::writeVerilog(const char* verilog_file_name,
-                           std::set<std::string> exclude_cell_names) {
-  NetlistWriter writer(verilog_file_name, exclude_cell_names, *this);
+                           std::set<std::string> exclude_cell_names,
+                           bool is_hier_module) {
+  NetlistWriter writer(verilog_file_name, exclude_cell_names, this);
   writer.writeModule();
+  // Only suitable for two hierarichal-modules situation.
+  if (is_hier_module) {
+    for (auto& hier_netlist : get_hier_sub_netlists()) {
+      writer.set_netlist(hier_netlist);
+      writer.writeModule();
+    }
+  }
 }
 
 PortIterator::PortIterator(Netlist* nl) : _nl(nl), _iter(nl->_ports.begin()) {}

@@ -1,0 +1,8 @@
+add_subdirectory(${ICTS_MODULE_ROUTING}/database)
+add_subdirectory(${ICTS_MODULE_ROUTING}/helper)
+add_subdirectory(${ICTS_MODULE_ROUTING}/flute)
+add_subdirectory(${ICTS_MODULE_ROUTING}/salt)
+add_subdirectory(${ICTS_MODULE_ROUTING}/bound_skew_tree)
+add_subdirectory(${ICTS_MODULE_ROUTING}/concurrent_bst_salt)
+add_subdirectory(${ICTS_MODULE_ROUTING}/local_legalization)
+add_subdirectory(${ICTS_MODULE_ROUTING}/router)

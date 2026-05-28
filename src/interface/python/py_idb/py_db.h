@@ -30,6 +30,12 @@ bool initVerilog(const std::string& verilog_path, const std::string& top_module)
 bool saveDef(const std::string& def_name);
 bool saveMacroTCL(const std::string& tcl_name);
 bool saveNetList(const std::string& netlist_path, std::set<std::string> exclude_cell_names = {}, bool is_add_space_for_escape_name = false);
-bool saveGDSII(const std::string& gds_name);
+bool saveGDSII(const std::string& gds_name, bool is_harden = false);
+bool saveJson(const std::string& path);
+bool saveData(const std::string& path);
+bool resetData();
+bool loadData(const std::string& path);
+bool writeSocJson(const std::string& path, const std::vector<std::string>& harden_cores = {});
+bool writeAbstractLef(const std::string& output_lef_path);
 
 }  // namespace python_interface

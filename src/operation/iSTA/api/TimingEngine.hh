@@ -25,6 +25,9 @@
 #pragma once
 
 #include <optional>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include "TimingDBAdapter.hh"
 #include "TimingIDBAdapter.hh"
@@ -111,6 +114,11 @@ class TimingEngine {
     _ista->resetConstraint();
     _ista->readSdc(sdc_file);
     return *this;
+  }
+
+  std::vector<std::tuple<std::string, std::string, double, bool>>
+  readSdcClockPeriodsOnly(const char* sdc_file) {
+    return _ista->readSdcClockPeriodsOnly(sdc_file);
   }
 
   TimingEngine &readSpef(const char *spef_file) {
@@ -252,6 +260,8 @@ class TimingEngine {
       const char* rc_tree_name);
 
   TimingEngine &incrUpdateTiming();
+  TimingEngine &prepareCharTiming();
+  TimingEngine &updateCharTiming();
 
   TimingEngine &updateTiming() {
     updateAllRCTree();
@@ -280,6 +290,9 @@ class TimingEngine {
     _ista->set_n_worst_path_per_clock(n_worst_path_per_clock);
     return  _ista->reportWirePaths();
   }
+
+  TimingEngine &extractTimingModel(AnalysisMode analysis_mode,
+                                   const char *model_path);
 
   std::vector<StaClock *> getClockList();
   void setPropagatedClock(const char *clock_name);

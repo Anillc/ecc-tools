@@ -36,7 +36,7 @@
 #include "BTreeMap.hh"
 #include "FlatMap.hh"
 #include "FlatSet.hh"
-#include "LibParserRustC.hh"
+#include "LibParserCpp.hh"
 #include "Vector.hh"
 #include "include/Config.hh"
 #include "include/Type.hh"
@@ -51,9 +51,14 @@ class LibCell;
 class LibLibrary;
 class LibAttrValue;
 class LibAxis;
+
+enum class LibValueScale
+{
+  kInternal = 0,
+  kLibrary = 1
+};
 class LibLutTableTemplate;
 class LibVectorTable;
-class LibertyExpr;
 
 /**
  * @brief The base object of the library.
@@ -103,6 +108,8 @@ class LibAxis : public LibObject
   const char* get_axis_name() { return _axis_name.c_str(); }
 
   void set_axis_values(std::vector<std::unique_ptr<LibAttrValue>>&& table_values) { _axis_values = std::move(table_values); }
+  void set_value_scale(LibValueScale value_scale) { _value_scale = value_scale; }
+  LibValueScale get_value_scale() const { return _value_scale; }
 
   auto& get_axis_values() { return _axis_values; }
   std::size_t get_axis_size() { return _axis_values.size(); }
@@ -113,6 +120,7 @@ class LibAxis : public LibObject
   std::string _axis_name;  //!< The axis name.
 
   std::vector<std::unique_ptr<LibAttrValue>> _axis_values;  //!< The axis sample values.
+  LibValueScale _value_scale = LibValueScale::kInternal;
 
   FORBIDDEN_COPY(LibAxis);
 };
@@ -168,7 +176,10 @@ class LibTable : public LibObject
   Vector<std::unique_ptr<LibAxis>>& get_axes();
   auto getAxesSize() { return _axes.size(); }
 
+  void addTableValue(std::unique_ptr<LibAttrValue> table_value) { _table_values.emplace_back(std::move(table_value)); }
   void set_table_values(std::vector<std::unique_ptr<LibAttrValue>>&& table_values) { _table_values = std::move(table_values); }
+  void set_value_scale(LibValueScale value_scale) { _value_scale = value_scale; }
+  LibValueScale get_value_scale() const { return _value_scale; }
   auto& get_table_values() { return _table_values; }
 
   void set_corner_type(CornerType corner_type) { _corner_type = corner_type; }
@@ -190,6 +201,7 @@ class LibTable : public LibObject
 
   CornerType _corner_type = CornerType::kDefault;
   LibLutTableTemplate* _table_template;  //!< The lut template.
+  LibValueScale _value_scale = LibValueScale::kInternal;
 
   FORBIDDEN_COPY(LibTable);
 };
@@ -347,7 +359,6 @@ class LibTableModel : public LibObject
  private:
   FORBIDDEN_COPY(LibTableModel);
 };
-
 #define CAST_TYPE_TO_INDEX(type) ((static_cast<int>(type) > 3) ? (static_cast<int>(type) - 4) : static_cast<int>(type))
 #define CAST_CURRENT_TYPE_TO_INDEX(type) (static_cast<int>(type) - 6)
 #define CAST_POWER_TYPE_TO_INDEX(type) (static_cast<int>(type) - 8)
@@ -561,6 +572,9 @@ class LibPort : public LibObject
   void set_clock_gate_enable_pin(bool clock_gate_enable_pin) { _clock_gate_enable_pin = clock_gate_enable_pin; }
   bool get_clock_gate_enable_pin() { return _clock_gate_enable_pin; }
 
+  void set_is_clock(bool is_clock) { _is_clock = is_clock; }
+  bool get_is_clock() const { return _is_clock; }
+
   void set_port_cap(double cap) { _port_cap = cap; }
   double get_port_cap() const { return _port_cap; }
 
@@ -573,8 +587,8 @@ class LibPort : public LibObject
   void set_port_slew_limit(AnalysisMode mode, double slew_limit);
   std::optional<double> get_port_slew_limit(AnalysisMode mode);
 
-  void set_func_expr(RustLibertyExpr* lib_expr) { _func_expr = lib_expr; }
-  RustLibertyExpr* get_func_expr() { return _func_expr; }
+  void set_func_expr(::LibertyExpr* lib_expr) { _func_expr = lib_expr; }
+  ::LibertyExpr* get_func_expr() { return _func_expr; }
 
   void set_func_expr_str(const char* func_expr_str) { _func_expr_str = func_expr_str; }
   auto& get_func_expr_str() { return _func_expr_str; }
@@ -615,7 +629,8 @@ class LibPort : public LibObject
   bool _is_clock_pin = false;           //!< The flag of clock pin.
   bool _clock_gate_clock_pin = false;   //!< The flag of gate clock pin.
   bool _clock_gate_enable_pin = false;  //!< The flag of gate enable pin.
-  RustLibertyExpr* _func_expr = nullptr;
+  bool _is_clock = false;               //!< The explicit clock flag for emitted pins.
+  ::LibertyExpr* _func_expr = nullptr;
   std::string _func_expr_str;                                        //!< store func expr string for debug.
   double _port_cap = 0.0;                                            //!< The input pin corresponding to the port has capacitance.
   std::array<std::optional<double>, MODE_TRANS_SPLIT> _port_caps{};  //!< May be port cap split max rise, max fall, min rise,
@@ -740,7 +755,7 @@ class LibLeakagePower : public LibObject
  private:
   std::string _related_pg_port;  //!< The related pg pin of the leakage power.
   std::string _when;             //!< The when of the leakage power.
-  double _value;                 //!< The value of the leakage power.
+  double _value = 0.0;           //!< The value of the leakage power.
   LibCell* _owner_cell;          //!< The cell owner the port.
 
   FORBIDDEN_COPY(LibLeakagePower);
@@ -822,6 +837,8 @@ class LibArc : public LibObject
   void set_timing_type(const char* timing_type);
   TimingType get_timing_type() { return _timing_type; }
   bool isMatchTimingType(TransType trans_type);
+  void set_when(const char* when) { _when = when; }
+  auto& get_when() { return _when; }
 
   void set_owner_cell(LibCell* ower_cell) { _owner_cell = ower_cell; }
   LibCell* get_owner_cell() { return _owner_cell; }
@@ -867,14 +884,27 @@ class LibArc : public LibObject
            || (_timing_type == TimingType::kRecoveryFalling) || (_timing_type == TimingType::kRemovalFalling);
   }
 
-  unsigned isRisingTriggerArc() { return (_timing_type == TimingType::kRisingEdge); }
+  unsigned isRisingTriggerArc()
+  {
+    return (_timing_type == TimingType::kRisingEdge) || (_timing_type == TimingType::kSetupRising)
+           || (_timing_type == TimingType::kHoldRising);
+  }
 
-  unsigned isFallingTriggerArc() { return (_timing_type == TimingType::kFallingEdge); }
+  unsigned isFallingTriggerArc()
+  {
+    return (_timing_type == TimingType::kFallingEdge) || (_timing_type == TimingType::kSetupFalling)
+           || (_timing_type == TimingType::kHoldFalling);
+  }
 
   void set_table_model(std::unique_ptr<LibTableModel>&& table_model) { _table_model = std::move(table_model); }
   LibTableModel* get_table_model() { return _table_model.get(); }
 
-  double getDelayOrConstrainCheckNs(TransType trans_type, double slew, double load_or_constrain_slew);
+  // Historical API contract:
+  // - delay arc: first arg is slew in ns, second arg is load in library cap unit
+  // - check arc: first arg is related-pin slew in ns, second arg is
+  //   constrained-pin slew in liberty table time unit
+  double getDelayOrConstrainCheckNs(TransType trans_type, double slew,
+                                    double load_or_constrain_slew);
   double getDelaySigma(AnalysisMode mode, TransType trans_type, double slew, double load_or_constrain_slew);
   double getSlewNs(TransType trans_type, double slew, double load);
   double getSlewSigma(AnalysisMode mode, TransType trans_type, double slew, double load);
@@ -891,6 +921,7 @@ class LibArc : public LibObject
   LibCell* _owner_cell;                            //!< The cell owner the port.
   TimingSense _timing_sense;                       //!< The arc timing sense.
   TimingType _timing_type = TimingType::kDefault;  //!< The arc timing type.
+  std::string _when;                               //!< The timing arc condition.
 
   std::unique_ptr<LibTableModel> _table_model;  //!< The arc timing model.
 
@@ -1108,12 +1139,13 @@ class LibCell : public LibObject
   void set_is_macro() { _is_macro_cell = 1; }
   [[nodiscard]] unsigned isMacroCell() const { return _is_macro_cell; }
 
+  double convertInternalPowerTableToMwNs(double query_table_power);
   double convertTablePowerToMw(double query_table_power);
 
  private:
   std::string _cell_name;                                             //!< The liberty cell name.
   double _cell_area;                                                  //!< The liberty cell area.
-  double _cell_leakage_power;                                         //!< The cell leakage power of the cell.
+  double _cell_leakage_power = 0.0;                                   //!< The cell leakage power of the cell.
   std::string _clock_gating_integrated_cell;                          //!< The clock gate cell.
   bool _is_clock_gating_integrated_cell = false;                      //!< The flag of the clock gate cell.
   std::vector<std::unique_ptr<LibLeakagePower>> _leakage_power_list;  //!< All leakage powers of the cell.
@@ -1264,9 +1296,9 @@ class LibLutTableTemplate : public LibObject
 
   const char* get_template_name() { return _template_name.c_str(); }
 
-  void set_template_variable1(const char* template_variable1) override
-  {
-    DLOG_FATAL_IF(_str2var.find(template_variable1) == _str2var.end()) << "not contain the template variable " << template_variable1;
+  void set_template_variable1(const char* template_variable1) override {
+    DLOG_FATAL_IF(!_str2var.contains(template_variable1))
+        << "not contain the template variable " << template_variable1;
     _template_variable1 = _str2var.at(template_variable1);
   }
 
@@ -1335,12 +1367,34 @@ class LibLibrary : public LibObject
   explicit LibLibrary(const char* lib_name) : _lib_name(lib_name) {}
   ~LibLibrary() = default;
 
-  LibLibrary(LibLibrary&& other) noexcept : _lib_name(std::move(other._lib_name)), _cells(std::move(other._cells)) {}
+  LibLibrary(LibLibrary&& other) noexcept
+      : _lib_name(std::move(other._lib_name)),
+        _cells(std::move(other._cells)),
+        _comment(std::move(other._comment)),
+        _simulation(other._simulation),
+        _library_features(std::move(other._library_features)),
+        _leakage_power_unit(std::move(other._leakage_power_unit)),
+        _power_unit_mw_scale(other._power_unit_mw_scale),
+        _current_unit_name(std::move(other._current_unit_name)),
+        _voltage_unit_name(std::move(other._voltage_unit_name)),
+        _nom_process(other._nom_process),
+        _nom_temperature(other._nom_temperature)
+  {
+  }
 
   LibLibrary& operator=(LibLibrary&& rhs) noexcept
   {
     _lib_name = std::move(rhs._lib_name);
     _cells = std::move(rhs._cells);
+    _comment = std::move(rhs._comment);
+    _simulation = rhs._simulation;
+    _library_features = std::move(rhs._library_features);
+    _leakage_power_unit = std::move(rhs._leakage_power_unit);
+    _power_unit_mw_scale = rhs._power_unit_mw_scale;
+    _current_unit_name = std::move(rhs._current_unit_name);
+    _voltage_unit_name = std::move(rhs._voltage_unit_name);
+    _nom_process = rhs._nom_process;
+    _nom_temperature = rhs._nom_temperature;
 
     return *this;
   }
@@ -1411,6 +1465,47 @@ class LibLibrary : public LibObject
 
   auto get_default_wire_load() { return _default_wire_load; }
 
+  void set_comment(std::string comment) { _comment = std::move(comment); }
+  const std::optional<std::string>& get_comment() const { return _comment; }
+
+  void set_simulation(bool simulation) { _simulation = simulation; }
+  const std::optional<bool>& get_simulation() const { return _simulation; }
+
+  void add_library_feature(std::string feature)
+  {
+    if (!feature.empty()) {
+      _library_features.emplace_back(std::move(feature));
+    }
+  }
+  const std::vector<std::string>& get_library_features() const { return _library_features; }
+
+  void set_leakage_power_unit(std::string leakage_power_unit)
+  {
+    _leakage_power_unit = std::move(leakage_power_unit);
+  }
+  const std::optional<std::string>& get_leakage_power_unit() const
+  {
+    return _leakage_power_unit;
+  }
+
+  void set_current_unit_name(std::string current_unit_name)
+  {
+    _current_unit_name = std::move(current_unit_name);
+  }
+  const std::optional<std::string>& get_current_unit_name() const
+  {
+    return _current_unit_name;
+  }
+
+  void set_voltage_unit_name(std::string voltage_unit_name)
+  {
+    _voltage_unit_name = std::move(voltage_unit_name);
+  }
+  const std::optional<std::string>& get_voltage_unit_name() const
+  {
+    return _voltage_unit_name;
+  }
+
   void set_cap_unit(CapacitiveUnit cap_unit) { _cap_unit = cap_unit; }
   CapacitiveUnit get_cap_unit() { return _cap_unit; }
 
@@ -1431,7 +1526,19 @@ class LibLibrary : public LibObject
     return 0.0;
   }
 
+  void set_power_unit_mw_scale(double power_unit_mw_scale)
+  {
+    _power_unit_mw_scale = power_unit_mw_scale;
+  }
+  double get_power_unit_mw_scale() const { return _power_unit_mw_scale; }
+  double convert_power_unit_to_mw(double src_value) const
+  {
+    return src_value * _power_unit_mw_scale;
+  }
+
   std::vector<std::unique_ptr<LibCell>>& get_cells() { return _cells; }
+  auto& get_lut_templates() { return _lut_templates; }
+  auto& get_types() { return _types; }
 
   void set_default_max_transition(double default_max_transition) { _default_max_transition = default_max_transition; }
   auto& get_default_max_transition() { return _default_max_transition; }
@@ -1444,6 +1551,18 @@ class LibLibrary : public LibObject
 
   void set_nom_voltage(double nom_voltage) { _nom_voltage = nom_voltage; }
   double get_nom_voltage() { return _nom_voltage; }
+
+  void set_nom_process(double nom_process) { _nom_process = nom_process; }
+  const std::optional<double>& get_nom_process() const { return _nom_process; }
+
+  void set_nom_temperature(double nom_temperature)
+  {
+    _nom_temperature = nom_temperature;
+  }
+  const std::optional<double>& get_nom_temperature() const
+  {
+    return _nom_temperature;
+  }
 
   void set_slew_lower_threshold_pct_rise(double slew_lower_threshold_pct_rise)
   {
@@ -1500,6 +1619,7 @@ class LibLibrary : public LibObject
   void set_slew_derate_from_library(double slew_derate_from_library) { _slew_derate_from_library = slew_derate_from_library; }
   double get_slew_derate_from_library() { return _slew_derate_from_library; }
 
+  void printLibertyLibrary(const char* lib_file_name);
   void printLibertyLibraryJson(const char* json_file_name);
 
  private:
@@ -1519,9 +1639,17 @@ class LibLibrary : public LibObject
 
   StrMap<LibType*> _str2type;
 
+  std::optional<std::string> _comment;
+  std::optional<bool> _simulation;
+  std::vector<std::string> _library_features;
+  std::optional<std::string> _leakage_power_unit;
+  std::optional<std::string> _current_unit_name;
+  std::optional<std::string> _voltage_unit_name;
+
   CapacitiveUnit _cap_unit = CapacitiveUnit::kFF;
   ResistanceUnit _resistance_unit = ResistanceUnit::kkOHM;
   TimeUnit _time_unit = TimeUnit::kNS;
+  double _power_unit_mw_scale = 1.0;
 
   std::optional<double> _default_max_transition;
   std::optional<double> _default_max_fanout;
@@ -1529,7 +1657,9 @@ class LibLibrary : public LibObject
 
   std::string _default_wire_load;
 
+  std::optional<double> _nom_process;
   double _nom_voltage = 0.0;  //!< The library nominal voltage
+  std::optional<double> _nom_temperature;
 
   /// @brief slew threshold
   double _slew_lower_threshold_pct_rise = 0.3;
@@ -1719,7 +1849,7 @@ class Lib
   Lib() = default;
   ~Lib() = default;
 
-  RustLibertyReader loadLibertyWithRustParser(const char* file_name);
+  LibertyReader loadLibertyWithCppParser(const char* file_name);
 
  private:
   FORBIDDEN_COPY(Lib);

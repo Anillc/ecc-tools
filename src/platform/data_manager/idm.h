@@ -84,6 +84,8 @@ class DataManager
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /// iDB init
   bool init(string config_path);
+  void reset();
+  void resetData();
   bool readLef(string config_path);
   bool readLef(vector<string> lef_paths, bool b_techlef = false);
   bool readDef(string path);
@@ -95,8 +97,10 @@ class DataManager
   bool saveLef(string lef_path);
   bool saveMacroTCL(string tcl_path);
   void saveVerilog(string verilog_path, std::set<std::string>&& exclude_cell_names = {}, bool is_add_space_for_escape_name = false);
-  bool saveGDSII(string path);
+  bool saveGDSII(string path, bool is_hardened = false);
   bool saveJSON(string path, string options);
+  bool saveData(string data_path);
+  bool loadData(string data_path);
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -218,7 +222,7 @@ class DataManager
   bool isOnDieBoundary(int32_t llx, int32_t lly, int32_t urx, int32_t ury, IdbOrient orient);
   bool isOnIOSite(int32_t llx, int32_t lly, int32_t urx, int32_t ury, IdbOrient orient);
   bool checkInstPlacer(int32_t llx, int32_t lly, int32_t urx, int32_t ury, IdbOrient orient);
-  void write_placement_back(float* x, float* y, int len);
+  void write_placement_back(const float* x, const float* y, int len);
   std::tuple<bool, std::vector<std::string>, std::vector<std::string>, int> isAllNetConnected();
   bool isNetConnected(std::string net_name);
   bool isNetConnected(IdbNet* net);

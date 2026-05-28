@@ -25,9 +25,6 @@
  */
 #include "ScriptEngine.hh"
 #include "UserShell.hh"
-#ifdef BUILD_GUI
-#include "tcl_register_gui.h"
-#endif
 
 #include "tcl_db.h"
 #include "tcl_db_file.h"
@@ -47,6 +44,11 @@ int registerCmdDB()
   registerTclCmd(CmdSaveLef, "lef_save");
   registerTclCmd(CmdSaveNetlist, "netlist_save");
   registerTclCmd(CmdSaveJSON, "json_save");
+  registerTclCmd(CmdSaveData, "save_data");
+  registerTclCmd(CmdResetData, "reset_data");
+  registerTclCmd(CmdLoadData, "load_data");
+  registerTclCmd(CmdValidateIdb, "idb_validate");
+  registerTclCmd(CmdWriteSocJson, "write_soc_json");
   registerTclCmd(CmdSaveGDS, "gds_save");
   registerTclCmd(CmdGenerateMPScript, "aimp_random");
 

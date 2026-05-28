@@ -5,6 +5,7 @@ add_library(py_idb ${PY_IDB_SRC})
 target_link_libraries(py_idb
 PUBLIC
         idm
+        file_manager_db
         pybind11::pybind11
         ieda_report
 )

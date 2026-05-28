@@ -31,7 +31,9 @@
 #include <set>
 #include <shared_mutex>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "FlatMap.hh"
 #include "StaClock.hh"
@@ -203,6 +205,9 @@ class Sta {
   auto& get_link_cells() { return _link_cells; }
 
   auto get_propagation_method() { return _propagation_method; }
+  void set_propagation_method(PropagationMethod propagation_method) {
+    _propagation_method = propagation_method;
+  }
 
   SdcConstrain* getConstrain();
 
@@ -210,6 +215,8 @@ class Sta {
   unsigned readLiberty(const char* lib_file);
   unsigned readLiberty(std::vector<std::string>& lib_files);
   unsigned readSdc(const char* sdc_file);
+  std::vector<std::tuple<std::string, std::string, double, bool>>
+  readSdcClockPeriodsOnly(const char* sdc_file);
   unsigned readSpef(const char* spef_file);
   unsigned readAocv(const char* aocv_file);
   unsigned readAocv(std::vector<std::string>& aocv_files);
@@ -233,7 +240,7 @@ class Sta {
   Netlist* get_netlist() { return &_netlist; }
   void resetNetlist() { _netlist.reset(); }
 
-  void addLibReaders(RustLibertyReader lib_reader) {
+  void addLibReaders(LibertyReader lib_reader) {
     std::unique_lock<std::mutex> lk(_mt);
     _lib_readers.emplace_back(std::move(lib_reader));
   }
@@ -534,6 +541,8 @@ class Sta {
 
   std::vector<StaSeqPathData*> getSeqData(StaVertex* vertex,
                                           StaData* delay_data);
+  std::vector<StaSeqPathData*> getSeqData(StaVertex* vertex,
+                                          AnalysisMode analysis_mode);
   double getWNS(const char* clock_name, AnalysisMode mode);
   double getTNS(const char* clock_name, AnalysisMode mode);
   double getLocalSkew(const char* clock_name, AnalysisMode mode,
@@ -656,7 +665,7 @@ class Sta {
       nullptr;       //!< The design top module of rust version.
   Netlist _netlist;  //!< The current top netlist for sta analysis.
 
-  std::vector<RustLibertyReader>
+  std::vector<LibertyReader>
       _lib_readers;  //!< The design lib parsed files.
   Vector<std::unique_ptr<LibLibrary>>
       _libs;  //!< The design libs of different corners.

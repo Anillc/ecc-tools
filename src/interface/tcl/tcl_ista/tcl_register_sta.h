@@ -41,6 +41,7 @@ int registerCmdSTA()
 {
   registerTclCmd(CmdSTARun, "run_sta");
   registerTclCmd(CmdSTAInit, "init_sta");
+  registerTclCmd(CmdSTARelease, "release_sta");
   registerTclCmd(CmdSTAReport, "report_sta");
   registerTclCmd(CmdBuildClockTree, "build_clock_tree");
 
@@ -54,10 +55,12 @@ int registerCmdSTA()
   registerTclCmd(ista::CmdReadSpef, "read_spef");
   registerTclCmd(ista::CmdReadSdc, "read_sdc");
   registerTclCmd(ista::CmdReportTiming, "report_timing");
+  registerTclCmd(ista::CmdWriteTimingModel, "write_timing_model");
   registerTclCmd(ista::CmdReportConstraint, "report_constraint");
   registerTclCmd(ista::CmdDefToVerilog, "def_to_verilog");
   registerTclCmd(ista::CmdVerilogToDef, "verilog_to_def");
   registerTclCmd(ista::CmdGetLibs, "get_libs");
+  registerTclCmd(CmdUpdateTiming, "update_timing");
   return EXIT_SUCCESS;
 }
 

@@ -23,6 +23,7 @@
  */
 #pragma once
 
+#include <optional>
 #include <stack>
 
 #include "Sta.hh"
@@ -60,6 +61,13 @@ class StaFunc {
 
   void set_is_incremental() { _is_incremental = true; }
   [[nodiscard]] bool isIncremental() const { return _is_incremental; }
+  void set_data_epoch_filter(uint64_t data_epoch) {
+    _data_epoch_filter = data_epoch;
+  }
+  void reset_data_epoch_filter() { _data_epoch_filter.reset(); }
+  const std::optional<uint64_t>& get_data_epoch_filter() const {
+    return _data_epoch_filter;
+  }
 
   void PrintTraceRecord();
 
@@ -74,6 +82,7 @@ class StaFunc {
   unsigned _is_trace_path : 1 = 0;
   unsigned _is_incremental : 1 = 0;
   unsigned _reserved : 30;
+  std::optional<uint64_t> _data_epoch_filter;
 
   std::stack<StaVertex*> _trace_path_record;
 };

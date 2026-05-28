@@ -42,6 +42,23 @@
 
 namespace ista {
 
+template <typename DumpFunc>
+static void execFirstSinkArcIfPresent(StaVertex* src_vertex,
+                                      StaVertex* snk_vertex,
+                                      DumpFunc& dump_func) {
+  if (!src_vertex || !snk_vertex) {
+    return;
+  }
+
+  auto snk_arcs = src_vertex->getSnkArc(snk_vertex);
+  auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
+  if (!snk_arc) {
+    return;
+  }
+
+  snk_arc->exec(dump_func);
+}
+
 StaReportPathSummary::StaReportPathSummary(const char* rpt_file_name,
                                            AnalysisMode analysis_mode,
                                            unsigned n_worst)
@@ -919,9 +936,7 @@ unsigned StaReportPathDump::operator()(StaSeqPathData* seq_path_data) {
     own_vertex->exec(dump_yaml);
 
     if (last_vertex) {
-      auto snk_arcs = last_vertex->getSnkArc(own_vertex);
-      auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
-      snk_arc->exec(dump_yaml);
+      execFirstSinkArcIfPresent(last_vertex, own_vertex, dump_yaml);
     }
 
     last_vertex = own_vertex;
@@ -967,9 +982,7 @@ unsigned StaReportPathYaml::operator()(StaSeqPathData* seq_path_data) {
     dump_delay_yaml.set_trans_type(path_delay_data->get_trans_type());
 
     if (last_vertex) {
-      auto snk_arcs = last_vertex->getSnkArc(own_vertex);
-      auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
-      snk_arc->exec(dump_delay_yaml);
+      execFirstSinkArcIfPresent(last_vertex, own_vertex, dump_delay_yaml);
     }
 
     own_vertex->exec(dump_delay_yaml);
@@ -1032,9 +1045,7 @@ unsigned StaReportWirePathYaml::operator()(StaSeqPathData* seq_path_data) {
     dump_wire_yaml.set_trans_type(path_delay_data->get_trans_type());
 
     if (last_vertex) {
-      auto snk_arcs = last_vertex->getSnkArc(own_vertex);
-      auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
-      snk_arc->exec(dump_wire_yaml);
+      execFirstSinkArcIfPresent(last_vertex, own_vertex, dump_wire_yaml);
     }
 
     own_vertex->exec(dump_wire_yaml);
@@ -1088,9 +1099,7 @@ unsigned StaReportWirePathJson::operator()(StaSeqPathData* seq_path_data) {
     dump_wire_json.set_trans_type(path_delay_data->get_trans_type());
 
     if (last_vertex) {
-      auto snk_arcs = last_vertex->getSnkArc(own_vertex);
-      auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
-      snk_arc->exec(dump_wire_json);
+      execFirstSinkArcIfPresent(last_vertex, own_vertex, dump_wire_json);
     }
 
     own_vertex->exec(dump_wire_json);
@@ -1135,9 +1144,7 @@ unsigned StaReportPathTimingData::operator()(StaSeqPathData* seq_path_data) {
     dump_timing_data.set_trans_type(path_delay_data->get_trans_type());
 
     if (last_vertex) {
-      auto snk_arcs = last_vertex->getSnkArc(own_vertex);
-      auto* snk_arc = snk_arcs.empty() ? nullptr : snk_arcs.front();
-      snk_arc->exec(dump_timing_data);
+      execFirstSinkArcIfPresent(last_vertex, own_vertex, dump_timing_data);
     }
 
     last_vertex = own_vertex;

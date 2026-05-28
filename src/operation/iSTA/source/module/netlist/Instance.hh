@@ -29,7 +29,9 @@
 #include <utility>
 
 #include "DesignObject.hh"
+#include "Net.hh"
 #include "Pin.hh"
+#include "Port.hh"
 #include "Vector.hh"
 #include "liberty/Lib.hh"
 #include "string/Str.hh"
@@ -38,6 +40,7 @@ namespace ista {
 
 class PinIterator;
 class PinBusIterator;
+class Netlist;
 
 /**
  * @brief class for instance of design.
@@ -46,6 +49,8 @@ class PinBusIterator;
 class Instance : public DesignObject {
  public:
   Instance(const char* name, LibCell* cell_name);
+  Instance(const char* name, Netlist* inst_netlist);
+  Instance(const Instance& other);
   Instance(Instance&& other);
   Instance& operator=(Instance&& rhs);
   ~Instance() override = default;
@@ -54,9 +59,21 @@ class Instance : public DesignObject {
   friend PinBusIterator;
 
   unsigned isInstance() override { return 1; }
+  bool isEqual(Instance& other);
 
   Pin* addPin(const char* name, LibPort* cell_port);
+  Vector<std::unique_ptr<Pin>> clonePins() const {
+    Vector<std::unique_ptr<Pin>> colned_pins;
+    colned_pins.reserve(_pins.size());
+    for (const auto& pin : _pins) {
+      if (pin) {
+        colned_pins.push_back(pin->clone());
+      }
+    }
+    return colned_pins;
+  }
   Pin* getLastPin() { return _pins.back().get(); }
+  Vector<std::unique_ptr<Pin>>& get_pins() { return _pins; }
   std::optional<Pin*> getPin(const char* pin_name);
   LibCell* get_inst_cell() { return _inst_cell; }
   void set_inst_cell(LibCell* inst_cell) { _inst_cell = inst_cell; }
@@ -76,18 +93,28 @@ class Instance : public DesignObject {
     }
     return nullptr;
   }
+  Vector<std::unique_ptr<PinBus>> clonePinBuses() const {
+    Vector<std::unique_ptr<PinBus>> colned_pin_buses;
+    colned_pin_buses.reserve(_pin_buses.size());
+    for (const auto& pin_bus : _pin_buses) {
+      if (pin_bus) {
+        colned_pin_buses.push_back(pin_bus->clone());
+      }
+    }
+    return colned_pin_buses;
+  }
 
   void set_coordinate(double x, double y) override { _coordinate = {x, y}; }
   std::optional<Coordinate> get_coordinate() override { return _coordinate; }
 
  private:
   LibCell* _inst_cell;
+  Netlist* _inst_netlist = nullptr;
   Vector<std::unique_ptr<Pin>> _pins;
   StrMap<Pin*> _str2pin;
   Vector<std::unique_ptr<PinBus>> _pin_buses;
 
   std::optional<Coordinate> _coordinate;
-  FORBIDDEN_COPY(Instance);
 };
 
 /**
