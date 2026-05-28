@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Use during review to confirm process, validation, and no unrelated spec changes."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Use during review to confirm CTS layer and behavior-directory boundaries."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Use during review to confirm target dependency visibility and include cleanup."}
