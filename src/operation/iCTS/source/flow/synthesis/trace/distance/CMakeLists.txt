@@ -5,8 +5,9 @@ target_link_libraries(
   PRIVATE
   icts_source_module_characterization
   icts_source_module_topology_clustering
-  icts_source_database
-  icts_source_utils
+  icts_source_database_design
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

@@ -23,7 +23,8 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_plan
   icts_source_flow_synthesis_htree_region
   icts_source_module_analytical_characterization
-  icts_source_utils
+  icts_source_utils_logger
+  log
   highs
 )
 

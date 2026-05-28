@@ -14,7 +14,6 @@ target_link_libraries(
   icts_source_flow_synthesis_trace
   PRIVATE
   icts_source_flow_synthesis_trace_domain_status
-  icts_source_utils
 )
 
 target_include_directories(

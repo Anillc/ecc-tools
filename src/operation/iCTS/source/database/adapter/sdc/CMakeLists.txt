@@ -16,10 +16,10 @@ target_include_directories(
   PUBLIC
   ${ICTS_DATABASE_ADAPTER_SDC}
   ${ICTS_DATABASE_ADAPTER}
+  ${ICTS_DATABASE}
   PRIVATE
   ${ICTS_DATABASE_ADAPTER_SDC}/clock_parser
   ${ICTS_DATABASE_ADAPTER_SDC}/clock_trace
-  ${ICTS_DATABASE}
   ${ICTS_UTILS}
   ${HOME_DATABASE}/data/design
   ${HOME_DATABASE}/data/design/db_design

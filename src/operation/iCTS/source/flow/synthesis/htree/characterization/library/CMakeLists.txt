@@ -6,11 +6,14 @@ add_library(
 target_link_libraries(
   icts_source_flow_synthesis_htree_characterization_library
   PUBLIC
+  icts_source_database_routing
   icts_source_module_characterization
   PRIVATE
   icts_source_database_adapter_sta
-  icts_source_database
-  icts_source_utils
+  icts_source_database_config
+  icts_source_database_io
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

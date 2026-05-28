@@ -13,7 +13,7 @@ target_link_libraries(
   icts_source_flow_optimization_policy
   icts_source_flow_optimization_report
   icts_source_flow_optimization_state
-  icts_source_utils
+  log
 )
 
 target_include_directories(

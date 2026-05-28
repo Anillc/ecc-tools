@@ -25,8 +25,10 @@ target_link_libraries(
   icts_source_flow_optimization
   PRIVATE
   icts_source_database_adapter_fast_sta
+  icts_source_database_adapter_sta
+  icts_source_database_config
+  icts_source_database_io
   icts_source_module_routing
-  icts_source_database
   icts_source_database_design
   icts_source_flow_optimization_model
   icts_source_flow_optimization_clock_sizing_edit
@@ -35,7 +37,8 @@ target_link_libraries(
   icts_source_flow_optimization_report
   icts_source_flow_optimization_solver
   icts_source_flow_synthesis_htree_characterization_library
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

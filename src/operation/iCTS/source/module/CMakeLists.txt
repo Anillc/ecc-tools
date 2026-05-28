@@ -15,11 +15,11 @@ add_library(icts_source_module INTERFACE)
 target_link_libraries(
   icts_source_module
   INTERFACE
-  icts_source_database
   icts_source_module_routing
   icts_source_module_timing
   icts_source_module_topology
   icts_source_module_characterization
+  icts_source_module_analytical_characterization
 )
 
 target_include_directories(icts_source_module INTERFACE ${ICTS_MODULE})

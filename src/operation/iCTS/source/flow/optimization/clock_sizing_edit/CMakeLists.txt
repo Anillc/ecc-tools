@@ -10,7 +10,7 @@ target_link_libraries(
   PRIVATE
   icts_source_database_adapter_sta
   icts_source_database_design
-  icts_source_utils
+  log
 )
 
 target_include_directories(

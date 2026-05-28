@@ -22,16 +22,13 @@ target_link_libraries(
   PRIVATE
   icts_source_database_adapter_fast_sta
   icts_source_utils_logger
-  icts_source_utils
+  log
 )
 
 target_include_directories(
   icts_source_module_characterization
   PUBLIC
   ${ICTS_MODULE}
-  PRIVATE
-  ${ICTS_DATABASE}
-  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_MODULE_CHARACTERIZATION)

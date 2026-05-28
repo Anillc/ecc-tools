@@ -5,11 +5,12 @@ add_library(
 
 target_link_libraries(
   icts_source_flow_instantiation_design_conversion
-  PUBLIC
-  icts_source_database
   PRIVATE
+  icts_source_database_adapter_sta
+  icts_source_database_spatial
   icts_source_database_design
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

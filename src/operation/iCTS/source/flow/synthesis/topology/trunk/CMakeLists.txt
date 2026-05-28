@@ -9,14 +9,18 @@ target_link_libraries(
   PUBLIC
   icts_source_flow_synthesis_htree
   PRIVATE
-  icts_source_database
+  icts_source_database_adapter_sta
+  icts_source_database_config
+  icts_source_database_io
+  icts_source_database_routing
   icts_source_flow_instantiation_design_conversion
   icts_source_flow_synthesis_htree_characterization_library
   icts_source_flow_synthesis_htree_characterization_wirelength
   icts_source_flow_synthesis_htree_embedding
   icts_source_flow_synthesis_trace_topology_build
   icts_source_module_topology_clustering
-  icts_source_utils
+  icts_source_utils_geometry
+  log
 )
 
 target_include_directories(

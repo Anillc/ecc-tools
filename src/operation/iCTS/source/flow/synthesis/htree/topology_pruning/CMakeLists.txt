@@ -12,7 +12,8 @@ target_link_libraries(
   PRIVATE
   icts_source_flow_synthesis_htree_compensation
   icts_source_flow_synthesis_htree_region
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

@@ -8,9 +8,12 @@ target_link_libraries(
   icts_source_flow_setup
   PRIVATE
   idm
-  icts_source_database
+  icts_source_database_adapter_sta
+  icts_source_database_config
+  icts_source_database_design
+  icts_source_database_io
   icts_source_flow_setup_clock_data
-  icts_source_utils
+  icts_source_utils_logger
 )
 
 target_include_directories(

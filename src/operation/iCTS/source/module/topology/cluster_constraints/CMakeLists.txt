@@ -13,8 +13,7 @@ target_link_libraries(
   icts_source_module_routing_helper
   icts_source_module_timing
   icts_source_module_topology_config
-  icts_source_utils
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

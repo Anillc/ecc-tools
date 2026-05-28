@@ -15,12 +15,13 @@ target_link_libraries(
   PUBLIC
   icts_source_flow_synthesis_trace
   PRIVATE
-  icts_source_database
+  icts_source_database_config
+  icts_source_database_design
+  icts_source_database_io
   icts_source_flow_synthesis_distribution
-  icts_source_flow_synthesis_htree_characterization_library
   icts_source_flow_synthesis_topology
-  icts_source_flow_synthesis_trace_layout
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

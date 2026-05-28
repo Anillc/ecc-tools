@@ -21,9 +21,8 @@ target_link_libraries(
   PRIVATE
   icts_source_database_design
   icts_source_module_topology_cluster_constraints
-  icts_source_utils
   icts_source_utils_geometry
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

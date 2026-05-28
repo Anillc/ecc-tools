@@ -32,7 +32,6 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta_liberty
   PRIVATE
   icts_source_database_adapter_sta
-  icts_source_utils
   icts_source_utils_logger
   absl::inlined_vector
 )
@@ -56,8 +55,7 @@ target_link_libraries(
   icts_source_database_config
   icts_source_database_design
   icts_source_database_routing
-  icts_source_utils
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(
@@ -65,7 +63,6 @@ target_include_directories(
   PRIVATE
   ${ICTS_DATABASE_ADAPTER_FAST_STA_INTERNAL_INCLUDE_DIRS}
   ${ICTS_DATABASE}
-  ${ICTS_UTILS}
 )
 
 add_library(
@@ -79,7 +76,7 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta_clock_net_parasitic
   icts_source_database_design
   icts_source_database_routing
-  icts_source_utils
+  log
 )
 
 target_include_directories(
@@ -87,7 +84,6 @@ target_include_directories(
   PRIVATE
   ${ICTS_DATABASE_ADAPTER_FAST_STA_INTERNAL_INCLUDE_DIRS}
   ${ICTS_DATABASE}
-  ${ICTS_UTILS}
 )
 
 add_library(
@@ -139,8 +135,7 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta_clock_sizing
   PRIVATE
   icts_source_database_adapter_fast_sta_liberty
-  icts_source_utils
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(
@@ -164,8 +159,7 @@ target_link_libraries(
   icts_source_database_design
   icts_source_database_io
   icts_source_database_routing
-  icts_source_utils
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(
@@ -173,7 +167,6 @@ target_include_directories(
   PRIVATE
   ${ICTS_DATABASE_ADAPTER_FAST_STA_INTERNAL_INCLUDE_DIRS}
   ${ICTS_DATABASE}
-  ${ICTS_UTILS}
 )
 
 add_library(
@@ -187,8 +180,7 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta_power
   icts_source_database_adapter_fast_sta_timing
   icts_source_database_io
-  icts_source_utils
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(
@@ -208,7 +200,6 @@ target_link_libraries(
   PRIVATE
   icts_source_database_adapter_fast_sta_clock_state
   log
-  icts_source_utils_logger
 )
 
 target_include_directories(
@@ -226,8 +217,7 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta_clock_state
   icts_source_database_adapter_fast_sta_segment_char
   icts_source_database_design
-  icts_source_utils
-  icts_source_utils_logger
+  log
 )
 
 target_include_directories(
@@ -237,7 +227,6 @@ target_include_directories(
   PRIVATE
   ${ICTS_DATABASE_ADAPTER_FAST_STA_INTERNAL_INCLUDE_DIRS}
   ${ICTS_DATABASE}
-  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_DATABASE_ADAPTER_FAST_STA)

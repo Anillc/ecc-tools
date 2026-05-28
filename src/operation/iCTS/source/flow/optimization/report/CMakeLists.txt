@@ -9,7 +9,8 @@ target_link_libraries(
   icts_source_flow_optimization_model
   PRIVATE
   icts_source_database_design
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

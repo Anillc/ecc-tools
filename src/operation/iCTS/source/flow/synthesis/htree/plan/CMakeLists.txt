@@ -6,9 +6,10 @@ add_library(
 target_link_libraries(
   icts_source_flow_synthesis_htree_plan
   PRIVATE
-  icts_source_database
+  icts_source_database_spatial
   icts_source_module_characterization
-  icts_source_utils
+  icts_source_utils_geometry
+  log
 )
 
 add_library(
@@ -24,9 +25,8 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_region
   icts_source_flow_synthesis_htree_topology_pruning
   PRIVATE
-  icts_source_database
   icts_source_flow_synthesis_htree_plan
-  icts_source_utils
+  icts_source_utils_logger
 )
 
 target_include_directories(

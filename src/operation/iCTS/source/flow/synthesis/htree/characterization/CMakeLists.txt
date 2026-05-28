@@ -13,7 +13,8 @@ target_link_libraries(
   PRIVATE
   icts_source_flow_synthesis_htree_characterization_library
   icts_source_flow_synthesis_htree_characterization_wirelength
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

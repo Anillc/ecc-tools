@@ -20,11 +20,10 @@ add_library(
 
 target_link_libraries(
   icts_source_module_routing_bst
-  PUBLIC
-  icts_source_database
   PRIVATE
   icts_source_database_routing
-  icts_source_utils
+  icts_source_database_spatial
+  icts_source_utils_geometry
   log
 )
 
@@ -32,9 +31,6 @@ target_include_directories(
   icts_source_module_routing_bst
   PUBLIC
   ${ICTS_MODULE_ROUTING}
-  PRIVATE
-  ${ICTS_DATABASE}
-  ${ICTS_UTILS}
 )
 
 if(DEBUG_ICTS_SOURCE_MODULE_ROUTING_BST)

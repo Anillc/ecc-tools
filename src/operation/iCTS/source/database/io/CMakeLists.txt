@@ -19,12 +19,15 @@ target_include_directories(
 
 target_link_libraries(
   icts_source_database_io
+  PUBLIC
+  icts_source_database_spatial
   PRIVATE
   idm
   icts_source_database_adapter_sdc
   icts_source_database_adapter_sta
   icts_source_database_design
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 if(DEBUG_ICTS_SOURCE_DATABASE_IO)

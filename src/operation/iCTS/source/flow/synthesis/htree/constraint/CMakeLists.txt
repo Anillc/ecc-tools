@@ -7,7 +7,6 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_constraint
   PRIVATE
   icts_source_module_characterization
-  icts_source_utils
 )
 
 target_include_directories(
