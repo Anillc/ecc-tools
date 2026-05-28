@@ -20,8 +20,8 @@
 
 #include "CornerNetPool.hh"
 #include "Types.hh"
-#include "EtchPool.hh"
-#include "EnvPool.hh"
+#include "NetEtchProfile.hh"
+#include "NetEnvironment.hh"
 #include "MetalDensity.hh"
 #include "RCXData.hh"
 namespace ircx {
@@ -40,8 +40,8 @@ class ProcessVariation final
   ~ProcessVariation() = default;
 
   void set_layout_data(const LayoutData* v) { layout_data_ = v; }
-  void set_net_env_pools(const std::vector<EnvPool>* v) { net_env_pools_ = v; }
-  void set_corner_net_etch_pools(CornerNetPool<EtchPool>* v) { corner_net_etch_pools_ = v; }
+  void set_net_environments(const std::vector<NetEnvironment>* v) { net_environments_ = v; }
+  void set_corner_net_etch_pools(CornerNetPool<NetEtchProfile>* v) { corner_net_etch_pools_ = v; }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
   void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
@@ -53,7 +53,7 @@ class ProcessVariation final
 
   // entry points
   void reset();
-  bool buildEtchPools();
+  bool buildEtchProfiles();
 
   ProcessVariation(const ProcessVariation&) = delete;
   ProcessVariation(ProcessVariation&&) = delete;
@@ -66,8 +66,8 @@ class ProcessVariation final
 
   // set from outside
   const LayoutData* layout_data_{nullptr};
-  const std::vector<EnvPool>* net_env_pools_{nullptr};
-  CornerNetPool<EtchPool>* corner_net_etch_pools_{nullptr};
+  const std::vector<NetEnvironment>* net_environments_{nullptr};
+  CornerNetPool<NetEtchProfile>* corner_net_etch_pools_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
   const std::vector<RCXData::CornerData>* corner_data_{nullptr};

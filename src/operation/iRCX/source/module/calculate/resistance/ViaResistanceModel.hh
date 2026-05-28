@@ -18,21 +18,23 @@
 
 #include "Types.hh"
 
+namespace itf {
+class LayerVia;
+class ProcessCorner;
+}  // namespace itf
+
 namespace ircx {
 
-inline Micron dbuToMicronScale(Dbu micron_to_dbu)
-{
-  return Micron(1.0) / static_cast<Micron>(micron_to_dbu);
-}
+class TopoEdge;
 
-inline Micron dbuToMicron(Dbu value, Dbu micron_to_dbu)
+class ViaResistanceModel
 {
-  return static_cast<Micron>(value) * dbuToMicronScale(micron_to_dbu);
-}
-
-inline Dbu micronToDbu(Micron value, Dbu micron_to_dbu)
-{
-  return static_cast<Dbu>(value * static_cast<Micron>(micron_to_dbu));
-}
+ public:
+  static auto calc(const TopoEdge& edge,
+                   const itf::ProcessCorner& corner,
+                   const itf::LayerVia& layer,
+                   Micron dbu_to_micron,
+                   F64 operating_temperature) -> F64;
+};
 
 }  // namespace ircx

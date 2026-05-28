@@ -14,39 +14,32 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#pragma once
+#include "CapTableQuery.hh"
 
-#include "Types.hh"
+#include <algorithm>
 
 namespace ircx {
 
-#define RCX_FLOW_INST (ircx::Flow::getInst())
-
-class Flow
+auto CapTableQuery::nearCap(const Str& below_layer,
+                            const Str& above_layer,
+                            Micron spacing) const -> parser::CapacitanceResult
 {
- public:
-  static auto getInst() -> Flow&
-  {
-    static Flow inst;
-    return inst;
+  const Micron lookup_dist = std::max<Micron>(spacing, 0.0);
+  if (above_layer.empty()) {
+    return cap_table_.queryTwoLayerCap(layer_name_, below_layer, lookup_dist);
   }
+  return cap_table_.queryThreeLayerCap(
+      layer_name_, below_layer, above_layer, lookup_dist);
+}
 
-  auto run() -> bool;
-
-  auto adaptDB() -> bool;
-  auto extract() -> bool;
-  auto report() -> bool;
-
-  void reset();
-
-  Flow(const Flow& other) = delete;
-  Flow(Flow&& other) = delete;
-  auto operator=(const Flow& other) -> Flow& = delete;
-  auto operator=(Flow&& other) -> Flow& = delete;
-
- private:
-  Flow();
-  ~Flow();
-};
+auto CapTableQuery::farthestCap(const Str& below_layer,
+                                const Str& above_layer) const -> parser::CapacitanceResult
+{
+  if (above_layer.empty()) {
+    return cap_table_.queryTwoLayerFarthestCap(layer_name_, below_layer);
+  }
+  return cap_table_.queryThreeLayerFarthestCap(
+      layer_name_, below_layer, above_layer);
+}
 
 }  // namespace ircx

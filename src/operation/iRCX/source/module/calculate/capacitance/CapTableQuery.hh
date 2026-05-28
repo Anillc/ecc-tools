@@ -16,43 +16,28 @@
 // ***************************************************************************************
 #pragma once
 
-#include <span>
-#include <vector>
-
-#include "SpanPool.hh"
+#include "CapTable.hpp"
 #include "Types.hh"
 
 namespace ircx {
 
-template <typename Interval>
-class IntervalPool
+class CapTableQuery
 {
  public:
-  IntervalPool() = default;
-  ~IntervalPool() = default;
-
-  void append_edge_intervals(std::vector<Interval> intervals)
+  CapTableQuery(const parser::CapTable& cap_table, const Str& layer_name)
+      : cap_table_(cap_table), layer_name_(layer_name)
   {
-    intervals_.append_group(std::move(intervals));
   }
 
-  std::span<const Interval> edge_intervals(Size edge_id) const
-  {
-    return intervals_.group_items(edge_id);
-  }
-
-  std::span<Interval> edge_intervals(Size edge_id)
-  {
-    return intervals_.group_items(edge_id);
-  }
-
-  void clear()
-  {
-    intervals_.clear();
-  }
+  auto nearCap(const Str& below_layer,
+               const Str& above_layer,
+               Micron spacing) const -> parser::CapacitanceResult;
+  auto farthestCap(const Str& below_layer,
+                   const Str& above_layer) const -> parser::CapacitanceResult;
 
  private:
-  SpanPool<Interval> intervals_;
+  const parser::CapTable& cap_table_;
+  const Str& layer_name_;
 };
 
 }  // namespace ircx

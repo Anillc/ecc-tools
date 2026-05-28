@@ -35,23 +35,13 @@ class RCXAPI
   static auto run() -> bool;
   static auto report() -> bool;
 
-  // init
-  static auto readCorner(const std::string& corner_name,
-                         const char* itf_file,
-                         const char* captab_file) -> bool;
-  static auto readMapping(const char* mapping_file) -> bool;
-
-  // run
-  static auto adaptDB() -> bool;
-  static auto extract() -> bool;
-
   RCXAPI(const RCXAPI& other) = delete;
   RCXAPI(RCXAPI&& other) = delete;
   auto operator=(const RCXAPI& other) -> RCXAPI& = delete;
   auto operator=(RCXAPI&& other) -> RCXAPI& = delete;
 
  private:
-  RCXAPI() = default;
+  RCXAPI();
   ~RCXAPI() = default;
 };
 

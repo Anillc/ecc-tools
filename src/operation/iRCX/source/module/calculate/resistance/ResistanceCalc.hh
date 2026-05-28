@@ -16,17 +16,15 @@
 // ***************************************************************************************
 #pragma once
 
-#include <span>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "CornerNetPool.hh"
-#include "EtchPool.hh"
+#include "NetEtchProfile.hh"
 #include "LayoutData.hh"
 #include "RCXData.hh"
 #include "RCTable.hh"
-#include "UnitUtils.hh"
+#include "Types.hh"
 namespace ircx {
 
 class LayerTable;
@@ -50,11 +48,14 @@ class ResistanceCalc
 
   void set_layout_data(const LayoutData* v) {
     layout_data_ = v;
-    dbu_to_micron_ = dbuToMicronScale(v->micron_to_dbu);
+    dbu_to_micron_ = dbu2micron(1, v->micron_to_dbu);
   }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
-  void set_corner_net_etch_pools(const CornerNetPool<EtchPool>* v) { corner_net_etch_pools_ = v; }
+  void set_corner_net_etch_pools(const CornerNetPool<NetEtchProfile>* v)
+  {
+    corner_net_etch_pools_ = v;
+  }
   void set_rc_table(RCTable* v) { rc_table_ = v; }
   void set_corner_data(const std::vector<RCXData::CornerData>* v) { corner_data_ = v; }
 
@@ -87,7 +88,7 @@ class ResistanceCalc
     Size idx{kMaxSize};
     const RCXData::CornerData* data{nullptr};
     const itf::ProcessCorner* process_corner{nullptr};
-    F64 temperature{25.0};
+    F64 temperature{kDefaultOperatingTemperature};
     ProcessLayerResolver layers;
   };
 
@@ -99,31 +100,20 @@ class ResistanceCalc
                          Size net_idx,
                          Size edge_idx,
                          const TopoEdge& edge,
-                         const EtchPool& etch_pool) const;
+                         const NetEtchProfile& etch_profile) const;
   F64 calcViaResistance(const CornerCalcView& corner,
                         const TopoEdge& edge) const;
   F64 calcConductorResistance(const CornerCalcView& corner,
                               const TopoEdge& edge,
-                              std::span<const EtchInterval> edge_etch_intervals) const;
+                              std::span<const EdgeEtchInterval> edge_etch_intervals) const;
   LineSegment<Micron> edgeSegment(const TopoEdge& edge) const;
-
-  F64 apply_conductor_temperature_derating(F64 operating_temperature,
-                                           const itf::ProcessCorner& corner,
-                                           const itf::LayerConductor& layer,
-                                           Micron width,
-                                           F64 base_resistance) const;
-  F64 apply_via_temperature_derating(F64 operating_temperature,
-                                     const itf::ProcessCorner& corner,
-                                     const itf::LayerVia& layer,
-                                     F64 area,
-                                     F64 base_resistance) const;
 
   Micron dbu_to_micron_{1};
 
   const LayoutData* layout_data_{nullptr};
   const LayerTable* layer_table_{nullptr};
   const TopoPool* topo_pool_{nullptr};
-  const CornerNetPool<EtchPool>* corner_net_etch_pools_{nullptr};
+  const CornerNetPool<NetEtchProfile>* corner_net_etch_pools_{nullptr};
   const std::vector<RCXData::CornerData>* corner_data_{nullptr};
 
   RCTable* rc_table_{nullptr};
