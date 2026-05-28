@@ -18,6 +18,9 @@
 
 #include <omp.h>
 
+#include <utility>
+
+#include "CompareParasiticsFlow.hh"
 #include "Extraction.hh"
 #include "RCXConfig.hh"
 #include "RCXData.hh"
@@ -69,6 +72,11 @@ auto RCXAPI::run() -> bool
 auto RCXAPI::report() -> bool
 {
   return Report::dumpSpef();
+}
+
+auto RCXAPI::compareParasitics(CompareParasiticsConfig config) -> bool
+{
+  return CompareParasiticsFlow::run(std::move(config));
 }
 
 }  // namespace ircx

@@ -17,35 +17,41 @@
 #pragma once
 
 #include <string>
-
-#include "CompareParasiticsConfig.hh"
+#include <utility>
+#include <vector>
 
 namespace ircx {
 
-#define RCX_API_INST (ircx::RCXAPI::getInst())
-
-class RCXAPI
+struct CompareParasiticsConfig
 {
- public:
-  static auto getInst() -> RCXAPI&
-  {
-    static RCXAPI inst;
-    return inst;
-  }
+  std::string test_file;
+  std::string reference_file;
+  std::string output_dir = ".";
 
-  static auto init(const std::string& config_file) -> bool;
-  static auto run() -> bool;
-  static auto report() -> bool;
-  static auto compareParasitics(CompareParasiticsConfig config) -> bool;
+  int cores = 1;
+  double tcap_threshold = 3.0;
+  double ccap_abs_threshold = 0.3;
+  double ccap_rel_threshold = 0.1;
+  double res_threshold = 50.0;
 
-  RCXAPI(const RCXAPI& other) = delete;
-  RCXAPI(RCXAPI&& other) = delete;
-  auto operator=(const RCXAPI& other) -> RCXAPI& = delete;
-  auto operator=(RCXAPI&& other) -> RCXAPI& = delete;
+  bool compare_capacitance = false;
+  bool compare_resistance = false;
+  bool compare_delay = false;
+  bool delay_pin_load = false;
 
- private:
-  RCXAPI();
-  ~RCXAPI() = default;
+  std::string corner;
+  std::string match_mode = "name";
+  std::string net_name;
+  std::string from_pin;
+  std::string to_pin;
+  std::string net_config_file;
+  int timeout_seconds = 5400;
+  double delay_threshold = 1.0;
+
+  std::vector<std::string> net_names;
+  std::vector<std::string> from_pins;
+  std::vector<std::string> to_pins;
+  std::vector<std::pair<std::string, std::string>> from_to_pins;
 };
 
 }  // namespace ircx
