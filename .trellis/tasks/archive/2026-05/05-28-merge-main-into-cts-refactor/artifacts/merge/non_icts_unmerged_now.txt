@@ -1,0 +1,10 @@
+.gitignore
+AGENTS.md
+scripts/design/ics55_gcd/iEDA_config/cts_default_config.json
+scripts/design/ihp130_gcd/iEDA_config/cts_default_config.json
+scripts/design/ihp130_gcd/script/iCTS_script/run_iCTS.tcl
+scripts/design/sky130_gcd/iEDA_config/cts_default_config.json
+src/apps/CMakeLists.txt
+src/database/manager/parser/liberty/LibParserCpp.cc
+src/operation/iSTA/source/module/sta/Sta.cc
+src/third_party/CMakeLists.txt

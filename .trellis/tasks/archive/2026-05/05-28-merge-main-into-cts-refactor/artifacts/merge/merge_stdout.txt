@@ -1,0 +1,1027 @@
+CONFLICT (rename/rename): Rename directory src/operation/iCTS/source/module/synthesis->src/operation/iCTS/test/common/clustering/artifact in HEAD. Rename directory src/operation/iCTS/source/module/synthesis->src/operation/iCTS/test/common/realtech/load in origin/main
+CONFLICT (rename/rename): Rename directory src/operation/iCTS/source/module/router->src/operation/iCTS/source/flow/report/qor in HEAD. Rename directory src/operation/iCTS/source/module/router->src/operation/iCTS/source/utils/visualization/topology in origin/main
+CONFLICT (rename/rename): Rename directory src/operation/iCTS/source/module/flow->src/operation/iCTS/source/module/characterization/circuit in HEAD. Rename directory src/operation/iCTS/source/module/flow->src/operation/iCTS/source/module/timing in origin/main
+CONFLICT (rename/rename): Rename directory src/operation/iCTS/source/data_manager/io/report->src/operation/iCTS/test/common/dataset in HEAD. Rename directory src/operation/iCTS/source/data_manager/io/report->src/operation/iCTS/test/common/types in origin/main
+Removing src/vectorization/src/graph/data_manager/vec_graph_gui.hh
+Removing src/vectorization/src/graph/data_manager/vec_graph_gui.cc
+Removing src/third_party/tcl_qt/tcl_qt.h
+Removing src/third_party/tcl_qt/tcl_qt.cpp
+Removing src/third_party/tcl_qt/readme.md
+Removing src/third_party/tcl_qt/COPYING
+Removing src/third_party/tcl_qt/CMakeLists.txt
+Auto-merging src/third_party/CMakeLists.txt
+CONFLICT (content): Merge conflict in src/third_party/CMakeLists.txt
+Removing src/solver/two_pin_routing/TBD
+Removing src/solver/steiner_forest/TBD
+Removing src/solver/qudratic_programming/TBD
+Removing src/solver/partition/TBD
+Removing src/solver/clustering/TBD
+Removing src/operation/iTM/CMakeLists.txt
+Auto-merging src/operation/iSTA/source/module/sta/Sta.hh
+Auto-merging src/operation/iSTA/source/module/sta/Sta.cc
+CONFLICT (content): Merge conflict in src/operation/iSTA/source/module/sta/Sta.cc
+Removing src/operation/iRCX/source/module/shell_cmd/rcxShellCmd.hh
+Removing src/operation/iRCX/source/module/shell_cmd/CmdReadMapping.cc
+Removing src/operation/iRCX/source/module/shell_cmd/CmdReadCorner.cc
+Removing src/operation/iRCX/source/module/shell_cmd/CmdRCXReport.cc
+Removing src/operation/iRCX/source/module/shell_cmd/CMakeLists.txt
+Removing src/operation/iRCX/source/module/process/EtchPool.hpp
+Removing src/operation/iRCX/source/module/extract/resistance/ResistanceCalc.hpp
+Removing src/operation/iRCX/source/module/extract/resistance/ResistanceCalc.cpp
+Removing src/operation/iRCX/source/module/extract/capacitance/CapacitanceCalc.cpp
+Removing src/operation/iRCX/source/module/extract/RCX.hpp
+Removing src/operation/iRCX/source/module/extract/RCX.cpp
+Removing src/operation/iRCX/source/module/extract/CMakeLists.txt
+Removing src/operation/iRCX/source/module/database/HashFactory.hpp
+Removing src/operation/iRCX/source/config/RCXConfig.cpp
+Removing src/operation/iRCX/api/ParasiticXEngine.hpp
+Removing src/operation/iRCX/api/ParasiticXEngine.cpp
+Removing src/operation/iRCX/.clang-format
+Removing src/operation/iPL/source/utility/Image.hh
+Removing src/operation/iPL/source/utility/Image.cc
+Auto-merging src/operation/iPL/source/module/wrapper/IDBWrapper.cc
+Auto-merging src/operation/iPA/source/module/ops/calc_power/PwrCalcLeakagePower.cc
+Auto-merging src/operation/iPA/source/module/ops/calc_power/PwrCalcInternalPower.cc
+Removing src/operation/iLO/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/data_manager/database/CtsClock.hh"->"src/operation/iCTS/test/module/topology/topology_gen/fixture/TopologyGenScenario.hh" in branch "HEAD" rename "src/operation/iCTS/source/data_manager/database/CtsClock.hh"->"src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.hh" in "origin/main"
+Auto-merging src/operation/iCTS/test/module/topology/topology_gen/fixture/TopologyGenScenario.hh and src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.hh, both renamed from src/operation/iCTS/source/data_manager/database/CtsClock.hh
+Auto-merging src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/topology_gen/TopologyGenTest.cc
+Auto-merging src/operation/iCTS/test/module/topology/topology_gen/TopologyGenTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/topology_gen/TopologyGenShared.hh
+Auto-merging src/operation/iCTS/test/module/topology/topology_gen/TopologyGenShared.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/topology_gen/TopologyGenDepthTest.cc
+Auto-merging src/operation/iCTS/test/module/topology/topology_gen/TopologyGenDepthTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/topology_gen/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/module/topology/topology_gen/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/synthetic/FastClusteringSyntheticTest.cc
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/synthetic/FastClusteringSyntheticTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/synthetic/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/synthetic/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkTest.cc
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkSetup.cc
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkSetup.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkMetrics.cc
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkMetrics.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkDiscovery.cc
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkDiscovery.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkArtifacts.cc
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/realtech/FastClusteringRealTechBenchmarkArtifacts.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/topology/fast_clustering/realtech/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/module/topology/fast_clustering/realtech/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/routing/RouterClockTreeTest.cc
+Auto-merging src/operation/iCTS/test/module/routing/RouterClockTreeTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/characterization/SegmentJoinTest.cc
+Auto-merging src/operation/iCTS/test/module/characterization/SegmentJoinTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/characterization/PrunerTest.cc
+Auto-merging src/operation/iCTS/test/module/characterization/PrunerTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/characterization/HTreeJoinTest.cc
+Auto-merging src/operation/iCTS/test/module/characterization/HTreeJoinTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/characterization/CharacterizationRealTechSmokeTest.cc
+Auto-merging src/operation/iCTS/test/module/characterization/CharacterizationRealTechSmokeTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/characterization/CharacterizationRealTechExactRegressionTest.cc
+Auto-merging src/operation/iCTS/test/module/characterization/CharacterizationRealTechExactRegressionTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/characterization/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/module/characterization/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/module/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/module/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/main.cc
+Auto-merging src/operation/iCTS/test/main.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeVisualizationRendering.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeVisualizationRendering.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeVisualizationDelayPower.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeVisualizationDelayPower.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeRealTechSmokeTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeRealTechSmokeTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeRealTechMatrixTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeRealTechMatrixTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeRealTechBranchBufferRegressionTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeRealTechBranchBufferRegressionTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/HTreeBuildObservation.hh
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/HTreeBuildObservation.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/htree/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/flow/synthesis/htree/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyRealTechSmokeTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyRealTechSmokeTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyRealTechMatrixTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyRealTechMatrixTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyRealTechHTreeAssertions.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyRealTechHTreeAssertions.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyRealTechClusterValidation.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyRealTechClusterValidation.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyRealTechClusterAssertions.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyRealTechClusterAssertions.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyRealTechArtifactAssertions.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyRealTechArtifactAssertions.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/TopologyNonClusteredRealTechSmokeTest.cc
+Auto-merging src/operation/iCTS/test/flow/synthesis/TopologyNonClusteredRealTechSmokeTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/synthesis/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/flow/synthesis/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/FlowTest.cc
+Auto-merging src/operation/iCTS/test/flow/FlowTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/flow/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/flow/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/database/design/ClockDAGTest.cc
+Auto-merging src/operation/iCTS/test/database/design/ClockDAGTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/database/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/database/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/topology/TopologyAnalysis.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/topology/TopologyAnalysis.cc
+Auto-merging src/operation/iCTS/test/common/topology/TopologyAnalysis.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/topology/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/topology/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/realtech/load/RealTechLoadFactory.cc
+Auto-merging src/operation/iCTS/test/common/realtech/load/RealTechLoadFactory.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/realtech/load/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/realtech/load/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/realtech/asset/RealTechAssetLoader.hh
+Auto-merging src/operation/iCTS/test/common/realtech/asset/RealTechAssetLoader.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/realtech/asset/RealTechAssetLoader.cc
+Auto-merging src/operation/iCTS/test/common/realtech/asset/RealTechAssetLoader.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/realtech/asset/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/realtech/asset/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/utils/synthesis_ir/Net.cc"->"src/operation/iCTS/test/common/realtech/RealTechDesignSetup.hh" in branch "HEAD" rename "src/operation/iCTS/source/utils/synthesis_ir/Net.cc"->"src/operation/iCTS/source/module/characterization/CharBuilder.cc" in "origin/main"
+Auto-merging src/operation/iCTS/test/common/realtech/RealTechDesignSetup.hh and src/operation/iCTS/source/module/characterization/CharBuilder.cc, both renamed from src/operation/iCTS/source/utils/synthesis_ir/Net.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/realtech/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/realtech/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/logging/ScopedLogFileTest.cc
+Auto-merging src/operation/iCTS/test/common/logging/ScopedLogFileTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/logging/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/logging/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/io/TestArtifactIOTest.cc
+Auto-merging src/operation/iCTS/test/common/io/TestArtifactIOTest.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/io/TestArtifactIO.cc
+Auto-merging src/operation/iCTS/test/common/io/TestArtifactIO.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/io/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/io/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/data_manager/io/report/CtsReport.hh"->"src/operation/iCTS/test/common/dataset/TestDataset.hh" in branch "HEAD" rename "src/operation/iCTS/source/data_manager/io/report/CtsReport.hh"->"src/operation/iCTS/test/common/types/TestDataTypes.hh" in "origin/main"
+Auto-merging src/operation/iCTS/test/common/dataset/TestDataset.hh and src/operation/iCTS/test/common/types/TestDataTypes.hh, both renamed from src/operation/iCTS/source/data_manager/io/report/CtsReport.hh
+Auto-merging src/operation/iCTS/test/common/data/pin_factory/PinFactory.hh
+CONFLICT (content): Merge conflict in src/operation/iCTS/test/common/data/pin_factory/PinFactory.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/data/pin_factory/PinFactory.cc
+Auto-merging src/operation/iCTS/test/common/data/pin_factory/PinFactory.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/data/pin_factory/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/data/pin_factory/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/data/distribution/DistributionGenerators.hh
+Auto-merging src/operation/iCTS/test/common/data/distribution/DistributionGenerators.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/data/distribution/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/data/distribution/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/data/TestDataGenerator.hh
+CONFLICT (content): Merge conflict in src/operation/iCTS/test/common/data/TestDataGenerator.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/data/TestDataGenerator.cc
+Auto-merging src/operation/iCTS/test/common/data/TestDataGenerator.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/data/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/data/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/clustering/metrics/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/clustering/metrics/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/module/synthesis/Solver.hh"->"src/operation/iCTS/test/common/clustering/artifact/ClusterArtifactWriter.hh" in branch "HEAD" rename "src/operation/iCTS/source/module/synthesis/Solver.hh"->"src/operation/iCTS/test/common/realtech/load/RealTechLoadFactory.hh" in "origin/main"
+Auto-merging src/operation/iCTS/test/common/clustering/artifact/ClusterArtifactWriter.hh and src/operation/iCTS/test/common/realtech/load/RealTechLoadFactory.hh, both renamed from src/operation/iCTS/source/module/synthesis/Solver.hh
+Auto-merging src/operation/iCTS/test/common/realtech/load/RealTechLoadFactory.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/clustering/artifact/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/clustering/artifact/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/clustering/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/clustering/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/test/common/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/common/CMakeLists.txt
+Auto-merging src/operation/iCTS/test/CMakeLists.txt
+CONFLICT (content): Merge conflict in src/operation/iCTS/test/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/utils/visualization/core/SvgCommon.hh
+Auto-merging src/operation/iCTS/source/utils/visualization/core/SvgCommon.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/utils/logger/Schema.hh
+Auto-merging src/operation/iCTS/source/utils/logger/Schema.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/utils/logger/Schema.cc
+Auto-merging src/operation/iCTS/source/utils/logger/Schema.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/utils/logger/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/utils/logger/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/utils/geometry/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/utils/geometry/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/fast_clustering/FastClustering.hh
+Auto-merging src/operation/iCTS/source/module/topology/fast_clustering/FastClustering.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/fast_clustering/FastClustering.cc
+Auto-merging src/operation/iCTS/source/module/topology/fast_clustering/FastClustering.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/fast_clustering/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/topology/fast_clustering/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/config/TopologyConfig.hh
+Auto-merging src/operation/iCTS/source/module/topology/config/TopologyConfig.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/config/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/topology/config/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/clustering/Clustering.hh
+Auto-merging src/operation/iCTS/source/module/topology/clustering/Clustering.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/clustering/Clustering.cc
+Auto-merging src/operation/iCTS/source/module/topology/clustering/Clustering.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/clustering/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/topology/clustering/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/cluster_constraints/ClusterConstraintEvaluator.hh
+Auto-merging src/operation/iCTS/source/module/topology/cluster_constraints/ClusterConstraintEvaluator.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/cluster_constraints/ClusterConstraintEvaluator.cc
+Auto-merging src/operation/iCTS/source/module/topology/cluster_constraints/ClusterConstraintEvaluator.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/cluster_constraints/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/topology/cluster_constraints/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/TopologyGen.hh
+Auto-merging src/operation/iCTS/source/module/topology/TopologyGen.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/TopologyGen.cc
+Auto-merging src/operation/iCTS/source/module/topology/TopologyGen.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/topology/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/topology/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/timing/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/timing/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/salt/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/salt/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/router/Router.hh
+Auto-merging src/operation/iCTS/source/module/routing/router/Router.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/router/Router.cc
+Auto-merging src/operation/iCTS/source/module/routing/router/Router.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/router/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/router/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/local_legalization/LocalLegalization.hh
+Auto-merging src/operation/iCTS/source/module/routing/local_legalization/LocalLegalization.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/local_legalization/LocalLegalization.cc
+Auto-merging src/operation/iCTS/source/module/routing/local_legalization/LocalLegalization.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/local_legalization/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/local_legalization/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/helper/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/helper/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/flute/FLUTERouter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/flute/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/flute/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/concurrent_bst_salt/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/concurrent_bst_salt/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.hh
+Auto-merging src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.cc
+Auto-merging src/operation/iCTS/source/module/routing/concurrent_bst_salt/CBSRouter.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/bound_skew_tree/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/bound_skew_tree/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.cc
+Auto-merging src/operation/iCTS/source/module/routing/bound_skew_tree/BSTRouter.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/routing/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/routing/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/module/flow/CTSFlow.hh"->"src/operation/iCTS/source/module/characterization/circuit/CharCircuitBuilder.hh" in branch "HEAD" rename "src/operation/iCTS/source/module/flow/CTSFlow.hh"->"src/operation/iCTS/source/module/timing/TimingEngine.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/module/characterization/circuit/CharCircuitBuilder.hh and src/operation/iCTS/source/module/timing/TimingEngine.hh, both renamed from src/operation/iCTS/source/module/flow/CTSFlow.hh
+Auto-merging src/operation/iCTS/source/module/timing/TimingEngine.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/module/characterization/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/characterization/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/module/CMakeLists.txt
+CONFLICT (content): Merge conflict in src/operation/iCTS/source/module/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutBuilder.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutBuilder.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutBuilder.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutBuilder.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutAdapter.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutAdapter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutAdapter.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/layout/ClockLayoutAdapter.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/layout/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/layout/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/domain_status/DomainStatus.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/domain_status/DomainStatus.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/domain_status/DomainStatus.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/domain_status/DomainStatus.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/domain_status/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/domain_status/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/distance/TopologyDistanceReport.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/distance/TopologyDistanceReport.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/distance/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/distance/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/SynthesisTrace.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/SynthesisTrace.hh
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/utils/synthesis_ir/Pin.cc"->"src/operation/iCTS/source/flow/synthesis/trace/SynthesisTrace.cc" in branch "HEAD" rename "src/operation/iCTS/source/utils/synthesis_ir/Pin.cc"->"src/operation/iCTS/source/flow/synthesis/trace/distance/TopologyDistanceReport.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/SynthesisTrace.cc and src/operation/iCTS/source/flow/synthesis/trace/distance/TopologyDistanceReport.hh, both renamed from src/operation/iCTS/source/utils/synthesis_ir/Pin.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/SynthesisTrace.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/distance/TopologyDistanceReport.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/trace/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/trace/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunkSegment.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunkSegment.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunkSegment.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunkSegment.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunk.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunk.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/trunk/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/trunk/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/sink/SinkLoadClustering.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/sink/SinkLoadClustering.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/sink/SinkLoadClustering.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/sink/SinkLoadClustering.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/sink/SinkBranch.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/sink/SinkBranch.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/sink/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/sink/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/buffer/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/buffer/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/buffer/BufferInsertion.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/buffer/BufferInsertion.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/buffer/BufferInsertion.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/buffer/BufferInsertion.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/Topology.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/Topology.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/Topology.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/Topology.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/topology/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/TopologyPruning.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/topology_pruning/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/utils/synthesis_ir/Enum.hh"->"src/operation/iCTS/source/flow/synthesis/htree/solution/report/StageReport.hh" in branch "HEAD" rename "src/operation/iCTS/source/utils/synthesis_ir/Enum.hh"->"src/operation/iCTS/source/module/routing/helper/PinLocationHelper.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/solution/report/StageReport.hh and src/operation/iCTS/source/module/routing/helper/PinLocationHelper.hh, both renamed from src/operation/iCTS/source/utils/synthesis_ir/Enum.hh
+Auto-merging src/operation/iCTS/source/module/routing/helper/PinLocationHelper.hh
+CONFLICT (rename/add): Rename src/interface/gui/src/graphicsitem/transform.cpp->src/operation/iCTS/source/flow/synthesis/htree/solution/Solution.hh in origin/main.  Added src/operation/iCTS/source/flow/synthesis/htree/solution/Solution.hh in HEAD
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/solution/Solution.hh
+CONFLICT (rename/rename): Rename src/operation/iCTS/source/data_manager/database/CtsPin.cc->src/operation/iCTS/source/flow/synthesis/htree/solution/Solution.cc in HEAD. Rename src/interface/gui/src/designitem/guidie.cpp->src/operation/iCTS/source/flow/synthesis/htree/solution/Solution.cc in origin/main
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/solution/Solution.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/solution/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/solution/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/SegmentPruning.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/SegmentPruning.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/SegmentPruning.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/SegmentPruning.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/SegmentLibrary.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/SegmentLibrary.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/BufferStrength.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/segment_pruning/BufferStrength.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/region/SinkLoadRegion.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/region/SinkLoadRegion.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/region/SinkLoadRegion.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/region/SinkLoadRegion.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/region/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/region/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/plan/Plan.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/plan/Plan.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/plan/Plan.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/plan/Plan.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/plan/DepthPlan.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/plan/DepthPlan.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/plan/DepthPlan.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/plan/DepthPlan.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/plan/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/plan/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/embedding/EmbeddingState.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/embedding/EmbeddingState.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/embedding/Embedding.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/embedding/Embedding.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/embedding/Embedding.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/embedding/Embedding.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/embedding/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/embedding/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/embedding/BufferPortTable.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/embedding/BufferPortTable.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/constraint/Constraint.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/constraint/Constraint.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/constraint/Constraint.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/constraint/Constraint.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/constraint/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/constraint/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/compensation/RootDriverCompensation.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/compensation/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/compensation/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/wirelength/WirelengthGrid.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/wirelength/WirelengthGrid.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/wirelength/WirelengthGrid.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/wirelength/WirelengthGrid.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/wirelength/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/wirelength/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/library/CharacterizationLibrary.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/library/CharacterizationLibrary.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/library/CharacterizationLibrary.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/library/CharacterizationLibrary.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/library/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/library/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/Characterization.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/Characterization.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/Characterization.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/Characterization.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/characterization/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/characterization/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/data_manager/database/CtsSignalWire.hh"->"src/operation/iCTS/source/flow/synthesis/htree/analytical_solver/solver/MathHtreeMilpSolver.hh" in branch "HEAD" rename "src/operation/iCTS/source/data_manager/database/CtsSignalWire.hh"->"src/operation/iCTS/test/common/logging/LogText.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/analytical_solver/solver/MathHtreeMilpSolver.hh and src/operation/iCTS/test/common/logging/LogText.hh, both renamed from src/operation/iCTS/source/data_manager/database/CtsSignalWire.hh
+Auto-merging src/operation/iCTS/test/common/logging/LogText.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/HTree.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/HTree.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/HTree.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/HTree.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/htree/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/htree/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/distribution/ClockDistribution.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/distribution/ClockDistribution.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/distribution/ClockDistribution.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/distribution/ClockDistribution.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/distribution/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/distribution/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/Synthesis.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/Synthesis.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/Synthesis.cc
+Auto-merging src/operation/iCTS/source/flow/synthesis/Synthesis.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/synthesis/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/synthesis/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/setup/Setup.hh
+Auto-merging src/operation/iCTS/source/flow/setup/Setup.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/setup/Setup.cc
+Auto-merging src/operation/iCTS/source/flow/setup/Setup.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/setup/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/setup/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/svg/SvgVisualization.hh
+Auto-merging src/operation/iCTS/source/flow/report/visualization/svg/SvgVisualization.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/svg/SvgVisualization.cc
+Auto-merging src/operation/iCTS/source/flow/report/visualization/svg/SvgVisualization.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/svg/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/visualization/svg/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/writer/GdsStream.hh
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/writer/GdsStream.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/writer/GdsStream.cc
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/writer/GdsStream.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/writer/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/writer/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/layer/LayerPolicy.hh
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/layer/LayerPolicy.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/layer/LayerPolicy.cc
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/layer/LayerPolicy.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/layer/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/layer/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/GdsVisualization.hh
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/GdsVisualization.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/GdsVisualization.cc
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/GdsVisualization.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/gds/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/visualization/gds/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/drawing/Drawing.hh
+Auto-merging src/operation/iCTS/source/flow/report/visualization/drawing/Drawing.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/drawing/Drawing.cc
+Auto-merging src/operation/iCTS/source/flow/report/visualization/drawing/Drawing.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/drawing/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/visualization/drawing/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/Visualization.hh
+Auto-merging src/operation/iCTS/source/flow/report/visualization/Visualization.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/visualization/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/visualization/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/qor/QorReport.hh
+Auto-merging src/operation/iCTS/source/flow/report/qor/QorReport.hh
+Auto-merging src/operation/iCTS/source/flow/report/qor/QorReport.cc
+CONFLICT (content): Merge conflict in src/operation/iCTS/source/flow/report/qor/QorReport.cc
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/module/router/Router.hh"->"src/operation/iCTS/source/flow/report/qor/QorFiles.hh" in branch "HEAD" rename "src/operation/iCTS/source/module/router/Router.hh"->"src/operation/iCTS/source/utils/visualization/topology/TopologySvgWriter.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/flow/report/qor/QorFiles.hh and src/operation/iCTS/source/utils/visualization/topology/TopologySvgWriter.hh, both renamed from src/operation/iCTS/source/module/router/Router.hh
+Auto-merging src/operation/iCTS/source/flow/report/qor/QorFiles.hh
+Auto-merging src/operation/iCTS/source/utils/visualization/topology/TopologySvgWriter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/qor/QorFiles.cc
+Auto-merging src/operation/iCTS/source/flow/report/qor/QorFiles.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/qor/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/qor/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/overview/Overview.hh
+Auto-merging src/operation/iCTS/source/flow/report/overview/Overview.hh
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/module/evaluator/service/TimingAnalysisService.cc"->"src/operation/iCTS/source/flow/report/overview/Overview.cc" in branch "HEAD" rename "src/operation/iCTS/source/module/evaluator/service/TimingAnalysisService.cc"->"src/operation/iCTS/source/flow/report/visualization/Visualization.cc" in "origin/main"
+Auto-merging src/operation/iCTS/source/flow/report/overview/Overview.cc and src/operation/iCTS/source/flow/report/visualization/Visualization.cc, both renamed from src/operation/iCTS/source/module/evaluator/service/TimingAnalysisService.cc
+Auto-merging src/operation/iCTS/source/flow/report/overview/Overview.cc
+Auto-merging src/operation/iCTS/source/flow/report/visualization/Visualization.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/overview/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/overview/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/utils/synthesis_operator/SinkClusteringOperator.hh"->"src/operation/iCTS/source/flow/report/export/ReportExport.hh" in branch "HEAD" rename "src/operation/iCTS/source/utils/synthesis_operator/SinkClusteringOperator.hh"->"src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunk.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/flow/report/export/ReportExport.hh and src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunk.hh, both renamed from src/operation/iCTS/source/utils/synthesis_operator/SinkClusteringOperator.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/trunk/SourceTrunk.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/export/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/export/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/Report.hh
+Auto-merging src/operation/iCTS/source/flow/report/Report.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/Report.cc
+Auto-merging src/operation/iCTS/source/flow/report/Report.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/report/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/report/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/idb_conversion/IdbConversion.hh
+Auto-merging src/operation/iCTS/source/flow/instantiation/idb_conversion/IdbConversion.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/idb_conversion/IdbConversion.cc
+Auto-merging src/operation/iCTS/source/flow/instantiation/idb_conversion/IdbConversion.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/idb_conversion/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/instantiation/idb_conversion/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/design_conversion/DesignConversion.hh
+Auto-merging src/operation/iCTS/source/flow/instantiation/design_conversion/DesignConversion.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/design_conversion/DesignConversion.cc
+Auto-merging src/operation/iCTS/source/flow/instantiation/design_conversion/DesignConversion.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/design_conversion/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/instantiation/design_conversion/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/Instantiation.hh
+Auto-merging src/operation/iCTS/source/flow/instantiation/Instantiation.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/Instantiation.cc
+Auto-merging src/operation/iCTS/source/flow/instantiation/Instantiation.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/instantiation/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/instantiation/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/evaluation/qor/QorEvaluation.hh
+Auto-merging src/operation/iCTS/source/flow/evaluation/qor/QorEvaluation.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/evaluation/qor/QorEvaluation.cc
+Auto-merging src/operation/iCTS/source/flow/evaluation/qor/QorEvaluation.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/evaluation/qor/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/evaluation/qor/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/evaluation/Evaluation.hh
+Auto-merging src/operation/iCTS/source/flow/evaluation/Evaluation.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/evaluation/Evaluation.cc
+Auto-merging src/operation/iCTS/source/flow/evaluation/Evaluation.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/evaluation/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/evaluation/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/Flow.hh
+Auto-merging src/operation/iCTS/source/flow/Flow.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/Flow.cc
+Auto-merging src/operation/iCTS/source/flow/Flow.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/flow/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/flow/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/io/Wrapper.hh
+Auto-merging src/operation/iCTS/source/database/io/Wrapper.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/io/Wrapper.cc
+Auto-merging src/operation/iCTS/source/database/io/Wrapper.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/io/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/database/io/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/Inst.hh
+Auto-merging src/operation/iCTS/source/database/design/Inst.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/Design.hh
+Auto-merging src/operation/iCTS/source/database/design/Design.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/Design.cc
+Auto-merging src/operation/iCTS/source/database/design/Design.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/ClockNetwork.hh
+Auto-merging src/operation/iCTS/source/database/design/ClockNetwork.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/ClockNetwork.cc
+Auto-merging src/operation/iCTS/source/database/design/ClockNetwork.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/ClockLayout.hh
+Auto-merging src/operation/iCTS/source/database/design/ClockLayout.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/ClockLayout.cc
+Auto-merging src/operation/iCTS/source/database/design/ClockLayout.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/ClockDAG.hh
+Auto-merging src/operation/iCTS/source/database/design/ClockDAG.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/ClockDAG.cc
+Auto-merging src/operation/iCTS/source/database/design/ClockDAG.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/Clock.hh
+Auto-merging src/operation/iCTS/source/database/design/Clock.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/design/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/database/design/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/config/Config.hh
+Auto-merging src/operation/iCTS/source/database/config/Config.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/config/Config.cc
+Auto-merging src/operation/iCTS/source/database/config/Config.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/config/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/database/config/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/characterization/HTreeTopologyChar.hh
+Auto-merging src/operation/iCTS/source/database/characterization/HTreeTopologyChar.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/adapter/sta/STAAdapter.hh
+Auto-merging src/operation/iCTS/source/database/adapter/sta/STAAdapter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/adapter/sta/STAAdapter.cc
+Auto-merging src/operation/iCTS/source/database/adapter/sta/STAAdapter.cc
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/adapter/sta/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/database/adapter/sta/CMakeLists.txt
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/data_manager/database/DesignObject.hh"->"src/operation/iCTS/source/database/adapter/fast_sta/report/FastStaReport.hh" in branch "HEAD" rename "src/operation/iCTS/source/data_manager/database/DesignObject.hh"->"src/operation/iCTS/source/flow/synthesis/topology/sink/SinkBranch.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/database/adapter/fast_sta/report/FastStaReport.hh and src/operation/iCTS/source/flow/synthesis/topology/sink/SinkBranch.hh, both renamed from src/operation/iCTS/source/data_manager/database/DesignObject.hh
+Auto-merging src/operation/iCTS/source/flow/synthesis/topology/sink/SinkBranch.hh
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/utils/synthesis_operator/LongWireBufferingOperator.hh"->"src/operation/iCTS/source/database/adapter/fast_sta/power/FastStaPower.hh" in branch "HEAD" rename "src/operation/iCTS/source/utils/synthesis_operator/LongWireBufferingOperator.hh"->"src/operation/iCTS/source/database/routing/RoutingTerminal.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/database/adapter/fast_sta/power/FastStaPower.hh and src/operation/iCTS/source/database/routing/RoutingTerminal.hh, both renamed from src/operation/iCTS/source/utils/synthesis_operator/LongWireBufferingOperator.hh
+Auto-merging src/operation/iCTS/source/database/routing/RoutingTerminal.hh
+CONFLICT (rename/rename): Rename "src/operation/iCTS/source/module/evaluator/service/StatisticsWriter.hh"->"src/operation/iCTS/source/database/adapter/fast_sta/liberty/FastStaLiberty.hh" in branch "HEAD" rename "src/operation/iCTS/source/module/evaluator/service/StatisticsWriter.hh"->"src/operation/iCTS/source/database/adapter/sta/SdcClockReader.hh" in "origin/main"
+Auto-merging src/operation/iCTS/source/database/adapter/fast_sta/liberty/FastStaLiberty.hh and src/operation/iCTS/source/database/adapter/sta/SdcClockReader.hh, both renamed from src/operation/iCTS/source/module/evaluator/service/StatisticsWriter.hh
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/adapter/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/database/adapter/CMakeLists.txt
+CONFLICT (add/add): Merge conflict in src/operation/iCTS/source/database/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/database/CMakeLists.txt
+Auto-merging src/operation/iCTS/source/CMakeLists.txt
+CONFLICT (content): Merge conflict in src/operation/iCTS/source/CMakeLists.txt
+Auto-merging src/operation/iCTS/api/CTSAPI.hh
+CONFLICT (content): Merge conflict in src/operation/iCTS/api/CTSAPI.hh
+Auto-merging src/operation/iCTS/api/CTSAPI.cc
+CONFLICT (content): Merge conflict in src/operation/iCTS/api/CTSAPI.cc
+CONFLICT (modify/delete): src/operation/iCTS/README.md deleted in HEAD and modified in origin/main. Version origin/main of src/operation/iCTS/README.md left in tree.
+Removing src/interface/tcl/tcl_ircx/tcl_register_ircx.h
+Removing src/interface/tcl/tcl_gui/tcl_register_gui.h
+Removing src/interface/tcl/tcl_gui/tcl_gui.h
+Removing src/interface/tcl/tcl_gui/tcl_gui.cpp
+Removing src/interface/tcl/tcl_gui/CMakeLists.txt
+Removing src/interface/shell/CMakeLists.txt
+Removing src/interface/mcp-iEDA/uv.lock
+Removing src/interface/mcp-iEDA/test/test_mcp.py
+Removing src/interface/mcp-iEDA/src/mcp_ieda/server.py
+Removing src/interface/mcp-iEDA/src/mcp_ieda/example/gcd/run_iEDA.tcl
+Removing src/interface/mcp-iEDA/src/mcp_ieda/__main__.py
+Removing src/interface/mcp-iEDA/src/mcp_ieda/__init__.py
+Removing src/interface/mcp-iEDA/src/mcp_ieda/.env
+Removing src/interface/mcp-iEDA/pyproject.toml
+Removing src/interface/mcp-iEDA/README.md
+Removing src/interface/mcp-iEDA/LICENSE
+Removing src/interface/mcp-iEDA/Dockerfile
+Removing src/interface/gui/src/utilityitem/shape.h
+Removing src/interface/gui/src/utilityitem/shape.cpp
+Removing src/interface/gui/src/utilityitem/ruler.h
+Removing src/interface/gui/src/utilityitem/ruler.cpp
+Removing src/interface/gui/src/utilityitem/line.h
+Removing src/interface/gui/src/utilityitem/line.cpp
+Removing src/interface/gui/src/utility/guistring.h
+Removing src/interface/gui/src/utility/guiattribute.h
+Removing src/interface/gui/src/utility/guiattribute.cpp
+Removing src/interface/gui/src/mainwindow_toolbar.cpp
+Removing src/interface/gui/src/mainwindow_search.cpp
+Removing src/interface/gui/src/mainwindow_routing.cpp
+Removing src/interface/gui/src/mainwindow_placement.cpp
+Removing src/interface/gui/src/mainwindow_pdn.cpp
+Removing src/interface/gui/src/mainwindow_menu.cpp
+Removing src/interface/gui/src/mainwindow_fp.cpp
+Removing src/interface/gui/src/mainwindow_file.cpp
+Removing src/interface/gui/src/mainwindow_drc.cpp
+Removing src/interface/gui/src/mainwindow_cts.cpp
+Removing src/interface/gui/src/mainwindow.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupwire.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupwire.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupvia.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupvia.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupitemsearch.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupitemsearch.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupitem.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupitem.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupinstance.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupinstance.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupgrid.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupgrid.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupdrc.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupdrc.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupdesign.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupdesign.cpp
+Removing src/interface/gui/src/guispeedupitems/guispeedupclocktree.h
+Removing src/interface/gui/src/guispeedupitems/guispeedupclocktree.cpp
+Removing src/interface/gui/src/guiparser/guixmlparser.h
+Removing src/interface/gui/src/guiparser/guijsonparser.h
+Removing src/interface/gui/src/guiparser/guijsonparser.cpp
+Removing src/interface/gui/src/guigraphicsview.cpp
+Removing src/interface/gui/src/guigraphicsscene.cpp
+Removing src/interface/gui/src/guicontroltree/guitreeitemhandler.h
+Removing src/interface/gui/src/guicontroltree/guitreeitemhandler.cpp
+Removing src/interface/gui/src/guicontroltree/guitreeitemcolumn.h
+Removing src/interface/gui/src/guicontroltree/guitreeitemcolumn.cpp
+Removing src/interface/gui/src/guicontroltree/guitree.h
+Removing src/interface/gui/src/guicontroltree/guitree.cpp
+Removing src/interface/gui/src/guicontroltree/guicontroltreeitem.h
+Removing src/interface/gui/src/guicontroltree/guicontroltreeitem.cpp
+Removing src/interface/gui/src/guiaction/guisplash.h
+Removing src/interface/gui/src/guiaction/guisplash.cpp
+Removing src/interface/gui/src/guiaction/guisearchedit.h
+Removing src/interface/gui/src/guiaction/guisearchedit.cpp
+Removing src/interface/gui/src/guiaction/guiloading.h
+Removing src/interface/gui/src/guiaction/guiloading.cpp
+Removing src/interface/gui/src/guiaction/fileimport.h
+Removing src/interface/gui/src/guiaction/fileimport.cpp
+Removing src/interface/gui/src/guiDB/idbsetup.h
+Removing src/interface/gui/src/guiDB/idbsetup.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupupdate.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupsearch.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupgraph.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupdrc.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupclocktree.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupInstancedemo.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetupCellMaster.cpp
+Removing src/interface/gui/src/guiDB/idbfastsetup.h
+Removing src/interface/gui/src/guiDB/idbfastsetup.cpp
+Removing src/interface/gui/src/guiDB/dbsetup.h
+Removing src/interface/gui/src/guiDB/dbsetup.cpp
+Removing src/interface/gui/src/graphicsitem/transform.h
+Removing src/interface/gui/src/graphicsitem/guiround.h
+Removing src/interface/gui/src/graphicsitem/guiround.cpp
+Removing src/interface/gui/src/graphicsitem/guirect.h
+Removing src/interface/gui/src/graphicsitem/guirect.cpp
+Removing src/interface/gui/src/graphicsitem/guipolygon.h
+Removing src/interface/gui/src/graphicsitem/guipolygon.cpp
+Removing src/interface/gui/src/graphicsitem/guiline.h
+Removing src/interface/gui/src/graphicsitem/guiline.cpp
+Removing src/interface/gui/src/graphicsitem/guiitem.h
+Removing src/interface/gui/src/graphicsitem/guiitem.cpp
+Removing src/interface/gui/src/designitem/guiwire.h
+Removing src/interface/gui/src/designitem/guiwire.cpp
+Removing src/interface/gui/src/designitem/guivia.h
+Removing src/interface/gui/src/designitem/guivia.cpp
+Removing src/interface/gui/src/designitem/guistandardcell.h
+Removing src/interface/gui/src/designitem/guistandardcell.cpp
+Removing src/interface/gui/src/designitem/guirow.h
+Removing src/interface/gui/src/designitem/guirow.cpp
+Removing src/interface/gui/src/designitem/guipower.h
+Removing src/interface/gui/src/designitem/guipower.cpp
+Removing src/interface/gui/src/designitem/guipin.h
+Removing src/interface/gui/src/designitem/guipin.cpp
+Removing src/interface/gui/src/designitem/guipad.h
+Removing src/interface/gui/src/designitem/guipad.cpp
+Removing src/interface/gui/src/designitem/guiinstance.h
+Removing src/interface/gui/src/designitem/guiinstance.cpp
+Removing src/interface/gui/src/designitem/guigr.h
+Removing src/interface/gui/src/designitem/guigr.cpp
+Removing src/interface/gui/src/designitem/guiflightline.h
+Removing src/interface/gui/src/designitem/guiflightline.cpp
+Removing src/interface/gui/src/designitem/guidie.h
+Removing src/interface/gui/src/designitem/guicore.cpp
+Removing src/interface/gui/src/designitem/guiblock.h
+Removing src/interface/gui/src/designitem/guiblock.cpp
+Removing src/interface/gui/src/designitem/arrowitem.cpp
+Removing src/interface/gui/src/designitem/arrowdrc.h
+Removing src/interface/gui/src/config/guiConfigTree.h
+Removing src/interface/gui/src/config/guiConfig.h
+Removing src/interface/gui/src/config/guiConfig.cpp
+Removing src/interface/gui/res/source.qrc
+Removing src/interface/gui/res/icon/vline.png
+Removing src/interface/gui/res/icon/violationBrowser.png
+Removing src/interface/gui/res/icon/up.png
+Removing src/interface/gui/res/icon/undo.png
+Removing src/interface/gui/res/icon/trim.png
+Removing src/interface/gui/res/icon/summary.png
+Removing src/interface/gui/res/icon/stretch.png
+Removing src/interface/gui/res/icon/start.png
+Removing src/interface/gui/res/icon/split.png
+Removing src/interface/gui/res/icon/sizeBlock.png
+Removing src/interface/gui/res/icon/setPreference.png
+Removing src/interface/gui/res/icon/selectobj.png
+Removing src/interface/gui/res/icon/selected.png
+Removing src/interface/gui/res/icon/selectFlightline.png
+Removing src/interface/gui/res/icon/selectByBox.png
+Removing src/interface/gui/res/icon/search.png
+Removing src/interface/gui/res/icon/save.png
+Removing src/interface/gui/res/icon/ruler.png
+Removing src/interface/gui/res/icon/routeBlock.png
+Removing src/interface/gui/res/icon/right.png
+Removing src/interface/gui/res/icon/redraw.png
+Removing src/interface/gui/res/icon/redo.png
+Removing src/interface/gui/res/icon/recent.png
+Removing src/interface/gui/res/icon/previous.png
+Removing src/interface/gui/res/icon/placementBlock.png
+Removing src/interface/gui/res/icon/pinBlock.png
+Removing src/interface/gui/res/icon/next.png
+Removing src/interface/gui/res/icon/movewire.png
+Removing src/interface/gui/res/icon/moveResizeReshape.png
+Removing src/interface/gui/res/icon/merge.png
+Removing src/interface/gui/res/icon/loading2.jfif
+Removing src/interface/gui/res/icon/loading.gif
+Removing src/interface/gui/res/icon/left.png
+Removing src/interface/gui/res/icon/highlightSelected.png
+Removing src/interface/gui/res/icon/folder.png
+Removing src/interface/gui/res/icon/floorplanToolBox.png
+Removing src/interface/gui/res/icon/fit.png
+Removing src/interface/gui/res/icon/find.png
+Removing src/interface/gui/res/icon/file.png
+Removing src/interface/gui/res/icon/editWire.png
+Removing src/interface/gui/res/icon/editBusGuide.png
+Removing src/interface/gui/res/icon/duplicate.png
+Removing src/interface/gui/res/icon/down.png
+Removing src/interface/gui/res/icon/designBrowser.png
+Removing src/interface/gui/res/icon/deselect.png
+Removing src/interface/gui/res/icon/deleteWire.png
+Removing src/interface/gui/res/icon/delete.png
+Removing src/interface/gui/res/icon/copy.png
+Removing src/interface/gui/res/icon/clearhighlight.png
+Removing src/interface/gui/res/icon/clearall.png
+Removing src/interface/gui/res/icon/clearSelected.png
+Removing src/interface/gui/res/icon/clearRuler.png
+Removing src/interface/gui/res/icon/changeWidth.png
+Removing src/interface/gui/res/icon/changeLayer.png
+Removing src/interface/gui/res/icon/branch-open.png
+Removing src/interface/gui/res/icon/branch-more.png
+Removing src/interface/gui/res/icon/branch-end.png
+Removing src/interface/gui/res/icon/branch-closed.png
+Removing src/interface/gui/res/icon/attribute.png
+Removing src/interface/gui/res/icon/addVia.png
+Removing src/interface/gui/res/icon/addPloygon.png
+Removing src/interface/gui/res/icon/ZoomOut.png
+Removing src/interface/gui/res/icon/ZoomIn.png
+Removing src/interface/gui/res/icon/Import.png
+Removing src/interface/gui/res/conf/TrackGrid.xml
+Removing src/interface/gui/res/conf/TopLevelItems.json
+Removing src/interface/gui/res/conf/SpecialNets.xml
+Removing src/interface/gui/res/conf/Nets.xml
+Removing src/interface/gui/res/conf/Layer.xml
+Removing src/interface/gui/res/conf/ItemColumn.json
+Removing src/interface/gui/res/conf/Instance.xml
+Removing src/interface/gui/res/conf/HeaderItem.json
+Removing src/interface/gui/interface/web_io.cpp
+Removing src/interface/gui/interface/irt_io.cpp
+Removing src/interface/gui/interface/ipl_io.cpp
+Removing src/interface/gui/interface/ifp_io.cpp
+Removing src/interface/gui/interface/idrc_io.cpp
+Removing src/interface/gui/interface/idb_io.cpp
+Removing src/interface/gui/interface/icts_io.cpp
+Removing src/interface/gui/interface/gui_io.h
+Removing src/interface/gui/interface/gui_io.cpp
+Removing src/interface/gui/include/mainwindow.h
+Removing src/interface/gui/include/guigraphicsview.h
+Removing src/interface/gui/include/guigraphicsscene.h
+Removing src/interface/gui/CMakeLists.txt
+Removing src/interface/gui/.clang-format
+Removing src/database/manager/parser/spef/spef-parser/test/test.cpp
+Removing src/database/manager/parser/spef/spef-parser/src/spef_parser/spef_data.rs
+Removing src/database/manager/parser/spef/spef-parser/src/spef_parser/spef_c_api.rs
+Removing src/database/manager/parser/spef/spef-parser/src/spef_parser/mod.rs
+Removing src/database/manager/parser/spef/spef-parser/src/spef_parser/grammar/spef.pest
+Removing src/database/manager/parser/spef/spef-parser/src/main.rs
+Removing src/database/manager/parser/spef/spef-parser/src/lib.rs
+Removing src/database/manager/parser/spef/spef-parser/rustfmt.toml
+Removing src/database/manager/parser/spef/spef-parser/example/simple.spef
+Removing src/database/manager/parser/spef/spef-parser/dist/spef_parser.h
+Removing src/database/manager/parser/spef/spef-parser/cbindgen.toml
+Removing src/database/manager/parser/spef/spef-parser/build.rs
+Removing src/database/manager/parser/spef/spef-parser/README.md
+Removing src/database/manager/parser/spef/spef-parser/Cargo.toml
+Removing src/database/manager/parser/spef/spef-parser/Cargo.lock
+Removing src/database/manager/parser/spef/spef-parser/.clang-format
+Removing src/database/manager/parser/spef/SpefParserRustC.hh
+Removing src/database/manager/parser/spef/SpefParserRustC.cc
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/test/test.cpp
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/main.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/mod.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/liberty_expr_data.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/liberty_expr.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/liberty_data.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/liberty_c_api.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/grammar/liberty.pest
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/liberty_parser/grammar/lib_expr.pest
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/src/lib.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/rustfmt.toml
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/dist/liberty_parser.h
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/cbindgen.toml
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/build.rs
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/README.md
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/LICENSE
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/Cargo.toml
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/Cargo.lock
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/.gitignore
+Removing src/database/manager/parser/liberty/lib-rust/liberty-parser/.clang-format
+Removing src/database/manager/parser/liberty/LibParserRustC.hh
+Auto-merging src/database/manager/parser/liberty/LibParserCpp.cc
+CONFLICT (content): Merge conflict in src/database/manager/parser/liberty/LibParserCpp.cc
+Auto-merging src/database/manager/parser/liberty/Lib.hh
+Auto-merging src/database/manager/parser/liberty/Lib.cc
+Auto-merging src/apps/CMakeLists.txt
+CONFLICT (content): Merge conflict in src/apps/CMakeLists.txt
+Removing scripts/foundry/ihp130
+Removing scripts/design/sky130_gcd/script/iTO_script/run_iTO_setup_STA.tcl
+Removing scripts/design/sky130_gcd/script/iTO_script/run_iTO_setup.tcl
+Removing scripts/design/sky130_gcd/script/iTO_script/run_iTO_hold_STA.tcl
+Removing scripts/design/sky130_gcd/script/iTO_script/run_iTO_hold.tcl
+Removing scripts/design/sky130_gcd/script/iTO_script/run_iTO_drv_STA.tcl
+Removing scripts/design/sky130_gcd/script/iTO_script/run_iTO_drv.tcl
+Removing scripts/design/sky130_gcd/script/iRT_script/run_iRT_with_drc.tcl
+Removing scripts/design/sky130_gcd/script/iRT_script/run_iRT_STA.tcl
+Removing scripts/design/sky130_gcd/script/iRT_script/run_iRT_DRC.tcl
+Removing scripts/design/sky130_gcd/script/iPL_script/run_iPL_gui.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI_rt.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI_pl.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI_fp.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI_filler.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI_drc.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI_cts.tcl
+Removing scripts/design/sky130_gcd/script/iGUI_script/run_iGUI.tcl
+Removing scripts/design/sky130_gcd/script/iFP_script/module/set_clocknet.tcl
+Removing scripts/design/sky130_gcd/script/iECO_script/run_iECO.tcl
+Removing scripts/design/sky130_gcd/script/iDRC_script/run_iDRC_gui.tcl
+Removing scripts/design/sky130_gcd/script/iDRC_script/run_iDRC.tcl
+Removing scripts/design/sky130_gcd/script/iCTS_script/run_iCTS_STA.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/run_read_verilog.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/run_feature_summary.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/run_db_report_evl.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/run_db_checknet.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_spef.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_lib_setup.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_lib_hold.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_lib_fixfanout.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_lib_drv.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_lib.tcl
+Removing scripts/design/sky130_gcd/script/DB_script/db_init_lef.tcl
+Removing scripts/design/sky130_gcd/run_iEDA_gui.py
+Removing scripts/design/sky130_gcd/run_iEDA.sh
+Removing scripts/design/sky130_gcd/run_iEDA.py
+Removing scripts/design/sky130_gcd/result/verilog/APU.v
+Removing scripts/design/sky130_gcd/result/verilog/.gitignore
+Removing scripts/design/sky130_gcd/result/to/.gitignore
+Removing scripts/design/sky130_gcd/result/no/.gitignore
+Removing scripts/design/sky130_gcd/result/fp/.gitignore
+Removing scripts/design/sky130_gcd/result/feature/.gitignore
+Removing scripts/design/sky130_gcd/result/drc/.gitignore
+Removing scripts/design/sky130_gcd/result/cts/.gitignore
+Removing scripts/design/sky130_gcd/result/capture/.gitignore
+Removing scripts/design/sky130_gcd/result/.gitignore
+Removing scripts/design/sky130_gcd/iEDA_config/to_default_config_hold.json
+Removing scripts/design/sky130_gcd/iEDA_config/no_default_config_fixfanout.json
+Removing scripts/design/sky130_gcd/iEDA_config/fp_default_config.json
+Removing scripts/design/sky130_gcd/iEDA_config/flow_config.json
+Removing scripts/design/sky130_gcd/iEDA_config/drc_default_config.json
+Removing scripts/design/sky130_gcd/iEDA_config/db_default_config.json
+CONFLICT (modify/delete): scripts/design/sky130_gcd/iEDA_config/cts_default_config.json deleted in origin/main and modified in HEAD. Version HEAD of scripts/design/sky130_gcd/iEDA_config/cts_default_config.json left in tree.
+Removing scripts/design/sky130_gcd/config.py
+Removing scripts/design/sky130_gcd/README.md
+Removing scripts/design/sky130_gcd/.gitignore
+Removing scripts/design/ispd18/getbench.sh
+Removing scripts/design/ispd18/.gitignore
+Removing scripts/design/ihp130_gcd/script/iSTA_script/run_iSTA.tcl
+Removing scripts/design/ihp130_gcd/script/iSTA_script/report_iSTA.tcl
+Removing scripts/design/ihp130_gcd/script/iSTA_script/init_iSTA.tcl
+Removing scripts/design/ihp130_gcd/script/iRT_script/run_iRT.tcl
+Removing scripts/design/ihp130_gcd/script/iPW_script/run_iPW.tcl
+Removing scripts/design/ihp130_gcd/script/iPL_script/run_iPL_legalization.tcl
+Removing scripts/design/ihp130_gcd/script/iPL_script/run_iPL_gui.tcl
+Removing scripts/design/ihp130_gcd/script/iPL_script/run_iPL_filler.tcl
+Removing scripts/design/ihp130_gcd/script/iPL_script/run_iPL.tcl
+Removing scripts/design/ihp130_gcd/script/iNO_script/run_iNO_fix_fanout.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI_rt.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI_pl.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI_fp.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI_filler.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI_drc.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI_cts.tcl
+Removing scripts/design/ihp130_gcd/script/iGUI_script/run_iGUI.tcl
+Removing scripts/design/ihp130_gcd/script/iFP_script/run_iFP.tcl
+Removing scripts/design/ihp130_gcd/script/iFP_script/module/pdn.tcl
+Removing scripts/design/ihp130_gcd/script/iFP_script/module/create_tracks.tcl
+Removing scripts/design/ihp130_gcd/script/iEVAL_script/run_iEVAL.tcl
+Removing scripts/design/ihp130_gcd/script/iDRC_script/run_iDRC_gui.tcl
+Removing scripts/design/ihp130_gcd/script/iCTS_script/run_iCTS_STA.tcl
+CONFLICT (modify/delete): scripts/design/ihp130_gcd/script/iCTS_script/run_iCTS.tcl deleted in origin/main and modified in HEAD. Version HEAD of scripts/design/ihp130_gcd/script/iCTS_script/run_iCTS.tcl left in tree.
+Removing scripts/design/ihp130_gcd/script/DB_script/run_read_verilog.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_netlist_to_def.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_feature_summary.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_def_to_verilog.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_def_to_json_text.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_def_to_gds_text.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_db_report_evl.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_db_checknet.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/run_db.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/env_var_setup.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_path_setting.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_spef.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_sdc.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_lib_setup.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_lib_hold.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_lib_fixfanout.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_lib_drv.tcl
+Removing scripts/design/ihp130_gcd/script/DB_script/db_init_lib.tcl
+Removing scripts/design/ihp130_gcd/run_iEDA.sh
+Removing scripts/design/ihp130_gcd/result/verilog/picorv32a_nl.v
+Removing scripts/design/ihp130_gcd/result/verilog/gcd_nl.v
+Removing scripts/design/ihp130_gcd/result/verilog/aes_nl.v
+Removing scripts/design/ihp130_gcd/result/verilog/.gitignore
+Removing scripts/design/ihp130_gcd/result/to/.gitignore
+Removing scripts/design/ihp130_gcd/result/no/.gitignore
+Removing scripts/design/ihp130_gcd/result/fp/.gitignore
+Removing scripts/design/ihp130_gcd/result/feature/.gitignore
+Removing scripts/design/ihp130_gcd/result/drc/.gitignore
+Removing scripts/design/ihp130_gcd/result/cts/.gitignore
+Removing scripts/design/ihp130_gcd/result/capture/.gitignore
+Removing scripts/design/ihp130_gcd/result/.gitignore
+Removing scripts/design/ihp130_gcd/iEDA_config/rt_default_config.json
+Removing scripts/design/ihp130_gcd/iEDA_config/pnp_default_config.json
+Removing scripts/design/ihp130_gcd/iEDA_config/pl_default_config.json
+Removing scripts/design/ihp130_gcd/iEDA_config/no_default_config_fixfanout.json
+Removing scripts/design/ihp130_gcd/iEDA_config/fp_default_config.json
+Removing scripts/design/ihp130_gcd/iEDA_config/flow_config.json
+Removing scripts/design/ihp130_gcd/iEDA_config/drc_default_config.json
+Removing scripts/design/ihp130_gcd/iEDA_config/db_default_config.json
+CONFLICT (modify/delete): scripts/design/ihp130_gcd/iEDA_config/cts_default_config.json deleted in origin/main and modified in HEAD. Version HEAD of scripts/design/ihp130_gcd/iEDA_config/cts_default_config.json left in tree.
+Removing scripts/design/ihp130_gcd/README.md
+Removing scripts/design/ihp130_gcd/.gitignore
+Removing scripts/design/ics55_gcd/script/iSTA_script/run_iSTA.tcl
+Removing scripts/design/ics55_gcd/script/iSTA_script/report_iSTA.tcl
+Removing scripts/design/ics55_gcd/script/iSTA_script/init_iSTA.tcl
+Removing scripts/design/ics55_gcd/script/iRT_script/run_iRT_with_drc.tcl
+Removing scripts/design/ics55_gcd/script/iRT_script/run_iRT_STA.tcl
+Removing scripts/design/ics55_gcd/script/iRT_script/run_iRT_DRC.tcl
+Removing scripts/design/ics55_gcd/script/iRT_script/run_iRT.tcl
+Removing scripts/design/ics55_gcd/script/iPL_script/run_iPL_legalization.tcl
+Removing scripts/design/ics55_gcd/script/iPL_script/run_iPL_gui.tcl
+Removing scripts/design/ics55_gcd/script/iPL_script/run_iPL_filler.tcl
+Removing scripts/design/ics55_gcd/script/iPL_script/run_iPL.tcl
+Removing scripts/design/ics55_gcd/script/iNO_script/run_iNO_fix_fanout.tcl
+Removing scripts/design/ics55_gcd/script/iFP_script/run_iFP.tcl
+Removing scripts/design/ics55_gcd/script/iFP_script/module/set_clocknet.tcl
+Removing scripts/design/ics55_gcd/script/iFP_script/module/global_net.tcl
+Removing scripts/design/ics55_gcd/script/iFP_script/module/create_tracks.tcl
+Removing scripts/design/ics55_gcd/script/iFP_script/module/add_stripe.tcl
+Removing scripts/design/ics55_gcd/script/iCTS_script/run_iCTS.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/run_netlist_to_def.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/run_def_to_verilog.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/run_def_to_json_text.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/run_def_to_gds_text.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/run_db.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/env_var_setup.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/db_path_setting.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/db_init_sdc.tcl
+Removing scripts/design/ics55_gcd/script/DB_script/db_init_lef.tcl
+Removing scripts/design/ics55_gcd/run_iEDA.sh
+Removing scripts/design/ics55_gcd/result/verilog/gcd_nl.v
+Removing scripts/design/ics55_gcd/iEDA_config/rt_default_config.json
+Removing scripts/design/ics55_gcd/iEDA_config/pnp_default_config.json
+Removing scripts/design/ics55_gcd/iEDA_config/no_default_config_fixfanout.json
+Removing scripts/design/ics55_gcd/iEDA_config/fp_default_config.json
+Removing scripts/design/ics55_gcd/iEDA_config/flow_config.json
+Removing scripts/design/ics55_gcd/iEDA_config/drc_default_config.json
+Removing scripts/design/ics55_gcd/iEDA_config/db_default_config.json
+CONFLICT (modify/delete): scripts/design/ics55_gcd/iEDA_config/cts_default_config.json deleted in origin/main and modified in HEAD. Version HEAD of scripts/design/ics55_gcd/iEDA_config/cts_default_config.json left in tree.
+Removing scripts/design/ics55_gcd/default.sdc
+Removing scripts/design/ics55_gcd/README.md
+Removing scripts/design/ics55_gcd/.gitignore
+Auto-merging CMakeLists.txt
+CONFLICT (modify/delete): AGENTS.md deleted in origin/main and modified in HEAD. Version HEAD of AGENTS.md left in tree.
+Auto-merging .gitignore
+CONFLICT (content): Merge conflict in .gitignore
+Automatic merge failed; fix conflicts and then commit the result.

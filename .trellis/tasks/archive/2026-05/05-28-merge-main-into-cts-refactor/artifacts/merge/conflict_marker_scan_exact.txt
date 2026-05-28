@@ -1,0 +1,10 @@
+./src/third_party/pybind11/docs/advanced/pycpp/object.rst:269:=======
+./src/third_party/gdstk/docs/headers/style.rst:2:=======
+./src/third_party/gdstk/docs/headers/curve.rst:2:=======
+./src/third_party/gdstk/docs/headers/label.rst:2:=======
+./src/third_party/gdstk/docs/headers/utils.rst:2:=======
+./src/third_party/gdstk/docs/gettingstarted.rst:145:=======
+./src/third_party/gdstk/docs/headers/oasis.rst:2:=======
+./src/third_party/gdstk/docs/headers/gdstk.rst:2:=======
+./src/third_party/gdstk/docs/headers/array.rst:2:=======
+./src/third_party/gdstk/docs/headers/gdsii.rst:2:=======
