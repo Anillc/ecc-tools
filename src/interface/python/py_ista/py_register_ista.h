@@ -26,6 +26,7 @@ void register_ista(py::module& m)
 {
   m.def("run_sta", staRun, py::arg("output"));
   m.def("init_sta", staInit, py::arg("output"));
+  m.def("release_sta", releaseSta);
   m.def("report_sta", staReport, ("output"));
 
   m.def("init_log", initLog, ("log_dir"));

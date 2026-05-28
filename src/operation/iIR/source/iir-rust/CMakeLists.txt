@@ -18,6 +18,6 @@ SETUP_RUST_PROJECT()
 
 message(STATUS "iIR rust lib path ${RUST_LIB_PATH}")
 
-ADD_EXTERNAL_PROJ(iir)
+ADD_EXTERNAL_PROJ(iIR-Rust)
 
 target_link_libraries(iIR-Rust PRIVATE ${RUST_LIB_PATH} dl)

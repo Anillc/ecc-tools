@@ -41,7 +41,7 @@
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "IdbTerm.h"
-#include "LibParserRustC.hh"
+#include "LibParserCpp.hh"
 #include "Log.hh"
 #include "Vector.hh"
 #include "Wrapper.hh"
@@ -236,12 +236,12 @@ auto resolveInstPinByLibPort(idb::IdbInstance* idb_inst, ista::LibPort* lib_port
   return nullptr;
 }
 
-auto libertyExpressionUsesPort(RustLibertyExpr* expression, const std::string& port_name) -> bool
+auto libertyExpressionUsesPort(LibertyExpr* expression, const std::string& port_name) -> bool
 {
   if (expression == nullptr || port_name.empty()) {
     return false;
   }
-  std::vector<RustLibertyExpr*> pending_expressions = {expression};
+  std::vector<LibertyExpr*> pending_expressions = {expression};
   while (!pending_expressions.empty()) {
     auto* current = pending_expressions.back();
     pending_expressions.pop_back();

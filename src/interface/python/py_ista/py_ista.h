@@ -50,6 +50,8 @@ bool staRun(const std::string& output);
 
 bool staInit(const std::string& output);
 
+bool releaseSta();
+
 bool staReport(const std::string& output);
 bool setDesignWorkSpace(const std::string& design_workspace);
 

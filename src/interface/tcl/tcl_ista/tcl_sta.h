@@ -77,6 +77,20 @@ class CmdSTAInit : public TclCmd
   // private data
 };
 
+class CmdSTARelease : public TclCmd
+{
+ public:
+  explicit CmdSTARelease(const char* cmd_name);
+  ~CmdSTARelease() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
 class CmdSTAReport : public TclCmd
 {
  public:

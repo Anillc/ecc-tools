@@ -26,7 +26,6 @@ rpt*/
 target/
 *-stamp/
 tmp/
-/scripts
 *.patch
 CMakePresets.json
 .venv/
@@ -48,3 +47,5 @@ iCTS copy
 icts_test_output
 
 ics55_*
+scripts/design/ics55/gcd/
+scripts/design/sky130/gcd/

@@ -150,7 +150,7 @@ unsigned CmdIdbDeleteInstance::check()
 unsigned CmdIdbDeleteInstance::exec()
 {
   std::string name = getOptionOrArg(INST_NAME_OPT)->getStringVal();
-  bool deleted = dmInst->get_idb_design()->get_instance_list()->remove_instance(name);
+  bool deleted = dmInst->get_idb_design()->removeInstanceSafe(name);
   if (deleted) {
     std::cout << "Instance " << name << " removed." << std::endl;
   } else {
@@ -172,7 +172,7 @@ unsigned CmdIdbDeleteNet::check()
 unsigned CmdIdbDeleteNet::exec()
 {
   std::string name = getOptionOrArg(NET_NAME_OPT)->getStringVal();
-  bool deleted = dmInst->get_idb_design()->get_net_list()->remove_net(name);
+  bool deleted = dmInst->get_idb_design()->removeNetSafe(name);
   if (deleted) {
     std::cout << "Net " << name << " removed." << std::endl;
   } else {

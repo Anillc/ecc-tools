@@ -25,6 +25,7 @@
 
 #include <string>
 
+#include "Vector.hh"
 #include "api/Power.hh"
 #include "api/TimingEngine.hh"
 #include "sta/Sta.hh"
@@ -43,14 +44,17 @@ auto STAAdapter::observeQueryFacade() const -> void
 auto STAAdapter::init(const Config& config) -> void
 {
   auto* timing_engine = sta_adapter_timing_query::GetStaEngine();
-  if (!sta_adapter_timing_query::HasStaBaseContext()) {
+  const bool has_loaded_liberty = timing_engine->get_ista() != nullptr && !timing_engine->get_ista()->getAllLib().empty();
+  if (!has_loaded_liberty) {
     ipower::Power::destroyPower();
     ista::TimingEngine::destroyTimingEngine();
     timing_engine = sta_adapter_timing_query::GetStaEngine();
-    sta_adapter_timing_query::InstallTimingIDBAdapter(timing_engine);
     sta_adapter_timing_query::LoadConfiguredLiberty(timing_engine);
   }
 
+  // The global TimingEngine can outlive iDB reloads between flow steps.
+  // Always rebind the adapter to the current dmInst builder before CTS queries RC.
+  sta_adapter_timing_query::InstallTimingIDBAdapter(timing_engine);
   _base_context_ready = true;
   timing_engine->set_num_threads(sta_adapter_timing_query::kStaThreadCount);
   sta_adapter_timing_query::ConfigureStaWorkspace(config, timing_engine, "sta");

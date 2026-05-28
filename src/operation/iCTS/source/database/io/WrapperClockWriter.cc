@@ -72,31 +72,18 @@ struct ClockTreeIdbPreexistingObjects
   std::set<std::string> inst_names;
 };
 
-auto AttachIdbPinToClockTreeNet(idb::IdbNet* idb_net, idb::IdbPin* idb_pin) -> void
+auto AttachIdbPinToClockTreeNet(idb::IdbDesign* idb_design, idb::IdbNet* idb_net, idb::IdbPin* idb_pin) -> bool
 {
-  if (idb_net == nullptr || idb_pin == nullptr) {
-    return;
+  if (idb_design == nullptr || idb_net == nullptr || idb_pin == nullptr) {
+    return false;
   }
-  auto* old_net = idb_pin->get_net();
-  if (old_net != nullptr && old_net != idb_net) {
-    old_net->remove_pin(idb_pin);
-  }
-  idb_pin->set_net(idb_net);
-  idb_pin->set_net_name(idb_net->get_net_name());
-  auto* pin_list = idb_pin->is_io_pin() ? idb_net->get_io_pins() : idb_net->get_instance_pin_list();
-  if (pin_list == nullptr || pin_list->find_pin(idb_pin) != nullptr) {
-    return;
-  }
-  if (idb_pin->is_io_pin()) {
-    idb_net->add_io_pin(idb_pin);
-  } else {
-    idb_net->add_instance_pin(idb_pin);
-  }
+
+  return idb_design->connectPinToNet(idb_pin, idb_net);
 }
 
-auto DetachIdbNetPins(idb::IdbNet* idb_net) -> void
+auto DetachIdbNetPins(idb::IdbDesign* idb_design, idb::IdbNet* idb_net) -> void
 {
-  if (idb_net == nullptr) {
+  if (idb_design == nullptr || idb_net == nullptr) {
     return;
   }
   std::vector<idb::IdbPin*> pins;
@@ -109,7 +96,7 @@ auto DetachIdbNetPins(idb::IdbNet* idb_net) -> void
     pins.insert(pins.end(), inst_pins.begin(), inst_pins.end());
   }
   for (auto* pin : pins) {
-    idb_net->remove_pin(pin);
+    idb_design->disconnectPinFromNet(pin);
   }
 }
 
@@ -339,7 +326,6 @@ class Wrapper::CtsClockIdbWriter
                 << "\": iDB layout or cell master list is not ready.";
       return nullptr;
     }
-    auto* idb_inst_list = _wrapper->_idb_design->get_instance_list();
     auto* cell_master = _wrapper->_idb_layout->get_cell_master_list()->find_cell_master(inst->get_cell_master());
     if (cell_master == nullptr) {
       LOG_ERROR << "CTS iDB clock-tree materialization failed for inst \"" << inst->get_name() << "\": cell master \""
@@ -352,32 +338,45 @@ class Wrapper::CtsClockIdbWriter
       if (idb_inst == nullptr) {
         return nullptr;
       }
-      idb_inst->set_cell_master(cell_master);
+      if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
+        if (!_wrapper->_idb_design->replaceInstanceMaster(inst->get_name(), inst->get_cell_master())) {
+          LOG_ERROR << "CTS iDB clock-tree materialization failed: cannot update mapped iDB inst \"" << inst->get_name()
+                    << "\" to cell master \"" << inst->get_cell_master() << "\".";
+          return nullptr;
+        }
+      }
+      if (!_wrapper->_idb_design->placeInstance(inst->get_name(), inst->get_location().get_x(), inst->get_location().get_y(),
+                                                idb::IdbOrient::kN_R0, idb::IdbPlacementStatus::kPlaced)) {
+        LOG_ERROR << "CTS iDB clock-tree materialization failed: cannot place mapped iDB inst \"" << inst->get_name() << "\".";
+        return nullptr;
+      }
       idb_inst->set_type(idb::IdbInstanceType::kTiming);
-      idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
-      idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
-      idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
       bindClockTreeInstPins(idb_inst, inst);
       return idb_inst;
     }
 
-    auto* idb_inst = idb_inst_list->find_instance(inst->get_name());
+    auto* idb_inst = _wrapper->_idb_design->get_instance_list()->find_instance(inst->get_name());
     if (idb_inst == nullptr) {
-      idb_inst = idb_inst_list->add_instance(inst->get_name());
+      idb_inst = _wrapper->_idb_design->createInstance(inst->get_name(), inst->get_cell_master(), idb::IdbInstanceType::kTiming);
       if (idb_inst == nullptr) {
         LOG_ERROR << "CTS iDB clock-tree materialization failed: failed to allocate iDB inst \"" << inst->get_name() << "\".";
         return nullptr;
       }
-      idb_inst->set_cell_master(cell_master);
-      idb_inst->set_type(idb::IdbInstanceType::kTiming);
     } else if (idb_inst->get_cell_master() == nullptr || idb_inst->get_cell_master()->get_name() != inst->get_cell_master()) {
-      idb_inst->set_cell_master(cell_master);
+      if (!_wrapper->_idb_design->replaceInstanceMaster(inst->get_name(), inst->get_cell_master())) {
+        LOG_ERROR << "CTS iDB clock-tree materialization failed: cannot update iDB inst \"" << inst->get_name() << "\" to cell master \""
+                  << inst->get_cell_master() << "\".";
+        return nullptr;
+      }
       idb_inst->set_type(idb::IdbInstanceType::kTiming);
     }
 
-    idb_inst->set_orient(idb::IdbOrient::kN_R0, false);
-    idb_inst->set_coodinate(inst->get_location().get_x(), inst->get_location().get_y());
-    idb_inst->set_status(idb::IdbPlacementStatus::kPlaced);
+    if (!_wrapper->_idb_design->placeInstance(inst->get_name(), inst->get_location().get_x(), inst->get_location().get_y(),
+                                              idb::IdbOrient::kN_R0, idb::IdbPlacementStatus::kPlaced)) {
+      LOG_ERROR << "CTS iDB clock-tree materialization failed: cannot place iDB inst \"" << inst->get_name() << "\".";
+      return nullptr;
+    }
+    idb_inst->set_type(idb::IdbInstanceType::kTiming);
     _wrapper->crossRef(idb_inst, inst);
     bindClockTreeInstPins(idb_inst, inst);
     return idb_inst;
@@ -461,10 +460,7 @@ class Wrapper::CtsClockIdbWriter
       LOG_ERROR << "CTS iDB clock-tree materialization failed: clock tree net name is empty.";
       return nullptr;
     }
-    auto* idb_net = _wrapper->_idb_design->get_net_list()->find_net(net_name);
-    if (idb_net == nullptr) {
-      idb_net = _wrapper->_idb_design->get_net_list()->add_net(net_name, idb::IdbConnectType::kClock);
-    }
+    auto* idb_net = _wrapper->_idb_design->createOrFindNet(net_name, idb::IdbConnectType::kClock);
     if (idb_net == nullptr) {
       _failure_reason = "create_clock_tree_net_failed";
       LOG_ERROR << "CTS iDB clock-tree materialization failed: failed to create iDB net \"" << net_name << "\".";
@@ -539,10 +535,16 @@ class Wrapper::CtsClockIdbWriter
       idb_loads.push_back(idb_load);
     }
 
-    DetachIdbNetPins(idb_net);
-    AttachIdbPinToClockTreeNet(idb_net, idb_driver);
+    DetachIdbNetPins(_wrapper->_idb_design, idb_net);
+    if (!AttachIdbPinToClockTreeNet(_wrapper->_idb_design, idb_net, idb_driver)) {
+      _failure_reason = "clock_tree_driver_pin_connect_failed";
+      return false;
+    }
     for (auto* idb_load : idb_loads) {
-      AttachIdbPinToClockTreeNet(idb_net, idb_load);
+      if (!AttachIdbPinToClockTreeNet(_wrapper->_idb_design, idb_net, idb_load)) {
+        _failure_reason = "clock_tree_load_pin_connect_failed";
+        return false;
+      }
     }
     return true;
   }
@@ -561,8 +563,8 @@ class Wrapper::CtsClockIdbWriter
       if (created_net == nullptr) {
         continue;
       }
-      DetachIdbNetPins(created_net);
-      idb_clock_tree_restored = idb_net_list->remove_net(net_name) && idb_clock_tree_restored;
+      DetachIdbNetPins(_wrapper->_idb_design, created_net);
+      idb_clock_tree_restored = _wrapper->_idb_design->removeNetSafe(net_name) && idb_clock_tree_restored;
     }
 
     for (const auto& [net_name, net_pins] : restore_data.pins_by_net_name) {
@@ -571,12 +573,12 @@ class Wrapper::CtsClockIdbWriter
         idb_clock_tree_restored = false;
         continue;
       }
-      DetachIdbNetPins(idb_net);
+      DetachIdbNetPins(_wrapper->_idb_design, idb_net);
       for (auto* io_pin : net_pins.io_pins) {
-        AttachIdbPinToClockTreeNet(idb_net, io_pin);
+        idb_clock_tree_restored = AttachIdbPinToClockTreeNet(_wrapper->_idb_design, idb_net, io_pin) && idb_clock_tree_restored;
       }
       for (auto* inst_pin : net_pins.inst_pins) {
-        AttachIdbPinToClockTreeNet(idb_net, inst_pin);
+        idb_clock_tree_restored = AttachIdbPinToClockTreeNet(_wrapper->_idb_design, idb_net, inst_pin) && idb_clock_tree_restored;
       }
     }
 
@@ -584,7 +586,7 @@ class Wrapper::CtsClockIdbWriter
       if (restore_data.inst_names.contains(inst_name) || idb_inst_list->find_instance(inst_name) == nullptr) {
         continue;
       }
-      idb_clock_tree_restored = idb_inst_list->remove_instance(inst_name) && idb_clock_tree_restored;
+      idb_clock_tree_restored = _wrapper->_idb_design->removeInstanceSafe(inst_name) && idb_clock_tree_restored;
     }
 
     _wrapper->_cts2idb_inst_map.clear();

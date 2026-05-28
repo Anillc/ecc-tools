@@ -34,7 +34,7 @@
 #include "ClockTraceResolver.hh"
 #include "SdcClockReader.hh"
 
-struct RustLibertyExpr;
+struct LibertyExpr;
 
 namespace idb {
 class IdbDesign;

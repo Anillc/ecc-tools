@@ -220,6 +220,34 @@ class CmdLoadData : public TclCmd
   // private data
 };
 
+class CmdResetData : public TclCmd
+{
+ public:
+  explicit CmdResetData(const char* cmd_name);
+  ~CmdResetData() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
+class CmdValidateIdb : public TclCmd
+{
+ public:
+  explicit CmdValidateIdb(const char* cmd_name);
+  ~CmdValidateIdb() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+
+ private:
+  // private function
+  // private data
+};
+
 class CmdWriteSocJson : public TclCmd
 {
  public:

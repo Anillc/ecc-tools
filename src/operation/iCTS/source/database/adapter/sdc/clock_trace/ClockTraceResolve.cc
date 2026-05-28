@@ -38,7 +38,7 @@
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "IdbTerm.h"
-#include "LibParserRustC.hh"
+#include "LibParserCpp.hh"
 #include "SdcClockReader.hh"
 #include "SdcClockTraceAlgorithm.hh"
 #include "liberty/Lib.hh"
@@ -103,12 +103,12 @@ auto OtherInputsCaseConstrained(idb::IdbInstance* inst, idb::IdbPin* clock_input
   return has_other_input;
 }
 
-auto LibertyExpressionUsesPort(RustLibertyExpr* expression, const std::string& port_name) -> bool
+auto LibertyExpressionUsesPort(LibertyExpr* expression, const std::string& port_name) -> bool
 {
   if (expression == nullptr || port_name.empty()) {
     return false;
   }
-  std::vector<RustLibertyExpr*> pending_expressions = {expression};
+  std::vector<LibertyExpr*> pending_expressions = {expression};
   while (!pending_expressions.empty()) {
     auto* current = pending_expressions.back();
     pending_expressions.pop_back();

@@ -108,24 +108,7 @@ int32_t DataManager::instancePinNum(string inst_name)
 IdbInstance* DataManager::createInstance(string inst_name, string cell_master_name, int32_t coord_x, int32_t coord_y, IdbOrient orient,
                                          IdbInstanceType type, IdbPlacementStatus status)
 {
-  IdbInstanceList* inst_list = _design->get_instance_list();
-  IdbCellMasterList* cell_master_list = _layout->get_cell_master_list();
-
-  IdbInstance* inst = inst_list->add_instance(inst_name);
-  if (inst != nullptr) {
-    IdbCellMaster* cell_master = cell_master_list->find_cell_master(cell_master_name);
-    if (cell_master == nullptr) {
-      return nullptr;
-    }
-
-    inst->set_cell_master(cell_master);
-    inst->set_type(type);
-    /// do not update other cell data, and set update false.
-    inst->set_orient(orient, false);
-    inst->set_coodinate(coord_x, coord_y);
-    inst->set_status(status);
-  }
-  return inst;
+  return _design->createInstance(inst_name, cell_master_name, type, status, orient, coord_x, coord_y);
 }
 
 /**
@@ -244,7 +227,7 @@ IdbInstance* DataManager::insertBufferToNet(string inst_name, string cell_master
       break;
     }
 
-    net->add_instance_pin(pin);
+    _design->connectPinToNet(pin, net);
   }
 
   return inst;
@@ -284,10 +267,10 @@ IdbInstance* DataManager::insertIOFiller(string inst_name, string cell_master_na
  */
 bool DataManager::placeInst(string inst_name, int32_t x, int32_t y, string orient_name, string cell_master_name, string source)
 {
-  IdbCellMaster* cellmaster;
+  IdbInstance* instance = _design->get_instance_list()->find_instance(inst_name);
+  IdbCellMaster* cellmaster = nullptr;
   if (cell_master_name == "") {
-    auto inst = _design->get_instance_list()->find_instance(inst_name);
-    cellmaster = inst->get_cell_master();
+    cellmaster = instance == nullptr ? nullptr : instance->get_cell_master();
   } else {
     cellmaster = _layout->get_cell_master_list()->find_cell_master(cell_master_name);
   }
@@ -308,7 +291,7 @@ bool DataManager::placeInst(string inst_name, int32_t x, int32_t y, string orien
     ury = y + height;
   } else {
     urx = x + height;
-    ury = y + height;
+    ury = y + width;
   }
 
   if (cellmaster->is_endcap()) {
@@ -322,22 +305,18 @@ bool DataManager::placeInst(string inst_name, int32_t x, int32_t y, string orien
     }
   }
 
-  auto idb_inst_list = _design->get_instance_list();
-  IdbInstance* instance = idb_inst_list->find_instance(inst_name);
   if (instance == nullptr) {
-    instance = new IdbInstance();
-    instance->set_name(inst_name);
-    instance->set_cell_master(cellmaster);
-    idb_inst_list->add_instance(instance);
+    instance = _design->createInstance(inst_name, cellmaster->get_name(), IdbInstanceType::kNone, IdbPlacementStatus::kNone, orient, x, y);
+    if (instance == nullptr) {
+      return false;
+    }
   }
 
   if (!source.empty()) {
     instance->set_type(source);
   }
 
-  instance->set_orient(orient);
-  instance->set_coodinate(x, y);
-  instance->set_status_fixed();
+  _design->placeInstance(inst_name, x, y, orient, IdbPlacementStatus::kFixed);
 
   return true;
 }

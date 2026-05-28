@@ -42,7 +42,7 @@
 #include "IdbLayout.h"
 #include "IdbNet.h"
 #include "Inst.hh"
-#include "LibParserRustC.hh"
+#include "LibParserCpp.hh"
 #include "Schema.hh"
 #include "Wrapper.hh"
 #include "api/TimingEngine.hh"
@@ -151,7 +151,7 @@ auto MakeClockLogicLibCell(const std::string& cell_name, const std::string& cloc
   MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput);
   MakeLibPort(*cell, "EN", ista::LibPort::LibertyPortType::kInput);
   auto* out_port = MakeLibPort(*cell, "Y", ista::LibPort::LibertyPortType::kOutput);
-  RustLibertyExprBuilder expr_builder(clock_pin_name.c_str());
+  ista::LibertyExprBuilder expr_builder(clock_pin_name.c_str());
   expr_builder.execute();
   out_port->set_func_expr(expr_builder.get_result_expr());
   out_port->set_func_expr_str(clock_pin_name.c_str());

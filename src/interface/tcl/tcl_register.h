@@ -25,9 +25,6 @@
  */
 #include "ScriptEngine.hh"
 #include "UserShell.hh"
-#ifdef BUILD_GUI
-#include "tcl_register_gui.h"
-#endif
 
 #include "flow.h"
 #include "tcl_flow.h"
@@ -53,6 +50,7 @@
 #include "tcl_register_vec.h"
 #include "tcl_register_pnp.h"
 #include "tcl_register_notification.h"
+#include "tcl_register_workspace.h"
 
 #ifdef CONTEST
 #include "tcl_register_contest.h"
@@ -65,6 +63,9 @@ int registerCommands()
 {
   /// config
   registerConfig();
+
+  /// workspace
+  registerCmdWorkspace();
 
   /// flow
   registerCmdFlow();
@@ -107,11 +108,6 @@ int registerCommands()
 
   /// Power
   registerCmdPower();
-
-#ifdef BUILD_GUI
-  /// gui
-  registerCmdGUI();
-#endif
 
   registerCmdReport();
 

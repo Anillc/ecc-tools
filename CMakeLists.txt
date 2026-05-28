@@ -16,18 +16,46 @@
 # ***************************************************************************************
 
 cmake_minimum_required(VERSION 3.11)
-project(iEDA)
+project(ecc)
 
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Choose linker for linking
+set(LINKER "default" CACHE STRING "Select linker type (default, lld, mold)")
+set_property(CACHE LINKER PROPERTY STRINGS "default" "lld" "mold")
+string(TOLOWER "${LINKER}" LINKER_CHOICE)
+
+if(LINKER_CHOICE STREQUAL "lld")
+    find_program(LLD_PATH NAMES "ld.lld" "lld")
+    if(LLD_PATH)
+        message(STATUS "Use LLD linker: ${LLD_PATH}")
+        message(WARNING "TODO: Using LLD will crash when building shared libraries (.so), use mold or ld instead.")
+        add_link_options("-fuse-ld=lld")
+    else()
+        message(WARNING "LLD not found. Falling back to system default linker.")
+    endif()
+
+elseif(LINKER_CHOICE STREQUAL "mold")
+    find_program(MOLD_PATH NAMES "mold")
+    if(MOLD_PATH)
+        message(STATUS "Use MOLD linker: ${MOLD_PATH}")
+        add_link_options("-fuse-ld=mold")
+    else()
+        message(WARNING "MOLD not found. Falling back to system default linker.")
+    endif()
+endif()
+
+
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -Werror=return-type")
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -g -Wall -Werror=return-type")
 # set(CMAKE_BUILD_TYPE "Release")
-set(BUILD_ECOS ON)
+set(BUILD_ECOS OFF)
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -Werror=return-type")
 
 # if(NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
@@ -43,7 +71,6 @@ else()
 endif()
 option(USE_PROFILER "Enable performance profiling (default OFF)" OFF)
 option(SANITIZER "Enable address sanitizer (default OFF)" OFF)
-option(BUILD_GUI "Enable GUI components (default OFF)" OFF)
 option(USE_GPU "Enable GPU acceleration (default OFF)" OFF)
 option(COMPATIBILITY_MODE "Enable compatibility mode (disable aggressive optimizations)" OFF)
 
@@ -110,11 +137,6 @@ if(SANITIZER)
     message("address sanitizer load")
 endif()
 
-if(BUILD_GUI)
-    add_definitions(-DBUILD_GUI)
-endif()
-
-
 if (USE_GPU)
     add_definitions(-DUSE_GPU)
     include(cmake/cuda.cmake)
@@ -133,6 +155,7 @@ endif()
 
 add_subdirectory(src/third_party)
 add_subdirectory(src/utility)
+add_subdirectory(src/workspace)
 add_subdirectory(src/apps)
 add_subdirectory(src/database)
 add_subdirectory(src/interface)
