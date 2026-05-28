@@ -882,3 +882,36 @@ Removed explicit CTS static archive path links, replaced them with target-based 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 71: CTS global CMake architecture cleanup
+
+**Date**: 2026-05-28
+**Task**: CTS global CMake architecture cleanup
+**Branch**: `cts_refactor`
+
+### Summary
+
+Refactored CTS CMake dependencies to use concrete targets, tightened visibility/include ownership, validated iEDA build, H-tree tests, ics55_dev, and ecc dev check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `084e51e86` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
