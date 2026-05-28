@@ -915,3 +915,36 @@ Refactored CTS CMake dependencies to use concrete targets, tightened visibility/
 ### Next Steps
 
 - None - task complete
+
+
+## Session 72: Merge main into cts_refactor
+
+**Date**: 2026-05-28
+**Task**: Merge main into cts_refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Merged origin/main into cts_refactor, preserved cts_refactor iCTS as source of truth, ported compatible CTS fixes, and validated iEDA build plus iCTS flow.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `17fbc4f42` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

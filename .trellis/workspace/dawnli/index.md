@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 71
+- **Total Sessions**: 72
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~917 | Active |
+| `journal-2.md` | ~950 | Active |
 | `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 72 | 2026-05-28 | Merge main into cts_refactor | `17fbc4f42` | `cts_refactor` |
 | 71 | 2026-05-28 | CTS global CMake architecture cleanup | `084e51e86` | `cts_refactor` |
 | 70 | 2026-05-27 | Clean CTS static archive CMake links | `55cd2834c` | `cts_refactor` |
 | 69 | 2026-05-27 | H-tree architecture decomposition | `ef4b93b9b` | `cts_refactor` |
