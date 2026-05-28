@@ -15,19 +15,17 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include "CompareSpefData.hh"
 
-namespace tcl {
-int registerCmdRCX()
+namespace ircx {
+namespace compare_spef {
+
+class ResultSorter
 {
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+ public:
+  void sort(Result& result, const Data& test, const Data& reference) const;
+};
 
-  return EXIT_SUCCESS;
-}
-
-}  // namespace tcl
+}  // namespace compare_spef
+}  // namespace ircx

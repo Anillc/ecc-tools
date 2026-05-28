@@ -23,16 +23,23 @@
 #include <utility>
 #include <vector>
 
-#include "CompareParasiticsConfig.hh"
-
 namespace ircx {
+namespace compare_spef {
 
-struct CompareNodePair
+struct NodePair
 {
   std::string first;
   std::string second;
 
-  friend auto operator<(const CompareNodePair& lhs, const CompareNodePair& rhs) -> bool
+  static auto ordered(std::string node1, std::string node2) -> NodePair
+  {
+    if (node2 < node1) {
+      std::swap(node1, node2);
+    }
+    return NodePair{std::move(node1), std::move(node2)};
+  }
+
+  friend auto operator<(const NodePair& lhs, const NodePair& rhs) -> bool
   {
     if (lhs.first != rhs.first) {
       return lhs.first < rhs.first;
@@ -41,7 +48,7 @@ struct CompareNodePair
   }
 };
 
-struct ComparePin
+struct Pin
 {
   std::string name;
   std::string direction;
@@ -52,35 +59,35 @@ struct ComparePin
   bool has_coordinate = false;
 };
 
-struct CompareResistor
+struct Resistor
 {
   std::string node1;
   std::string node2;
   double resistance = 0.0;
 };
 
-struct CompareNet
+struct Net
 {
   std::string name;
   double total_cap = 0.0;
   std::map<std::string, double> ground_caps;
-  std::map<CompareNodePair, double> coupling_caps;
-  std::vector<CompareResistor> resistors;
-  std::vector<ComparePin> pins;
+  std::map<NodePair, double> coupling_caps;
+  std::vector<Resistor> resistors;
+  std::vector<Pin> pins;
 };
 
-struct CompareParasiticData
+struct Data
 {
   std::string file_name;
   std::string cap_unit;
   std::string res_unit;
-  std::map<std::string, CompareNet> nets;
+  std::map<std::string, Net> nets;
   std::map<std::string, std::size_t> net_order;
   std::map<std::string, std::string> node_to_net;
-  std::map<CompareNodePair, double> coupling_caps;
+  std::map<NodePair, double> coupling_caps;
 };
 
-struct CompareValueRow
+struct ValueRow
 {
   std::string net;
   double reference = 0.0;
@@ -89,7 +96,7 @@ struct CompareValueRow
   std::optional<double> relative_delta;
 };
 
-struct CompareCcapRow
+struct CcapRow
 {
   std::string victim;
   std::string aggressor;
@@ -100,7 +107,7 @@ struct CompareCcapRow
   std::optional<double> relative_delta;
 };
 
-struct CompareResistanceRow : CompareValueRow
+struct ResistanceRow : ValueRow
 {
   std::string from_pin;
   std::string to_pin;
@@ -108,7 +115,7 @@ struct CompareResistanceRow : CompareValueRow
   bool test_valid = false;
 };
 
-struct CompareParasiticsSummary
+struct Summary
 {
   std::size_t reference_net_count = 0;
   std::size_t test_net_count = 0;
@@ -124,10 +131,10 @@ struct CompareParasiticsSummary
   std::size_t p2p_row_count = 0;
 };
 
-struct CompareCcapMismatch
+struct CcapMismatch
 {
-  CompareNodePair nets;
-  CompareNodePair report_nets;
+  NodePair nets;
+  NodePair report_nets;
   std::size_t first_order = 0;
   std::size_t second_order = 0;
   bool first_external = false;
@@ -135,20 +142,17 @@ struct CompareCcapMismatch
   double capacitance = 0.0;
 };
 
-struct CompareParasiticsResult
+struct Result
 {
-  std::vector<CompareValueRow> tcap_rows;
-  std::vector<CompareCcapRow> ccap_rows;
-  std::vector<CompareResistanceRow> p2p_rows;
+  std::vector<ValueRow> tcap_rows;
+  std::vector<CcapRow> ccap_rows;
+  std::vector<ResistanceRow> p2p_rows;
   std::vector<std::string> reference_only_nets;
   std::vector<std::string> test_only_nets;
-  std::vector<CompareCcapMismatch> reference_only_couplings;
-  std::vector<CompareCcapMismatch> test_only_couplings;
-  CompareParasiticsSummary summary;
+  std::vector<CcapMismatch> reference_only_couplings;
+  std::vector<CcapMismatch> test_only_couplings;
+  Summary summary;
 };
 
-auto makeCompareNodePair(std::string node1, std::string node2) -> CompareNodePair;
-auto compareParasitics(const CompareParasiticData& test, const CompareParasiticData& reference,
-                       const CompareParasiticsConfig& config) -> CompareParasiticsResult;
-
+}  // namespace compare_spef
 }  // namespace ircx

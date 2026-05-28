@@ -15,19 +15,27 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include <vector>
 
-namespace tcl {
-int registerCmdRCX()
+#include "CompareSpefConfig.hh"
+#include "CompareSpefData.hh"
+#include "NetSelector.hh"
+
+namespace ircx {
+namespace compare_spef {
+
+class PathPairGenerator
 {
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+ public:
+  explicit PathPairGenerator(const Config& config);
 
-  return EXIT_SUCCESS;
-}
+  auto generate(const Net& net) const -> std::vector<NodePair>;
 
-}  // namespace tcl
+ private:
+  const Config& _config;
+  NetSelector _net_selector;
+};
+
+}  // namespace compare_spef
+}  // namespace ircx

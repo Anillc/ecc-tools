@@ -15,19 +15,20 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include <optional>
+#include <string>
 
-namespace tcl {
-int registerCmdRCX()
+#include "CompareSpefData.hh"
+
+namespace ircx {
+namespace compare_spef {
+
+class ResistanceSolver
 {
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+ public:
+  auto equivalentResistance(const Net& net, const std::string& from_node, const std::string& to_node) const -> std::optional<double>;
+};
 
-  return EXIT_SUCCESS;
-}
-
-}  // namespace tcl
+}  // namespace compare_spef
+}  // namespace ircx

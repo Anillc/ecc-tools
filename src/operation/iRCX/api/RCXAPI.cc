@@ -20,7 +20,7 @@
 
 #include <utility>
 
-#include "CompareParasiticsFlow.hh"
+#include "CompareSpef.hh"
 #include "Extraction.hh"
 #include "RCXConfig.hh"
 #include "RCXData.hh"
@@ -74,9 +74,9 @@ auto RCXAPI::report() -> bool
   return Report::dumpSpef();
 }
 
-auto RCXAPI::compareParasitics(CompareParasiticsConfig config) -> bool
+auto RCXAPI::compare_spef(compare_spef::Config config) -> bool
 {
-  return CompareParasiticsFlow::run(std::move(config));
+  return CompareSpef::run(std::move(config));
 }
 
 }  // namespace ircx

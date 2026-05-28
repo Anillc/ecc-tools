@@ -15,19 +15,30 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include <string>
 
-namespace tcl {
-int registerCmdRCX()
+#include "CompareSpefConfig.hh"
+#include "CompareSpefData.hh"
+#include "NetSelector.hh"
+
+namespace ircx {
+namespace compare_spef {
+
+class CouplingCapComparator
 {
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+ public:
+  explicit CouplingCapComparator(const Config& config);
 
-  return EXIT_SUCCESS;
-}
+  void compare(const Data& test, const Data& reference, Result& result) const;
 
-}  // namespace tcl
+ private:
+  void addRow(const Data& reference, const std::string& victim, const std::string& aggressor, double reference_cap, double test_cap,
+              Result& result) const;
+
+  const Config& _config;
+  NetSelector _net_selector;
+};
+
+}  // namespace compare_spef
+}  // namespace ircx

@@ -17,41 +17,29 @@
 #pragma once
 
 #include <string>
-#include <utility>
-#include <vector>
+#include <unordered_set>
+
+#include "CompareSpefConfig.hh"
+#include "CompareSpefData.hh"
 
 namespace ircx {
+namespace compare_spef {
 
-struct CompareParasiticsConfig
+class NetSelector
 {
-  std::string test_file;
-  std::string reference_file;
-  std::string output_dir = ".";
+ public:
+  explicit NetSelector(const Config& config);
 
-  int cores = 1;
-  double tcap_threshold = 3.0;
-  double ccap_abs_threshold = 0.3;
-  double ccap_rel_threshold = 0.1;
-  double res_threshold = 50.0;
+  auto selected(const Net& net) const -> bool;
+  auto hasPathFilter() const -> bool;
 
-  bool compare_capacitance = false;
-  bool compare_resistance = false;
-  bool compare_delay = false;
-  bool delay_pin_load = false;
+ private:
+  static auto configuredNetNames(const Config& config) -> std::unordered_set<std::string>;
+  auto matchesPathFilter(const Net& net) const -> bool;
 
-  std::string corner;
-  std::string match_mode = "name";
-  std::string net_name;
-  std::string from_pin;
-  std::string to_pin;
-  std::string net_config_file;
-  int timeout_seconds = 5400;
-  double delay_threshold = 1.0;
-
-  std::vector<std::string> net_names;
-  std::vector<std::string> from_pins;
-  std::vector<std::string> to_pins;
-  std::vector<std::pair<std::string, std::string>> from_to_pins;
+  const Config& _config;
+  std::unordered_set<std::string> _configured_net_names;
 };
 
+}  // namespace compare_spef
 }  // namespace ircx
