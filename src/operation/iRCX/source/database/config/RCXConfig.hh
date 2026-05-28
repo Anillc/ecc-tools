@@ -34,7 +34,7 @@ class RCXConfig
   struct CornerConfig
   {
     std::string name;
-    F64 temperature{kDefaultOperatingTemperature};
+    std::vector<F64> temperatures{kDefaultOperatingTemperature};
     std::string itf_file;
     std::string captab_file;
   };

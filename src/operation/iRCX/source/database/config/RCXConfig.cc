@@ -16,6 +16,7 @@
 // ***************************************************************************************
 #include "RCXConfig.hh"
 
+#include <cmath>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -61,15 +62,40 @@ auto parseCornerConfig(const nlohmann::json& corner_json,
 
   // temperature
   if (corner_json.contains("temperature")) {
-    if (!corner_json["temperature"].is_number()) {
+    if (!corner_json["temperature"].is_array()) {
       LOG_ERROR << "invalid optional corner field: " << temperature_field
-                << ", expected number";
+                << ", expected array of numbers";
       return false;
     }
-    corner_config.temperature = corner_json["temperature"].get<F64>();
+    if (corner_json["temperature"].empty()) {
+      LOG_ERROR << "invalid optional corner field: " << temperature_field
+                << ", must not be empty";
+      return false;
+    }
+
+    corner_config.temperatures.clear();
+    corner_config.temperatures.reserve(corner_json["temperature"].size());
+    for (size_t idx = 0; idx < corner_json["temperature"].size(); ++idx) {
+      const auto& temperature_json = corner_json["temperature"][idx];
+      const std::string temperature_item_field = temperature_field + "["
+                                                 + std::to_string(idx) + "]";
+      if (!temperature_json.is_number()) {
+        LOG_ERROR << "invalid optional corner field: " << temperature_item_field
+                  << ", expected number";
+        return false;
+      }
+
+      const F64 temperature = temperature_json.get<F64>();
+      if (!std::isfinite(temperature)) {
+        LOG_ERROR << "invalid optional corner field: " << temperature_item_field
+                  << ", expected finite number";
+        return false;
+      }
+      corner_config.temperatures.push_back(temperature);
+    }
   } else {
     LOG_WARNING << "missing optional corner field: " << temperature_field
-                << ", use default operating temperature: "
+                << ", use default operating temperature list: "
                 << kDefaultOperatingTemperature;
   }
 
