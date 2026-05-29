@@ -982,3 +982,36 @@ Removed iCTS production dependencies on iSTA and iPA, moved RC/Liberty access in
 ### Next Steps
 
 - None - task complete
+
+
+## Session 74: Optimize CTS CMake architecture
+
+**Date**: 2026-05-29
+**Task**: Optimize CTS CMake architecture
+**Branch**: `cts_refactor`
+
+### Summary
+
+Optimized iCTS CMake target ownership, moved clock-tree realization under synthesis, removed stale conversion CMake files, and verified current/reduce builds.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5f3beb2de` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
