@@ -68,29 +68,13 @@ if {$RTL2GDS == 0} {
   step_restore_or_load_design $flow_config $db_config $output_dir $tech_lef $lef_files $input_def $input_verilog $top_module $input_db
 }
 
-step_require_file "rcx mapping file" $rcx_mapping_file
-if {[llength $rcx_corners] <= 0} {
-  error "no RCX corners found in $rcx_config"
+if {$rcx_output_dir ne ""} {
+  file mkdir $rcx_output_dir
 }
 
-file mkdir $rcx_output_dir
-init_rcx -thread $rcx_thread_num
-read_mapping $rcx_mapping_file
-
-foreach corner $rcx_corners {
-  set corner_name [step_dict_get_default $corner name ""]
-  set itf_file [step_dict_get_default $corner itf_file ""]
-  set captab_file [step_dict_get_default $corner captab_file ""]
-  if {$corner_name eq ""} {
-    error "RCX corner has no name in $rcx_config"
-  }
-  step_require_file "RCX ITF for $corner_name" $itf_file
-  step_require_file "RCX captab for $corner_name" $captab_file
-  read_corner -name $corner_name -itf $itf_file -captab $captab_file
-}
-
+init_rcx -config $rcx_config
 run_rcx
-report_rcx $rcx_output_dir
+report_rcx
 
 step_save_design $step_name $output_def $output_verilog $output_gds $output_json $output_db $feature_db $feature_step $report_db $sta_dir 0
 
