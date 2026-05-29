@@ -23,6 +23,7 @@ Optional arguments:
 -tcap value
 -ccap abs_value rel_value
 -res value
+-cores value
 -match name
 -net net_name
 -from_pin pin_name
@@ -83,6 +84,7 @@ compare_spef new.spef golden.spef -r -from_pin U1/Y -to_pin U2/A -output_dir cmp
 | `-tcap value` | `3.0` | Include total-cap rows whose reference total cap is at least this value. |
 | `-ccap abs rel` | `0.3 0.1` | Include coupling-cap rows whose reference coupling cap and relative coupling ratio both meet the thresholds. |
 | `-res value` | `50.0` | Include point-to-point resistance rows whose reference resistance is at least this value. |
+| `-cores value` | `1` | Number of threads used by the SPEF comparison stage. SPEF parsing and report writing remain serial. |
 | `-match name` | `name` | Pin matching mode. Only `name` is supported. |
 | `-net net_name` | none | Compare one net. Cannot be used with direct `-from_pin` or `-to_pin`. |
 | `-from_pin pin` | none | Compare paths that start from this pin. |
@@ -96,7 +98,7 @@ The parsed but currently unsupported or unused options are:
 | `-corner` | Rejected. GPD/corner comparison is not supported. |
 | `-match xy` | Rejected. Only name-based matching is supported. |
 | `-d`, `-delay`, `-delay_pin_load` | Elmore delay comparison is not implemented. |
-| `-cores`, `-timeout` | Parsed for interface compatibility, but not used by the current SPEF implementation. |
+| `-timeout` | Parsed for interface compatibility, but not used by the current SPEF implementation. |
 
 ## Filtering Rules
 

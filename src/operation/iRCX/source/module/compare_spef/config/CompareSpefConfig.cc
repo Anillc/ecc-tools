@@ -117,6 +117,10 @@ auto ConfigValidator::validate(const Config& config) const -> bool
     LOG_ERROR << "compare_spef thresholds must be non-negative.";
     return false;
   }
+  if (config.cores <= 0) {
+    LOG_ERROR << "compare_spef -cores must be a positive integer.";
+    return false;
+  }
 
   return true;
 }

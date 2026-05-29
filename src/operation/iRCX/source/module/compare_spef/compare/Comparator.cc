@@ -16,12 +16,20 @@
 // ***************************************************************************************
 #include "compare/Comparator.hh"
 
+#include <omp.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <iterator>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "compare/CompareMath.hh"
+#include "compare/CompareParallel.hh"
 
 namespace ircx {
 namespace compare_spef {
@@ -40,6 +48,16 @@ auto shouldCompareCapacitance(const Config& config) -> bool
 auto shouldCompareResistance(const Config& config) -> bool
 {
   return hasExplicitCompareMode(config) ? config.compare_resistance : true;
+}
+
+void appendRows(Result& result, Result&& thread_result)
+{
+  result.tcap_rows.insert(result.tcap_rows.end(), std::make_move_iterator(thread_result.tcap_rows.begin()),
+                          std::make_move_iterator(thread_result.tcap_rows.end()));
+  result.p2p_rows.insert(result.p2p_rows.end(), std::make_move_iterator(thread_result.p2p_rows.begin()),
+                         std::make_move_iterator(thread_result.p2p_rows.end()));
+  result.reference_only_nets.insert(result.reference_only_nets.end(), std::make_move_iterator(thread_result.reference_only_nets.begin()),
+                                    std::make_move_iterator(thread_result.reference_only_nets.end()));
 }
 
 }  // namespace
@@ -77,14 +95,29 @@ void Comparator::initializeSummary(const Data& test, const Data& reference, Resu
 
 void Comparator::compareMatchedNets(const Data& test, const Data& reference, Result& result) const
 {
-  for (const auto& [net_name, reference_net] : reference.nets) {
+  const int thread_count = parallel::threadCount(_config, reference.nets.size());
+  std::vector<const std::map<std::string, Net>::value_type*> reference_net_pairs;
+  reference_net_pairs.reserve(reference.nets.size());
+  for (const auto& reference_net_pair : reference.nets) {
+    reference_net_pairs.push_back(&reference_net_pair);
+  }
+
+  std::vector<Result> thread_results(thread_count);
+#pragma omp parallel for schedule(dynamic, 64) num_threads(thread_count)
+  for (std::size_t index = 0; index < reference_net_pairs.size(); ++index) {
+    const auto& [net_name, reference_net] = *reference_net_pairs[index];
     const auto test_it = test.nets.find(net_name);
     if (test_it == test.nets.end()) {
-      result.reference_only_nets.push_back(net_name);
+      thread_results[omp_get_thread_num()].reference_only_nets.push_back(net_name);
       continue;
     }
 
-    compareMatchedNet(net_name, reference_net, test_it->second, result);
+    compareMatchedNet(net_name, reference_net, test_it->second, thread_results[omp_get_thread_num()]);
+  }
+
+  for (auto& thread_result : thread_results) {
+    result.summary.matched_net_count += thread_result.summary.matched_net_count;
+    appendRows(result, std::move(thread_result));
   }
 }
 

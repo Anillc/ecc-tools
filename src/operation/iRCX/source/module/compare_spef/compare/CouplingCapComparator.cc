@@ -16,13 +16,19 @@
 // ***************************************************************************************
 #include "compare/CouplingCapComparator.hh"
 
+#include <omp.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <iterator>
+#include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "compare/CompareMath.hh"
+#include "compare/CompareParallel.hh"
 
 namespace ircx {
 namespace compare_spef {
@@ -79,6 +85,17 @@ auto makeCcapMismatch(const Data& data, const NodePair& key, double capacitance)
   return mismatch;
 }
 
+void appendRows(Result& result, Result&& thread_result)
+{
+  result.ccap_rows.insert(result.ccap_rows.end(), std::make_move_iterator(thread_result.ccap_rows.begin()),
+                          std::make_move_iterator(thread_result.ccap_rows.end()));
+  result.reference_only_couplings.insert(result.reference_only_couplings.end(),
+                                         std::make_move_iterator(thread_result.reference_only_couplings.begin()),
+                                         std::make_move_iterator(thread_result.reference_only_couplings.end()));
+  result.test_only_couplings.insert(result.test_only_couplings.end(), std::make_move_iterator(thread_result.test_only_couplings.begin()),
+                                    std::make_move_iterator(thread_result.test_only_couplings.end()));
+}
+
 }  // namespace
 
 CouplingCapComparator::CouplingCapComparator(const Config& config) : _config(config), _net_selector(config)
@@ -87,21 +104,49 @@ CouplingCapComparator::CouplingCapComparator(const Config& config) : _config(con
 
 void CouplingCapComparator::compare(const Data& test, const Data& reference, Result& result) const
 {
-  for (const auto& [key, reference_cap] : reference.coupling_caps) {
+  const int reference_thread_count = parallel::threadCount(_config, reference.coupling_caps.size());
+  std::vector<const std::map<NodePair, double>::value_type*> reference_couplings;
+  reference_couplings.reserve(reference.coupling_caps.size());
+  for (const auto& reference_coupling : reference.coupling_caps) {
+    reference_couplings.push_back(&reference_coupling);
+  }
+
+  std::vector<Result> reference_thread_results(reference_thread_count);
+#pragma omp parallel for schedule(dynamic, 256) num_threads(reference_thread_count)
+  for (std::size_t index = 0; index < reference_couplings.size(); ++index) {
+    const auto& [key, reference_cap] = *reference_couplings[index];
     const auto test_cap_it = test.coupling_caps.find(key);
     if (test_cap_it == test.coupling_caps.end()) {
-      result.reference_only_couplings.push_back(makeCcapMismatch(reference, key, reference_cap));
+      reference_thread_results[omp_get_thread_num()].reference_only_couplings.push_back(makeCcapMismatch(reference, key, reference_cap));
       continue;
     }
 
-    addRow(reference, key.first, key.second, reference_cap, test_cap_it->second, result);
-    addRow(reference, key.second, key.first, reference_cap, test_cap_it->second, result);
+    addRow(reference, key.first, key.second, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
+    addRow(reference, key.second, key.first, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
   }
 
-  for (const auto& [key, test_cap] : test.coupling_caps) {
+  for (auto& thread_result : reference_thread_results) {
+    appendRows(result, std::move(thread_result));
+  }
+
+  const int test_thread_count = parallel::threadCount(_config, test.coupling_caps.size());
+  std::vector<const std::map<NodePair, double>::value_type*> test_couplings;
+  test_couplings.reserve(test.coupling_caps.size());
+  for (const auto& test_coupling : test.coupling_caps) {
+    test_couplings.push_back(&test_coupling);
+  }
+
+  std::vector<Result> test_thread_results(test_thread_count);
+#pragma omp parallel for schedule(dynamic, 256) num_threads(test_thread_count)
+  for (std::size_t index = 0; index < test_couplings.size(); ++index) {
+    const auto& [key, test_cap] = *test_couplings[index];
     if (!reference.coupling_caps.contains(key)) {
-      result.test_only_couplings.push_back(makeCcapMismatch(test, key, test_cap));
+      test_thread_results[omp_get_thread_num()].test_only_couplings.push_back(makeCcapMismatch(test, key, test_cap));
     }
+  }
+
+  for (auto& thread_result : test_thread_results) {
+    appendRows(result, std::move(thread_result));
   }
 }
 
