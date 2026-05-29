@@ -16,25 +16,15 @@
 // ***************************************************************************************
 #pragma once
 
-#include <vector>
-
-#include "CompareSpefConfig.hh"
-#include "CompareSpefData.hh"
-#include "NetSelector.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
 namespace compare_spef {
 
-class PathPairGenerator
+class ResultSorter
 {
  public:
-  explicit PathPairGenerator(const Config& config);
-
-  auto generate(const Net& net) const -> std::vector<NodePair>;
-
- private:
-  const Config& _config;
-  NetSelector _net_selector;
+  void sort(Result& result, const Data& test, const Data& reference) const;
 };
 
 }  // namespace compare_spef

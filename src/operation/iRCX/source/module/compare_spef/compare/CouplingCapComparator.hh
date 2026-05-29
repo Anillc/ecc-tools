@@ -18,9 +18,9 @@
 
 #include <string>
 
-#include "CompareSpefConfig.hh"
-#include "CompareSpefData.hh"
-#include "NetSelector.hh"
+#include "compare/NetSelector.hh"
+#include "config/CompareSpefConfig.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
 namespace compare_spef {

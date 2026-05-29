@@ -19,7 +19,7 @@
 #include <optional>
 #include <string>
 
-#include "CompareSpefData.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
 namespace compare_spef {

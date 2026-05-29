@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "CompareSpefConfig.hh"
+#include "config/CompareSpefConfig.hh"
 
 #include <fstream>
 #include <sstream>

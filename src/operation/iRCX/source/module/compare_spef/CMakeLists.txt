@@ -1,14 +1,14 @@
 add_library(ircx_compare_spef
-  Comparator.cc
-  CouplingCapComparator.cc
-  CompareMath.cc
-  CompareSpefConfig.cc
-  NetSelector.cc
-  PathPairGenerator.cc
-  ReportWriter.cc
-  ResistanceSolver.cc
-  ResultSorter.cc
-  SpefReader.cc
+  compare/Comparator.cc
+  compare/CouplingCapComparator.cc
+  compare/CompareMath.cc
+  config/CompareSpefConfig.cc
+  compare/NetSelector.cc
+  compare/PathPairGenerator.cc
+  report/ReportWriter.cc
+  compare/ResistanceSolver.cc
+  compare/ResultSorter.cc
+  reader/SpefReader.cc
 )
 
 target_link_libraries(ircx_compare_spef

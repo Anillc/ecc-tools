@@ -16,7 +16,7 @@
 // ***************************************************************************************
 #pragma once
 
-#include "CompareSpefConfig.hh"
+#include "config/CompareSpefConfig.hh"
 
 namespace ircx {
 

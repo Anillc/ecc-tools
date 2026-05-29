@@ -14,14 +14,14 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "ResistanceSolver.hh"
+#include "compare/ResistanceSolver.hh"
 
 #include <Eigen/Dense>
 #include <cmath>
 #include <map>
 #include <vector>
 
-#include "CompareMath.hh"
+#include "compare/CompareMath.hh"
 
 namespace ircx {
 namespace compare_spef {

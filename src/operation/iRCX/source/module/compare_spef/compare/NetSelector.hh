@@ -19,8 +19,8 @@
 #include <string>
 #include <unordered_set>
 
-#include "CompareSpefConfig.hh"
-#include "CompareSpefData.hh"
+#include "config/CompareSpefConfig.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
 namespace compare_spef {

@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "CouplingCapComparator.hh"
+#include "compare/CouplingCapComparator.hh"
 
 #include <algorithm>
 #include <cmath>
@@ -22,7 +22,7 @@
 #include <string>
 #include <utility>
 
-#include "CompareMath.hh"
+#include "compare/CompareMath.hh"
 
 namespace ircx {
 namespace compare_spef {

@@ -16,22 +16,21 @@
 // ***************************************************************************************
 #pragma once
 
-#include <string>
-
-#include "CompareSpefData.hh"
+#include "config/CompareSpefConfig.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
 namespace compare_spef {
 
-class SpefReader
+class ReportWriter
 {
  public:
-  auto read(const std::string& path, Data& data) const -> bool;
+  explicit ReportWriter(const Config& config);
+
+  auto write(const Result& result) const -> bool;
 
  private:
-  void rememberNodeNet(Data& data, const std::string& node_name, const std::string& net_name) const;
-  auto resolveNodeNet(const Data& data, const std::string& node_name) const -> std::string;
-  void buildNetCouplingCaps(Data& data) const;
+  const Config& _config;
 };
 
 }  // namespace compare_spef

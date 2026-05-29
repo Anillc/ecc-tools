@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "CompareMath.hh"
+#include "compare/CompareMath.hh"
 
 #include <cmath>
 

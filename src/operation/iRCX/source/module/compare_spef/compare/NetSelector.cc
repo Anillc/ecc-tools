@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "NetSelector.hh"
+#include "compare/NetSelector.hh"
 
 #include <algorithm>
 

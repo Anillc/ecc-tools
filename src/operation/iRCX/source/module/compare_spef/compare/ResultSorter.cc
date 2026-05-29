@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "ResultSorter.hh"
+#include "compare/ResultSorter.hh"
 
 #include <algorithm>
 #include <cmath>

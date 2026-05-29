@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "ReportWriter.hh"
+#include "report/ReportWriter.hh"
 
 #include <algorithm>
 #include <cmath>

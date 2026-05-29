@@ -14,14 +14,14 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "Comparator.hh"
+#include "compare/Comparator.hh"
 
 #include <limits>
 #include <optional>
 #include <string>
 #include <utility>
 
-#include "CompareMath.hh"
+#include "compare/CompareMath.hh"
 
 namespace ircx {
 namespace compare_spef {

@@ -18,13 +18,13 @@
 
 #include <string>
 
-#include "CompareSpefConfig.hh"
-#include "CompareSpefData.hh"
-#include "CouplingCapComparator.hh"
-#include "NetSelector.hh"
-#include "PathPairGenerator.hh"
-#include "ResistanceSolver.hh"
-#include "ResultSorter.hh"
+#include "compare/CouplingCapComparator.hh"
+#include "compare/NetSelector.hh"
+#include "compare/PathPairGenerator.hh"
+#include "compare/ResistanceSolver.hh"
+#include "compare/ResultSorter.hh"
+#include "config/CompareSpefConfig.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
 namespace compare_spef {

@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "PathPairGenerator.hh"
+#include "compare/PathPairGenerator.hh"
 
 #include <algorithm>
 #include <map>

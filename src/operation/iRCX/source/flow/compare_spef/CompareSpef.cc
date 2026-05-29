@@ -16,10 +16,10 @@
 // ***************************************************************************************
 #include "CompareSpef.hh"
 
-#include "Comparator.hh"
-#include "ReportWriter.hh"
-#include "SpefReader.hh"
+#include "compare/Comparator.hh"
 #include "log/Log.hh"
+#include "reader/SpefReader.hh"
+#include "report/ReportWriter.hh"
 
 namespace ircx {
 
