@@ -48,8 +48,8 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
-#include "STAAdapter.hh"
 #include "Tree.hh"
+#include "io/Wrapper.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/diagnostic/HTreeDiagnostic.hh"
 #include "synthesis/htree/embedding/BufferPortTable.hh"
@@ -249,13 +249,13 @@ auto RenameRootDriverPin(Design& design, Pin* pin, const std::string& local_name
   return true;
 }
 
-auto ResolveBufferPorts(STAAdapter& sta_adapter, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
+auto ResolveBufferPorts(Wrapper& wrapper, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
 {
   if (cell_master.empty()) {
     return std::nullopt;
   }
 
-  auto [input_pin_name, output_pin_name] = sta_adapter.queryBufferPorts(cell_master);
+  auto [input_pin_name, output_pin_name] = wrapper.queryBufferPorts(cell_master);
   if (input_pin_name.empty() || output_pin_name.empty()) {
     return std::nullopt;
   }
@@ -407,7 +407,7 @@ auto InterpolateManhattanPoint(const Point<int>& source, const Point<int>& sink,
   return Point<int>(x, y);
 }
 
-auto ValidateRootDriverSizing(Design& design, STAAdapter& sta_adapter, const HTree::Build& result, const std::string& cell_master) -> bool
+auto ValidateRootDriverSizing(Design& design, Wrapper& wrapper, const HTree::Build& result, const std::string& cell_master) -> bool
 {
   if (cell_master.empty() || result.output.root_inst == nullptr) {
     return true;
@@ -421,7 +421,7 @@ auto ValidateRootDriverSizing(Design& design, STAAdapter& sta_adapter, const HTr
     return false;
   }
 
-  const auto ports = ResolveBufferPorts(sta_adapter, cell_master);
+  const auto ports = ResolveBufferPorts(wrapper, cell_master);
   if (!ports.has_value()) {
     LOG_WARNING << "HTree: cannot apply selected root driver master " << cell_master << " because its buffer ports could not be resolved.";
     return false;
@@ -436,7 +436,7 @@ auto ValidateRootDriverSizing(Design& design, STAAdapter& sta_adapter, const HTr
   return true;
 }
 
-auto ApplyRootDriverSizing(Design& design, STAAdapter& sta_adapter, htree::DiagnosticBuild& result, const std::string& cell_master) -> bool
+auto ApplyRootDriverSizing(Design& design, Wrapper& wrapper, htree::DiagnosticBuild& result, const std::string& cell_master) -> bool
 {
   if (cell_master.empty() || result.output.root_inst == nullptr) {
     return true;
@@ -444,7 +444,7 @@ auto ApplyRootDriverSizing(Design& design, STAAdapter& sta_adapter, htree::Diagn
 
   auto* output_pin = result.output.root_output_pin;
   auto* input_pin = FindSingleBufferInputPin(result.output.root_inst);
-  const auto ports = ResolveBufferPorts(sta_adapter, cell_master);
+  const auto ports = ResolveBufferPorts(wrapper, cell_master);
   if (output_pin == nullptr || output_pin->get_inst() != result.output.root_inst || input_pin == nullptr || !ports.has_value()) {
     return false;
   }
@@ -470,8 +470,8 @@ auto ApplyRootDriverSizing(Design& design, STAAdapter& sta_adapter, htree::Diagn
   return true;
 }
 
-auto BuildEmbedding(Design& design, STAAdapter& sta_adapter, htree::DiagnosticBuild& result,
-                    const BufferPatternLibrary& segment_pattern_library) -> void
+auto BuildEmbedding(Design& design, Wrapper& wrapper, htree::DiagnosticBuild& result, const BufferPatternLibrary& segment_pattern_library)
+    -> void
 {
   (void) design;
   if (!result.output.best_pattern.has_value()) {
@@ -485,7 +485,7 @@ auto BuildEmbedding(Design& design, STAAdapter& sta_adapter, htree::DiagnosticBu
     return;
   }
 
-  BufferPortTable port_table(sta_adapter);
+  BufferPortTable port_table(wrapper);
   std::vector<PatternId> level_segment_pattern_ids = result.output.best_pattern->get_level_segment_pattern_ids();
   LOG_FATAL_IF(level_segment_pattern_ids.size() != result.output.levels.size())
       << "HTree: best topology pattern levels do not match planned H-tree levels.";

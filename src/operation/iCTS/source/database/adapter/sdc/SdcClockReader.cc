@@ -96,10 +96,11 @@ auto SdcClockReader::readDeclarationsOnly(SchemaWriter& reporter) const -> std::
   return declarations;
 }
 
-auto SdcClockReader::traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout,
-                                       SchemaWriter& reporter) -> ClockTraceBuild
+auto SdcClockReader::traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design,
+                                       const SdcLibertyCellLookup& liberty_cell_lookup, std::size_t max_fanout, SchemaWriter& reporter)
+    -> ClockTraceBuild
 {
-  return ClockTraceResolver::resolve(clock_data, idb_design, max_fanout, reporter);
+  return ClockTraceResolver::resolve(clock_data, idb_design, liberty_cell_lookup, max_fanout, reporter);
 }
 
 }  // namespace icts

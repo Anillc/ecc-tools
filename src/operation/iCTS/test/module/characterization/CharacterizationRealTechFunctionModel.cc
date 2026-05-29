@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include "database/adapter/sta/STAAdapter.hh"
+#include "database/io/Wrapper.hh"
 #include "module/characterization/CharacterizationRealTechExactRegression.hh"
 
 namespace icts_test {
@@ -160,15 +160,13 @@ auto BuildPhysicalStructuralCapOperators(const realtech_fixture::SegmentFrontier
 
     const double unit_length_um = static_cast<double>(pattern.get_length_idx()) * grid.length_step_um;
     double alpha = 1.0;
-    double eta_pf
-        = icts_test::runtime::CurrentRuntime().sta_adapter.queryWireCapacitance(routing_layer, unit_length_um, config.wire_width_um);
+    double eta_pf = icts_test::runtime::CurrentRuntime().wrapper.queryWireCapacitance(routing_layer, unit_length_um, config.wire_width_um);
     if (!cell_masters.empty()) {
       alpha = 0.0;
       const double first_buffer_position = buffer_positions.front();
       const double prewire_length_um = std::clamp(first_buffer_position, 0.0, 1.0) * unit_length_um;
-      eta_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCharInputPinCap(cell_masters.front());
-      eta_pf
-          += icts_test::runtime::CurrentRuntime().sta_adapter.queryWireCapacitance(routing_layer, prewire_length_um, config.wire_width_um);
+      eta_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCharInputPinCap(cell_masters.front());
+      eta_pf += icts_test::runtime::CurrentRuntime().wrapper.queryWireCapacitance(routing_layer, prewire_length_um, config.wire_width_um);
     }
 
     if (!std::isfinite(eta_pf) || eta_pf < 0.0) {

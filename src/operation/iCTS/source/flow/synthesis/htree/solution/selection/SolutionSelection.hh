@@ -29,7 +29,7 @@
 #include "synthesis/htree/HTree.hh"
 
 namespace icts {
-class STAAdapter;
+class Wrapper;
 }  // namespace icts
 
 namespace icts::htree {
@@ -37,7 +37,6 @@ namespace icts::htree {
 struct BufferPatternLibrary;
 
 auto ResolveSelectedRootDriverCellMaster(const std::vector<HTree::LevelPlan>& levels) -> std::string;
-auto ApplySelectedPatternToLevelPlans(STAAdapter& sta_adapter, HTree::Build& result, const BufferPatternLibrary& segment_pattern_library)
-    -> void;
+auto ApplySelectedPatternToLevelPlans(Wrapper& wrapper, HTree::Build& result, const BufferPatternLibrary& segment_pattern_library) -> void;
 
 }  // namespace icts::htree

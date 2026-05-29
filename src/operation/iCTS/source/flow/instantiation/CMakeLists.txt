@@ -9,7 +9,6 @@ add_library(icts_source_flow_instantiation ${ICTS_FLOW_INSTANTIATION}/Instantiat
 target_link_libraries(
   icts_source_flow_instantiation
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_design
   icts_source_database_io
   icts_source_flow_instantiation_design_conversion

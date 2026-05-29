@@ -38,8 +38,8 @@ class SchemaWriter;
 class ClockTraceResolver
 {
  public:
-  static auto resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout, SchemaWriter& reporter)
-      -> ClockTraceBuild;
+  static auto resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design, const SdcLibertyCellLookup& liberty_cell_lookup,
+                      std::size_t max_fanout, SchemaWriter& reporter) -> ClockTraceBuild;
 };
 
 }  // namespace icts

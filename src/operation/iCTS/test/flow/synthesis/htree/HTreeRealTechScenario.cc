@@ -176,12 +176,11 @@ auto MakeExplicitHTreeInput(icts::Net& root_net) -> icts::HTree::Input
   return icts::HTree::Input{
       .root_net = &root_net,
       .design = &runtime.design,
-      .sta_adapter = &runtime.sta_adapter,
+      .wrapper = &runtime.wrapper,
       .reporter = &runtime.reporter,
       .characterization_input = icts::CharacterizationLibrary::buildRuntimeInput(icts::CharacterizationRuntimeInput{
           .config = &runtime.config,
           .wrapper = &runtime.wrapper,
-          .sta_adapter = &runtime.sta_adapter,
           .fast_sta = &runtime.fast_sta,
           .reporter = &runtime.reporter,
       }),

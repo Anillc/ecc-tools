@@ -10,5 +10,5 @@ icts_add_test_executable(
 target_link_libraries(
   icts_test_module_topology_fast_clustering
   PRIVATE
-  "$<LINK_GROUP:RESCAN,icts_test_base,icts_test_common_io,icts_test_common_data_pin_factory,icts_source_module_topology,sta,ista-engine,report_table,fort>"
+  "$<LINK_GROUP:RESCAN,icts_test_base,icts_test_common_io,icts_test_common_data_pin_factory,icts_source_module_topology,report_table,fort>"
 )

@@ -36,12 +36,10 @@ auto Instantiation::run(const InstantiationInput& input) -> InstantiationSummary
 {
   LOG_FATAL_IF(input.design == nullptr) << "Instantiation requires a design.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Instantiation requires a wrapper.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Instantiation requires a STA adapter.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Instantiation requires a reporter.";
   const auto idb_summary = IdbConversion::run(IdbConversionInput{
       .design = input.design,
       .wrapper = input.wrapper,
-      .sta_adapter = input.sta_adapter,
       .reporter = input.reporter,
   });
   return InstantiationSummary{

@@ -39,7 +39,7 @@ class DomainStatusTable;
 class Inst;
 class Net;
 class Pin;
-class STAAdapter;
+class Wrapper;
 
 struct ClockDistributionRootBufferSpec
 {
@@ -79,7 +79,7 @@ struct ClockDistributionInput
 {
   Design* design = nullptr;
   Clock* clock = nullptr;
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   std::size_t clock_index = 0U;
   SinkDomainKind sink_domain = SinkDomainKind::kUnknown;
   std::vector<Pin*> sinks;

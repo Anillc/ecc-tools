@@ -43,10 +43,10 @@
 #include "SegmentChar.hh"
 #include "characterization/Characterization.hh"
 #include "common/CTSTestRuntime.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/characterization/CharCore.hh"
 #include "database/characterization/PatternId.hh"
 #include "database/characterization/ValueLattice.hh"
+#include "database/io/Wrapper.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 
 namespace icts_test::characterization::realtech {
@@ -62,9 +62,9 @@ class BufferStrengthTable
     }
 
     if (!_drive_caps.contains(cell_master)) {
-      double drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master);
+      double drive_cap_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapLimit(cell_master);
       if (drive_cap_pf <= 0.0) {
-        drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+        drive_cap_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapTableAxisMax(cell_master);
       }
       _drive_caps[cell_master] = drive_cap_pf;
       _ranks_dirty = true;

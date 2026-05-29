@@ -36,7 +36,6 @@
 #include "Log.hh"
 #include "Pin.hh"
 #include "Point.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "characterization/Characterization.hh"
 #include "config/Config.hh"
 #include "geometry/Geometry.hh"
@@ -59,13 +58,8 @@ namespace {
 auto ResolveSourceDriveCap(const SourceTrunkInput& input, Pin* clock_source) -> double
 {
   const auto& config = *input.config;
-  auto& sta_adapter = *input.sta_adapter;
-  return sta_adapter.queryClockSourceDriveCapLimit(STAAdapter::ClockSourceDriveCapLimitInput{
-      .clock_source = clock_source,
-      .configured_max_cap_pf
-      = config.has_max_cap() && config.get_max_cap() > 0.0 ? std::optional<double>{config.get_max_cap()} : std::nullopt,
-      .refresh_config = STAAdapter::StaTimingRefreshConfig{.work_dir = config.get_work_dir()},
-  });
+  auto& wrapper = *input.wrapper;
+  return wrapper.queryClockSourceDriveCapLimit(config, clock_source);
 }
 
 auto ResolveRoutingLayer(const Config& config) -> int
@@ -97,7 +91,6 @@ auto BuildTopSegmentInput(const SourceTrunkInput& input, Pin* clock_source, Pin*
 {
   const auto& config = *input.config;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& fast_sta = *input.fast_sta;
   auto& reporter = *input.reporter;
   HTree::LogContext log_context = input.log_context;
@@ -107,7 +100,7 @@ auto BuildTopSegmentInput(const SourceTrunkInput& input, Pin* clock_source, Pin*
       .source = clock_source,
       .sink = root_input,
       .characterization_library = input.characterization_library,
-      .sta_adapter = &sta_adapter,
+      .wrapper = &wrapper,
       .characterization_input = {},
       .characterization_config = {},
       .reporter = &reporter,
@@ -125,13 +118,12 @@ auto BuildTopSegmentInput(const SourceTrunkInput& input, Pin* clock_source, Pin*
   segment_input.characterization_input = CharacterizationLibrary::buildRuntimeInput(CharacterizationRuntimeInput{
       .config = &config,
       .wrapper = &wrapper,
-      .sta_adapter = &sta_adapter,
       .fast_sta = &fast_sta,
       .reporter = &reporter,
   });
   segment_input.characterization_config = CharacterizationLibrary::buildRuntimeConfig(config);
   segment_input.dbu_per_um = wrapper.queryDbUnit();
-  segment_input.required_load_cap_pf = sta_adapter.queryPinCapacitance(root_input);
+  segment_input.required_load_cap_pf = wrapper.queryPinCapacitance(root_input);
   segment_input.source_drive_cap_pf = ResolveSourceDriveCap(input, clock_source);
   return segment_input;
 }
@@ -141,7 +133,6 @@ auto BuildTopHtreeInput(const SourceTrunkInput& input, Net& source_net, Pin* clo
   const auto& config = *input.config;
   auto& design = *input.design;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& fast_sta = *input.fast_sta;
   auto& reporter = *input.reporter;
   HTree::LogContext log_context = input.log_context;
@@ -149,13 +140,12 @@ auto BuildTopHtreeInput(const SourceTrunkInput& input, Net& source_net, Pin* clo
   return HTree::Input{
       .root_net = &source_net,
       .design = &design,
-      .sta_adapter = &sta_adapter,
+      .wrapper = &wrapper,
       .reporter = &reporter,
       .characterization_library = input.characterization_library,
       .characterization_input = CharacterizationLibrary::buildRuntimeInput(CharacterizationRuntimeInput{
           .config = &config,
           .wrapper = &wrapper,
-          .sta_adapter = &sta_adapter,
           .fast_sta = &fast_sta,
           .reporter = &reporter,
       }),
@@ -201,7 +191,6 @@ auto BuildSourceTrunkTree(const SourceTrunkInput& input) -> SourceTrunkBuild
   LOG_FATAL_IF(input.config == nullptr) << "Topology source trunk build requires an explicit config.";
   LOG_FATAL_IF(input.design == nullptr) << "Topology source trunk build requires an explicit design.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Topology source trunk build requires an explicit wrapper.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Topology source trunk build requires an explicit STA adapter.";
   LOG_FATAL_IF(input.fast_sta == nullptr) << "Topology source trunk build requires an explicit FastSTA.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Topology source trunk build requires an explicit reporter.";
   LOG_FATAL_IF(input.source_net == nullptr) << "Topology source trunk build requires an explicit source net.";

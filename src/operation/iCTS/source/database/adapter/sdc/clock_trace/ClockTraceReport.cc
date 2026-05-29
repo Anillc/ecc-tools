@@ -104,8 +104,8 @@ auto CollectTracedNetNames(const std::vector<ClockTraceRecord>& records) -> std:
   return traced_net_names;
 }
 
-auto CollectUnownedClockLikeRecords(idb::IdbDesign* idb_design, const std::vector<ClockTraceRecord>& records)
-    -> std::vector<ClockTraceRecord>
+auto CollectUnownedClockLikeRecords(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbDesign* idb_design,
+                                    const std::vector<ClockTraceRecord>& records) -> std::vector<ClockTraceRecord>
 {
   std::vector<ClockTraceRecord> unowned_records;
   auto* net_list = idb_design == nullptr ? nullptr : idb_design->get_net_list();
@@ -118,7 +118,7 @@ auto CollectUnownedClockLikeRecords(idb::IdbDesign* idb_design, const std::vecto
     if (net == nullptr || traced_net_names.contains(net->get_net_name())) {
       continue;
     }
-    const auto stats = CountDirectClockSinksForReport(net);
+    const auto stats = CountDirectClockSinksForReport(liberty_cell_lookup, net);
     if (!IsClockTarget(stats)) {
       continue;
     }

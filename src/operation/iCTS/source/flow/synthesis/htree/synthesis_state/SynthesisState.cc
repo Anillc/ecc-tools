@@ -42,8 +42,8 @@
 #include "TopologyConfig.hh"
 #include "TopologyGen.hh"
 #include "Tree.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "characterization/Characterization.hh"
+#include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/characterization/Characterization.hh"
 #include "synthesis/htree/plan/Plan.hh"
@@ -101,7 +101,7 @@ auto AssembleHTreeSynthesisState(const HTree::Input& input, const HTree::Config&
   InitializeRootResult(input, state.result);
 
   LOG_FATAL_IF(input.design == nullptr) << "HTree build requires an explicit design.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree build requires an explicit STA adapter.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "HTree build requires an explicit Wrapper.";
   LOG_FATAL_IF(input.reporter == nullptr) << "HTree build requires an explicit reporter.";
   LOG_FATAL_IF(input.characterization_input.fast_sta == nullptr) << "HTree build requires explicit FastSTA characterization context.";
   LOG_FATAL_IF(!input.characterization_input.dbu_per_um.has_value() || *input.characterization_input.dbu_per_um <= 0)
@@ -179,7 +179,7 @@ auto AssembleHTreeSynthesisState(const HTree::Input& input, const HTree::Config&
   }
   state.result.diagnostics.depth_explore_window = static_cast<unsigned>(state.depth_candidates.size());
 
-  state.segment_pattern_library.emplace(*input.sta_adapter);
+  state.segment_pattern_library.emplace(*input.wrapper);
   for (const auto& pattern : char_builder.get_buffering_patterns()) {
     state.segmentPatterns().add(pattern);
   }
@@ -188,7 +188,7 @@ auto AssembleHTreeSynthesisState(const HTree::Input& input, const HTree::Config&
   state.root_driver_clock_period_source = root_driver_clock_period_source;
   state.root_driver_compensation_input = RootDriverCompensationInput{
       .enabled = config.enable_root_driver_sizing,
-      .sta_adapter = input.sta_adapter,
+      .wrapper = input.wrapper,
       .input_slew_ns = ResolveRootDriverCompensationInputSlewNs(config, char_builder.get_max_slew()),
       .clock_period_ns = root_driver_clock_period_ns,
       .cap_lattice = char_builder.get_cap_lattice(),
@@ -205,7 +205,7 @@ auto AssembleHTreeSynthesisState(const HTree::Input& input, const HTree::Config&
       .allow_boundary_relaxation = config.allow_boundary_relaxation,
   };
   state.sink_load_region_input = SinkLoadRegionLegalityInput{
-      .sta_adapter = input.sta_adapter,
+      .wrapper = input.wrapper,
       .max_fanout = config.max_fanout,
       .has_max_cap = config.has_max_cap,
       .max_cap_pf = config.has_max_cap ? config.max_cap_pf : std::numeric_limits<double>::infinity(),

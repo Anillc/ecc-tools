@@ -33,7 +33,6 @@ class Config;
 class Design;
 class FastSTA;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 
 struct SynthesisInput
@@ -41,7 +40,6 @@ struct SynthesisInput
   const Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
   ClockLayout* clock_layout = nullptr;

@@ -43,7 +43,6 @@
 #include "common/CTSTestRuntime.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/io/Wrapper.hh"
 #include "dm_config.h"
@@ -466,7 +465,6 @@ auto LoadRealTechAssets(const RealTechAssets& assets, std::string& error) -> boo
     error = "readClockData failed for SDC-declared clocks";
     return false;
   }
-  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
   return true;
 }
 

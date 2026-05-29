@@ -433,10 +433,10 @@ auto CharSetupConfigurator::init(const ::icts::CharBuilder::Input& input, const 
   _impl._max_observed_driven_cap_pf = 0.0;
   _impl._max_observed_driven_cap_idx = 0U;
   _impl._fast_sta = effective_input.fast_sta;
-  _impl._sta_adapter = effective_input.sta_adapter;
+  _impl._wrapper = effective_input.wrapper;
   _impl._dbu_per_um = effective_input.dbu_per_um;
   _impl._root_input_slew_ns = std::max(0.0, effective_input.root_input_slew_ns);
-  LOG_FATAL_IF(_impl._sta_adapter == nullptr) << "CharBuilder: STAAdapter dependency must be explicitly provided.";
+  LOG_FATAL_IF(_impl._wrapper == nullptr) << "CharBuilder: Wrapper dependency must be explicitly provided.";
   LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharBuilder: FastSTA dependency must be explicitly provided.";
 
   _impl._sorted_buffers = collectSortedBuffers(effective_input, effective_config);

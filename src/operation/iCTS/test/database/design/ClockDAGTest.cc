@@ -125,7 +125,6 @@ auto makeEvaluationInput() -> icts::EvaluationInput
       .clock_layout = nullptr,
       .design = &shared.design,
       .wrapper = &shared.wrapper,
-      .sta_adapter = &shared.sta_adapter,
       .reporter = &shared.reporter,
   };
 }
@@ -355,7 +354,7 @@ TEST(ClockDAGTest, QorEvaluationPathDepthFieldsUseSourceToFlipFlopDAGStats)
   clock_pins.clock->add_load(ff_two);
 
   icts::EvaluationState state;
-  icts::QorEvaluation::evaluate(state, makeEvaluationInput(), icts::EvaluationConfig{});
+  icts::QorEvaluation::evaluate(state, makeEvaluationInput());
   const auto summary = icts::QorEvaluation::outputSummary(state);
 
   EXPECT_EQ(summary.final_clock_buffer_count, 3);
@@ -383,7 +382,7 @@ TEST(ClockDAGTest, QorEvaluationNoFlipFlopPathDepthIsUnavailableZeroNotTotalBuff
   clock_pins.clock->add_load(macro_sink);
 
   icts::EvaluationState state;
-  icts::QorEvaluation::evaluate(state, makeEvaluationInput(), icts::EvaluationConfig{});
+  icts::QorEvaluation::evaluate(state, makeEvaluationInput());
   const auto summary = icts::QorEvaluation::outputSummary(state);
 
   EXPECT_EQ(summary.final_clock_buffer_count, 1);

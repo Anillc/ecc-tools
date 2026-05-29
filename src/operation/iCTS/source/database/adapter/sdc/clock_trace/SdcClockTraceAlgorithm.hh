@@ -104,13 +104,13 @@ auto PinDisplayName(idb::IdbPin* pin) -> std::string;
 auto CollectNetPins(idb::IdbNet* net) -> IdbNetPins;
 auto IsInputLike(idb::IdbPin* pin) -> bool;
 auto IsOutputLike(idb::IdbPin* pin) -> bool;
-auto FindLibCell(idb::IdbInstance* inst) -> ista::LibCell*;
+auto FindLibCell(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbInstance* inst) -> ista::LibCell*;
 auto FindLibPort(ista::LibCell* lib_cell, idb::IdbPin* pin) -> ista::LibPort*;
 auto IsSequentialCell(idb::IdbInstance* inst, ista::LibCell* lib_cell) -> bool;
 auto IsClockSinkPin(idb::IdbPin* pin, ista::LibCell* lib_cell) -> bool;
 auto IsMacroClockSinkPin(idb::IdbPin* pin, ista::LibCell* lib_cell) -> bool;
-auto CountDirectClockSinks(idb::IdbNet* net) -> ClockSinkStats;
-auto CountDirectClockSinksForReport(idb::IdbNet* net) -> ClockSinkStats;
+auto CountDirectClockSinks(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* net) -> ClockSinkStats;
+auto CountDirectClockSinksForReport(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* net) -> ClockSinkStats;
 auto IsClockTarget(const ClockSinkStats& stats) -> bool;
 auto TargetKind(const ClockSinkStats& stats) -> std::string;
 auto ClockKindName(const SdcClockDecl& clock) -> std::string;
@@ -119,7 +119,8 @@ auto DominanceForRecord(const ClockTraceRecord& record, const std::string& clock
 auto StrongTargetSinkThreshold(std::size_t max_fanout) -> std::size_t;
 auto IsStrongClockTarget(const ClockTraceRecord& record, std::size_t sink_threshold) -> bool;
 auto ResolveInstPinByLibPort(idb::IdbInstance* inst, ista::LibPort* lib_port) -> idb::IdbPin*;
-auto BuildPreclusteredSinkAnchor(idb::IdbNet* leaf_net) -> std::optional<ClockTracePreclusteredSinkAnchor>;
+auto BuildPreclusteredSinkAnchor(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* leaf_net)
+    -> std::optional<ClockTracePreclusteredSinkAnchor>;
 
 auto ObjectKindName(SdcObjectKind kind) -> std::string;
 auto ResolvePortNet(idb::IdbDesign* idb_design, const std::string& port_name) -> idb::IdbNet*;
@@ -128,15 +129,16 @@ auto ResolveRefNets(idb::IdbDesign* idb_design, const SdcObjectRef& ref) -> std:
 auto BuildCaseConstraintSet(const SdcClockData& clock_data) -> CaseConstraintSet;
 auto BuildGeneratedBoundaryOwners(idb::IdbDesign* idb_design, const SdcClockData& clock_data)
     -> std::unordered_map<idb::IdbNet*, std::string>;
-auto TraceClock(idb::IdbDesign* idb_design, const SdcClockDecl& clock, const CaseConstraintSet& case_constraints,
+auto TraceClock(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbDesign* idb_design, const SdcClockDecl& clock,
+                const CaseConstraintSet& case_constraints,
                 const std::unordered_map<idb::IdbNet*, std::string>& generated_boundary_owner_by_net) -> std::vector<ClockTraceRecord>;
 
 auto JoinNames(const std::set<std::string>& names, std::size_t display_limit = 8U) -> std::string;
 auto BuildClockDeclViews(idb::IdbDesign* idb_design, const SdcClockData& clock_data) -> std::map<std::string, ClockDeclView>;
 auto AnnotateRecordOwnership(ClockTraceRecord& record, const std::map<std::string, ClockDeclView>& clock_view_by_name) -> void;
 auto CollectTracedNetNames(const std::vector<ClockTraceRecord>& records) -> std::set<std::string>;
-auto CollectUnownedClockLikeRecords(idb::IdbDesign* idb_design, const std::vector<ClockTraceRecord>& records)
-    -> std::vector<ClockTraceRecord>;
+auto CollectUnownedClockLikeRecords(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbDesign* idb_design,
+                                    const std::vector<ClockTraceRecord>& records) -> std::vector<ClockTraceRecord>;
 auto NumberToString(std::size_t value) -> std::string;
 auto EmitClockTraceReport(SchemaWriter& reporter, const std::vector<ClockTraceRecord>& records) -> void;
 auto EmitSdcClockOwnershipReport(const SdcClockData& clock_data, const std::map<std::string, ClockDeclView>& clock_view_by_name,

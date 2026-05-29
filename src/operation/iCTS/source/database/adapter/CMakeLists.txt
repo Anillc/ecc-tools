@@ -1,9 +1,7 @@
 set(ICTS_DATABASE_ADAPTER_FAST_STA ${ICTS_DATABASE}/adapter/fast_sta)
-set(ICTS_DATABASE_ADAPTER_STA ${ICTS_DATABASE}/adapter/sta)
 set(ICTS_DATABASE_ADAPTER_SDC ${ICTS_DATABASE}/adapter/sdc)
 
 add_subdirectory(${ICTS_DATABASE_ADAPTER_FAST_STA})
-add_subdirectory(${ICTS_DATABASE_ADAPTER_STA})
 add_subdirectory(${ICTS_DATABASE_ADAPTER_SDC})
 
 add_library(icts_source_database_adapter INTERFACE)
@@ -13,7 +11,6 @@ target_link_libraries(
   INTERFACE
   icts_source_database_adapter_fast_sta
   icts_source_database_adapter_sdc
-  icts_source_database_adapter_sta
 )
 
 target_include_directories(icts_source_database_adapter INTERFACE ${ICTS_DATABASE}/adapter)

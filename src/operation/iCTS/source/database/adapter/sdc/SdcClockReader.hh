@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -32,9 +33,15 @@ namespace idb {
 class IdbDesign;
 }  // namespace idb
 
+namespace ista {
+class LibCell;
+}  // namespace ista
+
 namespace icts {
 
 class SchemaWriter;
+
+using SdcLibertyCellLookup = std::function<ista::LibCell*(const std::string&)>;
 
 enum class SdcObjectKind
 {
@@ -150,8 +157,8 @@ class SdcClockReader
 
   auto readClockData(SchemaWriter& reporter) const -> SdcClockData;
   auto readDeclarationsOnly(SchemaWriter& reporter) const -> std::vector<std::tuple<std::string, std::string, double, bool>>;
-  static auto traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout, SchemaWriter& reporter)
-      -> ClockTraceBuild;
+  static auto traceClockTargets(const SdcClockData& clock_data, idb::IdbDesign* idb_design, const SdcLibertyCellLookup& liberty_cell_lookup,
+                                std::size_t max_fanout, SchemaWriter& reporter) -> ClockTraceBuild;
 
  private:
   std::string _sdc_path;

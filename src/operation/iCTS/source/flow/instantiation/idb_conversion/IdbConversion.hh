@@ -30,14 +30,12 @@ namespace icts {
 
 class Design;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 
 struct IdbConversionInput
 {
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   SchemaWriter* reporter = nullptr;
 };
 

@@ -38,7 +38,7 @@ namespace icts {
 
 class HTreeTopologyChar;
 class SchemaWriter;
-class STAAdapter;
+class Wrapper;
 struct PatternId;
 class Tree;
 }  // namespace icts
@@ -80,7 +80,7 @@ struct RootDriverCompensationDetail
 struct RootDriverCompensationInput
 {
   bool enabled = false;
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   double input_slew_ns = 0.0;
   double clock_period_ns = 0.0;
   UniformValueLattice cap_lattice;

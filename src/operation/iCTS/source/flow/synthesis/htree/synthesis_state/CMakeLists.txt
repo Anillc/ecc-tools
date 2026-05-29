@@ -16,7 +16,6 @@ target_link_libraries(
   icts_source_flow_synthesis_htree_plan
   icts_source_database_design
   icts_source_module_topology
-  icts_source_database_adapter_sta
   icts_source_database_routing
   log
 )

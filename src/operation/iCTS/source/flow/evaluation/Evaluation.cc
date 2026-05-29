@@ -34,7 +34,7 @@
 
 namespace icts {
 
-auto Evaluation::run(EvaluationState evaluation_state, const EvaluationInput& input, const EvaluationConfig& config) -> EvaluationBuild
+auto Evaluation::run(EvaluationState evaluation_state, const EvaluationInput& input) -> EvaluationBuild
 {
   LOG_FATAL_IF(input.reporter == nullptr) << "Evaluation requires reporter.";
   auto& reporter = *input.reporter;
@@ -43,7 +43,7 @@ auto Evaluation::run(EvaluationState evaluation_state, const EvaluationInput& in
       = reporter.beginStage("Evaluation", "Evaluate CTS clock tree", {}, StageReportOptions{.emit_success_summary = false});
   reporter.emitSection("## Evaluation Overview");
   reporter.emitSection("### Final Evaluation");
-  evaluate(evaluation_state, input, config);
+  evaluate(evaluation_state, input);
   const bool evaluation_ready = isEvaluationReady(evaluation_state);
   if (evaluation_ready) {
     (void) runtime.finished();
@@ -58,9 +58,9 @@ auto Evaluation::run(EvaluationState evaluation_state, const EvaluationInput& in
   };
 }
 
-auto Evaluation::evaluate(EvaluationState& state, const EvaluationInput& input, const EvaluationConfig& config) -> void
+auto Evaluation::evaluate(EvaluationState& state, const EvaluationInput& input) -> void
 {
-  QorEvaluation::evaluate(state, input, config);
+  QorEvaluation::evaluate(state, input);
 }
 
 auto Evaluation::outputSummary(const EvaluationState& state) -> QorSummary

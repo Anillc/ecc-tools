@@ -31,7 +31,6 @@ class ClockLayout;
 class Config;
 class Design;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 struct EvaluationState;
 
@@ -40,17 +39,11 @@ struct ReportInput
   const Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   SchemaWriter* reporter = nullptr;
   std::string save_dir;
   bool evaluation_ready = false;
   const ClockLayout* clock_layout = nullptr;
   EvaluationState* evaluation_state = nullptr;
-};
-
-struct ReportConfig
-{
-  bool refresh_sta_timing = false;
 };
 
 struct ReportSummary
@@ -67,7 +60,7 @@ class Report
  public:
   Report() = delete;
 
-  static auto run(const ReportInput& input, const ReportConfig& config = {}) -> ReportSummary;
+  static auto run(const ReportInput& input) -> ReportSummary;
 };
 
 }  // namespace icts

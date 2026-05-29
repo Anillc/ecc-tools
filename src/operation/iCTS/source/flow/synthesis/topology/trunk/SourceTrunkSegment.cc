@@ -276,7 +276,7 @@ auto BuildSourceTrunkSegmentObjects(SourceTrunkSegment::Build& result, Net& sour
     return true;
   }
 
-  htree::BufferPortTable port_table(*input.sta_adapter);
+  htree::BufferPortTable port_table(*input.wrapper);
   std::vector<std::pair<Pin*, Pin*>> segment_buffers;
   segment_buffers.reserve(buffer_count);
   for (std::size_t buffer_index = 0; buffer_index < buffer_count; ++buffer_index) {
@@ -400,7 +400,7 @@ auto SourceTrunkSegment::build(const Input& input, const Config& config) -> Buil
 {
   LOG_FATAL_IF(input.source_net == nullptr) << "SourceTrunkSegment build requires an explicit source net.";
   LOG_FATAL_IF(input.reporter == nullptr) << "SourceTrunkSegment build requires an explicit reporter.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "SourceTrunkSegment build requires an explicit STA adapter.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "SourceTrunkSegment build requires an explicit Wrapper.";
   auto& source_net = *input.source_net;
   auto* source = input.source;
   auto* sink = input.sink;
@@ -492,7 +492,7 @@ auto SourceTrunkSegment::build(const Input& input, const Config& config) -> Buil
     return result;
   }
 
-  htree::BufferPatternLibrary pattern_library(*input.sta_adapter);
+  htree::BufferPatternLibrary pattern_library(*input.wrapper);
   htree::SegmentFrontierCatalog segment_frontier_catalog;
   const std::vector<SegmentChar>* all_frontier_entries = nullptr;
   {

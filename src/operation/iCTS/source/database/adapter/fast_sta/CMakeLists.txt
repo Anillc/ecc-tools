@@ -31,9 +31,10 @@ add_library(
 target_link_libraries(
   icts_source_database_adapter_fast_sta_liberty
   PRIVATE
-  icts_source_database_adapter_sta
+  icts_source_database_io
   icts_source_utils_logger
   absl::inlined_vector
+  liberty
 )
 
 target_include_directories(
@@ -54,6 +55,7 @@ target_link_libraries(
   PRIVATE
   icts_source_database_config
   icts_source_database_design
+  icts_source_database_io
   icts_source_database_routing
   log
 )
@@ -154,7 +156,6 @@ target_link_libraries(
   PRIVATE
   icts_source_database_adapter_fast_sta_clock_tree
   icts_source_database_adapter_fast_sta_liberty
-  icts_source_database_adapter_sta
   icts_source_database_config
   icts_source_database_design
   icts_source_database_io

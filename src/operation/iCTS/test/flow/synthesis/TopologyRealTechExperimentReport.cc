@@ -38,9 +38,9 @@
 #include "Tree.hh"
 #include "common/io/TestArtifactIO.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Net.hh"
+#include "database/io/Wrapper.hh"
 #include "synthesis/topology/Topology.hh"
 
 namespace icts_test::synthesis_realtech_smoke {
@@ -48,9 +48,9 @@ namespace {
 
 auto ResolveBufferDriveCap(const std::string& cell_master) -> double
 {
-  double drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master);
+  double drive_cap_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapLimit(cell_master);
   if (drive_cap_pf <= 0.0) {
-    drive_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+    drive_cap_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return drive_cap_pf;
 }
@@ -141,7 +141,6 @@ auto BuildTopology(icts::Net& root_net, const icts::Topology::Config& config) ->
       .config = &runtime.config,
       .design = &runtime.design,
       .wrapper = &runtime.wrapper,
-      .sta_adapter = &runtime.sta_adapter,
       .fast_sta = &runtime.fast_sta,
       .reporter = &runtime.reporter,
       .root_net = &root_net,
@@ -176,7 +175,7 @@ auto ResolveExpectedMinClusterBufferMaster() -> std::optional<std::string>
       continue;
     }
 
-    const auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().sta_adapter.queryBufferPorts(cell_master);
+    const auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().wrapper.queryBufferPorts(cell_master);
     if (input_pin.empty() || output_pin.empty()) {
       continue;
     }

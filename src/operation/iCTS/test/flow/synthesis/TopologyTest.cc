@@ -34,7 +34,6 @@
 #include <vector>
 
 #include "Flow.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "common/CTSTestRuntime.hh"
 #include "database/config/Config.hh"
 #include "database/design/Clock.hh"
@@ -42,6 +41,7 @@
 #include "database/design/Inst.hh"
 #include "database/design/Net.hh"
 #include "database/design/Pin.hh"
+#include "database/io/Wrapper.hh"
 #include "database/spatial/Point.hh"
 #include "flow/synthesis/topology/Topology.hh"
 #include "flow/synthesis/topology/trunk/SourceTrunk.hh"
@@ -141,7 +141,6 @@ auto BuildTopologyForRootNet(icts::Net& root_net) -> icts::Topology::Build
           .config = &runtime.config,
           .design = &runtime.design,
           .wrapper = &runtime.wrapper,
-          .sta_adapter = &runtime.sta_adapter,
           .fast_sta = &runtime.fast_sta,
           .reporter = &runtime.reporter,
           .root_net = &root_net,
@@ -431,7 +430,6 @@ TEST(TopologyTest, SourceTrunkWithEmptyRootsFailsWithoutChangingSourceNet)
   const auto result = icts::topology::BuildSourceTrunkTree(icts::topology::SourceTrunkInput{.config = &runtime.config,
                                                                                             .design = &runtime.design,
                                                                                             .wrapper = &runtime.wrapper,
-                                                                                            .sta_adapter = &runtime.sta_adapter,
                                                                                             .fast_sta = &runtime.fast_sta,
                                                                                             .reporter = &runtime.reporter,
                                                                                             .source_net = &source_net,
@@ -465,7 +463,6 @@ TEST(TopologyTest, SourceTrunkSingleRootSameLocationDirectConnectsWithoutInserte
   const auto result = icts::topology::BuildSourceTrunkTree(icts::topology::SourceTrunkInput{.config = &runtime.config,
                                                                                             .design = &runtime.design,
                                                                                             .wrapper = &runtime.wrapper,
-                                                                                            .sta_adapter = &runtime.sta_adapter,
                                                                                             .fast_sta = &runtime.fast_sta,
                                                                                             .reporter = &runtime.reporter,
                                                                                             .source_net = &source_net,
@@ -496,7 +493,7 @@ TEST(TopologyTest, ClockSourceDriveCapUsesRuntimeMaxCapForTopLevelIoPort)
   icts::Pin source("clk_i", icts::PinType::kOut, icts::Point<int>(100, 200), nullptr, nullptr, true);
 
   EXPECT_DOUBLE_EQ(
-      icts_test::runtime::CurrentRuntime().sta_adapter.queryClockSourceDriveCapLimit(icts_test::runtime::CurrentRuntime().config, &source),
+      icts_test::runtime::CurrentRuntime().wrapper.queryClockSourceDriveCapLimit(icts_test::runtime::CurrentRuntime().config, &source),
       0.23);
 }
 

@@ -41,8 +41,8 @@
 #include "Net.hh"
 #include "Pin.hh"
 #include "Point.hh"
-#include "Wrapper.hh"
 #include "common/CTSTestRuntime.hh"
+#include "io/Wrapper.hh"
 
 namespace icts_test {
 namespace {

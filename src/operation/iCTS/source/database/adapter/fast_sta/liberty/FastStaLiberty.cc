@@ -32,14 +32,65 @@
 
 #include "Type.hh"
 #include "Vector.hh"
-#include "adapter/sta/STAAdapter.hh"
-#include "adapter/sta/timing_query/STAAdapterTimingQuery.hh"
+#include "io/Wrapper.hh"
 #include "liberty/Lib.hh"
 
 namespace icts {
 namespace {
 
 constexpr double kMilliwattToWatt = 1.0 / 1000.0;
+
+auto convertLibCapToPf(ista::LibCell* lib_cell, double cap_value) -> double
+{
+  auto* owner_lib = lib_cell != nullptr ? lib_cell->get_owner_lib() : nullptr;
+  if (owner_lib == nullptr) {
+    return cap_value;
+  }
+  return ista::ConvertCapUnit(owner_lib->get_cap_unit(), ista::CapacitiveUnit::kPF, cap_value);
+}
+
+auto convertLibTimeToNs(ista::LibCell* lib_cell, double time_value) -> double
+{
+  auto* owner_lib = lib_cell != nullptr ? lib_cell->get_owner_lib() : nullptr;
+  if (owner_lib == nullptr) {
+    return time_value;
+  }
+  return owner_lib->convert_time_unit_to_ns(time_value);
+}
+
+auto queryLibPortCapacitancePf(ista::LibCell* lib_cell, ista::LibPort* lib_port) -> double
+{
+  if (lib_cell == nullptr || lib_port == nullptr || lib_port->isInput() == 0U) {
+    return 0.0;
+  }
+
+  double cap_value = lib_port->get_port_cap();
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMax, ista::TransType::kRise).value_or(0.0));
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMax, ista::TransType::kFall).value_or(0.0));
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMin, ista::TransType::kRise).value_or(0.0));
+  cap_value = std::max(cap_value, lib_port->get_port_cap(ista::AnalysisMode::kMin, ista::TransType::kFall).value_or(0.0));
+  return convertLibCapToPf(lib_cell, cap_value);
+}
+
+auto findBufferArcSet(ista::LibCell* lib_cell) -> std::optional<ista::LibArcSet*>
+{
+  if (lib_cell == nullptr) {
+    return std::nullopt;
+  }
+
+  ista::LibPort* input = nullptr;
+  ista::LibPort* output = nullptr;
+  lib_cell->bufferPorts(input, output);
+  if (input == nullptr || output == nullptr) {
+    return std::nullopt;
+  }
+
+  auto timing_arc_set = lib_cell->findLibertyArcSet(input->get_port_name(), output->get_port_name(), ista::LibArc::TimingType::kComb);
+  if (!timing_arc_set.has_value()) {
+    timing_arc_set = lib_cell->findLibertyArcSet(input->get_port_name(), output->get_port_name());
+  }
+  return timing_arc_set;
+}
 
 auto toFastStaAxisKind(ista::LibLutTableTemplate::Variable variable) -> FastStaLibertyAxisKind
 {
@@ -67,7 +118,7 @@ auto convertTableAxisValue(ista::LibCell* lib_cell, ista::LibLutTableTemplate::V
     case FastStaLibertyAxisKind::kInputSlew:
       return owner_lib->convert_time_unit_to_ns(value);
     case FastStaLibertyAxisKind::kOutputLoad:
-      return sta_adapter_timing_query::ConvertLibCapToPf(lib_cell, value);
+      return convertLibCapToPf(lib_cell, value);
     case FastStaLibertyAxisKind::kUnknown:
       return value;
   }
@@ -79,7 +130,7 @@ auto convertTableValue(ista::LibCell* lib_cell, FastStaLibertyTableKind kind, do
   switch (kind) {
     case FastStaLibertyTableKind::kCellDelay:
     case FastStaLibertyTableKind::kOutputSlew:
-      return sta_adapter_timing_query::ConvertLibTimeToNs(lib_cell, value);
+      return convertLibTimeToNs(lib_cell, value);
     case FastStaLibertyTableKind::kInternalPower:
       return lib_cell != nullptr ? lib_cell->convertInternalPowerTableToMwNs(value) : value;
   }
@@ -220,7 +271,7 @@ auto appendPowerArcTables(ista::LibCell* lib_cell, ista::LibPowerArcSet* power_a
   }
 }
 
-auto extractBufferCellFromLibCell(STAAdapter& sta_adapter, ista::LibCell* lib_cell) -> FastStaLibertyCell
+auto extractBufferCellFromLibCell(Wrapper& wrapper, ista::LibCell* lib_cell) -> FastStaLibertyCell
 {
   if (lib_cell == nullptr) {
     return FastStaLibertyCell{};
@@ -237,28 +288,28 @@ auto extractBufferCellFromLibCell(STAAdapter& sta_adapter, ista::LibCell* lib_ce
   auto output_cap_limit_pf = 0.0;
   if (output_port != nullptr) {
     if (auto cap_limit = output_port->get_port_cap_limit(ista::AnalysisMode::kMax); cap_limit.has_value()) {
-      output_cap_limit_pf = sta_adapter_timing_query::ConvertLibCapToPf(lib_cell, *cap_limit);
+      output_cap_limit_pf = convertLibCapToPf(lib_cell, *cap_limit);
     }
   }
   if (output_cap_limit_pf <= 0.0) {
-    output_cap_limit_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+    output_cap_limit_pf = wrapper.queryCellOutPinCapTableAxisMax(cell_master);
   }
 
   auto input_slew_limit_ns = 0.0;
   if (input_port != nullptr) {
     if (auto slew_limit = input_port->get_port_slew_limit(ista::AnalysisMode::kMax); slew_limit.has_value()) {
-      input_slew_limit_ns = sta_adapter_timing_query::ConvertLibTimeToNs(lib_cell, *slew_limit);
+      input_slew_limit_ns = convertLibTimeToNs(lib_cell, *slew_limit);
     }
   }
   if (input_slew_limit_ns <= 0.0) {
-    input_slew_limit_ns = sta_adapter.queryCellInPinSlewTableAxisMax(cell_master);
+    input_slew_limit_ns = wrapper.queryCellInPinSlewTableAxisMax(cell_master);
   }
 
   FastStaLibertyCell cell{
       .cell_master = cell_master,
       .input_port = input_port_name,
       .output_port = output_port_name,
-      .input_cap_pf = sta_adapter_timing_query::QueryLibPortCapacitancePf(lib_cell, input_port),
+      .input_cap_pf = queryLibPortCapacitancePf(lib_cell, input_port),
       .output_cap_limit_pf = output_cap_limit_pf,
       .input_slew_limit_ns = input_slew_limit_ns,
       .input_threshold_rise = owner_lib != nullptr ? percentOrDefault(owner_lib->get_input_threshold_pct_rise(), 0.5) : 0.5,
@@ -272,7 +323,7 @@ auto extractBufferCellFromLibCell(STAAdapter& sta_adapter, ista::LibCell* lib_ce
       .slew_derate_from_library = owner_lib != nullptr && owner_lib->get_slew_derate_from_library() > 0.0
                                       ? owner_lib->get_slew_derate_from_library()
                                       : 1.0,
-      .area_um2 = std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master)),
+      .area_um2 = std::max(0.0, wrapper.queryCellAreaUm2(cell_master)),
       .voltage_v = owner_lib != nullptr ? owner_lib->get_nom_voltage() : 0.0,
       .leakage_power_w = calcLeakagePowerW(lib_cell),
       .timing_arc = FastStaLibertyArc{
@@ -284,7 +335,7 @@ auto extractBufferCellFromLibCell(STAAdapter& sta_adapter, ista::LibCell* lib_ce
       },
   };
 
-  auto timing_arc_set = sta_adapter_timing_query::FindBufferArcSet(lib_cell);
+  auto timing_arc_set = findBufferArcSet(lib_cell);
   auto* timing_arc = findBestTimingArc(timing_arc_set.value_or(nullptr));
   auto* delay_model = timing_arc != nullptr ? dynamic_cast<ista::LibDelayTableModel*>(timing_arc->get_table_model()) : nullptr;
   if (timing_arc != nullptr) {
@@ -308,27 +359,27 @@ auto extractBufferCellFromLibCell(STAAdapter& sta_adapter, ista::LibCell* lib_ce
 
 }  // namespace
 
-auto FastStaLiberty::extractBufferCell(STAAdapter& sta_adapter, const std::string& cell_master) -> FastStaLibertyCell
+auto FastStaLiberty::extractBufferCell(Wrapper& wrapper, const std::string& cell_master) -> FastStaLibertyCell
 {
-  auto* lib_cell = sta_adapter_timing_query::FindLibertyCellByMaster(cell_master);
+  auto* lib_cell = wrapper.findLibertyCell(cell_master);
   if (lib_cell != nullptr) {
-    return extractBufferCellFromLibCell(sta_adapter, lib_cell);
+    return extractBufferCellFromLibCell(wrapper, lib_cell);
   }
 
-  auto [input_port, output_port] = sta_adapter.queryBufferPorts(cell_master);
-  auto output_cap_limit_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
+  auto [input_port, output_port] = wrapper.queryBufferPorts(cell_master);
+  auto output_cap_limit_pf = wrapper.queryCellOutPinCapLimit(cell_master);
   if (output_cap_limit_pf <= 0.0) {
-    output_cap_limit_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+    output_cap_limit_pf = wrapper.queryCellOutPinCapTableAxisMax(cell_master);
   }
-  auto input_slew_limit_ns = sta_adapter.queryCellInPinSlewLimit(cell_master);
+  auto input_slew_limit_ns = wrapper.queryCellInPinSlewLimit(cell_master);
   if (input_slew_limit_ns <= 0.0) {
-    input_slew_limit_ns = sta_adapter.queryCellInPinSlewTableAxisMax(cell_master);
+    input_slew_limit_ns = wrapper.queryCellInPinSlewTableAxisMax(cell_master);
   }
   return FastStaLibertyCell{
       .cell_master = cell_master,
       .input_port = input_port,
       .output_port = output_port,
-      .input_cap_pf = sta_adapter.queryCharInputPinCap(cell_master),
+      .input_cap_pf = wrapper.queryCharInputPinCap(cell_master),
       .output_cap_limit_pf = output_cap_limit_pf,
       .input_slew_limit_ns = input_slew_limit_ns,
       .input_threshold_rise = 0.5,
@@ -340,7 +391,7 @@ auto FastStaLiberty::extractBufferCell(STAAdapter& sta_adapter, const std::strin
       .slew_upper_threshold_rise = 0.7,
       .slew_upper_threshold_fall = 0.7,
       .slew_derate_from_library = 1.0,
-      .area_um2 = std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master)),
+      .area_um2 = std::max(0.0, wrapper.queryCellAreaUm2(cell_master)),
       .voltage_v = 0.0,
       .leakage_power_w = 0.0,
       .timing_arc = FastStaLibertyArc{

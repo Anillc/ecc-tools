@@ -24,11 +24,9 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "evaluation/qor/QorEvaluation.hh"
 #include "feature_icts.h"
-#include "feature_ista.h"
 #include "flow/Flow.hh"
 #include "flow/setup/Setup.hh"
 
@@ -45,17 +43,6 @@ auto buildFeatureSummary(const QorSummary& flow_summary) -> ieda_feature::CTSSum
   summary.max_level_of_clock_tree = flow_summary.feature_max_clock_network_level;
   summary.max_clock_wirelength = flow_summary.max_clock_wirelength;
   summary.total_clock_wirelength = flow_summary.total_clock_wirelength;
-  summary.clocks_timing.reserve(flow_summary.clocks_timing.size());
-  for (const auto& clock_timing : flow_summary.clocks_timing) {
-    summary.clocks_timing.push_back(ieda_feature::ClockTiming{
-        .clock_name = clock_timing.clock_name,
-        .setup_tns = clock_timing.setup_tns,
-        .setup_wns = clock_timing.setup_wns,
-        .hold_tns = clock_timing.hold_tns,
-        .hold_wns = clock_timing.hold_wns,
-        .suggest_freq = clock_timing.suggest_freq,
-    });
-  }
   return summary;
 }
 
@@ -103,7 +90,6 @@ auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -
       .config = &runtime.config,
       .design = &runtime.design,
       .wrapper = &runtime.wrapper,
-      .sta_adapter = &runtime.sta_adapter,
       .reporter = &runtime.reporter,
       .config_file = config_file,
       .work_dir = work_dir,

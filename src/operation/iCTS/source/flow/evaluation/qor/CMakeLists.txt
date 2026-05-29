@@ -2,7 +2,6 @@ add_library(
   icts_source_flow_evaluation_qor
   ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluation.cc
   ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluationMetrics.cc
-  ${ICTS_FLOW_EVALUATION_QOR}/QorEvaluationRootProbe.cc
 )
 
 target_link_libraries(
@@ -11,7 +10,6 @@ target_link_libraries(
   icts_source_database_qor
   icts_source_database_design
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_config
   icts_source_database_io
   icts_source_module_routing

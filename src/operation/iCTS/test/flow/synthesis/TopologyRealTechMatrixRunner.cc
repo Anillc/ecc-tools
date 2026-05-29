@@ -44,9 +44,9 @@
 #include "TopologyRealTechScenario.hh"
 #include "Tree.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Net.hh"
+#include "database/io/Wrapper.hh"
 #include "flow/synthesis/topology/Topology.hh"
 #include "geometry/Geometry.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
@@ -165,13 +165,13 @@ auto GetPinCap(const icts::Pin* pin) -> double
   if (pin == nullptr) {
     return 0.0;
   }
-  const double pin_cap = icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(pin);
+  const double pin_cap = icts_test::runtime::CurrentRuntime().wrapper.queryPinCapacitance(pin);
   return std::max(0.0, pin_cap);
 }
 
 auto BuildClockRouteSegmentRcFromRealTech() -> icts::ClockRouteSegmentRc
 {
-  return icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
+  return icts_test::runtime::CurrentRuntime().wrapper.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
 }
 
 auto CalcRouteTreeWirelengthsByName(const icts::Router::ClockSteinerTreeType& route_tree) -> std::unordered_map<std::string, double>

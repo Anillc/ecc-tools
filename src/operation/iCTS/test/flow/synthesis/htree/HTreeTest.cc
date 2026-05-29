@@ -77,7 +77,7 @@ auto MakeSegmentChar(unsigned pattern_id, double delay, double power) -> icts::S
 
 struct SegmentFrontierTestData
 {
-  SegmentFrontierTestData() : pattern_library(icts_test::runtime::CurrentRuntime().sta_adapter) {}
+  SegmentFrontierTestData() : pattern_library(icts_test::runtime::CurrentRuntime().wrapper) {}
 
   icts::htree::BufferPatternLibrary pattern_library;
   icts::htree::SegmentFrontierCatalog catalog;

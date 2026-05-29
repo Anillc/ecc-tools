@@ -37,7 +37,6 @@
 #include "IdbTerm.h"
 #include "SdcClockReader.hh"
 #include "SdcClockTraceAlgorithm.hh"
-#include "api/TimingEngine.hh"
 #include "liberty/Lib.hh"
 
 namespace icts::clock_trace {
@@ -161,17 +160,13 @@ auto IsOutputLike(idb::IdbPin* pin) -> bool
          || term->get_direction() == idb::IdbConnectDirection::kInOut;
 }
 
-auto FindLibCell(idb::IdbInstance* inst) -> ista::LibCell*
+auto FindLibCell(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbInstance* inst) -> ista::LibCell*
 {
   auto* cell_master = inst == nullptr ? nullptr : inst->get_cell_master();
   if (cell_master == nullptr) {
     return nullptr;
   }
-  auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  if (timing_engine == nullptr) {
-    return nullptr;
-  }
-  return timing_engine->findLibertyCell(cell_master->get_name().c_str());
+  return liberty_cell_lookup ? liberty_cell_lookup(cell_master->get_name()) : nullptr;
 }
 
 auto FindLibPort(ista::LibCell* lib_cell, idb::IdbPin* pin) -> ista::LibPort*
@@ -226,13 +221,13 @@ auto IsMacroClockSinkPin(idb::IdbPin* pin, ista::LibCell* lib_cell) -> bool
   return (term != nullptr && term->get_type() == idb::IdbConnectType::kClock) || (lib_port != nullptr && lib_port->isClock());
 }
 
-auto CountDirectClockSinks(idb::IdbNet* net) -> ClockSinkStats
+auto CountDirectClockSinks(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* net) -> ClockSinkStats
 {
   ClockSinkStats stats;
   const auto net_pins = CollectNetPins(net);
   for (auto* load_pin : net_pins.loads) {
     auto* inst = load_pin == nullptr ? nullptr : load_pin->get_instance();
-    auto* lib_cell = FindLibCell(inst);
+    auto* lib_cell = FindLibCell(liberty_cell_lookup, inst);
     if (IsClockSinkPin(load_pin, lib_cell)) {
       ++stats.sequential_clock_sinks;
     } else if (IsMacroClockSinkPin(load_pin, lib_cell)) {
@@ -242,7 +237,7 @@ auto CountDirectClockSinks(idb::IdbNet* net) -> ClockSinkStats
   return stats;
 }
 
-auto CountDirectClockSinksForReport(idb::IdbNet* net) -> ClockSinkStats
+auto CountDirectClockSinksForReport(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* net) -> ClockSinkStats
 {
   ClockSinkStats stats;
   auto* pin_list = net == nullptr ? nullptr : net->get_instance_pin_list();
@@ -251,7 +246,7 @@ auto CountDirectClockSinksForReport(idb::IdbNet* net) -> ClockSinkStats
   }
   for (auto* pin : pin_list->get_pin_list()) {
     auto* inst = pin == nullptr ? nullptr : pin->get_instance();
-    auto* lib_cell = FindLibCell(inst);
+    auto* lib_cell = FindLibCell(liberty_cell_lookup, inst);
     if (IsClockSinkPin(pin, lib_cell)) {
       ++stats.sequential_clock_sinks;
     } else if (IsMacroClockSinkPin(pin, lib_cell)) {
@@ -344,16 +339,17 @@ auto ResolveInstPinByLibPort(idb::IdbInstance* inst, ista::LibPort* lib_port) ->
   return nullptr;
 }
 
-auto BuildPreclusteredSinkAnchor(idb::IdbNet* leaf_net) -> std::optional<ClockTracePreclusteredSinkAnchor>
+auto BuildPreclusteredSinkAnchor(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* leaf_net)
+    -> std::optional<ClockTracePreclusteredSinkAnchor>
 {
-  if (leaf_net == nullptr || !IsClockTarget(CountDirectClockSinks(leaf_net))) {
+  if (leaf_net == nullptr || !IsClockTarget(CountDirectClockSinks(liberty_cell_lookup, leaf_net))) {
     return std::nullopt;
   }
 
   const auto net_pins = CollectNetPins(leaf_net);
   auto* output_pin = net_pins.driver;
   auto* driver_inst = output_pin == nullptr ? nullptr : output_pin->get_instance();
-  auto* lib_cell = FindLibCell(driver_inst);
+  auto* lib_cell = FindLibCell(liberty_cell_lookup, driver_inst);
   if (driver_inst == nullptr || lib_cell == nullptr || !(lib_cell->isBuffer() || lib_cell->isInverter())) {
     return std::nullopt;
   }
