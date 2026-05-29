@@ -21,7 +21,10 @@ target_link_libraries(
   dump
   calc_power
   plot_power
-  iir-api)
+  iir-api
+  ista-engine
+  sta
+  fort)
 
 if(USE_GPU)
   target_link_libraries(power power-gpu)
