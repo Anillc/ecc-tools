@@ -11,7 +11,5 @@ target_link_libraries(tool_api_icts
     PRIVATE
         flow_config
         file_manager_cts
-        ista-engine
         idm
-        sta
 )

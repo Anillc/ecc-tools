@@ -31,33 +31,93 @@
 namespace icts {
 
 class Clock;
+class Design;
 class Inst;
 class Net;
 class Pin;
+class Wrapper;
 enum class SinkDomainKind;
+
+struct ClockSinkPartitionOutput
+{
+  std::vector<Pin*> macro_sinks;
+  std::vector<Pin*> regular_sinks;
+};
+
+struct NetConnectionInput
+{
+  Net* net = nullptr;
+  Pin* driver = nullptr;
+  std::vector<Pin*> loads;
+};
+
+struct SourceToRootNetReuseInput
+{
+  Clock* clock = nullptr;
+  Pin* clock_source = nullptr;
+  std::vector<Pin*> root_buffer_inputs;
+};
+
+struct SinkDomainRootBufferInput
+{
+  Design* design = nullptr;
+  Clock* clock = nullptr;
+  std::string domain_prefix;
+  std::vector<Pin*> sinks;
+  std::string cell_master;
+  std::string input_pin_name;
+  std::string output_pin_name;
+};
+
+struct SinkDomainRootBufferOutput
+{
+  Inst* root_buffer = nullptr;
+  Pin* root_input = nullptr;
+  Pin* root_output = nullptr;
+};
+
+struct SinkDomainRootBufferSelectionInput
+{
+  Design* design = nullptr;
+  Clock* clock = nullptr;
+  Wrapper* wrapper = nullptr;
+  std::string domain_prefix;
+  std::vector<std::string> buffer_types;
+  std::vector<Pin*> sinks;
+};
+
+struct SinkDomainDownstreamNetInput
+{
+  Design* design = nullptr;
+  Clock* clock = nullptr;
+  std::string domain_prefix;
+  Pin* root_output = nullptr;
+  std::vector<Pin*> sinks;
+};
+
+struct InsertedObjectCommitInput
+{
+  Design* design = nullptr;
+  Clock* clock = nullptr;
+  std::vector<std::unique_ptr<Inst>>* inserted_insts = nullptr;
+  std::vector<std::unique_ptr<Pin>>* inserted_pins = nullptr;
+  std::vector<std::unique_ptr<Net>>* inserted_nets = nullptr;
+};
 
 class DesignConversion
 {
  public:
   DesignConversion() = delete;
 
-  static auto readClockData() -> bool;
-  static auto partitionClockSinks(const std::vector<Pin*>& sinks, std::vector<Pin*>& macro_sinks, std::vector<Pin*>& regular_sinks) -> void;
+  static auto partitionClockSinks(const std::vector<Pin*>& sinks) -> ClockSinkPartitionOutput;
   static auto makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain) -> std::string;
-  static auto addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::vector<Pin*>& sinks, Inst*& root_buffer,
-                                         Pin*& root_input, Pin*& root_output) -> bool;
-  static auto addRootBufferForSinkDomain(Clock& clock, const std::string& domain_prefix, const std::string& cell_master,
-                                         const std::string& input_pin_name, const std::string& output_pin_name,
-                                         const std::vector<Pin*>& sinks, Inst*& root_buffer, Pin*& root_input, Pin*& root_output) -> bool;
-  static auto reconnectNet(Net& net, Pin* driver, const std::vector<Pin*>& loads) -> void;
-  static auto connectSinkDomainDownstreamNet(Clock& clock, const std::string& domain_prefix, Pin* root_output,
-                                             const std::vector<Pin*>& sinks) -> Net*;
+  static auto addRootBufferForSinkDomain(const SinkDomainRootBufferSelectionInput& input) -> SinkDomainRootBufferOutput;
+  static auto addRootBufferForSinkDomain(const SinkDomainRootBufferInput& input) -> SinkDomainRootBufferOutput;
+  static auto reconnectNet(const NetConnectionInput& input) -> void;
+  static auto connectSinkDomainDownstreamNet(const SinkDomainDownstreamNetInput& input) -> Net*;
   static auto restoreClockSourceNetToClockLoads(Clock& clock) -> void;
-  static auto reuseClockSourceNetAsSourceToRootBuffers(Clock& clock, Pin* clock_source, const std::vector<Pin*>& root_buffer_inputs)
-      -> Net*;
-  static auto commitInsertedObjects(Clock& clock, std::vector<std::unique_ptr<Inst>>& inserted_insts,
-                                    std::vector<std::unique_ptr<Pin>>& inserted_pins, std::vector<std::unique_ptr<Net>>& inserted_nets)
-      -> bool;
+  static auto reuseClockSourceNetAsSourceToRootBuffers(const SourceToRootNetReuseInput& input) -> Net*;
+  static auto commitInsertedObjects(const InsertedObjectCommitInput& input) -> bool;
 };
 
 }  // namespace icts

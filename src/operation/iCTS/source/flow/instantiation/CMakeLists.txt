@@ -9,10 +9,12 @@ add_library(icts_source_flow_instantiation ${ICTS_FLOW_INSTANTIATION}/Instantiat
 target_link_libraries(
   icts_source_flow_instantiation
   PRIVATE
-  icts_source_database
+  icts_source_database_design
+  icts_source_database_io
   icts_source_flow_instantiation_design_conversion
   icts_source_flow_instantiation_idb_conversion
-  icts_source_utils
+  icts_source_utils_logger
+  log
 )
 
 target_include_directories(

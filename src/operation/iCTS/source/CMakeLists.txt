@@ -5,8 +5,8 @@ set(ICTS_UTILS ${ICTS_SOURCE}/utils)
 
 add_subdirectory(${ICTS_DATABASE})
 add_subdirectory(${ICTS_UTILS})
-add_subdirectory(${ICTS_FLOW})
 add_subdirectory(${ICTS_MODULE})
+add_subdirectory(${ICTS_FLOW})
 
 add_library(icts_source INTERFACE)
 
@@ -16,7 +16,6 @@ target_link_libraries(
   icts_source_database
   icts_source_utils
   icts_source_flow
-  icts_source_module
 )
 
 target_include_directories(icts_source INTERFACE ${ICTS_SOURCE})
