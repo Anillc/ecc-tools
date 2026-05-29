@@ -2,8 +2,9 @@ add_library(icts_source_flow_synthesis_trace_topology_build ${ICTS_FLOW_SYNTHESI
 
 target_link_libraries(
   icts_source_flow_synthesis_trace_topology_build
+  PUBLIC
+  icts_source_module_characterization_headers
   PRIVATE
-  icts_source_module_characterization
   icts_source_module_topology_clustering
   icts_source_database_design
 )

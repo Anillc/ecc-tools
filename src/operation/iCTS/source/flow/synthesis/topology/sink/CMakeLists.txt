@@ -8,6 +8,7 @@ target_link_libraries(
   icts_source_flow_synthesis_topology_sink
   PRIVATE
   icts_source_flow_synthesis_htree
+  icts_source_flow_synthesis_htree_characterization_library
   icts_source_database_config
   icts_source_database_design
   icts_source_database_routing

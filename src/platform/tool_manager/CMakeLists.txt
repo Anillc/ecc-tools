@@ -12,7 +12,7 @@ add_library(tool_manager
     tool_manager.cpp
 )
 
-target_link_libraries(tool_manager PUBLIC icts_source)
+target_link_libraries(tool_manager PUBLIC)
 
 target_link_libraries(tool_manager
     PUBLIC

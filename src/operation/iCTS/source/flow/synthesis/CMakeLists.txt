@@ -12,16 +12,20 @@ add_library(icts_source_flow_synthesis ${ICTS_FLOW_SYNTHESIS}/Synthesis.cc)
 
 target_link_libraries(
   icts_source_flow_synthesis
-  PUBLIC
-  icts_source_flow_synthesis_trace
   PRIVATE
+  icts_source_flow_synthesis_distribution
+  icts_source_flow_synthesis_topology
   icts_source_database_config
   icts_source_database_design
   icts_source_database_io
-  icts_source_flow_synthesis_distribution
-  icts_source_flow_synthesis_topology
   icts_source_utils_logger
   log
+)
+
+target_link_libraries(
+  icts_source_flow_synthesis
+  PUBLIC
+  icts_source_flow_synthesis_trace
 )
 
 target_include_directories(

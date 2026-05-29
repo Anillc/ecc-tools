@@ -35,7 +35,6 @@ target_link_libraries(
   icts_source_flow_optimization_preparation
   icts_source_flow_optimization_report
   icts_source_flow_optimization_solver
-  icts_source_flow_synthesis_htree_characterization_library
   icts_source_utils_logger
   log
 )
