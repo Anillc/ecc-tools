@@ -12,7 +12,7 @@ use std::os::raw::c_char;
 use self::ir_inst_power::build_instance_current_vector;
 use self::ir_inst_power::read_instance_pwr_csv;
 use self::ir_inst_power::InstancePowerRecord;
-use self::ir_rc::RCData;
+use self::ir_rc::{RCData, SpefConnInput, SpefNetInput, SpefResCapInput};
 
 /// RC matrix used for C interface.
 #[repr(C)]
@@ -25,6 +25,7 @@ pub struct RustMatrix {
 
 /// RC vector used for C interface.
 #[repr(C)]
+#[allow(dead_code)]
 pub struct RustVector {
     // val at position
     data: f64,
@@ -80,6 +81,27 @@ pub struct RustIRPGNetlist {
     net_name: *const c_char,
 }
 
+#[repr(C)]
+pub struct RustSpefConn {
+    name: *const c_char,
+    is_external: bool,
+}
+
+#[repr(C)]
+pub struct RustSpefResCap {
+    node1: *const c_char,
+    node2: *const c_char,
+    value: f64,
+}
+
+#[repr(C)]
+pub struct RustSpefNet {
+    name: *const c_char,
+    conns: RustVec,
+    caps: RustVec,
+    ress: RustVec,
+}
+
 /// One Net conductance matrix data.
 #[allow(dead_code)]
 struct IRNetConductanceData {
@@ -98,6 +120,7 @@ pub struct RustNetConductanceData {
 
 /// One net equation data.
 #[repr(C)]
+#[allow(dead_code)]
 pub struct RustNetEquationData {
     net_name: *const c_char,
     g_matrix_vec: RustVec,
@@ -175,13 +198,6 @@ pub extern "C" fn destroy_hashmap_iterator(iterator: *mut HashMapIterator) {
     let _ = unsafe { Box::from_raw(iterator) };
 }
 
-#[no_mangle]
-pub extern "C" fn read_spef(c_power_net_spef: *const c_char) -> *const c_void {
-    let power_net_spef = c_str_to_r_str(c_power_net_spef);
-    let rc_data = ir_rc::read_rc_data_from_spef(&power_net_spef);
-    let mv_rc_data = Box::new(rc_data);
-    Box::into_raw(mv_rc_data) as *const c_void
-}
 /// create power ground node.
 #[no_mangle]
 pub extern "C" fn create_pg_node(c_pg_netlist: *mut c_void, c_pg_node: *const RustIRPGNode) -> *const c_void {
@@ -228,6 +244,51 @@ pub extern "C" fn create_rc_data(c_pg_netlist_ptr: *const c_void, len: usize) ->
     std::mem::forget(pg_netlist_vec);
 
     let mv_rc_data = Box::new(rc_data);
+    Box::into_raw(mv_rc_data) as *const c_void
+}
+
+fn rust_spef_conns_to_inputs(c_conns: &RustVec) -> Vec<SpefConnInput> {
+    let mut conns = Vec::with_capacity(c_conns.len);
+    let c_conn_ptr = c_conns.data as *const RustSpefConn;
+    for i in 0..c_conns.len {
+        let c_conn = unsafe { &*c_conn_ptr.add(i) };
+        conns.push(SpefConnInput {
+            name: c_str_to_r_str(c_conn.name),
+            is_external: c_conn.is_external,
+        });
+    }
+    conns
+}
+
+fn rust_spef_res_caps_to_inputs(c_res_caps: &RustVec) -> Vec<SpefResCapInput> {
+    let mut res_caps = Vec::with_capacity(c_res_caps.len);
+    let c_res_cap_ptr = c_res_caps.data as *const RustSpefResCap;
+    for i in 0..c_res_caps.len {
+        let c_res_cap = unsafe { &*c_res_cap_ptr.add(i) };
+        res_caps.push(SpefResCapInput {
+            node1: c_str_to_r_str(c_res_cap.node1),
+            node2: c_str_to_r_str(c_res_cap.node2),
+            value: c_res_cap.value,
+        });
+    }
+    res_caps
+}
+
+#[no_mangle]
+pub extern "C" fn create_rc_data_from_spef(c_spef_nets: RustVec) -> *const c_void {
+    let mut nets = Vec::with_capacity(c_spef_nets.len);
+    let c_net_ptr = c_spef_nets.data as *const RustSpefNet;
+    for i in 0..c_spef_nets.len {
+        let c_net = unsafe { &*c_net_ptr.add(i) };
+        nets.push(SpefNetInput {
+            name: c_str_to_r_str(c_net.name),
+            conns: rust_spef_conns_to_inputs(&c_net.conns),
+            caps: rust_spef_res_caps_to_inputs(&c_net.caps),
+            ress: rust_spef_res_caps_to_inputs(&c_net.ress),
+        });
+    }
+
+    let mv_rc_data = Box::new(ir_rc::create_rc_data_from_spef_nets(&nets));
     Box::into_raw(mv_rc_data) as *const c_void
 }
 
@@ -392,67 +453,117 @@ pub extern "C" fn get_instance_name(
     (string_to_c_char(instance_name.unwrap())) as _
 }
 
-/// Build RC matrix and current vector data.
 #[no_mangle]
-pub extern "C" fn build_matrix_from_raw_data(
+pub extern "C" fn build_matrices_from_rc_data(
     c_inst_power_path: *const c_char,
-    c_power_net_spef: *const c_char,
-) -> RustVec {
-    // Firstly, read spef.
-    let power_net_spef = c_str_to_r_str(c_power_net_spef);
+    c_rc_data: *const c_void,
+) {
     let inst_power_path = c_str_to_r_str(c_inst_power_path);
+    let rc_data = unsafe { &*(c_rc_data as *const RCData) };
 
-    let rc_data = ir_rc::read_rc_data_from_spef(&power_net_spef);
     let instance_power_data =
         ir_inst_power::read_instance_pwr_csv(&inst_power_path).expect("error reading instance power csv file");
 
-    let mut net_matrix_data: Vec<RustNetEquationData> = Vec::new();
-    // Secondly, construct matrix data.
     for (net_name, one_net_data) in rc_data.get_nets_data() {
         log::info!("construct power net {} matrix start", net_name);
 
-        // Build rc matrix
         let conductance_matrix_triplet = ir_rc::build_conductance_matrix(one_net_data);
-        let rust_matrix = rust_convert_rc_matrix(&conductance_matrix_triplet);
+        let _rust_matrix = rust_convert_rc_matrix(&conductance_matrix_triplet);
 
-        // Read instance power data.
         let current_vector_result = ir_inst_power::build_instance_current_vector(&instance_power_data, one_net_data);
-        if let Ok(current_vector) = current_vector_result {
-            // Construct net matrix(rc matrix and current vector) data.
-            let mut current_vec: Vec<RustVector> = Vec::new();
-            for (index, val) in current_vector {
-                current_vec.push(RustVector { data: val, index });
-            }
-            let rust_matrix_vec = rust_vec_to_c_array(&rust_matrix);
-            let rust_current_vec = rust_vec_to_c_array(&current_vec);
-            net_matrix_data.push(RustNetEquationData {
-                net_name: string_to_c_char(net_name),
-                g_matrix_vec: rust_matrix_vec,
-                j_vec: rust_current_vec,
-            });
-        } else {
+        if current_vector_result.is_err() {
             panic!("current vector is none");
         }
         log::info!("construct power net {} matrix finish", net_name);
     }
-
-    // Finaly, return data to C.
-    
-    rust_vec_to_c_array(&net_matrix_data)
 }
 
 #[cfg(test)]
 mod tests {
     use super::ir_rc;
     use crate::matrix::{
-        rust_convert_rc_matrix, rust_vec_to_c_array, string_to_c_char, RustNetEquationData, RustVector,
+        create_rc_data_from_spef, rust_convert_rc_matrix, rust_vec_to_c_array, string_to_c_char,
+        RustNetEquationData, RustSpefConn, RustSpefNet, RustSpefResCap, RustVec, RustVector,
     };
+    use std::ffi::{c_void, CString};
+
+    fn rust_vec_from_mut_vec<T>(vec: &mut Vec<T>) -> RustVec {
+        RustVec {
+            data: vec.as_mut_ptr() as *mut c_void,
+            len: vec.len(),
+            cap: vec.capacity(),
+            type_size: std::mem::size_of::<T>(),
+        }
+    }
+
+    #[test]
+    fn create_rc_data_from_spef_copies_c_abi_inputs() {
+        let rc_data_ptr = {
+            let net_name = CString::new("VDD").unwrap();
+            let bump_name = CString::new("VDD").unwrap();
+            let inst_name = CString::new("U1/VDD").unwrap();
+            let empty_name = CString::new("").unwrap();
+            let cap_node_name = CString::new("VDD:3").unwrap();
+
+            let mut conns = vec![
+                RustSpefConn { name: bump_name.as_ptr(), is_external: true },
+                RustSpefConn { name: inst_name.as_ptr(), is_external: false },
+            ];
+            let mut caps = vec![RustSpefResCap {
+                node1: cap_node_name.as_ptr(),
+                node2: empty_name.as_ptr(),
+                value: 0.5,
+            }];
+            let mut ress = vec![RustSpefResCap {
+                node1: bump_name.as_ptr(),
+                node2: inst_name.as_ptr(),
+                value: 2.0,
+            }];
+
+            let mut nets = vec![RustSpefNet {
+                name: net_name.as_ptr(),
+                conns: rust_vec_from_mut_vec(&mut conns),
+                caps: rust_vec_from_mut_vec(&mut caps),
+                ress: rust_vec_from_mut_vec(&mut ress),
+            }];
+
+            create_rc_data_from_spef(rust_vec_from_mut_vec(&mut nets))
+        };
+
+        let rc_data = unsafe { Box::from_raw(rc_data_ptr as *mut ir_rc::RCData) };
+        let one_net = rc_data.get_one_net_data("VDD");
+        let bump = "VDD".to_string();
+        let inst = "U1/VDD".to_string();
+        let cap_node = "VDD:3".to_string();
+
+        let bump_id = one_net.get_node_id(&bump).unwrap();
+        let inst_id = one_net.get_node_id(&inst).unwrap();
+        let cap_id = one_net.get_node_id(&cap_node).unwrap();
+
+        let nodes = one_net.get_nodes().borrow();
+        assert!(nodes[bump_id].get_is_bump());
+        assert!(nodes[inst_id].get_is_inst_pin());
+        assert_eq!(nodes[cap_id].get_cap(), 0.5);
+        assert_eq!(one_net.get_resistances()[0].resistance, 2.0 * ir_rc::RC_COEFF);
+    }
 
     #[test]
     fn test_build_matrix() {
-        let spef_file_path = "/home/taosimin/T28/spef/asic_top.spef_vdd_vss_1212.rcworst.0c.spef";
+        let nets = vec![ir_rc::SpefNetInput {
+            name: "VDD".to_string(),
+            conns: vec![
+                ir_rc::SpefConnInput { name: "VDD".to_string(), is_external: true },
+                ir_rc::SpefConnInput { name: "U1/VDD".to_string(), is_external: false },
+            ],
+            caps: vec![],
+            ress: vec![ir_rc::SpefResCapInput {
+                node1: "VDD".to_string(),
+                node2: "U1/VDD".to_string(),
+                value: 2.0,
+            }],
+        }];
 
-        let rc_data = ir_rc::read_rc_data_from_spef(spef_file_path);
+        let rc_data = ir_rc::create_rc_data_from_spef_nets(&nets);
 
         for (net_name, one_net_data) in rc_data.get_nets_data() {
             log::info!("construct power net {} matrix start", net_name);
