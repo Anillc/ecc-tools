@@ -30,7 +30,7 @@ For CTS algorithm paths that produce topology, RC trees, timing, sizing, legalit
 
 - `DBU-per-micron > 0`
 - RC-producing algorithms have a positive routing layer
-- required STA/iDB adapter state is initialized before wire RC queries
+- required `Wrapper`/iDB state is initialized before wire RC or Liberty queries
 - geometry projections such as `ClockLayout` are converted to RC only after the target fast-STA or algorithm context has validated runtime options
 
 Use `LOG_FATAL` / `LOG_FATAL_IF` at the first algorithm boundary when one of these is missing. Do not continue with sentinels such as `dbu = 0`, `routing_layer = 0`, zero RC from unavailable infrastructure, or `std::max(dbu, 1)` masking.
@@ -50,7 +50,7 @@ Correct:
 const auto dbu_per_um = wrapper.queryDbUnit();
 LOG_FATAL_IF(dbu_per_um <= 0) << "CTS stage: DBU-per-micron is unavailable.";
 LOG_FATAL_IF(routing_layer <= 0) << "CTS stage: routing layer is not configured.";
-const auto res = sta_adapter.queryRequiredWireResistance(routing_layer, length_um, wire_width_um);
+const auto res = wrapper.queryRequiredWireResistance(routing_layer, length_um, wire_width_um);
 ```
 
 ### Return vs Terminate

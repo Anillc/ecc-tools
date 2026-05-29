@@ -19,7 +19,7 @@ Keep singleton use at the external API boundary:
 
 Rules:
 - External callers enter through `CTS_API_INST`.
-- `Config`, `Design`, `Wrapper`, `STAAdapter`, `FastSTA`, and `SchemaWriter` are runtime-owned dependencies passed or bound at API/flow boundaries.
+- `Config`, `Design`, `Wrapper`, `FastSTA`, and `SchemaWriter` are runtime-owned dependencies passed or bound at API/flow boundaries.
 - Modules and algorithms should receive the exact objects or interfaces they need through parameters, narrow input structs, or constructor binding.
 - Do not pass a global service locator or `CTSRuntime&` deep into algorithms as a replacement singleton.
 - Do not introduce new singleton boundaries without a clear external-boundary need.
@@ -52,7 +52,7 @@ Put new types in the narrowest database subdirectory that matches their role:
 - config types -> `source/database/config/`
 - design objects -> `source/database/design/`
 - iDB adapter code -> `source/database/io/`
-- iSTA adapter code -> `source/database/adapter/sta/`
+- CTS-local SDC/FastSTA adapter code -> `source/database/adapter/`
 - spatial types -> `source/database/spatial/`
 - routing DB types -> `source/database/routing/`
 - timing DB types -> `source/database/timing/`
@@ -64,7 +64,9 @@ If a type is shared across modules and is part of the stable data model, prefer 
 - Validate runtime-owned dependencies at API, setup, or flow-stage entry boundaries.
 - Avoid scattering the same null-check pattern across modules.
 - Keep iDB access inside `Wrapper`.
-- Keep iSTA access inside `STAAdapter`.
+- Keep CTS-required routing-layer RC and Liberty lookup access inside `Wrapper`; do not add separate RC, Liberty, or TimingProvider service classes for iCTS.
+- Do not reintroduce production iCTS dependencies on iSTA/iPA engines, including `ista::TimingEngine`, `api/TimingEngine.hh`, `api/TimingIDBAdapter.hh`, `api/Power.hh`, `STAAdapter`, `ista-engine`, or `power`.
+- Liberty parser/data types that still use historical `ista` namespace names may be consumed only as raw Liberty data sources; they must not imply iSTA timing-engine initialization or full-design timing behavior.
 - Module code should operate on CTS types, not external-tool types.
 - Only synthesis/instantiation boundaries may commit CTS-created topology into `Design` or project final CTS objects through `Wrapper`/iDB.
 - Evaluation, report, and visualization are readonly consumers of committed CTS results.
