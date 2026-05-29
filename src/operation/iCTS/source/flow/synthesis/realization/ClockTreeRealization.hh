@@ -15,10 +15,10 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file DesignConversion.hh
+ * @file ClockTreeRealization.hh
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-26
- * @brief CTS design conversion and materialization helper.
+ * @brief Clock-tree realization helper for committing synthesized CTS objects.
  */
 
 #pragma once
@@ -104,10 +104,10 @@ struct InsertedObjectCommitInput
   std::vector<std::unique_ptr<Net>>* inserted_nets = nullptr;
 };
 
-class DesignConversion
+class ClockTreeRealization
 {
  public:
-  DesignConversion() = delete;
+  ClockTreeRealization() = delete;
 
   static auto partitionClockSinks(const std::vector<Pin*>& sinks) -> ClockSinkPartitionOutput;
   static auto makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain) -> std::string;

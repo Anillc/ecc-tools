@@ -59,7 +59,6 @@
 #include "design/ClockLayout.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "flow/Flow.hh"
-#include "flow/instantiation/design_conversion/DesignConversion.hh"
 #include "flow/synthesis/Synthesis.hh"
 #include "flow/synthesis/distribution/ClockDistribution.hh"
 #include "flow/synthesis/htree/characterization/library/CharacterizationLibrary.hh"
@@ -67,6 +66,7 @@
 #include "flow/synthesis/trace/SynthesisTrace.hh"
 #include "flow/synthesis/trace/domain_status/DomainStatus.hh"
 #include "idm.h"
+#include "synthesis/realization/ClockTreeRealization.hh"
 #include "utils/logger/Schema.hh"
 
 namespace icts_test::flow_test {
@@ -240,11 +240,11 @@ inline auto AddClockToDesign(icts::Inst* macro_inst, icts::Inst* regular_inst) -
 inline auto PrepareDirectRootBufferNets(icts::Clock& clock, const std::string& cell_master, const std::string& input_pin_name,
                                         const std::string& output_pin_name) -> void
 {
-  icts::DesignConversion::restoreClockSourceNetToClockLoads(clock);
+  icts::ClockTreeRealization::restoreClockSourceNetToClockLoads(clock);
   icts_test::runtime::CurrentRuntime().design.removeClockMembershipObjects(clock);
   clock.clearMembership();
 
-  auto sink_partition = icts::DesignConversion::partitionClockSinks(clock.get_loads());
+  auto sink_partition = icts::ClockTreeRealization::partitionClockSinks(clock.get_loads());
 
   std::vector<icts::Pin*> root_inputs;
 
@@ -252,8 +252,8 @@ inline auto PrepareDirectRootBufferNets(icts::Clock& clock, const std::string& c
     if (sinks.empty()) {
       return true;
     }
-    const auto domain_prefix = icts::DesignConversion::makeSinkDomainPrefix(clock, 0U, sink_domain);
-    const auto root_buffer = icts::DesignConversion::addRootBufferForSinkDomain(icts::SinkDomainRootBufferInput{
+    const auto domain_prefix = icts::ClockTreeRealization::makeSinkDomainPrefix(clock, 0U, sink_domain);
+    const auto root_buffer = icts::ClockTreeRealization::addRootBufferForSinkDomain(icts::SinkDomainRootBufferInput{
         .design = &icts_test::runtime::CurrentRuntime().design,
         .clock = &clock,
         .domain_prefix = domain_prefix,
@@ -268,7 +268,7 @@ inline auto PrepareDirectRootBufferNets(icts::Clock& clock, const std::string& c
     if (root_buffer.root_input != nullptr) {
       root_inputs.push_back(root_buffer.root_input);
     }
-    return icts::DesignConversion::connectSinkDomainDownstreamNet(icts::SinkDomainDownstreamNetInput{
+    return icts::ClockTreeRealization::connectSinkDomainDownstreamNet(icts::SinkDomainDownstreamNetInput{
                .design = &icts_test::runtime::CurrentRuntime().design,
                .clock = &clock,
                .domain_prefix = domain_prefix,
@@ -280,7 +280,7 @@ inline auto PrepareDirectRootBufferNets(icts::Clock& clock, const std::string& c
 
   ASSERT_TRUE(build_domain(icts::SinkDomainKind::kHardMacro, sink_partition.macro_sinks));
   ASSERT_TRUE(build_domain(icts::SinkDomainKind::kRegular, sink_partition.regular_sinks));
-  icts::DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(icts::SourceToRootNetReuseInput{
+  icts::ClockTreeRealization::reuseClockSourceNetAsSourceToRootBuffers(icts::SourceToRootNetReuseInput{
       .clock = &clock,
       .clock_source = clock.get_clock_source(),
       .root_buffer_inputs = root_inputs,

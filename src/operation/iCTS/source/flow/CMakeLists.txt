@@ -5,12 +5,12 @@ set(ICTS_FLOW_REPORT ${ICTS_FLOW}/report)
 set(ICTS_FLOW_SETUP ${ICTS_FLOW}/setup)
 set(ICTS_FLOW_SYNTHESIS ${ICTS_FLOW}/synthesis)
 
-add_subdirectory(${ICTS_FLOW_EVALUATION})
-add_subdirectory(${ICTS_FLOW_REPORT})
-add_subdirectory(${ICTS_FLOW_INSTANTIATION})
-add_subdirectory(${ICTS_FLOW_OPTIMIZATION})
 add_subdirectory(${ICTS_FLOW_SETUP})
 add_subdirectory(${ICTS_FLOW_SYNTHESIS})
+add_subdirectory(${ICTS_FLOW_OPTIMIZATION})
+add_subdirectory(${ICTS_FLOW_INSTANTIATION})
+add_subdirectory(${ICTS_FLOW_EVALUATION})
+add_subdirectory(${ICTS_FLOW_REPORT})
 
 add_library(icts_source_flow ${ICTS_FLOW}/Flow.cc)
 

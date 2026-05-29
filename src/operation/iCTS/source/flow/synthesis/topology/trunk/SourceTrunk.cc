@@ -233,7 +233,7 @@ auto BuildSourceTrunkTree(const SourceTrunkInput& input) -> SourceTrunkBuild
                                             },
                                             DetailStageReportOptions());
   if (valid_root_inputs.size() == 1U) {
-    result.summary.stage = Topology::SourceTrunkStage::kSegment;
+    result.summary.stage = SourceTrunkStage::kSegment;
     auto segment_input = BuildTopSegmentInput(input, clock_source, valid_root_inputs.front());
     auto segment_config = BuildTopSegmentConfig(flow_config);
     auto segment_build = SourceTrunkSegment::build(segment_input, segment_config);
@@ -255,7 +255,7 @@ auto BuildSourceTrunkTree(const SourceTrunkInput& input) -> SourceTrunkBuild
     return result;
   }
 
-  result.summary.stage = Topology::SourceTrunkStage::kHTree;
+  result.summary.stage = SourceTrunkStage::kHTree;
   auto htree_input = BuildTopHtreeInput(input, source_net, clock_source);
   auto htree_config = BuildTopHtreeConfig(flow_config);
   auto htree_build = HTree::build(htree_input, htree_config);

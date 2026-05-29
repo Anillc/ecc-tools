@@ -92,13 +92,6 @@ struct TopologyConfig
 class Topology
 {
  public:
-  enum class SourceTrunkStage
-  {
-    kUnknown,
-    kSegment,
-    kHTree
-  };
-
   struct ClusterBufferMeta
   {
     std::size_t cluster_index = 0;
@@ -168,7 +161,5 @@ class Topology
   static auto resetClockTopology(Design& design, Clock& clock) -> void;
   static auto formClock(const ClockTopologyInput& input) -> bool;
 };
-
-auto ToString(Topology::SourceTrunkStage stage) -> const char*;
 
 }  // namespace icts

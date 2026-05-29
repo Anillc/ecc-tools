@@ -15,13 +15,13 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file DesignConversion.cc
+ * @file ClockTreeRealization.cc
  * @author Dawn Li (dawnli619215645@gmail.com)
  * @date 2026-04-26
- * @brief CTS design conversion and materialization helper implementation.
+ * @brief Clock-tree realization helper implementation.
  */
 
-#include "instantiation/design_conversion/DesignConversion.hh"
+#include "synthesis/realization/ClockTreeRealization.hh"
 
 #include <glog/logging.h>
 
@@ -115,14 +115,14 @@ auto resolveBufferPortsAndDrive(Wrapper& wrapper, const std::string& cell_master
 
   auto [input_pin, output_pin] = wrapper.queryBufferPorts(cell_master);
   if (input_pin.empty() || output_pin.empty()) {
-    LOG_WARNING << "DesignConversion: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
+    LOG_WARNING << "ClockTreeRealization: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
     return false;
   }
 
   if (require_output_drive) {
     output_drive_cap_pf = resolveBufferDriveCap(wrapper, cell_master);
     if (output_drive_cap_pf <= 0.0) {
-      LOG_WARNING << "DesignConversion: skip buffer master \"" << cell_master << "\" because output drive cap is unresolved.";
+      LOG_WARNING << "ClockTreeRealization: skip buffer master \"" << cell_master << "\" because output drive cap is unresolved.";
       return false;
     }
   }
@@ -140,7 +140,7 @@ auto resolveMinimumDriveRootBuffer(Wrapper& wrapper, const std::vector<std::stri
   output_pin_name.clear();
 
   if (buffer_types.empty()) {
-    LOG_ERROR << "DesignConversion: no configured buffer types are available for root-buffer insertion.";
+    LOG_ERROR << "ClockTreeRealization: no configured buffer types are available for root-buffer insertion.";
     return false;
   }
 
@@ -167,7 +167,7 @@ auto resolveMinimumDriveRootBuffer(Wrapper& wrapper, const std::vector<std::stri
   }
 
   if (best_cell_master.empty()) {
-    LOG_ERROR << "DesignConversion: failed to resolve a minimum-drive root buffer from configured buffer types.";
+    LOG_ERROR << "ClockTreeRealization: failed to resolve a minimum-drive root buffer from configured buffer types.";
     return false;
   }
 
@@ -212,22 +212,22 @@ auto createInsertedBuffer(Design& design, Clock& clock, const std::string& inst_
   input_pin = nullptr;
   output_pin = nullptr;
   if (inst_name.empty() || cell_master.empty() || input_pin_name.empty() || output_pin_name.empty()) {
-    LOG_ERROR << "DesignConversion: reject root-buffer insertion because the inst, master, or pin name is empty.";
+    LOG_ERROR << "ClockTreeRealization: reject root-buffer insertion because the inst, master, or pin name is empty.";
     return false;
   }
   if (input_pin_name == output_pin_name) {
-    LOG_ERROR << "DesignConversion: reject root-buffer insertion for \"" << inst_name
+    LOG_ERROR << "ClockTreeRealization: reject root-buffer insertion for \"" << inst_name
               << "\" because input and output pin names both resolve to \"" << input_pin_name << "\".";
     return false;
   }
   if (design.findInst(inst_name) != nullptr) {
-    LOG_ERROR << "DesignConversion: reject root-buffer insertion because inst \"" << inst_name << "\" already exists.";
+    LOG_ERROR << "ClockTreeRealization: reject root-buffer insertion because inst \"" << inst_name << "\" already exists.";
     return false;
   }
 
   buffer = design.makeInst(inst_name);
   if (buffer == nullptr) {
-    LOG_ERROR << "DesignConversion: failed to create root-buffer inst \"" << inst_name << "\".";
+    LOG_ERROR << "ClockTreeRealization: failed to create root-buffer inst \"" << inst_name << "\".";
     return false;
   }
   buffer->set_name(inst_name);
@@ -238,7 +238,7 @@ auto createInsertedBuffer(Design& design, Clock& clock, const std::string& inst_
 
   input_pin = design.makePin(input_pin_name);
   if (input_pin == nullptr) {
-    LOG_ERROR << "DesignConversion: failed to create root-buffer input pin \"" << input_pin_name << "\".";
+    LOG_ERROR << "ClockTreeRealization: failed to create root-buffer input pin \"" << input_pin_name << "\".";
     return false;
   }
   input_pin->set_name(input_pin_name);
@@ -254,7 +254,7 @@ auto createInsertedBuffer(Design& design, Clock& clock, const std::string& inst_
 
   output_pin = design.makePin(output_pin_name);
   if (output_pin == nullptr) {
-    LOG_ERROR << "DesignConversion: failed to create root-buffer output pin \"" << output_pin_name << "\".";
+    LOG_ERROR << "ClockTreeRealization: failed to create root-buffer output pin \"" << output_pin_name << "\".";
     return false;
   }
   output_pin->set_name(output_pin_name);
@@ -275,20 +275,20 @@ auto createInsertedBuffer(Design& design, Clock& clock, const std::string& inst_
 auto createInsertedNet(Design& design, Clock& clock, const std::string& net_name, Pin* driver, const std::vector<Pin*>& loads) -> Net*
 {
   if (net_name.empty()) {
-    LOG_ERROR << "DesignConversion: reject inserted net creation because the net name is empty.";
+    LOG_ERROR << "ClockTreeRealization: reject inserted net creation because the net name is empty.";
     return nullptr;
   }
   if (design.findNet(net_name) != nullptr) {
-    LOG_ERROR << "DesignConversion: reject inserted net creation because net \"" << net_name << "\" already exists.";
+    LOG_ERROR << "ClockTreeRealization: reject inserted net creation because net \"" << net_name << "\" already exists.";
     return nullptr;
   }
 
   auto* net_ptr = design.makeNet(net_name);
   if (net_ptr == nullptr) {
-    LOG_ERROR << "DesignConversion: failed to create inserted net \"" << net_name << "\".";
+    LOG_ERROR << "ClockTreeRealization: failed to create inserted net \"" << net_name << "\".";
     return nullptr;
   }
-  DesignConversion::reconnectNet(NetConnectionInput{
+  ClockTreeRealization::reconnectNet(NetConnectionInput{
       .net = net_ptr,
       .driver = driver,
       .loads = loads,
@@ -299,7 +299,7 @@ auto createInsertedNet(Design& design, Clock& clock, const std::string& net_name
 
 }  // namespace
 
-auto DesignConversion::partitionClockSinks(const std::vector<Pin*>& sinks) -> ClockSinkPartitionOutput
+auto ClockTreeRealization::partitionClockSinks(const std::vector<Pin*>& sinks) -> ClockSinkPartitionOutput
 {
   ClockSinkPartitionOutput output;
   output.macro_sinks.reserve(sinks.size());
@@ -320,16 +320,16 @@ auto DesignConversion::partitionClockSinks(const std::vector<Pin*>& sinks) -> Cl
   return output;
 }
 
-auto DesignConversion::makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain) -> std::string
+auto ClockTreeRealization::makeSinkDomainPrefix(const Clock& clock, std::size_t clock_index, SinkDomainKind sink_domain) -> std::string
 {
   return makeClockPrefix(clock, clock_index) + "_" + makeSinkDomainName(sink_domain);
 }
 
-auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferSelectionInput& input) -> SinkDomainRootBufferOutput
+auto ClockTreeRealization::addRootBufferForSinkDomain(const SinkDomainRootBufferSelectionInput& input) -> SinkDomainRootBufferOutput
 {
-  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: root-buffer insertion design is null.";
-  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: root-buffer insertion clock is null.";
-  LOG_FATAL_IF(input.wrapper == nullptr) << "DesignConversion: root-buffer insertion Wrapper is null.";
+  LOG_FATAL_IF(input.design == nullptr) << "ClockTreeRealization: root-buffer insertion design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "ClockTreeRealization: root-buffer insertion clock is null.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "ClockTreeRealization: root-buffer insertion Wrapper is null.";
 
   std::string cell_master;
   std::string input_pin_name;
@@ -348,10 +348,10 @@ auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferSele
   });
 }
 
-auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferInput& input) -> SinkDomainRootBufferOutput
+auto ClockTreeRealization::addRootBufferForSinkDomain(const SinkDomainRootBufferInput& input) -> SinkDomainRootBufferOutput
 {
-  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: root-buffer insertion design is null.";
-  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: root-buffer insertion clock is null.";
+  LOG_FATAL_IF(input.design == nullptr) << "ClockTreeRealization: root-buffer insertion design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "ClockTreeRealization: root-buffer insertion clock is null.";
 
   SinkDomainRootBufferOutput output;
   if (!createInsertedBuffer(*input.design, *input.clock, input.domain_prefix + "_root_buf", input.cell_master, input.input_pin_name,
@@ -362,9 +362,9 @@ auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferInpu
   return output;
 }
 
-auto DesignConversion::reconnectNet(const NetConnectionInput& input) -> void
+auto ClockTreeRealization::reconnectNet(const NetConnectionInput& input) -> void
 {
-  LOG_FATAL_IF(input.net == nullptr) << "DesignConversion: net reconnection target is null.";
+  LOG_FATAL_IF(input.net == nullptr) << "ClockTreeRealization: net reconnection target is null.";
   auto& net = *input.net;
   auto* old_driver = net.get_driver();
   if (old_driver != nullptr && old_driver != input.driver && old_driver->get_net() == &net) {
@@ -396,14 +396,14 @@ auto DesignConversion::reconnectNet(const NetConnectionInput& input) -> void
   }
 }
 
-auto DesignConversion::connectSinkDomainDownstreamNet(const SinkDomainDownstreamNetInput& input) -> Net*
+auto ClockTreeRealization::connectSinkDomainDownstreamNet(const SinkDomainDownstreamNetInput& input) -> Net*
 {
-  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: downstream-net connection design is null.";
-  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: downstream-net connection clock is null.";
+  LOG_FATAL_IF(input.design == nullptr) << "ClockTreeRealization: downstream-net connection design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "ClockTreeRealization: downstream-net connection clock is null.";
   return createInsertedNet(*input.design, *input.clock, input.domain_prefix + "_downstream_net", input.root_output, input.sinks);
 }
 
-auto DesignConversion::restoreClockSourceNetToClockLoads(Clock& clock) -> void
+auto ClockTreeRealization::restoreClockSourceNetToClockLoads(Clock& clock) -> void
 {
   auto* clock_source = clock.get_clock_source();
   auto* clock_source_net = clock.get_clock_source_net();
@@ -420,9 +420,9 @@ auto DesignConversion::restoreClockSourceNetToClockLoads(Clock& clock) -> void
   }
 }
 
-auto DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(const SourceToRootNetReuseInput& input) -> Net*
+auto ClockTreeRealization::reuseClockSourceNetAsSourceToRootBuffers(const SourceToRootNetReuseInput& input) -> Net*
 {
-  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: source-to-root net reuse clock is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "ClockTreeRealization: source-to-root net reuse clock is null.";
   auto& clock = *input.clock;
   auto* clock_source = input.clock_source;
   auto* clock_source_net = clock.get_clock_source_net();
@@ -440,13 +440,13 @@ auto DesignConversion::reuseClockSourceNetAsSourceToRootBuffers(const SourceToRo
   return clock_source_net;
 }
 
-auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& input) -> bool
+auto ClockTreeRealization::commitInsertedObjects(const InsertedObjectCommitInput& input) -> bool
 {
-  LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: inserted-object commit design is null.";
-  LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: inserted-object commit clock is null.";
-  LOG_FATAL_IF(input.inserted_insts == nullptr) << "DesignConversion: inserted-object commit inst payload is null.";
-  LOG_FATAL_IF(input.inserted_pins == nullptr) << "DesignConversion: inserted-object commit pin payload is null.";
-  LOG_FATAL_IF(input.inserted_nets == nullptr) << "DesignConversion: inserted-object commit net payload is null.";
+  LOG_FATAL_IF(input.design == nullptr) << "ClockTreeRealization: inserted-object commit design is null.";
+  LOG_FATAL_IF(input.clock == nullptr) << "ClockTreeRealization: inserted-object commit clock is null.";
+  LOG_FATAL_IF(input.inserted_insts == nullptr) << "ClockTreeRealization: inserted-object commit inst payload is null.";
+  LOG_FATAL_IF(input.inserted_pins == nullptr) << "ClockTreeRealization: inserted-object commit pin payload is null.";
+  LOG_FATAL_IF(input.inserted_nets == nullptr) << "ClockTreeRealization: inserted-object commit net payload is null.";
   auto& design = *input.design;
   auto& clock = *input.clock;
   auto& inserted_insts = *input.inserted_insts;
@@ -459,11 +459,11 @@ auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& in
       continue;
     }
     if (!inst_names.insert(inst->get_name()).second) {
-      LOG_ERROR << "DesignConversion: reject committing duplicate algorithm inst \"" << inst->get_name() << "\".";
+      LOG_ERROR << "ClockTreeRealization: reject committing duplicate algorithm inst \"" << inst->get_name() << "\".";
       return false;
     }
     if (design.findInst(inst->get_name()) != nullptr) {
-      LOG_ERROR << "DesignConversion: reject committing algorithm inst \"" << inst->get_name()
+      LOG_ERROR << "ClockTreeRealization: reject committing algorithm inst \"" << inst->get_name()
                 << "\" because a final inst with the same name already exists.";
       return false;
     }
@@ -476,16 +476,16 @@ auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& in
     }
     const auto pin_full_name = Design::getPinFullName(pin.get());
     if (pin_full_name.empty()) {
-      LOG_ERROR << "DesignConversion: reject committing algorithm pin because its full name is empty.";
+      LOG_ERROR << "ClockTreeRealization: reject committing algorithm pin because its full name is empty.";
       return false;
     }
     if (!pin_full_names.insert(pin_full_name).second) {
-      LOG_ERROR << "DesignConversion: reject committing duplicate algorithm pin \"" << pin_full_name << "\".";
+      LOG_ERROR << "ClockTreeRealization: reject committing duplicate algorithm pin \"" << pin_full_name << "\".";
       return false;
     }
     auto* existing_pin = design.findPin(pin_full_name);
     if (existing_pin != nullptr && existing_pin != pin.get()) {
-      LOG_ERROR << "DesignConversion: reject committing algorithm pin \"" << pin_full_name
+      LOG_ERROR << "ClockTreeRealization: reject committing algorithm pin \"" << pin_full_name
                 << "\" because a final pin with the same full name already exists.";
       return false;
     }
@@ -497,11 +497,11 @@ auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& in
       continue;
     }
     if (!net_names.insert(net->get_name()).second) {
-      LOG_ERROR << "DesignConversion: reject committing duplicate algorithm net \"" << net->get_name() << "\".";
+      LOG_ERROR << "ClockTreeRealization: reject committing duplicate algorithm net \"" << net->get_name() << "\".";
       return false;
     }
     if (design.findNet(net->get_name()) != nullptr) {
-      LOG_ERROR << "DesignConversion: reject committing algorithm net \"" << net->get_name()
+      LOG_ERROR << "ClockTreeRealization: reject committing algorithm net \"" << net->get_name()
                 << "\" because a final net with the same name already exists.";
       return false;
     }
@@ -513,7 +513,7 @@ auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& in
     }
     auto* committed_inst = design.commitInst(std::move(inst));
     if (committed_inst == nullptr) {
-      LOG_ERROR << "DesignConversion: failed to commit algorithm inst.";
+      LOG_ERROR << "ClockTreeRealization: failed to commit algorithm inst.";
       return false;
     }
     clock.add_inst(committed_inst);
@@ -525,7 +525,7 @@ auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& in
       continue;
     }
     if (design.commitPin(std::move(pin)) == nullptr) {
-      LOG_ERROR << "DesignConversion: failed to commit algorithm pin.";
+      LOG_ERROR << "ClockTreeRealization: failed to commit algorithm pin.";
       return false;
     }
   }
@@ -537,7 +537,7 @@ auto DesignConversion::commitInsertedObjects(const InsertedObjectCommitInput& in
     }
     auto* committed_net = design.commitNet(std::move(net));
     if (committed_net == nullptr) {
-      LOG_ERROR << "DesignConversion: failed to commit algorithm net.";
+      LOG_ERROR << "ClockTreeRealization: failed to commit algorithm net.";
       return false;
     }
     clock.add_net(committed_net);
