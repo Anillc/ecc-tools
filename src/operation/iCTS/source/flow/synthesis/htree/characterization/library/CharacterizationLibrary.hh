@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "ClockRouteSegmentRc.hh"
-#include "characterization/Characterization.hh"
+#include "module/characterization/Characterization.hh"
 
 namespace icts {
 

@@ -25,6 +25,10 @@ set(
 add_library(
   icts_source_database_adapter_fast_sta_liberty
   ${ICTS_DATABASE_ADAPTER_FAST_STA_LIBERTY}/FastStaLiberty.cc
+)
+
+add_library(
+  icts_source_database_adapter_fast_sta_liberty_model
   ${ICTS_DATABASE_ADAPTER_FAST_STA_LIBERTY}/FastStaLibertyModel.cc
 )
 
@@ -43,6 +47,12 @@ target_include_directories(
   ${ICTS_DATABASE_ADAPTER_FAST_STA_INTERNAL_INCLUDE_DIRS}
   ${ICTS_DATABASE}
   ${HOME_DATABASE}/manager/parser
+)
+
+target_include_directories(
+  icts_source_database_adapter_fast_sta_liberty_model
+  PRIVATE
+  ${ICTS_DATABASE_ADAPTER_FAST_STA_INTERNAL_INCLUDE_DIRS}
 )
 
 add_library(
@@ -101,7 +111,7 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta_timing
   PRIVATE
   icts_source_database_adapter_fast_sta_clock_net_parasitic
-  icts_source_database_adapter_fast_sta_liberty
+  icts_source_database_adapter_fast_sta_liberty_model
   absl::fixed_array
 )
 
@@ -119,7 +129,7 @@ add_library(
 target_link_libraries(
   icts_source_database_adapter_fast_sta_power
   PRIVATE
-  icts_source_database_adapter_fast_sta_liberty
+  icts_source_database_adapter_fast_sta_liberty_model
 )
 
 target_include_directories(
@@ -178,6 +188,7 @@ add_library(
 target_link_libraries(
   icts_source_database_adapter_fast_sta_segment_char
   PRIVATE
+  icts_source_database_adapter_fast_sta_liberty
   icts_source_database_adapter_fast_sta_power
   icts_source_database_adapter_fast_sta_timing
   icts_source_database_io
@@ -239,6 +250,7 @@ if(DEBUG_ICTS_SOURCE_DATABASE_ADAPTER_FAST_STA)
     icts_source_database_adapter_fast_sta_clock_state
     icts_source_database_adapter_fast_sta_clock_tree
     icts_source_database_adapter_fast_sta_liberty
+    icts_source_database_adapter_fast_sta_liberty_model
     icts_source_database_adapter_fast_sta_power
     icts_source_database_adapter_fast_sta_report
     icts_source_database_adapter_fast_sta_segment_char

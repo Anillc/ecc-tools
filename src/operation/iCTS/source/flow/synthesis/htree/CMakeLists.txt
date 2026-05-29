@@ -33,7 +33,7 @@ target_link_libraries(
   icts_source_database_design
   icts_source_database_spatial
   icts_source_database_characterization
-  icts_source_module_characterization
+  icts_source_module_characterization_headers
   PRIVATE
   icts_source_flow_synthesis_htree_solution
   icts_source_flow_synthesis_htree_synthesis_state
