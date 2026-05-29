@@ -75,7 +75,7 @@ auto makeDirectClockTarget(const std::string& clock_name, const std::string& net
   };
 }
 
-auto tryBuildPreclusteredClockTarget(idb::IdbDesign* idb_design, const SdcClockDecl& clock,
+auto tryBuildPreclusteredClockTarget(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbDesign* idb_design, const SdcClockDecl& clock,
                                      const std::vector<ClockTraceRecord>& accepted_records) -> std::optional<ClockTraceClockTarget>
 {
   if (clock.kind != SdcClockDecl::Kind::kPrimary || accepted_records.size() < 2U) {
@@ -91,7 +91,7 @@ auto tryBuildPreclusteredClockTarget(idb::IdbDesign* idb_design, const SdcClockD
   std::set<std::string> anchor_input_pins;
   for (const auto& record : accepted_records) {
     auto* leaf_net = findIdbNet(idb_design, record.net_name);
-    auto anchor = clock_trace::BuildPreclusteredSinkAnchor(leaf_net);
+    auto anchor = clock_trace::BuildPreclusteredSinkAnchor(liberty_cell_lookup, leaf_net);
     if (!anchor.has_value() || !anchor_input_pins.insert(anchor->driver_inst_name + "/" + anchor->input_pin_name).second) {
       return std::nullopt;
     }
@@ -108,7 +108,8 @@ auto tryBuildPreclusteredClockTarget(idb::IdbDesign* idb_design, const SdcClockD
 
 }  // namespace
 
-auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design, std::size_t max_fanout, SchemaWriter& reporter)
+auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign* idb_design,
+                                 const SdcLibertyCellLookup& liberty_cell_lookup, std::size_t max_fanout, SchemaWriter& reporter)
     -> ClockTraceBuild
 {
   ClockTraceBuild build;
@@ -132,7 +133,7 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
 
   std::vector<ClockTraceRecord> candidate_records;
   for (const auto& clock : clock_data.clocks) {
-    auto records = clock_trace::TraceClock(idb_design, clock, case_constraints, generated_boundary_owner_by_net);
+    auto records = clock_trace::TraceClock(liberty_cell_lookup, idb_design, clock, case_constraints, generated_boundary_owner_by_net);
     candidate_records.insert(candidate_records.end(), records.begin(), records.end());
   }
 
@@ -174,7 +175,7 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
   for (const auto& [clock_name, accepted_records] : accepted_records_by_clock) {
     const auto decl_iter = clock_decl_by_name.find(clock_name);
     if (decl_iter != clock_decl_by_name.end()) {
-      auto preclustered_target = tryBuildPreclusteredClockTarget(idb_design, *decl_iter->second, accepted_records);
+      auto preclustered_target = tryBuildPreclusteredClockTarget(liberty_cell_lookup, idb_design, *decl_iter->second, accepted_records);
       if (preclustered_target.has_value()) {
         if (emitted_pairs.insert({preclustered_target->clock_name, preclustered_target->clock_net_name}).second) {
           build.output.clock_targets.push_back(std::move(*preclustered_target));
@@ -191,7 +192,8 @@ auto ClockTraceResolver::resolve(const SdcClockData& clock_data, idb::IdbDesign*
   }
 
   build.summary.records = std::move(resolved_records);
-  build.summary.unowned_clock_like_records = clock_trace::CollectUnownedClockLikeRecords(idb_design, build.summary.records);
+  build.summary.unowned_clock_like_records
+      = clock_trace::CollectUnownedClockLikeRecords(liberty_cell_lookup, idb_design, build.summary.records);
   clock_trace::EmitClockTraceReport(reporter, build.summary.records);
   clock_trace::EmitSdcClockOwnershipReport(clock_data, clock_view_by_name, reporter, build.summary.records);
   clock_trace::EmitUnownedClockLikeNetReport(reporter, build.summary.unowned_clock_like_records);

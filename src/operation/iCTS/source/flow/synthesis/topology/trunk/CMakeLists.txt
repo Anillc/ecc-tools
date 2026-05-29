@@ -9,7 +9,6 @@ target_link_libraries(
   PUBLIC
   icts_source_flow_synthesis_htree
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_config
   icts_source_database_io
   icts_source_database_routing

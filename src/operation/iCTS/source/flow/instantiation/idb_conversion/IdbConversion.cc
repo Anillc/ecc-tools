@@ -41,13 +41,11 @@ auto IdbConversion::run(const IdbConversionInput& input) -> IdbConversionSummary
 {
   LOG_FATAL_IF(input.design == nullptr) << "iDB conversion requires a design.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "iDB conversion requires a wrapper.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "iDB conversion requires a STA adapter.";
   LOG_FATAL_IF(input.reporter == nullptr) << "iDB conversion requires a reporter.";
   auto& design = *input.design;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& reporter = *input.reporter;
-  (void) sta_adapter;
+  (void) wrapper;
 
   auto runtime = reporter.beginRuntimeMetric("instantiation");
   auto instantiation_stage = reporter.beginStage("Instantiation", "Instantiate synthesized CTS topology into iDB", {},

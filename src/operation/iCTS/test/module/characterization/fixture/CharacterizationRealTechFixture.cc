@@ -39,8 +39,8 @@
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/ScopedLogFile.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
+#include "idm.h"
 #include "io/Wrapper.hh"
 #include "utils/logger/Schema.hh"
 
@@ -53,16 +53,16 @@ auto BuildRuntimeCharacterizationBufferCells(const std::vector<std::string>& buf
   std::vector<icts::CharacterizationBufferCell> buffer_cells;
   buffer_cells.reserve(buffer_types.size());
   for (const auto& cell_master : buffer_types) {
-    auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().sta_adapter.queryBufferPorts(cell_master);
+    auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().wrapper.queryBufferPorts(cell_master);
     buffer_cells.push_back(icts::CharacterizationBufferCell{
         .cell_master = cell_master,
         .max_cap_pf = 0.0,
-        .input_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCharInputPinCap(cell_master),
-        .input_slew_limit_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewLimit(cell_master),
-        .input_slew_table_axis_max_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewTableAxisMax(cell_master),
-        .output_cap_limit_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master),
-        .output_cap_table_axis_max_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master),
-        .cell_height_um = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellHeightUm(cell_master),
+        .input_cap_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCharInputPinCap(cell_master),
+        .input_slew_limit_ns = icts_test::runtime::CurrentRuntime().wrapper.queryCellInPinSlewLimit(cell_master),
+        .input_slew_table_axis_max_ns = icts_test::runtime::CurrentRuntime().wrapper.queryCellInPinSlewTableAxisMax(cell_master),
+        .output_cap_limit_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapLimit(cell_master),
+        .output_cap_table_axis_max_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapTableAxisMax(cell_master),
+        .cell_height_um = icts_test::runtime::CurrentRuntime().wrapper.queryCellHeightUm(cell_master),
         .input_pin = std::move(input_pin),
         .output_pin = std::move(output_pin),
     });
@@ -161,13 +161,13 @@ auto MakeRuntimeCharBuilderContract() -> RuntimeCharBuilderContract
     contract.config.wire_width_um = icts_test::runtime::CurrentRuntime().config.get_wire_width();
   }
   contract.input.clock_route_segment_rc
-      = icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
+      = icts_test::runtime::CurrentRuntime().wrapper.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
   const auto dbu_per_um = icts_test::runtime::CurrentRuntime().wrapper.queryDbUnit();
   if (dbu_per_um > 0) {
     contract.input.dbu_per_um = dbu_per_um;
   }
   contract.input.root_input_slew_ns = std::max(0.0, icts_test::runtime::CurrentRuntime().config.get_root_input_slew());
-  contract.input.sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter;
+  contract.input.wrapper = &icts_test::runtime::CurrentRuntime().wrapper;
   contract.input.fast_sta = &icts_test::runtime::CurrentRuntime().fast_sta;
   contract.input.reporter = &icts_test::runtime::CurrentRuntime().reporter;
   return contract;
@@ -250,7 +250,10 @@ auto RealTechCharFixture::restore() -> void
   }
 
   ApplyConfigState(*_original_config_state);
-  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
+  icts_test::runtime::CurrentRuntime().wrapper.reset();
+  if (auto* idb_builder = dmInst->get_idb_builder(); idb_builder != nullptr) {
+    icts_test::runtime::CurrentRuntime().wrapper.init(idb_builder);
+  }
   _is_prepared = false;
   _original_config_state.reset();
   _cts_log_guard.reset();
@@ -289,7 +292,7 @@ auto CollectConfiguredBufferLimitInfo() -> std::vector<BufferLimitInfo>
       continue;
     }
 
-    auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().sta_adapter.queryBufferPorts(cell_master);
+    auto [input_pin, output_pin] = icts_test::runtime::CurrentRuntime().wrapper.queryBufferPorts(cell_master);
     if (input_pin.empty() || output_pin.empty()) {
       continue;
     }
@@ -298,10 +301,10 @@ auto CollectConfiguredBufferLimitInfo() -> std::vector<BufferLimitInfo>
         .cell_master = cell_master,
         .input_pin = std::move(input_pin),
         .output_pin = std::move(output_pin),
-        .port_slew_limit_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewLimit(cell_master),
-        .table_slew_limit_ns = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellInPinSlewTableAxisMax(cell_master),
-        .port_cap_limit_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapLimit(cell_master),
-        .table_cap_limit_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellOutPinCapTableAxisMax(cell_master),
+        .port_slew_limit_ns = icts_test::runtime::CurrentRuntime().wrapper.queryCellInPinSlewLimit(cell_master),
+        .table_slew_limit_ns = icts_test::runtime::CurrentRuntime().wrapper.queryCellInPinSlewTableAxisMax(cell_master),
+        .port_cap_limit_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapLimit(cell_master),
+        .table_cap_limit_pf = icts_test::runtime::CurrentRuntime().wrapper.queryCellOutPinCapTableAxisMax(cell_master),
     });
   }
 
@@ -374,7 +377,7 @@ auto ResolveDefaultWirelengthUnitUm(const std::vector<BufferLimitInfo>& infos, c
       continue;
     }
 
-    const double cell_height_um = icts_test::runtime::CurrentRuntime().sta_adapter.queryCellHeightUm(cell_master);
+    const double cell_height_um = icts_test::runtime::CurrentRuntime().wrapper.queryCellHeightUm(cell_master);
     if (cell_height_um <= 0.0) {
       continue;
     }

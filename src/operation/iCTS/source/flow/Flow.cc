@@ -178,7 +178,6 @@ auto Flow::runSynthesis() -> SynthesisTraceSummary
       .config = &_runtime.config,
       .design = &_runtime.design,
       .wrapper = &_runtime.wrapper,
-      .sta_adapter = &_runtime.sta_adapter,
       .fast_sta = &_runtime.fast_sta,
       .reporter = &_runtime.reporter,
       .clock_layout = &_clock_layout,
@@ -203,7 +202,6 @@ auto Flow::runOptimization() -> OptimizationSummary
   const auto optimization_summary = Optimization::run(OptimizationInput{.config = &_runtime.config,
                                                                         .design = &_runtime.design,
                                                                         .wrapper = &_runtime.wrapper,
-                                                                        .sta_adapter = &_runtime.sta_adapter,
                                                                         .fast_sta = &_runtime.fast_sta,
                                                                         .reporter = &_runtime.reporter,
                                                                         .clock_layout = &_clock_layout,
@@ -230,7 +228,6 @@ auto Flow::instantiateClockTree() -> InstantiationSummary
     _instantiation_summary = Instantiation::run(InstantiationInput{
         .design = &_runtime.design,
         .wrapper = &_runtime.wrapper,
-        .sta_adapter = &_runtime.sta_adapter,
         .reporter = &_runtime.reporter,
     });
     _clock_layout.markInstantiationDone(_instantiation_summary.success);
@@ -246,16 +243,13 @@ auto Flow::evaluateClockTree() -> EvaluationBuild
     _evaluation_ready = false;
     return EvaluationBuild{.output = EvaluationOutput{.state = _evaluation_state}, .summary = EvaluationSummary{.evaluation_ready = false}};
   }
-  const auto output = Evaluation::run(_evaluation_state,
-                                      EvaluationInput{
-                                          .config = &_runtime.config,
-                                          .clock_layout = &_clock_layout,
-                                          .design = &_runtime.design,
-                                          .wrapper = &_runtime.wrapper,
-                                          .sta_adapter = &_runtime.sta_adapter,
-                                          .reporter = &_runtime.reporter,
-                                      },
-                                      EvaluationConfig{.refresh_sta_timing = _instantiation_summary.success});
+  const auto output = Evaluation::run(_evaluation_state, EvaluationInput{
+                                                             .config = &_runtime.config,
+                                                             .clock_layout = &_clock_layout,
+                                                             .design = &_runtime.design,
+                                                             .wrapper = &_runtime.wrapper,
+                                                             .reporter = &_runtime.reporter,
+                                                         });
   _evaluation_state = output.output.state;
   _evaluation_ready = output.summary.evaluation_ready;
   return output;
@@ -266,13 +260,11 @@ auto Flow::emitReports(const std::string& save_dir) -> void
   const auto report_summary = Report::run(ReportInput{.config = &_runtime.config,
                                                       .design = &_runtime.design,
                                                       .wrapper = &_runtime.wrapper,
-                                                      .sta_adapter = &_runtime.sta_adapter,
                                                       .reporter = &_runtime.reporter,
                                                       .save_dir = save_dir,
                                                       .evaluation_ready = _evaluation_ready,
                                                       .clock_layout = &_clock_layout,
-                                                      .evaluation_state = &_evaluation_state},
-                                          ReportConfig{.refresh_sta_timing = _instantiation_summary.success});
+                                                      .evaluation_state = &_evaluation_state});
   _evaluation_ready = report_summary.evaluation_ready;
 }
 
@@ -285,7 +277,7 @@ auto Flow::outputRuntimeSetup() -> void
 
   Setup::emitRuntimeSetup(RuntimeSetupInput{
       .config = &_runtime.config,
-      .sta_adapter = &_runtime.sta_adapter,
+      .wrapper = &_runtime.wrapper,
       .reporter = &_runtime.reporter,
   });
 }

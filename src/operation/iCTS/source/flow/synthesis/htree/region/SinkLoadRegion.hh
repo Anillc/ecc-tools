@@ -40,7 +40,7 @@
 namespace icts {
 
 class Pin;
-class STAAdapter;
+class Wrapper;
 class Tree;
 
 namespace htree {
@@ -112,7 +112,7 @@ struct SinkLoadRegionLegalitySummary
 
 struct SinkLoadRegionLegalityInput
 {
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   std::size_t max_fanout = 0U;
   bool has_max_cap = false;
   double max_cap_pf = std::numeric_limits<double>::infinity();

@@ -9,7 +9,6 @@ target_link_libraries(
   icts_source_database_adapter_fast_sta
   icts_source_flow_optimization_model
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_config
   icts_source_database_design
   icts_source_flow_optimization_policy

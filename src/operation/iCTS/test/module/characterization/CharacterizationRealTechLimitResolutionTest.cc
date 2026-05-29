@@ -40,10 +40,10 @@
 #include "common/io/TestArtifactIO.hh"
 #include "common/logging/LogText.hh"
 #include "common/realtech/setup/RealTechDesignSetup.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/design/Design.hh"
 #include "database/design/Inst.hh"
 #include "database/design/Pin.hh"
+#include "database/io/Wrapper.hh"
 #include "module/characterization/fixture/CharacterizationRealTechFixture.hh"
 
 namespace icts_test {
@@ -141,7 +141,7 @@ TEST(CharacterizationRealTechLimitResolutionTest, UsesStrongestBufferHeightWhenW
   EXPECT_TRUE(std::regex_search(char_builder_setup, std::regex(R"(\|\s*routing_rc\s*\|\s*Runtime Routing / Wire RC\s*\|)")));
 }
 
-TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsStableAfterExplicitFullTimingRefresh)
+TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsStableThroughWrapperQuery)
 {
   const auto& setup_state = common::realtech::EnsureRealTechSetup();
   if (setup_state.mode != common::realtech::RealTechMode::kRealTech || !setup_state.setup_succeeded) {
@@ -149,14 +149,12 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsSta
     return;
   }
 
-  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
-
   const auto buffer_cells = realtech_fixture::CollectConfiguredBufferLimitInfo();
   ASSERT_FALSE(buffer_cells.empty());
 
   const auto probe = common::realtech::TryFindRepresentativeRealPinCapProbe();
   if (!probe.has_value()) {
-    GTEST_SKIP() << "Cannot find a representative real-design load pin with resolvable capacitance before full timing preparation.";
+    GTEST_SKIP() << "Cannot find a representative real-design load pin with resolvable capacitance.";
     return;
   }
 
@@ -168,26 +166,24 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepresentativePinCapRemainsSta
   ASSERT_FALSE(icts_test::runtime::CurrentRuntime().design.get_clocks().empty())
       << "Real-tech setup should materialize at least one SDC-declared clock.";
 
-  icts_test::runtime::CurrentRuntime().sta_adapter.refreshFullDesignTimingContext(icts_test::runtime::CurrentRuntime().config);
-  icts_test::runtime::CurrentRuntime().sta_adapter.updateTiming();
-  const double post_timing_cap_pf = icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(&probe_pin);
-  EXPECT_GT(post_timing_cap_pf, 0.0);
+  const double wrapper_cap_pf = icts_test::runtime::CurrentRuntime().wrapper.queryPinCapacitance(&probe_pin);
+  EXPECT_GT(wrapper_cap_pf, 0.0);
   const double cap_tolerance_pf = probe->pre_timing_cap_pf * 1e-6 + 1e-6;
-  EXPECT_NEAR(post_timing_cap_pf, probe->pre_timing_cap_pf, cap_tolerance_pf);
+  EXPECT_NEAR(wrapper_cap_pf, probe->pre_timing_cap_pf, cap_tolerance_pf);
 
   std::ostringstream report_stream;
   report_stream.setf(std::ostringstream::fixed, std::ostringstream::floatfield);
   report_stream << std::setprecision(6);
-  report_stream << "scenario=explicit_pin_cap_probe\n";
+  report_stream << "scenario=wrapper_pin_cap_probe\n";
   report_stream << "net_name=" << probe->net_name << "\n";
   report_stream << "is_clock_net=" << (probe->is_clock_net ? "true" : "false") << "\n";
   report_stream << "inst_name=" << probe->inst_name << "\n";
   report_stream << "cell_master=" << probe->cell_master << "\n";
   report_stream << "pin_name=" << probe->pin_name << "\n";
-  report_stream << "pre_timing_cap_pf=" << probe->pre_timing_cap_pf << "\n";
-  report_stream << "post_timing_cap_pf=" << post_timing_cap_pf << "\n";
+  report_stream << "initial_pin_cap_pf=" << probe->pre_timing_cap_pf << "\n";
+  report_stream << "wrapper_cap_pf=" << wrapper_cap_pf << "\n";
   report_stream << "clock_count=" << icts_test::runtime::CurrentRuntime().design.get_clocks().size() << "\n";
-  ASSERT_TRUE(realtech_fixture::WriteScenarioLog("explicit_pin_cap_probe", "explicit_pin_cap_probe_report.txt", report_stream.str()));
+  ASSERT_TRUE(realtech_fixture::WriteScenarioLog("wrapper_pin_cap_probe", "wrapper_pin_cap_probe_report.txt", report_stream.str()));
 }
 
 TEST(CharacterizationRealTechLimitResolutionTest, TableAxisLimitsMatchAvailableAssetCoverage)
@@ -420,10 +416,8 @@ TEST(CharacterizationRealTechLimitResolutionTest, RepeatedReducedBuildsRemainUsa
   EXPECT_EQ(first_summary.total_entries, second_summary.total_entries);
   EXPECT_EQ(first_summary.max_length_idx, second_summary.max_length_idx);
   EXPECT_EQ(first_summary.max_input_slew_idx, second_summary.max_input_slew_idx);
-  icts_test::runtime::CurrentRuntime().sta_adapter.refreshFullDesignTimingContext(icts_test::runtime::CurrentRuntime().config);
-  icts_test::runtime::CurrentRuntime().sta_adapter.updateTiming();
   EXPECT_FALSE(icts_test::runtime::CurrentRuntime().design.get_clocks().empty())
-      << "Full-design STA should remain usable after repeated char-only builds.";
+      << "Clock data should remain materialized after repeated char-only builds.";
   EXPECT_EQ(first_summary.max_output_slew_idx, second_summary.max_output_slew_idx);
   EXPECT_EQ(first_summary.max_driven_cap_idx, second_summary.max_driven_cap_idx);
   EXPECT_EQ(first_summary.max_load_cap_idx, second_summary.max_load_cap_idx);

@@ -46,11 +46,11 @@
 #include "PatternId.hh"
 #include "Pin.hh"
 #include "Point.hh"
-#include "STAAdapter.hh"
 #include "SteinerTree.hh"
 #include "Tree.hh"
 #include "ValueLattice.hh"
 #include "design/Design.hh"
+#include "io/Wrapper.hh"
 #include "router/Router.hh"
 #include "synthesis/htree/compensation/RootDriverCompensation.hh"
 #include "synthesis/htree/compensation/RootDriverCompensationState.hh"
@@ -93,9 +93,8 @@ auto QueryWireCapForDbuLength(const RootDriverCompensationInput& input, int64_t 
     return 0.0;
   }
 
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver compensation.";
-  const double wire_cap_pf
-      = input.sta_adapter->queryRequiredWireCapacitance(ResolveRoutingLayer(input), length_um, ResolveWireWidth(input));
+  LOG_FATAL_IF(input.wrapper == nullptr) << "HTree: Wrapper is unavailable for root-driver compensation.";
+  const double wire_cap_pf = input.wrapper->queryRequiredWireCapacitance(ResolveRoutingLayer(input), length_um, ResolveWireWidth(input));
   if (!std::isfinite(wire_cap_pf) || wire_cap_pf < 0.0) {
     LOG_WARNING << "HTree: root-closure wire-cap query returned an invalid value for length " << length_um << " um.";
     return 0.0;
@@ -203,7 +202,7 @@ auto EstimateRootClosureWire(const RootDriverCompensationInput& input, const Poi
   return EstimateHpwlWire(input, root_location, terminals, stats);
 }
 
-auto MakeBufferRootClosureTerminal(STAAdapter& sta_adapter, const TreeNode& parent_node, const TreeNode& child_node,
+auto MakeBufferRootClosureTerminal(Wrapper& wrapper, const TreeNode& parent_node, const TreeNode& child_node,
                                    const BufferingPattern& segment_pattern, std::size_t terminal_index) -> RootClosureTerminal
 {
   const auto& positions = segment_pattern.get_buffer_positions();
@@ -216,7 +215,7 @@ auto MakeBufferRootClosureTerminal(STAAdapter& sta_adapter, const TreeNode& pare
   return RootClosureTerminal{
       .name = "root_closure_buffer_input_" + std::to_string(terminal_index),
       .location = InterpolateRootClosurePoint(parent_node.get_position(), child_node.get_position(), positions.front()),
-      .pin_cap_pf = sta_adapter.queryCharInputPinCap(first_buffer_master),
+      .pin_cap_pf = wrapper.queryCharInputPinCap(first_buffer_master),
   };
 }
 
@@ -245,7 +244,7 @@ auto BuildRootClosureLoadSignature(PatternId topology_pattern_id, const Topology
   return signature;
 }
 
-auto CollectExternalLoadTerminals(STAAdapter& sta_adapter, const std::vector<std::size_t>& boundary_node_ids, const Tree& topology)
+auto CollectExternalLoadTerminals(Wrapper& wrapper, const std::vector<std::size_t>& boundary_node_ids, const Tree& topology)
     -> std::vector<RootClosureTerminal>
 {
   std::vector<RootClosureTerminal> terminals;
@@ -262,7 +261,7 @@ auto CollectExternalLoadTerminals(STAAdapter& sta_adapter, const std::vector<std
       terminals.push_back(RootClosureTerminal{
           .name = Design::getPinFullName(load),
           .location = load->get_location(),
-          .pin_cap_pf = sta_adapter.queryPinCapacitance(load),
+          .pin_cap_pf = wrapper.queryPinCapacitance(load),
       });
     }
   }
@@ -358,9 +357,9 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
           continue;
         }
         if (segment_has_real_buffer) {
-          LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver load resolution.";
-          buffer_input_terminals.push_back(MakeBufferRootClosureTerminal(*input.sta_adapter, *parent_node, *child_node, *segment_pattern,
-                                                                         buffer_input_terminals.size()));
+          LOG_FATAL_IF(input.wrapper == nullptr) << "HTree: Wrapper is unavailable for root-driver load resolution.";
+          buffer_input_terminals.push_back(
+              MakeBufferRootClosureTerminal(*input.wrapper, *parent_node, *child_node, *segment_pattern, buffer_input_terminals.size()));
         } else {
           next_active_node_ids.push_back(child_id);
         }
@@ -385,10 +384,9 @@ auto ResolveRootClosureLoadEstimate(PatternId topology_pattern_id, const Topolog
     }
   }
 
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver load resolution.";
-  auto estimate
-      = MakeRootClosureLoadEstimate(input, root_node->get_position(),
-                                    CollectExternalLoadTerminals(*input.sta_adapter, active_node_ids, topology), input.cap_lattice, stats);
+  LOG_FATAL_IF(input.wrapper == nullptr) << "HTree: Wrapper is unavailable for root-driver load resolution.";
+  auto estimate = MakeRootClosureLoadEstimate(
+      input, root_node->get_position(), CollectExternalLoadTerminals(*input.wrapper, active_node_ids, topology), input.cap_lattice, stats);
   if (loaded_root_branch_count > 0U) {
     SetSourceBoundaryLoadEstimate(estimate, estimate.total_load_cap_pf / static_cast<double>(loaded_root_branch_count),
                                   loaded_root_branch_count, input.cap_lattice);

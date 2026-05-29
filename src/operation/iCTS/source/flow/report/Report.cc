@@ -41,19 +41,17 @@
 
 namespace icts {
 
-auto Report::run(const ReportInput& input, const ReportConfig& report_config) -> ReportSummary
+auto Report::run(const ReportInput& input) -> ReportSummary
 {
   LOG_FATAL_IF(input.config == nullptr) << "Report requires config.";
   LOG_FATAL_IF(input.design == nullptr) << "Report requires design.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Report requires wrapper.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Report requires STA adapter.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Report requires reporter.";
   LOG_FATAL_IF(input.clock_layout == nullptr) << "Report requires clock layout.";
   LOG_FATAL_IF(input.evaluation_state == nullptr) << "Report requires evaluation state.";
   const auto& config = *input.config;
   auto& design = *input.design;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& reporter = *input.reporter;
   auto& evaluation_state = *input.evaluation_state;
   LOG_FATAL_IF(config.get_work_dir().empty()) << "CTS report requires initialized CTS run setup.";
@@ -70,14 +68,10 @@ auto Report::run(const ReportInput& input, const ReportConfig& report_config) ->
   bool current_evaluation_ready = input.evaluation_ready;
   if (!reused_evaluation_state) {
     reporter.emitSection("### Report Evaluation");
-    const auto evaluation_output = Evaluation::run(evaluation_state,
-                                                   EvaluationInput{.config = &config,
-                                                                   .clock_layout = input.clock_layout,
-                                                                   .design = &design,
-                                                                   .wrapper = &wrapper,
-                                                                   .sta_adapter = &sta_adapter,
-                                                                   .reporter = &reporter},
-                                                   EvaluationConfig{.refresh_sta_timing = report_config.refresh_sta_timing});
+    const auto evaluation_output = Evaluation::run(
+        evaluation_state,
+        EvaluationInput{
+            .config = &config, .clock_layout = input.clock_layout, .design = &design, .wrapper = &wrapper, .reporter = &reporter});
     evaluation_state = evaluation_output.output.state;
     current_evaluation_ready = evaluation_output.summary.evaluation_ready;
   }

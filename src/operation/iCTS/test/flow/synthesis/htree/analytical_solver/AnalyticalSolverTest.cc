@@ -130,7 +130,7 @@ TEST(AnalyticalSolverTest, SolvesNormalizedTradeoffWithContinuousUnitSlots)
   const auto pattern_low_power = icts::PatternId::segment(2U);
   const unsigned length_idx = 1U;
 
-  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().wrapper);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_fast, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_low_power, {}, {}, false));
 
@@ -164,7 +164,7 @@ TEST(AnalyticalSolverTest, ComposesUnitSlotsIntoDiscreteSegmentPattern)
   const unsigned unit_length_idx = 1U;
   const unsigned level_length_idx = 2U;
 
-  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().wrapper);
   segment_patterns.add(icts::BufferingPattern(unit_length_idx, unit_pattern, {}, {}, false));
 
   icts::analytical::AnalyticalModelCatalog catalog;
@@ -193,7 +193,7 @@ TEST(AnalyticalSolverTest, RejectsNonAffineModelSet)
   const auto pattern_id = icts::PatternId::segment(1U);
   const unsigned length_idx = 1U;
 
-  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().wrapper);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_id, {}, {}, false));
 
   icts::analytical::AnalyticalModelCatalog catalog;
@@ -216,7 +216,7 @@ TEST(AnalyticalSolverTest, RespectsTerminalBranchBufferConstraint)
   const auto pattern_branch = icts::PatternId::segment(2U);
   const unsigned length_idx = 1U;
 
-  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().wrapper);
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_plain, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, pattern_branch, {1.0}, {"BUF_X1"}, true, MakeBoundaryState(true, true)));
 
@@ -245,7 +245,7 @@ TEST(AnalyticalSolverTest, AnalyticalTopologyPatternRejectsInternalFanoutHiddenB
   const auto root_buffer_pattern = icts::PatternId::segment(2U);
   const unsigned length_idx = 1U;
 
-  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().sta_adapter);
+  icts::htree::BufferPatternLibrary segment_patterns(icts_test::runtime::CurrentRuntime().wrapper);
   segment_patterns.add(icts::BufferingPattern(length_idx, plain_pattern, {}, {}, false));
   segment_patterns.add(icts::BufferingPattern(length_idx, root_buffer_pattern, {0.1}, {"BUF_X1"}, false, MakeBoundaryState(true, true)));
 

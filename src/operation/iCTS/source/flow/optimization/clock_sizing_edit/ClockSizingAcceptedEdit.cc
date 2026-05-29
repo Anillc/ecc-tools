@@ -33,11 +33,11 @@
 #include <vector>
 
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "design/ClockLayout.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Pin.hh"
+#include "io/Wrapper.hh"
 #include "optimization/model/ClockSizingOptimizationData.hh"
 
 namespace icts::clock_sizing_optimization {
@@ -91,9 +91,9 @@ auto RenamePin(Design& design, Pin* pin, const std::string& local_name) -> bool
   return design.renamePin(pin, local_name);
 }
 
-auto ResolveBufferPorts(STAAdapter& sta_adapter, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
+auto ResolveBufferPorts(Wrapper& wrapper, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
 {
-  auto [input_pin_name, output_pin_name] = sta_adapter.queryBufferPorts(cell_master);
+  auto [input_pin_name, output_pin_name] = wrapper.queryBufferPorts(cell_master);
   if (input_pin_name.empty() || output_pin_name.empty() || input_pin_name == output_pin_name) {
     return std::nullopt;
   }
@@ -113,7 +113,7 @@ auto UpdateClockLayoutInstMaster(ClockLayout& clock_layout, const std::string& i
 
 }  // namespace
 
-auto ApplyClockSizingAcceptedEdits(Design& design, STAAdapter& sta_adapter, const std::vector<ClockSizingAcceptedEdit>& accepted_edits,
+auto ApplyClockSizingAcceptedEdits(Design& design, Wrapper& wrapper, const std::vector<ClockSizingAcceptedEdit>& accepted_edits,
                                    const std::vector<ClockSizingBuffer>& buffers, ClockLayout& clock_layout) -> bool
 {
   std::map<std::string, std::string> final_master_by_inst;
@@ -143,7 +143,7 @@ auto ApplyClockSizingAcceptedEdits(Design& design, STAAdapter& sta_adapter, cons
     auto* inst = design.findInst(inst_name);
     auto* input_pin = FindSingleBufferInputPin(inst);
     auto* output_pin = inst == nullptr ? nullptr : inst->findDriverPin();
-    const auto ports = ResolveBufferPorts(sta_adapter, final_master);
+    const auto ports = ResolveBufferPorts(wrapper, final_master);
     if (inst == nullptr || input_pin == nullptr || output_pin == nullptr || !ports.has_value()
         || !CanRenamePin(design, input_pin, ports->first) || !CanRenamePin(design, output_pin, ports->second)) {
       LOG_ERROR << "Optimization: cannot apply final master \"" << final_master << "\" to buffer inst \"" << inst_name
@@ -156,7 +156,7 @@ auto ApplyClockSizingAcceptedEdits(Design& design, STAAdapter& sta_adapter, cons
     auto* inst = design.findInst(inst_name);
     auto* input_pin = FindSingleBufferInputPin(inst);
     auto* output_pin = inst->findDriverPin();
-    const auto ports = ResolveBufferPorts(sta_adapter, final_master);
+    const auto ports = ResolveBufferPorts(wrapper, final_master);
     if (!ports.has_value()) {
       return false;
     }

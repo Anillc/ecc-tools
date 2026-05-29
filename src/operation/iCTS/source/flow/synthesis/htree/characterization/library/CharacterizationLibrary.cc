@@ -32,7 +32,6 @@
 #include <vector>
 
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "characterization/Characterization.hh"
 #include "config/Config.hh"
 #include "io/Wrapper.hh"
@@ -40,22 +39,22 @@
 namespace icts {
 namespace {
 
-auto BuildRuntimeCharacterizationBufferCells(STAAdapter& sta_adapter, const std::vector<std::string>& buffer_types)
+auto BuildRuntimeCharacterizationBufferCells(Wrapper& wrapper, const std::vector<std::string>& buffer_types)
     -> std::vector<CharacterizationBufferCell>
 {
   std::vector<CharacterizationBufferCell> buffer_cells;
   buffer_cells.reserve(buffer_types.size());
   for (const auto& cell_master : buffer_types) {
-    auto [input_pin, output_pin] = sta_adapter.queryBufferPorts(cell_master);
+    auto [input_pin, output_pin] = wrapper.queryBufferPorts(cell_master);
     buffer_cells.push_back(CharacterizationBufferCell{
         .cell_master = cell_master,
         .max_cap_pf = 0.0,
-        .input_cap_pf = sta_adapter.queryCharInputPinCap(cell_master),
-        .input_slew_limit_ns = sta_adapter.queryCellInPinSlewLimit(cell_master),
-        .input_slew_table_axis_max_ns = sta_adapter.queryCellInPinSlewTableAxisMax(cell_master),
-        .output_cap_limit_pf = sta_adapter.queryCellOutPinCapLimit(cell_master),
-        .output_cap_table_axis_max_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master),
-        .cell_height_um = sta_adapter.queryCellHeightUm(cell_master),
+        .input_cap_pf = wrapper.queryCharInputPinCap(cell_master),
+        .input_slew_limit_ns = wrapper.queryCellInPinSlewLimit(cell_master),
+        .input_slew_table_axis_max_ns = wrapper.queryCellInPinSlewTableAxisMax(cell_master),
+        .output_cap_limit_pf = wrapper.queryCellOutPinCapLimit(cell_master),
+        .output_cap_table_axis_max_pf = wrapper.queryCellOutPinCapTableAxisMax(cell_master),
+        .cell_height_um = wrapper.queryCellHeightUm(cell_master),
         .input_pin = std::move(input_pin),
         .output_pin = std::move(output_pin),
     });
@@ -112,22 +111,20 @@ auto CharacterizationLibrary::buildRuntimeInput(const CharacterizationRuntimeInp
 {
   LOG_FATAL_IF(runtime_input.config == nullptr) << "CharacterizationLibrary: runtime config is null.";
   LOG_FATAL_IF(runtime_input.wrapper == nullptr) << "CharacterizationLibrary: runtime wrapper is null.";
-  LOG_FATAL_IF(runtime_input.sta_adapter == nullptr) << "CharacterizationLibrary: runtime STA adapter is null.";
   LOG_FATAL_IF(runtime_input.fast_sta == nullptr) << "CharacterizationLibrary: runtime FastSTA is null.";
   LOG_FATAL_IF(runtime_input.reporter == nullptr) << "CharacterizationLibrary: runtime reporter is null.";
 
   const auto& config = *runtime_input.config;
   auto& wrapper = *runtime_input.wrapper;
-  auto& sta_adapter = *runtime_input.sta_adapter;
   CharBuilder::Input char_input;
   char_input.buffer_types = config.get_buffer_types();
-  char_input.characterization_buffer_cells = BuildRuntimeCharacterizationBufferCells(sta_adapter, char_input.buffer_types);
-  char_input.clock_route_segment_rc = sta_adapter.queryConfiguredClockRouteSegmentRc(config);
+  char_input.characterization_buffer_cells = BuildRuntimeCharacterizationBufferCells(wrapper, char_input.buffer_types);
+  char_input.clock_route_segment_rc = wrapper.queryConfiguredClockRouteSegmentRc(config);
   const auto dbu_per_um = wrapper.queryDbUnit();
   LOG_FATAL_IF(dbu_per_um <= 0) << "CharacterizationLibrary: DBU-per-micron must be available before characterization.";
   char_input.dbu_per_um = dbu_per_um;
   char_input.root_input_slew_ns = std::max(0.0, config.get_root_input_slew());
-  char_input.sta_adapter = &sta_adapter;
+  char_input.wrapper = &wrapper;
   char_input.fast_sta = runtime_input.fast_sta;
   char_input.reporter = runtime_input.reporter;
   return char_input;

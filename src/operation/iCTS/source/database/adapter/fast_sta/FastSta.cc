@@ -62,7 +62,7 @@ auto logContextSize(std::string_view owner, const FastStaClockContext& context) 
 auto requireEnvironment(const std::optional<FastStaEnvironment>& environment) -> const FastStaEnvironment&
 {
   LOG_FATAL_IF(!environment.has_value()) << "FastSTA: runtime environment is not bound.";
-  LOG_FATAL_IF(environment->sta_adapter == nullptr) << "FastSTA: bound STA adapter is null.";
+  LOG_FATAL_IF(environment->wrapper == nullptr) << "FastSTA: bound Wrapper is null.";
   LOG_FATAL_IF(environment->dbu_per_um <= 0) << "FastSTA: bound DBU-per-micron is invalid.";
   LOG_FATAL_IF(environment->routing_layer <= 0) << "FastSTA: bound routing layer is invalid.";
   return *environment;
@@ -162,7 +162,7 @@ FastSTA::~FastSTA() = default;
 
 auto FastSTA::bindEnvironment(const FastStaEnvironment& environment) -> void
 {
-  LOG_FATAL_IF(environment.sta_adapter == nullptr) << "FastSTA: cannot bind a null STA adapter.";
+  LOG_FATAL_IF(environment.wrapper == nullptr) << "FastSTA: cannot bind a null Wrapper.";
   LOG_FATAL_IF(environment.dbu_per_um <= 0) << "FastSTA: cannot bind invalid DBU-per-micron.";
   LOG_FATAL_IF(environment.routing_layer <= 0) << "FastSTA: cannot bind invalid routing layer.";
   _environment = environment;

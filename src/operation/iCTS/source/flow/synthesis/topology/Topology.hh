@@ -46,7 +46,6 @@ class DomainStatusTable;
 class FastSTA;
 class ClockLayout;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 struct ClockDistributionContext;
 struct SynthesisTraceSummary;
@@ -56,7 +55,6 @@ struct ClockTopologyInput
   const Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
   Clock* clock = nullptr;
@@ -74,7 +72,6 @@ struct TopologyInput
   const Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
   Net* root_net = nullptr;

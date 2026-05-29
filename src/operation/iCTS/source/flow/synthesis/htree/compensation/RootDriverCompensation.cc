@@ -43,7 +43,7 @@
 #include "HTreeTopologyPattern.hh"
 #include "Log.hh"
 #include "PatternId.hh"
-#include "STAAdapter.hh"
+#include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/compensation/RootDriverCompensationState.hh"
@@ -83,7 +83,7 @@ auto ResolveRootDriverCellMaster(PatternId topology_pattern_id, const TopologyPa
   return default_cell_master;
 }
 
-auto MakeRootDriverCompensationDetail(const STAAdapter::RootDriverCost& cost, double input_slew_ns,
+auto MakeRootDriverCompensationDetail(const Wrapper::RootDriverCost& cost, double input_slew_ns,
                                       const RootClosureLoadEstimate& load_estimate, double clock_period_ns,
                                       const UniformValueLattice& slew_lattice) -> RootDriverCompensationDetail
 {
@@ -137,9 +137,9 @@ auto QueryRootDriverCompensation(const RootDriverCompensationCacheKey& key, cons
   }
 
   const auto lookup_start = std::chrono::steady_clock::now();
-  LOG_FATAL_IF(state.input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for root-driver compensation.";
+  LOG_FATAL_IF(state.input.wrapper == nullptr) << "HTree: Wrapper is unavailable for root-driver compensation.";
   const auto cost
-      = state.input.sta_adapter->queryRootDriverCostDirect(key.cell_master, key.input_slew_ns, key.load_cap_pf, key.clock_period_ns);
+      = state.input.wrapper->queryRootDriverCostDirect(key.cell_master, key.input_slew_ns, key.load_cap_pf, key.clock_period_ns);
   stats.total_runtime_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - lookup_start).count();
   ++stats.unique_direct_lookup_count;
   auto compensation

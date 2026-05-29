@@ -31,7 +31,7 @@
 #include "synthesis/topology/Topology.hh"
 
 namespace icts {
-class STAAdapter;
+class Wrapper;
 class Pin;
 }  // namespace icts
 
@@ -50,7 +50,7 @@ struct SinkTreeLoadPreparationInput
 {
   Topology::Build* build = nullptr;
   const std::vector<Pin*>* root_loads = nullptr;
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   std::string object_name_prefix;
   SinkTreeLoadPreparationPolicy policy;
 };

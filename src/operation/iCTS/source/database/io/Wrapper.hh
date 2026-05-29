@@ -23,6 +23,7 @@
 
 #pragma once
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -42,9 +43,15 @@ template <typename T>
 class IdbCoordinate;
 }  // namespace idb
 
+namespace ista {
+class LibCell;
+class LibLibrary;
+}  // namespace ista
+
 namespace icts {
 
 class Clock;
+class Config;
 class Design;
 class Inst;
 class Net;
@@ -53,6 +60,7 @@ class SchemaWriter;
 struct SdcClockTraceInput;
 struct ClockTraceBuild;
 struct ClockTraceClockTarget;
+struct ClockRouteSegmentRc;
 struct WrapperCellGeometry
 {
   std::string name;
@@ -74,8 +82,8 @@ struct WrapperWriteSummary
 class Wrapper
 {
  public:
-  Wrapper() = default;
-  ~Wrapper() = default;
+  Wrapper();
+  ~Wrapper();
 
   // Delete copy and move constructors
   Wrapper(const Wrapper& rhs) = delete;
@@ -87,22 +95,60 @@ class Wrapper
   auto init(idb::IdbBuilder* idb) -> void;
 
   // Reset wrapper
-  auto reset() -> void
+  auto reset() -> void;
+
+  struct RootDriverCost
   {
-    _idb = nullptr;
-    _idb_design = nullptr;
-    _idb_layout = nullptr;
-    _cts2idb_inst_map.clear();
-    _idb2cts_inst_map.clear();
-    _cts2idb_net_map.clear();
-    _idb2cts_net_map.clear();
-    _cts2idb_pin_map.clear();
-    _idb2cts_pin_map.clear();
-  }
+    bool valid = false;
+    std::string method;
+    std::string cell_master;
+    double input_slew_ns = 0.0;
+    double output_load_pf = 0.0;
+    double cell_delay_ns = 0.0;
+    double output_slew_ns = 0.0;
+    double internal_power_w = 0.0;
+    double leakage_power_w = 0.0;
+    double cell_power_w = 0.0;
+  };
+
+  struct ClockSourceDriveCapLimitInput
+  {
+    const Pin* clock_source = nullptr;
+    std::optional<double> configured_max_cap_pf = std::nullopt;
+  };
+
+  struct PinSlewLimitInput
+  {
+    const Pin* pin = nullptr;
+    double configured_max_sink_tran_ns = 0.0;
+  };
 
   auto queryDbUnit() const -> int32_t;
   auto is_design_ready() const -> bool { return _idb_design != nullptr; }
   auto is_layout_ready() const -> bool { return _idb != nullptr && _idb_layout != nullptr; }
+  auto queryWireResistance(int routing_layer, double length_um, std::optional<double> wire_width_um = std::nullopt) const -> double;
+  auto queryWireCapacitance(int routing_layer, double length_um, std::optional<double> wire_width_um = std::nullopt) const -> double;
+  auto queryRequiredWireResistance(int routing_layer, double length_um, std::optional<double> wire_width_um = std::nullopt) const -> double;
+  auto queryRequiredWireCapacitance(int routing_layer, double length_um, std::optional<double> wire_width_um = std::nullopt) const
+      -> double;
+  auto queryConfiguredClockRouteSegmentRc(const Config& config) const -> ClockRouteSegmentRc;
+  auto queryCellOutPinCapLimit(const std::string& cell_master) const -> double;
+  auto queryCellOutPinCapTableAxisMax(const std::string& cell_master) const -> double;
+  auto queryClockSourceDriveCapLimit(const ClockSourceDriveCapLimitInput& input) const -> double;
+  auto queryClockSourceDriveCapLimit(const Config& config, const Pin* clock_source) const -> double;
+  auto queryCellInPinSlewLimit(const std::string& cell_master) const -> double;
+  auto queryCellInPinSlewTableAxisMax(const std::string& cell_master) const -> double;
+  auto queryCellHeightUm(const std::string& cell_master) const -> double;
+  auto queryCellAreaUm2(const std::string& cell_master) const -> double;
+  auto queryCharInputPinCap(const std::string& cell_master) const -> double;
+  auto queryPinCapacitance(const Pin* pin) const -> double;
+  auto queryPinSlewLimit(const PinSlewLimitInput& input) const -> double;
+  auto queryPinSlewLimit(const Config& config, const Pin* pin) const -> double;
+  auto queryRootDriverCostDirect(const std::string& cell_master, double input_slew_ns, double output_load_pf, double clock_period_ns) const
+      -> RootDriverCost;
+  auto queryBufferPorts(const std::string& cell_master) const -> std::pair<std::string, std::string>;
+  auto emitConfiguredUnitWireRcReport(SchemaWriter& reporter, const Config& config, const std::string& title) const -> void;
+  auto findLibertyCell(const std::string& cell_master) const -> ista::LibCell*;
 
   // Setter
   auto set_idb_design(idb::IdbDesign* design) -> void { _idb_design = design; }
@@ -149,9 +195,14 @@ class Wrapper
     _cts2idb_net_map[cts_net] = idb_net;
   }
 
+  auto loadLibertyIfNeeded() const -> void;
+
   idb::IdbBuilder* _idb = nullptr;
   idb::IdbDesign* _idb_design = nullptr;
   idb::IdbLayout* _idb_layout = nullptr;
+  mutable bool _liberty_loaded = false;
+  mutable std::vector<std::unique_ptr<ista::LibLibrary>> _lib_libraries;
+  mutable std::unordered_map<std::string, ista::LibCell*> _lib_cell_by_master;
 
   std::unordered_map<Inst*, idb::IdbInstance*> _cts2idb_inst_map;
   std::unordered_map<idb::IdbInstance*, Inst*> _idb2cts_inst_map;

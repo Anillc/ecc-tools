@@ -8,7 +8,6 @@ target_link_libraries(
   PUBLIC
   icts_source_flow_optimization_model
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_design
   log
 )

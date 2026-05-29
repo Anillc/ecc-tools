@@ -33,7 +33,6 @@ target_link_libraries(
   idm
   icts_source_database_config
   icts_source_utils_logger
-  ista-engine
 )
 
 if(DEBUG_ICTS_SOURCE_DATABASE_ADAPTER_SDC)

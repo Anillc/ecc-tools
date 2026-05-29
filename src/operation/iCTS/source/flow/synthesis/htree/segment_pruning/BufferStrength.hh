@@ -30,7 +30,7 @@
 #include <utility>
 #include <vector>
 
-#include "adapter/sta/STAAdapter.hh"
+#include "io/Wrapper.hh"
 #include "log/Log.hh"
 
 namespace icts::htree {
@@ -38,7 +38,7 @@ namespace icts::htree {
 class BufferStrengthTable
 {
  public:
-  explicit BufferStrengthTable(STAAdapter& sta_adapter) : _sta_adapter(&sta_adapter) {}
+  explicit BufferStrengthTable(Wrapper& wrapper) : _wrapper(&wrapper) {}
 
   auto getStrengthRank(const std::string& cell_master) -> unsigned
   {
@@ -47,10 +47,10 @@ class BufferStrengthTable
     }
 
     if (!_drive_caps.contains(cell_master)) {
-      LOG_FATAL_IF(_sta_adapter == nullptr) << "HTree: STA adapter is unavailable for buffer drive-strength ranking.";
-      double drive_cap_pf = _sta_adapter->queryCellOutPinCapLimit(cell_master);
+      LOG_FATAL_IF(_wrapper == nullptr) << "HTree: Wrapper is unavailable for buffer drive-strength ranking.";
+      double drive_cap_pf = _wrapper->queryCellOutPinCapLimit(cell_master);
       if (drive_cap_pf <= 0.0) {
-        drive_cap_pf = _sta_adapter->queryCellOutPinCapTableAxisMax(cell_master);
+        drive_cap_pf = _wrapper->queryCellOutPinCapTableAxisMax(cell_master);
       }
       _drive_caps[cell_master] = drive_cap_pf;
       _ranks_dirty = true;
@@ -105,7 +105,7 @@ class BufferStrengthTable
 
   std::unordered_map<std::string, double> _drive_caps;
   std::unordered_map<std::string, unsigned> _strength_ranks;
-  STAAdapter* _sta_adapter = nullptr;
+  Wrapper* _wrapper = nullptr;
   bool _ranks_dirty = false;
 };
 

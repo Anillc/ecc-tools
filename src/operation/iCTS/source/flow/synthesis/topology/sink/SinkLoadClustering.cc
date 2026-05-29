@@ -42,20 +42,20 @@
 #include "Pin.hh"
 #include "Point.hh"
 #include "TopologyConfig.hh"
-#include "adapter/sta/STAAdapter.hh"
+#include "io/Wrapper.hh"
 #include "synthesis/topology/buffer/BufferInsertion.hh"
 #include "topology/fast_clustering/FastClustering.hh"
 
 namespace icts::topology {
 namespace {
 
-auto resolveBufferPinNames(STAAdapter& sta_adapter, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
+auto resolveBufferPinNames(Wrapper& wrapper, const std::string& cell_master) -> std::optional<std::pair<std::string, std::string>>
 {
   if (cell_master.empty()) {
     return std::nullopt;
   }
 
-  auto [input_pin, output_pin] = sta_adapter.queryBufferPorts(cell_master);
+  auto [input_pin, output_pin] = wrapper.queryBufferPorts(cell_master);
   if (input_pin.empty() || output_pin.empty()) {
     LOG_WARNING << "Topology: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
     return std::nullopt;
@@ -90,16 +90,16 @@ auto resolveClusterCenter(const std::vector<Point<int>>& centers, const std::vec
   return Point<int>(sum_x / count, sum_y / count);
 }
 
-auto resolveBufferDriveCap(STAAdapter& sta_adapter, const std::string& cell_master) -> double
+auto resolveBufferDriveCap(Wrapper& wrapper, const std::string& cell_master) -> double
 {
-  double drive_cap_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
+  double drive_cap_pf = wrapper.queryCellOutPinCapLimit(cell_master);
   if (drive_cap_pf <= 0.0) {
-    drive_cap_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+    drive_cap_pf = wrapper.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return drive_cap_pf;
 }
 
-auto resolveMinLegalClusterBufferCell(STAAdapter& sta_adapter, const SinkTreeLoadPreparationPolicy& policy, std::string& cell_master,
+auto resolveMinLegalClusterBufferCell(Wrapper& wrapper, const SinkTreeLoadPreparationPolicy& policy, std::string& cell_master,
                                       std::string& input_pin_name, std::string& output_pin_name) -> bool
 {
   LOG_FATAL_IF(policy.buffer_cell_masters == nullptr) << "Topology: cluster buffer master policy is not bound.";
@@ -110,14 +110,14 @@ auto resolveMinLegalClusterBufferCell(STAAdapter& sta_adapter, const SinkTreeLoa
       continue;
     }
 
-    const double drive_cap_pf = resolveBufferDriveCap(sta_adapter, candidate_cell_master);
+    const double drive_cap_pf = resolveBufferDriveCap(wrapper, candidate_cell_master);
     if (drive_cap_pf <= 0.0) {
       LOG_WARNING << "Topology: skip clustered center buffer master \"" << candidate_cell_master
                   << "\" because output drive cap is unresolved.";
       continue;
     }
 
-    const auto buffer_pin_names = resolveBufferPinNames(sta_adapter, candidate_cell_master);
+    const auto buffer_pin_names = resolveBufferPinNames(wrapper, candidate_cell_master);
     if (!buffer_pin_names.has_value()) {
       continue;
     }
@@ -135,7 +135,7 @@ auto resolveMinLegalClusterBufferCell(STAAdapter& sta_adapter, const SinkTreeLoa
   return has_resolved_master;
 }
 
-auto collectSinkPinCapPfByPin(STAAdapter& sta_adapter, const std::vector<Pin*>& loads) -> std::unordered_map<const Pin*, double>
+auto collectSinkPinCapPfByPin(Wrapper& wrapper, const std::vector<Pin*>& loads) -> std::unordered_map<const Pin*, double>
 {
   std::unordered_map<const Pin*, double> sink_pin_cap_pf_by_pin;
   sink_pin_cap_pf_by_pin.reserve(loads.size());
@@ -143,17 +143,17 @@ auto collectSinkPinCapPfByPin(STAAdapter& sta_adapter, const std::vector<Pin*>& 
     if (pin == nullptr) {
       continue;
     }
-    sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, sta_adapter.queryPinCapacitance(pin)));
+    sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, wrapper.queryPinCapacitance(pin)));
   }
   return sink_pin_cap_pf_by_pin;
 }
 
-auto buildClusteringConfigFromPolicy(STAAdapter& sta_adapter, const SinkTreeLoadPreparationPolicy& policy,
-                                     const std::vector<Pin*>& root_loads) -> ClusterConfig
+auto buildClusteringConfigFromPolicy(Wrapper& wrapper, const SinkTreeLoadPreparationPolicy& policy, const std::vector<Pin*>& root_loads)
+    -> ClusterConfig
 {
   auto clustering_config = FastClustering::buildElectricalBaseConfig(policy.max_fanout, policy.max_cap_pf);
   clustering_config.clock_route_segment_rc = policy.clock_route_segment_rc;
-  clustering_config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(sta_adapter, root_loads);
+  clustering_config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(wrapper, root_loads);
   return clustering_config;
 }
 
@@ -204,10 +204,10 @@ auto PrepareSinkTreeLoads(const SinkTreeLoadPreparationInput& input) -> SinkTree
 {
   LOG_FATAL_IF(input.build == nullptr) << "Topology sink-load preparation requires a topology build.";
   LOG_FATAL_IF(input.root_loads == nullptr) << "Topology sink-load preparation requires root loads.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Topology sink-load preparation requires an STA adapter.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "Topology sink-load preparation requires an Wrapper.";
   auto& result = *input.build;
   const auto& root_loads = *input.root_loads;
-  auto& sta_adapter = *input.sta_adapter;
+  auto& wrapper = *input.wrapper;
   result.summary.sink_clustering_enabled = input.policy.enable_sink_clustering;
 
   SinkTreeLoadPreparation preparation;
@@ -217,14 +217,14 @@ auto PrepareSinkTreeLoads(const SinkTreeLoadPreparationInput& input) -> SinkTree
     return preparation;
   }
 
-  auto clustering_config = buildClusteringConfigFromPolicy(sta_adapter, input.policy, root_loads);
+  auto clustering_config = buildClusteringConfigFromPolicy(wrapper, input.policy, root_loads);
   auto cluster_output = Clustering::defaultFastClustering(root_loads, clustering_config);
   result.output.cluster_output = std::move(cluster_output);
 
   std::string cluster_buffer_cell_master;
   std::string cluster_buffer_input_pin;
   std::string cluster_buffer_output_pin;
-  if (!resolveMinLegalClusterBufferCell(sta_adapter, input.policy, cluster_buffer_cell_master, cluster_buffer_input_pin,
+  if (!resolveMinLegalClusterBufferCell(wrapper, input.policy, cluster_buffer_cell_master, cluster_buffer_input_pin,
                                         cluster_buffer_output_pin)) {
     LOG_ERROR << "Topology: failed to resolve a legal clustered center buffer master from configured buffer_types.";
     result.summary.failure_reason = "failed to resolve clustered center buffer master";

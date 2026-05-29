@@ -154,7 +154,6 @@ class ClockTopologySynthesis
       : _config(input.config),
         _design(input.design),
         _wrapper(input.wrapper),
-        _sta_adapter(input.sta_adapter),
         _fast_sta(input.fast_sta),
         _reporter(input.reporter),
         _clock(input.clock),
@@ -229,7 +228,6 @@ class ClockTopologySynthesis
         .config = _config,
         .design = _design,
         .wrapper = _wrapper,
-        .sta_adapter = _sta_adapter,
         .fast_sta = _fast_sta,
         .reporter = _reporter,
         .root_net = context.downstream_net,
@@ -290,7 +288,6 @@ class ClockTopologySynthesis
         .config = _config,
         .design = _design,
         .wrapper = _wrapper,
-        .sta_adapter = _sta_adapter,
         .fast_sta = _fast_sta,
         .reporter = _reporter,
         .source_net = clock_source_net,
@@ -372,7 +369,6 @@ class ClockTopologySynthesis
   const Config* _config = nullptr;
   Design* _design = nullptr;
   Wrapper* _wrapper = nullptr;
-  STAAdapter* _sta_adapter = nullptr;
   FastSTA* _fast_sta = nullptr;
   SchemaWriter* _reporter = nullptr;
   Clock* _clock = nullptr;
@@ -409,7 +405,6 @@ auto Topology::formClock(const ClockTopologyInput& input) -> bool
   LOG_FATAL_IF(input.config == nullptr) << "Topology: clock topology config is null.";
   LOG_FATAL_IF(input.design == nullptr) << "Topology: clock topology design is null.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Topology: clock topology wrapper is null.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Topology: clock topology STA adapter is null.";
   LOG_FATAL_IF(input.fast_sta == nullptr) << "Topology: clock topology FastSTA is null.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Topology: clock topology reporter is null.";
   LOG_FATAL_IF(input.clock == nullptr) << "Topology: clock topology clock is null.";

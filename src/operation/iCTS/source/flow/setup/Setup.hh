@@ -30,7 +30,6 @@ namespace icts {
 class Config;
 class Design;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 
 struct SetupInput
@@ -38,7 +37,6 @@ struct SetupInput
   Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   SchemaWriter* reporter = nullptr;
   std::string config_file;
   std::string work_dir;
@@ -47,7 +45,7 @@ struct SetupInput
 struct RuntimeSetupInput
 {
   const Config* config = nullptr;
-  STAAdapter* sta_adapter = nullptr;
+  const Wrapper* wrapper = nullptr;
   SchemaWriter* reporter = nullptr;
 };
 

@@ -49,7 +49,7 @@ class SchemaWriter;
 class BufferingPattern;
 class FastSTA;
 class SegmentChar;
-class STAAdapter;
+class Wrapper;
 struct CharBuilderInput
 {
   std::vector<std::string> buffer_types;
@@ -57,7 +57,7 @@ struct CharBuilderInput
   ClockRouteSegmentRc clock_route_segment_rc;
   std::optional<std::int32_t> dbu_per_um = std::nullopt;
   double root_input_slew_ns = 0.0;
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
 };

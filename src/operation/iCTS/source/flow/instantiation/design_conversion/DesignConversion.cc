@@ -39,13 +39,13 @@
 #include <vector>
 
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/ClockLayout.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
 #include "design/Pin.hh"
+#include "io/Wrapper.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -94,17 +94,17 @@ auto makeSinkDomainName(SinkDomainKind sink_domain) -> std::string
   return "unknown";
 }
 
-auto resolveBufferDriveCap(STAAdapter& sta_adapter, const std::string& cell_master) -> double
+auto resolveBufferDriveCap(Wrapper& wrapper, const std::string& cell_master) -> double
 {
-  double drive_cap_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
+  double drive_cap_pf = wrapper.queryCellOutPinCapLimit(cell_master);
   if (drive_cap_pf <= 0.0) {
-    drive_cap_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+    drive_cap_pf = wrapper.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return drive_cap_pf;
 }
 
-auto resolveBufferPortsAndDrive(STAAdapter& sta_adapter, const std::string& cell_master, bool require_output_drive,
-                                std::string& input_pin_name, std::string& output_pin_name, double& output_drive_cap_pf) -> bool
+auto resolveBufferPortsAndDrive(Wrapper& wrapper, const std::string& cell_master, bool require_output_drive, std::string& input_pin_name,
+                                std::string& output_pin_name, double& output_drive_cap_pf) -> bool
 {
   input_pin_name.clear();
   output_pin_name.clear();
@@ -113,14 +113,14 @@ auto resolveBufferPortsAndDrive(STAAdapter& sta_adapter, const std::string& cell
     return false;
   }
 
-  auto [input_pin, output_pin] = sta_adapter.queryBufferPorts(cell_master);
+  auto [input_pin, output_pin] = wrapper.queryBufferPorts(cell_master);
   if (input_pin.empty() || output_pin.empty()) {
     LOG_WARNING << "DesignConversion: skip buffer master \"" << cell_master << "\" because buffer ports are unresolved.";
     return false;
   }
 
   if (require_output_drive) {
-    output_drive_cap_pf = resolveBufferDriveCap(sta_adapter, cell_master);
+    output_drive_cap_pf = resolveBufferDriveCap(wrapper, cell_master);
     if (output_drive_cap_pf <= 0.0) {
       LOG_WARNING << "DesignConversion: skip buffer master \"" << cell_master << "\" because output drive cap is unresolved.";
       return false;
@@ -132,7 +132,7 @@ auto resolveBufferPortsAndDrive(STAAdapter& sta_adapter, const std::string& cell
   return true;
 }
 
-auto resolveMinimumDriveRootBuffer(STAAdapter& sta_adapter, const std::vector<std::string>& buffer_types, std::string& cell_master,
+auto resolveMinimumDriveRootBuffer(Wrapper& wrapper, const std::vector<std::string>& buffer_types, std::string& cell_master,
                                    std::string& input_pin_name, std::string& output_pin_name) -> bool
 {
   cell_master.clear();
@@ -152,7 +152,7 @@ auto resolveMinimumDriveRootBuffer(STAAdapter& sta_adapter, const std::vector<st
     std::string candidate_input_pin;
     std::string candidate_output_pin;
     double candidate_drive_cap_pf = 0.0;
-    if (!resolveBufferPortsAndDrive(sta_adapter, candidate_cell_master, true, candidate_input_pin, candidate_output_pin,
+    if (!resolveBufferPortsAndDrive(wrapper, candidate_cell_master, true, candidate_input_pin, candidate_output_pin,
                                     candidate_drive_cap_pf)) {
       continue;
     }
@@ -329,12 +329,12 @@ auto DesignConversion::addRootBufferForSinkDomain(const SinkDomainRootBufferSele
 {
   LOG_FATAL_IF(input.design == nullptr) << "DesignConversion: root-buffer insertion design is null.";
   LOG_FATAL_IF(input.clock == nullptr) << "DesignConversion: root-buffer insertion clock is null.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "DesignConversion: root-buffer insertion STA adapter is null.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "DesignConversion: root-buffer insertion Wrapper is null.";
 
   std::string cell_master;
   std::string input_pin_name;
   std::string output_pin_name;
-  if (!resolveMinimumDriveRootBuffer(*input.sta_adapter, input.buffer_types, cell_master, input_pin_name, output_pin_name)) {
+  if (!resolveMinimumDriveRootBuffer(*input.wrapper, input.buffer_types, cell_master, input_pin_name, output_pin_name)) {
     return SinkDomainRootBufferOutput{};
   }
   return addRootBufferForSinkDomain(SinkDomainRootBufferInput{

@@ -39,7 +39,6 @@
 #include "Qor.hh"
 #include "SteinerTree.hh"
 #include "TimingEngine.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
@@ -47,7 +46,6 @@
 #include "evaluation/qor/ClockQorMetricCollector.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "io/Wrapper.hh"
-#include "logger/LogFormat.hh"
 #include "logger/Schema.hh"
 #include "router/Router.hh"
 
@@ -169,59 +167,16 @@ auto instTypeName(const Inst& inst) -> std::string
   return "Others";
 }
 
-auto calcInstInputPinCapPf(STAAdapter& sta_adapter, const Inst& inst) -> double
+auto calcInstInputPinCapPf(Wrapper& wrapper, const Inst& inst) -> double
 {
   double total_cap_pf = 0.0;
   for (const auto* pin : inst.get_pins()) {
     if (pin == nullptr || pin->get_inst() != &inst) {
       continue;
     }
-    total_cap_pf += sta_adapter.queryPinCapacitance(pin);
+    total_cap_pf += wrapper.queryPinCapacitance(pin);
   }
   return total_cap_pf;
-}
-
-auto emitClockTimingTables(SchemaWriter& reporter, const QorSummary& summary) -> void
-{
-  if (!summary.clocks_timing.empty()) {
-    TableRows rows;
-    rows.reserve(summary.clocks_timing.size());
-    for (const auto& timing : summary.clocks_timing) {
-      rows.push_back({
-          timing.clock_name,
-          logformat::FormatFixed(timing.setup_tns, 3),
-          logformat::FormatFixed(timing.setup_wns, 3),
-          logformat::FormatFixed(timing.hold_tns, 3),
-          logformat::FormatFixed(timing.hold_wns, 3),
-          logformat::FormatFixed(timing.suggest_freq, 3),
-      });
-    }
-    EmitTable(reporter, "CTS Clock Timing Overview",
-              {"Clock", "Setup TNS (ns)", "Setup WNS (ns)", "Hold TNS (ns)", "Hold WNS (ns)", "Suggested Frequency (MHz)"}, rows);
-  }
-
-  if (!summary.clocks_latency_skew.empty()) {
-    TableRows rows;
-    rows.reserve(summary.clocks_latency_skew.size());
-    for (const auto& metric : summary.clocks_latency_skew) {
-      rows.push_back({
-          metric.clock_name,
-          metric.analysis_mode,
-          metric.launch_pin,
-          metric.capture_pin,
-          logformat::FormatFixed(metric.launch_latency_ns, 3),
-          logformat::FormatFixed(metric.capture_latency_ns, 3),
-          logformat::FormatFixed(metric.worst_skew_ns, 3),
-          logformat::FormatFixed(metric.average_worst_skew_ns, 3),
-          std::to_string(metric.path_count),
-          std::to_string(metric.average_sample_count),
-      });
-    }
-    EmitTable(reporter, "CTS Clock Latency Skew Overview",
-              {"Clock", "Mode", "Launch Pin", "Capture Pin", "Launch Latency (ns)", "Capture Latency (ns)", "Worst Skew (ns)",
-               "Average Worst Skew (ns)", "Path Count", "Average Sample Count"},
-              rows);
-  }
 }
 
 }  // namespace
@@ -235,11 +190,8 @@ auto ClearSummary(QorSummary& summary) -> void
 {
   summary.has_evaluation_result = false;
   summary.qor_metric_status = "unavailable";
-  summary.timing_metric_source = "unavailable";
   summary.physical_metric_source = "unavailable";
   summary.path_depth_metric_status = "unavailable";
-  summary.sta_clocks_propagated = false;
-  summary.propagated_clock_count = 0U;
   summary.final_clock_buffer_count = 0;
   summary.final_buffer_area_um2 = 0.0;
   summary.clock_member_buffer_count = 0;
@@ -255,8 +207,6 @@ auto ClearSummary(QorSummary& summary) -> void
   summary.feature_max_clock_network_level = 0;
   summary.max_clock_wirelength = 0;
   summary.total_clock_wirelength = 0.0;
-  summary.clocks_timing.clear();
-  summary.clocks_latency_skew.clear();
 }
 
 auto SyncCompatibilityAliases(QorSummary& summary) -> void
@@ -302,7 +252,7 @@ auto ClassifyClockNet(const Clock& clock, const Net* net) -> ClockNetRole
   return ClockNetRole::kTrunk;
 }
 
-auto AccumulateInstStatistics(STAAdapter& sta_adapter, const Inst& inst, Qor& statistics) -> void
+auto AccumulateInstStatistics(Wrapper& wrapper, const Inst& inst, Qor& statistics) -> void
 {
   if (!inst.is_buffer()) {
     return;
@@ -314,8 +264,8 @@ auto AccumulateInstStatistics(STAAdapter& sta_adapter, const Inst& inst, Qor& st
   }
 
   const std::string cell_type = instTypeName(inst);
-  const double area_um2 = sta_adapter.queryCellAreaUm2(cell_master);
-  const double cap_pf = calcInstInputPinCapPf(sta_adapter, inst);
+  const double area_um2 = wrapper.queryCellAreaUm2(cell_master);
+  const double cap_pf = calcInstInputPinCapPf(wrapper, inst);
 
   auto& cell_stat = statistics.cell_stats[cell_type];
   ++cell_stat.count;
@@ -328,13 +278,11 @@ auto AccumulateInstStatistics(STAAdapter& sta_adapter, const Inst& inst, Qor& st
   lib_dist.total_area_um2 += area_um2;
 }
 
-auto InstallClockNetRcTreeAndMeasure(const ClockNetMeasurementInput& input) -> std::optional<ClockNetMeasurement>
+auto MeasureClockNet(const ClockNetMeasurementInput& input) -> std::optional<ClockNetMeasurement>
 {
   LOG_FATAL_IF(input.config == nullptr) << "CTS QoR clock-net measurement requires config.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "CTS QoR clock-net measurement requires STA adapter.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "CTS QoR clock-net measurement requires wrapper.";
   const auto& config = *input.config;
-  auto& sta_adapter = *input.sta_adapter;
   auto& wrapper = *input.wrapper;
   auto* net = input.net;
   auto route_tree = net == nullptr ? Router::ClockSteinerTreeType{} : Router::buildClockNetTree(*net);
@@ -345,12 +293,8 @@ auto InstallClockNetRcTreeAndMeasure(const ClockNetMeasurementInput& input) -> s
   const auto wirelength = calcRouteWirelength(route_tree);
   const auto hpwl = calcHpwlDbu(net);
 
-  if (input.install_sta_rc_tree && net != nullptr) {
-    (void) sta_adapter.installClockNetRcTree(config, *net, route_tree);
-  }
-
   if (wrapper.is_design_ready()) {
-    auto rc_tree = Router::buildRCTree(route_tree, sta_adapter.queryConfiguredClockRouteSegmentRc(config));
+    auto rc_tree = Router::buildRCTree(route_tree, wrapper.queryConfiguredClockRouteSegmentRc(config));
     auto timing_metrics = TimingEngine::update(rc_tree);
     (void) timing_metrics;
   }
@@ -377,70 +321,12 @@ auto AppendClockNetStatistics(const std::vector<ClockNetMeasurement>& measuremen
   }
 }
 
-auto AppendClockTimings(const ClockTimingAppendInput& input) -> void
-{
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "CTS QoR timing append requires STA adapter.";
-  LOG_FATAL_IF(input.reporter == nullptr) << "CTS QoR timing append requires reporter.";
-  LOG_FATAL_IF(input.summary == nullptr) << "CTS QoR timing append requires summary.";
-  auto& sta_adapter = *input.sta_adapter;
-  auto& reporter = *input.reporter;
-  auto& summary = *input.summary;
-
-  if (!input.query_sta_timing) {
-    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
-                   "clock timing metrics were not queried because STA timing context is unavailable.", {{"timing_source", "STA"}});
-    return;
-  }
-
-  const auto timing_records = sta_adapter.queryClockTimings();
-  if (timing_records.empty()) {
-    EmitDiagnostic(reporter, DiagnosticLevel::kWarning, "CTS Evaluation",
-                   "clock timing metrics are unavailable from STA; timing fields are reported as unavailable.", {{"timing_source", "STA"}});
-    return;
-  }
-  summary.clocks_timing.reserve(summary.clocks_timing.size() + timing_records.size());
-  for (const auto& timing_record : timing_records) {
-    summary.clocks_timing.push_back(QorSummary::ClockTiming{
-        .clock_name = timing_record.clock_name,
-        .setup_tns = timing_record.metrics.setup_tns,
-        .setup_wns = timing_record.metrics.setup_wns,
-        .hold_tns = timing_record.metrics.hold_tns,
-        .hold_wns = timing_record.metrics.hold_wns,
-        .suggest_freq = timing_record.metrics.suggest_freq,
-    });
-  }
-}
-
-auto AppendClockLatencySkew(STAAdapter& sta_adapter, QorSummary& summary) -> void
-{
-  auto latency_skew_metrics = sta_adapter.queryClockLatencySkew();
-  summary.clocks_latency_skew.reserve(summary.clocks_latency_skew.size() + latency_skew_metrics.size());
-  for (const auto& metric : latency_skew_metrics) {
-    summary.clocks_latency_skew.push_back(QorSummary::ClockLatencySkew{
-        .clock_name = metric.clock_name,
-        .analysis_mode = metric.analysis_mode,
-        .launch_pin = metric.launch_pin,
-        .capture_pin = metric.capture_pin,
-        .launch_latency_ns = metric.launch_latency_ns,
-        .capture_latency_ns = metric.capture_latency_ns,
-        .worst_skew_ns = metric.worst_skew_ns,
-        .average_worst_skew_ns = metric.average_worst_skew_ns,
-        .path_count = metric.path_count,
-        .average_sample_count = metric.average_sample_count,
-    });
-  }
-}
-
-auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary, bool refreshed_sta) -> void
+auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary) -> void
 {
   const bool path_depth_available = summary.path_depth_metric_status == "available";
   EmitKeyValueTable(reporter, "CTS Evaluation Overview",
                     {
-                        {"sta_timing_refreshed", refreshed_sta ? "true" : "false"},
-                        {"sdc_clocks_propagated", summary.sta_clocks_propagated ? "true" : "false"},
-                        {"propagated_clock_count", std::to_string(summary.propagated_clock_count)},
                         {"qor_metric_status", summary.qor_metric_status},
-                        {"timing_metric_source", summary.timing_metric_source},
                         {"physical_metric_source", summary.physical_metric_source},
                         {"clock_member_buffer_count", std::to_string(summary.clock_member_buffer_count)},
                         {"path_depth_metric_status", summary.path_depth_metric_status},
@@ -450,7 +336,6 @@ auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary, bo
                         {"design_units", std::to_string(summary.design_dbu_per_um) + " DBU/um"},
                         {"statistics_reports", "wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt"},
                     });
-  emitClockTimingTables(reporter, summary);
 }
 
 }  // namespace icts::qor_evaluation

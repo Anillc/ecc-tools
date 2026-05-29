@@ -69,11 +69,11 @@ auto FinalizeSelectedHTreeSolution(HTreeSynthesisState& state, SchemaWriter::Sta
   auto& segment_pattern_library = state.segmentPatterns();
 
   LOG_FATAL_IF(input.design == nullptr) << "HTree selected-solution finalization requires explicit Design dependency.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree selected-solution finalization requires explicit STAAdapter dependency.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "HTree selected-solution finalization requires explicit Wrapper dependency.";
   LOG_FATAL_IF(input.reporter == nullptr) << "HTree selected-solution finalization requires explicit reporter dependency.";
 
   auto& design = *input.design;
-  auto& sta_adapter = *input.sta_adapter;
+  auto& wrapper = *input.wrapper;
   auto& reporter = *input.reporter;
   const auto& selected_evaluation = selected_solution.evaluation;
   const auto& selected_summary = selected_solution.summary;
@@ -121,9 +121,9 @@ auto FinalizeSelectedHTreeSolution(HTreeSynthesisState& state, SchemaWriter::Sta
   }
 
   result.output.best_pattern = selected_evaluation.topology_pattern_library.materialize(result.output.best_char->get_pattern_id());
-  ApplySelectedPatternToLevelPlans(sta_adapter, result, segment_pattern_library);
+  ApplySelectedPatternToLevelPlans(wrapper, result, segment_pattern_library);
   const std::string selected_root_driver_cell_master = ResolveSelectedRootDriverCellMaster(result.output.levels);
-  if (config.enable_root_driver_sizing && !ValidateRootDriverSizing(design, sta_adapter, result, selected_root_driver_cell_master)) {
+  if (config.enable_root_driver_sizing && !ValidateRootDriverSizing(design, wrapper, result, selected_root_driver_cell_master)) {
     result.summary.failure_reason = "root_driver_sizing_precheck_failed";
     build_stage.failed({{"reason", result.summary.failure_reason}, {"selection_engine", selection_engine}});
     return false;
@@ -137,12 +137,12 @@ auto FinalizeSelectedHTreeSolution(HTreeSynthesisState& state, SchemaWriter::Sta
                                                    {"selection_engine", selection_engine},
                                                },
                                                DetailStageReportOptions());
-    BuildEmbedding(design, sta_adapter, result, segment_pattern_library);
+    BuildEmbedding(design, wrapper, result, segment_pattern_library);
     result.summary.success = result.summary.failure_reason.empty() && result.output.best_char.has_value()
                              && result.output.best_pattern.has_value() && result.output.root_output_pin != nullptr
                              && result.output.root_net != nullptr;
     if (result.summary.success && config.enable_root_driver_sizing) {
-      LOG_FATAL_IF(!ApplyRootDriverSizing(design, sta_adapter, result, selected_root_driver_cell_master))
+      LOG_FATAL_IF(!ApplyRootDriverSizing(design, wrapper, result, selected_root_driver_cell_master))
           << "HTree: prevalidated root-driver sizing failed during embedding construction.";
     } else if (result.summary.success && result.output.root_inst != nullptr) {
       result.diagnostics.selected_root_driver_cell_master = result.output.root_inst->get_cell_master();

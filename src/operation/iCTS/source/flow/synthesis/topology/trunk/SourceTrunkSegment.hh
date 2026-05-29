@@ -41,7 +41,7 @@ namespace icts {
 
 class CharacterizationLibrary;
 class SchemaWriter;
-class STAAdapter;
+class Wrapper;
 class SourceTrunkSegment
 {
  public:
@@ -51,7 +51,7 @@ class SourceTrunkSegment
     Pin* source = nullptr;
     Pin* sink = nullptr;
     CharacterizationLibrary* characterization_library = nullptr;
-    STAAdapter* sta_adapter = nullptr;
+    Wrapper* wrapper = nullptr;
     CharBuilder::Input characterization_input;
     CharBuilder::Config characterization_config;
     SchemaWriter* reporter = nullptr;

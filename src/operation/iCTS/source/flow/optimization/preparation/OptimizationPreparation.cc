@@ -42,13 +42,13 @@
 #include "Log.hh"
 #include "Point.hh"
 #include "SteinerTree.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/ClockDAG.hh"
 #include "design/ClockLayout.hh"
 #include "design/Design.hh"
 #include "design/Inst.hh"
 #include "design/Net.hh"
+#include "io/Wrapper.hh"
 #include "optimization/model/ClockSizingOptimizationData.hh"
 #include "optimization/policy/OptimizationPolicy.hh"
 #include "optimization/report/OptimizationReport.hh"
@@ -120,11 +120,11 @@ auto CopyOuterProfile(ClockSizingRuntimeProfile& destination, const ClockSizingR
 
 namespace {
 
-auto ResolveOutputCapLimit(STAAdapter& sta_adapter, const std::string& cell_master) -> double
+auto ResolveOutputCapLimit(Wrapper& wrapper, const std::string& cell_master) -> double
 {
-  double max_cap_pf = sta_adapter.queryCellOutPinCapLimit(cell_master);
+  double max_cap_pf = wrapper.queryCellOutPinCapLimit(cell_master);
   if (max_cap_pf <= 0.0) {
-    max_cap_pf = sta_adapter.queryCellOutPinCapTableAxisMax(cell_master);
+    max_cap_pf = wrapper.queryCellOutPinCapTableAxisMax(cell_master);
   }
   return max_cap_pf;
 }
@@ -133,24 +133,24 @@ auto ResolveOutputCapLimit(STAAdapter& sta_adapter, const std::string& cell_mast
 
 auto CollectClockSizingBufferMasters(const ClockSizingMasterQueryInput& input) -> std::vector<ClockSizingBufferMaster>
 {
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Optimization: buffer master query requires STA adapter.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "Optimization: buffer master query requires Wrapper.";
   LOG_FATAL_IF(input.buffer_cell_masters == nullptr) << "Optimization: buffer master query requires candidate masters.";
-  auto& sta_adapter = *input.sta_adapter;
+  auto& wrapper = *input.wrapper;
   std::vector<ClockSizingBufferMaster> infos;
   infos.reserve(input.buffer_cell_masters->size());
   for (const auto& cell_master : *input.buffer_cell_masters) {
     if (cell_master.empty()) {
       continue;
     }
-    const double output_cap_limit_pf = ResolveOutputCapLimit(sta_adapter, cell_master);
-    const double input_cap_pf = sta_adapter.queryCharInputPinCap(cell_master);
+    const double output_cap_limit_pf = ResolveOutputCapLimit(wrapper, cell_master);
+    const double input_cap_pf = wrapper.queryCharInputPinCap(cell_master);
     if (output_cap_limit_pf <= 0.0 || input_cap_pf <= 0.0) {
       continue;
     }
     infos.push_back(ClockSizingBufferMaster{.cell_master = cell_master,
                                             .input_cap_pf = input_cap_pf,
                                             .output_cap_limit_pf = output_cap_limit_pf,
-                                            .area_um2 = std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master)),
+                                            .area_um2 = std::max(0.0, wrapper.queryCellAreaUm2(cell_master)),
                                             .drive_rank = 0U});
   }
 

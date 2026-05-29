@@ -9,7 +9,6 @@ target_link_libraries(
   icts_source_database_routing
   icts_source_module_characterization
   PRIVATE
-  icts_source_database_adapter_sta
   icts_source_database_config
   icts_source_database_io
   icts_source_utils_logger

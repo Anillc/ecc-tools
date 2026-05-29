@@ -35,7 +35,7 @@ class Design;
 class Inst;
 class Net;
 class Pin;
-class STAAdapter;
+class Wrapper;
 enum class SinkDomainKind;
 
 struct ClockSinkPartitionOutput
@@ -80,7 +80,7 @@ struct SinkDomainRootBufferSelectionInput
 {
   Design* design = nullptr;
   Clock* clock = nullptr;
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   std::string domain_prefix;
   std::vector<std::string> buffer_types;
   std::vector<Pin*> sinks;

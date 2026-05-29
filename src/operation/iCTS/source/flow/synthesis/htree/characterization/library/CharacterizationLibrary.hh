@@ -36,14 +36,12 @@ namespace icts {
 class Config;
 class FastSTA;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 
 struct CharacterizationRuntimeInput
 {
   const Config* config = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
 };

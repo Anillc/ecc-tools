@@ -51,8 +51,8 @@ class Evaluation
  public:
   Evaluation() = delete;
 
-  static auto run(EvaluationState evaluation_state, const EvaluationInput& input, const EvaluationConfig& config = {}) -> EvaluationBuild;
-  static auto evaluate(EvaluationState& state, const EvaluationInput& input, const EvaluationConfig& config) -> void;
+  static auto run(EvaluationState evaluation_state, const EvaluationInput& input) -> EvaluationBuild;
+  static auto evaluate(EvaluationState& state, const EvaluationInput& input) -> void;
   static auto outputSummary(const EvaluationState& state) -> QorSummary;
   static auto isEvaluationReady(const EvaluationState& state) -> bool;
   static auto reset(EvaluationState& state) -> void;

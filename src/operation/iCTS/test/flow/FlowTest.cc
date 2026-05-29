@@ -148,7 +148,6 @@ TEST(FlowTest, AllSkippedSynthesisReportsNoOp)
       .config = &runtime.config,
       .design = &runtime.design,
       .wrapper = &runtime.wrapper,
-      .sta_adapter = &runtime.sta_adapter,
       .fast_sta = &runtime.fast_sta,
       .reporter = &runtime.reporter,
       .clock_layout = &clock_layout,
@@ -179,10 +178,7 @@ TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
   const auto qor_summary = scoped_flow_reset.flow.outputSummary();
   EXPECT_FALSE(qor_summary.has_evaluation_result);
   EXPECT_EQ(qor_summary.qor_metric_status, "unavailable");
-  EXPECT_EQ(qor_summary.timing_metric_source, "unavailable");
   EXPECT_EQ(qor_summary.physical_metric_source, "unavailable");
-  EXPECT_TRUE(qor_summary.clocks_timing.empty());
-  EXPECT_TRUE(qor_summary.clocks_latency_skew.empty());
 }
 
 TEST(FlowTest, ClockDistributionSummaryUsesMacroSinkTerminology)
@@ -308,7 +304,6 @@ TEST(FlowTest, RootBufferInsertionFailureRestoresClockMembershipAndRecordsSinkDo
       .config = &runtime.config,
       .design = &runtime.design,
       .wrapper = &runtime.wrapper,
-      .sta_adapter = &runtime.sta_adapter,
       .fast_sta = &runtime.fast_sta,
       .reporter = &runtime.reporter,
       .clock_layout = &clock_layout,
@@ -342,7 +337,7 @@ TEST(FlowTest, DownstreamNetCreationFailureRestoresClockMembershipAndRecordsSink
   const auto prepared = icts::ClockDistribution::prepare(icts::ClockDistributionInput{
       .design = &icts_test::runtime::CurrentRuntime().design,
       .clock = pins.clock,
-      .sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter,
+      .wrapper = &icts_test::runtime::CurrentRuntime().wrapper,
       .clock_index = 0U,
       .sink_domain = icts::SinkDomainKind::kRegular,
       .sinks = std::vector<icts::Pin*>{pins.regular_sink},
@@ -373,7 +368,7 @@ TEST(FlowTest, TopologyResetRestoresPreparedSinkDomainAndKeepsPendingClockLayout
   const auto context = icts::ClockDistribution::prepare(icts::ClockDistributionInput{
       .design = &icts_test::runtime::CurrentRuntime().design,
       .clock = pins.clock,
-      .sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter,
+      .wrapper = &icts_test::runtime::CurrentRuntime().wrapper,
       .clock_index = 0U,
       .sink_domain = icts::SinkDomainKind::kRegular,
       .sinks = std::vector<icts::Pin*>{pins.regular_sink},
@@ -405,7 +400,7 @@ TEST(FlowTest, SourceToRootFailureRestoresPreparedSinkDomainsAndRecordsStatus)
   auto context = icts::ClockDistribution::prepare(icts::ClockDistributionInput{
       .design = &icts_test::runtime::CurrentRuntime().design,
       .clock = pins.clock,
-      .sta_adapter = &icts_test::runtime::CurrentRuntime().sta_adapter,
+      .wrapper = &icts_test::runtime::CurrentRuntime().wrapper,
       .clock_index = 0U,
       .sink_domain = icts::SinkDomainKind::kRegular,
       .sinks = std::vector<icts::Pin*>{pins.regular_sink},
@@ -432,7 +427,6 @@ TEST(FlowTest, SourceToRootFailureRestoresPreparedSinkDomainsAndRecordsStatus)
       .config = &runtime.config,
       .design = &runtime.design,
       .wrapper = &runtime.wrapper,
-      .sta_adapter = &runtime.sta_adapter,
       .fast_sta = &runtime.fast_sta,
       .reporter = &runtime.reporter,
       .clock = pins.clock,
@@ -464,7 +458,6 @@ TEST(FlowTest, EvaluateWithoutSuccessfulInstantiationLeavesSummaryUnavailableAnd
   const auto summary = icts::CTSAPI::outputSummary();
   EXPECT_EQ(summary.buffer_num, 0);
   EXPECT_EQ(summary.clock_path_min_buffer, 0);
-  EXPECT_TRUE(summary.clocks_timing.empty());
 }
 
 }  // namespace

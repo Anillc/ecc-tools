@@ -87,10 +87,10 @@ auto CharCircuitBuilder::createCharCircuit(const TopologyDesc& topo, const std::
   }
 
   _impl._char_clock_name = id_prefix + "clk";
-  LOG_FATAL_IF(_impl._sta_adapter == nullptr) << "CharCircuitBuilder: STAAdapter dependency is not configured.";
+  LOG_FATAL_IF(_impl._wrapper == nullptr) << "CharCircuitBuilder: Wrapper dependency is not configured.";
   LOG_FATAL_IF(_impl._fast_sta == nullptr) << "CharCircuitBuilder: FastSTA dependency is not configured.";
   _impl._fast_sta_char_context_id = _impl._fast_sta->buildCharContext(::icts::FastStaCharTopologySpec{
-      .sta_adapter = _impl._sta_adapter,
+      .wrapper = _impl._wrapper,
       .source_cell_master = source_buf.cell_master,
       .sink_cell_master = sink_buf.cell_master,
       .buffer_cell_masters = buf_masters,

@@ -37,7 +37,7 @@
 #include "HTreeTopologyPattern.hh"
 #include "Log.hh"
 #include "PatternId.hh"
-#include "STAAdapter.hh"
+#include "io/Wrapper.hh"
 #include "synthesis/htree/HTree.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 
@@ -77,19 +77,18 @@ auto SaturatingMultiply(std::size_t lhs, std::size_t rhs) -> std::size_t
   return lhs * rhs;
 }
 
-auto CalcCellMastersAreaUm2(STAAdapter& sta_adapter, const std::vector<std::string>& cell_masters) -> double
+auto CalcCellMastersAreaUm2(Wrapper& wrapper, const std::vector<std::string>& cell_masters) -> double
 {
   double area_um2 = 0.0;
   for (const auto& cell_master : cell_masters) {
-    area_um2 += std::max(0.0, sta_adapter.queryCellAreaUm2(cell_master));
+    area_um2 += std::max(0.0, wrapper.queryCellAreaUm2(cell_master));
   }
   return area_um2;
 }
 
 }  // namespace
 
-auto ApplySelectedPatternToLevelPlans(STAAdapter& sta_adapter, HTree::Build& result, const BufferPatternLibrary& segment_pattern_library)
-    -> void
+auto ApplySelectedPatternToLevelPlans(Wrapper& wrapper, HTree::Build& result, const BufferPatternLibrary& segment_pattern_library) -> void
 {
   LOG_FATAL_IF(!result.output.best_pattern.has_value()) << "HTree: selected topology pattern is missing.";
   const auto& best_level_segment_pattern_ids = result.output.best_pattern->get_level_segment_pattern_ids();
@@ -110,7 +109,7 @@ auto ApplySelectedPatternToLevelPlans(STAAdapter& sta_adapter, HTree::Build& res
     level.selected_has_terminal_branch_buffer = segment_pattern->hasTerminalBranchBuffer();
     level.selected_terminal_cell_master = segment_pattern->hasTerminalBranchBuffer() && !cell_masters.empty() ? cell_masters.back() : "";
     level.selected_buffer_count = cell_masters.size();
-    level.selected_buffer_area_um2 = CalcCellMastersAreaUm2(sta_adapter, cell_masters);
+    level.selected_buffer_area_um2 = CalcCellMastersAreaUm2(wrapper, cell_masters);
     level.selected_weighted_buffer_count = SaturatingMultiply(level_multiplicity, level.selected_buffer_count);
     level.selected_weighted_buffer_area_um2 = static_cast<double>(level_multiplicity) * level.selected_buffer_area_um2;
   }

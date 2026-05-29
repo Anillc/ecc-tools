@@ -43,7 +43,7 @@ auto addRootBuffer(const ClockDistributionInput& input, const std::string& domai
     return DesignConversion::addRootBufferForSinkDomain(SinkDomainRootBufferSelectionInput{
         .design = input.design,
         .clock = input.clock,
-        .sta_adapter = input.sta_adapter,
+        .wrapper = input.wrapper,
         .domain_prefix = domain_prefix,
         .buffer_types = input.root_buffer_types,
         .sinks = input.sinks,
@@ -76,7 +76,7 @@ auto ClockDistribution::prepare(const ClockDistributionInput& input) -> std::opt
 {
   LOG_FATAL_IF(input.design == nullptr) << "ClockDistribution: design is null.";
   LOG_FATAL_IF(input.clock == nullptr) << "ClockDistribution: clock is null.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "ClockDistribution: STA adapter is null.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "ClockDistribution: Wrapper is null.";
   LOG_FATAL_IF(input.status_table == nullptr) << "ClockDistribution: status table is null.";
 
   if (input.sinks.empty()) {

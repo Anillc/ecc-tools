@@ -26,7 +26,6 @@
 #include <string>
 
 #include "database/adapter/fast_sta/FastSta.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Design.hh"
 #include "database/io/Wrapper.hh"
@@ -46,7 +45,6 @@ struct CTSRuntime
   Config config;
   Design design;
   Wrapper wrapper;
-  STAAdapter sta_adapter;
   FastSTA fast_sta;
   SchemaWriter reporter;
 

@@ -33,12 +33,9 @@
 namespace icts {
 
 class Clock;
-class ClockLayout;
-class Design;
 class Inst;
 class Net;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 
 namespace qor_evaluation {
@@ -60,29 +57,9 @@ struct ClockNetMeasurement
 struct ClockNetMeasurementInput
 {
   const Config* config = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   Wrapper* wrapper = nullptr;
   Net* net = nullptr;
   ClockNetRole role = ClockNetRole::kTrunk;
-  bool install_sta_rc_tree = false;
-};
-
-struct ClockTimingAppendInput
-{
-  STAAdapter* sta_adapter = nullptr;
-  SchemaWriter* reporter = nullptr;
-  bool query_sta_timing = false;
-  QorSummary* summary = nullptr;
-};
-
-struct RootInputToLeafOutputProbeReportInput
-{
-  STAAdapter* sta_adapter = nullptr;
-  Design* design = nullptr;
-  SchemaWriter* reporter = nullptr;
-  const std::vector<Clock*>* clocks = nullptr;
-  const ClockLayout* clock_layout = nullptr;
-  bool query_sta_timing = false;
 };
 
 auto ClearStatistics(Qor& statistics) -> void;
@@ -90,13 +67,10 @@ auto ClearSummary(QorSummary& summary) -> void;
 auto SyncCompatibilityAliases(QorSummary& summary) -> void;
 auto AppendPathDepthStats(const ClockDAG::PathBufferStats& path_stats, QorSummary& summary) -> void;
 auto ClassifyClockNet(const Clock& clock, const Net* net) -> ClockNetRole;
-auto AccumulateInstStatistics(STAAdapter& sta_adapter, const Inst& inst, Qor& statistics) -> void;
-auto InstallClockNetRcTreeAndMeasure(const ClockNetMeasurementInput& input) -> std::optional<ClockNetMeasurement>;
+auto AccumulateInstStatistics(Wrapper& wrapper, const Inst& inst, Qor& statistics) -> void;
+auto MeasureClockNet(const ClockNetMeasurementInput& input) -> std::optional<ClockNetMeasurement>;
 auto AppendClockNetStatistics(const std::vector<ClockNetMeasurement>& measurements, QorSummary& summary, Qor& statistics) -> void;
-auto AppendClockTimings(const ClockTimingAppendInput& input) -> void;
-auto AppendClockLatencySkew(STAAdapter& sta_adapter, QorSummary& summary) -> void;
-auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary, bool refreshed_sta) -> void;
-auto EmitRootInputToLeafOutputProbeReport(const RootInputToLeafOutputProbeReportInput& input) -> void;
+auto EmitEvaluationSummary(SchemaWriter& reporter, const QorSummary& summary) -> void;
 
 }  // namespace qor_evaluation
 }  // namespace icts

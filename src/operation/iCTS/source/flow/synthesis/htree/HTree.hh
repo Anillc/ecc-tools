@@ -44,7 +44,7 @@ namespace icts {
 class CharacterizationLibrary;
 class Design;
 class SchemaWriter;
-class STAAdapter;
+class Wrapper;
 
 class HTree
 {
@@ -68,7 +68,7 @@ class HTree
   {
     Net* root_net = nullptr;
     Design* design = nullptr;
-    STAAdapter* sta_adapter = nullptr;
+    Wrapper* wrapper = nullptr;
     SchemaWriter* reporter = nullptr;
     CharacterizationLibrary* characterization_library = nullptr;
     CharBuilder::Input characterization_input;

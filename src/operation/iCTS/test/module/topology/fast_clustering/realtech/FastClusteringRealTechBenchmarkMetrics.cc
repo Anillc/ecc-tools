@@ -28,9 +28,9 @@
 #include <vector>
 
 #include "FastClusteringRealTechBenchmarkFixture.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Pin.hh"
+#include "database/io/Wrapper.hh"
 #include "database/spatial/Point.hh"
 #include "module/topology/clustering/Clustering.hh"
 #include "module/topology/config/TopologyConfig.hh"
@@ -176,13 +176,13 @@ auto BuildBenchmarkConfig(const std::vector<icts::Pin*>& loads) -> icts::Cluster
   auto config = icts::FastClustering::buildElectricalBaseConfig(icts_test::runtime::CurrentRuntime().config.get_max_fanout(),
                                                                 icts_test::runtime::CurrentRuntime().config.get_max_cap());
   config.clock_route_segment_rc
-      = icts_test::runtime::CurrentRuntime().sta_adapter.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
+      = icts_test::runtime::CurrentRuntime().wrapper.queryConfiguredClockRouteSegmentRc(icts_test::runtime::CurrentRuntime().config);
   config.sink_pin_cap_pf_by_pin.reserve(loads.size());
   for (const auto* pin : loads) {
     if (pin == nullptr) {
       continue;
     }
-    config.sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, icts_test::runtime::CurrentRuntime().sta_adapter.queryPinCapacitance(pin)));
+    config.sink_pin_cap_pf_by_pin.emplace(pin, std::max(0.0, icts_test::runtime::CurrentRuntime().wrapper.queryPinCapacitance(pin)));
   }
   config.enable_exact_cap = false;
   config.always_build_exact_cap = false;

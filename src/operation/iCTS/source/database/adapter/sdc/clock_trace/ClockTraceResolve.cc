@@ -140,9 +140,9 @@ auto OutputFunctionUsesInput(ista::LibCell* lib_cell, idb::IdbPin* output_pin, i
   return LibertyExpressionUsesPort(output_port->get_func_expr(), TermName(input_pin));
 }
 
-auto NetHasDirectClockSinks(idb::IdbNet* net) -> bool
+auto NetHasDirectClockSinks(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* net) -> bool
 {
-  return net != nullptr && IsClockTarget(CountDirectClockSinks(net));
+  return net != nullptr && IsClockTarget(CountDirectClockSinks(liberty_cell_lookup, net));
 }
 
 auto CountInputPinsOnNet(idb::IdbInstance* inst, idb::IdbNet* net) -> std::size_t
@@ -159,12 +159,12 @@ auto CountInputPinsOnNet(idb::IdbInstance* inst, idb::IdbNet* net) -> std::size_
   return input_pin_count;
 }
 
-auto CountClockTargetOutputs(const std::vector<idb::IdbPin*>& output_pins) -> std::size_t
+auto CountClockTargetOutputs(const SdcLibertyCellLookup& liberty_cell_lookup, const std::vector<idb::IdbPin*>& output_pins) -> std::size_t
 {
   std::size_t clock_target_output_count = 0U;
   for (auto* output_pin : output_pins) {
     auto* output_net = output_pin == nullptr ? nullptr : output_pin->get_net();
-    if (NetHasDirectClockSinks(output_net)) {
+    if (NetHasDirectClockSinks(liberty_cell_lookup, output_net)) {
       ++clock_target_output_count;
     }
   }
@@ -181,7 +181,7 @@ auto LibertyMarksClockInput(idb::IdbPin* input_pin, ista::LibCell* lib_cell) -> 
 }
 
 auto OtherInputsAreControlCandidates(idb::IdbInstance* inst, idb::IdbPin* clock_input_pin, ista::LibCell* lib_cell,
-                                     const CaseConstraintSet& case_constraints) -> bool
+                                     const CaseConstraintSet& case_constraints, const SdcLibertyCellLookup& liberty_cell_lookup) -> bool
 {
   bool has_other_input = false;
   for (auto* input_pin : CollectInputPins(inst)) {
@@ -192,7 +192,7 @@ auto OtherInputsAreControlCandidates(idb::IdbInstance* inst, idb::IdbPin* clock_
     if (IsCaseConstrained(input_pin, case_constraints)) {
       continue;
     }
-    if (LibertyMarksClockInput(input_pin, lib_cell) || NetHasDirectClockSinks(input_pin->get_net())) {
+    if (LibertyMarksClockInput(input_pin, lib_cell) || NetHasDirectClockSinks(liberty_cell_lookup, input_pin->get_net())) {
       return false;
     }
   }
@@ -211,7 +211,8 @@ auto AddOutputTransition(std::vector<TraceTransition>& transitions, idb::IdbPin*
   });
 }
 
-auto CollectSafeTransitions(idb::IdbNet* net, const CaseConstraintSet& case_constraints) -> std::vector<TraceTransition>
+auto CollectSafeTransitions(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbNet* net, const CaseConstraintSet& case_constraints)
+    -> std::vector<TraceTransition>
 {
   std::vector<TraceTransition> transitions;
   const auto net_pins = CollectNetPins(net);
@@ -220,7 +221,7 @@ auto CollectSafeTransitions(idb::IdbNet* net, const CaseConstraintSet& case_cons
       continue;
     }
     auto* inst = load_pin->get_instance();
-    auto* lib_cell = FindLibCell(inst);
+    auto* lib_cell = FindLibCell(liberty_cell_lookup, inst);
     if (inst == nullptr || IsSequentialCell(inst, lib_cell)) {
       continue;
     }
@@ -256,10 +257,10 @@ auto CollectSafeTransitions(idb::IdbNet* net, const CaseConstraintSet& case_cons
     const bool single_input_output_trace = input_pins.size() == 1U && input_pins.front() == load_pin && output_pins.size() == 1U;
     const bool constrained_gate = OtherInputsCaseConstrained(inst, load_pin, case_constraints);
     const bool single_clock_provenance_input = CountInputPinsOnNet(inst, net) == 1U && load_pin->get_net() == net;
-    const auto clock_target_output_count = CountClockTargetOutputs(output_pins);
+    const auto clock_target_output_count = CountClockTargetOutputs(liberty_cell_lookup, output_pins);
     const bool constrained_output_count = output_pins.size() == 1U || clock_target_output_count == 1U;
     const bool control_candidate_gate = constrained_output_count && single_clock_provenance_input
-                                        && OtherInputsAreControlCandidates(inst, load_pin, lib_cell, case_constraints);
+                                        && OtherInputsAreControlCandidates(inst, load_pin, lib_cell, case_constraints, liberty_cell_lookup);
     if (!single_input_output_trace && !constrained_gate && !control_candidate_gate) {
       continue;
     }
@@ -269,7 +270,7 @@ auto CollectSafeTransitions(idb::IdbNet* net, const CaseConstraintSet& case_cons
       if (output_net == nullptr) {
         continue;
       }
-      const auto output_stats = CountDirectClockSinks(output_net);
+      const auto output_stats = CountDirectClockSinks(liberty_cell_lookup, output_net);
       if (!OutputFunctionUsesInput(lib_cell, output_pin, load_pin) && !(control_candidate_gate && IsClockTarget(output_stats))) {
         continue;
       }
@@ -427,7 +428,8 @@ auto BuildGeneratedBoundaryOwners(idb::IdbDesign* idb_design, const SdcClockData
   return boundary_owner_by_net;
 }
 
-auto TraceClock(idb::IdbDesign* idb_design, const SdcClockDecl& clock, const CaseConstraintSet& case_constraints,
+auto TraceClock(const SdcLibertyCellLookup& liberty_cell_lookup, idb::IdbDesign* idb_design, const SdcClockDecl& clock,
+                const CaseConstraintSet& case_constraints,
                 const std::unordered_map<idb::IdbNet*, std::string>& generated_boundary_owner_by_net) -> std::vector<ClockTraceRecord>
 {
   std::vector<ClockTraceRecord> records;
@@ -480,7 +482,7 @@ auto TraceClock(idb::IdbDesign* idb_design, const SdcClockDecl& clock, const Cas
       continue;
     }
 
-    const auto stats = CountDirectClockSinks(node.net);
+    const auto stats = CountDirectClockSinks(liberty_cell_lookup, node.net);
     if (IsClockTarget(stats)) {
       records.push_back({clock.clock_name, node.net->get_net_name(), "accepted", TargetKind(stats), stats.sequential_clock_sinks,
                          stats.macro_clock_sinks, node.path, "sdc_reachable_clock_sink_net"});
@@ -492,7 +494,7 @@ auto TraceClock(idb::IdbDesign* idb_design, const SdcClockDecl& clock, const Cas
       continue;
     }
 
-    for (const auto& transition : CollectSafeTransitions(node.net, case_constraints)) {
+    for (const auto& transition : CollectSafeTransitions(liberty_cell_lookup, node.net, case_constraints)) {
       if (transition.net == nullptr || visited.contains(transition.net)) {
         continue;
       }

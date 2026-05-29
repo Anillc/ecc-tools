@@ -45,6 +45,7 @@
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "lef_service.h"
+#include "liberty/Lib.hh"
 #include "spatial/Point.hh"
 
 namespace icts {
@@ -78,11 +79,31 @@ auto BuildCellGeometry(idb::IdbInstance* idb_inst) -> WrapperCellGeometry
 
 }  // namespace
 
+Wrapper::Wrapper() = default;
+
+Wrapper::~Wrapper() = default;
+
 auto Wrapper::init(idb::IdbBuilder* idb) -> void
 {
   _idb = idb;
   _idb_design = _idb->get_def_service()->get_design();
   _idb_layout = _idb->get_lef_service()->get_layout();
+}
+
+auto Wrapper::reset() -> void
+{
+  _idb = nullptr;
+  _idb_design = nullptr;
+  _idb_layout = nullptr;
+  _liberty_loaded = false;
+  _lib_libraries.clear();
+  _lib_cell_by_master.clear();
+  _cts2idb_inst_map.clear();
+  _idb2cts_inst_map.clear();
+  _cts2idb_net_map.clear();
+  _idb2cts_net_map.clear();
+  _cts2idb_pin_map.clear();
+  _idb2cts_pin_map.clear();
 }
 
 auto Wrapper::queryDbUnit() const -> int32_t
@@ -142,7 +163,9 @@ auto Wrapper::traceSdcClocks(const SdcClockTraceInput& input) const -> ClockTrac
   if (idb_design == nullptr && _idb != nullptr && _idb->get_def_service() != nullptr) {
     idb_design = _idb->get_def_service()->get_design();
   }
-  return SdcClockReader::traceClockTargets(*input.clock_data, idb_design, input.max_fanout, *input.reporter);
+  const SdcLibertyCellLookup liberty_cell_lookup
+      = [this](const std::string& cell_master) -> ista::LibCell* { return findLibertyCell(cell_master); };
+  return SdcClockReader::traceClockTargets(*input.clock_data, idb_design, liberty_cell_lookup, input.max_fanout, *input.reporter);
 }
 
 auto Wrapper::collectLogicCellGeometries() const -> std::vector<WrapperCellGeometry>

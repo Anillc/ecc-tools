@@ -69,7 +69,6 @@ struct ClockSynthesisRunInput
   const Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
   Clock* clock = nullptr;
@@ -94,7 +93,6 @@ class ClockSynthesisRun
       : _config(input.config),
         _design(input.design),
         _wrapper(input.wrapper),
-        _sta_adapter(input.sta_adapter),
         _fast_sta(input.fast_sta),
         _reporter(input.reporter),
         _clock(input.clock),
@@ -108,7 +106,6 @@ class ClockSynthesisRun
     LOG_FATAL_IF(_config == nullptr) << "Synthesis: per-clock config is null.";
     LOG_FATAL_IF(_design == nullptr) << "Synthesis: per-clock design is null.";
     LOG_FATAL_IF(_wrapper == nullptr) << "Synthesis: per-clock wrapper is null.";
-    LOG_FATAL_IF(_sta_adapter == nullptr) << "Synthesis: per-clock STA adapter is null.";
     LOG_FATAL_IF(_fast_sta == nullptr) << "Synthesis: per-clock FastSTA is null.";
     LOG_FATAL_IF(_reporter == nullptr) << "Synthesis: per-clock reporter is null.";
     LOG_FATAL_IF(_clock == nullptr) << "Synthesis: per-clock clock is null.";
@@ -128,7 +125,6 @@ class ClockSynthesisRun
   const Config* _config = nullptr;
   Design* _design = nullptr;
   Wrapper* _wrapper = nullptr;
-  STAAdapter* _sta_adapter = nullptr;
   FastSTA* _fast_sta = nullptr;
   SchemaWriter* _reporter = nullptr;
   Clock* _clock = nullptr;
@@ -201,7 +197,7 @@ auto ClockSynthesisRun::prepareSinkDomain(SinkDomainKind sink_domain, const std:
   auto context = ClockDistribution::prepare(ClockDistributionInput{
       .design = _design,
       .clock = _clock,
-      .sta_adapter = _sta_adapter,
+      .wrapper = _wrapper,
       .clock_index = _clock_index,
       .sink_domain = sink_domain,
       .sinks = sinks,
@@ -223,7 +219,6 @@ auto ClockSynthesisRun::formClockTopology(std::size_t valid_sinks) -> bool
           .config = _config,
           .design = _design,
           .wrapper = _wrapper,
-          .sta_adapter = _sta_adapter,
           .fast_sta = _fast_sta,
           .reporter = _reporter,
           .clock = _clock,
@@ -314,7 +309,6 @@ auto Synthesis::run(const SynthesisInput& input) -> SynthesisTraceSummary
   LOG_FATAL_IF(input.config == nullptr) << "Synthesis: config is null.";
   LOG_FATAL_IF(input.design == nullptr) << "Synthesis: design is null.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Synthesis: wrapper is null.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Synthesis: STA adapter is null.";
   LOG_FATAL_IF(input.fast_sta == nullptr) << "Synthesis: FastSTA is null.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Synthesis: reporter is null.";
   LOG_FATAL_IF(input.clock_layout == nullptr) << "Synthesis: clock layout is null.";
@@ -323,7 +317,6 @@ auto Synthesis::run(const SynthesisInput& input) -> SynthesisTraceSummary
   const auto& config = *input.config;
   auto& design = *input.design;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& fast_sta = *input.fast_sta;
   auto& reporter = *input.reporter;
   auto& clock_layout = *input.clock_layout;
@@ -362,7 +355,6 @@ auto Synthesis::run(const SynthesisInput& input) -> SynthesisTraceSummary
         .config = &config,
         .design = &design,
         .wrapper = &wrapper,
-        .sta_adapter = &sta_adapter,
         .fast_sta = &fast_sta,
         .reporter = &reporter,
         .clock = clock,

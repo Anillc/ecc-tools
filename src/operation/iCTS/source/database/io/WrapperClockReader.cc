@@ -46,7 +46,6 @@
 #include "Vector.hh"
 #include "Wrapper.hh"
 #include "adapter/sdc/SdcClockReader.hh"
-#include "api/TimingEngine.hh"
 #include "builder.h"
 #include "def_service.h"
 #include "design/Clock.hh"
@@ -194,17 +193,13 @@ auto isOutputLike(idb::IdbPin* idb_pin) -> bool
          || term->get_direction() == idb::IdbConnectDirection::kInOut;
 }
 
-auto findLibCell(idb::IdbInstance* idb_inst) -> ista::LibCell*
+auto findLibCell(const Wrapper& wrapper, idb::IdbInstance* idb_inst) -> ista::LibCell*
 {
   auto* cell_master = idb_inst == nullptr ? nullptr : idb_inst->get_cell_master();
   if (cell_master == nullptr) {
     return nullptr;
   }
-  auto* timing_engine = ista::TimingEngine::getOrCreateTimingEngine();
-  if (timing_engine == nullptr) {
-    return nullptr;
-  }
-  return timing_engine->findLibertyCell(cell_master->get_name().c_str());
+  return wrapper.findLibertyCell(cell_master->get_name());
 }
 
 auto findLibPort(ista::LibCell* lib_cell, idb::IdbPin* idb_pin) -> ista::LibPort*
@@ -445,7 +440,7 @@ auto classifySequentialInst(ista::LibCell* lib_cell, idb::IdbPin* primary_clock_
           .output_pin_name = {}};
 }
 
-auto countDirectClockSinks(idb::IdbNet* idb_net) -> std::size_t
+auto countDirectClockSinks(const Wrapper& wrapper, idb::IdbNet* idb_net) -> std::size_t
 {
   std::size_t sink_count = 0U;
   if (idb_net == nullptr || idb_net->get_instance_pin_list() == nullptr) {
@@ -456,7 +451,7 @@ auto countDirectClockSinks(idb::IdbNet* idb_net) -> std::size_t
       continue;
     }
     auto* inst = idb_pin->get_instance();
-    auto* lib_cell = findLibCell(inst);
+    auto* lib_cell = findLibCell(wrapper, inst);
     auto* cell_master = inst == nullptr ? nullptr : inst->get_cell_master();
     if ((lib_cell != nullptr && lib_cell->isSequentialCell() && !lib_cell->isICG() && hasSequentialClockPinEvidence(lib_cell, idb_pin))
         || (cell_master != nullptr && cell_master->is_block() && isLibertyClockPin(lib_cell, idb_pin)) || idb_pin->is_flip_flop_clk()) {
@@ -466,14 +461,14 @@ auto countDirectClockSinks(idb::IdbNet* idb_net) -> std::size_t
   return sink_count;
 }
 
-auto hasClockSinkOutput(ista::LibCell* lib_cell, idb::IdbInstance* idb_inst, idb::IdbPin* clock_input_pin) -> bool
+auto hasClockSinkOutput(const Wrapper& wrapper, ista::LibCell* lib_cell, idb::IdbInstance* idb_inst, idb::IdbPin* clock_input_pin) -> bool
 {
   for (auto* output_pin : collectOutputPins(idb_inst)) {
     if (!outputFunctionUsesInput(lib_cell, output_pin, clock_input_pin)) {
       continue;
     }
     auto* output_net = output_pin == nullptr ? nullptr : output_pin->get_net();
-    if (countDirectClockSinks(output_net) > 0U) {
+    if (countDirectClockSinks(wrapper, output_net) > 0U) {
       return true;
     }
   }
@@ -491,7 +486,7 @@ auto makeBoundaryClassification(const std::string& role, const std::string& reas
   };
 }
 
-auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassification
+auto classifyCtsInstFromIdbInst(const Wrapper& wrapper, idb::IdbInstance* idb_inst) -> CtsInstClassification
 {
   if (idb_inst == nullptr) {
     return {.type = InstType::kUnknown, .role = "unknown_boundary", .reason = "null_idb_inst", .input_pin_name = {}, .output_pin_name = {}};
@@ -505,7 +500,7 @@ auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassifica
             .output_pin_name = {}};
   }
 
-  auto* lib_cell = findLibCell(idb_inst);
+  auto* lib_cell = findLibCell(wrapper, idb_inst);
   const auto clock_input_pins = collectClockInputPins(idb_inst);
   auto* primary_clock_pin = clock_input_pins.empty() ? nullptr : clock_input_pins.front();
 
@@ -542,7 +537,7 @@ auto classifyCtsInstFromIdbInst(idb::IdbInstance* idb_inst) -> CtsInstClassifica
         .type = InstType::kMux, .role = "clock_mux", .reason = "multi_clock_input_boundary", .input_pin_name = {}, .output_pin_name = {}};
   }
 
-  if (primary_clock_pin != nullptr && hasClockSinkOutput(lib_cell, idb_inst, primary_clock_pin)) {
+  if (primary_clock_pin != nullptr && hasClockSinkOutput(wrapper, lib_cell, idb_inst, primary_clock_pin)) {
     return makeBoundaryClassification("clock_logic_boundary", "clock_dependent_output_feeds_clock_sinks");
   }
 
@@ -901,7 +896,7 @@ class Wrapper::CtsClockReader
     }
     cts_inst->set_name(inst_name);
     cts_inst->set_cell_master(cell_master->get_name());
-    const auto classification = classifyCtsInstFromIdbInst(idb_inst);
+    const auto classification = classifyCtsInstFromIdbInst(*_wrapper, idb_inst);
     cts_inst->set_type(classification.type);
     recordInstClassification(classification);
     cts_inst->set_location(Wrapper::idbToCts(*coord));

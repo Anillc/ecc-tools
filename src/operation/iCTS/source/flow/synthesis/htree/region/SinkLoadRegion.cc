@@ -48,7 +48,7 @@
 #include "Point.hh"
 #include "TopologyConfig.hh"
 #include "Tree.hh"
-#include "adapter/sta/STAAdapter.hh"
+#include "io/Wrapper.hh"
 #include "synthesis/htree/constraint/Constraint.hh"
 #include "synthesis/htree/segment_pruning/SegmentPatternLibrary.hh"
 #include "synthesis/htree/segment_pruning/TopologyPatternLibrary.hh"
@@ -90,7 +90,7 @@ auto BuildCapDistributionStats(const std::vector<double>& caps_pf) -> CapDistrib
   return stats;
 }
 
-auto collectSinkPinCapPfByPin(STAAdapter& sta_adapter, const std::vector<SinkLoadRegionBoundaryGroup>& groups)
+auto collectSinkPinCapPfByPin(Wrapper& wrapper, const std::vector<SinkLoadRegionBoundaryGroup>& groups)
     -> std::unordered_map<const Pin*, double>
 {
   std::unordered_map<const Pin*, double> sink_pin_cap_pf_by_pin;
@@ -103,7 +103,7 @@ auto collectSinkPinCapPfByPin(STAAdapter& sta_adapter, const std::vector<SinkLoa
       if (pin == nullptr) {
         continue;
       }
-      sink_pin_cap_pf_by_pin[pin] = std::max(0.0, sta_adapter.queryPinCapacitance(pin));
+      sink_pin_cap_pf_by_pin[pin] = std::max(0.0, wrapper.queryPinCapacitance(pin));
     }
   }
   return sink_pin_cap_pf_by_pin;
@@ -113,10 +113,10 @@ auto BuildLeafElectricalConfig(const SinkLoadRegionLegalityInput& input, const s
     -> ClusterConfig
 {
   const double max_cap = input.has_max_cap ? input.max_cap_pf : std::numeric_limits<double>::infinity();
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree: STA adapter is unavailable for sink-load-region legality.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "HTree: Wrapper is unavailable for sink-load-region legality.";
   auto config = FastClustering::buildElectricalBaseConfig(input.max_fanout, max_cap);
   config.clock_route_segment_rc = input.clock_route_segment_rc;
-  config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(*input.sta_adapter, groups);
+  config.sink_pin_cap_pf_by_pin = collectSinkPinCapPfByPin(*input.wrapper, groups);
   config.enable_exact_cap = true;
   config.always_build_exact_cap = true;
   config.scoring_strategy = ClusterScoringStrategy::kTotalWirelength;

@@ -44,7 +44,7 @@ class BufferingPattern;
 class FastSTA;
 class SchemaWriter;
 class SegmentChar;
-class STAAdapter;
+class Wrapper;
 struct CharacterizationBufferCell;
 }  // namespace icts
 
@@ -207,7 +207,7 @@ class CharBuilderImpl
   std::string _char_clock_name;
   unsigned _char_circuit_id = 0;
   std::size_t _fast_sta_char_context_id = std::numeric_limits<std::size_t>::max();
-  ::icts::STAAdapter* _sta_adapter = nullptr;
+  ::icts::Wrapper* _wrapper = nullptr;
   ::icts::FastSTA* _fast_sta = nullptr;
   ::icts::SchemaWriter* _reporter = nullptr;
 

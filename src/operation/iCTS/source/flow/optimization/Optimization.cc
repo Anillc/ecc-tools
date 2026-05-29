@@ -112,19 +112,17 @@ auto resolveWireWidth(const Config& config) -> std::optional<double>
 auto buildFastStaEnvironment(const OptimizationInput& input) -> FastStaEnvironment
 {
   const auto& config = *input.config;
-  const auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
+  auto& wrapper = *input.wrapper;
   const auto dbu_per_um = wrapper.queryDbUnit();
   LOG_FATAL_IF(dbu_per_um <= 0) << "Optimization: DBU-per-micron is unavailable before FastSTA context construction.";
   return FastStaEnvironment{
-      .sta_adapter = &sta_adapter,
+      .wrapper = &wrapper,
       .dbu_per_um = dbu_per_um,
       .routing_layer = resolveRoutingLayer(config),
       .wire_width_um = resolveWireWidth(config),
       .root_input_slew_ns = std::max(0.0, config.get_root_input_slew()),
       .max_cap_pf = config.has_max_cap() && config.get_max_cap() > 0.0 ? std::optional<double>{config.get_max_cap()} : std::nullopt,
       .max_sink_tran_ns = config.get_max_sink_tran(),
-      .sta_timing_refresh = FastStaTimingRefreshPolicy{.work_dir = config.get_work_dir()},
   };
 }
 
@@ -135,14 +133,13 @@ auto Optimization::run(const OptimizationInput& input) -> OptimizationSummary
   LOG_FATAL_IF(input.config == nullptr) << "Optimization requires config.";
   LOG_FATAL_IF(input.design == nullptr) << "Optimization requires design.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Optimization requires wrapper.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Optimization requires STA adapter.";
   LOG_FATAL_IF(input.fast_sta == nullptr) << "Optimization requires FastSTA.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Optimization requires reporter.";
   LOG_FATAL_IF(input.clock_layout == nullptr) << "Optimization requires clock layout.";
   LOG_FATAL_IF(input.characterization_library == nullptr) << "Optimization requires characterization library.";
   const auto& config = *input.config;
   auto& design = *input.design;
-  auto& sta_adapter = *input.sta_adapter;
+  auto& wrapper = *input.wrapper;
   auto& fast_sta = *input.fast_sta;
   auto& reporter = *input.reporter;
   auto& clock_layout = *input.clock_layout;
@@ -170,7 +167,7 @@ auto Optimization::run(const OptimizationInput& input) -> OptimizationSummary
   optimization_summary.clock_count = clocks.size();
   fast_sta.bindEnvironment(buildFastStaEnvironment(input));
   const auto master_infos = oi::CollectClockSizingBufferMasters(oi::ClockSizingMasterQueryInput{
-      .sta_adapter = &sta_adapter,
+      .wrapper = &wrapper,
       .buffer_cell_masters = &config.get_buffer_types(),
   });
   if (master_infos.empty()) {
@@ -278,7 +275,7 @@ auto Optimization::run(const OptimizationInput& input) -> OptimizationSummary
     }
     stage_start = std::chrono::steady_clock::now();
     if (!summary.accepted_edits.empty()
-        && !oi::ApplyClockSizingAcceptedEdits(design, sta_adapter, summary.accepted_edits, buffers, clock_layout)) {
+        && !oi::ApplyClockSizingAcceptedEdits(design, wrapper, summary.accepted_edits, buffers, clock_layout)) {
       optimization_summary.success = false;
       optimization_summary.status = "failed";
       optimization_summary.reason = "accepted_edit_apply_failed";

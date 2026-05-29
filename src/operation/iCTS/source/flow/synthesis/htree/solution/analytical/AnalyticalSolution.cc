@@ -59,7 +59,7 @@ auto SelectAnalyticalHTreeSolution(HTreeSynthesisState& state) -> HTreeSelection
   const auto& char_builder = state.charBuilder();
 
   LOG_FATAL_IF(input.design == nullptr) << "HTree analytical solution requires explicit Design dependency.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "HTree analytical solution requires explicit STAAdapter dependency.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "HTree analytical solution requires explicit Wrapper dependency.";
   LOG_FATAL_IF(input.reporter == nullptr) << "HTree analytical solution requires explicit reporter dependency.";
   auto& reporter = *input.reporter;
   auto analytical_stage = reporter.beginStage("HTree", "Select analytical topology candidates",

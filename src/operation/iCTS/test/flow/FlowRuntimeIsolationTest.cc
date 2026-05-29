@@ -52,7 +52,7 @@ TEST(CTSTestRuntime, LocalRuntimeFlowPairsDoNotShareCTSState)
   EXPECT_NE(&first_runtime.config, &second_runtime.config);
   EXPECT_NE(&first_runtime.design, &second_runtime.design);
   EXPECT_NE(&first_runtime.wrapper, &second_runtime.wrapper);
-  EXPECT_NE(&first_runtime.sta_adapter, &second_runtime.sta_adapter);
+  EXPECT_NE(&first_runtime.wrapper, &second_runtime.wrapper);
   EXPECT_NE(&first_runtime.fast_sta, &second_runtime.fast_sta);
   EXPECT_NE(&first_runtime.reporter, &second_runtime.reporter);
 

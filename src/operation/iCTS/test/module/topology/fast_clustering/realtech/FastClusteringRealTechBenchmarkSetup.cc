@@ -36,7 +36,6 @@
 #include "IdbNet.h"
 #include "IdbPins.h"
 #include "common/io/TestArtifactIO.hh"
-#include "database/adapter/sta/STAAdapter.hh"
 #include "database/config/Config.hh"
 #include "database/design/Clock.hh"
 #include "database/design/Design.hh"
@@ -191,8 +190,6 @@ auto LoadBenchmarkCase(const BenchmarkCase& benchmark_case, const TechAssets& as
     loaded.error = "idb builder is null after placement load";
     return loaded;
   }
-
-  icts_test::runtime::CurrentRuntime().sta_adapter.init(icts_test::runtime::CurrentRuntime().config);
 
   icts_test::runtime::CurrentRuntime().design.reset();
   auto* idb_design = dmInst->get_idb_design();

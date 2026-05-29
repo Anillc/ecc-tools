@@ -1,6 +1,8 @@
 add_library(
   icts_source_database_io
   ${ICTS_DATABASE_IO}/Wrapper.cc
+  ${ICTS_DATABASE_IO}/WrapperLiberty.cc
+  ${ICTS_DATABASE_IO}/WrapperRc.cc
   ${ICTS_DATABASE_IO}/WrapperClockReader.cc
   ${ICTS_DATABASE_IO}/WrapperClockWriter.cc
 )
@@ -21,12 +23,13 @@ target_link_libraries(
   icts_source_database_io
   PUBLIC
   icts_source_database_spatial
+  icts_source_database_routing
   PRIVATE
   idm
   icts_source_database_adapter_sdc
-  icts_source_database_adapter_sta
   icts_source_database_design
   icts_source_utils_logger
+  liberty
   log
 )
 

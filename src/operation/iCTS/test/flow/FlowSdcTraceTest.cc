@@ -23,9 +23,10 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <map>
-#include <memory>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -42,15 +43,13 @@
 #include "IdbLayout.h"
 #include "IdbNet.h"
 #include "Inst.hh"
-#include "LibParserCpp.hh"
 #include "Schema.hh"
-#include "Wrapper.hh"
-#include "api/TimingEngine.hh"
 #include "common/CTSTestRuntime.hh"
 #include "common/logging/LogText.hh"
-#include "liberty/Lib.hh"
+#include "dm_config.h"
+#include "idm.h"
+#include "io/Wrapper.hh"
 #include "setup/clock_data/ClockDataRead.hh"
-#include "sta/Sta.hh"
 
 namespace icts_test {
 namespace {
@@ -71,93 +70,136 @@ auto ReadCurrentRuntimeClockData() -> bool
 class ScopedTestLiberty
 {
  public:
-  ScopedTestLiberty() : _timing_engine(resetTimingEngine()), _lib(std::make_unique<ista::LibLibrary>("icts_clock_type_test_lib")) {}
+  explicit ScopedTestLiberty(const std::string& file_name) : _path(std::filesystem::temp_directory_path() / file_name) {}
 
   ~ScopedTestLiberty()
   {
-    _lib = nullptr;
-    ista::TimingEngine::destroyTimingEngine();
+    dmInst->get_config().set_lib_paths({});
+    std::error_code error_code;
+    std::filesystem::remove(_path, error_code);
   }
 
-  auto addCell(std::unique_ptr<ista::LibCell> cell) -> void { _lib->addLibertyCell(std::move(cell)); }
+  auto addCell(std::string cell_text) -> void { _cell_texts.push_back(std::move(cell_text)); }
 
   auto publish() -> void
   {
-    ASSERT_NE(_timing_engine, nullptr);
-    _timing_engine->get_ista()->addLib(std::move(_lib));
+    std::ofstream output_stream(_path);
+    ASSERT_TRUE(output_stream.is_open());
+    output_stream << "library (icts_clock_type_test_lib) {\n";
+    output_stream << "  time_unit : \"1ns\";\n";
+    output_stream << "  capacitive_load_unit (1,pf);\n";
+    output_stream << "  delay_model : table_lookup;\n";
+    for (const auto& cell_text : _cell_texts) {
+      output_stream << cell_text;
+    }
+    output_stream << "}\n";
+    output_stream.close();
+    dmInst->get_config().set_lib_paths({_path.string()});
   }
 
  private:
-  static auto resetTimingEngine() -> ista::TimingEngine*
-  {
-    ista::TimingEngine::destroyTimingEngine();
-    return ista::TimingEngine::getOrCreateTimingEngine();
-  }
-
-  ista::TimingEngine* _timing_engine = nullptr;
-  std::unique_ptr<ista::LibLibrary> _lib = nullptr;
+  std::filesystem::path _path;
+  std::vector<std::string> _cell_texts;
 };
 
-auto MakeLibPort(ista::LibCell& cell, const std::string& port_name, ista::LibPort::LibertyPortType port_type, bool is_clock = false)
-    -> ista::LibPort*
+auto MakeInputPinText(const std::string& port_name, bool is_clock) -> std::string
 {
-  auto port = std::make_unique<ista::LibPort>(port_name.c_str());
-  auto* port_ptr = port.get();
-  port_ptr->set_port_type(port_type);
-  port_ptr->set_ower_cell(&cell);
-  port_ptr->set_is_clock_pin(is_clock);
-  cell.addLibertyPort(std::move(port));
-  return port_ptr;
+  std::ostringstream text;
+  text << "    pin (\"" << port_name << "\") {\n";
+  text << "      direction : input;\n";
+  if (is_clock) {
+    text << "      clock : true;\n";
+  }
+  text << "      capacitance : 0.00100000;\n";
+  text << "    }\n";
+  return text.str();
 }
 
-auto AddLibArc(ista::LibCell& cell, const std::string& src_port, const std::string& snk_port, const std::string& timing_type) -> void
+auto MakeCheckPinText(const std::string& port_name, const std::string& clock_pin_name) -> std::string
 {
-  auto arc = std::make_unique<ista::LibArc>();
-  arc->set_src_port(src_port.c_str());
-  arc->set_snk_port(snk_port.c_str());
-  arc->set_owner_cell(&cell);
-  arc->set_timing_type(timing_type.c_str());
-  cell.addLibertyArc(std::move(arc));
+  std::ostringstream text;
+  text << "    pin (\"" << port_name << "\") {\n";
+  text << "      direction : input;\n";
+  text << "      capacitance : 0.00100000;\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"" << clock_pin_name << "\";\n";
+  text << "        timing_type : setup_rising;\n";
+  text << "      }\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"" << clock_pin_name << "\";\n";
+  text << "        timing_type : hold_rising;\n";
+  text << "      }\n";
+  text << "    }\n";
+  return text.str();
 }
 
-auto MakeFlipFlopLibCell(const std::string& cell_name, const std::string& clock_pin_name) -> std::unique_ptr<ista::LibCell>
+auto MakeSequentialOutputPinText(const std::string& clock_pin_name, const std::string& timing_type) -> std::string
 {
-  auto cell = std::make_unique<ista::LibCell>(cell_name.c_str(), nullptr);
-  MakeLibPort(*cell, "D", ista::LibPort::LibertyPortType::kInput);
-  MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput, true);
-  MakeLibPort(*cell, "Q", ista::LibPort::LibertyPortType::kOutput);
-  AddLibArc(*cell, clock_pin_name, "Q", "rising_edge");
-  AddLibArc(*cell, clock_pin_name, "D", "setup_rising");
-  AddLibArc(*cell, clock_pin_name, "D", "hold_rising");
-  return cell;
+  std::ostringstream text;
+  text << "    pin (\"Q\") {\n";
+  text << "      direction : output;\n";
+  text << "      function : \"D\";\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"" << clock_pin_name << "\";\n";
+  text << "        timing_type : " << timing_type << ";\n";
+  text << "      }\n";
+  text << "    }\n";
+  return text.str();
 }
 
-auto MakeLatchLibCell(const std::string& cell_name, const std::string& clock_pin_name) -> std::unique_ptr<ista::LibCell>
+auto MakeFlipFlopLibCellText(const std::string& cell_name, const std::string& clock_pin_name) -> std::string
 {
-  auto cell = std::make_unique<ista::LibCell>(cell_name.c_str(), nullptr);
-  MakeLibPort(*cell, "D", ista::LibPort::LibertyPortType::kInput);
-  MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput, true);
-  MakeLibPort(*cell, "Q", ista::LibPort::LibertyPortType::kOutput);
-  AddLibArc(*cell, "D", "Q", "combinational");
-  AddLibArc(*cell, clock_pin_name, "Q", "falling_edge");
-  AddLibArc(*cell, clock_pin_name, "D", "setup_rising");
-  AddLibArc(*cell, clock_pin_name, "D", "hold_rising");
-  return cell;
+  std::ostringstream text;
+  text << "  cell (\"" << cell_name << "\") {\n";
+  text << MakeInputPinText(clock_pin_name, true);
+  text << MakeCheckPinText("D", clock_pin_name);
+  text << MakeSequentialOutputPinText(clock_pin_name, "rising_edge");
+  text << "  }\n";
+  return text.str();
 }
 
-auto MakeClockLogicLibCell(const std::string& cell_name, const std::string& clock_pin_name) -> std::unique_ptr<ista::LibCell>
+auto MakeLatchLibCellText(const std::string& cell_name, const std::string& clock_pin_name) -> std::string
 {
-  auto cell = std::make_unique<ista::LibCell>(cell_name.c_str(), nullptr);
-  MakeLibPort(*cell, clock_pin_name, ista::LibPort::LibertyPortType::kInput);
-  MakeLibPort(*cell, "EN", ista::LibPort::LibertyPortType::kInput);
-  auto* out_port = MakeLibPort(*cell, "Y", ista::LibPort::LibertyPortType::kOutput);
-  ista::LibertyExprBuilder expr_builder(clock_pin_name.c_str());
-  expr_builder.execute();
-  out_port->set_func_expr(expr_builder.get_result_expr());
-  out_port->set_func_expr_str(clock_pin_name.c_str());
-  AddLibArc(*cell, clock_pin_name, "Y", "combinational");
-  AddLibArc(*cell, "EN", "Y", "combinational");
-  return cell;
+  std::ostringstream text;
+  text << "  cell (\"" << cell_name << "\") {\n";
+  text << MakeInputPinText(clock_pin_name, true);
+  text << MakeCheckPinText("D", clock_pin_name);
+  text << "    pin (\"Q\") {\n";
+  text << "      direction : output;\n";
+  text << "      function : \"D\";\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"D\";\n";
+  text << "        timing_type : combinational;\n";
+  text << "      }\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"" << clock_pin_name << "\";\n";
+  text << "        timing_type : falling_edge;\n";
+  text << "      }\n";
+  text << "    }\n";
+  text << "  }\n";
+  return text.str();
+}
+
+auto MakeClockLogicLibCellText(const std::string& cell_name, const std::string& clock_pin_name) -> std::string
+{
+  std::ostringstream text;
+  text << "  cell (\"" << cell_name << "\") {\n";
+  text << MakeInputPinText(clock_pin_name, false);
+  text << MakeInputPinText("EN", false);
+  text << "    pin (\"Y\") {\n";
+  text << "      direction : output;\n";
+  text << "      function : \"" << clock_pin_name << "\";\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"" << clock_pin_name << "\";\n";
+  text << "        timing_type : combinational;\n";
+  text << "      }\n";
+  text << "      timing () {\n";
+  text << "        related_pin : \"EN\";\n";
+  text << "        timing_type : combinational;\n";
+  text << "      }\n";
+  text << "    }\n";
+  text << "  }\n";
+  return text.str();
 }
 
 TEST(FlowTest, SdcClockResolutionUsesSdcReachableTargets)
@@ -403,9 +445,9 @@ TEST(FlowTest, ClockReadClassifiesCombinationalClockLoadAsBoundaryLoad)
 TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
 {
   ScopedFlowReset scoped_flow_reset;
-  ScopedTestLiberty test_liberty;
-  test_liberty.addCell(MakeFlipFlopLibCell("TEST_DFF", "CK"));
-  test_liberty.addCell(MakeLatchLibCell("TEST_LATCH", "GN"));
+  ScopedTestLiberty test_liberty("icts_sequential_type_classification.lib");
+  test_liberty.addCell(MakeFlipFlopLibCellText("TEST_DFF", "CK"));
+  test_liberty.addCell(MakeLatchLibCellText("TEST_LATCH", "GN"));
   test_liberty.publish();
 
   idb::IdbLayout idb_layout;
@@ -459,9 +501,9 @@ TEST(FlowTest, ClockReadClassifiesLibertyFlipFlopAndLatchSinks)
 TEST(FlowTest, ClockReadClassifiesClockDependentLogicAsClockLogicBoundary)
 {
   ScopedFlowReset scoped_flow_reset;
-  ScopedTestLiberty test_liberty;
-  test_liberty.addCell(MakeClockLogicLibCell("TEST_CLOCK_AND", "CLK"));
-  test_liberty.addCell(MakeFlipFlopLibCell("TEST_DFF", "CK"));
+  ScopedTestLiberty test_liberty("icts_clock_logic_classification.lib");
+  test_liberty.addCell(MakeClockLogicLibCellText("TEST_CLOCK_AND", "CLK"));
+  test_liberty.addCell(MakeFlipFlopLibCellText("TEST_DFF", "CK"));
   test_liberty.publish();
 
   idb::IdbLayout idb_layout;

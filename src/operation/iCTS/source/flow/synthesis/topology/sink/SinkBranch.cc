@@ -38,7 +38,6 @@
 #include "Log.hh"
 #include "Net.hh"
 #include "Point.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
@@ -71,7 +70,7 @@ auto ApplyMinTopInputSlew(const Config& config, HTree::Config& htree_config) -> 
   htree_config.min_top_input_slew_ns = config.get_root_input_slew();
 }
 
-auto BuildSinkTreeLoadPreparationPolicy(const Config& config, STAAdapter& sta_adapter, bool enable_sink_clustering)
+auto BuildSinkTreeLoadPreparationPolicy(const Config& config, Wrapper& wrapper, bool enable_sink_clustering)
     -> SinkTreeLoadPreparationPolicy
 {
   SinkTreeLoadPreparationPolicy policy{
@@ -82,7 +81,7 @@ auto BuildSinkTreeLoadPreparationPolicy(const Config& config, STAAdapter& sta_ad
       .buffer_cell_masters = &config.get_buffer_types(),
   };
   if (enable_sink_clustering) {
-    policy.clock_route_segment_rc = sta_adapter.queryConfiguredClockRouteSegmentRc(config);
+    policy.clock_route_segment_rc = wrapper.queryConfiguredClockRouteSegmentRc(config);
   }
   return policy;
 }
@@ -92,19 +91,17 @@ auto BuildSinkHtreeInput(const Topology::Input& input, Net& root_net, bool enabl
   const auto& config = *input.config;
   auto& design = *input.design;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& fast_sta = *input.fast_sta;
   auto& reporter = *input.reporter;
   return HTree::Input{
       .root_net = &root_net,
       .design = &design,
-      .sta_adapter = &sta_adapter,
+      .wrapper = &wrapper,
       .reporter = &reporter,
       .characterization_library = input.characterization_library,
       .characterization_input = CharacterizationLibrary::buildRuntimeInput(CharacterizationRuntimeInput{
           .config = &config,
           .wrapper = &wrapper,
-          .sta_adapter = &sta_adapter,
           .fast_sta = &fast_sta,
           .reporter = &reporter,
       }),
@@ -150,14 +147,12 @@ auto BuildSinkTree(const Topology::Input& input, const Topology::Config& config)
   LOG_FATAL_IF(input.config == nullptr) << "Topology sink tree build requires an explicit config.";
   LOG_FATAL_IF(input.design == nullptr) << "Topology sink tree build requires an explicit design.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Topology sink tree build requires an explicit wrapper.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Topology sink tree build requires an explicit STA adapter.";
   LOG_FATAL_IF(input.fast_sta == nullptr) << "Topology sink tree build requires an explicit FastSTA.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Topology sink tree build requires an explicit reporter.";
   LOG_FATAL_IF(input.root_net == nullptr) << "Topology sink tree build requires an explicit root net.";
   const auto& flow_config = *input.config;
   auto& design = *input.design;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& reporter = *input.reporter;
   auto& root_net = *input.root_net;
 
@@ -176,7 +171,7 @@ auto BuildSinkTree(const Topology::Input& input, const Topology::Config& config)
     return result;
   }
   const bool enable_sink_clustering = config.enable_sink_clustering.value_or(flow_config.is_enable_sink_clustering());
-  const auto sink_load_preparation_policy = BuildSinkTreeLoadPreparationPolicy(flow_config, sta_adapter, enable_sink_clustering);
+  const auto sink_load_preparation_policy = BuildSinkTreeLoadPreparationPolicy(flow_config, wrapper, enable_sink_clustering);
 
   RootNetSideEffectGuard root_net_side_effects(design, root_net, root_driver);
   ConnectNet(TopologyNetConnectionInput{
@@ -196,7 +191,7 @@ auto BuildSinkTree(const Topology::Input& input, const Topology::Config& config)
     sink_preparation = PrepareSinkTreeLoads(SinkTreeLoadPreparationInput{
         .build = &result,
         .root_loads = &root_loads,
-        .sta_adapter = &sta_adapter,
+        .wrapper = &wrapper,
         .object_name_prefix = input.object_name_prefix,
         .policy = sink_load_preparation_policy,
     });

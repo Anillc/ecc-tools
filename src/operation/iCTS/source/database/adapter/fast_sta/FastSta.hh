@@ -35,7 +35,7 @@ namespace icts {
 
 class Clock;
 class Net;
-class STAAdapter;
+class Wrapper;
 struct FastStaClockContext;
 template <typename T>
 class ClockSteinerTree;
@@ -177,7 +177,7 @@ struct FastStaBufferMasterChange
 
 struct FastStaCharTopologySpec
 {
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   std::string source_cell_master;
   std::string sink_cell_master;
   std::vector<std::string> buffer_cell_masters;
@@ -198,21 +198,15 @@ struct FastStaCharSampleResult
   double source_boundary_net_switch_power_w = 0.0;
 };
 
-struct FastStaTimingRefreshPolicy
-{
-  std::string work_dir;
-};
-
 struct FastStaEnvironment
 {
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   int32_t dbu_per_um = 0;
   int routing_layer = 0;
   std::optional<double> wire_width_um = std::nullopt;
   double root_input_slew_ns = 0.0;
   std::optional<double> max_cap_pf = std::nullopt;
   double max_sink_tran_ns = 0.0;
-  std::optional<FastStaTimingRefreshPolicy> sta_timing_refresh = std::nullopt;
 };
 
 struct FastStaClockBuildInput

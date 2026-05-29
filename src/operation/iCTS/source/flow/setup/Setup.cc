@@ -32,7 +32,6 @@
 #include <utility>
 
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "config/Config.hh"
 #include "idm.h"
 #include "io/Wrapper.hh"
@@ -56,12 +55,10 @@ auto Setup::initializeRuntime(const SetupInput& input) -> SetupSummary
   LOG_FATAL_IF(input.config == nullptr) << "Setup: config is null.";
   LOG_FATAL_IF(input.design == nullptr) << "Setup: design is null.";
   LOG_FATAL_IF(input.wrapper == nullptr) << "Setup: wrapper is null.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Setup: STA adapter is null.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Setup: reporter is null.";
 
   auto& config = *input.config;
   auto& wrapper = *input.wrapper;
-  auto& sta_adapter = *input.sta_adapter;
   auto& reporter = *input.reporter;
   const std::string generated_on = ieda::Time::getNowWallTime();
 
@@ -100,19 +97,17 @@ auto Setup::initializeRuntime(const SetupInput& input) -> SetupSummary
   auto* idb_builder = dmInst->get_idb_builder();
   LOG_FATAL_IF(idb_builder == nullptr) << "idb builder is null";
   wrapper.init(idb_builder);
-
-  sta_adapter.init(config);
   return SetupSummary{.success = true, .reason = "n/a"};
 }
 
 auto Setup::emitRuntimeSetup(const RuntimeSetupInput& input) -> void
 {
   LOG_FATAL_IF(input.config == nullptr) << "Setup: runtime config is null.";
-  LOG_FATAL_IF(input.sta_adapter == nullptr) << "Setup: runtime STA adapter is null.";
+  LOG_FATAL_IF(input.wrapper == nullptr) << "Setup: runtime wrapper is null.";
   LOG_FATAL_IF(input.reporter == nullptr) << "Setup: runtime reporter is null.";
 
   const auto& config = *input.config;
-  auto& sta_adapter = *input.sta_adapter;
+  const auto& wrapper = *input.wrapper;
   auto& reporter = *input.reporter;
 
   reporter.emitSection("## Runtime Setup");
@@ -127,7 +122,7 @@ auto Setup::emitRuntimeSetup(const RuntimeSetupInput& input) -> void
   reporter.emitSection("### Runtime Configuration");
   config.emitRuntimeConfigReport(reporter, "Runtime Configuration");
   reporter.emitSection("### Runtime Routing / Wire RC");
-  sta_adapter.emitConfiguredUnitWireRcReport(reporter, config, "Runtime Routing / Wire RC");
+  wrapper.emitConfiguredUnitWireRcReport(reporter, config, "Runtime Routing / Wire RC");
 }
 
 }  // namespace icts

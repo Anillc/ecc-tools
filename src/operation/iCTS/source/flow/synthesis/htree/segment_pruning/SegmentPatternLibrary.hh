@@ -39,7 +39,7 @@ namespace icts::htree {
 
 struct BufferPatternLibrary
 {
-  explicit BufferPatternLibrary(STAAdapter& sta_adapter) : _strength_table(sta_adapter) {}
+  explicit BufferPatternLibrary(Wrapper& wrapper) : _strength_table(wrapper) {}
 
   auto add(BufferingPattern pattern) -> void
   {

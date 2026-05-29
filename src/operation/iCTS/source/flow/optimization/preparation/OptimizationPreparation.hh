@@ -35,14 +35,14 @@ namespace icts {
 class Clock;
 class ClockLayout;
 class Design;
-class STAAdapter;
+class Wrapper;
 }  // namespace icts
 
 namespace icts::clock_sizing_optimization {
 
 struct ClockSizingMasterQueryInput
 {
-  STAAdapter* sta_adapter = nullptr;
+  Wrapper* wrapper = nullptr;
   const std::vector<std::string>* buffer_cell_masters = nullptr;
 };
 

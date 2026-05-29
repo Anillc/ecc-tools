@@ -42,10 +42,10 @@
 #include "FastStaLibertyModel.hh"
 #include "FastStaParasitics.hh"
 #include "Log.hh"
-#include "adapter/sta/STAAdapter.hh"
 #include "design/Clock.hh"
 #include "design/Design.hh"
 #include "design/Net.hh"
+#include "io/Wrapper.hh"
 
 namespace icts {
 
@@ -67,39 +67,34 @@ auto logBuilderStage(const Clock& clock, std::string_view stage_name, double run
 
 auto applyEnvironment(const FastStaEnvironment& environment, FastStaClockContext& context) -> void
 {
-  LOG_FATAL_IF(environment.sta_adapter == nullptr) << "FastStaBuilder: STA adapter is not bound.";
+  LOG_FATAL_IF(environment.wrapper == nullptr) << "FastStaBuilder: Wrapper is not bound.";
   LOG_FATAL_IF(environment.dbu_per_um <= 0) << "FastStaBuilder: DBU-per-micron is unavailable.";
   LOG_FATAL_IF(environment.routing_layer <= 0) << "FastStaBuilder: routing layer is not configured.";
-  context.sta_adapter = environment.sta_adapter;
+  context.wrapper = environment.wrapper;
   context.dbu_per_um = environment.dbu_per_um;
   context.routing_layer = environment.routing_layer;
   context.wire_width_um = environment.wire_width_um;
   context.root_input_slew_ns = std::max(0.0, environment.root_input_slew_ns);
 }
 
-auto queryStaBackedSinkPinCap(STAAdapter& sta_adapter, const Pin* pin) -> double
+auto queryWrapperBackedSinkPinCap(Wrapper& wrapper, const Pin* pin) -> double
 {
-  return sta_adapter.queryPinCapacitance(pin);
+  return wrapper.queryPinCapacitance(pin);
 }
 
-auto queryStaBackedSinkSlewLimit(const FastStaEnvironment& environment, const Pin* pin) -> double
+auto queryWrapperBackedSinkSlewLimit(const FastStaEnvironment& environment, const Pin* pin) -> double
 {
-  return environment.sta_adapter->queryPinSlewLimit(STAAdapter::PinSlewLimitInput{
+  return environment.wrapper->queryPinSlewLimit(Wrapper::PinSlewLimitInput{
       .pin = pin,
       .configured_max_sink_tran_ns = environment.max_sink_tran_ns,
   });
 }
 
-auto queryStaBackedSourceCapLimit(const FastStaEnvironment& environment, const Clock& clock) -> double
+auto queryWrapperBackedSourceCapLimit(const FastStaEnvironment& environment, const Clock& clock) -> double
 {
-  const auto refresh_config = environment.sta_timing_refresh.has_value()
-                                  ? std::optional<STAAdapter::StaTimingRefreshConfig>{STAAdapter::StaTimingRefreshConfig{
-                                        .work_dir = environment.sta_timing_refresh->work_dir}}
-                                  : std::nullopt;
-  return environment.sta_adapter->queryClockSourceDriveCapLimit(STAAdapter::ClockSourceDriveCapLimitInput{
+  return environment.wrapper->queryClockSourceDriveCapLimit(Wrapper::ClockSourceDriveCapLimitInput{
       .clock_source = clock.get_clock_source(),
       .configured_max_cap_pf = environment.max_cap_pf,
-      .refresh_config = refresh_config,
   });
 }
 
@@ -114,13 +109,13 @@ auto isSourceBoundaryNet(const Clock& clock, const FastStaClockContext& context,
 
 auto collectClockCellTimingData(const FastStaEnvironment& environment, const Clock& clock, FastStaClockContext& context) -> void
 {
-  auto& sta_adapter = *environment.sta_adapter;
+  auto& wrapper = *environment.wrapper;
   for (auto& node : context.nodes) {
     if (node.cell_master.empty()) {
       continue;
     }
     if (!context.liberty_cell_by_master.contains(node.cell_master)) {
-      context.liberty_cell_by_master[node.cell_master] = FastStaLiberty::extractBufferCell(sta_adapter, node.cell_master);
+      context.liberty_cell_by_master[node.cell_master] = FastStaLiberty::extractBufferCell(wrapper, node.cell_master);
     }
     const auto& liberty_cell = context.liberty_cell_by_master.at(node.cell_master);
     if (node.kind == FastStaNodeKind::kBufferInput) {
@@ -134,7 +129,7 @@ auto collectClockCellTimingData(const FastStaEnvironment& environment, const Clo
       continue;
     }
     if (isSourceBoundaryNet(clock, context, net)) {
-      const double source_cap_limit_pf = queryStaBackedSourceCapLimit(environment, clock);
+      const double source_cap_limit_pf = queryWrapperBackedSourceCapLimit(environment, clock);
       if (source_cap_limit_pf > 0.0) {
         net.max_cap_pf = source_cap_limit_pf;
         continue;
@@ -153,7 +148,7 @@ auto collectClockCellTimingData(const FastStaEnvironment& environment, const Clo
 
 auto collectSinkPinCaps(const FastStaEnvironment& environment, const Clock& clock, FastStaClockContext& context) -> void
 {
-  auto& sta_adapter = *environment.sta_adapter;
+  auto& wrapper = *environment.wrapper;
   for (auto* pin : clock.get_loads()) {
     if (pin == nullptr) {
       continue;
@@ -163,8 +158,8 @@ auto collectSinkPinCaps(const FastStaEnvironment& environment, const Clock& cloc
       continue;
     }
     auto& node = context.nodes.at(node_iter->second);
-    node.input_cap_pf = queryStaBackedSinkPinCap(sta_adapter, pin);
-    node.max_slew_ns = queryStaBackedSinkSlewLimit(environment, pin);
+    node.input_cap_pf = queryWrapperBackedSinkPinCap(wrapper, pin);
+    node.max_slew_ns = queryWrapperBackedSinkSlewLimit(environment, pin);
   }
 }
 

@@ -42,7 +42,6 @@ class Config;
 class Design;
 class FastSTA;
 class SchemaWriter;
-class STAAdapter;
 class Wrapper;
 
 namespace topology {
@@ -52,7 +51,6 @@ struct SourceTrunkInput
   const Config* config = nullptr;
   Design* design = nullptr;
   Wrapper* wrapper = nullptr;
-  STAAdapter* sta_adapter = nullptr;
   FastSTA* fast_sta = nullptr;
   SchemaWriter* reporter = nullptr;
   Net* source_net = nullptr;
