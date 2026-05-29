@@ -19,7 +19,6 @@
 #include "IdbLayout.h"
 #include "IdbPins.h"
 #include "Lib.hh"
-#include "Pin.hh"
 #include "PowerEngine.hh"
 #include "TimingEngine.hh"
 #include "TimingIDBAdapter.hh"
