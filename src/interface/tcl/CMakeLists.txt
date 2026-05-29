@@ -10,16 +10,10 @@ add_subdirectory(tcl_irt)
 add_subdirectory(tcl_ircx)
 add_subdirectory(tcl_ifp)
 add_subdirectory(tcl_ipdn)
-add_subdirectory(tcl_ipnp)
-add_subdirectory(tcl_ipl)
-add_subdirectory(tcl_ito)
 add_subdirectory(tcl_ista)
-add_subdirectory(tcl_ipw)
 add_subdirectory(tcl_report)
-add_subdirectory(tcl_ino)
 add_subdirectory(tcl_feature)
 add_subdirectory(tcl_eval)
-add_subdirectory(tcl_eco)
 add_subdirectory(tcl_vec)
 add_subdirectory(tcl_notification)
 
@@ -48,17 +42,11 @@ target_link_libraries(ieda_tcl
         tcl_ifp 
         tcl_ipdn
         tcl_inst 
-        tcl_ipl
-        tcl_ito
         tcl_ista
-        tcl_ipw
         tcl_report
-        tcl_ino
         tcl_feature
         tcl_eval
-        tcl_eco
         tcl_vec
-        tcl_ipnp
         tcl_notification
 )
 
@@ -66,7 +54,6 @@ target_include_directories(ieda_tcl
     PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/tcl_workspace
-    ${CMAKE_CURRENT_SOURCE_DIR}/tcl_ipnp
 
     ${HOME_UTILITY}/tcl
 
