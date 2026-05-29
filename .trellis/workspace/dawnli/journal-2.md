@@ -948,3 +948,37 @@ Merged origin/main into cts_refactor, preserved cts_refactor iCTS as source of t
 ### Next Steps
 
 - None - task complete
+
+
+## Session 73: Unbind iCTS iSTA iPA
+
+**Date**: 2026-05-29
+**Task**: Unbind iCTS iSTA iPA
+**Branch**: `cts_refactor`
+
+### Summary
+
+Removed iCTS production dependencies on iSTA and iPA, moved RC/Liberty access into Wrapper, deleted unsupported full-design timing outputs, validated iCTS tests, ics55_dev binary run, baseline binary parity, and ecc_dev_tools.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e919bcce0` | (see git log) |
+| `308c97c4a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

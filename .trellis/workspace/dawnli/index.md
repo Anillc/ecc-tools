@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 72
-- **Last Active**: 2026-05-28
+- **Total Sessions**: 73
+- **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~950 | Active |
+| `journal-2.md` | ~984 | Active |
 | `journal-1.md` | ~1991 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 73 | 2026-05-29 | Unbind iCTS iSTA iPA | `e919bcce0`, `308c97c4a` | `cts_refactor` |
 | 72 | 2026-05-28 | Merge main into cts_refactor | `17fbc4f42` | `cts_refactor` |
 | 71 | 2026-05-28 | CTS global CMake architecture cleanup | `084e51e86` | `cts_refactor` |
 | 70 | 2026-05-27 | Clean CTS static archive CMake links | `55cd2834c` | `cts_refactor` |
