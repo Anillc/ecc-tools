@@ -33,7 +33,7 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "synthesis/htree/HTree.hh"
-#include "synthesis/topology/Topology.hh"
+#include "synthesis/topology/SourceTrunkStage.hh"
 
 namespace icts {
 
@@ -78,7 +78,7 @@ struct SourceTrunkSummary
 {
   bool success = false;
   std::string failure_reason;
-  Topology::SourceTrunkStage stage = Topology::SourceTrunkStage::kUnknown;
+  SourceTrunkStage stage = SourceTrunkStage::kUnknown;
   std::optional<unsigned> selected_depth = std::nullopt;
   std::size_t selected_level_count = 0U;
   std::size_t inserted_buffer_count = 0U;

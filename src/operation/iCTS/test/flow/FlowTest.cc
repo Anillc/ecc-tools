@@ -43,10 +43,10 @@
 #include "common/logging/LogText.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "feature_icts.h"
-#include "instantiation/design_conversion/DesignConversion.hh"
 #include "synthesis/Synthesis.hh"
 #include "synthesis/distribution/ClockDistribution.hh"
 #include "synthesis/htree/characterization/library/CharacterizationLibrary.hh"
+#include "synthesis/realization/ClockTreeRealization.hh"
 #include "synthesis/topology/Topology.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
 #include "synthesis/trace/domain_status/DomainStatus.hh"
@@ -327,7 +327,7 @@ TEST(FlowTest, DownstreamNetCreationFailureRestoresClockMembershipAndRecordsSink
   ASSERT_NE(pins.clock, nullptr);
   ASSERT_NE(pins.regular_sink, nullptr);
 
-  const auto domain_prefix = icts::DesignConversion::makeSinkDomainPrefix(*pins.clock, 0U, icts::SinkDomainKind::kRegular);
+  const auto domain_prefix = icts::ClockTreeRealization::makeSinkDomainPrefix(*pins.clock, 0U, icts::SinkDomainKind::kRegular);
   auto* existing_downstream_net = icts_test::runtime::CurrentRuntime().design.makeNet(domain_prefix + "_downstream_net");
   ASSERT_NE(existing_downstream_net, nullptr);
 

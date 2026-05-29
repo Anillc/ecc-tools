@@ -44,7 +44,7 @@ Keep CTS flow code aligned with:
 | `api/` | Stable external `CTSAPI` entry points | No internal flow lifecycle logic |
 | `source/flow/` | Root CTS lifecycle and flow state | Root exposes only `Flow.hh`, `Flow.cc`, and build metadata |
 | `source/flow/setup/` | Config readiness, output directories, report/log setup, adapter initialization | Owns flow startup validation |
-| `source/flow/synthesis/` | CTS synthesis orchestration | Root exposes `Synthesis.hh/.cc`; helpers live under `distribution/`, `topology/`, `htree/`, or `trace/` |
+| `source/flow/synthesis/` | CTS synthesis orchestration | Root exposes `Synthesis.hh/.cc`; helpers live under `distribution/`, `topology/`, `htree/`, `trace/`, or `realization/` |
 | `source/flow/synthesis/topology/` | CTS topology formation | Root exposes `Topology.hh/.cc`; sink, trunk, and temporary buffer/net helpers stay in subdirectories |
 | `source/flow/synthesis/htree/` | H-tree topology implementation | Root exposes `HTree.hh/.cc`; characterization, pattern constraints, and embedding helpers stay in their subdirectories |
 | `source/flow/optimization/` | Post-synthesis optimization over committed CTS design and fast STA state | Search knobs stay in optimizer-owned options unless a user-facing config decision is separately approved |
@@ -111,6 +111,9 @@ When adding a new module or submodule:
 
 - Use a real library target when the module has `.cc` files.
 - Use an `INTERFACE` library only when the module is header-only.
+- Use an `OBJECT` library only for shared implementation that is consumed by multiple static archive targets and would otherwise require
+  archive repetition, `LINK_GROUP`, or linker start/end groups. The object target must have one source owner, consumers must still declare the
+  provider target directly, and the object target must not hide a real architectural cycle.
 - Prefer linking existing targets over duplicating include directories.
 - When restructuring directories, update every affected `CMakeLists.txt`.
 

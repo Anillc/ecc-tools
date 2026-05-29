@@ -31,7 +31,7 @@
 #include "ClockLayout.hh"
 #include "Log.hh"
 #include "design/Clock.hh"
-#include "instantiation/design_conversion/DesignConversion.hh"
+#include "synthesis/realization/ClockTreeRealization.hh"
 #include "synthesis/trace/domain_status/DomainStatus.hh"
 
 namespace icts {
@@ -40,7 +40,7 @@ namespace {
 auto addRootBuffer(const ClockDistributionInput& input, const std::string& domain_prefix) -> SinkDomainRootBufferOutput
 {
   if (input.root_buffer_spec == nullptr) {
-    return DesignConversion::addRootBufferForSinkDomain(SinkDomainRootBufferSelectionInput{
+    return ClockTreeRealization::addRootBufferForSinkDomain(SinkDomainRootBufferSelectionInput{
         .design = input.design,
         .clock = input.clock,
         .wrapper = input.wrapper,
@@ -49,7 +49,7 @@ auto addRootBuffer(const ClockDistributionInput& input, const std::string& domai
         .sinks = input.sinks,
     });
   }
-  return DesignConversion::addRootBufferForSinkDomain(SinkDomainRootBufferInput{
+  return ClockTreeRealization::addRootBufferForSinkDomain(SinkDomainRootBufferInput{
       .design = input.design,
       .clock = input.clock,
       .domain_prefix = domain_prefix,
@@ -65,7 +65,7 @@ auto addRootBuffer(const ClockDistributionInput& input, const std::string& domai
 auto ClockDistribution::partitionSinkDomains(const Clock& clock) -> ClockDistributionPartition
 {
   ClockDistributionPartition partition;
-  auto sink_partition = DesignConversion::partitionClockSinks(clock.get_loads());
+  auto sink_partition = ClockTreeRealization::partitionClockSinks(clock.get_loads());
   partition.macro_sinks = std::move(sink_partition.macro_sinks);
   partition.regular_sinks = std::move(sink_partition.regular_sinks);
   partition.valid_sink_count = partition.macro_sinks.size() + partition.regular_sinks.size();
@@ -89,7 +89,7 @@ auto ClockDistribution::prepare(const ClockDistributionInput& input) -> std::opt
   const auto* const sink_domain_label = ToString(input.sink_domain);
   ClockDistributionContext context;
   context.sink_domain = input.sink_domain;
-  context.domain_prefix = DesignConversion::makeSinkDomainPrefix(clock, input.clock_index, input.sink_domain);
+  context.domain_prefix = ClockTreeRealization::makeSinkDomainPrefix(clock, input.clock_index, input.sink_domain);
   context.sinks = input.sinks;
 
   const auto root_buffer_output = addRootBuffer(input, context.domain_prefix);
@@ -104,7 +104,7 @@ auto ClockDistribution::prepare(const ClockDistributionInput& input) -> std::opt
     return std::nullopt;
   }
 
-  context.downstream_net = DesignConversion::connectSinkDomainDownstreamNet(SinkDomainDownstreamNetInput{
+  context.downstream_net = ClockTreeRealization::connectSinkDomainDownstreamNet(SinkDomainDownstreamNetInput{
       .design = &design,
       .clock = &clock,
       .domain_prefix = context.domain_prefix,

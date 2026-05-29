@@ -39,10 +39,11 @@
 #include "design/Net.hh"
 #include "design/Pin.hh"
 #include "geometry/Geometry.hh"
-#include "instantiation/design_conversion/DesignConversion.hh"
 #include "io/Wrapper.hh"
 #include "logger/Schema.hh"
 #include "synthesis/distribution/ClockDistribution.hh"
+#include "synthesis/realization/ClockTreeRealization.hh"
+#include "synthesis/topology/SourceTrunkStage.hh"
 #include "synthesis/topology/sink/SinkBranch.hh"
 #include "synthesis/topology/trunk/SourceTrunk.hh"
 #include "synthesis/trace/SynthesisTrace.hh"
@@ -75,14 +76,14 @@ auto recordSourceTrunkBuild(SynthesisTraceSummary& summary, const topology::Sour
   summary.htree_inserted_net_count += build.summary.inserted_net_count;
 }
 
-auto sourceTrunkSynthesisPhase(Topology::SourceTrunkStage stage) -> ClockLayoutPhase
+auto sourceTrunkSynthesisPhase(SourceTrunkStage stage) -> ClockLayoutPhase
 {
   switch (stage) {
-    case Topology::SourceTrunkStage::kSegment:
+    case SourceTrunkStage::kSegment:
       return ClockLayoutPhase::kSourceToRootSegment;
-    case Topology::SourceTrunkStage::kHTree:
+    case SourceTrunkStage::kHTree:
       return ClockLayoutPhase::kSourceToRootHTree;
-    case Topology::SourceTrunkStage::kUnknown:
+    case SourceTrunkStage::kUnknown:
       return ClockLayoutPhase::kUnknown;
   }
   return ClockLayoutPhase::kUnknown;
@@ -191,14 +192,14 @@ class ClockTopologySynthesis
                                               StageReportOptions{.context_sink = ReportSink::kDetail, .emit_success_summary = false});
     auto pending_clock_layout = ClockLayoutBuilder::makeSinkDomainLayout(*_clock, _clock_index, context.makeLayoutTopology(),
                                                                          ClockLayoutAdapter::makeSinkDomainLayoutTopology(synthesis_build));
-    if (!DesignConversion::commitInsertedObjects(InsertedObjectCommitInput{
+    if (!ClockTreeRealization::commitInsertedObjects(InsertedObjectCommitInput{
             .design = _design,
             .clock = _clock,
             .inserted_insts = &synthesis_build.output.inserted_insts,
             .inserted_pins = &synthesis_build.output.inserted_pins,
             .inserted_nets = &synthesis_build.output.inserted_nets,
         })) {
-      DesignConversion::reconnectNet(NetConnectionInput{
+      ClockTreeRealization::reconnectNet(NetConnectionInput{
           .net = context.downstream_net,
           .driver = context.downstream_net->get_driver(),
           .loads = context.sinks,
@@ -283,7 +284,7 @@ class ClockTopologySynthesis
       return false;
     }
 
-    const auto source_trunk_prefix = DesignConversion::makeSinkDomainPrefix(*_clock, _clock_index, source_trunk_domain);
+    const auto source_trunk_prefix = ClockTreeRealization::makeSinkDomainPrefix(*_clock, _clock_index, source_trunk_domain);
     topology::SourceTrunkInput source_trunk_input{
         .config = _config,
         .design = _design,
@@ -341,7 +342,7 @@ class ClockTopologySynthesis
       auto pending_clock_layout = ClockLayoutBuilder::makeSourceToRootLayout(
           *_clock, _clock_index, *clock_source_net,
           ClockLayoutAdapter::makeSourceTrunkLayoutTopology(source_trunk_build, source_trunk_phase), source_trunk_phase);
-      if (!DesignConversion::commitInsertedObjects(InsertedObjectCommitInput{
+      if (!ClockTreeRealization::commitInsertedObjects(InsertedObjectCommitInput{
               .design = _design,
               .clock = _clock,
               .inserted_insts = &source_trunk_build.output.inserted_insts,
@@ -390,13 +391,13 @@ auto Topology::build(const Input& input, const Config& config) -> Build
 
 auto Topology::resetClockTopology(Clock& clock) -> void
 {
-  DesignConversion::restoreClockSourceNetToClockLoads(clock);
+  ClockTreeRealization::restoreClockSourceNetToClockLoads(clock);
   clock.clearMembership();
 }
 
 auto Topology::resetClockTopology(Design& design, Clock& clock) -> void
 {
-  DesignConversion::restoreClockSourceNetToClockLoads(clock);
+  ClockTreeRealization::restoreClockSourceNetToClockLoads(clock);
   clearClockCtsMembership(design, clock);
 }
 
@@ -416,19 +417,6 @@ auto Topology::formClock(const ClockTopologyInput& input) -> bool
 
   ClockTopologySynthesis synthesis(input);
   return synthesis.synthesize();
-}
-
-auto ToString(Topology::SourceTrunkStage stage) -> const char*
-{
-  switch (stage) {
-    case Topology::SourceTrunkStage::kSegment:
-      return "top_segment";
-    case Topology::SourceTrunkStage::kHTree:
-      return "top_htree";
-    case Topology::SourceTrunkStage::kUnknown:
-      return "unknown";
-  }
-  return "unknown";
 }
 
 }  // namespace icts
