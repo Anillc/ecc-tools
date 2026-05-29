@@ -1,5 +1,4 @@
 use log;
-use spef::spef_parser;
 use sprs::TriMat;
 use sprs::TriMatI;
 use std::cell::RefCell;
@@ -11,6 +10,24 @@ use super::RustIRPGNetlist;
 
 pub const POWER_INNER_RESISTANCE: f64 = 1e-3;
 pub const RC_COEFF: f64 = 3.0; // RC coefficient, used to scale the resistance value from SPEF.
+
+pub struct SpefConnInput {
+    pub name: String,
+    pub is_external: bool,
+}
+
+pub struct SpefResCapInput {
+    pub node1: String,
+    pub node2: String,
+    pub value: f64,
+}
+
+pub struct SpefNetInput {
+    pub name: String,
+    pub conns: Vec<SpefConnInput>,
+    pub caps: Vec<SpefResCapInput>,
+    pub ress: Vec<SpefResCapInput>,
+}
 
 /// RC node of the spef network.
 pub struct RCNode {
@@ -161,131 +178,58 @@ impl RCData {
     }
 }
 
-pub fn split_spef_index_str(index_name: &str) -> (&str, &str) {
-    let v: Vec<&str> = index_name.split(':').collect();
-    let index_str = v.first().unwrap();
-    let node_str = v.last().unwrap();
-    if v.len() == 2 {
-        (&index_str[1..], *node_str)
-    } else {
-        (&index_str[1..], "")
-    }
-}
-
-/// Read rc data from spef file.
-pub fn read_rc_data_from_spef(spef_file_path: &str) -> RCData {
-    log::info!("read spef file {} start", spef_file_path);
-    let spef_file = spef_parser::parse_spef_file(spef_file_path);
-    log::info!("read spef file {} finish", spef_file_path);
-
-    let node_name_map = &spef_file.index_to_name_map;
-    let spef_data_nets = spef_file.get_nets();
+pub fn create_rc_data_from_spef_nets(nets: &[SpefNetInput]) -> RCData {
     let mut rc_data = RCData::default();
 
-    let spef_index_to_string = |index_str: &str| {
-        let split_names = split_spef_index_str(index_str);
-        let index = split_names.0.parse::<usize>().unwrap();
-        let node_name = node_name_map.get(&index);
-        if !split_names.1.is_empty() {
-            let expand_node1_name = node_name.unwrap().clone() + ":" + split_names.1;
-            return expand_node1_name;
-        }
-        String::from(node_name.unwrap())
-    };
+    for spef_net in nets {
+        let mut one_net_data = RCOneNetData::new(spef_net.name.clone());
 
-    log::info!("build net rc data start");
-
-    // from the spef connection build bump port node and inst pin node.
-    for spef_net in spef_data_nets {
-        // println!("{:?}", spef_net);
-        let spef_net_name = &spef_net.name;
-        let net_name_str = spef_index_to_string(spef_net_name);
-        log::info!("build net {} rc data", net_name_str);
-        let mut one_net_data = RCOneNetData::new(net_name_str.clone());
-
-        // build the bump and inst pin node.
-        for conn_entry in spef_net.get_conns() {
-            let conn_type = conn_entry.get_conn_type();
-            let pin_port_name_index = conn_entry.get_pin_port_name();
-            let pin_port_name = spef_index_to_string(pin_port_name_index);
-            match conn_type {
-                spef_parser::spef_data::ConnectionType::EXTERNAL => {
-                    // bump port
-                    let mut rc_node = RCNode::new(pin_port_name);
-                    rc_node.set_is_bump();
-
-                    one_net_data.add_node(rc_node);
-                }
-                spef_parser::spef_data::ConnectionType::INTERNAL => {
-                    // inst pin
-                    let mut rc_node = RCNode::new(pin_port_name);
-                    rc_node.set_is_inst_pin();
-
-                    one_net_data.add_node(rc_node);
-                }
-                _ => println!("TODO"),
+        for conn in &spef_net.conns {
+            let mut rc_node = RCNode::new(conn.name.clone());
+            if conn.is_external {
+                rc_node.set_is_bump();
+            } else {
+                rc_node.set_is_inst_pin();
             }
+            one_net_data.add_node(rc_node);
         }
 
-        // build the cap node.
-        for cap_entry in spef_net.get_caps() {
-            if !cap_entry.node2.is_empty() {
+        for cap in &spef_net.caps {
+            if !cap.node2.is_empty() {
                 continue;
             }
-            let name_index = &cap_entry.node1;
-            let node_name = spef_index_to_string(name_index);
-            let cap_value = cap_entry.res_or_cap;
 
-            let node_id = one_net_data.get_node_id(&node_name);
-
-            if node_id.is_none() {
-                let mut rc_node = RCNode::new(node_name);
-                rc_node.set_cap(cap_value);
-                one_net_data.add_node(rc_node);
+            let node_id = one_net_data.get_node_id(&cap.node1);
+            if let Some(node_id) = node_id {
+                one_net_data.set_node_cap(node_id, cap.value);
             } else {
-                one_net_data.set_node_cap(node_id.unwrap(), cap_value);
+                let mut rc_node = RCNode::new(cap.node1.clone());
+                rc_node.set_cap(cap.value);
+                one_net_data.add_node(rc_node);
             }
         }
 
-        // build the internal node.
-        for one_resistance in spef_net.get_ress() {
-            let node1_name_index: &str = &one_resistance.node1;
-            let node1_name = spef_index_to_string(node1_name_index);
-            let node2_name_index: &str = &one_resistance.node2;
-            let node2_name = spef_index_to_string(node2_name_index);
-            let mut resistance_val = one_resistance.res_or_cap;
-
-            resistance_val *= RC_COEFF; // scale the resistance value.
-
-            let mut node_id = one_net_data.get_node_id(&node1_name);
-
-            let node1_id = if node_id.is_none() {
-                let rc_node = RCNode::new(node1_name);
-                one_net_data.add_node(rc_node)
+        for resistance in &spef_net.ress {
+            let node1_id = if let Some(node_id) = one_net_data.get_node_id(&resistance.node1) {
+                node_id
             } else {
-                node_id.unwrap()
+                let rc_node = RCNode::new(resistance.node1.clone());
+                one_net_data.add_node(rc_node)
             };
 
-            node_id = one_net_data.get_node_id(&node2_name);
-
-            let node2_id = if node_id.is_none() {
-                let rc_node2 = RCNode::new(node2_name);
-                one_net_data.add_node(rc_node2)
+            let node2_id = if let Some(node_id) = one_net_data.get_node_id(&resistance.node2) {
+                node_id
             } else {
-                node_id.unwrap()
+                let rc_node = RCNode::new(resistance.node2.clone());
+                one_net_data.add_node(rc_node)
             };
 
             let mut rc_resistance = RCResistance::default();
             rc_resistance.from_node_id = node1_id;
             rc_resistance.to_node_id = node2_id;
-            rc_resistance.resistance = resistance_val;
-
+            rc_resistance.resistance = resistance.value * RC_COEFF;
             one_net_data.add_resistance(rc_resistance);
         }
-
-        // if net_name_str == "VDD" {
-        //     one_net_data.print_to_yaml("/home/taosimin/ir_example/aes/pg_netlist/rc_data.yaml");
-        // }
 
         rc_data.add_one_net_data(one_net_data);
     }
@@ -366,4 +310,54 @@ pub fn build_conductance_matrix(rc_one_net_data: &RCOneNetData) -> TriMatI<f64, 
     }
 
     g_matrix
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_rc_data_from_spef_nets_preserves_iir_rc_semantics() {
+        let nets = vec![SpefNetInput {
+            name: "VDD".to_string(),
+            conns: vec![
+                SpefConnInput { name: "VDD".to_string(), is_external: true },
+                SpefConnInput { name: "U1/VDD".to_string(), is_external: false },
+            ],
+            caps: vec![
+                SpefResCapInput { node1: "VDD".to_string(), node2: String::new(), value: 0.25 },
+                SpefResCapInput { node1: "VDD:3".to_string(), node2: String::new(), value: 0.5 },
+                SpefResCapInput {
+                    node1: "COUPLED_ONLY_A".to_string(),
+                    node2: "COUPLED_ONLY_B".to_string(),
+                    value: 0.75,
+                },
+            ],
+            ress: vec![SpefResCapInput { node1: "VDD".to_string(), node2: "U1/VDD".to_string(), value: 2.0 }],
+        }];
+
+        let rc_data = create_rc_data_from_spef_nets(&nets);
+        let one_net = rc_data.get_one_net_data("VDD");
+
+        let vdd = "VDD".to_string();
+        let inst = "U1/VDD".to_string();
+        let cap_only = "VDD:3".to_string();
+        let coupled_only = "COUPLED_ONLY_A".to_string();
+
+        let vdd_id = one_net.get_node_id(&vdd).unwrap();
+        let inst_id = one_net.get_node_id(&inst).unwrap();
+        let cap_only_id = one_net.get_node_id(&cap_only).unwrap();
+
+        {
+            let nodes = one_net.get_nodes().borrow();
+            assert!(nodes[vdd_id].get_is_bump());
+            assert_eq!(nodes[vdd_id].get_cap(), 0.25);
+            assert!(nodes[inst_id].get_is_inst_pin());
+            assert_eq!(nodes[cap_only_id].get_cap(), 0.5);
+        }
+
+        assert!(one_net.get_node_id(&coupled_only).is_none());
+        assert_eq!(one_net.get_resistances().len(), 1);
+        assert_eq!(one_net.get_resistances()[0].resistance, 2.0 * RC_COEFF);
+    }
 }
