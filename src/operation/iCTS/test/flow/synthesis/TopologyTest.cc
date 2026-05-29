@@ -43,6 +43,7 @@
 #include "database/design/Pin.hh"
 #include "database/io/Wrapper.hh"
 #include "database/spatial/Point.hh"
+#include "flow/synthesis/topology/SourceTrunkStage.hh"
 #include "flow/synthesis/topology/Topology.hh"
 #include "flow/synthesis/topology/trunk/SourceTrunk.hh"
 #include "utils/logger/Schema.hh"
@@ -475,7 +476,7 @@ TEST(TopologyTest, SourceTrunkSingleRootSameLocationDirectConnectsWithoutInserte
                                                                                             .log_context = {}});
 
   EXPECT_TRUE(result.summary.success);
-  EXPECT_EQ(result.summary.stage, icts::Topology::SourceTrunkStage::kSegment);
+  EXPECT_EQ(result.summary.stage, icts::SourceTrunkStage::kSegment);
   EXPECT_EQ(result.output.inserted_insts.size(), 0U);
   EXPECT_EQ(result.output.inserted_nets.size(), 0U);
   EXPECT_EQ(source_net.get_driver(), &source);
