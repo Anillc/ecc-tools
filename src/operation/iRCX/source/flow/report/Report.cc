@@ -44,6 +44,7 @@ auto Report::dumpSpef() -> bool
   dumper.set_topo_pool(&data.topo_pool());
   dumper.set_rc_table(&data.rc_table());
   dumper.set_corner_data(&corner_data);
+  dumper.set_layer_table(&data.layer_table());
   if (!dumper.dump(output_dir)) {
     return false;
   }
