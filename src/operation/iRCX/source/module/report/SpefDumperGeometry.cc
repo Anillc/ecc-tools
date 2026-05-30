@@ -16,11 +16,11 @@
 // ***************************************************************************************
 #include "SpefDumper.hh"
 
+#include <cstdlib>
 #include <iomanip>
 #include <sstream>
 
 #include "Geometry.hh"
-#include "ProcessCorner.hpp"
 #include "RCXConfig.hh"
 #include "TopoPool.hh"
 
@@ -33,11 +33,6 @@ auto formatMicron(Micron value, int precision) -> Str
   std::ostringstream ss;
   ss << std::fixed << std::setprecision(precision) << value;
   return ss.str();
-}
-
-auto absDbu(Dbu value) -> Dbu
-{
-  return value < 0 ? -value : value;
 }
 
 }  // namespace
@@ -80,13 +75,14 @@ void SpefDumper::writeResistanceGeometry(std::ostream& os, Size corner_idx, cons
 
   const TopoNode& node_u = topo_pool_->node_at(edge.u());
   const TopoNode& node_v = topo_pool_->node_at(edge.v());
-  const Dbu node_dx = absDbu(geom::x(node_u.point()) - geom::x(node_v.point()));
-  const Dbu node_dy = absDbu(geom::y(node_u.point()) - geom::y(node_v.point()));
+  const Dbu node_dx = std::abs(geom::x(node_u.point()) - geom::x(node_v.point()));
+  const Dbu node_dy = std::abs(geom::y(node_u.point()) - geom::y(node_v.point()));
   const bool is_horz = (node_dx == 0 && node_dy == 0) ? edge.is_horz() : (node_dx >= node_dy);
   const Dbu axis_distance = is_horz ? node_dx : node_dy;
   const Dbu shape_axis_distance = is_horz ? dx : dy;
   const Dbu shape_width = is_horz ? dy : dx;
-  const Micron length = ((axis_distance > 0 ? axis_distance : shape_axis_distance) * dbu_to_micron) * halfNodeScaleFactor(corner_idx);
+  const Micron length = ((axis_distance > 0 ? axis_distance : shape_axis_distance) * dbu_to_micron)
+                        * (*corner_data_)[corner_idx].halfNodeScaleFactor();
   const Micron width = shape_width * dbu_to_micron;
   const bool virtual_overlap_edge = (node_dx == 0 && node_dy == 0) || dx == 0 || dy == 0;
 
@@ -103,18 +99,6 @@ void SpefDumper::writeResistanceGeometry(std::ostream& os, Size corner_idx, cons
      << " $urx=" << formatMicron(geom::max_x(rect) * dbu_to_micron, 3)
      << " $ury=" << formatMicron(geom::max_y(rect) * dbu_to_micron, 3)
      << " $dir=" << (is_horz ? 0 : 1);
-}
-
-double SpefDumper::halfNodeScaleFactor(Size corner_idx) const
-{
-  if (corner_data_ == nullptr || corner_idx >= corner_data_->size()) {
-    return 1.0;
-  }
-  const auto& corner_data = (*corner_data_)[corner_idx];
-  if (corner_data.process_corner == nullptr) {
-    return 1.0;
-  }
-  return corner_data.process_corner->get_half_node_scale_factor();
 }
 
 Size SpefDumper::reportLayerLevel(Size design_layer_id) const

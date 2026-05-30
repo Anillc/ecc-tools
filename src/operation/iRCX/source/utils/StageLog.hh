@@ -17,6 +17,8 @@
 #pragma once
 
 #include <optional>
+#include <sstream>
+#include <source_location>
 #include <string>
 #include <utility>
 
@@ -25,11 +27,23 @@
 
 namespace ircx {
 
+template <typename... Args>
+inline void logStageInfo(const std::source_location& location, const Args&... args)
+{
+  std::ostringstream stream;
+  (stream << ... << args);
+  google::LogMessage(location.file_name(), static_cast<int>(location.line()), google::GLOG_INFO).stream() << stream.str();
+}
+
 class StageLog
 {
  public:
-  explicit StageLog(std::string stage) : stage_(std::move(stage)) { LOG_INFO << stage_ << " begin."; }
-  ~StageLog() { LOG_INFO << stage_ << " end: " << (success_ ? "success" : "failed") << "."; }
+  explicit StageLog(std::string stage, std::source_location location = std::source_location::current())
+      : stage_(std::move(stage)), location_(location)
+  {
+    logStageInfo(location_, stage_, " begin.");
+  }
+  ~StageLog() { logStageInfo(location_, stage_, " end: ", (success_ ? "success" : "failed"), "."); }
 
   StageLog(const StageLog&) = delete;
   StageLog& operator=(const StageLog&) = delete;
@@ -38,6 +52,7 @@ class StageLog
 
  private:
   std::string stage_;
+  std::source_location location_;
   bool success_{false};
 };
 
@@ -47,19 +62,20 @@ struct StageLogOptions
 };
 
 template <typename Func>
-auto runStage(std::string stage, Func&& func, StageLogOptions options = {}) -> bool
+auto runStage(std::string stage, Func&& func, StageLogOptions options = {},
+              std::source_location location = std::source_location::current()) -> bool
 {
   std::optional<ieda::Stats> stats;
   if (options.profile) {
     stats.emplace();
   }
 
-  StageLog stage_log(stage);
+  StageLog stage_log(stage, location);
   const bool success = std::forward<Func>(func)();
   stage_log.set_success(success);
   if (stats.has_value()) {
-    LOG_INFO << "  - memory usage: " << stats->memoryDelta() << "MB";
-    LOG_INFO << "  - time elapsed: " << stats->elapsedRunTime() << "s";
+    logStageInfo(location, "  - memory usage: ", stats->memoryDelta(), "MB");
+    logStageInfo(location, "  - time elapsed: ", stats->elapsedRunTime(), "s");
   }
   return success;
 }

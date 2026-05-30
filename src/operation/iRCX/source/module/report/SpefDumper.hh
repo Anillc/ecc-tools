@@ -101,7 +101,6 @@ class SpefDumper
   void writeDNet(std::ostream& os, Size corner_idx, Size net_idx) const;
   void writeNodeGeometry(std::ostream& os, const TopoNode& node, Micron dbu_to_micron) const;
   void writeResistanceGeometry(std::ostream& os, Size corner_idx, const TopoEdge& edge, Micron dbu_to_micron) const;
-  double halfNodeScaleFactor(Size corner_idx) const;
   Size reportLayerLevel(Size design_layer_id) const;
 
   const SpefContext* spef_context_{nullptr};

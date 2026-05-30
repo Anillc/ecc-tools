@@ -50,7 +50,7 @@ void SpefDumper::writeHeader(std::ofstream& ofs, Size corner_idx) const
 
   if (RCX_CONFIG_INST.get_report_geometry()) {
     ofs << "\n// COMMENTS\n\n";
-    ofs << "//   HALF_NODE_SCALING_FACTOR " << std::setprecision(6) << halfNodeScaleFactor(corner_idx) << "\n";
+    ofs << "//   HALF_NODE_SCALING_FACTOR " << std::setprecision(6) << (*corner_data_)[corner_idx].halfNodeScaleFactor() << "\n";
   }
 }
 
