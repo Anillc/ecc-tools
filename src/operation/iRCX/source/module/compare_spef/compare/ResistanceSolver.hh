@@ -16,8 +16,10 @@
 // ***************************************************************************************
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "data/CompareSpefData.hh"
 
@@ -28,6 +30,9 @@ class ResistanceSolver
 {
  public:
   auto equivalentResistance(const Net& net, const std::string& from_node, const std::string& to_node) const -> std::optional<double>;
+  auto equivalentResistances(const Net& net, const std::vector<NodePair>& pairs) const -> std::vector<std::optional<double>>;
+  auto equivalentResistances(const Net& net, const std::vector<NodePair>& pairs, const std::vector<std::size_t>& pair_indices) const
+      -> std::vector<std::optional<double>>;
 };
 
 }  // namespace compare_spef

@@ -17,6 +17,7 @@
 #include "report/ReportWriter.hh"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
@@ -28,6 +29,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include <omp.h>
 
 #include "PathUtils.hh"
 #include "libfort/fort.hpp"
@@ -296,29 +299,6 @@ auto writeMismatchedNets(const std::filesystem::path& output_dir, const Result& 
   return true;
 }
 
-auto reverseCouplingOrder(const CcapMismatch& lhs, const CcapMismatch& rhs) -> bool
-{
-  if (lhs.first_external != rhs.first_external) {
-    return !lhs.first_external;
-  }
-  if (lhs.first_order != rhs.first_order) {
-    return lhs.first_external ? lhs.first_order < rhs.first_order : lhs.first_order > rhs.first_order;
-  }
-  if (lhs.first_external && lhs.second_external != rhs.second_external) {
-    return !lhs.second_external;
-  }
-  if (lhs.second_order != rhs.second_order) {
-    return lhs.first_external && lhs.second_external ? lhs.second_order < rhs.second_order : lhs.second_order > rhs.second_order;
-  }
-  if (lhs.report_nets.first != rhs.report_nets.first) {
-    return lhs.report_nets.first > rhs.report_nets.first;
-  }
-  if (lhs.report_nets.second != rhs.report_nets.second) {
-    return lhs.report_nets.second > rhs.report_nets.second;
-  }
-  return lhs.capacitance < rhs.capacitance;
-}
-
 auto writeMismatchedCouplings(const std::filesystem::path& output_dir, const Result& result) -> bool
 {
   const auto report_path = output_dir / "coupling_caps.mismatched";
@@ -328,19 +308,14 @@ auto writeMismatchedCouplings(const std::filesystem::path& output_dir, const Res
     return false;
   }
 
-  auto sorted_reference_only = result.reference_only_couplings;
-  auto sorted_test_only = result.test_only_couplings;
-  std::sort(sorted_reference_only.begin(), sorted_reference_only.end(), reverseCouplingOrder);
-  std::sort(sorted_test_only.begin(), sorted_test_only.end(), reverseCouplingOrder);
-
   ofs << "Total# of coupling caps in reference: " << result.summary.reference_coupling_count << '\n';
   ofs << "Total# of coupling caps in test: " << result.summary.test_coupling_count << "\n\n";
   ofs << "# of missing coupling caps: " << result.summary.reference_only_coupling_count << '\n';
-  for (const auto& mismatch : sorted_reference_only) {
+  for (const auto& mismatch : result.reference_only_couplings) {
     ofs << "\tMIT: " << mismatch.report_nets.first << '\t' << mismatch.report_nets.second << '\t' << mismatch.capacitance << '\n';
   }
   ofs << "\n# of extra coupling caps: " << result.summary.test_only_coupling_count << '\n';
-  for (const auto& mismatch : sorted_test_only) {
+  for (const auto& mismatch : result.test_only_couplings) {
     ofs << "\tMIG: " << mismatch.report_nets.first << '\t' << mismatch.report_nets.second << '\t' << mismatch.capacitance << '\n';
   }
   return true;
@@ -389,6 +364,64 @@ auto writeSummaryReport(const std::filesystem::path& output_dir, const Config& c
 
 }  // namespace
 
+namespace {
+
+using ReportTask = bool (*)(const std::filesystem::path&, const Config&, const Result&);
+using SimpleReportTask = bool (*)(const std::filesystem::path&, const Result&);
+
+auto writeTcapTask(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  return writeTcapReport(output_dir, config, result);
+}
+
+auto writeCcapTask(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  return writeCcapReport(output_dir, config, result);
+}
+
+auto writeP2PTask(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  return writeP2PReport(output_dir, config, result);
+}
+
+auto writeSummaryTask(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  return writeSummaryReport(output_dir, config, result);
+}
+
+auto writeNetsTask(const std::filesystem::path& output_dir, const Result& result) -> bool
+{
+  return writeMismatchedNets(output_dir, result);
+}
+
+auto writeCouplingsTask(const std::filesystem::path& output_dir, const Result& result) -> bool
+{
+  return writeMismatchedCouplings(output_dir, result);
+}
+
+auto writeReports(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  constexpr std::array<ReportTask, 4> report_tasks = {writeTcapTask, writeCcapTask, writeP2PTask, writeSummaryTask};
+  constexpr std::array<SimpleReportTask, 2> simple_report_tasks = {writeNetsTask, writeCouplingsTask};
+
+  std::array<bool, report_tasks.size() + simple_report_tasks.size()> ok;
+  ok.fill(false);
+
+  const int thread_count = std::min<int>(static_cast<int>(config.cores), ok.size());
+#pragma omp parallel for schedule(static) num_threads(thread_count)
+  for (std::size_t index = 0; index < ok.size(); ++index) {
+    if (index < report_tasks.size()) {
+      ok[index] = report_tasks[index](output_dir, config, result);
+    } else {
+      ok[index] = simple_report_tasks[index - report_tasks.size()](output_dir, result);
+    }
+  }
+
+  return std::all_of(ok.begin(), ok.end(), [](bool value) { return value; });
+}
+
+}  // namespace
+
 ReportWriter::ReportWriter(const Config& config) : _config(config)
 {
 }
@@ -400,9 +433,7 @@ auto ReportWriter::write(const Result& result) const -> bool
   }
 
   const std::filesystem::path output_dir(_config.output_dir);
-  const bool ok = writeTcapReport(output_dir, _config, result) && writeCcapReport(output_dir, _config, result)
-                  && writeP2PReport(output_dir, _config, result) && writeMismatchedNets(output_dir, result)
-                  && writeMismatchedCouplings(output_dir, result) && writeSummaryReport(output_dir, _config, result);
+  const bool ok = writeReports(output_dir, _config, result);
   if (!ok) {
     LOG_ERROR << "compare_spef failed: cannot write one or more reports under " << _config.output_dir;
   }

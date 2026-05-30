@@ -33,9 +33,6 @@ class CouplingCapComparator
   void compare(const Data& test, const Data& reference, Result& result) const;
 
  private:
-  void addRow(const Data& reference, const std::string& victim, const std::string& aggressor, double reference_cap, double test_cap,
-              Result& result) const;
-
   const Config& _config;
   NetSelector _net_selector;
 };

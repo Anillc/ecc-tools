@@ -26,11 +26,7 @@ namespace {
 
 auto netOrder(const Data& data, const std::string& net_name) -> std::size_t
 {
-  const auto order_it = data.net_order.find(net_name);
-  if (order_it == data.net_order.end()) {
-    return 0;
-  }
-  return order_it->second;
+  return data.index.orderOf(net_name);
 }
 
 void sortRows(Result& result)
@@ -100,11 +96,41 @@ void sortMismatchedNets(Result& result, const Data& test, const Data& reference)
   std::sort(result.test_only_nets.begin(), result.test_only_nets.end(), reverse_test_order);
 }
 
+auto reverseCouplingOrder(const CcapMismatch& lhs, const CcapMismatch& rhs) -> bool
+{
+  if (lhs.first_external != rhs.first_external) {
+    return !lhs.first_external;
+  }
+  if (lhs.first_order != rhs.first_order) {
+    return lhs.first_external ? lhs.first_order < rhs.first_order : lhs.first_order > rhs.first_order;
+  }
+  if (lhs.first_external && lhs.second_external != rhs.second_external) {
+    return !lhs.second_external;
+  }
+  if (lhs.second_order != rhs.second_order) {
+    return lhs.first_external && lhs.second_external ? lhs.second_order < rhs.second_order : lhs.second_order > rhs.second_order;
+  }
+  if (lhs.report_nets.first != rhs.report_nets.first) {
+    return lhs.report_nets.first > rhs.report_nets.first;
+  }
+  if (lhs.report_nets.second != rhs.report_nets.second) {
+    return lhs.report_nets.second > rhs.report_nets.second;
+  }
+  return lhs.capacitance < rhs.capacitance;
+}
+
+void sortMismatchedCouplings(Result& result)
+{
+  std::sort(result.reference_only_couplings.begin(), result.reference_only_couplings.end(), reverseCouplingOrder);
+  std::sort(result.test_only_couplings.begin(), result.test_only_couplings.end(), reverseCouplingOrder);
+}
+
 }  // namespace
 
 void ResultSorter::sort(Result& result, const Data& test, const Data& reference) const
 {
   sortMismatchedNets(result, test, reference);
+  sortMismatchedCouplings(result);
   sortRows(result);
 }
 

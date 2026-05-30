@@ -18,6 +18,7 @@ target_link_libraries(ircx_compare_spef
     log
     spef
     fort
+    OpenMP::OpenMP_CXX
 )
 
 target_include_directories(ircx_compare_spef

@@ -60,6 +60,21 @@ void appendRows(Result& result, Result&& thread_result)
                                     std::make_move_iterator(thread_result.reference_only_nets.end()));
 }
 
+void reserveRows(Result& result, const std::vector<Result>& thread_results)
+{
+  std::size_t tcap_count = result.tcap_rows.size();
+  std::size_t p2p_count = result.p2p_rows.size();
+  std::size_t reference_only_net_count = result.reference_only_nets.size();
+  for (const auto& thread_result : thread_results) {
+    tcap_count += thread_result.tcap_rows.size();
+    p2p_count += thread_result.p2p_rows.size();
+    reference_only_net_count += thread_result.reference_only_nets.size();
+  }
+  result.tcap_rows.reserve(tcap_count);
+  result.p2p_rows.reserve(p2p_count);
+  result.reference_only_nets.reserve(reference_only_net_count);
+}
+
 }  // namespace
 
 Comparator::Comparator(const Config& config)
@@ -106,15 +121,16 @@ void Comparator::compareMatchedNets(const Data& test, const Data& reference, Res
 #pragma omp parallel for schedule(dynamic, 64) num_threads(thread_count)
   for (std::size_t index = 0; index < reference_net_pairs.size(); ++index) {
     const auto& [net_name, reference_net] = *reference_net_pairs[index];
-    const auto test_it = test.nets.find(net_name);
-    if (test_it == test.nets.end()) {
+    const Net* test_net = test.index.findNet(net_name);
+    if (test_net == nullptr) {
       thread_results[omp_get_thread_num()].reference_only_nets.push_back(net_name);
       continue;
     }
 
-    compareMatchedNet(net_name, reference_net, test_it->second, thread_results[omp_get_thread_num()]);
+    compareMatchedNet(net_name, reference_net, *test_net, thread_results[omp_get_thread_num()]);
   }
 
+  reserveRows(result, thread_results);
   for (auto& thread_result : thread_results) {
     result.summary.matched_net_count += thread_result.summary.matched_net_count;
     appendRows(result, std::move(thread_result));
@@ -150,12 +166,24 @@ void Comparator::addTotalCapRow(const std::string& net_name, const Net& referenc
 
 void Comparator::addResistanceRows(const std::string& net_name, const Net& reference_net, const Net& test_net, Result& result) const
 {
-  for (const auto& pair : _path_pair_generator.generate(reference_net)) {
-    const auto reference_res = _resistance_solver.equivalentResistance(reference_net, pair.first, pair.second);
-    if (!reference_res.has_value() || *reference_res < _config.res_threshold) {
-      continue;
+  const auto pairs = _path_pair_generator.generate(reference_net);
+  const auto reference_resistances = _resistance_solver.equivalentResistances(reference_net, pairs);
+  std::vector<std::size_t> compared_indices;
+  compared_indices.reserve(reference_resistances.size());
+  for (std::size_t index = 0; index < reference_resistances.size(); ++index) {
+    const auto& reference_res = reference_resistances[index];
+    if (reference_res.has_value() && *reference_res >= _config.res_threshold) {
+      compared_indices.push_back(index);
     }
-    const auto test_res = _resistance_solver.equivalentResistance(test_net, pair.first, pair.second);
+  }
+
+  const auto test_resistances = _resistance_solver.equivalentResistances(test_net, pairs, compared_indices);
+
+  for (std::size_t output_index = 0; output_index < compared_indices.size(); ++output_index) {
+    const std::size_t index = compared_indices[output_index];
+    const auto& pair = pairs[index];
+    const auto& reference_res = reference_resistances[index];
+    const auto& test_res = test_resistances[output_index];
 
     ResistanceRow row;
     row.net = net_name;
@@ -175,7 +203,7 @@ void Comparator::collectTestOnlyNets(const Data& test, const Data& reference, Re
 {
   for (const auto& net_pair : test.nets) {
     const std::string& net_name = net_pair.first;
-    if (!reference.nets.contains(net_name)) {
+    if (!reference.index.containsNet(net_name)) {
       result.test_only_nets.push_back(net_name);
     }
   }

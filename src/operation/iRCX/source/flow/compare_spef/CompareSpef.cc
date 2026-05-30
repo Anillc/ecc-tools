@@ -25,12 +25,9 @@ namespace ircx {
 
 auto CompareSpef::run(compare_spef::Config config) -> bool
 {
-  LOG_INFO << "compare_spef begin.";
-
   const compare_spef::NetConfigReader net_config_reader;
   const compare_spef::ConfigValidator config_validator;
   if (!net_config_reader.read(config) || !config_validator.validate(config)) {
-    LOG_INFO << "compare_spef end.";
     return false;
   }
 
@@ -39,12 +36,10 @@ auto CompareSpef::run(compare_spef::Config config) -> bool
   const compare_spef::SpefReader spef_reader;
   if (!spef_reader.read(config.test_file, test)) {
     LOG_ERROR << "compare_spef failed: read test SPEF failed: " << config.test_file;
-    LOG_INFO << "compare_spef end.";
     return false;
   }
   if (!spef_reader.read(config.reference_file, reference)) {
     LOG_ERROR << "compare_spef failed: read reference SPEF failed: " << config.reference_file;
-    LOG_INFO << "compare_spef end.";
     return false;
   }
 
@@ -52,12 +47,10 @@ auto CompareSpef::run(compare_spef::Config config) -> bool
   const auto result = comparator.compare(test, reference);
   const compare_spef::ReportWriter report_writer(config);
   if (!report_writer.write(result)) {
-    LOG_INFO << "compare_spef end.";
     return false;
   }
 
   LOG_INFO << "compare_spef wrote reports to " << config.output_dir;
-  LOG_INFO << "compare_spef end.";
   return true;
 }
 

@@ -22,8 +22,8 @@
 #include <cmath>
 #include <cstddef>
 #include <iterator>
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -34,53 +34,80 @@ namespace ircx {
 namespace compare_spef {
 namespace {
 
-auto isExternalNet(const Data& data, const std::string& net_name) -> bool
+struct NetMeta
 {
-  const auto net_it = data.nets.find(net_name);
-  if (net_it == data.nets.end()) {
-    return false;
-  }
-  return std::any_of(net_it->second.pins.begin(), net_it->second.pins.end(), [](const Pin& pin) { return pin.is_external; });
-}
+  const Net* net = nullptr;
+  std::size_t order = 0;
+  bool external = false;
+  bool selected = false;
+};
 
-auto netOrder(const Data& data, const std::string& net_name) -> std::size_t
+class NetMetaIndex
 {
-  const auto order_it = data.net_order.find(net_name);
-  if (order_it == data.net_order.end()) {
-    return 0;
+ public:
+  NetMetaIndex(const Data& data, const NetSelector& selector)
+  {
+    _meta.reserve(data.nets.size());
+    for (const auto& [net_name, net] : data.nets) {
+      _meta.emplace(net_name,
+                    NetMeta{.net = &net,
+                            .order = data.index.orderOf(net_name),
+                            .external = std::any_of(net.pins.begin(), net.pins.end(), [](const Pin& pin) { return pin.is_external; }),
+                            .selected = selector.selected(net)});
+    }
   }
-  return order_it->second;
-}
 
-auto makeReportCouplingPair(const Data& data, const NodePair& key) -> NodePair
+  auto find(const std::string& net_name) const -> const NetMeta*
+  {
+    const auto meta_it = _meta.find(net_name);
+    return meta_it == _meta.end() ? nullptr : &meta_it->second;
+  }
+
+  auto isExternal(const std::string& net_name) const -> bool
+  {
+    const NetMeta* net_meta = find(net_name);
+    return net_meta != nullptr && net_meta->external;
+  }
+
+  auto orderOf(const std::string& net_name) const -> std::size_t
+  {
+    const NetMeta* net_meta = find(net_name);
+    return net_meta == nullptr ? 0 : net_meta->order;
+  }
+
+ private:
+  std::unordered_map<std::string, NetMeta> _meta;
+};
+
+auto makeReportCouplingPair(const NetMetaIndex& meta, const NodePair& key) -> NodePair
 {
-  const bool first_external = isExternalNet(data, key.first);
-  const bool second_external = isExternalNet(data, key.second);
+  const bool first_external = meta.isExternal(key.first);
+  const bool second_external = meta.isExternal(key.second);
   if (first_external != second_external) {
     return first_external ? key : NodePair{key.second, key.first};
   }
 
-  const auto first_order_it = data.net_order.find(key.first);
-  const auto second_order_it = data.net_order.find(key.second);
-  if (first_order_it == data.net_order.end() || second_order_it == data.net_order.end()) {
+  const NetMeta* first_meta = meta.find(key.first);
+  const NetMeta* second_meta = meta.find(key.second);
+  if (first_meta == nullptr || second_meta == nullptr) {
     return key;
   }
 
-  if (first_external && second_external && first_order_it->second < second_order_it->second) {
+  if (first_external && second_external && first_meta->order < second_meta->order) {
     return NodePair{key.second, key.first};
   }
   return key;
 }
 
-auto makeCcapMismatch(const Data& data, const NodePair& key, double capacitance) -> CcapMismatch
+auto makeCcapMismatch(const NetMetaIndex& meta, const NodePair& key, double capacitance) -> CcapMismatch
 {
   CcapMismatch mismatch;
   mismatch.nets = key;
-  mismatch.report_nets = makeReportCouplingPair(data, key);
-  mismatch.first_order = netOrder(data, mismatch.report_nets.first);
-  mismatch.second_order = netOrder(data, mismatch.report_nets.second);
-  mismatch.first_external = isExternalNet(data, mismatch.report_nets.first);
-  mismatch.second_external = isExternalNet(data, mismatch.report_nets.second);
+  mismatch.report_nets = makeReportCouplingPair(meta, key);
+  mismatch.first_order = meta.orderOf(mismatch.report_nets.first);
+  mismatch.second_order = meta.orderOf(mismatch.report_nets.second);
+  mismatch.first_external = meta.isExternal(mismatch.report_nets.first);
+  mismatch.second_external = meta.isExternal(mismatch.report_nets.second);
   mismatch.capacitance = capacitance;
   return mismatch;
 }
@@ -96,71 +123,32 @@ void appendRows(Result& result, Result&& thread_result)
                                     std::make_move_iterator(thread_result.test_only_couplings.end()));
 }
 
-}  // namespace
-
-CouplingCapComparator::CouplingCapComparator(const Config& config) : _config(config), _net_selector(config)
+void reserveRows(Result& result, const std::vector<Result>& thread_results)
 {
+  std::size_t ccap_count = result.ccap_rows.size();
+  std::size_t reference_only_count = result.reference_only_couplings.size();
+  std::size_t test_only_count = result.test_only_couplings.size();
+  for (const auto& thread_result : thread_results) {
+    ccap_count += thread_result.ccap_rows.size();
+    reference_only_count += thread_result.reference_only_couplings.size();
+    test_only_count += thread_result.test_only_couplings.size();
+  }
+  result.ccap_rows.reserve(ccap_count);
+  result.reference_only_couplings.reserve(reference_only_count);
+  result.test_only_couplings.reserve(test_only_count);
 }
 
-void CouplingCapComparator::compare(const Data& test, const Data& reference, Result& result) const
+void addRow(const Config& config, const NetMetaIndex& reference_meta, const std::string& victim, const std::string& aggressor,
+            double reference_cap, double test_cap, Result& result)
 {
-  const int reference_thread_count = parallel::threadCount(_config, reference.coupling_caps.size());
-  std::vector<const std::map<NodePair, double>::value_type*> reference_couplings;
-  reference_couplings.reserve(reference.coupling_caps.size());
-  for (const auto& reference_coupling : reference.coupling_caps) {
-    reference_couplings.push_back(&reference_coupling);
-  }
-
-  std::vector<Result> reference_thread_results(reference_thread_count);
-#pragma omp parallel for schedule(dynamic, 256) num_threads(reference_thread_count)
-  for (std::size_t index = 0; index < reference_couplings.size(); ++index) {
-    const auto& [key, reference_cap] = *reference_couplings[index];
-    const auto test_cap_it = test.coupling_caps.find(key);
-    if (test_cap_it == test.coupling_caps.end()) {
-      reference_thread_results[omp_get_thread_num()].reference_only_couplings.push_back(makeCcapMismatch(reference, key, reference_cap));
-      continue;
-    }
-
-    addRow(reference, key.first, key.second, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
-    addRow(reference, key.second, key.first, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
-  }
-
-  for (auto& thread_result : reference_thread_results) {
-    appendRows(result, std::move(thread_result));
-  }
-
-  const int test_thread_count = parallel::threadCount(_config, test.coupling_caps.size());
-  std::vector<const std::map<NodePair, double>::value_type*> test_couplings;
-  test_couplings.reserve(test.coupling_caps.size());
-  for (const auto& test_coupling : test.coupling_caps) {
-    test_couplings.push_back(&test_coupling);
-  }
-
-  std::vector<Result> test_thread_results(test_thread_count);
-#pragma omp parallel for schedule(dynamic, 256) num_threads(test_thread_count)
-  for (std::size_t index = 0; index < test_couplings.size(); ++index) {
-    const auto& [key, test_cap] = *test_couplings[index];
-    if (!reference.coupling_caps.contains(key)) {
-      test_thread_results[omp_get_thread_num()].test_only_couplings.push_back(makeCcapMismatch(test, key, test_cap));
-    }
-  }
-
-  for (auto& thread_result : test_thread_results) {
-    appendRows(result, std::move(thread_result));
-  }
-}
-
-void CouplingCapComparator::addRow(const Data& reference, const std::string& victim, const std::string& aggressor, double reference_cap,
-                                   double test_cap, Result& result) const
-{
-  const auto reference_victim_it = reference.nets.find(victim);
-  if (reference_victim_it == reference.nets.end() || !_net_selector.selected(reference_victim_it->second)) {
+  const NetMeta* victim_meta = reference_meta.find(victim);
+  if (victim_meta == nullptr || victim_meta->net == nullptr || !victim_meta->selected) {
     return;
   }
 
-  const double reference_victim_tcap = reference_victim_it->second.total_cap;
+  const double reference_victim_tcap = victim_meta->net->total_cap;
   const double reference_rel = reference_victim_tcap <= math::kEpsilon ? 0.0 : std::abs(reference_cap) / reference_victim_tcap;
-  if (std::abs(reference_cap) < _config.ccap_abs_threshold || reference_rel < _config.ccap_rel_threshold) {
+  if (std::abs(reference_cap) < config.ccap_abs_threshold || reference_rel < config.ccap_rel_threshold) {
     return;
   }
 
@@ -173,6 +161,67 @@ void CouplingCapComparator::addRow(const Data& reference, const std::string& vic
   row.reference_victim_total_cap = reference_victim_tcap;
   row.relative_delta = math::couplingRelativeDelta(row.test, row.reference, row.reference_victim_total_cap);
   result.ccap_rows.push_back(std::move(row));
+}
+
+}  // namespace
+
+CouplingCapComparator::CouplingCapComparator(const Config& config) : _config(config), _net_selector(config)
+{
+}
+
+void CouplingCapComparator::compare(const Data& test, const Data& reference, Result& result) const
+{
+  const NetMetaIndex reference_meta(reference, _net_selector);
+  const NetMetaIndex test_meta(test, _net_selector);
+
+  const int reference_thread_count = parallel::threadCount(_config, reference.coupling_caps.size());
+  std::vector<const CouplingCapStore::Value*> reference_couplings;
+  reference_couplings.reserve(reference.coupling_caps.size());
+  for (auto coupling_it = reference.coupling_caps.beginOrdered(); coupling_it != reference.coupling_caps.endOrdered(); ++coupling_it) {
+    const auto& reference_coupling = *coupling_it;
+    reference_couplings.push_back(&reference_coupling);
+  }
+
+  std::vector<Result> reference_thread_results(reference_thread_count);
+#pragma omp parallel for schedule(dynamic, 256) num_threads(reference_thread_count)
+  for (std::size_t index = 0; index < reference_couplings.size(); ++index) {
+    const auto& [key, reference_cap] = *reference_couplings[index];
+    const auto test_cap_it = test.coupling_caps.find(key);
+    if (test_cap_it == test.coupling_caps.end()) {
+      reference_thread_results[omp_get_thread_num()].reference_only_couplings.push_back(makeCcapMismatch(reference_meta, key, reference_cap));
+      continue;
+    }
+
+    addRow(_config, reference_meta, key.first, key.second, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
+    addRow(_config, reference_meta, key.second, key.first, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
+  }
+
+  reserveRows(result, reference_thread_results);
+  for (auto& thread_result : reference_thread_results) {
+    appendRows(result, std::move(thread_result));
+  }
+
+  const int test_thread_count = parallel::threadCount(_config, test.coupling_caps.size());
+  std::vector<const CouplingCapStore::Value*> test_couplings;
+  test_couplings.reserve(test.coupling_caps.size());
+  for (auto coupling_it = test.coupling_caps.beginOrdered(); coupling_it != test.coupling_caps.endOrdered(); ++coupling_it) {
+    const auto& test_coupling = *coupling_it;
+    test_couplings.push_back(&test_coupling);
+  }
+
+  std::vector<Result> test_thread_results(test_thread_count);
+#pragma omp parallel for schedule(dynamic, 256) num_threads(test_thread_count)
+  for (std::size_t index = 0; index < test_couplings.size(); ++index) {
+    const auto& [key, test_cap] = *test_couplings[index];
+    if (!reference.coupling_caps.contains(key)) {
+      test_thread_results[omp_get_thread_num()].test_only_couplings.push_back(makeCcapMismatch(test_meta, key, test_cap));
+    }
+  }
+
+  reserveRows(result, test_thread_results);
+  for (auto& thread_result : test_thread_results) {
+    appendRows(result, std::move(thread_result));
+  }
 }
 
 }  // namespace compare_spef
