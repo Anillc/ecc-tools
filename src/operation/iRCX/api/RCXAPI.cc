@@ -66,12 +66,16 @@ auto RCXAPI::run() -> bool
 
 auto RCXAPI::report() -> bool
 {
-  return runStage("report_spef", []() { return Report::dumpSpef(); });
+  return runStage("report_spef", []() {
+    return Report::dumpSpef(); 
+  });
 }
 
 auto RCXAPI::compare_spef(compare_spef::Config config) -> bool
 {
-  return runStage("compare_spef", [&]() { return CompareSpef::run(std::move(config)); });
+  return runStage("compare_spef", [&]() {
+    return CompareSpef::run(std::move(config));
+  }, {.profile = true});
 }
 
 }  // namespace ircx
