@@ -38,6 +38,7 @@
 #include "tcl_register_idrc.h"
 #include "tcl_register_inst.h"
 #include "tcl_register_irt.h"
+#include "tcl_register_izh.h"
 #include "tcl_register_ircx.h"
 #include "tcl_register_pdn.h"
 #include "tcl_register_report.h"
@@ -90,6 +91,9 @@ int registerCommands()
 
   /// STA
   registerCmdSTA();
+
+  /// ZH
+  registerCmdZH();
 
   registerCmdReport();
 
