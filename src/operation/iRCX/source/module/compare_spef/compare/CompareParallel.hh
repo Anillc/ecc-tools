@@ -16,42 +16,23 @@
 // ***************************************************************************************
 #pragma once
 
-#include <string>
-#include <utility>
-#include <vector>
+#include <algorithm>
+#include <cstddef>
+
+#include "config/CompareSpefConfig.hh"
 
 namespace ircx {
+namespace compare_spef {
+namespace parallel {
 
-struct CompareParasiticsConfig
+inline auto threadCount(const Config& config, std::size_t work_items) -> int
 {
-  std::string test_file;
-  std::string reference_file;
-  std::string output_dir = ".";
+  if (config.cores <= 1 || work_items <= 1) {
+    return 1;
+  }
+  return static_cast<int>(std::min<std::size_t>(static_cast<std::size_t>(config.cores), work_items));
+}
 
-  int cores = 1;
-  double tcap_threshold = 3.0;
-  double ccap_abs_threshold = 0.3;
-  double ccap_rel_threshold = 0.1;
-  double res_threshold = 50.0;
-
-  bool compare_capacitance = false;
-  bool compare_resistance = false;
-  bool compare_delay = false;
-  bool delay_pin_load = false;
-
-  std::string corner;
-  std::string match_mode = "name";
-  std::string net_name;
-  std::string from_pin;
-  std::string to_pin;
-  std::string net_config_file;
-  int timeout_seconds = 5400;
-  double delay_threshold = 1.0;
-
-  std::vector<std::string> net_names;
-  std::vector<std::string> from_pins;
-  std::vector<std::string> to_pins;
-  std::vector<std::pair<std::string, std::string>> from_to_pins;
-};
-
+}  // namespace parallel
+}  // namespace compare_spef
 }  // namespace ircx

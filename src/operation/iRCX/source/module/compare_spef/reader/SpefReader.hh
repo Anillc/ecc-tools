@@ -15,19 +15,22 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include <string>
 
-namespace tcl {
-int registerCmdRCX()
+#include "data/CompareSpefData.hh"
+
+namespace ircx {
+namespace compare_spef {
+
+class SpefReader
 {
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+ public:
+  auto read(const std::string& path, Data& data) const -> bool;
 
-  return EXIT_SUCCESS;
-}
+ private:
+  void buildNetCouplingCaps(Data& data) const;
+};
 
-}  // namespace tcl
+}  // namespace compare_spef
+}  // namespace ircx

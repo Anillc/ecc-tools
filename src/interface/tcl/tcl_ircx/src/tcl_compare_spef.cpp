@@ -15,7 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 /**
- * @file tcl_compare_parasitics.cpp
+ * @file tcl_compare_spef.cpp
  * @author Yipei Xu (yipeix@163.com)
  * @brief
  * @version 0.1
@@ -105,7 +105,7 @@ auto setDoubleOption(TclOption* option, const char* option_name, double& value) 
     return true;
   }
 
-  LOG_ERROR << "compare_parasitics " << option_name << " requires a numeric value.";
+  LOG_ERROR << "compare_spef " << option_name << " requires a numeric value.";
   return false;
 }
 
@@ -115,7 +115,7 @@ auto parseNamedDouble(const char* text, const char* option_name, double& value) 
     return true;
   }
 
-  LOG_ERROR << "compare_parasitics " << option_name << " requires a numeric value.";
+  LOG_ERROR << "compare_spef " << option_name << " requires a numeric value.";
   return false;
 }
 
@@ -128,7 +128,7 @@ auto setIntOption(TclOption* option, const char* option_name, int& value) -> boo
     return true;
   }
 
-  LOG_ERROR << "compare_parasitics " << option_name << " requires an integer value.";
+  LOG_ERROR << "compare_spef " << option_name << " requires an integer value.";
   return false;
 }
 
@@ -140,13 +140,13 @@ auto setStringOption(TclOption* option, std::string& value) -> void
   }
 }
 
-auto setCcapOption(TclOption* ccap_option, TclOption* ccap_rel_arg, ircx::CompareParasiticsConfig& config) -> bool
+auto setCcapOption(TclOption* ccap_option, TclOption* ccap_rel_arg, ircx::compare_spef::Config& config) -> bool
 {
   const bool ccap_is_set = isOptionSet(ccap_option);
   const char* ccap_rel_value = getStringValue(ccap_rel_arg);
   if (!ccap_is_set) {
     if (ccap_rel_value != nullptr) {
-      LOG_ERROR << "compare_parasitics unexpected argument: " << ccap_rel_value;
+      LOG_ERROR << "compare_spef unexpected argument: " << ccap_rel_value;
       return false;
     }
     return true;
@@ -162,13 +162,13 @@ auto setCcapOption(TclOption* ccap_option, TclOption* ccap_rel_arg, ircx::Compar
            && parseNamedDouble(ccap_rel_value, "-ccap", config.ccap_rel_threshold);
   }
 
-  LOG_ERROR << "compare_parasitics -ccap requires two numeric values.";
+  LOG_ERROR << "compare_spef -ccap requires two numeric values.";
   return false;
 }
 
 }  // namespace
 
-TclCompareParasitics::TclCompareParasitics(const char* cmd_name) : TclCmd(cmd_name)
+TclCompareSpef::TclCompareSpef(const char* cmd_name) : TclCmd(cmd_name)
 {
   addOption(new TclStringOption(kTestArg, 1, nullptr));
   addOption(new TclStringOption(kReferenceArg, 1, nullptr));
@@ -194,29 +194,29 @@ TclCompareParasitics::TclCompareParasitics(const char* cmd_name) : TclCmd(cmd_na
   addOption(new TclSwitchOption("-delay_pin_load"));
 }
 
-unsigned TclCompareParasitics::check()
+unsigned TclCompareSpef::check()
 {
   if (getStringValue(getOptionOrArg(kTestArg)) == nullptr || getStringValue(getOptionOrArg(kReferenceArg)) == nullptr) {
-    LOG_ERROR << "compare_parasitics requires test and reference arguments.";
+    LOG_ERROR << "compare_spef requires test and reference arguments.";
     return 0;
   }
 
   const bool ccap_is_set = isOptionSet(getOptionOrArg("-ccap"));
   if (!ccap_is_set && getStringValue(getOptionOrArg(kCcapRelArg)) != nullptr) {
-    LOG_ERROR << "compare_parasitics unexpected argument: " << getOptionOrArg(kCcapRelArg)->getStringVal();
+    LOG_ERROR << "compare_spef unexpected argument: " << getOptionOrArg(kCcapRelArg)->getStringVal();
     return 0;
   }
 
   return 1;
 }
 
-unsigned TclCompareParasitics::exec()
+unsigned TclCompareSpef::exec()
 {
   if (!check()) {
     return 0;
   }
 
-  ircx::CompareParasiticsConfig config;
+  ircx::compare_spef::Config config;
   config.test_file = getStringValue(getOptionOrArg(kTestArg));
   config.reference_file = getStringValue(getOptionOrArg(kReferenceArg));
 
@@ -242,7 +242,7 @@ unsigned TclCompareParasitics::exec()
     return 0;
   }
 
-  return RCX_API_INST.compareParasitics(std::move(config)) ? 1U : 0U;
+  return RCX_API_INST.compare_spef(std::move(config)) ? 1U : 0U;
 }
 
 }  // namespace tcl

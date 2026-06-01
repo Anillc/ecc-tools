@@ -16,14 +16,30 @@
 // ***************************************************************************************
 #pragma once
 
-#include "CompareParasiticsConfig.hh"
+#include <string>
+#include <unordered_set>
+
+#include "config/CompareSpefConfig.hh"
+#include "data/CompareSpefData.hh"
 
 namespace ircx {
+namespace compare_spef {
 
-class CompareParasiticsFlow
+class NetSelector
 {
  public:
-  static auto run(CompareParasiticsConfig config) -> bool;
+  explicit NetSelector(const Config& config);
+
+  auto selected(const Net& net) const -> bool;
+  auto hasPathFilter() const -> bool;
+
+ private:
+  static auto configuredNetNames(const Config& config) -> std::unordered_set<std::string>;
+  auto matchesPathFilter(const Net& net) const -> bool;
+
+  const Config& _config;
+  std::unordered_set<std::string> _configured_net_names;
 };
 
+}  // namespace compare_spef
 }  // namespace ircx
