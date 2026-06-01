@@ -145,7 +145,6 @@ endif()
 include(cmake/setting.cmake)
 include(cmake/third_party.cmake)
 include(cmake/operation/ista.cmake)
-include(cmake/operation/ipa.cmake)
 include(cmake/rust.cmake)
 
 if(ENABLE_AI)
