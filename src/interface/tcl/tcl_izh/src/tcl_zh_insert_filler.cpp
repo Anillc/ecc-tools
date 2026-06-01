@@ -14,20 +14,25 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#pragma once
-
+#include "ZHInterface.hpp"
 #include "tcl_zh.h"
-
-using namespace ieda;
+#include "tcl_util.h"
 
 namespace tcl {
 
-int registerCmdZH()
+TclZHInsertFiller::TclZHInsertFiller(const char* cmd_name) : TclCmd(cmd_name)
 {
-  // zh
-  registerTclCmd(TclZHFixFanout, "zh_fix_fanout");
-  registerTclCmd(TclZHInsertFiller, "zh_insert_filler");
-  return EXIT_SUCCESS;
+  TclUtil::addOption(this, _config_list);
+}
+
+unsigned TclZHInsertFiller::exec()
+{
+  if (!check()) {
+    return 0;
+  }
+  std::map<std::string, std::any> config_map = TclUtil::getConfigMap(this, _config_list);
+  ZHI.insertFiller(config_map);
+  return 1;
 }
 
 }  // namespace tcl

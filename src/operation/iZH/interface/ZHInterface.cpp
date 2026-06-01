@@ -46,6 +46,8 @@ void ZHInterface::destroyInst()
 
 void ZHInterface::fixFanout(std::map<std::string, std::any> config_map)
 {
+  ZHLOG.info(Loc::current(), "ZH fixFanout");
+
   std::string buffer_name = ZHUTIL.getConfigValue<std::string>(config_map, "-buffer_name", "buffer_name");
   auto* idb_design = dmInst->get_idb_def_service()->get_design();
   idb::IdbNetList* idb_net_list = idb_design->get_net_list();
@@ -104,6 +106,11 @@ void ZHInterface::fixFanout(std::map<std::string, std::any> config_map)
     }
     ZHLOG.info(Loc::current(), "Fixed ", origin_net_set.size(), " nets!( +", idb_net_list->get_num() - begin_net_num, " nets )");
   }
+}
+
+void ZHInterface::insertFiller(std::map<std::string, std::any> config_map)
+{
+  ZHLOG.info(Loc::current(), "ZH insertFiller");
 }
 
 #endif

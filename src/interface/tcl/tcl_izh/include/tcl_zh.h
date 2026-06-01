@@ -36,6 +36,20 @@ class TclZHFixFanout : public TclCmd
   std::vector<std::pair<std::string, ValueType>> _config_list;
 };
 
+class TclZHInsertFiller : public TclCmd
+{
+ public:
+  explicit TclZHInsertFiller(const char* cmd_name);
+  ~TclZHInsertFiller() override = default;
+
+  unsigned check() override { return 1; };
+
+  unsigned exec() override;
+
+ private:
+  std::vector<std::pair<std::string, ValueType>> _config_list;
+};
+
 #endif
 
 }  // namespace tcl

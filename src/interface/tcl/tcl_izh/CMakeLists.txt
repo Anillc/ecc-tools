@@ -1,5 +1,6 @@
 add_library(tcl_izh
     ${HOME_INTERFACE}/tcl/tcl_izh/src/tcl_zh_fix_fanout.cpp
+    ${HOME_INTERFACE}/tcl/tcl_izh/src/tcl_zh_insert_filler.cpp
 )
 
 target_link_libraries(tcl_izh
