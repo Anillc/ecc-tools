@@ -29,18 +29,18 @@ namespace ircx {
 namespace compare_spef {
 namespace {
 
-auto directionName(ista::spef::ConnectionDirection direction) -> std::string
+auto directionName(spef::ConnectionDirection direction) -> std::string
 {
   switch (direction) {
-    case ista::spef::ConnectionDirection::kInput:
+    case spef::ConnectionDirection::kInput:
       return "I";
-    case ista::spef::ConnectionDirection::kOutput:
+    case spef::ConnectionDirection::kOutput:
       return "O";
-    case ista::spef::ConnectionDirection::kInout:
+    case spef::ConnectionDirection::kInout:
       return "B";
-    case ista::spef::ConnectionDirection::kInternal:
+    case spef::ConnectionDirection::kInternal:
       return "N";
-    case ista::spef::ConnectionDirection::kUninitialized:
+    case spef::ConnectionDirection::kUninitialized:
       break;
   }
   return "";
@@ -51,7 +51,7 @@ auto directionName(ista::spef::ConnectionDirection direction) -> std::string
 class NameExpander
 {
  public:
-  explicit NameExpander(const ista::spef::Exchange& exchange) : _exchange(exchange)
+  explicit NameExpander(const spef::Exchange& exchange) : _exchange(exchange)
   {
     _expanded_base_names.reserve(exchange.index_to_name_map.size());
   }
@@ -98,11 +98,11 @@ class NameExpander
       return nullptr;
     }
 
-    auto [it, inserted] = _expanded_base_names.emplace(index, ista::spef::removeEscapes(map_it->second));
+    auto [it, inserted] = _expanded_base_names.emplace(index, spef::removeEscapes(map_it->second));
     return &it->second;
   }
 
-  const ista::spef::Exchange& _exchange;
+  const spef::Exchange& _exchange;
   std::unordered_map<std::size_t, std::string> _expanded_base_names;
 };
 
@@ -138,7 +138,7 @@ void SpefReader::buildNetCouplingCaps(Data& data) const
 
 auto SpefReader::read(const std::string& path, Data& data) const -> bool
 {
-  ista::spef::SpefReader reader;
+  spef::SpefReader reader;
   if (!reader.read(path)) {
     return false;
   }
@@ -168,7 +168,7 @@ auto SpefReader::read(const std::string& path, Data& data) const -> bool
       pin.name = name_expander.expand(conn.pin_port_name);
       pin.direction = directionName(conn.conn_direction);
       pin.driving_cell = conn.driving_cell;
-      pin.is_external = conn.conn_type == ista::spef::ConnectionType::kExternal;
+      pin.is_external = conn.conn_type == spef::ConnectionType::kExternal;
       pin.x = conn.coordinate.x;
       pin.y = conn.coordinate.y;
       pin.has_coordinate = conn.coordinate.x >= 0.0 && conn.coordinate.y >= 0.0;

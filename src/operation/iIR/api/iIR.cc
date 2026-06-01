@@ -56,7 +56,7 @@ struct RustSpefNetStorage {
   std::vector<RustSpefResCap> ress;
 };
 
-const void* CreateRcDataFromSpefExchange(const ista::spef::Exchange& exchange) {
+const void* CreateRcDataFromSpefExchange(const spef::Exchange& exchange) {
   std::vector<RustSpefNetStorage> storage;
   storage.reserve(exchange.nets.size());
 
@@ -72,7 +72,7 @@ const void* CreateRcDataFromSpefExchange(const ista::spef::Exchange& exchange) {
     for (const auto& conn : spef_net.conns) {
       net_storage.conns.push_back(
           RustSpefConn{conn.pin_port_name.c_str(),
-                       conn.conn_type == ista::spef::ConnectionType::kExternal});
+                       conn.conn_type == spef::ConnectionType::kExternal});
     }
 
     for (const auto& cap : spef_net.caps) {
@@ -97,7 +97,7 @@ const void* CreateRcDataFromSpefExchange(const ista::spef::Exchange& exchange) {
 }
 
 const void* ReadSpefRcData(std::string_view spef_file_path) {
-  ista::spef::SpefReader spef_parser;
+  spef::SpefReader spef_parser;
   const std::string spef_path(spef_file_path);
   if (!spef_parser.read(spef_path)) {
     LOG_ERROR << "read spef file " << spef_path << " failed";
