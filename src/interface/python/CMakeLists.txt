@@ -21,6 +21,7 @@ add_subdirectory(py_report)
 add_subdirectory(py_feature)
 add_subdirectory(py_eval)
 add_subdirectory(py_vec)
+add_subdirectory(py_imp)
 
 # ADD SOURCE FILES
 # file(GLOB_RECURSE PYTHON_INTERFACE_SRC CONFIGURE_DEPENDS ./*.cpp ./*.cc)
@@ -48,7 +49,7 @@ target_link_libraries(ecc_py
         py_eval
         log
         py_vec
-        py_vec
+        py_imp
 )
 
 install(TARGETS ecc_py
