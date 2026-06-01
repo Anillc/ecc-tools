@@ -33,6 +33,84 @@
 #include "matrix/IRMatrix.hh"
 #include "usage/usage.hh"
 
+namespace {
+
+template <typename T>
+RustVec MakeRustVec(std::vector<T>& values) {
+  RustVec rust_vec;
+  rust_vec.data = values.data();
+  rust_vec.len = values.size();
+  rust_vec.cap = values.capacity();
+  rust_vec.type_size = sizeof(T);
+  return rust_vec;
+}
+
+struct RustSpefNetStorage {
+  std::vector<RustSpefConn> conns;
+  std::vector<RustSpefResCap> caps;
+  std::vector<RustSpefResCap> ress;
+};
+
+const void* CreateRcDataFromSpefExchange(const spef::Exchange& exchange) {
+  std::vector<RustSpefNetStorage> storage;
+  storage.reserve(exchange.nets.size());
+
+  std::vector<RustSpefNet> rust_nets;
+  rust_nets.reserve(exchange.nets.size());
+
+  for (const auto& spef_net : exchange.nets) {
+    auto& net_storage = storage.emplace_back();
+    net_storage.conns.reserve(spef_net.conns.size());
+    net_storage.caps.reserve(spef_net.caps.size());
+    net_storage.ress.reserve(spef_net.ress.size());
+
+    for (const auto& conn : spef_net.conns) {
+      net_storage.conns.push_back(
+          RustSpefConn{conn.pin_port_name.c_str(),
+                       conn.conn_type == spef::ConnectionType::kExternal});
+    }
+
+    for (const auto& cap : spef_net.caps) {
+      net_storage.caps.push_back(
+          RustSpefResCap{cap.node1.c_str(), cap.node2.c_str(),
+                         cap.res_or_cap});
+    }
+
+    for (const auto& res : spef_net.ress) {
+      net_storage.ress.push_back(
+          RustSpefResCap{res.node1.c_str(), res.node2.c_str(),
+                         res.res_or_cap});
+    }
+
+    rust_nets.push_back(RustSpefNet{spef_net.name.c_str(),
+                                    MakeRustVec(net_storage.conns),
+                                    MakeRustVec(net_storage.caps),
+                                    MakeRustVec(net_storage.ress)});
+  }
+
+  return create_rc_data_from_spef(MakeRustVec(rust_nets));
+}
+
+const void* ReadSpefRcData(std::string_view spef_file_path) {
+  spef::SpefReader spef_parser;
+  const std::string spef_path(spef_file_path);
+  if (!spef_parser.read(spef_path)) {
+    LOG_ERROR << "read spef file " << spef_path << " failed";
+    return nullptr;
+  }
+
+  spef_parser.expandName();
+  auto* spef_file = spef_parser.getSpefFile();
+  if (spef_file == nullptr) {
+    LOG_ERROR << "read spef file " << spef_path << " produced no SPEF data";
+    return nullptr;
+  }
+
+  return CreateRcDataFromSpefExchange(*spef_file);
+}
+
+}  // namespace
+
 namespace iir {
 
 /**

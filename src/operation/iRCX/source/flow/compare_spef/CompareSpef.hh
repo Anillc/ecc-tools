@@ -15,19 +15,15 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include "config/CompareSpefConfig.hh"
 
-namespace tcl {
-int registerCmdRCX()
+namespace ircx {
+
+class CompareSpef
 {
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+ public:
+  static auto run(compare_spef::Config config) -> bool;
+};
 
-  return EXIT_SUCCESS;
-}
-
-}  // namespace tcl
+}  // namespace ircx

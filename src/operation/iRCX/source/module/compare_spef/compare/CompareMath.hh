@@ -15,19 +15,21 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 #pragma once
-#include "tcl_ircx.h"
 
-using namespace ieda;
+#include <optional>
 
-namespace tcl {
-int registerCmdRCX()
-{
-  registerTclCmd(TclRunRCX, "run_rcx");
-  registerTclCmd(TclInitRCX, "init_rcx");
-  registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareSpef, "compare_spef");
+namespace ircx {
+namespace compare_spef {
+namespace math {
 
-  return EXIT_SUCCESS;
-}
+inline constexpr double kEpsilon = 1e-12;
 
-}  // namespace tcl
+auto absoluteRelativeDelta(double test, double reference) -> std::optional<double>;
+auto roundToSignificantDigits(double value, int digits = 6) -> double;
+auto roundToSignificantDigitsHalfEven(double value, int digits = 6) -> double;
+auto capacitanceRelativeDelta(double test, double reference) -> std::optional<double>;
+auto couplingRelativeDelta(double test, double reference, double denominator) -> std::optional<double>;
+
+}  // namespace math
+}  // namespace compare_spef
+}  // namespace ircx
