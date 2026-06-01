@@ -39,7 +39,7 @@ fi
 cmake -B build -G Ninja \
     -DBUILD_ECOS=ON \
     -DBUILD_PYTHON=ON \
-    -DLINKER=mold \
+    -DLINKER=lld \
     -DBUILD_STATIC_LIB=OFF \
     -DCOMPATIBILITY_MODE=ON \
     -DCMAKE_BUILD_TYPE=Release \
