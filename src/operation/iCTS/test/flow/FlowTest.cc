@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "CTSAPI.hh"
+#include "CTSStatus.hh"
 #include "Clock.hh"
 #include "ClockLayout.hh"
 #include "Config.hh"
@@ -61,7 +62,9 @@ TEST(FlowTest, EmptyFlowRunIsCallable)
   ScopedFlowReset scoped_flow_reset;
 
   scoped_flow_reset.flow.setSetupReady(true);
-  scoped_flow_reset.flow.runCTS();
+  const auto status = scoped_flow_reset.flow.runCTS();
+  EXPECT_TRUE(status.ok());
+  EXPECT_EQ(status.code, icts::FlowRunStatusCode::kNoOp);
 
   const auto summary = scoped_flow_reset.flow.outputRunSummary();
   EXPECT_FALSE(summary.success);
@@ -79,7 +82,10 @@ TEST(FlowTest, RunWithoutSetupFailsExplicitlyAndSkipsPipelineStages)
 
   const auto cts_log_path = icts_test::runtime::CurrentRuntime().reporter.getActivePath();
   ASSERT_FALSE(cts_log_path.empty());
-  scoped_flow_reset.flow.runCTS();
+  const auto status = scoped_flow_reset.flow.runCTS();
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.code, icts::FlowRunStatusCode::kSetupNotReady);
+  EXPECT_EQ(status.step, "setup");
 
   const auto cts_log_content = ReadTextFile(cts_log_path);
   ASSERT_FALSE(cts_log_content.empty());
@@ -170,7 +176,9 @@ TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
   ScopedFlowReset scoped_flow_reset;
 
   scoped_flow_reset.flow.setSetupReady(true);
-  scoped_flow_reset.flow.runCTS();
+  const auto status = scoped_flow_reset.flow.runCTS();
+  EXPECT_TRUE(status.ok());
+  EXPECT_EQ(status.code, icts::FlowRunStatusCode::kNoOp);
 
   const auto run_summary = scoped_flow_reset.flow.outputRunSummary();
   EXPECT_EQ(run_summary.outcome, icts::SynthesisOutcome::kNoOp);
@@ -179,6 +187,23 @@ TEST(FlowTest, NoOpRunDoesNotExposeFinalEvaluationSummary)
   EXPECT_FALSE(qor_summary.has_evaluation_result);
   EXPECT_EQ(qor_summary.qor_metric_status, "unavailable");
   EXPECT_EQ(qor_summary.physical_metric_source, "unavailable");
+}
+
+TEST(CTSAPITest, InitAndRunExposeConfigFailureStatus)
+{
+  const auto work_dir = std::filesystem::temp_directory_path() / "icts_api_missing_config_status";
+  const auto missing_config = work_dir / "missing_cts_config.json";
+
+  const auto setup_status = CTS_API_INST.init(missing_config.string(), work_dir.string());
+  EXPECT_FALSE(setup_status.ok());
+  EXPECT_EQ(setup_status.code, icts::CTSStatusCode::kConfigError);
+  EXPECT_NE(setup_status.message.find("failed to open iCTS config file"), std::string::npos);
+
+  const auto run_status = CTS_API_INST.runCTS();
+  EXPECT_FALSE(run_status.ok());
+  EXPECT_EQ(run_status.code, icts::CTSStatusCode::kNotInitialized);
+
+  CTS_API_INST.resetAPI();
 }
 
 TEST(FlowTest, ClockDistributionSummaryUsesMacroSinkTerminology)

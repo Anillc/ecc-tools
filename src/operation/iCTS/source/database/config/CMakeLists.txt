@@ -15,7 +15,6 @@ target_include_directories(
   ${ICTS_DATABASE_CONFIG}
   ${ICTS_DATABASE}
   PRIVATE
-  ${ICTS_SOURCE}
   ${HOME_THIRDPARTY}/json
 )
 

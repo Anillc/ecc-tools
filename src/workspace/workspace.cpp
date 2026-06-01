@@ -954,9 +954,7 @@ json WorkspaceManager::defaultCtsConfig() const
           {"slew_steps", "10"},
           {"cap_steps", "10"},
           {"routing_layer", json::array({4, 5})},
-          {"buffer_type", _workspace.pdk.buffers},
-          {"use_netlist", "OFF"},
-          {"net_list", json::array()}};
+          {"buffer_type", _workspace.pdk.buffers}};
 }
 
 json WorkspaceManager::defaultRtConfig(const WorkspaceStep& step) const

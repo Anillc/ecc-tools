@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Verify final work remains scoped and preserves expected behavior."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify API/source/test layering and iCTS package boundaries after edits."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify runtime dependencies are bound at API/flow boundaries and narrow inputs are used lower down."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify refactor quality, naming, and absence of unnecessary abstractions."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify explicit status propagation and no silent CTS success paths remain."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify diagnostics use project logging/error conventions instead of ad hoc console output."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-optimize-cts-architecture/research/current-cts-architecture-audit.md", "reason": "Verify implementation addresses the audited architecture findings."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-cts-runtime-boundary-cleanup/design.md", "reason": "Verify implementation does not regress prior runtime boundary cleanup."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-cts-global-cmake-architecture/design.md", "reason": "Verify implementation remains compatible with prior CMake architecture direction."}
+{"file": ".trellis/tasks/archive/2026-06/05-29-fix-cts-minimal-compile-deps/design.md", "reason": "Verify implementation does not reintroduce static archive duplication sensitivity."}

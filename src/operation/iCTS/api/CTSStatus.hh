@@ -14,10 +14,36 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
+/**
+ * @file CTSStatus.hh
+ * @author Dawn Li (dawnli619215645@gmail.com)
+ * @date 2026-06-01
+ * @brief Public iCTS API status contract.
+ */
 #pragma once
-#include <string>
 
-namespace python_interface {
-bool CtsAutoRun(const std::string& cts_config, const std::string& cts_work_dir);
-bool CtsReport(const std::string& path);
-}  // namespace python_interface
+#include <string>
+#include <vector>
+
+namespace icts {
+
+enum class CTSStatusCode
+{
+  kOk,
+  kNoOp,
+  kNotInitialized,
+  kConfigError,
+  kFlowError,
+  kReportError
+};
+
+struct CTSStatus
+{
+  CTSStatusCode code = CTSStatusCode::kOk;
+  std::string message;
+  std::vector<std::string> diagnostics;
+
+  auto ok() const -> bool { return code == CTSStatusCode::kOk || code == CTSStatusCode::kNoOp; }
+};
+
+}  // namespace icts

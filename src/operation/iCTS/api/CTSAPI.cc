@@ -24,7 +24,10 @@
 
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
+#include "database/config/Config.hh"
 #include "evaluation/qor/QorEvaluation.hh"
 #include "feature_icts.h"
 #include "flow/Flow.hh"
@@ -46,6 +49,41 @@ auto buildFeatureSummary(const QorSummary& flow_summary) -> ieda_feature::CTSSum
   return summary;
 }
 
+auto buildOkStatus(std::string message, std::vector<std::string> diagnostics = {}) -> CTSStatus
+{
+  return CTSStatus{.code = CTSStatusCode::kOk, .message = std::move(message), .diagnostics = std::move(diagnostics)};
+}
+
+auto buildSetupStatus(const SetupSummary& setup_summary, const Config& config) -> CTSStatus
+{
+  if (setup_summary.success) {
+    return buildOkStatus("CTS setup initialized.", config.get_warnings());
+  }
+  return CTSStatus{.code = CTSStatusCode::kConfigError, .message = setup_summary.reason, .diagnostics = config.get_warnings()};
+}
+
+auto buildRunStatus(const FlowRunStatus& run_status) -> CTSStatus
+{
+  if (run_status.code == FlowRunStatusCode::kFinished) {
+    return buildOkStatus(run_status.message);
+  }
+  if (run_status.code == FlowRunStatusCode::kNoOp) {
+    return CTSStatus{.code = CTSStatusCode::kNoOp, .message = run_status.message, .diagnostics = {}};
+  }
+  if (run_status.code == FlowRunStatusCode::kSetupNotReady) {
+    return CTSStatus{.code = CTSStatusCode::kNotInitialized, .message = run_status.message, .diagnostics = {}};
+  }
+  return CTSStatus{.code = CTSStatusCode::kFlowError, .message = run_status.message, .diagnostics = {}};
+}
+
+auto buildReportStatus(const FlowReportStatus& report_status) -> CTSStatus
+{
+  if (report_status.ok()) {
+    return buildOkStatus(report_status.message);
+  }
+  return CTSStatus{.code = CTSStatusCode::kReportError, .message = report_status.message, .diagnostics = {}};
+}
+
 }  // namespace
 
 CTSAPI::CTSAPI() : _runtime(std::make_unique<CTSRuntime>()), _flow(std::make_unique<Flow>(*_runtime))
@@ -64,14 +102,22 @@ auto CTSAPI::flow() -> Flow&
   return *_flow;
 }
 
-auto CTSAPI::runCTS() -> void
+auto CTSAPI::setLastStatus(CTSStatus status) -> CTSStatus
 {
-  getInst().flow().runCTS();
+  _last_status = std::move(status);
+  return _last_status;
 }
 
-auto CTSAPI::report(const std::string& save_dir) -> void
+auto CTSAPI::runCTS() -> CTSStatus
 {
-  getInst().flow().emitReports(save_dir);
+  auto& api = getInst();
+  return api.setLastStatus(buildRunStatus(api.flow().runCTS()));
+}
+
+auto CTSAPI::report(const std::string& save_dir) -> CTSStatus
+{
+  auto& api = getInst();
+  return api.setLastStatus(buildReportStatus(api.flow().emitReports(save_dir)));
 }
 
 auto CTSAPI::resetAPI() -> void
@@ -79,9 +125,10 @@ auto CTSAPI::resetAPI() -> void
   auto& api = getInst();
   api.runtime().reset();
   api.flow().reset();
+  api.setLastStatus(buildOkStatus("CTS API reset."));
 }
 
-auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> void
+auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -> CTSStatus
 {
   resetAPI();
   auto& api = getInst();
@@ -96,10 +143,17 @@ auto CTSAPI::init(const std::string& config_file, const std::string& work_dir) -
   });
   auto& flow = api.flow();
   flow.setSetupReady(setup_result.success);
+  auto status = buildSetupStatus(setup_result, runtime.config);
   if (!setup_result.success) {
-    return;
+    return api.setLastStatus(std::move(status));
   }
   flow.outputRuntimeSetup();
+  return api.setLastStatus(std::move(status));
+}
+
+auto CTSAPI::lastStatus() -> CTSStatus
+{
+  return getInst()._last_status;
 }
 
 auto CTSAPI::outputSummary() -> ieda_feature::CTSSummary

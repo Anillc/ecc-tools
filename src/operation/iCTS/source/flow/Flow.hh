@@ -40,6 +40,39 @@
 
 namespace icts {
 
+enum class FlowRunStatusCode
+{
+  kFinished,
+  kNoOp,
+  kSetupNotReady,
+  kReadDataFailed,
+  kSynthesisFailed,
+  kInstantiationFailed
+};
+
+struct FlowRunStatus
+{
+  FlowRunStatusCode code = FlowRunStatusCode::kSetupNotReady;
+  std::string step;
+  std::string message;
+
+  auto ok() const -> bool { return code == FlowRunStatusCode::kFinished || code == FlowRunStatusCode::kNoOp; }
+};
+
+enum class FlowReportStatusCode
+{
+  kFinished,
+  kFailed
+};
+
+struct FlowReportStatus
+{
+  FlowReportStatusCode code = FlowReportStatusCode::kFailed;
+  std::string message;
+
+  auto ok() const -> bool { return code == FlowReportStatusCode::kFinished; }
+};
+
 struct CTSRuntime
 {
   Config config;
@@ -64,8 +97,8 @@ class Flow
   explicit Flow(CTSRuntime& runtime) : _runtime(runtime) {}
   ~Flow() = default;
 
-  auto runCTS() -> void;
-  auto emitReports(const std::string& save_dir) -> void;
+  auto runCTS() -> FlowRunStatus;
+  auto emitReports(const std::string& save_dir) -> FlowReportStatus;
   auto outputRuntimeSetup() -> void;
   auto outputSummary() const -> QorSummary;
   auto outputRunSummary() const -> SynthesisTraceSummary;

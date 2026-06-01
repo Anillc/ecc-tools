@@ -16,7 +16,6 @@
 // ***************************************************************************************
 #include "tcl_cts.h"
 
-#include "CTSAPI.hh"
 #include "tool_manager.h"
 
 namespace tcl {
@@ -95,13 +94,16 @@ unsigned CmdCTSReport::exec()
     if (iplf::tmInst->reportCTS(name)) {
       return 1;
     }
+    LOG_FATAL << "iCTS report failed." << std::endl;
   }
 
   TclOption* def_path = getOptionOrArg(TCL_PATH);
   auto str_path = def_path->getStringVal();
   if (str_path != nullptr) {
-    CTS_API_INST.report(str_path);
-    return 1;
+    if (iplf::tmInst->reportCTS(str_path)) {
+      return 1;
+    }
+    LOG_FATAL << "iCTS report failed." << std::endl;
   }
 
   return 1;

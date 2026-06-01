@@ -16,6 +16,8 @@
 // ***************************************************************************************
 #include "icts_io.h"
 
+#include <glog/logging.h>
+
 #include "builder.h"
 #include "dm_cts_config.h"
 #include "flow_config.h"
@@ -39,8 +41,20 @@ bool CtsIO::runCTS(std::string config, std::string work_dir)
 
   ieda::Stats stats;
 
-  CTS_API_INST.init(config, work_dir);
-  CTS_API_INST.runCTS();
+  const auto setup_status = CTS_API_INST.init(config, work_dir);
+  if (!setup_status.ok()) {
+    LOG(ERROR) << "iCTS setup failed: " << setup_status.message;
+    flowConfigInst->add_status_runtime(stats.elapsedRunTime());
+    flowConfigInst->set_status_memmory(stats.memoryDelta());
+    return false;
+  }
+  const auto run_status = CTS_API_INST.runCTS();
+  if (!run_status.ok()) {
+    LOG(ERROR) << "iCTS run failed: " << run_status.message;
+    flowConfigInst->add_status_runtime(stats.elapsedRunTime());
+    flowConfigInst->set_status_memmory(stats.memoryDelta());
+    return false;
+  }
 
   flowConfigInst->add_status_runtime(stats.elapsedRunTime());
   flowConfigInst->set_status_memmory(stats.memoryDelta());
@@ -53,7 +67,11 @@ bool CtsIO::reportCTS(std::string path)
   if (path.empty()) {
     path = flowConfigInst->get_icts_path();
   }
-  CTS_API_INST.report(path);
+  const auto report_status = CTS_API_INST.report(path);
+  if (!report_status.ok()) {
+    LOG(ERROR) << "iCTS report failed: " << report_status.message;
+    return false;
+  }
   return true;
 }
 

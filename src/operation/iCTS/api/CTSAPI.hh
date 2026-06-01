@@ -25,6 +25,8 @@
 #include <memory>
 #include <string>
 
+#include "CTSStatus.hh"
+
 namespace ieda_feature {
 struct CTSSummary;
 }  // namespace ieda_feature
@@ -46,12 +48,13 @@ class CTSAPI
   }
 
   // CTS CLI
-  static auto runCTS() -> void;
-  static auto report(const std::string& save_dir) -> void;
+  static auto runCTS() -> CTSStatus;
+  static auto report(const std::string& save_dir) -> CTSStatus;
 
   // Flow API
   static auto resetAPI() -> void;
-  static auto init(const std::string& config_file, const std::string& work_dir = "") -> void;
+  static auto init(const std::string& config_file, const std::string& work_dir = "") -> CTSStatus;
+  static auto lastStatus() -> CTSStatus;
 
   // Feature API
   static auto outputSummary() -> ieda_feature::CTSSummary;
@@ -66,9 +69,11 @@ class CTSAPI
 
   auto runtime() -> CTSRuntime&;
   auto flow() -> Flow&;
+  auto setLastStatus(CTSStatus status) -> CTSStatus;
 
   std::unique_ptr<CTSRuntime> _runtime;
   std::unique_ptr<Flow> _flow;
+  CTSStatus _last_status;
 };
 
 }  // namespace icts

@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/project-constraints.md", "reason": "Project-wide constraints for scoped edits, behavior preservation, and validation expectations."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Defines iCTS package layering, source categories, and allowed API/source/test dependency direction."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Defines runtime-owned dependency boundaries for Config, Design, Wrapper, FastSTA, and SchemaWriter."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Defines refactor quality rules, naming expectations, and avoidance of over-broad abstractions."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Guides status/error propagation design for API, tool-manager, Tcl, and Python boundaries."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Guides diagnostic surfacing and replacement of ad hoc stdout/stderr behavior."}
+{"file": ".trellis/tasks/archive/2026-06/06-01-optimize-cts-architecture/research/current-cts-architecture-audit.md", "reason": "Current CTS architecture findings and recommended priority order."}
+{"file": ".trellis/tasks/archive/2026-05/04-30-cts-flow-architecture-naming-redesign/prd.md", "reason": "Prior accepted CTS flow taxonomy and naming direction."}
+{"file": ".trellis/tasks/archive/2026-05/05-01-cts-topology-htree-architecture-readability-analysis/prd.md", "reason": "Prior topology/HTree architecture split and readability constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-cts-runtime-boundary-cleanup/design.md", "reason": "Prior runtime boundary decisions around Config, Wrapper, FastSTA, and avoiding service locators."}
+{"file": ".trellis/tasks/archive/2026-05/05-27-cts-global-cmake-architecture/design.md", "reason": "Prior global iCTS CMake target-boundary plan and validation strategy."}
+{"file": ".trellis/tasks/archive/2026-06/05-29-fix-cts-minimal-compile-deps/design.md", "reason": "Recent minimal compile dependency fix and duplicate archive sensitivity context."}
