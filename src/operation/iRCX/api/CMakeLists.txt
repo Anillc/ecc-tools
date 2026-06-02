@@ -7,6 +7,7 @@ add_library(ircx_api ${IRCX_API_SRC})
 target_link_libraries(ircx_api
   PUBLIC
     ircx_tool_compare_spef
+    ircx_tool_dump_net_shape
     ircx_tool_plot_spef
   PRIVATE
     ircx_config

@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "CompareSpefTool.hh"
+#include "DumpNetShapeTool.hh"
 #include "Extraction.hh"
 #include "PlotSpefTool.hh"
 #include "RCXConfig.hh"
@@ -76,6 +77,13 @@ auto RCXAPI::compare_spef(compare_spef::Config config) -> bool
 {
   return run_stage("compare_spef", [&]() {
     return CompareSpefTool::run(std::move(config));
+  }, {.profile = true});
+}
+
+auto RCXAPI::dump_net_shape() -> bool
+{
+  return run_stage("dump_net_shape", []() {
+    return DumpNetShapeTool::run();
   }, {.profile = true});
 }
 
