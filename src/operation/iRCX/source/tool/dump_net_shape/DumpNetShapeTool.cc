@@ -286,8 +286,7 @@ auto DumpNetShapeTool::run() -> bool
 {
   const RCXData& data = RCX_DATA_INST;
   const LayoutData& layout = data.layout();
-  if (layout.net_vec.empty() && layout.special_net.segments.empty() && layout.special_net.patches.empty() && layout.special_net.vias.empty()
-      && layout.special_net.pins.empty()) {
+  if (layout.empty()) {
     LOG_ERROR << "dump_net_shape failed: layout data is empty. Run init_rcx/adapt DB before dumping shapes.";
     return false;
   }
