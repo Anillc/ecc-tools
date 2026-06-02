@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -25,7 +26,6 @@
 #include <map>
 #include <optional>
 #include <ostream>
-#include <span>
 #include <string>
 #include <vector>
 
@@ -40,68 +40,68 @@ namespace ircx {
 namespace compare_spef {
 namespace {
 
-struct SummaryErrors
+struct ErrorStats
 {
-  std::vector<double> tcap;
-  std::vector<double> ccap;
-  std::vector<double> p2p;
-  double tcap_mean = 0.0;
-  double ccap_mean = 0.0;
-  double p2p_mean = 0.0;
-};
+  static constexpr int kMinBin = -32;
+  static constexpr int kMaxBin = 32;
+  static constexpr int kBinStep = 2;
 
-auto mean(std::span<const double> values) -> double
-{
-  if (values.empty()) {
-    return 0.0;
-  }
-  double sum = 0.0;
-  for (double value : values) {
-    sum += value;
-  }
-  return sum / static_cast<double>(values.size());
-}
-
-auto standardDeviation(std::span<const double> values, double mean_value) -> double
-{
-  if (values.empty()) {
-    return 0.0;
-  }
-  double sum = 0.0;
-  for (double value : values) {
-    const double delta = value - mean_value;
-    sum += delta * delta;
-  }
-  return std::sqrt(sum / static_cast<double>(values.size()));
-}
-
-auto minValue(std::span<const double> values) -> double
-{
-  return values.empty() ? 0.0 : *std::min_element(values.begin(), values.end());
-}
-
-auto maxValue(std::span<const double> values) -> double
-{
-  return values.empty() ? 0.0 : *std::max_element(values.begin(), values.end());
-}
-
-auto distributionBins(std::span<const double> values, int min_bin = -32, int max_bin = 32, int step = 2) -> std::map<int, std::size_t>
-{
+  double mean_value = 0.0;
+  double m2 = 0.0;
+  double min = 0.0;
+  double max = 0.0;
+  std::size_t count = 0;
   std::map<int, std::size_t> bins;
-  if (step <= 0) {
-    return bins;
+
+  ErrorStats()
+  {
+    for (int bin = kMinBin; bin <= kMaxBin; bin += kBinStep) {
+      bins[bin] = 0;
+    }
   }
 
-  for (int bin = min_bin; bin <= max_bin; bin += step) {
-    bins[bin] = 0;
-  }
-  for (double value : values) {
-    int bin = static_cast<int>(std::round(value / static_cast<double>(step))) * step;
-    bin = std::clamp(bin, min_bin, max_bin);
+  void add(double value)
+  {
+    if (count == 0) {
+      min = value;
+      max = value;
+    } else {
+      min = std::min(min, value);
+      max = std::max(max, value);
+    }
+
+    ++count;
+    const double delta = value - mean_value;
+    mean_value += delta / static_cast<double>(count);
+    const double delta2 = value - mean_value;
+    m2 += delta * delta2;
+
+    int bin = static_cast<int>(std::round(value / static_cast<double>(kBinStep))) * kBinStep;
+    bin = std::clamp(bin, kMinBin, kMaxBin);
     bins[bin]++;
   }
-  return bins;
-}
+
+  auto mean() const -> double
+  {
+    return count == 0 ? 0.0 : mean_value;
+  }
+
+  auto standardDeviation() const -> double
+  {
+    if (count == 0) {
+      return 0.0;
+    }
+
+    return std::sqrt(m2 / static_cast<double>(count));
+  }
+};
+
+struct SummaryErrors
+{
+  ErrorStats tcap;
+  ErrorStats ccap;
+  ErrorStats p2p;
+};
 
 auto openReport(const std::filesystem::path& path) -> std::ofstream
 {
@@ -129,27 +129,21 @@ void writePercent(std::ostream& os, const std::optional<double>& value)
 }
 
 template <typename Row>
-auto collectPercentErrors(const std::vector<Row>& rows) -> std::vector<double>
+void collectPercentErrors(const std::vector<Row>& rows, ErrorStats& stats)
 {
-  std::vector<double> values;
-  values.reserve(rows.size());
   for (const auto& row : rows) {
     if (row.relative_delta.has_value()) {
-      values.push_back(*row.relative_delta * 100.0);
+      stats.add(*row.relative_delta * 100.0);
     }
   }
-  return values;
 }
 
 auto collectSummaryErrors(const Result& result) -> SummaryErrors
 {
   SummaryErrors errors;
-  errors.tcap = collectPercentErrors(result.tcap_rows);
-  errors.ccap = collectPercentErrors(result.ccap_rows);
-  errors.p2p = collectPercentErrors(result.p2p_rows);
-  errors.tcap_mean = mean(errors.tcap);
-  errors.ccap_mean = mean(errors.ccap);
-  errors.p2p_mean = mean(errors.p2p);
+  collectPercentErrors(result.tcap_rows, errors.tcap);
+  collectPercentErrors(result.ccap_rows, errors.ccap);
+  collectPercentErrors(result.p2p_rows, errors.p2p);
   return errors;
 }
 
@@ -160,15 +154,15 @@ class SummaryTableBuilder
   {
     auto table = makePlainTable();
     table << fort::header << "Metric" << "Mean Error" << "Std Error" << "Threshold" << fort::endr;
-    table << "Total cap (C)" << format::percent(errors.tcap_mean)
-          << format::percent(standardDeviation(errors.tcap, errors.tcap_mean))
+    table << "Total cap (C)" << format::percent(errors.tcap.mean())
+          << format::percent(errors.tcap.standardDeviation())
           << "abs = " + format::fixed(config.tcap_threshold) + "fF" << fort::endr;
-    table << "Coupling cap (CC)" << format::percent(errors.ccap_mean)
-          << format::percent(standardDeviation(errors.ccap, errors.ccap_mean))
+    table << "Coupling cap (CC)" << format::percent(errors.ccap.mean())
+          << format::percent(errors.ccap.standardDeviation())
           << "abs = " + format::fixed(config.ccap_abs_threshold) + "fF, rel = " + format::fixed(config.ccap_rel_threshold)
           << fort::endr;
-    table << "Pin-Pin res (P2P)" << format::percent(errors.p2p_mean)
-          << format::percent(standardDeviation(errors.p2p, errors.p2p_mean))
+    table << "Pin-Pin res (P2P)" << format::percent(errors.p2p.mean())
+          << format::percent(errors.p2p.standardDeviation())
           << "abs = " + format::fixed(config.res_threshold) + "Ohm" << fort::endr;
     table.column(0).set_cell_text_align(fort::text_align::left);
     table.column(3).set_cell_text_align(fort::text_align::left);
@@ -176,20 +170,19 @@ class SummaryTableBuilder
   }
 
   auto makeDistributionTable(const std::string& title, const std::string& threshold_label, double threshold, const std::string& count_label,
-                             const std::vector<double>& errors) const -> fort::char_table
+                             const ErrorStats& errors) const -> fort::char_table
   {
-    const double error_mean = mean(errors);
     auto table = makePlainTable();
     table << fort::header << title + " Distribution" << "Value" << fort::endr;
     table << threshold_label << format::fixed(threshold) << fort::endr;
-    table << "Min Error" << format::percent(minValue(errors)) << fort::endr;
-    table << "Max Error" << format::percent(maxValue(errors)) << fort::endr;
-    table << "Mean Error" << format::percent(error_mean) << fort::endr;
-    table << "Standard dev" << format::percent(standardDeviation(errors, error_mean)) << fort::endr;
-    table << count_label << errors.size() << fort::endr;
+    table << "Min Error" << format::percent(errors.count == 0 ? 0.0 : errors.min) << fort::endr;
+    table << "Max Error" << format::percent(errors.count == 0 ? 0.0 : errors.max) << fort::endr;
+    table << "Mean Error" << format::percent(errors.mean()) << fort::endr;
+    table << "Standard dev" << format::percent(errors.standardDeviation()) << fort::endr;
+    table << count_label << errors.count << fort::endr;
     table << fort::separator;
     table << fort::header << "Error Bin" << "Count" << fort::endr;
-    for (const auto& [bin, count] : distributionBins(errors)) {
+    for (const auto& [bin, count] : errors.bins) {
       table << std::to_string(bin) + "%" << count << fort::endr;
     }
     table.column(0).set_cell_text_align(fort::text_align::left);

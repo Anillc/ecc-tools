@@ -1,7 +1,6 @@
 add_library(ircx_compare_spef
   compare/Comparator.cc
   compare/CouplingCapComparator.cc
-  compare/CompareMath.cc
   config/CompareSpefConfig.cc
   compare/NetSelector.cc
   compare/PathPairGenerator.cc

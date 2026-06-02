@@ -16,10 +16,8 @@
 // ***************************************************************************************
 #pragma once
 
-#include <algorithm>
 #include <cstddef>
 #include <functional>
-#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -95,11 +93,11 @@ struct Net
   std::vector<Pin> pins;
 };
 
-using NetMap = std::map<std::string, Net>;
+using NetList = std::vector<Net>;
 
 struct DataIndex
 {
-  std::unordered_map<std::string, const Net*> net_by_name;
+  std::unordered_map<std::string, std::size_t> net_by_name;
   std::unordered_map<std::string, std::size_t> net_order;
   std::unordered_map<std::string, std::string> node_to_net;
 
@@ -117,16 +115,10 @@ struct DataIndex
     }
   }
 
-  void registerNet(const std::string& net_name, const Net& net)
+  void registerNet(const std::string& net_name, std::size_t net_index)
   {
     net_order.try_emplace(net_name, net_order.size());
-    net_by_name[net_name] = &net;
-  }
-
-  auto findNet(const std::string& net_name) const -> const Net*
-  {
-    const auto net_it = net_by_name.find(net_name);
-    return net_it == net_by_name.end() ? nullptr : net_it->second;
+    net_by_name[net_name] = net_index;
   }
 
   auto containsNet(const std::string& net_name) const -> bool { return net_by_name.contains(net_name); }
@@ -158,39 +150,18 @@ struct DataIndex
 
 struct CouplingCapStore
 {
-  using Value = std::pair<NodePair, double>;
-
-  std::vector<Value> ordered;
   NetCouplingCapMap lookup;
 
-  void clear()
-  {
-    ordered.clear();
-    lookup.clear();
-  }
+  void clear() { lookup.clear(); }
 
-  void reserve(std::size_t count)
-  {
-    ordered.reserve(count);
-    lookup.reserve(count);
-  }
+  void reserve(std::size_t count) { lookup.reserve(count); }
 
   void add(NodePair pair, double capacitance) { lookup[std::move(pair)] += capacitance; }
-
-  void rebuildOrdered()
-  {
-    ordered.clear();
-    ordered.reserve(lookup.size());
-    ordered.insert(ordered.end(), lookup.begin(), lookup.end());
-    std::sort(ordered.begin(), ordered.end(), [](const Value& lhs, const Value& rhs) { return lhs.first < rhs.first; });
-  }
 
   auto size() const -> std::size_t { return lookup.size(); }
   auto contains(const NodePair& pair) const -> bool { return lookup.contains(pair); }
   auto find(const NodePair& pair) const -> NetCouplingCapMap::const_iterator { return lookup.find(pair); }
   auto end() const -> NetCouplingCapMap::const_iterator { return lookup.end(); }
-  auto beginOrdered() const -> std::vector<Value>::const_iterator { return ordered.begin(); }
-  auto endOrdered() const -> std::vector<Value>::const_iterator { return ordered.end(); }
 };
 
 struct Data
@@ -198,9 +169,40 @@ struct Data
   std::string file_name;
   std::string cap_unit;
   std::string res_unit;
-  NetMap nets;
+  NetList nets;
   DataIndex index;
   CouplingCapStore coupling_caps;
+
+  void reserveNets(std::size_t net_count)
+  {
+    nets.reserve(net_count);
+    index.reserve(net_count);
+  }
+
+  auto findNet(const std::string& net_name) const -> const Net*
+  {
+    const auto net_it = index.net_by_name.find(net_name);
+    if (net_it == index.net_by_name.end() || net_it->second >= nets.size()) {
+      return nullptr;
+    }
+    return &nets[net_it->second];
+  }
+
+  auto addOrAssignNet(Net net) -> Net&
+  {
+    const std::string net_name = net.name;
+    const auto net_it = index.net_by_name.find(net_name);
+    if (net_it != index.net_by_name.end() && net_it->second < nets.size()) {
+      nets[net_it->second] = std::move(net);
+      index.registerNet(net_name, net_it->second);
+      return nets[net_it->second];
+    }
+
+    nets.push_back(std::move(net));
+    Net& stored_net = nets.back();
+    index.registerNet(stored_net.name, nets.size() - 1);
+    return stored_net;
+  }
 };
 
 struct ValueRow

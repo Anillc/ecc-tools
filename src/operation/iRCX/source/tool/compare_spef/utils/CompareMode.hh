@@ -16,20 +16,27 @@
 // ***************************************************************************************
 #pragma once
 
-#include <optional>
+#include "config/CompareSpefConfig.hh"
 
 namespace ircx {
 namespace compare_spef {
-namespace math {
+namespace compare_mode {
 
-inline constexpr double kEpsilon = 1e-12;
+inline auto hasExplicitCompareMode(const Config& config) -> bool
+{
+  return config.compare_capacitance || config.compare_resistance || config.compare_delay;
+}
 
-auto absoluteRelativeDelta(double test, double reference) -> std::optional<double>;
-auto roundToSignificantDigits(double value, int digits = 6) -> double;
-auto roundToSignificantDigitsHalfEven(double value, int digits = 6) -> double;
-auto capacitanceRelativeDelta(double test, double reference) -> std::optional<double>;
-auto couplingRelativeDelta(double test, double reference, double denominator) -> std::optional<double>;
+inline auto compareCapacitance(const Config& config) -> bool
+{
+  return hasExplicitCompareMode(config) ? config.compare_capacitance : true;
+}
 
-}  // namespace math
+inline auto compareResistance(const Config& config) -> bool
+{
+  return hasExplicitCompareMode(config) ? config.compare_resistance : true;
+}
+
+}  // namespace compare_mode
 }  // namespace compare_spef
 }  // namespace ircx

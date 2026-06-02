@@ -14,17 +14,18 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "compare/CompareMath.hh"
+#pragma once
 
 #include <cmath>
+#include <optional>
 
 namespace ircx {
 namespace compare_spef {
 namespace math {
 
-namespace {
+inline constexpr double kEpsilon = 1e-12;
 
-auto roundToSignificantDigitsImpl(double value, int digits, double epsilon) -> double
+inline auto roundToSignificantDigitsImpl(double value, int digits, double epsilon) -> double
 {
   if (std::abs(value) <= epsilon || !std::isfinite(value)) {
     return value;
@@ -34,7 +35,7 @@ auto roundToSignificantDigitsImpl(double value, int digits, double epsilon) -> d
   return std::round(value * scale) / scale;
 }
 
-auto roundToSignificantDigitsHalfEvenImpl(double value, int digits, double epsilon) -> double
+inline auto roundToSignificantDigitsHalfEvenImpl(double value, int digits, double epsilon) -> double
 {
   if (std::abs(value) <= epsilon || !std::isfinite(value)) {
     return value;
@@ -50,9 +51,7 @@ auto roundToSignificantDigitsHalfEvenImpl(double value, int digits, double epsil
   return std::round(scaled_value) / scale;
 }
 
-}  // namespace
-
-auto absoluteRelativeDelta(double test, double reference) -> std::optional<double>
+inline auto absoluteRelativeDelta(double test, double reference) -> std::optional<double>
 {
   if (std::abs(reference) <= kEpsilon) {
     return std::nullopt;
@@ -60,22 +59,22 @@ auto absoluteRelativeDelta(double test, double reference) -> std::optional<doubl
   return (test - reference) / reference;
 }
 
-auto roundToSignificantDigits(double value, int digits) -> double
+inline auto roundToSignificantDigits(double value, int digits = 6) -> double
 {
   return roundToSignificantDigitsImpl(value, digits, kEpsilon);
 }
 
-auto roundToSignificantDigitsHalfEven(double value, int digits) -> double
+inline auto roundToSignificantDigitsHalfEven(double value, int digits = 6) -> double
 {
   return roundToSignificantDigitsHalfEvenImpl(value, digits, kEpsilon);
 }
 
-auto capacitanceRelativeDelta(double test, double reference) -> std::optional<double>
+inline auto capacitanceRelativeDelta(double test, double reference) -> std::optional<double>
 {
   return absoluteRelativeDelta(roundToSignificantDigits(test), roundToSignificantDigits(reference));
 }
 
-auto couplingRelativeDelta(double test, double reference, double denominator) -> std::optional<double>
+inline auto couplingRelativeDelta(double test, double reference, double denominator) -> std::optional<double>
 {
   const double rounded_denominator = roundToSignificantDigits(denominator);
   if (std::abs(rounded_denominator) <= kEpsilon) {

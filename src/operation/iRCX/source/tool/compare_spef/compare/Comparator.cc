@@ -18,37 +18,21 @@
 
 #include <omp.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <iterator>
 #include <limits>
-#include <map>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "compare/CompareMath.hh"
-#include "compare/CompareParallel.hh"
+#include "utils/CompareMath.hh"
+#include "utils/CompareMode.hh"
+#include "utils/CompareParallel.hh"
 
 namespace ircx {
 namespace compare_spef {
 namespace {
-
-auto hasExplicitCompareMode(const Config& config) -> bool
-{
-  return config.compare_capacitance || config.compare_resistance || config.compare_delay;
-}
-
-auto shouldCompareCapacitance(const Config& config) -> bool
-{
-  return hasExplicitCompareMode(config) ? config.compare_capacitance : true;
-}
-
-auto shouldCompareResistance(const Config& config) -> bool
-{
-  return hasExplicitCompareMode(config) ? config.compare_resistance : true;
-}
 
 void appendRows(Result& result, Result&& thread_result)
 {
@@ -82,8 +66,8 @@ Comparator::Comparator(const Config& config)
       _net_selector(config),
       _coupling_cap_comparator(config),
       _path_pair_generator(config),
-      _compare_capacitance(shouldCompareCapacitance(config)),
-      _compare_resistance(shouldCompareResistance(config))
+      _compare_capacitance(compare_mode::compareCapacitance(config)),
+      _compare_resistance(compare_mode::compareResistance(config))
 {
 }
 
@@ -111,17 +95,12 @@ void Comparator::initializeSummary(const Data& test, const Data& reference, Resu
 void Comparator::compareMatchedNets(const Data& test, const Data& reference, Result& result) const
 {
   const int thread_count = parallel::threadCount(_config, reference.nets.size());
-  std::vector<const std::map<std::string, Net>::value_type*> reference_net_pairs;
-  reference_net_pairs.reserve(reference.nets.size());
-  for (const auto& reference_net_pair : reference.nets) {
-    reference_net_pairs.push_back(&reference_net_pair);
-  }
-
   std::vector<Result> thread_results(thread_count);
 #pragma omp parallel for schedule(dynamic, 64) num_threads(thread_count)
-  for (std::size_t index = 0; index < reference_net_pairs.size(); ++index) {
-    const auto& [net_name, reference_net] = *reference_net_pairs[index];
-    const Net* test_net = test.index.findNet(net_name);
+  for (std::size_t index = 0; index < reference.nets.size(); ++index) {
+    const Net& reference_net = reference.nets[index];
+    const std::string& net_name = reference_net.name;
+    const Net* test_net = test.findNet(net_name);
     if (test_net == nullptr) {
       thread_results[omp_get_thread_num()].reference_only_nets.push_back(net_name);
       continue;
@@ -201,8 +180,8 @@ void Comparator::addResistanceRows(const std::string& net_name, const Net& refer
 
 void Comparator::collectTestOnlyNets(const Data& test, const Data& reference, Result& result) const
 {
-  for (const auto& net_pair : test.nets) {
-    const std::string& net_name = net_pair.first;
+  for (const Net& net : test.nets) {
+    const std::string& net_name = net.name;
     if (!reference.index.containsNet(net_name)) {
       result.test_only_nets.push_back(net_name);
     }
