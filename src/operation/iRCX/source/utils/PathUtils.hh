@@ -27,7 +27,7 @@
 namespace ircx {
 namespace path {
 
-inline auto abs(const std::filesystem::path& path) -> std::filesystem::path
+inline auto absolute(const std::filesystem::path& path) -> std::filesystem::path
 {
   return std::filesystem::absolute(path).lexically_normal();
 }
@@ -47,10 +47,10 @@ inline auto resolve(const std::filesystem::path& base_dir, std::string_view raw_
   return path.lexically_normal().string();
 }
 
-inline auto require_file(const std::filesystem::path& file, std::string_view field_name) -> bool
+inline auto file_exists(const std::filesystem::path& file, std::string_view field_name) -> bool
 {
   const Str file_string = file.string();
-  if (!string::ensure_non_empty(file_string, field_name)) {
+  if (!string::require_non_empty(file_string, field_name)) {
     return false;
   }
 
@@ -62,10 +62,10 @@ inline auto require_file(const std::filesystem::path& file, std::string_view fie
   return false;
 }
 
-inline auto mkdirs(const std::filesystem::path& dir, std::string_view field_name) -> bool
+inline auto ensure_dir(const std::filesystem::path& dir, std::string_view field_name) -> bool
 {
   const Str dir_string = dir.string();
-  if (!string::ensure_non_empty(dir_string, field_name)) {
+  if (!string::require_non_empty(dir_string, field_name)) {
     return false;
   }
 

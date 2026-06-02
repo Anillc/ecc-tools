@@ -4,7 +4,7 @@
 // Copyright (c) 2023-2025 Beijing Institute of Open Source Chip
 //
 // iEDA is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You can use this software according to the terms and conditions of Mulan PSL v2.
 // You may obtain a copy of Mulan PSL v2 at:
 // http://license.coscl.org.cn/MulanPSL2
 //
@@ -14,42 +14,37 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "Report.hh"
+#include "config/PlotSpefConfig.hh"
+
+#include <filesystem>
 
 #include "PathUtils.hh"
-#include "RCXConfig.hh"
-#include "RCXData.hh"
-#include "SpefDumper.hh"
 #include "log/Log.hh"
 
-namespace ircx {
+namespace ircx::plot_spef {
 
-auto Report::dumpSpef() -> bool
+auto ConfigValidator::validate(const Config& config) const -> bool
 {
-  const Str& output_dir = RCX_CONFIG_INST.get_output_dir();
-  if (!path::ensure_dir(output_dir, "output_dir")) {
+  if (!path::file_exists(config.spef_file, "plot_spef SPEF file")) {
     return false;
   }
 
-  RCXData& data = RCX_DATA_INST;
-  const auto& corner_data = data.corner_data();
-  if (corner_data.empty()) {
-    LOG_ERROR << "report spef failed: process corners not loaded.";
+  if (config.output_file.empty()) {
+    LOG_ERROR << "plot_spef requires an output GDS file.";
     return false;
   }
 
-  SpefDumper dumper;
-  dumper.set_spef_context(&data.spef_context());
-  dumper.set_layout_data(&data.layout());
-  dumper.set_topo_pool(&data.topo_pool());
-  dumper.set_rc_table(&data.rc_table());
-  dumper.set_corner_data(&corner_data);
-  dumper.set_layer_table(&data.layer_table());
-  if (!dumper.dump(output_dir)) {
+  if (config.dbu <= 0) {
+    LOG_ERROR << "plot_spef requires a positive DBU.";
+    return false;
+  }
+
+  const auto output_parent = std::filesystem::path(config.output_file).parent_path();
+  if (!output_parent.empty() && !path::ensure_dir(output_parent, "plot_spef output directory")) {
     return false;
   }
 
   return true;
 }
 
-}  // namespace ircx
+}  // namespace ircx::plot_spef

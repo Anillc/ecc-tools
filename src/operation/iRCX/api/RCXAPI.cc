@@ -20,8 +20,9 @@
 
 #include <utility>
 
-#include "CompareSpef.hh"
+#include "CompareSpefTool.hh"
 #include "Extraction.hh"
+#include "PlotSpefTool.hh"
 #include "RCXConfig.hh"
 #include "RCXData.hh"
 #include "Report.hh"
@@ -40,7 +41,7 @@ RCXAPI::RCXAPI()
 
 auto RCXAPI::init(const std::string& config_file) -> bool
 {
-  return runStage("init_rcx", [&]() {
+  return run_stage("init_rcx", [&]() {
     RCX_DATA_INST.reset();
     return Setup::initialize(config_file);
   });
@@ -48,7 +49,7 @@ auto RCXAPI::init(const std::string& config_file) -> bool
 
 auto RCXAPI::run() -> bool
 {
-  return runStage("run_rcx", []() {
+  return run_stage("run_rcx", []() {
     if (!RCX_CONFIG_INST.get_initialized()) {
       LOG_ERROR << "run_rcx failed: RCX config is not initialized.";
       return false;
@@ -66,15 +67,22 @@ auto RCXAPI::run() -> bool
 
 auto RCXAPI::report() -> bool
 {
-  return runStage("report_spef", []() {
+  return run_stage("report_spef", []() {
     return Report::dumpSpef(); 
   });
 }
 
 auto RCXAPI::compare_spef(compare_spef::Config config) -> bool
 {
-  return runStage("compare_spef", [&]() {
-    return CompareSpef::run(std::move(config));
+  return run_stage("compare_spef", [&]() {
+    return CompareSpefTool::run(std::move(config));
+  }, {.profile = true});
+}
+
+auto RCXAPI::plot_spef(plot_spef::Config config) -> bool
+{
+  return run_stage("plot_spef", [&]() {
+    return PlotSpefTool::run(std::move(config));
   }, {.profile = true});
 }
 

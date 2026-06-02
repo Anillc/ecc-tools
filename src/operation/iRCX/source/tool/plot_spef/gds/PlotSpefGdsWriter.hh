@@ -16,25 +16,21 @@
 // ***************************************************************************************
 #pragma once
 
-#include "Types.hh"
+#include <string>
 
-namespace itf {
-class LayerVia;
-class ProcessCorner;
-}  // namespace itf
+#include "config/PlotSpefConfig.hh"
+#include "model/PlotSpefModel.hh"
 
-namespace ircx {
+namespace ircx::plot_spef {
 
-class TopoEdge;
-
-class ViaResistanceModel
+class GdsWriter
 {
  public:
-  static auto calc(const TopoEdge& edge,
-                   const itf::ProcessCorner& corner,
-                   const itf::LayerVia& layer,
-                   Micron micron_per_dbu,
-                   F64 operating_temperature) -> F64;
+  auto write(const Model& model, const Config& config) const -> bool;
+
+ private:
+  static auto safeStructName(const std::string& name) -> std::string;
+  static auto formatValue(double value, const std::string& unit) -> std::string;
 };
 
-}  // namespace ircx
+}  // namespace ircx::plot_spef

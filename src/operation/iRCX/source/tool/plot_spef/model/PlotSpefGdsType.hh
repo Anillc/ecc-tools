@@ -16,25 +16,17 @@
 // ***************************************************************************************
 #pragma once
 
-#include "Types.hh"
+namespace ircx::plot_spef {
 
-namespace itf {
-class LayerVia;
-class ProcessCorner;
-}  // namespace itf
-
-namespace ircx {
-
-class TopoEdge;
-
-class ViaResistanceModel
+enum GdsDataType
 {
- public:
-  static auto calc(const TopoEdge& edge,
-                   const itf::ProcessCorner& corner,
-                   const itf::LayerVia& layer,
-                   Micron micron_per_dbu,
-                   F64 operating_temperature) -> F64;
+  kNode = 1,
+  kEdge = 2,
+  kTextNode = 5,
+  kTextRes = 6,
+  kTextCg = 7,
+  kTextCc = 8,
+  kCc = 9
 };
 
-}  // namespace ircx
+}  // namespace ircx::plot_spef

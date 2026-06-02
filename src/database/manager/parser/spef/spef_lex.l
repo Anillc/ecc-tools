@@ -60,6 +60,7 @@ NAME       [^ \t\r\n]+
 
 "*LL"                         { return K_LL; }
 "*UR"                         { return K_UR; }
+"*LAYER"                      { return K_LAYER; }
 "*C"                          { return K_COORD; }
 "*L"                          { return K_LOAD; }
 "*D"                          { return K_DRIVE; }

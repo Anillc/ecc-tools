@@ -65,10 +65,10 @@ auto makeTemperatureCornerName(const Str& corner_name, F64 temperature) -> Str
 auto loadProcessCorner(const Str& corner_name,
                        const Str& itf_file) -> std::unique_ptr<::itf::ProcessCorner>
 {
-  if (!string::ensure_non_empty(corner_name, "corner name")) {
+  if (!string::require_non_empty(corner_name, "corner name")) {
     return nullptr;
   }
-  if (!path::require_file(itf_file, "itf_file")) {
+  if (!path::file_exists(itf_file, "itf_file")) {
     return nullptr;
   }
 
@@ -119,10 +119,10 @@ auto loadProcessCorner(const Str& corner_name,
 auto loadCapTable(const Str& corner_name,
                   const Str& captab_file) -> std::optional<parser::CapTable>
 {
-  if (!string::ensure_non_empty(corner_name, "corner name")) {
+  if (!string::require_non_empty(corner_name, "corner name")) {
     return std::nullopt;
   }
-  if (!path::require_file(captab_file, "captab_file")) {
+  if (!path::file_exists(captab_file, "captab_file")) {
     return std::nullopt;
   }
 
@@ -257,7 +257,7 @@ auto Setup::readCorner(const std::string& corner_name,
                        const char* itf_file,
                        const char* captab_file) -> bool
 {
-  if (!string::ensure_non_empty(corner_name, "corner name")) {
+  if (!string::require_non_empty(corner_name, "corner name")) {
     return false;
   }
   if (!std::isfinite(temperature)) {
@@ -312,7 +312,7 @@ auto Setup::readMapping(const char* mapping_file) -> bool
     LOG_ERROR << "mapping_file is null.";
     return false;
   }
-  if (!path::require_file(mapping_file, "mapping_file")) {
+  if (!path::file_exists(mapping_file, "mapping_file")) {
     return false;
   }
 

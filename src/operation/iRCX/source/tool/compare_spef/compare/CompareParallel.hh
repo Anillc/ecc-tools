@@ -16,25 +16,24 @@
 // ***************************************************************************************
 #pragma once
 
-#include "Types.hh"
+#include <algorithm>
+#include <cstddef>
 
-namespace itf {
-class LayerVia;
-class ProcessCorner;
-}  // namespace itf
+#include "config/CompareSpefConfig.hh"
 
 namespace ircx {
+namespace compare_spef {
+namespace parallel {
 
-class TopoEdge;
-
-class ViaResistanceModel
+inline auto threadCount(const Config& config, std::size_t work_items) -> int
 {
- public:
-  static auto calc(const TopoEdge& edge,
-                   const itf::ProcessCorner& corner,
-                   const itf::LayerVia& layer,
-                   Micron micron_per_dbu,
-                   F64 operating_temperature) -> F64;
-};
+  if (work_items == 0) {
+    return 0;
+  }
+  const int requested = config.cores > 0 ? config.cores : 1;
+  return std::min<int>(requested, static_cast<int>(work_items));
+}
 
+}  // namespace parallel
+}  // namespace compare_spef
 }  // namespace ircx

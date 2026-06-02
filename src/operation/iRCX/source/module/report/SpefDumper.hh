@@ -99,8 +99,8 @@ class SpefDumper
   auto dumpCorner(const Str& output_dir, Size corner_idx) const -> bool;
 
   void writeDNet(std::ostream& os, Size corner_idx, Size net_idx) const;
-  void writeNodeGeometry(std::ostream& os, const TopoNode& node, Micron dbu_to_micron) const;
-  void writeResistanceGeometry(std::ostream& os, Size corner_idx, const TopoEdge& edge, Micron dbu_to_micron) const;
+  void writeNodeGeometry(std::ostream& os, const TopoNode& node, Micron micron_per_dbu) const;
+  void writeResistanceGeometry(std::ostream& os, Size corner_idx, const TopoEdge& edge, Micron micron_per_dbu) const;
   Size reportLayerLevel(Size design_layer_id) const;
 
   const SpefContext* spef_context_{nullptr};

@@ -20,7 +20,7 @@
 
 namespace ircx {
 
-class CompareSpef
+class CompareSpefTool
 {
  public:
   static auto run(compare_spef::Config config) -> bool;

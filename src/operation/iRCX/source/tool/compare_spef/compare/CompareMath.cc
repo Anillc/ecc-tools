@@ -22,17 +22,11 @@ namespace ircx {
 namespace compare_spef {
 namespace math {
 
-auto absoluteRelativeDelta(double test, double reference) -> std::optional<double>
-{
-  if (std::abs(reference) <= kEpsilon) {
-    return std::nullopt;
-  }
-  return (test - reference) / reference;
-}
+namespace {
 
-auto roundToSignificantDigits(double value, int digits) -> double
+auto roundToSignificantDigitsImpl(double value, int digits, double epsilon) -> double
 {
-  if (std::abs(value) <= kEpsilon || !std::isfinite(value)) {
+  if (std::abs(value) <= epsilon || !std::isfinite(value)) {
     return value;
   }
 
@@ -40,9 +34,9 @@ auto roundToSignificantDigits(double value, int digits) -> double
   return std::round(value * scale) / scale;
 }
 
-auto roundToSignificantDigitsHalfEven(double value, int digits) -> double
+auto roundToSignificantDigitsHalfEvenImpl(double value, int digits, double epsilon) -> double
 {
-  if (std::abs(value) <= kEpsilon || !std::isfinite(value)) {
+  if (std::abs(value) <= epsilon || !std::isfinite(value)) {
     return value;
   }
 
@@ -54,6 +48,26 @@ auto roundToSignificantDigitsHalfEven(double value, int digits) -> double
     return (std::fmod(lower, 2.0) == 0.0 ? lower : lower + 1.0) / scale;
   }
   return std::round(scaled_value) / scale;
+}
+
+}  // namespace
+
+auto absoluteRelativeDelta(double test, double reference) -> std::optional<double>
+{
+  if (std::abs(reference) <= kEpsilon) {
+    return std::nullopt;
+  }
+  return (test - reference) / reference;
+}
+
+auto roundToSignificantDigits(double value, int digits) -> double
+{
+  return roundToSignificantDigitsImpl(value, digits, kEpsilon);
+}
+
+auto roundToSignificantDigitsHalfEven(double value, int digits) -> double
+{
+  return roundToSignificantDigitsHalfEvenImpl(value, digits, kEpsilon);
 }
 
 auto capacitanceRelativeDelta(double test, double reference) -> std::optional<double>

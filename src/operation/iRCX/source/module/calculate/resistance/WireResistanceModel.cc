@@ -17,7 +17,6 @@
 #include "WireResistanceModel.hh"
 
 #include <algorithm>
-#include <optional>
 
 #include "ProcessCorner.hpp"
 #include "ResistanceTemperature.hh"
@@ -26,29 +25,6 @@
 namespace ircx {
 
 namespace {
-
-auto get_conductor_temperature_coefficients(const itf::LayerConductor& layer, Micron width) -> ResistanceTemperatureCoefficients
-{
-  ResistanceTemperatureCoefficients coefficients;
-
-  std::optional<double> width_crt1;
-  std::optional<double> width_crt2;
-  layer.query_crt_vs_si_width(width, width_crt1, width_crt2);
-
-  if (width_crt1.has_value()) {
-    coefficients.crt1 = width_crt1.value();
-  } else if (auto crt1 = layer.get_crt1()) {
-    coefficients.crt1 = crt1.value();
-  }
-
-  if (width_crt2.has_value()) {
-    coefficients.crt2 = width_crt2.value();
-  } else if (auto crt2 = layer.get_crt2()) {
-    coefficients.crt2 = crt2.value();
-  }
-
-  return coefficients;
-}
 
 auto interval_resistance(const itf::LayerConductor& layer, const EdgeEtchInterval& etch_interval, Micron overlap_length) -> F64
 {
@@ -100,8 +76,12 @@ auto WireResistanceModel::calc(LineSegment<Micron> segment, std::span<const Edge
 
     const Micron overlap_length = overlap_hi - overlap_lo;
     const F64 base_resistance = interval_resistance(layer, etch_interval, overlap_length);
+    const ResistanceTemperatureCoefficients coefficients =
+        resistanceTemperatureCoefficients(layer, [&](auto& crt1, auto& crt2) {
+          layer.query_crt_vs_si_width(etch_interval.width, crt1, crt2);
+        });
     resistance += applyResistanceTemperatureDerating(base_resistance, operating_temperature, resistanceNominalTemperature(layer, corner),
-                                                     get_conductor_temperature_coefficients(layer, etch_interval.width));
+                                                     coefficients);
   }
 
   return resistance;

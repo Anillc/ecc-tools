@@ -183,7 +183,7 @@ auto RCXConfig::parse(const std::string& json_file) -> bool
     nlohmann::json json;
     config_stream >> json;
 
-    const fs::path absolute_config_path = path::abs(json_file);
+    const fs::path absolute_config_path = path::absolute(json_file);
     const fs::path config_dir = absolute_config_path.parent_path();
 
     // thread_num

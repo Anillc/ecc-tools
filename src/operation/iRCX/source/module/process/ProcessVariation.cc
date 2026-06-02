@@ -123,7 +123,7 @@ void ProcessVariation::initEtchIntervals()
 
   const std::vector<NetEnvironment>& net_environments = *net_environments_;
 
-  Micron dbu_to_micron = dbu2micron(1, layout_data_->micron_to_dbu);
+  Micron micron_per_dbu = unit::to_micron(1, layout_data_->dbu_per_micron);
 
   for (Size corner_idx = 0; corner_idx < corner_num_; ++corner_idx) {
     #pragma omp parallel for schedule(dynamic)
@@ -151,20 +151,20 @@ void ProcessVariation::initEtchIntervals()
           const EdgeEnvironmentInterval& env_interval = env_intervals[interval_idx];
           EdgeEtchInterval& etch_interval = etch_intervals[interval_idx];
 
-          etch_interval.a0     = env_interval.a0 * dbu_to_micron;
-          etch_interval.a1     = env_interval.a1 * dbu_to_micron;
-          etch_interval.center = edge.coord() * dbu_to_micron;
-          etch_interval.width  = edge.width() * dbu_to_micron;
+          etch_interval.a0     = env_interval.a0 * micron_per_dbu;
+          etch_interval.a1     = env_interval.a1 * micron_per_dbu;
+          etch_interval.center = edge.coord() * micron_per_dbu;
+          etch_interval.width  = edge.width() * micron_per_dbu;
 
           // convert center-to-center spacing (EdgeEnvironmentInterval) to edge-to-edge gap (EdgeEtchInterval)
           if (env_interval.lo_adjacent)
             etch_interval.lo_spacing =
                 (env_interval.lo_spacing - env_interval.lo_adjacent->half_width() - edge.half_width())
-                * dbu_to_micron;
+                * micron_per_dbu;
           if (env_interval.hi_adjacent)
             etch_interval.hi_spacing =
                 (env_interval.hi_spacing - env_interval.hi_adjacent->half_width() - edge.half_width())
-                * dbu_to_micron;
+                * micron_per_dbu;
 
           etch_interval.thickness = 0;
           etch_interval.height    = 0;

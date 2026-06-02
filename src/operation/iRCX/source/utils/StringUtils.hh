@@ -16,7 +16,10 @@
 // ***************************************************************************************
 #pragma once
 
+#include <charconv>
+#include <optional>
 #include <string_view>
+#include <system_error>
 
 #include "Types.hh"
 #include "log/Log.hh"
@@ -35,9 +38,39 @@ inline auto trim(std::string_view value) -> Str
   return Str(value.substr(first, last - first + 1));
 }
 
+inline auto trim_view(std::string_view value) -> std::string_view
+{
+  const auto first = value.find_first_not_of(" \t\n\r\f\v");
+  if (first == std::string_view::npos) {
+    return {};
+  }
+
+  const auto last = value.find_last_not_of(" \t\n\r\f\v");
+  return value.substr(first, last - first + 1);
+}
+
 inline auto starts_with(std::string_view value, std::string_view prefix) -> bool
 {
   return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
+}
+
+inline auto take_token(std::string_view& value) -> std::string_view
+{
+  value = trim_view(value);
+  if (value.empty()) {
+    return {};
+  }
+
+  const auto end = value.find_first_of(" \t\n\r\f\v");
+  if (end == std::string_view::npos) {
+    const auto token = value;
+    value = {};
+    return token;
+  }
+
+  const auto token = value.substr(0, end);
+  value = value.substr(end + 1);
+  return token;
 }
 
 inline auto contains(std::string_view value, std::string_view pattern) -> bool
@@ -45,7 +78,53 @@ inline auto contains(std::string_view value, std::string_view pattern) -> bool
   return value.find(pattern) != std::string_view::npos;
 }
 
-inline auto ensure_non_empty(std::string_view value, std::string_view field_name) -> bool
+inline auto after_prefix(std::string_view value, std::string_view prefix) -> std::optional<std::string_view>
+{
+  if (!starts_with(value, prefix)) {
+    return std::nullopt;
+  }
+  return value.substr(prefix.size());
+}
+
+template <typename T>
+inline auto parse_number(std::string_view value) -> std::optional<T>
+{
+  value = trim_view(value);
+  if (value.empty()) {
+    return std::nullopt;
+  }
+
+  T number{};
+  const auto* begin = value.data();
+  const auto* end = begin + value.size();
+  const auto [ptr, error] = std::from_chars(begin, end, number);
+  if (error != std::errc{} || ptr != end) {
+    return std::nullopt;
+  }
+  return number;
+}
+
+template <typename T>
+inline auto parse_after_prefix(std::string_view value, std::string_view prefix) -> std::optional<T>
+{
+  const auto token_value = after_prefix(value, prefix);
+  if (!token_value.has_value()) {
+    return std::nullopt;
+  }
+  return parse_number<T>(*token_value);
+}
+
+inline auto parse_int_after_prefix(std::string_view value, std::string_view prefix) -> std::optional<int>
+{
+  return parse_after_prefix<int>(value, prefix);
+}
+
+inline auto parse_double_after_prefix(std::string_view value, std::string_view prefix) -> std::optional<double>
+{
+  return parse_after_prefix<double>(value, prefix);
+}
+
+inline auto require_non_empty(std::string_view value, std::string_view field_name) -> bool
 {
   if (!value.empty()) {
     return true;
@@ -55,7 +134,7 @@ inline auto ensure_non_empty(std::string_view value, std::string_view field_name
   return false;
 }
 
-inline auto spef_escape_identifier(Str name) -> Str
+inline auto escape_spef_name(Str name) -> Str
 {
   if (name.find('.') == Str::npos) {
     return name;

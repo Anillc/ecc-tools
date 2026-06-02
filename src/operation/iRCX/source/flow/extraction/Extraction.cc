@@ -38,7 +38,7 @@ auto Extraction::run() -> bool
 
 auto Extraction::buildTopology() -> bool
 {
-  return runStage("build topology", []() -> bool {
+  return run_stage("build topology", []() -> bool {
     RCXData& data = RCX_DATA_INST;
     TopoPool& topo_pool = data.topo_pool();
     const LayoutData& layout = data.layout();
@@ -58,7 +58,7 @@ auto Extraction::buildTopology() -> bool
 
 auto Extraction::buildEnvironment() -> bool
 {
-  return runStage("build environment", []() -> bool {
+  return run_stage("build environment", []() -> bool {
     RCXData& data = RCX_DATA_INST;
     if (data.topo_pool().edge_pool().empty()) {
       LOG_ERROR << "build environment failed: topology is empty, call buildTopology first.";
@@ -79,7 +79,7 @@ auto Extraction::buildEnvironment() -> bool
 
 auto Extraction::buildProcessVariation() -> bool
 {
-  return runStage("build process variation", []() -> bool {
+  return run_stage("build process variation", []() -> bool {
     RCXData& data = RCX_DATA_INST;
     const auto& corner_data = data.corner_data();
     if (corner_data.empty()) {
@@ -109,7 +109,7 @@ auto Extraction::buildProcessVariation() -> bool
 
 auto Extraction::calculateParasitics() -> bool
 {
-  return runStage("calculate parasitics", []() -> bool {
+  return run_stage("calculate parasitics", []() -> bool {
     RCXData& data = RCX_DATA_INST;
     const auto& corner_data = data.corner_data();
     if (corner_data.empty()) {

@@ -76,4 +76,18 @@ class TclCompareSpef : public TclCmd
   unsigned exec() override;
 };
 
+/**
+ * @brief Plot a SPEF netlist into GDS text.
+ *
+ */
+class TclPlotSpef : public TclCmd
+{
+ public:
+  explicit TclPlotSpef(const char* cmd_name);
+  ~TclPlotSpef() override = default;
+
+  unsigned check() override;
+  unsigned exec() override;
+};
+
 }  // namespace tcl

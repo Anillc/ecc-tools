@@ -14,7 +14,7 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#include "CompareSpef.hh"
+#include "CompareSpefTool.hh"
 
 #include "compare/Comparator.hh"
 #include "log/Log.hh"
@@ -23,7 +23,7 @@
 
 namespace ircx {
 
-auto CompareSpef::run(compare_spef::Config config) -> bool
+auto CompareSpefTool::run(compare_spef::Config config) -> bool
 {
   const compare_spef::NetConfigReader net_config_reader;
   const compare_spef::ConfigValidator config_validator;
