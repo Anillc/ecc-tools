@@ -15,6 +15,7 @@
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
 
+#include <limits>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -61,6 +62,30 @@ TEST(StaPathDepthTest, GetsShortestDepthAcrossReconvergentPaths) {
   std::unordered_map<StaVertex*, int> depth_cache;
   std::unordered_set<StaVertex*> visiting;
   EXPECT_EQ(3, sink.getPathDepth(depth_cache, visiting));
+}
+
+TEST(StaPathDepthTest, DoesNotCacheCycleOnlyDepthAsPathRoot) {
+  StaVertex cycle_a(nullptr);
+  StaVertex cycle_b(nullptr);
+  StaVertex start(nullptr);
+  StaVertex bridge(nullptr);
+  start.set_is_start();
+
+  std::vector<std::unique_ptr<StaArc>> arcs;
+  Connect(cycle_a, cycle_b, arcs);
+  Connect(cycle_b, cycle_a, arcs);
+
+  std::unordered_map<StaVertex*, int> depth_cache;
+  std::unordered_set<StaVertex*> visiting;
+  EXPECT_EQ(std::numeric_limits<int>::max(),
+            cycle_a.getPathDepth(depth_cache, visiting));
+  EXPECT_FALSE(depth_cache.contains(&cycle_a));
+  EXPECT_FALSE(depth_cache.contains(&cycle_b));
+
+  Connect(start, bridge, arcs);
+  Connect(bridge, cycle_a, arcs);
+  visiting.clear();
+  EXPECT_EQ(3, cycle_a.getPathDepth(depth_cache, visiting));
 }
 
 }  // namespace

@@ -24,6 +24,9 @@
 
 #include "StaClockPropagation.hh"
 
+#include <limits>
+#include <optional>
+
 #include "Sta.hh"
 #include "StaApplySdc.hh"
 #include "StaArc.hh"
@@ -117,10 +120,13 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
           get_delay_derate(new_data->get_delay_type(), the_arc->isInstArc());
 
       // obj_name,vetex_depth(src,snk?),trans_type(new_data)
-      auto aocv_derate = get_aocv_delay_derate(
-          obj_name.c_str(), new_data->get_delay_type(),
-          new_data->get_trans_type(), AocvObjectSpec::DelayType::kCell,
-          src_vertex_depth);
+      std::optional<float> aocv_derate = std::nullopt;
+      if (src_vertex_depth != std::numeric_limits<int>::max()) {
+        aocv_derate = get_aocv_delay_derate(
+            obj_name.c_str(), new_data->get_delay_type(),
+            new_data->get_trans_type(), AocvObjectSpec::DelayType::kCell,
+            src_vertex_depth);
+      }
 
       if (aocv_derate) {
         arc_delay *= aocv_derate.value();

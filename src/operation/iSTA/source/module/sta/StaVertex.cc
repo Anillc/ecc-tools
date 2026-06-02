@@ -1145,7 +1145,10 @@ void StaVertex::getPathDepth(
     int depth /*= 0*/) {
   std::unordered_map<StaVertex*, int> depth_cache;
   std::unordered_set<StaVertex*> visiting;
-  depth_min_queue.push(depth + getPathDepth(depth_cache, visiting));
+  const int path_depth = getPathDepth(depth_cache, visiting);
+  if (path_depth != std::numeric_limits<int>::max()) {
+    depth_min_queue.push(depth + path_depth);
+  }
 }
 
 /**
@@ -1184,8 +1187,11 @@ int StaVertex::getPathDepth(std::unordered_map<StaVertex*, int>& depth_cache,
 
   visiting.erase(this);
 
-  int path_depth =
-      (min_src_depth == std::numeric_limits<int>::max()) ? 1 : min_src_depth + 1;
+  if (min_src_depth == std::numeric_limits<int>::max()) {
+    return min_src_depth;
+  }
+
+  int path_depth = min_src_depth + 1;
   depth_cache[this] = path_depth;
   return path_depth;
 }
