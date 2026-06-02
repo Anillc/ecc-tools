@@ -47,17 +47,17 @@ class NetEtchProfile
 
   void appendEdgeIntervals(std::vector<EdgeEtchInterval> intervals)
   {
-    edge_interval_groups_.append_group(std::move(intervals));
+    edge_interval_groups_.append(std::move(intervals));
   }
 
   std::span<const EdgeEtchInterval> edgeIntervals(Size edge_id) const
   {
-    return edge_interval_groups_.group_items(edge_id);
+    return edge_interval_groups_.items(edge_id);
   }
 
   std::span<EdgeEtchInterval> edgeIntervals(Size edge_id)
   {
-    return edge_interval_groups_.group_items(edge_id);
+    return edge_interval_groups_.items(edge_id);
   }
 
   void clear()

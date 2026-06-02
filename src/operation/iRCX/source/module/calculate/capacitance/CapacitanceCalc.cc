@@ -52,7 +52,7 @@ void resolveCrossLayers(
 
 void accumulateSegmentCap(
     const LayerTable& layer_table,
-    Micron dbu_to_micron,
+    Micron micron_per_dbu,
     Dbu segment_lo_dbu,
     Dbu segment_hi_dbu,
     const CrossOverlapSub* cross_overlap,
@@ -68,7 +68,7 @@ void accumulateSegmentCap(
   Str above_layer;
   resolveCrossLayers(layer_table, cross_overlap, below_layer, above_layer);
   accumulator.accumulateSpan(
-      (segment_hi_dbu - segment_lo_dbu) * dbu_to_micron,
+      (segment_hi_dbu - segment_lo_dbu) * micron_per_dbu,
       below_layer,
       above_layer,
       low_side,
@@ -230,7 +230,7 @@ void CapacitanceCalc::calcEdge(
       if (cursor_dbu < cross_overlap.a0) {
         accumulateSegmentCap(
             *layer_table_,
-            dbu_to_micron_,
+            micron_per_dbu_,
             cursor_dbu,
             cross_overlap.a0,
             nullptr,
@@ -244,7 +244,7 @@ void CapacitanceCalc::calcEdge(
       if (cursor_dbu < overlap_hi_dbu) {
         accumulateSegmentCap(
             *layer_table_,
-            dbu_to_micron_,
+            micron_per_dbu_,
             cursor_dbu,
             overlap_hi_dbu,
             &cross_overlap,
@@ -258,7 +258,7 @@ void CapacitanceCalc::calcEdge(
     if (cursor_dbu < interval_hi_dbu) {
       accumulateSegmentCap(
           *layer_table_,
-          dbu_to_micron_,
+          micron_per_dbu_,
           cursor_dbu,
           interval_hi_dbu,
           nullptr,

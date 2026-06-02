@@ -16,25 +16,14 @@
 // ***************************************************************************************
 #pragma once
 
-#include "Types.hh"
-
-namespace itf {
-class LayerVia;
-class ProcessCorner;
-}  // namespace itf
+#include "config/PlotSpefConfig.hh"
 
 namespace ircx {
 
-class TopoEdge;
-
-class ViaResistanceModel
+class PlotSpefTool
 {
  public:
-  static auto calc(const TopoEdge& edge,
-                   const itf::ProcessCorner& corner,
-                   const itf::LayerVia& layer,
-                   Micron micron_per_dbu,
-                   F64 operating_temperature) -> F64;
+  static auto run(plot_spef::Config config) -> bool;
 };
 
 }  // namespace ircx

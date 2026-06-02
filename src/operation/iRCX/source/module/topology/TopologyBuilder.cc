@@ -62,7 +62,7 @@ TopologyBuilder::NetTopo TopologyBuilder::build_one_(const Net& net) const
         std::max(geom::max_y(old_rect), geom::max_y(rect))));
   };
   auto endpoint_shape = [](const Segment& wire, const GtlPointI& point) -> GtlRectI {
-    if (geom::is_hor_dominant(wire.p0, wire.p1)) {
+    if (geom::is_horizontal_dominant(wire.p0, wire.p1)) {
       return geom::make_rect<GtlRectI>(
           geom::x(point), geom::min_y(wire.rect),
           geom::x(point), geom::max_y(wire.rect));

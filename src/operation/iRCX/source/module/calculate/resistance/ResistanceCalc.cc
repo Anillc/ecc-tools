@@ -252,7 +252,7 @@ F64 ResistanceCalc::calcViaResistance(const CornerCalcView& corner,
   }
 
   return ViaResistanceModel::calc(edge, *corner.process_corner, *via_layer,
-                                  dbu_to_micron_, corner.temperature);
+                                  micron_per_dbu_, corner.temperature);
 }
 
 F64 ResistanceCalc::calcConductorResistance(
@@ -280,13 +280,13 @@ LineSegment<Micron> ResistanceCalc::edgeSegment(const TopoEdge& edge) const
 
   LineSegment<Micron> segment;
   segment.is_horz = edge.is_horz();
-  segment.coord = edge.coord() * dbu_to_micron_;
+  segment.coord = edge.coord() * micron_per_dbu_;
   if (edge.is_horz()) {
-    segment.lo = geom::x(u_node.point()) * dbu_to_micron_;
-    segment.hi = geom::x(v_node.point()) * dbu_to_micron_;
+    segment.lo = geom::x(u_node.point()) * micron_per_dbu_;
+    segment.hi = geom::x(v_node.point()) * micron_per_dbu_;
   } else {
-    segment.lo = geom::y(u_node.point()) * dbu_to_micron_;
-    segment.hi = geom::y(v_node.point()) * dbu_to_micron_;
+    segment.lo = geom::y(u_node.point()) * micron_per_dbu_;
+    segment.hi = geom::y(v_node.point()) * micron_per_dbu_;
   }
   if (segment.hi < segment.lo) {
     std::swap(segment.lo, segment.hi);

@@ -52,7 +52,7 @@ class CapacitanceCalc
 
   void set_layout_data(const LayoutData* v) {
     layout_data_ = v;
-    dbu_to_micron_ = dbu2micron(1, v->micron_to_dbu);
+    micron_per_dbu_ = unit::to_micron(1, v->dbu_per_micron);
   }
   void set_net_environments(const std::vector<NetEnvironment>* v) { net_environments_ = v; }
   void set_corner_net_etch_pools(const CornerNetPool<NetEtchProfile>* v)
@@ -89,7 +89,7 @@ class CapacitanceCalc
       const NetEnvironment& environment,
       const NetEtchProfile& etch_profile);
 
-  Micron dbu_to_micron_{1};
+  Micron micron_per_dbu_{1};
 
   const LayoutData* layout_data_{nullptr};
   const std::vector<NetEnvironment>* net_environments_{nullptr};

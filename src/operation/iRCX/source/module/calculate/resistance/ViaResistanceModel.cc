@@ -16,8 +16,6 @@
 // ***************************************************************************************
 #include "ViaResistanceModel.hh"
 
-#include <optional>
-
 #include "Geometry.hh"
 #include "ProcessCorner.hpp"
 #include "ResistanceTemperature.hh"
@@ -25,37 +23,10 @@
 
 namespace ircx {
 
-namespace {
-
-auto get_via_temperature_coefficients(const itf::LayerVia& layer, F64 area) -> ResistanceTemperatureCoefficients
-{
-  ResistanceTemperatureCoefficients coefficients;
-
-  std::optional<double> area_crt1;
-  std::optional<double> area_crt2;
-  layer.query_crt_vs_area(area, area_crt1, area_crt2);
-
-  if (area_crt1.has_value()) {
-    coefficients.crt1 = area_crt1.value();
-  } else if (auto crt1 = layer.get_crt1()) {
-    coefficients.crt1 = crt1.value();
-  }
-
-  if (area_crt2.has_value()) {
-    coefficients.crt2 = area_crt2.value();
-  } else if (auto crt2 = layer.get_crt2()) {
-    coefficients.crt2 = crt2.value();
-  }
-
-  return coefficients;
-}
-
-}  // namespace
-
-auto ViaResistanceModel::calc(const TopoEdge& edge, const itf::ProcessCorner& corner, const itf::LayerVia& layer, Micron dbu_to_micron,
+auto ViaResistanceModel::calc(const TopoEdge& edge, const itf::ProcessCorner& corner, const itf::LayerVia& layer, Micron micron_per_dbu,
                               F64 operating_temperature) -> F64
 {
-  const F64 via_area = geom::area(edge.shape()) * dbu_to_micron * dbu_to_micron;
+  const F64 via_area = geom::area(edge.shape()) * micron_per_dbu * micron_per_dbu;
 
   F64 via_resistance = 0.0;
   if (auto rpv = layer.get_rpv()) {
@@ -64,8 +35,12 @@ auto ViaResistanceModel::calc(const TopoEdge& edge, const itf::ProcessCorner& co
     via_resistance = layer.query_rpv_vs_area(via_area);
   }
 
+  const ResistanceTemperatureCoefficients coefficients =
+      resistanceTemperatureCoefficients(layer, [&](auto& crt1, auto& crt2) {
+        layer.query_crt_vs_area(via_area, crt1, crt2);
+      });
   return applyResistanceTemperatureDerating(via_resistance, operating_temperature, resistanceNominalTemperature(layer, corner),
-                                            get_via_temperature_coefficients(layer, via_area));
+                                            coefficients);
 }
 
 }  // namespace ircx

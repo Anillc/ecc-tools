@@ -101,7 +101,7 @@ struct LayoutData {
   void clear() {
     design_name.clear();
     die_shape = {};
-    micron_to_dbu = 1;
+    dbu_per_micron = 1;
     routing_layers.clear();
     net_vec.clear();
     special_net = {};
@@ -110,7 +110,7 @@ struct LayoutData {
   // Design metadata
   Str design_name;
   GtlRectI die_shape;
-  Dbu micron_to_dbu{1};
+  Dbu dbu_per_micron{1};
 
   // Technology layers
   std::map<Size, RoutingLayer> routing_layers;

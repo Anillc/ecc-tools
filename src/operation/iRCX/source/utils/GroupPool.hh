@@ -31,7 +31,7 @@ class GroupPool
   GroupPool() = default;
   ~GroupPool() = default;
 
-  auto append_group(std::vector<Item> items) -> void
+  auto append(std::vector<Item> items) -> void
   {
     group_ranges_.push_back({items_.size(), items.size()});
     items_.insert(items_.end(),
@@ -39,7 +39,7 @@ class GroupPool
                   std::make_move_iterator(items.end()));
   }
 
-  auto group_items(Size group_id) const -> std::span<const Item>
+  auto items(Size group_id) const -> std::span<const Item>
   {
     if (group_id >= group_ranges_.size()) {
       return {};
@@ -52,7 +52,7 @@ class GroupPool
     return std::span<const Item>(items_.data() + range.offset, range.length);
   }
 
-  auto group_items(Size group_id) -> std::span<Item>
+  auto items(Size group_id) -> std::span<Item>
   {
     if (group_id >= group_ranges_.size()) {
       return {};
@@ -65,7 +65,7 @@ class GroupPool
     return std::span<Item>(items_.data() + range.offset, range.length);
   }
 
-  auto group_count() const -> Size
+  auto groups() const -> Size
   {
     return group_ranges_.size();
   }

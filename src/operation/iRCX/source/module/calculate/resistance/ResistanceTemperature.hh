@@ -18,6 +18,9 @@
 
 #include "Types.hh"
 
+#include <optional>
+#include <utility>
+
 namespace ircx {
 
 struct ResistanceTemperatureCoefficients
@@ -54,6 +57,30 @@ inline F64 applyResistanceTemperatureDerating(F64 base_resistance, F64 operating
 
   return applyResistanceTemperatureDerating(base_resistance, operating_temperature, nominal_temperature, coefficients.crt1,
                                             coefficients.crt2);
+}
+
+template <typename Layer, typename Query>
+inline auto resistanceTemperatureCoefficients(const Layer& layer, Query&& query) -> ResistanceTemperatureCoefficients
+{
+  ResistanceTemperatureCoefficients coefficients;
+
+  std::optional<double> query_crt1;
+  std::optional<double> query_crt2;
+  std::forward<Query>(query)(query_crt1, query_crt2);
+
+  if (query_crt1.has_value()) {
+    coefficients.crt1 = query_crt1.value();
+  } else if (auto crt1 = layer.get_crt1()) {
+    coefficients.crt1 = crt1.value();
+  }
+
+  if (query_crt2.has_value()) {
+    coefficients.crt2 = query_crt2.value();
+  } else if (auto crt2 = layer.get_crt2()) {
+    coefficients.crt2 = crt2.value();
+  }
+
+  return coefficients;
 }
 
 }  // namespace ircx

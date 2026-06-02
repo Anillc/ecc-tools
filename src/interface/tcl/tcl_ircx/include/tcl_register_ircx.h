@@ -26,6 +26,7 @@ int registerCmdRCX()
   registerTclCmd(TclInitRCX, "init_rcx");
   registerTclCmd(TclReportRCX, "report_rcx");
   registerTclCmd(TclCompareSpef, "compare_spef");
+  registerTclCmd(TclPlotSpef, "plot_spef");
 
   return EXIT_SUCCESS;
 }

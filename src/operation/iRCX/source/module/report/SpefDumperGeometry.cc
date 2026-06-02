@@ -17,41 +17,29 @@
 #include "SpefDumper.hh"
 
 #include <cstdlib>
-#include <iomanip>
-#include <sstream>
 
+#include "FormatUtils.hh"
 #include "Geometry.hh"
 #include "RCXConfig.hh"
 #include "TopoPool.hh"
 
 namespace ircx {
 
-namespace {
-
-auto formatMicron(Micron value, int precision) -> Str
-{
-  std::ostringstream ss;
-  ss << std::fixed << std::setprecision(precision) << value;
-  return ss.str();
-}
-
-}  // namespace
-
-void SpefDumper::writeNodeGeometry(std::ostream& os, const TopoNode& node, Micron dbu_to_micron) const
+void SpefDumper::writeNodeGeometry(std::ostream& os, const TopoNode& node, Micron micron_per_dbu) const
 {
   if (!RCX_CONFIG_INST.get_report_geometry()) {
     return;
   }
 
   const GtlRectI& rect = node.shape();
-  os << " // $llx=" << formatMicron(geom::min_x(rect) * dbu_to_micron, 3)
-     << " $lly=" << formatMicron(geom::min_y(rect) * dbu_to_micron, 3)
-     << " $urx=" << formatMicron(geom::max_x(rect) * dbu_to_micron, 3)
-     << " $ury=" << formatMicron(geom::max_y(rect) * dbu_to_micron, 3)
+  os << " // $llx=" << format::fixed(geom::min_x(rect) * micron_per_dbu, 3)
+     << " $lly=" << format::fixed(geom::min_y(rect) * micron_per_dbu, 3)
+     << " $urx=" << format::fixed(geom::max_x(rect) * micron_per_dbu, 3)
+     << " $ury=" << format::fixed(geom::max_y(rect) * micron_per_dbu, 3)
      << " $lvl=" << reportLayerLevel(node.layer_id());
 }
 
-void SpefDumper::writeResistanceGeometry(std::ostream& os, Size corner_idx, const TopoEdge& edge, Micron dbu_to_micron) const
+void SpefDumper::writeResistanceGeometry(std::ostream& os, Size corner_idx, const TopoEdge& edge, Micron micron_per_dbu) const
 {
   if (!RCX_CONFIG_INST.get_report_geometry()) {
     return;
@@ -63,13 +51,13 @@ void SpefDumper::writeResistanceGeometry(std::ostream& os, Size corner_idx, cons
 
   os << " // ";
   if (edge.is_via()) {
-    const Micron area = geom::area(rect) * dbu_to_micron * dbu_to_micron;
-    os << " $a=" << formatMicron(area, 6)
+    const Micron area = geom::area(rect) * micron_per_dbu * micron_per_dbu;
+    os << " $a=" << format::fixed(area, 6)
        << " $lvl=" << reportLayerLevel(edge.layer_id())
-       << " $llx=" << formatMicron(geom::min_x(rect) * dbu_to_micron, 3)
-       << " $lly=" << formatMicron(geom::min_y(rect) * dbu_to_micron, 3)
-       << " $urx=" << formatMicron(geom::max_x(rect) * dbu_to_micron, 3)
-       << " $ury=" << formatMicron(geom::max_y(rect) * dbu_to_micron, 3);
+       << " $llx=" << format::fixed(geom::min_x(rect) * micron_per_dbu, 3)
+       << " $lly=" << format::fixed(geom::min_y(rect) * micron_per_dbu, 3)
+       << " $urx=" << format::fixed(geom::max_x(rect) * micron_per_dbu, 3)
+       << " $ury=" << format::fixed(geom::max_y(rect) * micron_per_dbu, 3);
     return;
   }
 
@@ -81,23 +69,23 @@ void SpefDumper::writeResistanceGeometry(std::ostream& os, Size corner_idx, cons
   const Dbu axis_distance = is_horz ? node_dx : node_dy;
   const Dbu shape_axis_distance = is_horz ? dx : dy;
   const Dbu shape_width = is_horz ? dy : dx;
-  const Micron length = ((axis_distance > 0 ? axis_distance : shape_axis_distance) * dbu_to_micron)
+  const Micron length = ((axis_distance > 0 ? axis_distance : shape_axis_distance) * micron_per_dbu)
                         * (*corner_data_)[corner_idx].halfNodeScaleFactor();
-  const Micron width = shape_width * dbu_to_micron;
+  const Micron width = shape_width * micron_per_dbu;
   const bool virtual_overlap_edge = (node_dx == 0 && node_dy == 0) || dx == 0 || dy == 0;
 
-  os << " $l=" << formatMicron(length, 3)
-     << " $w=" << formatMicron(width, 3)
+  os << " $l=" << format::fixed(length, 3)
+     << " $w=" << format::fixed(width, 3)
      << " $lvl=" << reportLayerLevel(edge.layer_id());
 
   if (virtual_overlap_edge) {
     return;
   }
 
-  os << " $llx=" << formatMicron(geom::min_x(rect) * dbu_to_micron, 3)
-     << " $lly=" << formatMicron(geom::min_y(rect) * dbu_to_micron, 3)
-     << " $urx=" << formatMicron(geom::max_x(rect) * dbu_to_micron, 3)
-     << " $ury=" << formatMicron(geom::max_y(rect) * dbu_to_micron, 3)
+  os << " $llx=" << format::fixed(geom::min_x(rect) * micron_per_dbu, 3)
+     << " $lly=" << format::fixed(geom::min_y(rect) * micron_per_dbu, 3)
+     << " $urx=" << format::fixed(geom::max_x(rect) * micron_per_dbu, 3)
+     << " $ury=" << format::fixed(geom::max_y(rect) * micron_per_dbu, 3)
      << " $dir=" << (is_horz ? 0 : 1);
 }
 

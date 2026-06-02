@@ -16,25 +16,24 @@
 // ***************************************************************************************
 #pragma once
 
-#include "Types.hh"
+#include <string>
 
-namespace itf {
-class LayerVia;
-class ProcessCorner;
-}  // namespace itf
+namespace ircx::plot_spef {
 
-namespace ircx {
-
-class TopoEdge;
-
-class ViaResistanceModel
+struct Config
 {
- public:
-  static auto calc(const TopoEdge& edge,
-                   const itf::ProcessCorner& corner,
-                   const itf::LayerVia& layer,
-                   Micron micron_per_dbu,
-                   F64 operating_temperature) -> F64;
+  std::string spef_file;
+  std::string output_file;
+  int dbu = 1000;
+  bool output_resistance = false;
+  bool output_coupling_cap = false;
+  bool output_ground_cap = false;
 };
 
-}  // namespace ircx
+class ConfigValidator
+{
+ public:
+  auto validate(const Config& config) const -> bool;
+};
+
+}  // namespace ircx::plot_spef

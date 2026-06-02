@@ -28,7 +28,7 @@
 namespace ircx {
 
 template <typename... Args>
-inline void logStageInfo(const std::source_location& location, const Args&... args)
+inline void log_stage(const std::source_location& location, const Args&... args)
 {
   std::ostringstream stream;
   (stream << ... << args);
@@ -41,9 +41,9 @@ class StageLog
   explicit StageLog(std::string stage, std::source_location location = std::source_location::current())
       : stage_(std::move(stage)), location_(location)
   {
-    logStageInfo(location_, stage_, " begin.");
+    log_stage(location_, stage_, " begin.");
   }
-  ~StageLog() { logStageInfo(location_, stage_, " end: ", (success_ ? "success" : "failed"), "."); }
+  ~StageLog() { log_stage(location_, stage_, " end: ", (success_ ? "success" : "failed"), "."); }
 
   StageLog(const StageLog&) = delete;
   StageLog& operator=(const StageLog&) = delete;
@@ -62,7 +62,7 @@ struct StageLogOptions
 };
 
 template <typename Func>
-auto runStage(std::string stage, Func&& func, StageLogOptions options = {},
+auto run_stage(std::string stage, Func&& func, StageLogOptions options = {},
               std::source_location location = std::source_location::current()) -> bool
 {
   std::optional<ieda::Stats> stats;
@@ -74,8 +74,8 @@ auto runStage(std::string stage, Func&& func, StageLogOptions options = {},
   const bool success = std::forward<Func>(func)();
   stage_log.set_success(success);
   if (stats.has_value()) {
-    logStageInfo(location, "  - memory usage: ", stats->memoryDelta(), "MB");
-    logStageInfo(location, "  - time elapsed: ", stats->elapsedRunTime(), "s");
+    log_stage(location, "  - memory usage: ", stats->memoryDelta(), "MB");
+    log_stage(location, "  - time elapsed: ", stats->elapsedRunTime(), "s");
   }
   return success;
 }

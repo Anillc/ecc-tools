@@ -48,7 +48,7 @@ class ResistanceCalc
 
   void set_layout_data(const LayoutData* v) {
     layout_data_ = v;
-    dbu_to_micron_ = dbu2micron(1, v->micron_to_dbu);
+    micron_per_dbu_ = unit::to_micron(1, v->dbu_per_micron);
   }
   void set_layer_table(const LayerTable* v) { layer_table_ = v; }
   void set_topo_pool(const TopoPool* v) { topo_pool_ = v; }
@@ -108,7 +108,7 @@ class ResistanceCalc
                               std::span<const EdgeEtchInterval> edge_etch_intervals) const;
   LineSegment<Micron> edgeSegment(const TopoEdge& edge) const;
 
-  Micron dbu_to_micron_{1};
+  Micron micron_per_dbu_{1};
 
   const LayoutData* layout_data_{nullptr};
   const LayerTable* layer_table_{nullptr};

@@ -16,23 +16,20 @@
 // ***************************************************************************************
 #pragma once
 
-#include <algorithm>
-#include <cstddef>
+#include <string>
 
-#include "config/CompareSpefConfig.hh"
+#include "config/PlotSpefConfig.hh"
+#include "model/PlotSpefModel.hh"
 
-namespace ircx {
-namespace compare_spef {
-namespace parallel {
+namespace ircx::plot_spef {
 
-inline auto threadCount(const Config& config, std::size_t work_items) -> int
+class LypWriter
 {
-  if (config.cores <= 1 || work_items <= 1) {
-    return 1;
-  }
-  return static_cast<int>(std::min<std::size_t>(static_cast<std::size_t>(config.cores), work_items));
-}
+ public:
+  auto write(const Model& model, const Config& config) const -> bool;
 
-}  // namespace parallel
-}  // namespace compare_spef
-}  // namespace ircx
+ private:
+  static auto getLypFile(const std::string& output_file) -> std::string;
+};
+
+}  // namespace ircx::plot_spef

@@ -72,7 +72,7 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
     return;
   }
 
-  const Micron dbu_to_micron = dbu2micron(1, layout_data_->micron_to_dbu);
+  const Micron micron_per_dbu = unit::to_micron(1, layout_data_->dbu_per_micron);
 
   auto gcap_pool = rc_table_->corner_net_gcap_pool({corner_idx, net_idx});
   std::vector<double> node_gnd(node_num, 0.0);
@@ -144,11 +144,11 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
       continue;
     }
 
-    const Micron x = geom::x(node.point()) * dbu_to_micron;
-    const Micron y = geom::y(node.point()) * dbu_to_micron;
+    const Micron x = geom::x(node.point()) * micron_per_dbu;
+    const Micron y = geom::y(node.point()) * micron_per_dbu;
     os << "*P " << node_spef_name[topo_pool_->node_index(net_idx, node.id())] << " " << port_io_.at(node.pin_name()) << " *C " << std::fixed
        << std::setprecision(3) << x << " " << y;
-    writeNodeGeometry(os, node, dbu_to_micron);
+    writeNodeGeometry(os, node, micron_per_dbu);
     os << "\n";
   }
 
@@ -157,13 +157,13 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
       continue;
     }
 
-    const Micron x = geom::x(node.point()) * dbu_to_micron;
-    const Micron y = geom::y(node.point()) * dbu_to_micron;
+    const Micron x = geom::x(node.point()) * micron_per_dbu;
+    const Micron y = geom::y(node.point()) * micron_per_dbu;
     const auto io_it = inst_pin_io.find(node.pin_name());
     const char io = (io_it != inst_pin_io.end()) ? io_it->second : 'B';
     os << "*I " << node_spef_name[topo_pool_->node_index(net_idx, node.id())] << " " << io << " *C " << std::fixed << std::setprecision(3)
        << x << " " << y;
-    writeNodeGeometry(os, node, dbu_to_micron);
+    writeNodeGeometry(os, node, micron_per_dbu);
     os << "\n";
   }
 
@@ -172,11 +172,11 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
       continue;
     }
 
-    const Micron x = geom::x(node.point()) * dbu_to_micron;
-    const Micron y = geom::y(node.point()) * dbu_to_micron;
+    const Micron x = geom::x(node.point()) * micron_per_dbu;
+    const Micron y = geom::y(node.point()) * micron_per_dbu;
     os << "*N " << node_spef_name[topo_pool_->node_index(net_idx, node.id())] << " *C " << std::fixed << std::setprecision(3) << x << " "
        << y;
-    writeNodeGeometry(os, node, dbu_to_micron);
+    writeNodeGeometry(os, node, micron_per_dbu);
     os << "\n";
   }
 
@@ -208,7 +208,7 @@ void SpefDumper::writeDNet(std::ostream& os, Size corner_idx, Size net_idx) cons
 
     const double resistance = res_pool[edge_idx];
     os << res_id++ << " " << node_spef_name[edge.u()] << " " << node_spef_name[edge.v()] << " " << std::setprecision(6) << resistance;
-    writeResistanceGeometry(os, corner_idx, edge, dbu_to_micron);
+    writeResistanceGeometry(os, corner_idx, edge, micron_per_dbu);
     os << "\n";
   }
 
