@@ -24,6 +24,8 @@
 
 #include "StaVertex.hh"
 
+#include <algorithm>
+#include <limits>
 #include <ranges>
 
 #include "StaDump.hh"
@@ -1141,18 +1143,51 @@ void StaVertex::getPathDepth(
     std::priority_queue<int, std::vector<int>, std::greater<int>>&
         depth_min_queue,
     int depth /*= 0*/) {
-  depth++;
-  if (this->is_start() || this->get_snk_arcs().empty() || this->is_clock()) {
-    depth_min_queue.push(depth);
-    return;
+  std::unordered_map<StaVertex*, int> depth_cache;
+  std::unordered_set<StaVertex*> visiting;
+  depth_min_queue.push(depth + getPathDepth(depth_cache, visiting));
+}
+
+/**
+ * @brief Get the shortest depth of the vertex in timing path.
+ *
+ * The old implementation enumerated every upstream path and pushed all depths
+ * into a priority queue. Reconvergent logic can make that work explode even
+ * when the graph itself is modest. This version computes the same minimum path
+ * depth with per-vertex memoization.
+ */
+int StaVertex::getPathDepth(std::unordered_map<StaVertex*, int>& depth_cache,
+                            std::unordered_set<StaVertex*>& visiting) {
+  if (auto cache_it = depth_cache.find(this); cache_it != depth_cache.end()) {
+    return cache_it->second;
   }
 
-  FOREACH_SNK_ARC(this, snk_arc) {
-    if (snk_arc->isDelayArc()) {
-      auto* src_vertex = snk_arc->get_src();
-      src_vertex->getPathDepth(depth_min_queue, depth);
-    }
+  if (this->is_start() || this->get_snk_arcs().empty() || this->is_clock()) {
+    depth_cache[this] = 1;
+    return 1;
   }
+
+  if (!visiting.insert(this).second) {
+    return std::numeric_limits<int>::max();
+  }
+
+  int min_src_depth = std::numeric_limits<int>::max();
+  FOREACH_SNK_ARC(this, snk_arc) {
+    if (!snk_arc->isDelayArc()) {
+      continue;
+    }
+
+    auto* src_vertex = snk_arc->get_src();
+    int src_depth = src_vertex->getPathDepth(depth_cache, visiting);
+    min_src_depth = std::min(min_src_depth, src_depth);
+  }
+
+  visiting.erase(this);
+
+  int path_depth =
+      (min_src_depth == std::numeric_limits<int>::max()) ? 1 : min_src_depth + 1;
+  depth_cache[this] = path_depth;
+  return path_depth;
 }
 
 /**
