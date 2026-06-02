@@ -23,6 +23,8 @@
  */
 #pragma once
 
+#include <unordered_map>
+
 #include "StaFunc.hh"
 
 namespace ista {
@@ -62,6 +64,7 @@ class StaClockPropagation : public StaFunc {
 
   StaClock* _propagate_clock;
   PropType _prop_type;
+  std::unordered_map<StaVertex*, int> _path_depth_cache;
 };
 
 }  // namespace ista

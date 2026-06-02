@@ -44,8 +44,7 @@ class StaFwdPropagationBFS : public StaBFSFunc, public StaFwdPropagation {
 
 #if CUDA_PROPAGATION
   void addLevelArcs(unsigned level, StaArc* the_arc) {
-    static std::mutex the_mutex;
-    std::lock_guard<std::mutex> lk(the_mutex);
+    std::lock_guard<std::mutex> lk(_level_to_arcs_mutex);
     _level_to_arcs[level].emplace_back(the_arc);
   }
   auto& get_level_to_arcs() { return _level_to_arcs; }
@@ -56,6 +55,7 @@ class StaFwdPropagationBFS : public StaBFSFunc, public StaFwdPropagation {
 
 #if CUDA_PROPAGATION
   std::map<unsigned, std::vector<StaArc*>> _level_to_arcs;
+  std::mutex _level_to_arcs_mutex;
 #endif
 };
 
