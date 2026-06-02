@@ -14,44 +14,34 @@
 //
 // See the Mulan PSL v2 for more details.
 // ***************************************************************************************
-#pragma once
+/**
+ * @file tcl_dump_net_shape.cpp
+ * @author Yipei Xu (yipeix@163.com)
+ * @brief
+ * @version 0.1
+ * @date 2026-05-31
+ */
+#include "RCXAPI.hh"
+#include "tcl_ircx.h"
 
-#include <string>
+namespace tcl {
 
-#include "config/CompareSpefConfig.hh"
-#include "config/PlotSpefConfig.hh"
-
-namespace ircx {
-
-#define RCX_API_INST (ircx::RCXAPI::getInst())
-
-class RCXAPI
+TclDumpNetShape::TclDumpNetShape(const char* cmd_name) : TclCmd(cmd_name)
 {
- public:
-  static auto getInst() -> RCXAPI&
-  {
-    static RCXAPI inst;
-    return inst;
+}
+
+unsigned TclDumpNetShape::check()
+{
+  return 1;
+}
+
+unsigned TclDumpNetShape::exec()
+{
+  if (!check()) {
+    return 0;
   }
 
-  // Main RCX flow.
-  static auto init(const std::string& config_file) -> bool;
-  static auto run() -> bool;
-  static auto report() -> bool;
+  return RCX_API_INST.dump_net_shape() ? 1U : 0U;
+}
 
-  // Standalone RCX utilities.
-  static auto compare_spef(compare_spef::Config config) -> bool;
-  static auto dump_net_shape() -> bool;
-  static auto plot_spef(plot_spef::Config config) -> bool;
-
-  RCXAPI(const RCXAPI& other) = delete;
-  RCXAPI(RCXAPI&& other) = delete;
-  auto operator=(const RCXAPI& other) -> RCXAPI& = delete;
-  auto operator=(RCXAPI&& other) -> RCXAPI& = delete;
-
- private:
-  RCXAPI();
-  ~RCXAPI() = default;
-};
-
-}  // namespace ircx
+}  // namespace tcl
