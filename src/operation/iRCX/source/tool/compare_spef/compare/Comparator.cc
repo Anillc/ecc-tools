@@ -18,6 +18,7 @@
 
 #include <omp.h>
 
+#include <cmath>
 #include <cstddef>
 #include <iterator>
 #include <limits>
@@ -38,6 +39,8 @@ void appendRows(Result& result, Result&& thread_result)
 {
   result.tcap_rows.insert(result.tcap_rows.end(), std::make_move_iterator(thread_result.tcap_rows.begin()),
                           std::make_move_iterator(thread_result.tcap_rows.end()));
+  result.gcap_rows.insert(result.gcap_rows.end(), std::make_move_iterator(thread_result.gcap_rows.begin()),
+                          std::make_move_iterator(thread_result.gcap_rows.end()));
   result.p2p_rows.insert(result.p2p_rows.end(), std::make_move_iterator(thread_result.p2p_rows.begin()),
                          std::make_move_iterator(thread_result.p2p_rows.end()));
   result.reference_only_nets.insert(result.reference_only_nets.end(), std::make_move_iterator(thread_result.reference_only_nets.begin()),
@@ -47,14 +50,17 @@ void appendRows(Result& result, Result&& thread_result)
 void reserveRows(Result& result, const std::vector<Result>& thread_results)
 {
   std::size_t tcap_count = result.tcap_rows.size();
+  std::size_t gcap_count = result.gcap_rows.size();
   std::size_t p2p_count = result.p2p_rows.size();
   std::size_t reference_only_net_count = result.reference_only_nets.size();
   for (const auto& thread_result : thread_results) {
     tcap_count += thread_result.tcap_rows.size();
+    gcap_count += thread_result.gcap_rows.size();
     p2p_count += thread_result.p2p_rows.size();
     reference_only_net_count += thread_result.reference_only_nets.size();
   }
   result.tcap_rows.reserve(tcap_count);
+  result.gcap_rows.reserve(gcap_count);
   result.p2p_rows.reserve(p2p_count);
   result.reference_only_nets.reserve(reference_only_net_count);
 }
@@ -123,8 +129,11 @@ void Comparator::compareMatchedNet(const std::string& net_name, const Net& refer
     return;
   }
 
-  if (_compare_capacitance && reference_net.total_cap >= _config.tcap_threshold) {
-    addTotalCapRow(net_name, reference_net, test_net, result);
+  if (_compare_capacitance) {
+    if (reference_net.total_cap >= _config.tcap_threshold) {
+      addTotalCapRow(net_name, reference_net, test_net, result);
+    }
+    addGroundCapRows(net_name, reference_net, test_net, result);
   }
 
   if (_compare_resistance) {
@@ -141,6 +150,40 @@ void Comparator::addTotalCapRow(const std::string& net_name, const Net& referenc
   row.delta = row.test - row.reference;
   row.relative_delta = math::capacitanceRelativeDelta(row.test, row.reference);
   result.tcap_rows.push_back(std::move(row));
+}
+
+void Comparator::addGroundCapRows(const std::string& net_name, const Net& reference_net, const Net& test_net, Result& result) const
+{
+  for (const auto& [node, reference_cap] : reference_net.node_ground_caps) {
+    const auto test_cap_it = test_net.node_ground_caps.find(node);
+    const double test_cap = test_cap_it == test_net.node_ground_caps.end() ? 0.0 : test_cap_it->second;
+    if (std::abs(reference_cap) < _config.ccap_abs_threshold && std::abs(test_cap) < _config.ccap_abs_threshold) {
+      continue;
+    }
+
+    GcapRow row;
+    row.net = net_name;
+    row.node = node;
+    row.reference = reference_cap;
+    row.test = test_cap;
+    row.delta = row.test - row.reference;
+    row.relative_delta = math::capacitanceRelativeDelta(row.test, row.reference);
+    result.gcap_rows.push_back(std::move(row));
+  }
+
+  for (const auto& [node, test_cap] : test_net.node_ground_caps) {
+    if (reference_net.node_ground_caps.contains(node) || std::abs(test_cap) < _config.ccap_abs_threshold) {
+      continue;
+    }
+
+    GcapRow row;
+    row.net = net_name;
+    row.node = node;
+    row.test = test_cap;
+    row.delta = row.test;
+    row.relative_delta = math::capacitanceRelativeDelta(row.test, row.reference);
+    result.gcap_rows.push_back(std::move(row));
+  }
 }
 
 void Comparator::addResistanceRows(const std::string& net_name, const Net& reference_net, const Net& test_net, Result& result) const
@@ -195,6 +238,7 @@ void Comparator::finishSummary(const Data& test, const Data& reference, Result& 
   result.summary.reference_only_coupling_count = result.reference_only_couplings.size();
   result.summary.test_only_coupling_count = result.test_only_couplings.size();
   result.summary.tcap_row_count = result.tcap_rows.size();
+  result.summary.gcap_row_count = result.gcap_rows.size();
   result.summary.ccap_row_count = result.ccap_rows.size();
   result.summary.p2p_row_count = result.p2p_rows.size();
   _result_sorter.sort(result, test, reference);

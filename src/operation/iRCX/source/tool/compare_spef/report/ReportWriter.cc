@@ -99,6 +99,7 @@ struct ErrorStats
 struct SummaryErrors
 {
   ErrorStats tcap;
+  ErrorStats gcap;
   ErrorStats ccap;
   ErrorStats p2p;
 };
@@ -142,6 +143,7 @@ auto collectSummaryErrors(const Result& result) -> SummaryErrors
 {
   SummaryErrors errors;
   collectPercentErrors(result.tcap_rows, errors.tcap);
+  collectPercentErrors(result.gcap_rows, errors.gcap);
   collectPercentErrors(result.ccap_rows, errors.ccap);
   collectPercentErrors(result.p2p_rows, errors.p2p);
   return errors;
@@ -157,6 +159,9 @@ class SummaryTableBuilder
     table << "Total cap (C)" << format::percent(errors.tcap.mean())
           << format::percent(errors.tcap.standardDeviation())
           << "abs = " + format::fixed(config.tcap_threshold) + "fF" << fort::endr;
+    table << "Ground cap (GC)" << format::percent(errors.gcap.mean())
+          << format::percent(errors.gcap.standardDeviation())
+          << "abs = " + format::fixed(config.ccap_abs_threshold) + "fF" << fort::endr;
     table << "Coupling cap (CC)" << format::percent(errors.ccap.mean())
           << format::percent(errors.ccap.standardDeviation())
           << "abs = " + format::fixed(config.ccap_abs_threshold) + "fF, rel = " + format::fixed(config.ccap_rel_threshold)
@@ -213,6 +218,23 @@ auto writeTcapReport(const std::filesystem::path& output_dir, const Config& conf
     ofs << row.test << '\t' << row.reference << '\t';
     writePercent(ofs, row.relative_delta);
     ofs << '\t' << row.net << '\n';
+  }
+  return true;
+}
+
+auto writeGcapReport(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  const auto report_path = output_dir / "gcap.rpt";
+  auto ofs = openReport(report_path);
+  if (!ofs.is_open()) {
+    LOG_ERROR << "compare_spef failed: cannot open report " << report_path;
+    return false;
+  }
+  ofs << config.test_file << '\t' << config.reference_file << "\t%diff\tNetname\tNode\n";
+  for (const auto& row : result.gcap_rows) {
+    ofs << row.test << '\t' << row.reference << '\t';
+    writePercent(ofs, row.relative_delta);
+    ofs << '\t' << row.net << '\t' << row.node << '\n';
   }
   return true;
 }
@@ -310,6 +332,7 @@ void writeSummaryHeader(std::ostream& ofs, const Config& config)
   ofs << "\t(IN)         GOLD RC FILE : " << config.reference_file << '\n';
   ofs << "\t(OUT)      SUMMARY REPORT : summary.rpt\n";
   ofs << "\t(OUT)    TOTAL CAP REPORT : tcap.rpt\n";
+  ofs << "\t(OUT)   GROUND CAP REPORT : gcap.rpt\n";
   ofs << "\t(OUT) COUPLING CAP REPORT : ccap.rpt\n";
   ofs << "\t(OUT)      RES P2P REPORT : p2p.rpt\n\n";
   ofs << "=====================================================================\n\n\n";
@@ -330,6 +353,9 @@ auto writeSummaryReport(const std::filesystem::path& output_dir, const Config& c
   ofs << "RC Correlation Overview\n";
   ofs << builder.makeOverviewTable(config, errors).to_string() << '\n';
   ofs << builder.makeDistributionTable("TCAP", "TCAP threshold", config.tcap_threshold, "Number of matched nets", errors.tcap).to_string()
+      << '\n';
+  ofs << builder.makeDistributionTable("GCAP", "GCAP threshold", config.ccap_abs_threshold, "Number of matched node caps", errors.gcap)
+             .to_string()
       << '\n';
   ofs << builder.makeDistributionTable("CCAP", "CCAP threshold", config.ccap_abs_threshold, "Number of matched net pairs", errors.ccap)
              .to_string()
@@ -355,6 +381,11 @@ auto writeCcapTask(const std::filesystem::path& output_dir, const Config& config
   return writeCcapReport(output_dir, config, result);
 }
 
+auto writeGcapTask(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
+{
+  return writeGcapReport(output_dir, config, result);
+}
+
 auto writeP2PTask(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
 {
   return writeP2PReport(output_dir, config, result);
@@ -377,7 +408,7 @@ auto writeCouplingsTask(const std::filesystem::path& output_dir, const Result& r
 
 auto writeReports(const std::filesystem::path& output_dir, const Config& config, const Result& result) -> bool
 {
-  constexpr std::array<ReportTask, 4> report_tasks = {writeTcapTask, writeCcapTask, writeP2PTask, writeSummaryTask};
+  constexpr std::array<ReportTask, 5> report_tasks = {writeTcapTask, writeGcapTask, writeCcapTask, writeP2PTask, writeSummaryTask};
   constexpr std::array<SimpleReportTask, 2> simple_report_tasks = {writeNetsTask, writeCouplingsTask};
 
   std::array<bool, report_tasks.size() + simple_report_tasks.size()> ok;

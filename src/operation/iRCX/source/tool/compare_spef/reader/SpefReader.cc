@@ -159,7 +159,18 @@ auto SpefReader::read(const std::string& path, Data& data) const -> bool
     net.total_cap = spef_net.lcap;
     net.pins.reserve(spef_net.conns.size());
     net.resistors.reserve(spef_net.ress.size());
-    net.node_coupling_caps.reserve(spef_net.caps.size());
+
+    std::size_t ground_cap_count = 0;
+    std::size_t coupling_cap_count = 0;
+    for (const auto& cap : spef_net.caps) {
+      if (cap.node2.empty()) {
+        ground_cap_count++;
+      } else {
+        coupling_cap_count++;
+      }
+    }
+    net.node_ground_caps.reserve(ground_cap_count);
+    net.node_coupling_caps.reserve(coupling_cap_count);
 
     for (const auto& conn : spef_net.conns) {
       Pin pin;
@@ -178,6 +189,7 @@ auto SpefReader::read(const std::string& path, Data& data) const -> bool
       std::string node1 = name_expander.expand(cap.node1);
       if (cap.node2.empty()) {
         data.index.rememberNodeNet(node1, net.name);
+        net.node_ground_caps[std::move(node1)] += cap.res_or_cap;
       } else {
         std::string node2 = name_expander.expand(cap.node2);
         data.index.rememberNodeNet(node1, net.name);

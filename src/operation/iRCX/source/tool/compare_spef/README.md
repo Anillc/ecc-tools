@@ -1,8 +1,8 @@
 # compare_spef
 
 `compare_spef` compares two SPEF files and writes reports for total capacitance,
-coupling capacitance, point-to-point resistance, mismatched nets, and mismatched
-coupling capacitances.
+ground capacitance, coupling capacitance, point-to-point resistance, mismatched
+nets, and mismatched coupling capacitances.
 
 This command currently supports SPEF input only.
 
@@ -82,7 +82,7 @@ compare_spef new.spef golden.spef -r -from_pin U1/Y -to_pin U2/A -output_dir cmp
 | `-c` | off | Compare capacitance only, unless combined with `-r`. |
 | `-r` | off | Compare point-to-point resistance only, unless combined with `-c`. |
 | `-tcap value` | `3.0` | Include total-cap rows whose reference total cap is at least this value. |
-| `-ccap abs rel` | `0.3 0.1` | Include coupling-cap rows whose reference coupling cap and relative coupling ratio both meet the thresholds. |
+| `-ccap abs rel` | `0.3 0.1` | Include ground-cap rows by the absolute threshold, and coupling-cap rows whose reference coupling cap and relative coupling ratio both meet the thresholds. |
 | `-res value` | `50.0` | Include point-to-point resistance rows whose reference resistance is at least this value. |
 | `-cores value` | `1` | Number of threads used by the SPEF comparison stage. SPEF parsing and report writing remain serial. |
 | `-match name` | `name` | Pin matching mode. Only `name` is supported. |
@@ -106,6 +106,8 @@ Capacitance comparison:
 
 - `tcap.rpt` includes matched reference nets whose reference total capacitance is
   at least `-tcap`.
+- `gcap.rpt` includes matched node ground caps when
+  `abs(reference_gcap) >= -ccap abs` or `abs(test_gcap) >= -ccap abs`.
 - `ccap.rpt` includes matched reference coupling pairs only when both conditions
   hold:
   - `abs(reference_ccap) >= -ccap abs`
@@ -159,6 +161,7 @@ The command writes these files under `-output_dir`:
 | --- | --- |
 | `summary.rpt` | Overview, thresholds, row counts, and error distributions. |
 | `tcap.rpt` | Total capacitance differences. |
+| `gcap.rpt` | Ground capacitance differences by net and node. |
 | `ccap.rpt` | Coupling capacitance differences. |
 | `p2p.rpt` | Point-to-point resistance differences. |
 | `nets.mismatched` | Nets found only in reference or only in test. |

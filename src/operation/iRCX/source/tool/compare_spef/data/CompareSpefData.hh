@@ -83,11 +83,13 @@ struct Resistor
 };
 
 using NetCouplingCapMap = std::unordered_map<NodePair, double, NodePairHash>;
+using NodeGroundCapMap = std::unordered_map<std::string, double>;
 
 struct Net
 {
   std::string name;
   double total_cap = 0.0;
+  NodeGroundCapMap node_ground_caps;
   NetCouplingCapMap node_coupling_caps;
   std::vector<Resistor> resistors;
   std::vector<Pin> pins;
@@ -225,6 +227,11 @@ struct CcapRow
   std::optional<double> relative_delta;
 };
 
+struct GcapRow : ValueRow
+{
+  std::string node;
+};
+
 struct ResistanceRow : ValueRow
 {
   std::string from_pin;
@@ -245,6 +252,7 @@ struct Summary
   std::size_t reference_only_coupling_count = 0;
   std::size_t test_only_coupling_count = 0;
   std::size_t tcap_row_count = 0;
+  std::size_t gcap_row_count = 0;
   std::size_t ccap_row_count = 0;
   std::size_t p2p_row_count = 0;
 };
@@ -263,6 +271,7 @@ struct CcapMismatch
 struct Result
 {
   std::vector<ValueRow> tcap_rows;
+  std::vector<GcapRow> gcap_rows;
   std::vector<CcapRow> ccap_rows;
   std::vector<ResistanceRow> p2p_rows;
   std::vector<std::string> reference_only_nets;
