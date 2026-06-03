@@ -112,6 +112,26 @@ Guidance:
 - Do not use `NOLINTNEXTLINE`, broad suppressions, or similar local checker bypasses to make `ecc_dev_tools` pass. Fix the code structure, types, includes, or target wiring instead.
 - When splitting a large translation unit, rebuild each new `.cc` with the minimal include list for the symbols it directly uses; do not copy the original broad include block into every split file.
 
+### AI Preflight Heuristics
+
+Use targeted preflight scans before large CTS edits or reviews when the touched area is likely to cross a spec boundary. These scans are not a substitute for the final `ecc_dev_tools` pass; they are fast ambiguity reducers for AI agents before implementation.
+
+| Trigger | Probe | Interpret as a problem when |
+|---------|-------|-----------------------------|
+| Changing flow/module/report/evaluation code near database access | `rg -n "idb::|ista::TimingEngine|TimingIDBAdapter|api/Power.hh|STAAdapter" src/operation/iCTS/source/flow src/operation/iCTS/source/module src/operation/iCTS/api` | Raw external types appear in flow/module/API contracts instead of staying behind `Wrapper` or CTS-local adapters. |
+| Changing SDC, Wrapper, or FastSTA adapter code | `rg -n "idb::|SdcClock|FastSta|ista::" src/operation/iCTS/source/database/adapter src/operation/iCTS/source/database/io` | The result is leaving adapter files as raw pointers or engine dependencies rather than CTS value types. SDC setup-time projection and raw Liberty data use are allowed by `database-guidelines.md`. |
+| Changing runtime ownership or API entry code | `rg -n "CTS_API_INST|getInst\(|_INST\b|CTSRuntime" src/operation/iCTS/source src/operation/iCTS/api src/operation/iCTS/test` | A source-layer module starts using an API singleton, service locator, or whole runtime instead of a narrow dependency. |
+| Adding or renaming files | `find src/operation/iCTS -type f \( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.cxx' -o -name '*.c' \) -print` | A new iCTS file uses a forbidden extension, except external headers outside the task scope should not be reformatted or renamed opportunistically. |
+| Editing tests with shared fixtures | `rg -n "using namespace" src/operation/iCTS/test src/operation/iCTS/source -g '*.cc' -g '*.hh'` | A new whole-namespace import appears. Existing narrow exceptions are listed in `../project-constraints.md`; prefer explicit qualification when touching those files. |
+| Touching hot lookup/report/evaluation code | `rg -n "_insts|_nets|get_instance_list|std::erase_if|std::ranges::find_if|findInst|findNet|findPin" src/operation/iCTS/source/database/design src/operation/iCTS/source/flow/report src/operation/iCTS/source/flow/evaluation` | A name lookup, report, or evaluation path compensates for missing indexes by scanning all CTS objects or all iDB objects. Fix the owning index/query path instead. |
+
+When a probe finds matches, classify each match as:
+
+1. allowed adapter-local implementation;
+2. accepted existing exception from `../project-constraints.md`;
+3. in-scope violation to fix now;
+4. out-of-scope legacy finding to report but not churn.
+
 Detailed checker usage, presets, outputs, suppressions, and tool behavior live in `../../ecc_dev_tools/README.md`.
 
 ## Checklist
@@ -120,6 +140,7 @@ Before handoff, verify:
 
 - [ ] Naming follows the backend rules
 - [ ] Touched code keeps a consistent modern C++ style
+- [ ] Boundary-sensitive edits had targeted preflight scans or an explicit reason they were unnecessary
 - [ ] Final full `src/operation/iCTS` `ecc_dev_tools` validation was run in `finish-work`
 
 ## Related Docs

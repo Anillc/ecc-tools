@@ -1,7 +1,7 @@
 {
-  "id": "cts-design-removal-index-performance",
-  "name": "cts-design-removal-index-performance",
-  "title": "Fix CTS Design removal index performance",
+  "id": "cts-spec-boundaries-ai-preflight",
+  "name": "cts-spec-boundaries-ai-preflight",
+  "title": "Update CTS spec boundaries and AI preflight",
   "description": "",
   "status": "completed",
   "dev_type": null,

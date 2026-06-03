@@ -63,15 +63,40 @@ If a type is shared across modules and is part of the stable data model, prefer 
 
 - Validate runtime-owned dependencies at API, setup, or flow-stage entry boundaries.
 - Avoid scattering the same null-check pattern across modules.
-- Keep iDB access inside `Wrapper`.
-- Keep CTS-required routing-layer RC and Liberty lookup access inside `Wrapper`; do not add separate RC, Liberty, or TimingProvider service classes for iCTS.
+- Treat raw external database/tool types as ingress or projection details, not as stable CTS contracts:
+
+  | Boundary | Raw external access allowed | Publishes to callers |
+  |----------|-----------------------------|----------------------|
+  | `source/database/io/Wrapper.*` | General `idb::*` read/write and iDB-backed geometry/RC lookup | CTS objects, narrow `Wrapper*` value types, or committed iDB changes |
+  | `source/database/adapter/sdc/**` | SDC parser state and the minimum `idb::*` facts needed to resolve setup-time clock targets | `SdcClock*` values, diagnostics, and CTS clock/read-data inputs |
+  | `source/database/adapter/fast_sta/**` | Raw Liberty parser/data objects and CTS-local FastSTA state | `FastStaClock*` CTS value types and summaries |
+  | `source/flow/**`, `source/module/**`, evaluation, report, visualization | No raw external database/tool pointers in contracts | `Design`, `Clock`, `Inst`, `Pin`, `Net`, `ClockLayout`, `FastSTA`, and narrow wrapper queries |
+
+- Keep CTS-required routing-layer RC, iDB geometry, and Liberty lookup access inside the adapter boundary above; do not add separate RC, Liberty, or TimingProvider service classes for iCTS.
 - Do not reintroduce production iCTS dependencies on iSTA/iPA engines, including `ista::TimingEngine`, `api/TimingEngine.hh`, `api/TimingIDBAdapter.hh`, `api/Power.hh`, `STAAdapter`, `ista-engine`, or `power`.
 - Liberty parser/data types that still use historical `ista` namespace names may be consumed only as raw Liberty data sources; they must not imply iSTA timing-engine initialization or full-design timing behavior.
 - Module code should operate on CTS types, not external-tool types.
 - Only synthesis/instantiation boundaries may commit CTS-created topology into `Design` or project final CTS objects through `Wrapper`/iDB.
 - Evaluation, report, and visualization are readonly consumers of committed CTS results.
 - Report-only data should be narrow and typed. Do not add broad snapshots that duplicate data already available from `Design`, `Clock`, `Inst`, `Net`, report metadata, or narrow `Wrapper` queries.
-- Raw iDB pointers must not escape `Wrapper`.
+- Raw `idb::*`, SDC parser, or Liberty parser pointers must not escape their owning adapter as fields in flow inputs, module configs, `Design` objects, report models, or algorithm outputs.
+
+Wrong:
+
+```cpp
+struct ClockDistributionInput {
+  idb::IdbDesign* idb_design = nullptr;
+};
+```
+
+Correct:
+
+```cpp
+struct ClockDistributionInput {
+  Design* design = nullptr;
+  Wrapper* wrapper = nullptr;
+};
+```
 
 ### Scalable Query Paths
 

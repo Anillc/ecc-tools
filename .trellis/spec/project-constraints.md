@@ -15,6 +15,15 @@ Repository-wide hard constraints for work under `src/operation/iCTS/`.
 - AI agents must not run `git push`.
 - Use read-only Git commands unless the human explicitly asks for more.
 - **Do not change specs lightly unless the change belongs to global code-development conventions.**
+- Treat every exception as a named, narrow contract. An exception must identify the exact path or pattern, the rule it relaxes, and the condition that keeps it from becoming a precedent for new code.
+
+Current accepted exceptions:
+
+| Path or pattern | Relaxed rule | Allowed scope |
+|-----------------|--------------|---------------|
+| `src/operation/iCTS/test/main.cc` | PascalCase file name | Existing GoogleTest executable entry point only. New test files still use PascalCase. |
+| `src/operation/iCTS/test/flow/{FlowTest.cc,FlowSdcTraceTest.cc,FlowWritebackTest.cc}` | Whole-namespace imports | Existing `using namespace flow_test;` may remain while the fixture namespace is local to the test file. New or substantially touched tests should prefer explicit `flow_test::` qualification or symbol-level `using`; `using namespace std;` remains forbidden. |
+| Config JSON fallback conversion documented in `backend/error-handling.md` | No-exception policy | Existing config parsing only. Do not copy `throw`/`try`/`catch` into normal source, module, flow, or test logic. |
 
 ### Files and Naming
 
