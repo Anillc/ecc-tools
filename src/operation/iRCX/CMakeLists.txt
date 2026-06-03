@@ -44,6 +44,7 @@ target_include_directories(ircx_headers
     ${HOME_THIRDPARTY}
 )
 
+add_subdirectory(ics55)
 add_subdirectory(source/parser)
 add_subdirectory(source/database)
 add_subdirectory(source/module/topology)
