@@ -156,6 +156,30 @@ auto makeSink(const std::string& name, icts::InstType type, int x) -> icts::Pin*
   return makePin("CLK", icts::PinType::kClock, inst, inst->get_location());
 }
 
+TEST(DesignIndexTest, RemoveClockMembershipObjectsErasesRecordedInstAndNetNames)
+{
+  const ScopedDesignReset scoped_design_reset;
+
+  auto clock_pins = makeClock("clk", "clk_net");
+  auto buffer = makeBuffer("buffer_to_remove", 10);
+  auto* sink = makeSink("sink", icts::InstType::kFlipFlop, 20);
+  auto* removed_net = connectNet("net_to_remove", buffer.output, {sink});
+  clock_pins.clock->add_inst(buffer.inst);
+  clock_pins.clock->add_net(removed_net);
+  clock_pins.clock->add_load(sink);
+
+  buffer.inst->set_name("renamed_buffer_to_remove");
+  removed_net->set_name("renamed_net_to_remove");
+
+  auto& design = icts_test::runtime::CurrentRuntime().design;
+  design.removeClockMembershipObjects(*clock_pins.clock);
+
+  EXPECT_EQ(design.findInst("buffer_to_remove"), nullptr);
+  EXPECT_EQ(design.findInst("renamed_buffer_to_remove"), nullptr);
+  EXPECT_EQ(design.findNet("net_to_remove"), nullptr);
+  EXPECT_EQ(design.findNet("renamed_net_to_remove"), nullptr);
+}
+
 TEST(ClockDAGTest, BranchPathsReportSourceToFlipFlopBufferDepths)
 {
   const ScopedDesignReset scoped_design_reset;
