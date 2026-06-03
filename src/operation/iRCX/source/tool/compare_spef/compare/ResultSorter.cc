@@ -46,6 +46,17 @@ void sortRows(Result& result)
     }
     return lhs.net < rhs.net;
   });
+  std::sort(result.gcap_rows.begin(), result.gcap_rows.end(), [&](const GcapRow& lhs, const GcapRow& rhs) {
+    const double lhs_rel = relative_value(lhs);
+    const double rhs_rel = relative_value(rhs);
+    if (lhs_rel != rhs_rel) {
+      return lhs_rel < rhs_rel;
+    }
+    if (lhs.net != rhs.net) {
+      return lhs.net < rhs.net;
+    }
+    return lhs.node < rhs.node;
+  });
   std::sort(result.ccap_rows.begin(), result.ccap_rows.end(), [](const CcapRow& lhs, const CcapRow& rhs) {
     const double lhs_rel = lhs.relative_delta.value_or(std::numeric_limits<double>::infinity());
     const double rhs_rel = rhs.relative_delta.value_or(std::numeric_limits<double>::infinity());

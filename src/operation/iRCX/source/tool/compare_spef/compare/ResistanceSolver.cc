@@ -17,6 +17,7 @@
 #include "compare/ResistanceSolver.hh"
 
 #include <Eigen/Dense>
+#include <Eigen/SparseLU>
 
 #include <cmath>
 #include <cstddef>
@@ -25,7 +26,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "compare/CompareMath.hh"
+#include "utils/CompareMath.hh"
 
 namespace ircx {
 namespace compare_spef {
@@ -58,17 +59,17 @@ class NetResistanceContext
       return std::nullopt;
     }
 
-    const GroundSolve* ground_solve = getGroundSolve(to_it->second);
-    if (ground_solve == nullptr) {
+    GroundSolve ground_solve = buildGroundSolve(to_it->second);
+    if (!ground_solve.invertible) {
       return std::nullopt;
     }
 
-    const int from_unknown = ground_solve->unknown_index[from_it->second];
+    const int from_unknown = ground_solve.unknown_index[from_it->second];
     if (from_unknown < 0) {
       return std::nullopt;
     }
 
-    return solveFromUnknown(*ground_solve, from_unknown);
+    return solveFromUnknown(ground_solve, from_unknown);
   }
 
   auto solveMany(const std::vector<NodePair>& pairs, const std::vector<std::size_t>& pair_indices) -> std::vector<std::optional<double>>
@@ -93,7 +94,7 @@ class NetResistanceContext
   {
     std::size_t matrix_size = 0;
     std::vector<int> unknown_index;
-    std::unique_ptr<Eigen::FullPivLU<Eigen::MatrixXd>> solver;
+    std::unique_ptr<Eigen::SparseLU<Eigen::SparseMatrix<double>>> solver;
     bool invertible = false;
   };
 
@@ -144,23 +145,26 @@ class NetResistanceContext
   void solveGroupedRequests(const GroundRequests& requests_by_ground, std::vector<std::optional<double>>& values)
   {
     for (const auto& [ground, requests] : requests_by_ground) {
-      const GroundSolve* ground_solve = getGroundSolve(ground);
-      if (ground_solve == nullptr || requests.empty() || ground_solve->matrix_size == 0) {
+      GroundSolve ground_solve = buildGroundSolve(ground);
+      if (!ground_solve.invertible || requests.empty() || ground_solve.matrix_size == 0) {
         continue;
       }
 
-      Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(ground_solve->matrix_size, requests.size());
+      Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(ground_solve.matrix_size, requests.size());
       for (std::size_t column = 0; column < requests.size(); ++column) {
-        const int source_unknown = ground_solve->unknown_index[requests[column].source_index];
+        const int source_unknown = ground_solve.unknown_index[requests[column].source_index];
         if (source_unknown >= 0) {
           rhs(source_unknown, column) = 1.0;
         }
       }
 
-      const Eigen::MatrixXd solution = ground_solve->solver->solve(rhs);
+      const Eigen::MatrixXd solution = ground_solve.solver->solve(rhs);
+      if (ground_solve.solver->info() != Eigen::Success) {
+        continue;
+      }
       for (std::size_t column = 0; column < requests.size(); ++column) {
         const SolveRequest& request = requests[column];
-        const int source_unknown = ground_solve->unknown_index[request.source_index];
+        const int source_unknown = ground_solve.unknown_index[request.source_index];
         if (source_unknown < 0) {
           continue;
         }
@@ -181,6 +185,9 @@ class NetResistanceContext
     Eigen::VectorXd rhs = Eigen::VectorXd::Zero(ground_solve.matrix_size);
     rhs[from_unknown] = 1.0;
     const Eigen::VectorXd solution = ground_solve.solver->solve(rhs);
+    if (ground_solve.solver->info() != Eigen::Success) {
+      return std::nullopt;
+    }
     const double value = solution[from_unknown];
     if (!std::isfinite(value)) {
       return std::nullopt;
@@ -195,25 +202,12 @@ class NetResistanceContext
     }
   }
 
-  auto getGroundSolve(std::size_t ground) -> const GroundSolve*
-  {
-    const auto cached_it = ground_solves_.find(ground);
-    if (cached_it != ground_solves_.end()) {
-      return cached_it->second.invertible ? &cached_it->second : nullptr;
-    }
-
-    GroundSolve solve = buildGroundSolve(ground);
-    auto [it, inserted] = ground_solves_.emplace(ground, std::move(solve));
-    return it->second.invertible ? &it->second : nullptr;
-  }
-
   auto buildGroundSolve(std::size_t ground) const -> GroundSolve
   {
     GroundSolve solve;
     solve.matrix_size = node_to_index_.size() - 1;
     solve.unknown_index.assign(node_to_index_.size(), -1);
     if (solve.matrix_size == 0) {
-      solve.solver = std::make_unique<Eigen::FullPivLU<Eigen::MatrixXd>>(Eigen::MatrixXd::Zero(0, 0));
       solve.invertible = true;
       return solve;
     }
@@ -225,7 +219,8 @@ class NetResistanceContext
       }
     }
 
-    Eigen::MatrixXd conductance = Eigen::MatrixXd::Zero(solve.matrix_size, solve.matrix_size);
+    std::vector<Eigen::Triplet<double>> triplets;
+    triplets.reserve(resistors_.size() * 4);
     for (const auto* resistor : resistors_) {
       const std::size_t idx1 = node_to_index_.at(resistor->node1);
       const std::size_t idx2 = node_to_index_.at(resistor->node2);
@@ -233,25 +228,28 @@ class NetResistanceContext
       const int u = solve.unknown_index[idx1];
       const int v = solve.unknown_index[idx2];
       if (u >= 0) {
-        conductance(u, u) += g;
+        triplets.emplace_back(u, u, g);
       }
       if (v >= 0) {
-        conductance(v, v) += g;
+        triplets.emplace_back(v, v, g);
       }
       if (u >= 0 && v >= 0) {
-        conductance(u, v) -= g;
-        conductance(v, u) -= g;
+        triplets.emplace_back(u, v, -g);
+        triplets.emplace_back(v, u, -g);
       }
     }
 
-    solve.solver = std::make_unique<Eigen::FullPivLU<Eigen::MatrixXd>>(conductance);
-    solve.invertible = solve.solver->isInvertible();
+    Eigen::SparseMatrix<double> conductance(solve.matrix_size, solve.matrix_size);
+    conductance.setFromTriplets(triplets.begin(), triplets.end());
+    conductance.makeCompressed();
+    solve.solver = std::make_unique<Eigen::SparseLU<Eigen::SparseMatrix<double>>>();
+    solve.solver->compute(conductance);
+    solve.invertible = solve.solver->info() == Eigen::Success;
     return solve;
   }
 
   std::unordered_map<std::string, std::size_t> node_to_index_;
   std::vector<const Resistor*> resistors_;
-  std::unordered_map<std::size_t, GroundSolve> ground_solves_;
 };
 
 }  // namespace

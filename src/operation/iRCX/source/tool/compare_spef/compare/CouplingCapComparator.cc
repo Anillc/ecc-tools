@@ -27,8 +27,8 @@
 #include <utility>
 #include <vector>
 
-#include "compare/CompareMath.hh"
-#include "compare/CompareParallel.hh"
+#include "utils/CompareMath.hh"
+#include "utils/CompareParallel.hh"
 
 namespace ircx {
 namespace compare_spef {
@@ -48,10 +48,10 @@ class NetMetaIndex
   NetMetaIndex(const Data& data, const NetSelector& selector)
   {
     _meta.reserve(data.nets.size());
-    for (const auto& [net_name, net] : data.nets) {
-      _meta.emplace(net_name,
+    for (const Net& net : data.nets) {
+      _meta.emplace(net.name,
                     NetMeta{.net = &net,
-                            .order = data.index.orderOf(net_name),
+                            .order = data.index.orderOf(net.name),
                             .external = std::any_of(net.pins.begin(), net.pins.end(), [](const Pin& pin) { return pin.is_external; }),
                             .selected = selector.selected(net)});
     }
@@ -174,53 +174,56 @@ void CouplingCapComparator::compare(const Data& test, const Data& reference, Res
   const NetMetaIndex reference_meta(reference, _net_selector);
   const NetMetaIndex test_meta(test, _net_selector);
 
-  const int reference_thread_count = parallel::threadCount(_config, reference.coupling_caps.size());
-  std::vector<const CouplingCapStore::Value*> reference_couplings;
-  reference_couplings.reserve(reference.coupling_caps.size());
-  for (auto coupling_it = reference.coupling_caps.beginOrdered(); coupling_it != reference.coupling_caps.endOrdered(); ++coupling_it) {
-    const auto& reference_coupling = *coupling_it;
-    reference_couplings.push_back(&reference_coupling);
-  }
-
-  std::vector<Result> reference_thread_results(reference_thread_count);
+  if (!reference.coupling_caps.lookup.empty()) {
+    const std::size_t reference_bucket_count = reference.coupling_caps.lookup.bucket_count();
+    const int reference_thread_count = parallel::threadCount(_config, reference_bucket_count);
+    std::vector<Result> reference_thread_results(reference_thread_count);
 #pragma omp parallel for schedule(dynamic, 256) num_threads(reference_thread_count)
-  for (std::size_t index = 0; index < reference_couplings.size(); ++index) {
-    const auto& [key, reference_cap] = *reference_couplings[index];
-    const auto test_cap_it = test.coupling_caps.find(key);
-    if (test_cap_it == test.coupling_caps.end()) {
-      reference_thread_results[omp_get_thread_num()].reference_only_couplings.push_back(makeCcapMismatch(reference_meta, key, reference_cap));
-      continue;
+    for (std::size_t bucket_index = 0; bucket_index < reference_bucket_count; ++bucket_index) {
+      for (auto coupling_it = reference.coupling_caps.lookup.begin(bucket_index);
+           coupling_it != reference.coupling_caps.lookup.end(bucket_index);
+           ++coupling_it) {
+        const auto& [key, reference_cap] = *coupling_it;
+        const auto test_cap_it = test.coupling_caps.find(key);
+        if (test_cap_it == test.coupling_caps.end()) {
+          reference_thread_results[omp_get_thread_num()].reference_only_couplings.push_back(
+              makeCcapMismatch(reference_meta, key, reference_cap));
+          continue;
+        }
+
+        addRow(_config, reference_meta, key.first, key.second, reference_cap, test_cap_it->second,
+               reference_thread_results[omp_get_thread_num()]);
+        addRow(_config, reference_meta, key.second, key.first, reference_cap, test_cap_it->second,
+               reference_thread_results[omp_get_thread_num()]);
+      }
     }
 
-    addRow(_config, reference_meta, key.first, key.second, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
-    addRow(_config, reference_meta, key.second, key.first, reference_cap, test_cap_it->second, reference_thread_results[omp_get_thread_num()]);
+    reserveRows(result, reference_thread_results);
+    for (auto& thread_result : reference_thread_results) {
+      appendRows(result, std::move(thread_result));
+    }
   }
 
-  reserveRows(result, reference_thread_results);
-  for (auto& thread_result : reference_thread_results) {
-    appendRows(result, std::move(thread_result));
-  }
-
-  const int test_thread_count = parallel::threadCount(_config, test.coupling_caps.size());
-  std::vector<const CouplingCapStore::Value*> test_couplings;
-  test_couplings.reserve(test.coupling_caps.size());
-  for (auto coupling_it = test.coupling_caps.beginOrdered(); coupling_it != test.coupling_caps.endOrdered(); ++coupling_it) {
-    const auto& test_coupling = *coupling_it;
-    test_couplings.push_back(&test_coupling);
-  }
-
-  std::vector<Result> test_thread_results(test_thread_count);
+  if (!test.coupling_caps.lookup.empty()) {
+    const std::size_t test_bucket_count = test.coupling_caps.lookup.bucket_count();
+    const int test_thread_count = parallel::threadCount(_config, test_bucket_count);
+    std::vector<Result> test_thread_results(test_thread_count);
 #pragma omp parallel for schedule(dynamic, 256) num_threads(test_thread_count)
-  for (std::size_t index = 0; index < test_couplings.size(); ++index) {
-    const auto& [key, test_cap] = *test_couplings[index];
-    if (!reference.coupling_caps.contains(key)) {
-      test_thread_results[omp_get_thread_num()].test_only_couplings.push_back(makeCcapMismatch(test_meta, key, test_cap));
+    for (std::size_t bucket_index = 0; bucket_index < test_bucket_count; ++bucket_index) {
+      for (auto coupling_it = test.coupling_caps.lookup.begin(bucket_index);
+           coupling_it != test.coupling_caps.lookup.end(bucket_index);
+           ++coupling_it) {
+        const auto& [key, test_cap] = *coupling_it;
+        if (!reference.coupling_caps.contains(key)) {
+          test_thread_results[omp_get_thread_num()].test_only_couplings.push_back(makeCcapMismatch(test_meta, key, test_cap));
+        }
+      }
     }
-  }
 
-  reserveRows(result, test_thread_results);
-  for (auto& thread_result : test_thread_results) {
-    appendRows(result, std::move(thread_result));
+    reserveRows(result, test_thread_results);
+    for (auto& thread_result : test_thread_results) {
+      appendRows(result, std::move(thread_result));
+    }
   }
 }
 

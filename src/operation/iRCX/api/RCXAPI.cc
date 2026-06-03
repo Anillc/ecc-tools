@@ -83,6 +83,10 @@ auto RCXAPI::compare_spef(compare_spef::Config config) -> bool
 auto RCXAPI::dump_net_shape() -> bool
 {
   return run_stage("dump_net_shape", []() {
+    if (!Setup::adaptDB()) {
+      return false;
+    }
+
     return DumpNetShapeTool::run();
   }, {.profile = true});
 }

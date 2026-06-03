@@ -124,6 +124,14 @@ struct LayoutData {
 
   // Helpers
   Size regular_net_count() const { return net_vec.size(); }
+  bool empty() const
+  {
+    return net_vec.empty() &&
+           special_net.segments.empty() &&
+           special_net.patches.empty() &&
+           special_net.vias.empty() &&
+           special_net.pins.empty();
+  }
 };
 
 }  // namespace ircx
