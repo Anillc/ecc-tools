@@ -1,40 +1,23 @@
 [build-system]
-requires = ["uv_build>=0.8.5,<0.12"]
-build-backend = "uv_build"
+requires = ["scikit-build-core"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "ecc-tools"
 version = "0.1.0-alpha.4"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "numpy",
+]
 
-[tool.uv.build-backend]
-module-name = "ecc_tools_bin"
-module-root = ""
-source-include = [
-  "ecc_tools_bin/__init__.py",
-  "ecc_tools_bin/*.so",
-  "ecc_tools_bin/*.so.*",
-]
-source-exclude = [
-  "src/**",
-  "build/**",
-  "scripts/**",
-  ".github/**",
-  ".gitee/**",
-]
-wheel-include = [
-  "ecc_tools_bin/__init__.py",
-  "ecc_tools_bin/*.so",
-  "ecc_tools_bin/*.so.*",
-]
-wheel-exclude = [
-  "src/**",
-  "build/**",
-  "scripts/**",
-  ".github/**",
-  ".gitee/**",
-]
+[tool.scikit-build]
+cmake.define.BUILD_ECOS = 1
+build.verbose = true
+editable.rebuild = true
+build-dir = "build"
 
 [dependency-groups]
-dev = ["auditwheel"]
+dev = [
+    "auditwheel",
+    "scikit-build-core",
+]
