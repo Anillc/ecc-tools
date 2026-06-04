@@ -32,5 +32,5 @@ set_target_properties(ircx_ics55
 )
 
 install(FILES "${_IRCX_ICS55_LIBRARY}"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  DESTINATION ${ECC_INSTALL_LIB_DIR}
 )
