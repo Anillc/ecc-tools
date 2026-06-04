@@ -1,9 +1,9 @@
 [build-system]
-requires = ["scikit-build-core"]
+requires = ["scikit-build-core", "numpy"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "ecc-tools"
+name = "ecc_tools_bin"
 version = "0.1.0-alpha.3"
 requires-python = ">=3.11"
 dependencies = [

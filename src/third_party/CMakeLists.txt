@@ -36,5 +36,5 @@ endfunction()
 ieda_add_highs()
 
 set(GDSTK_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(gdstk)
+add_subdirectory(gdstk EXCLUDE_FROM_ALL)
 # add_subdirectory(mt-kahypar)
