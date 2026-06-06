@@ -1015,3 +1015,36 @@ Optimized iCTS CMake target ownership, moved clock-tree realization under synthe
 ### Next Steps
 
 - None - task complete
+
+
+## Session 75: Optimize iSTA Liberty link runtime
+
+**Date**: 2026-06-06
+**Task**: Optimize iSTA Liberty link runtime
+**Branch**: `cts_refactor`
+
+### Summary
+
+Optimized iSTA LibertyReader dispatch and scalar pin handling, reducing ics55_dev CTS read_data from 32.656s to 10.469s while preserving tracked iCTS metrics.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0ec2a934b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
