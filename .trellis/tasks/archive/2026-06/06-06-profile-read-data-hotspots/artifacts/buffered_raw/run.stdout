@@ -1,0 +1,109 @@
+Init Flow Config success.
+[Data config] begin config, path = /home/liweiguo/project/ecc-tools-dev/scripts/design/ics55_dev/iEDA_config/db_default_config.json
+[Data config set] tech lef = 
+[Data config set] lef = 
+[Data config set] def = 
+[Data config set] verilog = 
+[Data config set] lib = 
+[Data config set] sdc = 
+[Data config set] spef = 
+[Data config set] output dir = ./result/
+[Data config] end config
+[Data config set] output dir = ./result
+SDC_FILE: /home/liweiguo/project/ecc-tools-dev/scripts/design/ics55_dev/default.sdc
+[Data config set] lib = /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+[Data config set] lib = /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+[Data config set] sdc = /home/liweiguo/project/ecc-tools-dev/scripts/design/ics55_dev/default.sdc
+[Data config set] tech lef = /home/liweiguo/PDK/icsprout55-pdk/prtech/techLEF/N551P6M_ecos.lef
+Read LEF file : /home/liweiguo/PDK/icsprout55-pdk/prtech/techLEF/N551P6M_ecos.lef
+[Data config set] lef = /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef
+[Data config set] lef = /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef
+Read LEF file : /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/lef/ics55_LLSC_H7CR_ecos.lef
+Read LEF file : /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef
+[Data config set] def = ./result/bp_be_top_place.def.gz
+Read DEF file : ./result/bp_be_top_place.def.gz
+----------------------------------------------------
+Begin parse Specialnet.
+
+End parse Specialnet.
+------------------------------------------------
+**************************************************************
+*************************Layout*******************************
+**************************************************************
+Die : 
+**************************************************************
+Core : 
+**************************************************************
+Layers :  number : 20
+**************************************************************
+Sites :  number : 3
+**************************************************************
+Rows :  number : 357
+**************************************************************
+GCells :  number : 6
+**************************************************************
+Track Grids :  number : 14
+**************************************************************
+Cell Masters :  number : 1570
+**************************************************************
+Vias :  number : 38
+**************************************************************
+Via Rules :  number : 6
+**************************************************************
+Dbu : number : 1000
+**************************************************************
+*************************Design*******************************
+**************************************************************
+Design : bp_be_top
+**************************************************************
+Version : 5.8
+**************************************************************
+Instance :  number : 52092
+**************************************************************
+Gates Num:  number : 152334
+**************************************************************
+Inv Gate Name: INVX0P5H7R
+**************************************************************
+IO Pins :  number : 3033
+**************************************************************
+Vias :  number : 1
+**************************************************************
+Nets :  number : 48992
+Nets segment :  number : 0
+**************************************************************
+Special Nets :  number : 4
+Special Nets segment :  number : 2111
+**************************************************************
+Blockages :  number : 0
+**************************************************************
+Regions :  number : 0
+**************************************************************
+Slots :  number : 0
+**************************************************************
+Groups :  number : 0
+**************************************************************
+Fillers :  number : 0
+**************************************************************
+Create file success ( ./result/iCTS_result.def )
+Write VERSION success...
+Write BUSBITCHARS success...
+Write DESIGN name success...
+Write UNITS success...
+Write DIE success...
+Write ROWS success...
+Write Track Grid success...
+Write GCELLGRID success...
+Write VIAS success...
+Write COMPONENTS success...
+Write PINS success...
+No VIA To Write...
+No REGION To Write...
+No SLOT To Write...
+No GROUP To Write...
+No FILL To Write...
+Write SPECIALNETS success...
+Write NETS success...
+
+Save feature json success, path = ./result/report/cts_stat.json
+
+Save feature json success, path = ./result/metric/iCTS_metrics.json

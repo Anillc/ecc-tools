@@ -1,0 +1,1131 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 2K of event 'cycles'
+# Event count (approx.): 114872484143
+#
+# Overhead  Command  Shared Object        Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+# ........  .......  ...................  .................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+     4.54%  iEDA     libc-2.31.so         [.] __rawmemchr_avx2
+            |
+            ---__rawmemchr_avx2
+               0
+
+     3.82%  iEDA     libc-2.31.so         [.] malloc_consolidate
+            |
+            ---malloc_consolidate
+
+     2.92%  iEDA     libstdc++.so.6.0.28  [.] std::istream::get
+            |
+            ---std::istream::get
+               |          
+               |--1.77%--liberty::LibertyScanner::readString
+               |          liberty::LibertyScanner::yylex
+               |          |          
+               |           --1.73%--liberty::LibertyDriver::parseGroupMember
+               |                     liberty::LibertyDriver::parseGroupBody
+               |                     liberty::LibertyDriver::parseGroupMember
+               |                     liberty::LibertyDriver::parseGroupBody
+               |                     liberty::LibertyDriver::parseGroupMember
+               |                     liberty::LibertyDriver::parseGroupBody
+               |                     liberty::LibertyDriver::parseGroupMember
+               |                     liberty::LibertyDriver::parseGroupBody
+               |                     liberty::LibertyDriver::parseGroupMember
+               |                     liberty::LibertyDriver::parseGroupBody
+               |                     liberty::LibertyDriver::parseGroupContent
+               |                     liberty::LibertyDriver::parse
+               |                     liberty::LibertyDriver::parse
+               |                     liberty_parse_lib
+               |                     ista::LibertyReader::readLib
+               |                     ista::Lib::loadLibertyWithCppParser
+               |                     icts::Wrapper::loadLibertyIfNeeded
+               |          
+                --0.99%--liberty::LibertyScanner::skipWhitespace
+                          liberty::LibertyScanner::yylex
+                          |          
+                           --0.62%--liberty::LibertyDriver::parseGroupMember
+                                     liberty::LibertyDriver::parseGroupBody
+                                     liberty::LibertyDriver::parseGroupMember
+                                     liberty::LibertyDriver::parseGroupBody
+                                     liberty::LibertyDriver::parseGroupMember
+                                     liberty::LibertyDriver::parseGroupBody
+                                     liberty::LibertyDriver::parseGroupMember
+                                     liberty::LibertyDriver::parseGroupBody
+                                     |          
+                                      --0.53%--liberty::LibertyDriver::parseGroupMember
+                                                liberty::LibertyDriver::parseGroupBody
+                                                liberty::LibertyDriver::parseGroupContent
+                                                liberty::LibertyDriver::parse
+                                                liberty::LibertyDriver::parse
+                                                liberty_parse_lib
+                                                ista::LibertyReader::readLib
+                                                ista::Lib::loadLibertyWithCppParser
+                                                icts::Wrapper::loadLibertyIfNeeded
+
+     2.86%  iEDA     iEDA                 [.] icts::htree::(anonymous namespace)::ComposeHTreeFrontierEntries
+            |
+            ---icts::htree::(anonymous namespace)::ComposeHTreeFrontierEntries
+
+     2.70%  iEDA     iEDA                 [.] std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::PatternCompositionState>, std::allocator<std::pair<icts::PatternId const, icts::PatternCompositionState> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_rehash
+            |
+            ---std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::PatternCompositionState>, std::allocator<std::pair<icts::PatternId const, icts::PatternCompositionState> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_rehash
+               |          
+               |--1.35%--0x5b0df3
+               |          0x55c71c6c0dc0
+               |          0x100000000
+               |          |          
+               |           --0.92%--0
+               |                     0xd00000000
+               |                     0xe00000000
+               |                     0xf00000000
+               |                     0x1000000000
+               |                     0x1100000000
+               |                     0x1200000000
+               |                     0x1300000000
+               |                     0x1400000000
+               |                     0x1500000000
+               |                     0x1600000000
+               |                     0x1700000000
+               |                     0x1800000000
+               |                     0x1900000000
+               |                     0x1a00000000
+               |                     0x1b00000000
+               |                     0x1c00000000
+               |                     0x3b00000000
+               |                     0x3c00000000
+               |                     0x3d00000000
+               |                     0x3e00000000
+               |                     0x3f00000000
+               |                     0x4000000000
+               |                     0x4100000000
+               |                     0x4200000000
+               |                     0x4300000000
+               |                     0x4400000000
+               |                     0x4500000000
+               |                     0x4600000000
+               |                     0x4700000000
+               |                     0x4800000000
+               |                     0x4900000000
+               |                     0x4a00000000
+               |                     0x4b00000000
+               |                     0x4c00000000
+               |                     0x4d00000000
+               |                     0x4e00000000
+               |                     0x4f00000000
+               |                     0x5000000000
+               |                     0x5100000000
+               |                     0x5200000000
+               |                     0x5300000000
+               |                     0x5400000000
+               |                     0x5500000000
+               |                     0x5600000000
+               |                     0x5700000000
+               |                     0x5800000000
+               |                     0x5900000000
+               |                     0x5a00000000
+               |                     0x5b00000000
+               |                     0x5c00000000
+               |                     0x5d00000000
+               |                     0x5e00000000
+               |                     0x5f00000000
+               |                     0x6000000000
+               |                     0x6100000000
+               |                     0x6200000000
+               |                     0x6300000000
+               |                     0x6400000000
+               |                     0x6500000000
+               |                     0x6600000000
+               |                     0x6700000000
+               |                     0x6800000000
+               |                     0x6900000000
+               |                     0x6a00000000
+               |                     0x6b00000000
+               |                     0x6c00000000
+               |                     0x6d00000000
+               |                     0x6e00000000
+               |                     0x6f00000000
+               |                     0x7000000000
+               |                     0x7100000000
+               |                     0x7200000000
+               |                     0x7300000000
+               |                     0x7400000000
+               |                     0x7500000000
+               |                     0x7600000000
+               |                     0x7700000000
+               |                     0x7800000000
+               |                     0x7900000000
+               |                     0x7a00000000
+               |                     0x7b00000000
+               |                     0x7c00000000
+               |                     0x7d00000000
+               |                     0x7e00000000
+               |                     0x10100000000
+               |                     0x10200000000
+               |                     0x10300000000
+               |                     0x10400000000
+               |                     0x10500000000
+               |                     0x10600000000
+               |                     0x10700000000
+               |                     0x10800000000
+               |                     0x10900000000
+               |                     0x10a00000000
+               |                     0x10b00000000
+               |                     0x10c00000000
+               |                     0x10d00000000
+               |                     0x10e00000000
+               |                     0x10f00000000
+               |                     0x11000000000
+               |                     0x11100000000
+               |                     0x11200000000
+               |                     0x11300000000
+               |                     0x11400000000
+               |                     0x11500000000
+               |                     0x11600000000
+               |                     0x11700000000
+               |                     0x11800000000
+               |                     0x11900000000
+               |                     0x11a00000000
+               |                     0x11b00000000
+               |                     0x11c00000000
+               |                     0x11d00000000
+               |                     0x11e00000000
+               |                     0x11f00000000
+               |                     0x12000000000
+               |                     0x12100000000
+               |                     0x12200000000
+               |                     0x12300000000
+               |                     0x12400000000
+               |                     0x12500000000
+               |                     0x12600000000
+               |          
+                --0.67%--0x2cd737
+                          0x55c71ac0d7c0
+                          0xd00000000
+
+     2.69%  iEDA     iEDA                 [.] std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::BufferingPattern>, std::allocator<std::pair<icts::PatternId const, icts::BufferingPattern> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_rehash
+            |
+            ---std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::BufferingPattern>, std::allocator<std::pair<icts::PatternId const, icts::BufferingPattern> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_rehash
+               |          
+               |--1.30%--0x5b0df3
+               |          0x55c71c7379e0
+               |          0x100000000
+               |          |          
+               |           --0.87%--0
+               |                     0xd00000000
+               |                     0xe00000000
+               |                     0xf00000000
+               |                     0x1000000000
+               |                     0x1100000000
+               |                     0x1200000000
+               |                     0x1300000000
+               |                     0x1400000000
+               |                     0x1500000000
+               |                     0x1600000000
+               |                     0x1700000000
+               |                     0x1800000000
+               |                     0x1900000000
+               |                     0x1a00000000
+               |                     0x1b00000000
+               |                     0x1c00000000
+               |                     0x3b00000000
+               |                     0x3c00000000
+               |                     0x3d00000000
+               |                     0x3e00000000
+               |                     0x3f00000000
+               |                     0x4000000000
+               |                     0x4100000000
+               |                     0x4200000000
+               |                     0x4300000000
+               |                     0x4400000000
+               |                     0x4500000000
+               |                     0x4600000000
+               |                     0x4700000000
+               |                     0x4800000000
+               |                     0x4900000000
+               |                     0x4a00000000
+               |                     0x4b00000000
+               |                     0x4c00000000
+               |                     0x4d00000000
+               |                     0x4e00000000
+               |                     0x4f00000000
+               |                     0x5000000000
+               |                     0x5100000000
+               |                     0x5200000000
+               |                     0x5300000000
+               |                     0x5400000000
+               |                     0x5500000000
+               |                     0x5600000000
+               |                     0x5700000000
+               |                     0x5800000000
+               |                     0x5900000000
+               |                     0x5a00000000
+               |                     0x5b00000000
+               |                     0x5c00000000
+               |                     0x5d00000000
+               |                     0x5e00000000
+               |                     0x5f00000000
+               |                     0x6000000000
+               |                     0x6100000000
+               |                     0x6200000000
+               |                     0x6300000000
+               |                     0x6400000000
+               |                     0x6500000000
+               |                     0x6600000000
+               |                     0x6700000000
+               |                     0x6800000000
+               |                     0x6900000000
+               |                     0x6a00000000
+               |                     0x6b00000000
+               |                     0x6c00000000
+               |                     0x6d00000000
+               |                     0x6e00000000
+               |                     0x6f00000000
+               |                     0x7000000000
+               |                     0x7100000000
+               |                     0x7200000000
+               |                     0x7300000000
+               |                     0x7400000000
+               |                     0x7500000000
+               |                     0x7600000000
+               |                     0x7700000000
+               |                     0x7800000000
+               |                     0x7900000000
+               |                     0x7a00000000
+               |                     0x7b00000000
+               |                     0x7c00000000
+               |                     0x7d00000000
+               |                     0x7e00000000
+               |                     0x10100000000
+               |                     0x10200000000
+               |                     0x10300000000
+               |                     0x10400000000
+               |                     0x10500000000
+               |                     0x10600000000
+               |                     0x10700000000
+               |                     0x10800000000
+               |                     0x10900000000
+               |                     0x10a00000000
+               |                     0x10b00000000
+               |                     0x10c00000000
+               |                     0x10d00000000
+               |                     0x10e00000000
+               |                     0x10f00000000
+               |                     0x11000000000
+               |                     0x11100000000
+               |                     0x11200000000
+               |                     0x11300000000
+               |                     0x11400000000
+               |                     0x11500000000
+               |                     0x11600000000
+               |                     0x11700000000
+               |                     0x11800000000
+               |                     0x11900000000
+               |                     0x11a00000000
+               |                     0x11b00000000
+               |                     0x11c00000000
+               |                     0x11d00000000
+               |                     0x11e00000000
+               |                     0x11f00000000
+               |                     0x12000000000
+               |                     0x12100000000
+               |                     0x12200000000
+               |                     0x12300000000
+               |                     0x12400000000
+               |                     0x12500000000
+               |                     0x12600000000
+               |          
+                --0.66%--0x2cd737
+                          0x55c72200a270
+                          0xd00000000
+
+     2.61%  iEDA     libc-2.31.so         [.] _int_malloc
+            |
+            ---_int_malloc
+
+     2.30%  iEDA     libc-2.31.so         [.] _int_free
+            |
+            ---_int_free
+               |          
+               |--1.05%--0x1
+               |          
+                --0.66%--0
+
+     2.23%  iEDA     libc-2.31.so         [.] unlink_chunk.isra.0
+            |
+            ---unlink_chunk.isra.0
+
+     2.14%  iEDA     iEDA                 [.] liberty::LibertyScanner::getChar
+            |
+            ---liberty::LibertyScanner::getChar
+               |          
+                --1.23%--liberty::LibertyScanner::readString
+                          liberty::LibertyScanner::yylex
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupContent
+                          liberty::LibertyDriver::parse
+                          liberty::LibertyDriver::parse
+                          liberty_parse_lib
+                          ista::LibertyReader::readLib
+                          ista::Lib::loadLibertyWithCppParser
+                          icts::Wrapper::loadLibertyIfNeeded
+
+     1.90%  iEDA     iEDA                 [.] std::__detail::_Map_base<icts::HTreeFrontierStateKey, std::pair<icts::HTreeFrontierStateKey const, std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> > >, std::allocator<std::pair<icts::HTreeFrontierStateKey const, std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> > > >, std::__detail::_Select1st, std::equal_to<icts::HTreeFrontierStateKey>, icts::HTreeFrontierStateKeyHash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[]
+            |
+            ---std::__detail::_Map_base<icts::HTreeFrontierStateKey, std::pair<icts::HTreeFrontierStateKey const, std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> > >, std::allocator<std::pair<icts::HTreeFrontierStateKey const, std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> > > >, std::__detail::_Select1st, std::equal_to<icts::HTreeFrontierStateKey>, icts::HTreeFrontierStateKeyHash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[]
+
+     1.82%  iEDA     libc-2.31.so         [.] __memcmp_avx2_movbe
+            |
+            ---__memcmp_avx2_movbe
+
+     1.81%  iEDA     libc-2.31.so         [.] malloc
+            |
+            ---malloc
+
+     1.80%  iEDA     iEDA                 [.] icts::htree::BufferPatternLibrary::retainOnly
+            |
+            ---icts::htree::BufferPatternLibrary::retainOnly
+               |          
+                --1.16%--0x5b0df200000000
+                          0x71
+
+     1.57%  iEDA     iEDA                 [.] std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::BufferingPattern>, std::allocator<std::pair<icts::PatternId const, icts::BufferingPattern> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::find
+            |
+            ---std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::BufferingPattern>, std::allocator<std::pair<icts::PatternId const, icts::BufferingPattern> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::find
+
+     1.40%  iEDA     iEDA                 [.] std::_Hashtable<icts::SegmentFrontierStateKey, std::pair<icts::SegmentFrontierStateKey const, unsigned long>, std::allocator<std::pair<icts::SegmentFrontierStateKey const, unsigned long> >, std::__detail::_Select1st, std::equal_to<icts::SegmentFrontierStateKey>, icts::SegmentFrontierStateKeyHash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_emplace<icts::SegmentFrontierStateKey const&, unsigned long>
+            |
+            ---std::_Hashtable<icts::SegmentFrontierStateKey, std::pair<icts::SegmentFrontierStateKey const, unsigned long>, std::allocator<std::pair<icts::SegmentFrontierStateKey const, unsigned long> >, std::__detail::_Select1st, std::equal_to<icts::SegmentFrontierStateKey>, icts::SegmentFrontierStateKeyHash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_emplace<icts::SegmentFrontierStateKey const&, unsigned long>
+
+     1.30%  iEDA     [unknown]            [k] 0xffffffffa56a2b37
+            |
+            ---0xffffffffa56a2b37
+               0xffffffffa531ffb9
+               0xffffffffa5323fc3
+               0xffffffffa5326f9b
+               0xffffffffa5346ea5
+               0xffffffffa52fabf8
+               0xffffffffa5302214
+               0xffffffffa5302328
+               0xffffffffa50a2ba2
+               0xffffffffa5d91e57
+               0xffffffffa5e00c07
+               |          
+                --1.22%--_int_malloc
+
+     1.19%  iEDA     iEDA                 [.] icts::htree::(anonymous namespace)::ComposeSegmentCandidateFrontierEntries
+            |
+            ---icts::htree::(anonymous namespace)::ComposeSegmentCandidateFrontierEntries
+
+     1.14%  iEDA     iEDA                 [.] std::__detail::_Map_base<icts::PatternId, std::pair<icts::PatternId const, icts::BufferingPattern>, std::allocator<std::pair<icts::PatternId const, icts::BufferingPattern> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>, true>::operator[]
+            |
+            ---std::__detail::_Map_base<icts::PatternId, std::pair<icts::PatternId const, icts::BufferingPattern>, std::allocator<std::pair<icts::PatternId const, icts::BufferingPattern> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>, true>::operator[]
+               |          
+                --0.68%--0
+
+     1.04%  iEDA     libc-2.31.so         [.] __memmove_avx_unaligned_erms
+            |
+            ---__memmove_avx_unaligned_erms
+
+     1.01%  iEDA     libc-2.31.so         [.] cfree@GLIBC_2.2.5
+            |
+            ---cfree@GLIBC_2.2.5
+
+     0.95%  iEDA     libstdc++.so.6.0.28  [.] std::basic_ios<char, std::char_traits<char> >::eof
+            |
+            ---std::basic_ios<char, std::char_traits<char> >::eof
+               |          
+                --0.66%--liberty::LibertyScanner::readString
+                          liberty::LibertyScanner::yylex
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupMember
+                          liberty::LibertyDriver::parseGroupBody
+                          liberty::LibertyDriver::parseGroupContent
+                          liberty::LibertyDriver::parse
+                          liberty::LibertyDriver::parse
+                          liberty_parse_lib
+                          ista::LibertyReader::readLib
+                          ista::Lib::loadLibertyWithCppParser
+                          icts::Wrapper::loadLibertyIfNeeded
+
+     0.91%  iEDA     libc-2.31.so         [.] __GI_____strtod_l_internal
+            |
+            ---__GI_____strtod_l_internal
+
+     0.86%  iEDA     libstdc++.so.6.0.28  [.] std::istream::sentry::sentry
+            |
+            ---std::istream::sentry::sentry
+
+     0.84%  iEDA     iEDA                 [.] absl::lts_20230125::inlined_vector_internal::Storage<std::unique_ptr<ista::LibAxis, std::default_delete<ista::LibAxis> >, 64ul, std::allocator<std::unique_ptr<ista::LibAxis, std::default_delete<ista::LibAxis> > > >::DestroyContents
+            |
+            ---absl::lts_20230125::inlined_vector_internal::Storage<std::unique_ptr<ista::LibAxis, std::default_delete<ista::LibAxis> >, 64ul, std::allocator<std::unique_ptr<ista::LibAxis, std::default_delete<ista::LibAxis> > > >::DestroyContents
+
+     0.73%  iEDA     [unknown]            [k] 0xffffffffa5e00be0
+            |
+            ---0xffffffffa5e00be0
+
+     0.72%  iEDA     iEDA                 [.] icts::BufferingPattern::concat
+            |
+            ---icts::BufferingPattern::concat
+
+     0.64%  iEDA     iEDA                 [.] icts::htree::BufferPatternLibrary::add
+            |
+            ---icts::htree::BufferPatternLibrary::add
+
+     0.59%  iEDA     libidb.so            [.] idb::IdbPins::find_pin
+            |
+            ---idb::IdbPins::find_pin
+
+     0.58%  iEDA     libc-2.31.so         [.] __strlen_avx2
+            |
+            ---__strlen_avx2
+
+     0.58%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_data
+            |
+            ---std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_data
+
+     0.54%  iEDA     iEDA                 [.] icts::(anonymous namespace)::propagateReadyQueue
+            |
+            ---icts::(anonymous namespace)::propagateReadyQueue
+
+     0.54%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::push_back
+            |
+            ---std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::push_back
+
+     0.51%  iEDA     iEDA                 [.] icts::htree::SegmentPatternLibraryCombiner::combine
+            |
+            ---icts::htree::SegmentPatternLibraryCombiner::combine
+
+     0.51%  iEDA     libstdc++.so.6.0.28  [.] std::_Hash_bytes
+            |
+            ---std::_Hash_bytes
+
+     0.50%  iEDA     iEDA                 [.] icts::FastStaPower::update
+     0.47%  iEDA     iEDA                 [.] std::__detail::_Map_base<icts::PatternId, std::pair<icts::PatternId const, icts::PatternCompositionState>, std::allocator<std::pair<icts::PatternId const, icts::PatternCompositionState> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>, true>::operator[]
+     0.46%  iEDA     [unknown]            [k] 0xffffffffa5320f61
+     0.45%  iEDA     libc-2.31.so         [.] __strcmp_avx2
+     0.41%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::operator+=
+     0.41%  iEDA     iEDA                 [.] liberty::LibertyScanner::readIdentifier
+     0.41%  iEDA     libc-2.31.so         [.] __memchr_avx2
+     0.37%  iEDA     iEDA                 [.] liberty::LibertyScanner::readString
+     0.34%  iEDA     iEDA                 [.] std::__uninitialized_copy<false>::__uninit_copy<__gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*>
+     0.33%  iEDA     libstdc++.so.6.0.28  [.] __dynamic_cast
+     0.33%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >*, std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > > >::__normal_iterator
+     0.29%  iEDA     [unknown]            [k] 0xffffffffa52fbdd1
+     0.29%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_length
+     0.29%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_set_length
+     0.29%  iEDA     libc-2.31.so         [.] isspace
+     0.25%  iEDA     iEDA                 [.] std::__introsort_loop<__gnu_cxx::__normal_iterator<icts::HTreeTopologyChar*, std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> > >, long, __gnu_cxx::__ops::_Iter_comp_iter<std::ranges::__detail::__make_comp_proj<icts::SortHTreeFrontierEntries(std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> >&)::{lambda(icts::HTreeTopologyChar const&, icts::HTreeTopologyChar const&)#1}, std::identity>(icts::SortHTreeFrontierEntries(std::vector<icts::HTreeTopologyChar, std::allocator<icts::HTreeTopologyChar> >&)::{lambda(icts::HTreeTopologyChar const&, icts::HTreeTopologyChar const&)#1}&, std::identity&)::{lambda(std::identity&&, auto:1&)#1}> >
+     0.25%  iEDA     iEDA                 [.] std::__introsort_loop<__gnu_cxx::__normal_iterator<icts::SegmentChar*, std::vector<icts::SegmentChar, std::allocator<icts::SegmentChar> > >, long, __gnu_cxx::__ops::_Iter_comp_iter<std::ranges::__detail::__make_comp_proj<icts::SortSegmentFrontierEntries(std::vector<icts::SegmentChar, std::allocator<icts::SegmentChar> >&)::{lambda(icts::SegmentChar const&, icts::SegmentChar const&)#1}, std::identity>(icts::SortSegmentFrontierEntries(std::vector<icts::SegmentChar, std::allocator<icts::SegmentChar> >&)::{lambda(icts::SegmentChar const&, icts::SegmentChar const&)#1}&, std::identity&)::{lambda(std::identity&&, auto:1&)#1}> >
+     0.25%  iEDA     libstdc++.so.6.0.28  [.] operator new
+     0.25%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_data
+     0.25%  iEDA     iEDA                 [.] std::forward<std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> > >
+     0.25%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >::release
+     0.25%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_dispose
+     0.21%  iEDA     libstdc++.so.6.0.28  [.] std::__detail::_Prime_rehash_policy::_M_need_rehash
+     0.21%  iEDA     iEDA                 [.] (anonymous namespace)::CppLibertyGroupStmt::CppLibertyGroupStmt
+     0.21%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<liberty::LibNode**, std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> > >::__normal_iterator
+     0.21%  iEDA     iEDA                 [.] ista::LibertyReader::visitAxisOrValues(LibertyComplexAttrStmt*)::{lambda(auto:1&)#1}::operator()<LibertyVec>(LibertyVec&) const::{lambda(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, char)#1}::operator()
+     0.21%  iEDA     iEDA                 [.] std::move<std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >&>
+     0.21%  iEDA     iEDA                 [.] liberty_is_string_value
+     0.21%  iEDA     iEDA                 [.] std::__get_helper<0ul, ista::LibFloatValue*, std::default_delete<ista::LibFloatValue> >
+     0.21%  iEDA     iEDA                 [.] std::__addressof<char>
+     0.21%  iEDA     libstdc++.so.6.0.28  [.] std::getline<char, std::char_traits<char>, std::allocator<char> >
+     0.21%  iEDA     libidb.so            [.] idb::IdbDesign::disconnectPinFromNet
+     0.21%  iEDA     iEDA                 [.] liberty::LibertyScanner::skipWhitespace
+     0.21%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >*, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > >::__normal_iterator
+     0.21%  iEDA     iEDA                 [.] std::char_traits<char>::assign
+     0.20%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::find
+     0.20%  iEDA     iEDA                 [.] icts::htree::TopologyPatternLibrary::getCompositionState
+     0.17%  iEDA     libc-2.31.so         [.] __memset_avx2_erms
+     0.17%  iEDA     iEDA                 [.] std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::_M_range_insert<__gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > > >
+     0.17%  iEDA     [unknown]            [k] 0xffffffffa5f04104
+     0.17%  iEDA     libidb.so            [.] idb::IdbPins::find_pin
+     0.17%  iEDA     iEDA                 [.] std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::_M_realloc_insert<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&>
+     0.17%  iEDA     libc-2.31.so         [.] str_to_mpn.isra.0
+     0.17%  iEDA     iEDA                 [.] std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::~vector
+     0.17%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_mutate
+     0.17%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<void**, std::vector<void*, std::allocator<void*> > >::__normal_iterator
+     0.17%  iEDA     iEDA                 [.] LibertyVecIterator<void>::hasNext
+     0.16%  iEDA     libc-2.31.so         [.] __mpn_mul
+     0.16%  iEDA     iEDA                 [.] std::__addressof<char const>
+     0.16%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_create
+     0.16%  iEDA     iEDA                 [.] std::char_traits<char>::copy
+     0.16%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_local_data
+     0.16%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >::~unique_ptr
+     0.16%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::internal_layout::adl_barrier::Align
+     0.16%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::c_str
+     0.16%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::end
+     0.16%  iEDA     libstr.so            [.] ieda::Str::equal
+     0.16%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<liberty::LibNode*>::allocate
+     0.16%  iEDA     iEDA                 [.] ista::LibertyReader::visitAxisOrValues(LibertyComplexAttrStmt*)::{lambda(auto:1&)#1}::operator()<LibertyVec>
+     0.16%  iEDA     iEDA                 [.] __gnu_cxx::operator==<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >
+     0.16%  iEDA     iEDA                 [.] std::pointer_traits<char*>::pointer_to
+     0.16%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char const*>
+     0.16%  iEDA     iEDA                 [.] std::__regex_replace<std::back_insert_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, __gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__cxx11::regex_traits<char>, char>
+     0.15%  iEDA     libc-2.31.so         [.] realloc
+     0.13%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>
+     0.13%  iEDA     iEDA                 [.] icts::htree::TopologyPatternLibrary::materialize
+     0.13%  iEDA     [unknown]            [k] 0xffffffffa5da2080
+     0.13%  iEDA     [unknown]            [k] 0xffffffffa5d91df5
+     0.13%  iEDA     [unknown]            [k] 0xffffffffa52fad21
+     0.13%  iEDA     [unknown]            [k] 0xffffffffa52dd392
+     0.13%  iEDA     libidb.so            [.] idb::IdbInstance::is_clock_instance
+     0.13%  iEDA     [unknown]            [k] 0xffffffffa5313aec
+     0.12%  iEDA     [unknown]            [k] 0xffffffffa51621e0
+     0.12%  iEDA     [unknown]            [k] 0xffffffffa5301fc3
+     0.12%  iEDA     libstdc++.so.6.0.28  [.] std::basic_ios<char, std::char_traits<char> >::operator bool
+     0.12%  iEDA     iEDA                 [.] ista::LibertyReader::visitSimpleAttri
+     0.12%  iEDA     iEDA                 [.] std::get<0ul, ista::LibFloatValue*, std::default_delete<ista::LibFloatValue> >
+     0.12%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::size
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_is_local
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_get_allocator
+     0.12%  iEDA     libidb.so            [.] idb::IdbInstance::is_flip_flop
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_Alloc_hider::~_Alloc_hider
+     0.12%  iEDA     iEDA                 [.] std::forward<std::default_delete<ista::LibFloatValue> >
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_S_copy
+     0.12%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::emplace_back<std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> > >
+     0.12%  iEDA     iEDA                 [.] std::_Head_base<1ul, std::default_delete<ista::LibTable>, true>::_M_head
+     0.12%  iEDA     [unknown]            [k] 0xffffffffa531ea3b
+     0.12%  iEDA     iEDA                 [.] std::make_unique<ista::LibFloatValue, double>
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string<std::allocator<char> >
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::max_size
+     0.12%  iEDA     libc-2.31.so         [.] round_and_return
+     0.12%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >*, std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > > >::operator-
+     0.12%  iEDA     libstdc++.so.6.0.28  [.] std::__cxx11::basic_istringstream<char, std::char_traits<char>, std::allocator<char> >::basic_istringstream
+     0.12%  iEDA     iEDA                 [.] (anonymous namespace)::CppLibertyVecStorage::~CppLibertyVecStorage
+     0.12%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::_Vector_impl_data::_Vector_impl_data
+     0.12%  iEDA     iEDA                 [.] std::get<0ul, liberty::LibStringValue*, std::default_delete<liberty::LibStringValue> >
+     0.12%  iEDA     iEDA                 [.] std::_Head_base<0ul, ista::LibFloatValue*, false>::_M_head
+     0.12%  iEDA     libc-2.31.so         [.] __mpn_lshift
+     0.12%  iEDA     iEDA                 [.] ista::LibertyReader::visitAxisOrValues
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>
+     0.12%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::back
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string
+     0.12%  iEDA     iEDA                 [.] std::min<unsigned long>
+     0.12%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >*, std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > > >::operator*
+     0.12%  iEDA     iEDA                 [.] liberty::LibertyScanner::yylex
+     0.12%  iEDA     libc-2.31.so         [.] __mpn_mul_1
+     0.12%  iEDA     iEDA                 [.] std::__iterator_category<char const*>
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::~basic_string
+     0.12%  iEDA     libstdc++.so.6.0.28  [.] __cxxabiv1::__si_class_type_info::__do_dyncast
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::length
+     0.12%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::size
+     0.12%  iEDA     iEDA                 [.] std::pointer_traits<char const*>::pointer_to
+     0.12%  iEDA     iEDA                 [.] std::is_constant_evaluated
+     0.12%  iEDA     iEDA                 [.] std::addressof<char>
+     0.12%  iEDA     iEDA                 [.] icts::ClockTreeRealization::reconnectNet
+     0.12%  iEDA     libc-2.31.so         [.] isalnum
+     0.12%  iEDA     iEDA                 [.] std::__detail::_Executor<__gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::sub_match<__gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, std::__cxx11::regex_traits<char>, true>::_M_dfs
+     0.12%  iEDA     [unknown]            [k] 0xffffffffa513e165
+     0.12%  iEDA     iEDA                 [.] std::vector<std::__detail::_State<char>, std::allocator<std::__detail::_State<char> > >::_M_realloc_insert<std::__detail::_State<char> >
+     0.12%  iEDA     libstdc++.so.6.0.28  [.] std::ostream::put
+     0.09%  iEDA     libidb.so            [.] idb::IdbInstanceList::contains
+     0.09%  iEDA     [unknown]            [k] 0xffffffffa60022c0
+     0.09%  iEDA     [unknown]            [k] 0xffffffffa5320f73
+     0.09%  iEDA     libidb.so            [.] idb::IdbPins::get_connected_pin_num
+     0.09%  iEDA     [unknown]            [k] 0xffffffffa53758cc
+     0.09%  iEDA     [unknown]            [k] 0xffffffffa5e00be3
+     0.08%  iEDA     iEDA                 [.] icts::FLUTERouter::buildTree
+     0.08%  iEDA     iEDA                 [.] std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::PatternId>, std::allocator<std::pair<icts::PatternId const, icts::PatternId> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::find
+     0.08%  iEDA     iEDA                 [.] icts::htree::ResolveSinkLoadRegionLegality
+     0.08%  iEDA     iEDA                 [.] icts::htree::TopologyPatternLibrary::compactReachableFrom
+     0.08%  iEDA     iEDA                 [.] std::_Hashtable<icts::htree::RootDriverCompensationCacheKey, std::pair<icts::htree::RootDriverCompensationCacheKey const, icts::htree::RootDriverCompensationDetail>, std::allocator<std::pair<icts::htree::RootDriverCompensationCacheKey const, icts::htree::RootDriverCompensationDetail> >, std::__detail::_Select1st, std::equal_to<icts::htree::RootDriverCompensationCacheKey>, icts::htree::RootDriverCompensationCacheKeyHash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_find_before_node
+     0.08%  iEDA     iEDA                 [.] icts::htree::(anonymous namespace)::BuildPatternSearch
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa52c7a03
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa5d8ea4e
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa5301af9
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa5301a5b
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa5301bf5
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa52f881c
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa531e8b3
+     0.08%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa5301ffe
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa532dfd9
+     0.08%  iEDA     libstdc++.so.6.0.28  [.] __cxxabiv1::__vmi_class_type_info::__do_dyncast
+     0.08%  iEDA     iEDA                 [.] std::basic_string_view<char, std::char_traits<char> >::basic_string_view
+     0.08%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >::release
+     0.08%  iEDA     libIdbBuilder.so     [.] idb::IdbBuilder::buildBus
+     0.08%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, liberty::LibAttribute*, std::default_delete<liberty::LibAttribute> >::_M_head
+     0.08%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_Alloc_hider::_Alloc_hider
+     0.08%  iEDA     iEDA                 [.] std::forward<std::unique_ptr<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > > >
+     0.08%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, liberty::LibComplexAttribute*, std::default_delete<liberty::LibComplexAttribute> >::_M_head
+     0.08%  iEDA     iEDA                 [.] std::__detail::_Hashtable_alloc<std::allocator<std::__detail::_Hash_node<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, true> > >::_M_allocate_node<std::piecewise_construct_t const&, std::tuple<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&>, std::tuple<> >
+     0.08%  iEDA     libstdc++.so.6.0.28  [.] std::basic_ios<char, std::char_traits<char> >::init
+     0.08%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<liberty::LibValue, std::default_delete<liberty::LibValue> >::__uniq_ptr_impl
+     0.08%  iEDA     iEDA                 [.] std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::push_back
+     0.08%  iEDA     iEDA                 [.] std::make_unique<liberty::LibStringValue, char*&>
+     0.08%  iEDA     iEDA                 [.] std::construct_at<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > >
+     0.08%  iEDA     iEDA                 [.] ista::LibAttrValue::LibAttrValue
+     0.08%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_local_data
+     0.08%  iEDA     iEDA                 [.] std::allocator_traits<std::allocator<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> > > >::construct<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >, std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> > >
+     0.08%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::emplace_back<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > >
+     0.08%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >::operator*
+     0.08%  iEDA     iEDA                 [.] LibertyVecIterator<void>::LibertyVecIterator
+     0.08%  iEDA     libidb.so            [.] idb::IdbPins::checkPins
+     0.08%  iEDA     iEDA                 [.] std::get<0ul, liberty::LibValue*, std::default_delete<liberty::LibValue> >
+     0.08%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, liberty::LibValue*, std::default_delete<liberty::LibValue> >::_M_head
+     0.08%  iEDA     iEDA                 [.] std::__uniq_ptr_data<ista::LibFloatValue, std::default_delete<ista::LibFloatValue>, true, true>::__uniq_ptr_impl
+     0.08%  iEDA     iEDA                 [.] liberty::LibertyDriver::parseGroupMember
+     0.08%  iEDA     iEDA                 [.] std::move<std::allocator<char>&>
+     0.08%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, ista::LibFloatValue*, std::default_delete<ista::LibFloatValue> >::_M_head
+     0.08%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >::~unique_ptr
+     0.08%  iEDA     libidb.so            [.] idb::IdbPins::find_pin_by_term
+     0.08%  iEDA     iEDA                 [.] std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::operator()
+     0.08%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::end
+     0.08%  iEDA     iEDA                 [.] LibertyVecIterator<void>::next
+     0.08%  iEDA     iEDA                 [.] ista::LibertyReader::visitSimpleAttri(LibertySimpleAttrStmt*)::{lambda(char const*)#2}::operator()
+     0.08%  iEDA     iEDA                 [.] std::make_unique<liberty::LibComplexAttribute, char const*&, std::unique_ptr<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >, char const*&, int&>
+     0.08%  iEDA     iEDA                 [.] std::__relocate_a_1<liberty::LibNode*, liberty::LibNode*>
+     0.08%  iEDA     iEDA                 [.] GetLibertyVecElem<void>
+     0.08%  iEDA     libstdc++.so.6.0.28  [.] std::ostream::sentry::sentry
+     0.08%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::max_size
+     0.08%  iEDA     iEDA                 [.] icts::qor_evaluation::ClassifyClockNet
+     0.08%  iEDA     iEDA                 [.] __gnu_cxx::operator==<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >*, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > >
+     0.08%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >::operator++
+     0.08%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree_iterator<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibLutTableTemplate*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibLutTableTemplate*> >, 256, false> >, std::pair<char const* const, ista::LibLutTableTemplate*>&, std::pair<char const* const, ista::LibLutTableTemplate*>*>::operator!=
+     0.08%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >::_M_ptr
+     0.08%  iEDA     iEDA                 [.] std::forward<ista::LibAttrValue*&>
+     0.08%  iEDA     libstdc++.so.6.0.28  [.] std::locale::id::_M_id
+     0.08%  iEDA     iEDA                 [.] std::tuple<ista::LibFloatValue*, std::default_delete<ista::LibFloatValue> >::tuple<true, true>
+     0.08%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >::unique_ptr<std::default_delete<ista::LibFloatValue>, void>
+     0.08%  iEDA     iEDA                 [.] std::__get_helper<0ul, liberty::LibValue*, std::default_delete<liberty::LibValue> >
+     0.08%  iEDA     libIdbBuilder.so     [.] idb::DefWrite::write_net
+     0.08%  iEDA     iEDA                 [.] __gnu_cxx::__is_null_pointer<char const>
+     0.08%  iEDA     iEDA                 [.] std::_Head_base<0ul, liberty::LibStringValue*, false>::_M_head
+     0.08%  iEDA     iEDA                 [.] std::__get_helper<0ul, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >*, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >
+     0.08%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >::_M_ptr
+     0.08%  iEDA     iEDA                 [.] std::_Head_base<0ul, liberty::LibGroup*, false>::_M_head
+     0.08%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_capacity
+     0.08%  iEDA     iEDA                 [.] std::char_traits<char>::length
+     0.08%  iEDA     [unknown]            [k] 0xffffffffa53128e5
+     0.08%  iEDA     iEDA                 [.] std::__get_helper<0ul, liberty::LibStringValue*, std::default_delete<liberty::LibStringValue> >
+     0.08%  iEDA     iEDA                 [.] icts::topology::RootNetSideEffectGuard::appendPinNet
+     0.08%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_Alloc_hider::_Alloc_hider
+     0.08%  iEDA     iEDA                 [.] liberty_is_simple_attri_stmt
+     0.08%  iEDA     iEDA                 [.] (anonymous namespace)::parserSlotValue<liberty::LibValue>
+     0.08%  iEDA     iEDA                 [.] std::__detail::_Compiler<std::__cxx11::regex_traits<char> >::_Compiler
+     0.08%  iEDA     libc-2.31.so         [.] _IO_file_xsputn@@GLIBC_2.2.5
+     0.08%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<char>::allocate
+     0.08%  iEDA     iEDA                 [.] std::__detail::_Compiler<std::__cxx11::regex_traits<char> >::_M_alternative
+     0.08%  iEDA     iEDA                 [.] std::_Function_handler<bool (char), std::__detail::_CharMatcher<std::__cxx11::regex_traits<char>, false, false> >::_M_invoke
+     0.08%  iEDA     iEDA                 [.] std::_Head_base<0ul, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >*, false>::_M_head
+     0.08%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >*, std::vector<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >, std::allocator<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> > > > >::__normal_iterator
+     0.08%  iEDA     iEDA                 [.] std::vector<std::__cxx11::sub_match<__gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >, std::allocator<std::__cxx11::sub_match<__gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > > >::operator=
+     0.08%  iEDA     iEDA                 [.] icts::Clustering::biPartition
+     0.07%  iEDA     libIdbBuilder.so     [.] LefDefParser::defrData::GETC
+     0.06%  iEDA     libidb.so            [.] idb::IdbPin::calculateGridCoordinate
+     0.05%  iEDA     libidb.so            [.] idb::IdbOrientTransform::transform_mx
+     0.05%  iEDA     iEDA                 [.] std::_Destroy<std::unique_ptr<ista::LibLeakagePower, std::default_delete<ista::LibLeakagePower> > >
+     0.05%  iEDA     libidb.so            [.] idb::IdbPin::get_bottom_routing_layer_shape
+     0.04%  iEDA     libidb.so            [.] idb::IdbInstance::set_obs_box_list
+     0.04%  iEDA     libidb.so            [.] idb::IdbTerm::is_pdn
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fad11
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5346e95
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53758c2
+     0.04%  iEDA     libidb.so            [.] idb::IdbPins::get_net_pin_num
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5378a8e
+     0.04%  iEDA     iEDA                 [.] std::vector<icts::SegmentChar, std::allocator<icts::SegmentChar> >::_M_realloc_insert<icts::SegmentChar>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5343c43
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fac9b
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5302006
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5375895
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301b1f
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52f8d20
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5346ede
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa50a2b24
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301ccb
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53068ef
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5376969
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa50a2b32
+     0.04%  iEDA     libidb.so            [.] idb::IdbOrientTransform::transformRect
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53779dc
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] 0x000000000009b100
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53022a5
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c7d15
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fac58
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] operator delete
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53022de
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53758b9
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa517187a
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5323cef
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5343e40
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52f8b55
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5298e55
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa537a7c0
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5326f48
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5e0120e
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52f883c
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5335755
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa531de0c
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53758ce
+     0.04%  iEDA     iEDA                 [.] icts::TimingEngine::calcArcDelay
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa50a29e1
+     0.04%  iEDA     iEDA                 [.] std::_Hashtable<unsigned long, unsigned long, std::allocator<unsigned long>, std::__detail::_Identity, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, true, true> >::_M_insert<unsigned long const&, std::__detail::_AllocNode<std::allocator<std::__detail::_Hash_node<unsigned long, false> > > >
+     0.04%  iEDA     iEDA                 [.] std::_Hashtable<icts::htree::RequiredLengthStateKey, std::pair<icts::htree::RequiredLengthStateKey const, icts::htree::SegmentClosureSolution>, std::allocator<std::pair<icts::htree::RequiredLengthStateKey const, icts::htree::SegmentClosureSolution> >, std::__detail::_Select1st, std::equal_to<icts::htree::RequiredLengthStateKey>, icts::htree::RequiredLengthStateKeyHash, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_find_before_node
+     0.04%  iEDA     iEDA                 [.] icts::ClusterConstraintEvaluator::estimateExactCap
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52db933
+     0.04%  iEDA     iEDA                 [.] std::_Hashtable<icts::PatternId, std::pair<icts::PatternId const, icts::PatternId>, std::allocator<std::pair<icts::PatternId const, icts::PatternId> >, std::__detail::_Select1st, std::equal_to<icts::PatternId>, std::hash<icts::PatternId>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_rehash
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] 0x000000000012512d
+     0.04%  iEDA     iEDA                 [.] std::vector<icts::PatternId, std::allocator<icts::PatternId> >::_M_realloc_insert<icts::PatternId const&>
+     0.04%  iEDA     iEDA                 [.] icts::htree::(anonymous namespace)::PruneLeafSingleLoadBuffers
+     0.04%  iEDA     iEDA                 [.] icts::htree::HTreeSynthesisStateBuild::~HTreeSynthesisStateBuild
+     0.04%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52facb4
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa513e171
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Map_base<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, unsigned long>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, unsigned long> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[]
+     0.04%  iEDA     iEDA                 [.] icts::fast_sta_dmp::GateModelRdNsPerPf
+     0.04%  iEDA     iEDA                 [.] icts::(anonymous namespace)::HasOverlappingTerminalLocation
+     0.04%  iEDA     iEDA                 [.] icts::Design::findPin
+     0.04%  iEDA     iEDA                 [.] icts::htree::(anonymous namespace)::EvaluateRootDriverCompensation
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c5ab0
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::locale::~locale
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] operator delete
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5323d15
+     0.04%  iEDA     iEDA                 [.] std::__introsort_loop<__gnu_cxx::__normal_iterator<std::pair<unsigned long, double>*, std::vector<std::pair<unsigned long, double>, std::allocator<std::pair<unsigned long, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<std::ranges::__detail::__make_comp_proj<icts::clock_sizing_optimization::(anonymous namespace)::CollectFrontierSinks(icts::FastSTA const&, unsigned long, icts::clock_sizing_optimization::ClockSizingTimingState const&, icts::clock_sizing_optimization::ClockSizingFrontierSide)::{lambda(auto:1 const&, auto:2 const&)#1}, std::identity>(icts::clock_sizing_optimization::(anonymous namespace)::CollectFrontierSinks(icts::FastSTA const&, unsigned long, icts::clock_sizing_optimization::ClockSizingTimingState const&, icts::clock_sizing_optimization::ClockSizingFrontierSide)::{lambda(auto:1 const&, auto:2 const&)#1}&, std::identity&)::{lambda(auto:1&&, auto:2&&)#1}> >
+     0.04%  iEDA     libidb.so            [.] idb::IdbInstance::get_connected_pin_number
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301af6
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53758d9
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa531d27c
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::locale::locale
+     0.04%  iEDA     iEDA                 [.] icts::Design::~Design
+     0.04%  iEDA     iEDA                 [.] icts::visualization::(anonymous namespace)::WriteSvgFile
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5376846
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301a95
+     0.04%  iEDA     iEDA                 [.] std::construct_at<liberty::LibNode*, liberty::LibNode*>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fbe75
+     0.04%  iEDA     iEDA                 [.] std::get<0ul, liberty::LibGroup*, std::default_delete<liberty::LibGroup> >
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5378a87
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5313b08
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa531e551
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibComplexAttribute, std::default_delete<liberty::LibComplexAttribute> >::~unique_ptr
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa54558e5
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fabf3
+     0.04%  iEDA     iEDA                 [.] icts::clock_trace::CountDirectClockSinksForReport
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53789bf
+     0.04%  iEDA     libidb.so            [.] idb::IdbPin::IdbPin
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::has_facet<std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > > >
+     0.04%  iEDA     libidb.so            [.] std::_Hashtable<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, idb::IdbInstance*>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, idb::IdbInstance*> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_rehash
+     0.04%  iEDA     libgeometry_db.so    [.] idb::IdbLayerShape::add_rect
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52facd1
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<ista::LibLibrary, std::default_delete<ista::LibLibrary> >::_M_ptr
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c5b39
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::operator-<liberty::LibNode**, std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> > >
+     0.04%  iEDA     iEDA                 [.] ista::LibertyReader::visitInternalPower
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5370360
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c79a1
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c5a7d
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa531e82f
+     0.04%  iEDA     iEDA                 [.] ista::LibertyReader::visitPin(LibertyGroupStmt*)::{lambda(char const*)#1}::operator()
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibArcSet, std::default_delete<ista::LibArcSet> >, std::allocator<std::unique_ptr<ista::LibArcSet, std::default_delete<ista::LibArcSet> > > >::size
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53215a1
+     0.04%  iEDA     iEDA                 [.] (anonymous namespace)::CppLibertyComplexAttrStmt::~CppLibertyComplexAttrStmt
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::CompressedTuple<std::allocator<std::unique_ptr<ista::LibPowerArc, std::default_delete<ista::LibPowerArc> > >, unsigned long>::get<1>
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::StringBtreeDefaultLess::operator()
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301ff7
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5da2075
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fbe78
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::inlined_vector_internal::Storage<std::unique_ptr<ista::LibInternalPowerInfo, std::default_delete<ista::LibInternalPowerInfo> >, 64ul, std::allocator<std::unique_ptr<ista::LibInternalPowerInfo, std::default_delete<ista::LibInternalPowerInfo> > > >::GetSizeAndIsAllocated
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<1ul, std::default_delete<ista::LibPowerTableModel>>
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::size
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue>, void>
+     0.04%  iEDA     iEDA                 [.] icts::Wrapper::findLibertyCell
+     0.04%  iEDA     iEDA                 [.] std::vector<void*, std::allocator<void*> >::reserve
+     0.04%  iEDA     iEDA                 [.] std::construct_at<liberty::LibGroup*, liberty::LibGroup*>
+     0.04%  iEDA     iEDA                 [.] liberty::LibertyScanner::ungetToken
+     0.04%  iEDA     iEDA                 [.] std::get<0ul, liberty::LibSimpleAttribute*, std::default_delete<liberty::LibSimpleAttribute> >
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, ista::LibFloatValue*, false>::_Head_base
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<ista::LibTable, std::default_delete<ista::LibTable> >::_M_ptr
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::_M_move_assign
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53758be
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa500c719
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<1ul, std::default_delete<ista::LibAxis> >::_Tuple_impl
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >::~unique_ptr
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >::unique_ptr
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5d9245e
+     0.04%  iEDA     iEDA                 [.] liberty::(anonymous namespace)::makeValueFromToken
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<liberty::LibValue, std::default_delete<liberty::LibValue> >::_M_ptr
+     0.04%  iEDA     iEDA                 [.] std::basic_string_view<char, std::char_traits<char> >::compare
+     0.04%  iEDA     libIdbBuilder.so     [.] std::vector<idb::IdbCoordinate<int>*, std::allocator<idb::IdbCoordinate<int>*> >::_M_realloc_insert<idb::IdbCoordinate<int>*>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52b5229
+     0.04%  iEDA     libstr.so            [.] ieda::Str::trimEscape
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5302339
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::map_slot_policy<char const*, ista::LibLutTableTemplate*>::key
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_data<liberty::LibGroup, std::default_delete<liberty::LibGroup>, true, true>::__uniq_ptr_data
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa56a31ce
+     0.04%  iEDA     iEDA                 [.] liberty::LibValue::LibValue
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<void*, std::allocator<void*> >::_M_allocate
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree<absl::lts_20230125::container_internal::map_params<char const*, ista::LibLutTableTemplate*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibLutTableTemplate*> >, 256, false> >::find<char const*>
+     0.04%  iEDA     libIdbBuilder.so     [.] idb::calcAvgCoord
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, liberty::LibValue*, false>::_Head_base<liberty::LibValue*>
+     0.04%  iEDA     iEDA                 [.] std::tuple<ista::LibAxis*, std::default_delete<ista::LibAxis> >::tuple<true, true>
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::allocator<char>::allocator
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, ista::LibAttrValue*, false>::_Head_base<ista::LibAttrValue*&>
+     0.04%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::find_last_not_of
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Map_base<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[]
+     0.04%  iEDA     iEDA                 [.] std::allocator_traits<std::allocator<void*> >::construct<void*, void*>
+     0.04%  iEDA     iEDA                 [.] ista::LibPowerArc::set_related_pg_port
+     0.04%  iEDA     iEDA                 [.] std::forward<void*>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5298bbf
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<0ul, ista::LibTableModel*, std::default_delete<ista::LibTableModel> >
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<ista::LibPowerArc, std::default_delete<ista::LibPowerArc> >::_M_deleter
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, liberty::LibGroup*, std::default_delete<liberty::LibGroup> >::_Tuple_impl
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::operator<
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::size
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >::_M_ptr
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_data<ista::LibPowerArc, std::default_delete<ista::LibPowerArc>, true, true>::__uniq_ptr_data
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<0ul, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >*, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5377945
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::use_facet<std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > > >
+     0.04%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301fe8
+     0.04%  iEDA     iEDA                 [.] std::__niter_base<std::unique_ptr<ista::LibArcSet, std::default_delete<ista::LibArcSet> >*>
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> >::get_deleter
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >, std::allocator<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> > > >::_M_get_Tp_allocator
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_data<ista::LibInternalPowerInfo, std::default_delete<ista::LibInternalPowerInfo>, true, true>::__uniq_ptr_impl
+     0.04%  iEDA     iEDA                 [.] liberty::LibertyScanner::ungetChar
+     0.04%  iEDA     iEDA                 [.] std::tuple<liberty::LibGroup*, std::default_delete<liberty::LibGroup> >::tuple
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::internal_layout::LayoutImpl<std::tuple<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> >*, unsigned int, unsigned char, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> >*>, absl::lts_20230125::integer_sequence<unsigned long, 0ul, 1ul, 2ul, 3ul, 4ul>, absl::lts_20230125::integer_sequence<unsigned long, 0ul, 1ul, 2ul, 3ul, 4ul> >::Offset<1ul, 0>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c7abc
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_data<liberty::LibValue, std::default_delete<liberty::LibValue>, true, true>::__uniq_ptr_impl
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::push_back
+     0.04%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::emplace_back<liberty::LibNode*>
+     0.04%  iEDA     iEDA                 [.] std::vector<void*, std::allocator<void*> >::emplace_back<void*>
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >*, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >::_M_head
+     0.04%  iEDA     iEDA                 [.] std::forward<std::default_delete<liberty::LibAttribute> >
+     0.04%  iEDA     iEDA                 [.] liberty_is_complex_attri_stmt
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&>::_M_head
+     0.04%  iEDA     iEDA                 [.] std::vector<void*, std::allocator<void*> >::end
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree_iterator<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> > const, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*>::btree_iterator<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, 0>
+     0.04%  iEDA     iEDA                 [.] ista::LibAxis::LibAxis
+     0.04%  iEDA     iEDA                 [.] std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > >::allocator
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::__detail::_Prime_rehash_policy::_M_next_bkt
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibLeakagePower, std::default_delete<ista::LibLeakagePower> >::~unique_ptr
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibStringValue, std::default_delete<liberty::LibStringValue> >::unique_ptr<std::default_delete<liberty::LibStringValue>, void>
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibFloatValue, std::default_delete<liberty::LibFloatValue> >::~unique_ptr
+     0.04%  iEDA     libc-2.31.so         [.] __vfprintf_internal
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa537684f
+     0.04%  iEDA     iEDA                 [.] (anonymous namespace)::CppLibertyStringValue::CppLibertyStringValue
+     0.04%  iEDA     iEDA                 [.] std::__niter_base<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >*>
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree_iterator<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> > const, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*>::btree_iterator
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::_S_do_relocate
+     0.04%  iEDA     iEDA                 [.] liberty_convert_string_value
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa51b1003
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >*, false>::_Head_base
+     0.04%  iEDA     iEDA                 [.] std::get<1ul, ista::LibFloatValue*, std::default_delete<ista::LibFloatValue> >
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::istream::peek
+     0.04%  iEDA     libidb.so            [.] std::vector<idb::IdbInstance*, std::allocator<idb::IdbInstance*> >::emplace_back<idb::IdbInstance*&>
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, liberty::LibValue*, false>::_M_head
+     0.04%  iEDA     iEDA                 [.] std::construct_at<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> > >
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<liberty::LibGroup, std::default_delete<liberty::LibGroup> >::_M_ptr
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::end
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::vector
+     0.04%  iEDA     iEDA                 [.] liberty::LibGroup::addAttribute
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa517bab5
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::vector
+     0.04%  iEDA     iEDA                 [.] icts::ClockDAG::clear
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >::get
+     0.04%  iEDA     iEDA                 [.] std::tuple<ista::LibPowerTableModel*, std::default_delete<ista::LibPowerTableModel> >::tuple<true, true>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5301b09
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53738a2
+     0.04%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::back
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<1ul, std::default_delete<liberty::LibAttribute>, true>::_M_head
+     0.04%  iEDA     iEDA                 [.] std::_Rb_tree<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, ista::LibTable::TableType>, std::_Select1st<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, ista::LibTable::TableType> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, ista::LibTable::TableType> > >::_M_lower_bound
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5646c02
+     0.04%  iEDA     iEDA                 [.] ista::LibAxis::set_value_scale
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::_Vector_impl_data::_M_copy_data
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<0ul, liberty::LibGroup*, std::default_delete<liberty::LibGroup> >
+     0.04%  iEDA     iEDA                 [.] liberty::LibertyDriver::createComplexAttr
+     0.04%  iEDA     iEDA                 [.] std::forward<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5377648
+     0.04%  iEDA     libc-2.31.so         [.] atof
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Hash_node_base::_Hash_node_base
+     0.04%  iEDA     iEDA                 [.] std::deque<liberty::LibGroup*, std::allocator<liberty::LibGroup*> >::back
+     0.04%  iEDA     iEDA                 [.] liberty::LibertyDriver::endGroup
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5117898
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, ista::LibPowerArc*, false>::_M_head
+     0.04%  iEDA     iEDA                 [.] std::allocator<std::__detail::_Hash_node_base*>::~allocator
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::_S_max_size
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<liberty::LibNode**, std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> > >::operator*
+     0.04%  iEDA     iEDA                 [.] icts::ClockDAG::pathBufferStats
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >*, std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > > >::operator-
+     0.04%  iEDA     iEDA                 [.] std::max<unsigned long>
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::_M_get_Tp_allocator
+     0.04%  iEDA     iEDA                 [.] std::_Hash_impl::hash
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::internal_compressed_tuple::Storage<absl::lts_20230125::container_internal::key_compare_adapter<ieda::StrCmp, char const*>::checked_compare, 0ul, true>::get
+     0.04%  iEDA     iEDA                 [.] std::allocator_traits<std::allocator<std::__detail::_Hash_node<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, true> > >::construct<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, std::piecewise_construct_t const&, std::tuple<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&>, std::tuple<> >
+     0.04%  iEDA     iEDA                 [.] std::deque<liberty::LibGroup*, std::allocator<liberty::LibGroup*> >::empty
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<1ul, std::default_delete<ista::LibAttrValue> >::_Tuple_impl<std::default_delete<ista::LibFloatValue> >
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<std::__detail::_Hash_node<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, true> >::_M_max_size
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::_Vector_base
+     0.04%  iEDA     libc-2.31.so         [.] strtod
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa537762f
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c5a71
+     0.04%  iEDA     libidb.so            [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibInternalPowerInfo, std::default_delete<ista::LibInternalPowerInfo> >::~unique_ptr
+     0.04%  iEDA     libc-2.31.so         [.] _int_realloc
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::internal_layout::LayoutImpl<std::tuple<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibPort*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibPort*> >, 256, false> >*, unsigned int, unsigned char, absl::lts_20230125::container_internal::map_slot_type<char const*, ista::LibPort*>, absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibPort*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibPort*> >, 256, false> >*>, absl::lts_20230125::integer_sequence<unsigned long, 0ul, 1ul, 2ul, 3ul, 4ul>, absl::lts_20230125::integer_sequence<unsigned long, 0ul, 1ul, 2ul, 3ul, 4ul> >::LayoutImpl
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<void*>::allocate
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibPort*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibPort*> >, 256, false> >::key
+     0.04%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::begin
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Node_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, false, true>::_Node_iterator
+     0.04%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::_M_check_len
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa56a1731
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibLutTableTemplate*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibLutTableTemplate*> >, 256, false> >::binary_search_impl<char const*, absl::lts_20230125::container_internal::key_compare_adapter<ieda::StrCmp, char const*>::checked_compare>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5e015b7
+     0.04%  iEDA     libc-2.31.so         [.] __uselocale
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, liberty::LibAttribute*, std::default_delete<liberty::LibAttribute> >::_M_head
+     0.04%  iEDA     libidb.so            [.] std::_Hashtable<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, idb::IdbNet*>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, idb::IdbNet*> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_rehash
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >::unique_ptr<liberty::LibStringValue, std::default_delete<liberty::LibStringValue>, void>
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >::_M_ptr
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::_S_relocate
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa55e9b07
+     0.04%  iEDA     libstr.so            [.] ieda::StrCmp::operator()
+     0.04%  iEDA     iEDA                 [.] std::move<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >&>
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibStringValue, std::default_delete<liberty::LibStringValue> >::get_deleter
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::emplace_back<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > >
+     0.04%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_assign
+     0.04%  iEDA     libIdbBuilder.so     [.] LefDefParser::defrData::sublex
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::__basic_file<char>::fd
+     0.04%  iEDA     libIdbBuilder.so     [.] idb::DefWrite::writestr
+     0.04%  iEDA     iEDA                 [.] std::destroy_at<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> > >
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<std::__detail::_Hash_node<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, true> >::new_allocator
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >*, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > >::operator-
+     0.04%  iEDA     iEDA                 [.] (anonymous namespace)::CppLibertySimpleAttrStmt::~CppLibertySimpleAttrStmt
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_data<(anonymous namespace)::CppExprNode, std::default_delete<(anonymous namespace)::CppExprNode>, true, true>::__uniq_ptr_impl
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<0ul, liberty::LibSimpleAttribute*, std::default_delete<liberty::LibSimpleAttribute> >
+     0.04%  iEDA     libc-2.31.so         [.] __vfscanf_internal
+     0.04%  iEDA     libidb.so            [.] 0x00000000000232f4
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >*, std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > > >::__normal_iterator
+     0.04%  iEDA     iEDA                 [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_append
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Prime_rehash_policy::_M_need_rehash@plt
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa535654f
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<0ul, liberty::LibAttribute*, std::default_delete<liberty::LibAttribute> >
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::_M_get_Tp_allocator
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53078b3
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5e00083
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<0ul, liberty::LibAttribute*, std::default_delete<liberty::LibAttribute> >
+     0.04%  iEDA     iEDA                 [.] icts::visualization::(anonymous namespace)::writeInt16Record
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<1ul, std::default_delete<ista::LibFloatValue> >::_M_head
+     0.04%  iEDA     libidb.so            [.] 0x00000000000232f0
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5375864
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_impl<ista::LibTableModel, std::default_delete<ista::LibTableModel> >::_M_deleter
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >::unique_ptr<liberty::LibComplexAttribute, std::default_delete<liberty::LibComplexAttribute>, void>
+     0.04%  iEDA     iEDA                 [.] ista::LibertyReader::visitStmtInGroup
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa536fb56
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa536f96b
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree<absl::lts_20230125::container_internal::map_params<char const*, ista::LibLutTableTemplate*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibLutTableTemplate*> >, 256, false> >::root
+     0.04%  iEDA     iEDA                 [.] std::allocator_traits<std::allocator<void*> >::deallocate
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> >, std::allocator<std::unique_ptr<ista::LibAttrValue, std::default_delete<ista::LibAttrValue> > > >::_M_realloc_insert<std::unique_ptr<ista::LibFloatValue, std::default_delete<ista::LibFloatValue> > >
+     0.04%  iEDA     iEDA                 [.] liberty_free_simple_attribute_stmt
+     0.04%  iEDA     iEDA                 [.] std::move<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&>
+     0.04%  iEDA     libc-2.31.so         [.] __strchr_avx2
+     0.04%  iEDA     iEDA                 [.] std::__detail::__regex_algo_impl<__gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::sub_match<__gnu_cxx::__normal_iterator<char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, char, std::__cxx11::regex_traits<char>, (std::__detail::_RegexExecutorPolicy)0, false>
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<void**, std::vector<void*, std::allocator<void*> > >::operator-
+     0.04%  iEDA     libidb.so            [.] std::_Hashtable<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, idb::IdbInstance*>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, idb::IdbInstance*> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::find
+     0.04%  iEDA     iEDA                 [.] std::allocator_traits<std::allocator<char> >::allocate
+     0.04%  iEDA     iEDA                 [.] std::vector<icts::fast_clustering::(anonymous namespace)::NeighborCandidate, std::allocator<icts::fast_clustering::(anonymous namespace)::NeighborCandidate> >::insert
+     0.04%  iEDA     iEDA                 [.] icts::topology::ConnectNet
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree_iterator<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibLutTableTemplate*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibLutTableTemplate*> >, 256, false> > const, std::pair<char const* const, ista::LibLutTableTemplate*> const&, std::pair<char const* const, ista::LibLutTableTemplate*> const*>::btree_iterator<absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::map_params<char const*, ista::LibLutTableTemplate*, ieda::StrCmp, std::allocator<std::pair<char const* const, ista::LibLutTableTemplate*> >, 256, false> >, std::pair<char const* const, ista::LibLutTableTemplate*>&, std::pair<char const* const, ista::LibLutTableTemplate*>*, 0>
+     0.04%  iEDA     iEDA                 [.] icts::fast_clustering::BuildSpatialRecursiveClusters
+     0.04%  iEDA     iEDA                 [.] operator new
+     0.04%  iEDA     libIdbBuilder.so     [.] idb::VerilogWriter::escapeName
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<ista::LibTable, std::default_delete<ista::LibTable> >::unique_ptr<std::default_delete<ista::LibTable>, void>
+     0.04%  iEDA     iEDA                 [.] std::basic_ios<char, std::char_traits<char> >::eof@plt
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::ios_base::_M_init
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, ista::LibPowerArc*, false>::_Head_base<ista::LibPowerArc*>
+     0.04%  iEDA     iEDA                 [.] liberty::LibNode::getSourceLine
+     0.04%  iEDA     iEDA                 [.] std::tuple<ista::LibAttrValue*, std::default_delete<ista::LibAttrValue> >::tuple<ista::LibAttrValue*&, std::default_delete<ista::LibFloatValue>, true>
+     0.04%  iEDA     iEDA                 [.] ista::LibFloatValue::LibFloatValue
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::btree<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> >::root
+     0.04%  iEDA     iEDA                 [.] std::forward<double>
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::new_allocator
+     0.04%  iEDA     iEDA                 [.] std::forward<std::default_delete<ista::LibPowerArc> >
+     0.04%  iEDA     libIdbBuilder.so     [.] idb::VerilogWriter::writeInstance
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::_M_realloc_insert<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > >
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >::base
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52fab76
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<1ul, std::default_delete<ista::LibAttrValue>, true>::_Head_base<std::default_delete<ista::LibFloatValue> >
+     0.04%  iEDA     iEDA                 [.] absl::lts_20230125::container_internal::CompressedTuple<absl::lts_20230125::container_internal::StringBtreeDefaultLess, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, absl::lts_20230125::container_internal::btree_node<absl::lts_20230125::container_internal::set_params<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, 256, false> >*>::get<0>
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Hashtable_alloc<std::allocator<std::__detail::_Hash_node<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, true> > >::_M_allocate_buckets
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >::__normal_iterator
+     0.04%  iEDA     iEDA                 [.] liberty::LibertyScanner::isNumberStart
+     0.04%  iEDA     iEDA                 [.] Flute::initLUT
+     0.04%  iEDA     iEDA                 [.] std::forward<liberty::LibValue*>
+     0.04%  iEDA     iEDA                 [.] std::__addressof<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > >
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5376974
+     0.04%  iEDA     libc-2.31.so         [.] __GI___printf_fp_l
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::ios_base::ios_base
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<1ul, std::default_delete<liberty::LibStringValue>, true>::_M_head
+     0.04%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::_S_do_relocate
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::__ostream_insert<char, std::char_traits<char> >
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, liberty::LibSimpleAttribute*, std::default_delete<liberty::LibSimpleAttribute> >::_M_head
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, liberty::LibSimpleAttribute*, false>::_M_head
+     0.04%  iEDA     iEDA                 [.] icts::DrawingBuilder::build
+     0.04%  iEDA     iEDA                 [.] std::addressof<char const>
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<liberty::LibNode**, std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> > >::base
+     0.04%  iEDA     iEDA                 [.] std::tuple<liberty::LibValue*, std::default_delete<liberty::LibValue> >::tuple<liberty::LibValue*&, std::default_delete<liberty::LibStringValue>, true>
+     0.04%  iEDA     iEDA                 [.] std::_Tuple_impl<0ul, std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >*, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >::_Tuple_impl
+     0.04%  iEDA     iEDA                 [.] std::unordered_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, liberty::LibAttribute*, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*> > >::unordered_map
+     0.04%  iEDA     iEDA                 [.] std::move<std::tuple<liberty::LibValue*, std::default_delete<liberty::LibValue> >&>
+     0.04%  iEDA     iEDA                 [.] std::make_unique<liberty::LibGroup, char const*&, std::unique_ptr<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >, char const*&, int&>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5335701
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c5aca
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&, false>::_Head_base<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >
+     0.04%  iEDA     iEDA                 [.] std::_Vector_base<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >::_Vector_impl_data::_Vector_impl_data
+     0.04%  iEDA     iEDA                 [.] std::vector<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >, std::allocator<std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> > > >::begin
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::new_allocator<liberty::LibNode*>::deallocate
+     0.04%  iEDA     iEDA                 [.] std::deque<std::__detail::_StateSeq<std::__cxx11::regex_traits<char> >, std::allocator<std::__detail::_StateSeq<std::__cxx11::regex_traits<char> > > >::emplace_back<std::__detail::_StateSeq<std::__cxx11::regex_traits<char> > >
+     0.04%  iEDA     iEDA                 [.] __gnu_cxx::__normal_iterator<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >*, std::vector<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> >, std::allocator<std::unique_ptr<liberty::LibGroup, std::default_delete<liberty::LibGroup> > > > >::base
+     0.04%  iEDA     iEDA                 [.] std::forward<std::tuple<> >
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<1ul, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > >, true>::_Head_base<std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >
+     0.04%  iEDA     iEDA                 [.] std::__get_helper<1ul, std::default_delete<liberty::LibSimpleAttribute>>
+     0.04%  iEDA     iEDA                 [.] std::vector<liberty::LibNode*, std::allocator<liberty::LibNode*> >::_M_realloc_insert<liberty::LibNode*>
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Hashtable_alloc<std::allocator<std::__detail::_Hash_node<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, liberty::LibAttribute*>, true> > >::_M_node_allocator
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52b509e
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > >, std::default_delete<std::vector<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> >, std::allocator<std::unique_ptr<liberty::LibValue, std::default_delete<liberty::LibValue> > > > > >::~unique_ptr
+     0.04%  iEDA     iEDA                 [.] std::_Head_base<0ul, liberty::LibValue*, false>::_M_head
+     0.04%  iEDA     iEDA                 [.] std::__detail::_Compiler<std::__cxx11::regex_traits<char> >::_M_bracket_expression
+     0.04%  iEDA     iEDA                 [.] std::unique_ptr<liberty::LibAttribute, std::default_delete<liberty::LibAttribute> >::unique_ptr<liberty::LibSimpleAttribute, std::default_delete<liberty::LibSimpleAttribute>, void>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa52c57a4
+     0.04%  iEDA     iEDA                 [.] std::distance<char const*>
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53785da
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa53138a4
+     0.04%  iEDA     iEDA                 [.] std::__uniq_ptr_data<liberty::LibValue, std::default_delete<liberty::LibValue>, true, true>::__uniq_ptr_data
+     0.04%  iEDA     libstdc++.so.6.0.28  [.] std::locale::operator=
+     0.04%  iEDA     libIdbBuilder.so     [.] idb::VerilogWriter::isNeedEscape
+     0.04%  iEDA     iEDA                 [.] icts::MinCostFlow<icts::Pin*>::run
+     0.04%  iEDA     iEDA                 [.] icts::(anonymous namespace)::BuildPreOrder
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa5d9242f
+     0.04%  iEDA     iEDA                 [.] icts::ClusterConstraintEvaluator::evaluateLoads
+     0.04%  iEDA     [unknown]            [k] 0xffffffffa50a2ba5
+     0.02%  iEDA     ld-2.31.so           [.] do_lookup_x
+     0.00%  iEDA     libstdc++.so.6.0.28  [.] 0x000000000009b104
+     0.00%  iEDA     [unknown]            [k] 0xffffffffa52be6b7
+     0.00%  iEDA     iEDA                 [.] ista::LibFloatValue::~LibFloatValue
+     0.00%  perf-ex  [unknown]            [k] 0xffffffffa60022ac
+     0.00%  iEDA     [unknown]            [k] 0xffffffffa5051a24
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
