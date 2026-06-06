@@ -361,9 +361,17 @@ class LibertyVecIterator
 #define FOREACH_LIBERTY_VEC_ELEM(vec, T, elem) \
   for (LibertyVecIterator<T> elem##_iter(vec); elem##_iter.hasNext() ? (elem = elem##_iter.next(), true) : false;)
 
+namespace liberty {
+class LibComplexAttribute;
+class LibGroup;
+class LibSimpleAttribute;
+class LibVarDecl;
+}  // namespace liberty
+
 namespace ista {
 
 class LibBuilder;
+namespace liberty_ast = ::liberty;
 
 /**
  * @brief The liberty expression builder for parser function string.
@@ -440,6 +448,32 @@ class LibertyReader
  private:
   const char* getGroupAttriName(LibertyGroupStmt* group);
   unsigned visitStmtInGroup(LibertyGroupStmt* group);
+
+  unsigned visitSimpleAttri(liberty_ast::LibSimpleAttribute* attri);
+  unsigned visitVariable(liberty_ast::LibVarDecl* var_decl);
+
+  unsigned visitAxisOrValues(liberty_ast::LibComplexAttribute* attri);
+  unsigned visitComplexAttri(liberty_ast::LibComplexAttribute* attri);
+
+  unsigned visitLibrary(liberty_ast::LibGroup* group);
+  unsigned visitLuTableTemplate(liberty_ast::LibGroup* group);
+  unsigned visitWireLoad(liberty_ast::LibGroup* group);
+  unsigned visitType(liberty_ast::LibGroup* group);
+  unsigned visitOutputCurrentTemplate(liberty_ast::LibGroup* group);
+  unsigned visitLeakagePower(liberty_ast::LibGroup* group);
+  unsigned visitCell(liberty_ast::LibGroup* group);
+  unsigned visitPin(liberty_ast::LibGroup* group);
+  unsigned visitBus(liberty_ast::LibGroup* group);
+  unsigned visitTiming(liberty_ast::LibGroup* group);
+  unsigned visitInternalPower(liberty_ast::LibGroup* group);
+  unsigned visitCurrentTable(liberty_ast::LibGroup* group);
+  unsigned visitVector(liberty_ast::LibGroup* group);
+  unsigned visitTable(liberty_ast::LibGroup* group);
+  unsigned visitPowerTable(liberty_ast::LibGroup* group);
+  unsigned visitGroup(liberty_ast::LibGroup* group);
+
+  const char* getGroupAttriName(liberty_ast::LibGroup* group);
+  unsigned visitStmtInGroup(liberty_ast::LibGroup* group);
 
   void* _lib_file = nullptr;           //!< The parsered lib file.
   std::set<std::string> _build_cells;  //!< The needed cells.
