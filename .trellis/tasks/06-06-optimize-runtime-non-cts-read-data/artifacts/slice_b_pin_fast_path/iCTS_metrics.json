@@ -1,0 +1,11 @@
+{
+    "CTS": {
+        "buffer_area": 8537.760000000348,
+        "buffer_num": 2996,
+        "clock_path_max_buffer": 8,
+        "clock_path_min_buffer": 7,
+        "max_clock_wirelength": 359608,
+        "max_level_of_clock_tree": 8,
+        "total_clock_wirelength": 61790733.0
+    }
+}

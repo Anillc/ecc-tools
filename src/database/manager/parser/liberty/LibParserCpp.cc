@@ -22,9 +22,6 @@
  * @date 2023-10-13
  *
  */
-#include <map>
-
-#include "BTreeMap.hh"
 #include "BTreeSet.hh"
 #include "Lib.hh"
 #include "LibParserCpp.hh"
@@ -89,509 +86,386 @@ unsigned LibertyReader::visitSimpleAttri(LibertySimpleAttrStmt* attri) {
     return ret;
   };
 
-  std::map<std::string, std::function<void()>> process_attri = {
-      {"slew_lower_threshold_pct_rise",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double slew_lower_threshold_pct_rise = attri_value_handle->value;
-         current_lib->set_slew_lower_threshold_pct_rise(
-             slew_lower_threshold_pct_rise);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"slew_upper_threshold_pct_rise",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double slew_upper_threshold_pct_rise = attri_value_handle->value;
-         current_lib->set_slew_upper_threshold_pct_rise(
-             slew_upper_threshold_pct_rise);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"slew_lower_threshold_pct_fall",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double slew_lower_threshold_pct_fall = attri_value_handle->value;
-         current_lib->set_slew_lower_threshold_pct_fall(
-             slew_lower_threshold_pct_fall);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"slew_upper_threshold_pct_fall",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double slew_upper_threshold_pct_fall = attri_value_handle->value;
-         current_lib->set_slew_upper_threshold_pct_fall(
-             slew_upper_threshold_pct_fall);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"input_threshold_pct_rise",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double input_threshold_pct_rise = attri_value_handle->value;
-         current_lib->set_input_threshold_pct_rise(input_threshold_pct_rise);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"output_threshold_pct_rise",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double output_threshold_pct_rise = attri_value_handle->value;
-         current_lib->set_output_threshold_pct_rise(output_threshold_pct_rise);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"input_threshold_pct_fall",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double input_threshold_pct_fall = attri_value_handle->value;
-         current_lib->set_input_threshold_pct_fall(input_threshold_pct_fall);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"output_threshold_pct_fall",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double output_threshold_pct_fall = attri_value_handle->value;
-         current_lib->set_output_threshold_pct_fall(output_threshold_pct_fall);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"slew_derate_from_library",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double slew_derate_from_library = attri_value_handle->value;
-         current_lib->set_slew_derate_from_library(slew_derate_from_library);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"pulling_resistance_unit",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* pulling_resistance_unit = attri_value_handle->value;
-         if (Str::equal(pulling_resistance_unit, "1kohm")) {
-           current_lib->set_resistance_unit(ResistanceUnit::kkOHM);
-         } else if (Str::equal(pulling_resistance_unit, "1ohm")) {
-           current_lib->set_resistance_unit(ResistanceUnit::kOHM);
-         }
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"comment",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         current_lib->set_comment(attri_value_handle->value);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"simulation",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         current_lib->set_simulation(
-             convert_string_to_bool(attri_value_handle->value));
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"time_unit",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* time_unit = attri_value_handle->value;
-         if (Str::equal(time_unit, "1fs")) {
-           current_lib->set_time_unit(TimeUnit::kFS);
-         } else if (Str::equal(time_unit, "1ps")) {
-           current_lib->set_time_unit(TimeUnit::kPS);
-         }
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"current_unit",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         current_lib->set_current_unit_name(attri_value_handle->value);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"voltage_unit",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         current_lib->set_voltage_unit_name(attri_value_handle->value);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"leakage_power_unit",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* leakage_power_unit = attri_value_handle->value;
-         double power_unit_mw_scale = 1.0;
-         if (Str::noCaseEqual(leakage_power_unit, "1pw")) {
-           power_unit_mw_scale = 1e-9;
-         } else if (Str::noCaseEqual(leakage_power_unit, "1nw")) {
-           power_unit_mw_scale = 1e-6;
-         } else if (Str::noCaseEqual(leakage_power_unit, "1uw")) {
-           power_unit_mw_scale = 1e-3;
-         } else if (Str::noCaseEqual(leakage_power_unit, "1mw")) {
-           power_unit_mw_scale = 1.0;
-         }
-         current_lib->set_leakage_power_unit(leakage_power_unit);
-         current_lib->set_power_unit_mw_scale(power_unit_mw_scale);
-         liberty_free_string_value(attri_value_handle);
-       }},
+  auto is_attri = [attri_name](const char* candidate) {
+    return Str::equal(attri_name, candidate);
+  };
 
-      {"nom_voltage",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double nom_voltage = attri_value_handle->value;
-         current_lib->set_nom_voltage(nom_voltage);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"nom_process",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         current_lib->set_nom_process(attri_value_handle->value);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"nom_temperature",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         current_lib->set_nom_temperature(attri_value_handle->value);
-         liberty_free_float_value(attri_value_handle);
-       }},
-
-      {"default_max_transition",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double default_max_transition = attri_value_handle->value;
-         default_max_transition =
-             current_lib->convert_time_unit_to_ns(default_max_transition);
-         current_lib->set_default_max_transition(default_max_transition);
-         liberty_free_float_value(attri_value_handle);
-       }},
-
-      {"default_max_fanout",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double default_max_fanout = attri_value_handle->value;
-         current_lib->set_default_max_fanout(default_max_fanout);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"direction",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* port_type = attri_value_handle->value;
-         lib_port->set_port_type(port_type);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"clock",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* attri_str = attri_value_handle->value;
-         bool is_clock_pin = convert_string_to_bool(attri_str);
-         lib_port->set_is_clock_pin(is_clock_pin);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"clock_gate_clock_pin",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* clock_gate_clock_pin = attri_value_handle->value;
-         bool clock_gate_clock_pin1 =
-             convert_string_to_bool(clock_gate_clock_pin);
-         lib_port->set_clock_gate_clock_pin(clock_gate_clock_pin1);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"clock_gate_enable_pin",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* clock_gate_enable_pin = attri_value_handle->value;
-         bool clock_gate_enable_pin1 =
-             convert_string_to_bool(clock_gate_enable_pin);
-         lib_port->set_clock_gate_enable_pin(clock_gate_enable_pin1);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"default_fanout_load",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double default_fanout_load_val = attri_value_handle->value;
-         current_lib->set_default_fanout_load(default_fanout_load_val);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"default_wire_load",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* default_wire_load = attri_value_handle->value;
-         current_lib->set_default_wire_load(default_wire_load);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"fanout_load",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double fanout_load_val = attri_value_handle->value;
-         lib_port->set_fanout_load(fanout_load_val);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"capacitance",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double cap = attri_value_handle->value;
-         cap *= cap_unit_convert;
-         if (lib_port) {
-           lib_port->set_port_cap(cap);
-         } else {
-           dynamic_cast<LibWireLoad*>(lib_obj)->set_cap_per_length_unit(cap);
-         }
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"area",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double cell_area = attri_value_handle->value;
-         if (lib_cell) {
-           lib_cell->set_cell_area(cell_area);
-         }
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"is_macro_cell",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* is_macro = attri_value_handle->value;
-         if (Str::noCaseEqual(is_macro, "TRUE")) {
-           lib_cell->set_is_macro();
-         }
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"cell_leakage_power",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double cell_leakage_power = attri_value_handle->value;
-         cell_leakage_power =
-             current_lib->convert_power_unit_to_mw(cell_leakage_power);
-         lib_cell->set_cell_leakage_power(cell_leakage_power);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"clock_gating_integrated_cell",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         std::string clock_gating_integrated_cell = attri_value_handle->value;
-         lib_cell->set_clock_gating_integrated_cell(
-             clock_gating_integrated_cell);
-         lib_cell->set_is_clock_gating_integrated_cell(true);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"resistance",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double resistance = attri_value_handle->value;
-         resistance *= resistance_unit_convert;
-         dynamic_cast<LibWireLoad*>(lib_obj)->set_resistance_per_length_unit(
-             resistance);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"slope",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double slope = attri_value_handle->value;
-         dynamic_cast<LibWireLoad*>(lib_obj)->set_slope(slope);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"rise_capacitance",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double cap = attri_value_handle->value;
-         cap *= cap_unit_convert;
-         lib_port->set_port_cap(AnalysisMode::kMaxMin, TransType::kRise, cap);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"fall_capacitance",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double cap = attri_value_handle->value;
-         cap *= cap_unit_convert;
-         lib_port->set_port_cap(AnalysisMode::kMaxMin, TransType::kFall, cap);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"max_capacitance",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double max_cap_limit = attri_value_handle->value;
-         max_cap_limit *= cap_unit_convert;
-         lib_port->set_port_cap_limit(AnalysisMode::kMax, max_cap_limit);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"min_capacitance",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double min_cap_limit = attri_value_handle->value;
-         min_cap_limit *= cap_unit_convert;
-         lib_port->set_port_cap_limit(AnalysisMode::kMin, min_cap_limit);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"max_transition",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double max_slew_limit = attri_value_handle->value;
-         max_slew_limit = current_lib->convert_time_unit_to_ns(max_slew_limit);
-         lib_port->set_port_slew_limit(AnalysisMode::kMax, max_slew_limit);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"min_transition",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double min_slew_limit = attri_value_handle->value;
-         min_slew_limit = current_lib->convert_time_unit_to_ns(min_slew_limit);
-         lib_port->set_port_slew_limit(AnalysisMode::kMin, min_slew_limit);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"function",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* expr_str = attri_value_handle->value;
-         LibertyExprBuilder expr_builder(expr_str);
-         expr_builder.execute();
-         auto* func_expr = expr_builder.get_result_expr();
-         lib_port->set_func_expr(func_expr);
-         lib_port->set_func_expr_str(expr_str);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"related_pin",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* pin_name = attri_value_handle->value;
-         if (own_port_type == LibBuilder::LibertyOwnPortType::kTimingArc) {
-           lib_arc->set_src_port(pin_name);
-         } else if (own_port_type ==
-                    LibBuilder::LibertyOwnPortType::kPowerArc) {
-           lib_power_arc->set_src_port(pin_name);
-         }
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"related_pg_pin",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* pg_pin_name = attri_value_handle->value;
-         if (own_pg_or_when_type ==
-             LibBuilder::LibertyOwnPgOrWhenType::kLibertyLeakagePower) {
-           leakage_power->set_related_pg_port(pg_pin_name);
-         } else if (own_pg_or_when_type ==
-                    LibBuilder::LibertyOwnPgOrWhenType::kPowerArc) {
-           lib_power_arc->set_related_pg_port(pg_pin_name);
-         }
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"when",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* when = attri_value_handle->value;
-         if (own_port_type == LibBuilder::LibertyOwnPortType::kTimingArc) {
-           if (lib_arc) {
-             lib_arc->set_when(when);
-           }
-         } else if (own_pg_or_when_type ==
-             LibBuilder::LibertyOwnPgOrWhenType::kLibertyLeakagePower) {
-           leakage_power->set_when(when);
-         } else if (own_pg_or_when_type ==
-                    LibBuilder::LibertyOwnPgOrWhenType::kPowerArc) {
-           if (lib_power_arc) {
-             lib_power_arc->set_when(when);
-           }
-         }
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"value",
-       [=]() {
-         if (liberty_is_string_value(attri_value)) {
-           auto* attri_value_handle = liberty_convert_string_value(attri_value);
-           const char* value = attri_value_handle->value;  // ysxy
-           leakage_power->set_value(
-               current_lib->convert_power_unit_to_mw(atof(value)));
-           liberty_free_string_value(attri_value_handle);
-         } else {
-           auto* attri_value_handle = liberty_convert_float_value(attri_value);
-           double value = attri_value_handle->value;  // T28
-           leakage_power->set_value(
-               current_lib->convert_power_unit_to_mw(value));
-           liberty_free_float_value(attri_value_handle);
-         }
-       }},
-      {"timing_sense",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* timing_sense = attri_value_handle->value;
-         lib_arc->set_timing_sense(timing_sense);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"timing_type",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         const char* timing_type = attri_value_handle->value;
-         lib_arc->set_timing_type(timing_type);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"variable_1",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         auto* lib_template = lib_obj;
-         const char* variable_name = attri_value_handle->value;
-         lib_template->set_template_variable1(variable_name);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"variable_2",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         auto* lib_template = lib_obj;
-         const char* variable_name = attri_value_handle->value;
-         lib_template->set_template_variable2(variable_name);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"variable_3",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         auto* lib_template = lib_obj;
-         const char* variable_name = attri_value_handle->value;
-         lib_template->set_template_variable3(variable_name);
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"reference_time",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         auto* lib_table = dynamic_cast<LibVectorTable*>(lib_obj);
-         double ref_time = attri_value_handle->value;
-         lib_table->set_ref_time(ref_time);
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"base_type",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         std::string base_type = attri_value_handle->value;
-         dynamic_cast<LibType*>(lib_obj)->set_base_type(std::move(base_type));
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"data_type",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         std::string data_type = attri_value_handle->value;
-         dynamic_cast<LibType*>(lib_obj)->set_data_type(std::move(data_type));
-         liberty_free_string_value(attri_value_handle);
-       }},
-      {"bit_width",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double bit_width = attri_value_handle->value;
-         dynamic_cast<LibType*>(lib_obj)->set_bit_width(
-             static_cast<unsigned>(bit_width));
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"bit_from",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double bit_from = attri_value_handle->value;
-         dynamic_cast<LibType*>(lib_obj)->set_bit_from(
-             static_cast<unsigned>(bit_from));
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"bit_to",
-       [=]() {
-         auto* attri_value_handle = liberty_convert_float_value(attri_value);
-         double bit_to = attri_value_handle->value;
-         dynamic_cast<LibType*>(lib_obj)->set_bit_to(
-             static_cast<unsigned>(bit_to));
-         liberty_free_float_value(attri_value_handle);
-       }},
-      {"bus_type", [=]() {
-         auto* attri_value_handle = liberty_convert_string_value(attri_value);
-         auto* port_bus = lib_builder->get_port_bus();
-         std::string bus_type = attri_value_handle->value;
-         auto* lib_type = current_lib->getLibType(bus_type.c_str());
-         port_bus->set_bus_type(lib_type);
-         liberty_free_string_value(attri_value_handle);
-       }}};
-
-  if (process_attri.contains(attri_name)) {
-    process_attri[attri_name]();
+  if (is_attri("slew_lower_threshold_pct_rise")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double slew_lower_threshold_pct_rise = attri_value_handle->value;
+    current_lib->set_slew_lower_threshold_pct_rise(
+        slew_lower_threshold_pct_rise);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("slew_upper_threshold_pct_rise")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double slew_upper_threshold_pct_rise = attri_value_handle->value;
+    current_lib->set_slew_upper_threshold_pct_rise(
+        slew_upper_threshold_pct_rise);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("slew_lower_threshold_pct_fall")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double slew_lower_threshold_pct_fall = attri_value_handle->value;
+    current_lib->set_slew_lower_threshold_pct_fall(
+        slew_lower_threshold_pct_fall);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("slew_upper_threshold_pct_fall")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double slew_upper_threshold_pct_fall = attri_value_handle->value;
+    current_lib->set_slew_upper_threshold_pct_fall(
+        slew_upper_threshold_pct_fall);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("input_threshold_pct_rise")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double input_threshold_pct_rise = attri_value_handle->value;
+    current_lib->set_input_threshold_pct_rise(input_threshold_pct_rise);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("output_threshold_pct_rise")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double output_threshold_pct_rise = attri_value_handle->value;
+    current_lib->set_output_threshold_pct_rise(output_threshold_pct_rise);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("input_threshold_pct_fall")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double input_threshold_pct_fall = attri_value_handle->value;
+    current_lib->set_input_threshold_pct_fall(input_threshold_pct_fall);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("output_threshold_pct_fall")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double output_threshold_pct_fall = attri_value_handle->value;
+    current_lib->set_output_threshold_pct_fall(output_threshold_pct_fall);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("slew_derate_from_library")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double slew_derate_from_library = attri_value_handle->value;
+    current_lib->set_slew_derate_from_library(slew_derate_from_library);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("pulling_resistance_unit")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* pulling_resistance_unit = attri_value_handle->value;
+    if (Str::equal(pulling_resistance_unit, "1kohm")) {
+      current_lib->set_resistance_unit(ResistanceUnit::kkOHM);
+    } else if (Str::equal(pulling_resistance_unit, "1ohm")) {
+      current_lib->set_resistance_unit(ResistanceUnit::kOHM);
+    }
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("comment")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    current_lib->set_comment(attri_value_handle->value);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("simulation")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    current_lib->set_simulation(
+        convert_string_to_bool(attri_value_handle->value));
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("time_unit")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* time_unit = attri_value_handle->value;
+    if (Str::equal(time_unit, "1fs")) {
+      current_lib->set_time_unit(TimeUnit::kFS);
+    } else if (Str::equal(time_unit, "1ps")) {
+      current_lib->set_time_unit(TimeUnit::kPS);
+    }
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("current_unit")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    current_lib->set_current_unit_name(attri_value_handle->value);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("voltage_unit")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    current_lib->set_voltage_unit_name(attri_value_handle->value);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("leakage_power_unit")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* leakage_power_unit = attri_value_handle->value;
+    double power_unit_mw_scale = 1.0;
+    if (Str::noCaseEqual(leakage_power_unit, "1pw")) {
+      power_unit_mw_scale = 1e-9;
+    } else if (Str::noCaseEqual(leakage_power_unit, "1nw")) {
+      power_unit_mw_scale = 1e-6;
+    } else if (Str::noCaseEqual(leakage_power_unit, "1uw")) {
+      power_unit_mw_scale = 1e-3;
+    } else if (Str::noCaseEqual(leakage_power_unit, "1mw")) {
+      power_unit_mw_scale = 1.0;
+    }
+    current_lib->set_leakage_power_unit(leakage_power_unit);
+    current_lib->set_power_unit_mw_scale(power_unit_mw_scale);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("nom_voltage")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double nom_voltage = attri_value_handle->value;
+    current_lib->set_nom_voltage(nom_voltage);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("nom_process")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    current_lib->set_nom_process(attri_value_handle->value);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("nom_temperature")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    current_lib->set_nom_temperature(attri_value_handle->value);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("default_max_transition")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double default_max_transition = attri_value_handle->value;
+    default_max_transition =
+        current_lib->convert_time_unit_to_ns(default_max_transition);
+    current_lib->set_default_max_transition(default_max_transition);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("default_max_fanout")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double default_max_fanout = attri_value_handle->value;
+    current_lib->set_default_max_fanout(default_max_fanout);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("direction")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* port_type = attri_value_handle->value;
+    lib_port->set_port_type(port_type);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("clock")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* attri_str = attri_value_handle->value;
+    bool is_clock_pin = convert_string_to_bool(attri_str);
+    lib_port->set_is_clock_pin(is_clock_pin);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("clock_gate_clock_pin")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* clock_gate_clock_pin = attri_value_handle->value;
+    bool clock_gate_clock_pin1 = convert_string_to_bool(clock_gate_clock_pin);
+    lib_port->set_clock_gate_clock_pin(clock_gate_clock_pin1);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("clock_gate_enable_pin")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* clock_gate_enable_pin = attri_value_handle->value;
+    bool clock_gate_enable_pin1 = convert_string_to_bool(clock_gate_enable_pin);
+    lib_port->set_clock_gate_enable_pin(clock_gate_enable_pin1);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("default_fanout_load")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double default_fanout_load_val = attri_value_handle->value;
+    current_lib->set_default_fanout_load(default_fanout_load_val);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("default_wire_load")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* default_wire_load = attri_value_handle->value;
+    current_lib->set_default_wire_load(default_wire_load);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("fanout_load")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double fanout_load_val = attri_value_handle->value;
+    lib_port->set_fanout_load(fanout_load_val);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("capacitance")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double cap = attri_value_handle->value;
+    cap *= cap_unit_convert;
+    if (lib_port) {
+      lib_port->set_port_cap(cap);
+    } else {
+      dynamic_cast<LibWireLoad*>(lib_obj)->set_cap_per_length_unit(cap);
+    }
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("area")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double cell_area = attri_value_handle->value;
+    if (lib_cell) {
+      lib_cell->set_cell_area(cell_area);
+    }
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("is_macro_cell")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* is_macro = attri_value_handle->value;
+    if (Str::noCaseEqual(is_macro, "TRUE")) {
+      lib_cell->set_is_macro();
+    }
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("cell_leakage_power")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double cell_leakage_power = attri_value_handle->value;
+    cell_leakage_power =
+        current_lib->convert_power_unit_to_mw(cell_leakage_power);
+    lib_cell->set_cell_leakage_power(cell_leakage_power);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("clock_gating_integrated_cell")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    std::string clock_gating_integrated_cell = attri_value_handle->value;
+    lib_cell->set_clock_gating_integrated_cell(clock_gating_integrated_cell);
+    lib_cell->set_is_clock_gating_integrated_cell(true);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("resistance")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double resistance = attri_value_handle->value;
+    resistance *= resistance_unit_convert;
+    dynamic_cast<LibWireLoad*>(lib_obj)->set_resistance_per_length_unit(
+        resistance);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("slope")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double slope = attri_value_handle->value;
+    dynamic_cast<LibWireLoad*>(lib_obj)->set_slope(slope);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("rise_capacitance")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double cap = attri_value_handle->value;
+    cap *= cap_unit_convert;
+    lib_port->set_port_cap(AnalysisMode::kMaxMin, TransType::kRise, cap);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("fall_capacitance")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double cap = attri_value_handle->value;
+    cap *= cap_unit_convert;
+    lib_port->set_port_cap(AnalysisMode::kMaxMin, TransType::kFall, cap);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("max_capacitance")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double max_cap_limit = attri_value_handle->value;
+    max_cap_limit *= cap_unit_convert;
+    lib_port->set_port_cap_limit(AnalysisMode::kMax, max_cap_limit);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("min_capacitance")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double min_cap_limit = attri_value_handle->value;
+    min_cap_limit *= cap_unit_convert;
+    lib_port->set_port_cap_limit(AnalysisMode::kMin, min_cap_limit);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("max_transition")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double max_slew_limit = attri_value_handle->value;
+    max_slew_limit = current_lib->convert_time_unit_to_ns(max_slew_limit);
+    lib_port->set_port_slew_limit(AnalysisMode::kMax, max_slew_limit);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("min_transition")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double min_slew_limit = attri_value_handle->value;
+    min_slew_limit = current_lib->convert_time_unit_to_ns(min_slew_limit);
+    lib_port->set_port_slew_limit(AnalysisMode::kMin, min_slew_limit);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("function")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* expr_str = attri_value_handle->value;
+    LibertyExprBuilder expr_builder(expr_str);
+    expr_builder.execute();
+    auto* func_expr = expr_builder.get_result_expr();
+    lib_port->set_func_expr(func_expr);
+    lib_port->set_func_expr_str(expr_str);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("related_pin")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* pin_name = attri_value_handle->value;
+    if (own_port_type == LibBuilder::LibertyOwnPortType::kTimingArc) {
+      lib_arc->set_src_port(pin_name);
+    } else if (own_port_type == LibBuilder::LibertyOwnPortType::kPowerArc) {
+      lib_power_arc->set_src_port(pin_name);
+    }
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("related_pg_pin")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* pg_pin_name = attri_value_handle->value;
+    if (own_pg_or_when_type ==
+        LibBuilder::LibertyOwnPgOrWhenType::kLibertyLeakagePower) {
+      leakage_power->set_related_pg_port(pg_pin_name);
+    } else if (own_pg_or_when_type ==
+               LibBuilder::LibertyOwnPgOrWhenType::kPowerArc) {
+      lib_power_arc->set_related_pg_port(pg_pin_name);
+    }
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("when")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* when = attri_value_handle->value;
+    if (own_port_type == LibBuilder::LibertyOwnPortType::kTimingArc) {
+      if (lib_arc) {
+        lib_arc->set_when(when);
+      }
+    } else if (own_pg_or_when_type ==
+               LibBuilder::LibertyOwnPgOrWhenType::kLibertyLeakagePower) {
+      leakage_power->set_when(when);
+    } else if (own_pg_or_when_type ==
+               LibBuilder::LibertyOwnPgOrWhenType::kPowerArc) {
+      if (lib_power_arc) {
+        lib_power_arc->set_when(when);
+      }
+    }
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("value")) {
+    if (liberty_is_string_value(attri_value)) {
+      auto* attri_value_handle = liberty_convert_string_value(attri_value);
+      const char* value = attri_value_handle->value;  // ysxy
+      leakage_power->set_value(
+          current_lib->convert_power_unit_to_mw(atof(value)));
+      liberty_free_string_value(attri_value_handle);
+    } else {
+      auto* attri_value_handle = liberty_convert_float_value(attri_value);
+      double value = attri_value_handle->value;  // T28
+      leakage_power->set_value(current_lib->convert_power_unit_to_mw(value));
+      liberty_free_float_value(attri_value_handle);
+    }
+  } else if (is_attri("timing_sense")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* timing_sense = attri_value_handle->value;
+    lib_arc->set_timing_sense(timing_sense);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("timing_type")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    const char* timing_type = attri_value_handle->value;
+    lib_arc->set_timing_type(timing_type);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("variable_1")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    auto* lib_template = lib_obj;
+    const char* variable_name = attri_value_handle->value;
+    lib_template->set_template_variable1(variable_name);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("variable_2")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    auto* lib_template = lib_obj;
+    const char* variable_name = attri_value_handle->value;
+    lib_template->set_template_variable2(variable_name);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("variable_3")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    auto* lib_template = lib_obj;
+    const char* variable_name = attri_value_handle->value;
+    lib_template->set_template_variable3(variable_name);
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("reference_time")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    auto* lib_table = dynamic_cast<LibVectorTable*>(lib_obj);
+    double ref_time = attri_value_handle->value;
+    lib_table->set_ref_time(ref_time);
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("base_type")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    std::string base_type = attri_value_handle->value;
+    dynamic_cast<LibType*>(lib_obj)->set_base_type(std::move(base_type));
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("data_type")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    std::string data_type = attri_value_handle->value;
+    dynamic_cast<LibType*>(lib_obj)->set_data_type(std::move(data_type));
+    liberty_free_string_value(attri_value_handle);
+  } else if (is_attri("bit_width")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double bit_width = attri_value_handle->value;
+    dynamic_cast<LibType*>(lib_obj)->set_bit_width(
+        static_cast<unsigned>(bit_width));
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("bit_from")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double bit_from = attri_value_handle->value;
+    dynamic_cast<LibType*>(lib_obj)->set_bit_from(
+        static_cast<unsigned>(bit_from));
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("bit_to")) {
+    auto* attri_value_handle = liberty_convert_float_value(attri_value);
+    double bit_to = attri_value_handle->value;
+    dynamic_cast<LibType*>(lib_obj)->set_bit_to(
+        static_cast<unsigned>(bit_to));
+    liberty_free_float_value(attri_value_handle);
+  } else if (is_attri("bus_type")) {
+    auto* attri_value_handle = liberty_convert_string_value(attri_value);
+    auto* port_bus = lib_builder->get_port_bus();
+    std::string bus_type = attri_value_handle->value;
+    auto* lib_type = current_lib->getLibType(bus_type.c_str());
+    port_bus->set_bus_type(lib_type);
+    liberty_free_string_value(attri_value_handle);
   }
 
   return 1;
@@ -696,85 +570,70 @@ unsigned LibertyReader::visitComplexAttri(
     cap_unit_convert = 0.001;
   }
 
-  std::map<std::string, std::function<void()>> process_attri = {
-      {"capacitive_load_unit",
-       [&]() {
-         if ((static_cast<int>(liberty_convert_float_value(attri_0)->value) ==
-              1) &&
-             (Str::equal(liberty_convert_string_value(attri_1)->value, "pf"))) {
-           the_lib->set_cap_unit(CapacitiveUnit::kPF);
-         }
-       }},
-      {{"rise_capacitance_range"},
-       [&]() {
-         double min_rise_cap = liberty_convert_float_value(attri_0)->value;
-         double max_rise_cap = liberty_convert_float_value(attri_1)->value;
-         min_rise_cap *= cap_unit_convert;
-         max_rise_cap *= cap_unit_convert;
+  if (Str::equal(attri_name, "capacitive_load_unit")) {
+    if ((static_cast<int>(liberty_convert_float_value(attri_0)->value) == 1)
+        && (Str::equal(liberty_convert_string_value(attri_1)->value, "pf"))) {
+      the_lib->set_cap_unit(CapacitiveUnit::kPF);
+    }
+  } else if (Str::equal(attri_name, "rise_capacitance_range")) {
+    double min_rise_cap = liberty_convert_float_value(attri_0)->value;
+    double max_rise_cap = liberty_convert_float_value(attri_1)->value;
+    min_rise_cap *= cap_unit_convert;
+    max_rise_cap *= cap_unit_convert;
 
-         lib_port->set_port_cap(AnalysisMode::kMin, TransType::kRise,
-                                min_rise_cap);
-         lib_port->set_port_cap(AnalysisMode::kMax, TransType::kRise,
-                                max_rise_cap);
-       }},
-      {{"fall_capacitance_range"},
-       [&]() {
-         double min_fall_cap = liberty_convert_float_value(attri_0)->value;
-         double max_fall_cap = liberty_convert_float_value(attri_1)->value;
-         min_fall_cap *= cap_unit_convert;
-         max_fall_cap *= cap_unit_convert;
+    lib_port->set_port_cap(AnalysisMode::kMin, TransType::kRise,
+                           min_rise_cap);
+    lib_port->set_port_cap(AnalysisMode::kMax, TransType::kRise,
+                           max_rise_cap);
+  } else if (Str::equal(attri_name, "fall_capacitance_range")) {
+    double min_fall_cap = liberty_convert_float_value(attri_0)->value;
+    double max_fall_cap = liberty_convert_float_value(attri_1)->value;
+    min_fall_cap *= cap_unit_convert;
+    max_fall_cap *= cap_unit_convert;
 
-         lib_port->set_port_cap(AnalysisMode::kMin, TransType::kFall,
-                                min_fall_cap);
-         lib_port->set_port_cap(AnalysisMode::kMax, TransType::kFall,
-                                max_fall_cap);
-       }},
-      {"fanout_length", [&]() {
-         if (attri_values.len == 2) {
-           double fanout = liberty_convert_float_value(attri_0)->value;
-           double length = liberty_convert_float_value(attri_1)->value;
-           dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
-               static_cast<int>(fanout), length);
-         } else if (attri_values.len == 1) {
-           // this case is fix cx55 issue, such as:
-           // fanout_length("1", \
-           //  "0");
+    lib_port->set_port_cap(AnalysisMode::kMin, TransType::kFall,
+                           min_fall_cap);
+    lib_port->set_port_cap(AnalysisMode::kMax, TransType::kFall,
+                           max_fall_cap);
+  } else if (Str::equal(attri_name, "fanout_length")) {
+    if (attri_values.len == 2) {
+      double fanout = liberty_convert_float_value(attri_0)->value;
+      double length = liberty_convert_float_value(attri_1)->value;
+      dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
+          static_cast<int>(fanout), length);
+    } else if (attri_values.len == 1) {
+      // this case is fix cx55 issue, such as:
+      // fanout_length("1", \
+      //  "0");
 
-           char* fanout_length = liberty_convert_string_value(attri_0)->value;
-           auto fanout_lenth_vec = Str::split(fanout_length, ",");
-           LOG_FATAL_IF(fanout_lenth_vec.size() != 2);
+      char* fanout_length = liberty_convert_string_value(attri_0)->value;
+      auto fanout_lenth_vec = Str::split(fanout_length, ",");
+      LOG_FATAL_IF(fanout_lenth_vec.size() != 2);
 
-           double fanout = std::atof(fanout_lenth_vec[0].c_str());
-           double length = std::atof(fanout_lenth_vec[1].c_str());
+      double fanout = std::atof(fanout_lenth_vec[0].c_str());
+      double length = std::atof(fanout_lenth_vec[1].c_str());
 
-           dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
-               static_cast<int>(fanout), length);
-         }
-       }},
-      {"library_features",
-       [&]() {
-         void* attri_value = nullptr;
-         FOREACH_LIBERTY_VEC_ELEM(&attri_values, void, attri_value) {
-           if (liberty_is_string_value(attri_value)) {
-             auto* feature_value = liberty_convert_string_value(attri_value);
-             the_lib->add_library_feature(feature_value->value);
-             liberty_free_string_value(feature_value);
-           } else if (liberty_is_float_value(attri_value)) {
-             auto* feature_value = liberty_convert_float_value(attri_value);
-              the_lib->add_library_feature(
-                  std::to_string(feature_value->value));
-              liberty_free_float_value(feature_value);
-            }
-          }
-       }}};
-
-  if (process_attri.contains(attri_name)) {
-    process_attri[attri_name]();
+      dynamic_cast<LibWireLoad*>(lib_obj)->add_length_to_map(
+          static_cast<int>(fanout), length);
+    }
+  } else if (Str::equal(attri_name, "library_features")) {
+    void* attri_value = nullptr;
+    FOREACH_LIBERTY_VEC_ELEM(&attri_values, void, attri_value)
+    {
+      if (liberty_is_string_value(attri_value)) {
+        auto* feature_value = liberty_convert_string_value(attri_value);
+        the_lib->add_library_feature(feature_value->value);
+        liberty_free_string_value(feature_value);
+      } else if (liberty_is_float_value(attri_value)) {
+        auto* feature_value = liberty_convert_float_value(attri_value);
+        the_lib->add_library_feature(std::to_string(feature_value->value));
+        liberty_free_float_value(feature_value);
+      }
+    }
   } else if (Str::startWith(attri_name, "index") ||
              Str::equal(attri_name, "values")) {
     is_ok = visitAxisOrValues(attri);
-  }
-  else {
+  } else {
     LOG_INFO_EVERY_N(10) << "unkown attri name: " << attri_name << " in "
                          << attri->file_name << " line no " << attri->line_no;
   }
@@ -1053,8 +912,20 @@ unsigned LibertyReader::visitPin(LibertyGroupStmt* group) {
     }
   };
 
-  std::string regex_pattern = "([A-Za-z]+)\\[(\\d+):(\\d+)\\]";
-  auto ret_val = Str::matchPattern(port_name, regex_pattern);
+  auto has_bus_range_marker = [](const char* port_name) {
+    for (const char* ch = port_name; *ch != '\0'; ++ch) {
+      if (*ch == '[') {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  std::vector<std::string> ret_val;
+  if (has_bus_range_marker(port_name)) {
+    std::string regex_pattern = "([A-Za-z]+)\\[(\\d+):(\\d+)\\]";
+    ret_val = Str::matchPattern(port_name, regex_pattern);
+  }
   if (ret_val.empty()) {
     create_port(port_name);
   } else {
@@ -1346,37 +1217,34 @@ unsigned LibertyReader::visitGroup(LibertyGroupStmt* group) {
   static const ieda::BTreeSet<std::string> power_table_names = {"rise_power",
                                                                 "fall_power"};
 
-  using std::placeholders::_1;
-
-  std::map<std::string, std::function<unsigned(LibertyGroupStmt * group)>>
-      visit_fun_map = {
-          {"library", std::bind(&LibertyReader::visitLibrary, this, _1)},
-          {"wire_load", std::bind(&LibertyReader::visitWireLoad, this, _1)},
-          {"lu_table_template",
-           std::bind(&LibertyReader::visitLuTableTemplate, this, _1)},
-          {"power_lut_template",
-           std::bind(&LibertyReader::visitLuTableTemplate, this, _1)},
-          {"type", std::bind(&LibertyReader::visitType, this, _1)},
-          {"output_current_template",
-           std::bind(&LibertyReader::visitOutputCurrentTemplate, this, _1)},
-          {"cell", std::bind(&LibertyReader::visitCell, this, _1)},
-          {"leakage_power",
-           std::bind(&LibertyReader::visitLeakagePower, this, _1)},
-          {"bus", std::bind(&LibertyReader::visitBus, this, _1)},
-          {"bundle", std::bind(&LibertyReader::visitBus, this, _1)},
-          {"pin", std::bind(&LibertyReader::visitPin, this, _1)},
-          {"timing", std::bind(&LibertyReader::visitTiming, this, _1)},
-          {"internal_power",
-           std::bind(&LibertyReader::visitInternalPower, this, _1)},
-          {"output_current_rise",
-           std::bind(&LibertyReader::visitCurrentTable, this, _1)},
-          {"output_current_fall",
-           std::bind(&LibertyReader::visitCurrentTable, this, _1)},
-          {"vector", std::bind(&LibertyReader::visitVector, this, _1)}};
-
-  if (visit_fun_map.contains(group_name)) {
-    auto read_func = visit_fun_map[group_name];
-    is_ok = read_func(group);
+  if (Str::equal(group_name, "library")) {
+    is_ok = visitLibrary(group);
+  } else if (Str::equal(group_name, "wire_load")) {
+    is_ok = visitWireLoad(group);
+  } else if (Str::equal(group_name, "lu_table_template") ||
+             Str::equal(group_name, "power_lut_template")) {
+    is_ok = visitLuTableTemplate(group);
+  } else if (Str::equal(group_name, "type")) {
+    is_ok = visitType(group);
+  } else if (Str::equal(group_name, "output_current_template")) {
+    is_ok = visitOutputCurrentTemplate(group);
+  } else if (Str::equal(group_name, "cell")) {
+    is_ok = visitCell(group);
+  } else if (Str::equal(group_name, "leakage_power")) {
+    is_ok = visitLeakagePower(group);
+  } else if (Str::equal(group_name, "bus") || Str::equal(group_name, "bundle")) {
+    is_ok = visitBus(group);
+  } else if (Str::equal(group_name, "pin")) {
+    is_ok = visitPin(group);
+  } else if (Str::equal(group_name, "timing")) {
+    is_ok = visitTiming(group);
+  } else if (Str::equal(group_name, "internal_power")) {
+    is_ok = visitInternalPower(group);
+  } else if (Str::equal(group_name, "output_current_rise") ||
+             Str::equal(group_name, "output_current_fall")) {
+    is_ok = visitCurrentTable(group);
+  } else if (Str::equal(group_name, "vector")) {
+    is_ok = visitVector(group);
   } else if (table_names.contains(group_name)) {
     is_ok = visitTable(group);
   } else if (power_table_names.contains(group_name)) {

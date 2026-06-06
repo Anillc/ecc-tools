@@ -1,0 +1,60 @@
+12:    60.32%     0.00%  [.] icts::Wrapper::loadLibertyIfNeeded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   iEDA                 -      -            
+14:            |--50.97%--ista::LibertyReader::linkLib
+50:            |                                |          |--38.67%--ista::LibertyReader::visitPin
+65:            |                                |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+67:            |                                |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+151:            |                                |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+179:            |                                |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+204:            |                                |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+234:            |                                |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+322:    50.97%     0.00%  [.] ista::LibertyReader::linkLib                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         iEDA                 -      -            
+359:                                     |          |--38.67%--ista::LibertyReader::visitPin
+374:                                     |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+376:                                     |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+460:                                     |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+488:                                     |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+513:                                     |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+543:                                     |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+628:                                             |          |--38.58%--ista::LibertyReader::visitPin
+643:                                             |          |          |          |                     |--21.17%--ista::LibertyReader::visitInternalPower
+645:                                             |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+729:                                             |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+757:                                             |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+782:                                             |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+812:                                             |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+895:                                     |          |--38.67%--ista::LibertyReader::visitPin
+910:                                     |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+912:                                     |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+996:                                     |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+1024:                                     |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+1049:                                     |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+1079:                                     |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+1162:                                             |          |--38.63%--ista::LibertyReader::visitPin
+1177:                                             |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+1179:                                             |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+1263:                                             |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+1291:                                             |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+1316:                                             |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+1346:                                             |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+1427:                                     |          |--38.67%--ista::LibertyReader::visitPin
+1442:                                     |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+1444:                                     |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+1528:                                     |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+1556:                                     |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+1581:                                     |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+1611:                                     |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+1691:                                     |          |--38.67%--ista::LibertyReader::visitPin
+1706:                                     |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+1708:                                     |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+1792:                                     |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+1820:                                     |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+1845:                                     |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+1875:                                     |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+1954:                                     |          |--38.67%--ista::LibertyReader::visitPin
+1969:                                     |          |          |          |                     |--21.26%--ista::LibertyReader::visitInternalPower
+1971:                                     |          |          |          |                     |          |--11.82%--ista::LibertyReader::visitSimpleAttri
+2055:                                     |          |          |          |                                           |--5.65%--ista::LibertyReader::visitSimpleAttri
+2083:                                     |          |          |          |                                                      |--3.17%--ista::LibertyReader::visitTable
+2108:                                     |          |           --4.35%--ista::LibertyReader::visitSimpleAttri
+2138:                                     |                                 --10.09%--ista::LibertyReader::visitSimpleAttri
+2216:                                     |          |--38.67%--ista::LibertyReader::visitPin

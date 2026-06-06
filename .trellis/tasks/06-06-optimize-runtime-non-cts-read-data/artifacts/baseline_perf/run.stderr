@@ -1,0 +1,594 @@
+WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+Samples in kernel functions may not be resolved if a suitable vmlinux
+file is not found in the buildid cache or in the vmlinux path.
+
+Samples in kernel modules won't be resolved at all.
+
+If some relocation was applied (e.g. kexec) symbols may be misresolved
+even with a suitable vmlinux or kallsyms file.
+
+Couldn't record kernel reference relocation symbol
+Symbol resolution may be skewed if relocation was used (e.g. kexec).
+Check /proc/kallsyms permission or run as root.
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+I0606 13:08:17.572131 1717916 Setup.cc:85] Generate the report at 2026-06-06T13:08:17
+I0606 13:08:17.572264 1717916 Schema.cc:485] 
+I0606 13:08:17.572268 1717916 Schema.cc:486] ====================== Runtime Routing / Wire RC =======================
++----------------------+-----------------------+------------------------------------------------------+
+| Item                 | Value                 | Detail                                               |
++----------------------+-----------------------+------------------------------------------------------+
+| routing_setup_source | Runtime Configuration | routing layer and wire width are reported once there |
+| query_length         | 1.0000 um             | single-unit probe length                             |
+| unit_resistance      | 914.000 uOhm/um       | derived from Wrapper::queryWireResistance            |
+| unit_capacitance     | 1.383e-04 pF/um       | derived from Wrapper::queryWireCapacitance           |
+| status               | ok                    | positive finite unit RC                              |
++----------------------+-----------------------+------------------------------------------------------+
+I0606 13:08:17.572311 1717916 SchemaScope.cc:227] 
+I0606 13:08:17.572315 1717916 SchemaScope.cc:228] [CTS][START] Clock tree synthesis API flow
+I0606 13:08:17.572342 1717916 SchemaScope.cc:227] 
+I0606 13:08:17.572345 1717916 SchemaScope.cc:228] [CTSReadData][START] Read CTS clock data
+I0606 13:08:17.572417 1717916 SdcClockReader.cc:83] SdcClockReader: parsed 1 clock declaration(s) and 0 case-analysis record(s) from /home/liweiguo/project/ecc-tools-dev/scripts/design/ics55_dev/default.sdc
+I0606 13:08:17.573202 1717916 LibParserCpp.cc:1397] load liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib
+I0606 13:08:20.310498 1717916 LibParserCpp.cc:1406] load liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
+I0606 13:08:20.310513 1717916 LibParserCpp.cc:1416] link liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib start.
+I0606 13:08:20.311558 1717916 LibParserCpp.cc:778] unkown attri name: voltage_map in /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib line no 28
+I0606 13:08:33.849632 1717916 LibParserCpp.cc:1422] link liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty/ics55_LLSC_H7CL_ss_rcworst_1p08_125_nldm.lib success.
+I0606 13:08:33.849826 1717916 LibParserCpp.cc:1397] load liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib
+I0606 13:08:36.636415 1717916 LibParserCpp.cc:1406] load liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
+I0606 13:08:36.636433 1717916 LibParserCpp.cc:1416] link liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib start.
+I0606 13:08:50.089310 1717916 LibParserCpp.cc:1422] link liberty file /home/liweiguo/PDK/icsprout55-pdk/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty/ics55_LLSC_H7CR_ss_rcworst_1p08_125_nldm.lib success.
+I0606 13:08:50.089550 1717916 WrapperLiberty.cc:451] Wrapper: loaded 2 Liberty file(s) for CTS queries.
+I0606 13:08:50.181936 1717916 Schema.cc:485] 
+I0606 13:08:50.181957 1717916 Schema.cc:486] ========================= Clock Trace Overview =========================
++------------+---------+--------------+-------+----------+------------------------+---------------+--------------+----------------+------------+------------------------------+
+| Clock      | Kind    | Master Clock | Net   | Status   | Dominance              | Target Kind   | Seq CK Sinks | Macro CK Sinks | Trace Path | Reason                       |
++------------+---------+--------------+-------+----------+------------------------+---------------+--------------+----------------+------------+------------------------------+
+| core_clock | primary | self         | clk_i | accepted | owned_by_primary_clock | sequential_ck | 8751         | 0              | clk_i      | sdc_reachable_clock_sink_net |
++------------+---------+--------------+-------+----------+------------------------+---------------+--------------+----------------+------------+------------------------------+
+I0606 13:08:50.181996 1717916 Schema.cc:485] 
+I0606 13:08:50.181999 1717916 Schema.cc:486] ===================== SDC Clock Ownership Overview =====================
++------------+---------+--------------+-----------------+------------+-----------------+--------------+----------------+
+| Clock      | Kind    | Master Clock | SDC Target Nets | Owned Nets | CTS Target Nets | Seq CK Sinks | Macro CK Sinks |
++------------+---------+--------------+-----------------+------------+-----------------+--------------+----------------+
+| core_clock | primary | self         | clk_i           | clk_i      | clk_i           | 8751         | 0              |
++------------+---------+--------------+-----------------+------------+-----------------+--------------+----------------+
+I0606 13:08:50.182013 1717916 Schema.cc:485] 
+I0606 13:08:50.182016 1717916 Schema.cc:486] ======================= Unowned Clock-like Nets ========================
++-----+-----------+-------------+--------------+----------------+----------------------------+
+| Net | Dominance | Target Kind | Seq CK Sinks | Macro CK Sinks | Reason                     |
++-----+-----------+-------------+--------------+----------------+----------------------------+
+| n/a | none      | n/a         | 0            | 0              | no_unowned_clock_like_nets |
++-----+-----------+-------------+--------------+----------------+----------------------------+
+I0606 13:08:50.182039 1717916 ClockTraceResolver.cc:200] ClockTraceResolver: accepted 1 CTS clock target net(s) from 1 SDC clock declaration(s); reported 0 unowned clock-like net(s).
+I0606 13:08:50.227897 1717916 Schema.cc:485] 
+I0606 13:08:50.227908 1717916 Schema.cc:486] =================== CTS Inst Classification Summary ====================
++-----------------+------------------------------+-------+
+| Role            | Reason                       | Count |
++-----------------+------------------------------+-------+
+| sequential_sink | liberty_sequential_clock_pin | 8751  |
++-----------------+------------------------------+-------+
+I0606 13:08:50.227954 1717916 Schema.cc:485] 
+I0606 13:08:50.227958 1717916 Schema.cc:486] ===================== Clock Distribution Overview ======================
++------------+------+-------------+----------------+-------------+---------------+
+| Clock      | Nets | Total Sinks | FlipFlop Sinks | Macro Sinks | No-Inst Sinks |
++------------+------+-------------+----------------+-------------+---------------+
+| core_clock | 1    | 8751        | 8751           | 0           | 0             |
+| TOTAL      | 1    | 8751        | 8751           | 0           | 0             |
++------------+------+-------------+----------------+-------------+---------------+
+I0606 13:08:50.227980 1717916 Schema.cc:492] 
+I0606 13:08:50.227983 1717916 Schema.cc:493] ========================== ReadData Overview ===========================
++---------------------+----------+
+| Field               | Value    |
++---------------------+----------+
+| clock_source        | sdc      |
+| status              | finished |
+| sdc_declared_clocks | 1        |
+| added_clock_nets    | 1        |
+| total_clock_nets    | 1        |
++---------------------+----------+
+I0606 13:08:50.228044 1717916 SchemaScope.cc:312] [CTSReadData][FINISHED] Read CTS clock data: status=finished, elapsed_time=32.655 s
+I0606 13:08:50.228071 1717916 SchemaScope.cc:227] 
+I0606 13:08:50.228075 1717916 SchemaScope.cc:228] [CTSFlow][START] Run CTS synthesis flow
+I0606 13:08:50.284284 1717916 SchemaScope.cc:227] 
+I0606 13:08:50.284292 1717916 SchemaScope.cc:228] [Topology][START] Prepare sink loads
+I0606 13:08:50.288092 1717916 FastClustering.cc:152] Fast clustering collect entries: input_loads=8751, valid_entries=8751, elapsed_time=0.000 s
+I0606 13:08:50.297379 1717916 FastClustering.cc:162] Fast clustering recursive partition: entries=8751, drafts=2189, avg_fanout=3.998, fanout_histogram=3=5,4=2184, elapsed_time=0.009 s
+I0606 13:08:50.301688 1717916 FastClusteringPolish.cc:114] Fast clustering merge polish round 0: active_before=2189, active_after=2189, attempted_clusters=0, merges=0, changed=false, elapsed_time=0.004 s
+I0606 13:08:50.307073 1717916 FastClusteringBoundaryPolish.cc:148] Fast clustering boundary polish round 0: active_sources=2189, selected_sources=698, considered_sources=698, moved_loads=2, min_moves_for_next_round=16, changed=true, order_elapsed_time=0.003 s, search_elapsed_time=0.002 s, elapsed_time=0.005 s
+I0606 13:08:50.307106 1717916 FastClusteringPolish.cc:127] Fast clustering boundary polish: active_before=2189, active_after=2189, elapsed_time=0.005 s
+I0606 13:08:50.307113 1717916 FastClusteringPolish.cc:133] Fast clustering polish done: active_clusters=2189, merge_attempted_clusters=0, total_merges=0, merge_elapsed_time=0.004 s, boundary_elapsed_time=0.005 s, total_elapsed_time=0.010 s
+I0606 13:08:50.307119 1717916 FastClustering.cc:170] Fast clustering polish: drafts=2189, avg_fanout=3.998, fanout_histogram=3=5,4=2184, elapsed_time=0.010 s
+I0606 13:08:51.645386 1717916 FastClustering.cc:184] Fast clustering finalize: clusters=2189, assigned_loads=8751, avg_fanout=3.998, fanout_histogram=3=5,4=2184, elapsed_time=1.338 s
+I0606 13:08:51.645413 1717916 FastClustering.cc:188] Fast clustering done: loads=8751, clusters=2189, avg_fanout=3.998, total_elapsed_time=1.357 s, strategy=recursive_spatial_bisect
+I0606 13:08:51.647392 1717916 SchemaScope.cc:312] [Topology][FINISHED] Prepare sink loads: status=finished, htree_sinks=2189, cluster_buffers=2189, elapsed_time=1.363 s
+I0606 13:08:51.648478 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.648483 1717916 SchemaScope.cc:228] [Topology][START] Build downstream HTree
+I0606 13:08:51.648496 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.648499 1717916 SchemaScope.cc:228] [HTree][START] build
+I0606 13:08:51.648510 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.648514 1717916 SchemaScope.cc:228] [TopologyGen][START] Build H-tree topology for 2189 loads
+I0606 13:08:51.648545 1717916 Schema.cc:492] 
+I0606 13:08:51.648550 1717916 Schema.cc:493] ================ TopologyGen Load Distribution Summary =================
++---------------------------+------------------------+
+| Field                     | Value                  |
++---------------------------+------------------------+
+| load_count (local buffer) | 2189                   |
+| bbox_min                  | (11400, 15050)         |
+| bbox_max                  | (504450, 506450)       |
+| span_width_height         | 493.050 x 491.400 um   |
+| area                      | 242284.770 um^2        |
+| sqrt_area                 | 492.224 um             |
+| half_perimeter            | 492.225 um             |
+| center                    | (282939.77, 289751.80) |
+| median                    | (295500, 302751)       |
++---------------------------+------------------------+
+I0606 13:08:51.648594 1717916 SchemaScope.cc:275] [TopologyGen][RUNNING] Embed coordinates and balance topology
+I0606 13:08:51.673904 1717916 Schema.cc:492] 
+I0606 13:08:51.673913 1717916 Schema.cc:493] ================ TopologyGen Root-To-Leaf Path Summary =================
++--------------------+------------+
+| Field              | Value      |
++--------------------+------------+
+| min_path_length    | 512.027 um |
+| max_path_length    | 604.792 um |
+| avg_path_length    | 562.445 um |
+| valid_leaf_paths   | 2048       |
+| invalid_leaf_paths | 0          |
++--------------------+------------+
+I0606 13:08:51.673933 1717916 Schema.cc:492] 
+I0606 13:08:51.673936 1717916 Schema.cc:493] =================== TopologyGen HTree Shape Summary ====================
++-------------+--------+
+| Field       | Value  |
++-------------+--------+
+| nodes       | 4095   |
+| depth       | 11     |
+| leaf_count  | 2048   |
+| root_policy | median |
++-------------+--------+
+I0606 13:08:51.673954 1717916 SchemaScope.cc:312] [TopologyGen][FINISHED] Build H-tree topology for 2189 loads: status=finished, nodes=4095, depth=11, leaf_count=2048, clock_name=core_clock, clock_net_name=clk_i, sink_domain=regular, stage=downstream_htree, root_policy=median, elapsed_time=0.025 s
+I0606 13:08:51.673995 1717916 SchemaScope.cc:275] [HTree][RUNNING] characterization
+I0606 13:08:51.674067 1717916 Schema.cc:485] 
+I0606 13:08:51.674069 1717916 Schema.cc:486] =================== HTree Characterization Grid Plan ===================
++------------------------------+-----------------------------------+----------------------------------------------------------------------------------------------------+
+| Item                         | Value                             | Detail                                                                                             |
++------------------------------+-----------------------------------+----------------------------------------------------------------------------------------------------+
+| source                       | auto_derived                      | auto-derived from topology level lengths                                                           |
+| resolved_wirelength_unit     | 23.5178 um                        | effective unit for the adapted characterization grid                                               |
+| requested_level_lengths      | 12                                | average parent-child segment length per topology level plus caller-supplied source-to-root lengths |
+| required_covering_iterations | 12                                | cover all topology level lengths under the resolved CharBuilder unit                               |
+| direct_characterization_bins | 3                                 | direct-char bins after runtime cap                                                                 |
+| distinct_level_bins          | 5                                 | aligned-length bins under resolved setup                                                           |
+| decision_flags               | missing_config+direct_bins_capped | auto-derivation/adaptation trigger flags                                                           |
++------------------------------+-----------------------------------+----------------------------------------------------------------------------------------------------+
+I0606 13:08:51.674109 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.674113 1717916 SchemaScope.cc:228] [CharBuilder][START] initialization
+I0606 13:08:51.674130 1717916 Schema.cc:485] 
+I0606 13:08:51.674134 1717916 Schema.cc:486] ========================== CharBuilder Setup ===========================
++-------------------+---------------------------+----------------------------------+
+| Parameter         | Value                     | Source                           |
++-------------------+---------------------------+----------------------------------+
+| wirelength_points | 3                         | HTree Characterization Grid Plan |
+| routing_rc        | Runtime Routing / Wire RC | CharBuilderInput                 |
+| buffer_count      | 4                         | resolved_buffers                 |
++-------------------+---------------------------+----------------------------------+
+I0606 13:08:51.674172 1717916 Schema.cc:485] 
+I0606 13:08:51.674175 1717916 Schema.cc:486] ====================== CharBuilder Sorted Buffers ======================
++-------+-------------+-----------+-----------+
+| Index | Cell Master | Max Cap   | Input Cap |
++-------+-------------+-----------+-----------+
+| 0     | BUFX8H7L    | 0.1922 pF | 0.0018 pF |
+| 1     | BUFX12H7L   | 0.2909 pF | 0.0027 pF |
+| 2     | BUFX16H7L   | 0.3848 pF | 0.0030 pF |
+| 3     | BUFX20H7L   | 0.4817 pF | 0.0040 pF |
++-------+-------------+-----------+-----------+
+I0606 13:08:51.674193 1717916 SchemaScope.cc:312] [CharBuilder][FINISHED] initialization: status=finished, buffers=4, wirelengths=3, slews=10, loads=10, elapsed_time=0.000 s
+I0606 13:08:51.674216 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.674218 1717916 SchemaScope.cc:228] [CharBuilder][START] build
+I0606 13:08:51.674223 1717916 SchemaScope.cc:275] [CharBuilder][RUNNING] wirelength=23.5178 um
+I0606 13:08:51.675133 1717916 CharBuildOrchestrator.cc:156] CharBuilder: [RUNNING] wirelength=23.5178 um, generated_chars=470, generated_patterns=5, feasible_patterns=5, skipped_patterns=0, executed_sta_samples=490, skipped_sta_samples=10, output_slew_overflow_samples=20, driven_cap_overflow_samples=10, driven_cap_overflow_load_points=1
+I0606 13:08:51.675140 1717916 SchemaScope.cc:275] [CharBuilder][RUNNING] wirelength=47.0357 um
+I0606 13:08:51.679176 1717916 CharBuildOrchestrator.cc:156] CharBuilder: [RUNNING] wirelength=47.0357 um, generated_chars=1770, generated_patterns=19, feasible_patterns=19, skipped_patterns=0, executed_sta_samples=1890, skipped_sta_samples=10, output_slew_overflow_samples=120, driven_cap_overflow_samples=10, driven_cap_overflow_load_points=1
+I0606 13:08:51.679185 1717916 SchemaScope.cc:275] [CharBuilder][RUNNING] wirelength=70.5535 um
+I0606 13:08:51.686231 1717916 CharStaSampler.cc:85] CharBuilder: wirelength=70.5535 um progress 32/63 patterns (feasible=32, skipped=0, executed_sta_samples=3190, skipped_sta_samples=10)
+I0606 13:08:51.694986 1717916 CharBuildOrchestrator.cc:156] CharBuilder: [RUNNING] wirelength=70.5535 um, generated_chars=5790, generated_patterns=63, feasible_patterns=63, skipped_patterns=0, executed_sta_samples=6290, skipped_sta_samples=10, output_slew_overflow_samples=500, driven_cap_overflow_samples=10, driven_cap_overflow_load_points=1
+I0606 13:08:51.695060 1717916 Schema.cc:502] CharBuilder: output slew overflow occurred during characterization; samples were capped to the configured slew lattice.
+I0606 13:08:51.695096 1717916 SchemaScope.cc:312] [CharBuilder][FINISHED] build: status=finished, segment_chars=8030, patterns=87, elapsed_time=0.020 s
+I0606 13:08:51.695218 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.695223 1717916 SchemaScope.cc:228] [HTree][START] Synthesize segment frontiers
+I0606 13:08:51.974629 1717916 SchemaScope.cc:312] [HTree][FINISHED] Synthesize segment frontiers: status=finished, length_sets=5, frontier_entries=21607, elapsed_time=0.278 s
+I0606 13:08:51.975133 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.975221 1717916 SchemaScope.cc:228] [HTree][START] Search topology depth candidates
+I0606 13:08:51.975363 1717916 SchemaScope.cc:227] 
+I0606 13:08:51.975368 1717916 SchemaScope.cc:228] [HTreeDepth][START] Build pattern frontier
+I0606 13:08:52.494496 1717916 SchemaScope.cc:227] 
+I0606 13:08:52.494586 1717916 SchemaScope.cc:228] [HTreeDepth][START] Apply root-driver compensation
+E0606 13:08:52.494660 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494684 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494692 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494699 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494716 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494724 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494729 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494735 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494755 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+E0606 13:08:52.494761 1717916 Lib.cc:292] Warning: val outside table ranges:  val = 0; min_val = 0.0121961; max_val = 0.795659
+I0606 13:08:52.540205 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Apply root-driver compensation: status=finished, compensated_candidates=96693, strict_boundary_closure=true, strict_slew_boundary_closure=true, boundary_input_candidates=108025, boundary_closed_candidates=96693, boundary_rejected_candidates=11332, cap_bucket_mismatches=0, slew_bucket_mismatches=11332, invalid_compensations=0, unique_direct_lookups=28, direct_cache_hits=107997, load_resolutions=1320, load_resolution_cache_hits=106705, flute_route_estimates=1320, hpwl_route_estimates=0, elapsed_time=0.045 s
+I0606 13:08:52.551924 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Build pattern frontier: status=finished, frontier_entries=76261, topology_patterns=120393, elapsed_time=0.576 s
+I0606 13:08:52.552553 1717916 SchemaScope.cc:227] 
+I0606 13:08:52.552562 1717916 SchemaScope.cc:228] [HTreeDepth][START] Filter sink-load region
+I0606 13:08:52.602824 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Filter sink-load region: status=finished, feasible_frontier_entries=52140, elapsed_time=0.050 s
+I0606 13:08:52.616952 1717916 SchemaScope.cc:227] 
+I0606 13:08:52.616961 1717916 SchemaScope.cc:228] [HTreeDepth][START] Build pattern frontier
+I0606 13:08:52.994397 1717916 SchemaScope.cc:227] 
+I0606 13:08:52.994475 1717916 SchemaScope.cc:228] [HTreeDepth][START] Apply root-driver compensation
+I0606 13:08:53.030000 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Apply root-driver compensation: status=finished, compensated_candidates=94465, strict_boundary_closure=true, strict_slew_boundary_closure=true, boundary_input_candidates=103960, boundary_closed_candidates=94465, boundary_rejected_candidates=9495, cap_bucket_mismatches=0, slew_bucket_mismatches=9495, invalid_compensations=0, unique_direct_lookups=0, direct_cache_hits=103960, load_resolutions=0, load_resolution_cache_hits=103960, flute_route_estimates=0, hpwl_route_estimates=0, elapsed_time=0.035 s
+I0606 13:08:53.041235 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Build pattern frontier: status=finished, frontier_entries=75585, topology_patterns=113731, elapsed_time=0.424 s
+I0606 13:08:53.041589 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.041594 1717916 SchemaScope.cc:228] [HTreeDepth][START] Filter sink-load region
+I0606 13:08:53.070245 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Filter sink-load region: status=finished, feasible_frontier_entries=0, elapsed_time=0.028 s
+I0606 13:08:53.070425 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.070430 1717916 SchemaScope.cc:228] [HTreeDepth][START] Build pattern frontier
+I0606 13:08:53.419332 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.419395 1717916 SchemaScope.cc:228] [HTreeDepth][START] Apply root-driver compensation
+I0606 13:08:53.444890 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Apply root-driver compensation: status=finished, compensated_candidates=70918, strict_boundary_closure=true, strict_slew_boundary_closure=true, boundary_input_candidates=79235, boundary_closed_candidates=70918, boundary_rejected_candidates=8317, cap_bucket_mismatches=0, slew_bucket_mismatches=8317, invalid_compensations=0, unique_direct_lookups=0, direct_cache_hits=79235, load_resolutions=0, load_resolution_cache_hits=79235, flute_route_estimates=0, hpwl_route_estimates=0, elapsed_time=0.025 s
+I0606 13:08:53.453552 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Build pattern frontier: status=finished, frontier_entries=56874, topology_patterns=87855, elapsed_time=0.383 s
+I0606 13:08:53.453860 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.453866 1717916 SchemaScope.cc:228] [HTreeDepth][START] Filter sink-load region
+I0606 13:08:53.475122 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Filter sink-load region: status=finished, feasible_frontier_entries=0, elapsed_time=0.021 s
+I0606 13:08:53.475286 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.475291 1717916 SchemaScope.cc:228] [HTreeDepth][START] Build pattern frontier
+I0606 13:08:53.731715 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.731768 1717916 SchemaScope.cc:228] [HTreeDepth][START] Apply root-driver compensation
+I0606 13:08:53.755326 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Apply root-driver compensation: status=finished, compensated_candidates=67328, strict_boundary_closure=true, strict_slew_boundary_closure=true, boundary_input_candidates=74140, boundary_closed_candidates=67328, boundary_rejected_candidates=6812, cap_bucket_mismatches=0, slew_bucket_mismatches=6812, invalid_compensations=0, unique_direct_lookups=0, direct_cache_hits=74140, load_resolutions=0, load_resolution_cache_hits=74140, flute_route_estimates=0, hpwl_route_estimates=0, elapsed_time=0.023 s
+I0606 13:08:53.763804 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Build pattern frontier: status=finished, frontier_entries=54768, topology_patterns=80778, elapsed_time=0.288 s
+I0606 13:08:53.764039 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.764045 1717916 SchemaScope.cc:228] [HTreeDepth][START] Filter sink-load region
+I0606 13:08:53.784320 1717916 SchemaScope.cc:312] [HTreeDepth][FINISHED] Filter sink-load region: status=finished, feasible_frontier_entries=0, elapsed_time=0.020 s
+I0606 13:08:53.784694 1717916 SchemaScope.cc:312] [HTree][FINISHED] Search topology depth candidates: status=finished, evaluated_depths=4, global_feasible_refs=391, global_candidate_refs=0, compensated_candidates=329404, elapsed_time=1.809 s
+I0606 13:08:53.784710 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.784713 1717916 SchemaScope.cc:228] [HTree][START] Filter global sink-load coverage
+I0606 13:08:53.784785 1717916 SchemaScope.cc:312] [HTree][FINISHED] Filter global sink-load coverage: status=finished, covered_feasible_refs=391, covered_candidate_refs=0, first_feasible_failure=none, first_candidate_failure=none, elapsed_time=0.000 s
+I0606 13:08:53.784798 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.784801 1717916 SchemaScope.cc:228] [HTree][START] Select global topology
+I0606 13:08:53.784865 1717916 SchemaScope.cc:312] [HTree][FINISHED] Select global topology: status=finished, feasible_pareto_refs=391, candidate_pareto_refs=0, selected_from=strict_feasible, elapsed_time=0.000 s
+I0606 13:08:53.784921 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.784924 1717916 SchemaScope.cc:228] [HTree][START] Resolve selected sink-load legality
+I0606 13:08:53.784936 1717916 SchemaScope.cc:312] [HTree][FINISHED] Resolve selected sink-load legality: status=finished, legal=true, required_leaf_load_cap_idx=1, failure_reason=none, elapsed_time=0.000 s
+I0606 13:08:53.784950 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.784952 1717916 SchemaScope.cc:228] [HTree][START] Resolve selected root-driver compensation
+I0606 13:08:53.785030 1717916 SchemaScope.cc:312] [HTree][FINISHED] Resolve selected root-driver compensation: status=finished, valid=true, cell_master=BUFX20H7L, load_cap_pf=0.044491, elapsed_time=0.000 s
+I0606 13:08:53.785075 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.785079 1717916 SchemaScope.cc:228] [HTree][START] Build selected embedding
+I0606 13:08:53.804072 1717916 SchemaScope.cc:312] [HTree][FINISHED] Build selected embedding: status=finished, inserted_insts=806, inserted_nets=806, pruned_leaf_single_load_buffers=1924, elapsed_time=0.018 s
+I0606 13:08:53.804092 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.804095 1717916 SchemaScope.cc:228] [HTree][START] Emit synthesis summary
+I0606 13:08:53.804342 1717916 SchemaScope.cc:312] [HTree][FINISHED] Emit synthesis summary: status=finished, elapsed_time=0.000 s
+I0606 13:08:53.804351 1717916 SchemaScope.cc:312] [HTree][FINISHED] build: status=finished, selection_engine=discrete, elapsed_time=2.155 s
+I0606 13:08:53.806594 1717916 SchemaScope.cc:312] [Topology][FINISHED] Build downstream HTree: status=finished, selected_depth=11, inserted_insts=806, inserted_nets=806, elapsed_time=2.158 s
+I0606 13:08:53.806648 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.806651 1717916 SchemaScope.cc:228] [Topology][START] Emit cluster leaf distance report
+I0606 13:08:53.806787 1717916 SchemaScope.cc:312] [Topology][FINISHED] Emit cluster leaf distance report: status=finished, cluster_leaf_pairs=2189, mean_distance_um=9.708263, elapsed_time=0.000 s
+I0606 13:08:53.806802 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.806804 1717916 SchemaScope.cc:228] [Topology][START] Commit sink domain layout
+I0606 13:08:53.834022 1717916 SchemaScope.cc:312] [Topology][FINISHED] Commit sink domain layout: status=finished, elapsed_time=0.027 s
+I0606 13:08:53.835322 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.835327 1717916 SchemaScope.cc:228] [Topology][START] Build source trunk
+I0606 13:08:53.843693 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.843698 1717916 SchemaScope.cc:228] [SourceTrunk][START] Dispatch source trunk synthesis
+W0606 13:08:53.843743 1717916 WrapperLiberty.cc:291] Clock-source drive-cap query uses configured max_cap=0.15 pF as the hard source boundary for clk_i because source-specific Liberty cap limit is unavailable.
+I0606 13:08:53.843751 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.843755 1717916 SchemaScope.cc:228] [SourceTrunkSegment][START] Ensure characterization
+I0606 13:08:53.843765 1717916 SchemaScope.cc:312] [SourceTrunkSegment][FINISHED] Ensure characterization: status=finished, elapsed_time=0.000 s
+I0606 13:08:53.843775 1717916 SchemaScope.cc:227] 
+I0606 13:08:53.843778 1717916 SchemaScope.cc:228] [SourceTrunkSegment][START] Synthesize segment frontier
+I0606 13:09:00.687317 1717916 SchemaScope.cc:312] [SourceTrunkSegment][FINISHED] Synthesize segment frontier: status=finished, length_sets=5, frontier_entries=16830, elapsed_time=6.842 s
+I0606 13:09:00.688205 1717916 SchemaScope.cc:227] 
+I0606 13:09:00.688865 1717916 SchemaScope.cc:228] [SourceTrunkSegment][START] Select segment candidate
+I0606 13:09:00.690267 1717916 SchemaScope.cc:312] [SourceTrunkSegment][FINISHED] Select segment candidate: status=finished, strict_candidates=16830, relaxed_candidates=0, used_boundary_relaxation=false, selected_pattern_id=8733997, elapsed_time=0.002 s
+I0606 13:09:00.690289 1717916 SchemaScope.cc:227] 
+I0606 13:09:00.690291 1717916 SchemaScope.cc:228] [SourceTrunkSegment][START] Build segment objects
+I0606 13:09:00.690303 1717916 SchemaScope.cc:312] [SourceTrunkSegment][FINISHED] Build segment objects: status=finished, inserted_insts=0, inserted_nets=0, elapsed_time=0.000 s
+I0606 13:09:00.694720 1717916 SchemaScope.cc:312] [SourceTrunk][FINISHED] Dispatch source trunk synthesis: status=finished, stage=top_segment, inserted_insts=0, inserted_nets=0, used_boundary_relaxation=false, elapsed_time=6.851 s
+I0606 13:09:00.694744 1717916 SchemaScope.cc:312] [Topology][FINISHED] Build source trunk: status=finished, stage=top_segment, inserted_insts=0, inserted_nets=0, used_boundary_relaxation=false, elapsed_time=6.859 s
+I0606 13:09:00.694757 1717916 SchemaScope.cc:227] 
+I0606 13:09:00.694761 1717916 SchemaScope.cc:228] [Topology][START] Commit source trunk layout
+I0606 13:09:00.694823 1717916 SchemaScope.cc:312] [Topology][FINISHED] Commit source trunk layout: status=finished, elapsed_time=0.000 s
+I0606 13:09:00.697537 1717916 Synthesis.cc:398] CTS clock-tree synthesis finished with 1 successful, 0 skipped, 0 failed clocks.
+I0606 13:09:00.697556 1717916 Schema.cc:492] 
+I0606 13:09:00.697561 1717916 Schema.cc:493] ================== CTS Clock Tree Synthesis Overview ===================
++--------------------+----------+
+| Field              | Value    |
++--------------------+----------+
+| status             | finished |
+| total_clocks       | 1        |
+| finished_clocks    | 1        |
+| skipped_clocks     | 0        |
+| failed_clocks      | 0        |
+| total_sink_domains | 1        |
+| hard_macro_sinks   | 0        |
+| regular_sinks      | 8751     |
++--------------------+----------+
+I0606 13:09:00.697589 1717916 Schema.cc:485] 
+I0606 13:09:00.697592 1717916 Schema.cc:486] ===================== CTS Clock Tree Sink Domains ======================
++------------+-------+----------+----------------+-------------+--------------+-------------+
+| Clock      | Net   | Status   | Sink Domain    | Valid Sinks | Domain Sinks | Detail      |
++------------+-------+----------+----------------+-------------+--------------+-------------+
+| core_clock | clk_i | finished | regular        | 8751        | 8751         | synthesis   |
+| core_clock | clk_i | finished | source_to_root | 8751        | 1            | top_segment |
++------------+-------+----------+----------------+-------------+--------------+-------------+
+I0606 13:09:00.697650 1717916 SchemaScope.cc:312] [CTSFlow][FINISHED] Run CTS synthesis flow: status=finished, elapsed_time=10.469 s
+I0606 13:09:00.702807 1717916 SchemaScope.cc:227] 
+I0606 13:09:00.702813 1717916 SchemaScope.cc:228] [Optimization][START] Optimize synthesized CTS buffers with CTS fast STA
+I0606 13:09:00.715853 1717916 Schema.cc:492] 
+I0606 13:09:00.715862 1717916 Schema.cc:493] ======================== CTS Optimization Setup ========================
++------------------------+--------------------------+
+| Field                  | Value                    |
++------------------------+--------------------------+
+| timing_source          | cts_fast_sta_incremental |
+| target_skew            | 0.0800 ns                |
+| candidate_master_count | 4                        |
++------------------------+--------------------------+
+I0606 13:09:00.715888 1717916 Schema.cc:492] 
+I0606 13:09:00.715891 1717916 Schema.cc:493] =================== CTS Optimization Global Profile ====================
++-------------------------+----------+
+| Field                   | Value    |
++-------------------------+----------+
+| build_route_tree_cache  | 0.0130 s |
+| cached_route_tree_count | 2997     |
++-------------------------+----------+
+I0606 13:09:00.716459 1717916 FastSta.cc:178] FastSTA: start build clock context for clock "core_clock".
+I0606 13:09:00.724726 1717916 FastStaBuilder.cc:63] FastStaBuilder: build clock route geometry graph for clock "core_clock" finished in 0.00826195 s, nodes=14744, nets=2997, liberty_cells=0.
+I0606 13:09:00.724737 1717916 FastStaBuilder.cc:63] FastStaBuilder: apply bound environment for clock "core_clock" finished in 1e-07 s, nodes=14744, nets=2997, liberty_cells=0.
+I0606 13:09:00.733289 1717916 FastStaBuilder.cc:63] FastStaBuilder: apply route geometry parasitics for clock "core_clock" finished in 0.00854708 s, nodes=14744, nets=2997, liberty_cells=0.
+I0606 13:09:00.740592 1717916 FastStaBuilder.cc:63] FastStaBuilder: collect sink pin caps for clock "core_clock" finished in 0.00729448 s, nodes=14744, nets=2997, liberty_cells=0.
+W0606 13:09:00.740599 1717916 WrapperLiberty.cc:191] Characterization query [output pin cap table-axis max] for liberty cell "DFFQX1H7L" failed: no buffer timing arcs are available; return 0.0.
+W0606 13:09:00.740603 1717916 WrapperLiberty.cc:191] Characterization query [input pin slew table-axis max] for liberty cell "DFFQX1H7L" failed: no buffer timing arcs are available; return 0.0.
+I0606 13:09:00.741557 1717916 FastStaBuilder.cc:63] FastStaBuilder: collect Liberty and clock timing records for clock "core_clock" finished in 0.00095956 s, nodes=14744, nets=2997, liberty_cells=3.
+I0606 13:09:00.741564 1717916 FastStaBuilder.cc:196] FastStaBuilder: build clock context for clock "core_clock" finished in 0.0251018 s.
+I0606 13:09:00.741567 1717916 FastSta.cc:180] FastSTA: clock context build finished in 0.0251098 s.
+I0606 13:09:00.741570 1717916 FastSta.cc:58] FastSTA route geometry context: clock="core_clock", nodes=14744, nets=2997, liberty_cells=3.
+I0606 13:09:00.741575 1717916 FastSta.cc:187] FastSTA: start initial timing update for clock "core_clock".
+I0606 13:09:00.771188 1717916 FastSta.cc:189] FastSTA: initial timing update for clock "core_clock" finished in 0.0296166 s.
+I0606 13:09:00.771196 1717916 FastSta.cc:193] FastSTA: start initial power update for clock "core_clock".
+I0606 13:09:00.799896 1717916 FastSta.cc:195] FastSTA: initial power update for clock "core_clock" finished in 0.028702 s.
+I0606 13:09:00.799903 1717916 FastSta.cc:197] FastSTA: build clock context for clock "core_clock" finished in 0.0834461 s.
+I0606 13:09:00.799921 1717916 OptimizationPreparation.cc:277] Optimization: start route-tree injection for clock "core_clock", dag_nets=2997, cached_route_trees=2997.
+I0606 13:09:00.799925 1717916 OptimizationPreparation.cc:290] Optimization: route-tree injection start net 1/2997 "clk_i", loads=1, route_nodes=2, route_edges=1.
+I0606 13:09:00.799939 1717916 OptimizationPreparation.cc:305] Optimization: route-tree injection finish net 1/2997 "clk_i" in 3.396e-06 s.
+I0606 13:09:00.799943 1717916 OptimizationPreparation.cc:290] Optimization: route-tree injection start net 2/2997 "cts_flow_clk_0_core_clock_regular_downstream_net", loads=2, route_nodes=3, route_edges=2.
+I0606 13:09:00.799949 1717916 OptimizationPreparation.cc:305] Optimization: route-tree injection finish net 2/2997 "cts_flow_clk_0_core_clock_regular_downstream_net" in 2.695e-06 s.
+I0606 13:09:00.799953 1717916 OptimizationPreparation.cc:290] Optimization: route-tree injection start net 3/2997 "cts_flow_clk_0_core_clock_regular_cluster_sink_net_0", loads=4, route_nodes=7, route_edges=6.
+I0606 13:09:00.799960 1717916 OptimizationPreparation.cc:305] Optimization: route-tree injection finish net 3/2997 "cts_flow_clk_0_core_clock_regular_cluster_sink_net_0" in 4.178e-06 s.
+I0606 13:09:00.799963 1717916 OptimizationPreparation.cc:290] Optimization: route-tree injection start net 4/2997 "cts_flow_clk_0_core_clock_regular_cluster_sink_net_1", loads=4, route_nodes=7, route_edges=6.
+I0606 13:09:00.799971 1717916 OptimizationPreparation.cc:305] Optimization: route-tree injection finish net 4/2997 "cts_flow_clk_0_core_clock_regular_cluster_sink_net_1" in 3.977e-06 s.
+I0606 13:09:00.799974 1717916 OptimizationPreparation.cc:290] Optimization: route-tree injection start net 5/2997 "cts_flow_clk_0_core_clock_regular_cluster_sink_net_2", loads=4, route_nodes=7, route_edges=6.
+I0606 13:09:00.799980 1717916 OptimizationPreparation.cc:305] Optimization: route-tree injection finish net 5/2997 "cts_flow_clk_0_core_clock_regular_cluster_sink_net_2" in 2.826e-06 s.
+I0606 13:09:00.808192 1717916 OptimizationPreparation.cc:315] Optimization: route-tree injection finished for clock "core_clock" in 0.00827505 s, injected_nets=2997, rc_nodes=20419, rc_edges=17422.
+I0606 13:09:00.808287 1717916 OptimizationPreparation.cc:320] Optimization: start post-injection timing update for clock "core_clock".
+I0606 13:09:00.838300 1717916 OptimizationPreparation.cc:324] Optimization: post-injection timing update for clock "core_clock" finished in 0.030101 s.
+I0606 13:09:00.838308 1717916 OptimizationPreparation.cc:328] Optimization: start post-injection power update for clock "core_clock".
+I0606 13:09:00.867091 1717916 OptimizationPreparation.cc:332] Optimization: post-injection power update for clock "core_clock" finished in 0.0287846 s.
+I0606 13:09:00.868641 1717916 Optimization.cc:257] Optimization: clock "core_clock" uses exact full-power batch solver.
+I0606 13:09:00.878626 1717916 OptimizationSolver.cc:209] Optimization: solve iteration 1 starts with current_skew=0.0810936 ns, current_area=8533.28 um^2, candidates=423, total_trials=0.
+I0606 13:09:00.878636 1717916 OptimizationSolver.cc:221] Optimization: start batch trial 1, candidate=1/423, edit_count=2.
+I0606 13:09:00.994349 1717916 OptimizationSolver.cc:253] Optimization: batch trial progress, iteration=1, candidate=1/423, total_trials=1, trial_runtime=0.115677 s, iteration_runtime=0.115717 s, best_skew=0.0809875 ns.
+I0606 13:09:00.994359 1717916 OptimizationSolver.cc:221] Optimization: start batch trial 2, candidate=2/423, edit_count=3.
+I0606 13:09:01.113580 1717916 OptimizationSolver.cc:253] Optimization: batch trial progress, iteration=1, candidate=2/423, total_trials=2, trial_runtime=0.119171 s, iteration_runtime=0.234955 s, best_skew=0.0809875 ns.
+I0606 13:09:01.113605 1717916 OptimizationSolver.cc:221] Optimization: start batch trial 3, candidate=3/423, edit_count=4.
+I0606 13:09:01.233742 1717916 OptimizationSolver.cc:243] Optimization: target skew reached by exact batch trial, iteration=1, candidate=3/423, total_trials=3, trial_runtime=0.120099 s, iteration_runtime=0.355113 s, target_skew=0.08 ns, candidate_skew=0.0745563 ns, candidate_area=8537.76 um^2.
+I0606 13:09:01.292711 1717916 OptimizationSolver.cc:394] Optimization: accepted batch 1, edit_count=4, skew=0.0745563 ns, area=8537.76 um^2, total_trials=3.
+I0606 13:09:01.294250 1717916 Schema.cc:492] 
+I0606 13:09:01.294255 1717916 Schema.cc:493] ==================== CTS Optimization Clock Summary ====================
++-------------------------------------+------------------------+
+| Field                               | Value                  |
++-------------------------------------+------------------------+
+| clock                               | core_clock             |
+| runtime                             | 0.5774 s               |
+| target_skew                         | 0.0800 ns              |
+| initial_skew                        | 0.0811 ns              |
+| optimized_skew                      | 0.0746 ns              |
+| improvement                         | 0.0065 ns              |
+| initial_area                        | 8533.2800 um^2         |
+| optimized_area                      | 8537.7600 um^2         |
+| area_delta                          | 4.4800 um^2            |
+| iteration_count                     | 1                      |
+| trial_count                         | 3                      |
+| batch_trial_count                   | 3                      |
+| accepted_batch_count                | 1                      |
+| accepted_edit_count                 | 4                      |
+| rejected_candidate_count            | 0                      |
+| cap_rejected_count                  | 0                      |
+| slew_rejected_count                 | 0                      |
+| cap_legal                           | true                   |
+| initial_slew_violation_count        | 0                      |
+| initial_buffer_slew_violation_count | 0                      |
+| initial_sink_slew_violation_count   | 0                      |
+| slew_legal                          | true                   |
+| slew_violation_count                | 0                      |
+| buffer_slew_violation_count         | 0                      |
+| sink_slew_violation_count           | 0                      |
+| target_met                          | true                   |
+| solve_mode                          | exact_full_power_batch |
+| stop_reason                         | target_met             |
++-------------------------------------+------------------------+
+I0606 13:09:01.294332 1717916 Schema.cc:485] 
+I0606 13:09:01.294334 1717916 Schema.cc:486] ================= CTS Optimization Master Transitions ==================
++-----------------------+-------+
+| Transition            | Count |
++-----------------------+-------+
+| BUFX8H7L -> BUFX12H7L | 4     |
++-----------------------+-------+
+I0606 13:09:01.294346 1717916 Schema.cc:492] 
+I0606 13:09:01.294349 1717916 Schema.cc:493] ================= CTS Optimization Clock Graph Profile =================
++---------------------------+------------+
+| Field                     | Value      |
++---------------------------+------------+
+| clock                     | core_clock |
+| node_count                | 14744      |
+| net_count                 | 2997       |
+| sink_count                | 8751       |
+| buffer_input_count        | 2996       |
+| buffer_output_count       | 2996       |
+| optimizable_buffer_count  | 2996       |
+| generated_candidate_count | 423        |
++---------------------------+------------+
+I0606 13:09:01.294390 1717916 Schema.cc:485] 
+I0606 13:09:01.294394 1717916 Schema.cc:486] ================ CTS Optimization Clock Runtime Profile ================
++-----------------------------+-------------+
+| Stage                       | Runtime     |
++-----------------------------+-------------+
+| build_route_tree_cache      | 0.0130 s    |
+| build_fast_sta_context      | 0.0840 s    |
+| inject_route_trees          | 0.0672 s    |
+| collect_optimizable_buffers | 7.893e-04 s |
+| collect_cap_baseline        | 1.296e-04 s |
+| collect_slew_baseline       | 6.114e-04 s |
+| solve_clock_total           | 0.4246 s    |
+| capture_initial_state       | 3.623e-04 s |
+| build_topology_index        | 0.0012 s    |
+| generate_batch_candidates   | 0.0084 s    |
+| batch_trial_eval            | 0.3549 s    |
+| apply_accepted_batch        | 0.0589 s    |
+| apply_accepted_edits        | 8.517e-04 s |
++-----------------------------+-------------+
+I0606 13:09:01.294621 1717916 Schema.cc:492] 
+I0606 13:09:01.294625 1717916 Schema.cc:493] ======================= CTS Optimization Summary =======================
++-----------------------+-----------+
+| Field                 | Value     |
++-----------------------+-----------+
+| runtime               | 0.5918 s  |
+| clock_count           | 1         |
+| optimized_clock_count | 1         |
+| accepted_edit_count   | 4         |
+| status                | optimized |
++-----------------------+-----------+
+I0606 13:09:01.294643 1717916 Optimization.cc:312] CTS optimization finished with 4 accepted sizing edits across 1 clocks.
+I0606 13:09:01.294682 1717916 SchemaScope.cc:312] [Optimization][FINISHED] Optimize synthesized CTS buffers with CTS fast STA: status=finished, accepted_edit_count=4, elapsed_time=0.591 s
+I0606 13:09:01.304767 1717916 SchemaScope.cc:227] 
+I0606 13:09:01.304775 1717916 SchemaScope.cc:228] [Instantiation][START] Instantiate synthesized CTS topology into iDB
+I0606 13:09:01.401769 1717916 Schema.cc:492] 
+I0606 13:09:01.401818 1717916 Schema.cc:493] ====================== CTS Instantiation Overview ======================
++----------------+---------------+
+| Field          | Value         |
++----------------+---------------+
+| semantic_owner | instantiation |
+| status         | finished      |
+| design_ready   | true          |
+| clock_count    | 1             |
++----------------+---------------+
+I0606 13:09:01.401885 1717916 SchemaScope.cc:312] [Instantiation][FINISHED] Instantiate synthesized CTS topology into iDB: status=finished, clock_count=1, elapsed_time=0.097 s
+I0606 13:09:01.401913 1717916 SchemaScope.cc:227] 
+I0606 13:09:01.401917 1717916 SchemaScope.cc:228] [Evaluation][START] Evaluate CTS clock tree
+I0606 13:09:01.455443 1717916 Schema.cc:492] 
+I0606 13:09:01.455453 1717916 Schema.cc:493] ======================= CTS Evaluation Overview ========================
++---------------------------+---------------------------------------------------+
+| Field                     | Value                                             |
++---------------------------+---------------------------------------------------+
+| qor_metric_status         | available                                         |
+| physical_metric_source    | cts_clock_tree                                    |
+| clock_member_buffer_count | 2996                                              |
+| path_depth_metric_status  | available                                         |
+| clock_path_min_buffer     | 7                                                 |
+| clock_path_max_buffer     | 8                                                 |
+| max_level_of_clock_tree   | 8                                                 |
+| design_units              | 1000 DBU/um                                       |
+| statistics_reports        | wirelength.rpt, cell_stats.rpt, lib_cell_dist.rpt |
++---------------------------+---------------------------------------------------+
+I0606 13:09:01.455567 1717916 SchemaScope.cc:312] [Evaluation][FINISHED] Evaluate CTS clock tree: status=finished, elapsed_time=0.053 s
+I0606 13:09:01.455593 1717916 SchemaScope.cc:275] [CTS][RUNNING] Main CTS flow finished
+I0606 13:09:01.455605 1717916 SchemaScope.cc:312] [CTS][FINISHED] Clock tree synthesis API flow: status=finished, elapsed_time=43.883 s
+I0606 13:09:01.455626 1717916 Schema.cc:485] 
+I0606 13:09:01.455628 1717916 Schema.cc:486] ========================= CTS Runtime Overview =========================
++---------------+----------+------------------+----------------------+
+| Stage         | Status   | Elapsed Time (s) | Peak VMem Delta (MB) |
++---------------+----------+------------------+----------------------+
+| read_data     | finished | 32.656           | 1668.352             |
+| synthesis     | finished | 10.470           | 3441.480             |
+| optimization  | finished | 0.592            | 0.000                |
+| instantiation | finished | 0.097            | 0.000                |
+| evaluation    | finished | 0.054            | 0.000                |
+| total         | finished | 43.883           | 5109.832             |
++---------------+----------+------------------+----------------------+
+I0606 13:09:01.455657 1717916 Schema.cc:492] 
+I0606 13:09:01.455659 1717916 Schema.cc:493] =========================== CTS Key Results ============================
++--------------------------------+---------------+
+| Field                          | Value         |
++--------------------------------+---------------+
+| status                         | finished      |
+| clock_count                    | 1             |
+| sink_count                     | 8751          |
+| sink_domain_count              | 1             |
+| selected_htree_level_count     | 11            |
+| selected_htree_depth           | 11            |
+| htree_inserted_buffer_count    | 806           |
+| final_clock_buffer_count       | 2996          |
+| final_buffer_area              | 8537.760 um^2 |
+| max_clock_net_wirelength       | 359.608 um    |
+| total_clock_network_wirelength | 61790.733 um  |
+| elapsed_time                   | 43.883 s      |
+| peak_vmem_delta                | 5109.832 MB   |
++--------------------------------+---------------+
+I0606 13:09:01.455713 1717916 tcl_cts.cpp:60] iCTS run successfully.
+I0606 13:09:01.542107 1717916 verilog_write.cpp:59] start write verilog file ./result/iCTS_result.v
+I0606 13:09:01.897948 1717916 verilog_write.cpp:77] finish write verilog file ./result/iCTS_result.v
+I0606 13:09:01.977656 1717916 SchemaScope.cc:227] 
+I0606 13:09:01.977670 1717916 SchemaScope.cc:228] [Report][START] Emit CTS statistics and visualization reports
+I0606 13:09:01.977694 1717916 Schema.cc:492] 
+I0606 13:09:01.977697 1717916 Schema.cc:493] =========================== CTS Report Mode ============================
++-------+------------------------+
+| Field | Value                  |
++-------+------------------------+
+| mode  | reuse_evaluation_state |
++-------+------------------------+
+I0606 13:09:02.178964 1717916 Schema.cc:485] 
+I0606 13:09:02.178975 1717916 Schema.cc:486] ====================== CTS Visualization Reports =======================
++-----------------+------------------------------------------------+-------------+-----------+-----------+
+| Report          | Path                                           | View        | Status    | Detail    |
++-----------------+------------------------------------------------+-------------+-----------+-----------+
+| cts_design.svg  | ./result/cts/visualization/svg/cts_design.svg  | svg/design  | generated | generated |
+| cts_flyline.svg | ./result/cts/visualization/svg/cts_flyline.svg | svg/flyline | generated | generated |
++-----------------+------------------------------------------------+-------------+-----------+-----------+
+I0606 13:09:02.284461 1717916 Schema.cc:485] 
+I0606 13:09:02.284471 1717916 Schema.cc:486] =========================== CTS GDS Reports ============================
++-----------------+------------------------------------------------+-------------+-----------+
+| Report          | Path                                           | View        | Status    |
++-----------------+------------------------------------------------+-------------+-----------+
+| cts_design.gds  | ./result/cts/visualization/gds/cts_design.gds  | gds/design  | generated |
+| cts_design.lyp  | ./result/cts/visualization/gds/cts_design.lyp  | lyp/design  | generated |
+| cts_flyline.gds | ./result/cts/visualization/gds/cts_flyline.gds | gds/flyline | generated |
+| cts_flyline.lyp | ./result/cts/visualization/gds/cts_flyline.lyp | lyp/flyline | generated |
++-----------------+------------------------------------------------+-------------+-----------+
+I0606 13:09:02.287025 1717916 SchemaScope.cc:203] 
+I0606 13:09:02.287034 1717916 SchemaScope.cc:204] ========================== CTS Report Runtime ==========================
++--------+----------+------------------+----------------------+
+| Stage  | Status   | Elapsed Time (s) | Peak VMem Delta (MB) |
++--------+----------+------------------+----------------------+
+| report | finished | 0.309            | 0.000                |
++--------+----------+------------------+----------------------+
+I0606 13:09:02.287053 1717916 SchemaScope.cc:312] [Report][FINISHED] Emit CTS statistics and visualization reports: status=finished, statistics_status=finished, visualization_status=finished, gds_status=finished, elapsed_time=0.309 s
+[ perf record: Woken up 3 times to write data ]
+[ perf record: Captured and wrote 0.711 MB /home/liweiguo/project/ecc-tools-dev/.trellis/tasks/06-06-optimize-runtime-non-cts-read-data/artifacts/baseline_perf/perf.data (2284 samples) ]
+	Command being timed: "perf record -F 49 -g --call-graph fp -o /home/liweiguo/project/ecc-tools-dev/.trellis/tasks/06-06-optimize-runtime-non-cts-read-data/artifacts/baseline_perf/perf.data -- ./iEDA -script ./script/iCTS_script/run_iCTS_dev.tcl"
+	User time (seconds): 44.38
+	System time (seconds): 2.61
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:47.13
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 5472960
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 92
+	Minor (reclaiming a frame) page faults: 1409860
+	Voluntary context switches: 144
+	Involuntary context switches: 4656
+	Swaps: 0
+	File system inputs: 16600
+	File system outputs: 69680
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
