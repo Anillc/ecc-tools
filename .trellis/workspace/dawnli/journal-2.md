@@ -1048,3 +1048,36 @@ Optimized iSTA LibertyReader dispatch and scalar pin handling, reducing ics55_de
 ### Next Steps
 
 - None - task complete
+
+
+## Session 76: Optimize Liberty read_data runtime
+
+**Date**: 2026-06-06
+**Task**: Optimize Liberty read_data runtime
+**Branch**: `cts_refactor`
+
+### Summary
+
+Optimized iSTA Liberty read_data by using a buffered scanner and direct C++ AST replay into LibertyReader; validated iCTS metrics bitwise match and reduced read_data runtime.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b89945a7d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
