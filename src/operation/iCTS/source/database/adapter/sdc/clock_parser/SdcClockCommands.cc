@@ -23,7 +23,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iomanip>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <string>
@@ -107,7 +109,7 @@ auto SdcSubsetEvaluator::evaluateExpr(const std::vector<ParsedWord>& words) -> S
     return MakeStringValue("0");
   }
   std::ostringstream stream;
-  stream << expression_value;
+  stream << std::setprecision(std::numeric_limits<double>::max_digits10) << expression_value;
   return MakeStringValue(stream.str());
 }
 
@@ -126,7 +128,7 @@ auto SdcSubsetEvaluator::evaluateExprPlain(const std::vector<ParsedWord>& words)
     return MakeStringValue("0");
   }
   std::ostringstream stream;
-  stream << expression_value;
+  stream << std::setprecision(std::numeric_limits<double>::max_digits10) << expression_value;
   return MakeStringValue(stream.str());
 }
 

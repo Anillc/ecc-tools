@@ -75,9 +75,23 @@ auto synthesisOutcomeName(SynthesisOutcome outcome) -> std::string
   return "failed";
 }
 
+auto buildCompletedRunStatus(const SynthesisTraceSummary& run_summary, const InstantiationSummary& instantiation_summary) -> FlowRunStatus
+{
+  if (run_summary.outcome == SynthesisOutcome::kFinished && run_summary.success && instantiation_summary.success) {
+    return FlowRunStatus{.code = FlowRunStatusCode::kFinished, .step = "flow", .message = "CTS flow finished."};
+  }
+  if (run_summary.outcome == SynthesisOutcome::kNoOp) {
+    return FlowRunStatus{.code = FlowRunStatusCode::kNoOp, .step = "synthesis", .message = run_summary.no_op_reason};
+  }
+  if (run_summary.outcome == SynthesisOutcome::kFinished && !instantiation_summary.success) {
+    return FlowRunStatus{.code = FlowRunStatusCode::kInstantiationFailed, .step = "instantiation", .message = "CTS instantiation failed."};
+  }
+  return FlowRunStatus{.code = FlowRunStatusCode::kSynthesisFailed, .step = "synthesis", .message = "CTS synthesis flow failed."};
+}
+
 }  // namespace
 
-auto Flow::runCTS() -> void
+auto Flow::runCTS() -> FlowRunStatus
 {
   _runtime.reporter.resetRuntimeMetrics();
   auto total_runtime = _runtime.reporter.beginRuntimeMetric("total");
@@ -93,7 +107,7 @@ auto Flow::runCTS() -> void
     _runtime.reporter.emitSection("## Runtime Overview");
     _runtime.reporter.emitRuntimeSummary("CTS Runtime Overview");
     emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
-    return;
+    return FlowRunStatus{.code = FlowRunStatusCode::kSetupNotReady, .step = "setup", .message = "CTS setup is not ready."};
   }
 
   const auto clock_data_read_summary = readClockData();
@@ -106,7 +120,7 @@ auto Flow::runCTS() -> void
     _runtime.reporter.emitSection("## Runtime Overview");
     _runtime.reporter.emitRuntimeSummary("CTS Runtime Overview");
     emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
-    return;
+    return FlowRunStatus{.code = FlowRunStatusCode::kReadDataFailed, .step = "read_data", .message = clock_data_read_summary.reason};
   }
   (void) runSynthesis();
   (void) runOptimization();
@@ -135,6 +149,7 @@ auto Flow::runCTS() -> void
   _runtime.reporter.emitSection("## Runtime Overview");
   _runtime.reporter.emitRuntimeSummary("CTS Runtime Overview");
   emitKeyResults(total_metric.elapsed_time_s, total_metric.peak_vmem_delta_mb);
+  return buildCompletedRunStatus(_run_summary, _instantiation_summary);
 }
 
 auto Flow::readClockData() -> Flow::ClockDataReadSummary
@@ -255,7 +270,7 @@ auto Flow::evaluateClockTree() -> EvaluationBuild
   return output;
 }
 
-auto Flow::emitReports(const std::string& save_dir) -> void
+auto Flow::emitReports(const std::string& save_dir) -> FlowReportStatus
 {
   const auto report_summary = Report::run(ReportInput{.config = &_runtime.config,
                                                       .design = &_runtime.design,
@@ -266,6 +281,10 @@ auto Flow::emitReports(const std::string& save_dir) -> void
                                                       .clock_layout = &_clock_layout,
                                                       .evaluation_state = &_evaluation_state});
   _evaluation_ready = report_summary.evaluation_ready;
+  if (report_summary.success) {
+    return FlowReportStatus{.code = FlowReportStatusCode::kFinished, .message = "CTS reports emitted."};
+  }
+  return FlowReportStatus{.code = FlowReportStatusCode::kFailed, .message = "CTS report generation failed."};
 }
 
 auto Flow::outputRuntimeSetup() -> void

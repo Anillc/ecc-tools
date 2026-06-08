@@ -17,12 +17,9 @@
 #include "tcl_ctsconfig.h"
 
 #include <any>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <map>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "tcl_util.h"
@@ -55,80 +52,7 @@ auto MakeSupportedCtsConfigOptions() -> std::vector<ConfigOption>
       {"-htree_depth_explore_window", ValueType::kInt},
       {"-htree_topology_tolerance", ValueType::kDouble},
       {"-enable_sink_clustering", ValueType::kString},
-      {"-use_netlist", ValueType::kString},
-      {"-net_list", ValueType::kStringList},
   };
-}
-
-auto Trim(const std::string& value) -> std::string
-{
-  const auto first = value.find_first_not_of(" \t\n\r");
-  if (first == std::string::npos) {
-    return "";
-  }
-  const auto last = value.find_last_not_of(" \t\n\r");
-  return value.substr(first, last - first + 1);
-}
-
-auto FindNetListDelimiter(const std::string& entry) -> std::string::size_type
-{
-  const auto colon_pos = entry.find(':');
-  if (colon_pos != std::string::npos) {
-    return colon_pos;
-  }
-  return entry.find(',');
-}
-
-auto BuildNetListJson(const std::vector<std::string>& entries, ordered_json& net_list_json) -> bool
-{
-  net_list_json = ordered_json::array();
-  for (const auto& entry : entries) {
-    const auto delimiter_pos = FindNetListDelimiter(entry);
-    if (delimiter_pos == std::string::npos) {
-      std::cerr << "Invalid CTS net_list entry: " << entry << ". Expected clock_name:net_name." << std::endl;
-      return false;
-    }
-
-    const auto clock_name = Trim(entry.substr(0, delimiter_pos));
-    const auto net_name = Trim(entry.substr(delimiter_pos + 1));
-    if (clock_name.empty() || net_name.empty()) {
-      std::cerr << "Invalid CTS net_list entry: " << entry << ". Clock name and net name must be non-empty." << std::endl;
-      return false;
-    }
-
-    ordered_json net_pair;
-    net_pair["clock_name"] = clock_name;
-    net_pair["net_name"] = net_name;
-    net_list_json.push_back(std::move(net_pair));
-  }
-  return true;
-}
-
-auto UpdateCtsNetListConfig(const std::string& config_json_path, const std::vector<std::string>& entries) -> bool
-{
-  ordered_json config;
-  {
-    std::ifstream input_stream(config_json_path);
-    if (!input_stream.is_open()) {
-      std::cerr << "Failed to open CTS JSON file for net_list update: " << config_json_path << std::endl;
-      return false;
-    }
-    input_stream >> config;
-  }
-
-  ordered_json net_list_json;
-  if (!BuildNetListJson(entries, net_list_json)) {
-    return false;
-  }
-  config["net_list"] = std::move(net_list_json);
-
-  std::ofstream output_stream(config_json_path);
-  if (!output_stream.is_open()) {
-    std::cerr << "Failed to write CTS JSON file for net_list update: " << config_json_path << std::endl;
-    return false;
-  }
-  output_stream << std::setw(4) << config;
-  return true;
 }
 
 }  // namespace
@@ -154,19 +78,7 @@ unsigned CmdCTSConfig::exec()
   const auto config_json_path = std::any_cast<std::string>(config_path_iter->second);
   config_map.erase(config_path_iter);
 
-  std::vector<std::string> net_list_entries;
-  bool update_net_list = false;
-  const auto net_list_iter = config_map.find("-net_list");
-  if (net_list_iter != config_map.end()) {
-    net_list_entries = std::any_cast<std::vector<std::string>>(net_list_iter->second);
-    update_net_list = true;
-    config_map.erase(net_list_iter);
-  }
-
   if (!config_map.empty() && !TclUtil::alterJsonConfig(config_json_path, config_map)) {
-    return 0;
-  }
-  if (update_net_list && !UpdateCtsNetListConfig(config_json_path, net_list_entries)) {
     return 0;
   }
   return 1;

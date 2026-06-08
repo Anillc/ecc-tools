@@ -79,6 +79,7 @@ class Config
     _visualization_dir = "./result/cts/visualization";
     _statistics_dir = "./result/cts/statistics";
     _last_error.clear();
+    _warnings.clear();
   }
 
   // algorithm
@@ -111,6 +112,7 @@ class Config
   auto get_visualization_dir() const -> const std::string& { return _visualization_dir; }
   auto get_statistics_dir() const -> const std::string& { return _statistics_dir; }
   auto get_last_error() const -> const std::string& { return _last_error; }
+  auto get_warnings() const -> const std::vector<std::string>& { return _warnings; }
   auto set_last_error(const std::string& error) -> void { _last_error = error; }
 
   // algorithm
@@ -187,6 +189,7 @@ class Config
   std::string _statistics_dir = "./result/cts/statistics";
 
   std::string _last_error;
+  std::vector<std::string> _warnings;
 };
 
 }  // namespace icts

@@ -87,6 +87,15 @@ auto ToLower(std::string text) -> std::string
   return text;
 }
 
+auto HasOnlyTrailingSpaces(std::istringstream& stream) -> bool
+{
+  if (stream.eof()) {
+    return true;
+  }
+  stream >> std::ws;
+  return stream.eof();
+}
+
 }  // namespace
 
 auto ValueToString(const SdcValue& value) -> std::string
@@ -142,8 +151,7 @@ auto ParseDoubleValue(const std::string& text, double& value) -> bool
   }
   std::istringstream stream(clean_text);
   stream >> value;
-  stream >> std::ws;
-  return !stream.fail() && stream.eof();
+  return !stream.fail() && HasOnlyTrailingSpaces(stream);
 }
 
 auto ParseIntValue(const std::string& text, int& value) -> bool
@@ -155,8 +163,7 @@ auto ParseIntValue(const std::string& text, int& value) -> bool
   long parsed = 0;
   std::istringstream stream(clean_text);
   stream >> parsed;
-  stream >> std::ws;
-  if (stream.fail() || !stream.eof()) {
+  if (stream.fail() || !HasOnlyTrailingSpaces(stream)) {
     return false;
   }
   value = static_cast<int>(parsed);

@@ -15,12 +15,5 @@
   ],
   "buffer_type": [
     "sky130_fd_sc_hs__buf_1"
-  ],
-  "use_netlist": "OFF",
-  "net_list": [
-    {
-      "clock_name": "core_clock",
-      "net_name": "clk"
-    }
   ]
 }

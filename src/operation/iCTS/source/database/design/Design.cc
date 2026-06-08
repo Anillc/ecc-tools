@@ -30,6 +30,7 @@
 #include <map>
 #include <ostream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -55,6 +56,37 @@ auto collectBorrowedPointers(const std::vector<std::unique_ptr<T>>& objects) -> 
     }
   }
   return borrowed;
+}
+
+template <typename ObjectT>
+auto eraseNameIndexEntry(std::unordered_map<std::string, ObjectT*>& object_by_name, const std::string& name, const ObjectT* object) -> void
+{
+  if (name.empty()) {
+    return;
+  }
+
+  const auto object_iter = object_by_name.find(name);
+  if (object_iter != object_by_name.end() && object_iter->second == object) {
+    object_by_name.erase(object_iter);
+  }
+}
+
+template <typename ObjectT>
+auto eraseRecordedNameIndexEntry(std::unordered_map<std::string, ObjectT*>& object_by_name,
+                                 std::unordered_map<const ObjectT*, std::string>& name_by_object, const ObjectT* object,
+                                 const std::string& current_name) -> void
+{
+  const auto name_iter = name_by_object.find(object);
+  if (name_iter != name_by_object.end()) {
+    eraseNameIndexEntry(object_by_name, name_iter->second, object);
+    if (name_iter->second != current_name) {
+      eraseNameIndexEntry(object_by_name, current_name, object);
+    }
+    name_by_object.erase(name_iter);
+    return;
+  }
+
+  eraseNameIndexEntry(object_by_name, current_name, object);
 }
 
 struct ClockDistributionStats
@@ -174,6 +206,7 @@ auto Design::makeInst(const std::string& name) -> Inst*
   }
 
   _inst_by_name[name] = inst;
+  _inst_name_by_inst[inst] = name;
   _clock_dag.invalidate("clock_topology_changed");
   return inst;
 }
@@ -190,6 +223,7 @@ auto Design::commitInst(std::unique_ptr<Inst> inst) -> Inst*
   }
   auto* inst_ptr = inst.get();
   _inst_by_name[inst_ptr->get_name()] = inst_ptr;
+  _inst_name_by_inst[inst_ptr] = inst_ptr->get_name();
   _insts.push_back(std::move(inst));
   _clock_dag.invalidate("clock_topology_changed");
   return inst_ptr;
@@ -329,6 +363,7 @@ auto Design::makeNet(const std::string& name) -> Net*
   }
 
   _net_by_name[name] = net;
+  _net_name_by_net[net] = name;
   _clock_dag.invalidate("clock_topology_changed");
   return net;
 }
@@ -353,6 +388,7 @@ auto Design::commitNet(std::unique_ptr<Net> net) -> Net*
     }
   }
   _net_by_name[net_ptr->get_name()] = net_ptr;
+  _net_name_by_net[net_ptr] = net_ptr->get_name();
   _nets.push_back(std::move(net));
   _clock_dag.invalidate("clock_topology_changed");
   return net_ptr;
@@ -364,9 +400,11 @@ auto Design::clearTopologyObjects() -> void
   _pins.clear();
   _nets.clear();
   _inst_by_name.clear();
+  _inst_name_by_inst.clear();
   _pin_by_full_name.clear();
   _pin_full_name_by_pin.clear();
   _net_by_name.clear();
+  _net_name_by_net.clear();
   _clock_dag.invalidate("clock_topology_cleared");
 }
 
@@ -418,7 +456,7 @@ auto Design::removeInst(Inst* inst) -> void
   for (auto* pin : pins) {
     removePin(pin);
   }
-  std::erase_if(_inst_by_name, [inst](const auto& entry) -> bool { return entry.second == inst; });
+  eraseRecordedNameIndexEntry(_inst_by_name, _inst_name_by_inst, inst, inst->get_name());
   std::erase_if(_insts, [inst](const auto& object) -> bool { return object.get() == inst; });
   _clock_dag.invalidate("clock_topology_changed");
 }
@@ -437,7 +475,7 @@ auto Design::removeNet(Net* net) -> void
       load->set_net(nullptr);
     }
   }
-  std::erase_if(_net_by_name, [net](const auto& entry) -> bool { return entry.second == net; });
+  eraseRecordedNameIndexEntry(_net_by_name, _net_name_by_net, net, net->get_name());
   std::erase_if(_nets, [net](const auto& object) -> bool { return object.get() == net; });
   _clock_dag.invalidate("clock_topology_changed");
 }

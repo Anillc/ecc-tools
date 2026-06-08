@@ -90,12 +90,31 @@ void LibertyDriver::setParseResult(LibNode* node)
 bool LibertyDriver::parse(const char* filename)
 {
     _filename = filename;
-    std::ifstream ifs(filename);
+    std::ifstream ifs(filename, std::ios::binary);
     if (!ifs) {
         reportError("cannot open file");
         return false;
     }
-    return parse(ifs, filename);
+
+    ifs.seekg(0, std::ios::end);
+    const auto file_size = ifs.tellg();
+    if (file_size < 0) {
+        reportError("cannot get file size");
+        return false;
+    }
+    ifs.seekg(0, std::ios::beg);
+
+    std::string buffer(static_cast<std::size_t>(file_size), '\0');
+    if (!buffer.empty()) {
+        ifs.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        if (ifs.gcount() != static_cast<std::streamsize>(buffer.size())) {
+            reportError("cannot read file");
+            return false;
+        }
+    }
+    LibertyScanner scanner;
+    scanner.setInputBuffer(buffer.data(), buffer.size());
+    return parseScanner(scanner);
 }
 
 bool LibertyDriver::parse(std::istream& is, const char* filename)
@@ -104,6 +123,12 @@ bool LibertyDriver::parse(std::istream& is, const char* filename)
     
     LibertyScanner scanner;
     scanner.setInput(&is);
+    return parseScanner(scanner);
+}
+
+bool LibertyDriver::parseScanner(LibertyScanner& scanner)
+{
+    _result = nullptr;
     
     YYSTYPE yylval;
     YYLTYPE yylloc;

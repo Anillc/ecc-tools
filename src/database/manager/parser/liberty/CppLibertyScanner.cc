@@ -2,12 +2,14 @@
 #include "CppLibertyDriver.hh"
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 namespace liberty {
 
 LibertyScanner::LibertyScanner()
     : _in(nullptr), _out(nullptr), 
+      _buffer_cursor(nullptr), _buffer_end(nullptr),
       _line_no(1), _column(1), _last_char(0), _has_last_char(false),
       _has_unget_token(false), _unget_token(0)
 {
@@ -17,11 +19,33 @@ LibertyScanner::~LibertyScanner()
 {
 }
 
+void LibertyScanner::setInputBuffer(const char* data, std::size_t size)
+{
+    _in = nullptr;
+    _buffer_cursor = data;
+    _buffer_end = data ? data + size : nullptr;
+}
+
 int LibertyScanner::getChar()
 {
     if (_has_last_char) {
         _has_last_char = false;
         return _last_char;
+    }
+
+    if (_buffer_cursor) {
+        if (_buffer_cursor >= _buffer_end) {
+            return EOF;
+        }
+
+        const unsigned char c = static_cast<unsigned char>(*_buffer_cursor++);
+        if (c == '\n') {
+            _line_no++;
+            _column = 1;
+        } else {
+            _column++;
+        }
+        return c;
     }
     
     if (!_in || _in->eof()) {
@@ -38,8 +62,27 @@ int LibertyScanner::getChar()
     return c;
 }
 
+int LibertyScanner::peekChar() const
+{
+    if (_has_last_char) {
+        return _last_char;
+    }
+
+    if (_buffer_cursor) {
+        if (_buffer_cursor >= _buffer_end) {
+            return EOF;
+        }
+        return static_cast<unsigned char>(*_buffer_cursor);
+    }
+
+    return _in ? _in->peek() : EOF;
+}
+
 void LibertyScanner::ungetChar(int c)
 {
+    if (c == EOF) {
+        return;
+    }
     _last_char = c;
     _has_last_char = true;
     if (c == '\n') {
@@ -101,6 +144,46 @@ bool LibertyScanner::readString(std::string& result)
     return false;
 }
 
+char* LibertyScanner::duplicateSpan(const char* begin, const char* end) const
+{
+    const auto size = static_cast<std::size_t>(end - begin);
+    auto* result = static_cast<char*>(std::malloc(size + 1));
+    if (!result) {
+        return nullptr;
+    }
+    std::memcpy(result, begin, size);
+    result[size] = '\0';
+    return result;
+}
+
+char* LibertyScanner::readBufferedString()
+{
+    if (!_buffer_cursor || _has_last_char) {
+        return nullptr;
+    }
+
+    const char* const begin = _buffer_cursor;
+    const char* cursor = _buffer_cursor;
+    while (cursor < _buffer_end) {
+        const char c = *cursor;
+        if (c == '"') {
+            auto* result = duplicateSpan(begin, cursor);
+            if (!result) {
+                return nullptr;
+            }
+            _column += static_cast<int>(cursor - begin) + 1;
+            _buffer_cursor = cursor + 1;
+            return result;
+        }
+        if (c == '\\' || c == '\n') {
+            return nullptr;
+        }
+        ++cursor;
+    }
+
+    return nullptr;
+}
+
 bool LibertyScanner::readNumber(std::string& result)
 {
     result.clear();
@@ -148,15 +231,104 @@ bool LibertyScanner::readNumber(std::string& result)
            result != "+." && result != "-.";
 }
 
+bool LibertyScanner::readBufferedNumber(int first_char, double& value)
+{
+    if (!_buffer_cursor || _has_last_char) {
+        return false;
+    }
+
+    char small_buffer[128];
+    std::string large_buffer;
+    std::size_t small_size = 0;
+
+    auto append = [&](char c) {
+        if (large_buffer.empty() && small_size < sizeof(small_buffer) - 1) {
+            small_buffer[small_size++] = c;
+        } else {
+            if (large_buffer.empty()) {
+                large_buffer.assign(small_buffer, small_size);
+            }
+            large_buffer += c;
+        }
+    };
+
+    const char* cursor = _buffer_cursor;
+    auto has_char = [&]() { return cursor < _buffer_end; };
+    auto peek = [&]() -> int {
+        return has_char() ? static_cast<unsigned char>(*cursor) : EOF;
+    };
+    auto take = [&]() -> int {
+        return has_char() ? static_cast<unsigned char>(*(cursor++)) : EOF;
+    };
+
+    int c = first_char;
+    append(static_cast<char>(c == '_' ? '.' : c));
+
+    if (c == '+' || c == '-') {
+        c = take();
+        if (c == EOF) {
+            return false;
+        }
+        append(static_cast<char>(c == '_' ? '.' : c));
+    }
+
+    while (std::isdigit(peek())) {
+        append(static_cast<char>(take()));
+    }
+
+    if (peek() == '.' || peek() == '_') {
+        append('.');
+        take();
+        while (std::isdigit(peek())) {
+            append(static_cast<char>(take()));
+        }
+    }
+
+    if (peek() == 'k' || peek() == 'K') {
+        append('e');
+        append('3');
+        take();
+    } else if (peek() == 'e' || peek() == 'E') {
+        append(static_cast<char>(take()));
+        if (peek() == '+' || peek() == '-') {
+            append(static_cast<char>(take()));
+        }
+        while (std::isdigit(peek())) {
+            append(static_cast<char>(take()));
+        }
+    }
+
+    const char* number_string = nullptr;
+    if (large_buffer.empty()) {
+        small_buffer[small_size] = '\0';
+        number_string = small_buffer;
+    } else {
+        number_string = large_buffer.c_str();
+    }
+
+    if (std::strcmp(number_string, "+") == 0 ||
+        std::strcmp(number_string, "-") == 0 ||
+        std::strcmp(number_string, ".") == 0 ||
+        std::strcmp(number_string, "+.") == 0 ||
+        std::strcmp(number_string, "-.") == 0) {
+        return false;
+    }
+
+    value = std::strtod(number_string, nullptr);
+    _column += static_cast<int>(cursor - _buffer_cursor);
+    _buffer_cursor = cursor;
+    return true;
+}
+
 bool LibertyScanner::isNumberStart(int c) const
 {
     if (std::isdigit(c)) {
         return true;
     }
-    if (!_in) {
+    if (!_in && !_buffer_cursor && !_has_last_char) {
         return false;
     }
-    int next = _in->peek();
+    int next = peekChar();
     if (c == '.') {
         return std::isdigit(next);
     }
@@ -190,6 +362,40 @@ bool LibertyScanner::readIdentifier(std::string& result)
     }
     
     return !result.empty();
+}
+
+char* LibertyScanner::readBufferedIdentifier()
+{
+    if (!_buffer_cursor || _has_last_char) {
+        return nullptr;
+    }
+
+    const char* const begin = _buffer_cursor - 1;
+    const char* cursor = _buffer_cursor;
+    int bracket_depth = 0;
+
+    while (cursor < _buffer_end) {
+        const unsigned char c = static_cast<unsigned char>(*cursor);
+        if (c == '[') {
+            ++bracket_depth;
+        } else if (c == ']') {
+            if (bracket_depth > 0) {
+                --bracket_depth;
+            }
+        } else if (!(std::isalnum(c) || c == '_' || c == '.' || c == '-' ||
+                     (c == ':' && bracket_depth > 0))) {
+            break;
+        }
+        ++cursor;
+    }
+
+    auto* result = duplicateSpan(begin, cursor);
+    if (!result) {
+        return nullptr;
+    }
+    _column += static_cast<int>(cursor - _buffer_cursor);
+    _buffer_cursor = cursor;
+    return result;
 }
 
 void LibertyScanner::ungetToken(int token, YYSTYPE& yylval)
@@ -251,6 +457,12 @@ int LibertyScanner::yylex(YYSTYPE* yylval, YYLTYPE* yylloc)
         }
         
         if (c == '"') {
+            if (_buffer_cursor && !_has_last_char) {
+                if (char* str = readBufferedString()) {
+                    yylval->string = str;
+                    return STRING;
+                }
+            }
             std::string str;
             if (readString(str)) {
                 yylval->string = strdup(str.c_str());
@@ -260,6 +472,11 @@ int LibertyScanner::yylex(YYSTYPE* yylval, YYLTYPE* yylloc)
         }
         
         if (isNumberStart(c)) {
+            if (_buffer_cursor && !_has_last_char) {
+                if (readBufferedNumber(c, yylval->number)) {
+                    return FLOAT;
+                }
+            }
             ungetChar(c);
             std::string num;
             if (readNumber(num)) {
@@ -270,6 +487,12 @@ int LibertyScanner::yylex(YYSTYPE* yylval, YYLTYPE* yylloc)
         }
         
         if (std::isalpha(c) || c == '_') {
+            if (_buffer_cursor && !_has_last_char) {
+                if (char* id = readBufferedIdentifier()) {
+                    yylval->string = id;
+                    return KEYWORD;
+                }
+            }
             ungetChar(c);
             std::string id;
             if (readIdentifier(id)) {

@@ -18,7 +18,6 @@
 
 #include <tool_manager.h>
 
-#include <CTSAPI.hh>
 namespace python_interface {
 bool CtsAutoRun(const std::string& cts_config, const std::string& cts_work_dir)
 {
@@ -26,9 +25,9 @@ bool CtsAutoRun(const std::string& cts_config, const std::string& cts_work_dir)
   return cts_run_ok;
 }
 
-void CtsReport(const std::string& path)
+bool CtsReport(const std::string& path)
 {
-  CTS_API_INST.report(path);
+  return iplf::tmInst->reportCTS(path);
 }
 
 }  // namespace python_interface
