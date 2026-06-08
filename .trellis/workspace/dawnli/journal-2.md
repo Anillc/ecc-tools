@@ -1081,3 +1081,36 @@ Optimized iSTA Liberty read_data by using a buffered scanner and direct C++ AST 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 77: Fix ics55 ECC CTS failures
+
+**Date**: 2026-06-08
+**Task**: Fix ics55 ECC CTS failures
+**Branch**: `cts_refactor`
+
+### Summary
+
+Fixed iCTS Liberty expression traversal and SDC expression parsing, validated latest-binary rerun for six ics55 ECC CTS cases, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f3517de2a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
