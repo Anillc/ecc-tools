@@ -1114,3 +1114,36 @@ Fixed iCTS Liberty expression traversal and SDC expression parsing, validated la
 ### Next Steps
 
 - None - task complete
+
+
+## Session 78: Merge main into cts_refactor
+
+**Date**: 2026-06-08
+**Task**: Merge main into cts_refactor
+**Branch**: `cts_refactor`
+
+### Summary
+
+Merged latest main into cts_refactor, resolved conflicts by keeping current iCTS/.gitignore and main for non-iCTS conflicts, verified GCC 11 build and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9e2195e31` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
