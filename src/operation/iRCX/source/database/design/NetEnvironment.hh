@@ -68,12 +68,12 @@ class NetEnvironment
 
   void appendEdgeIntervals(std::vector<EdgeEnvironmentInterval> intervals)
   {
-    edge_interval_groups_.append_group(std::move(intervals));
+    edge_interval_groups_.append(std::move(intervals));
   }
 
   std::span<const EdgeEnvironmentInterval> edgeIntervals(Size edge_id) const
   {
-    return edge_interval_groups_.group_items(edge_id);
+    return edge_interval_groups_.items(edge_id);
   }
 
   void clear()

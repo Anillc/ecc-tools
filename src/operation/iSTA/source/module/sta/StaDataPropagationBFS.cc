@@ -218,7 +218,7 @@ unsigned StaFwdPropagationBFS::operator()(StaGraph* the_graph) {
     _bfs_queue.clear();
 
     // swap to the next bfs queue.
-    std::swap(_bfs_queue, _next_bfs_queue);
+    swapNextBFSQueue();
 
   } while (!_bfs_queue.empty());
 

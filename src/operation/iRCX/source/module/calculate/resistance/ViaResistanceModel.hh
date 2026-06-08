@@ -33,7 +33,7 @@ class ViaResistanceModel
   static auto calc(const TopoEdge& edge,
                    const itf::ProcessCorner& corner,
                    const itf::LayerVia& layer,
-                   Micron dbu_to_micron,
+                   Micron micron_per_dbu,
                    F64 operating_temperature) -> F64;
 };
 

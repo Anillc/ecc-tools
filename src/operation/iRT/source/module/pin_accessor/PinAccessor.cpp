@@ -147,7 +147,7 @@ void PinAccessor::initAccessPointList(PAModel& pa_model)
     std::sort(access_point_list.begin(), access_point_list.end(),
               [](AccessPoint& a, AccessPoint& b) { return CmpLayerCoordByXASC()(a.getRealLayerCoord(), b.getRealLayerCoord()); });
     if (access_point_list.empty()) {
-      RTLOG.error(Loc::current(), "No access point was generated!");
+      RTLOG.error(Loc::current(), RTUTIL.getString("No access point was generated! Pin ", pa_pin->get_pin_name()));
     }
     for (AccessPoint& access_point : pa_pin->get_access_point_list()) {
       pa_pin->get_pin_shape_coord_list().push_back(access_point.getRealLayerCoord());

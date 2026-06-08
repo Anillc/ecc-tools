@@ -19,13 +19,11 @@ target_include_directories(ircx_headers
     ${HOME_OPERATION}/iRCX/source/database/design
     ${HOME_OPERATION}/iRCX/source/database/io
     ${HOME_OPERATION}/iRCX/source/flow
-    ${HOME_OPERATION}/iRCX/source/flow/compare_parasitics
     ${HOME_OPERATION}/iRCX/source/flow/extraction
     ${HOME_OPERATION}/iRCX/source/flow/report
     ${HOME_OPERATION}/iRCX/source/flow/setup
     ${HOME_OPERATION}/iRCX/source/module
     ${HOME_OPERATION}/iRCX/source/module/environment
-    ${HOME_OPERATION}/iRCX/source/module/compare_parasitics
     ${HOME_OPERATION}/iRCX/source/module/calculate
     ${HOME_OPERATION}/iRCX/source/module/calculate/capacitance
     ${HOME_OPERATION}/iRCX/source/module/calculate/resistance
@@ -46,15 +44,17 @@ target_include_directories(ircx_headers
     ${HOME_THIRDPARTY}
 )
 
+add_subdirectory(ics55)
 add_subdirectory(source/parser)
 add_subdirectory(source/database)
 add_subdirectory(source/module/topology)
 add_subdirectory(source/module/environment)
 add_subdirectory(source/module/process)
-add_subdirectory(source/module/compare_parasitics)
 add_subdirectory(source/module/calculate)
 add_subdirectory(source/module/report)
-add_subdirectory(source/flow/compare_parasitics)
+add_subdirectory(source/tool/compare_spef)
+add_subdirectory(source/tool/dump_net_shape)
+add_subdirectory(source/tool/plot_spef)
 add_subdirectory(source/flow/extraction)
 add_subdirectory(source/flow/report)
 add_subdirectory(source/flow)

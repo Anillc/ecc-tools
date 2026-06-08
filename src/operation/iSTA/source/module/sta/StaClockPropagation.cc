@@ -24,6 +24,9 @@
 
 #include "StaClockPropagation.hh"
 
+#include <limits>
+#include <optional>
+
 #include "Sta.hh"
 #include "StaApplySdc.hh"
 #include "StaArc.hh"
@@ -46,18 +49,20 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
   auto* snk_vertex = the_arc->get_snk();
   auto* src_vertex = the_arc->get_src();
 
-  DesignObject* design_obj = src_vertex->get_design_obj();
   std::string obj_name;
-  if (src_vertex->is_port()) {
-    obj_name = design_obj->get_name();
-  } else {
-    Instance* inst = dynamic_cast<Pin*>(design_obj)->get_own_instance();
-    obj_name = inst->get_inst_cell()->get_cell_name();
-  }
+  int src_vertex_depth = 0;
+  if (!isIdealClock()) {
+    DesignObject* design_obj = src_vertex->get_design_obj();
+    if (src_vertex->is_port()) {
+      obj_name = design_obj->get_name();
+    } else {
+      Instance* inst = dynamic_cast<Pin*>(design_obj)->get_own_instance();
+      obj_name = inst->get_inst_cell()->get_cell_name();
+    }
 
-  std::priority_queue<int, std::vector<int>, std::greater<int>> depth_min_queue;
-  src_vertex->getPathDepth(depth_min_queue);
-  int src_vertex_depth = depth_min_queue.top();
+    std::unordered_set<StaVertex*> visiting;
+    src_vertex_depth = src_vertex->getPathDepth(_path_depth_cache, visiting);
+  }
 
   // lambda function, get delay derate.
   auto get_delay_derate = [this](AnalysisMode delay_type,
@@ -115,10 +120,13 @@ unsigned StaClockPropagation::propagateClock(StaArc* the_arc,
           get_delay_derate(new_data->get_delay_type(), the_arc->isInstArc());
 
       // obj_name,vetex_depth(src,snk?),trans_type(new_data)
-      auto aocv_derate = get_aocv_delay_derate(
-          obj_name.c_str(), new_data->get_delay_type(),
-          new_data->get_trans_type(), AocvObjectSpec::DelayType::kCell,
-          src_vertex_depth);
+      std::optional<float> aocv_derate = std::nullopt;
+      if (src_vertex_depth != std::numeric_limits<int>::max()) {
+        aocv_derate = get_aocv_delay_derate(
+            obj_name.c_str(), new_data->get_delay_type(),
+            new_data->get_trans_type(), AocvObjectSpec::DelayType::kCell,
+            src_vertex_depth);
+      }
 
       if (aocv_derate) {
         arc_delay *= aocv_derate.value();
@@ -350,6 +358,7 @@ unsigned StaClockPropagation::operator()(StaGraph* /* the_graph */) {
   };
 
   unsigned is_ok = 1;
+  _path_depth_cache.clear();
 
   LOG_INFO << "clock propagation clock num: " << clocks.size();
 

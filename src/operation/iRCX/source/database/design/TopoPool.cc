@@ -25,7 +25,7 @@ namespace ircx {
 void TopoEdge::set_shape(const GtlRectI& v) {
   shape_ = v;
 
-  line_seg_.is_horz = geom::is_hor_dominant(shape_);
+  line_seg_.is_horz = geom::is_horizontal_dominant(shape_);
 
   width_ = line_seg_.is_horz ? geom::delta_y(shape_) : geom::delta_x(shape_);
   half_width_ = width_ / 2;

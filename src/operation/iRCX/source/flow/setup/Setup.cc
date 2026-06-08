@@ -33,6 +33,7 @@
 #include "RCXData.hh"
 #include "SpefContext.hh"
 #include "PathUtils.hh"
+#include "StageLog.hh"
 #include "idm.h"
 #include "log/Log.hh"
 
@@ -64,21 +65,20 @@ auto makeTemperatureCornerName(const Str& corner_name, F64 temperature) -> Str
 auto loadProcessCorner(const Str& corner_name,
                        const Str& itf_file) -> std::unique_ptr<::itf::ProcessCorner>
 {
-  if (!string::ensure_non_empty(corner_name, "corner name")) {
+  if (!string::require_non_empty(corner_name, "corner name")) {
     return nullptr;
   }
-  if (!path::require_file(itf_file, "itf_file")) {
+  if (!path::file_exists(itf_file, "itf_file")) {
     return nullptr;
   }
 
   ::itf::ItfBuilder itf_builder;
-  LOG_INFO << "read itf " << itf_file << " for corner " << corner_name << " start";
+  StageLog stage_log("read_itf corner=" + corner_name + " file=" + itf_file);
   if (!itf_builder.buildItf(itf_file)) {
     LOG_ERROR << "failed to parse ITF file for corner "
               << corner_name << ": " << itf_file;
     return nullptr;
   }
-  LOG_INFO << "read itf " << itf_file << " for corner " << corner_name << " end";
 
   auto* itf_service = itf_builder.get_itf_service();
   if (!itf_service) {
@@ -112,21 +112,21 @@ auto loadProcessCorner(const Str& corner_name,
     loaded_corner->set_technology(corner_name);
   }
 
+  stage_log.set_success();
   return loaded_corner;
 }
 
 auto loadCapTable(const Str& corner_name,
                   const Str& captab_file) -> std::optional<parser::CapTable>
 {
-  if (!string::ensure_non_empty(corner_name, "corner name")) {
+  if (!string::require_non_empty(corner_name, "corner name")) {
     return std::nullopt;
   }
-  if (!path::require_file(captab_file, "captab_file")) {
+  if (!path::file_exists(captab_file, "captab_file")) {
     return std::nullopt;
   }
 
-  LOG_INFO << "read captab " << captab_file
-           << " for corner " << corner_name << " start";
+  StageLog stage_log("read_captab corner=" + corner_name + " file=" + captab_file);
 
   parser::CapTable cap_table;
   if (!cap_table.loadFromFile(captab_file)) {
@@ -135,8 +135,7 @@ auto loadCapTable(const Str& corner_name,
     return std::nullopt;
   }
 
-  LOG_INFO << "read captab " << captab_file
-           << " for corner " << corner_name << " end";
+  stage_log.set_success();
   return cap_table;
 }
 
@@ -258,7 +257,7 @@ auto Setup::readCorner(const std::string& corner_name,
                        const char* itf_file,
                        const char* captab_file) -> bool
 {
-  if (!string::ensure_non_empty(corner_name, "corner name")) {
+  if (!string::require_non_empty(corner_name, "corner name")) {
     return false;
   }
   if (!std::isfinite(temperature)) {
@@ -313,12 +312,11 @@ auto Setup::readMapping(const char* mapping_file) -> bool
     LOG_ERROR << "mapping_file is null.";
     return false;
   }
-  if (!path::require_file(mapping_file, "mapping_file")) {
+  if (!path::file_exists(mapping_file, "mapping_file")) {
     return false;
   }
 
-  LOG_INFO << "read mapping "
-           << mapping_file << " start";
+  StageLog stage_log("read_mapping file=" + Str(mapping_file));
 
   RCXData& data = RCX_DATA_INST;
   LayerTable& layer_table = data.layer_table();
@@ -332,8 +330,7 @@ auto Setup::readMapping(const char* mapping_file) -> bool
   for (const auto& [dn, pn] : mapping_builder.design_to_process_layer_names())
     layer_table.registerMapping(dn, pn);
 
-  LOG_INFO << "read mapping "
-           << mapping_file << " end";
+  stage_log.set_success();
   return true;
 }
 

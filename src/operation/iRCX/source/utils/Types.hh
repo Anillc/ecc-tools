@@ -21,6 +21,7 @@
 #include <boost/polygon/gtl.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <limits>
 #include <string>
 
@@ -48,10 +49,19 @@ using Size = std::size_t;
 using Dbu    = I32;   // database unit
 using Micron = F64;   // micron unit
 
-inline auto dbu2micron(Dbu value, Dbu micron_to_dbu) -> Micron
+namespace unit {
+
+inline auto to_micron(Dbu value, Dbu dbu_per_micron) -> Micron
 {
-  return static_cast<Micron>(value) / static_cast<Micron>(micron_to_dbu);
+  return static_cast<Micron>(value) / static_cast<Micron>(dbu_per_micron);
 }
+
+inline auto to_dbu(Micron value, Dbu dbu_per_micron) -> Dbu
+{
+  return static_cast<Dbu>(std::llround(value * static_cast<Micron>(dbu_per_micron)));
+}
+
+}  // namespace unit
 
 template <typename T>
 inline constexpr int BitNum = std::numeric_limits<T>::digits;

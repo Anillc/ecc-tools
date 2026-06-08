@@ -18,7 +18,8 @@
 
 #include <string>
 
-#include "CompareParasiticsConfig.hh"
+#include "config/CompareSpefConfig.hh"
+#include "config/PlotSpefConfig.hh"
 
 namespace ircx {
 
@@ -33,10 +34,15 @@ class RCXAPI
     return inst;
   }
 
+  // Main RCX flow.
   static auto init(const std::string& config_file) -> bool;
   static auto run() -> bool;
   static auto report() -> bool;
-  static auto compareParasitics(CompareParasiticsConfig config) -> bool;
+
+  // Standalone RCX utilities.
+  static auto compare_spef(compare_spef::Config config) -> bool;
+  static auto dump_net_shape() -> bool;
+  static auto plot_spef(plot_spef::Config config) -> bool;
 
   RCXAPI(const RCXAPI& other) = delete;
   RCXAPI(RCXAPI&& other) = delete;

@@ -276,15 +276,15 @@ inline auto manhattan_distance(const P& a, const P& b)
 }
 
 template <class P>
-inline auto is_hor_dominant(const P& a, const P& b) -> bool
+inline auto is_horizontal_dominant(const P& a, const P& b) -> bool
 {
   return std::abs(geom::x(a) - geom::x(b)) >= std::abs(geom::y(a) - geom::y(b));
 }
 
 template <class P>
-inline auto is_ver_dominant(const P& a, const P& b) -> bool
+inline auto is_vertical_dominant(const P& a, const P& b) -> bool
 {
-  return !is_hor_dominant(a, b);
+  return !is_horizontal_dominant(a, b);
 }
 
 template <class P>
@@ -335,13 +335,13 @@ inline auto center(const R& r) -> gtl::point_data<RectCoordT<R>> {
 }
 
 template <class R>
-inline auto is_hor_dominant(const R& r) -> bool
+inline auto is_horizontal_dominant(const R& r) -> bool
 {
   return delta_x(r) >= delta_y(r);
 }
 
 template <class R>
-inline auto is_ver_dominant(const R& r) -> bool
+inline auto is_vertical_dominant(const R& r) -> bool
 {
   return delta_x(r) < delta_y(r);
 }

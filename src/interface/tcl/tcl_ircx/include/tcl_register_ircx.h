@@ -25,7 +25,9 @@ int registerCmdRCX()
   registerTclCmd(TclRunRCX, "run_rcx");
   registerTclCmd(TclInitRCX, "init_rcx");
   registerTclCmd(TclReportRCX, "report_rcx");
-  registerTclCmd(TclCompareParasitics, "compare_parasitics");
+  registerTclCmd(TclCompareSpef, "compare_spef");
+  registerTclCmd(TclDumpNetShape, "dump_net_shape");
+  registerTclCmd(TclPlotSpef, "plot_spef");
 
   return EXIT_SUCCESS;
 }

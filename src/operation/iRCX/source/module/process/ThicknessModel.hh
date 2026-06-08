@@ -134,7 +134,7 @@ class ThicknessModel {
 
 
     for (const auto& [box_size, weight] : cdt.get_density_box_weighting_factor()) {
-      const Dbu half_box_size_dbu = static_cast<Dbu>(box_size * layout_data_->micron_to_dbu);
+      const Dbu half_box_size_dbu = static_cast<Dbu>(box_size * layout_data_->dbu_per_micron);
       density_box = GtlRectI(center_x_dbu - half_box_size_dbu, center_y_dbu - half_box_size_dbu,
                              center_x_dbu + half_box_size_dbu, center_y_dbu + half_box_size_dbu);
 

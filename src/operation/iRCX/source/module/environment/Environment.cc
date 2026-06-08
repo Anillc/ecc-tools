@@ -19,12 +19,55 @@
 #include <vector>
 
 #include "Environment.hh"
+#include "IntervalEngine.hh"
 #include "IntervalUtils.hh"
 #include "LayoutData.hh"
 #include "TopoPool.hh"
-#include "IntervalEngine.hh"
 #include "log/Log.hh"
 namespace ircx {
+
+namespace {
+
+struct Axis
+{
+  Dbu origin{0};
+  Dbu count{0};
+  Dbu step{0};
+};
+
+auto ceilDivPositive(Dbu value, Dbu divisor) -> Dbu
+{
+  if (value <= 0 || divisor <= 0) {
+    return 0;
+  }
+  return static_cast<Dbu>((static_cast<I64>(value) + divisor - 1) / divisor);
+}
+
+auto coverAxis(Dbu origin, Dbu count, Dbu step, Dbu lo, Dbu hi) -> Axis
+{
+  if (step <= 0) {
+    return {origin, count, step};
+  }
+
+  I64 axis_origin = origin;
+  I64 axis_count = count;
+  const I64 axis_step = step;
+
+  if (axis_origin > lo) {
+    const I64 shift = (axis_origin - lo + axis_step - 1) / axis_step;
+    axis_origin -= shift * axis_step;
+    axis_count += shift;
+  }
+
+  const I64 covered_hi = axis_origin + axis_step * axis_count;
+  if (covered_hi <= hi) {
+    axis_count += (static_cast<I64>(hi) - covered_hi) / axis_step + 1;
+  }
+
+  return {static_cast<Dbu>(axis_origin), static_cast<Dbu>(axis_count), step};
+}
+
+}  // namespace
 
 void Environment::reset()
 {
@@ -57,7 +100,7 @@ bool Environment::buildTracks()
   Dbu die_dx = geom::delta_x(rect);
   Dbu die_dy = geom::delta_y(rect);
 
-  Dbu bucket_dlt = static_cast<Dbu>(bucket_size_um_ * layout_data_->micron_to_dbu);
+  Dbu bucket_dlt = static_cast<Dbu>(bucket_size_um_ * layout_data_->dbu_per_micron);
 
   layer_to_track_.clear();
 
@@ -70,29 +113,17 @@ bool Environment::buildTracks()
     Dbu track_ori = is_horz ? ti.y0 : ti.x0;
     Dbu track_num = is_horz ? ti.ny : ti.nx;
     Dbu track_dlt = is_horz ? ti.dy : ti.dx;
+    const Dbu axis_lo = is_horz ? die_y0 : die_x0;
+    const Dbu axis_hi = is_horz ? die_y1 : die_x1;
+    const auto track_axis = coverAxis(track_ori, track_num, track_dlt, axis_lo, axis_hi);
 
-    if (is_horz) {
-      while(track_ori > die_y0) {
-        track_ori -= track_dlt;
-        track_num += 1;
-      }
-      while(track_ori + track_dlt * track_num <= die_y1) track_num += 1;
-    } else {
-      while(track_ori > die_x0) {
-        track_ori -= track_dlt;
-        track_num += 1;
-      }
-      while(track_ori + track_dlt * track_num <= die_x1) track_num += 1;
-    }
-
-    track.set_track_ori(track_ori);
-    track.set_track_num(track_num);
-    track.set_track_dlt(track_dlt);
+    track.set_track_ori(track_axis.origin);
+    track.set_track_num(track_axis.count);
+    track.set_track_dlt(track_axis.step);
 
     Dbu bucket_len = is_horz ? die_dx : die_dy;
-    Dbu bucket_num = (bucket_len + bucket_dlt - 1) / bucket_dlt;
     track.set_bucket_ori(is_horz ? die_x0 : die_y0);
-    track.set_bucket_num(bucket_num);
+    track.set_bucket_num(ceilDivPositive(bucket_len, bucket_dlt));
     track.set_bucket_dlt(bucket_dlt);
 
     if (!track.initTrack()) {
@@ -169,25 +200,16 @@ bool Environment::buildPixels()
       dy = layer.layer_width();
     }
 
-    while(x0 > die_x0) {
-      x0 -= dx;
-      nx += 1;
-    }
-    while(x0 + dx * nx <= die_x1) nx += 1;
+    const auto x_axis = coverAxis(x0, nx, dx, die_x0, die_x1);
+    const auto y_axis = coverAxis(y0, ny, dy, die_y0, die_y1);
 
-    while(y0 > die_y0) {
-      y0 -= dy;
-      ny += 1;
-    }
-    while(y0 + dy * ny <= die_y1) ny += 1;
-
-    pixel.set_x0(x0);
-    pixel.set_nx(nx);
-    pixel.set_dx(dx);
+    pixel.set_x0(x_axis.origin);
+    pixel.set_nx(x_axis.count);
+    pixel.set_dx(x_axis.step);
     
-    pixel.set_y0(y0);
-    pixel.set_ny(ny);
-    pixel.set_dy(dy);
+    pixel.set_y0(y_axis.origin);
+    pixel.set_ny(y_axis.count);
+    pixel.set_dy(y_axis.step);
 
     if (!pixel.initPixel()) {
       LOG_ERROR << "build environment pixels failed on layer " << lid;
@@ -232,7 +254,7 @@ void Environment::buildSearchTrackNumMap()
   layer_to_search_track_num_.clear();
 
   for (const auto& [lid, layer] : routing_layers) {
-    // Dbu window_size = static_cast<Dbu>(window_size_um_ * layout_data_->micron_to_dbu);
+    // Dbu window_size = static_cast<Dbu>(window_size_um_ * layout_data_->dbu_per_micron);
     // layer_to_search_track_num_[lid] = window_size / layer_to_track_[lid].track_dlt();
     layer_to_search_track_num_[lid] = 10;
   }
