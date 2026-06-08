@@ -1,38 +1,117 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/f4b140d5b253f5e2a1ff4e5506edbf8267724bde";
+  inputs.self.submodules = true;
   outputs = inputs@{
     self, nixpkgs, flake-parts,
-  }: flake-parts.lib.mkFlake { inherit inputs; } {
+  }: let
+    ecc-tools-bin = {
+      lib,
+      python3Packages,
+      rustPlatform,
+      stdenv,
+      zlib,
+      tcl,
+      boost,
+      eigen,
+      yaml-cpp,
+      libunwind,
+      glog,
+      gtest,
+      gflags,
+      metis,
+      gmp,
+      curl,
+      tbb_2022,
+      qhull,
+      cmake,
+      ninja,
+      flex,
+      bison,
+      patchelf,
+      pkg-config,
+      cargo,
+    }: python3Packages.buildPythonPackage.override { inherit stdenv; } (finalAttrs: rec {
+      name = "ecc-tools-bin";
+      format = "pyproject";
+
+      src = with lib.fileset; toSource {
+        root = ./.;
+        fileset = unions [
+          ./src
+          ./cmake
+          ./CMakeLists.txt
+          ./pyproject.toml
+          ./uv.lock
+        ];
+      };
+
+      postPatch = lib.pipe {
+        sdf_parser = "src/database/manager/parser/sdf/sdf_parse";
+        vcd_parser = "src/database/manager/parser/vcd/vcd_parser";
+        verilog-parser = "src/database/manager/parser/verilog/verilog-rust/verilog-parser";
+      } [
+        (lib.mapAttrsToList (name: path: ''
+          mkdir -p ${path}/.cargo
+          cat <<EOF > ${path}/.cargo/config.toml
+          [source."crates-io"]
+          "replace-with" = "vendored-sources"
+
+          [source."vendored-sources"]
+          "directory" = "${rustPlatform.importCargoLock {
+            lockFile = "${finalAttrs.src}/${path}/Cargo.lock";
+          }}"
+          EOF
+        ''))
+        (lib.concatStringsSep "\n")
+      ];
+
+      build-system = [
+        python3Packages.scikit-build-core
+      ];
+
+      dependencies = with python3Packages; [
+        torch
+      ];
+
+      buildInputs = [
+        stdenv.cc.cc.lib
+        zlib
+        tcl
+        boost
+        eigen
+        yaml-cpp
+        libunwind
+        glog
+        gtest
+        gflags
+        metis
+        gmp
+        curl
+        tbb_2022
+        qhull
+      ];
+      nativeBuildInputs = [
+        cmake
+        ninja
+        flex
+        bison
+        patchelf
+        pkg-config
+        cargo
+        tcl
+      ];
+      dontUseCmakeConfigure = true;
+
+      pythonImportsCheck = [ "ecc_tools_bin.ecc_py" ];
+
+      passthru.rawBuildInputs = buildInputs;
+      passthru.rawNativeBuildInputs = nativeBuildInputs;
+    });
+  in flake-parts.lib.mkFlake { inherit inputs; } {
     systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-    perSystem = { pkgs, ... }: {
+    perSystem = { self', pkgs, system, ... }: {
+      packages.default = pkgs.callPackage ecc-tools-bin {};
       devShells.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          stdenv.cc.cc.lib
-          zlib
-          tcl
-          boost
-          eigen
-          yaml-cpp
-          libunwind
-          glog
-          gtest
-          gflags
-          metis
-          gmp
-          curl
-          tbb_2022
-          qhull
-        ];
-        nativeBuildInputs = with pkgs; [
-          cmake
-          ninja
-          flex
-          bison
-          patchelf
-          pkg-config
-          cargo
-          uv
-        ];
+        inputsFrom = [ self'.packages.default ];
       };
     };
   };
