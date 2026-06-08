@@ -236,22 +236,35 @@ auto libertyExpressionUsesPort(LibertyExpr* expression, const std::string& port_
   if (expression == nullptr || port_name.empty()) {
     return false;
   }
-  std::vector<LibertyExpr*> pending_expressions = {expression};
-  while (!pending_expressions.empty()) {
-    auto* current = pending_expressions.back();
-    pending_expressions.pop_back();
+
+  std::vector<LibertyExpr*> stack = {expression};
+  std::vector<LibertyExpr*> owned_exprs;
+  while (!stack.empty()) {
+    auto* current = stack.back();
+    stack.pop_back();
     if (current == nullptr) {
       continue;
     }
     if (current->port_name != nullptr && port_name == current->port_name) {
+      for (auto* owned_expr : owned_exprs) {
+        liberty_free_expr(owned_expr);
+      }
       return true;
     }
-    if (current->left != nullptr) {
-      pending_expressions.push_back(current->left);
+
+    auto* left_expr = liberty_get_expr_left(current);
+    if (left_expr != nullptr) {
+      stack.push_back(left_expr);
+      owned_exprs.push_back(left_expr);
     }
-    if (current->right != nullptr) {
-      pending_expressions.push_back(current->right);
+    auto* right_expr = liberty_get_expr_right(current);
+    if (right_expr != nullptr) {
+      stack.push_back(right_expr);
+      owned_exprs.push_back(right_expr);
     }
+  }
+  for (auto* owned_expr : owned_exprs) {
+    liberty_free_expr(owned_expr);
   }
   return false;
 }

@@ -307,10 +307,11 @@ TEST(FlowTest, SdcClockTraceResolvesVariableGetPortsToDownstreamClockTarget)
 
   const auto sdc_path = WriteTempSdc("icts_variable_get_ports_clock_trace.sdc", R"(
 set clk_name TRACE_CLK
-set clk_period 1.5
+set clk_freq_mhz 120.0
+set clk_period [expr 1000.0 / $clk_freq_mhz]
 set clk_port_name clock
 set clk_port [get_ports $clk_port_name]
-create_clock -name $clk_name -period [expr $clk_period * 2] $clk_port
+create_clock -name $clk_name -period $clk_period $clk_port
 )");
 
   EXPECT_TRUE(ReadCurrentRuntimeClockData());
@@ -319,7 +320,7 @@ create_clock -name $clk_name -period [expr $clk_period * 2] $clk_port
   ASSERT_NE(clock, nullptr);
   EXPECT_EQ(clock->get_clock_name(), "TRACE_CLK");
   EXPECT_EQ(clock->get_clock_net_name(), "buf_clock_net");
-  EXPECT_DOUBLE_EQ(clock->get_clock_period_ns(), 3.0);
+  EXPECT_DOUBLE_EQ(clock->get_clock_period_ns(), 1000.0 / 120.0);
   EXPECT_EQ(clock->get_clock_period_source(), "sdc");
 
   std::error_code error_code;
