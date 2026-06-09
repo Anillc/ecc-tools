@@ -33,12 +33,6 @@ runs:
         version: latest
         enable-cache: true
 
-    - name: Install Python dev dependencies
-      shell: bash
-      run: |
-        uv sync --all-groups --python 3.11
-        echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
-
     - name: Restore CMake build cache
       uses: actions/cache@v4
       with:
@@ -51,4 +45,8 @@ runs:
       shell: bash
       env:
         SCCACHE_GHA_ENABLED: "true"
-      run: .github/scripts/build-wheel.sh
+      run: |
+        uv build --verbose
+        mkdir -p dist/wheel/repaired
+        uv run -m auditwheel show dist/*.whl
+        uv run -m auditwheel repair dist/*.whl -w dist/wheel/repaired

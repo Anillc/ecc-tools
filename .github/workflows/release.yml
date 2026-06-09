@@ -100,4 +100,4 @@ jobs:
           gh release create "${{ steps.version.outputs.full_tag }}" \
             --title "ecc-tools ${{ steps.version.outputs.full_tag }}" \
             --notes-file release-notes.md \
-            dist/wheel/repaired/ecc_tools-*.whl
+            dist/wheel/repaired/*.whl

@@ -13,6 +13,7 @@ dependencies = [
 [tool.scikit-build]
 cmake.define.BUILD_ECOS = 1
 build.verbose = true
+build.targets = ["ecc_py"]
 editable.rebuild = true
 build-dir = "build"
 
