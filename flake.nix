@@ -112,6 +112,7 @@
       packages.default = pkgs.callPackage ecc-tools-bin {};
       devShells.default = pkgs.mkShell {
         inputsFrom = [ self'.packages.default ];
+        nativeBuildInputs = with pkgs; [ uv ];
       };
     };
   };
